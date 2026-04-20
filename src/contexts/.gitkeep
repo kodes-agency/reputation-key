@@ -1,0 +1,8 @@
+// Contexts directory — each business domain gets its own folder here.
+// Phase 5 will add the first context: contexts/property/
+// Follows the vertical-slice pattern:
+//   contexts/<domain>/
+//     domain/        — types, rules, constructors, events, errors
+//     application/   — use cases, ports, DTOs
+//     infrastructure/— repositories, adapters, mappers
+//     server/        — TanStack Start server functions
