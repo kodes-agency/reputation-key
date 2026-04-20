@@ -2,8 +2,10 @@ node_modules
 .DS_Store
 dist
 dist-ssr
+dist-worker
 *.local
 .env
+.env.local
 .nitro
 .tanstack
 .wrangler
@@ -11,6 +13,11 @@ dist-ssr
 .vinxi
 __unconfig*
 
-# Local env with secrets
-.env.local
-todos.json
+# Drizzle migrations output
+drizzle/
+
+# Test coverage
+coverage/
+
+# Pi-lens
+.pi-lens/
