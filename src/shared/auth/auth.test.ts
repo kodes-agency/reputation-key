@@ -1,0 +1,217 @@
+// Integration tests for the authentication configuration
+// These tests verify that auth is properly configured and all expected
+// features are enabled. Full end-to-end auth flow tests require a running
+// server and are covered by E2E tests.
+import { describe, expect, it, vi, beforeEach } from 'vitest'
+
+describe('Auth configuration', () => {
+  beforeEach(() => {
+    vi.resetModules()
+    process.env.NODE_ENV = 'test'
+    process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/test'
+    process.env.BETTER_AUTH_SECRET = 'test-test-test-test-test-test-test-test'
+    process.env.BETTER_AUTH_URL = 'http://localhost:3000'
+    process.env.RESEND_API_KEY = 're_test_key'
+    process.env.LOG_LEVEL = 'error'
+  })
+
+  it('env schema requires RESEND_API_KEY', async () => {
+    const { resetEnv } = await import('#/shared/config/env')
+    resetEnv()
+
+    const original = process.env.RESEND_API_KEY
+    delete process.env.RESEND_API_KEY
+
+    const { getEnv } = await import('#/shared/config/env')
+    expect(() => getEnv()).toThrow()
+
+    process.env.RESEND_API_KEY = original ?? 're_test_key'
+  })
+
+  it('createAuth returns an auth instance with email+password enabled', async () => {
+    const { resetEnv } = await import('#/shared/config/env')
+    resetEnv()
+
+    const { createAuth } = await import('#/shared/auth/auth')
+    const auth = createAuth()
+
+    expect(auth).toBeDefined()
+    expect(typeof auth.handler).toBe('function')
+
+    const options = auth.options
+    expect(options.emailAndPassword?.enabled).toBe(true)
+    expect(options.emailAndPassword?.requireEmailVerification).toBe(true)
+  })
+
+  it('session configuration has correct expiry', async () => {
+    const { resetEnv } = await import('#/shared/config/env')
+    resetEnv()
+
+    const { createAuth } = await import('#/shared/auth/auth')
+    const auth = createAuth()
+
+    expect(auth.options.session?.expiresIn).toBe(60 * 60 * 24 * 30)
+    expect(auth.options.session?.updateAge).toBe(60 * 60 * 24)
+  })
+})
+
+describe('Auth context and role helpers', () => {
+  it('AuthContext type has required fields', async () => {
+    const { ROLE_HIERARCHY } = await import('#/shared/auth/context')
+
+    // Role hierarchy should have all three roles
+    expect(ROLE_HIERARCHY.AccountAdmin).toBe(2)
+    expect(ROLE_HIERARCHY.PropertyManager).toBe(1)
+    expect(ROLE_HIERARCHY.Staff).toBe(0)
+  })
+
+  it('hasRole enforces hierarchy correctly', async () => {
+    const { hasRole } = await import('#/shared/auth/context')
+
+    expect(hasRole('AccountAdmin', 'Staff')).toBe(true)
+    expect(hasRole('AccountAdmin', 'PropertyManager')).toBe(true)
+    expect(hasRole('AccountAdmin', 'AccountAdmin')).toBe(true)
+    expect(hasRole('PropertyManager', 'Staff')).toBe(true)
+    expect(hasRole('PropertyManager', 'AccountAdmin')).toBe(false)
+    expect(hasRole('Staff', 'PropertyManager')).toBe(false)
+    expect(hasRole('Staff', 'AccountAdmin')).toBe(false)
+  })
+})
+
+describe('Email templates', () => {
+  beforeEach(() => {
+    vi.resetModules()
+    process.env.NODE_ENV = 'test'
+    process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/test'
+    process.env.BETTER_AUTH_SECRET = 'test-test-test-test-test-test-test-test'
+    process.env.BETTER_AUTH_URL = 'http://localhost:3000'
+    process.env.RESEND_API_KEY = 're_test_key'
+    process.env.LOG_LEVEL = 'error'
+  })
+
+  it('sendVerificationEmail is callable', async () => {
+    const { resetEnv } = await import('#/shared/config/env')
+    resetEnv()
+
+    const { sendVerificationEmail } = await import('#/shared/auth/emails')
+    expect(typeof sendVerificationEmail).toBe('function')
+  })
+
+  it('sendResetPasswordEmail is callable', async () => {
+    const { resetEnv } = await import('#/shared/config/env')
+    resetEnv()
+
+    const { sendResetPasswordEmail } = await import('#/shared/auth/emails')
+    expect(typeof sendResetPasswordEmail).toBe('function')
+  })
+})
+
+describe('Auth middleware helpers', () => {
+  beforeEach(() => {
+    vi.resetModules()
+    process.env.NODE_ENV = 'test'
+    process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/test'
+    process.env.BETTER_AUTH_SECRET = 'test-test-test-test-test-test-test-test'
+    process.env.BETTER_AUTH_URL = 'http://localhost:3000'
+    process.env.RESEND_API_KEY = 're_test_key'
+    process.env.LOG_LEVEL = 'error'
+  })
+
+  it('requireAuth throws tagged error when no session exists', async () => {
+    const { resetEnv } = await import('#/shared/config/env')
+    resetEnv()
+
+    const { requireAuth } = await import('#/shared/auth/middleware')
+    const headers = new Headers()
+
+    // Without a valid session cookie, requireAuth should throw a tagged error
+    try {
+      await requireAuth(headers)
+      expect.unreachable('Should have thrown')
+    } catch (error) {
+      const taggedError = error as { _tag: string; code: string; message: string }
+      expect(taggedError._tag).toBe('AuthError')
+      expect(taggedError.code).toBe('unauthorized')
+    }
+  })
+})
+
+describe('Auth client exports', () => {
+  it('authClient has expected methods', async () => {
+    const { authClient } = await import('#/shared/auth/auth-client')
+
+    expect(typeof authClient.signIn).toBe('function')
+    expect(typeof authClient.signUp).toBe('function')
+    expect(typeof authClient.signOut).toBe('function')
+    expect(typeof authClient.getSession).toBe('function')
+    expect(typeof authClient.useSession).toBe('function')
+    expect(typeof authClient.requestPasswordReset).toBe('function')
+    expect(typeof authClient.resetPassword).toBe('function')
+    expect(typeof authClient.sendVerificationEmail).toBe('function')
+  })
+})
+
+describe('Domain utilities', () => {
+  it('brandId creates branded IDs', async () => {
+    const { brandId } = await import('#/shared/domain/brand')
+
+    const orgId = brandId('abc123', 'OrganizationId')
+    expect(orgId).toBe('abc123')
+    // Branding is type-level, not runtime — just verify the value
+  })
+
+  it('tagged errors follow the required shape', async () => {
+    const { createErrorFactory } = await import('#/shared/domain/errors')
+
+    const makePortalError = createErrorFactory('PortalError')
+    const error = makePortalError('slug_taken', 'That slug is already in use')
+
+    expect(error._tag).toBe('PortalError')
+    expect(error.code).toBe('slug_taken')
+    expect(error.message).toBe('That slug is already in use')
+  })
+
+  it('Clock can be replaced for testing', async () => {
+    const { systemClock, fixedClock } = await import('#/shared/domain/clock')
+
+    expect(systemClock.now()).toBeInstanceOf(Date)
+
+    const fixed = fixedClock(new Date('2025-01-01'))
+    expect(fixed.now().getFullYear()).toBe(2025)
+    expect(fixed.now().getFullYear()).toBe(2025) // Always returns same date
+  })
+
+  it('Result utilities re-export from neverthrow', async () => {
+    const { ok, err } = await import('#/shared/domain/result')
+
+    const success = ok(42)
+    expect(success.isOk()).toBe(true)
+    expect(success.value).toBe(42)
+
+    const failure = err(new Error('test'))
+    expect(failure.isErr()).toBe(true)
+  })
+
+  it('ts-pattern re-exports work', async () => {
+    const { match, P } = await import('#/shared/domain/pattern')
+
+    const result = match(42)
+      .with(P.number, (n: number) => `${n} is a number`)
+      .exhaustive()
+
+    expect(result).toBe('42 is a number')
+  })
+
+  it('ID constructors create correctly typed IDs', async () => {
+    const { organizationId, userId, propertyId } = await import('#/shared/domain/ids')
+
+    const orgId = organizationId('org_123')
+    const uid = userId('user_456')
+    const pid = propertyId('prop_789')
+
+    // Values are preserved (branding is type-level)
+    expect(orgId).toBe('org_123')
+    expect(uid).toBe('user_456')
+    expect(pid).toBe('prop_789')
+  })
+})

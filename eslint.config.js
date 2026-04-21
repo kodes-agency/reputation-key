@@ -1,6 +1,7 @@
 import js from '@eslint/js'
 import tseslint from 'typescript-eslint'
 import prettier from 'eslint-config-prettier'
+import boundaries from 'eslint-plugin-boundaries'
 
 export default tseslint.config(
   js.configs.recommended,
@@ -16,12 +17,375 @@ export default tseslint.config(
       'src/routeTree.gen.ts',
     ],
   },
+
+  // ─── Architectural boundary enforcement ────────────────────────────
+  // Mechanically enforces every rule from docs/conventions.md
+  // "Dependency rules (enforced by lint)"
+  //
+  // Element types map to our folder structure:
+  //   domain         → contexts/<name>/domain/
+  //   application    → contexts/<name>/application/
+  //   infrastructure → contexts/<name>/infrastructure/
+  //   server         → contexts/<name>/server/
+  //   routes         → routes/
+  //   components     → components/
+  //   shared-domain  → shared/domain/
+  //   shared-auth    → shared/auth/
+  //   shared-db      → shared/db/ (schema barrel, drizzle client — allowed to use drizzle-orm)
+  //   shared-other   → shared/ (cache, config, events, fn, health, jobs, observability, rate-limit)
+  //   test-helpers   → shared/testing/
+  //   top-level      → composition.ts, bootstrap.ts, start.ts, router.tsx, worker/
+  // ────────────────────────────────────────────────────────────────────
   {
+    plugins: {
+      boundaries,
+    },
+    settings: {
+      'import/resolver': {
+        typescript: {
+          alwaysTryTypes: true,
+        },
+      },
+      'boundaries/elements': [
+        // ── Context layers (inner → outer) ──────────────────────────
+        {
+          type: 'domain',
+          pattern: 'src/contexts/*/domain/**',
+        },
+        {
+          type: 'application',
+          pattern: 'src/contexts/*/application/**',
+        },
+        {
+          type: 'infrastructure',
+          pattern: 'src/contexts/*/infrastructure/**',
+        },
+        {
+          type: 'server',
+          pattern: 'src/contexts/*/server/**',
+        },
+
+        // ── Route & UI layers ───────────────────────────────────────
+        {
+          type: 'routes',
+          pattern: 'src/routes/**',
+        },
+        {
+          type: 'components',
+          pattern: 'src/components/**',
+        },
+
+        // ── Shared layers ───────────────────────────────────────────
+        {
+          type: 'shared-domain',
+          pattern: 'src/shared/domain/**',
+        },
+        {
+          type: 'shared-auth',
+          pattern: 'src/shared/auth/**',
+        },
+        {
+          type: 'shared-db',
+          pattern: 'src/shared/db/**',
+        },
+        {
+          type: 'shared-other',
+          pattern: 'src/shared/cache/**',
+        },
+        {
+          type: 'shared-other',
+          pattern: 'src/shared/config/**',
+        },
+        {
+          type: 'shared-other',
+          pattern: 'src/shared/events/**',
+        },
+        {
+          type: 'shared-other',
+          pattern: 'src/shared/fn/**',
+        },
+        {
+          type: 'shared-other',
+          pattern: 'src/shared/health/**',
+        },
+        {
+          type: 'shared-other',
+          pattern: 'src/shared/jobs/**',
+        },
+        {
+          type: 'shared-other',
+          pattern: 'src/shared/observability/**',
+        },
+        {
+          type: 'shared-other',
+          pattern: 'src/shared/rate-limit/**',
+        },
+        {
+          type: 'test-helpers',
+          pattern: 'src/shared/testing/**',
+        },
+
+        // ── Top-level entry points ──────────────────────────────────
+        {
+          type: 'top-level',
+          pattern: 'src/composition.*',
+        },
+        {
+          type: 'top-level',
+          pattern: 'src/bootstrap.*',
+        },
+        {
+          type: 'top-level',
+          pattern: 'src/start.*',
+        },
+        {
+          type: 'top-level',
+          pattern: 'src/router.*',
+        },
+        {
+          type: 'top-level',
+          pattern: 'src/worker/**',
+        },
+      ],
+    },
+    rules: {
+      // ── Boundary dependency rules ─────────────────────────────────
+      // Default: disallow everything, then explicitly allow per-layer.
+      // This is the mechanical backstop from conventions.md.
+      'boundaries/dependencies': [
+        'error',
+        {
+          default: 'disallow',
+          message:
+            'Architectural boundary violated. See docs/conventions.md "Dependency rules".',
+          rules: [
+            // domain → imports nothing outside domain/ and shared/domain/
+            {
+              from: { type: 'domain' },
+              allow: { to: { type: 'shared-domain' } },
+            },
+
+            // application → imports from domain/, shared/domain/
+            {
+              from: { type: 'application' },
+              allow: {
+                to: { type: ['domain', 'shared-domain'] },
+              },
+            },
+
+            // infrastructure → imports from domain/, application/, shared/*, external libs
+            {
+              from: { type: 'infrastructure' },
+              allow: {
+                to: {
+                  type: [
+                    'domain',
+                    'application',
+                    'shared-domain',
+                    'shared-auth',
+                    'shared-db',
+                    'shared-other',
+                  ],
+                },
+              },
+            },
+
+            // server → imports from application/, shared/*, TanStack Start
+            {
+              from: { type: 'server' },
+              allow: {
+                to: {
+                  type: [
+                    'application',
+                    'shared-domain',
+                    'shared-auth',
+                    'shared-db',
+                    'shared-other',
+                  ],
+                },
+              },
+            },
+
+            // routes → imports from server/, components/, shared/*
+            //   "Never from contexts directly."
+            {
+              from: { type: 'routes' },
+              allow: {
+                to: {
+                  type: [
+                    'server',
+                    'components',
+                    'shared-domain',
+                    'shared-auth',
+                    'shared-db',
+                    'shared-other',
+                  ],
+                },
+              },
+            },
+
+            // components → imports from other components/, shared/*
+            //   "Never from contexts."
+            {
+              from: { type: 'components' },
+              allow: {
+                to: {
+                  type: ['components', 'shared-domain', 'shared-auth', 'shared-other'],
+                },
+              },
+            },
+
+            // shared-domain → pure, imports from itself and external libs only
+            {
+              from: { type: 'shared-domain' },
+              allow: { to: { type: 'shared-domain' } },
+            },
+
+            // shared-auth → imports from shared/ and external libs
+            {
+              from: { type: 'shared-auth' },
+              allow: {
+                to: { type: ['shared-domain', 'shared-db', 'shared-other'] },
+              },
+            },
+
+            // shared-db → imports from shared/ and external libs (including drizzle-orm)
+            {
+              from: { type: 'shared-db' },
+              allow: {
+                to: { type: ['shared-domain', 'shared-auth', 'shared-other'] },
+              },
+            },
+
+            // shared-other → imports from shared/ and external libs only
+            {
+              from: { type: 'shared-other' },
+              allow: {
+                to: {
+                  type: ['shared-domain', 'shared-auth', 'shared-db', 'shared-other'],
+                },
+              },
+            },
+
+            // test-helpers → may import domain + shared for building fixtures
+            {
+              from: { type: 'test-helpers' },
+              allow: {
+                to: {
+                  type: [
+                    'domain',
+                    'shared-domain',
+                    'shared-auth',
+                    'shared-db',
+                    'shared-other',
+                  ],
+                },
+              },
+            },
+
+            // top-level → can import from shared/* (wiring everything together)
+            {
+              from: { type: 'top-level' },
+              allow: {
+                to: {
+                  type: ['shared-domain', 'shared-auth', 'shared-db', 'shared-other'],
+                },
+              },
+            },
+          ],
+        },
+      ],
+
+      // Off — too noisy for now. Files without an element type still
+      // get caught by the dependency rules if they import wrong things.
+      'boundaries/no-unknown-files': 'off',
+    },
+  },
+
+  // ─── no-restricted-imports: catch what boundaries can't ────────────
+  // Enforces conventions that folder-based element matching can't express.
+  {
+    files: ['src/**/*.{ts,tsx}'],
     rules: {
       '@typescript-eslint/no-unused-vars': [
         'error',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
       ],
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            // drizzle-orm outside infrastructure/ and shared/db/ — use repository ports
+            {
+              group: ['drizzle-orm/**', 'drizzle-orm'],
+              message:
+                'Drizzle imports are only allowed in infrastructure/ and shared/db/schema/. Use repository ports instead.',
+            },
+            // React outside routes/, components/, integrations/ — business logic must be framework-free
+            {
+              group: [
+                'react',
+                'react-dom',
+                'react/jsx-runtime',
+                'react-dom/client',
+                'react/jsx-dev-runtime',
+              ],
+              importNames: [
+                'default',
+                'createElement',
+                'useState',
+                'useEffect',
+                'useCallback',
+                'useMemo',
+                'useRef',
+                'Component',
+                'PureComponent',
+                'useContext',
+                'useReducer',
+                'useLayoutEffect',
+              ],
+              message:
+                'React imports are only allowed in routes/, components/, and integrations/. Business logic must be framework-free.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  // ─── Allow drizzle-orm in shared/db/ (schema definitions) ──────────
+  // Per architecture: "Schemas live in shared/db/ because the Drizzle
+  // schema barrel must be a single module."
+  {
+    files: ['src/shared/db/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [],
+        },
+      ],
+    },
+  },
+
+  // ─── Allow React in permitted locations ────────────────────────────
+  {
+    files: [
+      'src/routes/**/*.{ts,tsx}',
+      'src/components/**/*.{ts,tsx}',
+      'src/integrations/**/*.{ts,tsx}',
+    ],
+    rules: {
+      'no-restricted-imports': 'off',
+    },
+  },
+
+  // ─── Test files: relaxed boundary rules ────────────────────────────
+  {
+    files: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'src/test-setup.ts'],
+    rules: {
+      'boundaries/dependencies': 'off',
+      'no-restricted-imports': 'off',
     },
   },
 )
