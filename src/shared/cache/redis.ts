@@ -1,6 +1,7 @@
 // Redis client factory
 import { Redis } from 'ioredis'
 import { getEnv } from '#/shared/config/env'
+import { getLogger } from '#/shared/observability/logger'
 
 let _redis: Redis | undefined
 
@@ -16,7 +17,7 @@ export function getRedis(): Redis | undefined {
     _redis.on('error', (err) => {
       // Swallow connection errors in dev — health check will report status
       if (env.NODE_ENV === 'development') return
-      console.error('[redis]', err)
+      getLogger().error({ err }, '[redis] connection error')
     })
   }
   return _redis

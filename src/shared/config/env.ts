@@ -11,7 +11,7 @@ const envSchema = z.object({
 
   // Auth — Better Auth
   BETTER_AUTH_SECRET: z.string().min(32),
-  BETTER_AUTH_URL: z.url().default('http://localhost:3000'),
+  BETTER_AUTH_URL: z.url(),
 
   // Email — Resend
   RESEND_API_KEY: z.string().min(1),

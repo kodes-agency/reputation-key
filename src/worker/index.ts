@@ -27,6 +27,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error('Worker failed to start', err)
+  getLogger().error({ err }, 'Worker failed to start')
   process.exit(1)
 })
