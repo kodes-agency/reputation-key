@@ -4,7 +4,7 @@
 **Audience:** Developers (human and AI) working on this codebase.
 **Purpose:** This document is the source of truth for how code is organized, where things live, and how the layers interact. Read it before writing code. Refer back to it when making structural decisions.
 
-For a tight, scannable rules-only version, see `docs/conventions.md`. This document explains the *why*; conventions explains the *what*.
+For a tight, scannable rules-only version, see `docs/conventions.md`. This document explains the _why_; conventions explains the _what_.
 
 ---
 
@@ -38,7 +38,7 @@ For a tight, scannable rules-only version, see `docs/conventions.md`. This docum
 
 These principles drive every architectural decision. When in doubt, return to these.
 
-1. **Bounded contexts before layers.** Code belongs to a business concept (portal, review, metric) before it belongs to a technical layer. Group by what the code is *about*, not what it *is*.
+1. **Bounded contexts before layers.** Code belongs to a business concept (portal, review, metric) before it belongs to a technical layer. Group by what the code is _about_, not what it _is_.
 
 2. **Pure core, effectful edges.** Domain logic is pure functions of their inputs. Effects (I/O, async, throws) happen only at the boundaries.
 
@@ -58,23 +58,23 @@ These principles drive every architectural decision. When in doubt, return to th
 
 ## The stack
 
-| Concern | Tool | Notes |
-|---|---|---|
-| Meta-framework | TanStack Start | SSR, routing, server functions in one |
-| Hosting | Railway | API + worker + Redis in one project |
-| Database | Neon (Pro) | Postgres, branching per environment, PITR |
-| Auth | better-auth | Organization plugin, Drizzle adapter, DB-backed sessions |
-| ORM | Drizzle | Postgres driver, schemas per context |
-| Background jobs | BullMQ | Redis-backed, repeatable jobs replace cron |
-| Cache + rate limit | Redis (Railway managed) | Same instance as BullMQ |
-| Storage | Cloudflare R2 | S3-compatible, no egress fees |
-| Email | Resend | Transactional + digests |
-| Push notifications | Firebase Cloud Messaging | Critical reviews only |
-| AI | Anthropic | Behind an adapter |
-| Image processing | sharp | Runs in worker |
-| Pattern matching | ts-pattern | For discriminated unions |
-| Result types | neverthrow | Domain-layer error handling |
-| Validation | Zod | At HTTP boundaries (server function inputs) |
+| Concern            | Tool                     | Notes                                                    |
+| ------------------ | ------------------------ | -------------------------------------------------------- |
+| Meta-framework     | TanStack Start           | SSR, routing, server functions in one                    |
+| Hosting            | Railway                  | API + worker + Redis in one project                      |
+| Database           | Neon (Pro)               | Postgres, branching per environment, PITR                |
+| Auth               | better-auth              | Organization plugin, Drizzle adapter, DB-backed sessions |
+| ORM                | Drizzle                  | Postgres driver, schemas per context                     |
+| Background jobs    | BullMQ                   | Redis-backed, repeatable jobs replace cron               |
+| Cache + rate limit | Redis (Railway managed)  | Same instance as BullMQ                                  |
+| Storage            | Cloudflare R2            | S3-compatible, no egress fees                            |
+| Email              | Resend                   | Transactional + digests                                  |
+| Push notifications | Firebase Cloud Messaging | Critical reviews only                                    |
+| AI                 | Anthropic                | Behind an adapter                                        |
+| Image processing   | sharp                    | Runs in worker                                           |
+| Pattern matching   | ts-pattern               | For discriminated unions                                 |
+| Result types       | neverthrow               | Domain-layer error handling                              |
+| Validation         | Zod                      | At HTTP boundaries (server function inputs)              |
 
 ---
 
@@ -82,24 +82,25 @@ These principles drive every architectural decision. When in doubt, return to th
 
 The application is divided into bounded contexts. Each owns its data, its rules, its events, and its public API. Contexts communicate through domain events, never through direct internal imports.
 
-| Context | Owns | Notes |
-|---|---|---|
-| `identity` | Users, organizations, members, invitations, roles, permissions | Wraps better-auth |
-| `property` | Properties (locations) | The org unit everything else lives under |
-| `team` | Teams within properties | Optional middle layer for staff |
-| `staff` | Staff assignments to properties/teams | Determines property access |
-| `portal` | Portals, link trees, themes, hero images, QR codes | The core product object |
-| `guest` | Public scan/rate/feedback flows, anonymous sessions, anti-gating compliance | Entirely public-facing |
-| `review` | Reviews, replies, platform adapters (GBP, etc.) | Sync from external sources |
-| `metric` | Metric definitions, readings, aggregations, materialized views | High-write, high-read |
-| `gamification` | Goals, badges, leaderboards | Computed from metrics |
-| `notification` | Notifications across channels (in-app, email, push), preferences | Subscribes to many events |
-| `ai` | AI provider port, sentiment, reply drafting, priority scoring, trend detection, usage quotas | Behind an adapter |
-| `audit` | Audit logs of significant actions | Subscribes to events from all contexts |
+| Context        | Owns                                                                                         | Notes                                    |
+| -------------- | -------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| `identity`     | Users, organizations, members, invitations, roles, permissions                               | Wraps better-auth                        |
+| `property`     | Properties (locations)                                                                       | The org unit everything else lives under |
+| `team`         | Teams within properties                                                                      | Optional middle layer for staff          |
+| `staff`        | Staff assignments to properties/teams                                                        | Determines property access               |
+| `portal`       | Portals, link trees, themes, hero images, QR codes                                           | The core product object                  |
+| `guest`        | Public scan/rate/feedback flows, anonymous sessions, anti-gating compliance                  | Entirely public-facing                   |
+| `review`       | Reviews, replies, platform adapters (GBP, etc.)                                              | Sync from external sources               |
+| `metric`       | Metric definitions, readings, aggregations, materialized views                               | High-write, high-read                    |
+| `gamification` | Goals, badges, leaderboards                                                                  | Computed from metrics                    |
+| `notification` | Notifications across channels (in-app, email, push), preferences                             | Subscribes to many events                |
+| `ai`           | AI provider port, sentiment, reply drafting, priority scoring, trend detection, usage quotas | Behind an adapter                        |
+| `audit`        | Audit logs of significant actions                                                            | Subscribes to events from all contexts   |
 
-**Rule:** A context can import another context's *types* and *events* (these are the public API). A context **cannot** import another context's use cases, repositories, or internal domain functions.
+**Rule:** A context can import another context's _types_ and _events_ (these are the public API). A context **cannot** import another context's use cases, repositories, or internal domain functions.
 
 If you find yourself wanting to import another context's use case, the right move is one of:
+
 - Subscribe to an event the other context emits
 - Define an interface in your own context's `application/ports/` and have the other context provide an implementation
 - Reconsider whether the boundary is in the right place
@@ -115,6 +116,7 @@ Every context has the same four layers, in dependency order from innermost to ou
 The pure core. Knows nothing about databases, HTTP, frameworks, or the outside world.
 
 **Contains:**
+
 - Type definitions for entities (`Portal`, `Review`, `Metric`)
 - Pure business rules (`validateSlug`, `canCreatePortals`, `shouldRouteToFeedback`)
 - Smart constructors that build domain objects from raw input (`buildPortal`)
@@ -122,6 +124,7 @@ The pure core. Knows nothing about databases, HTTP, frameworks, or the outside w
 - Domain errors (`PortalError`, `ReviewError`)
 
 **Forbidden:**
+
 - `async` / `await`
 - Database queries
 - HTTP concerns
@@ -136,11 +139,13 @@ The pure core. Knows nothing about databases, HTTP, frameworks, or the outside w
 The orchestration layer. Coordinates domain logic, repository calls, and external services to fulfill use cases.
 
 **Contains:**
+
 - Use cases — one per user action (`createPortal`, `submitFeedback`)
 - Port definitions — interfaces for things the context depends on (`PortalRepository`, `PortalStorage`)
 - DTOs — Zod schemas for input/output shapes that cross network boundaries
 
 **Forbidden:**
+
 - Direct database queries (use the repository port)
 - HTTP-specific code (no TanStack Start server function code)
 - React imports
@@ -153,6 +158,7 @@ The orchestration layer. Coordinates domain logic, repository calls, and externa
 The outside-world layer. Where the rubber meets the road.
 
 **Contains:**
+
 - Repository implementations using Drizzle
 - Mappers between DB rows and domain types
 - External service adapters (GBP API, AI provider, R2, Resend, FCM)
@@ -160,6 +166,7 @@ The outside-world layer. Where the rubber meets the road.
 - Event handlers that perform side effects
 
 **Forbidden:**
+
 - Business rules (those are in `domain/`)
 - HTTP routing (that's in `server/`)
 - React
@@ -171,12 +178,14 @@ The outside-world layer. Where the rubber meets the road.
 The presentation layer. TanStack Start server functions exposed to the client.
 
 **Contains:**
+
 - TanStack Start server function definitions
 - Input validation using Zod schemas from `application/dto/`
 - Middleware composition (auth, tenant, role)
 - Error translation (catch tagged errors, return HTTP responses)
 
 **Forbidden:**
+
 - Business logic
 - Direct database access
 - Domain rule reimplementation
@@ -187,7 +196,7 @@ The presentation layer. TanStack Start server functions exposed to the client.
 
 ## Folder structure
 
-~~~
+```
 src/
   contexts/                # Business logic, one folder per bounded context
     identity/
@@ -233,7 +242,7 @@ src/
   bootstrap.ts             # Registers event/job handlers at startup
   server.ts                # TanStack Start server entry
   worker.ts                # BullMQ worker entry
-~~~
+```
 
 ### Top-level rules
 
@@ -249,7 +258,7 @@ src/
 
 Every context follows the same internal structure:
 
-~~~
+```
 contexts/portal/
   domain/
     types.ts               # Entity types (Portal, PortalLinkCategory, ...)
@@ -290,7 +299,7 @@ contexts/portal/
   server/                  # TanStack Start server functions
     portals.ts             # Authenticated dashboard functions
     public-portals.ts      # Public guest-facing functions
-~~~
+```
 
 ### Rules within a context
 
@@ -335,7 +344,9 @@ Database infrastructure.
 
 ### `shared/auth/`
 
-- `auth.ts` — better-auth configuration
+- `auth.ts` — better-auth configuration (lazy singleton via `getAuth()`)
+- `auth-cli.ts` — CLI-only config for `@better-auth/cli` (default export, no Vite aliases)
+- `auth-client.ts` — Client-side auth hooks (`useSession`, `signUp`, `signIn`, etc.)
 - `context.ts` — `AuthContext` type
 - `middleware.ts` — `authMiddleware`, `tenantMiddleware`, `roleGuard(minRole)`
 
@@ -385,11 +396,13 @@ Test infrastructure used across contexts.
 TanStack Router file-based routing. Each file corresponds to a URL path.
 
 **A route file contains:**
+
 - Route configuration (path, search params Zod schema, loader)
 - The page component
 - Form/action wiring that calls server functions
 
 **A route file does not contain:**
+
 - Business logic
 - Direct database queries
 - Domain rules
@@ -401,7 +414,7 @@ Layouts use TanStack Router's pathless route convention `(name)/` for grouping w
 
 React components organized by purpose.
 
-~~~
+```
 components/
   ui/              # shadcn primitives (Button, Input, Dialog, ...)
   layout/          # Shell, sidebar, header, navigation
@@ -412,13 +425,15 @@ components/
     inbox/
     dashboard/
     ...
-~~~
+```
 
 **A component file contains:**
+
 - React component definition, hooks, JSX, styles
 - Component-local state and effects
 
 **A component file does not contain:**
+
 - Business logic
 - Direct server function calls (those happen in routes or dedicated data hooks)
 - Domain rules
@@ -434,6 +449,7 @@ components/
 The container is built once at startup. Both `server.ts` and `worker.ts` build it and use it.
 
 **Why this matters:**
+
 - No DI framework, no decorators, no auto-wiring
 - All dependencies visible in one file
 - Easy to substitute parts in tests (build a test container with in-memory repos)
@@ -449,7 +465,7 @@ The container is built once at startup. Both `server.ts` and `worker.ts` build i
 
 Every use case follows this exact shape:
 
-~~~ts
+```ts
 type Deps = { ... };
 type Ctx = AuthContext;
 
@@ -463,24 +479,28 @@ export const someUseCase = (deps: Deps) =>
     // 6. Emit event
     // 7. Return result
   };
-~~~
+```
 
 The six steps may not all apply to every use case, but they happen in this order when present. This consistency makes use cases instantly readable.
 
 ### Repositories as records of functions
 
-~~~ts
+```ts
 type SomeRepository = Readonly<{
-  findById: (orgId: OrganizationId, id: SomeId) => Promise<Something | null>;
-  insert: (orgId: OrganizationId, entity: Something) => Promise<void>;
+  findById: (orgId: OrganizationId, id: SomeId) => Promise<Something | null>
+  insert: (orgId: OrganizationId, entity: Something) => Promise<void>
   // ...
-}>;
+}>
 
 export const createSomeRepository = (db: Database): SomeRepository => ({
-  findById: async (orgId, id) => { /* Drizzle query */ },
-  insert: async (orgId, entity) => { /* Drizzle insert */ },
-});
-~~~
+  findById: async (orgId, id) => {
+    /* Drizzle query */
+  },
+  insert: async (orgId, entity) => {
+    /* Drizzle insert */
+  },
+})
+```
 
 No classes. Records of functions returned by factories. The factory closes over the database client. This is a fully functional pattern (a record of functions over closed-over immutable dependency).
 
@@ -492,34 +512,35 @@ This is what makes use cases testable without a database: pass an in-memory impl
 
 ### Mappers as pure functions
 
-~~~ts
+```ts
 export const portalFromRow = (row: PortalRow): Portal => ({ ... });
 export const portalToRow = (portal: Portal): PortalRow => ({ ... });
-~~~
+```
 
 One per direction. Lives in `infrastructure/mappers/`. The only place in the code where both row and domain shapes are visible at once.
 
 ### Domain events as discriminated unions
 
-~~~ts
+```ts
 export type PortalCreated = Readonly<{
-  _tag: 'portal.created';
-  portalId: PortalId;
-  organizationId: OrganizationId;
-  occurredAt: Date;
+  _tag: 'portal.created'
+  portalId: PortalId
+  organizationId: OrganizationId
+  occurredAt: Date
   // ...
-}>;
+}>
 
 export const portalCreated = (args: Omit<PortalCreated, '_tag'>): PortalCreated => ({
-  _tag: 'portal.created', ...args,
-});
-~~~
+  _tag: 'portal.created',
+  ...args,
+})
+```
 
 The constructor is the only way to build the event, ensuring `_tag` is always correct. Subscribers pattern-match on `_tag` for type-safe dispatch.
 
 ### Tagged errors
 
-~~~ts
+```ts
 export type PortalError = Readonly<{
   _tag: 'PortalError';
   code: 'forbidden' | 'slug_taken' | 'invalid_theme' | '...';
@@ -528,7 +549,7 @@ export type PortalError = Readonly<{
 }>;
 
 export const portalError = (code: '...', message: string, context?: '...'): PortalError => ({ ... });
-~~~
+```
 
 Errors are plain objects, not class instances. The `_tag` distinguishes error types globally. The `code` distinguishes reasons within a type. Both are pattern-matched exhaustively.
 
@@ -609,7 +630,7 @@ Contexts communicate through domain events, never through direct internal import
 - **Events are facts, named in the past tense.** `portal.created`, `review.received`, `goal.achieved`. Not commands.
 - **Events live in their owning context's `domain/events.ts`.** The context that emits them owns them.
 - **The master `DomainEvent` union is in `shared/events/events.ts`.** It's a re-export of all contexts' event types.
-- **Subscribers live in the *receiving* context's `infrastructure/event-handlers/`.** The receiver decides what to do with the event.
+- **Subscribers live in the _receiving_ context's `infrastructure/event-handlers/`.** The receiver decides what to do with the event.
 - **Handlers should be idempotent.** Retries are possible.
 - **Handlers should not throw.** Failures are logged, not propagated to the emitter.
 - **Cross-context type imports are allowed for events.** Context B can import `PortalCreated` type from context A. It cannot import context A's use cases or repositories.
@@ -653,15 +674,15 @@ For high-volume jobs (review sync), implement per-organization queues or use Bul
 
 ### Error translation pattern
 
-~~~ts
+```ts
 const errorToHttp = (e: PortalError) =>
   match(e.code)
     .with('forbidden', () => ({ status: 403, body: '...' }))
     .with('not_found', () => ({ status: 404, body: '...' }))
     .with('slug_taken', () => ({ status: 409, body: '...' }))
     .otherwise(() => ({ status: 400, body: '...' }))
-    .exhaustive();
-~~~
+    .exhaustive()
+```
 
 The `.exhaustive()` ensures the compiler tells us when a new error code is added.
 
@@ -679,15 +700,15 @@ Tests are colocated with the code they test (`portal.rules.ts` next to `portal.r
 
 ### By layer
 
-| Layer | Test type | Speed | Test-first? |
-|---|---|---|---|
-| Domain | Pure unit, no setup | Microseconds | Yes, always |
-| Application (use cases) | Unit with in-memory port fakes | Milliseconds | Yes, default |
-| Infrastructure (repos) | Integration against real Postgres | Hundreds of ms | Test-after, but always test |
-| Infrastructure (adapters) | Integration with mocked external APIs | Hundreds of ms | Test-after |
-| Server functions | Integration through TanStack Start | Seconds | Test-after critical paths |
-| UI | Sparse, pragmatic | Slow | No |
-| End-to-end | Playwright critical flows | Slow | No, after feature is built |
+| Layer                     | Test type                             | Speed          | Test-first?                 |
+| ------------------------- | ------------------------------------- | -------------- | --------------------------- |
+| Domain                    | Pure unit, no setup                   | Microseconds   | Yes, always                 |
+| Application (use cases)   | Unit with in-memory port fakes        | Milliseconds   | Yes, default                |
+| Infrastructure (repos)    | Integration against real Postgres     | Hundreds of ms | Test-after, but always test |
+| Infrastructure (adapters) | Integration with mocked external APIs | Hundreds of ms | Test-after                  |
+| Server functions          | Integration through TanStack Start    | Seconds        | Test-after critical paths   |
+| UI                        | Sparse, pragmatic                     | Slow           | No                          |
+| End-to-end                | Playwright critical flows             | Slow           | No, after feature is built  |
 
 ### Required tests for every context
 
@@ -711,7 +732,7 @@ These rules are enforced by ESLint (or `dependency-cruiser`) and by code review.
 
 ### What can import what
 
-~~~
+```
 domain/         ← imports nothing outside domain/ and shared/domain/
 application/    ← imports from domain/, shared/domain/
 infrastructure/ ← imports from domain/, application/, shared/, external libs
@@ -719,7 +740,7 @@ server/         ← imports from application/ (use cases, dtos), shared/, TanSta
 routes/         ← imports from server/ (server functions), components/, shared/
 components/     ← imports from other components/, shared/, NEVER from contexts/
 shared/         ← imports from itself, external libs only
-~~~
+```
 
 ### Forbidden imports
 
@@ -773,6 +794,8 @@ ESLint rules in the project root will mechanically prevent these violations. CI 
 - Always include: `id`, `organization_id`, `created_at`, `updated_at`
 - Soft-deletable tables include: `deleted_at`
 
+**Exception — Better Auth tables** (`user`, `session`, `account`, `verification`) use **camelCase** column names (`emailVerified`, `createdAt`, `userId`, etc.). This is required because Better Auth manages these tables directly and generates SQL using camelCase. The Drizzle schema in `shared/db/schema/auth.ts` must match. Use `pnpm auth:migrate` (wraps `@better-auth/cli`) for auth schema changes, not `db:generate`/`db:migrate`.
+
 ---
 
 ## Where does this code go? — Decision guide
@@ -780,57 +803,72 @@ ESLint rules in the project root will mechanically prevent these violations. CI 
 When you're not sure where new code belongs, walk this decision tree:
 
 **Is it a pure function with no I/O, no async, no framework dependency?**
+
 - Specific to one context → `contexts/<context>/domain/rules.ts` (or `constructors.ts`)
 - Used by multiple contexts → `shared/domain/`
 
 **Is it a TypeScript type?**
+
 - Specific to one context's entities → `contexts/<context>/domain/types.ts`
 - Specific to one context's input/output → `contexts/<context>/application/dto/`
 - Cross-context (IDs, base errors) → `shared/domain/`
 
 **Is it an interface/contract for a dependency?**
+
 - It's a port → `contexts/<context>/application/ports/`
 
 **Is it the implementation of a port?**
+
 - Database-backed → `contexts/<context>/infrastructure/repositories/`
 - External service → `contexts/<context>/infrastructure/<service-type>/`
 
 **Is it an orchestration of business logic?**
+
 - One user action → `contexts/<context>/application/use-cases/<verb-noun>.ts`
 
 **Is it a server function (TanStack Start)?**
+
 - Authenticated dashboard function → `contexts/<context>/server/<noun>.ts`
 - Public guest function → `contexts/<context>/server/public-<noun>.ts`
 
 **Is it a React component?**
+
 - Generic UI primitive → `components/ui/`
 - Layout/navigation → `components/layout/`
 - Feature-specific → `components/features/<feature>/`
 
 **Is it a URL route?**
+
 - → `routes/` (matching the URL path)
 
 **Is it a background job handler?**
+
 - → `contexts/<context>/infrastructure/jobs/<job-name>.job.ts`
 
 **Is it a subscriber to a domain event?**
+
 - → `contexts/<context>/infrastructure/event-handlers/<event-name>.handler.ts`
-- (Goes in the *receiving* context, not the emitting one)
+- (Goes in the _receiving_ context, not the emitting one)
 
 **Is it a Drizzle table definition?**
+
 - → `shared/db/schema/<context>.schema.ts`
 
 **Is it a domain event definition?**
+
 - → `contexts/<context>/domain/events.ts`
 
 **Is it a tagged error definition?**
+
 - → `contexts/<context>/domain/errors.ts`
 
 **Is it test infrastructure (fakes, fixtures)?**
+
 - Used by multiple contexts → `shared/testing/`
 - Specific to one context's tests → colocated with the test files
 
 **Is it cross-cutting infrastructure (logger, env, queue setup)?**
+
 - → `shared/<concern>/`
 
 ---
@@ -857,11 +895,11 @@ Skipping the port couples the use case to a specific implementation. Tests becom
 
 ### "I'll add the new event handler in the same context that emits the event"
 
-Event handlers belong in the *receiving* context, not the emitting one. Otherwise contexts become tangled.
+Event handlers belong in the _receiving_ context, not the emitting one. Otherwise contexts become tangled.
 
 ### "I'll just put this in `shared/`, we might need it later"
 
-`shared/` has a high bar. Code goes there only after a *second* context needs it. Premature `shared/` placement creates dependencies that don't exist.
+`shared/` has a high bar. Code goes there only after a _second_ context needs it. Premature `shared/` placement creates dependencies that don't exist.
 
 ### "I'll throw a generic Error here, easier to handle"
 

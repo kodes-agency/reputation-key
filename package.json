@@ -22,6 +22,8 @@
     "db:push": "drizzle-kit push",
     "db:pull": "drizzle-kit pull",
     "db:studio": "drizzle-kit studio",
+    "auth:generate": "npx -y dotenv-cli -- npx -y @better-auth/cli generate --config src/shared/auth/auth-cli.ts",
+    "auth:migrate": "npx -y dotenv-cli -- npx -y @better-auth/cli migrate --config src/shared/auth/auth-cli.ts",
     "start": "node .output/server/index.mjs",
     "start:worker": "node dist-worker/index.js"
   },

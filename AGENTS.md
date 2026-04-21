@@ -68,18 +68,18 @@ contexts/<domain>/
 
 ## Key Integrations
 
-| Integration        | Purpose                                    | Key Files                                                   |
-| ------------------ | ------------------------------------------ | ----------------------------------------------------------- |
-| **TanStack Start** | Full-stack React framework                 | `src/router.tsx`, `vite.config.ts`                          |
-| **TanStack Query** | Server state management                    | `src/integrations/tanstack-query/`                          |
-| **Better Auth**    | Email+password auth with DB sessions       | `src/shared/auth/auth.ts`, `src/shared/auth/auth-client.ts` |
-| **Drizzle ORM**    | Type-safe ORM for PostgreSQL (pg driver)   | `src/shared/db/`, `drizzle.config.ts`                       |
-| **Zod v4**         | Runtime validation & env schema            | `src/shared/config/env.ts`                                  |
-| **Pino**           | Structured logging                         | `src/shared/observability/logger.ts`                        |
-| **ioredis**        | Redis client (queue, cache, rate limiting) | `src/shared/cache/redis.ts`                                 |
-| **BullMQ**         | Job queues (Phase 4+)                      | `src/shared/jobs/` (empty placeholder)                      |
-| **Shadcn**         | UI component library                       | `components.json`, `src/lib/utils.ts`                       |
-| **Tailwind v4**    | Utility-first CSS                          | `src/styles.css`                                            |
+| Integration        | Purpose                                    | Key Files                                                                                  |
+| ------------------ | ------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| **TanStack Start** | Full-stack React framework                 | `src/router.tsx`, `vite.config.ts`                                                         |
+| **TanStack Query** | Server state management                    | `src/integrations/tanstack-query/`                                                         |
+| **Better Auth**    | Email+password auth with DB sessions       | `src/shared/auth/auth.ts`, `src/shared/auth/auth-client.ts`, `src/shared/auth/auth-cli.ts` |
+| **Drizzle ORM**    | Type-safe ORM for PostgreSQL (pg driver)   | `src/shared/db/`, `drizzle.config.ts`                                                      |
+| **Zod v4**         | Runtime validation & env schema            | `src/shared/config/env.ts`                                                                 |
+| **Pino**           | Structured logging                         | `src/shared/observability/logger.ts`                                                       |
+| **ioredis**        | Redis client (queue, cache, rate limiting) | `src/shared/cache/redis.ts`                                                                |
+| **BullMQ**         | Job queues (Phase 4+)                      | `src/shared/jobs/` (empty placeholder)                                                     |
+| **Shadcn**         | UI component library                       | `components.json`, `src/lib/utils.ts`                                                      |
+| **Tailwind v4**    | Utility-first CSS                          | `src/styles.css`                                                                           |
 
 ## Environment Variables
 
@@ -96,22 +96,24 @@ All env vars are validated via Zod in `src/shared/config/env.ts`. Missing requir
 
 ## Scripts
 
-| Command             | Purpose                       |
-| ------------------- | ----------------------------- |
-| `pnpm dev`          | Start dev server on port 3000 |
-| `pnpm build`        | Build web app (Nitro output)  |
-| `pnpm build:worker` | Build worker with tsup        |
-| `pnpm start`        | Run built web server          |
-| `pnpm start:worker` | Run built worker              |
-| `pnpm test`         | Run tests (Vitest)            |
-| `pnpm test:watch`   | Run tests in watch mode       |
-| `pnpm typecheck`    | TypeScript type check         |
-| `pnpm lint`         | ESLint check                  |
-| `pnpm format`       | Prettier format               |
-| `pnpm db:generate`  | Generate Drizzle migration    |
-| `pnpm db:migrate`   | Apply Drizzle migration       |
-| `pnpm db:push`      | Push schema to DB (dev)       |
-| `pnpm db:studio`    | Drizzle Studio                |
+| Command              | Purpose                            |
+| -------------------- | ---------------------------------- |
+| `pnpm dev`           | Start dev server on port 3000      |
+| `pnpm build`         | Build web app (Nitro output)       |
+| `pnpm build:worker`  | Build worker with tsup             |
+| `pnpm start`         | Run built web server               |
+| `pnpm start:worker`  | Run built worker                   |
+| `pnpm test`          | Run tests (Vitest)                 |
+| `pnpm test:watch`    | Run tests in watch mode            |
+| `pnpm typecheck`     | TypeScript type check              |
+| `pnpm lint`          | ESLint check                       |
+| `pnpm format`        | Prettier format                    |
+| `pnpm db:generate`   | Generate Drizzle migration         |
+| `pnpm db:migrate`    | Apply Drizzle migration            |
+| `pnpm db:push`       | Push schema to DB (dev)            |
+| `pnpm db:studio`     | Drizzle Studio                     |
+| `pnpm auth:generate` | Generate Better Auth SQL migration |
+| `pnpm auth:migrate`  | Apply Better Auth migrations       |
 
 ## Deployment (Railway)
 
@@ -127,6 +129,8 @@ All env vars are validated via Zod in `src/shared/config/env.ts`. Missing requir
 - `vite-plugin-neon-new` was removed; use `DATABASE_URL` directly
 - Better Auth uses DB-backed sessions (not stateless) — the `Pool` connection is in `src/shared/auth/auth.ts`
 - The `betterAuth` singleton is lazy-created on first request via `getAuth()`
+- **Better Auth tables use camelCase columns** (`emailVerified`, `createdAt`, `userId`, etc.) — not snake_case. The Drizzle schema in `shared/db/schema/auth.ts` must match. Use `pnpm auth:migrate` for auth schema changes.
+- **Better Auth CLI** requires its own config file (`auth-cli.ts`) with a default export and no Vite path aliases (`#/...`). Don't point it at `auth.ts`.
 - Health check at `/api/health` returns `{ db: boolean, redis: boolean }` — Redis is optional in dev
 - Route tree is auto-generated at `src/routeTree.gen.ts` — don't edit manually
 - Two tsconfig files: `tsconfig.json` (app) and `tsconfig.node.json` (config files)
