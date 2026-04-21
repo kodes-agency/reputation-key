@@ -1,11 +1,15 @@
-// Re-export Result type from neverthrow (Phase 4 will install it)
-// For now, provide a simple Result type
-export type Result<T, E = Error> = { ok: true; value: T } | { ok: false; error: E }
-
-export function ok<T>(value: T): Result<T, never> {
-  return { ok: true, value }
-}
-
-export function err<E>(error: E): Result<never, E> {
-  return { ok: false, error }
-}
+// Result type — re-exports from neverthrow
+// Domain functions that can fail return Result<T, E>.
+// Application layer unwraps and throws tagged errors at the boundary.
+export {
+  Result,
+  Ok,
+  Err,
+  ok,
+  err,
+  okAsync,
+  errAsync,
+  ResultAsync,
+  fromPromise,
+  fromThrowable,
+} from 'neverthrow'

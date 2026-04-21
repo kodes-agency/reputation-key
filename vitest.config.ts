@@ -17,6 +17,7 @@ export default defineConfig({
       DATABASE_URL: 'postgresql://test:test@localhost:5432/test',
       BETTER_AUTH_SECRET: 'test-test-test-test-test-test-test-test',
       BETTER_AUTH_URL: 'http://localhost:3000',
+      RESEND_API_KEY: 're_test_key_for_testing_only',
     },
   },
 })

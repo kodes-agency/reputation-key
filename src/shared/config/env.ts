@@ -13,6 +13,9 @@ const envSchema = z.object({
   BETTER_AUTH_SECRET: z.string().min(32),
   BETTER_AUTH_URL: z.url().default('http://localhost:3000'),
 
+  // Email — Resend
+  RESEND_API_KEY: z.string().min(1),
+
   // Redis — Upstash / Railway Redis
   REDIS_URL: z.string().optional(),
 

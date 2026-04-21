@@ -130,3 +130,44 @@ All env vars are validated via Zod in `src/shared/config/env.ts`. Missing requir
 - Health check at `/api/health` returns `{ db: boolean, redis: boolean }` — Redis is optional in dev
 - Route tree is auto-generated at `src/routeTree.gen.ts` — don't edit manually
 - Two tsconfig files: `tsconfig.json` (app) and `tsconfig.node.json` (config files)
+
+<!-- intent-skills:start -->
+
+# Skill mappings - when working in these areas, load the linked skill file into context.
+
+skills:
+
+- task: "Working with routes, route trees, createRouter/createRoute, or file-based routing conventions"
+  load: "node_modules/@tanstack/router-core/skills/router-core/SKILL.md"
+- task: "Route protection, authentication guards, beforeLoad redirects, or RBAC in routes"
+  load: "node_modules/@tanstack/router-core/skills/router-core/auth-and-guards/SKILL.md"
+- task: "Data loading with loaders, beforeLoad, caching (staleTime/gcTime), pending/error components, or router.invalidate"
+  load: "node_modules/@tanstack/router-core/skills/router-core/data-loading/SKILL.md"
+- task: "Navigation, Link component, useNavigate, preloading, or scroll restoration"
+  load: "node_modules/@tanstack/router-core/skills/router-core/navigation/SKILL.md"
+- task: "Search params, validateSearch, Zod/Valibot search validation, or search middleware"
+  load: "node_modules/@tanstack/router-core/skills/router-core/search-params/SKILL.md"
+- task: "Server functions (createServerFn), server routes/API endpoints, or server context utilities"
+  # To load this skill, run: npx @tanstack/intent@latest list | grep server-functions
+  load: "node_modules/.pnpm/@tanstack+start-client-core@1.167.17/node_modules/@tanstack/start-client-core/skills/start-core/server-functions/SKILL.md"
+- task: "TanStack Start middleware, request middleware, or server function middleware"
+  # To load this skill, run: npx @tanstack/intent@latest list | grep middleware
+  load: "node_modules/.pnpm/@tanstack+start-client-core@1.167.17/node_modules/@tanstack/start-client-core/skills/start-core/middleware/SKILL.md"
+- task: "SSR setup, streaming SSR, head content management, or loader dehydration/hydration"
+  load: "node_modules/@tanstack/router-core/skills/router-core/ssr/SKILL.md"
+- task: "Deploying to Railway, Cloudflare Workers, Vercel, or configuring SSR/SPA/prerender modes"
+  # To load this skill, run: npx @tanstack/intent@latest list | grep deployment
+  load: "node_modules/.pnpm/@tanstack+start-client-core@1.167.17/node_modules/@tanstack/start-client-core/skills/start-core/deployment/SKILL.md"
+- task: "Code splitting, lazy routes, createLazyFileRoute, or autoCodeSplitting configuration"
+  load: "node_modules/@tanstack/router-core/skills/router-core/code-splitting/SKILL.md"
+- task: "Configuring the TanStack Router Vite plugin, route generation, or code split groupings"
+  load: "node_modules/@tanstack/router-plugin/skills/router-plugin/SKILL.md"
+- task: "Not found pages, error boundaries, route masking, or CatchBoundary"
+  load: "node_modules/@tanstack/router-core/skills/router-core/not-found-and-errors/SKILL.md"
+- task: "Path params, dynamic segments, splat routes, or useParams"
+  load: "node_modules/@tanstack/router-core/skills/router-core/path-params/SKILL.md"
+- task: "Environment variables, .env files, or dotenv configuration"
+  load: "node_modules/dotenv/skills/dotenv/SKILL.md"
+- task: "TanStack Start React setup, StartClient/StartServer, or React-specific imports"
+load: "node_modules/@tanstack/react-start/skills/react-start/SKILL.md"
+<!-- intent-skills:end -->
