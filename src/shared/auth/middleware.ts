@@ -32,7 +32,7 @@ export async function getUserFromHeaders(headers: Headers): Promise<AuthUser | n
 }
 
 /** Get full session from request headers (server-side only). */
-export async function getSessionFromHeaders(headers: Headers) {
+export function getSessionFromHeaders(headers: Headers) {
   const auth = getAuth()
   return auth.api.getSession({ headers })
 }

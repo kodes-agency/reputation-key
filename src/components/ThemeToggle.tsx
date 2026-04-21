@@ -54,9 +54,10 @@ export default function ThemeToggle() {
     }
   }, [mode])
 
+  const modes: ThemeMode[] = ['light', 'dark', 'auto']
+
   function toggleMode() {
-    const nextMode: ThemeMode =
-      mode === 'light' ? 'dark' : mode === 'dark' ? 'auto' : 'light'
+    const nextMode = modes[(modes.indexOf(mode) + 1) % modes.length]
     setMode(nextMode)
     applyThemeMode(nextMode)
     window.localStorage.setItem('theme', nextMode)
@@ -75,7 +76,7 @@ export default function ThemeToggle() {
       title={label}
       className="rounded-full border border-[var(--chip-line)] bg-[var(--chip-bg)] px-3 py-1.5 text-sm font-semibold text-[var(--sea-ink)] shadow-[0_8px_22px_rgba(30,90,72,0.08)] transition hover:-translate-y-0.5"
     >
-      {mode === 'auto' ? 'Auto' : mode === 'dark' ? 'Dark' : 'Light'}
+      {mode.charAt(0).toUpperCase() + mode.slice(1)}
     </button>
   )
 }
