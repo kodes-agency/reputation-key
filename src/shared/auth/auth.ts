@@ -3,7 +3,8 @@ import { betterAuth } from 'better-auth'
 import { tanstackStartCookies } from 'better-auth/tanstack-start'
 import { Pool } from 'pg'
 import { getEnv } from '#/shared/config/env'
-import { sendVerificationEmail, sendResetPasswordEmail } from './emails'
+import { sendResetPasswordEmail } from './emails'
+// import { sendVerificationEmail } from './emails' // TODO: re-enable with email verification
 
 export function createAuth() {
   const env = getEnv()
@@ -17,17 +18,18 @@ export function createAuth() {
     baseURL: env.BETTER_AUTH_URL,
     emailAndPassword: {
       enabled: true,
-      requireEmailVerification: true,
+      requireEmailVerification: false,
       sendResetPassword: async ({ user, url }) => {
         await sendResetPasswordEmail(user.email, url)
       },
     },
-    emailVerification: {
-      sendOnSignUp: true,
-      sendVerificationEmail: async ({ user, url }) => {
-        await sendVerificationEmail(user.email, url)
-      },
-    },
+    // TODO: Re-enable email verification once email sending is set up
+    // emailVerification: {
+    //   sendOnSignUp: true,
+    //   sendVerificationEmail: async ({ user, url }) => {
+    //     await sendVerificationEmail(user.email, url)
+    //   },
+    // },
     session: {
       expiresIn: 60 * 60 * 24 * 30, // 30 days
       updateAge: 60 * 60 * 24, // Update session every 24 hours (rolling)
