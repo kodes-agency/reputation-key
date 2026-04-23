@@ -1,9 +1,9 @@
 // Clock port — injectable time source for testable time-dependent code.
 // Infrastructure provides the real implementation; tests provide a fixed clock.
 
-export interface Clock {
-  now(): Date
-}
+export type Clock = Readonly<{
+  now: () => Date
+}>
 
 /** Real clock using system time. */
 export const systemClock: Clock = {

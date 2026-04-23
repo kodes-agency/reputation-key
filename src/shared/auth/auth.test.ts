@@ -57,7 +57,7 @@ describe('Auth configuration', () => {
 
 describe('Auth context and role helpers', () => {
   it('AuthContext type has required fields', async () => {
-    const { ROLE_HIERARCHY } = await import('#/shared/auth/context')
+    const { ROLE_HIERARCHY } = await import('#/shared/domain/roles')
 
     // Role hierarchy should have all three roles
     expect(ROLE_HIERARCHY.AccountAdmin).toBe(2)
@@ -66,7 +66,7 @@ describe('Auth context and role helpers', () => {
   })
 
   it('hasRole enforces hierarchy correctly', async () => {
-    const { hasRole } = await import('#/shared/auth/context')
+    const { hasRole } = await import('#/shared/domain/roles')
 
     expect(hasRole('AccountAdmin', 'Staff')).toBe(true)
     expect(hasRole('AccountAdmin', 'PropertyManager')).toBe(true)

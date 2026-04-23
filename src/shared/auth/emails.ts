@@ -7,23 +7,12 @@ let _resend: Resend | undefined
 
 // ── Tagged errors ────────────────────────────────────────────────────
 
-type EmailError = Readonly<{
-  _tag: 'EmailError'
-  code: 'send_failed' | 'config_missing'
-  message: string
-  context?: Readonly<Record<string, unknown>>
-}>
+import { createErrorFactory } from '#/shared/domain/errors'
 
-const emailError = (
-  code: EmailError['code'],
-  message: string,
-  context?: Readonly<Record<string, unknown>>,
-): EmailError => ({
-  _tag: 'EmailError',
-  code,
-  message,
-  ...(context ? { context } : {}),
-})
+const emailError = createErrorFactory('EmailError')
+
+// EmailError type is inferred from emailError — no explicit alias needed.
+// Consumers can use ReturnType<typeof emailError> if needed.
 
 // ── Resend client ────────────────────────────────────────────────────
 
@@ -46,7 +35,7 @@ async function sendEmail({ to, subject, html }: SendEmailParams): Promise<void> 
   const resend = getResend()
 
   const { error } = await resend.emails.send({
-    from: 'Reputation Key <noreply@reputationkey.app>',
+    from: 'Reputation Key <info@kodes.agency>',
     to,
     subject,
     html,
@@ -131,5 +120,35 @@ function resetPasswordEmailHtml(resetUrl: string): string {
     </div>
     <div class="footer">
       <p>This link expires in 1 hour.</p>
+`)
+}
+
+// ─── Organization Invitation Email ────────────────────────────────────
+
+export type InvitationEmailParams = Readonly<{
+  email: string
+  invitedByUsername: string
+  organizationName: string
+  inviteLink: string
+}>
+
+/** Send organization invitation email */
+export async function sendInvitationEmail(params: InvitationEmailParams): Promise<void> {
+  await sendEmail({
+    to: params.email,
+    subject: `${params.invitedByUsername} invited you to join ${params.organizationName}`,
+    html: invitationEmailHtml(params),
+  })
+}
+
+function invitationEmailHtml(params: InvitationEmailParams): string {
+  return emailShell(`
+      <p><strong>${params.invitedByUsername}</strong> has invited you to join <strong>${params.organizationName}</strong> on Reputation Key.</p>
+      <a href="${params.inviteLink}" class="button">Accept Invitation</a>
+      <p>If you don't have an account yet, you'll be able to create one after clicking the link above.</p>
+      <p>If you weren't expecting this invitation, you can safely ignore this email.</p>
+    </div>
+    <div class="footer">
+      <p>This invitation expires in 7 days.</p>
 `)
 }

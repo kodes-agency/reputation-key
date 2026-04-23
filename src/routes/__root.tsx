@@ -1,7 +1,8 @@
 import type { QueryClient } from '@tanstack/react-query'
 import { createRootRouteWithContext, HeadContent, Scripts } from '@tanstack/react-router'
-import Footer from '#/components/Footer'
-import Header from '#/components/Header'
+import Footer from '#/components/layout/Footer'
+import Header from '#/components/layout/Header'
+import { authClient } from '#/shared/auth/auth-client'
 import appCss from '#/styles.css?url'
 
 interface MyRouterContext {
@@ -30,7 +31,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body className="font-sans antialiased [overflow-wrap:anywhere] selection:bg-[rgba(79,184,178,0.24)]">
-        <Header />
+        <Header onSignOut={() => authClient.signOut()} />
         <main>{children}</main>
         <Footer />
         <Scripts />

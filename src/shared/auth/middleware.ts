@@ -6,12 +6,17 @@
 // Server-function-level auth uses getAuth().api.getSession() directly.
 import { getAuth } from './auth'
 import type { AuthUser } from './auth'
+import type { AuthContext } from '#/shared/domain/auth-context'
+import { ROLE_HIERARCHY, toDomainRole } from '#/shared/domain/roles'
+import type { Role } from '#/shared/domain/roles'
+import { organizationId, userId } from '#/shared/domain/ids'
+import type { OrganizationId } from '#/shared/domain/ids'
 
 // ── Tagged errors ──────────────────────────────────────────────────
 
 export type AuthError = Readonly<{
   _tag: 'AuthError'
-  code: 'unauthorized' | 'session_expired' | 'forbidden'
+  code: 'unauthorized' | 'session_expired' | 'forbidden' | 'no_active_org'
   message: string
 }>
 
@@ -52,24 +57,59 @@ export async function requireAuth(headers: Headers): Promise<AuthUser> {
   return user
 }
 
+// ── tenantMiddleware ────────────────────────────────────────────────
+
 /**
- * Require a minimum role. Call after requireAuth to also check role.
- * Throws tagged AuthError with 'forbidden' code if role is insufficient.
+ * Resolve tenant context from the session's active organization.
+ * Returns AuthContext with userId, organizationId, and role.
+ *
+ * Per architecture: "tenantMiddleware resolves org from session
+ * and attaches to AuthContext."
+ *
+ * Throws if user is not authenticated or has no active organization.
  */
-export function requireRole(userRole: string | undefined, minimumRole: string): void {
-  const roleMap: Record<string, number> = {
-    owner: 2,
-    admin: 1,
-    member: 0,
+export async function resolveTenantContext(headers: Headers): Promise<AuthContext> {
+  const session = await getSessionFromHeaders(headers)
+  if (!session) {
+    throw authError('unauthorized', 'Valid session required')
   }
 
-  const userLevel = roleMap[userRole ?? 'member'] ?? 0
-  const requiredLevel = roleMap[minimumRole] ?? 0
+  const activeOrgId = session.session.activeOrganizationId
+  if (!activeOrgId) {
+    throw authError('no_active_org', 'No active organization selected')
+  }
 
-  if (userLevel < requiredLevel) {
-    throw authError(
-      'forbidden',
-      `Role '${minimumRole}' required, but user has '${userRole ?? 'none'}'`,
-    )
+  // Find the member record for this user in the active org
+  const auth = getAuth()
+  const member = await auth.api.getActiveMember({ headers })
+  if (!member) {
+    throw authError('forbidden', 'Not a member of the active organization')
+  }
+
+  return {
+    userId: userId(session.user.id),
+    organizationId: organizationId(activeOrgId) as OrganizationId,
+    role: toDomainRole(member.role),
+  }
+}
+
+// ── roleGuard ───────────────────────────────────────────────────────
+
+/**
+ * Create a role guard that checks minimum role against the hierarchy.
+ * Per architecture: "roleGuard(minRole) middleware factory that checks role against a hierarchy"
+ *
+ * Usage:
+ *   roleGuard('PropertyManager')(ctx)  → allows PropertyManager + AccountAdmin, blocks Staff
+ *   roleGuard('AccountAdmin')(ctx)     → allows only AccountAdmin
+ */
+export function roleGuard(minRole: Role) {
+  return (ctx: AuthContext): void => {
+    if (ROLE_HIERARCHY[ctx.role] < ROLE_HIERARCHY[minRole]) {
+      throw authError(
+        'forbidden',
+        `Role '${minRole}' required, but you have '${ctx.role}'`,
+      )
+    }
   }
 }

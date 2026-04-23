@@ -29,7 +29,8 @@ export async function isRedisHealthy(): Promise<boolean> {
     if (!redis) return false
     const result = await redis.ping()
     return result === 'PONG'
-  } catch {
+  } catch (err) {
+    getLogger().warn({ err }, '[redis] health check failed')
     return false
   }
 }

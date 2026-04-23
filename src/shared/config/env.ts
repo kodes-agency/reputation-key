@@ -34,6 +34,8 @@ export function getEnv(): Env {
       const errors = parsed.error.issues
         .map((i) => `  ${i.path.join('.')}: ${i.message}`)
         .join('\n')
+      // Startup-time assertion (not domain/application logic).
+      // Plain Error is acceptable here — tagged errors are for domain and application layers.
       throw new Error(`❌ Invalid environment variables:\n${errors}`)
     }
     _env = parsed.data
