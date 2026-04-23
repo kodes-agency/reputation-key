@@ -9,6 +9,14 @@ import { getDb } from '#/shared/db'
 import { getLogger } from '#/shared/observability/logger'
 import { getRedis } from '#/shared/cache/redis'
 import { createEventBus } from '#/shared/events/event-bus'
+import { createRedisCache } from '#/shared/cache/redis-cache'
+import { createNoopCache } from '#/shared/cache/noop-cache'
+import type { Cache } from '#/shared/cache/cache.port'
+import { createRateLimiter } from '#/shared/rate-limit/middleware'
+import type { RateLimiter } from '#/shared/rate-limit/middleware'
+import { createJobQueue } from '#/shared/jobs/queue'
+import { createJobRegistry } from '#/shared/jobs/registry'
+import type { JobRegistry } from '#/shared/jobs/registry'
 import { createAuthIdentityAdapter } from '#/contexts/identity/infrastructure/adapters/auth-identity.adapter'
 import { inviteMember } from '#/contexts/identity/application/use-cases/invite-member'
 import { updateMemberRole } from '#/contexts/identity/application/use-cases/update-member-role'
@@ -17,12 +25,23 @@ import { listInvitations } from '#/contexts/identity/application/use-cases/list-
 import { registerUserAndOrg } from '#/contexts/identity/application/use-cases/register-user-and-org'
 import { getAuth } from '#/shared/auth/auth'
 import { headersFromContext } from '#/shared/auth/headers'
+import type { Queue } from 'bullmq'
 
 export function createContainer() {
   const db = getDb()
   const logger = getLogger()
   const redis = getRedis()
   const eventBus = createEventBus()
+
+  // ── Infrastructure ──────────────────────────────────────────────
+  const cache: Cache = redis ? createRedisCache(redis) : createNoopCache()
+  const rateLimiter: RateLimiter = createRateLimiter(redis, {
+    keyPrefix: 'ratelimit:public',
+    maxRequests: 60,
+    windowSeconds: 60,
+  })
+  const jobQueue: Queue | undefined = createJobQueue('default')
+  const jobRegistry: JobRegistry = createJobRegistry()
 
   // ── Identity context ─────────────────────────────────────────────
   const identityPort = createAuthIdentityAdapter()
@@ -80,6 +99,10 @@ export function createContainer() {
     logger,
     redis,
     eventBus,
+    cache,
+    rateLimiter,
+    jobQueue,
+    jobRegistry,
     useCases,
   } as const
 }

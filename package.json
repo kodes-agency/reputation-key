@@ -28,6 +28,7 @@
     "start:worker": "node dist-worker/index.js"
   },
   "dependencies": {
+    "@a5c-ai/babysitter-sdk": "^0.0.187",
     "@tailwindcss/vite": "^4.1.18",
     "@tanstack/intent": "^0.0.29",
     "@tanstack/react-devtools": "latest",
@@ -65,6 +66,7 @@
   "devDependencies": {
     "@better-auth/cli": "^1.4.21",
     "@eslint/js": "^10.0.1",
+    "@rollup/rollup-darwin-arm64": "^4.60.2",
     "@tailwindcss/typography": "^0.5.16",
     "@tanstack/devtools-vite": "latest",
     "@testing-library/dom": "^10.4.1",
