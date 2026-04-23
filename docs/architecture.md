@@ -4,7 +4,7 @@
 **Audience:** Developers (human and AI) working on this codebase.
 **Purpose:** This document is the source of truth for how code is organized, where things live, and how the layers interact. Read it before writing code. Refer back to it when making structural decisions.
 
-For a tight, scannable rules-only version, see `docs/conventions.md`. This document explains the _why_; conventions explains the _what_.
+For a tight, scannable rules-only version, see `docs/conventions.md`. This document explains the _why_; conventions explains the _what_. For concrete code examples per file type, see `docs/patterns.md`.
 
 ---
 
@@ -14,23 +14,25 @@ For a tight, scannable rules-only version, see `docs/conventions.md`. This docum
 2. [The stack](#the-stack)
 3. [Bounded contexts](#bounded-contexts)
 4. [The four layers](#the-four-layers)
-5. [Folder structure](#folder-structure)
-6. [Inside a context](#inside-a-context)
-7. [Inside `shared/`](#inside-shared)
-8. [Inside `routes/` and `components/`](#inside-routes-and-components)
-9. [The composition root](#the-composition-root)
-10. [Patterns and conventions](#patterns-and-conventions)
-11. [Functional style rules](#functional-style-rules)
-12. [Tenant isolation](#tenant-isolation)
-13. [Events and cross-context communication](#events-and-cross-context-communication)
-14. [Background jobs](#background-jobs)
-15. [Error handling](#error-handling)
-16. [Testing strategy](#testing-strategy)
-17. [Dependency rules](#dependency-rules)
-18. [Naming conventions](#naming-conventions)
-19. [Where does this code go? — Decision guide](#where-does-this-code-go--decision-guide)
-20. [Anti-patterns to avoid](#anti-patterns-to-avoid)
-21. [Living document](#living-document)
+5. [Layer flexibility — when to use less](#layer-flexibility--when-to-use-less)
+6. [Folder structure](#folder-structure)
+7. [Inside a context](#inside-a-context)
+8. [Inside `shared/`](#inside-shared)
+9. [Inside `routes/` and `components/`](#inside-routes-and-components)
+10. [Forms](#forms)
+11. [The composition root](#the-composition-root)
+12. [Patterns and conventions](#patterns-and-conventions)
+13. [Functional style rules](#functional-style-rules)
+14. [Tenant isolation](#tenant-isolation)
+15. [Events and cross-context communication](#events-and-cross-context-communication)
+16. [Background jobs](#background-jobs)
+17. [Error handling](#error-handling)
+18. [Testing strategy](#testing-strategy)
+19. [Dependency rules](#dependency-rules)
+20. [Naming conventions](#naming-conventions)
+21. [Where does this code go? — Decision guide](#where-does-this-code-go--decision-guide)
+22. [Anti-patterns to avoid](#anti-patterns-to-avoid)
+23. [Living document](#living-document)
 
 ---
 
@@ -54,27 +56,34 @@ These principles drive every architectural decision. When in doubt, return to th
 
 8. **Conventional, not clever.** Choose boring, well-documented patterns over clever abstractions. AI assistance and team onboarding both benefit from familiarity.
 
+9. **Proportional layering.** The patterns scale to the operation. A use case with real domain logic uses the full 7-step pattern. A use case that's only an authorization check is a one-liner. An operation with no business logic at all might skip the use case entirely. Ceremony for symmetry is an anti-pattern, not a virtue.
+
+10. **Shared schemas, single source of truth.** The Zod schemas in `application/dto/` are used for both server-side validation (inside server functions) and client-side form validation (inside TanStack Form). Never duplicate the shape.
+
 ---
 
 ## The stack
 
-| Concern            | Tool                     | Notes                                                    |
-| ------------------ | ------------------------ | -------------------------------------------------------- |
-| Meta-framework     | TanStack Start           | SSR, routing, server functions in one                    |
-| Hosting            | Railway                  | API + worker + Redis in one project                      |
-| Database           | Neon (Pro)               | Postgres, branching per environment, PITR                |
-| Auth               | better-auth              | Organization plugin, Drizzle adapter, DB-backed sessions |
-| ORM                | Drizzle                  | Postgres driver, schemas per context                     |
-| Background jobs    | BullMQ                   | Redis-backed, repeatable jobs replace cron               |
-| Cache + rate limit | Redis (Railway managed)  | Same instance as BullMQ                                  |
-| Storage            | Cloudflare R2            | S3-compatible, no egress fees                            |
-| Email              | Resend                   | Transactional + digests                                  |
-| Push notifications | Firebase Cloud Messaging | Critical reviews only                                    |
-| AI                 | Anthropic                | Behind an adapter                                        |
-| Image processing   | sharp                    | Runs in worker                                           |
-| Pattern matching   | ts-pattern               | For discriminated unions                                 |
-| Result types       | neverthrow               | Domain-layer error handling                              |
-| Validation         | Zod                      | At HTTP boundaries (server function inputs)              |
+| Concern                  | Tool                      | Notes                                                               |
+| ------------------------ | ------------------------- | ------------------------------------------------------------------- |
+| Meta-framework           | TanStack Start            | SSR, routing, server functions in one                               |
+| Hosting                  | Railway                   | API + worker + Redis in one project                                 |
+| Database                 | Neon (Pro)                | Postgres, branching per environment, PITR                           |
+| Auth                     | better-auth               | Organization plugin, Drizzle adapter, DB-backed sessions            |
+| ORM                      | Drizzle                   | Postgres driver, schemas per context                                |
+| Background jobs          | BullMQ                    | Redis-backed, repeatable jobs replace cron                          |
+| Cache + rate limit       | Redis (Railway managed)   | Same instance as BullMQ                                             |
+| Storage                  | Cloudflare R2             | S3-compatible, no egress fees                                       |
+| Email                    | Resend                    | Transactional + digests                                             |
+| Push notifications       | Firebase Cloud Messaging  | Critical reviews only                                               |
+| AI                       | Anthropic                 | Behind an adapter                                                   |
+| Image processing         | sharp                     | Runs in worker                                                      |
+| Pattern matching         | ts-pattern                | For discriminated unions                                            |
+| Result types             | neverthrow                | Domain-layer error handling                                         |
+| Validation               | Zod (v4)                  | DTO schemas in `application/dto/`; dual-use for server + forms      |
+| Client cache / mutations | TanStack Query            | Wraps server function calls                                         |
+| UI primitives            | shadcn/ui                 | Field components: `Field`, `FieldLabel`, `FieldError`, `FieldGroup` |
+| Forms                    | TanStack Form + shadcn/ui | Zod schema passed to `validators.onSubmit`; v1 handles Zod natively |
 
 ---
 
@@ -82,20 +91,20 @@ These principles drive every architectural decision. When in doubt, return to th
 
 The application is divided into bounded contexts. Each owns its data, its rules, its events, and its public API. Contexts communicate through domain events, never through direct internal imports.
 
-| Context        | Owns                                                                                         | Notes                                    |
-| -------------- | -------------------------------------------------------------------------------------------- | ---------------------------------------- |
-| `identity`     | Users, organizations, members, invitations, roles, permissions                               | Wraps better-auth                        |
-| `property`     | Properties (locations)                                                                       | The org unit everything else lives under |
-| `team`         | Teams within properties                                                                      | Optional middle layer for staff          |
-| `staff`        | Staff assignments to properties/teams                                                        | Determines property access               |
-| `portal`       | Portals, link trees, themes, hero images, QR codes                                           | The core product object                  |
-| `guest`        | Public scan/rate/feedback flows, anonymous sessions, anti-gating compliance                  | Entirely public-facing                   |
-| `review`       | Reviews, replies, platform adapters (GBP, etc.)                                              | Sync from external sources               |
-| `metric`       | Metric definitions, readings, aggregations, materialized views                               | High-write, high-read                    |
-| `gamification` | Goals, badges, leaderboards                                                                  | Computed from metrics                    |
-| `notification` | Notifications across channels (in-app, email, push), preferences                             | Subscribes to many events                |
-| `ai`           | AI provider port, sentiment, reply drafting, priority scoring, trend detection, usage quotas | Behind an adapter                        |
-| `audit`        | Audit logs of significant actions                                                            | Subscribes to events from all contexts   |
+| Context        | Owns                                                                                         | Notes                                        |
+| -------------- | -------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| `identity`     | Users, organizations, members, invitations, roles, permissions                               | Wraps better-auth — a thin context by nature |
+| `property`     | Properties (locations)                                                                       | The org unit everything else lives under     |
+| `team`         | Teams within properties                                                                      | Optional middle layer for staff              |
+| `staff`        | Staff assignments to properties/teams                                                        | Determines property access                   |
+| `portal`       | Portals, link trees, themes, hero images, QR codes                                           | The core product object                      |
+| `guest`        | Public scan/rate/feedback flows, anonymous sessions, anti-gating compliance                  | Entirely public-facing                       |
+| `review`       | Reviews, replies, platform adapters (GBP, etc.)                                              | Sync from external sources                   |
+| `metric`       | Metric definitions, readings, aggregations, materialized views                               | High-write, high-read                        |
+| `gamification` | Goals, badges, leaderboards                                                                  | Computed from metrics                        |
+| `notification` | Notifications across channels (in-app, email, push), preferences                             | Subscribes to many events                    |
+| `ai`           | AI provider port, sentiment, reply drafting, priority scoring, trend detection, usage quotas | Behind an adapter                            |
+| `audit`        | Audit logs of significant actions                                                            | Subscribes to events from all contexts       |
 
 **Rule:** A context can import another context's _types_ and _events_ (these are the public API). A context **cannot** import another context's use cases, repositories, or internal domain functions.
 
@@ -104,6 +113,16 @@ If you find yourself wanting to import another context's use case, the right mov
 - Subscribe to an event the other context emits
 - Define an interface in your own context's `application/ports/` and have the other context provide an implementation
 - Reconsider whether the boundary is in the right place
+
+### A note on context "thickness"
+
+Contexts vary widely in how much code they contain. Two extremes:
+
+**Thick contexts** (`portal`, `review`, `metric`) own their tables, have their own non-trivial business rules, manage state transitions, and emit several event types. They use the full layered architecture, and every layer earns its place.
+
+**Thin contexts** (`identity`) primarily wrap a third-party library that already provides the domain (better-auth provides users, sessions, organizations, invitations). The four-layer structure still applies, but layers will have less in them. Some operations won't need a use case at all, and some layer folders will be empty.
+
+Don't judge the architecture by its thinnest context. The patterns are right; they just have less work to do when wrapping someone else's well-designed library.
 
 ---
 
@@ -122,6 +141,7 @@ The pure core. Knows nothing about databases, HTTP, frameworks, or the outside w
 - Smart constructors that build domain objects from raw input (`buildPortal`)
 - Domain events (`PortalCreated`, `ReviewReceived`)
 - Domain errors (`PortalError`, `ReviewError`)
+- Additional pure-function files when content warrants splitting from `rules.ts` (e.g., `permissions.ts`, `compliance.ts`, `scoring.ts`)
 
 **Forbidden:**
 
@@ -142,7 +162,7 @@ The orchestration layer. Coordinates domain logic, repository calls, and externa
 
 - Use cases — one per user action (`createPortal`, `submitFeedback`)
 - Port definitions — interfaces for things the context depends on (`PortalRepository`, `PortalStorage`)
-- DTOs — Zod schemas for input/output shapes that cross network boundaries
+- DTOs — Zod schemas for input/output shapes that cross network boundaries **and are reused as form schemas**
 
 **Forbidden:**
 
@@ -181,8 +201,8 @@ The presentation layer. TanStack Start server functions exposed to the client.
 
 - TanStack Start server function definitions
 - Input validation using Zod schemas from `application/dto/`
-- Middleware composition (auth, tenant, role)
-- Error translation (catch tagged errors, return HTTP responses)
+- Auth/tenant resolution via `resolveTenantContext(headers)` and `roleGuard()` calls at the top of each handler
+- Error translation (catch tagged errors, throw `Response`)
 
 **Forbidden:**
 
@@ -190,7 +210,55 @@ The presentation layer. TanStack Start server functions exposed to the client.
 - Direct database access
 - Domain rule reimplementation
 
-**Tests:** Integration tests covering HTTP behavior — status codes, response shapes, middleware enforcement.
+**Tests:** Integration tests covering HTTP behavior — status codes, response shapes, auth enforcement.
+
+### Auth resolution in server functions
+
+Server functions resolve auth context manually at the top of each handler. The pattern is:
+
+```ts
+export const someServerFn = createServerFn({ method: 'POST' })
+  .inputValidator(SomeSchema)
+  .handler(async ({ data }) => {
+    const headers = headersFromContext()
+    const ctx = await resolveTenantContext(headers)
+    // optionally: roleGuard('PropertyManager')(ctx)
+    // then call use case or delegate
+  })
+```
+
+This approach was chosen over TanStack `createMiddleware()` chains because:
+
+- The auth resolution logic is explicit and visible in each handler
+- `headersFromContext()` needs to extract from the current request, and wrapping it in middleware adds indirection
+- The pattern works identically for authenticated and public server functions (public ones just skip `resolveTenantContext`)
+
+If the codebase grows and middleware chains become beneficial (e.g., shared rate limiting, global auth checks), this can be migrated to `createMiddleware()` later without changing use cases.
+
+---
+
+## Layer flexibility — when to use less
+
+The four-layer architecture is the default for operations with real business complexity. But not every operation has business complexity, and forcing every operation through every layer creates ceremony, not architecture.
+
+### The three operation shapes
+
+**Full pattern:** use when the operation has multiple validation steps, smart constructor logic, state transitions, cross-entity coordination, domain events, or non-trivial persistence mapping. This is the majority case for thick contexts.
+
+**Thin use case (auth check + delegation):** use when the only domain logic is an authorization check, and the rest is delegation to a port. Keep the use case because (a) authorization is real domain logic, (b) future logic lands here naturally, (c) shape consistency helps AI navigate.
+
+**Direct delegation:** use only when there is no authorization check beyond "authenticated or anonymous," no domain rules, no event, and no transformation. Rare and almost exclusive to wrapper contexts. The third-party library's API serves as the port.
+
+### How to choose
+
+1. **Does the operation have any business logic beyond an authorization check?** → Full pattern.
+2. **Does it require an authorization check?** → Thin use case.
+3. **Is it pure delegation to a third-party library?** → Direct delegation.
+4. **When in doubt, default to the full or thin pattern.** The cost of "too much structure" for a simple operation is small. The cost of "too little structure" when complexity grows is large.
+
+### The 7-step template is a template, not a law
+
+Most use cases will use 4–6 of the seven steps. Skip the steps that don't apply. Don't fake them with empty validation calls or no-op constructors.
 
 ---
 
@@ -213,10 +281,10 @@ src/
     audit/
 
   shared/                  # Cross-cutting concerns used by multiple contexts
-    domain/                # Brand, ids, Result, ts-pattern re-exports, base errors
+    domain/                # Brand, ids, Result, ts-pattern re-exports, base errors, AuthContext, clock
     events/                # Event bus implementation, master event union
     db/                    # Drizzle client, schema barrel, migrations
-    auth/                  # better-auth config, AuthContext type, middleware
+    auth/                  # better-auth config, middleware
     jobs/                  # BullMQ queue/worker factories, job registry
     cache/                 # Redis client, Cache port + Redis implementation
     rate-limit/            # Rate limit middleware
@@ -231,17 +299,22 @@ src/
     (auth)/
     (dashboard)/
     p/                     # Public guest portal routes
+    api/                   # API-only routes (e.g., health)
 
   components/              # React components
-    ui/                    # shadcn primitives
-    layout/                # Shell, sidebar, navigation
-    forms/                 # Reusable form components
-    features/              # Feature-specific components, organized by context
+    ui/                    # shadcn primitives including Field, FieldLabel, FieldError, FieldGroup, Input, ...
+    layout/                # Shell, sidebar, header, footer, navigation
+    forms/                 # Shared form building blocks (SubmitButton, FormErrorBanner, ...)
+    features/              # Feature-specific components organized by context
+
+  integrations/            # Framework integrations not owned by a context
+    tanstack-query/        # QueryClient provider, devtools setup
 
   composition.ts           # Wires the dependency graph
   bootstrap.ts             # Registers event/job handlers at startup
-  server.ts                # TanStack Start server entry
-  worker.ts                # BullMQ worker entry
+  start.ts                 # TanStack Start web entry (framework convention)
+  worker/
+    index.ts               # BullMQ worker entry
 ```
 
 ### Top-level rules
@@ -249,8 +322,9 @@ src/
 - `contexts/` holds all business logic. Contexts are first-class citizens.
 - `shared/` holds cross-cutting concerns. **High bar for entry: code goes here only when a second context needs it.**
 - `routes/` is TanStack Router's territory. Files here are thin — they call server functions and render components.
-- `components/` is React UI. No business logic, no direct DB access.
-- The four loose files (`composition.ts`, `bootstrap.ts`, `server.ts`, `worker.ts`) are entry points and wiring. Each is small.
+- `components/` is React UI. Four subfolders: `ui/` (shadcn primitives), `layout/` (shell/nav), `forms/` (shared form building blocks), `features/` (feature-specific UI grouped by context).
+- `integrations/` is framework-plumbing that doesn't belong to any context (TanStack Query provider, etc.).
+- The entry points (`composition.ts`, `bootstrap.ts`, `start.ts`, `worker/index.ts`) are small and visible.
 
 ---
 
@@ -263,16 +337,18 @@ contexts/portal/
   domain/
     types.ts               # Entity types (Portal, PortalLinkCategory, ...)
     rules.ts               # Pure business rules
-    constructors.ts        # Smart constructors (buildPortal, ...)
+    constructors.ts        # Smart constructors (buildPortal, ...) — optional for thin wrapper contexts
     events.ts              # Domain events + constructors
     errors.ts              # Tagged error types + constructor
+    # Optional additional pure files when content warrants splitting:
+    # permissions.ts, compliance.ts, scoring.ts, etc.
 
   application/
     ports/                 # Interfaces for dependencies
       portal.repository.ts
       portal-link.repository.ts
       portal-storage.port.ts
-    dto/                   # Zod schemas for input/output shapes
+    dto/                   # Zod schemas — dual-use for server validation AND form validation
       create-portal.dto.ts
       update-portal.dto.ts
       ...
@@ -307,6 +383,7 @@ contexts/portal/
 - One repository per aggregate. If a repository has 30 methods, it's two repositories.
 - Mappers are pure and live in `infrastructure/mappers/`. The domain never sees row shapes.
 - Public and authenticated server functions live in separate files. The trust boundary should be visible.
+- Not every folder will be populated for every context. A wrapper context like `identity` may have no `mappers/` (no DB rows to translate), no `jobs/` (no background work), and a small `application/use-cases/` (most operations are thin or direct delegation). That's fine — empty folders are better than folders with placeholder files.
 
 ---
 
@@ -324,12 +401,13 @@ Pure types and utilities used across contexts.
 - `pattern.ts` — Re-exports from ts-pattern (`match`, `P`)
 - `errors.ts` — Base error shape conventions
 - `clock.ts` — `Clock` port for testable time
+- `auth-context.ts` — `AuthContext` type (the pure data type; the middleware that produces it lives in `shared/auth/`)
 
 ### `shared/events/`
 
 The event bus and the master event type.
 
-- `event-bus.ts` — In-process event bus (`EventBus` interface + implementation)
+- `event-bus.ts` — In-process event bus (`EventBus` type + implementation)
 - `events.ts` — Master `DomainEvent` union (re-exports each context's event types)
 
 ### `shared/db/`
@@ -337,6 +415,7 @@ The event bus and the master event type.
 Database infrastructure.
 
 - `client.ts` — Drizzle client factory
+- `base-where.ts` — `baseWhere(orgId)` helper enforcing tenancy + soft-delete filtering (to be added when first non-identity repository is built; identity context wraps better-auth which handles tenancy internally)
 - `schema/` — One file per context (`portal.schema.ts`, `review.schema.ts`, ...) plus an `index.ts` barrel
 - `migrations/` — Drizzle-generated SQL
 
@@ -344,11 +423,11 @@ Database infrastructure.
 
 ### `shared/auth/`
 
-- `auth.ts` — better-auth configuration (lazy singleton via `getAuth()`)
-- `auth-cli.ts` — CLI-only config for `@better-auth/cli` (default export, no Vite aliases)
-- `auth-client.ts` — Client-side auth hooks (`useSession`, `signUp`, `signIn`, etc.)
-- `context.ts` — `AuthContext` type
-- `middleware.ts` — `authMiddleware`, `tenantMiddleware`, `roleGuard(minRole)`
+- `auth.ts` — better-auth configuration
+- `auth-client.ts` — client-side auth
+- `headers.ts` — `headersFromContext()` builds `Headers` from the current TanStack Start request; used by server functions to pass session cookies to better-auth APIs
+- `headers.ts` — `headersFromContext()` — builds a `Headers` object carrying the current request's cookies and headers from the TanStack Start server context; used by server functions to pass session info to better-auth APIs
+- `middleware.ts` — `resolveTenantContext(headers)`, `requireAuth(headers)`, `roleGuard(minRole)` — these are plain async functions (not TanStack `createMiddleware()` chains) that resolve `AuthContext` from the request session. Server functions call them directly at the top of their handler. The `roleGuard` function returns a closure that checks the user's role against the hierarchy.
 
 ### `shared/jobs/`
 
@@ -359,7 +438,7 @@ Database infrastructure.
 ### `shared/cache/`
 
 - `redis.ts` — Redis client factory (shared with BullMQ)
-- `cache.port.ts` — `Cache` interface
+- `cache.port.ts` — `Cache` type
 - `redis-cache.ts` — Redis implementation
 
 ### `shared/rate-limit/`
@@ -383,7 +462,8 @@ Functional utilities not in neverthrow or ts-pattern. Often empty; add only as n
 
 Test infrastructure used across contexts.
 
-- `in-memory-repos/` — Patterns for in-memory implementations of common ports
+- `in-memory-repos/` — In-memory implementations of common ports
+- `capturing-event-bus.ts` — Event bus that records emissions for test assertions
 - `fixtures.ts` — Domain object builders (`buildTestPortal`, `buildTestAuthContext`)
 - `db.ts` — Helpers for setting up Neon test branches
 
@@ -399,7 +479,7 @@ TanStack Router file-based routing. Each file corresponds to a URL path.
 
 - Route configuration (path, search params Zod schema, loader)
 - The page component
-- Form/action wiring that calls server functions
+- Form/action wiring that calls server functions via TanStack Query mutations
 
 **A route file does not contain:**
 
@@ -416,14 +496,15 @@ React components organized by purpose.
 
 ```
 components/
-  ui/              # shadcn primitives (Button, Input, Dialog, ...)
-  layout/          # Shell, sidebar, header, navigation
-  forms/           # Reusable form components
+  ui/              # shadcn primitives (Button, Input, Dialog, Form, FormField, ...)
+  layout/          # Shell, sidebar, header, footer, navigation
+  forms/           # Shared form building blocks (SubmitButton, FormErrorBanner, FormSection)
   features/
-    portal/        # Portal-specific UI components
+    portal/        # Portal-specific UI (CreatePortalForm, LinkTreeEditor, ThemePicker)
     review/
     inbox/
     dashboard/
+    identity/
     ...
 ```
 
@@ -431,12 +512,122 @@ components/
 
 - React component definition, hooks, JSX, styles
 - Component-local state and effects
+- TanStack Query hooks (queries/mutations)
 
 **A component file does not contain:**
 
 - Business logic
-- Direct server function calls (those happen in routes or dedicated data hooks)
+- Direct database access
 - Domain rules
+
+**Form components live in `components/features/<context>/`** as named components (e.g., `CreatePortalForm.tsx`). They use shadcn's Form components from `components/ui/` and shared form building blocks from `components/forms/`.
+
+---
+
+## Forms
+
+Forms are pervasive in this application. Every context has at least one. Because of that, we standardize the form stack and patterns rigorously — there is one way to do forms, and AI should never invent a different way.
+
+### The form stack
+
+**TanStack Form + Zod + shadcn/ui.** All three work together:
+
+- **Zod** defines the schema (lives in `application/dto/`, already required for server-side validation)
+- **TanStack Form** manages form state, field subscriptions, validation on submit (`validators.onSubmit`), submission flow
+- **shadcn/ui** provides the visual components: `Field`, `FieldGroup`, `FieldLabel`, `FieldError`, `FieldDescription`, `FieldSet`, `FieldLegend`, plus primitives like `Input`, `Textarea`, `Select`, `Checkbox`
+
+shadcn publishes an official integration guide for TanStack Form. That guide is the authoritative reference for wiring individual field components. Our conventions extend it with project-specific patterns (submission via mutations, error handling, folder structure).
+
+### Why this stack
+
+- **Single source of truth.** The Zod schema in `application/dto/` validates server input _and_ form input. Shape and validation rules cannot drift.
+- **Type safety end-to-end.** `z.infer<typeof Schema>` gives form values type. TanStack Form uses that type for field names, values, and errors. Change the schema, TypeScript flags every form that breaks.
+- **Stack consistency.** TanStack Start + TanStack Router + TanStack Query + TanStack Form are designed together. One mental model across routing, data fetching, and forms.
+- **Design system consistency.** shadcn/ui primitives are used for every form input. Our app looks like itself on every page.
+- **Performance.** TanStack Form subscribes at the field level; large forms don't re-render entire trees on each keystroke.
+
+### How forms are structured in the codebase
+
+For a form called `CreatePortalForm`, the files involved are:
+
+1. **`contexts/portal/application/dto/create-portal.dto.ts`** — the Zod schema. Already exists because it's the server function's input validator. Reused by the form.
+
+2. **`contexts/portal/server/portals.ts`** — the server function `createPortal` that validates with the same schema and calls the use case.
+
+3. **`components/features/portal/CreatePortalForm.tsx`** — the React component. Uses TanStack Form + shadcn's `Field` components. **Receives the mutation as a prop** — never imports server functions directly (dependency rules forbid `components/` from importing `server/`).
+
+4. **`routes/.../create-portal.tsx`** — the route file. Defines the `useMutation` wrapping the server function, creates the form mutation, and passes it as a prop to `<CreatePortalForm mutation={mutation} />`. Also handles post-submit navigation via `useNavigate()`.
+
+### Submission pattern
+
+Every form submission goes through a TanStack Query `useMutation` wrapping a server function. This is mandatory — no direct server function calls from form handlers.
+
+**The mutation is defined in the route, not in the form component.** Routes import server functions; components cannot (dependency rules). The route creates the mutation and passes it to the form component as a prop:
+
+```tsx
+// routes/.../create-portal.tsx — defines mutation, renders form
+const mutation = useMutation({
+  mutationFn: (input: CreatePortalInput) => createPortal({ data: input }),
+  onSuccess: () => navigate({ to: '/dashboard/portals' }),
+})
+return <CreatePortalForm mutation={mutation} />
+
+// components/features/portal/CreatePortalForm.tsx — receives mutation as prop
+type Props = { mutation: UseMutationResult<...> }
+export function CreatePortalForm({ mutation }: Props) { ... }
+```
+
+Reasons for this split:
+
+- **Dependency rules.** `components/` cannot import from `server/`. The route is the composition point.
+- **Testability.** Form components receive a mock mutation — no server function dependency.
+- **Unified mutation state.** `isPending`, `isError`, `isSuccess`, `error` drive UI affordances automatically. No hand-rolled `isSubmitting` state.
+- **Cache invalidation.** `onSuccess` in the route invalidates related queries declaratively (`queryClient.invalidateQueries({ queryKey: ['portals'] })`).
+- **Optimistic updates.** When useful, the mutation can apply changes immediately and roll back on error.
+- **Error handling pipeline.** Server functions throw `Response` with tagged error bodies. The mutation's `error` is that response; the form displays it via `FormErrorBanner`.
+
+### Post-submit navigation
+
+After a successful mutation, use TanStack Router's `useNavigate()` for client-side navigation:
+
+```tsx
+const navigate = useNavigate()
+const mutation = useMutation({
+  onSuccess: () => navigate({ to: '/dashboard' }),
+})
+```
+
+**Never use `window.location.href`** — it causes a hard page reload, losing router state, cached queries, and session context. Use `router.invalidate()` + `useNavigate()` for type-safe, client-side navigation. The sign-in flow is no exception: after successful authentication, call `router.invalidate()` to refresh session state, then `navigate()` to the target page.
+
+### Shared form building blocks (`components/forms/`)
+
+These wrap shadcn primitives with project conventions baked in:
+
+- **`SubmitButton`** — reads mutation state, disables while pending, shows spinner
+- **`FormErrorBanner`** — displays top-level mutation errors (translating tagged error codes to user-friendly messages)
+- **`FormSection`** — visual grouping with heading and description for long forms
+
+Only add a new shared form block when a second form needs the same thing. Don't pre-build.
+
+### Feature-specific form components (`components/features/<ctx>/`)
+
+These live next to other feature UI. Naming: `<Verb><Noun>Form.tsx` — `CreatePortalForm`, `InviteMemberForm`, `EditPropertyForm`.
+
+### Public forms
+
+Guest-facing forms (rating submission, feedback) follow the same pattern but submit to public server functions without auth middleware. The `FormErrorBanner` for public forms should be especially user-friendly — guests don't understand tagged error codes.
+
+### Why not React Hook Form
+
+RHF is a valid choice in isolation. We don't use it because:
+
+- Mixing RHF with the rest of the TanStack stack creates two mental models
+- Schema-first integration with Zod is marginally cleaner in TanStack Form for our use case
+- TanStack Form + shadcn has a clear, official integration path
+
+If you're more familiar with RHF from prior projects, the transition is small (a weekend of practice). The consistency win across the codebase is worth it.
+
+See `docs/patterns.md` for a complete canonical form example.
 
 ---
 
@@ -446,7 +637,7 @@ components/
 
 **Pattern:** A factory function that takes environment configuration and returns a `Container` — a record holding the database client, event bus, repositories, adapters, and all use cases.
 
-The container is built once at startup. Both `server.ts` and `worker.ts` build it and use it.
+The container is built once at startup. Both `start.ts` and `worker/index.ts` build it and use it.
 
 **Why this matters:**
 
@@ -457,20 +648,22 @@ The container is built once at startup. Both `server.ts` and `worker.ts` build i
 
 **`bootstrap.ts`** is a separate file that takes the built container and registers event handlers and job handlers. Keeping registration separate from construction makes both easier to understand.
 
+**The event bus is passed to every use case that emits events** via the `events` dependency. Use cases call `deps.events.emit(...)` directly; they do not check whether the bus is present. The bus is always present in production and in tests (either real or capturing).
+
 ---
 
 ## Patterns and conventions
 
 ### Use cases as factory functions
 
-Every use case follows this exact shape:
+Every use case follows this shape, including only the steps that apply:
 
 ```ts
 type Deps = { ... };
 type Ctx = AuthContext;
 
 export const someUseCase = (deps: Deps) =>
-  async (input: SomeInput, ctx: Ctx): Promise<Result> => {
+  async (input: SomeInput, ctx: Ctx): Promise<R> => {
     // 1. Authorize (call domain rule)
     // 2. Validate referenced entities exist (call repos)
     // 3. Check uniqueness/business invariants (call repos)
@@ -481,7 +674,18 @@ export const someUseCase = (deps: Deps) =>
   };
 ```
 
-The six steps may not all apply to every use case, but they happen in this order when present. This consistency makes use cases instantly readable.
+Steps 1–7 happen in this order _when present_, because the order reflects the natural dependency chain. When a step doesn't apply, skip it. Most use cases will have 4–6 steps.
+
+**Anonymous/public use cases:** Operations that run before authentication (registration, public guest flows) omit the `AuthContext` parameter entirely:
+
+```ts
+export const registerUser = (deps: Deps) =>
+  async (input: RegisterInput): Promise<R> => { ... }
+```
+
+These use cases have no authorization step and no tenant context. The server function resolves the org from other sources (e.g., URL slug for public routes) or creates a new org (for registration).
+
+For full examples of the three use case shapes (full, thin, direct delegation), see `docs/patterns.md`.
 
 ### Repositories as records of functions
 
@@ -502,56 +706,29 @@ export const createSomeRepository = (db: Database): SomeRepository => ({
 })
 ```
 
-No classes. Records of functions returned by factories. The factory closes over the database client. This is a fully functional pattern (a record of functions over closed-over immutable dependency).
+No classes. Records of functions returned by factories. The factory closes over the database client.
 
-### Ports as interfaces in `application/`
+### Ports as type aliases in `application/`
 
-Ports are TypeScript types defining capability contracts. The implementation lives in `infrastructure/`. The use case depends only on the type.
+Ports are TypeScript `type` aliases defining capability contracts. The implementation lives in `infrastructure/`. The use case depends only on the type.
 
-This is what makes use cases testable without a database: pass an in-memory implementation of the port instead of the Drizzle one.
+**Exception for wrapper contexts:** When wrapping a third-party library that already provides a stable, well-typed API, the third-party API itself can serve as the port for direct-delegation operations. Don't write a wrapper port that does nothing but forward calls.
 
 ### Mappers as pure functions
 
-```ts
-export const portalFromRow = (row: PortalRow): Portal => ({ ... });
-export const portalToRow = (portal: Portal): PortalRow => ({ ... });
-```
-
-One per direction. Lives in `infrastructure/mappers/`. The only place in the code where both row and domain shapes are visible at once.
+One per direction (`xxxFromRow`, `xxxToRow`). Lives in `infrastructure/mappers/`. The only place in the code where both row and domain shapes are visible at once.
 
 ### Domain events as discriminated unions
 
-```ts
-export type PortalCreated = Readonly<{
-  _tag: 'portal.created'
-  portalId: PortalId
-  organizationId: OrganizationId
-  occurredAt: Date
-  // ...
-}>
-
-export const portalCreated = (args: Omit<PortalCreated, '_tag'>): PortalCreated => ({
-  _tag: 'portal.created',
-  ...args,
-})
-```
-
-The constructor is the only way to build the event, ensuring `_tag` is always correct. Subscribers pattern-match on `_tag` for type-safe dispatch.
+Tagged with `_tag` matching the event name. Built via smart constructors. Subscribers pattern-match on `_tag` for type-safe dispatch.
 
 ### Tagged errors
 
-```ts
-export type PortalError = Readonly<{
-  _tag: 'PortalError';
-  code: 'forbidden' | 'slug_taken' | 'invalid_theme' | '...';
-  message: string;
-  context?: Readonly<Record<string, unknown>>;
-}>;
+Plain objects with `_tag` (error type) and `code` (specific reason). Built via smart constructors. Pattern-matched exhaustively in server function error translation.
 
-export const portalError = (code: '...', message: string, context?: '...'): PortalError => ({ ... });
-```
+### Forms use case schemas
 
-Errors are plain objects, not class instances. The `_tag` distinguishes error types globally. The `code` distinguishes reasons within a type. Both are pattern-matched exhaustively.
+Zod schemas in `application/dto/` are reused by forms. The form imports the schema and passes it to `validators.onSubmit`. TanStack Form v1 handles Zod schemas natively — no adapter library required. No duplication.
 
 ---
 
@@ -564,17 +741,20 @@ Errors are plain objects, not class instances. The `_tag` distinguishes error ty
 - **No inheritance.** No `extends` (except for built-in `Error` subclasses, which we avoid by using tagged objects instead).
 - **`readonly` everywhere applicable.** Domain types use `readonly` on every field. Arrays are `ReadonlyArray<T>`.
 - **Immutable updates.** Never mutate; produce new values.
-- **Discriminated unions over enums.** Use string literal unions (`'foo' | 'bar'`), not TypeScript `enum`.
+- **Discriminated unions over enums.** Use string literal unions, not TypeScript `enum`.
 - **`Result` in domain.** Domain functions that can fail return `Result<T, E>` from neverthrow.
-- **Throw at application boundary.** Use cases throw tagged errors. Server functions catch them and translate to HTTP.
+- **Throw at application boundary.** Use cases throw tagged errors. Server functions catch them and translate to HTTP responses (throw Response).
 - **`ts-pattern` for union dispatch.** Use `match(...).exhaustive()` whenever handling discriminated unions.
+- **Prefer `type` over `interface`.** Interfaces are not forbidden, but `type` is the default for consistency.
 
 ### What is pragmatic
 
-- **`async/await` is allowed in application and infrastructure layers.** No requirement to use `ResultAsync` chains for orchestration.
-- **Closures over mutable state are allowed in infrastructure** (event bus subscriber map, BullMQ connection, etc.) — the mutation is hidden behind a pure interface.
+- **`async/await` is allowed in application and infrastructure layers.**
+- **Closures over hidden mutable state are allowed anywhere** when the interface is pure. This covers the event bus, testable clocks, in-memory fakes, etc. The mutation is an implementation detail.
 - **React hooks are not purified.** React's effectful model is accepted as-is.
+- **TanStack Form's internal state is not purified.** The library manages form state with refs and effects; that's fine.
 - **Tests are imperative.** Vitest's `describe`/`it` style is fine.
+- **Wrapper-context use cases may receive HTTP-scoped functions as deps.** When a use case needs to call a third-party API that requires request-scoped state (e.g., session headers for better-auth), the function producing that state (`headersFromContext`) is injected as a dependency rather than importing the HTTP utility directly. This keeps the use case testable (inject a stub) while acknowledging that the dependency is HTTP-scoped. The `registerUserAndOrg` use case is the current example. If better-auth adds a way to act on a user ID without headers, this can be cleaned up.
 
 ### What is forbidden
 
@@ -583,7 +763,9 @@ Errors are plain objects, not class instances. The `_tag` distinguishes error ty
 - Mutation of function parameters
 - Implicit any
 - `// @ts-ignore` without a comment explaining why
-- `as` casts to any type that isn't a branded ID (use Zod parsing or `Result` for type-safe conversion)
+- `as` casts to any type that isn't a branded ID
+- `require()` — use ESM `import`
+- Returning `{ success: false, error }` objects from server functions (always throw Response)
 
 ---
 
@@ -601,7 +783,7 @@ Tenancy is the most important architectural invariant. Get this wrong and the pr
 
 4. **Soft-deleted rows are filtered too.** `baseWhere` adds `AND deleted_at IS NULL` for tables that support soft delete.
 
-5. **The `tenantMiddleware` resolves `organizationId` from the better-auth session and attaches it to the `AuthContext` passed to use cases.** Use cases never read the org from anywhere else.
+5. **The `resolveTenantContext(headers)` function resolves `organizationId` from the better-auth session and returns the `AuthContext` passed to use cases.** Server functions call this at the top of their handler. Use cases never read the org from anywhere else.
 
 6. **Public guest-facing routes resolve `organizationId` from the URL slug** (e.g., `/p/{orgSlug}/{portalSlug}`) and validate the portal exists and is active. They use a different middleware pipeline.
 
@@ -632,12 +814,13 @@ Contexts communicate through domain events, never through direct internal import
 - **The master `DomainEvent` union is in `shared/events/events.ts`.** It's a re-export of all contexts' event types.
 - **Subscribers live in the _receiving_ context's `infrastructure/event-handlers/`.** The receiver decides what to do with the event.
 - **Handlers should be idempotent.** Retries are possible.
-- **Handlers should not throw.** Failures are logged, not propagated to the emitter.
+- **Handlers log via the structured logger, never `console`.** Failures are logged, not propagated to the emitter.
 - **Cross-context type imports are allowed for events.** Context B can import `PortalCreated` type from context A. It cannot import context A's use cases or repositories.
+- **The event bus is always available to use cases via `deps.events`.** Wired in `composition.ts`. No TODO comments for event emission — wire it up.
 
 ### When to use jobs instead of events
 
-- **Events** are for in-process side effects within the current request lifecycle. Synchronous emission, asynchronous handler execution.
+- **Events** are for in-process side effects within the current request lifecycle.
 - **Jobs (BullMQ)** are for durable, retryable work that needs to survive process restarts or run on a schedule.
 
 A common pattern: an event handler enqueues a job. Example: `review.received` event → handler enqueues `analyze-sentiment` job → worker runs the AI call.
@@ -655,7 +838,7 @@ BullMQ + Redis. Long-lived worker process on Railway.
 - **Repeatable jobs replace cron.** BullMQ's repeat options handle scheduling.
 - **Every job is idempotent.** Use a deterministic job ID where appropriate.
 - **Every job has a retry policy.** Exponential backoff, max attempts, dead-letter queue.
-- **Long-running work should be split into smaller jobs.** Don't have one job that runs for an hour; have one job that enqueues many smaller jobs.
+- **Long-running work should be split into smaller jobs.**
 
 ### Per-tenant fairness
 
@@ -670,58 +853,63 @@ For high-volume jobs (review sync), implement per-organization queues or use Bul
 - **Domain layer:** Returns `Result<T, DomainError>`. Never throws.
 - **Application layer (use cases):** Calls domain functions, unwraps `Result`, throws tagged error on failure. Awaits async operations normally.
 - **Infrastructure layer:** Catches library errors (Drizzle, external APIs) and either translates them to tagged errors or lets them bubble.
-- **Server function layer:** Catches tagged errors using `ts-pattern` matching on `_tag` and `code`, translates to HTTP responses.
+- **Server function layer:** Catches tagged errors using `ts-pattern` matching on `_tag` and `code`, **throws `new Response(...)`** with the appropriate HTTP status.
+- **Client layer:** TanStack Query mutations surface errors via `error` state. `FormErrorBanner` component displays them with user-friendly messages.
 
 ### Error translation pattern
 
 ```ts
 const errorToHttp = (e: PortalError) =>
   match(e.code)
-    .with('forbidden', () => ({ status: 403, body: '...' }))
-    .with('not_found', () => ({ status: 404, body: '...' }))
-    .with('slug_taken', () => ({ status: 409, body: '...' }))
-    .otherwise(() => ({ status: 400, body: '...' }))
+    .with('forbidden', () => ({ status: 403, body: { ... } }))
+    .with('not_found', () => ({ status: 404, body: { ... } }))
+    .with('slug_taken', () => ({ status: 409, body: { ... } }))
+    .with('invalid_slug', 'invalid_theme', () => ({ status: 400, body: { ... } }))
     .exhaustive()
 ```
 
-The `.exhaustive()` ensures the compiler tells us when a new error code is added.
+The `.exhaustive()` ensures the compiler tells us when a new error code is added — every possible code must have a matching `.with()` branch, or TypeScript will error. Do not chain `.otherwise()` before `.exhaustive()`; `.otherwise()` returns a plain value, not a chainable matcher.
 
 ### What never to do
 
 - Don't throw plain `Error` objects in domain or application code. Always tagged errors.
-- Don't catch and swallow errors silently. Either handle them meaningfully or let them propagate.
+- Don't catch and swallow errors silently.
 - Don't use error messages as control flow. Match on `_tag` and `code`.
+- Don't return `{ success: false, error: message }` from server functions. Always throw Response.
 
 ---
 
 ## Testing strategy
 
-Tests are colocated with the code they test (`portal.rules.ts` next to `portal.rules.test.ts`).
+Tests are colocated with the code they test.
 
 ### By layer
 
-| Layer                     | Test type                             | Speed          | Test-first?                 |
-| ------------------------- | ------------------------------------- | -------------- | --------------------------- |
-| Domain                    | Pure unit, no setup                   | Microseconds   | Yes, always                 |
-| Application (use cases)   | Unit with in-memory port fakes        | Milliseconds   | Yes, default                |
-| Infrastructure (repos)    | Integration against real Postgres     | Hundreds of ms | Test-after, but always test |
-| Infrastructure (adapters) | Integration with mocked external APIs | Hundreds of ms | Test-after                  |
-| Server functions          | Integration through TanStack Start    | Seconds        | Test-after critical paths   |
-| UI                        | Sparse, pragmatic                     | Slow           | No                          |
-| End-to-end                | Playwright critical flows             | Slow           | No, after feature is built  |
+| Layer                     | Test type                                               | Speed          | Test-first?                 |
+| ------------------------- | ------------------------------------------------------- | -------------- | --------------------------- |
+| Domain                    | Pure unit, no setup                                     | Microseconds   | Yes, always                 |
+| Application (use cases)   | Unit with in-memory port fakes                          | Milliseconds   | Yes, default                |
+| Infrastructure (repos)    | Integration against real Postgres                       | Hundreds of ms | Test-after, but always test |
+| Infrastructure (adapters) | Integration with mocked external APIs                   | Hundreds of ms | Test-after                  |
+| Server functions          | Integration through TanStack Start                      | Seconds        | Test-after critical paths   |
+| Forms                     | Component tests with user-event, for complex validation | Slow           | Test-after when warranted   |
+| UI (other)                | Sparse, pragmatic                                       | Slow           | No                          |
+| End-to-end                | Playwright critical flows                               | Slow           | No, after feature is built  |
 
 ### Required tests for every context
 
-- **Domain:** 100% coverage on rules, constructors, errors. Easy because they're pure.
-- **Use cases:** Every use case has tests for happy path and every error path. Use in-memory port implementations.
+- **Domain:** 100% coverage on rules, constructors, errors.
+- **Use cases:** Every use case has tests for happy path and every error path.
 - **Repositories:** Integration test for each method. Tenant isolation test (cross-org query returns empty).
-- **Server functions:** Integration tests for happy path and key error paths (auth, validation, role).
+- **Server functions:** Integration tests for happy path and key error paths.
+- **Forms:** Component tests only for complex validation flows, multi-step forms, or public forms with spam protection.
 
 ### Test infrastructure
 
 - Vitest as the runner
 - Neon branch per integration test suite, or local Docker Postgres in CI
 - In-memory port implementations in `shared/testing/in-memory-repos/`
+- Capturing event bus in `shared/testing/capturing-event-bus.ts`
 - Fixture builders in `shared/testing/fixtures.ts`
 
 ---
@@ -737,22 +925,24 @@ domain/         ← imports nothing outside domain/ and shared/domain/
 application/    ← imports from domain/, shared/domain/
 infrastructure/ ← imports from domain/, application/, shared/, external libs
 server/         ← imports from application/ (use cases, dtos), shared/, TanStack Start
-routes/         ← imports from server/ (server functions), components/, shared/
-components/     ← imports from other components/, shared/, NEVER from contexts/
+routes/         ← imports from contexts/<ctx>/server/, components/, shared/, integrations/
+components/     ← imports from other components/, shared/, contexts/<ctx>/application/dto/ (for form schemas only)
 shared/         ← imports from itself, external libs only
+integrations/   ← imports from shared/, external libs only
 ```
 
 ### Forbidden imports
 
-- `contexts/A/*` from `contexts/B/*` (use events instead, or cross-context types only)
+- `contexts/A/*` from `contexts/B/*` (except domain event types, from `domain/events.ts`)
 - `drizzle-orm` from anywhere outside `infrastructure/`
-- React from anywhere outside `routes/`, `components/`, and component-related files
-- Direct database access from `routes/` or `components/` (always go through use cases via server functions)
+- React from anywhere outside `routes/`, `components/`, and `integrations/`
+- Direct database access from `routes/` or `components/`
 - `shared/testing/*` from production code
+- `contexts/<ctx>/domain` or `contexts/<ctx>/application/use-cases` or `contexts/<ctx>/infrastructure` from `components/` (only `application/dto/` is importable for form schemas)
 
 ### Enforcement
 
-ESLint rules in the project root will mechanically prevent these violations. CI fails if rules are broken.
+ESLint rules in the project root mechanically prevent these violations. CI fails if rules are broken.
 
 ---
 
@@ -762,6 +952,7 @@ ESLint rules in the project root will mechanically prevent these violations. CI 
 
 - Lowercase with hyphens: `create-portal.ts`, `portal.repository.ts`
 - Test files: same name with `.test.ts` suffix, colocated
+- Form components: PascalCase matching React convention: `CreatePortalForm.tsx`
 - One concept per file. If a file is exporting unrelated things, split it.
 
 ### Types
@@ -773,28 +964,29 @@ ESLint rules in the project root will mechanically prevent these violations. CI 
 ### Functions
 
 - camelCase: `createPortal`, `validateSlug`
-- Factory functions returning use cases or repos: `createXxx` or `xxxFn`
-- Smart constructors for domain types: `buildXxx` (e.g., `buildPortal`)
-- Smart constructors for events: `xxxYyyy` (past tense, matches event tag, e.g., `portalCreated`)
-- Smart constructors for errors: `xxxError` (e.g., `portalError`)
+- Factory functions returning use cases or repos: `createXxx`
+- Server functions end in camelCase: `createPortal`, `inviteMember`, `signInUser`
+- Smart constructors for domain types: `buildXxx`
+- Smart constructors for events: past-tense matching `_tag`
+- Smart constructors for errors: `xxxError`
+- Form components: `<Verb><Noun>Form` (e.g., `CreatePortalForm`, `LoginForm`)
 
 ### Domain events
 
 - Format: `<context>.<verb-past-tense>`
-- Examples: `portal.created`, `review.received`, `feedback.submitted`, `goal.achieved`
+- Examples: `portal.created`, `review.received`
 
 ### Job names
 
 - Format: `<verb>-<noun>` or `<verb>-<noun>-<modifier>`
-- Examples: `sync-reviews`, `process-hero-image`, `evaluate-badges`, `refresh-daily-metrics`
+- Examples: `sync-reviews`, `process-hero-image`
 
 ### Database tables
 
 - snake_case, plural: `portals`, `portal_link_categories`, `metric_readings`
 - Always include: `id`, `organization_id`, `created_at`, `updated_at`
 - Soft-deletable tables include: `deleted_at`
-
-**Exception — Better Auth tables** (`user`, `session`, `account`, `verification`) use **camelCase** column names (`emailVerified`, `createdAt`, `userId`, etc.). This is required because Better Auth manages these tables directly and generates SQL using camelCase. The Drizzle schema in `shared/db/schema/auth.ts` must match. Use `pnpm auth:migrate` (wraps `@better-auth/cli`) for auth schema changes, not `db:generate`/`db:migrate`.
+- Exception: better-auth tables use camelCase columns (framework default)
 
 ---
 
@@ -804,14 +996,14 @@ When you're not sure where new code belongs, walk this decision tree:
 
 **Is it a pure function with no I/O, no async, no framework dependency?**
 
-- Specific to one context → `contexts/<context>/domain/rules.ts` (or `constructors.ts`)
+- Specific to one context → `contexts/<context>/domain/rules.ts` (or a dedicated file like `permissions.ts` if content warrants)
 - Used by multiple contexts → `shared/domain/`
 
 **Is it a TypeScript type?**
 
 - Specific to one context's entities → `contexts/<context>/domain/types.ts`
-- Specific to one context's input/output → `contexts/<context>/application/dto/`
-- Cross-context (IDs, base errors) → `shared/domain/`
+- Specific to one context's input/output (used for both server validation AND form validation) → `contexts/<context>/application/dto/`
+- Cross-context (IDs, base errors, AuthContext) → `shared/domain/`
 
 **Is it an interface/contract for a dependency?**
 
@@ -824,7 +1016,9 @@ When you're not sure where new code belongs, walk this decision tree:
 
 **Is it an orchestration of business logic?**
 
-- One user action → `contexts/<context>/application/use-cases/<verb-noun>.ts`
+- Real domain logic → `contexts/<context>/application/use-cases/<verb-noun>.ts` (full pattern)
+- Only an authorization check → `contexts/<context>/application/use-cases/<verb-noun>.ts` (thin pattern)
+- Pure delegation, no auth check, no logic → no use case; server function calls third-party API directly
 
 **Is it a server function (TanStack Start)?**
 
@@ -833,13 +1027,18 @@ When you're not sure where new code belongs, walk this decision tree:
 
 **Is it a React component?**
 
-- Generic UI primitive → `components/ui/`
+- shadcn primitive or general-purpose UI → `components/ui/`
 - Layout/navigation → `components/layout/`
-- Feature-specific → `components/features/<feature>/`
+- Shared form building block (SubmitButton, FormErrorBanner, FormSection) → `components/forms/`
+- Feature-specific form or other component → `components/features/<feature>/`
 
 **Is it a URL route?**
 
 - → `routes/` (matching the URL path)
+
+**Is it a framework integration (QueryClient provider, etc.)?**
+
+- → `integrations/`
 
 **Is it a background job handler?**
 
@@ -879,35 +1078,55 @@ These are mistakes the architecture is designed to prevent. Watch for them.
 
 ### "I'll just add this method to the use case"
 
-If you're adding non-orchestration logic to a use case (validation, calculation, transformation), it belongs in `domain/`. Use cases should only orchestrate.
+If you're adding non-orchestration logic to a use case (validation, calculation, transformation), it belongs in `domain/`.
 
 ### "This repository needs to know about another context"
 
-If `PortalRepository` is importing types from the review context, you have a cross-context dependency in the wrong place. Either the boundary is wrong, or the relationship belongs in `application/` (a use case calling two repositories).
+If `PortalRepository` is importing types from the review context, you have a cross-context dependency in the wrong place.
 
 ### "I'll just inline this query in the route"
 
-Routes don't access databases directly. Always go through a server function, which goes through a use case, which goes through a repository.
+Routes don't access databases directly. Always go through a server function.
 
 ### "We can skip the port and just import the repo directly"
 
-Skipping the port couples the use case to a specific implementation. Tests become harder. Future swaps become rewrites. Always define the port.
+Skipping the port couples the use case to a specific implementation. (Different from intentional wrapper-context direct delegation.)
 
 ### "I'll add the new event handler in the same context that emits the event"
 
-Event handlers belong in the _receiving_ context, not the emitting one. Otherwise contexts become tangled.
+Event handlers belong in the _receiving_ context, not the emitting one.
 
 ### "I'll just put this in `shared/`, we might need it later"
 
-`shared/` has a high bar. Code goes there only after a _second_ context needs it. Premature `shared/` placement creates dependencies that don't exist.
+`shared/` has a high bar. Code goes there only after a _second_ context needs it.
 
 ### "I'll throw a generic Error here, easier to handle"
 
-Generic errors lose the type information that makes pattern matching exhaustive. Always use tagged errors.
+Generic errors lose the type information that makes pattern matching exhaustive.
+
+### "I'll return `{ success: false, error: message }` from this server function, it's easier than throwing"
+
+Never. Always throw Response with appropriate status. The client catches via mutation error state. Consistency matters.
+
+### "I'll use React Hook Form for this form, I know it better"
+
+One form stack: TanStack Form + Zod + shadcn. No exceptions.
+
+### "I'll duplicate the Zod schema for the form, the DTO is shaped differently"
+
+If it's shaped differently, the DTO is wrong. Fix the DTO. The schema is the single source of truth.
+
+### "I'll manage `isSubmitting` state in the form component"
+
+Use the TanStack Query mutation's `isPending`. Never hand-roll submission state.
+
+### "I'll call the server function directly from the form onSubmit"
+
+Wrap every server function call in a TanStack Query `useMutation`.
 
 ### "I'll cast this with `as` to make TypeScript happy"
 
-`as` casts circumvent the type system. The only acceptable casts are for branded IDs at parsing boundaries. If you're casting elsewhere, the types are wrong.
+`as` casts circumvent the type system. Only acceptable for branded IDs at parsing boundaries.
 
 ### "I'll use a class for this, it's cleaner"
 
@@ -915,11 +1134,19 @@ We don't use classes. If something feels like it wants to be a class, it's proba
 
 ### "I'll skip the test for this, it's obvious"
 
-Domain and use case tests are cheap. The "obvious" code is exactly the code that breaks subtly six months later. Test it.
+Domain and use case tests are cheap. The "obvious" code is exactly the code that breaks subtly six months later.
+
+### "Every operation should follow the full 7-step pattern for consistency"
+
+Consistency in _shape_ is good. Forcing operations to fake business logic they don't have is not.
+
+### "This use case is one line, let me just inline it in the server function"
+
+The thin use case pattern exists exactly for this case. Keep it.
 
 ### "The AI suggested this pattern, let's go with it"
 
-If AI suggests a pattern that doesn't appear in this document or in existing code, ask whether it fits. AI doesn't always know our conventions. This document is the source of truth.
+If AI suggests a pattern that doesn't appear in this document or in existing code, ask whether it fits before accepting.
 
 ---
 

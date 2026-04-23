@@ -32,7 +32,7 @@ export default tseslint.config(
   //   shared-domain  → shared/domain/
   //   shared-auth    → shared/auth/
   //   shared-db      → shared/db/ (schema barrel, drizzle client — allowed to use drizzle-orm)
-  //   shared-other   → shared/ (cache, config, events, fn, health, jobs, observability, rate-limit)
+  //   shared-other   → shared/ (cache, config, fn, health, jobs, observability, rate-limit)
   //   test-helpers   → shared/testing/
   //   top-level      → composition.ts, bootstrap.ts, start.ts, router.tsx, worker/
   // ────────────────────────────────────────────────────────────────────
@@ -89,16 +89,16 @@ export default tseslint.config(
           pattern: 'src/shared/db/**',
         },
         {
+          type: 'shared-events',
+          pattern: 'src/shared/events/**',
+        },
+        {
           type: 'shared-other',
           pattern: 'src/shared/cache/**',
         },
         {
           type: 'shared-other',
           pattern: 'src/shared/config/**',
-        },
-        {
-          type: 'shared-other',
-          pattern: 'src/shared/events/**',
         },
         {
           type: 'shared-other',
@@ -165,11 +165,12 @@ export default tseslint.config(
               allow: { to: { type: 'shared-domain' } },
             },
 
-            // application → imports from domain/, shared/domain/
+            // application → imports from domain/, shared/domain/, shared-events
+            // Per architecture: use cases need EventBus to emit domain events (patterns #9, #22).
             {
               from: { type: 'application' },
               allow: {
-                to: { type: ['domain', 'shared-domain'] },
+                to: { type: ['domain', 'shared-domain', 'shared-events'] },
               },
             },
 
@@ -190,30 +191,34 @@ export default tseslint.config(
               },
             },
 
-            // server → imports from application/, shared/*, TanStack Start
+            // server → imports from domain/ (error types + type guards), application/, shared/*, TanStack Start
+            // Per architecture: server functions catch tagged errors and need isXxxError type guards (pattern #16).
             {
               from: { type: 'server' },
               allow: {
                 to: {
                   type: [
+                    'domain',
                     'application',
                     'shared-domain',
                     'shared-auth',
                     'shared-db',
+                    'shared-events',
                     'shared-other',
                   ],
                 },
               },
             },
 
-            // routes → imports from server/, components/, shared/*
-            //   "Never from contexts directly."
+            // routes → imports from server/, application/dto/ (form schemas), components/, shared/*
+            //   Per conventions: routes need DTO types for mutation variable types.
             {
               from: { type: 'routes' },
               allow: {
                 to: {
                   type: [
                     'server',
+                    'application',
                     'components',
                     'shared-domain',
                     'shared-auth',
@@ -224,13 +229,19 @@ export default tseslint.config(
               },
             },
 
-            // components → imports from other components/, shared/*
-            //   "Never from contexts."
+            // components → imports from other components/, shared/*, application/dto/ (form schemas only)
+            // Per conventions: "components/ imports from ... contexts/<ctx>/application/dto/ (for form schemas only)"
             {
               from: { type: 'components' },
               allow: {
                 to: {
-                  type: ['components', 'shared-domain', 'shared-auth', 'shared-other'],
+                  type: [
+                    'components',
+                    'shared-domain',
+                    'shared-auth',
+                    'shared-other',
+                    'application',
+                  ],
                 },
               },
             },
@@ -257,19 +268,10 @@ export default tseslint.config(
               },
             },
 
-            // shared-other → imports from shared/ and external libs only
+            // shared-events → imports from shared/ + context domain (event types only)
+            // Per architecture: "Cross-context type imports are allowed for events."
             {
-              from: { type: 'shared-other' },
-              allow: {
-                to: {
-                  type: ['shared-domain', 'shared-auth', 'shared-db', 'shared-other'],
-                },
-              },
-            },
-
-            // test-helpers → may import domain + shared for building fixtures
-            {
-              from: { type: 'test-helpers' },
+              from: { type: 'shared-events' },
               allow: {
                 to: {
                   type: [
@@ -283,12 +285,51 @@ export default tseslint.config(
               },
             },
 
-            // top-level → can import from shared/* (wiring everything together)
+            // shared-other → imports from shared/ and external libs only
+            {
+              from: { type: 'shared-other' },
+              allow: {
+                to: {
+                  type: ['shared-domain', 'shared-auth', 'shared-db', 'shared-other'],
+                },
+              },
+            },
+
+            // test-helpers → may import domain, application (port interfaces), shared for building fixtures
+            // Per architecture: in-memory fakes implement context port interfaces (pattern #18).
+            {
+              from: { type: 'test-helpers' },
+              allow: {
+                to: {
+                  type: [
+                    'domain',
+                    'application',
+                    'shared-domain',
+                    'shared-auth',
+                    'shared-db',
+                    'shared-events',
+                    'shared-other',
+                  ],
+                },
+              },
+            },
+
+            // top-level → imports from infrastructure (wiring), shared/* (wiring everything together)
+            // Per architecture: composition.ts wires the full dependency graph, including infrastructure factories.
             {
               from: { type: 'top-level' },
               allow: {
                 to: {
-                  type: ['shared-domain', 'shared-auth', 'shared-db', 'shared-other'],
+                  type: [
+                    'domain',
+                    'application',
+                    'infrastructure',
+                    'shared-domain',
+                    'shared-auth',
+                    'shared-db',
+                    'shared-events',
+                    'shared-other',
+                  ],
                 },
               },
             },

@@ -2,6 +2,7 @@
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { Pool } from 'pg'
 import { getEnv } from '#/shared/config/env'
+import { getLogger } from '#/shared/observability/logger'
 import * as schema from './schema/index'
 
 let _db: ReturnType<typeof drizzle<typeof schema>> | undefined
@@ -26,7 +27,8 @@ export async function isDbHealthy(): Promise<boolean> {
     const pool = _pool ?? new Pool({ connectionString: getEnv().DATABASE_URL })
     const result = await pool.query('SELECT 1')
     return result.rows.length > 0
-  } catch {
+  } catch (err) {
+    getLogger().warn({ err }, '[db] health check failed')
     return false
   }
 }

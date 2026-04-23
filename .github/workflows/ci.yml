@@ -51,4 +51,5 @@ jobs:
           DATABASE_URL: postgresql://test:test@localhost:5432/test
           BETTER_AUTH_SECRET: test-secret-at-least-32-characters-long-for-ci
           BETTER_AUTH_URL: http://localhost:3000
+          RESEND_API_KEY: re_ci_test_key_placeholder
         run: pnpm test

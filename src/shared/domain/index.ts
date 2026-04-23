@@ -44,3 +44,9 @@ export { createErrorFactory } from './errors'
 
 export type { Clock } from './clock'
 export { systemClock, fixedClock, advancingClock } from './clock'
+
+export type { AuthContext } from './auth-context'
+
+export type { Role } from './roles'
+export { ROLE_HIERARCHY, hasRole, toDomainRole, toBetterAuthRole } from './roles'
+export type { BetterAuthRole } from './roles'

@@ -1,4 +1,7 @@
-// Shared auth UI components — eliminates duplication across login/register/reset pages
+// Shared auth UI components — eliminates duplication across login/register/reset pages.
+// AuthCard and AuthFooterLink are identity-specific layout components.
+// For error display, use FormErrorBanner from components/forms/ directly.
+
 import { Link } from '@tanstack/react-router'
 import {
   Card,
@@ -8,11 +11,10 @@ import {
   CardTitle,
 } from '#/components/ui/card'
 
-interface ErrorBannerProps {
-  message: string | null
-}
-
-export function ErrorBanner({ message }: ErrorBannerProps) {
+// Backwards-compatible error banner for routes still being migrated.
+// New code should import FormErrorBanner directly from components/forms/.
+// accept-invitation.tsx uses this because it has a plain string error, not a mutation error.
+export function ErrorBanner({ message }: Readonly<{ message: string | null }>) {
   if (!message) return null
   return (
     <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-400">
@@ -21,11 +23,11 @@ export function ErrorBanner({ message }: ErrorBannerProps) {
   )
 }
 
-interface AuthCardProps {
+type AuthCardProps = Readonly<{
   title: string
   description: string
   children: React.ReactNode
-}
+}>
 
 export function AuthCard({ title, description, children }: AuthCardProps) {
   return (
@@ -41,11 +43,11 @@ export function AuthCard({ title, description, children }: AuthCardProps) {
   )
 }
 
-interface AuthFooterLinkProps {
+type AuthFooterLinkProps = Readonly<{
   message: string
   linkText: string
-  to: '/login' | '/register' | '/reset-password'
-}
+  to: '/login' | '/register' | '/reset-password' | '/dashboard' | '/accept-invitation'
+}>
 
 export function AuthFooterLink({ message, linkText, to }: AuthFooterLinkProps) {
   return (

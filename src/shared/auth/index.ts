@@ -7,10 +7,16 @@ export {
   getUserFromHeaders,
   getSessionFromHeaders,
   requireAuth,
-  requireRole,
+  resolveTenantContext,
+  roleGuard,
 } from './middleware'
 export type { AuthError } from './middleware'
+export { headersFromContext } from './headers'
 export { authClient, useSession } from './auth-client'
-export { sendVerificationEmail, sendResetPasswordEmail, getResend } from './emails'
-export type { AuthContext, Role } from './context'
-export { ROLE_HIERARCHY, hasRole } from './context'
+export {
+  sendVerificationEmail,
+  sendResetPasswordEmail,
+  sendInvitationEmail,
+  getResend,
+} from './emails'
+export type { AuthContext } from '#/shared/domain/auth-context'
