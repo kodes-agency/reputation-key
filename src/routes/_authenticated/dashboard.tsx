@@ -13,7 +13,9 @@ export const Route = createFileRoute('/_authenticated/dashboard')({
 })
 
 function DashboardPage() {
-  const { data: session } = authClient.useSession()
+  // Get user from the parent layout's route context (set by getSession server fn)
+  const ctx = Route.useRouteContext()
+  const user = (ctx as { user?: { name: string } }).user
   const queryClient = useQueryClient()
 
   const orgQuery = useQuery({
@@ -27,7 +29,6 @@ function DashboardPage() {
   })
 
   const orgs = orgQuery.data?.organizations ?? []
-  // Auto-set first org as active once loaded
   const activeOrg = orgs.length > 0 ? orgs[0] : null
 
   function handleSetActive(orgId: string) {
@@ -45,7 +46,7 @@ function DashboardPage() {
           <div>
             <h1 className="mb-1 text-2xl font-bold text-[var(--sea-ink)]">Dashboard</h1>
             <p className="text-[var(--sea-ink-soft)]">
-              Welcome back, {session?.user?.name ?? 'User'}!
+              Welcome back, {user?.name || 'User'}!
               {activeOrg && (
                 <span className="ml-2 text-sm">
                   ·{' '}
@@ -70,10 +71,20 @@ function DashboardPage() {
         {orgQuery.isLoading ? (
           <p className="text-sm text-[var(--sea-ink-soft)]">Loading…</p>
         ) : orgQuery.error ? (
-          <p className="text-sm text-red-600">Failed to load organizations.</p>
+          <div className="rounded-lg border border-red-200 bg-red-50 p-4">
+            <p className="text-sm text-red-600">
+              Failed to load organizations. Please refresh the page.
+            </p>
+          </div>
+        ) : orgs.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-[var(--line)] p-8 text-center">
+            <p className="text-[var(--sea-ink)]">No organization found.</p>
+            <p className="mt-1 text-sm text-[var(--sea-ink-soft)]">
+              Your account exists but no organization is set up. Please contact support.
+            </p>
+          </div>
         ) : (
           <>
-            {/* Organization switcher (for multi-org users) */}
             {orgs.length > 1 && (
               <div className="mb-6 rounded-lg border border-[var(--line)] p-4">
                 <h2 className="mb-2 text-sm font-semibold text-[var(--sea-ink)]">

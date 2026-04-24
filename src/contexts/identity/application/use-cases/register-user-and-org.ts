@@ -26,8 +26,13 @@ type Deps = Readonly<{
   events: EventBus
   /** Sign up a new user with email+password. Returns user ID or throws. */
   signUp: (name: string, email: string, password: string) => Promise<string>
-  /** Create an organization with the given name and slug. Returns org ID. */
-  createOrg: (headers: Headers, name: string, slug: string) => Promise<string>
+  /** Create an organization with the given name and slug. Accepts optional userId for server-side creation. */
+  createOrg: (
+    headers: Headers,
+    name: string,
+    slug: string,
+    userId?: string,
+  ) => Promise<string>
   /** Set the active organization for the current session. */
   setActiveOrg: (headers: Headers, orgId: string) => Promise<void>
   /** Build headers carrying the current request session. */
@@ -68,10 +73,12 @@ export const registerUserAndOrg =
     }
 
     // 3–4. Create the org and set it as active
+    // Pass userId to createOrganization so it works server-side
+    // (the new user's session cookies aren't available yet).
     const headers = deps.headers()
     let orgId: string
     try {
-      orgId = await deps.createOrg(headers, validName, slug)
+      orgId = await deps.createOrg(headers, validName, slug, userId)
       await deps.setActiveOrg(headers, orgId)
     } catch (e) {
       // User was created but org setup failed — distinct error so the client

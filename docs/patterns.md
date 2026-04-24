@@ -59,6 +59,9 @@ The default for anything non-trivial is the full use case. The thin and direct p
 24. [Form component (TanStack Form + shadcn)](#24-form-component-tanstack-form--shadcn)
 25. [Shared form building block (SubmitButton)](#25-shared-form-building-block-submitbutton)
 26. [Shared form building block (FormErrorBanner)](#26-shared-form-building-block-formerrorbanner)
+27. [Update use case (partial validation)](#27-update-use-case-partial-validation)
+28. [Soft-delete use case (minimal deps)](#28-soft-delete-use-case-minimal-deps)
+29. [Form schema rules — when forms differ from DTOs](#29-form-schema-rules--when-forms-differ-from-dtos)
 
 ---
 
@@ -578,9 +581,15 @@ export const portals = pgTable(
   'portals',
   {
     id: uuid('id').primaryKey().defaultRandom(),
+    // Note: better-auth owns the `organization` table and uses varchar IDs,
+    // so most tables reference it with varchar, not uuid + FK.
+    // The pattern below is aspirational for non-better-auth parent tables.
     organizationId: uuid('organization_id')
       .notNull()
-      .references(() => organization.id, { onDelete: 'cascade' }),
+      // .references(() => organization.id, { onDelete: 'cascade' })
+      // Uncomment if/when Drizzle FK references to better-auth tables are feasible.
+      // Currently, better-auth tables use camelCase columns that differ from
+      // Drizzle's generated schema, so FK references don't work cross-schema.
     propertyId: uuid('property_id')
       .notNull()
       .references(() => properties.id, { onDelete: 'restrict' }),
@@ -963,24 +972,12 @@ import { headersFromContext } from '@/shared/auth/headers'
 import { resolveTenantContext, roleGuard } from '@/shared/auth/middleware'
 import { getContainer } from '@/composition'
 
-const portalErrorToResponse = (e: PortalError) =>
-  match(e.code)
-    .with('forbidden', () => ({
-      status: 403 as const,
-      body: { error: e.code, message: e.message },
-    }))
-    .with('property_not_found', 'portal_not_found', () => ({
-      status: 404 as const,
-      body: { error: e.code, message: e.message },
-    }))
-    .with('slug_taken', () => ({
-      status: 409 as const,
-      body: { error: e.code, message: e.message },
-    }))
-    .with('invalid_slug', 'invalid_theme', 'invalid_smart_routing', () => ({
-      status: 400 as const,
-      body: { error: e.code, message: e.message },
-    }))
+const portalErrorStatus = (code: PortalError['code']): number =>
+  match(code)
+    .with('forbidden', () => 403)
+    .with('property_not_found', 'portal_not_found', () => 404)
+    .with('slug_taken', () => 409)
+    .with('invalid_slug', 'invalid_theme', 'invalid_smart_routing', () => 400)
     .exhaustive()
 
 export const createPortal = createServerFn({ method: 'POST' })
@@ -996,11 +993,12 @@ export const createPortal = createServerFn({ method: 'POST' })
       return { portal }
     } catch (e) {
       if (isPortalError(e)) {
-        const { status, body } = portalErrorToResponse(e)
-        throw new Response(JSON.stringify(body), {
-          status,
-          headers: { 'content-type': 'application/json' },
-        })
+        const status = portalErrorStatus(e.code)
+        const error = new Error(e.message)
+        error.name = 'PortalError'
+        ;(error as unknown as Record<string, unknown>).code = e.code
+        ;(error as unknown as Record<string, unknown>).status = status
+        throw error
       }
       throw e
     }
@@ -1017,7 +1015,7 @@ export const createPortal = createServerFn({ method: 'POST' })
 - `handler` calls the use case from `getContainer().useCases`
 - `ts-pattern` with `.exhaustive()` ensures new error codes force a compiler error
 - Non-context errors re-thrown; TanStack Start's error boundary handles them
-- **Throws Response — never returns `{ success: false, error }`**
+- **Throws Error objects (not Response)** — TanStack Start serializes Errors via seroval and re-throws them on the client, so mutations fail and `mutation.error` is populated
 
 ---
 
@@ -1042,10 +1040,11 @@ export const getPublicPortal = createServerFn({ method: 'GET' })
     const portal = await useCases.getPortalBySlug(data)
 
     if (!portal) {
-      throw new Response(JSON.stringify({ error: 'not_found' }), {
-        status: 404,
-        headers: { 'content-type': 'application/json' },
-      })
+      const error = new Error('Portal not found')
+      error.name = 'PortalError'
+      ;(error as unknown as Record<string, unknown>).code = 'not_found'
+      ;(error as unknown as Record<string, unknown>).status = 404
+      throw error
     }
 
     return {
@@ -1493,13 +1492,11 @@ export const signInUser = createServerFn({ method: 'POST' })
         body: { email: data.email, password: data.password },
       })
     } catch {
-      throw new Response(
-        JSON.stringify({
-          error: 'invalid_credentials',
-          message: 'Invalid email or password',
-        }),
-        { status: 401, headers: { 'content-type': 'application/json' } },
-      )
+      const error = new Error('Invalid email or password')
+      error.name = 'AuthError'
+      ;(error as unknown as Record<string, unknown>).code = 'invalid_credentials'
+      ;(error as unknown as Record<string, unknown>).status = 401
+      throw error
     }
   })
 ```
@@ -1516,7 +1513,7 @@ export const signInUser = createServerFn({ method: 'POST' })
   - No event to emit afterward
   - No transformation of the result beyond what the third-party returns
 - If any of those become false later, refactor to a use case
-- **Still throws Response on error** — never returns `{ success: false, error }`. The consistency of error handling across all server functions matters.
+- **Still throws Error on error** — never returns `{ success: false, error }`. TanStack Start serializes Errors for the client. The consistency of error handling across all server functions matters.
 
 ---
 
@@ -1768,6 +1765,201 @@ export function FormErrorBanner({ error }: Props) {
 
 ---
 
+## 27. Update use case (partial validation)
+
+**Location:** `src/contexts/property/application/use-cases/update-property.ts`
+**Purpose:** Shows how update use cases validate changed fields individually instead of reconstructing the full entity through the smart constructor. This is the correct pattern for partial updates.
+
+### Why updates differ from creates
+
+**Create** uses the smart constructor (`buildProperty`) which validates all fields at once. This works because every field is being set.
+
+**Update** receives a partial patch — only the fields the user wants to change. Running all validations would reject unchanged fields that happen to be invalid in the patch (e.g., an existing slug that the user isn't changing). Instead, the update use case:
+
+1. Loads the existing entity (step 2)
+2. Validates only the fields present in the patch using domain rules directly (step 4)
+3. Merges validated changes with existing values
+4. Persists the merged result (step 5)
+
+```ts
+// update-property.ts — field-level validation for partial updates
+
+// 3. Check uniqueness if slug is changing
+const newSlug = input.slug ?? existing.slug
+if (input.slug && input.slug !== existing.slug) {
+  const slugResult = validateSlug(input.slug)
+  if (slugResult.isErr()) throw slugResult.error
+  // ... uniqueness check
+}
+
+// 4. Validate individual fields if provided
+const newName = input.name ?? existing.name
+if (input.name) {
+  const nameResult = validatePropertyName(input.name)
+  if (nameResult.isErr()) throw nameResult.error
+}
+
+const newTimezone = input.timezone ?? existing.timezone
+if (input.timezone) {
+  const tzResult = validateTimezone(input.timezone)
+  if (tzResult.isErr()) throw tzResult.error
+}
+```
+
+**Key points:**
+
+- Domain rules (`validatePropertyName`, `validateSlug`, `validateTimezone`) are the same functions used by the smart constructor — no rule duplication
+- The difference is _how_ they're called: constructor runs all of them; update runs only the ones that changed
+- Fall-through values (`input.name ?? existing.name`) ensure unchanged fields are preserved
+- The smart constructor remains the authority for full-entity validation (create, bulk import, etc.)
+- This is not a shortcut — it's the correct pattern when the entity already exists and only some fields change
+
+### When to use which
+
+| Operation                              | Validation approach                                   |
+| -------------------------------------- | ----------------------------------------------------- |
+| Create new entity                      | Smart constructor (`buildXxx`) — validates all fields |
+| Update existing entity (partial)       | Individual domain rules on changed fields             |
+| Replace entire entity (full overwrite) | Smart constructor — you're rebuilding it              |
+
+---
+
+## 28. Soft-delete use case (minimal deps)
+
+**Location:** `src/contexts/property/application/use-cases/soft-delete-property.ts`
+**Purpose:** Shows a use case with minimal dependencies — only what's needed. No `idGen` because no new entity is created. Still includes `clock` for deterministic timestamps.
+
+```ts
+export type SoftDeletePropertyDeps = Readonly<{
+  propertyRepo: PropertyRepository
+  events: EventBus
+  clock: () => Date
+}>
+```
+
+**Key points:**
+
+- No `idGen` — soft-delete doesn't create a new entity
+- **Always include `clock`** when emitting events — `new Date()` is forbidden in use cases. The event's `occurredAt` must use `deps.clock()` so tests can assert deterministic timestamps.
+- Steps used: (1) authorize, (2) validate entity exists, (5) persist, (6) emit event
+- Steps skipped: (3) uniqueness check (not applicable), (4) build domain object (not creating)
+
+### The `clock` rule for all use cases
+
+Every use case that creates a timestamp (for an event, for an `updatedAt` field, for anything) must receive `clock` as a dependency. The only `new Date()` calls in the codebase belong in:
+
+- `composition.ts` (the production clock factory: `clock: () => new Date()`)
+- Repository implementations (e.g., `softDelete` sets `deletedAt` via `new Date()` — this is acceptable because repos are integration-tested, not unit-tested)
+- Test setup (fixed clocks: `clock: () => FIXED_TIME`)
+
+---
+
+## 29. Form schema rules — derive from DTOs
+
+### The rule
+
+**Form schemas are derived from DTO schemas.** Import the DTO schema from `application/dto/`, then use Zod's `.required()`, `.extend()`, `.omit()`, or `.refine()` to adjust for form-specific concerns. Never re-declare a validation rule that already exists in the DTO.
+
+The DTO is the single source of truth for validation rules (lengths, formats, patterns). The form schema is a _derived view_ that adjusts _shape_ (all strings, extra fields, no optional wrappers) but inherits _rules_ from the DTO.
+
+### Why derive instead of duplicate
+
+Forms and DTOs have legitimately different shapes:
+
+1. **All fields are strings.** HTML inputs produce strings. The DTO may have `optional` fields; the form keeps them as required strings with empty defaults.
+2. **Extra fields.** Password confirmation, terms acceptance, or UX-only fields that get stripped before submission.
+3. **Server-only fields.** The DTO may include `propertyId` or other fields the server sets — the form omits them.
+
+But the _validation rules_ (name max length, slug pattern, required fields) must be the same. Deriving the form schema from the DTO means they can't drift apart.
+
+### Pattern 1: `.required()` — when form fields are all required strings
+
+Use when the DTO has `.optional()` fields but the form needs empty-string defaults:
+
+```ts
+import { createPropertyInputSchema } from '#/contexts/property/application/dto/create-property.dto'
+
+const createFormSchema = createPropertyInputSchema
+  .required() // removes optional wrappers → all fields present
+  .extend({
+    slug: z.string().max(64, 'Slug must be at most 64 characters'),
+    gbpPlaceId: z.string().max(500, 'GBP Place ID must be at most 500 characters'),
+  })
+```
+
+`.required()` removes `.optional()` wrappers. `.extend()` overrides fields where the form needs a different shape (e.g., slug is optional on the server but a plain string in the form, with empty-ok semantics). Rules for `name` and `timezone` are inherited directly from the DTO — no duplication.
+
+### Pattern 2: `.extend()` + `.refine()` — when the form has extra fields
+
+Use when the form has fields that don't exist in the DTO (password confirmation):
+
+```ts
+import { registerUserInputSchema } from '#/contexts/identity/application/dto/invitation.dto'
+
+const registerFormSchema = registerUserInputSchema
+  .extend({
+    confirmPassword: z.string().min(1, 'Please confirm your password'),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: 'Passwords do not match',
+    path: ['confirmPassword'],
+  })
+```
+
+All DTO rules for `name`, `email`, `password`, `organizationName` are inherited. The form adds one field and one cross-field rule.
+
+### Pattern 3: `.omit()` + `.required()` — when the form edits a subset
+
+Use for edit forms where the DTO has server-only fields:
+
+```ts
+import { updatePropertyInputSchema } from '#/contexts/property/application/dto/update-property.dto'
+
+const editFormSchema = updatePropertyInputSchema
+  .omit({ propertyId: true }) // server sets this, not the form
+  .required() // all fields present for editing
+  .extend({
+    slug: z
+      .string()
+      .min(1, 'Slug is required')
+      .max(64, 'Slug must be at most 64 characters'),
+    gbpPlaceId: z.string().max(500, 'GBP Place ID must be at most 500 characters'),
+  })
+```
+
+### Pattern 4: Use DTO directly — when shapes match
+
+When the form shape matches the DTO shape exactly (all required strings, no extra fields), use the DTO schema directly:
+
+```ts
+import { signInInputSchema } from '#/contexts/identity/application/dto/invitation.dto'
+
+const form = useForm({
+  validators: { onSubmit: signInInputSchema },
+  // ...
+})
+```
+
+### Where the real rules live
+
+```
+Domain rules (domain/rules.ts)     → canonical business validation (Result-returning)
+DTO schemas (application/dto/)      → structural validation for server input (Zod) — SOURCE OF TRUTH for lengths/formats
+Form schemas (components/features/) → derived from DTO, adjusted for form shape
+```
+
+Change a rule in the DTO → every derived form schema automatically picks it up. If you need to change a rule, change it in the DTO (and the domain rules if applicable). The form schemas inherit.
+
+### Anti-patterns
+
+- ❌ Re-declaring a `z.string().min().max()` rule in a form schema that already exists in the DTO — derive instead
+- ❌ Importing from `domain/rules.ts` in a form component — dependency rules forbid it
+- ❌ Duplicating _business logic_ (slug regex patterns, timezone lists) in form schemas — inherit from DTO
+- ❌ Skipping form validation entirely — early feedback is a UX requirement
+- ❌ Using the DTO schema directly when the form shape genuinely differs — causes type errors from `undefined` vs empty string
+
+---
+
 ## How to use this document
 
 When AI is creating a new file:
@@ -1780,7 +1972,7 @@ When AI is creating a new file:
 
 When this document doesn't cover your case:
 
-1. **Check existing code first** — once `contexts/identity/` and `contexts/portal/` are built, they're the canonical references.
+1. **Check existing code first** — `contexts/identity/` and `contexts/property/` are the canonical live references.
 2. **Check `architecture.md`** for the rationale.
 3. **Check `conventions.md`** for the rules, especially "When to skip layers" and the forms section.
 4. **If still unclear, decide deliberately and add a new example to this document** before writing the code.

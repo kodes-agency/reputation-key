@@ -1,7 +1,7 @@
 // Accept invitation page
 // Users arrive here from invitation emails via /accept-invitation?id=<invitationId>
 import { createFileRoute, Link, redirect } from '@tanstack/react-router'
-import { authClient } from '#/shared/auth/auth-client'
+import { getSession } from '#/shared/auth/auth.functions'
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Button } from '#/components/ui/button'
@@ -113,7 +113,7 @@ function InvitationListView({
 
 export const Route = createFileRoute('/accept-invitation')({
   beforeLoad: async () => {
-    const { data: session } = await authClient.getSession()
+    const session = await getSession()
     if (!session) {
       throw redirect({ to: '/login' })
     }

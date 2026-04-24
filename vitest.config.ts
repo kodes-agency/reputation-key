@@ -1,6 +1,13 @@
 import { defineConfig } from 'vitest/config'
 import { resolve } from 'path'
 
+// Load .env so that process.env.DATABASE_URL etc. are available for
+// integration tests. Vitest doesn't auto-load .env files (only Vite dev
+// server does). We load before defineConfig so the fallbacks below see
+// the real values.
+import { config as dotenvConfig } from 'dotenv'
+dotenvConfig()
+
 export default defineConfig({
   resolve: {
     alias: {
