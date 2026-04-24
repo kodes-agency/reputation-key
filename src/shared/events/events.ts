@@ -17,8 +17,17 @@ export type {
   MemberRoleChanged,
 } from '#/contexts/identity/domain/events'
 
+// Property context events
+export type {
+  PropertyEvent,
+  PropertyCreated,
+  PropertyUpdated,
+  PropertyDeleted,
+} from '#/contexts/property/domain/events'
+
 // Master union — adding a new context's events requires extending this.
 // This ensures ts-pattern exhaustive checks catch new event types.
 import type { IdentityEvent } from '#/contexts/identity/domain/events'
+import type { PropertyEvent } from '#/contexts/property/domain/events'
 
-export type DomainEvent = IdentityEvent
+export type DomainEvent = IdentityEvent | PropertyEvent

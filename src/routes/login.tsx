@@ -7,14 +7,14 @@ import {
   useRouter,
 } from '@tanstack/react-router'
 import { useMutation } from '@tanstack/react-query'
-import { authClient } from '#/shared/auth/auth-client'
+import { getSession, ensureActiveOrg } from '#/shared/auth/auth.functions'
 import { AuthCard, AuthFooterLink } from '#/components/features/identity/AuthLayout'
 import { LoginForm } from '#/components/features/identity/LoginForm'
 import { signInUser } from '#/contexts/identity/server/organizations'
 
 export const Route = createFileRoute('/login')({
   beforeLoad: async () => {
-    const { data: session } = await authClient.getSession()
+    const session = await getSession()
     if (session) {
       throw redirect({ to: '/dashboard' })
     }
@@ -31,10 +31,9 @@ function LoginPage() {
     mutationFn: (input: { email: string; password: string }) =>
       signInUser({ data: input }),
     onSuccess: async () => {
-      // After sign-in, auth cookies have changed. Invalidate the router
-      // to refresh session state, then navigate to the target page.
-      // Per architecture: "Never use window.location.href — it causes a hard
-      // page reload, losing router state, cached queries, and session context."
+      // After sign-in, ensure an org is active (handles users whose
+      // registration didn't set the active org correctly).
+      await ensureActiveOrg()
       await router.invalidate()
       await navigate({ to: search.redirect ?? '/dashboard' })
     },

@@ -26,6 +26,14 @@ import { registerUserAndOrg } from '#/contexts/identity/application/use-cases/re
 import { getAuth } from '#/shared/auth/auth'
 import { headersFromContext } from '#/shared/auth/headers'
 import type { Queue } from 'bullmq'
+import { createPropertyRepository } from '#/contexts/property/infrastructure/repositories/property.repository'
+import { createProperty } from '#/contexts/property/application/use-cases/create-property'
+import { updateProperty } from '#/contexts/property/application/use-cases/update-property'
+import { listProperties } from '#/contexts/property/application/use-cases/list-properties'
+import { getProperty } from '#/contexts/property/application/use-cases/get-property'
+import { softDeleteProperty } from '#/contexts/property/application/use-cases/soft-delete-property'
+import { propertyId } from '#/shared/domain/ids'
+import { randomUUID } from 'crypto'
 
 export function createContainer() {
   const db = getDb()
@@ -60,27 +68,43 @@ export function createContainer() {
     return user?.user?.id ?? ''
   }
 
-  // Helper: create org via better-auth, returns org ID
+  // Helper: create org via better-auth using the server-side userId field.
+  // Uses userId instead of session headers so it works during registration
+  // (when the new user's session cookies aren't available yet).
   const createOrg = async (
-    headers: Headers,
+    _headers: Headers,
     name: string,
     slug: string,
+    userId?: string,
   ): Promise<string> => {
     const auth = getAuth()
     const org = await auth.api.createOrganization({
-      headers,
-      body: { name, slug },
+      body: { name, slug, userId },
     })
     return (org as unknown as { id: string }).id
   }
 
-  // Helper: set active org via better-auth
+  // Helper: set active org via better-auth.
+  // Falls back to setting via headers (works after registration when
+  // the sign-up response has set cookies on the incoming request).
   const setActiveOrg = async (headers: Headers, orgId: string): Promise<void> => {
     const auth = getAuth()
-    await auth.api.setActiveOrganization({ headers, body: { organizationId: orgId } })
+    try {
+      await auth.api.setActiveOrganization({ headers, body: { organizationId: orgId } })
+    } catch {
+      // If headers don't carry a valid session (e.g., during registration
+      // where cookies aren't yet available), this is non-fatal — the user
+      // will set their active org on first login.
+    }
   }
 
+  // ── Property context ────────────────────────────────────────────
+  const propertyRepo = createPropertyRepository(db)
+  const idGen = () => propertyId(randomUUID())
+  const clock = () => new Date()
+
   const useCases = {
+    // Identity
     inviteMember: inviteMember({ identity: identityPort, events: eventBus }),
     updateMemberRole: updateMemberRole({ identity: identityPort, events: eventBus }),
     removeMember: removeMember({ identity: identityPort, events: eventBus }),
@@ -92,6 +116,12 @@ export function createContainer() {
       setActiveOrg,
       headers: headersFromContext,
     }),
+    // Property
+    createProperty: createProperty({ propertyRepo, events: eventBus, idGen, clock }),
+    updateProperty: updateProperty({ propertyRepo, events: eventBus, clock }),
+    listProperties: listProperties({ propertyRepo }),
+    getProperty: getProperty({ propertyRepo }),
+    softDeleteProperty: softDeleteProperty({ propertyRepo, events: eventBus, clock }),
   } as const
 
   return {

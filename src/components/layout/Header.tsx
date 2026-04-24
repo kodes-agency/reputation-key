@@ -66,13 +66,22 @@ function NavLinks({ isLoggedIn }: { isLoggedIn: boolean }) {
   return (
     <div className="order-3 flex w-full flex-wrap items-center gap-x-4 gap-y-1 pb-1 text-sm font-semibold sm:order-2 sm:w-auto sm:flex-nowrap sm:pb-0">
       {isLoggedIn && (
-        <Link
-          to="/dashboard"
-          className="nav-link"
-          activeProps={{ className: 'nav-link is-active' }}
-        >
-          Dashboard
-        </Link>
+        <>
+          <Link
+            to="/dashboard"
+            className="nav-link"
+            activeProps={{ className: 'nav-link is-active' }}
+          >
+            Dashboard
+          </Link>
+          <Link
+            to="/properties"
+            className="nav-link"
+            activeProps={{ className: 'nav-link is-active' }}
+          >
+            Properties
+          </Link>
+        </>
       )}
       <Link to="/" className="nav-link" activeProps={{ className: 'nav-link is-active' }}>
         Home

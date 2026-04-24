@@ -80,7 +80,7 @@ These principles drive every architectural decision. When in doubt, return to th
 | Image processing         | sharp                     | Runs in worker                                                      |
 | Pattern matching         | ts-pattern                | For discriminated unions                                            |
 | Result types             | neverthrow                | Domain-layer error handling                                         |
-| Validation               | Zod (v4)                  | DTO schemas in `application/dto/`; dual-use for server + forms      |
+| Validation               | Zod (v4)                  | DTO schemas in `application/dto/`; forms derive from DTOs           |
 | Client cache / mutations | TanStack Query            | Wraps server function calls                                         |
 | UI primitives            | shadcn/ui                 | Field components: `Field`, `FieldLabel`, `FieldError`, `FieldGroup` |
 | Forms                    | TanStack Form + shadcn/ui | Zod schema passed to `validators.onSubmit`; v1 handles Zod natively |
@@ -162,7 +162,7 @@ The orchestration layer. Coordinates domain logic, repository calls, and externa
 
 - Use cases — one per user action (`createPortal`, `submitFeedback`)
 - Port definitions — interfaces for things the context depends on (`PortalRepository`, `PortalStorage`)
-- DTOs — Zod schemas for input/output shapes that cross network boundaries **and are reused as form schemas**
+- DTOs — Zod schemas for input/output shapes that cross network boundaries **(forms derive from these via .required()/.extend()/.omit())**
 
 **Forbidden:**
 
@@ -202,7 +202,7 @@ The presentation layer. TanStack Start server functions exposed to the client.
 - TanStack Start server function definitions
 - Input validation using Zod schemas from `application/dto/`
 - Auth/tenant resolution via `resolveTenantContext(headers)` and `roleGuard()` calls at the top of each handler
-- Error translation (catch tagged errors, throw `Response`)
+- Error translation (catch tagged errors, throw `Error` with code/status properties)
 
 **Forbidden:**
 
@@ -415,7 +415,7 @@ The event bus and the master event type.
 Database infrastructure.
 
 - `client.ts` — Drizzle client factory
-- `base-where.ts` — `baseWhere(orgId)` helper enforcing tenancy + soft-delete filtering (to be added when first non-identity repository is built; identity context wraps better-auth which handles tenancy internally)
+- `base-where.ts` — `baseWhere(orgId)` helper enforcing tenancy + soft-delete filtering. Used by the property repository and all subsequent context repositories. Identity context wraps better-auth which handles tenancy internally, so it does not use this helper.
 - `schema/` — One file per context (`portal.schema.ts`, `review.schema.ts`, ...) plus an `index.ts` barrel
 - `migrations/` — Drizzle-generated SQL
 
@@ -534,13 +534,13 @@ Forms are pervasive in this application. Every context has at least one. Because
 
 - **Zod** defines the schema (lives in `application/dto/`, already required for server-side validation)
 - **TanStack Form** manages form state, field subscriptions, validation on submit (`validators.onSubmit`), submission flow
-- **shadcn/ui** provides the visual components: `Field`, `FieldGroup`, `FieldLabel`, `FieldError`, `FieldDescription`, `FieldSet`, `FieldLegend`, plus primitives like `Input`, `Textarea`, `Select`, `Checkbox`
+- **shadcn/ui** provides the visual components: `Field`, `FieldGroup`, `FieldLabel`, `FieldError`, plus primitives like `Input`, `Textarea`, `Select`, `Checkbox`. Additional field components (`FieldDescription`, `FieldSet`, `FieldLegend`) can be added from shadcn as needed.
 
 shadcn publishes an official integration guide for TanStack Form. That guide is the authoritative reference for wiring individual field components. Our conventions extend it with project-specific patterns (submission via mutations, error handling, folder structure).
 
 ### Why this stack
 
-- **Single source of truth.** The Zod schema in `application/dto/` validates server input _and_ form input. Shape and validation rules cannot drift.
+- **Single source of truth.** The Zod schema in `application/dto/` validates server input and is the single source of truth for validation rules. Form components **derive** their schemas from the DTO via `.required()`, `.extend()`, `.omit()` — never re-declare rules that exist in the DTO. See `docs/patterns.md` section 29 for the full derivation patterns.
 - **Type safety end-to-end.** `z.infer<typeof Schema>` gives form values type. TanStack Form uses that type for field names, values, and errors. Change the schema, TypeScript flags every form that breaks.
 - **Stack consistency.** TanStack Start + TanStack Router + TanStack Query + TanStack Form are designed together. One mental model across routing, data fetching, and forms.
 - **Design system consistency.** shadcn/ui primitives are used for every form input. Our app looks like itself on every page.
@@ -584,7 +584,7 @@ Reasons for this split:
 - **Unified mutation state.** `isPending`, `isError`, `isSuccess`, `error` drive UI affordances automatically. No hand-rolled `isSubmitting` state.
 - **Cache invalidation.** `onSuccess` in the route invalidates related queries declaratively (`queryClient.invalidateQueries({ queryKey: ['portals'] })`).
 - **Optimistic updates.** When useful, the mutation can apply changes immediately and roll back on error.
-- **Error handling pipeline.** Server functions throw `Response` with tagged error bodies. The mutation's `error` is that response; the form displays it via `FormErrorBanner`.
+- **Error handling pipeline.** Server functions throw `Error` objects (with `.name`, `.message`, `.code`, `.status`). TanStack Start serializes them via seroval and re-throws on the client; the mutation's `error` is that Error; the form displays it via `FormErrorBanner`.
 
 ### Post-submit navigation
 
@@ -743,7 +743,7 @@ Zod schemas in `application/dto/` are reused by forms. The form imports the sche
 - **Immutable updates.** Never mutate; produce new values.
 - **Discriminated unions over enums.** Use string literal unions, not TypeScript `enum`.
 - **`Result` in domain.** Domain functions that can fail return `Result<T, E>` from neverthrow.
-- **Throw at application boundary.** Use cases throw tagged errors. Server functions catch them and translate to HTTP responses (throw Response).
+- **Throw at application boundary.** Use cases throw tagged errors. Server functions catch them and translate to `Error` objects with code and status properties (TanStack Start serializes these for the client).
 - **`ts-pattern` for union dispatch.** Use `match(...).exhaustive()` whenever handling discriminated unions.
 - **Prefer `type` over `interface`.** Interfaces are not forbidden, but `type` is the default for consistency.
 
@@ -765,7 +765,7 @@ Zod schemas in `application/dto/` are reused by forms. The form imports the sche
 - `// @ts-ignore` without a comment explaining why
 - `as` casts to any type that isn't a branded ID
 - `require()` — use ESM `import`
-- Returning `{ success: false, error }` objects from server functions (always throw Response)
+- Returning `{ success: false, error }` objects from server functions (always throw Error objects)
 
 ---
 
@@ -853,7 +853,7 @@ For high-volume jobs (review sync), implement per-organization queues or use Bul
 - **Domain layer:** Returns `Result<T, DomainError>`. Never throws.
 - **Application layer (use cases):** Calls domain functions, unwraps `Result`, throws tagged error on failure. Awaits async operations normally.
 - **Infrastructure layer:** Catches library errors (Drizzle, external APIs) and either translates them to tagged errors or lets them bubble.
-- **Server function layer:** Catches tagged errors using `ts-pattern` matching on `_tag` and `code`, **throws `new Response(...)`** with the appropriate HTTP status.
+- **Server function layer:** Catches tagged errors using `ts-pattern` matching on `_tag` and `code`, **throws an `Error`** with the `.message` set to the domain error message, `.name` set to the error tag (e.g. `'PropertyError'`), and custom `.code` and `.status` properties. TanStack Start serializes Error objects via seroval and re-throws them on the client.
 - **Client layer:** TanStack Query mutations surface errors via `error` state. `FormErrorBanner` component displays them with user-friendly messages.
 
 ### Error translation pattern
@@ -875,7 +875,7 @@ The `.exhaustive()` ensures the compiler tells us when a new error code is added
 - Don't throw plain `Error` objects in domain or application code. Always tagged errors.
 - Don't catch and swallow errors silently.
 - Don't use error messages as control flow. Match on `_tag` and `code`.
-- Don't return `{ success: false, error: message }` from server functions. Always throw Response.
+- Don't return `{ success: false, error: message }` from server functions. Always throw Error objects.
 
 ---
 
@@ -926,7 +926,7 @@ application/    ← imports from domain/, shared/domain/
 infrastructure/ ← imports from domain/, application/, shared/, external libs
 server/         ← imports from application/ (use cases, dtos), shared/, TanStack Start
 routes/         ← imports from contexts/<ctx>/server/, components/, shared/, integrations/
-components/     ← imports from other components/, shared/, contexts/<ctx>/application/dto/ (for form schemas only)
+components/     ← imports from other components/, shared/, contexts/<ctx>/application/dto/ (to derive form schemas)
 shared/         ← imports from itself, external libs only
 integrations/   ← imports from shared/, external libs only
 ```
@@ -938,7 +938,7 @@ integrations/   ← imports from shared/, external libs only
 - React from anywhere outside `routes/`, `components/`, and `integrations/`
 - Direct database access from `routes/` or `components/`
 - `shared/testing/*` from production code
-- `contexts/<ctx>/domain` or `contexts/<ctx>/application/use-cases` or `contexts/<ctx>/infrastructure` from `components/` (only `application/dto/` is importable for form schemas)
+- `contexts/<ctx>/domain` or `contexts/<ctx>/application/use-cases` or `contexts/<ctx>/infrastructure` from `components/` (only `application/dto/` is importable — to derive form schemas)
 
 ### Enforcement
 
@@ -1106,7 +1106,7 @@ Generic errors lose the type information that makes pattern matching exhaustive.
 
 ### "I'll return `{ success: false, error: message }` from this server function, it's easier than throwing"
 
-Never. Always throw Response with appropriate status. The client catches via mutation error state. Consistency matters.
+Never. Always throw Error objects with appropriate code and status. TanStack Start serializes them to the client where mutations catch them. Consistency matters.
 
 ### "I'll use React Hook Form for this form, I know it better"
 
@@ -1114,7 +1114,7 @@ One form stack: TanStack Form + Zod + shadcn. No exceptions.
 
 ### "I'll duplicate the Zod schema for the form, the DTO is shaped differently"
 
-If it's shaped differently, the DTO is wrong. Fix the DTO. The schema is the single source of truth.
+Derive the form schema from the DTO using Zod's `.required()`, `.extend()`, `.omit()` — see `docs/patterns.md` section 29 for the full patterns. The form schema may differ in _shape_ (all strings, extra fields) but must never re-declare a validation rule that exists in the DTO. Derivation = automatic sync.
 
 ### "I'll manage `isSubmitting` state in the form component"
 
@@ -1144,7 +1144,13 @@ Consistency in _shape_ is good. Forcing operations to fake business logic they d
 
 The thin use case pattern exists exactly for this case. Keep it.
 
+### "I'll use `new Date()` in a use case, it's simpler than injecting clock"
+
+Every use case that produces a timestamp (event `occurredAt`, `updatedAt` field) must use `deps.clock()`. `new Date()` in a use case breaks test determinism. The clock factory is injected via `composition.ts` (`clock: () => new Date()`). Tests inject a fixed clock. See `docs/patterns.md` section 28.
+
 ### "The AI suggested this pattern, let's go with it"
+
+If AI suggests a pattern that doesn't appear in this document or in existing code, ask whether it fits before accepting.
 
 If AI suggests a pattern that doesn't appear in this document or in existing code, ask whether it fits before accepting.
 

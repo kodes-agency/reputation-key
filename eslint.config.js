@@ -14,6 +14,7 @@ export default tseslint.config(
       '**/dist-worker/**',
       '**/drizzle/**',
       '**/node_modules/**',
+      '**/.a5c/**',
       'src/routeTree.gen.ts',
     ],
   },
@@ -406,6 +407,16 @@ export default tseslint.config(
           patterns: [],
         },
       ],
+    },
+  },
+
+  // ─── Allow drizzle-orm in infrastructure/ (repository implementations) ──
+  // Per architecture: "Repository implementations using Drizzle" live in infrastructure/.
+  // The boundaries plugin still enforces no React/domain-rule imports.
+  {
+    files: ['src/contexts/*/infrastructure/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': 'off',
     },
   },
 
