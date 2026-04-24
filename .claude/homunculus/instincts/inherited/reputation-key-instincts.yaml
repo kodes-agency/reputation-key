@@ -1,0 +1,417 @@
+# Instincts generated from https://github.com/kodes-agency/reputation-key
+# Generated: 2026-04-24T14:47:06.256Z
+# Version: 2.0
+# NOTE: This file supplements (does not replace) any existing curated instincts.
+# High-confidence manually curated instincts should be preserved alongside these.
+
+---
+id: reputation-key-commit-conventional
+trigger: "when writing a commit message"
+confidence: 0.85
+domain: git
+source: repo-analysis
+source_repo: https://github.com/kodes-agency/reputation-key
+---
+
+# Reputation Key Commit Conventional
+
+## Action
+
+Use conventional commit format with prefixes: feat
+
+## Evidence
+
+- 1 commits analyzed
+- Detected conventional commit pattern
+- Examples: feat: Phase 5 — Property context (complete vertical slice)
+
+---
+id: reputation-key-commit-length
+trigger: "when writing a commit message"
+confidence: 0.6
+domain: git
+source: repo-analysis
+source_repo: https://github.com/kodes-agency/reputation-key
+---
+
+# Reputation Key Commit Length
+
+## Action
+
+Write moderate-length commit messages (~58 characters)
+
+## Evidence
+
+- Average commit message length: 58 chars
+- Based on 1 commits
+
+---
+id: reputation-key-naming-files
+trigger: "when creating a new file"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/kodes-agency/reputation-key
+---
+
+# Reputation Key Naming Files
+
+## Action
+
+Use camelCase naming convention
+
+## Evidence
+
+- Analyzed file naming patterns in repository
+- Dominant pattern: camelCase
+
+---
+id: reputation-key-export-style
+trigger: "when exporting from a module"
+confidence: 0.7
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/kodes-agency/reputation-key
+---
+
+# Reputation Key Export Style
+
+## Action
+
+Prefer named exports
+
+## Evidence
+
+- Export pattern analysis
+- Dominant style: named
+
+---
+id: reputation-key-arch-type-based
+trigger: "when adding new code"
+confidence: 0.8
+domain: architecture
+source: repo-analysis
+source_repo: https://github.com/kodes-agency/reputation-key
+---
+
+# Reputation Key Arch Type Based
+
+## Action
+
+Place code in the appropriate type folder (components/, services/, utils/, etc.)
+
+## Evidence
+
+- Type-based module organization detected
+- Folders: components, contexts, routes, shared
+
+---
+id: reputation-key-test-colocate
+trigger: "when writing tests"
+confidence: 0.85
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/kodes-agency/reputation-key
+---
+
+# Reputation Key Test Colocate
+
+## Action
+
+Place test file next to the source file (e.g., Button.test.tsx next to Button.tsx)
+
+## Evidence
+
+- Colocated test pattern detected
+- Tests live alongside source files
+
+---
+id: reputation-key-test-framework
+trigger: "when writing tests"
+confidence: 0.9
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/kodes-agency/reputation-key
+---
+
+# Reputation Key Test Framework
+
+## Action
+
+Use vitest as the test framework
+
+## Evidence
+
+- Test framework detected: vitest
+- File pattern: *.test.ts
+
+---
+id: reputation-key-test-naming
+trigger: "when creating a test file"
+confidence: 0.85
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/kodes-agency/reputation-key
+---
+
+# Reputation Key Test Naming
+
+## Action
+
+Name test files using the pattern: *.test.ts
+
+## Evidence
+
+- File pattern: *.test.ts
+- Consistent across test files
+
+---
+id: reputation-key-test-types
+trigger: "when planning tests for a feature"
+confidence: 0.7
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/kodes-agency/reputation-key
+---
+
+# Reputation Key Test Types
+
+## Action
+
+Write unit, integration, e2e tests to match project standards
+
+## Evidence
+
+- Test types detected: unit, integration, e2e
+- Coverage config: no
+
+---
+id: reputation-key-instinct-file-naming
+trigger: "When creating a new file in the codebase"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: kodes-agency/reputation-key
+---
+
+# Reputation Key Instinct File Naming
+
+## Action
+
+Name the file using camelCase convention
+
+## Evidence
+
+- Pattern: namingConventions.files = camelCase
+
+---
+id: reputation-key-instinct-function-naming
+trigger: "When defining a new function"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: kodes-agency/reputation-key
+---
+
+# Reputation Key Instinct Function Naming
+
+## Action
+
+Name the function using camelCase convention
+
+## Evidence
+
+- Pattern: namingConventions.functions = camelCase
+
+---
+id: reputation-key-instinct-class-naming
+trigger: "When defining a new class"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: kodes-agency/reputation-key
+---
+
+# Reputation Key Instinct Class Naming
+
+## Action
+
+Name the class using PascalCase convention
+
+## Evidence
+
+- Pattern: namingConventions.classes = PascalCase
+
+---
+id: reputation-key-instinct-constant-naming
+trigger: "When declaring a constant"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: kodes-agency/reputation-key
+---
+
+# Reputation Key Instinct Constant Naming
+
+## Action
+
+Name the constant using SCREAMING_SNAKE_CASE convention
+
+## Evidence
+
+- Pattern: namingConventions.constants = SCREAMING_SNAKE_CASE
+
+---
+id: reputation-key-instinct-import-style
+trigger: "When importing modules"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: kodes-agency/reputation-key
+---
+
+# Reputation Key Instinct Import Style
+
+## Action
+
+Use absolute import paths
+
+## Evidence
+
+- Pattern: importStyle = absolute
+
+---
+id: reputation-key-instinct-export-style
+trigger: "When exporting from a module"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: kodes-agency/reputation-key
+---
+
+# Reputation Key Instinct Export Style
+
+## Action
+
+Use named exports
+
+## Evidence
+
+- Pattern: exportStyle = named
+
+---
+id: reputation-key-instinct-test-file-pattern
+trigger: "When creating a test file"
+confidence: 0.9
+domain: testing
+source: repo-analysis
+source_repo: kodes-agency/reputation-key
+---
+
+# Reputation Key Instinct Test File Pattern
+
+## Action
+
+Name the file with a .test.ts suffix
+
+## Evidence
+
+- Pattern: filePattern = *.test.ts
+
+---
+id: reputation-key-instinct-test-framework
+trigger: "When writing tests"
+confidence: 0.9
+domain: testing
+source: repo-analysis
+source_repo: kodes-agency/reputation-key
+---
+
+# Reputation Key Instinct Test Framework
+
+## Action
+
+Use the Vitest testing framework
+
+## Evidence
+
+- Pattern: framework = vitest
+
+---
+id: reputation-key-instinct-test-types
+trigger: "When planning tests"
+confidence: 0.8
+domain: testing
+source: repo-analysis
+source_repo: kodes-agency/reputation-key
+---
+
+# Reputation Key Instinct Test Types
+
+## Action
+
+Include unit, integration, and e2e tests as appropriate
+
+## Evidence
+
+- Pattern: testTypes = [unit, integration, e2e]
+
+---
+id: reputation-key-instinct-colocated-tests
+trigger: "When adding tests for a module"
+confidence: 0.8
+domain: testing
+source: repo-analysis
+source_repo: kodes-agency/reputation-key
+---
+
+# Reputation Key Instinct Colocated Tests
+
+## Action
+
+Place test files in the same folder as the module (colocated)
+
+## Evidence
+
+- Pattern: testLocation = colocated
+
+---
+id: reputation-key-instinct-git-commit-format
+trigger: "When writing a commit message"
+confidence: 0.9
+domain: git
+source: repo-analysis
+source_repo: kodes-agency/reputation-key
+---
+
+# Reputation Key Instinct Git Commit Format
+
+## Action
+
+Use the conventional commit format with the 'feat' prefix for new features
+
+## Evidence
+
+- Pattern: commits.type = conventional
+- Pattern: commits.prefixes = ["feat"]
+- Example: 'feat: Phase 5 — Property context (complete vertical slice)'
+
+---
+id: reputation-key-instinct-git-commit-length
+trigger: "When composing a commit message"
+confidence: 0.7
+domain: git
+source: repo-analysis
+source_repo: kodes-agency/reputation-key
+---
+
+# Reputation Key Instinct Git Commit Length
+
+## Action
+
+Aim for a commit message length around 58 characters
+
+## Evidence
+
+- Pattern: commits.averageLength = 58
+
