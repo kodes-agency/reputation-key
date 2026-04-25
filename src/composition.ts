@@ -23,9 +23,29 @@ import { updateMemberRole } from '#/contexts/identity/application/use-cases/upda
 import { removeMember } from '#/contexts/identity/application/use-cases/remove-member'
 import { listInvitations } from '#/contexts/identity/application/use-cases/list-invitations'
 import { registerUserAndOrg } from '#/contexts/identity/application/use-cases/register-user-and-org'
+import { registerUser } from '#/contexts/identity/application/use-cases/register-user'
 import { getAuth } from '#/shared/auth/auth'
 import { headersFromContext } from '#/shared/auth/headers'
 import type { Queue } from 'bullmq'
+import { createPropertyRepository } from '#/contexts/property/infrastructure/repositories/property.repository'
+import { createProperty } from '#/contexts/property/application/use-cases/create-property'
+import { updateProperty } from '#/contexts/property/application/use-cases/update-property'
+import { listProperties } from '#/contexts/property/application/use-cases/list-properties'
+import { getProperty } from '#/contexts/property/application/use-cases/get-property'
+import { softDeleteProperty } from '#/contexts/property/application/use-cases/soft-delete-property'
+import { createTeamRepository } from '#/contexts/team/infrastructure/repositories/team.repository'
+import { createTeam } from '#/contexts/team/application/use-cases/create-team'
+import { updateTeam } from '#/contexts/team/application/use-cases/update-team'
+import { listTeams } from '#/contexts/team/application/use-cases/list-teams'
+import { getTeam } from '#/contexts/team/application/use-cases/get-team'
+import { softDeleteTeam } from '#/contexts/team/application/use-cases/soft-delete-team'
+import { createStaffAssignmentRepository } from '#/contexts/staff/infrastructure/repositories/staff-assignment.repository'
+import { createStaffAssignment } from '#/contexts/staff/application/use-cases/create-staff-assignment'
+import { removeStaffAssignment } from '#/contexts/staff/application/use-cases/remove-staff-assignment'
+import { listStaffAssignments } from '#/contexts/staff/application/use-cases/list-staff-assignments'
+import { propertyId, teamId, staffAssignmentId } from '#/shared/domain/ids'
+import { randomUUID } from 'crypto'
+import type { PropertyAccessProvider } from '#/shared/domain/property-access.port'
 
 export function createContainer() {
   const db = getDb()
@@ -60,27 +80,71 @@ export function createContainer() {
     return user?.user?.id ?? ''
   }
 
-  // Helper: create org via better-auth, returns org ID
+  // Helper: create org via better-auth using the server-side userId field.
+  // Uses userId instead of session headers so it works during registration
+  // (when the new user's session cookies aren't available yet).
   const createOrg = async (
-    headers: Headers,
+    _headers: Headers,
     name: string,
     slug: string,
+    userId?: string,
   ): Promise<string> => {
     const auth = getAuth()
     const org = await auth.api.createOrganization({
-      headers,
-      body: { name, slug },
+      body: { name, slug, userId },
     })
     return (org as unknown as { id: string }).id
   }
 
-  // Helper: set active org via better-auth
+  // Helper: set active org via better-auth.
+  // Falls back to setting via headers (works after registration when
+  // the sign-up response has set cookies on the incoming request).
   const setActiveOrg = async (headers: Headers, orgId: string): Promise<void> => {
     const auth = getAuth()
-    await auth.api.setActiveOrganization({ headers, body: { organizationId: orgId } })
+    try {
+      await auth.api.setActiveOrganization({ headers, body: { organizationId: orgId } })
+    } catch {
+      // If headers don't carry a valid session (e.g., during registration
+      // where cookies aren't yet available), this is non-fatal — the user
+      // will set their active org on first login.
+    }
+  }
+
+  // ── Property context ────────────────────────────────────────────
+  const propertyRepo = createPropertyRepository(db)
+  const idGen = () => propertyId(randomUUID())
+  const clock = () => new Date()
+
+  // ── Team context ────────────────────────────────────────────────
+  const teamRepo = createTeamRepository(db)
+  const teamIdGen = () => teamId(randomUUID())
+
+  // Property existence port for team context (boundary-safe)
+  const propertyExists = {
+    exists: async (
+      orgId: Parameters<typeof propertyRepo.findById>[0],
+      pid: Parameters<typeof propertyRepo.findById>[1],
+    ) => {
+      const p = await propertyRepo.findById(orgId, pid)
+      return p !== null
+    },
+  }
+
+  // ── Staff context ──────────────────────────────────────────────
+  const staffAssignmentRepo = createStaffAssignmentRepository(db)
+  const staffIdGen = () => staffAssignmentId(randomUUID())
+
+  // Property access provider: AccountAdmin sees all, others see assigned only
+  // Implements the shared PropertyAccessProvider port used by property and team contexts
+  const propertyAccess: PropertyAccessProvider = {
+    getAccessiblePropertyIds: async (orgId, uid, role) => {
+      if (role === 'AccountAdmin') return null
+      return staffAssignmentRepo.getAccessiblePropertyIds(orgId, uid)
+    },
   }
 
   const useCases = {
+    // Identity
     inviteMember: inviteMember({ identity: identityPort, events: eventBus }),
     updateMemberRole: updateMemberRole({ identity: identityPort, events: eventBus }),
     removeMember: removeMember({ identity: identityPort, events: eventBus }),
@@ -92,6 +156,38 @@ export function createContainer() {
       setActiveOrg,
       headers: headersFromContext,
     }),
+    registerUser: registerUser({ identity: identityPort }),
+    // Property
+    createProperty: createProperty({ propertyRepo, events: eventBus, idGen, clock }),
+    updateProperty: updateProperty({ propertyRepo, events: eventBus, clock }),
+    listProperties: listProperties({ propertyRepo, propertyAccess }),
+    getProperty: getProperty({ propertyRepo }),
+    softDeleteProperty: softDeleteProperty({ propertyRepo, events: eventBus, clock }),
+    // Team
+    createTeam: createTeam({
+      teamRepo,
+      propertyExists,
+      events: eventBus,
+      idGen: teamIdGen,
+      clock,
+    }),
+    updateTeam: updateTeam({ teamRepo, events: eventBus, clock }),
+    listTeams: listTeams({ teamRepo, propertyAccess }),
+    getTeam: getTeam({ teamRepo, propertyAccess }),
+    softDeleteTeam: softDeleteTeam({ teamRepo, events: eventBus, clock }),
+    // Staff
+    createStaffAssignment: createStaffAssignment({
+      assignmentRepo: staffAssignmentRepo,
+      events: eventBus,
+      idGen: staffIdGen,
+      clock,
+    }),
+    removeStaffAssignment: removeStaffAssignment({
+      assignmentRepo: staffAssignmentRepo,
+      events: eventBus,
+      clock,
+    }),
+    listStaffAssignments: listStaffAssignments({ assignmentRepo: staffAssignmentRepo }),
   } as const
 
   return {

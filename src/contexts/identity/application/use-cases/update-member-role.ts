@@ -8,6 +8,7 @@
 import type { IdentityPort } from '../ports/identity.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { EventBus } from '#/shared/events/event-bus'
+import { can } from '#/shared/domain/permissions'
 import { canChangeRole } from '../../domain/rules'
 import { identityError } from '../../domain/errors'
 import { memberRoleChanged } from '../../domain/events'
@@ -37,13 +38,18 @@ export const updateMemberRole =
     input: UpdateMemberRoleInput,
     ctx: AuthContext,
   ): Promise<UpdateMemberRoleOutput> => {
+    // 1. Authorize — permission check + role hierarchy
+    if (!can(ctx.role, 'member.update')) {
+      throw identityError('forbidden', 'Insufficient role to change member roles')
+    }
+
     // 2. Validate referenced entities — load the target member
     const targetMember = await deps.identity.getMember(ctx, input.memberId)
     if (!targetMember) {
       throw identityError('member_not_found', 'Member not found in this organization')
     }
 
-    // 1+3. Authorize + check business invariants — role hierarchy with actual current role
+    // 3. Check business invariants — role hierarchy with actual current role
     const authResult = canChangeRole(ctx.role, targetMember.role, input.role)
     if (authResult.isErr()) {
       throw identityError(authResult.error.code, authResult.error.message)

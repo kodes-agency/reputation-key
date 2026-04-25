@@ -62,13 +62,14 @@ describe('updateMemberRole', () => {
     expect(emitted[0].newRole).toBe('PropertyManager')
   })
 
-  it('allows PropertyManager to change a Staff member role', async () => {
+  it('rejects PropertyManager from changing any member role', async () => {
     const { useCase, identity } = setup()
     identity.seedMembers([STAFF_MEMBER])
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
 
-    const result = await useCase({ memberId: 'member-staff', role: 'Staff' }, ctx)
-    expect(result.success).toBe(true)
+    await expect(
+      useCase({ memberId: 'member-staff', role: 'Staff' }, ctx),
+    ).rejects.toSatisfy((e) => isIdentityError(e) && e.code === 'forbidden')
   })
 
   it('rejects Staff from changing any role', async () => {

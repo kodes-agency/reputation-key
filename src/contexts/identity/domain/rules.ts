@@ -52,7 +52,10 @@ export function validateOrganizationName(name: string): Result<string, IdentityE
   return ok(trimmed)
 }
 
-/** Validate that a user can invite another user with the given role. */
+/** Validate that a user can invite another user with the given role.
+ * Business rule: PropertyManager can only invite Staff.
+ * AccountAdmin can invite any role.
+ */
 export function canInviteWithRole(
   inviterRole: Role,
   targetRole: Role,
@@ -62,12 +65,17 @@ export function canInviteWithRole(
     return err(identityError('forbidden', 'Insufficient role to invite members'))
   }
 
-  // Cannot invite someone with a higher role than your own
-  if (!hasRole(inviterRole, targetRole)) {
+  // AccountAdmin can invite any role
+  if (inviterRole === 'AccountAdmin') {
+    return ok(true)
+  }
+
+  // PropertyManager can only invite Staff
+  if (targetRole !== 'Staff') {
     return err(
       identityError(
         'forbidden',
-        `Cannot invite with role '${targetRole}' — exceeds your own role`,
+        `Cannot invite with role '${targetRole}' — only AccountAdmin can invite managers or admins`,
       ),
     )
   }

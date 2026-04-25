@@ -50,3 +50,7 @@ export type { AuthContext } from './auth-context'
 export type { Role } from './roles'
 export { ROLE_HIERARCHY, hasRole, toDomainRole, toBetterAuthRole } from './roles'
 export type { BetterAuthRole } from './roles'
+
+export { VALID_TIMEZONES } from './timezones'
+
+export type { PropertyAccessProvider } from './property-access.port'

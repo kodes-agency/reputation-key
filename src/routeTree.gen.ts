@@ -12,12 +12,21 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as JoinRouteImport } from './routes/join'
 import { Route as AcceptInvitationRouteImport } from './routes/accept-invitation'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as ApiHealthIndexRouteImport } from './routes/api/health/index'
+import { Route as AuthenticatedStaffIndexRouteImport } from './routes/_authenticated/staff/index'
+import { Route as AuthenticatedPropertiesIndexRouteImport } from './routes/_authenticated/properties/index'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as AuthenticatedSettingsMembersRouteImport } from './routes/_authenticated/settings/members'
+import { Route as AuthenticatedPropertiesNewRouteImport } from './routes/_authenticated/properties/new'
+import { Route as AuthenticatedPropertiesPropertyIdRouteImport } from './routes/_authenticated/properties/$propertyId'
+import { Route as AuthenticatedPropertiesPropertyIdIndexRouteImport } from './routes/_authenticated/properties/$propertyId/index'
+import { Route as AuthenticatedPropertiesPropertyIdTeamsIndexRouteImport } from './routes/_authenticated/properties/$propertyId/teams/index'
+import { Route as AuthenticatedPropertiesPropertyIdStaffIndexRouteImport } from './routes/_authenticated/properties/$propertyId/staff/index'
 
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
   id: '/reset-password',
@@ -32,6 +41,11 @@ const RegisterRoute = RegisterRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const JoinRoute = JoinRouteImport.update({
+  id: '/join',
+  path: '/join',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AcceptInvitationRoute = AcceptInvitationRouteImport.update({
@@ -58,82 +72,182 @@ const ApiHealthIndexRoute = ApiHealthIndexRouteImport.update({
   path: '/api/health/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedStaffIndexRoute = AuthenticatedStaffIndexRouteImport.update({
+  id: '/staff/',
+  path: '/staff/',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedPropertiesIndexRoute =
+  AuthenticatedPropertiesIndexRouteImport.update({
+    id: '/properties/',
+    path: '/properties/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedSettingsMembersRoute =
+  AuthenticatedSettingsMembersRouteImport.update({
+    id: '/settings/members',
+    path: '/settings/members',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedPropertiesNewRoute =
+  AuthenticatedPropertiesNewRouteImport.update({
+    id: '/properties/new',
+    path: '/properties/new',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedPropertiesPropertyIdRoute =
+  AuthenticatedPropertiesPropertyIdRouteImport.update({
+    id: '/properties/$propertyId',
+    path: '/properties/$propertyId',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedPropertiesPropertyIdIndexRoute =
+  AuthenticatedPropertiesPropertyIdIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedPropertiesPropertyIdRoute,
+  } as any)
+const AuthenticatedPropertiesPropertyIdTeamsIndexRoute =
+  AuthenticatedPropertiesPropertyIdTeamsIndexRouteImport.update({
+    id: '/teams/',
+    path: '/teams/',
+    getParentRoute: () => AuthenticatedPropertiesPropertyIdRoute,
+  } as any)
+const AuthenticatedPropertiesPropertyIdStaffIndexRoute =
+  AuthenticatedPropertiesPropertyIdStaffIndexRouteImport.update({
+    id: '/staff/',
+    path: '/staff/',
+    getParentRoute: () => AuthenticatedPropertiesPropertyIdRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/accept-invitation': typeof AcceptInvitationRoute
+  '/join': typeof JoinRoute
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/properties/$propertyId': typeof AuthenticatedPropertiesPropertyIdRouteWithChildren
+  '/properties/new': typeof AuthenticatedPropertiesNewRoute
+  '/settings/members': typeof AuthenticatedSettingsMembersRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/properties/': typeof AuthenticatedPropertiesIndexRoute
+  '/staff/': typeof AuthenticatedStaffIndexRoute
   '/api/health/': typeof ApiHealthIndexRoute
+  '/properties/$propertyId/': typeof AuthenticatedPropertiesPropertyIdIndexRoute
+  '/properties/$propertyId/staff/': typeof AuthenticatedPropertiesPropertyIdStaffIndexRoute
+  '/properties/$propertyId/teams/': typeof AuthenticatedPropertiesPropertyIdTeamsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/accept-invitation': typeof AcceptInvitationRoute
+  '/join': typeof JoinRoute
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/properties/new': typeof AuthenticatedPropertiesNewRoute
+  '/settings/members': typeof AuthenticatedSettingsMembersRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/properties': typeof AuthenticatedPropertiesIndexRoute
+  '/staff': typeof AuthenticatedStaffIndexRoute
   '/api/health': typeof ApiHealthIndexRoute
+  '/properties/$propertyId': typeof AuthenticatedPropertiesPropertyIdIndexRoute
+  '/properties/$propertyId/staff': typeof AuthenticatedPropertiesPropertyIdStaffIndexRoute
+  '/properties/$propertyId/teams': typeof AuthenticatedPropertiesPropertyIdTeamsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/accept-invitation': typeof AcceptInvitationRoute
+  '/join': typeof JoinRoute
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/properties/$propertyId': typeof AuthenticatedPropertiesPropertyIdRouteWithChildren
+  '/_authenticated/properties/new': typeof AuthenticatedPropertiesNewRoute
+  '/_authenticated/settings/members': typeof AuthenticatedSettingsMembersRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/_authenticated/properties/': typeof AuthenticatedPropertiesIndexRoute
+  '/_authenticated/staff/': typeof AuthenticatedStaffIndexRoute
   '/api/health/': typeof ApiHealthIndexRoute
+  '/_authenticated/properties/$propertyId/': typeof AuthenticatedPropertiesPropertyIdIndexRoute
+  '/_authenticated/properties/$propertyId/staff/': typeof AuthenticatedPropertiesPropertyIdStaffIndexRoute
+  '/_authenticated/properties/$propertyId/teams/': typeof AuthenticatedPropertiesPropertyIdTeamsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/accept-invitation'
+    | '/join'
     | '/login'
     | '/register'
     | '/reset-password'
     | '/dashboard'
+    | '/properties/$propertyId'
+    | '/properties/new'
+    | '/settings/members'
     | '/api/auth/$'
+    | '/properties/'
+    | '/staff/'
     | '/api/health/'
+    | '/properties/$propertyId/'
+    | '/properties/$propertyId/staff/'
+    | '/properties/$propertyId/teams/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/accept-invitation'
+    | '/join'
     | '/login'
     | '/register'
     | '/reset-password'
     | '/dashboard'
+    | '/properties/new'
+    | '/settings/members'
     | '/api/auth/$'
+    | '/properties'
+    | '/staff'
     | '/api/health'
+    | '/properties/$propertyId'
+    | '/properties/$propertyId/staff'
+    | '/properties/$propertyId/teams'
   id:
     | '__root__'
     | '/'
     | '/_authenticated'
     | '/accept-invitation'
+    | '/join'
     | '/login'
     | '/register'
     | '/reset-password'
     | '/_authenticated/dashboard'
+    | '/_authenticated/properties/$propertyId'
+    | '/_authenticated/properties/new'
+    | '/_authenticated/settings/members'
     | '/api/auth/$'
+    | '/_authenticated/properties/'
+    | '/_authenticated/staff/'
     | '/api/health/'
+    | '/_authenticated/properties/$propertyId/'
+    | '/_authenticated/properties/$propertyId/staff/'
+    | '/_authenticated/properties/$propertyId/teams/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   AcceptInvitationRoute: typeof AcceptInvitationRoute
+  JoinRoute: typeof JoinRoute
   LoginRoute: typeof LoginRoute
   RegisterRoute: typeof RegisterRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
@@ -162,6 +276,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/join': {
+      id: '/join'
+      path: '/join'
+      fullPath: '/join'
+      preLoaderRoute: typeof JoinRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/accept-invitation': {
@@ -199,6 +320,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiHealthIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/staff/': {
+      id: '/_authenticated/staff/'
+      path: '/staff'
+      fullPath: '/staff/'
+      preLoaderRoute: typeof AuthenticatedStaffIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/properties/': {
+      id: '/_authenticated/properties/'
+      path: '/properties'
+      fullPath: '/properties/'
+      preLoaderRoute: typeof AuthenticatedPropertiesIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
@@ -206,15 +341,89 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/settings/members': {
+      id: '/_authenticated/settings/members'
+      path: '/settings/members'
+      fullPath: '/settings/members'
+      preLoaderRoute: typeof AuthenticatedSettingsMembersRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/properties/new': {
+      id: '/_authenticated/properties/new'
+      path: '/properties/new'
+      fullPath: '/properties/new'
+      preLoaderRoute: typeof AuthenticatedPropertiesNewRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/properties/$propertyId': {
+      id: '/_authenticated/properties/$propertyId'
+      path: '/properties/$propertyId'
+      fullPath: '/properties/$propertyId'
+      preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/properties/$propertyId/': {
+      id: '/_authenticated/properties/$propertyId/'
+      path: '/'
+      fullPath: '/properties/$propertyId/'
+      preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdIndexRouteImport
+      parentRoute: typeof AuthenticatedPropertiesPropertyIdRoute
+    }
+    '/_authenticated/properties/$propertyId/teams/': {
+      id: '/_authenticated/properties/$propertyId/teams/'
+      path: '/teams'
+      fullPath: '/properties/$propertyId/teams/'
+      preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdTeamsIndexRouteImport
+      parentRoute: typeof AuthenticatedPropertiesPropertyIdRoute
+    }
+    '/_authenticated/properties/$propertyId/staff/': {
+      id: '/_authenticated/properties/$propertyId/staff/'
+      path: '/staff'
+      fullPath: '/properties/$propertyId/staff/'
+      preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdStaffIndexRouteImport
+      parentRoute: typeof AuthenticatedPropertiesPropertyIdRoute
+    }
   }
 }
 
+interface AuthenticatedPropertiesPropertyIdRouteChildren {
+  AuthenticatedPropertiesPropertyIdIndexRoute: typeof AuthenticatedPropertiesPropertyIdIndexRoute
+  AuthenticatedPropertiesPropertyIdStaffIndexRoute: typeof AuthenticatedPropertiesPropertyIdStaffIndexRoute
+  AuthenticatedPropertiesPropertyIdTeamsIndexRoute: typeof AuthenticatedPropertiesPropertyIdTeamsIndexRoute
+}
+
+const AuthenticatedPropertiesPropertyIdRouteChildren: AuthenticatedPropertiesPropertyIdRouteChildren =
+  {
+    AuthenticatedPropertiesPropertyIdIndexRoute:
+      AuthenticatedPropertiesPropertyIdIndexRoute,
+    AuthenticatedPropertiesPropertyIdStaffIndexRoute:
+      AuthenticatedPropertiesPropertyIdStaffIndexRoute,
+    AuthenticatedPropertiesPropertyIdTeamsIndexRoute:
+      AuthenticatedPropertiesPropertyIdTeamsIndexRoute,
+  }
+
+const AuthenticatedPropertiesPropertyIdRouteWithChildren =
+  AuthenticatedPropertiesPropertyIdRoute._addFileChildren(
+    AuthenticatedPropertiesPropertyIdRouteChildren,
+  )
+
 interface AuthenticatedRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedPropertiesPropertyIdRoute: typeof AuthenticatedPropertiesPropertyIdRouteWithChildren
+  AuthenticatedPropertiesNewRoute: typeof AuthenticatedPropertiesNewRoute
+  AuthenticatedSettingsMembersRoute: typeof AuthenticatedSettingsMembersRoute
+  AuthenticatedPropertiesIndexRoute: typeof AuthenticatedPropertiesIndexRoute
+  AuthenticatedStaffIndexRoute: typeof AuthenticatedStaffIndexRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedPropertiesPropertyIdRoute:
+    AuthenticatedPropertiesPropertyIdRouteWithChildren,
+  AuthenticatedPropertiesNewRoute: AuthenticatedPropertiesNewRoute,
+  AuthenticatedSettingsMembersRoute: AuthenticatedSettingsMembersRoute,
+  AuthenticatedPropertiesIndexRoute: AuthenticatedPropertiesIndexRoute,
+  AuthenticatedStaffIndexRoute: AuthenticatedStaffIndexRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
@@ -225,6 +434,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   AcceptInvitationRoute: AcceptInvitationRoute,
+  JoinRoute: JoinRoute,
   LoginRoute: LoginRoute,
   RegisterRoute: RegisterRoute,
   ResetPasswordRoute: ResetPasswordRoute,

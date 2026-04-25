@@ -145,7 +145,7 @@ function invitationEmailHtml(params: InvitationEmailParams): string {
   return emailShell(`
       <p><strong>${params.invitedByUsername}</strong> has invited you to join <strong>${params.organizationName}</strong> on Reputation Key.</p>
       <a href="${params.inviteLink}" class="button">Accept Invitation</a>
-      <p>If you don't have an account yet, you'll be able to create one after clicking the link above.</p>
+      <p>If you don't have an account yet, you'll be guided to create one after clicking the button above.</p>
       <p>If you weren't expecting this invitation, you can safely ignore this email.</p>
     </div>
     <div class="footer">

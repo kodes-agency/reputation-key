@@ -10,6 +10,8 @@ import {
   CardHeader,
   CardTitle,
 } from '#/components/ui/card'
+import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
+import { AlertCircle } from 'lucide-react'
 
 // Backwards-compatible error banner for routes still being migrated.
 // New code should import FormErrorBanner directly from components/forms/.
@@ -17,9 +19,11 @@ import {
 export function ErrorBanner({ message }: Readonly<{ message: string | null }>) {
   if (!message) return null
   return (
-    <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-400">
-      {message}
-    </div>
+    <Alert variant="destructive">
+      <AlertCircle />
+      <AlertTitle>Error</AlertTitle>
+      <AlertDescription>{message}</AlertDescription>
+    </Alert>
   )
 }
 
@@ -46,16 +50,22 @@ export function AuthCard({ title, description, children }: AuthCardProps) {
 type AuthFooterLinkProps = Readonly<{
   message: string
   linkText: string
-  to: '/login' | '/register' | '/reset-password' | '/dashboard' | '/accept-invitation'
+  to:
+    | '/login'
+    | '/register'
+    | '/join'
+    | '/reset-password'
+    | '/dashboard'
+    | '/accept-invitation'
 }>
 
 export function AuthFooterLink({ message, linkText, to }: AuthFooterLinkProps) {
   return (
-    <p className="mt-6 text-center text-sm text-[var(--sea-ink-soft)]">
+    <p className="mt-6 text-center text-sm text-muted-foreground">
       {message}{' '}
       <Link
         to={to}
-        className="font-medium text-[var(--lagoon)] no-underline hover:underline"
+        className="font-medium text-primary underline-offset-4 hover:underline"
       >
         {linkText}
       </Link>

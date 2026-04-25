@@ -1,0 +1,163 @@
+// Property layout — shared shell with header + tab navigation.
+// Child routes (overview, teams, staff) render via <Outlet />.
+
+import { createFileRoute, Link, Outlet, useNavigate } from '@tanstack/react-router'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { getProperty, deleteProperty } from '#/contexts/property/server/properties'
+import { Button } from '#/components/ui/button'
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from '#/components/ui/card'
+import { Separator } from '#/components/ui/separator'
+import { Skeleton } from '#/components/ui/skeleton'
+import { Alert, AlertDescription } from '#/components/ui/alert'
+import { Tabs, TabsList, TabsTrigger } from '#/components/ui/tabs'
+import { AlertCircle, Trash2 } from 'lucide-react'
+import { toast } from 'sonner'
+import { useRouterState } from '@tanstack/react-router'
+
+export const Route = createFileRoute('/_authenticated/properties/$propertyId')({
+  component: PropertyLayout,
+})
+
+function PropertyLayout() {
+  const { propertyId } = Route.useParams()
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const routerState = useRouterState()
+  const currentPath = routerState.location.pathname
+
+  const query = useQuery({
+    queryKey: ['property', propertyId],
+    queryFn: async () => {
+      const res = await getProperty({ data: { propertyId } })
+      return res.property
+    },
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: () => deleteProperty({ data: { propertyId } }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['properties'] })
+      toast.success('Property deleted')
+      navigate({ to: '/properties' })
+    },
+    onError: (error) => {
+      toast.error('Failed to delete property', {
+        description: error instanceof Error ? error.message : 'Please try again.',
+      })
+    },
+  })
+
+  if (query.isLoading) {
+    return (
+      <div className="page-wrap px-4 pb-8 pt-14">
+        <Card className="island-shell rise-in rounded-2xl">
+          <CardContent className="flex flex-col gap-3 pt-6">
+            <Skeleton className="h-6 w-48" />
+            <Skeleton className="h-4 w-32" />
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  if (query.error || !query.data) {
+    return (
+      <div className="page-wrap px-4 pb-8 pt-14">
+        <Card className="island-shell rise-in rounded-2xl">
+          <CardContent className="pt-6">
+            <Alert variant="destructive">
+              <AlertCircle />
+              <AlertDescription>Property not found.</AlertDescription>
+            </Alert>
+            <Button
+              variant="outline"
+              className="mt-4"
+              onClick={() => navigate({ to: '/properties' })}
+            >
+              Back to Properties
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  const property = query.data
+
+  // Determine active tab from current path
+  const activeTab = currentPath.endsWith('/staff')
+    ? 'staff'
+    : currentPath.endsWith('/teams')
+      ? 'teams'
+      : 'overview'
+
+  return (
+    <div className="page-wrap px-4 pb-8 pt-14">
+      <Card className="island-shell rise-in rounded-2xl">
+        <CardHeader>
+          <CardTitle className="text-2xl">{property.name}</CardTitle>
+          <CardDescription>
+            {property.slug} · {property.timezone}
+          </CardDescription>
+        </CardHeader>
+
+        <CardContent>
+          {/* Tab navigation */}
+          <Tabs value={activeTab} className="w-full">
+            <TabsList>
+              <TabsTrigger value="overview" asChild>
+                <Link to="/properties/$propertyId" params={{ propertyId }}>
+                  Overview
+                </Link>
+              </TabsTrigger>
+              <TabsTrigger value="teams" asChild>
+                <Link to="/properties/$propertyId/teams" params={{ propertyId }}>
+                  Teams
+                </Link>
+              </TabsTrigger>
+              <TabsTrigger value="staff" asChild>
+                <Link to="/properties/$propertyId/staff" params={{ propertyId }}>
+                  Staff
+                </Link>
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+
+          {/* Child route content */}
+          <div className="mt-6">
+            <Outlet />
+          </div>
+
+          {/* Delete — always visible at bottom */}
+          <Separator className="my-6" />
+          <div>
+            <h3 className="mb-2 text-sm font-semibold text-destructive">Danger Zone</h3>
+            <p className="mb-3 text-sm text-muted-foreground">
+              This property will be hidden from your organization. Its data will be
+              preserved but it will no longer appear in lists.
+            </p>
+            <Button
+              variant="outline"
+              className="border-destructive/50 text-destructive hover:bg-destructive/10"
+              disabled={deleteMutation.isPending}
+              onClick={() => {
+                if (window.confirm('Are you sure you want to delete this property?')) {
+                  deleteMutation.mutate()
+                }
+              }}
+            >
+              <Trash2 />
+              {deleteMutation.isPending ? 'Deleting…' : 'Delete Property'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}

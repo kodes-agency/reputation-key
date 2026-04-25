@@ -3,6 +3,7 @@ import { createRootRouteWithContext, HeadContent, Scripts } from '@tanstack/reac
 import Footer from '#/components/layout/Footer'
 import Header from '#/components/layout/Header'
 import { authClient } from '#/shared/auth/auth-client'
+import { Toaster } from '#/components/ui/sonner'
 import appCss from '#/styles.css?url'
 
 interface MyRouterContext {
@@ -34,6 +35,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <Header onSignOut={() => authClient.signOut()} />
         <main>{children}</main>
         <Footer />
+        <Toaster position="top-right" richColors closeButton />
         <Scripts />
       </body>
     </html>

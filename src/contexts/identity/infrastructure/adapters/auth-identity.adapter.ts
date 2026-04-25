@@ -51,6 +51,19 @@ function toMemberRecord(m: {
 /** Create the better-auth implementation of IdentityPort. */
 export function createAuthIdentityAdapter(): IdentityPort {
   return {
+    async signUp(name: string, email: string, password: string): Promise<string> {
+      const auth = getAuth()
+      const result = await auth.api.signUpEmail({
+        body: { name, email, password },
+      })
+      // better-auth signUpEmail returns { user: { id: string } }
+      const user = result as unknown as { user?: { id?: string } } | undefined
+      if (!user?.user?.id) {
+        throw new Error('Sign-up failed: no user ID returned')
+      }
+      return user.user.id
+    },
+
     async listMembers(_ctx: AuthContext): Promise<ReadonlyArray<MemberRecord>> {
       const auth = getAuth()
       const headers = headersFromRequest()

@@ -30,6 +30,11 @@ export function createInMemoryIdentityPort(): InMemoryIdentityPort {
   const organizations = new Map<string, OrganizationRecord>()
 
   return {
+    async signUp(_name: string, _email: string, _password: string): Promise<string> {
+      const id = `user-${members.size + 1}`
+      return id
+    },
+
     async listMembers(_ctx: AuthContext): Promise<ReadonlyArray<MemberRecord>> {
       return [...members.values()]
     },

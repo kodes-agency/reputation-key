@@ -17,10 +17,10 @@ TanStack Start (SSR + server functions + routing) on Railway Node. Drizzle + Neo
 ```
 src/
   contexts/<n>/
-    domain/          types.ts, rules.ts, constructors.ts, events.ts, errors.ts
+    domain/          types.ts, rules.ts, constructors.ts, events.ts, errors.ts (+ optional: compliance.ts, scoring.ts)
     application/
       ports/         repository and external-service interfaces
-      dto/           Zod input/output schemas (also used as form schemas)
+      dto/           Zod input/output schemas (forms derive from these)
       use-cases/     one file per user action
     infrastructure/
       repositories/  Drizzle implementations of ports
@@ -33,7 +33,7 @@ src/
     domain/          brand, ids, result, pattern, errors, clock, auth-context
     events/          event bus, master event union
     db/              client, schema/<context>.schema.ts, migrations
-    auth/            better-auth config, auth helpers (headers, resolveTenantContext, roleGuard)
+    auth/            better-auth config, auth helpers (headers, resolveTenantContext), permissions (access control statement + roles)
     jobs/            queue, worker, registry
     cache/           redis client, cache port + impl
     rate-limit/      middleware
@@ -64,12 +64,12 @@ Contexts vary in "thickness": thick contexts (`portal`, `review`, `metric`) own 
 
 ## The four layers
 
-| Layer             | Contains                                                                                                                                                        | Forbidden                                                 |
-| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
-| `domain/`         | Types, pure rules, smart constructors, events, errors. Additional pure-function files (e.g., `permissions.ts`) when content warrants splitting from `rules.ts`. | `async`, I/O, framework imports, `throw`, mutation        |
-| `application/`    | Use cases, port interfaces, DTOs                                                                                                                                | DB queries, HTTP code, React, reimplementing domain rules |
-| `infrastructure/` | Repository impls, mappers, adapters, job handlers, event handlers                                                                                               | Business rules, HTTP routing, React                       |
-| `server/`         | TanStack Start server functions                                                                                                                                 | Business logic, direct DB access, domain rules            |
+| Layer             | Contains                                                                                                                                                                     | Forbidden                                                 |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| `domain/`         | Types, pure rules, smart constructors, events, errors. Additional pure-function files (e.g., `compliance.ts`, `scoring.ts`) when content warrants splitting from `rules.ts`. | `async`, I/O, framework imports, `throw`, mutation        |
+| `application/`    | Use cases, port interfaces, DTOs                                                                                                                                             | DB queries, HTTP code, React, reimplementing domain rules |
+| `infrastructure/` | Repository impls, mappers, adapters, job handlers, event handlers                                                                                                            | Business rules, HTTP routing, React                       |
+| `server/`         | TanStack Start server functions                                                                                                                                              | Business logic, direct DB access, domain rules            |
 
 Dependencies point inward: `routes` → `server` → `application` → `domain`. Infrastructure implements `application` ports. Domain depends on nothing outside itself and `shared/domain/`.
 
@@ -99,7 +99,7 @@ All forms in the app use **TanStack Form + Zod + shadcn/ui**. This is the only s
 
 ### Rules
 
-1. **Schema source:** The Zod schema lives in `contexts/<ctx>/application/dto/`. It's the single source of truth. The server function validates against it (security); the form validates against it (UX). Never duplicate.
+1. **Schema source:** The Zod schema lives in `contexts/<ctx>/application/dto/`. It's the single source of truth for the server's input shape. The form may define its own schema when the form shape differs (e.g., all fields as strings, no optional fields), but validation rules (lengths, formats, ranges) must match what the domain enforces. See `docs/patterns.md` section 29 for the full guidance.
 
 2. **Form components:** Built using shadcn's Field components (`Field`, `FieldGroup`, `FieldLabel`, `FieldError`, `FieldDescription`) wired with TanStack Form's `form.Field` render prop. Follow shadcn's official TanStack Form integration docs.
 
@@ -125,30 +125,30 @@ See `docs/patterns.md` for a canonical form example (portal create form).
 
 ## Where does this code go?
 
-| What you're writing                          | Where it goes                                                                                    |
-| -------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| Pure function, business rule                 | `contexts/<ctx>/domain/rules.ts` (or a dedicated file like `permissions.ts` if content warrants) |
-| Pure function, builds an entity              | `contexts/<ctx>/domain/constructors.ts`                                                          |
-| Entity type                                  | `contexts/<ctx>/domain/types.ts`                                                                 |
-| Domain event                                 | `contexts/<ctx>/domain/events.ts`                                                                |
-| Tagged error                                 | `contexts/<ctx>/domain/errors.ts`                                                                |
-| Use case (one user action)                   | `contexts/<ctx>/application/use-cases/<verb-noun>.ts`                                            |
-| Repository or service interface              | `contexts/<ctx>/application/ports/`                                                              |
-| Zod schema for HTTP input (also form schema) | `contexts/<ctx>/application/dto/`                                                                |
-| Drizzle repository implementation            | `contexts/<ctx>/infrastructure/repositories/`                                                    |
-| Row ↔ domain mapper                          | `contexts/<ctx>/infrastructure/mappers/`                                                         |
-| External service adapter (R2, GBP, AI, ...)  | `contexts/<ctx>/infrastructure/<service>/`                                                       |
-| BullMQ job handler                           | `contexts/<ctx>/infrastructure/jobs/<n>.job.ts`                                                  |
-| Event subscriber                             | Receiving context's `infrastructure/event-handlers/`                                             |
-| TanStack Start server function (auth)        | `contexts/<ctx>/server/<noun>.ts`                                                                |
-| TanStack Start server function (public)      | `contexts/<ctx>/server/public-<noun>.ts`                                                         |
-| Drizzle table                                | `shared/db/schema/<ctx>.schema.ts`                                                               |
-| URL route                                    | `routes/` (matches URL path)                                                                     |
-| Feature-specific form                        | `components/features/<ctx>/<FormName>Form.tsx`                                                   |
-| Shared form building block                   | `components/forms/`                                                                              |
-| Generic UI primitive (shadcn)                | `components/ui/`                                                                                 |
-| Layout (header, sidebar, shell)              | `components/layout/`                                                                             |
-| Cross-context utility (used 2+ times)        | `shared/<concern>/`                                                                              |
+| What you're writing                              | Where it goes                                                                                                    |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| Pure function, business rule                     | `contexts/<ctx>/domain/rules.ts` (or a dedicated file if content warrants — e.g., `compliance.ts`, `scoring.ts`) |
+| Pure function, builds an entity                  | `contexts/<ctx>/domain/constructors.ts`                                                                          |
+| Entity type                                      | `contexts/<ctx>/domain/types.ts`                                                                                 |
+| Domain event                                     | `contexts/<ctx>/domain/events.ts`                                                                                |
+| Tagged error                                     | `contexts/<ctx>/domain/errors.ts`                                                                                |
+| Use case (one user action)                       | `contexts/<ctx>/application/use-cases/<verb-noun>.ts`                                                            |
+| Repository or service interface                  | `contexts/<ctx>/application/ports/`                                                                              |
+| Zod schema for HTTP input (forms derive from it) | `contexts/<ctx>/application/dto/`                                                                                |
+| Drizzle repository implementation                | `contexts/<ctx>/infrastructure/repositories/`                                                                    |
+| Row ↔ domain mapper                              | `contexts/<ctx>/infrastructure/mappers/`                                                                         |
+| External service adapter (R2, GBP, AI, ...)      | `contexts/<ctx>/infrastructure/<service>/`                                                                       |
+| BullMQ job handler                               | `contexts/<ctx>/infrastructure/jobs/<n>.job.ts`                                                                  |
+| Event subscriber                                 | Receiving context's `infrastructure/event-handlers/`                                                             |
+| TanStack Start server function (auth)            | `contexts/<ctx>/server/<noun>.ts`                                                                                |
+| TanStack Start server function (public)          | `contexts/<ctx>/server/public-<noun>.ts`                                                                         |
+| Drizzle table                                    | `shared/db/schema/<ctx>.schema.ts`                                                                               |
+| URL route                                        | `routes/` (matches URL path)                                                                                     |
+| Feature-specific form                            | `components/features/<ctx>/<FormName>Form.tsx`                                                                   |
+| Shared form building block                       | `components/forms/`                                                                                              |
+| Generic UI primitive (shadcn)                    | `components/ui/`                                                                                                 |
+| Layout (header, sidebar, shell)                  | `components/layout/`                                                                                             |
+| Cross-context utility (used 2+ times)            | `shared/<concern>/`                                                                                              |
 
 If a file would import from two contexts' internals, you're doing something wrong. Use events or rethink the boundary.
 
@@ -186,11 +186,39 @@ If a file would import from two contexts' internals, you're doing something wron
 
 ---
 
+## Permissions (better-auth access control)
+
+All authorization uses better-auth's `createAccessControl` system. There is a single source of truth.
+
+### The permission statement
+
+Defined in `shared/auth/permissions.ts` using `createAccessControl(statement)`. The statement is an object mapping resource names to arrays of available actions. It defines the **universe of permissions** for the entire application. Adding a new resource or action requires a code deploy.
+
+### Default roles
+
+Three roles are defined using `ac.newRole(...)`: **owner** (AccountAdmin), **admin** (PropertyManager), **member** (Staff). Each role specifies which resource+action combos it can perform. These are passed to both `organization()` server plugin and `organizationClient()` client plugin.
+
+### How to check permissions
+
+**Server-side:** `await getAuth().api.hasPermission({ headers, body: { permissions: { resource: ['action'] } } })` — returns `{ success: true }` or `{ error: ... }`. Throws if unauthorized (better-auth handles the error).
+
+**Client-side (UI gating only, NOT security):** `await authClient.organization.hasPermission({ permissions: { resource: ['action'] } })` — returns boolean. Use for hiding/showing UI elements based on the user's role.
+
+**Sync client-side check (static roles only):** `authClient.organization.checkRolePermission({ permissions: { resource: ['action'] }, role: 'admin' })` — synchronous, doesn't contact server. Does NOT include dynamic roles (Phase B).
+
+### What was removed
+
+- `roleGuard(minRole)` function from `shared/auth/middleware.ts` — replaced by fine-grained `hasPermission` checks
+- `contexts/identity/domain/permissions.ts` with its hand-rolled `canManageUsers()`, `canInviteMembers()`, etc. — replaced by the access control statement
+- Domain-level permission functions that used `hasRole()` from `shared/domain/roles.ts` — the role hierarchy is still used for business rules like "can't promote above your own level" but NOT as the primary permission gate
+
+---
+
 ## Tenant isolation
 
 1. Every business table has `organization_id` (non-null).
 2. Every repository method takes `organizationId: OrganizationId` as the first parameter.
-3. Every repository query filters `WHERE organization_id = $1 AND deleted_at IS NULL` (use `baseWhere(orgId)` helper — to be added when first non-identity repo is built).
+3. Every repository query filters `WHERE organization_id = $1 AND deleted_at IS NULL` (use `baseWhere(orgId)` helper in `shared/db/base-where.ts`).
 4. `resolveTenantContext(headers)` resolves org from session and returns `AuthContext`. Server functions call this at the top of their handler.
 5. Public routes resolve org from URL slug, validate via use case logic (no auth context).
 6. Every repository has an integration test that attempts a cross-tenant query and asserts empty result.
@@ -215,7 +243,7 @@ Most use cases will use 4–6 of these steps. A pure delegation use case might b
 
 The order matters when steps are present, because it reflects the natural dependency chain.
 
-**Anonymous/public use cases** (registration, public guest flows) omit the `AuthContext` parameter entirely — they take only `(input)`, not `(input, ctx)`. These have no authorization step and no tenant context. The server function resolves the org from other sources (URL slug for public routes) or creates a new org (for registration).
+**Anonymous/public use cases** (registration, public guest flows) omit the `AuthContext` parameter entirely — they take only `(input)`, not `(input, ctx)`. These have no authorization step and no tenant context. There are two registration paths: **org-creator registration** (`registerUserAndOrg`) creates a user and their first organization (route: `/register`). **Member registration** (`registerUser`) creates a user account only, no org (route: `/join`) — used by invited staff/managers. The server function resolves the org from other sources (URL slug for public routes) or creates a new org (for org-creator registration).
 
 ---
 
@@ -234,18 +262,18 @@ The order matters when steps are present, because it reflects the natural depend
 
 ## Errors
 
-| Layer            | Behavior                                                                                                                   |
-| ---------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| Domain           | Returns `Result<T, DomainError>`. Never throws.                                                                            |
-| Application      | Throws tagged errors on `Result.isErr()`. Awaits async normally.                                                           |
-| Infrastructure   | Catches library errors, translates to tagged errors or lets them bubble.                                                   |
-| Server functions | Catches tagged errors, pattern-matches `_tag` and `code`, **throws `new Response(...)`** with the appropriate HTTP status. |
+| Layer            | Behavior                                                                                                                                                                                                                                            |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Domain           | Returns `Result<T, DomainError>`. Never throws.                                                                                                                                                                                                     |
+| Application      | Throws tagged errors on `Result.isErr()`. Awaits async normally.                                                                                                                                                                                    |
+| Infrastructure   | Catches library errors, translates to tagged errors or lets them bubble.                                                                                                                                                                            |
+| Server functions | Catches tagged errors, pattern-matches `_tag` and `code`, **throws an `Error`** with `.name`, `.message`, `.code`, and `.status` properties. TanStack Start serializes Errors via seroval and re-throws on the client, so mutations fail correctly. |
 
 Tagged error shape: `{ _tag: 'XxxError', code: '<reason>', message: string, context?: Record<string, unknown> }`. Errors built only via the smart constructor (e.g., `portalError(code, message)`).
 
 Translate errors to HTTP using `match(e.code).with(...).exhaustive()` so adding a new code forces a compiler-checked update.
 
-**Never return `{ success: false, error: message }` from server functions.** Always throw Response. The client catches via mutation error state; the error shape flows through uniformly.
+**Never return `{ success: false, error: message }` from server functions.** Always throw Error objects. TanStack Start's seroval serialization transports them to the client where mutations fail and `mutation.error` is populated with the Error (including `.message`).
 
 ---
 
@@ -282,8 +310,8 @@ Every business table includes: `id`, `organization_id`, `created_at`, `updated_a
 - `infrastructure/` imports from `domain/`, `application/`, `shared/`, external libs.
 - `server/` imports from `application/` (use cases, dtos), `shared/`, TanStack Start.
 - `routes/` imports from `contexts/<ctx>/server/` (server functions only — not domain, application, infrastructure), `components/`, `shared/`.
-- `components/` imports from other `components/`, `shared/`, `contexts/<ctx>/application/dto/` (for form schemas only). Never from domain, application (non-dto), infrastructure, or server.
-- `shared/` imports from itself and external libs only.
+- `components/` imports from other `components/`, `shared/`, `contexts/<ctx>/application/dto/` (to derive form schemas). Never from domain, application (non-dto), infrastructure, or server.
+- `shared/` imports from itself and external libs only. **Exception:** `shared/events/events.ts` imports context event types (`domain/events.ts`) to build the master `DomainEvent` union — this is the only allowed cross-context type import in shared.
 
 Forbidden:
 
@@ -323,8 +351,8 @@ Tests colocated: `rules.ts` next to `rules.test.ts`.
 - Event handler in the emitting context → handlers belong in the receiving context.
 - Putting code in `shared/` "we might need it" → wait for the second importer.
 - Throwing plain `Error` → always tagged errors.
-- Returning `{ success: false, error: message }` from server functions → always throw Response.
-- Duplicating the Zod schema between form and server function → use the DTO schema for both.
+- Returning `{ success: false, error: message }` from server functions → always throw Error objects (TanStack Start serializes them for the client).
+- Duplicating the Zod schema between form and server function → derive the form schema from the DTO schema using `.required()` / `.extend()` / `.omit()` (see `docs/patterns.md` section 29).
 - Calling server functions directly from forms without a mutation → always wrap in TanStack Query `useMutation`.
 - Managing form `isSubmitting` state manually → use mutation status.
 - Using React Hook Form, Formik, or plain `useState` for forms → use TanStack Form.
@@ -334,6 +362,7 @@ Tests colocated: `rules.ts` next to `rules.test.ts`.
 - Forcing every operation through 4 layers when 2 will do → ceremony, not architecture. See "When to skip layers".
 - Forcing thin operations into the full pattern for symmetry → ceremony; skip absent steps.
 - Inlining business logic into server functions to avoid "a one-line use case" → use a thin use case.
+- Using `new Date()` in a use case → inject `clock` as a dependency. `new Date()` breaks test determinism.
 - Following an AI suggestion that doesn't match this doc or existing code → ask whether it fits before accepting.
 
 ---

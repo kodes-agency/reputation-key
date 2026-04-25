@@ -4,7 +4,7 @@
 
 import type { IdentityPort, InvitationRecord } from '../ports/identity.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import { canInviteMembers } from '../../domain/permissions'
+import { can } from '#/shared/domain/permissions'
 import { identityError } from '../../domain/errors'
 
 export type ListInvitationsOutput = Readonly<{
@@ -25,12 +25,14 @@ export const listInvitations =
   (deps: Deps) =>
   async (_input: void, ctx: AuthContext): Promise<ListInvitationsOutput> => {
     // 1. Authorize
-    if (!canInviteMembers(ctx.role)) {
+    if (!can(ctx.role, 'invitation.create')) {
       throw identityError('forbidden', 'Insufficient role to view invitations')
     }
 
-    // 2. Query
-    const invitations = await deps.identity.listInvitations(ctx)
+    // 2. Query — only return pending invitations
+    const invitations = (await deps.identity.listInvitations(ctx)).filter(
+      (inv) => inv.status === 'pending',
+    )
 
     // 3. Return
     return { invitations }

@@ -8,7 +8,6 @@ export {
   getSessionFromHeaders,
   requireAuth,
   resolveTenantContext,
-  roleGuard,
 } from './middleware'
 export type { AuthError } from './middleware'
 export { headersFromContext } from './headers'
@@ -19,4 +18,5 @@ export {
   sendInvitationEmail,
   getResend,
 } from './emails'
+export { getSession, ensureSession } from './auth.functions'
 export type { AuthContext } from '#/shared/domain/auth-context'

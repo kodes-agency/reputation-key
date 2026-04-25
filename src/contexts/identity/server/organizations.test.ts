@@ -1,43 +1,20 @@
-// Identity context — server function integration tests
+// Identity context — server function tests
+// Imports the real identityErrorToResponse from the server module so tests break
+// when production code changes.
+//
 // Per architecture: "Server functions: Integration tests covering HTTP behavior —
 // status codes, response shapes, middleware enforcement."
-// These tests verify that server function error translation works correctly
-// without requiring a running server.
+// Per architecture: exhaustive ts-pattern matching ensures new error codes
+// are caught at compile time.
 
 import { describe, it, expect } from 'vitest'
 import { identityError, isIdentityError } from '#/contexts/identity/domain/errors'
-import type { IdentityError } from '#/contexts/identity/domain/errors'
-import { match } from 'ts-pattern'
-
-// ── Error → HTTP translation (mirrors the server function pattern) ──
-
-const identityErrorToResponse = (e: IdentityError) =>
-  match(e.code)
-    .with('forbidden', () => ({
-      status: 403 as const,
-      body: { error: e.code, message: e.message },
-    }))
-    .with('invalid_slug', 'invalid_name', () => ({
-      status: 400 as const,
-      body: { error: e.code, message: e.message },
-    }))
-    .with('registration_failed', () => ({
-      status: 400 as const,
-      body: { error: e.code, message: e.message },
-    }))
-    .with('org_setup_failed', () => ({
-      status: 409 as const,
-      body: { error: e.code, message: e.message },
-    }))
-    .with('member_not_found', 'invitation_not_found', () => ({
-      status: 404 as const,
-      body: { error: e.code, message: e.message },
-    }))
-    .exhaustive()
+import type { IdentityErrorCode } from '#/contexts/identity/domain/errors'
+import { identityErrorToResponse } from '#/contexts/identity/server/organizations'
 
 // ── Tests ────────────────────────────────────────────────────────────
 
-describe('identityErrorToResponse (server function error translation)', () => {
+describe('identityErrorToResponse (imported from server module)', () => {
   it('maps forbidden → 403', () => {
     const error = identityError('forbidden', 'Insufficient role')
     const { status, body } = identityErrorToResponse(error)
@@ -60,6 +37,20 @@ describe('identityErrorToResponse (server function error translation)', () => {
     expect(body.error).toBe('invalid_name')
   })
 
+  it('maps registration_failed → 400', () => {
+    const error = identityError('registration_failed', 'Sign-up failed')
+    const { status, body } = identityErrorToResponse(error)
+    expect(status).toBe(400)
+    expect(body.error).toBe('registration_failed')
+  })
+
+  it('maps org_setup_failed → 409', () => {
+    const error = identityError('org_setup_failed', 'Slug conflict')
+    const { status, body } = identityErrorToResponse(error)
+    expect(status).toBe(409)
+    expect(body.error).toBe('org_setup_failed')
+  })
+
   it('maps member_not_found → 404', () => {
     const error = identityError('member_not_found', 'Member not found')
     const { status, body } = identityErrorToResponse(error)
@@ -75,19 +66,17 @@ describe('identityErrorToResponse (server function error translation)', () => {
   })
 
   it('exhaustive matching catches all error codes', () => {
-    // This test ensures that if a new error code is added to IdentityErrorCode,
-    // the identityErrorToResponse function will fail to compile without handling it.
-    // The .exhaustive() call in the function provides compile-time safety.
-    const allCodes: Array<import('#/contexts/identity/domain/errors').IdentityErrorCode> =
-      [
-        'forbidden',
-        'invalid_slug',
-        'invalid_name',
-        'member_not_found',
-        'invitation_not_found',
-        'registration_failed',
-        'org_setup_failed',
-      ]
+    // The .exhaustive() call in the production function provides compile-time safety.
+    // This test verifies every code maps to a valid HTTP error status.
+    const allCodes: IdentityErrorCode[] = [
+      'forbidden',
+      'invalid_slug',
+      'invalid_name',
+      'member_not_found',
+      'invitation_not_found',
+      'registration_failed',
+      'org_setup_failed',
+    ]
 
     for (const code of allCodes) {
       const error = identityError(code, 'test')
@@ -108,7 +97,7 @@ describe('server function response shape', () => {
     const error = identityError('forbidden', 'Insufficient role')
     const { status, body } = identityErrorToResponse(error)
 
-    // Simulating what the server function does:
+    // Simulating what throwIdentityError does:
     const response = new Response(JSON.stringify(body), {
       status,
       headers: { 'content-type': 'application/json' },

@@ -1,10 +1,12 @@
 // Accept invitation page
 // Users arrive here from invitation emails via /accept-invitation?id=<invitationId>
 import { createFileRoute, Link, redirect } from '@tanstack/react-router'
-import { authClient } from '#/shared/auth/auth-client'
+import { getSession } from '#/shared/auth/auth.functions'
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Button } from '#/components/ui/button'
+import { Card } from '#/components/ui/card'
+import { Skeleton } from '#/components/ui/skeleton'
 import {
   AuthCard,
   AuthFooterLink,
@@ -35,7 +37,7 @@ function SuccessView() {
       <div className="text-center">
         <Link
           to="/dashboard"
-          className="text-sm font-medium text-[var(--lagoon)] no-underline hover:underline"
+          className="text-sm font-medium text-primary underline-offset-4 hover:underline"
         >
           Go to dashboard
         </Link>
@@ -49,9 +51,9 @@ function AutoAcceptView({ error, loading }: { error: string | null; loading: boo
     <AuthCard title="Accepting invitation…" description="">
       {error && <ErrorBanner message={error} />}
       {loading && (
-        <p className="text-center text-sm text-muted-foreground">
-          Processing your invitation…
-        </p>
+        <div className="flex justify-center py-4">
+          <Skeleton className="h-4 w-48" />
+        </div>
       )}
     </AuthCard>
   )
@@ -78,28 +80,30 @@ function InvitationListView({
       {error && <ErrorBanner message={error} />}
 
       {loading ? (
-        <p className="text-center text-sm text-muted-foreground">Loading invitations…</p>
+        <div className="flex flex-col gap-3">
+          <Skeleton className="h-16 w-full" />
+          <Skeleton className="h-16 w-full" />
+        </div>
       ) : invitations.length === 0 ? (
         <p className="text-center text-sm text-muted-foreground">
           No pending invitations.
         </p>
       ) : (
-        <div className="space-y-3">
+        <div className="flex flex-col gap-3">
           {invitations.map((inv) => (
-            <div
-              key={inv.id}
-              className="flex items-center justify-between rounded-lg border p-4"
-            >
-              <div>
-                <p className="font-medium">{inv.organizationName}</p>
-                <p className="text-sm text-muted-foreground">Role: {inv.role}</p>
+            <Card key={inv.id}>
+              <div className="flex items-center justify-between p-4">
+                <div>
+                  <p className="font-medium">{inv.organizationName}</p>
+                  <p className="text-sm text-muted-foreground">Role: {inv.role}</p>
+                </div>
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={() => onAccept(inv.id)} disabled={accepting}>
+                    Accept
+                  </Button>
+                </div>
               </div>
-              <div className="flex gap-2">
-                <Button size="sm" onClick={() => onAccept(inv.id)} disabled={accepting}>
-                  Accept
-                </Button>
-              </div>
-            </div>
+            </Card>
           ))}
         </div>
       )}
@@ -112,10 +116,13 @@ function InvitationListView({
 // ── Route ────────────────────────────────────────────────────────────
 
 export const Route = createFileRoute('/accept-invitation')({
-  beforeLoad: async () => {
-    const { data: session } = await authClient.getSession()
+  beforeLoad: async ({ location }) => {
+    const session = await getSession()
     if (!session) {
-      throw redirect({ to: '/login' })
+      throw redirect({
+        to: '/join',
+        search: { redirect: location.href },
+      })
     }
   },
   component: AcceptInvitationPage,

@@ -120,34 +120,37 @@ Before anything else, we need a runnable system with a clean architecture skelet
 
 - better-auth organization plugin configured
 - Drizzle schema for `organization`, `member`, `invitation` tables (better-auth generates these)
-- Registration flow creates user + organization in one step (user becomes owner)
-- Separate "join existing org" flow for invited users
+- Registration flow creates user + organization in one step (user becomes owner) — route: `/register`
+- Separate "join" flow for invited users (creates user account only, no organization) — route: `/join`
 - Invitation UI: AccountAdmin can invite by email + role from a settings page
-- Invitation acceptance: user clicks link, sets password if new, joins org with assigned role
+- Invitation acceptance: user clicks link in email, arrives at `/accept-invitation?id=...`. If unauthenticated, redirected to `/join?redirect=/accept-invitation?id=...` (not `/login` — most invitees are new users). After registering, they're sent back to accept the invitation. If they already have an account, they can navigate to `/login` instead.
 - `tenantMiddleware` in `shared/auth/middleware.ts` that extracts active organization from session and attaches `{ userId, organizationId, role }` to context
-- `roleGuard(minRole)` middleware factory that checks role against a hierarchy
+- Permission checks via better-auth's `createAccessControl` system: a single statement of all resources × actions defined in `shared/auth/permissions.ts`, with default roles (owner, admin, member) passed to both the `organization()` server plugin and `organizationClient()` client plugin
 - Role mapping: better-auth's `owner` = AccountAdmin, `admin` = PropertyManager, `member` = Staff
-- Domain-level permission table: `canCreatePortals`, `canManageUsers`, etc. as pure functions in `contexts/identity/domain/permissions.ts`
+- Server functions check permissions via `auth.api.hasPermission({ body: { permissions: { resource: ['action'] } } })` — replaces the old `roleGuard()` function and the hand-rolled `canXxx()` functions
 - Audit log table (`audit_logs`) with a minimal implementation — we'll use it more later
 - Tests: unit tests for permission logic, integration tests for invitation flow
 
 **Scope (out).**
 
 - SuperAdmin role (add later via better-auth admin plugin — separate from org roles)
+- Dynamic access control (runtime custom roles) — deferred until Phase B; current system uses code-defined roles only
 - Organization switcher UI (most users will have one org; add later if needed)
 - Role changes after invitation (later)
 - Deactivation/removal of members (later)
 
 **Gate criteria.**
 
-- A new user can register and an organization is created for them
+- A new user can register at `/register` and an organization is created for them
 - The registering user is assigned the AccountAdmin role in the new organization
 - An AccountAdmin can invite another user by email + role; the invitation email is delivered
-- The invitee can accept the invitation and is added to the organization with the correct role
+- The invitee can register at `/join` (no org name required), then accept the invitation and is added to the organization with the correct role
+- The invitation email links to `/accept-invitation?id=...`; unauthenticated users are redirected to `/join?redirect=...`
+- A user who already has an account can log in at `/login` and then accept the invitation
 - `tenantMiddleware` correctly resolves `organizationId` for authenticated requests and rejects if the user isn't a member of the active organization
-- `roleGuard('PropertyManager')` allows PropertyManager and AccountAdmin through, blocks Staff
-- Permission functions in domain layer have 100% test coverage
-- Integration test: full flow (owner signs up → invites admin → admin accepts → admin is in org as PropertyManager) passes
+- Permission check `auth.api.hasPermission({ permissions: { property: ['create'] } })` correctly allows/rejects based on the role's granted actions
+- Permission definitions in `shared/auth/permissions.ts` have test coverage verifying each role's allowed actions
+- Integration test: full flow (owner signs up → invites admin → admin registers at /join → accepts invitation → admin is in org as PropertyManager) passes
 
 **Open questions to resolve during this phase.**
 
@@ -319,6 +322,65 @@ With foundation in place, we build the boring-but-essential entities that everyt
 **Rough effort.** 4-5 days. Second context is faster than the first.
 
 **Phase after this.** Portal context.
+
+### Phase 6.5 — Permission system overhaul
+
+**Goal.** Replace the hand-rolled `roleGuard()` + `canXxx()` permission functions with better-auth's built-in `createAccessControl` system. This fixes a critical security issue where PropertyManagers had too much power (could change any member's role, see all org data) and establishes a single source of truth for permissions.
+
+**Why now.** The current system has two parallel permission models (our `permissions.ts` functions + better-auth's default role hierarchy) that can contradict each other. A PropertyManager can see all members and change roles — too permissive for a real SaaS. Better-auth's access control system provides fine-grained resource × action permissions out of the box.
+
+**Scope (in).**
+
+- Define the full permission statement (all resources × actions for phases 1–12) in `shared/auth/permissions.ts` using `createAccessControl`
+- Define three default roles (owner, admin, member) with specific permission sets — more restrictive than before
+- Wire `ac` + `roles` into the `organization()` server plugin and `organizationClient()` client plugin
+- Replace all `roleGuard()` calls in server functions with `auth.api.hasPermission()` checks
+- Remove `roleGuard()` from `shared/auth/middleware.ts`
+- Remove `contexts/identity/domain/permissions.ts` (the hand-rolled `canXxx()` functions)
+- Update domain rules (`canInviteWithRole`, `canChangeRole`) to remain as business validation ("can't promote above your own level") but not as the primary permission gate
+- Update all doc files (architecture.md, conventions.md, patterns.md) to reflect the new system
+- Tests: update tests that relied on the old permission functions
+
+**Scope (out).**
+
+- Dynamic access control (runtime custom roles by AccountAdmin) — Phase B, after the static system is validated
+- Admin plugin for platform-level SuperAdmin role — deferred per original plan
+- UI for managing roles — deferred to Phase B
+
+**Default role permissions (new).**
+
+| Permission                         | owner (AccountAdmin) | admin (PropertyManager) | member (Staff) |
+| ---------------------------------- | -------------------- | ----------------------- | -------------- |
+| `organization: update, delete`     | ✅                   | –                       | –              |
+| `member: create`                   | ✅                   | ✅                      | –              |
+| `member: update`                   | ✅                   | –                       | –              |
+| `member: delete`                   | ✅                   | –                       | –              |
+| `invitation: create, cancel`       | ✅                   | ✅                      | –              |
+| `property: create, update`         | ✅                   | ✅                      | –              |
+| `property: delete`                 | ✅                   | –                       | –              |
+| `team: create, update`             | ✅                   | ✅                      | –              |
+| `team: delete`                     | ✅                   | –                       | –              |
+| `staff_assignment: create, delete` | ✅                   | ✅                      | –              |
+| `ac: create, read, update, delete` | ✅                   | –                       | –              |
+| `portal: create, update`           | ✅                   | ✅                      | –              |
+| `portal: delete`                   | ✅                   | –                       | –              |
+| `review: read`                     | ✅                   | ✅                      | ✅             |
+| `review: reply`                    | ✅                   | ✅                      | –              |
+| `feedback: read`                   | ✅                   | ✅                      | –              |
+| `feedback: respond`                | ✅                   | ✅                      | –              |
+| `integration: manage`              | ✅                   | –                       | –              |
+
+**Key change:** admin (PropertyManager) can no longer update/delete members or change roles. Only owner (AccountAdmin) can manage member roles. Admin can still invite new members.
+
+**Gate criteria.**
+
+- All existing tests pass (updated for new permission model)
+- Server functions enforce fine-grained permissions via `hasPermission`
+- A PropertyManager cannot change another member's role
+- A PropertyManager cannot delete properties or teams
+- `tsc --noEmit` is clean
+
+**Rough effort.** 1-2 days. The changes are mechanical — replace one permission system with another.
 
 ---
 

@@ -68,18 +68,18 @@ contexts/<domain>/
 
 ## Key Integrations
 
-| Integration        | Purpose                                    | Key Files                                                                                                                                                |
-| ------------------ | ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **TanStack Start** | Full-stack React framework                 | `src/router.tsx`, `vite.config.ts`                                                                                                                       |
-| **TanStack Query** | Server state management                    | `src/integrations/tanstack-query/`                                                                                                                       |
-| **Better Auth**    | Email+password auth with DB sessions       | `src/shared/auth/auth.ts`, `src/shared/auth/auth-client.ts`, `src/shared/auth/auth-cli.ts`, `src/shared/auth/middleware.ts`, `src/shared/auth/emails.ts` |
-| **Drizzle ORM**    | Type-safe ORM for PostgreSQL (pg driver)   | `src/shared/db/`, `drizzle.config.ts`                                                                                                                    |
-| **Zod v4**         | Runtime validation & env schema            | `src/shared/config/env.ts`                                                                                                                               |
-| **Pino**           | Structured logging                         | `src/shared/observability/logger.ts`                                                                                                                     |
-| **ioredis**        | Redis client (queue, cache, rate limiting) | `src/shared/cache/redis.ts`                                                                                                                              |
-| **BullMQ**         | Job queues (Phase 4+)                      | `src/shared/jobs/` (empty placeholder)                                                                                                                   |
-| **Shadcn**         | UI component library                       | `components.json`, `src/lib/utils.ts`                                                                                                                    |
-| **Tailwind v4**    | Utility-first CSS                          | `src/styles.css`                                                                                                                                         |
+| Integration        | Purpose                                              | Key Files                                                                                                                                                                                  |
+| ------------------ | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **TanStack Start** | Full-stack React framework                           | `src/router.tsx`, `vite.config.ts`                                                                                                                                                         |
+| **TanStack Query** | Server state management                              | `src/integrations/tanstack-query/`                                                                                                                                                         |
+| **Better Auth**    | Email+password auth with DB sessions, access control | `src/shared/auth/auth.ts`, `src/shared/auth/auth-client.ts`, `src/shared/auth/auth-cli.ts`, `src/shared/auth/middleware.ts`, `src/shared/auth/permissions.ts`, `src/shared/auth/emails.ts` |
+| **Drizzle ORM**    | Type-safe ORM for PostgreSQL (pg driver)             | `src/shared/db/`, `drizzle.config.ts`                                                                                                                                                      |
+| **Zod v4**         | Runtime validation & env schema                      | `src/shared/config/env.ts`                                                                                                                                                                 |
+| **Pino**           | Structured logging                                   | `src/shared/observability/logger.ts`                                                                                                                                                       |
+| **ioredis**        | Redis client (queue, cache, rate limiting)           | `src/shared/cache/redis.ts`                                                                                                                                                                |
+| **BullMQ**         | Job queues (Phase 4+)                                | `src/shared/jobs/` (empty placeholder)                                                                                                                                                     |
+| **Shadcn**         | UI component library                                 | `components.json`, `src/lib/utils.ts`                                                                                                                                                      |
+| **Tailwind v4**    | Utility-first CSS                                    | `src/styles.css`                                                                                                                                                                           |
 
 ## Environment Variables
 
@@ -134,6 +134,7 @@ All env vars are validated via Zod in `src/shared/config/env.ts`. Missing requir
 - `vite-plugin-neon-new` was removed; use `DATABASE_URL` directly
 - Better Auth uses DB-backed sessions (not stateless) — the `Pool` connection is in `src/shared/auth/auth.ts`
 - The `betterAuth` singleton is lazy-created on first request via `getAuth()`
+- **Permission system uses better-auth's `createAccessControl`.** The statement (all resources × actions) and default roles (owner/admin/member) are defined in `src/shared/auth/permissions.ts`. Server functions check permissions via `auth.api.hasPermission()`. There is no `roleGuard()` function and no hand-rolled `canXxx()` permission functions — all authorization goes through better-auth's AC system.
 - **Better Auth tables use camelCase columns** (`emailVerified`, `createdAt`, `userId`, etc.) — not snake_case. The Drizzle schema in `shared/db/schema/auth.ts` must match. Use `pnpm auth:migrate` for auth schema changes.
 - **Better Auth CLI** requires its own config file (`auth-cli.ts`) with a default export and no Vite path aliases (`#/...`). Don't point it at `auth.ts`.
 - Health check at `/api/health` returns `{ status: 'ok'|'degraded', db: boolean, redis: boolean, timestamp: string }` — Redis is optional in dev

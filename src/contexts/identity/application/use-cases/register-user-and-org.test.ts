@@ -50,6 +50,7 @@ describe('registerUserAndOrg', () => {
       expect.any(Headers),
       'Test Org',
       'test-org',
+      FIXED_USER_ID,
     )
     expect(deps.setActiveOrg).toHaveBeenCalledWith(expect.any(Headers), FIXED_ORG_ID)
   })
@@ -74,6 +75,7 @@ describe('registerUserAndOrg', () => {
       expect.any(Headers),
       'My Awesome Org!!!',
       'my-awesome-org',
+      FIXED_USER_ID,
     )
   })
 

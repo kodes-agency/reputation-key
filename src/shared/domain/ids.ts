@@ -10,6 +10,7 @@ export type PortalId = Brand<string, 'PortalId'>
 export type ReviewId = Brand<string, 'ReviewId'>
 export type FeedbackId = Brand<string, 'FeedbackId'>
 export type TeamId = Brand<string, 'TeamId'>
+export type StaffAssignmentId = Brand<string, 'StaffAssignmentId'>
 export type MetricId = Brand<string, 'MetricId'>
 export type GoalId = Brand<string, 'GoalId'>
 
@@ -35,6 +36,9 @@ export function feedbackId(id: string): FeedbackId {
 }
 export function teamId(id: string): TeamId {
   return id as TeamId
+}
+export function staffAssignmentId(id: string): StaffAssignmentId {
+  return id as StaffAssignmentId
 }
 export function metricId(id: string): MetricId {
   return id as MetricId

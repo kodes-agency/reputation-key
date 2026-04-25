@@ -37,6 +37,14 @@ export const registerUserInputSchema = z.object({
 })
 export type RegisterUserInput = z.infer<typeof registerUserInputSchema>
 
+/** Member registration — creates user only, no organization. */
+export const registerMemberInputSchema = z.object({
+  name: z.string().min(1, 'Name is required').max(100),
+  email: z.email('A valid email address is required'),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+})
+export type RegisterMemberInput = z.infer<typeof registerMemberInputSchema>
+
 export const setActiveOrgInputSchema = z.object({
   organizationId: z.string().min(1, 'Organization ID is required'),
 })

@@ -40,6 +40,9 @@ export type OrganizationRecord = Readonly<{
 
 /** Port for identity operations — wraps better-auth API calls. */
 export type IdentityPort = Readonly<{
+  /** Sign up a new user. Returns user ID. */
+  signUp: (name: string, email: string, password: string) => Promise<string>
+
   /** List members of the active organization. */
   listMembers: (ctx: AuthContext) => Promise<ReadonlyArray<MemberRecord>>
 

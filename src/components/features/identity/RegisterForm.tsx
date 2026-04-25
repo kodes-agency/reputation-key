@@ -1,9 +1,9 @@
-// Register form component.
+// Registration form component — supports two modes:
+// - 'register' (default): creates user + organization (used by /register)
+// - 'join': creates user only, no organization (used by /join for invited members)
+//
 // Per conventions: receives mutation as prop, uses TanStack Form + Zod schema from DTO.
 // The confirmPassword field is form-only (not in the server DTO).
-// We use a form-specific schema that extends the DTO schema with password confirmation.
-// Post-submit navigation is handled by the route via the mutation's onSuccess callback,
-// not inside this component.
 
 import { useForm } from '@tanstack/react-form'
 import { z } from 'zod/v4'
@@ -12,45 +12,79 @@ import { SubmitButton } from '#/components/forms/SubmitButton'
 import { FormErrorBanner } from '#/components/forms/FormErrorBanner'
 import { FormTextField } from '#/components/forms/FormTextField'
 import type { BaseFieldApi } from '#/components/forms/FormTextField'
-import { registerUserInputSchema } from '#/contexts/identity/application/dto/invitation.dto'
-import type { UseMutationResult } from '@tanstack/react-query'
+import {
+  registerUserInputSchema,
+  registerMemberInputSchema,
+} from '#/contexts/identity/application/dto/invitation.dto'
+// MutateAsync uses `unknown` so specific mutation types are compatible via structural typing.
 
-type RegisterVariables = z.infer<typeof registerUserInputSchema>
+// ── Schemas ──────────────────────────────────────────────────────────
 
-// Form-specific schema: extends the DTO with password confirmation.
-// Per conventions: "if it's shaped differently, the DTO is wrong" — but confirmPassword
-// is a client-only concern, so a local extension is the right pattern.
 const registerFormSchema = registerUserInputSchema
-  .extend({
-    confirmPassword: z.string().min(1, 'Please confirm your password'),
+  .extend({ confirmPassword: z.string().min(1, 'Please confirm your password') })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: 'Passwords do not match',
+    path: ['confirmPassword'],
   })
+
+const joinFormSchema = registerMemberInputSchema
+  .extend({ confirmPassword: z.string().min(1, 'Please confirm your password') })
   .refine((data) => data.password === data.confirmPassword, {
     message: 'Passwords do not match',
     path: ['confirmPassword'],
   })
 
 type RegisterFormValues = z.infer<typeof registerFormSchema>
+type JoinFormValues = z.infer<typeof joinFormSchema>
+
+// ── Types ────────────────────────────────────────────────────────────
+
+type RegisterVariables = z.infer<typeof registerUserInputSchema>
+type JoinVariables = z.infer<typeof registerMemberInputSchema>
+
+type MutationLike = {
+  isPending: boolean
+  isError: boolean
+  error: unknown
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  mutateAsync: (variables: any) => Promise<any>
+}
 
 type Props = Readonly<{
-  mutation: UseMutationResult<unknown, unknown, RegisterVariables, unknown>
+  mode: 'register' | 'join'
+  mutation: MutationLike
 }>
 
-export function RegisterForm({ mutation }: Props) {
+// ── Component ────────────────────────────────────────────────────────
+
+export function RegisterForm({ mode, mutation }: Props) {
+  const isJoinMode = mode === 'join'
+
   const form = useForm({
-    defaultValues: {
-      name: '',
-      email: '',
-      password: '',
-      confirmPassword: '',
-      organizationName: '',
-    } satisfies RegisterFormValues,
+    defaultValues: isJoinMode
+      ? ({
+          name: '',
+          email: '',
+          password: '',
+          confirmPassword: '',
+        } satisfies JoinFormValues)
+      : ({
+          name: '',
+          email: '',
+          password: '',
+          confirmPassword: '',
+          organizationName: '',
+        } satisfies RegisterFormValues),
     validators: {
-      onSubmit: registerFormSchema,
+      onSubmit: isJoinMode ? joinFormSchema : registerFormSchema,
     },
-    onSubmit: async ({ value }: { value: RegisterFormValues }) => {
-      // Strip confirmPassword before sending to server
-      const { confirmPassword: _, ...serverInput } = value
-      await mutation.mutateAsync(serverInput satisfies RegisterVariables)
+    onSubmit: async ({ value }: { value: RegisterFormValues | JoinFormValues }) => {
+      const { confirmPassword: _, ...rest } = value
+      if (isJoinMode) {
+        await mutation.mutateAsync(rest as JoinVariables)
+      } else {
+        await mutation.mutateAsync(rest as RegisterVariables)
+      }
     },
   })
 
@@ -71,7 +105,7 @@ export function RegisterForm({ mutation }: Props) {
             <FormTextField
               field={field}
               label="Full name"
-              id="register-name"
+              id={`${mode}-name`}
               placeholder="John Doe"
               autoComplete="name"
             />
@@ -83,7 +117,7 @@ export function RegisterForm({ mutation }: Props) {
             <FormTextField
               field={field}
               label="Email"
-              id="register-email"
+              id={`${mode}-email`}
               type="email"
               placeholder="you@example.com"
               autoComplete="email"
@@ -91,24 +125,26 @@ export function RegisterForm({ mutation }: Props) {
           )}
         </form.Field>
 
-        <form.Field name="organizationName">
-          {(field: BaseFieldApi) => (
-            <FormTextField
-              field={field}
-              label="Organization name"
-              id="organization-name"
-              placeholder="My Business"
-              autoComplete="organization"
-            />
-          )}
-        </form.Field>
+        {!isJoinMode && (
+          <form.Field name="organizationName">
+            {(field: BaseFieldApi) => (
+              <FormTextField
+                field={field}
+                label="Organization name"
+                id="organization-name"
+                placeholder="My Business"
+                autoComplete="organization"
+              />
+            )}
+          </form.Field>
+        )}
 
         <form.Field name="password">
           {(field: BaseFieldApi) => (
             <FormTextField
               field={field}
               label="Password"
-              id="register-password"
+              id={`${mode}-password`}
               type="password"
               placeholder="At least 8 characters"
               autoComplete="new-password"
@@ -121,7 +157,7 @@ export function RegisterForm({ mutation }: Props) {
             <FormTextField
               field={field}
               label="Confirm password"
-              id="confirm-password"
+              id={`${mode}-confirm-password`}
               type="password"
               placeholder="Repeat your password"
               autoComplete="new-password"
@@ -131,7 +167,7 @@ export function RegisterForm({ mutation }: Props) {
       </FieldGroup>
 
       <SubmitButton mutation={mutation} form={form} className="w-full">
-        Create account
+        {isJoinMode ? 'Create account' : 'Create account & organization'}
       </SubmitButton>
     </form>
   )

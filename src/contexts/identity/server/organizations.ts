@@ -16,6 +16,7 @@ import {
   updateMemberRoleInputSchema,
   removeMemberInputSchema,
   registerUserInputSchema,
+  registerMemberInputSchema,
   setActiveOrgInputSchema,
   signInInputSchema,
 } from '../application/dto/invitation.dto'
@@ -26,7 +27,7 @@ import type { IdentityError } from '../domain/errors'
 // Per architecture: "ts-pattern with .exhaustive() ensures new error codes
 // force a compiler error here."
 
-const identityErrorToResponse = (e: IdentityError) =>
+export const identityErrorToResponse = (e: IdentityError) =>
   match(e.code)
     .with('forbidden', () => ({
       status: 403 as const,
@@ -191,6 +192,59 @@ export const rejectInvitation = createServerFn({ method: 'POST' })
     })
   })
 
+// ── Cancel invitation ──────────────────────────────────────────────
+
+export const cancelInvitation = createServerFn({ method: 'POST' })
+  .inputValidator(acceptInvitationInputSchema)
+  .handler(async ({ data }) => {
+    const headers = headersFromContext()
+    await resolveTenantContext(headers)
+    const auth = getAuth()
+
+    await auth.api.cancelInvitation({
+      headers,
+      body: { invitationId: data.invitationId },
+    })
+  })
+
+// ── Resend invitation ──────────────────────────────────────────────
+
+export const resendInvitation = createServerFn({ method: 'POST' })
+  .inputValidator(acceptInvitationInputSchema)
+  .handler(async ({ data }) => {
+    const headers = headersFromContext()
+    await resolveTenantContext(headers)
+
+    // Look up the invitation to get the email and role for resending
+    const auth = getAuth()
+    const result = await auth.api.listInvitations({ headers })
+    const invitations = (Array.isArray(result) ? result : []) as AuthInvitationResponse[]
+    const invitation = invitations.find((inv) => inv.id === data.invitationId)
+
+    if (!invitation) {
+      throw new Response(
+        JSON.stringify({
+          error: 'invitation_not_found',
+          message: 'Invitation not found',
+        }),
+        {
+          status: 404,
+          headers: { 'content-type': 'application/json' },
+        },
+      )
+    }
+
+    // Re-create with resend flag — better-auth handles deduplication
+    await auth.api.createInvitation({
+      headers,
+      body: {
+        email: invitation.email,
+        role: invitation.role as 'owner' | 'admin' | 'member',
+        resend: true,
+      },
+    })
+  })
+
 // ── List invitations ────────────────────────────────────────────────
 // Uses the use case through the composition root.
 
@@ -307,9 +361,24 @@ export const listUserOrganizations = createServerFn({ method: 'GET' }).handler(
   },
 )
 
+// ── Register user only (no organization) ────────────────────────────
+// Used by invited members joining an existing org via /join.
+// Per architecture: server function is thin — validate input, call use case, translate errors.
+
+export const registerMember = createServerFn({ method: 'POST' })
+  .inputValidator(registerMemberInputSchema)
+  .handler(async ({ data }) => {
+    try {
+      const { useCases } = getContainer()
+      await useCases.registerUser(data)
+    } catch (e) {
+      if (isIdentityError(e)) throwIdentityError(e)
+      throw e
+    }
+  })
+
 // ── Register user + create organization ────────────────────────────
 // Uses the use case through the composition root.
-// Per architecture: server function is thin — validate input, call use case, translate errors.
 
 export const registerUserAndOrg = createServerFn({ method: 'POST' })
   .inputValidator(registerUserInputSchema)
