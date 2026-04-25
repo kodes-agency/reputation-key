@@ -8,10 +8,8 @@ import {
   validateSlug,
   validatePropertyName,
   validateTimezone,
-  canCreateProperties,
-  canEditProperties,
-  canDeleteProperties,
 } from './rules'
+import { can } from '#/shared/domain/permissions'
 import { VALID_TIMEZONES } from '#/shared/domain/timezones'
 
 // ── normalizeSlug ──────────────────────────────────────────────────
@@ -154,37 +152,40 @@ describe('validateTimezone', () => {
   })
 })
 
-// ── Authorization rules ────────────────────────────────────────────
+// ── Authorization rules (centralized permission system) ────────────
+// These tests verify the permission table entries for property actions.
+// The can() function lives in shared/domain/permissions.ts.
 
-describe('canCreateProperties', () => {
+
+describe('property.create permission', () => {
   it('allows PropertyManager and AccountAdmin', () => {
-    expect(canCreateProperties('AccountAdmin')).toBe(true)
-    expect(canCreateProperties('PropertyManager')).toBe(true)
+    expect(can('AccountAdmin', 'property.create')).toBe(true)
+    expect(can('PropertyManager', 'property.create')).toBe(true)
   })
 
   it('rejects Staff', () => {
-    expect(canCreateProperties('Staff')).toBe(false)
+    expect(can('Staff', 'property.create')).toBe(false)
   })
 })
 
-describe('canEditProperties', () => {
+describe('property.update permission', () => {
   it('allows PropertyManager and AccountAdmin', () => {
-    expect(canEditProperties('AccountAdmin')).toBe(true)
-    expect(canEditProperties('PropertyManager')).toBe(true)
+    expect(can('AccountAdmin', 'property.update')).toBe(true)
+    expect(can('PropertyManager', 'property.update')).toBe(true)
   })
 
   it('rejects Staff', () => {
-    expect(canEditProperties('Staff')).toBe(false)
+    expect(can('Staff', 'property.update')).toBe(false)
   })
 })
 
-describe('canDeleteProperties', () => {
+describe('property.delete permission', () => {
   it('allows only AccountAdmin', () => {
-    expect(canDeleteProperties('AccountAdmin')).toBe(true)
+    expect(can('AccountAdmin', 'property.delete')).toBe(true)
   })
 
   it('rejects PropertyManager and Staff', () => {
-    expect(canDeleteProperties('PropertyManager')).toBe(false)
-    expect(canDeleteProperties('Staff')).toBe(false)
+    expect(can('PropertyManager', 'property.delete')).toBe(false)
+    expect(can('Staff', 'property.delete')).toBe(false)
   })
 })

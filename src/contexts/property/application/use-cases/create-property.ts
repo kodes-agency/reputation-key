@@ -6,7 +6,8 @@ import type { EventBus } from '#/shared/events/event-bus'
 import type { Property, PropertyId } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { CreatePropertyInput } from '../dto/create-property.dto'
-import { canCreateProperties, normalizeSlug } from '../../domain/rules'
+import { can } from '#/shared/domain/permissions'
+import { normalizeSlug } from '../../domain/rules'
 import { buildProperty } from '../../domain/constructors'
 import { propertyError } from '../../domain/errors'
 import { propertyCreated } from '../../domain/events'
@@ -22,7 +23,7 @@ export const createProperty =
   (deps: CreatePropertyDeps) =>
   async (input: CreatePropertyInput, ctx: AuthContext): Promise<Property> => {
     // 1. Authorize
-    if (!canCreateProperties(ctx.role)) {
+    if (!can(ctx.role, 'property.create')) {
       throw propertyError('forbidden', 'this role cannot create properties')
     }
 

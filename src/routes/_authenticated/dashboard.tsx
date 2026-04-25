@@ -4,6 +4,17 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { authClient } from '#/shared/auth/auth-client'
 import { Button } from '#/components/ui/button'
 import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from '#/components/ui/card'
+import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
+import { Skeleton } from '#/components/ui/skeleton'
+import { Separator } from '#/components/ui/separator'
+import { AlertCircle, LogOut } from 'lucide-react'
+import {
   listUserOrganizations,
   setActiveOrganization,
 } from '#/contexts/identity/server/organizations'
@@ -13,7 +24,6 @@ export const Route = createFileRoute('/_authenticated/dashboard')({
 })
 
 function DashboardPage() {
-  // Get user from the parent layout's route context (set by getSession server fn)
   const ctx = Route.useRouteContext()
   const user = (ctx as { user?: { name: string } }).user
   const queryClient = useQueryClient()
@@ -41,76 +51,80 @@ function DashboardPage() {
 
   return (
     <div className="page-wrap px-4 pb-8 pt-14">
-      <section className="island-shell rise-in rounded-2xl p-6 sm:p-10">
-        <div className="mb-6 flex items-center justify-between">
-          <div>
-            <h1 className="mb-1 text-2xl font-bold text-[var(--sea-ink)]">Dashboard</h1>
-            <p className="text-[var(--sea-ink-soft)]">
-              Welcome back, {user?.name || 'User'}!
-              {activeOrg && (
-                <span className="ml-2 text-sm">
-                  ·{' '}
-                  <span className="font-medium text-[var(--lagoon)]">
-                    {activeOrg.name}
+      <Card className="island-shell rise-in rounded-2xl">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-1">
+              <CardTitle className="text-2xl">Dashboard</CardTitle>
+              <CardDescription>
+                Welcome back, {user?.name || 'User'}!
+                {activeOrg && (
+                  <span className="ml-2 text-sm">
+                    · <span className="font-medium text-primary">{activeOrg.name}</span>
                   </span>
-                </span>
-              )}
-            </p>
-          </div>
-          <div>
-            <button
-              type="button"
-              onClick={() => authClient.signOut()}
-              className="rounded-lg border border-[var(--line)] px-4 py-2 text-sm font-medium text-[var(--sea-ink)] transition hover:bg-[var(--surface-strong)]"
-            >
+                )}
+              </CardDescription>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => authClient.signOut()}>
+              <LogOut />
               Sign out
-            </button>
+            </Button>
           </div>
-        </div>
+        </CardHeader>
 
-        {orgQuery.isLoading ? (
-          <p className="text-sm text-[var(--sea-ink-soft)]">Loading…</p>
-        ) : orgQuery.error ? (
-          <div className="rounded-lg border border-red-200 bg-red-50 p-4">
-            <p className="text-sm text-red-600">
-              Failed to load organizations. Please refresh the page.
-            </p>
-          </div>
-        ) : orgs.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-[var(--line)] p-8 text-center">
-            <p className="text-[var(--sea-ink)]">No organization found.</p>
-            <p className="mt-1 text-sm text-[var(--sea-ink-soft)]">
-              Your account exists but no organization is set up. Please contact support.
-            </p>
-          </div>
-        ) : (
-          <>
-            {orgs.length > 1 && (
-              <div className="mb-6 rounded-lg border border-[var(--line)] p-4">
-                <h2 className="mb-2 text-sm font-semibold text-[var(--sea-ink)]">
-                  Switch Organization
-                </h2>
-                <div className="flex flex-wrap gap-2">
-                  {orgs.map((org) => (
-                    <Button
-                      key={org.id}
-                      size="sm"
-                      variant={activeOrg?.id === org.id ? 'default' : 'outline'}
-                      onClick={() => handleSetActive(org.id)}
-                    >
-                      {org.name}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-            )}
+        <CardContent>
+          {orgQuery.isLoading ? (
+            <div className="flex flex-col gap-3">
+              <Skeleton className="h-4 w-48" />
+              <Skeleton className="h-4 w-32" />
+            </div>
+          ) : orgQuery.error ? (
+            <Alert variant="destructive">
+              <AlertCircle />
+              <AlertTitle>Failed to load organizations</AlertTitle>
+              <AlertDescription>Please refresh the page.</AlertDescription>
+            </Alert>
+          ) : orgs.length === 0 ? (
+            <Card className="border-dashed">
+              <CardContent className="flex flex-col items-center gap-2 py-8 text-center">
+                <p className="font-medium">No organization found.</p>
+                <p className="text-sm text-muted-foreground">
+                  Your account exists but no organization is set up. Please contact
+                  support.
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="flex flex-col gap-4">
+              {orgs.length > 1 && (
+                <>
+                  <div className="flex flex-col gap-3">
+                    <p className="text-sm font-semibold">Switch Organization</p>
+                    <div className="flex flex-wrap gap-2">
+                      {orgs.map((org) => (
+                        <Button
+                          key={org.id}
+                          size="sm"
+                          variant={activeOrg?.id === org.id ? 'default' : 'outline'}
+                          onClick={() => handleSetActive(org.id)}
+                        >
+                          {org.name}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                  <Separator />
+                </>
+              )}
 
-            <p className="text-sm text-[var(--sea-ink-soft)]">
-              Your dashboard is ready. Product features will appear here as they're built.
-            </p>
-          </>
-        )}
-      </section>
+              <p className="text-sm text-muted-foreground">
+                Your dashboard is ready. Product features will appear here as they're
+                built.
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }

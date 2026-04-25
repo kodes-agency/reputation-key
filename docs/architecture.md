@@ -91,20 +91,20 @@ These principles drive every architectural decision. When in doubt, return to th
 
 The application is divided into bounded contexts. Each owns its data, its rules, its events, and its public API. Contexts communicate through domain events, never through direct internal imports.
 
-| Context        | Owns                                                                                         | Notes                                        |
-| -------------- | -------------------------------------------------------------------------------------------- | -------------------------------------------- |
-| `identity`     | Users, organizations, members, invitations, roles, permissions                               | Wraps better-auth — a thin context by nature |
-| `property`     | Properties (locations)                                                                       | The org unit everything else lives under     |
-| `team`         | Teams within properties                                                                      | Optional middle layer for staff              |
-| `staff`        | Staff assignments to properties/teams                                                        | Determines property access                   |
-| `portal`       | Portals, link trees, themes, hero images, QR codes                                           | The core product object                      |
-| `guest`        | Public scan/rate/feedback flows, anonymous sessions, anti-gating compliance                  | Entirely public-facing                       |
-| `review`       | Reviews, replies, platform adapters (GBP, etc.)                                              | Sync from external sources                   |
-| `metric`       | Metric definitions, readings, aggregations, materialized views                               | High-write, high-read                        |
-| `gamification` | Goals, badges, leaderboards                                                                  | Computed from metrics                        |
-| `notification` | Notifications across channels (in-app, email, push), preferences                             | Subscribes to many events                    |
-| `ai`           | AI provider port, sentiment, reply drafting, priority scoring, trend detection, usage quotas | Behind an adapter                            |
-| `audit`        | Audit logs of significant actions                                                            | Subscribes to events from all contexts       |
+| Context        | Owns                                                                                            | Notes                                        |
+| -------------- | ----------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| `identity`     | Users, organizations, members, invitations, roles, permissions (via better-auth access control) | Wraps better-auth — a thin context by nature |
+| `property`     | Properties (locations)                                                                          | The org unit everything else lives under     |
+| `team`         | Teams within properties                                                                         | Optional middle layer for staff              |
+| `staff`        | Staff assignments to properties/teams                                                           | Determines property access                   |
+| `portal`       | Portals, link trees, themes, hero images, QR codes                                              | The core product object                      |
+| `guest`        | Public scan/rate/feedback flows, anonymous sessions, anti-gating compliance                     | Entirely public-facing                       |
+| `review`       | Reviews, replies, platform adapters (GBP, etc.)                                                 | Sync from external sources                   |
+| `metric`       | Metric definitions, readings, aggregations, materialized views                                  | High-write, high-read                        |
+| `gamification` | Goals, badges, leaderboards                                                                     | Computed from metrics                        |
+| `notification` | Notifications across channels (in-app, email, push), preferences                                | Subscribes to many events                    |
+| `ai`           | AI provider port, sentiment, reply drafting, priority scoring, trend detection, usage quotas    | Behind an adapter                            |
+| `audit`        | Audit logs of significant actions                                                               | Subscribes to events from all contexts       |
 
 **Rule:** A context can import another context's _types_ and _events_ (these are the public API). A context **cannot** import another context's use cases, repositories, or internal domain functions.
 
@@ -141,7 +141,7 @@ The pure core. Knows nothing about databases, HTTP, frameworks, or the outside w
 - Smart constructors that build domain objects from raw input (`buildPortal`)
 - Domain events (`PortalCreated`, `ReviewReceived`)
 - Domain errors (`PortalError`, `ReviewError`)
-- Additional pure-function files when content warrants splitting from `rules.ts` (e.g., `permissions.ts`, `compliance.ts`, `scoring.ts`)
+- Additional pure-function files when content warrants splitting from `rules.ts` (e.g., `compliance.ts`, `scoring.ts`)
 
 **Forbidden:**
 
@@ -201,7 +201,7 @@ The presentation layer. TanStack Start server functions exposed to the client.
 
 - TanStack Start server function definitions
 - Input validation using Zod schemas from `application/dto/`
-- Auth/tenant resolution via `resolveTenantContext(headers)` and `roleGuard()` calls at the top of each handler
+- Auth/tenant resolution via `resolveTenantContext(headers)` and permission checks via `auth.api.hasPermission()` at the top of each handler
 - Error translation (catch tagged errors, throw `Error` with code/status properties)
 
 **Forbidden:**
@@ -222,7 +222,7 @@ export const someServerFn = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     const headers = headersFromContext()
     const ctx = await resolveTenantContext(headers)
-    // optionally: roleGuard('PropertyManager')(ctx)
+    // optionally: permission check via auth.api.hasPermission()
     // then call use case or delegate
   })
 ```
@@ -284,7 +284,7 @@ src/
     domain/                # Brand, ids, Result, ts-pattern re-exports, base errors, AuthContext, clock
     events/                # Event bus implementation, master event union
     db/                    # Drizzle client, schema barrel, migrations
-    auth/                  # better-auth config, middleware
+    auth/                  # better-auth config, middleware, permissions (access control)
     jobs/                  # BullMQ queue/worker factories, job registry
     cache/                 # Redis client, Cache port + Redis implementation
     rate-limit/            # Rate limit middleware
@@ -341,7 +341,7 @@ contexts/portal/
     events.ts              # Domain events + constructors
     errors.ts              # Tagged error types + constructor
     # Optional additional pure files when content warrants splitting:
-    # permissions.ts, compliance.ts, scoring.ts, etc.
+    # compliance.ts, scoring.ts, etc.
 
   application/
     ports/                 # Interfaces for dependencies
@@ -425,9 +425,10 @@ Database infrastructure.
 
 - `auth.ts` — better-auth configuration
 - `auth-client.ts` — client-side auth
-- `headers.ts` — `headersFromContext()` builds `Headers` from the current TanStack Start request; used by server functions to pass session cookies to better-auth APIs
-- `headers.ts` — `headersFromContext()` — builds a `Headers` object carrying the current request's cookies and headers from the TanStack Start server context; used by server functions to pass session info to better-auth APIs
-- `middleware.ts` — `resolveTenantContext(headers)`, `requireAuth(headers)`, `roleGuard(minRole)` — these are plain async functions (not TanStack `createMiddleware()` chains) that resolve `AuthContext` from the request session. Server functions call them directly at the top of their handler. The `roleGuard` function returns a closure that checks the user's role against the hierarchy.
+- `headers.ts` — `headersFromContext()` builds a `Headers` object carrying the current request's cookies and headers from the TanStack Start server context; used by server functions to pass session info to better-auth APIs
+- `middleware.ts` — `resolveTenantContext(headers)`, `requireAuth(headers)` — plain async functions that resolve `AuthContext` from the request session. Server functions call them directly at the top of their handler.
+- `permissions.ts` — **Single source of truth for all permissions.** Defines the access control statement (all resources × actions across the entire application), three default roles (owner, admin, member), and the `ac` (access controller) instance via `createAccessControl()`. This file is imported by both `auth.ts` (passed to `organization()` plugin) and `auth-client.ts` (passed to `organizationClient()` plugin). Server functions check permissions via `getAuth().api.hasPermission()`. Client-side UI gating uses `authClient.organization.hasPermission()`.
+- The old `roleGuard(minRole)` function has been removed from `middleware.ts`. The old hand-rolled `canXxx()` functions in `contexts/identity/domain/permissions.ts` have been removed. All authorization goes through better-auth's access control system.
 
 ### `shared/jobs/`
 
@@ -683,7 +684,7 @@ export const registerUser = (deps: Deps) =>
   async (input: RegisterInput): Promise<R> => { ... }
 ```
 
-These use cases have no authorization step and no tenant context. The server function resolves the org from other sources (e.g., URL slug for public routes) or creates a new org (for registration).
+These use cases have no authorization step and no tenant context. There are two registration paths: **org-creator registration** (`registerUserAndOrg`) creates a user and their first organization — used by the first person at a company signing up via `/register`. **Member registration** (`registerUser`) creates a user account only — used by invited staff/managers joining an existing org via `/join`. The server function resolves the org from other sources (e.g., URL slug for public routes) or creates a new org (for org-creator registration).
 
 For full examples of the three use case shapes (full, thin, direct delegation), see `docs/patterns.md`.
 
@@ -996,7 +997,7 @@ When you're not sure where new code belongs, walk this decision tree:
 
 **Is it a pure function with no I/O, no async, no framework dependency?**
 
-- Specific to one context → `contexts/<context>/domain/rules.ts` (or a dedicated file like `permissions.ts` if content warrants)
+- Specific to one context → `contexts/<context>/domain/rules.ts` (or a dedicated file if content warrants — e.g., `compliance.ts`, `scoring.ts`)
 - Used by multiple contexts → `shared/domain/`
 
 **Is it a TypeScript type?**

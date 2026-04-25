@@ -1,5 +1,4 @@
 // Auth middleware for TanStack Start server functions
-// Per architecture: shared/auth/ contains authMiddleware, tenantMiddleware, roleGuard.
 //
 // Route-level auth is done in beforeLoad using authClient.getSession()
 // (see routes/_authenticated.tsx for the pattern).
@@ -7,8 +6,7 @@
 import { getAuth } from './auth'
 import type { AuthUser } from './auth'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import { ROLE_HIERARCHY, toDomainRole } from '#/shared/domain/roles'
-import type { Role } from '#/shared/domain/roles'
+import { toDomainRole } from '#/shared/domain/roles'
 import { organizationId, userId } from '#/shared/domain/ids'
 import type { OrganizationId } from '#/shared/domain/ids'
 
@@ -90,26 +88,5 @@ export async function resolveTenantContext(headers: Headers): Promise<AuthContex
     userId: userId(session.user.id),
     organizationId: organizationId(activeOrgId) as OrganizationId,
     role: toDomainRole(member.role),
-  }
-}
-
-// ── roleGuard ───────────────────────────────────────────────────────
-
-/**
- * Create a role guard that checks minimum role against the hierarchy.
- * Per architecture: "roleGuard(minRole) middleware factory that checks role against a hierarchy"
- *
- * Usage:
- *   roleGuard('PropertyManager')(ctx)  → allows PropertyManager + AccountAdmin, blocks Staff
- *   roleGuard('AccountAdmin')(ctx)     → allows only AccountAdmin
- */
-export function roleGuard(minRole: Role) {
-  return (ctx: AuthContext): void => {
-    if (ROLE_HIERARCHY[ctx.role] < ROLE_HIERARCHY[minRole]) {
-      throw authError(
-        'forbidden',
-        `Role '${minRole}' required, but you have '${ctx.role}'`,
-      )
-    }
   }
 }

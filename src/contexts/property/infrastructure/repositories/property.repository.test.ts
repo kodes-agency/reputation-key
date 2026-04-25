@@ -13,22 +13,32 @@ import { organizationId } from '#/shared/domain/ids'
 import { Pool } from 'pg'
 import { getEnv } from '#/shared/config/env'
 
-const ORG_A = organizationId('org-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa')
-const ORG_B = organizationId('org-bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb')
+const ORG_A = organizationId('org-prop-test-1111-111111111111')
+const ORG_B = organizationId('org-prop-test-2222-222222222222')
 
 let pool: Pool
 
 async function truncateProperties(pool: Pool) {
-  await pool.query('TRUNCATE TABLE properties CASCADE')
+  // Only delete properties from our test orgs to avoid affecting parallel test files
+  await pool.query('DELETE FROM staff_assignments WHERE organization_id IN ($1, $2)', [
+    ORG_A,
+    ORG_B,
+  ])
+  await pool.query('DELETE FROM teams WHERE organization_id IN ($1, $2)', [ORG_A, ORG_B])
+  await pool.query('DELETE FROM properties WHERE organization_id IN ($1, $2)', [
+    ORG_A,
+    ORG_B,
+  ])
 }
 
 async function seedOrg(pool: Pool, ids: string[]) {
   for (const id of ids) {
+    const slug = 't-' + id.replace(/-/g, '').slice(-12)
     await pool.query(
       `INSERT INTO organization (id, name, slug, "createdAt")
        VALUES ($1, $2, $3, NOW())
        ON CONFLICT (id) DO NOTHING`,
-      [id, `Test Org ${id.substring(0, 8)}`, `test-org-${id.substring(0, 8)}`],
+      [id, `Test Org ${slug}`, slug],
     )
   }
 }

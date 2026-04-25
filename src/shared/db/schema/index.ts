@@ -4,3 +4,5 @@
 export * from './auth'
 export * from './audit'
 export * from './property.schema'
+export * from './team.schema'
+export * from './staff-assignment.schema'

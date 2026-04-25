@@ -1,14 +1,27 @@
 // Create property — route defines mutation, renders form component.
-// Per conventions: route imports server function, creates useMutation, passes to form.
-// Form component never imports server functions directly (dependency rules).
 
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, useNavigate, redirect } from '@tanstack/react-router'
 import { useMutation } from '@tanstack/react-query'
 import { createProperty } from '#/contexts/property/server/properties'
 import { CreatePropertyForm } from '#/components/features/property/CreatePropertyForm'
 import { Button } from '#/components/ui/button'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '#/components/ui/card'
+import type { Role } from '#/shared/domain/roles'
+import { can } from '#/shared/domain/permissions'
 
 export const Route = createFileRoute('/_authenticated/properties/new')({
+  beforeLoad: ({ context }) => {
+    const role = (context as { role?: Role }).role ?? 'Staff'
+    if (!can(role, 'property.create')) {
+      throw redirect({ to: '/properties' })
+    }
+  },
   component: CreatePropertyPage,
 })
 
@@ -25,26 +38,24 @@ function CreatePropertyPage() {
 
   return (
     <div className="page-wrap px-4 pb-8 pt-14">
-      <section className="island-shell rise-in rounded-2xl p-6 sm:p-10">
-        <div className="mb-6">
-          <h1 className="mb-1 text-2xl font-bold text-[var(--sea-ink)]">New Property</h1>
-          <p className="text-[var(--sea-ink-soft)]">
-            Add a new property to your organization.
-          </p>
-        </div>
-
-        <CreatePropertyForm mutation={mutation} />
-
-        <div className="mt-4">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => navigate({ to: '/properties' })}
-          >
-            Cancel
-          </Button>
-        </div>
-      </section>
+      <Card className="island-shell rise-in rounded-2xl">
+        <CardHeader>
+          <CardTitle className="text-2xl">New Property</CardTitle>
+          <CardDescription>Add a new property to your organization.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <CreatePropertyForm mutation={mutation} />
+          <div className="mt-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => navigate({ to: '/properties' })}
+            >
+              Cancel
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }

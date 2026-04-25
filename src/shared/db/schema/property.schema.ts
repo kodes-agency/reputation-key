@@ -3,14 +3,8 @@
 // snake_case columns, camelCase field names.
 
 import { sql } from 'drizzle-orm'
-import {
-  pgTable,
-  uuid,
-  varchar,
-  timestamp,
-  index,
-  uniqueIndex,
-} from 'drizzle-orm/pg-core'
+import { createdAtColumn, updatedAtColumn, deletedAtColumn } from '../columns'
+import { pgTable, uuid, varchar, index, uniqueIndex } from 'drizzle-orm/pg-core'
 
 export const properties = pgTable(
   'properties',
@@ -21,9 +15,9 @@ export const properties = pgTable(
     slug: varchar('slug', { length: 64 }).notNull(),
     timezone: varchar('timezone', { length: 64 }).notNull(),
     gbpPlaceId: varchar('gbp_place_id', { length: 500 }),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-    deletedAt: timestamp('deleted_at', { withTimezone: true }),
+    createdAt: createdAtColumn(),
+    updatedAt: updatedAtColumn(),
+    deletedAt: deletedAtColumn(),
   },
   (t) => ({
     orgSlugUnique: uniqueIndex('properties_org_slug_unique')

@@ -16,9 +16,9 @@ const setup = () => {
 }
 
 describe('removeMember', () => {
-  it('allows PropertyManager to remove a member', async () => {
+  it('allows AccountAdmin to remove a member', async () => {
     const { useCase, events } = setup()
-    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
     const result = await useCase({ memberId: 'member-1' }, ctx)
 
@@ -27,12 +27,13 @@ describe('removeMember', () => {
     expect(events.capturedEvents[0]._tag).toBe('member.removed')
   })
 
-  it('allows AccountAdmin to remove a member', async () => {
+  it('rejects PropertyManager from removing members', async () => {
     const { useCase } = setup()
-    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
 
-    const result = await useCase({ memberId: 'member-1' }, ctx)
-    expect(result.success).toBe(true)
+    await expect(useCase({ memberId: 'member-1' }, ctx)).rejects.toSatisfy(
+      (e) => isIdentityError(e) && e.code === 'forbidden',
+    )
   })
 
   it('rejects Staff from removing members', async () => {
@@ -46,7 +47,7 @@ describe('removeMember', () => {
 
   it('emits member.removed event with correct data', async () => {
     const { useCase, events } = setup()
-    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
     await useCase({ memberId: 'member-1' }, ctx)
 

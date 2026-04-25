@@ -31,11 +31,13 @@ function LoginPage() {
     mutationFn: (input: { email: string; password: string }) =>
       signInUser({ data: input }),
     onSuccess: async () => {
-      // After sign-in, ensure an org is active (handles users whose
-      // registration didn't set the active org correctly).
       await ensureActiveOrg()
       await router.invalidate()
-      await navigate({ to: search.redirect ?? '/dashboard' })
+      if (search.redirect) {
+        router.history.push(search.redirect)
+      } else {
+        await navigate({ to: '/dashboard' })
+      }
     },
   })
 
@@ -45,7 +47,7 @@ function LoginPage() {
       <div className="mt-2 text-right">
         <Link
           to="/reset-password"
-          className="text-sm text-[var(--lagoon)] no-underline hover:underline"
+          className="text-sm font-medium text-primary underline-offset-4 hover:underline"
         >
           Forgot password?
         </Link>

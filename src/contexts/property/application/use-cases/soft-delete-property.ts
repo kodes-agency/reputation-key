@@ -4,7 +4,7 @@ import type { PropertyRepository } from '../ports/property.repository'
 import type { PropertyId } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { EventBus } from '#/shared/events/event-bus'
-import { canDeleteProperties } from '../../domain/rules'
+import { can } from '#/shared/domain/permissions'
 import { propertyError } from '../../domain/errors'
 import { propertyDeleted } from '../../domain/events'
 
@@ -22,7 +22,7 @@ export const softDeleteProperty =
   (deps: SoftDeletePropertyDeps) =>
   async (input: SoftDeletePropertyInput, ctx: AuthContext): Promise<void> => {
     // 1. Authorize — only AccountAdmin can delete
-    if (!canDeleteProperties(ctx.role)) {
+    if (!can(ctx.role, 'property.delete')) {
       throw propertyError('forbidden', 'only AccountAdmin can delete properties')
     }
 

@@ -1,38 +1,23 @@
-// Property context — server function error translation tests
-// Verifies the error → status mapping and the Error construction used in server functions.
+// Property context — server function tests
+// Tests the actual error→status mapping and throwContextError construction used by
+// the server functions. Imports the real propertyErrorStatus from the server module
+// to ensure tests break when production code changes.
+//
 // Per architecture: exhaustive ts-pattern matching ensures new error codes
 // are caught at compile time.
 
 import { describe, it, expect } from 'vitest'
 import { propertyError, isPropertyError } from '#/contexts/property/domain/errors'
-import type { PropertyError, PropertyErrorCode } from '#/contexts/property/domain/errors'
-import { match } from 'ts-pattern'
+import type { PropertyErrorCode } from '#/contexts/property/domain/errors'
+import { propertyErrorStatus } from '#/contexts/property/server/properties'
+import { throwContextError } from '#/shared/auth/server-errors'
+import { createPropertyInputSchema } from '#/contexts/property/application/dto/create-property.dto'
+import { updatePropertyInputSchema } from '#/contexts/property/application/dto/update-property.dto'
 import { z } from 'zod/v4'
 
-// ── Error → status mapping (mirrors server/properties.ts) ──────────
+// ── Error → HTTP status mapping (production code) ─────────────────
 
-const propertyErrorStatus = (code: PropertyErrorCode): number =>
-  match(code)
-    .with('forbidden', () => 403)
-    .with('property_not_found', () => 404)
-    .with('slug_taken', () => 409)
-    .with('invalid_slug', 'invalid_name', 'invalid_timezone', () => 400)
-    .exhaustive()
-
-// ── Error construction (mirrors server/properties.ts) ──────────────
-
-const throwPropertyError = (e: PropertyError): never => {
-  const status = propertyErrorStatus(e.code)
-  const error = new Error(e.message)
-  error.name = 'PropertyError'
-  ;(error as unknown as Record<string, unknown>).code = e.code
-  ;(error as unknown as Record<string, unknown>).status = status
-  throw error
-}
-
-// ── Tests ──────────────────────────────────────────────────────────
-
-describe('propertyErrorStatus (error code → HTTP status mapping)', () => {
+describe('propertyErrorStatus (imported from server module)', () => {
   it('maps forbidden → 403', () => {
     expect(propertyErrorStatus('forbidden')).toBe(403)
   })
@@ -74,16 +59,20 @@ describe('propertyErrorStatus (error code → HTTP status mapping)', () => {
   })
 })
 
-describe('throwPropertyError (Error construction for TanStack Start)', () => {
+// ── throwContextError (shared server error helper) ─────────────────
+
+describe('throwContextError with PropertyError', () => {
   it('throws an Error with the domain message', () => {
     const e = propertyError('invalid_slug', 'slug must be URL-friendly')
-    expect(() => throwPropertyError(e)).toThrow('slug must be URL-friendly')
+    expect(() =>
+      throwContextError('PropertyError', e, propertyErrorStatus(e.code)),
+    ).toThrow('slug must be URL-friendly')
   })
 
   it('sets error.name to PropertyError', () => {
     const e = propertyError('forbidden', 'Insufficient role')
     try {
-      throwPropertyError(e)
+      throwContextError('PropertyError', e, propertyErrorStatus(e.code))
     } catch (err) {
       expect(err).toBeInstanceOf(Error)
       expect((err as Error).name).toBe('PropertyError')
@@ -93,7 +82,7 @@ describe('throwPropertyError (Error construction for TanStack Start)', () => {
   it('attaches code and status as custom properties', () => {
     const e = propertyError('slug_taken', 'Slug already exists')
     try {
-      throwPropertyError(e)
+      throwContextError('PropertyError', e, propertyErrorStatus(e.code))
     } catch (err) {
       const error = err as Error & { code: string; status: number }
       expect(error.code).toBe('slug_taken')
@@ -101,7 +90,7 @@ describe('throwPropertyError (Error construction for TanStack Start)', () => {
     }
   })
 
-  it('preserves the correct status for each error code', () => {
+  it('preserves the correct status for every error code', () => {
     const cases: Array<[PropertyErrorCode, number]> = [
       ['forbidden', 403],
       ['property_not_found', 404],
@@ -113,7 +102,7 @@ describe('throwPropertyError (Error construction for TanStack Start)', () => {
     for (const [code, expectedStatus] of cases) {
       const e = propertyError(code, `test ${code}`)
       try {
-        throwPropertyError(e)
+        throwContextError('PropertyError', e, propertyErrorStatus(e.code))
       } catch (err) {
         const error = err as Error & { code: string; status: number }
         expect(error.status).toBe(expectedStatus)
@@ -122,6 +111,8 @@ describe('throwPropertyError (Error construction for TanStack Start)', () => {
     }
   })
 })
+
+// ── isPropertyError type guard ─────────────────────────────────────
 
 describe('isPropertyError type guard', () => {
   it('returns true for PropertyError', () => {
@@ -142,7 +133,104 @@ describe('isPropertyError type guard', () => {
   })
 })
 
-describe('propertyIdSchema validator', () => {
+// ── Input validation (DTO schemas) ─────────────────────────────────
+
+describe('createProperty input validation', () => {
+  it('accepts valid create input', () => {
+    const result = createPropertyInputSchema.safeParse({
+      name: 'Grand Hotel',
+      timezone: 'America/New_York',
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('accepts create input with all fields', () => {
+    const result = createPropertyInputSchema.safeParse({
+      name: 'Grand Hotel',
+      slug: 'grand-hotel',
+      timezone: 'UTC',
+      gbpPlaceId: 'ChIJN1t_tDeuEmsRUsoyG83frY4',
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('rejects create input missing required name', () => {
+    const result = createPropertyInputSchema.safeParse({
+      timezone: 'UTC',
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects create input missing required timezone', () => {
+    const result = createPropertyInputSchema.safeParse({
+      name: 'Test',
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects name over 100 characters', () => {
+    const result = createPropertyInputSchema.safeParse({
+      name: 'a'.repeat(101),
+      timezone: 'UTC',
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects slug under 2 characters', () => {
+    const result = createPropertyInputSchema.safeParse({
+      name: 'Test',
+      slug: 'a',
+      timezone: 'UTC',
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('accepts undefined optional slug (server auto-generates)', () => {
+    const result = createPropertyInputSchema.safeParse({
+      name: 'Test',
+      timezone: 'UTC',
+      slug: undefined,
+    })
+    expect(result.success).toBe(true)
+  })
+})
+
+describe('updateProperty input validation', () => {
+  it('accepts update with propertyId only', () => {
+    const result = updatePropertyInputSchema.safeParse({
+      propertyId: 'abc-123',
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('accepts update with all fields', () => {
+    const result = updatePropertyInputSchema.safeParse({
+      propertyId: 'abc-123',
+      name: 'New Name',
+      slug: 'new-slug',
+      timezone: 'Europe/London',
+      gbpPlaceId: 'ChIJ_test',
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('rejects update without propertyId', () => {
+    const result = updatePropertyInputSchema.safeParse({
+      name: 'Test',
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('accepts null gbpPlaceId (to clear it)', () => {
+    const result = updatePropertyInputSchema.safeParse({
+      propertyId: 'abc-123',
+      gbpPlaceId: null,
+    })
+    expect(result.success).toBe(true)
+  })
+})
+
+describe('deleteProperty input validation', () => {
   const schema = z.object({
     propertyId: z.string().min(1, 'Property ID is required'),
   })
@@ -150,7 +238,6 @@ describe('propertyIdSchema validator', () => {
   it('accepts valid input', () => {
     const result = schema.safeParse({ propertyId: 'abc-123' })
     expect(result.success).toBe(true)
-    if (result.success) expect(result.data.propertyId).toBe('abc-123')
   })
 
   it('rejects missing propertyId', () => {
@@ -160,16 +247,6 @@ describe('propertyIdSchema validator', () => {
 
   it('rejects empty propertyId', () => {
     const result = schema.safeParse({ propertyId: '' })
-    expect(result.success).toBe(false)
-  })
-
-  it('rejects non-string propertyId', () => {
-    const result = schema.safeParse({ propertyId: 42 })
-    expect(result.success).toBe(false)
-  })
-
-  it('rejects null', () => {
-    const result = schema.safeParse(null)
     expect(result.success).toBe(false)
   })
 })

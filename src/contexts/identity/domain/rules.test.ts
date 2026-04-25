@@ -121,11 +121,16 @@ describe('canInviteWithRole', () => {
     expect(canInviteWithRole('AccountAdmin', 'AccountAdmin')._unsafeUnwrap()).toBe(true)
   })
 
-  it('allows PropertyManager to invite Staff and PropertyManager', () => {
+  it('allows PropertyManager to invite Staff only', () => {
     expect(canInviteWithRole('PropertyManager', 'Staff')._unsafeUnwrap()).toBe(true)
-    expect(canInviteWithRole('PropertyManager', 'PropertyManager')._unsafeUnwrap()).toBe(
-      true,
-    )
+  })
+
+  it('prevents PropertyManager from inviting PropertyManager', () => {
+    const result = canInviteWithRole('PropertyManager', 'PropertyManager')
+    expect(result.isErr()).toBe(true)
+    if (result.isErr()) {
+      expect(result.error.code).toBe('forbidden')
+    }
   })
 
   it('prevents PropertyManager from inviting AccountAdmin', () => {

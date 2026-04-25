@@ -35,6 +35,22 @@ describe('listInvitations', () => {
     expect(result.invitations[0].id).toBe('inv-1')
   })
 
+  it('filters out non-pending invitations', async () => {
+    const { useCase, identity } = setup()
+    identity.seedInvitations([
+      PENDING_INVITATION,
+      { ...PENDING_INVITATION, id: 'inv-2', status: 'accepted' },
+      { ...PENDING_INVITATION, id: 'inv-3', status: 'canceled' },
+      { ...PENDING_INVITATION, id: 'inv-4', status: 'rejected' },
+    ])
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+
+    const result = await useCase(undefined, ctx)
+
+    expect(result.invitations).toHaveLength(1)
+    expect(result.invitations[0].id).toBe('inv-1')
+  })
+
   it('allows AccountAdmin to list invitations', async () => {
     const { useCase, identity } = setup()
     identity.seedInvitations([PENDING_INVITATION])

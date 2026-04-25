@@ -8,7 +8,6 @@ export {
   getSessionFromHeaders,
   requireAuth,
   resolveTenantContext,
-  roleGuard,
 } from './middleware'
 export type { AuthError } from './middleware'
 export { headersFromContext } from './headers'

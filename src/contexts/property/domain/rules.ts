@@ -1,9 +1,10 @@
 // Property context — domain rules
 // Pure business rules. No async, no I/O, no throws. Validation returns Result.
 // Per architecture: "Pure business rules. No async, no I/O, no throws."
-
-import type { Role } from '#/shared/domain/roles'
-import { hasRole } from '#/shared/domain/roles'
+//
+// Authorization checks have been moved to the centralized permission system
+// in shared/domain/permissions.ts (can() function). This file retains only
+// pure validation rules.
 import { ok, err } from '#/shared/domain'
 import type { Result } from '#/shared/domain'
 import { VALID_TIMEZONES } from '#/shared/domain/timezones'
@@ -60,15 +61,3 @@ export const validateTimezone = (tz: string): Result<string, PropertyError> => {
   }
   return err(propertyError('invalid_timezone', `Unknown timezone: ${tz}`))
 }
-
-// ── Authorization rules ────────────────────────────────────────────
-
-/** Can this role create properties? PropertyManager and above. */
-export const canCreateProperties = (role: Role): boolean =>
-  hasRole(role, 'PropertyManager')
-
-/** Can this role edit properties? PropertyManager and above. */
-export const canEditProperties = (role: Role): boolean => hasRole(role, 'PropertyManager')
-
-/** Can this role delete properties? AccountAdmin only. */
-export const canDeleteProperties = (role: Role): boolean => hasRole(role, 'AccountAdmin')

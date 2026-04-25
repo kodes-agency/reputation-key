@@ -40,7 +40,7 @@ function RegisterPage() {
         <div className="text-center">
           <Link
             to="/login"
-            className="text-sm font-medium text-[var(--lagoon)] no-underline hover:underline"
+            className="text-sm font-medium text-primary underline-offset-4 hover:underline"
           >
             Sign in to your account
           </Link>
@@ -51,7 +51,7 @@ function RegisterPage() {
 
   return (
     <AuthCard title="Create your account" description="Get started with Reputation Key">
-      <RegisterForm mutation={mutation} />
+      <RegisterForm mode="register" mutation={mutation} />
       <AuthFooterLink message="Already have an account?" linkText="Sign in" to="/login" />
     </AuthCard>
   )

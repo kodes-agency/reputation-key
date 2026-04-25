@@ -5,12 +5,8 @@ import type { EventBus } from '#/shared/events/event-bus'
 import type { Property, PropertyId } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { UpdatePropertyInput } from '../dto/update-property.dto'
-import {
-  canEditProperties,
-  validatePropertyName,
-  validateSlug,
-  validateTimezone,
-} from '../../domain/rules'
+import { can } from '#/shared/domain/permissions'
+import { validatePropertyName, validateSlug, validateTimezone } from '../../domain/rules'
 import { propertyError } from '../../domain/errors'
 import { propertyUpdated } from '../../domain/events'
 
@@ -24,7 +20,7 @@ export const updateProperty =
   (deps: UpdatePropertyDeps) =>
   async (input: UpdatePropertyInput, ctx: AuthContext): Promise<Property> => {
     // 1. Authorize
-    if (!canEditProperties(ctx.role)) {
+    if (!can(ctx.role, 'property.update')) {
       throw propertyError('forbidden', 'this role cannot edit properties')
     }
 

@@ -15,6 +15,7 @@ import { tanstackStartCookies } from 'better-auth/tanstack-start'
 import { Pool } from 'pg'
 import { getEnv } from '#/shared/config/env'
 import { sendResetPasswordEmail, sendInvitationEmail } from './emails'
+import { ac, owner, admin, memberRole } from './permissions'
 // import { sendVerificationEmail } from './emails' // TODO: re-enable with email verification
 
 export function createAuth() {
@@ -48,6 +49,12 @@ export function createAuth() {
     plugins: [
       tanstackStartCookies(),
       organization({
+        ac,
+        roles: {
+          owner,
+          admin,
+          member: memberRole,
+        },
         invitationExpiresIn: INVITATION_EXPIRY_SECONDS, // 7 days
         // Send invitation emails via Resend
         async sendInvitationEmail(data) {

@@ -19,6 +19,15 @@ export default defineConfig({
     environment: 'node',
     include: ['src/**/*.test.ts'],
     setupFiles: ['src/test-setup.ts'],
+    // Integration tests share a database and can race on TRUNCATE CASCADE.
+    // Run all tests in a single thread so beforeEach truncation doesn't
+    // delete data from a parallel test file.
+    pool: 'forks',
+    poolOptions: {
+      forks: {
+        singleFork: true,
+      },
+    },
     env: {
       NODE_ENV: 'test',
       DATABASE_URL:

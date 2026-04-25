@@ -55,6 +55,7 @@ The default for anything non-trivial is the full use case. The thin and direct p
 20. [Use case test](#20-use-case-test)
 21. [Repository integration test](#21-repository-integration-test)
 22. [Thin use case (auth check + delegation)](#22-thin-use-case-auth-check--delegation)
+    22b. [Anonymous use case (member registration)](#22b-anonymous-use-case-member-registration--no-auth-no-org)
 23. [Server function calling a port directly (pure delegation)](#23-server-function-calling-a-port-directly-pure-delegation)
 24. [Form component (TanStack Form + shadcn)](#24-form-component-tanstack-form--shadcn)
 25. [Shared form building block (SubmitButton)](#25-shared-form-building-block-submitbutton)
@@ -176,8 +177,11 @@ export const validateTheme = (theme: PortalTheme): Result<PortalTheme, PortalErr
   return ok(theme)
 }
 
-export const canManagePortals = (role: Role): boolean =>
-  role === 'PropertyManager' || role === 'AccountAdmin'
+// Authorization is handled by better-auth's access control system.
+// Server functions use auth.api.hasPermission() to check specific resource+action combos.
+// The permission statement and default roles are defined in shared/auth/permissions.ts.
+// Domain rules that remain here are pure business rules (validation, computation)
+// that don't depend on role-based authorization.
 
 export const shouldShowFeedbackPrompt = (
   rating: 1 | 2 | 3 | 4 | 5,
@@ -468,7 +472,10 @@ import type { AuthContext } from '@/shared/domain/auth-context'
 import type { CreatePortalInput } from '@/contexts/portal/application/dto/create-portal.dto'
 import type { PropertyId } from '@/contexts/property/domain/types'
 
-import { canManagePortals } from '@/contexts/portal/domain/rules'
+// Authorization is checked via auth.api.hasPermission() in the server function.
+// The use case receives the AuthContext but defers permission checks to
+// the better-auth access control system. Domain rules here are pure business
+// validation only.
 import { buildPortal } from '@/contexts/portal/domain/constructors'
 import { portalError } from '@/contexts/portal/domain/errors'
 import { portalCreated } from '@/contexts/portal/domain/events'
@@ -485,9 +492,9 @@ export const createPortal =
   (deps: CreatePortalDeps) =>
   async (input: CreatePortalInput, ctx: AuthContext): Promise<Portal> => {
     // 1. Authorize
-    if (!canManagePortals(ctx.role)) {
-      throw portalError('forbidden', 'this role cannot create portals')
-    }
+    // Authorization is now handled by better-auth's access control system.
+    // The server function calls auth.api.hasPermission() before invoking the use case.
+    // Domain-level checks remain for pure business rules (not role-based auth).
 
     // 2. Validate referenced entities
     const property = await deps.propertyRepo.findById(
@@ -969,7 +976,8 @@ import { CreatePortalInputSchema } from '@/contexts/portal/application/dto/creat
 import type { PortalError } from '@/contexts/portal/domain/errors'
 import { isPortalError } from '@/contexts/portal/domain/errors'
 import { headersFromContext } from '@/shared/auth/headers'
-import { resolveTenantContext, roleGuard } from '@/shared/auth/middleware'
+import { resolveTenantContext } from '@/shared/auth/middleware'
+import { getAuth } from '@/shared/auth/auth'
 import { getContainer } from '@/composition'
 
 const portalErrorStatus = (code: PortalError['code']): number =>
@@ -985,7 +993,11 @@ export const createPortal = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     const headers = headersFromContext()
     const ctx = await resolveTenantContext(headers)
-    roleGuard('PropertyManager')(ctx)
+    // Permission check via better-auth access control
+    await getAuth().api.hasPermission({
+      headers,
+      body: { permissions: { property: ['create'] } },
+    })
 
     const { useCases } = getContainer()
     try {
@@ -1008,9 +1020,9 @@ export const createPortal = createServerFn({ method: 'POST' })
 **Key points:**
 
 - Thin: resolve auth → validate input → call use case → translate errors → return
-- Auth/tenant resolution is explicit at the top of the handler: `headersFromContext()` → `resolveTenantContext()` → optional `roleGuard()`
+- Auth/tenant resolution is explicit at the top of the handler: `headersFromContext()` → `resolveTenantContext()` → optional permission check via `getAuth().api.hasPermission()`
 - `resolveTenantContext` extracts the session from request headers, resolves the active organization, and returns a typed `AuthContext`
-- `roleGuard` is a plain function that throws `AuthError` if the role is insufficient
+- Permission checks use `getAuth().api.hasPermission()` with the access control statement defined in `shared/auth/permissions.ts`. This replaces the old `roleGuard()` function and the hand-rolled `canXxx()` functions.
 - `.inputValidator()` uses the DTO schema from the application layer
 - `handler` calls the use case from `getContainer().useCases`
 - `ts-pattern` with `.exhaustive()` ensures new error codes force a compiler error
@@ -1072,7 +1084,7 @@ export const getPublicPortal = createServerFn({ method: 'GET' })
 **Key points:**
 
 - Lives in a separate file from authenticated server functions — trust boundary visible
-- No auth resolution — public functions do not call `resolveTenantContext` or `roleGuard`
+- No auth resolution — public functions do not call `resolveTenantContext` or `hasPermission`
 - Public routes resolve `organizationId` from the URL slug via use case logic
 - Response is shaped for the public (no internal fields, CDN URLs resolved)
 
@@ -1161,7 +1173,10 @@ import {
   normalizeSlug,
   validateSlug,
   validateTheme,
-  canManagePortals,
+  canManagePortals, // NOTE: this function has been removed. Authorization is now
+  // handled by better-auth's access control system.
+  // Domain tests that tested role-based permissions have been moved
+  // to integration tests using auth.api.hasPermission().
   shouldShowFeedbackPrompt,
 } from './rules'
 
@@ -1192,16 +1207,10 @@ describe('validateSlug', () => {
   })
 })
 
-describe('canManagePortals', () => {
-  it('allows PropertyManager and AccountAdmin', () => {
-    expect(canManagePortals('AccountAdmin')).toBe(true)
-    expect(canManagePortals('PropertyManager')).toBe(true)
-  })
-
-  it('rejects Staff', () => {
-    expect(canManagePortals('Staff')).toBe(false)
-  })
-})
+// NOTE: canManagePortals tests removed. Role-based authorization is now handled by
+// better-auth's access control system (see shared/auth/permissions.ts).
+// Permission checks are tested via integration tests using auth.api.hasPermission().
+// Domain tests here cover ONLY pure business rules (validation, computation).
 
 describe('shouldShowFeedbackPrompt (compliance rule)', () => {
   const cases = [
@@ -1429,7 +1438,9 @@ describe('portalRepository (integration)', () => {
 ```ts
 import type { IdentityPort } from '@/contexts/identity/application/ports/identity.port'
 import type { AuthContext } from '@/shared/domain/auth-context'
-import { canManageMembers } from '@/contexts/identity/domain/permissions'
+// Authorization is checked via auth.api.hasPermission() in the server function.
+// The identity context's thin use cases no longer import permission functions
+// from domain/permissions.ts (that file has been removed).
 import { identityError } from '@/contexts/identity/domain/errors'
 
 export type RemoveMemberDeps = Readonly<{
@@ -1444,9 +1455,8 @@ export const removeMember =
   (deps: RemoveMemberDeps) =>
   async (input: RemoveMemberInput, ctx: AuthContext): Promise<void> => {
     // Step 1: Authorize
-    if (!canManageMembers(ctx.role)) {
-      throw identityError('forbidden', 'this role cannot remove members')
-    }
+    // Authorization is now handled by better-auth's access control system.
+    // The server function checks auth.api.hasPermission() before calling this use case.
 
     // Step 5: Persist (via the port — better-auth handles the actual DB work)
     await deps.identity.removeMember(ctx.organizationId, input.memberId)
@@ -1462,6 +1472,52 @@ export type RemoveMember = ReturnType<typeof removeMember>
 - The use case still exists because (a) the auth check is real domain logic and (b) future requirements will land here naturally
 - Don't add fake steps for symmetry
 - This pattern is common in wrapper contexts; `portal`, `review`, etc. will mostly use the full pattern from #9
+
+---
+
+## 22b. Anonymous use case (member registration — no auth, no org)
+
+**Location:** `src/contexts/identity/application/use-cases/register-user.ts`
+**Purpose:** Registers a user account without creating an organization. Used by invited staff/managers joining an existing org via `/join`. This is the "join" path — distinct from `registerUserAndOrg` (section 22) which is the "signup" path.
+
+```ts
+import type { IdentityPort } from '@/contexts/identity/application/ports/identity.port'
+import { identityError } from '@/contexts/identity/domain/errors'
+
+export type RegisterUserInput = Readonly<{
+  name: string
+  email: string
+  password: string
+}>
+
+export type RegisterUserDeps = Readonly<{
+  identity: IdentityPort
+}>
+
+export const registerUser =
+  (deps: RegisterUserDeps) =>
+  async (input: RegisterUserInput): Promise<string> => {
+    try {
+      const userId = await deps.identity.signUp(input.name, input.email, input.password)
+      return userId
+    } catch (e) {
+      throw identityError(
+        'registration_failed',
+        e instanceof Error ? e.message : 'Registration failed',
+      )
+    }
+  }
+```
+
+**Key points:**
+
+- **No `AuthContext` parameter** — this is an anonymous/public use case. The user doesn't exist yet.
+- **No org creation** — the user joins an existing org by accepting an invitation after registration.
+- **No event emission** — there's no domain event for "user registered without org." The interesting event (`member.added`) fires when the invitation is accepted.
+- The server function is thin delegation: validate input → call use case → return user ID.
+- The route (`/join?redirect=...`) redirects back to `/accept-invitation?id=...` after success.
+
+**When to use this pattern:** Any registration flow where the user is joining an existing organization (invited by an admin). Contrast with `registerUserAndOrg` which is for the first person at a company creating a new org.
 
 ---
 
