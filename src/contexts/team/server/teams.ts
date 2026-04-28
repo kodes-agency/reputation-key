@@ -12,7 +12,7 @@ import { createTeamInputSchema } from '../application/dto/create-team.dto'
 import { updateTeamInputSchema } from '../application/dto/update-team.dto'
 import { isTeamError } from '../domain/errors'
 import type { TeamErrorCode } from '../domain/errors'
-import type { PropertyId, TeamId } from '#/shared/domain/ids'
+import { propertyId as toPropertyId, teamId as toTeamId } from '#/shared/domain/ids'
 
 const teamErrorStatus = (code: TeamErrorCode): number =>
   match(code)
@@ -77,7 +77,7 @@ export const listTeams = createServerFn({ method: 'GET' })
     try {
       const { useCases } = getContainer()
       const teams_list = await useCases.listTeams(
-        { propertyId: data.propertyId as PropertyId },
+        { propertyId: toPropertyId(data.propertyId) },
         ctx,
       )
       return { teams: teams_list }
@@ -97,7 +97,7 @@ export const deleteTeam = createServerFn({ method: 'POST' })
 
     try {
       const { useCases } = getContainer()
-      await useCases.softDeleteTeam({ teamId: data.teamId as TeamId }, ctx)
+      await useCases.softDeleteTeam({ teamId: toTeamId(data.teamId) }, ctx)
       return { deleted: true, teamId: data.teamId }
     } catch (e) {
       if (isTeamError(e)) throwContextError('TeamError', e, teamErrorStatus(e.code))

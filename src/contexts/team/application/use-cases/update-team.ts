@@ -11,7 +11,7 @@ import { can } from '#/shared/domain/permissions'
 import { validateTeamName } from '../../domain/rules'
 import { teamError } from '../../domain/errors'
 import { teamUpdated } from '../../domain/events'
-import type { TeamId } from '#/shared/domain/ids'
+import { teamId as toTeamId } from '#/shared/domain/ids'
 
 export type UpdateTeamDeps = Readonly<{
   teamRepo: TeamRepository
@@ -28,7 +28,7 @@ export const updateTeam =
     }
 
     // 2. Load existing team
-    const tid = input.teamId as TeamId
+    const tid = toTeamId(input.teamId)
     const existing = await deps.teamRepo.findById(ctx.organizationId, tid)
     if (!existing) {
       throw teamError('team_not_found', 'team not found')

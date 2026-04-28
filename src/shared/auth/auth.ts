@@ -12,17 +12,38 @@ export const INVITATION_EXPIRY_SECONDS = 60 * 60 * 24 * 7
 import { betterAuth } from 'better-auth'
 import { organization } from 'better-auth/plugins'
 import { tanstackStartCookies } from 'better-auth/tanstack-start'
-import { Pool } from 'pg'
 import { getEnv } from '#/shared/config/env'
+import { getPool } from '#/shared/db/pool'
 import { sendResetPasswordEmail, sendInvitationEmail } from './emails'
 import { ac, owner, admin, memberRole } from './permissions'
 // import { sendVerificationEmail } from './emails' // TODO: re-enable with email verification
 
+// ── Post-acceptance staff assignment hook ──────────────────────────
+// The afterAcceptInvitation hook creates staff_assignments for the
+// properties specified during invitation. Because auth.ts can't import
+// from the composition root (circular dependency), the assignment creator
+// function is injected via setOnAcceptInvitation() from composition.ts.
+
+type AcceptInvitationContext = Readonly<{
+  userId: string
+  organizationId: string
+  propertyIds: ReadonlyArray<string>
+}>
+
+type AcceptInvitationHandler = (ctx: AcceptInvitationContext) => Promise<void>
+
+let _onAcceptInvitation: AcceptInvitationHandler | undefined
+
+/** Set the handler called after an invitation is accepted.
+ * Called from composition.ts at startup. Injects the staff assignment
+ * creator so auth.ts doesn't need to import from the composition root. */
+export function setOnAcceptInvitation(handler: AcceptInvitationHandler): void {
+  _onAcceptInvitation = handler
+}
+
 export function createAuth() {
   const env = getEnv()
-  const pool = new Pool({
-    connectionString: env.DATABASE_URL_POOLER ?? env.DATABASE_URL,
-  })
+  const pool = getPool()
 
   return betterAuth({
     database: pool,
@@ -30,6 +51,13 @@ export function createAuth() {
     baseURL: env.BETTER_AUTH_URL,
     emailAndPassword: {
       enabled: true,
+      // TODO: Enable email verification in production
+      // Prerequisites:
+      //   1. Verify Resend domain ownership (currently using sandbox)
+      //   2. Test sendVerificationEmail flow end-to-end
+      //   3. Update login/register UX to show "check your email" state
+      //   4. Add email verification reminder UI for unverified users
+      // Once ready, flip to: requireEmailVerification: true
       requireEmailVerification: false,
       sendResetPassword: async ({ user, url }) => {
         await sendResetPasswordEmail(user.email, url)
@@ -56,6 +84,19 @@ export function createAuth() {
           member: memberRole,
         },
         invitationExpiresIn: INVITATION_EXPIRY_SECONDS, // 7 days
+        // Custom fields on the invitation table — stores which properties
+        // the invitee should be assigned to upon acceptance.
+        schema: {
+          invitation: {
+            additionalFields: {
+              propertyIds: {
+                type: 'string' as const,
+                input: true,
+                required: false,
+              },
+            },
+          },
+        },
         // Send invitation emails via Resend
         async sendInvitationEmail(data) {
           const inviteLink = `${env.BETTER_AUTH_URL}/accept-invitation?id=${data.id}`
@@ -65,6 +106,31 @@ export function createAuth() {
             organizationName: data.organization.name,
             inviteLink,
           })
+        },
+        // After an invitation is accepted, auto-create staff assignments
+        // for the properties specified in the invitation.
+        organizationHooks: {
+          afterAcceptInvitation: async ({ invitation, member, organization }) => {
+            if (!_onAcceptInvitation) return
+
+            // propertyIds is stored as a JSON string in the invitation
+            const raw = (invitation as Record<string, unknown>).propertyIds
+            if (!raw || typeof raw !== 'string') return
+
+            let propertyIds: string[]
+            try {
+              propertyIds = JSON.parse(raw)
+            } catch {
+              return
+            }
+            if (!Array.isArray(propertyIds) || propertyIds.length === 0) return
+
+            await _onAcceptInvitation({
+              userId: member.userId,
+              organizationId: organization.id,
+              propertyIds,
+            })
+          },
         },
       }),
     ],

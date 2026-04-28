@@ -13,7 +13,12 @@ import {
 } from '../application/dto/staff-assignment.dto'
 import { isStaffError } from '../domain/errors'
 import type { StaffErrorCode } from '../domain/errors'
-import type { PropertyId, StaffAssignmentId, TeamId, UserId } from '#/shared/domain/ids'
+import {
+  staffAssignmentId as toStaffAssignmentId,
+  propertyId as toPropertyId,
+  userId as toUserId,
+  teamId as toTeamId,
+} from '#/shared/domain/ids'
 
 const staffErrorStatus = (code: StaffErrorCode): number =>
   match(code)
@@ -52,7 +57,7 @@ export const removeStaffAssignment = createServerFn({ method: 'POST' })
     try {
       const { useCases } = getContainer()
       await useCases.removeStaffAssignment(
-        { assignmentId: data.assignmentId as StaffAssignmentId },
+        { assignmentId: toStaffAssignmentId(data.assignmentId) },
         ctx,
       )
       return { removed: true, assignmentId: data.assignmentId }
@@ -74,9 +79,9 @@ export const listStaffAssignments = createServerFn({ method: 'GET' })
       const { useCases } = getContainer()
       const assignments = await useCases.listStaffAssignments(
         {
-          propertyId: data.propertyId as PropertyId | undefined,
-          userId: data.userId as UserId | undefined,
-          teamId: data.teamId as TeamId | undefined,
+          propertyId: data.propertyId != null ? toPropertyId(data.propertyId) : undefined,
+          userId: data.userId != null ? toUserId(data.userId) : undefined,
+          teamId: data.teamId != null ? toTeamId(data.teamId) : undefined,
         },
         ctx,
       )

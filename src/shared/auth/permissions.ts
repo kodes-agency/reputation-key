@@ -20,7 +20,7 @@ import { setPermissionTable } from '#/shared/domain/permissions'
 export const statement = {
   organization: ['update', 'delete'],
   member: ['create', 'update', 'delete'],
-  invitation: ['create', 'cancel'],
+  invitation: ['create', 'cancel', 'resend'],
   property: ['create', 'update', 'delete'],
   team: ['create', 'update', 'delete'],
   staff_assignment: ['create', 'delete'],
@@ -41,7 +41,7 @@ export const owner = ac.newRole(statement)
 
 export const admin = ac.newRole({
   member: ['create'],
-  invitation: ['create', 'cancel'],
+  invitation: ['create', 'cancel', 'resend'],
   property: ['create', 'update'],
   team: ['create', 'update'],
   staff_assignment: ['create', 'delete'],

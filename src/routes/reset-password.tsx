@@ -20,7 +20,11 @@ function ResetPasswordPage() {
         redirectTo: `${window.location.origin}/login`,
       })
       if (result.error) {
-        throw new Error(result.error.message ?? 'Failed to send reset email.')
+        const error = Object.assign(
+          new Error(result.error.message ?? 'Failed to send reset email.'),
+          { _tag: 'AuthClientError' as const, code: 'reset_failed' as const },
+        )
+        throw error
       }
       return input.email
     },

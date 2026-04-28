@@ -8,6 +8,7 @@ import { baseWhere } from '#/shared/db/base-where'
 import { teams } from '#/shared/db/schema/team.schema'
 import type { TeamRepository } from '../../application/ports/team.repository'
 import { teamFromRow, teamToRow } from '../mappers/team.mapper'
+import { teamError } from '../../domain/errors'
 
 type SetValues = {
   name?: string
@@ -55,7 +56,7 @@ export const createTeamRepository = (db: Database): TeamRepository => ({
 
   insert: async (orgId, team) => {
     if (team.organizationId !== orgId) {
-      throw new Error('Tenant mismatch on team insert')
+      throw teamError('forbidden', 'Tenant mismatch on team insert')
     }
     await db.insert(teams).values(teamToRow(team))
   },

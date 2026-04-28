@@ -1,9 +1,10 @@
 // Property context — get single property use case
 
 import type { PropertyRepository } from '../ports/property.repository'
-import type { Property, PropertyId } from '../../domain/types'
+import type { Property } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { propertyError } from '../../domain/errors'
+import { propertyId } from '#/shared/domain/ids'
 
 export type GetPropertyDeps = Readonly<{
   propertyRepo: PropertyRepository
@@ -21,7 +22,7 @@ export const getProperty =
     // enforced by the repository filtering by ctx.organizationId.
     const property = await deps.propertyRepo.findById(
       ctx.organizationId,
-      input.propertyId as PropertyId,
+      propertyId(input.propertyId),
     )
     if (!property) {
       throw propertyError('property_not_found', 'property not found')

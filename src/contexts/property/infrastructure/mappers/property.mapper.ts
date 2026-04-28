@@ -3,15 +3,14 @@
 
 import type { properties } from '#/shared/db/schema/property.schema'
 import type { Property } from '../../domain/types'
-import type { PropertyId } from '#/shared/domain/ids'
-import type { OrganizationId } from '#/shared/domain/ids'
+import { propertyId, organizationId } from '#/shared/domain/ids'
 
 type PropertyRow = typeof properties.$inferSelect
 type PropertyInsertRow = typeof properties.$inferInsert
 
 export const propertyFromRow = (row: PropertyRow): Property => ({
-  id: row.id as PropertyId,
-  organizationId: row.organizationId as OrganizationId,
+  id: propertyId(row.id),
+  organizationId: organizationId(row.organizationId),
   name: row.name,
   slug: row.slug,
   timezone: row.timezone,

@@ -9,6 +9,7 @@ import { isIdentityError } from '../../domain/errors'
 
 const FIXED_USER_ID = 'user-new-00000000-0000-0000-0000-000000000001'
 const FIXED_ORG_ID = 'org-new-00000000-0000-0000-0000-000000000001'
+const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
 
 const setup = () => {
   const events = createCapturingEventBus()
@@ -20,6 +21,7 @@ const setup = () => {
     createOrg: vi.fn().mockResolvedValue(FIXED_ORG_ID),
     setActiveOrg: vi.fn().mockResolvedValue(undefined),
     headers,
+    clock: () => FIXED_TIME,
   }
 
   const useCase = registerUserAndOrg(deps)
@@ -64,6 +66,7 @@ describe('registerUserAndOrg', () => {
     expect(emitted).toHaveLength(1)
     expect(emitted[0].organizationName).toBe('Test Org')
     expect(emitted[0].slug).toBe('test-org')
+    expect(emitted[0].occurredAt).toBe(FIXED_TIME)
   })
 
   it('normalizes the org name into a slug', async () => {

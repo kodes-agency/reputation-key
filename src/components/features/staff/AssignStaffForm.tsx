@@ -16,6 +16,7 @@ import { SubmitButton } from '#/components/forms/SubmitButton'
 import { FormErrorBanner } from '#/components/forms/FormErrorBanner'
 import type { UseMutationResult } from '@tanstack/react-query'
 import type { CreateStaffAssignmentInput } from '#/contexts/staff/application/dto/staff-assignment.dto'
+import { createStaffAssignmentInputSchema } from '#/contexts/staff/application/dto/staff-assignment.dto'
 import { Skeleton } from '#/components/ui/skeleton'
 import { z } from 'zod/v4'
 
@@ -30,9 +31,11 @@ export type TeamOption = Readonly<{
   name: string
 }>
 
-const formSchema = z.object({
+// Form schema derived from DTO — single source of truth for validation rules.
+// Per patterns.md section 30: extend DTO schema for form-specific shape.
+// teamId is nullable in the form (select uses null for "no team") vs optional in DTO.
+const formSchema = createStaffAssignmentInputSchema.extend({
   userId: z.string().min(1, 'Select a staff member'),
-  propertyId: z.string().min(1),
   teamId: z.string().nullable(),
 })
 

@@ -8,6 +8,7 @@ import { match } from 'ts-pattern'
 import { getAuth } from '#/shared/auth/auth'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
+import { throwContextError } from '#/shared/auth/server-errors'
 import { toDomainRole } from '#/shared/domain/roles'
 import { getContainer } from '#/composition'
 import {
@@ -21,45 +22,25 @@ import {
   signInInputSchema,
 } from '../application/dto/invitation.dto'
 import { isIdentityError } from '../domain/errors'
-import type { IdentityError } from '../domain/errors'
+import type { IdentityError, IdentityErrorCode } from '../domain/errors'
 
 // ── Error → HTTP translation ──────────────────────────────────────
 // Per architecture: "ts-pattern with .exhaustive() ensures new error codes
 // force a compiler error here."
 
-export const identityErrorToResponse = (e: IdentityError) =>
-  match(e.code)
-    .with('forbidden', () => ({
-      status: 403 as const,
-      body: { error: e.code, message: e.message },
-    }))
-    .with('invalid_slug', 'invalid_name', () => ({
-      status: 400 as const,
-      body: { error: e.code, message: e.message },
-    }))
-    .with('registration_failed', () => ({
-      status: 400 as const,
-      body: { error: e.code, message: e.message },
-    }))
-    .with('org_setup_failed', () => ({
-      // 409 Conflict — user account exists but org creation failed.
-      // Client interprets this as "sign in first, then create an org."
-      status: 409 as const,
-      body: { error: e.code, message: e.message },
-    }))
-    .with('member_not_found', 'invitation_not_found', () => ({
-      status: 404 as const,
-      body: { error: e.code, message: e.message },
-    }))
+export const identityErrorStatus = (code: IdentityErrorCode): number =>
+  match(code)
+    .with('forbidden', () => 403)
+    .with('invalid_slug', 'invalid_name', () => 400)
+    .with('registration_failed', () => 400)
+    .with('org_setup_failed', () => 409)
+    .with('member_not_found', 'invitation_not_found', () => 404)
     .exhaustive()
 
-/** Throw a tagged IdentityError as an HTTP Response. */
+/** Throw a tagged IdentityError as an Error object (not Response).
+ * Per architecture: "Server functions throw Error objects with .name, .message, .code, .status." */
 function throwIdentityError(e: IdentityError): never {
-  const { status, body } = identityErrorToResponse(e)
-  throw new Response(JSON.stringify(body), {
-    status,
-    headers: { 'content-type': 'application/json' },
-  })
+  throwContextError('IdentityError', e, identityErrorStatus(e.code))
 }
 
 // ── Types for better-auth API responses ──────────────────────────
@@ -71,7 +52,12 @@ type AuthMemberResponse = Readonly<{
   userId: string
   role: string
   createdAt: Date
-  user: Readonly<{ id: string; email: string; name: string; image: string | null }>
+  user: Readonly<{
+    id: string
+    email: string
+    name: string
+    image: string | null
+  }>
 }>
 
 type AuthInvitationResponse = Readonly<{
@@ -208,41 +194,21 @@ export const cancelInvitation = createServerFn({ method: 'POST' })
   })
 
 // ── Resend invitation ──────────────────────────────────────────────
+// Uses the use case through the composition root.
 
 export const resendInvitation = createServerFn({ method: 'POST' })
   .inputValidator(acceptInvitationInputSchema)
   .handler(async ({ data }) => {
     const headers = headersFromContext()
-    await resolveTenantContext(headers)
+    const ctx = await resolveTenantContext(headers)
 
-    // Look up the invitation to get the email and role for resending
-    const auth = getAuth()
-    const result = await auth.api.listInvitations({ headers })
-    const invitations = (Array.isArray(result) ? result : []) as AuthInvitationResponse[]
-    const invitation = invitations.find((inv) => inv.id === data.invitationId)
-
-    if (!invitation) {
-      throw new Response(
-        JSON.stringify({
-          error: 'invitation_not_found',
-          message: 'Invitation not found',
-        }),
-        {
-          status: 404,
-          headers: { 'content-type': 'application/json' },
-        },
-      )
+    try {
+      const { useCases } = getContainer()
+      await useCases.resendInvitation(data, ctx)
+    } catch (e) {
+      if (isIdentityError(e)) throwIdentityError(e)
+      throw e
     }
-
-    // Re-create with resend flag — better-auth handles deduplication
-    await auth.api.createInvitation({
-      headers,
-      body: {
-        email: invitation.email,
-        role: invitation.role as 'owner' | 'admin' | 'member',
-        resend: true,
-      },
-    })
   })
 
 // ── List invitations ────────────────────────────────────────────────
@@ -405,12 +371,10 @@ export const signInUser = createServerFn({ method: 'POST' })
         body: { email: data.email, password: data.password },
       })
     } catch {
-      throw new Response(
-        JSON.stringify({
-          error: 'invalid_credentials',
-          message: 'Invalid email or password',
-        }),
-        { status: 401, headers: { 'content-type': 'application/json' } },
+      throwContextError(
+        'AuthError',
+        { code: 'invalid_credentials', message: 'Invalid email or password' },
+        401,
       )
     }
   })

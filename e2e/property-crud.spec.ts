@@ -5,21 +5,11 @@
 // Prerequisites: dev server running at BASE_URL with a test user account.
 
 import { test, expect } from '@playwright/test'
-
-// Test credentials — must exist in the test/dev database
-const TEST_EMAIL = process.env.E2E_TEST_EMAIL ?? 'test@example.com'
-const TEST_PASSWORD = process.env.E2E_TEST_PASSWORD ?? 'password123'
+import { signIn } from './helpers/auth'
 
 test.describe('Property CRUD', () => {
   test.beforeEach(async ({ page }) => {
-    // Sign in
-    await page.goto('/login')
-    await page.getByLabel('Email').fill(TEST_EMAIL)
-    await page.getByLabel('Password').fill(TEST_PASSWORD)
-    await page.getByRole('button', { name: /sign in/i }).click()
-
-    // Wait for redirect to dashboard
-    await page.waitForURL(/\/(dashboard|properties)/)
+    await signIn(page)
   })
 
   test('create, list, edit, and delete a property', async ({ page }) => {
@@ -32,9 +22,10 @@ test.describe('Property CRUD', () => {
     await expect(page.getByRole('heading', { name: /new property/i })).toBeVisible()
 
     const propertyName = `E2E Hotel ${Date.now()}`
+    const slug = `e2e-hotel-${Date.now()}`
     await page.getByLabel('Name').fill(propertyName)
-    // Slug auto-generates from name, but we can override
-    await page.getByLabel(/slug/i).fill('e2e-test-hotel')
+    // Slug auto-generates from name, but we override for predictability
+    await page.getByLabel(/slug/i).fill(slug)
 
     // Submit the form
     await page.getByRole('button', { name: /create property/i }).click()
@@ -46,7 +37,7 @@ test.describe('Property CRUD', () => {
     // ── Edit the property ───────────────────────────────────────
     // Click the property in the list
     await page.getByText(propertyName).click()
-    await expect(page.getByText(/e2e-test-hotel/i)).toBeVisible()
+    await expect(page.getByText(new RegExp(slug, 'i'))).toBeVisible()
 
     // Click Edit
     await page.getByRole('button', { name: /edit/i }).click()

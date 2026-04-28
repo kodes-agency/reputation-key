@@ -8,6 +8,7 @@ import { baseWhere } from '#/shared/db/base-where'
 import { properties } from '#/shared/db/schema/property.schema'
 import type { PropertyRepository } from '../../application/ports/property.repository'
 import { propertyFromRow, propertyToRow } from '../mappers/property.mapper'
+import { propertyError } from '../../domain/errors'
 
 /** Mutable set-values type for Drizzle .set() — strips readonly from Property fields. */
 type SetValues = {
@@ -55,7 +56,7 @@ export const createPropertyRepository = (db: Database): PropertyRepository => ({
     // Tenant guard — the use case constructs the property with ctx.organizationId,
     // but the repo is the last line of defense against cross-tenant writes.
     if (property.organizationId !== orgId) {
-      throw new Error('Tenant mismatch on property insert')
+      throw propertyError('forbidden', 'Tenant mismatch on property insert')
     }
     await db.insert(properties).values(propertyToRow(property))
   },

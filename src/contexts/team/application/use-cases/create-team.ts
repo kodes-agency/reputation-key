@@ -8,10 +8,10 @@ import type { Team, TeamId } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { CreateTeamInput } from '../dto/create-team.dto'
 import { can } from '#/shared/domain/permissions'
+import { propertyId as toPropertyId } from '#/shared/domain/ids'
 import { buildTeam } from '../../domain/constructors'
 import { teamError } from '../../domain/errors'
 import { teamCreated } from '../../domain/events'
-import type { PropertyId } from '#/shared/domain/ids'
 
 export type CreateTeamDeps = Readonly<{
   teamRepo: TeamRepository
@@ -30,7 +30,7 @@ export const createTeam =
     }
 
     // 2. Validate referenced entity — property must exist in this org
-    const pid = input.propertyId as PropertyId
+    const pid = toPropertyId(input.propertyId)
     if (!(await deps.propertyExists.exists(ctx.organizationId, pid))) {
       throw teamError(
         'property_not_found',

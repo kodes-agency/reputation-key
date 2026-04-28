@@ -18,7 +18,6 @@ import { Button } from '#/components/ui/button'
 import { Card, CardContent } from '#/components/ui/card'
 import { Badge } from '#/components/ui/badge'
 import { Separator } from '#/components/ui/separator'
-import { Skeleton } from '#/components/ui/skeleton'
 import {
   Select,
   SelectContent,
@@ -180,12 +179,7 @@ function TeamListPage() {
       </Card>
 
       {/* Team list */}
-      {query.isLoading ? (
-        <div className="flex flex-col gap-3">
-          <Skeleton className="h-20 w-full" />
-          <Skeleton className="h-20 w-full" />
-        </div>
-      ) : teams.length === 0 ? (
+      {teams.length === 0 ? (
         <p className="text-sm text-muted-foreground">
           No teams yet. Create one above to group staff.
         </p>

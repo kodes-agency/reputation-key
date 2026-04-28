@@ -1,13 +1,16 @@
 # Patterns
 
+**Status:** Living reference.
+**Audience:** Developers (human and AI) writing new files.
+**Purpose:** Canonical code examples for every file type in the codebase. Use when creating or modifying files to maintain structural consistency.
+
 Canonical examples for each file type in the codebase. When AI is writing a new file, point it at the matching example here.
 
-All examples use the `portal` context as the subject (with exceptions in sections 22–23 that use `identity` to demonstrate thin-delegation patterns, and form examples that use portal forms). Once `contexts/identity/` exists and `contexts/portal/` exists, those become the canonical live references. This document is the starting point.
+All examples use real implemented contexts (`property`, `identity`, `team`, `staff`). Sections 1-5 and 10-12 use the **property** context (most complete thick context). Sections 6-9, 13-15, and 19-21 use the **identity** context (invite-member, remove-member, update-member-role patterns). Sections 22-24 demonstrate thin-delegation and anonymous use cases via the **identity** context. Form examples use **identity** and **property** forms. The **team** and **staff** contexts follow the same layered patterns illustrated below; they are not called out in dedicated sections but their live source files in `src/contexts/` are fully implemented and should be consulted alongside these examples. The live source files in `src/contexts/` are the canonical references; this document provides annotated versions for onboarding.
 
 Companion docs:
 
-- `conventions.md` — the rules
-- `architecture.md` — the rationale
+- `conventions.md` — the rules and rationale (single source of truth for what and why)
 
 ---
 
@@ -22,10 +25,10 @@ Before reaching for an example, decide which pattern actually fits your operatio
 → Thin use case (example #22). Server function still calls the use case, but the use case is a one-liner. Keep it because future logic will land here.
 
 **Pure delegation to a third-party library, no auth check, no event, no transformation?**
-→ Server function calls the port (or third-party API) directly (example #23). No use case at all.
+→ Server function calls the port (or third-party API) directly (example #24). No use case at all.
 
 **Writing a form?**
-→ Forms follow a fixed pattern: the route defines the mutation, the form component receives it as a prop. See example #24 (form component) and the "Submission pattern" section in `architecture.md`.
+→ Forms follow a fixed pattern: the route defines the mutation, the form component receives it as a prop. See example #25 (form component) and the "Forms" section in `conventions.md`.
 
 The default for anything non-trivial is the full use case. The thin and direct patterns are explicit exceptions for operations that genuinely don't need orchestration.
 
@@ -54,99 +57,71 @@ The default for anything non-trivial is the full use case. The thin and direct p
 19. [Domain test](#19-domain-test)
 20. [Use case test](#20-use-case-test)
 21. [Repository integration test](#21-repository-integration-test)
-22. [Thin use case (auth check + delegation)](#22-thin-use-case-auth-check--delegation)
-    22b. [Anonymous use case (member registration)](#22b-anonymous-use-case-member-registration--no-auth-no-org)
-23. [Server function calling a port directly (pure delegation)](#23-server-function-calling-a-port-directly-pure-delegation)
-24. [Form component (TanStack Form + shadcn)](#24-form-component-tanstack-form--shadcn)
-25. [Shared form building block (SubmitButton)](#25-shared-form-building-block-submitbutton)
-26. [Shared form building block (FormErrorBanner)](#26-shared-form-building-block-formerrorbanner)
-27. [Update use case (partial validation)](#27-update-use-case-partial-validation)
-28. [Soft-delete use case (minimal deps)](#28-soft-delete-use-case-minimal-deps)
-29. [Form schema rules — when forms differ from DTOs](#29-form-schema-rules--when-forms-differ-from-dtos)
+22. [Thin use case (auth check + delegation)](#22-thin-use-case-auth-check--delegation) 23. [Anonymous use case (member registration)](#23-anonymous-use-case-member-registration--no-auth-no-org)
+23. [Server function calling a port directly (pure delegation)](#24-server-function-calling-a-port-directly-pure-delegation)
+24. [Form component (TanStack Form + shadcn)](#25-form-component-tanstack-form--shadcn)
+25. [Shared form building block (SubmitButton)](#26-shared-form-building-block-submitbutton)
+26. [Shared form building block (FormErrorBanner)](#27-shared-form-building-block-formerrorbanner)
+27. [Update use case (partial validation)](#28-update-use-case-partial-validation)
+28. [Soft-delete use case (minimal deps)](#29-soft-delete-use-case-minimal-deps)
+29. [Form schema rules — when forms differ from DTOs](#30-form-schema-rules--when-forms-differ-from-dtos)
+
+- [Choosing the right pattern](#choosing-the-right-pattern)
+- [How to use this document](#how-to-use-this-document)
 
 ---
 
 ## 1. Domain types
 
-**Location:** `src/contexts/portal/domain/types.ts`
+**Location:** `src/contexts/property/domain/types.ts`
 **Purpose:** Define the shape of entities as the business thinks about them. No framework imports, no DB concerns.
 
 ```ts
-import type { Brand } from '@/shared/domain/brand'
-import type { OrganizationId } from '@/shared/domain/ids'
-import type { PropertyId } from '@/contexts/property/domain/types'
+import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 
-export type PortalId = Brand<string, 'PortalId'>
-export type CategoryId = Brand<string, 'CategoryId'>
-export type LinkId = Brand<string, 'LinkId'>
-
-export type EntityType = 'property' | 'team' | 'staff'
-
-export type PortalTheme = Readonly<{
-  primaryColor: string
-  accentColor: string
-  backgroundColor: string
-  customHeading?: string
-  customSubheading?: string
-}>
-
-export type SmartRouting = Readonly<{
-  enabled: boolean
-  threshold: 1 | 2 | 3 | 4
-}>
-
-export type Portal = Readonly<{
-  id: PortalId
+/** Property entity — the organizational unit everything else lives under. */
+export type Property = Readonly<{
+  id: PropertyId
   organizationId: OrganizationId
-  propertyId: PropertyId
   name: string
   slug: string
-  entityType: EntityType
-  entityId: string
-  heroImageKey: string | null
-  theme: PortalTheme
-  smartRouting: SmartRouting
+  timezone: string
+  gbpPlaceId: string | null
   createdAt: Date
   updatedAt: Date
   deletedAt: Date | null
 }>
+
+/** Re-export PropertyId from shared for convenience */
+export type { PropertyId } from '#/shared/domain/ids'
 ```
 
 **Key points:**
 
 - `readonly` on every field
-- Branded IDs so `PropertyId` can't be passed where `PortalId` is expected
+- Branded IDs (`PropertyId`, `OrganizationId`) so IDs can't be accidentally swapped
 - `Readonly<{...}>` for object types, `ReadonlyArray<T>` for arrays
 - No methods, no classes — types are data only
 - String literal unions instead of `enum`
+- Re-export shared IDs for consumer convenience
 
 ---
 
 ## 2. Domain rules
 
-**Location:** `src/contexts/portal/domain/rules.ts`
+**Location:** `src/contexts/property/domain/rules.ts`
 **Purpose:** Pure business rules. No async, no I/O, no throws. Validation returns `Result`.
 
 ```ts
-import { ok, err, Result } from '@/shared/domain/result'
-import type { PortalTheme, SmartRouting } from './types'
-import type { PortalError } from './errors'
-import type { Role } from '@/shared/domain/auth-context'
-import { portalError } from './errors'
+import { ok, err } from '#/shared/domain'
+import type { Result } from '#/shared/domain'
+import { VALID_TIMEZONES } from '#/shared/domain/timezones'
+import type { PropertyError } from './errors'
+import { propertyError } from './errors'
 
 export const SLUG_PATTERN = /^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$/
 
-export const DEFAULT_THEME: PortalTheme = {
-  primaryColor: '#111111',
-  accentColor: '#ff3b30',
-  backgroundColor: '#ffffff',
-}
-
-export const DEFAULT_SMART_ROUTING: SmartRouting = {
-  enabled: true,
-  threshold: 3,
-}
-
+/** Normalize a string into a URL-friendly slug (infallible). */
 export const normalizeSlug = (input: string): string =>
   input
     .toLowerCase()
@@ -157,94 +132,86 @@ export const normalizeSlug = (input: string): string =>
     .replace(/^-|-$/g, '')
     .slice(0, 64)
 
-export const validateSlug = (slug: string): Result<string, PortalError> =>
+/** Validate a slug format. */
+export const validateSlug = (slug: string): Result<string, PropertyError> =>
   SLUG_PATTERN.test(slug)
     ? ok(slug)
-    : err(portalError('invalid_slug', 'slug must be URL-friendly and 2-64 chars'))
+    : err(propertyError('invalid_slug', 'slug must be URL-friendly and 2-64 chars'))
 
-const isValidHexColor = (v: string): boolean => /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(v)
-
-export const validateTheme = (theme: PortalTheme): Result<PortalTheme, PortalError> => {
-  if (!isValidHexColor(theme.primaryColor)) {
-    return err(portalError('invalid_theme', 'primaryColor must be a hex color'))
+/** Validate a property name. */
+export const validatePropertyName = (name: string): Result<string, PropertyError> => {
+  const trimmed = name.trim()
+  if (trimmed.length < 1) {
+    return err(propertyError('invalid_name', 'Property name is required'))
   }
-  if (!isValidHexColor(theme.accentColor)) {
-    return err(portalError('invalid_theme', 'accentColor must be a hex color'))
+  if (trimmed.length > 100) {
+    return err(
+      propertyError('invalid_name', 'Property name must be at most 100 characters'),
+    )
   }
-  if (!isValidHexColor(theme.backgroundColor)) {
-    return err(portalError('invalid_theme', 'backgroundColor must be a hex color'))
-  }
-  return ok(theme)
+  return ok(trimmed)
 }
 
-// Authorization is handled by better-auth's access control system.
-// Server functions use auth.api.hasPermission() to check specific resource+action combos.
-// The permission statement and default roles are defined in shared/auth/permissions.ts.
-// Domain rules that remain here are pure business rules (validation, computation)
-// that don't depend on role-based authorization.
-
-export const shouldShowFeedbackPrompt = (
-  rating: 1 | 2 | 3 | 4 | 5,
-  sr: SmartRouting,
-): boolean => sr.enabled && rating <= sr.threshold
+/** Validate that a timezone string is a recognized IANA timezone. */
+export const validateTimezone = (tz: string): Result<string, PropertyError> => {
+  if (VALID_TIMEZONES.includes(tz)) {
+    return ok(tz)
+  }
+  return err(propertyError('invalid_timezone', `Unknown timezone: ${tz}`))
+}
 ```
 
 **Key points:**
 
 - All functions are pure
-- Fallible functions return `Result<T, PortalError>`; infallible ones return the plain type
-- Authorization is a pure predicate
+- Fallible functions return `Result<T, PropertyError>`; infallible ones return the plain type
+- General authorization uses `can()` from `shared/domain/permissions.ts` (tested in use case tests)
+- Some contexts keep additional authorization predicates alongside business rules (e.g., `canInviteWithRole` in `identity/domain/rules.ts`) when the check depends on domain-specific constraints
 
 ---
 
 ## 3. Domain constructors (smart constructors)
 
-**Location:** `src/contexts/portal/domain/constructors.ts`
+**Location:** `src/contexts/property/domain/constructors.ts`
 **Purpose:** Build domain entities from raw input, composing all validations, returning a `Result`.
 
 ```ts
-import { Result } from '@/shared/domain/result'
-import type { Portal, PortalId, EntityType, PortalTheme, SmartRouting } from './types'
-import type { PortalError } from './errors'
-import type { OrganizationId } from '@/shared/domain/ids'
-import type { PropertyId } from '@/contexts/property/domain/types'
+import { Result } from 'neverthrow'
+import type { Property, PropertyId } from './types'
+import type { PropertyError } from './errors'
+import type { OrganizationId } from '#/shared/domain/ids'
 import {
   normalizeSlug,
   validateSlug,
-  validateTheme,
-  DEFAULT_THEME,
-  DEFAULT_SMART_ROUTING,
+  validatePropertyName,
+  validateTimezone,
 } from './rules'
 
-export type BuildPortalInput = Readonly<{
-  id: PortalId
+export type BuildPropertyInput = Readonly<{
+  id: PropertyId
   organizationId: OrganizationId
-  propertyId: PropertyId
   name: string
   providedSlug?: string
-  entityType: EntityType
-  entityId: string
-  theme?: Partial<PortalTheme>
-  smartRouting?: Partial<SmartRouting>
+  timezone: string
+  gbpPlaceId?: string | null
   now: Date
 }>
 
-export const buildPortal = (input: BuildPortalInput): Result<Portal, PortalError> => {
+export const buildProperty = (
+  input: BuildPropertyInput,
+): Result<Property, PropertyError> => {
+  const nameResult = validatePropertyName(input.name)
   const slug = validateSlug(input.providedSlug ?? normalizeSlug(input.name))
-  const theme = validateTheme({ ...DEFAULT_THEME, ...input.theme })
+  const tz = validateTimezone(input.timezone)
 
-  return Result.combine([slug, theme]).map(
-    ([validSlug, validTheme]): Portal => ({
+  return Result.combine([nameResult, slug, tz]).map(
+    ([validName, validSlug, validTz]): Property => ({
       id: input.id,
       organizationId: input.organizationId,
-      propertyId: input.propertyId,
-      name: input.name,
+      name: validName,
       slug: validSlug,
-      entityType: input.entityType,
-      entityId: input.entityId,
-      heroImageKey: null,
-      theme: validTheme,
-      smartRouting: { ...DEFAULT_SMART_ROUTING, ...input.smartRouting },
+      timezone: validTz,
+      gbpPlaceId: input.gbpPlaceId ?? null,
       createdAt: input.now,
       updatedAt: input.now,
       deletedAt: null,
@@ -257,126 +224,137 @@ export const buildPortal = (input: BuildPortalInput): Result<Portal, PortalError
 
 - Smart constructor is pure — ID and time are inputs
 - Uses `Result.combine` to validate multiple fields
-- Returns `Result<Portal, PortalError>` — can't construct an invalid Portal
+- Returns `Result<Property, PropertyError>` — can't construct an invalid Property
 
 ---
 
 ## 4. Domain events
 
-**Location:** `src/contexts/portal/domain/events.ts`
+**Location:** `src/contexts/property/domain/events.ts`
 **Purpose:** Tagged discriminated unions representing facts that happened.
 
 ```ts
-import type { PortalId } from './types'
-import type { OrganizationId } from '@/shared/domain/ids'
-import type { PropertyId } from '@/contexts/property/domain/types'
+import type { PropertyId } from './types'
+import type { OrganizationId } from '#/shared/domain/ids'
 
-export type PortalCreated = Readonly<{
-  _tag: 'portal.created'
-  portalId: PortalId
-  organizationId: OrganizationId
+export type PropertyCreated = Readonly<{
+  _tag: 'property.created'
   propertyId: PropertyId
+  organizationId: OrganizationId
+  name: string
+  slug: string
   occurredAt: Date
 }>
 
-export type PortalScanned = Readonly<{
-  _tag: 'portal.scanned'
-  portalId: PortalId
-  organizationId: OrganizationId
+export type PropertyUpdated = Readonly<{
+  _tag: 'property.updated'
   propertyId: PropertyId
-  source: 'qr' | 'nfc' | 'direct'
-  sessionId: string
+  organizationId: OrganizationId
+  name: string
+  slug: string
   occurredAt: Date
 }>
 
-export type PortalEvent = PortalCreated | PortalScanned
+export type PropertyDeleted = Readonly<{
+  _tag: 'property.deleted'
+  propertyId: PropertyId
+  organizationId: OrganizationId
+  occurredAt: Date
+}>
 
-export const portalCreated = (args: Omit<PortalCreated, '_tag'>): PortalCreated => ({
-  _tag: 'portal.created',
-  ...args,
-})
+export type PropertyEvent = PropertyCreated | PropertyUpdated | PropertyDeleted
 
-export const portalScanned = (args: Omit<PortalScanned, '_tag'>): PortalScanned => ({
-  _tag: 'portal.scanned',
-  ...args,
-})
+export const propertyCreated = (
+  args: Omit<PropertyCreated, '_tag'>,
+): PropertyCreated => ({ _tag: 'property.created', ...args })
+
+export const propertyUpdated = (
+  args: Omit<PropertyUpdated, '_tag'>,
+): PropertyUpdated => ({ _tag: 'property.updated', ...args })
+
+export const propertyDeleted = (
+  args: Omit<PropertyDeleted, '_tag'>,
+): PropertyDeleted => ({ _tag: 'property.deleted', ...args })
 ```
 
 **Key points:**
 
 - Event names are past tense facts
 - `_tag` matches the event name, enforced by the smart constructor
+- Event union type (`PropertyEvent`) covers all events in the context
 
 ---
 
 ## 5. Domain errors
 
-**Location:** `src/contexts/portal/domain/errors.ts`
+**Location:** `src/contexts/property/domain/errors.ts`
 **Purpose:** Tagged error types.
 
 ```ts
-export type PortalErrorCode =
+export type PropertyErrorCode =
   | 'forbidden'
-  | 'property_not_found'
-  | 'portal_not_found'
-  | 'slug_taken'
   | 'invalid_slug'
-  | 'invalid_theme'
-  | 'invalid_smart_routing'
+  | 'invalid_name'
+  | 'invalid_timezone'
+  | 'slug_taken'
+  | 'property_not_found'
 
-export type PortalError = Readonly<{
-  _tag: 'PortalError'
-  code: PortalErrorCode
+export type PropertyError = Readonly<{
+  _tag: 'PropertyError'
+  code: PropertyErrorCode
   message: string
   context?: Readonly<Record<string, unknown>>
 }>
 
-export const portalError = (
-  code: PortalErrorCode,
+/** Smart constructor — the only way to build a PropertyError. */
+export const propertyError = (
+  code: PropertyErrorCode,
   message: string,
-  context?: Record<string, unknown>,
-): PortalError => ({
-  _tag: 'PortalError',
+  context?: Readonly<Record<string, unknown>>,
+): PropertyError => ({
+  _tag: 'PropertyError',
   code,
   message,
-  context,
+  ...(context ? { context } : {}),
 })
 
-export const isPortalError = (e: unknown): e is PortalError =>
-  typeof e === 'object' && e !== null && (e as { _tag?: string })._tag === 'PortalError'
+/** Type guard — lets server functions detect PropertyError at catch time. */
+export const isPropertyError = (e: unknown): e is PropertyError =>
+  typeof e === 'object' && e !== null && (e as { _tag?: string })._tag === 'PropertyError'
 ```
 
 **Key points:**
 
 - Plain objects, not classes
 - Two levels of discrimination: `_tag` (error type) and `code` (specific reason)
-- `isPortalError` type guard for catching
+- `isPropertyError` type guard for catching
+- Error codes form a closed union so `ts-pattern` `.exhaustive()` works at the server boundary
 
 ---
 
 ## 6. Application port (repository interface)
 
-**Location:** `src/contexts/portal/application/ports/portal.repository.ts`
+**Location:** `src/contexts/property/application/ports/property.repository.ts`
 
 ```ts
-import type { Portal, PortalId } from '@/contexts/portal/domain/types'
-import type { OrganizationId } from '@/shared/domain/ids'
-import type { PropertyId } from '@/contexts/property/domain/types'
+import type { Property, PropertyId } from '../../domain/types'
+import type { OrganizationId } from '#/shared/domain/ids'
 
-export type PortalRepository = Readonly<{
-  findById: (orgId: OrganizationId, id: PortalId) => Promise<Portal | null>
-  listByProperty: (
-    orgId: OrganizationId,
-    propertyId: PropertyId,
-  ) => Promise<ReadonlyArray<Portal>>
+export type PropertyRepository = Readonly<{
+  findById: (orgId: OrganizationId, id: PropertyId) => Promise<Property | null>
+  list: (orgId: OrganizationId) => Promise<ReadonlyArray<Property>>
   slugExists: (
     orgId: OrganizationId,
     slug: string,
-    excludeId?: PortalId,
+    excludeId?: PropertyId,
   ) => Promise<boolean>
-  insert: (orgId: OrganizationId, portal: Portal) => Promise<void>
-  update: (orgId: OrganizationId, id: PortalId, patch: Partial<Portal>) => Promise<void>
-  softDelete: (orgId: OrganizationId, id: PortalId) => Promise<void>
+  insert: (orgId: OrganizationId, property: Property) => Promise<void>
+  update: (
+    orgId: OrganizationId,
+    id: PropertyId,
+    patch: Readonly<Partial<Property>>,
+  ) => Promise<void>
+  softDelete: (orgId: OrganizationId, id: PropertyId) => Promise<void>
 }>
 ```
 
@@ -390,64 +368,104 @@ export type PortalRepository = Readonly<{
 
 ## 7. Application port (external service interface)
 
-**Location:** `src/contexts/portal/application/ports/portal-storage.port.ts`
+**Location:** `src/contexts/identity/application/ports/identity.port.ts`
+**Purpose:** Port wrapping an external service (better-auth). Use cases depend on the type; the implementation lives in infrastructure.
 
 ```ts
-import type { PortalId } from '@/contexts/portal/domain/types'
-import type { OrganizationId } from '@/shared/domain/ids'
+import type { Role } from '#/shared/domain/roles'
+import type { OrganizationId } from '#/shared/domain/ids'
+import type { AuthContext } from '#/shared/domain/auth-context'
 
-export type PresignedUpload = Readonly<{
-  uploadUrl: string
-  objectKey: string
-  expiresAt: Date
+/** Organization member shape returned by the port. */
+export type MemberRecord = Readonly<{
+  id: string
+  userId: string
+  email: string
+  name: string
+  role: Role
+  image: string | null
+  createdAt: Date
 }>
 
-export type PortalStorage = Readonly<{
-  getPresignedUploadUrl: (params: {
-    orgId: OrganizationId
-    portalId: PortalId
-    contentType: string
-    maxBytes: number
-  }) => Promise<PresignedUpload>
-  getPublicUrl: (objectKey: string) => string
-  deleteObject: (objectKey: string) => Promise<void>
+/** Invitation record shape returned by the port. */
+export type InvitationRecord = Readonly<{
+  id: string
+  email: string
+  role: Role
+  status: 'pending' | 'accepted' | 'rejected' | 'canceled'
+  expiresAt: Date
+  createdAt: Date
+  organizationId?: OrganizationId
+  organizationName?: string
+}>
+
+/** Port for identity operations — wraps better-auth API calls. */
+export type IdentityPort = Readonly<{
+  signUp: (name: string, email: string, password: string) => Promise<string>
+  listMembers: (ctx: AuthContext) => Promise<ReadonlyArray<MemberRecord>>
+  getMember: (ctx: AuthContext, memberId: string) => Promise<MemberRecord | null>
+  createInvitation: (
+    ctx: AuthContext,
+    email: string,
+    role: string,
+    propertyIds?: ReadonlyArray<string>,
+  ) => Promise<string>
+  acceptInvitation: (invitationId: string, headers: Headers) => Promise<void>
+  rejectInvitation: (invitationId: string, headers: Headers) => Promise<void>
+  listInvitations: (ctx: AuthContext) => Promise<ReadonlyArray<InvitationRecord>>
+  listUserInvitations: (headers: Headers) => Promise<ReadonlyArray<InvitationRecord>>
+  updateMemberRole: (ctx: AuthContext, memberId: string, role: string) => Promise<void>
+  removeMember: (ctx: AuthContext, memberId: string) => Promise<void>
+  listUserOrganizations: (headers: Headers) => Promise<ReadonlyArray<OrganizationRecord>>
+  setActiveOrganization: (headers: Headers, organizationId: string) => Promise<void>
 }>
 ```
+
+**Key points:**
+
+- Port defines the capability contract; the adapter implements it
+- Methods that need auth take `AuthContext`; public methods take `Headers` directly
+- Return types are port-level shapes (`MemberRecord`, `InvitationRecord`), not third-party API shapes
+- `type` alias, not `interface`
 
 ---
 
 ## 8. Application DTO
 
-**Location:** `src/contexts/portal/application/dto/create-portal.dto.ts`
-**Purpose:** Zod schema for HTTP input, also reused as the form schema.
+**Location:** `src/contexts/identity/application/dto/invitation.dto.ts`
+**Purpose:** Zod schemas for HTTP input. Also reused as form schemas.
 
 ```ts
-import { z } from 'zod'
+import { z } from 'zod/v4'
 
-export const CreatePortalInputSchema = z.object({
-  propertyId: z.string().uuid(),
-  name: z.string().min(1).max(100),
-  slug: z.string().min(2).max(64).optional(),
-  entityType: z.enum(['property', 'team', 'staff']),
-  entityId: z.string().uuid(),
-  theme: z
-    .object({
-      primaryColor: z.string().regex(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i),
-      accentColor: z.string().regex(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i),
-      backgroundColor: z.string().regex(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i),
-    })
-    .partial()
-    .optional(),
-  smartRouting: z
-    .object({
-      enabled: z.boolean(),
-      threshold: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)]),
-    })
-    .partial()
-    .optional(),
+export const inviteMemberInputSchema = z.object({
+  email: z.email('A valid email address is required'),
+  role: z.enum(['AccountAdmin', 'PropertyManager', 'Staff'] as const),
+  propertyIds: z.array(z.string().min(1, 'This field is required')).default([]),
 })
+export type InviteMemberInput = z.infer<typeof inviteMemberInputSchema>
 
-export type CreatePortalInput = z.infer<typeof CreatePortalInputSchema>
+export const updateMemberRoleInputSchema = z.object({
+  memberId: z.string().min(1, 'Member ID is required'),
+  role: z.enum(['AccountAdmin', 'PropertyManager', 'Staff'] as const),
+})
+export type UpdateMemberRoleInput = z.infer<typeof updateMemberRoleInputSchema>
+
+export const removeMemberInputSchema = z.object({
+  memberId: z.string().min(1, 'Member ID is required'),
+})
+export type RemoveMemberInput = z.infer<typeof removeMemberInputSchema>
+
+export const registerUserInputSchema = z.object({
+  name: z.string().min(1, 'Name is required').max(100),
+  email: z.email('A valid email address is required'),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+  organizationName: z
+    .string()
+    .min(2, 'Organization name must be at least 2 characters')
+    .max(100, 'Organization name must be at most 100 characters'),
+})
+export type RegisterUserInput = z.infer<typeof registerUserInputSchema>
 ```
 
 **Key points:**
@@ -456,167 +474,109 @@ export type CreatePortalInput = z.infer<typeof CreatePortalInputSchema>
 - Used by the server function AND by the form component
 - Validates structural things (types, formats) — business rules live in use cases/domain
 - One DTO per major input or output shape
+- Multiple related DTOs can share a file when they serve the same flow
 
 ---
 
 ## 9. Use case (full pattern)
 
-**Location:** `src/contexts/portal/application/use-cases/create-portal.ts`
+**Location:** `src/contexts/identity/application/use-cases/invite-member.ts`
 
 ```ts
-import type { PortalRepository } from '@/contexts/portal/application/ports/portal.repository'
-import type { PropertyRepository } from '@/contexts/property/application/ports/property.repository'
-import type { EventBus } from '@/shared/events/event-bus'
-import type { Portal, PortalId } from '@/contexts/portal/domain/types'
-import type { AuthContext } from '@/shared/domain/auth-context'
-import type { CreatePortalInput } from '@/contexts/portal/application/dto/create-portal.dto'
-import type { PropertyId } from '@/contexts/property/domain/types'
+import type { IdentityPort } from '../ports/identity.port'
+import type { AuthContext } from '#/shared/domain/auth-context'
+import type { EventBus } from '#/shared/events/event-bus'
+import { canInviteWithRole } from '../../domain/rules'
+import { identityError } from '../../domain/errors'
+import { memberInvited } from '../../domain/events'
+import type { InviteMemberInput } from '../dto/invitation.dto'
 
-// Authorization is checked via auth.api.hasPermission() in the server function.
-// The use case receives the AuthContext but defers permission checks to
-// the better-auth access control system. Domain rules here are pure business
-// validation only.
-import { buildPortal } from '@/contexts/portal/domain/constructors'
-import { portalError } from '@/contexts/portal/domain/errors'
-import { portalCreated } from '@/contexts/portal/domain/events'
+export type InviteMemberOutput = Readonly<{
+  success: boolean
+}>
 
-export type CreatePortalDeps = Readonly<{
-  portalRepo: PortalRepository
-  propertyRepo: PropertyRepository
+type Deps = Readonly<{
+  identity: IdentityPort
   events: EventBus
-  idGen: () => PortalId
   clock: () => Date
 }>
 
-export const createPortal =
-  (deps: CreatePortalDeps) =>
-  async (input: CreatePortalInput, ctx: AuthContext): Promise<Portal> => {
-    // 1. Authorize
-    // Authorization is now handled by better-auth's access control system.
-    // The server function calls auth.api.hasPermission() before invoking the use case.
-    // Domain-level checks remain for pure business rules (not role-based auth).
+export const inviteMember =
+  (deps: Deps) =>
+  async (input: InviteMemberInput, ctx: AuthContext): Promise<InviteMemberOutput> => {
+    // 1. Authorize — domain rule checks role hierarchy
+    const authResult = canInviteWithRole(ctx.role, input.role)
+    if (authResult.isErr()) {
+      throw identityError(authResult.error.code, authResult.error.message)
+    }
 
-    // 2. Validate referenced entities
-    const property = await deps.propertyRepo.findById(
-      ctx.organizationId,
-      input.propertyId as PropertyId,
+    // 3. Persist — delegate to port (better-auth handles the rest)
+    const invitationId = await deps.identity.createInvitation(
+      ctx,
+      input.email,
+      input.role,
+      input.propertyIds,
     )
-    if (!property) {
-      throw portalError(
-        'property_not_found',
-        'property does not exist in this organization',
-      )
-    }
 
-    // 3. Check uniqueness
-    const candidateSlug = input.slug ?? input.name
-    if (await deps.portalRepo.slugExists(ctx.organizationId, candidateSlug)) {
-      throw portalError('slug_taken', 'slug already in use in this organization')
-    }
-
-    // 4. Build domain object
-    const portalResult = buildPortal({
-      id: deps.idGen(),
-      organizationId: ctx.organizationId,
-      propertyId: input.propertyId as PropertyId,
-      name: input.name,
-      providedSlug: input.slug,
-      entityType: input.entityType,
-      entityId: input.entityId,
-      theme: input.theme,
-      smartRouting: input.smartRouting,
-      now: deps.clock(),
-    })
-
-    if (portalResult.isErr()) {
-      throw portalResult.error
-    }
-
-    const portal = portalResult.value
-
-    // 5. Persist
-    await deps.portalRepo.insert(ctx.organizationId, portal)
-
-    // 6. Emit event
+    // 4. Emit event
     deps.events.emit(
-      portalCreated({
-        portalId: portal.id,
-        organizationId: portal.organizationId,
-        propertyId: portal.propertyId,
-        occurredAt: portal.createdAt,
+      memberInvited({
+        organizationId: ctx.organizationId,
+        email: input.email,
+        role: input.role,
+        inviterId: ctx.userId,
+        invitationId,
+        occurredAt: deps.clock(),
       }),
     )
 
-    // 7. Return
-    return portal
+    return { success: true }
   }
 
-export type CreatePortal = ReturnType<typeof createPortal>
+export type InviteMember = ReturnType<typeof inviteMember>
 ```
 
 **Key points:**
 
 - Factory function: `(deps) => async (input, ctx) => Promise<T>`
 - Dependencies are explicit — no globals, no imports for DB clients
-- `idGen` and `clock` are injected so tests can control them deterministically
+- `clock` is injected so tests can control timestamps deterministically
 - Throws tagged errors
-- 7-step pattern — use only the steps that apply (see #22 for a thin example)
+- Steps used from the 7-step pattern: (1) authorize, (3) persist, (4) emit event — only the steps that apply
+- Authorization uses domain-specific rules (`canInviteWithRole`) when the check depends on context-specific constraints beyond simple role-to-action mapping
+- For simpler authorization, use `can(ctx.role, 'resource.action')` from `shared/domain/permissions` (see section 22)
 
 ---
 
 ## 10. Drizzle schema
 
-**Location:** `src/shared/db/schema/portal.schema.ts`
+**Location:** `src/shared/db/schema/property.schema.ts`
 
 ```ts
 import { sql } from 'drizzle-orm'
-import {
-  pgTable,
-  uuid,
-  varchar,
-  boolean,
-  integer,
-  timestamp,
-  jsonb,
-  index,
-  uniqueIndex,
-} from 'drizzle-orm/pg-core'
-import { organization } from './identity.schema'
-import { properties } from './property.schema'
+import { createdAtColumn, updatedAtColumn, deletedAtColumn } from '../columns'
+import { pgTable, uuid, varchar, index, uniqueIndex } from 'drizzle-orm/pg-core'
 
-export const portals = pgTable(
-  'portals',
+export const properties = pgTable(
+  'properties',
   {
     id: uuid('id').primaryKey().defaultRandom(),
     // Note: better-auth owns the `organization` table and uses varchar IDs,
     // so most tables reference it with varchar, not uuid + FK.
-    // The pattern below is aspirational for non-better-auth parent tables.
-    organizationId: uuid('organization_id')
-      .notNull()
-      // .references(() => organization.id, { onDelete: 'cascade' })
-      // Uncomment if/when Drizzle FK references to better-auth tables are feasible.
-      // Currently, better-auth tables use camelCase columns that differ from
-      // Drizzle's generated schema, so FK references don't work cross-schema.
-    propertyId: uuid('property_id')
-      .notNull()
-      .references(() => properties.id, { onDelete: 'restrict' }),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
     name: varchar('name', { length: 100 }).notNull(),
     slug: varchar('slug', { length: 64 }).notNull(),
-    entityType: varchar('entity_type', { length: 20 }).notNull(),
-    entityId: uuid('entity_id').notNull(),
-    heroImageKey: varchar('hero_image_key', { length: 500 }),
-    theme: jsonb('theme').notNull(),
-    smartRoutingEnabled: boolean('smart_routing_enabled').notNull().default(true),
-    smartRoutingThreshold: integer('smart_routing_threshold').notNull().default(3),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-    deletedAt: timestamp('deleted_at', { withTimezone: true }),
+    timezone: varchar('timezone', { length: 64 }).notNull(),
+    gbpPlaceId: varchar('gbp_place_id', { length: 500 }),
+    createdAt: createdAtColumn(),
+    updatedAt: updatedAtColumn(),
+    deletedAt: deletedAtColumn(),
   },
   (t) => ({
-    orgSlugUnique: uniqueIndex('portals_org_slug_unique')
+    orgSlugUnique: uniqueIndex('properties_org_slug_unique')
       .on(t.organizationId, t.slug)
       .where(sql`deleted_at IS NULL`),
-    orgPropertyIdx: index('portals_org_property_idx').on(t.organizationId, t.propertyId),
+    orgIdx: index('properties_org_idx').on(t.organizationId),
   }),
 )
 ```
@@ -624,6 +584,7 @@ export const portals = pgTable(
 **Key points:**
 
 - Every table has `id`, `organization_id`, `created_at`, `updated_at`; soft-deletable tables add `deleted_at`
+- Shared column helpers (`createdAtColumn`, `updatedAtColumn`, `deletedAtColumn`) ensure consistency
 - Partial unique index on `(organization_id, slug) WHERE deleted_at IS NULL`
 - snake_case columns, camelCase field names — Drizzle handles mapping
 - Exception: better-auth tables use camelCase columns
@@ -632,51 +593,39 @@ export const portals = pgTable(
 
 ## 11. Row ↔ domain mapper
 
-**Location:** `src/contexts/portal/infrastructure/mappers/portal.mapper.ts`
+**Location:** `src/contexts/property/infrastructure/mappers/property.mapper.ts`
 
 ```ts
-import type { portals } from '@/shared/db/schema/portal.schema'
-import type { Portal, PortalId, EntityType } from '@/contexts/portal/domain/types'
-import type { OrganizationId } from '@/shared/domain/ids'
-import type { PropertyId } from '@/contexts/property/domain/types'
+import type { properties } from '#/shared/db/schema/property.schema'
+import type { Property } from '../../domain/types'
+import type { PropertyId } from '#/shared/domain/ids'
+import type { OrganizationId } from '#/shared/domain/ids'
 
-type PortalRow = typeof portals.$inferSelect
-type PortalInsertRow = typeof portals.$inferInsert
+type PropertyRow = typeof properties.$inferSelect
+type PropertyInsertRow = typeof properties.$inferInsert
 
-export const portalFromRow = (row: PortalRow): Portal => ({
-  id: row.id as PortalId,
+export const propertyFromRow = (row: PropertyRow): Property => ({
+  id: row.id as PropertyId,
   organizationId: row.organizationId as OrganizationId,
-  propertyId: row.propertyId as PropertyId,
   name: row.name,
   slug: row.slug,
-  entityType: row.entityType as EntityType,
-  entityId: row.entityId,
-  heroImageKey: row.heroImageKey,
-  theme: row.theme as Portal['theme'],
-  smartRouting: {
-    enabled: row.smartRoutingEnabled,
-    threshold: row.smartRoutingThreshold as 1 | 2 | 3 | 4,
-  },
+  timezone: row.timezone,
+  gbpPlaceId: row.gbpPlaceId,
   createdAt: row.createdAt,
   updatedAt: row.updatedAt,
   deletedAt: row.deletedAt,
 })
 
-export const portalToRow = (portal: Portal): PortalInsertRow => ({
-  id: portal.id,
-  organizationId: portal.organizationId,
-  propertyId: portal.propertyId,
-  name: portal.name,
-  slug: portal.slug,
-  entityType: portal.entityType,
-  entityId: portal.entityId,
-  heroImageKey: portal.heroImageKey,
-  theme: portal.theme,
-  smartRoutingEnabled: portal.smartRouting.enabled,
-  smartRoutingThreshold: portal.smartRouting.threshold,
-  createdAt: portal.createdAt,
-  updatedAt: portal.updatedAt,
-  deletedAt: portal.deletedAt,
+export const propertyToRow = (property: Property): PropertyInsertRow => ({
+  id: property.id,
+  organizationId: property.organizationId,
+  name: property.name,
+  slug: property.slug,
+  timezone: property.timezone,
+  gbpPlaceId: property.gbpPlaceId,
+  createdAt: property.createdAt,
+  updatedAt: property.updatedAt,
+  deletedAt: property.deletedAt,
 })
 ```
 
@@ -685,87 +634,93 @@ export const portalToRow = (portal: Portal): PortalInsertRow => ({
 - Pure functions, no I/O
 - The only place in the codebase where both row and domain shapes are known at once
 - `$inferSelect` and `$inferInsert` give accurate row types from Drizzle
+- Branded IDs are cast at the mapper boundary — the rest of the codebase stays type-safe
 
 ---
 
 ## 12. Repository implementation
 
-**Location:** `src/contexts/portal/infrastructure/repositories/portal.repository.ts`
+**Location:** `src/contexts/property/infrastructure/repositories/property.repository.ts`
 
 ```ts
-import { and, eq, isNull, not } from 'drizzle-orm'
-import type { Database } from '@/shared/db/client'
-import { portals } from '@/shared/db/schema/portal.schema'
-import type { PortalRepository } from '@/contexts/portal/application/ports/portal.repository'
-import { portalFromRow, portalToRow } from '../mappers/portal.mapper'
+import { and, eq, not } from 'drizzle-orm'
+import type { Database } from '#/shared/db'
+import { baseWhere } from '#/shared/db/base-where'
+import { properties } from '#/shared/db/schema/property.schema'
+import type { PropertyRepository } from '../../application/ports/property.repository'
+import { propertyFromRow, propertyToRow } from '../mappers/property.mapper'
 
-export const createPortalRepository = (db: Database): PortalRepository => ({
+/** Mutable set-values type for Drizzle .set() — strips readonly from Property fields. */
+type SetValues = {
+  name?: string
+  slug?: string
+  timezone?: string
+  gbpPlaceId?: string | null
+  updatedAt?: Date
+  deletedAt?: Date | null
+}
+
+export const createPropertyRepository = (db: Database): PropertyRepository => ({
   findById: async (orgId, id) => {
     const rows = await db
       .select()
-      .from(portals)
-      .where(
-        and(
-          eq(portals.organizationId, orgId),
-          eq(portals.id, id),
-          isNull(portals.deletedAt),
-        ),
-      )
+      .from(properties)
+      .where(and(...baseWhere(properties, orgId), eq(properties.id, id)))
       .limit(1)
-    return rows[0] ? portalFromRow(rows[0]) : null
+    return rows[0] ? propertyFromRow(rows[0]) : null
   },
 
-  listByProperty: async (orgId, propertyId) => {
+  list: async (orgId) => {
     const rows = await db
       .select()
-      .from(portals)
-      .where(
-        and(
-          eq(portals.organizationId, orgId),
-          eq(portals.propertyId, propertyId),
-          isNull(portals.deletedAt),
-        ),
-      )
-    return rows.map(portalFromRow)
+      .from(properties)
+      .where(and(...baseWhere(properties, orgId)))
+    return rows.map(propertyFromRow)
   },
 
   slugExists: async (orgId, slug, excludeId) => {
-    const conditions = [
-      eq(portals.organizationId, orgId),
-      eq(portals.slug, slug),
-      isNull(portals.deletedAt),
-    ]
+    const conditions = [...baseWhere(properties, orgId), eq(properties.slug, slug)]
     if (excludeId) {
-      conditions.push(not(eq(portals.id, excludeId)))
+      conditions.push(not(eq(properties.id, excludeId)))
     }
 
     const rows = await db
-      .select({ id: portals.id })
-      .from(portals)
+      .select({ id: properties.id })
+      .from(properties)
       .where(and(...conditions))
       .limit(1)
     return rows.length > 0
   },
 
-  insert: async (_orgId, portal) => {
-    await db.insert(portals).values(portalToRow(portal))
+  insert: async (orgId, property) => {
+    // Tenant guard — the use case constructs the property with ctx.organizationId,
+    // but the repo is the last line of defense against cross-tenant writes.
+    if (property.organizationId !== orgId) {
+      throw new Error('Tenant mismatch on property insert')
+    }
+    await db.insert(properties).values(propertyToRow(property))
   },
 
   update: async (orgId, id, patch) => {
-    throw new Error('not shown in example')
+    const setValues: SetValues = {}
+    if (patch.updatedAt !== undefined) setValues.updatedAt = patch.updatedAt
+    if (patch.name !== undefined) setValues.name = patch.name
+    if (patch.slug !== undefined) setValues.slug = patch.slug
+    if (patch.timezone !== undefined) setValues.timezone = patch.timezone
+    if (patch.gbpPlaceId !== undefined) setValues.gbpPlaceId = patch.gbpPlaceId
+
+    await db
+      .update(properties)
+      .set(setValues)
+      .where(and(...baseWhere(properties, orgId), eq(properties.id, id)))
   },
 
   softDelete: async (orgId, id) => {
+    const now = new Date()
     await db
-      .update(portals)
-      .set({ deletedAt: new Date() })
-      .where(
-        and(
-          eq(portals.organizationId, orgId),
-          eq(portals.id, id),
-          isNull(portals.deletedAt),
-        ),
-      )
+      .update(properties)
+      .set({ deletedAt: now, updatedAt: now })
+      .where(and(...baseWhere(properties, orgId), eq(properties.id, id)))
   },
 })
 ```
@@ -773,129 +728,146 @@ export const createPortalRepository = (db: Database): PortalRepository => ({
 **Key points:**
 
 - Factory function returning a record of functions
-- Every query filters by `organizationId AND deleted_at IS NULL`
+- Every query filters by `organizationId AND deleted_at IS NULL` via `baseWhere()` helper
 - Returns domain types via mapper
+- Insert includes a tenant guard — last line of defense against cross-tenant writes
+- `SetValues` type strips `readonly` for Drizzle's mutable `.set()`
 
 ---
 
 ## 13. External service adapter
 
-**Location:** `src/contexts/portal/infrastructure/storage/r2-portal-storage.ts`
+**Location:** `src/contexts/identity/infrastructure/adapters/auth-identity.adapter.ts`
+**Purpose:** Wraps better-auth's API behind the `IdentityPort` interface so use cases remain testable with in-memory fakes.
 
 ```ts
-import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
-import { randomUUID } from 'node:crypto'
-import type { PortalStorage } from '@/contexts/portal/application/ports/portal-storage.port'
+import type { IdentityPort, MemberRecord } from '../../application/ports/identity.port'
+import type { AuthContext } from '#/shared/domain/auth-context'
+import { getAuth } from '#/shared/auth/auth'
+import { toDomainRole, toBetterAuthRole } from '#/shared/domain/roles'
+import { getRequest } from '@tanstack/react-start/server'
+import {
+  parseBetterAuthResponse,
+  signUpResponseSchema,
+  listMembersResponseSchema,
+} from './better-auth-schemas'
 
-export type R2Config = Readonly<{
-  endpoint: string
-  accessKeyId: string
-  secretAccessKey: string
-  bucket: string
-  publicBaseUrl: string
-}>
+/** Build request headers that carry the better-auth session cookie. */
+function headersFromRequest(): Headers {
+  const headers = new Headers()
+  const req = getRequest()
+  if (req) {
+    req.headers.forEach((value: string, key: string) => {
+      headers.set(key, value)
+    })
+  }
+  return headers
+}
 
-export const createR2PortalStorage = (config: R2Config): PortalStorage => {
-  const client = new S3Client({
-    region: 'auto',
-    endpoint: config.endpoint,
-    credentials: {
-      accessKeyId: config.accessKeyId,
-      secretAccessKey: config.secretAccessKey,
-    },
-  })
-
+/** Map a raw better-auth member object to our MemberRecord. */
+function toMemberRecord(m: {
+  id: string
+  userId: string
+  role: string
+  createdAt: Date
+  user: { id: string; email: string; name: string; image?: string | null }
+}): MemberRecord {
   return {
-    getPresignedUploadUrl: async ({ orgId, portalId, contentType, maxBytes }) => {
-      const extension = contentType.split('/')[1] ?? 'bin'
-      const hash = randomUUID()
-      const objectKey = `org-${orgId}/portal-${portalId}/hero-${hash}.${extension}`
+    id: m.id,
+    userId: m.userId,
+    email: m.user.email,
+    name: m.user.name,
+    role: toDomainRole(m.role),
+    image: m.user.image ?? null,
+    createdAt: m.createdAt,
+  }
+}
 
-      const command = new PutObjectCommand({
-        Bucket: config.bucket,
-        Key: objectKey,
-        ContentType: contentType,
-        ContentLength: maxBytes,
+/** Create the better-auth implementation of IdentityPort. */
+export function createAuthIdentityAdapter(): IdentityPort {
+  return {
+    async signUp(name, email, password): Promise<string> {
+      const auth = getAuth()
+      const result = await auth.api.signUpEmail({
+        body: { name, email, password },
       })
-
-      const uploadUrl = await getSignedUrl(client, command, { expiresIn: 300 })
-
-      return {
-        uploadUrl,
-        objectKey,
-        expiresAt: new Date(Date.now() + 300_000),
-      }
-    },
-
-    getPublicUrl: (objectKey) => `${config.publicBaseUrl}/${objectKey}`,
-
-    deleteObject: async (objectKey) => {
-      await client.send(
-        new DeleteObjectCommand({
-          Bucket: config.bucket,
-          Key: objectKey,
-        }),
+      const data = parseBetterAuthResponse(
+        signUpResponseSchema,
+        result,
+        'registration_failed',
+        'Sign-up response did not match expected schema',
       )
+      if (!data.user.id) {
+        throw new Error('Sign-up failed: no user ID returned')
+      }
+      return data.user.id
     },
+
+    async listMembers(_ctx: AuthContext): Promise<ReadonlyArray<MemberRecord>> {
+      const auth = getAuth()
+      const headers = headersFromRequest()
+      const result = await auth.api.listMembers({ headers })
+      const data = parseBetterAuthResponse(
+        listMembersResponseSchema,
+        result,
+        'org_setup_failed',
+        'listMembers response did not match expected schema',
+      )
+      return data.members.map(toMemberRecord)
+    },
+
+    // ... other methods follow the same pattern — each API call is validated
+    // through its corresponding Zod schema before mapping to domain records
   }
 }
 ```
+
+**Key points:**
+
+- Implements the port interface exactly — use cases can't tell if they're talking to better-auth or an in-memory fake
+- Maps third-party shapes to domain shapes (`toDomainRole`, `toMemberRecord`)
+- Request headers are extracted per-method because better-auth authenticates via cookies, not via context objects
+- Factory function receives no external deps — `getAuth()` is called internally (acceptable for adapters that are integration-tested)
 
 ---
 
 ## 14. BullMQ job handler
 
-**Location:** `src/contexts/portal/infrastructure/jobs/process-hero-image.job.ts`
+**Pattern reference:** The code below is a hypothetical example illustrating the job handler pattern. The only real job handler today is `src/shared/jobs/health-check.job.ts`. The send-invitation-email handler shown here follows the same structure and will be implemented when invitation emails are wired.
+**Purpose:** Asynchronous job handler for background processing. Follows the same dependency-injection pattern as use cases.
 
 ```ts
 import type { Job } from 'bullmq'
-import sharp from 'sharp'
-import type { Logger } from '@/shared/observability/logger'
+import type { Logger } from '#/shared/observability/logger'
 
-export type ProcessHeroImageJobData = Readonly<{
+export type SendInvitationEmailJobData = Readonly<{
   organizationId: string
-  portalId: string
-  objectKey: string
+  invitationId: string
+  email: string
+  organizationName: string
+  inviteLink: string
 }>
 
-export type ProcessHeroImageDeps = Readonly<{
+export type SendInvitationEmailDeps = Readonly<{
   logger: Logger
-  fetchObjectBytes: (objectKey: string) => Promise<Buffer>
-  uploadObjectBytes: (
-    objectKey: string,
-    bytes: Buffer,
-    contentType: string,
-  ) => Promise<void>
+  sendEmail: (params: { to: string; subject: string; body: string }) => Promise<void>
 }>
 
-export const JOB_NAME = 'process-hero-image' as const
+export const JOB_NAME = 'send-invitation-email' as const
 
-export const createProcessHeroImageHandler =
-  (deps: ProcessHeroImageDeps) =>
-  async (job: Job<ProcessHeroImageJobData>): Promise<void> => {
-    const { objectKey } = job.data
-    deps.logger.info({ jobId: job.id, objectKey }, 'processing hero image')
+export const createSendInvitationEmailHandler =
+  (deps: SendInvitationEmailDeps) =>
+  async (job: Job<SendInvitationEmailJobData>): Promise<void> => {
+    const { email, organizationName, inviteLink } = job.data
+    deps.logger.info({ jobId: job.id, email }, 'sending invitation email')
 
-    const originalBytes = await deps.fetchObjectBytes(objectKey)
+    await deps.sendEmail({
+      to: email,
+      subject: `You're invited to join ${organizationName}`,
+      body: `Click here to accept: ${inviteLink}`,
+    })
 
-    const webpKey = objectKey.replace(/\.\w+$/, '.webp')
-    const thumbKey = objectKey.replace(/\.\w+$/, '-thumb.webp')
-
-    const webp = await sharp(originalBytes)
-      .resize(1200, 630, { fit: 'cover' })
-      .webp({ quality: 85 })
-      .toBuffer()
-
-    const thumb = await sharp(originalBytes)
-      .resize(300, 157, { fit: 'cover' })
-      .webp({ quality: 75 })
-      .toBuffer()
-
-    await deps.uploadObjectBytes(webpKey, webp, 'image/webp')
-    await deps.uploadObjectBytes(thumbKey, thumb, 'image/webp')
-
-    deps.logger.info({ jobId: job.id, webpKey, thumbKey }, 'hero image processed')
+    deps.logger.info({ jobId: job.id, email }, 'invitation email sent')
   }
 ```
 
@@ -903,115 +875,88 @@ export const createProcessHeroImageHandler =
 
 - Factory function returning a BullMQ-compatible handler
 - `JOB_NAME` exported as a `const` literal
-- Idempotent: running twice produces the same output files
+- Idempotent: sending the same invitation email twice is harmless
+- Dependencies are injected — `sendEmail` can be faked in tests
 
 ---
 
 ## 15. Event handler (cross-context subscriber)
 
-**Location:** `src/contexts/metric/infrastructure/event-handlers/portal-scanned.handler.ts`
-**Purpose:** Lives in the **receiving** context (`metric`), not the emitting context (`portal`).
+**Pattern reference:** The code below is a hypothetical example illustrating the cross-context event handler pattern. No event handler files exist yet (event handlers will be created as cross-context reactions are needed). The pattern shown here is the target architecture.
+**Purpose:** Lives in the **receiving** context (`staff`), not the emitting context (`identity`). Subscribes to events from another context and performs local side effects.
 
 ```ts
-import type { PortalScanned } from '@/contexts/portal/domain/events'
-import type { MetricReadingRepository } from '@/contexts/metric/application/ports/metric-reading.repository'
-import type { Logger } from '@/shared/observability/logger'
-import { buildMetricReading } from '@/contexts/metric/domain/constructors'
+import type { MemberRemoved } from '#/contexts/identity/domain/events'
+import type { StaffAssignmentRepository } from '#/contexts/staff/application/ports/staff-assignment.repository'
+import type { Logger } from '#/shared/observability/logger'
 
-export type HandlePortalScannedDeps = Readonly<{
-  metricRepo: MetricReadingRepository
-  idGen: () => string
+export type HandleMemberRemovedDeps = Readonly<{
+  staffRepo: StaffAssignmentRepository
   logger: Logger
 }>
 
-export const handlePortalScanned =
-  (deps: HandlePortalScannedDeps) =>
-  async (event: PortalScanned): Promise<void> => {
-    const readingResult = buildMetricReading({
-      id: deps.idGen(),
-      organizationId: event.organizationId,
-      metricKey: 'portal.scan_count',
-      entityType: 'portal',
-      entityId: event.portalId,
-      value: 1,
-      dimensions: { source: event.source },
-      recordedAt: event.occurredAt,
-    })
-
-    if (readingResult.isErr()) {
-      deps.logger.error(
-        { error: readingResult.error, event },
-        'invalid metric reading from portal.scanned',
-      )
-      return
-    }
-
+export const handleMemberRemoved =
+  (deps: HandleMemberRemovedDeps) =>
+  async (event: MemberRemoved): Promise<void> => {
     try {
-      await deps.metricRepo.insert(event.organizationId, readingResult.value)
+      // When a member is removed from an org, soft-delete all their staff assignments
+      await deps.staffRepo.softDeleteByUser(event.organizationId, event.userId)
     } catch (err) {
       // Handlers log via the shared logger, never throw — one bad event
       // shouldn't bring down the bus
-      deps.logger.error({ err, event }, 'failed to record portal.scanned metric')
+      deps.logger.error(
+        { err, event },
+        'failed to clean up staff assignments for removed member',
+      )
     }
   }
 ```
 
 **Key points:**
 
-- Lives in `contexts/metric/`, not `contexts/portal/`
-- Imports the event type from the portal context; never imports use cases or repositories
+- Lives in `contexts/staff/`, not `contexts/identity/`
+- Imports the event type from the identity context; never imports use cases or repositories from identity
 - Failures are logged via the shared logger, not `console`
-- Registered in `bootstrap.ts` with `eventBus.on('portal.scanned', handlePortalScanned(deps))`
+- Registered in `composition.ts` with `eventBus.on('member.removed', handleMemberRemoved(deps))`
 
 ---
 
 ## 16. Server function (authenticated)
 
-**Location:** `src/contexts/portal/server/portals.ts`
+**Location:** `src/contexts/property/server/properties.ts`
 
 ```ts
 import { createServerFn } from '@tanstack/react-start'
 import { match } from 'ts-pattern'
-import { CreatePortalInputSchema } from '@/contexts/portal/application/dto/create-portal.dto'
-import type { PortalError } from '@/contexts/portal/domain/errors'
-import { isPortalError } from '@/contexts/portal/domain/errors'
-import { headersFromContext } from '@/shared/auth/headers'
-import { resolveTenantContext } from '@/shared/auth/middleware'
-import { getAuth } from '@/shared/auth/auth'
-import { getContainer } from '@/composition'
+import { headersFromContext } from '#/shared/auth/headers'
+import { resolveTenantContext } from '#/shared/auth/middleware'
+import { throwContextError } from '#/shared/auth/server-errors'
+import { getContainer } from '#/composition'
+import { createPropertyInputSchema } from '../application/dto/create-property.dto'
+import { isPropertyError } from '../domain/errors'
+import type { PropertyErrorCode } from '../domain/errors'
 
-const portalErrorStatus = (code: PortalError['code']): number =>
+export const propertyErrorStatus = (code: PropertyErrorCode): number =>
   match(code)
     .with('forbidden', () => 403)
-    .with('property_not_found', 'portal_not_found', () => 404)
+    .with('property_not_found', () => 404)
     .with('slug_taken', () => 409)
-    .with('invalid_slug', 'invalid_theme', 'invalid_smart_routing', () => 400)
+    .with('invalid_slug', 'invalid_name', 'invalid_timezone', () => 400)
     .exhaustive()
 
-export const createPortal = createServerFn({ method: 'POST' })
-  .inputValidator(CreatePortalInputSchema)
+export const createProperty = createServerFn({ method: 'POST' })
+  .inputValidator(createPropertyInputSchema)
   .handler(async ({ data }) => {
     const headers = headersFromContext()
     const ctx = await resolveTenantContext(headers)
-    // Permission check via better-auth access control
-    await getAuth().api.hasPermission({
-      headers,
-      body: { permissions: { property: ['create'] } },
-    })
 
-    const { useCases } = getContainer()
     try {
-      const portal = await useCases.createPortal(data, ctx)
-      return { portal }
+      const { useCases } = getContainer()
+      const property = await useCases.createProperty(data, ctx)
+      return { property }
     } catch (e) {
-      if (isPortalError(e)) {
-        const status = portalErrorStatus(e.code)
-        const error = new Error(e.message)
-        error.name = 'PortalError'
-        ;(error as unknown as Record<string, unknown>).code = e.code
-        ;(error as unknown as Record<string, unknown>).status = status
-        throw error
-      }
+      if (isPropertyError(e))
+        throwContextError('PropertyError', e, propertyErrorStatus(e.code))
       throw e
     }
   })
@@ -1020,12 +965,13 @@ export const createPortal = createServerFn({ method: 'POST' })
 **Key points:**
 
 - Thin: resolve auth → validate input → call use case → translate errors → return
-- Auth/tenant resolution is explicit at the top of the handler: `headersFromContext()` → `resolveTenantContext()` → optional permission check via `getAuth().api.hasPermission()`
+- Auth/tenant resolution is explicit at the top of the handler: `headersFromContext()` → `resolveTenantContext()`
 - `resolveTenantContext` extracts the session from request headers, resolves the active organization, and returns a typed `AuthContext`
-- Permission checks use `getAuth().api.hasPermission()` with the access control statement defined in `shared/auth/permissions.ts`. This replaces the old `roleGuard()` function and the hand-rolled `canXxx()` functions.
 - `.inputValidator()` uses the DTO schema from the application layer
 - `handler` calls the use case from `getContainer().useCases`
 - `ts-pattern` with `.exhaustive()` ensures new error codes force a compiler error
+- `throwContextError` is the shared helper for throwing tagged errors with status codes
+- `resolveTenantContext` throws `AuthError` via the same helper — auth failures (no session, no active org, not a member) are `Error` instances with `.name`, `.code`, `.status` just like domain errors
 - Non-context errors re-thrown; TanStack Start's error boundary handles them
 - **Throws Error objects (not Response)** — TanStack Start serializes Errors via seroval and re-throws them on the client, so mutations fail and `mutation.error` is populated
 
@@ -1033,160 +979,190 @@ export const createPortal = createServerFn({ method: 'POST' })
 
 ## 17. Server function (public)
 
-**Location:** `src/contexts/portal/server/public-portals.ts`
+**Location:** `src/contexts/identity/server/organizations.ts`
 
 ```ts
 import { createServerFn } from '@tanstack/react-start'
-import { z } from 'zod'
-import { getContainer } from '@/composition'
+import { headersFromContext } from '#/shared/auth/headers'
+import { getAuth } from '#/shared/auth/auth'
+import { toDomainRole } from '#/shared/domain/roles'
 
-const GetPublicPortalInputSchema = z.object({
-  orgSlug: z.string().min(1).max(64),
-  portalSlug: z.string().min(1).max(64),
+export const listUserInvitations = createServerFn({ method: 'GET' }).handler(async () => {
+  const headers = headersFromContext()
+  const auth = getAuth()
+
+  const result = await auth.api.listUserInvitations({ headers })
+
+  type RawInvitation = {
+    id: string
+    email: string
+    role: string
+    status: string
+    expiresAt: Date
+    createdAt: Date
+    organizationId?: string
+    organization?: { name: string }
+  }
+
+  const rawInvitations = (Array.isArray(result) ? result : []) as RawInvitation[]
+  const invitations = rawInvitations.map((inv) => ({
+    id: inv.id,
+    organizationId: inv.organizationId,
+    organizationName: inv.organization?.name ?? 'Unknown Organization',
+    email: inv.email,
+    role: toDomainRole(inv.role),
+    status: inv.status,
+    expiresAt: inv.expiresAt,
+    createdAt: inv.createdAt,
+  }))
+
+  return { invitations }
 })
-
-export const getPublicPortal = createServerFn({ method: 'GET' })
-  .inputValidator(GetPublicPortalInputSchema)
-  .handler(async ({ data }) => {
-    const { useCases, storage } = getContainer()
-    const portal = await useCases.getPortalBySlug(data)
-
-    if (!portal) {
-      const error = new Error('Portal not found')
-      error.name = 'PortalError'
-      ;(error as unknown as Record<string, unknown>).code = 'not_found'
-      ;(error as unknown as Record<string, unknown>).status = 404
-      throw error
-    }
-
-    return {
-      portal: {
-        name: portal.name,
-        theme: portal.theme,
-        heroImageUrl: portal.heroImageKey
-          ? storage.getPublicUrl(portal.heroImageKey)
-          : null,
-        smartRouting: portal.smartRouting,
-        categories: portal.categories.map((c) => ({
-          title: c.title,
-          links: c.links.map((l) => ({
-            label: l.label,
-            url: l.url,
-            icon: l.icon,
-            isReviewPlatform: l.isReviewPlatform,
-          })),
-        })),
-      },
-    }
-  })
 ```
 
 **Key points:**
 
-- Lives in a separate file from authenticated server functions — trust boundary visible
-- No auth resolution — public functions do not call `resolveTenantContext` or `hasPermission`
-- Public routes resolve `organizationId` from the URL slug via use case logic
-- Response is shaped for the public (no internal fields, CDN URLs resolved)
+- Lives in the same file as authenticated server functions but does NOT call `resolveTenantContext`
+- No auth resolution beyond what the auth library does internally via session cookies
+- Maps third-party response shapes to domain-friendly shapes using `toDomainRole`
+- Public functions still validate inputs and shape responses — they just skip tenant context resolution
 
 ---
 
 ## 18. In-memory port fake (for tests)
 
-**Location:** `src/shared/testing/in-memory-portal-repo.ts`
+**Location:** `src/shared/testing/in-memory-identity-port.ts`
 
 ```ts
-import type { PortalRepository } from '@/contexts/portal/application/ports/portal.repository'
-import type { Portal } from '@/contexts/portal/domain/types'
-import type { OrganizationId } from '@/shared/domain/ids'
+import type {
+  IdentityPort,
+  MemberRecord,
+  InvitationRecord,
+  OrganizationRecord,
+} from '#/contexts/identity/application/ports/identity.port'
+import type { AuthContext } from '#/shared/domain/auth-context'
+import type { Role } from '#/shared/domain/roles'
 
-export type InMemoryPortalRepo = PortalRepository &
-  Readonly<{
-    seed: (portals: ReadonlyArray<Portal>) => void
-    all: () => ReadonlyArray<Portal>
-  }>
+export type InMemoryIdentityPort = IdentityPort & {
+  /** Seed members for testing. */
+  seedMembers: (members: ReadonlyArray<MemberRecord>) => void
+  /** Seed invitations for testing. */
+  seedInvitations: (invitations: ReadonlyArray<InvitationRecord>) => void
+  /** Seed organizations for testing. */
+  seedOrganizations: (orgs: ReadonlyArray<OrganizationRecord>) => void
+  /** Access all stored members. */
+  readonly allMembers: ReadonlyArray<MemberRecord>
+  /** Access all stored invitations. */
+  readonly allInvitations: ReadonlyArray<InvitationRecord>
+}
 
-export const createInMemoryPortalRepo = (): InMemoryPortalRepo => {
-  const store = new Map<string, Portal>()
-
-  const isSameTenant = (orgId: OrganizationId, portal: Portal) =>
-    portal.organizationId === orgId && portal.deletedAt === null
+export function createInMemoryIdentityPort(): InMemoryIdentityPort {
+  const members = new Map<string, MemberRecord>()
+  const invitations = new Map<string, InvitationRecord>()
+  const organizations = new Map<string, OrganizationRecord>()
 
   return {
-    findById: async (orgId, id) => {
-      const portal = store.get(id)
-      return portal && isSameTenant(orgId, portal) ? portal : null
+    async signUp(_name, _email, _password): Promise<string> {
+      const id = `user-${members.size + 1}`
+      return id
     },
 
-    listByProperty: async (orgId, propertyId) =>
-      [...store.values()].filter(
-        (p) => isSameTenant(orgId, p) && p.propertyId === propertyId,
-      ),
-
-    slugExists: async (orgId, slug, excludeId) =>
-      [...store.values()].some(
-        (p) =>
-          isSameTenant(orgId, p) &&
-          p.slug === slug &&
-          (excludeId === undefined || p.id !== excludeId),
-      ),
-
-    insert: async (_orgId, portal) => {
-      store.set(portal.id, portal)
+    async listMembers(_ctx: AuthContext): Promise<ReadonlyArray<MemberRecord>> {
+      return [...members.values()]
     },
 
-    update: async (orgId, id, patch) => {
-      const existing = store.get(id)
-      if (!existing || !isSameTenant(orgId, existing)) return
-      store.set(id, { ...existing, ...patch, updatedAt: new Date() })
+    async getMember(_ctx: AuthContext, memberId: string): Promise<MemberRecord | null> {
+      return members.get(memberId) ?? null
     },
 
-    softDelete: async (orgId, id) => {
-      const existing = store.get(id)
-      if (!existing || !isSameTenant(orgId, existing)) return
-      store.set(id, { ...existing, deletedAt: new Date() })
+    async createInvitation(
+      _ctx: AuthContext,
+      email: string,
+      role: string,
+      _propertyIds?: ReadonlyArray<string>,
+    ): Promise<string> {
+      const id = `inv-${invitations.size + 1}`
+      invitations.set(id, {
+        id,
+        email,
+        role: role as Role,
+        status: 'pending',
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        createdAt: new Date(),
+      })
+      return id
     },
 
-    seed: (portals) => {
-      for (const p of portals) store.set(p.id, p)
+    async updateMemberRole(
+      _ctx: AuthContext,
+      memberId: string,
+      role: string,
+    ): Promise<void> {
+      const member = members.get(memberId)
+      if (member) {
+        members.set(memberId, { ...member, role: role as Role })
+      }
     },
 
-    all: () => [...store.values()],
+    async removeMember(_ctx: AuthContext, memberId: string): Promise<void> {
+      members.delete(memberId)
+    },
+
+    // ... other methods (acceptInvitation, rejectInvitation, etc.)
+
+    // ── Test-only helpers ─────────────────────────────────────────────
+
+    seedMembers(ms: ReadonlyArray<MemberRecord>): void {
+      for (const m of ms) members.set(m.id, m)
+    },
+
+    seedInvitations(invs: ReadonlyArray<InvitationRecord>): void {
+      for (const inv of invs) invitations.set(inv.id, inv)
+    },
+
+    seedOrganizations(orgs: ReadonlyArray<OrganizationRecord>): void {
+      for (const org of orgs) organizations.set(org.id, org)
+    },
+
+    get allMembers(): ReadonlyArray<MemberRecord> {
+      return [...members.values()]
+    },
+
+    get allInvitations(): ReadonlyArray<InvitationRecord> {
+      return [...invitations.values()]
+    },
   }
 }
 ```
 
 **Key points:**
 
-- Implements the port interface exactly
-- Tenant isolation respected
-- Extra test-only methods (`seed`, `all`) typed separately
+- Implements the port interface exactly — use cases can't tell the difference
+- Extra test-only methods (`seedMembers`, `allMembers`, etc.) typed separately via intersection
+- State stored in Maps for O(1) lookups by ID
 
 ---
 
 ## 19. Domain test
 
-**Location:** `src/contexts/portal/domain/rules.test.ts`
+**Location:** `src/contexts/property/domain/rules.test.ts`
 
 ```ts
 import { describe, it, expect } from 'vitest'
 import {
   normalizeSlug,
   validateSlug,
-  validateTheme,
-  canManagePortals, // NOTE: this function has been removed. Authorization is now
-  // handled by better-auth's access control system.
-  // Domain tests that tested role-based permissions have been moved
-  // to integration tests using auth.api.hasPermission().
-  shouldShowFeedbackPrompt,
+  validatePropertyName,
+  validateTimezone,
 } from './rules'
 
 describe('normalizeSlug', () => {
   it('lowercases and replaces spaces with hyphens', () => {
-    expect(normalizeSlug('Hello World')).toBe('hello-world')
+    expect(normalizeSlug('Grand Hotel')).toBe('grand-hotel')
   })
 
   it('strips special characters', () => {
-    expect(normalizeSlug("O'Brien's Pub!")).toBe('obriens-pub')
+    expect(normalizeSlug("O'Brien's Inn!")).toBe('obriens-inn')
   })
 
   it('caps at 64 characters', () => {
@@ -1196,8 +1172,7 @@ describe('normalizeSlug', () => {
 
 describe('validateSlug', () => {
   it('accepts valid slugs', () => {
-    const result = validateSlug('main-lobby')
-    expect(result.isOk()).toBe(true)
+    expect(validateSlug('main-lobby').isOk()).toBe(true)
   })
 
   it('rejects slugs with uppercase', () => {
@@ -1207,214 +1182,216 @@ describe('validateSlug', () => {
   })
 })
 
-// NOTE: canManagePortals tests removed. Role-based authorization is now handled by
-// better-auth's access control system (see shared/auth/permissions.ts).
-// Permission checks are tested via integration tests using auth.api.hasPermission().
-// Domain tests here cover ONLY pure business rules (validation, computation).
+describe('validatePropertyName', () => {
+  it('accepts valid names', () => {
+    const result = validatePropertyName('Grand Hotel')
+    expect(result.isOk()).toBe(true)
+  })
 
-describe('shouldShowFeedbackPrompt (compliance rule)', () => {
-  const cases = [
-    { rating: 1 as const, enabled: true, threshold: 3 as const, expected: true },
-    { rating: 3 as const, enabled: true, threshold: 3 as const, expected: true },
-    { rating: 4 as const, enabled: true, threshold: 3 as const, expected: false },
-    { rating: 5 as const, enabled: true, threshold: 3 as const, expected: false },
-    { rating: 1 as const, enabled: false, threshold: 3 as const, expected: false },
-  ]
+  it('rejects empty name', () => {
+    const result = validatePropertyName('')
+    expect(result.isErr()).toBe(true)
+    if (result.isErr()) expect(result.error.code).toBe('invalid_name')
+  })
 
-  it.each(cases)(
-    'rating=$rating enabled=$enabled threshold=$threshold → $expected',
-    ({ rating, enabled, threshold, expected }) => {
-      expect(shouldShowFeedbackPrompt(rating, { enabled, threshold })).toBe(expected)
-    },
-  )
+  it('rejects name over 100 characters', () => {
+    const result = validatePropertyName('a'.repeat(101))
+    expect(result.isErr()).toBe(true)
+  })
+})
+
+describe('validateTimezone', () => {
+  it('accepts valid IANA timezones', () => {
+    expect(validateTimezone('America/New_York').isOk()).toBe(true)
+    expect(validateTimezone('UTC').isOk()).toBe(true)
+  })
+
+  it('rejects unknown timezones', () => {
+    const result = validateTimezone('Invalid/Zone')
+    expect(result.isErr()).toBe(true)
+    if (result.isErr()) expect(result.error.code).toBe('invalid_timezone')
+  })
 })
 ```
 
 **Key points:**
 
 - No `beforeEach`, no mocks
-- Parameterized tests (`it.each`) for compliance rules
-- Runs in milliseconds
+- Pure functions tested in isolation — runs in milliseconds
+- General authorization is tested in use case tests using `can()` from `shared/domain/permissions`
+- Some contexts keep domain-level authorization predicates (e.g., `canInviteWithRole` in `identity/domain/rules.test.ts`) that are tested here as pure functions
 
 ---
 
 ## 20. Use case test
 
-**Location:** `src/contexts/portal/application/use-cases/create-portal.test.ts`
+**Location:** `src/contexts/identity/application/use-cases/invite-member.test.ts`
 
 ```ts
 import { describe, it, expect } from 'vitest'
-import { createPortal } from './create-portal'
-import { createInMemoryPortalRepo } from '@/shared/testing/in-memory-portal-repo'
-import { createInMemoryPropertyRepo } from '@/shared/testing/in-memory-property-repo'
-import { createCapturingEventBus } from '@/shared/testing/capturing-event-bus'
-import { buildTestAuthContext, buildTestProperty } from '@/shared/testing/fixtures'
-import { isPortalError } from '@/contexts/portal/domain/errors'
-import type { PortalId } from '@/contexts/portal/domain/types'
+import { inviteMember } from './invite-member'
+import { createInMemoryIdentityPort } from '#/shared/testing/in-memory-identity-port'
+import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { buildTestAuthContext } from '#/shared/testing/fixtures'
+import { isIdentityError } from '../../domain/errors'
 
-const FIXED_ID = 'portal-00000000-0000-0000-0000-000000000001' as PortalId
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
 
 const setup = () => {
-  const portalRepo = createInMemoryPortalRepo()
-  const propertyRepo = createInMemoryPropertyRepo()
+  const identity = createInMemoryIdentityPort()
   const events = createCapturingEventBus()
-
-  const deps = {
-    portalRepo,
-    propertyRepo,
-    events,
-    idGen: () => FIXED_ID,
-    clock: () => FIXED_TIME,
-  }
-
-  const useCase = createPortal(deps)
-  return { useCase, portalRepo, propertyRepo, events }
+  const useCase = inviteMember({ identity, events, clock: () => FIXED_TIME })
+  return { useCase, identity, events }
 }
 
-describe('createPortal', () => {
-  it('creates a portal with defaults when optional fields are omitted', async () => {
-    const { useCase, propertyRepo, portalRepo } = setup()
+describe('inviteMember', () => {
+  it('allows PropertyManager to invite a Staff member', async () => {
+    const { useCase, events } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
-    const property = buildTestProperty({ organizationId: ctx.organizationId })
-    propertyRepo.seed([property])
 
-    const portal = await useCase(
-      {
-        propertyId: property.id,
-        name: 'Main Lobby',
-        entityType: 'property',
-        entityId: property.id,
-      },
+    const result = await useCase(
+      { email: 'new@test.com', role: 'Staff', propertyIds: [] },
       ctx,
     )
 
-    expect(portal.slug).toBe('main-lobby')
-    expect(portalRepo.all()).toHaveLength(1)
+    expect(result.success).toBe(true)
+    expect(events.capturedEvents).toHaveLength(1)
+    expect(events.capturedEvents[0]._tag).toBe('member.invited')
   })
 
-  it('rejects users who cannot manage portals', async () => {
+  it('allows AccountAdmin to invite with any role', async () => {
+    const { useCase } = setup()
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+
+    const result = await useCase(
+      { email: 'admin@test.com', role: 'AccountAdmin', propertyIds: [] },
+      ctx,
+    )
+    expect(result.success).toBe(true)
+  })
+
+  it('rejects Staff from inviting anyone', async () => {
     const { useCase } = setup()
     const ctx = buildTestAuthContext({ role: 'Staff' })
 
     await expect(
-      useCase(
-        {
-          propertyId: 'any-property',
-          name: 'Main Lobby',
-          entityType: 'property',
-          entityId: 'any-property',
-        },
-        ctx,
-      ),
-    ).rejects.toSatisfy((e) => isPortalError(e) && e.code === 'forbidden')
+      useCase({ email: 'any@test.com', role: 'Staff', propertyIds: [] }, ctx),
+    ).rejects.toSatisfy((e) => isIdentityError(e) && e.code === 'forbidden')
   })
 
-  it('emits portal.created event on success', async () => {
-    const { useCase, propertyRepo, events } = setup()
+  it('rejects PropertyManager inviting AccountAdmin', async () => {
+    const { useCase } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
-    const property = buildTestProperty({ organizationId: ctx.organizationId })
-    propertyRepo.seed([property])
 
-    await useCase(
-      {
-        propertyId: property.id,
-        name: 'Main Lobby',
-        entityType: 'property',
-        entityId: property.id,
-      },
-      ctx,
-    )
+    await expect(
+      useCase({ email: 'admin@test.com', role: 'AccountAdmin', propertyIds: [] }, ctx),
+    ).rejects.toSatisfy((e) => isIdentityError(e) && e.code === 'forbidden')
+  })
 
-    const emitted = events.capturedEvents()
+  it('emits member.invited event with correct data', async () => {
+    const { useCase, events } = setup()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+
+    await useCase({ email: 'new@test.com', role: 'Staff', propertyIds: [] }, ctx)
+
+    const emitted = events.capturedByTag('member.invited')
     expect(emitted).toHaveLength(1)
-    expect(emitted[0]._tag).toBe('portal.created')
+    expect(emitted[0].email).toBe('new@test.com')
+    expect(emitted[0].role).toBe('Staff')
+    expect(emitted[0].organizationId).toBe(ctx.organizationId)
   })
 })
 ```
 
 **Key points:**
 
-- `setup()` helper builds fresh in-memory repos for each test
-- `idGen` and `clock` are fixed for determinism
+- `setup()` helper builds fresh in-memory port fakes for each test
+- `clock` is fixed for deterministic timestamps
 - No database, no HTTP, no framework
+- Tests happy path AND every error path
 
 ---
 
 ## 21. Repository integration test
 
-**Location:** `src/contexts/portal/infrastructure/repositories/portal.repository.test.ts`
+**Location:** `src/contexts/property/infrastructure/repositories/property.repository.test.ts`
 
 ```ts
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
-import { createPortalRepository } from './portal.repository'
-import { setupTestDatabase, teardownTestDatabase, type TestDb } from '@/shared/testing/db'
-import { buildTestPortal } from '@/shared/testing/fixtures'
-import type { OrganizationId } from '@/shared/domain/ids'
+import { createPropertyRepository } from './property.repository'
+import { getDb } from '#/shared/db'
+import { buildTestProperty } from '#/shared/testing/fixtures'
+import { organizationId } from '#/shared/domain/ids'
+import { Pool } from 'pg'
+import { getEnv } from '#/shared/config/env'
 
-const ORG_A = 'org-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa' as OrganizationId
-const ORG_B = 'org-bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb' as OrganizationId
+const ORG_A = organizationId('org-prop-test-1111-111111111111')
+const ORG_B = organizationId('org-prop-test-2222-222222222222')
 
-describe('portalRepository (integration)', () => {
-  let testDb: TestDb
+let pool: Pool
 
-  beforeAll(async () => {
-    testDb = await setupTestDatabase()
-  })
+beforeAll(async () => {
+  const env = getEnv()
+  pool = new Pool({ connectionString: env.DATABASE_URL, max: 5 })
+})
 
-  afterAll(async () => {
-    await teardownTestDatabase(testDb)
-  })
+afterAll(async () => {
+  await pool.end()
+})
 
-  beforeEach(async () => {
-    await testDb.truncateAll()
-    await testDb.seedOrganizations([ORG_A, ORG_B])
-  })
+beforeEach(async () => {
+  await truncateProperties(pool)
+  await seedOrg(pool, [ORG_A, ORG_B])
+})
 
+describe('propertyRepository (integration)', () => {
   describe('tenant isolation', () => {
-    it('does not return portals from other organizations', async () => {
-      const repo = createPortalRepository(testDb.db)
-      const portalA = buildTestPortal({ organizationId: ORG_A })
-      const portalB = buildTestPortal({ organizationId: ORG_B })
+    it('does not return properties from other organizations', async () => {
+      const db = getDb()
+      const repo = createPropertyRepository(db)
+      const propertyA = buildTestProperty({ organizationId: ORG_A })
+      const propertyB = buildTestProperty({ organizationId: ORG_B })
 
-      await repo.insert(ORG_A, portalA)
-      await repo.insert(ORG_B, portalB)
+      await repo.insert(ORG_A, propertyA)
+      await repo.insert(ORG_B, propertyB)
 
-      const fromA = await repo.findById(ORG_A, portalA.id)
-      expect(fromA?.id).toBe(portalA.id)
+      const fromA = await repo.findById(ORG_A, propertyA.id as never)
+      expect(fromA?.id).toBe(propertyA.id)
 
-      const crossTenant = await repo.findById(ORG_A, portalB.id)
+      const crossTenant = await repo.findById(ORG_A, propertyB.id as never)
       expect(crossTenant).toBeNull()
     })
 
     it('slugExists does not leak across tenants', async () => {
-      const repo = createPortalRepository(testDb.db)
-      const portalA = buildTestPortal({
+      const db = getDb()
+      const repo = createPropertyRepository(db)
+      const propertyA = buildTestProperty({
         organizationId: ORG_A,
-        slug: 'main-lobby',
+        slug: 'grand-hotel',
       })
 
-      await repo.insert(ORG_A, portalA)
+      await repo.insert(ORG_A, propertyA)
 
-      expect(await repo.slugExists(ORG_B, 'main-lobby')).toBe(false)
-      expect(await repo.slugExists(ORG_A, 'main-lobby')).toBe(true)
+      expect(await repo.slugExists(ORG_B, 'grand-hotel')).toBe(false)
+      expect(await repo.slugExists(ORG_A, 'grand-hotel')).toBe(true)
     })
   })
 
   describe('softDelete', () => {
-    it('allows a new portal with the same slug after soft-delete', async () => {
-      const repo = createPortalRepository(testDb.db)
-      const original = buildTestPortal({
+    it('allows a new property with the same slug after soft-delete', async () => {
+      const db = getDb()
+      const repo = createPropertyRepository(db)
+      const original = buildTestProperty({
         organizationId: ORG_A,
-        slug: 'main-lobby',
+        slug: 'grand-hotel',
       })
 
       await repo.insert(ORG_A, original)
-      await repo.softDelete(ORG_A, original.id)
+      await repo.softDelete(ORG_A, original.id as never)
 
-      const replacement = buildTestPortal({
+      const replacement = buildTestProperty({
         organizationId: ORG_A,
-        slug: 'main-lobby',
+        slug: 'grand-hotel',
       })
       await expect(repo.insert(ORG_A, replacement)).resolves.not.toThrow()
     })
@@ -1424,9 +1401,10 @@ describe('portalRepository (integration)', () => {
 
 **Key points:**
 
-- Uses a real Postgres (Neon branch or Docker) via `setupTestDatabase`
+- Uses a real Postgres (Neon branch or Docker) via direct `Pool`
 - Tenant isolation test is non-negotiable
 - Tests real DB behaviors: unique constraints, cascading deletes, soft-delete semantics
+- Truncates and seeds test data in `beforeEach` for isolation
 
 ---
 
@@ -1436,12 +1414,13 @@ describe('portalRepository (integration)', () => {
 **Purpose:** Use case whose only job is an authorization check followed by delegation. Common in wrapper contexts (identity, etc.) where the third-party library owns the domain.
 
 ```ts
-import type { IdentityPort } from '@/contexts/identity/application/ports/identity.port'
-import type { AuthContext } from '@/shared/domain/auth-context'
-// Authorization is checked via auth.api.hasPermission() in the server function.
-// The identity context's thin use cases no longer import permission functions
-// from domain/permissions.ts (that file has been removed).
-import { identityError } from '@/contexts/identity/domain/errors'
+import type { IdentityPort } from '#/contexts/identity/application/ports/identity.port'
+import type { AuthContext } from '#/shared/domain/auth-context'
+// Authorization is checked inside the use case using can() from shared/domain/permissions.
+// Some thin use cases also import domain rules (e.g., canInviteWithRole from domain/rules)
+// for context-specific authorization predicates.
+import { identityError } from '#/contexts/identity/domain/errors'
+import { can } from '#/shared/domain/permissions'
 
 export type RemoveMemberDeps = Readonly<{
   identity: IdentityPort
@@ -1454,9 +1433,10 @@ export type RemoveMemberInput = Readonly<{
 export const removeMember =
   (deps: RemoveMemberDeps) =>
   async (input: RemoveMemberInput, ctx: AuthContext): Promise<void> => {
-    // Step 1: Authorize
-    // Authorization is now handled by better-auth's access control system.
-    // The server function checks auth.api.hasPermission() before calling this use case.
+    // Step 1: Authorize — domain permission check
+    if (!can(ctx.role, 'member.delete')) {
+      throw identityError('forbidden', 'Insufficient role to remove members')
+    }
 
     // Step 5: Persist (via the port — better-auth handles the actual DB work)
     await deps.identity.removeMember(ctx.organizationId, input.memberId)
@@ -1469,20 +1449,20 @@ export type RemoveMember = ReturnType<typeof removeMember>
 
 - Same factory shape as a full use case
 - Uses only steps (1) and (5) of the 7-step pattern — no validation, no construction, no event
-- The use case still exists because (a) the auth check is real domain logic and (b) future requirements will land here naturally
+- The use case performs its own authorization via `can(ctx.role, 'resource.action')` — the server function may also check `hasPermission()` as defense-in-depth
 - Don't add fake steps for symmetry
-- This pattern is common in wrapper contexts; `portal`, `review`, etc. will mostly use the full pattern from #9
+- This pattern is common in wrapper contexts where a third-party service owns the domain; thick contexts (`property`, `team`) mostly use the full pattern from #9
 
 ---
 
-## 22b. Anonymous use case (member registration — no auth, no org)
+## 23. Anonymous use case (member registration — no auth, no org)
 
 **Location:** `src/contexts/identity/application/use-cases/register-user.ts`
-**Purpose:** Registers a user account without creating an organization. Used by invited staff/managers joining an existing org via `/join`. This is the "join" path — distinct from `registerUserAndOrg` (section 22) which is the "signup" path.
+**Purpose:** Registers a user account without creating an organization. Used by invited staff/managers joining an existing org via `/join`. This is the "join" path — distinct from `registerUserAndOrg` which is the "signup" path.
 
 ```ts
-import type { IdentityPort } from '@/contexts/identity/application/ports/identity.port'
-import { identityError } from '@/contexts/identity/domain/errors'
+import type { IdentityPort } from '#/contexts/identity/application/ports/identity.port'
+import { identityError } from '#/contexts/identity/domain/errors'
 
 export type RegisterUserInput = Readonly<{
   name: string
@@ -1521,15 +1501,16 @@ export const registerUser =
 
 ---
 
-## 23. Server function calling a port directly (pure delegation)
+## 24. Server function calling a port directly (pure delegation)
 
-**Location:** `src/contexts/identity/server/auth.ts`
+**Location:** `src/contexts/identity/server/organizations.ts`
 **Purpose:** Server function for an operation with no business logic of its own — pure delegation to a third-party API. No use case at all.
 
 ```ts
 import { createServerFn } from '@tanstack/react-start'
-import { z } from 'zod'
-import { getAuth } from '@/shared/auth/auth'
+import { z } from 'zod/v4'
+import { getAuth } from '#/shared/auth/auth'
+import { throwContextError } from '#/shared/auth/server-errors'
 
 const SignInInputSchema = z.object({
   email: z.string().email(),
@@ -1548,11 +1529,11 @@ export const signInUser = createServerFn({ method: 'POST' })
         body: { email: data.email, password: data.password },
       })
     } catch {
-      const error = new Error('Invalid email or password')
-      error.name = 'AuthError'
-      ;(error as unknown as Record<string, unknown>).code = 'invalid_credentials'
-      ;(error as unknown as Record<string, unknown>).status = 401
-      throw error
+      throwContextError(
+        'AuthError',
+        { code: 'invalid_credentials', message: 'Invalid email or password' },
+        401,
+      )
     }
   })
 ```
@@ -1573,56 +1554,52 @@ export const signInUser = createServerFn({ method: 'POST' })
 
 ---
 
-## 24. Form component (TanStack Form + shadcn)
+## 25. Form component (TanStack Form + shadcn)
 
-**Location:** `src/components/features/portal/CreatePortalForm.tsx`
+**Location:** `src/components/features/identity/InviteMemberForm.tsx`
 **Purpose:** Feature-specific form component. Uses shadcn's Field primitives wired with TanStack Form and the DTO's Zod schema. **Receives the mutation as a prop** — never imports server functions directly.
 
 ```tsx
 import { useForm } from '@tanstack/react-form'
-import { Field, FieldLabel, FieldError } from '@/components/ui/field'
-import { FieldGroup } from '@/components/ui/field'
-import { Input } from '@/components/ui/input'
-import { SubmitButton } from '@/components/forms/SubmitButton'
-import { FormErrorBanner } from '@/components/forms/FormErrorBanner'
-import { CreatePortalInputSchema } from '@/contexts/portal/application/dto/create-portal.dto'
-import type { UseMutationResult } from '@tanstack/react-query'
-import type { PropertyId } from '@/contexts/property/domain/types'
+import { Field, FieldGroup, FieldLabel, FieldError } from '#/components/ui/field'
+import { Input } from '#/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '#/components/ui/select'
+import { SubmitButton } from '#/components/forms/SubmitButton'
+import { FormErrorBanner } from '#/components/forms/FormErrorBanner'
+import { inviteMemberInputSchema } from '#/contexts/identity/application/dto/invitation.dto'
+import type { Role } from '#/shared/domain/roles'
+import { z } from 'zod/v4'
 
-type CreatePortalMutation = UseMutationResult<
-  unknown, // response
-  unknown, // error
-  {
-    data: {
-      propertyId: string
-      name: string
-      slug?: string
-      entityType: string
-      entityId: string
-    }
-  }, // variables
-  unknown // context
->
+// Form-specific schema: derives from DTO to inherit validation rules
+const inviteFormSchema = inviteMemberInputSchema.extend({
+  propertyIds: z.array(z.string().min(1)),
+})
 
 type Props = Readonly<{
-  propertyId: PropertyId
-  mutation: CreatePortalMutation
+  mutation: MutationLike
+  allowedRoles: ReadonlyArray<Role>
+  properties: ReadonlyArray<{ id: string; name: string }>
 }>
 
-export function CreatePortalForm({ propertyId, mutation }: Props) {
+export function InviteMemberForm({ mutation, allowedRoles, properties }: Props) {
   const form = useForm({
     defaultValues: {
-      propertyId,
-      name: '',
-      slug: undefined as string | undefined,
-      entityType: 'property' as const,
-      entityId: propertyId,
+      email: '',
+      role: (allowedRoles[0] ?? 'Staff') as Role,
+      propertyIds: [] as string[],
     },
     validators: {
-      onSubmit: CreatePortalInputSchema,
+      onSubmit: inviteFormSchema,
     },
     onSubmit: async ({ value }) => {
-      await mutation.mutateAsync({ data: value })
+      await mutation.mutateAsync(value)
     },
   })
 
@@ -1633,25 +1610,26 @@ export function CreatePortalForm({ propertyId, mutation }: Props) {
         e.stopPropagation()
         form.handleSubmit()
       }}
-      className="space-y-6"
+      className="flex flex-col gap-4"
     >
       <FormErrorBanner error={mutation.error} />
 
       <FieldGroup>
-        <form.Field name="name">
+        <form.Field name="email">
           {(field) => {
             const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid
             return (
               <Field data-invalid={isInvalid}>
-                <FieldLabel htmlFor={field.name}>Name</FieldLabel>
+                <FieldLabel htmlFor="invite-email">Email address</FieldLabel>
                 <Input
-                  id={field.name}
+                  id="invite-email"
                   name={field.name}
+                  type="email"
                   value={field.state.value}
                   onBlur={field.handleBlur}
                   onChange={(e) => field.handleChange(e.target.value)}
                   aria-invalid={isInvalid}
-                  placeholder="Main Lobby"
+                  placeholder="colleague@example.com"
                 />
                 {isInvalid && <FieldError errors={field.state.meta.errors} />}
               </Field>
@@ -1659,21 +1637,29 @@ export function CreatePortalForm({ propertyId, mutation }: Props) {
           }}
         </form.Field>
 
-        <form.Field name="slug">
+        <form.Field name="role">
           {(field) => {
             const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid
             return (
               <Field data-invalid={isInvalid}>
-                <FieldLabel htmlFor={field.name}>Slug (optional)</FieldLabel>
-                <Input
-                  id={field.name}
-                  name={field.name}
-                  value={field.state.value ?? ''}
-                  onBlur={field.handleBlur}
-                  onChange={(e) => field.handleChange(e.target.value || undefined)}
-                  aria-invalid={isInvalid}
-                  placeholder="main-lobby"
-                />
+                <FieldLabel>Role</FieldLabel>
+                <Select
+                  value={field.state.value}
+                  onValueChange={(value) => field.handleChange(value as Role)}
+                >
+                  <SelectTrigger aria-invalid={isInvalid}>
+                    <SelectValue placeholder="Select a role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {allowedRoles.map((r) => (
+                        <SelectItem key={r} value={r}>
+                          {roleLabel(r)}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
                 {isInvalid && <FieldError errors={field.state.meta.errors} />}
               </Field>
             )
@@ -1682,19 +1668,30 @@ export function CreatePortalForm({ propertyId, mutation }: Props) {
       </FieldGroup>
 
       <SubmitButton mutation={mutation} form={form}>
-        Create portal
+        Send Invitation
       </SubmitButton>
     </form>
   )
+}
+
+function roleLabel(role: Role): string {
+  switch (role) {
+    case 'AccountAdmin':
+      return 'Account Admin'
+    case 'PropertyManager':
+      return 'Property Manager'
+    case 'Staff':
+      return 'Staff'
+  }
 }
 ```
 
 **Key points:**
 
-- **Receives `mutation` as a prop** — the route defines `useMutation({ mutationFn: createPortal })` and passes it. Components never import server functions (dependency rules).
+- **Receives `mutation` as a prop** — the route defines `useMutation({ mutationFn: inviteMember })` and passes it. Components never import server functions (dependency rules).
 - Uses shadcn's `Field`, `FieldLabel`, `FieldError`, `FieldGroup` primitives for consistent visual structure
 - Uses TanStack Form's `useForm`, `form.Field`, `form.handleSubmit` for state management
-- The Zod schema (`CreatePortalInputSchema`) is imported from the DTO and passed to `validators.onSubmit` — TanStack Form v1 handles Zod schemas natively, no adapter required. Single source of truth. Validation runs on submit to avoid showing errors before the user has finished filling in the form.
+- The form schema is **derived from the DTO schema** via `.extend()` — single source of truth. See section 30 for form schema derivation patterns.
 - The `isInvalid` check (`isTouched && !isValid`) gates error display so errors only show after the user has interacted with the field
 - `FormErrorBanner` displays top-level mutation errors
 - `SubmitButton` reads both the mutation state (for loading/disabled) and the form state (for validation)
@@ -1703,32 +1700,35 @@ export function CreatePortalForm({ propertyId, mutation }: Props) {
 **Route wiring example:**
 
 ```tsx
-// routes/.../create-portal.tsx
+// routes/.../settings/members.tsx
 import { useMutation } from '@tanstack/react-query'
-import { useNavigate } from '@tanstack/react-router'
-import { createPortal } from '@/contexts/portal/server/portals'
-import { CreatePortalForm } from '@/components/features/portal/CreatePortalForm'
+import { inviteMember } from '#/contexts/identity/server/organizations'
+import { InviteMemberForm } from '#/components/features/identity/InviteMemberForm'
 
-function CreatePortalPage() {
-  const navigate = useNavigate()
+function MembersPage() {
   const mutation = useMutation({
-    mutationFn: (input: CreatePortalInput) => createPortal({ data: input }),
-    onSuccess: () => navigate({ to: '/dashboard/portals' }),
+    mutationFn: (input) => inviteMember({ data: input }),
   })
 
-  return <CreatePortalForm propertyId={propertyId} mutation={mutation} />
+  return (
+    <InviteMemberForm
+      mutation={mutation}
+      allowedRoles={['PropertyManager', 'Staff']}
+      properties={orgProperties}
+    />
+  )
 }
 ```
 
 ---
 
-## 25. Shared form building block (SubmitButton)
+## 26. Shared form building block (SubmitButton)
 
 **Location:** `src/components/forms/SubmitButton.tsx`
 **Purpose:** Submit button that integrates mutation state and form validation state. Used in every form in the app.
 
 ```tsx
-import { Button } from '@/components/ui/button'
+import { Button } from '#/components/ui/button'
 import { Loader2 } from 'lucide-react'
 import type { UseMutationResult } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
@@ -1776,13 +1776,13 @@ export function SubmitButton({ mutation, form, children, variant = 'default' }: 
 
 ---
 
-## 26. Shared form building block (FormErrorBanner)
+## 27. Shared form building block (FormErrorBanner)
 
 **Location:** `src/components/forms/FormErrorBanner.tsx`
 **Purpose:** Displays top-level mutation errors in a consistent way. Translates tagged error responses to user-friendly messages.
 
 ```tsx
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { AlertCircle } from 'lucide-react'
 
 type Props = Readonly<{
@@ -1821,7 +1821,7 @@ export function FormErrorBanner({ error }: Props) {
 
 ---
 
-## 27. Update use case (partial validation)
+## 28. Update use case (partial validation)
 
 **Location:** `src/contexts/property/application/use-cases/update-property.ts`
 **Purpose:** Shows how update use cases validate changed fields individually instead of reconstructing the full entity through the smart constructor. This is the correct pattern for partial updates.
@@ -1880,7 +1880,7 @@ if (input.timezone) {
 
 ---
 
-## 28. Soft-delete use case (minimal deps)
+## 29. Soft-delete use case (minimal deps)
 
 **Location:** `src/contexts/property/application/use-cases/soft-delete-property.ts`
 **Purpose:** Shows a use case with minimal dependencies — only what's needed. No `idGen` because no new entity is created. Still includes `clock` for deterministic timestamps.
@@ -1910,7 +1910,7 @@ Every use case that creates a timestamp (for an event, for an `updatedAt` field,
 
 ---
 
-## 29. Form schema rules — derive from DTOs
+## 30. Form schema rules — derive from DTOs
 
 ### The rule
 
@@ -2028,7 +2028,6 @@ When AI is creating a new file:
 
 When this document doesn't cover your case:
 
-1. **Check existing code first** — `contexts/identity/` and `contexts/property/` are the canonical live references.
-2. **Check `architecture.md`** for the rationale.
-3. **Check `conventions.md`** for the rules, especially "When to skip layers" and the forms section.
-4. **If still unclear, decide deliberately and add a new example to this document** before writing the code.
+1. **Check existing code first** — `contexts/identity/`, `contexts/property/`, `contexts/team/`, and `contexts/staff/` are the canonical live references.
+2. **Check `conventions.md`** for the rules and rationale, especially "When to skip layers" and the forms section.
+3. **If still unclear, decide deliberately and add a new example to this document** before writing the code.

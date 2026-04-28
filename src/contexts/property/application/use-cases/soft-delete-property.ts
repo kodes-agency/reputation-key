@@ -1,10 +1,10 @@
 // Property context — soft-delete property use case
 
 import type { PropertyRepository } from '../ports/property.repository'
-import type { PropertyId } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { EventBus } from '#/shared/events/event-bus'
 import { can } from '#/shared/domain/permissions'
+import { propertyId as toPropertyId } from '#/shared/domain/ids'
 import { propertyError } from '../../domain/errors'
 import { propertyDeleted } from '../../domain/events'
 
@@ -27,7 +27,7 @@ export const softDeleteProperty =
     }
 
     // 2. Validate referenced entity exists
-    const propertyId = input.propertyId as PropertyId
+    const propertyId = toPropertyId(input.propertyId)
     const existing = await deps.propertyRepo.findById(ctx.organizationId, propertyId)
     if (!existing) {
       throw propertyError('property_not_found', 'property not found in this organization')

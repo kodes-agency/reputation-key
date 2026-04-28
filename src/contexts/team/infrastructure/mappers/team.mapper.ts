@@ -3,18 +3,18 @@
 
 import type { teams } from '#/shared/db/schema/team.schema'
 import type { Team } from '../../domain/types'
-import type { TeamId, OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
+import { teamId, organizationId, propertyId, userId } from '#/shared/domain/ids'
 
 type TeamRow = typeof teams.$inferSelect
 type TeamInsertRow = typeof teams.$inferInsert
 
 export const teamFromRow = (row: TeamRow): Team => ({
-  id: row.id as TeamId,
-  organizationId: row.organizationId as OrganizationId,
-  propertyId: row.propertyId as PropertyId,
+  id: teamId(row.id),
+  organizationId: organizationId(row.organizationId),
+  propertyId: propertyId(row.propertyId),
   name: row.name,
   description: row.description,
-  teamLeadId: row.teamLeadId as UserId | null,
+  teamLeadId: row.teamLeadId != null ? userId(row.teamLeadId) : null,
   createdAt: row.createdAt,
   updatedAt: row.updatedAt,
   deletedAt: row.deletedAt,

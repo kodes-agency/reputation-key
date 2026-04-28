@@ -9,7 +9,11 @@ import { can } from '#/shared/domain/permissions'
 import { buildStaffAssignment } from '../../domain/constructors'
 import { staffError } from '../../domain/errors'
 import { staffAssigned } from '../../domain/events'
-import type { PropertyId, TeamId, UserId } from '#/shared/domain/ids'
+import {
+  userId as toUserId,
+  propertyId as toPropertyId,
+  teamId as toTeamId,
+} from '#/shared/domain/ids'
 
 export type CreateStaffAssignmentDeps = Readonly<{
   assignmentRepo: StaffAssignmentRepository
@@ -30,9 +34,9 @@ export const createStaffAssignment =
     }
 
     // 3. Check uniqueness — prevent duplicate assignments
-    const userId = input.userId as UserId
-    const propertyId = input.propertyId as PropertyId
-    const teamId = (input.teamId ?? null) as TeamId | null
+    const userId = toUserId(input.userId)
+    const propertyId = toPropertyId(input.propertyId)
+    const teamId = input.teamId != null ? toTeamId(input.teamId) : null
 
     if (
       await deps.assignmentRepo.assignmentExists(
@@ -49,14 +53,21 @@ export const createStaffAssignment =
     }
 
     // 4. Build domain object
-    const assignment = buildStaffAssignment({
+    const buildResult = buildStaffAssignment({
       id: deps.idGen(),
       organizationId: ctx.organizationId,
       userId,
       propertyId,
       teamId,
+      actingUserId: ctx.userId,
       now: deps.clock(),
     })
+
+    if (buildResult.isErr()) {
+      throw staffError(buildResult.error.code, buildResult.error.message)
+    }
+
+    const assignment = buildResult.value
 
     // 5. Persist
     await deps.assignmentRepo.insert(ctx.organizationId, assignment)
