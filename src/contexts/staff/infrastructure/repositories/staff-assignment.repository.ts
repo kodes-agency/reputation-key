@@ -9,6 +9,8 @@ import {
   staffAssignmentFromRow,
   staffAssignmentToRow,
 } from '../mappers/staff-assignment.mapper'
+import { staffError } from '../../domain/errors'
+import { propertyId } from '#/shared/domain/ids'
 
 export const createStaffAssignmentRepository = (
   db: Database,
@@ -87,7 +89,7 @@ export const createStaffAssignmentRepository = (
 
   insert: async (orgId, assignment) => {
     if (assignment.organizationId !== orgId) {
-      throw new Error('Tenant mismatch on staff assignment insert')
+      throw staffError('forbidden', 'Tenant mismatch on staff assignment insert')
     }
     await db.insert(staffAssignments).values(staffAssignmentToRow(assignment))
   },
@@ -112,8 +114,6 @@ export const createStaffAssignmentRepository = (
           eq(staffAssignments.userId, userId as string),
         ),
       )
-    return rows.map(
-      (r) => r.propertyId as unknown as import('#/shared/domain/ids').PropertyId,
-    )
+    return rows.map((r) => propertyId(r.propertyId))
   },
 })

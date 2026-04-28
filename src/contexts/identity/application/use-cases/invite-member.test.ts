@@ -8,10 +8,12 @@ import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { isIdentityError } from '../../domain/errors'
 
+const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
+
 const setup = () => {
   const identity = createInMemoryIdentityPort()
   const events = createCapturingEventBus()
-  const useCase = inviteMember({ identity, events })
+  const useCase = inviteMember({ identity, events, clock: () => FIXED_TIME })
   return { useCase, identity, events }
 }
 
@@ -20,7 +22,10 @@ describe('inviteMember', () => {
     const { useCase, events } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
 
-    const result = await useCase({ email: 'new@test.com', role: 'Staff' }, ctx)
+    const result = await useCase(
+      { email: 'new@test.com', role: 'Staff', propertyIds: [] },
+      ctx,
+    )
 
     expect(result.success).toBe(true)
     expect(events.capturedEvents).toHaveLength(1)
@@ -31,7 +36,10 @@ describe('inviteMember', () => {
     const { useCase } = setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
-    const result = await useCase({ email: 'admin@test.com', role: 'AccountAdmin' }, ctx)
+    const result = await useCase(
+      { email: 'admin@test.com', role: 'AccountAdmin', propertyIds: [] },
+      ctx,
+    )
     expect(result.success).toBe(true)
   })
 
@@ -40,7 +48,7 @@ describe('inviteMember', () => {
     const ctx = buildTestAuthContext({ role: 'Staff' })
 
     await expect(
-      useCase({ email: 'any@test.com', role: 'Staff' }, ctx),
+      useCase({ email: 'any@test.com', role: 'Staff', propertyIds: [] }, ctx),
     ).rejects.toSatisfy((e) => isIdentityError(e) && e.code === 'forbidden')
   })
 
@@ -49,7 +57,7 @@ describe('inviteMember', () => {
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
 
     await expect(
-      useCase({ email: 'admin@test.com', role: 'AccountAdmin' }, ctx),
+      useCase({ email: 'admin@test.com', role: 'AccountAdmin', propertyIds: [] }, ctx),
     ).rejects.toSatisfy((e) => isIdentityError(e) && e.code === 'forbidden')
   })
 
@@ -57,7 +65,7 @@ describe('inviteMember', () => {
     const { useCase, events } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
 
-    await useCase({ email: 'new@test.com', role: 'Staff' }, ctx)
+    await useCase({ email: 'new@test.com', role: 'Staff', propertyIds: [] }, ctx)
 
     const emitted = events.capturedByTag('member.invited')
     expect(emitted).toHaveLength(1)

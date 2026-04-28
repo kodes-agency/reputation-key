@@ -24,6 +24,7 @@ export type Permission =
   | 'member.delete'
   | 'invitation.create'
   | 'invitation.cancel'
+  | 'invitation.resend'
   | 'property.create'
   | 'property.update'
   | 'property.delete'

@@ -1,6 +1,37 @@
 # Conventions
 
-The rules. For the _why_, see `docs/architecture.md`. For concrete examples, see `docs/patterns.md`.
+**Status:** Locked. Changes require explicit decision.
+**Audience:** Developers (human and AI) working on this codebase.
+**Purpose:** The canonical rules-only reference for the codebase. This document owns the _what_ and the _why_ — rationale is inline. For concrete code examples per file type, see `docs/patterns.md`.
+
+> **Precedence:** When this document and `docs/patterns.md` describe the same rule, this document is authoritative. `docs/patterns.md` provides examples.
+
+The rules. For concrete examples, see `docs/patterns.md`.
+
+---
+
+## Table of contents
+
+1. [Stack](#stack)
+2. [Folder structure](#folder-structure)
+3. [Bounded contexts](#bounded-contexts)
+4. [The four layers](#the-four-layers)
+5. [When to skip layers](#when-to-skip-layers)
+6. [Forms](#forms)
+7. [Where does this code go?](#where-does-this-code-go)
+8. [Functional style](#functional-style)
+9. [Permissions (better-auth access control)](#permissions-better-auth-access-control)
+10. [Tenant isolation](#tenant-isolation)
+11. [Use case shape](#use-case-shape)
+12. [Events](#events)
+13. [Errors](#errors)
+14. [Naming](#naming)
+15. [Dependency rules (enforced by lint)](#dependency-rules-enforced-by-lint)
+16. [Testing](#testing)
+17. [Anti-patterns](#anti-patterns)
+18. [Core principles](#core-principles)
+19. [Composition root](#composition-root)
+20. [When in doubt](#when-in-doubt)
 
 ---
 
@@ -30,19 +61,19 @@ src/
       <service>/     external service adapters (storage, ai, gbp, ...)
     server/          TanStack Start server functions
   shared/
-    domain/          brand, ids, result, pattern, errors, clock, auth-context
+    domain/          brand, ids, result, pattern, errors, clock, auth-context, roles (Role type and hierarchy), permissions (Permission type and sync can() check), property-access.port (cross-context port), timezones
     events/          event bus, master event union
-    db/              client, schema/<context>.schema.ts, migrations
-    auth/            better-auth config, auth helpers (headers, resolveTenantContext), permissions (access control statement + roles)
+    db/              index.ts (Drizzle client factory + isDbHealthy), pool.ts (shared pg Pool), columns.ts (common Drizzle column helpers), schema/ (index.ts barrel, auth.ts, property.schema.ts, team.schema.ts, staff-assignment.schema.ts, audit.ts), migrations
+    auth/            better-auth config (auth.ts), auth-client.ts, headers.ts, middleware.ts (resolveTenantContext), permissions.ts (access control statement), auth.functions.ts (server-side session helpers), emails.ts (email sending via Resend), server-errors.ts (shared throwContextError), auth-cli.ts (CLI config)
     jobs/            queue, worker, registry
     cache/           redis client, cache port + impl
     rate-limit/      middleware
     observability/   logger (pino), sentry
     config/          env zod schema
     fn/              pipe and other utilities
-    testing/         in-memory port fakes, fixtures, db helpers
-  routes/            TanStack Router file-based routes
-  components/        ui/ (shadcn primitives), layout/, forms/, features/<context>/
+    testing/         in-memory port fakes (in-memory-identity-port.ts, in-memory-property-repo.ts, in-memory-team-repo.ts, in-memory-staff-assignment-repo.ts), capturing-event-bus.ts, fixtures.ts, db.ts (test DB helpers)
+  routes/            TanStack Router file-based routes (underscore-prefix layout convention: _authenticated.tsx, _authenticated/ subdirectory for dashboard pages; top-level login.tsx, register.tsx, join.tsx for auth pages)
+  components/        ui/ (shadcn primitives), layout/, forms/, features/<context>/ (identity/, property/, team/, staff/)
   integrations/      TanStack Query provider, other framework integrations
   composition.ts     dependency wiring
   bootstrap.ts       event/job handler registration
@@ -54,11 +85,14 @@ src/
 
 ## Bounded contexts
 
-`identity`, `property`, `team`, `staff`, `portal`, `guest`, `review`, `metric`, `gamification`, `notification`, `ai`, `audit`.
+**Implemented:** `identity`, `property`, `team`, `staff`.
+**Planned (not yet built):** `portal`, `guest`, `review`, `metric`, `gamification`, `notification`, `ai`, `audit`.
 
 Each context owns its data, rules, events, errors, and public API. Contexts communicate via domain events. Cross-context type imports allowed for events only.
 
 Contexts vary in "thickness": thick contexts (`portal`, `review`, `metric`) own their tables and have their own domain logic; thin contexts (`identity`) primarily wrap a third-party library. Thin contexts will legitimately have empty layer folders (no mappers, no jobs, sparse use cases). That's expected.
+
+A context can import another context's _types_ and _events_ (these are the public API). A context **cannot** import another context's use cases, repositories, or internal domain functions. If you need another context's behavior, subscribe to an event, define a port, or reconsider the boundary.
 
 ---
 
@@ -99,7 +133,7 @@ All forms in the app use **TanStack Form + Zod + shadcn/ui**. This is the only s
 
 ### Rules
 
-1. **Schema source:** The Zod schema lives in `contexts/<ctx>/application/dto/`. It's the single source of truth for the server's input shape. The form may define its own schema when the form shape differs (e.g., all fields as strings, no optional fields), but validation rules (lengths, formats, ranges) must match what the domain enforces. See `docs/patterns.md` section 29 for the full guidance.
+1. **Schema source:** The Zod schema lives in `contexts/<ctx>/application/dto/`. It's the single source of truth for the server's input shape. The form may define its own schema when the form shape differs (e.g., all fields as strings, no optional fields), but validation rules (lengths, formats, ranges) must match what the domain enforces. See `docs/patterns.md` section 30 for the full guidance.
 
 2. **Form components:** Built using shadcn's Field components (`Field`, `FieldGroup`, `FieldLabel`, `FieldError`, `FieldDescription`) wired with TanStack Form's `form.Field` render prop. Follow shadcn's official TanStack Form integration docs.
 
@@ -119,7 +153,7 @@ All forms in the app use **TanStack Form + Zod + shadcn/ui**. This is the only s
 
 8. **Public forms** (guest rating, feedback) follow the same pattern but submit to public server functions without auth middleware.
 
-See `docs/patterns.md` for a canonical form example (portal create form).
+See `docs/patterns.md` section 25 for a canonical form example (portal create form).
 
 ---
 
@@ -168,11 +202,16 @@ If a file would import from two contexts' internals, you're doing something wron
 - Repositories are records of functions returned by factory functions: `createXxxRepository(db)`.
 - Use cases are factory functions: `(deps) => async (input, ctx) => Promise<T>`.
 
+**Why no classes:** Factory functions returning records provide the same encapsulation without `this` binding, inheritance chains, or hidden mutation. The resulting code is easier to test (inject deps), easier to compose (partial application), and more transparent (all dependencies are visible parameters).
+
 **Pragmatic:**
 
 - `async/await` allowed in application and infrastructure.
 - Closures over mutable state allowed anywhere when hidden behind a pure interface (event bus, testable clock, in-memory fakes, etc.).
 - React hooks not purified.
+- TanStack Form's internal state is not purified (the library manages form state with refs and effects).
+- Tests are imperative (Vitest's describe/it style is fine).
+- Wrapper-context use cases may receive HTTP-scoped functions as deps (e.g., `headersFromContext`) — injected as a dependency to keep the use case testable while acknowledging the HTTP-scoped nature.
 
 **Forbidden:**
 
@@ -208,9 +247,12 @@ Three roles are defined using `ac.newRole(...)`: **owner** (AccountAdmin), **adm
 
 ### What was removed
 
-- `roleGuard(minRole)` function from `shared/auth/middleware.ts` — replaced by fine-grained `hasPermission` checks
-- `contexts/identity/domain/permissions.ts` with its hand-rolled `canManageUsers()`, `canInviteMembers()`, etc. — replaced by the access control statement
-- Domain-level permission functions that used `hasRole()` from `shared/domain/roles.ts` — the role hierarchy is still used for business rules like "can't promote above your own level" but NOT as the primary permission gate
+- `roleGuard(minRole)` function from `shared/auth/middleware.ts` — replaced by fine-grained `can()` and `hasPermission` checks
+- `contexts/identity/domain/permissions.ts` with its hand-rolled `canManageUsers()`, `canInviteMembers()`, etc. — replaced by the access control statement in `shared/auth/permissions.ts`. Domain-level authorization predicates (`canInviteWithRole`, `canChangeRole`) still exist in `domain/rules.ts` and use `hasRole` as the primary gate for specific flows.
+
+### Current authorization pattern
+
+Use cases perform authorization as step 1 using `can(ctx.role, 'resource.action')` from `shared/domain/permissions.ts`. Some contexts keep additional authorization predicates in `domain/rules.ts` (e.g., `canInviteWithRole`, `canChangeRole` in the identity context) when the check involves domain-specific constraints. The server function may also call `auth.api.hasPermission()` as a defense-in-depth check, but the use case is the primary authorization boundary.
 
 ---
 
@@ -262,12 +304,12 @@ The order matters when steps are present, because it reflects the natural depend
 
 ## Errors
 
-| Layer            | Behavior                                                                                                                                                                                                                                            |
-| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Domain           | Returns `Result<T, DomainError>`. Never throws.                                                                                                                                                                                                     |
-| Application      | Throws tagged errors on `Result.isErr()`. Awaits async normally.                                                                                                                                                                                    |
-| Infrastructure   | Catches library errors, translates to tagged errors or lets them bubble.                                                                                                                                                                            |
-| Server functions | Catches tagged errors, pattern-matches `_tag` and `code`, **throws an `Error`** with `.name`, `.message`, `.code`, and `.status` properties. TanStack Start serializes Errors via seroval and re-throws on the client, so mutations fail correctly. |
+| Layer            | Behavior                                                                                                                                                                                                                                                                                                                                                                |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Domain           | Returns `Result<T, DomainError>`. Never throws.                                                                                                                                                                                                                                                                                                                         |
+| Application      | Throws tagged errors on `Result.isErr()`. Awaits async normally.                                                                                                                                                                                                                                                                                                        |
+| Infrastructure   | Catches library errors, translates to tagged errors or lets them bubble.                                                                                                                                                                                                                                                                                                |
+| Server functions | Catches tagged errors, pattern-matches `_tag` and `code`, **throws an `Error`** with `.name`, `.message`, `.code`, and `.status` properties. TanStack Start serializes Errors via seroval and re-throws on the client, so mutations fail correctly. `resolveTenantContext` (auth middleware) uses the same `Error` throwing path — auth failures are not plain objects. |
 
 Tagged error shape: `{ _tag: 'XxxError', code: '<reason>', message: string, context?: Record<string, unknown> }`. Errors built only via the smart constructor (e.g., `portalError(code, message)`).
 
@@ -306,7 +348,7 @@ Every business table includes: `id`, `organization_id`, `created_at`, `updated_a
 ## Dependency rules (enforced by lint)
 
 - `domain/` imports nothing outside `domain/` and `shared/domain/`.
-- `application/` imports from `domain/`, `shared/domain/`.
+- `application/` imports from `domain/`, `shared/domain/`, `shared/events/`.
 - `infrastructure/` imports from `domain/`, `application/`, `shared/`, external libs.
 - `server/` imports from `application/` (use cases, dtos), `shared/`, TanStack Start.
 - `routes/` imports from `contexts/<ctx>/server/` (server functions only — not domain, application, infrastructure), `components/`, `shared/`.
@@ -352,7 +394,7 @@ Tests colocated: `rules.ts` next to `rules.test.ts`.
 - Putting code in `shared/` "we might need it" → wait for the second importer.
 - Throwing plain `Error` → always tagged errors.
 - Returning `{ success: false, error: message }` from server functions → always throw Error objects (TanStack Start serializes them for the client).
-- Duplicating the Zod schema between form and server function → derive the form schema from the DTO schema using `.required()` / `.extend()` / `.omit()` (see `docs/patterns.md` section 29).
+- Duplicating the Zod schema between form and server function → derive the form schema from the DTO schema using `.required()` / `.extend()` / `.omit()` (see `docs/patterns.md` section 30).
 - Calling server functions directly from forms without a mutation → always wrap in TanStack Query `useMutation`.
 - Managing form `isSubmitting` state manually → use mutation status.
 - Using React Hook Form, Formik, or plain `useState` for forms → use TanStack Form.
@@ -367,9 +409,38 @@ Tests colocated: `rules.ts` next to `rules.test.ts`.
 
 ---
 
+## Core principles
+
+These principles drive every architectural decision. When in doubt, return to these.
+
+1. **Bounded contexts before layers.** Code belongs to a business concept before it belongs to a technical layer. Group by what the code is _about_, not what it _is_.
+2. **Pure core, effectful edges.** Domain logic is pure functions of their inputs. Effects (I/O, async, throws) happen only at the boundaries.
+3. **Dependencies point inward.** Presentation depends on application; application depends on domain; infrastructure implements ports defined by application. Domain depends on nothing.
+4. **Tenancy is non-negotiable.** Every repository method takes `organizationId` as a mandatory parameter. There is no "get by ID" without a tenant.
+5. **Functional style, pragmatic at edges.** No classes, immutability by default, `Result` types in the domain, explicit dependencies via factory functions.
+6. **Tests come from structure.** The architecture is designed so domain code is trivially testable, use cases are testable with in-memory port implementations, and integration tests verify infrastructure.
+7. **Explicit over implicit.** No DI containers, no auto-wiring, no decorators. Dependencies are passed as function arguments. The wiring is in `composition.ts`.
+8. **Conventional, not clever.** Choose boring, well-documented patterns over clever abstractions.
+9. **Proportional layering.** A use case with real domain logic uses the full 7-step pattern. A use case that's only an authorization check is a one-liner. Ceremony for symmetry is an anti-pattern.
+10. **Shared schemas, single source of truth.** The Zod schemas in `application/dto/` are used for both server-side validation and client-side form validation. Never duplicate the shape.
+
+---
+
+## Composition root
+
+`composition.ts` is the only place where the full dependency graph is wired together.
+
+- No DI framework, no decorators, no auto-wiring
+- All dependencies visible in one file
+- Easy to substitute parts in tests (build a test container with in-memory repos)
+- `bootstrap.ts` registers event handlers and job handlers separately from construction
+- The event bus is passed to every use case that emits events via the `events` dependency
+
+---
+
 ## When in doubt
 
 1. Read existing context code for the pattern.
 2. Re-read this doc.
-3. If still unclear, check `docs/architecture.md` for rationale or `docs/patterns.md` for examples.
+3. If still unclear, check `docs/patterns.md` for examples.
 4. If the docs don't answer it, decide deliberately and update the doc _before_ writing the code.

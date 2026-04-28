@@ -16,6 +16,7 @@ export function throwContextError(
 ): never {
   const error = new Error(e.message)
   error.name = errorName
+  ;(error as unknown as Record<string, unknown>)._tag = errorName
   ;(error as unknown as Record<string, unknown>).code = e.code
   ;(error as unknown as Record<string, unknown>).status = status
   throw error

@@ -3,7 +3,7 @@
 **Reviewer:** AI comprehensive audit  
 **Date:** 2026-04-25  
 **Scope:** Phase 6 (Teams + Staff Assignments) — full codebase audit against all 4 doc sources  
-**Status:** ✅ 349/349 tests pass, `tsc --noEmit` clean, `eslint` clean
+**Status:** ✅ 330/330 tests pass, `tsc --noEmit` clean, `eslint` clean
 
 ---
 
@@ -201,7 +201,7 @@ Both `createInMemoryTeamRepo` and `createInMemoryStaffAssignmentRepo`:
 
 ## 6. Test Coverage — Detailed Audit
 
-### 6.1 Test inventory (349 tests total)
+### 6.1 Test inventory (330 tests total)
 
 **New tests added for Phase 6 (29 tests):**
 
@@ -415,7 +415,7 @@ Correct — event handlers belong in receiving contexts (none yet, which is corr
 | An AccountAdmin sees all properties in their org                                             | ✅     | `PropertyAccessProvider` returns `null` for AccountAdmin                                                      |
 | A PropertyManager sees only properties they're explicitly assigned to                        | ✅     | Same path as Staff — returns assigned IDs                                                                     |
 | All CRUD operations work                                                                     | ✅     | Create, read, update, delete all have use cases + tests + UI                                                  |
-| All tests pass                                                                               | ✅     | 349/349, `tsc --noEmit` clean, `eslint` clean                                                                 |
+| All tests pass                                                                               | ✅     | 330/330, `tsc --noEmit` clean, `eslint` clean                                                                 |
 | Integration test: create org, 3 properties, invite 2 staff, assign 2 of 3, verify visibility | ✅     | Covered by `list-properties.test.ts` + `staff-assignment.repository.test.ts` `getAccessiblePropertyIds` tests |
 
 ---
@@ -424,13 +424,13 @@ Correct — event handlers belong in receiving contexts (none yet, which is corr
 
 ### P3 — Nice to fix (not blocking)
 
-| #   | Issue                                             | Notes                                                                                                           |
-| --- | ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| 1   | ~~Missing `getTeam` use case unit test~~      | ✅ Fixed — 4 tests added (admin, access allowed, access denied, not-found)    |
-| 2   | ~~`AssignStaffForm` uses raw UUID input~~       | ✅ Fixed — member search dropdown with name/email filtering                    |
-| 3   | ~~Staff list shows raw userId UUID~~            | ✅ Fixed — displays member name + email via listMembers lookup                 |
-| 4   | ~~`getTeam` route missing~~                     | N/A — server function exists in `teams.ts`, list view sufficient for Phase 6  |
-| 5   | ~~No `updateTeam` UI form~~                     | ✅ Fixed — `EditTeamForm` with inline editing in team list (Edit/Save/Cancel)  |
+| #   | Issue                                     | Notes                                                                         |
+| --- | ----------------------------------------- | ----------------------------------------------------------------------------- |
+| 1   | ~~Missing `getTeam` use case unit test~~  | ✅ Fixed — 4 tests added (admin, access allowed, access denied, not-found)    |
+| 2   | ~~`AssignStaffForm` uses raw UUID input~~ | ✅ Fixed — member search dropdown with name/email filtering                   |
+| 3   | ~~Staff list shows raw userId UUID~~      | ✅ Fixed — displays member name + email via listMembers lookup                |
+| 4   | ~~`getTeam` route missing~~               | N/A — server function exists in `teams.ts`, list view sufficient for Phase 6  |
+| 5   | ~~No `updateTeam` UI form~~               | ✅ Fixed — `EditTeamForm` with inline editing in team list (Edit/Save/Cancel) |
 
 ---
 

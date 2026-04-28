@@ -18,5 +18,5 @@ export {
   sendInvitationEmail,
   getResend,
 } from './emails'
-export { getSession, ensureSession } from './auth.functions'
+export { getSession } from './auth.functions'
 export type { AuthContext } from '#/shared/domain/auth-context'

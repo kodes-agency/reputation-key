@@ -2,6 +2,13 @@
 // Per architecture: "Contexts communicate through domain events, never through direct internal imports."
 // Handlers subscribe to events by _tag. Events are dispatched synchronously,
 // handlers execute async side effects.
+//
+// TRADE-OFF: This is an in-process event bus. If the process crashes after a use case
+// emits an event but before the handler completes, the event is lost. This is acceptable
+// for current use cases (logging, cache invalidation). For critical side effects
+// (e.g., sending transactional emails, creating audit records), consider migrating
+// to BullMQ-backed event delivery for at-least-once processing guarantees.
+// TODO: Evaluate BullMQ-based event persistence for critical events in Phase 4+.
 
 import type { DomainEvent } from './events'
 

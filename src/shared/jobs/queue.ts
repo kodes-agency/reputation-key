@@ -1,5 +1,9 @@
 // BullMQ queue factory — creates named queues backed by shared Redis.
 // Per architecture: "shared/jobs/ holds queue/worker factories and job registry."
+//
+// NOTE: This should only be called in the worker process (via createContainer({ enableJobs: true })).
+// The web process does not need a BullMQ queue — it only needs Redis for caching/rate limiting.
+// The enableJobs flag in composition.ts controls whether this factory is invoked.
 
 import { Queue } from 'bullmq'
 import { getRedis } from '#/shared/cache/redis'

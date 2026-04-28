@@ -2,10 +2,11 @@
 
 import type { PropertyRepository } from '../ports/property.repository'
 import type { EventBus } from '#/shared/events/event-bus'
-import type { Property, PropertyId } from '../../domain/types'
+import type { Property } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { UpdatePropertyInput } from '../dto/update-property.dto'
 import { can } from '#/shared/domain/permissions'
+import { propertyId as toPropertyId } from '#/shared/domain/ids'
 import { validatePropertyName, validateSlug, validateTimezone } from '../../domain/rules'
 import { propertyError } from '../../domain/errors'
 import { propertyUpdated } from '../../domain/events'
@@ -25,7 +26,7 @@ export const updateProperty =
     }
 
     // 2. Validate referenced entity exists
-    const propertyId = input.propertyId as PropertyId
+    const propertyId = toPropertyId(input.propertyId)
     const existing = await deps.propertyRepo.findById(ctx.organizationId, propertyId)
     if (!existing) {
       throw propertyError('property_not_found', 'property not found in this organization')

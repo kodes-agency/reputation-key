@@ -1,6 +1,10 @@
 // Rate limiting middleware — uses Redis for sliding window counting.
 // Per architecture: shared rate-limit middleware for public and API endpoints.
 // Fails open when Redis is unavailable (rate limiting is a nice-to-have, not critical).
+//
+// Issue 13 fix: Uses atomic Lua script (INCR + conditional EXPIRE) to prevent
+// the race condition where a process crash between INCR and EXPIRE could leave
+// a key with no TTL (permanent lockout).
 
 import type { Redis } from 'ioredis'
 
@@ -27,6 +31,16 @@ export type RateLimiter = Readonly<{
   check(key: string): Promise<RateLimitResult>
 }>
 
+// Atomic Lua script: increment counter and set TTL on first request.
+// This eliminates the race condition between INCR and EXPIRE.
+const INCR_WITH_EXPIRE_SCRIPT = `
+local count = redis.call('INCR', KEYS[1])
+if count == 1 then
+  redis.call('EXPIRE', KEYS[1], ARGV[1])
+end
+return count
+`
+
 export function createRateLimiter(
   redis: Redis | undefined,
   opts: RateLimiterOptions,
@@ -45,13 +59,13 @@ export function createRateLimiter(
       try {
         const redisKey = `${opts.keyPrefix}:${key}`
 
-        // Use INCR to atomically increment and get the count
-        const count = await redis.incr(redisKey)
-
-        // Set expiry only on first request in the window
-        if (count === 1) {
-          await redis.expire(redisKey, opts.windowSeconds)
-        }
+        // Atomic increment + conditional expire via Lua script
+        const count = (await redis.eval(
+          INCR_WITH_EXPIRE_SCRIPT,
+          1,
+          redisKey,
+          opts.windowSeconds,
+        )) as number
 
         // Get TTL for accurate reset time
         const ttl = await redis.ttl(redisKey)

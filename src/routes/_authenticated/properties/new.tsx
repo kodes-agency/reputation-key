@@ -12,12 +12,12 @@ import {
   CardHeader,
   CardTitle,
 } from '#/components/ui/card'
-import type { Role } from '#/shared/domain/roles'
+import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 
 export const Route = createFileRoute('/_authenticated/properties/new')({
   beforeLoad: ({ context }) => {
-    const role = (context as { role?: Role }).role ?? 'Staff'
+    const role = (context as AuthRouteContext).role
     if (!can(role, 'property.create')) {
       throw redirect({ to: '/properties' })
     }

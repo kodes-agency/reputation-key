@@ -16,7 +16,11 @@ export type RemoveMemberOutput = Readonly<{
   success: boolean
 }>
 
-type Deps = Readonly<{ identity: IdentityPort; events: EventBus }>
+type Deps = Readonly<{
+  identity: IdentityPort
+  events: EventBus
+  clock: () => Date
+}>
 
 /**
  * Remove a member from the organization.
@@ -43,7 +47,7 @@ export const removeMember =
         organizationId: ctx.organizationId,
         userId: toUserId(input.memberId), // memberId is the member's user-facing ID
         removedBy: ctx.userId,
-        occurredAt: new Date(),
+        occurredAt: deps.clock(),
       }),
     )
 

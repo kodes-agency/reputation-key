@@ -15,7 +15,7 @@ function main() {
   logger.info({ env: env.NODE_ENV }, 'Worker starting')
 
   // Build the dependency container
-  const container = createContainer()
+  const container = createContainer({ enableJobs: true })
 
   // Register all event handlers and job handlers
   bootstrap(container)

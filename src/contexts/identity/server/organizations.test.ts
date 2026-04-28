@@ -1,74 +1,50 @@
 // Identity context — server function tests
-// Imports the real identityErrorToResponse from the server module so tests break
+// Imports the real identityErrorStatus from the server module so tests break
 // when production code changes.
 //
-// Per architecture: "Server functions: Integration tests covering HTTP behavior —
-// status codes, response shapes, middleware enforcement."
+// Per architecture: "Server functions throw Error objects with .name, .message, .code, .status."
 // Per architecture: exhaustive ts-pattern matching ensures new error codes
 // are caught at compile time.
 
 import { describe, it, expect } from 'vitest'
 import { identityError, isIdentityError } from '#/contexts/identity/domain/errors'
 import type { IdentityErrorCode } from '#/contexts/identity/domain/errors'
-import { identityErrorToResponse } from '#/contexts/identity/server/organizations'
+import { identityErrorStatus } from '#/contexts/identity/server/organizations'
+import { throwContextError } from '#/shared/auth/server-errors'
 
-// ── Tests ────────────────────────────────────────────────────────────
+// ── Error → HTTP status mapping (production code) ─────────────────
 
-describe('identityErrorToResponse (imported from server module)', () => {
+describe('identityErrorStatus (imported from server module)', () => {
   it('maps forbidden → 403', () => {
-    const error = identityError('forbidden', 'Insufficient role')
-    const { status, body } = identityErrorToResponse(error)
-    expect(status).toBe(403)
-    expect(body.error).toBe('forbidden')
-    expect(body.message).toBe('Insufficient role')
+    expect(identityErrorStatus('forbidden')).toBe(403)
   })
 
   it('maps invalid_slug → 400', () => {
-    const error = identityError('invalid_slug', 'Bad slug')
-    const { status, body } = identityErrorToResponse(error)
-    expect(status).toBe(400)
-    expect(body.error).toBe('invalid_slug')
+    expect(identityErrorStatus('invalid_slug')).toBe(400)
   })
 
   it('maps invalid_name → 400', () => {
-    const error = identityError('invalid_name', 'Bad name')
-    const { status, body } = identityErrorToResponse(error)
-    expect(status).toBe(400)
-    expect(body.error).toBe('invalid_name')
+    expect(identityErrorStatus('invalid_name')).toBe(400)
   })
 
   it('maps registration_failed → 400', () => {
-    const error = identityError('registration_failed', 'Sign-up failed')
-    const { status, body } = identityErrorToResponse(error)
-    expect(status).toBe(400)
-    expect(body.error).toBe('registration_failed')
+    expect(identityErrorStatus('registration_failed')).toBe(400)
   })
 
   it('maps org_setup_failed → 409', () => {
-    const error = identityError('org_setup_failed', 'Slug conflict')
-    const { status, body } = identityErrorToResponse(error)
-    expect(status).toBe(409)
-    expect(body.error).toBe('org_setup_failed')
+    expect(identityErrorStatus('org_setup_failed')).toBe(409)
   })
 
   it('maps member_not_found → 404', () => {
-    const error = identityError('member_not_found', 'Member not found')
-    const { status, body } = identityErrorToResponse(error)
-    expect(status).toBe(404)
-    expect(body.error).toBe('member_not_found')
+    expect(identityErrorStatus('member_not_found')).toBe(404)
   })
 
   it('maps invitation_not_found → 404', () => {
-    const error = identityError('invitation_not_found', 'Invitation not found')
-    const { status, body } = identityErrorToResponse(error)
-    expect(status).toBe(404)
-    expect(body.error).toBe('invitation_not_found')
+    expect(identityErrorStatus('invitation_not_found')).toBe(404)
   })
 
-  it('exhaustive matching catches all error codes', () => {
-    // The .exhaustive() call in the production function provides compile-time safety.
-    // This test verifies every code maps to a valid HTTP error status.
-    const allCodes: IdentityErrorCode[] = [
+  it('all error codes are covered (exhaustive check)', () => {
+    const codes: IdentityErrorCode[] = [
       'forbidden',
       'invalid_slug',
       'invalid_name',
@@ -77,53 +53,85 @@ describe('identityErrorToResponse (imported from server module)', () => {
       'registration_failed',
       'org_setup_failed',
     ]
-
-    for (const code of allCodes) {
-      const error = identityError(code, 'test')
-      const result = identityErrorToResponse(error)
-      // org_setup_failed intentionally returns 409 (user was created, org failed)
-      if (code === 'org_setup_failed') {
-        expect(result.status).toBe(409)
-      } else {
-        expect(result.status).toBeGreaterThanOrEqual(400)
-      }
-      expect(result.body.error).toBe(code)
+    for (const code of codes) {
+      const status = identityErrorStatus(code)
+      expect(status).toBeGreaterThanOrEqual(400)
+      expect(status).toBeLessThan(500)
     }
   })
 })
 
-describe('server function response shape', () => {
-  it('formats error responses as JSON with error and message fields', () => {
-    const error = identityError('forbidden', 'Insufficient role')
-    const { status, body } = identityErrorToResponse(error)
+// ── throwContextError (shared server error helper) ─────────────────
 
-    // Simulating what throwIdentityError does:
-    const response = new Response(JSON.stringify(body), {
-      status,
-      headers: { 'content-type': 'application/json' },
-    })
+describe('throwContextError with IdentityError', () => {
+  it('throws an Error with the domain message', () => {
+    const e = identityError('forbidden', 'Insufficient role')
+    expect(() =>
+      throwContextError('IdentityError', e, identityErrorStatus(e.code)),
+    ).toThrow('Insufficient role')
+  })
 
-    expect(response.status).toBe(403)
-    expect(response.headers.get('content-type')).toBe('application/json')
+  it('sets error.name to IdentityError', () => {
+    const e = identityError('forbidden', 'Insufficient role')
+    try {
+      throwContextError('IdentityError', e, identityErrorStatus(e.code))
+    } catch (err) {
+      expect(err).toBeInstanceOf(Error)
+      expect((err as Error).name).toBe('IdentityError')
+    }
+  })
+
+  it('attaches code and status as custom properties', () => {
+    const e = identityError('org_setup_failed', 'Slug conflict')
+    try {
+      throwContextError('IdentityError', e, identityErrorStatus(e.code))
+    } catch (err) {
+      const error = err as Error & { code: string; status: number }
+      expect(error.code).toBe('org_setup_failed')
+      expect(error.status).toBe(409)
+    }
+  })
+
+  it('preserves the correct status for every error code', () => {
+    const cases: Array<[IdentityErrorCode, number]> = [
+      ['forbidden', 403],
+      ['invalid_slug', 400],
+      ['invalid_name', 400],
+      ['registration_failed', 400],
+      ['org_setup_failed', 409],
+      ['member_not_found', 404],
+      ['invitation_not_found', 404],
+    ]
+    for (const [code, expectedStatus] of cases) {
+      const e = identityError(code, `test ${code}`)
+      try {
+        throwContextError('IdentityError', e, identityErrorStatus(e.code))
+      } catch (err) {
+        const error = err as Error & { code: string; status: number }
+        expect(error.status).toBe(expectedStatus)
+        expect(error.code).toBe(code)
+      }
+    }
   })
 })
 
-describe('isIdentityError type guard (server catch path)', () => {
-  it('recognizes IdentityError objects', () => {
+// ── isIdentityError type guard ─────────────────────────────────────
+
+describe('isIdentityError type guard', () => {
+  it('returns true for IdentityError', () => {
     const error = identityError('forbidden', 'test')
     expect(isIdentityError(error)).toBe(true)
   })
 
-  it('rejects plain Error objects', () => {
-    const error = new Error('plain error')
-    expect(isIdentityError(error)).toBe(false)
+  it('returns false for plain Error', () => {
+    expect(isIdentityError(new Error('boom'))).toBe(false)
   })
 
-  it('rejects null', () => {
+  it('returns false for null', () => {
     expect(isIdentityError(null)).toBe(false)
   })
 
-  it('rejects undefined', () => {
-    expect(isIdentityError(undefined)).toBe(false)
+  it('returns false for plain object', () => {
+    expect(isIdentityError({ code: 'forbidden', message: 'test' })).toBe(false)
   })
 })

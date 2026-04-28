@@ -12,6 +12,7 @@ import {
   cancelInvitation,
   resendInvitation,
 } from '#/contexts/identity/server/organizations'
+import { listProperties } from '#/contexts/property/server/properties'
 import type { Role } from '#/shared/domain/roles'
 import { can } from '#/shared/domain/permissions'
 import { Button } from '#/components/ui/button'
@@ -70,16 +71,27 @@ export const Route = createFileRoute('/_authenticated/settings/members')({
 })
 
 function MembersPage() {
-  const ctx = Route.useRouteContext() as {
-    user: { id: string; name: string; email: string; image: string | null }
-    role: Role
-  }
+  const ctx =
+    Route.useRouteContext() as import('#/routes/_authenticated').AuthRouteContext
   const currentUserId = ctx.user.id
   const role = ctx.role ?? 'Staff'
   const canChangeRoles = can(role, 'member.update')
   const canInvite = can(role, 'invitation.create')
   const canRemove = can(role, 'member.delete')
   const canManageMembers = canChangeRoles || canInvite || canRemove
+
+  // Properties for the invite form's assignment multi-select
+  const propertiesQuery = useQuery({
+    queryKey: ['properties'],
+    queryFn: async () => {
+      const result = await listProperties()
+      return result.properties
+    },
+  })
+  const propertyOptions = (propertiesQuery.data ?? []).map((p) => ({
+    id: p.id,
+    name: p.name,
+  }))
 
   const queryClient = useQueryClient()
   const [inviteOpen, setInviteOpen] = useState(false)
@@ -200,6 +212,7 @@ function MembersPage() {
                         ? (['AccountAdmin', 'PropertyManager', 'Staff'] as const)
                         : (['Staff'] as const)
                     }
+                    properties={propertyOptions}
                   />
                 </DialogContent>
               </Dialog>

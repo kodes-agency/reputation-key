@@ -101,9 +101,11 @@ describe('Auth middleware helpers', () => {
       await requireAuth(headers)
       expect.unreachable('Should have thrown')
     } catch (error) {
-      const taggedError = error as { _tag: string; code: string; message: string }
-      expect(taggedError._tag).toBe('AuthError')
-      expect(taggedError.code).toBe('unauthorized')
+      expect(error).toBeInstanceOf(Error)
+      const authError = error as Error & { code: string; status: number }
+      expect(authError.name).toBe('AuthError')
+      expect(authError.code).toBe('unauthorized')
+      expect(authError.status).toBe(401)
     }
   })
 })

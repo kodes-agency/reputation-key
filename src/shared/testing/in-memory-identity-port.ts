@@ -24,8 +24,14 @@ export type InMemoryIdentityPort = IdentityPort & {
   readonly allInvitations: ReadonlyArray<InvitationRecord>
 }
 
+// Default org ID used by buildTestAuthContext — seeded members belong here
+// unless tests explicitly override.
+const DEFAULT_TEST_ORG_ID = 'org-00000000-0000-0000-0000-000000000001'
+
+type StoredMember = MemberRecord & Readonly<{ organizationId: string }>
+
 export function createInMemoryIdentityPort(): InMemoryIdentityPort {
-  const members = new Map<string, MemberRecord>()
+  const members = new Map<string, StoredMember>()
   const invitations = new Map<string, InvitationRecord>()
   const organizations = new Map<string, OrganizationRecord>()
 
@@ -35,18 +41,24 @@ export function createInMemoryIdentityPort(): InMemoryIdentityPort {
       return id
     },
 
-    async listMembers(_ctx: AuthContext): Promise<ReadonlyArray<MemberRecord>> {
+    async listMembers(ctx: AuthContext): Promise<ReadonlyArray<MemberRecord>> {
       return [...members.values()]
+        .filter((m) => m.organizationId === ctx.organizationId)
+        .map(({ organizationId: _ignored, ...rest }) => rest)
     },
 
-    async getMember(_ctx: AuthContext, memberId: string): Promise<MemberRecord | null> {
-      return members.get(memberId) ?? null
+    async getMember(ctx: AuthContext, memberId: string): Promise<MemberRecord | null> {
+      const m = members.get(memberId)
+      if (!m || m.organizationId !== ctx.organizationId) return null
+      const { organizationId: _ignored, ...rest } = m
+      return rest
     },
 
     async createInvitation(
       _ctx: AuthContext,
       email: string,
       role: string,
+      _propertyIds?: ReadonlyArray<string>,
     ): Promise<string> {
       const id = `inv-${invitations.size + 1}`
       invitations.set(id, {
@@ -109,7 +121,7 @@ export function createInMemoryIdentityPort(): InMemoryIdentityPort {
     // ── Test-only helpers ─────────────────────────────────────────────
 
     seedMembers(ms: ReadonlyArray<MemberRecord>): void {
-      for (const m of ms) members.set(m.id, m)
+      for (const m of ms) members.set(m.id, { ...m, organizationId: DEFAULT_TEST_ORG_ID })
     },
 
     seedInvitations(invs: ReadonlyArray<InvitationRecord>): void {
