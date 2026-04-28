@@ -7,6 +7,7 @@ import { z } from 'zod/v4'
 export const inviteMemberInputSchema = z.object({
   email: z.email('A valid email address is required'),
   role: z.enum(['AccountAdmin', 'PropertyManager', 'Staff'] as const),
+  propertyIds: z.array(z.string().min(1, 'This field is required')).default([]),
 })
 export type InviteMemberInput = z.infer<typeof inviteMemberInputSchema>
 

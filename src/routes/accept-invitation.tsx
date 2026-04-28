@@ -19,12 +19,12 @@ import {
 
 // ── Types ────────────────────────────────────────────────────────────
 
-interface PendingInvitation {
+type PendingInvitation = Readonly<{
   id: string
   organizationName: string
   role: string
   expiresAt: Date
-}
+}>
 
 // ── Sub-components ───────────────────────────────────────────────────
 

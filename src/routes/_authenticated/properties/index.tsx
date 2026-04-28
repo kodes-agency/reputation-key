@@ -1,8 +1,7 @@
 // Property list — shows all properties for the active organization
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { useQuery } from '@tanstack/react-query'
 import { listProperties } from '#/contexts/property/server/properties'
-import type { Role } from '#/shared/domain/roles'
+import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import { Button } from '#/components/ui/button'
 import {
@@ -12,26 +11,20 @@ import {
   CardHeader,
   CardTitle,
 } from '#/components/ui/card'
-import { Skeleton } from '#/components/ui/skeleton'
 import { Badge } from '#/components/ui/badge'
-import { Alert, AlertDescription } from '#/components/ui/alert'
-import { AlertCircle, Plus, ChevronRight } from 'lucide-react'
+import { Plus, ChevronRight } from 'lucide-react'
 
 export const Route = createFileRoute('/_authenticated/properties/')({
+  loader: () => listProperties(),
   component: PropertyListPage,
 })
 
 function PropertyListPage() {
-  const ctx = Route.useRouteContext()
-  const role = (ctx as { role?: Role }).role ?? 'Staff'
+  const ctx = Route.useRouteContext() as AuthRouteContext
+  const role = ctx.role
   const canCreate = can(role, 'property.create')
-
-  const query = useQuery({
-    queryKey: ['properties'],
-    queryFn: () => listProperties(),
-  })
-
-  const properties = query.data?.properties ?? []
+  const loaderData = Route.useLoaderData()
+  const properties = loaderData.properties ?? []
 
   return (
     <div className="page-wrap px-4 pb-8 pt-14">
@@ -56,18 +49,7 @@ function PropertyListPage() {
         </CardHeader>
 
         <CardContent>
-          {query.isLoading ? (
-            <div className="flex flex-col gap-3">
-              {Array.from({ length: 3 }).map((_, i) => (
-                <Skeleton key={i} className="h-16 w-full" />
-              ))}
-            </div>
-          ) : query.error ? (
-            <Alert variant="destructive">
-              <AlertCircle />
-              <AlertDescription>Failed to load properties.</AlertDescription>
-            </Alert>
-          ) : properties.length === 0 ? (
+          {properties.length === 0 ? (
             <Card className="border-dashed">
               <CardContent className="flex flex-col items-center gap-2 py-8 text-center">
                 <p className="text-muted-foreground">No properties yet.</p>

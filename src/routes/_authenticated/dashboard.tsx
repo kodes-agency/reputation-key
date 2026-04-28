@@ -24,8 +24,9 @@ export const Route = createFileRoute('/_authenticated/dashboard')({
 })
 
 function DashboardPage() {
-  const ctx = Route.useRouteContext()
-  const user = (ctx as { user?: { name: string } }).user
+  const ctx =
+    Route.useRouteContext() as import('#/routes/_authenticated').AuthRouteContext
+  const user = ctx.user
   const queryClient = useQueryClient()
 
   const orgQuery = useQuery({

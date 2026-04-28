@@ -8,10 +8,12 @@ import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { isIdentityError } from '../../domain/errors'
 
+const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
+
 const setup = () => {
   const identity = createInMemoryIdentityPort()
   const events = createCapturingEventBus()
-  const useCase = removeMember({ identity, events })
+  const useCase = removeMember({ identity, events, clock: () => FIXED_TIME })
   return { useCase, identity, events }
 }
 

@@ -3,12 +3,13 @@
 // Route-level auth is done in beforeLoad using authClient.getSession()
 // (see routes/_authenticated.tsx for the pattern).
 // Server-function-level auth uses getAuth().api.getSession() directly.
+import { match } from 'ts-pattern'
 import { getAuth } from './auth'
 import type { AuthUser } from './auth'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { toDomainRole } from '#/shared/domain/roles'
 import { organizationId, userId } from '#/shared/domain/ids'
-import type { OrganizationId } from '#/shared/domain/ids'
+import { throwContextError } from './server-errors'
 
 // ── Tagged errors ──────────────────────────────────────────────────
 
@@ -18,11 +19,16 @@ export type AuthError = Readonly<{
   message: string
 }>
 
-const authError = (code: AuthError['code'], message: string): AuthError => ({
-  _tag: 'AuthError',
-  code,
-  message,
-})
+const authErrorStatus = (code: AuthError['code']): number =>
+  match(code)
+    .with('unauthorized', 'session_expired', () => 401)
+    .with('forbidden', () => 403)
+    .with('no_active_org', () => 400)
+    .exhaustive()
+
+function throwAuthError(code: AuthError['code'], message: string): never {
+  throwContextError('AuthError', { code, message }, authErrorStatus(code))
+}
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
@@ -50,7 +56,7 @@ export function getSessionFromHeaders(headers: Headers) {
 export async function requireAuth(headers: Headers): Promise<AuthUser> {
   const user = await getUserFromHeaders(headers)
   if (!user) {
-    throw authError('unauthorized', 'Valid session required')
+    throwAuthError('unauthorized', 'Valid session required')
   }
   return user
 }
@@ -69,24 +75,24 @@ export async function requireAuth(headers: Headers): Promise<AuthUser> {
 export async function resolveTenantContext(headers: Headers): Promise<AuthContext> {
   const session = await getSessionFromHeaders(headers)
   if (!session) {
-    throw authError('unauthorized', 'Valid session required')
+    throwAuthError('unauthorized', 'Valid session required')
   }
 
   const activeOrgId = session.session.activeOrganizationId
   if (!activeOrgId) {
-    throw authError('no_active_org', 'No active organization selected')
+    throwAuthError('no_active_org', 'No active organization selected')
   }
 
   // Find the member record for this user in the active org
   const auth = getAuth()
   const member = await auth.api.getActiveMember({ headers })
   if (!member) {
-    throw authError('forbidden', 'Not a member of the active organization')
+    throwAuthError('forbidden', 'Not a member of the active organization')
   }
 
   return {
     userId: userId(session.user.id),
-    organizationId: organizationId(activeOrgId) as OrganizationId,
+    organizationId: organizationId(activeOrgId),
     role: toDomainRole(member.role),
   }
 }

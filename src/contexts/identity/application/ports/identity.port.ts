@@ -50,7 +50,12 @@ export type IdentityPort = Readonly<{
   getMember: (ctx: AuthContext, memberId: string) => Promise<MemberRecord | null>
 
   /** Create an invitation to join the organization. Returns the invitation ID. */
-  createInvitation: (ctx: AuthContext, email: string, role: string) => Promise<string>
+  createInvitation: (
+    ctx: AuthContext,
+    email: string,
+    role: string,
+    propertyIds?: ReadonlyArray<string>,
+  ) => Promise<string>
 
   /** Accept an invitation (may not require active org). */
   acceptInvitation: (invitationId: string, headers: Headers) => Promise<void>

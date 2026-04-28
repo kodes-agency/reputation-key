@@ -2,7 +2,7 @@
 // Child routes (overview, teams, staff) render via <Outlet />.
 
 import { createFileRoute, Link, Outlet, useNavigate } from '@tanstack/react-router'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { getProperty, deleteProperty } from '#/contexts/property/server/properties'
 import { Button } from '#/components/ui/button'
 import {
@@ -13,7 +13,6 @@ import {
   CardDescription,
 } from '#/components/ui/card'
 import { Separator } from '#/components/ui/separator'
-import { Skeleton } from '#/components/ui/skeleton'
 import { Alert, AlertDescription } from '#/components/ui/alert'
 import { Tabs, TabsList, TabsTrigger } from '#/components/ui/tabs'
 import { AlertCircle, Trash2 } from 'lucide-react'
@@ -21,6 +20,10 @@ import { toast } from 'sonner'
 import { useRouterState } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId')({
+  loader: async ({ params: { propertyId } }) => {
+    const res = await getProperty({ data: { propertyId } })
+    return { property: res.property }
+  },
   component: PropertyLayout,
 })
 
@@ -30,14 +33,7 @@ function PropertyLayout() {
   const queryClient = useQueryClient()
   const routerState = useRouterState()
   const currentPath = routerState.location.pathname
-
-  const query = useQuery({
-    queryKey: ['property', propertyId],
-    queryFn: async () => {
-      const res = await getProperty({ data: { propertyId } })
-      return res.property
-    },
-  })
+  const { property } = Route.useLoaderData()
 
   const deleteMutation = useMutation({
     mutationFn: () => deleteProperty({ data: { propertyId } }),
@@ -53,20 +49,7 @@ function PropertyLayout() {
     },
   })
 
-  if (query.isLoading) {
-    return (
-      <div className="page-wrap px-4 pb-8 pt-14">
-        <Card className="island-shell rise-in rounded-2xl">
-          <CardContent className="flex flex-col gap-3 pt-6">
-            <Skeleton className="h-6 w-48" />
-            <Skeleton className="h-4 w-32" />
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
-
-  if (query.error || !query.data) {
+  if (!property) {
     return (
       <div className="page-wrap px-4 pb-8 pt-14">
         <Card className="island-shell rise-in rounded-2xl">
@@ -87,8 +70,6 @@ function PropertyLayout() {
       </div>
     )
   }
-
-  const property = query.data
 
   // Determine active tab from current path
   const activeTab = currentPath.endsWith('/staff')

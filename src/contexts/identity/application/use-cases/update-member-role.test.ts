@@ -31,10 +31,16 @@ const PM_MEMBER: MemberRecord = {
   createdAt: new Date('2025-01-01'),
 }
 
+const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
+
 const setup = () => {
   const identity = createInMemoryIdentityPort()
   const events = createCapturingEventBus()
-  const useCase = updateMemberRole({ identity, events })
+  const useCase = updateMemberRole({
+    identity,
+    events,
+    clock: () => FIXED_TIME,
+  })
   return { useCase, identity, events }
 }
 

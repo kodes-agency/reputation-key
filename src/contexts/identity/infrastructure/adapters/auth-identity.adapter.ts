@@ -12,8 +12,18 @@ import type {
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { getAuth } from '#/shared/auth/auth'
 import { toDomainRole, toBetterAuthRole } from '#/shared/domain/roles'
+import { identityError } from '../../domain/errors'
 import { organizationId } from '#/shared/domain/ids'
 import { getRequest } from '@tanstack/react-start/server'
+import {
+  parseBetterAuthResponse,
+  signUpResponseSchema,
+  listMembersResponseSchema,
+  createInvitationResponseSchema,
+  listInvitationsResponseSchema,
+  listUserInvitationsResponseSchema,
+  listOrganizationsResponseSchema,
+} from './better-auth-schemas'
 
 /** Build request headers that carry the better-auth session cookie.
  * The adapter needs real headers because better-auth server APIs
@@ -35,15 +45,15 @@ function toMemberRecord(m: {
   userId: string
   role: string
   createdAt: Date
-  user?: { id: string; email: string; name: string; image: string | null }
+  user: { id: string; email: string; name: string; image?: string | null }
 }): MemberRecord {
   return {
     id: m.id,
     userId: m.userId,
-    email: m.user?.email ?? '',
-    name: m.user?.name ?? '',
+    email: m.user.email,
+    name: m.user.name,
     role: toDomainRole(m.role),
-    image: m.user?.image ?? null,
+    image: m.user.image ?? null,
     createdAt: m.createdAt,
   }
 }
@@ -56,12 +66,16 @@ export function createAuthIdentityAdapter(): IdentityPort {
       const result = await auth.api.signUpEmail({
         body: { name, email, password },
       })
-      // better-auth signUpEmail returns { user: { id: string } }
-      const user = result as unknown as { user?: { id?: string } } | undefined
-      if (!user?.user?.id) {
-        throw new Error('Sign-up failed: no user ID returned')
+      const data = parseBetterAuthResponse(
+        signUpResponseSchema,
+        result,
+        'registration_failed',
+        'Sign-up response did not match expected schema',
+      )
+      if (!data.user.id) {
+        throw identityError('registration_failed', 'Sign-up failed: no user ID returned')
       }
-      return user.user.id
+      return data.user.id
     },
 
     async listMembers(_ctx: AuthContext): Promise<ReadonlyArray<MemberRecord>> {
@@ -69,10 +83,13 @@ export function createAuthIdentityAdapter(): IdentityPort {
       const headers = headersFromRequest()
       const result = await auth.api.listMembers({ headers })
 
-      const rawMembers = (result?.members ?? result ?? []) as Parameters<
-        typeof toMemberRecord
-      >[0][]
-      return rawMembers.map(toMemberRecord)
+      const data = parseBetterAuthResponse(
+        listMembersResponseSchema,
+        result,
+        'org_setup_failed',
+        'listMembers response did not match expected schema',
+      )
+      return data.members.map(toMemberRecord)
     },
 
     async getMember(_ctx: AuthContext, memberId: string): Promise<MemberRecord | null> {
@@ -80,10 +97,13 @@ export function createAuthIdentityAdapter(): IdentityPort {
       const headers = headersFromRequest()
       const result = await auth.api.listMembers({ headers })
 
-      const rawMembers = (result?.members ?? result ?? []) as Parameters<
-        typeof toMemberRecord
-      >[0][]
-      const member = rawMembers.find((m) => m.id === memberId)
+      const data = parseBetterAuthResponse(
+        listMembersResponseSchema,
+        result,
+        'org_setup_failed',
+        'listMembers response did not match expected schema',
+      )
+      const member = data.members.find((m) => m.id === memberId)
       return member ? toMemberRecord(member) : null
     },
 
@@ -91,16 +111,28 @@ export function createAuthIdentityAdapter(): IdentityPort {
       _ctx: AuthContext,
       email: string,
       role: string,
+      propertyIds?: ReadonlyArray<string>,
     ): Promise<string> {
       const auth = getAuth()
       const headers = headersFromRequest()
       const result = await auth.api.createInvitation({
         headers,
-        body: { email, role: toBetterAuthRole(role as ReturnType<typeof toDomainRole>) },
+        body: {
+          email,
+          role: toBetterAuthRole(role as ReturnType<typeof toDomainRole>),
+          propertyIds:
+            propertyIds && propertyIds.length > 0
+              ? JSON.stringify(propertyIds)
+              : undefined,
+        },
       })
-      // better-auth createInvitation returns the invitation object with an id
-      const invitation = result as unknown as { id?: string } | undefined
-      return invitation?.id ?? ''
+      const invitation = parseBetterAuthResponse(
+        createInvitationResponseSchema,
+        result,
+        'org_setup_failed',
+        'createInvitation response did not match expected schema',
+      )
+      return invitation.id
     },
 
     async acceptInvitation(invitationId: string, headers: Headers): Promise<void> {
@@ -118,22 +150,18 @@ export function createAuthIdentityAdapter(): IdentityPort {
       const headers = headersFromRequest()
       const result = await auth.api.listInvitations({ headers })
 
-      type RawInvitation = {
-        id: string
-        email: string
-        role: string
-        status: string
-        expiresAt: Date
-        createdAt: Date
-      }
-
-      const rawInvitations = (Array.isArray(result) ? result : []) as RawInvitation[]
-      return rawInvitations.map(
+      const invitations = parseBetterAuthResponse(
+        listInvitationsResponseSchema,
+        result,
+        'org_setup_failed',
+        'listInvitations response did not match expected schema',
+      )
+      return invitations.map(
         (inv): InvitationRecord => ({
           id: inv.id,
           email: inv.email,
           role: toDomainRole(inv.role),
-          status: inv.status as InvitationRecord['status'],
+          status: inv.status,
           expiresAt: inv.expiresAt,
           createdAt: inv.createdAt,
         }),
@@ -146,24 +174,18 @@ export function createAuthIdentityAdapter(): IdentityPort {
       const auth = getAuth()
       const result = await auth.api.listUserInvitations({ headers })
 
-      type RawInvitation = {
-        id: string
-        email: string
-        role: string
-        status: string
-        expiresAt: Date
-        createdAt: Date
-        organizationId?: string
-        organization?: { name: string }
-      }
-
-      const rawInvitations = (Array.isArray(result) ? result : []) as RawInvitation[]
-      return rawInvitations.map(
+      const invitations = parseBetterAuthResponse(
+        listUserInvitationsResponseSchema,
+        result,
+        'org_setup_failed',
+        'listUserInvitations response did not match expected schema',
+      )
+      return invitations.map(
         (inv): InvitationRecord => ({
           id: inv.id,
           email: inv.email,
           role: toDomainRole(inv.role),
-          status: inv.status as InvitationRecord['status'],
+          status: inv.status,
           expiresAt: inv.expiresAt,
           createdAt: inv.createdAt,
           organizationId: inv.organizationId
@@ -205,16 +227,13 @@ export function createAuthIdentityAdapter(): IdentityPort {
       const auth = getAuth()
       const result = await auth.api.listOrganizations({ headers })
 
-      type RawOrg = {
-        id: string
-        name: string
-        slug: string
-        logo: string | null
-        createdAt: Date
-      }
-
-      const rawOrgs = (Array.isArray(result) ? result : []) as RawOrg[]
-      return rawOrgs.map(
+      const orgs = parseBetterAuthResponse(
+        listOrganizationsResponseSchema,
+        result,
+        'org_setup_failed',
+        'listOrganizations response did not match expected schema',
+      )
+      return orgs.map(
         (org): OrganizationRecord => ({
           id: org.id,
           name: org.name,

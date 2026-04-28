@@ -18,14 +18,21 @@ import { createJobQueue } from '#/shared/jobs/queue'
 import { createJobRegistry } from '#/shared/jobs/registry'
 import type { JobRegistry } from '#/shared/jobs/registry'
 import { createAuthIdentityAdapter } from '#/contexts/identity/infrastructure/adapters/auth-identity.adapter'
+import {
+  betterAuthOrganizationSchema,
+  parseBetterAuthResponse,
+} from '#/contexts/identity/infrastructure/adapters/better-auth-schemas'
 import { inviteMember } from '#/contexts/identity/application/use-cases/invite-member'
 import { updateMemberRole } from '#/contexts/identity/application/use-cases/update-member-role'
 import { removeMember } from '#/contexts/identity/application/use-cases/remove-member'
 import { listInvitations } from '#/contexts/identity/application/use-cases/list-invitations'
+import { resendInvitation } from '#/contexts/identity/application/use-cases/resend-invitation'
 import { registerUserAndOrg } from '#/contexts/identity/application/use-cases/register-user-and-org'
 import { registerUser } from '#/contexts/identity/application/use-cases/register-user'
-import { getAuth } from '#/shared/auth/auth'
+import { getAuth, setOnAcceptInvitation } from '#/shared/auth/auth'
+import { sendInvitationEmail } from '#/shared/auth/emails'
 import { headersFromContext } from '#/shared/auth/headers'
+import { getEnv } from '#/shared/config/env'
 import type { Queue } from 'bullmq'
 import { createPropertyRepository } from '#/contexts/property/infrastructure/repositories/property.repository'
 import { createProperty } from '#/contexts/property/application/use-cases/create-property'
@@ -43,11 +50,18 @@ import { createStaffAssignmentRepository } from '#/contexts/staff/infrastructure
 import { createStaffAssignment } from '#/contexts/staff/application/use-cases/create-staff-assignment'
 import { removeStaffAssignment } from '#/contexts/staff/application/use-cases/remove-staff-assignment'
 import { listStaffAssignments } from '#/contexts/staff/application/use-cases/list-staff-assignments'
-import { propertyId, teamId, staffAssignmentId } from '#/shared/domain/ids'
+import {
+  propertyId,
+  teamId,
+  staffAssignmentId,
+  organizationId as toOrgId,
+  userId as toUserId,
+} from '#/shared/domain/ids'
 import { randomUUID } from 'crypto'
 import type { PropertyAccessProvider } from '#/shared/domain/property-access.port'
 
-export function createContainer() {
+export function createContainer(options?: { enableJobs?: boolean }) {
+  const { enableJobs = false } = options ?? {}
   const db = getDb()
   const logger = getLogger()
   const redis = getRedis()
@@ -60,25 +74,12 @@ export function createContainer() {
     maxRequests: 60,
     windowSeconds: 60,
   })
-  const jobQueue: Queue | undefined = createJobQueue('default')
-  const jobRegistry: JobRegistry = createJobRegistry()
+  // Only create job infrastructure in the worker process
+  const jobQueue: Queue | undefined = enableJobs ? createJobQueue('default') : undefined
+  const jobRegistry: JobRegistry = enableJobs ? createJobRegistry() : createJobRegistry()
 
   // ── Identity context ─────────────────────────────────────────────
   const identityPort = createAuthIdentityAdapter()
-
-  // Helper: sign up a user via better-auth, returns user ID
-  const signUpUser = async (
-    name: string,
-    email: string,
-    password: string,
-  ): Promise<string> => {
-    const auth = getAuth()
-    const result = await auth.api.signUpEmail({
-      body: { name, email, password },
-    })
-    const user = result as unknown as { user?: { id?: string } }
-    return user?.user?.id ?? ''
-  }
 
   // Helper: create org via better-auth using the server-side userId field.
   // Uses userId instead of session headers so it works during registration
@@ -93,7 +94,13 @@ export function createContainer() {
     const org = await auth.api.createOrganization({
       body: { name, slug, userId },
     })
-    return (org as unknown as { id: string }).id
+    const parsed = parseBetterAuthResponse(
+      betterAuthOrganizationSchema,
+      org,
+      'org_setup_failed',
+      'Invalid organization response from auth provider',
+    )
+    return parsed.id
   }
 
   // Helper: set active org via better-auth.
@@ -102,7 +109,10 @@ export function createContainer() {
   const setActiveOrg = async (headers: Headers, orgId: string): Promise<void> => {
     const auth = getAuth()
     try {
-      await auth.api.setActiveOrganization({ headers, body: { organizationId: orgId } })
+      await auth.api.setActiveOrganization({
+        headers,
+        body: { organizationId: orgId },
+      })
     } catch {
       // If headers don't carry a valid session (e.g., during registration
       // where cookies aren't yet available), this is non-fatal — the user
@@ -145,24 +155,57 @@ export function createContainer() {
 
   const useCases = {
     // Identity
-    inviteMember: inviteMember({ identity: identityPort, events: eventBus }),
-    updateMemberRole: updateMemberRole({ identity: identityPort, events: eventBus }),
-    removeMember: removeMember({ identity: identityPort, events: eventBus }),
+    inviteMember: inviteMember({
+      identity: identityPort,
+      events: eventBus,
+      clock,
+    }),
+    updateMemberRole: updateMemberRole({
+      identity: identityPort,
+      events: eventBus,
+      clock,
+    }),
+    removeMember: removeMember({
+      identity: identityPort,
+      events: eventBus,
+      clock,
+    }),
     listInvitations: listInvitations({ identity: identityPort }),
+    resendInvitation: resendInvitation({
+      identity: identityPort,
+      sendEmail: sendInvitationEmail,
+      getOrganizationName: async (_ctx) => {
+        const auth = getAuth()
+        const headers = headersFromContext()
+        const org = await auth.api.getFullOrganization({ headers })
+        return org?.name ?? 'Unknown Organization'
+      },
+      baseUrl: getEnv().BETTER_AUTH_URL,
+    }),
     registerUserAndOrg: registerUserAndOrg({
       events: eventBus,
-      signUp: signUpUser,
+      signUp: identityPort.signUp,
       createOrg,
       setActiveOrg,
       headers: headersFromContext,
+      clock,
     }),
     registerUser: registerUser({ identity: identityPort }),
     // Property
-    createProperty: createProperty({ propertyRepo, events: eventBus, idGen, clock }),
+    createProperty: createProperty({
+      propertyRepo,
+      events: eventBus,
+      idGen,
+      clock,
+    }),
     updateProperty: updateProperty({ propertyRepo, events: eventBus, clock }),
     listProperties: listProperties({ propertyRepo, propertyAccess }),
     getProperty: getProperty({ propertyRepo }),
-    softDeleteProperty: softDeleteProperty({ propertyRepo, events: eventBus, clock }),
+    softDeleteProperty: softDeleteProperty({
+      propertyRepo,
+      events: eventBus,
+      clock,
+    }),
     // Team
     createTeam: createTeam({
       teamRepo,
@@ -187,8 +230,35 @@ export function createContainer() {
       events: eventBus,
       clock,
     }),
-    listStaffAssignments: listStaffAssignments({ assignmentRepo: staffAssignmentRepo }),
+    listStaffAssignments: listStaffAssignments({
+      assignmentRepo: staffAssignmentRepo,
+    }),
   } as const
+
+  // ── Wire invitation acceptance hook ────────────────────────────
+  // When a member accepts an invitation, auto-create staff assignments
+  // for the properties specified in the invitation's propertyIds field.
+  setOnAcceptInvitation(async ({ userId, organizationId, propertyIds }) => {
+    const uid = toUserId(userId)
+    const oid = toOrgId(organizationId)
+    for (const pid of propertyIds) {
+      try {
+        await useCases.createStaffAssignment(
+          {
+            userId: uid,
+            propertyId: propertyId(pid),
+          },
+          { userId: uid, organizationId: oid, role: 'AccountAdmin' },
+        )
+      } catch {
+        // Assignment may already exist or property may not exist — non-fatal
+        logger.warn(
+          { userId, propertyId: pid },
+          'Failed to auto-assign property on invitation acceptance',
+        )
+      }
+    }
+  })
 
   return {
     db,

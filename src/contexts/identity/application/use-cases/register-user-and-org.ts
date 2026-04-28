@@ -37,6 +37,8 @@ type Deps = Readonly<{
   setActiveOrg: (headers: Headers, orgId: string) => Promise<void>
   /** Build headers carrying the current request session. */
   headers: () => Headers
+  /** Injectable clock for deterministic timestamps. */
+  clock: () => Date
 }>
 
 /**
@@ -96,7 +98,7 @@ export const registerUserAndOrg =
         organizationName: validName,
         slug,
         ownerId: toUserId(userId),
-        occurredAt: new Date(),
+        occurredAt: deps.clock(),
       }),
     )
 

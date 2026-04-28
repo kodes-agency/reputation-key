@@ -1,7 +1,7 @@
 // Property overview tab — view and edit property details.
 
 import { createFileRoute } from '@tanstack/react-router'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { getProperty, updateProperty } from '#/contexts/property/server/properties'
 import { EditPropertyForm } from '#/components/features/property/EditPropertyForm'
@@ -10,6 +10,10 @@ import { Card, CardContent } from '#/components/ui/card'
 import { Pencil } from 'lucide-react'
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/')({
+  loader: async ({ params: { propertyId } }) => {
+    const res = await getProperty({ data: { propertyId } })
+    return { property: res.property }
+  },
   component: PropertyOverview,
 })
 
@@ -17,14 +21,7 @@ function PropertyOverview() {
   const { propertyId } = Route.useParams()
   const queryClient = useQueryClient()
   const [editing, setEditing] = useState(false)
-
-  const query = useQuery({
-    queryKey: ['property', propertyId],
-    queryFn: async () => {
-      const res = await getProperty({ data: { propertyId } })
-      return res.property
-    },
-  })
+  const { property } = Route.useLoaderData()
 
   const updateMutation = useMutation({
     mutationFn: (input: Parameters<typeof updateProperty>[0]) => updateProperty(input),
@@ -35,9 +32,9 @@ function PropertyOverview() {
     },
   })
 
-  if (!query.data) return null
+  if (!property) return null
 
-  const property = query.data
+  // property is already typed from loader data
 
   if (editing) {
     return (

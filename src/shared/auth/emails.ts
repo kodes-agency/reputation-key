@@ -5,6 +5,18 @@ import { getLogger } from '#/shared/observability/logger'
 
 let _resend: Resend | undefined
 
+// ── HTML escaping ─────────────────────────────────────────────────────
+/** Escape user-controlled values before embedding in HTML email templates.
+ * Prevents XSS via HTML entity encoding. */
+function escapeHtml(raw: string): string {
+  return raw
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
 // ── Tagged errors ────────────────────────────────────────────────────
 
 import { createErrorFactory } from '#/shared/domain/errors'
@@ -24,11 +36,11 @@ export function getResend(): Resend {
   return _resend
 }
 
-interface SendEmailParams {
+type SendEmailParams = Readonly<{
   to: string
   subject: string
   html: string
-}
+}>
 
 async function sendEmail({ to, subject, html }: SendEmailParams): Promise<void> {
   const logger = getLogger()
@@ -104,7 +116,7 @@ function emailShell(innerHtml: string): string {
 function verificationEmailHtml(verificationUrl: string): string {
   return emailShell(`
       <p>Welcome! Please verify your email address to get started.</p>
-      <a href="${verificationUrl}" class="button">Verify Email</a>
+      <a href="${escapeHtml(verificationUrl)}" class="button">Verify Email</a>
       <p>If you didn't create an account, you can safely ignore this email.</p>
     </div>
     <div class="footer">
@@ -115,7 +127,7 @@ function verificationEmailHtml(verificationUrl: string): string {
 function resetPasswordEmailHtml(resetUrl: string): string {
   return emailShell(`
       <p>We received a request to reset your password.</p>
-      <a href="${resetUrl}" class="button">Reset Password</a>
+      <a href="${escapeHtml(resetUrl)}" class="button">Reset Password</a>
       <p>If you didn't request this, you can safely ignore this email.</p>
     </div>
     <div class="footer">
@@ -143,8 +155,8 @@ export async function sendInvitationEmail(params: InvitationEmailParams): Promis
 
 function invitationEmailHtml(params: InvitationEmailParams): string {
   return emailShell(`
-      <p><strong>${params.invitedByUsername}</strong> has invited you to join <strong>${params.organizationName}</strong> on Reputation Key.</p>
-      <a href="${params.inviteLink}" class="button">Accept Invitation</a>
+      <p><strong>${escapeHtml(params.invitedByUsername)}</strong> has invited you to join <strong>${escapeHtml(params.organizationName)}</strong> on Reputation Key.</p>
+      <a href="${escapeHtml(params.inviteLink)}" class="button">Accept Invitation</a>
       <p>If you don't have an account yet, you'll be guided to create one after clicking the button above.</p>
       <p>If you weren't expecting this invitation, you can safely ignore this email.</p>
     </div>

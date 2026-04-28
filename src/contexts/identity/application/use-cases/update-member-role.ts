@@ -19,7 +19,11 @@ export type UpdateMemberRoleOutput = Readonly<{
   success: boolean
 }>
 
-type Deps = Readonly<{ identity: IdentityPort; events: EventBus }>
+type Deps = Readonly<{
+  identity: IdentityPort
+  events: EventBus
+  clock: () => Date
+}>
 
 /**
  * Update a member's role in the organization.
@@ -66,7 +70,7 @@ export const updateMemberRole =
         previousRole: targetMember.role,
         newRole: input.role,
         changedBy: ctx.userId,
-        occurredAt: new Date(),
+        occurredAt: deps.clock(),
       }),
     )
 

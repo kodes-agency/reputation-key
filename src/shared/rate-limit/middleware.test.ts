@@ -25,6 +25,18 @@ function createMockRedis() {
       const entry = counters.get(key)
       return entry?.ttl ?? -1
     }),
+    // Mock eval for atomic Lua script (INCR + conditional EXPIRE)
+    eval: vi.fn(
+      async (_script: string, _numKeys: number, key: string, seconds: string) => {
+        const entry = counters.get(key) ?? { count: 0, ttl: 60 }
+        entry.count += 1
+        if (entry.count === 1) {
+          entry.ttl = Number(seconds)
+        }
+        counters.set(key, entry)
+        return entry.count
+      },
+    ),
   }
 }
 
