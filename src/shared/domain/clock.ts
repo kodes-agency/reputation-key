@@ -7,19 +7,19 @@ export type Clock = Readonly<{
 }>
 
 /** Real clock using system time. */
-const systemClock: Clock = {
+export const systemClock: Clock = {
   now: () => new Date(),
 }
 
 /** Test clock with a fixed time. */
-function fixedClock(fixedDate: Date): Clock {
+export function fixedClock(fixedDate: Date): Clock {
   return {
     now: () => fixedDate,
   }
 }
 
 /** Test clock that advances by `incrementMs` on each call. */
-function advancingClock(startDate: Date, incrementMs: number): Clock {
+export function advancingClock(startDate: Date, incrementMs: number): Clock {
   let current = startDate.getTime()
   return {
     now: () => {

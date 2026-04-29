@@ -10,7 +10,7 @@ import { getAuth } from '#/shared/auth/auth'
  * Server functions opt in by adding .middleware([authMiddleware]) to their chain.
  * Context will contain { session } for downstream handlers.
  */
-const authMiddleware = createMiddleware({ type: 'function' }).server(
+export const authMiddleware = createMiddleware({ type: 'function' }).server(
   async ({ next }) => {
     const request = getRequest()
     const auth = getAuth()

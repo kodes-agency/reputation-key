@@ -75,7 +75,7 @@ export function useMutationAction<TFn extends (...args: any[]) => Promise<any>>(
  * Silent variant — no toast, still invalidates router.
  * Useful for inline mutations (not form-driven).
  */
-function useMutationActionSilent<
+export function useMutationActionSilent<
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	TFn extends (...args: any[]) => Promise<any>,
 >(
