@@ -65,6 +65,7 @@ The default for anything non-trivial is the full use case. The thin and direct p
 27. [Update use case (partial validation)](#28-update-use-case-partial-validation)
 28. [Soft-delete use case (minimal deps)](#29-soft-delete-use-case-minimal-deps)
 29. [Form schema rules — when forms differ from DTOs](#30-form-schema-rules--when-forms-differ-from-dtos)
+30. [Route file (loader + useLoaderData + useServerFn)](#31-route-file-loader--useloaderdata--useserverfn)
 
 - [Choosing the right pattern](#choosing-the-right-pattern)
 - [How to use this document](#how-to-use-this-document)
@@ -973,7 +974,7 @@ export const createProperty = createServerFn({ method: 'POST' })
 - `throwContextError` is the shared helper for throwing tagged errors with status codes
 - `resolveTenantContext` throws `AuthError` via the same helper — auth failures (no session, no active org, not a member) are `Error` instances with `.name`, `.code`, `.status` just like domain errors
 - Non-context errors re-thrown; TanStack Start's error boundary handles them
-- **Throws Error objects (not Response)** — TanStack Start serializes Errors via seroval and re-throws them on the client, so mutations fail and `mutation.error` is populated
+- **Throws Error objects (not Response)** — TanStack Start serializes Errors via seroval and re-throws them on the client, so `useServerFn` calls populate `.error` on failure
 
 ---
 
@@ -1588,7 +1589,7 @@ type Props = Readonly<{
   properties: ReadonlyArray<{ id: string; name: string }>
 }>
 
-export function InviteMemberForm({ mutation, allowedRoles, properties }: Props) {
+export function InviteMemberForm({ inviteAction, allowedRoles, properties }: Props) {
   const form = useForm({
     defaultValues: {
       email: '',
@@ -1599,7 +1600,7 @@ export function InviteMemberForm({ mutation, allowedRoles, properties }: Props) 
       onSubmit: inviteFormSchema,
     },
     onSubmit: async ({ value }) => {
-      await mutation.mutateAsync(value)
+      await inviteAction({ data: value })
     },
   })
 
@@ -1612,7 +1613,7 @@ export function InviteMemberForm({ mutation, allowedRoles, properties }: Props) 
       }}
       className="flex flex-col gap-4"
     >
-      <FormErrorBanner error={mutation.error} />
+      <FormErrorBanner error={inviteAction.error} />
 
       <FieldGroup>
         <form.Field name="email">
@@ -1688,31 +1689,37 @@ function roleLabel(role: Role): string {
 
 **Key points:**
 
-- **Receives `mutation` as a prop** — the route defines `useMutation({ mutationFn: inviteMember })` and passes it. Components never import server functions (dependency rules).
+- **Receives `inviteAction` as a prop** — the route defines `const inviteAction = useServerFn(inviteMember)` and passes it. Components never import server functions (dependency rules).
 - Uses shadcn's `Field`, `FieldLabel`, `FieldError`, `FieldGroup` primitives for consistent visual structure
 - Uses TanStack Form's `useForm`, `form.Field`, `form.handleSubmit` for state management
 - The form schema is **derived from the DTO schema** via `.extend()` — single source of truth. See section 30 for form schema derivation patterns.
 - The `isInvalid` check (`isTouched && !isValid`) gates error display so errors only show after the user has interacted with the field
-- `FormErrorBanner` displays top-level mutation errors
-- `SubmitButton` reads both the mutation state (for loading/disabled) and the form state (for validation)
+- `FormErrorBanner` displays top-level action errors
+- `SubmitButton` reads both the action state (for loading/disabled) and the form state (for validation)
 - One form component per feature; lives in `components/features/<ctx>/`
 
 **Route wiring example:**
 
 ```tsx
 // routes/.../settings/members.tsx
-import { useMutation } from '@tanstack/react-query'
+import { useServerFn } from '@tanstack/react-start'
+import { useRouter } from '@tanstack/react-router'
 import { inviteMember } from '#/contexts/identity/server/organizations'
 import { InviteMemberForm } from '#/components/features/identity/InviteMemberForm'
 
 function MembersPage() {
-  const mutation = useMutation({
-    mutationFn: (input) => inviteMember({ data: input }),
-  })
+  const router = useRouter()
+  const inviteAction = useServerFn(inviteMember)
+
+  async function handleInvite(input: InviteMemberInput) {
+    await inviteAction({ data: input })
+    await router.invalidate()
+  }
 
   return (
     <InviteMemberForm
-      mutation={mutation}
+      inviteAction={inviteAction}
+      onSubmit={handleInvite}
       allowedRoles={['PropertyManager', 'Staff']}
       properties={orgProperties}
     />
@@ -1730,8 +1737,13 @@ function MembersPage() {
 ```tsx
 import { Button } from '#/components/ui/button'
 import { Loader2 } from 'lucide-react'
-import type { UseMutationResult } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
+
+// Minimal type for any async action — we only read isPending/error
+type AnyAction = Readonly<{
+  isPending: boolean
+  error: unknown
+}>
 
 // Minimal type for the form shape we need — avoids heavy FormApi generics
 type FormLike = Readonly<{
@@ -1742,14 +1754,14 @@ type FormLike = Readonly<{
 }>
 
 type Props = Readonly<{
-  mutation: UseMutationResult<unknown, unknown, unknown, unknown>
+  action: AnyAction
   form?: FormLike
   children: ReactNode
   variant?: 'default' | 'destructive' | 'secondary'
 }>
 
-export function SubmitButton({ mutation, form, children, variant = 'default' }: Props) {
-  const isPending = mutation.isPending
+export function SubmitButton({ action, form, children, variant = 'default' }: Props) {
+  const isPending = action.isPending
   const isInvalid = form ? !form.state.canSubmit || form.state.isSubmitting : false
 
   return (
@@ -2013,6 +2025,63 @@ Change a rule in the DTO → every derived form schema automatically picks it up
 - ❌ Duplicating _business logic_ (slug regex patterns, timezone lists) in form schemas — inherit from DTO
 - ❌ Skipping form validation entirely — early feedback is a UX requirement
 - ❌ Using the DTO schema directly when the form shape genuinely differs — causes type errors from `undefined` vs empty string
+
+---
+
+## 31. Route file (loader + useLoaderData + useServerFn)
+
+**Location:** `src/routes/_authenticated/properties/$propertyId.tsx`
+**Purpose:** Canonical route file showing data loading, mutation, and refresh in a single TanStack Start route.
+
+```tsx
+import { createFileRoute, useRouter } from '@tanstack/react-router'
+import { useServerFn } from '@tanstack/react-start'
+import { getProperty, deleteProperty } from '#/contexts/property/server/properties'
+import { Button } from '#/components/ui/button'
+
+export const Route = createFileRoute('/_authenticated/properties/$propertyId')({
+  loader: async ({ params: { propertyId } }) => {
+    const { property } = await getProperty({ data: { propertyId } })
+    return { property }
+  },
+  component: PropertyDetailPage,
+})
+
+function PropertyDetailPage() {
+  const { propertyId } = Route.useParams()
+  const { property } = Route.useLoaderData()
+  const router = useRouter()
+  const deleteAction = useServerFn(deleteProperty)
+
+  async function handleDelete() {
+    if (!window.confirm('Delete this property?')) return
+    await deleteAction({ data: { propertyId } })
+    await router.invalidate()
+  }
+
+  return (
+    <div>
+      <h1>{property.name}</h1>
+      <Button onClick={handleDelete} disabled={deleteAction.isPending}>
+        {deleteAction.isPending ? 'Deleting…' : 'Delete'}
+      </Button>
+      {deleteAction.error && (
+        <p className="text-destructive">{deleteAction.error.message}</p>
+      )}
+    </div>
+  )
+}
+```
+
+**Key points:**
+
+- **Route `loader` is the single source of truth for route data** — it runs on SSR and blocks client navigation until data is ready
+- **Components read via `Route.useLoaderData()`** — instant, cached by the router
+- **Mutations use `useServerFn`** — imported from `@tanstack/react-start`, wraps any `createServerFn`
+- **After mutation, call `router.invalidate()`** — re-runs active route loaders, refreshing the UI
+- **Never use `useQuery` for route-scoped data** — route loaders provide SSR, caching, and preloading without an extra dependency
+- **`useServerFn` gives reactive state:** `isPending`, `error`, `data`, `status` — no manual `useState` needed
+- Server functions are imported from `contexts/<ctx>/server/` — dependency rules allow this in `routes/`
 
 ---
 

@@ -15,7 +15,10 @@ import { Badge } from '#/components/ui/badge'
 import { Plus, ChevronRight } from 'lucide-react'
 
 export const Route = createFileRoute('/_authenticated/properties/')({
-  loader: () => listProperties(),
+  loader: async () => {
+    const { properties } = await listProperties()
+    return { properties }
+  },
   component: PropertyListPage,
 })
 
@@ -23,8 +26,7 @@ function PropertyListPage() {
   const ctx = Route.useRouteContext() as AuthRouteContext
   const role = ctx.role
   const canCreate = can(role, 'property.create')
-  const loaderData = Route.useLoaderData()
-  const properties = loaderData.properties ?? []
+  const { properties } = Route.useLoaderData()
 
   return (
     <div className="page-wrap px-4 pb-8 pt-14">

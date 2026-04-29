@@ -1,46 +1,40 @@
 // Property overview tab — view and edit property details.
 
-import { createFileRoute } from '@tanstack/react-router'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { createFileRoute, useRouter, getRouteApi } from '@tanstack/react-router'
+import { useServerFn } from '@tanstack/react-start'
 import { useState } from 'react'
-import { getProperty, updateProperty } from '#/contexts/property/server/properties'
+import { updateProperty } from '#/contexts/property/server/properties'
 import { EditPropertyForm } from '#/components/features/property/EditPropertyForm'
 import { Button } from '#/components/ui/button'
 import { Card, CardContent } from '#/components/ui/card'
 import { Pencil } from 'lucide-react'
+import { useAction, wrapAction } from '#/components/hooks/use-action'
+
+const parentRoute = getRouteApi('/_authenticated/properties/$propertyId')
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/')({
-  loader: async ({ params: { propertyId } }) => {
-    const res = await getProperty({ data: { propertyId } })
-    return { property: res.property }
-  },
   component: PropertyOverview,
 })
 
 function PropertyOverview() {
-  const { propertyId } = Route.useParams()
-  const queryClient = useQueryClient()
+  const router = useRouter()
+  const { property } = parentRoute.useLoaderData()
   const [editing, setEditing] = useState(false)
-  const { property } = Route.useLoaderData()
 
-  const updateMutation = useMutation({
-    mutationFn: (input: Parameters<typeof updateProperty>[0]) => updateProperty(input),
-    onSuccess: () => {
-      setEditing(false)
-      queryClient.invalidateQueries({ queryKey: ['property', propertyId] })
-      queryClient.invalidateQueries({ queryKey: ['properties'] })
-    },
+  const updatePropertyFn = useAction(useServerFn(updateProperty))
+
+  const mutation = wrapAction(updatePropertyFn, async () => {
+    setEditing(false)
+    await router.invalidate()
   })
 
   if (!property) return null
-
-  // property is already typed from loader data
 
   if (editing) {
     return (
       <EditPropertyForm
         property={property}
-        mutation={updateMutation}
+        mutation={mutation}
         onCancel={() => setEditing(false)}
       />
     )

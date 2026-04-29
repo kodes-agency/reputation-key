@@ -2,12 +2,12 @@
 // Used by invited members who don't have an account yet.
 // After registration, redirects to the invitation acceptance page (via ?redirect= param).
 import { createFileRoute, Link, redirect, useRouter } from '@tanstack/react-router'
-import { useMutation } from '@tanstack/react-query'
+import { useServerFn } from '@tanstack/react-start'
 import { getSession } from '#/shared/auth/auth.functions'
 import { AuthCard, AuthFooterLink } from '#/components/features/identity/AuthLayout'
 import { RegisterForm } from '#/components/features/identity/RegisterForm'
 import { registerMember } from '#/contexts/identity/server/organizations'
-import type { RegisterMemberInput } from '#/contexts/identity/application/dto/invitation.dto'
+import { useAction, wrapAction } from '#/components/hooks/use-action'
 import { useState } from 'react'
 
 export const Route = createFileRoute('/join')({
@@ -24,17 +24,15 @@ function JoinPage() {
   const search = Route.useSearch() as { redirect?: string }
   const router = useRouter()
   const [success, setSuccess] = useState(false)
+  const register = useAction(useServerFn(registerMember))
 
-  const mutation = useMutation({
-    mutationFn: (input: RegisterMemberInput) => registerMember({ data: input }),
-    onSuccess: async () => {
-      await router.invalidate()
-      if (search.redirect) {
-        router.history.push(search.redirect)
-      } else {
-        setSuccess(true)
-      }
-    },
+  const mutation = wrapAction(register, async () => {
+    await router.invalidate()
+    if (search.redirect) {
+      router.history.push(search.redirect)
+    } else {
+      setSuccess(true)
+    }
   })
 
   if (success) {

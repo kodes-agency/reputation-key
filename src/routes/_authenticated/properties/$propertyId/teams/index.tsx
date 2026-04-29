@@ -1,6 +1,6 @@
 // Teams within a property — list, create, edit, and manage members
-import { createFileRoute } from '@tanstack/react-router'
-import { useQuery, useMutation } from '@tanstack/react-query'
+import { createFileRoute, useRouter } from '@tanstack/react-router'
+import { useServerFn } from '@tanstack/react-start'
 import { useState } from 'react'
 import {
   listTeams,
@@ -30,119 +30,97 @@ import { ChevronRight, Pencil, Trash2, UserPlus } from 'lucide-react'
 import { toast } from 'sonner'
 import { CreateTeamForm } from '#/components/features/team/CreateTeamForm'
 import { EditTeamForm } from '#/components/features/team/EditTeamForm'
+import { useAction, wrapAction } from '#/components/hooks/use-action'
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/teams/')({
+  loader: async ({ params: { propertyId } }) => {
+    const [{ teams }, { members }, { assignments }] = await Promise.all([
+      listTeams({ data: { propertyId } }),
+      listMembers(),
+      listStaffAssignments({ data: { propertyId } }),
+    ])
+    return { teams, members, assignments }
+  },
   component: TeamListPage,
 })
 
 function TeamListPage() {
   const { propertyId } = Route.useParams()
+  const router = useRouter()
   const [editingTeamId, setEditingTeamId] = useState<string | null>(null)
   const [expandedTeamId, setExpandedTeamId] = useState<string | null>(null)
 
-  const query = useQuery({
-    queryKey: ['teams', propertyId],
-    queryFn: () => listTeams({ data: { propertyId } }),
+  const { teams, members, assignments } = Route.useLoaderData()
+
+  const createTeamFn = useAction(useServerFn(createTeam))
+  const updateTeamFn = useAction(useServerFn(updateTeam))
+  const deleteTeamFn = useAction(useServerFn(deleteTeam))
+  const createAssignmentFn = useAction(useServerFn(createStaffAssignment))
+  const removeAssignmentFn = useAction(useServerFn(removeStaffAssignment))
+
+  const createMutation = wrapAction(createTeamFn, async () => {
+    await router.invalidate()
+    toast.success('Team created')
   })
 
-  const membersQuery = useQuery({
-    queryKey: ['org-members'],
-    queryFn: () => listMembers(),
+  const updateMutation = wrapAction(updateTeamFn, async () => {
+    setEditingTeamId(null)
+    await router.invalidate()
+    toast.success('Team updated')
   })
 
-  const assignmentsQuery = useQuery({
-    queryKey: ['staff-assignments', propertyId],
-    queryFn: () => listStaffAssignments({ data: { propertyId } }),
-  })
-
-  const createMutation = useMutation({
-    mutationFn: (input: {
-      data: { propertyId: string; name: string; description?: string }
-    }) => createTeam(input),
-    onSuccess: () => {
-      query.refetch()
-      toast.success('Team created')
-    },
-    onError: (error) => {
-      toast.error('Failed to create team', {
-        description: error instanceof Error ? error.message : 'Please try again.',
-      })
-    },
-  })
-
-  const updateMutation = useMutation({
-    mutationFn: (input: {
-      data: { teamId: string; name?: string; description?: string | null }
-    }) => updateTeam(input),
-    onSuccess: () => {
-      setEditingTeamId(null)
-      query.refetch()
-      toast.success('Team updated')
-    },
-    onError: (error) => {
-      toast.error('Failed to update team', {
-        description: error instanceof Error ? error.message : 'Please try again.',
-      })
-    },
-  })
-
-  const deleteMutation = useMutation({
-    mutationFn: (teamId: string) => deleteTeam({ data: { teamId } }),
-    onSuccess: () => {
-      query.refetch()
+  async function handleDeleteTeam(teamId: string) {
+    try {
+      await deleteTeamFn({ data: { teamId } })
+      await router.invalidate()
       toast.success('Team removed')
-    },
-    onError: (error) => {
+    } catch (error) {
       toast.error('Failed to remove team', {
         description: error instanceof Error ? error.message : 'Please try again.',
       })
-    },
-  })
+    }
+  }
 
-  const assignMutation = useMutation({
-    mutationFn: (input: { userId: string; teamId: string }) =>
-      createStaffAssignment({
+  async function handleAssignMember(input: { userId: string; teamId: string }) {
+    try {
+      await createAssignmentFn({
         data: {
           userId: input.userId,
           propertyId,
           teamId: input.teamId,
         },
-      }),
-    onSuccess: () => {
-      assignmentsQuery.refetch()
+      })
+      await router.invalidate()
       toast.success('Member added to team')
-    },
-    onError: (error) => {
+    } catch (error) {
       toast.error('Failed to add member', {
         description: error instanceof Error ? error.message : 'Please try again.',
       })
-    },
-  })
+    }
+  }
 
-  const removeAssignmentMutation = useMutation({
-    mutationFn: (assignmentId: string) =>
-      removeStaffAssignment({ data: { assignmentId } }),
-    onSuccess: () => {
-      assignmentsQuery.refetch()
+  async function handleRemoveAssignment(assignmentId: string) {
+    try {
+      await removeAssignmentFn({ data: { assignmentId } })
+      await router.invalidate()
       toast.success('Member removed from team')
-    },
-    onError: (error) => {
+    } catch (error) {
       toast.error('Failed to remove member', {
         description: error instanceof Error ? error.message : 'Please try again.',
       })
-    },
-  })
+    }
+  }
 
   // Build member lookup: userId → { name, email }
   const memberLookup = new Map<string, { name: string; email: string }>()
-  for (const m of membersQuery.data?.members ?? []) {
+  for (const m of members) {
     memberLookup.set(m.userId, { name: m.name, email: m.email })
   }
 
   // Group assignments by teamId
   const assignmentsByTeam = new Map<string, string[]>()
   const assignmentUserLookup = new Map<string, string>()
-  for (const a of assignmentsQuery.data?.assignments ?? []) {
+  for (const a of assignments) {
     if (a.teamId) {
       const existing = assignmentsByTeam.get(a.teamId) ?? []
       existing.push(a.id)
@@ -157,10 +135,8 @@ function TeamListPage() {
     const teamUserIds = new Set(
       teamAssignmentIds.map((id) => assignmentUserLookup.get(id)).filter(Boolean),
     )
-    return (membersQuery.data?.members ?? []).filter((m) => !teamUserIds.has(m.userId))
+    return members.filter((m) => !teamUserIds.has(m.userId))
   }
-
-  const teams = query.data?.teams ?? []
 
   return (
     <div className="flex flex-col gap-6">
@@ -173,7 +149,7 @@ function TeamListPage() {
           <CreateTeamForm
             propertyId={propertyId}
             mutation={createMutation}
-            members={membersQuery.data?.members}
+            members={members}
           />
         </CardContent>
       </Card>
@@ -198,7 +174,7 @@ function TeamListPage() {
                       initialName={team.name}
                       initialDescription={team.description ?? null}
                       initialTeamLeadId={team.teamLeadId ?? null}
-                      members={membersQuery.data?.members}
+                      members={members}
                       mutation={updateMutation}
                       onCancel={() => setEditingTeamId(null)}
                     />
@@ -244,8 +220,8 @@ function TeamListPage() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => deleteMutation.mutate(team.id)}
-                          disabled={deleteMutation.isPending}
+                          onClick={() => handleDeleteTeam(team.id)}
+                          disabled={deleteTeamFn.isPending}
                         >
                           <Trash2 />
                           Remove
@@ -281,8 +257,8 @@ function TeamListPage() {
                                     <Button
                                       variant="ghost"
                                       size="sm"
-                                      onClick={() => removeAssignmentMutation.mutate(aId)}
-                                      disabled={removeAssignmentMutation.isPending}
+                                      onClick={() => handleRemoveAssignment(aId)}
+                                      disabled={removeAssignmentFn.isPending}
                                       className="text-muted-foreground hover:text-destructive"
                                     >
                                       Remove
@@ -300,12 +276,9 @@ function TeamListPage() {
                               <div className="flex items-center gap-2">
                                 <Select
                                   onValueChange={(userId) => {
-                                    assignMutation.mutate({
-                                      userId,
-                                      teamId: team.id,
-                                    })
+                                    handleAssignMember({ userId, teamId: team.id })
                                   }}
-                                  disabled={assignMutation.isPending}
+                                  disabled={createAssignmentFn.isPending}
                                 >
                                   <SelectTrigger className="w-[280px]">
                                     <UserPlus className="text-muted-foreground" />

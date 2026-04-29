@@ -1,9 +1,9 @@
 // Accept invitation page
 // Users arrive here from invitation emails via /accept-invitation?id=<invitationId>
-import { createFileRoute, Link, redirect } from '@tanstack/react-router'
+import { createFileRoute, Link, redirect, useRouter } from '@tanstack/react-router'
+import { useServerFn } from '@tanstack/react-start'
 import { getSession } from '#/shared/auth/auth.functions'
 import { useState } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Button } from '#/components/ui/button'
 import { Card } from '#/components/ui/card'
 import { Skeleton } from '#/components/ui/skeleton'
@@ -16,6 +16,7 @@ import {
   listUserInvitations,
   acceptInvitation,
 } from '#/contexts/identity/server/organizations'
+import { useAction } from '#/components/hooks/use-action'
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -125,6 +126,10 @@ export const Route = createFileRoute('/accept-invitation')({
       })
     }
   },
+  loader: async () => {
+    const { invitations } = await listUserInvitations()
+    return { invitations: invitations.filter((inv) => inv.status === 'pending') }
+  },
   component: AcceptInvitationPage,
 })
 
@@ -132,53 +137,53 @@ export const Route = createFileRoute('/accept-invitation')({
 
 function AcceptInvitationPage() {
   const search = Route.useSearch() as { id?: string }
-  const queryClient = useQueryClient()
+  const router = useRouter()
   const [autoAcceptError, setAutoAcceptError] = useState<string | null>(null)
+  const [accepted, setAccepted] = useState(false)
+  const [accepting, setAccepting] = useState(false)
+  const { invitations } = Route.useLoaderData()
 
-  // Query for listing invitations (used when no ?id= in URL)
-  const invitationsQuery = useQuery({
-    queryKey: ['userInvitations'],
-    queryFn: async () => {
-      const result = await listUserInvitations()
-      return result.invitations.filter((inv) => inv.status === 'pending')
-    },
-    enabled: !search.id, // only fetch when showing the list view
-  })
+  const accept = useAction(useServerFn(acceptInvitation))
 
-  // Mutation for accepting an invitation
-  const acceptMutation = useMutation({
-    mutationFn: (invitationId: string) => acceptInvitation({ data: { invitationId } }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['userInvitations'] })
-    },
-  })
+  async function handleAccept(invitationId: string) {
+    setAccepting(true)
+    setAutoAcceptError(null)
+    try {
+      await accept({ data: { invitationId } })
+      await router.invalidate()
+      setAccepted(true)
+    } catch (err) {
+      setAutoAcceptError(
+        err instanceof Error ? err.message : 'An unexpected error occurred',
+      )
+    } finally {
+      setAccepting(false)
+    }
+  }
 
   // Auto-accept when arriving with ?id= query param
   const [autoAcceptTriggered, setAutoAcceptTriggered] = useState(false)
-  if (search.id && !autoAcceptTriggered && !acceptMutation.isSuccess) {
+  if (search.id && !autoAcceptTriggered && !accepted) {
     setAutoAcceptTriggered(true)
-    acceptMutation.mutate(search.id, {
-      onError: (err) => {
-        setAutoAcceptError(
-          err instanceof Error ? err.message : 'An unexpected error occurred',
-        )
-      },
+    handleAccept(search.id).catch((err) => {
+      setAutoAcceptError(
+        err instanceof Error ? err.message : 'An unexpected error occurred',
+      )
     })
   }
 
-  if (acceptMutation.isSuccess) return <SuccessView />
-  if (search.id)
-    return <AutoAcceptView error={autoAcceptError} loading={acceptMutation.isPending} />
+  if (accepted) return <SuccessView />
+  if (search.id) return <AutoAcceptView error={autoAcceptError} loading={accepting} />
 
-  const pendingInvitations = (invitationsQuery.data ?? []) as PendingInvitation[]
+  const pendingInvitations = invitations as PendingInvitation[]
 
   return (
     <InvitationListView
       invitations={pendingInvitations}
-      loading={invitationsQuery.isLoading}
-      error={invitationsQuery.error ? 'Failed to load invitations' : null}
-      onAccept={(id) => acceptMutation.mutate(id)}
-      accepting={acceptMutation.isPending}
+      loading={false}
+      error={accept.error ? 'Failed to accept invitation' : null}
+      onAccept={handleAccept}
+      accepting={accepting}
     />
   )
 }

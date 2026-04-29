@@ -40,16 +40,10 @@ type InviteVariables = {
   propertyIds: string[]
 }
 
-type MutationLike = {
-  isPending: boolean
-  isError: boolean
-  error: unknown
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  mutateAsync: (variables: any) => Promise<any>
-}
+import type { AnyAction } from '#/components/hooks/use-action'
 
 type Props = Readonly<{
-  mutation: MutationLike
+  mutation: AnyAction
   allowedRoles: ReadonlyArray<Role>
   properties: ReadonlyArray<PropertyOption>
 }>
@@ -65,7 +59,7 @@ export function InviteMemberForm({ mutation, allowedRoles, properties }: Props) 
       onSubmit: inviteFormSchema,
     },
     onSubmit: async ({ value }) => {
-      await mutation.mutateAsync(value)
+      await mutation(value)
     },
   })
 

@@ -1,9 +1,9 @@
 // Password reset request page
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { useMutation } from '@tanstack/react-query'
 import { authClient } from '#/shared/auth/auth-client'
 import { AuthCard, AuthFooterLink } from '#/components/features/identity/AuthLayout'
 import { ResetPasswordForm } from '#/components/features/identity/ResetPasswordForm'
+import { useAction } from '#/components/hooks/use-action'
 import { useState } from 'react'
 
 export const Route = createFileRoute('/reset-password')({
@@ -13,24 +13,19 @@ export const Route = createFileRoute('/reset-password')({
 function ResetPasswordPage() {
   const [sentToEmail, setSentToEmail] = useState<string | null>(null)
 
-  const mutation = useMutation({
-    mutationFn: async (input: { email: string }) => {
-      const result = await authClient.requestPasswordReset({
-        email: input.email,
-        redirectTo: `${window.location.origin}/login`,
-      })
-      if (result.error) {
-        const error = Object.assign(
-          new Error(result.error.message ?? 'Failed to send reset email.'),
-          { _tag: 'AuthClientError' as const, code: 'reset_failed' as const },
-        )
-        throw error
-      }
-      return input.email
-    },
-    onSuccess: (email: string) => {
-      setSentToEmail(email)
-    },
+  const mutation = useAction(async (input: { email: string }) => {
+    const result = await authClient.requestPasswordReset({
+      email: input.email,
+      redirectTo: `${window.location.origin}/login`,
+    })
+    if (result.error) {
+      throw Object.assign(
+        new Error(result.error.message ?? 'Failed to send reset email.'),
+        { _tag: 'AuthClientError' as const, code: 'reset_failed' as const },
+      )
+    }
+    setSentToEmail(input.email)
+    return input.email
   })
 
   if (sentToEmail) {

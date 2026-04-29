@@ -9,12 +9,13 @@ import { FormErrorBanner } from '#/components/forms/FormErrorBanner'
 import { FormTextField } from '#/components/forms/FormTextField'
 import type { BaseFieldApi } from '#/components/forms/FormTextField'
 import { signInInputSchema } from '#/contexts/identity/application/dto/invitation.dto'
-import type { UseMutationResult } from '@tanstack/react-query'
 
 type SignInVariables = { email: string; password: string }
 
+import type { Action } from '#/components/hooks/use-action'
+
 type Props = Readonly<{
-  mutation: UseMutationResult<unknown, unknown, SignInVariables, unknown>
+  mutation: Action<{ data: SignInVariables }>
 }>
 
 export function LoginForm({ mutation }: Props) {
@@ -27,7 +28,7 @@ export function LoginForm({ mutation }: Props) {
       onSubmit: signInInputSchema,
     },
     onSubmit: async ({ value }: { value: SignInVariables }) => {
-      await mutation.mutateAsync(value)
+      await mutation({ data: value })
     },
   })
 

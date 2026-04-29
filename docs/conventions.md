@@ -37,7 +37,7 @@ The rules. For concrete examples, see `docs/patterns.md`.
 
 ## Stack
 
-TanStack Start (SSR + server functions + routing) on Railway Node. Drizzle + Neon Postgres. better-auth (organization plugin, DB-backed sessions). BullMQ + Redis for jobs, rate limiting, and caching. Cloudflare R2 for storage. Resend for email. FCM for push. Anthropic for AI. Pure functional style; `neverthrow` for `Result`, `ts-pattern` for union dispatch, `Zod` for validation. **TanStack Form + shadcn/ui for all forms.** TanStack Query for client-side cache and mutations.
+TanStack Start (SSR + server functions + routing) on Railway Node. Drizzle + Neon Postgres. better-auth (organization plugin, DB-backed sessions). BullMQ + Redis for jobs, rate limiting, and caching. Cloudflare R2 for storage. Resend for email. FCM for push. Anthropic for AI. Pure functional style; `neverthrow` for `Result`, `ts-pattern` for union dispatch, `Zod` for validation. **TanStack Form + shadcn/ui for all forms.** Route loaders for data fetching; `useServerFn` for mutations.
 
 > **Note on Zod version:** This project uses Zod v4 (`^4.3.6`). TanStack Form v1 handles Zod schemas natively — pass the schema directly to `validators.onSubmit`. No adapter library is needed.
 
@@ -74,7 +74,7 @@ src/
     testing/         in-memory port fakes (in-memory-identity-port.ts, in-memory-property-repo.ts, in-memory-team-repo.ts, in-memory-staff-assignment-repo.ts), capturing-event-bus.ts, fixtures.ts, db.ts (test DB helpers)
   routes/            TanStack Router file-based routes (underscore-prefix layout convention: _authenticated.tsx, _authenticated/ subdirectory for dashboard pages; top-level login.tsx, register.tsx, join.tsx for auth pages)
   components/        ui/ (shadcn primitives), layout/, forms/, features/<context>/ (identity/, property/, team/, staff/)
-  integrations/      TanStack Query provider, other framework integrations
+  integrations/      Framework integrations (devtools, analytics, etc.)
   composition.ts     dependency wiring
   bootstrap.ts       event/job handler registration
   start.ts           TanStack Start web entry
@@ -137,15 +137,15 @@ All forms in the app use **TanStack Form + Zod + shadcn/ui**. This is the only s
 
 2. **Form components:** Built using shadcn's Field components (`Field`, `FieldGroup`, `FieldLabel`, `FieldError`, `FieldDescription`) wired with TanStack Form's `form.Field` render prop. Follow shadcn's official TanStack Form integration docs.
 
-3. **Submission:** Every form submission goes through a TanStack Query `useMutation` wrapping a server function. **The mutation is defined in the route file and passed to the form component as a prop.** Never call server functions directly from form handlers. Never define mutations inside components (dependency rules forbid `components/` from importing `server/`).
+3. **Submission:** Every form submission goes through a `useServerFn` hook wrapping a server function. **The `useServerFn` instance is defined in the route file and passed to the form component as a prop.** Never call server functions directly from form handlers. Never define server function hooks inside components (dependency rules forbid `components/` from importing `server/`).
 
 4. **Validation trigger:** Use `validators.onSubmit` (not `onChange`) so errors only appear after the user submits. This avoids showing errors while the user is still filling in the form. TanStack Form v1 handles Zod schemas natively — just pass the Zod schema directly, no adapter needed.
 
-5. **Form-level state:** Mutation state (`isPending`, `isError`, `isSuccess`, `error`) drives submit button state and top-level error display. Never manage `isSubmitting` yourself.
+5. **Form-level state:** `useServerFn` state (`isPending`, `error`, `status`) drives submit button state and top-level error display. Never manage `isSubmitting` yourself.
 
 6. **Shared building blocks** live in `components/forms/`:
-   - `SubmitButton` — wraps shadcn `Button`, reads mutation state, shows spinner when pending
-   - `FormErrorBanner` — displays top-level mutation errors (translates tagged errors to user messages)
+   - `SubmitButton` — wraps shadcn `Button`, reads `isPending`, shows spinner when pending
+   - `FormErrorBanner` — displays top-level action errors (translates tagged errors to user messages)
    - `FormSection` — visual grouping for long forms
    - Additional wrappers as patterns emerge — but only after a second form needs the same thing
 
@@ -395,8 +395,9 @@ Tests colocated: `rules.ts` next to `rules.test.ts`.
 - Throwing plain `Error` → always tagged errors.
 - Returning `{ success: false, error: message }` from server functions → always throw Error objects (TanStack Start serializes them for the client).
 - Duplicating the Zod schema between form and server function → derive the form schema from the DTO schema using `.required()` / `.extend()` / `.omit()` (see `docs/patterns.md` section 30).
-- Calling server functions directly from forms without a mutation → always wrap in TanStack Query `useMutation`.
-- Managing form `isSubmitting` state manually → use mutation status.
+- Calling server functions directly from forms without `useServerFn` → always wrap in `useServerFn`.
+- Managing form `isSubmitting` state manually → use `useServerFn` status.
+- Fetching route data inside components with `useQuery` instead of a route `loader` → route loaders run on SSR, block navigation, and cache data in the router.
 - Using React Hook Form, Formik, or plain `useState` for forms → use TanStack Form.
 - `as` casts to non-branded types → types are wrong; fix them with parsing or `Result`.
 - Using a class → should be a record of functions returned by a factory.
