@@ -1,0 +1,57 @@
+{
+  "nodes": [
+    {
+      "id": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_components_ui_label_tsx",
+      "label": "label.tsx",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/components/ui/label.tsx",
+      "source_location": "L1"
+    },
+    {
+      "id": "ui_label_label",
+      "label": "Label()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/components/ui/label.tsx",
+      "source_location": "L6"
+    }
+  ],
+  "edges": [
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_components_ui_label_tsx",
+      "target": "react",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/components/ui/label.tsx",
+      "source_location": "L1",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_components_ui_label_tsx",
+      "target": "radix_ui",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/components/ui/label.tsx",
+      "source_location": "L2",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_components_ui_label_tsx",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_lib_utils",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/components/ui/label.tsx",
+      "source_location": "L4",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_components_ui_label_tsx",
+      "target": "ui_label_label",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/components/ui/label.tsx",
+      "source_location": "L6",
+      "weight": 1.0
+    }
+  ],
+  "raw_calls": []
+}

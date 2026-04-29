@@ -1,0 +1,128 @@
+{
+  "nodes": [
+    {
+      "id": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_components_features_property_createpropertyform_tsx",
+      "label": "CreatePropertyForm.tsx",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/components/features/property/CreatePropertyForm.tsx",
+      "source_location": "L1"
+    },
+    {
+      "id": "property_createpropertyform_createpropertyform",
+      "label": "CreatePropertyForm()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/components/features/property/CreatePropertyForm.tsx",
+      "source_location": "L44"
+    }
+  ],
+  "edges": [
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_components_features_property_createpropertyform_tsx",
+      "target": "react_form",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/components/features/property/CreatePropertyForm.tsx",
+      "source_location": "L9",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_components_features_property_createpropertyform_tsx",
+      "target": "v4",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/components/features/property/CreatePropertyForm.tsx",
+      "source_location": "L10",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_components_features_property_createpropertyform_tsx",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_components_ui_field",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/components/features/property/CreatePropertyForm.tsx",
+      "source_location": "L11",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_components_features_property_createpropertyform_tsx",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_components_forms_submitbutton",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/components/features/property/CreatePropertyForm.tsx",
+      "source_location": "L12",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_components_features_property_createpropertyform_tsx",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_components_forms_formerrorbanner",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/components/features/property/CreatePropertyForm.tsx",
+      "source_location": "L13",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_components_features_property_createpropertyform_tsx",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_components_forms_formtextfield",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/components/features/property/CreatePropertyForm.tsx",
+      "source_location": "L14",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_components_features_property_createpropertyform_tsx",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_components_forms_formtextfield",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/components/features/property/CreatePropertyForm.tsx",
+      "source_location": "L15",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_components_features_property_createpropertyform_tsx",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_components_features_property_timezoneselect",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/components/features/property/CreatePropertyForm.tsx",
+      "source_location": "L16",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_components_features_property_createpropertyform_tsx",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_contexts_property_application_dto_create_property_dto",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/components/features/property/CreatePropertyForm.tsx",
+      "source_location": "L17",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_components_features_property_createpropertyform_tsx",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_components_hooks_use_action",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/components/features/property/CreatePropertyForm.tsx",
+      "source_location": "L38",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_components_features_property_createpropertyform_tsx",
+      "target": "property_createpropertyform_createpropertyform",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/components/features/property/CreatePropertyForm.tsx",
+      "source_location": "L44",
+      "weight": 1.0
+    }
+  ],
+  "raw_calls": [
+    {
+      "caller_nid": "property_createpropertyform_createpropertyform",
+      "callee": "useForm",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/components/features/property/CreatePropertyForm.tsx",
+      "source_location": "L45"
+    }
+  ]
+}

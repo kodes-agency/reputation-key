@@ -1,0 +1,311 @@
+{
+  "nodes": [
+    {
+      "id": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_testing_fixtures_ts",
+      "label": "fixtures.ts",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/testing/fixtures.ts",
+      "source_location": "L1"
+    },
+    {
+      "id": "testing_fixtures_buildtestauthcontext",
+      "label": "buildTestAuthContext()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/testing/fixtures.ts",
+      "source_location": "L17"
+    },
+    {
+      "id": "testing_fixtures_uuidfromlabel",
+      "label": "uuidFromLabel()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/testing/fixtures.ts",
+      "source_location": "L33"
+    },
+    {
+      "id": "testing_fixtures_totestid",
+      "label": "toTestId()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/testing/fixtures.ts",
+      "source_location": "L47"
+    },
+    {
+      "id": "testing_fixtures_buildtestproperty",
+      "label": "buildTestProperty()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/testing/fixtures.ts",
+      "source_location": "L56"
+    },
+    {
+      "id": "testing_fixtures_buildtestteam",
+      "label": "buildTestTeam()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/testing/fixtures.ts",
+      "source_location": "L79"
+    },
+    {
+      "id": "testing_fixtures_buildteststaffassignment",
+      "label": "buildTestStaffAssignment()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/testing/fixtures.ts",
+      "source_location": "L102"
+    }
+  ],
+  "edges": [
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_testing_fixtures_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_domain_auth_context",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/testing/fixtures.ts",
+      "source_location": "L4",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_testing_fixtures_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_domain_ids",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/testing/fixtures.ts",
+      "source_location": "L5",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_testing_fixtures_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_contexts_property_domain_types",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/testing/fixtures.ts",
+      "source_location": "L12",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_testing_fixtures_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_contexts_team_domain_types",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/testing/fixtures.ts",
+      "source_location": "L13",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_testing_fixtures_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_contexts_staff_domain_types",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/testing/fixtures.ts",
+      "source_location": "L14",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_testing_fixtures_ts",
+      "target": "testing_fixtures_buildtestauthcontext",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/testing/fixtures.ts",
+      "source_location": "L17",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_testing_fixtures_ts",
+      "target": "testing_fixtures_uuidfromlabel",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/testing/fixtures.ts",
+      "source_location": "L33",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_testing_fixtures_ts",
+      "target": "testing_fixtures_totestid",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/testing/fixtures.ts",
+      "source_location": "L47",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_testing_fixtures_ts",
+      "target": "testing_fixtures_buildtestproperty",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/testing/fixtures.ts",
+      "source_location": "L56",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_testing_fixtures_ts",
+      "target": "testing_fixtures_buildtestteam",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/testing/fixtures.ts",
+      "source_location": "L79",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_testing_fixtures_ts",
+      "target": "testing_fixtures_buildteststaffassignment",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/testing/fixtures.ts",
+      "source_location": "L102",
+      "weight": 1.0
+    },
+    {
+      "source": "testing_fixtures_totestid",
+      "target": "testing_fixtures_uuidfromlabel",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/testing/fixtures.ts",
+      "source_location": "L52",
+      "weight": 1.0
+    },
+    {
+      "source": "testing_fixtures_buildtestproperty",
+      "target": "testing_fixtures_totestid",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/testing/fixtures.ts",
+      "source_location": "L60",
+      "weight": 1.0
+    },
+    {
+      "source": "testing_fixtures_buildtestteam",
+      "target": "testing_fixtures_totestid",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/testing/fixtures.ts",
+      "source_location": "L83",
+      "weight": 1.0
+    },
+    {
+      "source": "testing_fixtures_buildteststaffassignment",
+      "target": "testing_fixtures_totestid",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/testing/fixtures.ts",
+      "source_location": "L106",
+      "weight": 1.0
+    }
+  ],
+  "raw_calls": [
+    {
+      "caller_nid": "testing_fixtures_buildtestauthcontext",
+      "callee": "userId",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/testing/fixtures.ts",
+      "source_location": "L19"
+    },
+    {
+      "caller_nid": "testing_fixtures_buildtestauthcontext",
+      "callee": "organizationId",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/testing/fixtures.ts",
+      "source_location": "L20"
+    },
+    {
+      "caller_nid": "testing_fixtures_uuidfromlabel",
+      "callee": "charCodeAt",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/testing/fixtures.ts",
+      "source_location": "L36"
+    },
+    {
+      "caller_nid": "testing_fixtures_uuidfromlabel",
+      "callee": "slice",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/testing/fixtures.ts",
+      "source_location": "L38"
+    },
+    {
+      "caller_nid": "testing_fixtures_uuidfromlabel",
+      "callee": "padStart",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/testing/fixtures.ts",
+      "source_location": "L38"
+    },
+    {
+      "caller_nid": "testing_fixtures_uuidfromlabel",
+      "callee": "toString",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/testing/fixtures.ts",
+      "source_location": "L38"
+    },
+    {
+      "caller_nid": "testing_fixtures_uuidfromlabel",
+      "callee": "abs",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/testing/fixtures.ts",
+      "source_location": "L38"
+    },
+    {
+      "caller_nid": "testing_fixtures_totestid",
+      "callee": "test",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/testing/fixtures.ts",
+      "source_location": "L49"
+    },
+    {
+      "caller_nid": "testing_fixtures_buildtestproperty",
+      "callee": "propertyId",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/testing/fixtures.ts",
+      "source_location": "L62"
+    },
+    {
+      "caller_nid": "testing_fixtures_buildtestproperty",
+      "callee": "organizationId",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/testing/fixtures.ts",
+      "source_location": "L66"
+    },
+    {
+      "caller_nid": "testing_fixtures_buildtestteam",
+      "callee": "teamId",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/testing/fixtures.ts",
+      "source_location": "L85"
+    },
+    {
+      "caller_nid": "testing_fixtures_buildtestteam",
+      "callee": "organizationId",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/testing/fixtures.ts",
+      "source_location": "L89"
+    },
+    {
+      "caller_nid": "testing_fixtures_buildtestteam",
+      "callee": "propertyId",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/testing/fixtures.ts",
+      "source_location": "L90"
+    },
+    {
+      "caller_nid": "testing_fixtures_buildteststaffassignment",
+      "callee": "staffAssignmentId",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/testing/fixtures.ts",
+      "source_location": "L108"
+    },
+    {
+      "caller_nid": "testing_fixtures_buildteststaffassignment",
+      "callee": "organizationId",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/testing/fixtures.ts",
+      "source_location": "L112"
+    },
+    {
+      "caller_nid": "testing_fixtures_buildteststaffassignment",
+      "callee": "userId",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/testing/fixtures.ts",
+      "source_location": "L113"
+    },
+    {
+      "caller_nid": "testing_fixtures_buildteststaffassignment",
+      "callee": "propertyId",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/testing/fixtures.ts",
+      "source_location": "L114"
+    }
+  ]
+}

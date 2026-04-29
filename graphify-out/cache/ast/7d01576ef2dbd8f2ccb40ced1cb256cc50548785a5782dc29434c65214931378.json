@@ -1,0 +1,48 @@
+{
+  "nodes": [
+    {
+      "id": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_components_forms_formtextfield_tsx",
+      "label": "FormTextField.tsx",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/components/forms/FormTextField.tsx",
+      "source_location": "L1"
+    },
+    {
+      "id": "forms_formtextfield_formtextfield",
+      "label": "FormTextField()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/components/forms/FormTextField.tsx",
+      "source_location": "L31"
+    }
+  ],
+  "edges": [
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_components_forms_formtextfield_tsx",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_components_ui_field",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/components/forms/FormTextField.tsx",
+      "source_location": "L5",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_components_forms_formtextfield_tsx",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_components_ui_input",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/components/forms/FormTextField.tsx",
+      "source_location": "L6",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_components_forms_formtextfield_tsx",
+      "target": "forms_formtextfield_formtextfield",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/components/forms/FormTextField.tsx",
+      "source_location": "L31",
+      "weight": 1.0
+    }
+  ],
+  "raw_calls": []
+}

@@ -1,0 +1,95 @@
+{
+  "nodes": [
+    {
+      "id": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_observability_logger_ts",
+      "label": "logger.ts",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/observability/logger.ts",
+      "source_location": "L1"
+    },
+    {
+      "id": "observability_logger_isprettytransportavailable",
+      "label": "isPrettyTransportAvailable()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/observability/logger.ts",
+      "source_location": "L8"
+    },
+    {
+      "id": "observability_logger_getlogger",
+      "label": "getLogger()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/observability/logger.ts",
+      "source_location": "L17"
+    }
+  ],
+  "edges": [
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_observability_logger_ts",
+      "target": "pino",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/observability/logger.ts",
+      "source_location": "L2",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_observability_logger_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_config_env",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/observability/logger.ts",
+      "source_location": "L3",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_observability_logger_ts",
+      "target": "observability_logger_isprettytransportavailable",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/observability/logger.ts",
+      "source_location": "L8",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_observability_logger_ts",
+      "target": "observability_logger_getlogger",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/observability/logger.ts",
+      "source_location": "L17",
+      "weight": 1.0
+    },
+    {
+      "source": "observability_logger_getlogger",
+      "target": "observability_logger_isprettytransportavailable",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/observability/logger.ts",
+      "source_location": "L20",
+      "weight": 1.0
+    }
+  ],
+  "raw_calls": [
+    {
+      "caller_nid": "observability_logger_isprettytransportavailable",
+      "callee": "resolve",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/observability/logger.ts",
+      "source_location": "L10"
+    },
+    {
+      "caller_nid": "observability_logger_getlogger",
+      "callee": "getEnv",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/observability/logger.ts",
+      "source_location": "L19"
+    },
+    {
+      "caller_nid": "observability_logger_getlogger",
+      "callee": "pino",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/observability/logger.ts",
+      "source_location": "L21"
+    }
+  ]
+}

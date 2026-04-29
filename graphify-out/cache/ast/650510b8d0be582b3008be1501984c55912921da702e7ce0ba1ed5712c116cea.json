@@ -1,0 +1,72 @@
+{
+  "nodes": [
+    {
+      "id": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_components_forms_formerrorbanner_tsx",
+      "label": "FormErrorBanner.tsx",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/components/forms/FormErrorBanner.tsx",
+      "source_location": "L1"
+    },
+    {
+      "id": "forms_formerrorbanner_extracterrormessage",
+      "label": "extractErrorMessage()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/components/forms/FormErrorBanner.tsx",
+      "source_location": "L17"
+    },
+    {
+      "id": "forms_formerrorbanner_formerrorbanner",
+      "label": "FormErrorBanner()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/components/forms/FormErrorBanner.tsx",
+      "source_location": "L34"
+    }
+  ],
+  "edges": [
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_components_forms_formerrorbanner_tsx",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_components_ui_alert",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/components/forms/FormErrorBanner.tsx",
+      "source_location": "L10",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_components_forms_formerrorbanner_tsx",
+      "target": "lucide_react",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/components/forms/FormErrorBanner.tsx",
+      "source_location": "L11",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_components_forms_formerrorbanner_tsx",
+      "target": "forms_formerrorbanner_extracterrormessage",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/components/forms/FormErrorBanner.tsx",
+      "source_location": "L17",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_components_forms_formerrorbanner_tsx",
+      "target": "forms_formerrorbanner_formerrorbanner",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/components/forms/FormErrorBanner.tsx",
+      "source_location": "L34",
+      "weight": 1.0
+    }
+  ],
+  "raw_calls": [
+    {
+      "caller_nid": "forms_formerrorbanner_extracterrormessage",
+      "callee": "String",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/components/forms/FormErrorBanner.tsx",
+      "source_location": "L28"
+    }
+  ]
+}

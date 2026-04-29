@@ -1,0 +1,153 @@
+{
+  "nodes": [
+    {
+      "id": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_components_layout_themetoggle_tsx",
+      "label": "ThemeToggle.tsx",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/components/layout/ThemeToggle.tsx",
+      "source_location": "L1"
+    },
+    {
+      "id": "layout_themetoggle_getinitialmode",
+      "label": "getInitialMode()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/components/layout/ThemeToggle.tsx",
+      "source_location": "L7"
+    },
+    {
+      "id": "layout_themetoggle_applythememode",
+      "label": "applyThemeMode()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/components/layout/ThemeToggle.tsx",
+      "source_location": "L20"
+    },
+    {
+      "id": "layout_themetoggle_themetoggle",
+      "label": "ThemeToggle()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/components/layout/ThemeToggle.tsx",
+      "source_location": "L36"
+    }
+  ],
+  "edges": [
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_components_layout_themetoggle_tsx",
+      "target": "react",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/components/layout/ThemeToggle.tsx",
+      "source_location": "L1",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_components_layout_themetoggle_tsx",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_components_ui_button",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/components/layout/ThemeToggle.tsx",
+      "source_location": "L2",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_components_layout_themetoggle_tsx",
+      "target": "lucide_react",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/components/layout/ThemeToggle.tsx",
+      "source_location": "L3",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_components_layout_themetoggle_tsx",
+      "target": "layout_themetoggle_getinitialmode",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/components/layout/ThemeToggle.tsx",
+      "source_location": "L7",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_components_layout_themetoggle_tsx",
+      "target": "layout_themetoggle_applythememode",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/components/layout/ThemeToggle.tsx",
+      "source_location": "L20",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_components_layout_themetoggle_tsx",
+      "target": "layout_themetoggle_themetoggle",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/components/layout/ThemeToggle.tsx",
+      "source_location": "L36",
+      "weight": 1.0
+    }
+  ],
+  "raw_calls": [
+    {
+      "caller_nid": "layout_themetoggle_getinitialmode",
+      "callee": "getItem",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/components/layout/ThemeToggle.tsx",
+      "source_location": "L12"
+    },
+    {
+      "caller_nid": "layout_themetoggle_applythememode",
+      "callee": "matchMedia",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/components/layout/ThemeToggle.tsx",
+      "source_location": "L21"
+    },
+    {
+      "caller_nid": "layout_themetoggle_applythememode",
+      "callee": "remove",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/components/layout/ThemeToggle.tsx",
+      "source_location": "L24"
+    },
+    {
+      "caller_nid": "layout_themetoggle_applythememode",
+      "callee": "add",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/components/layout/ThemeToggle.tsx",
+      "source_location": "L25"
+    },
+    {
+      "caller_nid": "layout_themetoggle_applythememode",
+      "callee": "removeAttribute",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/components/layout/ThemeToggle.tsx",
+      "source_location": "L28"
+    },
+    {
+      "caller_nid": "layout_themetoggle_applythememode",
+      "callee": "setAttribute",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/components/layout/ThemeToggle.tsx",
+      "source_location": "L30"
+    },
+    {
+      "caller_nid": "layout_themetoggle_themetoggle",
+      "callee": "useState",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/components/layout/ThemeToggle.tsx",
+      "source_location": "L37"
+    },
+    {
+      "caller_nid": "layout_themetoggle_themetoggle",
+      "callee": "useEffect",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/components/layout/ThemeToggle.tsx",
+      "source_location": "L39"
+    },
+    {
+      "caller_nid": "layout_themetoggle_themetoggle",
+      "callee": "useEffect",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/components/layout/ThemeToggle.tsx",
+      "source_location": "L45"
+    }
+  ]
+}

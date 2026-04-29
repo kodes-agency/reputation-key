@@ -1,0 +1,93 @@
+{
+  "nodes": [
+    {
+      "id": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_contexts_staff_application_use_cases_remove_staff_assignment_ts",
+      "label": "remove-staff-assignment.ts",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/contexts/staff/application/use-cases/remove-staff-assignment.ts",
+      "source_location": "L1"
+    },
+    {
+      "id": "use_cases_remove_staff_assignment_removestaffassignment",
+      "label": "removeStaffAssignment()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/contexts/staff/application/use-cases/remove-staff-assignment.ts",
+      "source_location": "L17"
+    }
+  ],
+  "edges": [
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_contexts_staff_application_use_cases_remove_staff_assignment_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_contexts_staff_application_ports_staff_assignment_repository",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/contexts/staff/application/use-cases/remove-staff-assignment.ts",
+      "source_location": "L3",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_contexts_staff_application_use_cases_remove_staff_assignment_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_events_event_bus",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/contexts/staff/application/use-cases/remove-staff-assignment.ts",
+      "source_location": "L4",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_contexts_staff_application_use_cases_remove_staff_assignment_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_domain_auth_context",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/contexts/staff/application/use-cases/remove-staff-assignment.ts",
+      "source_location": "L5",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_contexts_staff_application_use_cases_remove_staff_assignment_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_contexts_staff_domain_types",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/contexts/staff/application/use-cases/remove-staff-assignment.ts",
+      "source_location": "L6",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_contexts_staff_application_use_cases_remove_staff_assignment_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_domain_permissions",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/contexts/staff/application/use-cases/remove-staff-assignment.ts",
+      "source_location": "L7",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_contexts_staff_application_use_cases_remove_staff_assignment_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_contexts_staff_domain_errors",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/contexts/staff/application/use-cases/remove-staff-assignment.ts",
+      "source_location": "L8",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_contexts_staff_application_use_cases_remove_staff_assignment_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_contexts_staff_domain_events",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/contexts/staff/application/use-cases/remove-staff-assignment.ts",
+      "source_location": "L9",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_contexts_staff_application_use_cases_remove_staff_assignment_ts",
+      "target": "use_cases_remove_staff_assignment_removestaffassignment",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/contexts/staff/application/use-cases/remove-staff-assignment.ts",
+      "source_location": "L17",
+      "weight": 1.0
+    }
+  ],
+  "raw_calls": []
+}

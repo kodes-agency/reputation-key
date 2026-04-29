@@ -1,0 +1,86 @@
+{
+  "nodes": [
+    {
+      "id": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_contexts_identity_application_use_cases_register_user_test_ts",
+      "label": "register-user.test.ts",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/contexts/identity/application/use-cases/register-user.test.ts",
+      "source_location": "L1"
+    },
+    {
+      "id": "use_cases_register_user_test_setup",
+      "label": "setup()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/contexts/identity/application/use-cases/register-user.test.ts",
+      "source_location": "L10"
+    }
+  ],
+  "edges": [
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_contexts_identity_application_use_cases_register_user_test_ts",
+      "target": "vitest",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/contexts/identity/application/use-cases/register-user.test.ts",
+      "source_location": "L4",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_contexts_identity_application_use_cases_register_user_test_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_contexts_identity_application_use_cases_register_user",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/contexts/identity/application/use-cases/register-user.test.ts",
+      "source_location": "L5",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_contexts_identity_application_use_cases_register_user_test_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_contexts_identity_domain_errors",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/contexts/identity/application/use-cases/register-user.test.ts",
+      "source_location": "L6",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_contexts_identity_application_use_cases_register_user_test_ts",
+      "target": "use_cases_register_user_test_setup",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/contexts/identity/application/use-cases/register-user.test.ts",
+      "source_location": "L10",
+      "weight": 1.0
+    }
+  ],
+  "raw_calls": [
+    {
+      "caller_nid": "use_cases_register_user_test_setup",
+      "callee": "mockResolvedValue",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/contexts/identity/application/use-cases/register-user.test.ts",
+      "source_location": "L13"
+    },
+    {
+      "caller_nid": "use_cases_register_user_test_setup",
+      "callee": "fn",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/contexts/identity/application/use-cases/register-user.test.ts",
+      "source_location": "L13"
+    },
+    {
+      "caller_nid": "use_cases_register_user_test_setup",
+      "callee": "import",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/contexts/identity/application/use-cases/register-user.test.ts",
+      "source_location": "L14"
+    },
+    {
+      "caller_nid": "use_cases_register_user_test_setup",
+      "callee": "registerUser",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/contexts/identity/application/use-cases/register-user.test.ts",
+      "source_location": "L17"
+    }
+  ]
+}

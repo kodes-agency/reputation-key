@@ -1,0 +1,713 @@
+{
+  "nodes": [
+    {
+      "id": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_composition_ts",
+      "label": "composition.ts",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L1"
+    },
+    {
+      "id": "src_composition_createcontainer",
+      "label": "createContainer()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L63"
+    },
+    {
+      "id": "src_composition_getcontainer",
+      "label": "getContainer()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L281"
+    }
+  ],
+  "edges": [
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_composition_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_db",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L8",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_composition_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_observability_logger",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L9",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_composition_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_cache_redis",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L10",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_composition_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_events_event_bus",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L11",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_composition_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_cache_redis_cache",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L12",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_composition_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_cache_noop_cache",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L13",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_composition_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_cache_cache_port",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L14",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_composition_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_rate_limit_middleware",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L15",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_composition_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_rate_limit_middleware",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L16",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_composition_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_jobs_queue",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L17",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_composition_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_jobs_registry",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L18",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_composition_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_jobs_registry",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L19",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_composition_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_contexts_identity_infrastructure_adapters_auth_identity_adapter",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L20",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_composition_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_contexts_identity_infrastructure_adapters_better_auth_schemas",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L21",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_composition_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_contexts_identity_application_use_cases_invite_member",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L25",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_composition_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_contexts_identity_application_use_cases_update_member_role",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L26",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_composition_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_contexts_identity_application_use_cases_remove_member",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L27",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_composition_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_contexts_identity_application_use_cases_list_invitations",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L28",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_composition_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_contexts_identity_application_use_cases_resend_invitation",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L29",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_composition_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_contexts_identity_application_use_cases_register_user_and_org",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L30",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_composition_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_contexts_identity_application_use_cases_register_user",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L31",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_composition_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_auth_auth",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L32",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_composition_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_auth_emails",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L33",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_composition_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_auth_headers",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L34",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_composition_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_config_env",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L35",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_composition_ts",
+      "target": "bullmq",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L36",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_composition_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_contexts_property_infrastructure_repositories_property_repository",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L37",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_composition_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_contexts_property_application_use_cases_create_property",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L38",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_composition_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_contexts_property_application_use_cases_update_property",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L39",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_composition_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_contexts_property_application_use_cases_list_properties",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L40",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_composition_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_contexts_property_application_use_cases_get_property",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L41",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_composition_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_contexts_property_application_use_cases_soft_delete_property",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L42",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_composition_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_contexts_team_infrastructure_repositories_team_repository",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L43",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_composition_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_contexts_team_application_use_cases_create_team",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L44",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_composition_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_contexts_team_application_use_cases_update_team",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L45",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_composition_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_contexts_team_application_use_cases_list_teams",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L46",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_composition_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_contexts_team_application_use_cases_get_team",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L47",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_composition_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_contexts_team_application_use_cases_soft_delete_team",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L48",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_composition_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_contexts_staff_infrastructure_repositories_staff_assignment_repository",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L49",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_composition_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_contexts_staff_application_use_cases_create_staff_assignment",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L50",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_composition_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_contexts_staff_application_use_cases_remove_staff_assignment",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L51",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_composition_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_contexts_staff_application_use_cases_list_staff_assignments",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L52",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_composition_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_domain_ids",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L53",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_composition_ts",
+      "target": "crypto",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L60",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_composition_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_domain_property_access_port",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L61",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_composition_ts",
+      "target": "src_composition_createcontainer",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L63",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_composition_ts",
+      "target": "src_composition_getcontainer",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L281",
+      "weight": 1.0
+    },
+    {
+      "source": "src_composition_getcontainer",
+      "target": "src_composition_createcontainer",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L283",
+      "weight": 1.0
+    }
+  ],
+  "raw_calls": [
+    {
+      "caller_nid": "src_composition_createcontainer",
+      "callee": "getDb",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L65"
+    },
+    {
+      "caller_nid": "src_composition_createcontainer",
+      "callee": "getLogger",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L66"
+    },
+    {
+      "caller_nid": "src_composition_createcontainer",
+      "callee": "getRedis",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L67"
+    },
+    {
+      "caller_nid": "src_composition_createcontainer",
+      "callee": "createEventBus",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L68"
+    },
+    {
+      "caller_nid": "src_composition_createcontainer",
+      "callee": "createRedisCache",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L71"
+    },
+    {
+      "caller_nid": "src_composition_createcontainer",
+      "callee": "createNoopCache",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L71"
+    },
+    {
+      "caller_nid": "src_composition_createcontainer",
+      "callee": "createRateLimiter",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L72"
+    },
+    {
+      "caller_nid": "src_composition_createcontainer",
+      "callee": "createJobQueue",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L78"
+    },
+    {
+      "caller_nid": "src_composition_createcontainer",
+      "callee": "createJobRegistry",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L79"
+    },
+    {
+      "caller_nid": "src_composition_createcontainer",
+      "callee": "createJobRegistry",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L79"
+    },
+    {
+      "caller_nid": "src_composition_createcontainer",
+      "callee": "createAuthIdentityAdapter",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L82"
+    },
+    {
+      "caller_nid": "src_composition_createcontainer",
+      "callee": "createPropertyRepository",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L124"
+    },
+    {
+      "caller_nid": "src_composition_createcontainer",
+      "callee": "createTeamRepository",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L129"
+    },
+    {
+      "caller_nid": "src_composition_createcontainer",
+      "callee": "createStaffAssignmentRepository",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L144"
+    },
+    {
+      "caller_nid": "src_composition_createcontainer",
+      "callee": "inviteMember",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L158"
+    },
+    {
+      "caller_nid": "src_composition_createcontainer",
+      "callee": "updateMemberRole",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L163"
+    },
+    {
+      "caller_nid": "src_composition_createcontainer",
+      "callee": "removeMember",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L168"
+    },
+    {
+      "caller_nid": "src_composition_createcontainer",
+      "callee": "listInvitations",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L173"
+    },
+    {
+      "caller_nid": "src_composition_createcontainer",
+      "callee": "resendInvitation",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L174"
+    },
+    {
+      "caller_nid": "src_composition_createcontainer",
+      "callee": "getEnv",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L183"
+    },
+    {
+      "caller_nid": "src_composition_createcontainer",
+      "callee": "registerUserAndOrg",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L185"
+    },
+    {
+      "caller_nid": "src_composition_createcontainer",
+      "callee": "registerUser",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L193"
+    },
+    {
+      "caller_nid": "src_composition_createcontainer",
+      "callee": "createProperty",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L195"
+    },
+    {
+      "caller_nid": "src_composition_createcontainer",
+      "callee": "updateProperty",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L201"
+    },
+    {
+      "caller_nid": "src_composition_createcontainer",
+      "callee": "listProperties",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L202"
+    },
+    {
+      "caller_nid": "src_composition_createcontainer",
+      "callee": "getProperty",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L203"
+    },
+    {
+      "caller_nid": "src_composition_createcontainer",
+      "callee": "softDeleteProperty",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L204"
+    },
+    {
+      "caller_nid": "src_composition_createcontainer",
+      "callee": "createTeam",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L210"
+    },
+    {
+      "caller_nid": "src_composition_createcontainer",
+      "callee": "updateTeam",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L217"
+    },
+    {
+      "caller_nid": "src_composition_createcontainer",
+      "callee": "listTeams",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L218"
+    },
+    {
+      "caller_nid": "src_composition_createcontainer",
+      "callee": "getTeam",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L219"
+    },
+    {
+      "caller_nid": "src_composition_createcontainer",
+      "callee": "softDeleteTeam",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L220"
+    },
+    {
+      "caller_nid": "src_composition_createcontainer",
+      "callee": "createStaffAssignment",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L222"
+    },
+    {
+      "caller_nid": "src_composition_createcontainer",
+      "callee": "removeStaffAssignment",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L228"
+    },
+    {
+      "caller_nid": "src_composition_createcontainer",
+      "callee": "listStaffAssignments",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L233"
+    },
+    {
+      "caller_nid": "src_composition_createcontainer",
+      "callee": "setOnAcceptInvitation",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/composition.ts",
+      "source_location": "L241"
+    }
+  ]
+}

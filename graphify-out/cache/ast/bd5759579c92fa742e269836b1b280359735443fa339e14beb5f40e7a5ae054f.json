@@ -1,0 +1,57 @@
+{
+  "nodes": [
+    {
+      "id": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_cache_redis_cache_ts",
+      "label": "redis-cache.ts",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/cache/redis-cache.ts",
+      "source_location": "L1"
+    },
+    {
+      "id": "cache_redis_cache_createrediscache",
+      "label": "createRedisCache()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/cache/redis-cache.ts",
+      "source_location": "L9"
+    }
+  ],
+  "edges": [
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_cache_redis_cache_ts",
+      "target": "ioredis",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/cache/redis-cache.ts",
+      "source_location": "L5",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_cache_redis_cache_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_cache_cache_port",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/cache/redis-cache.ts",
+      "source_location": "L6",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_cache_redis_cache_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_observability_logger",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/cache/redis-cache.ts",
+      "source_location": "L7",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_cache_redis_cache_ts",
+      "target": "cache_redis_cache_createrediscache",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/cache/redis-cache.ts",
+      "source_location": "L9",
+      "weight": 1.0
+    }
+  ],
+  "raw_calls": []
+}

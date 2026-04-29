@@ -1,0 +1,232 @@
+{
+  "nodes": [
+    {
+      "id": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_e2e_helpers_cleanup_ts",
+      "label": "cleanup.ts",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/cleanup.ts",
+      "source_location": "L1"
+    },
+    {
+      "id": "helpers_cleanup_deleteproperty",
+      "label": "deleteProperty()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/cleanup.ts",
+      "source_location": "L17"
+    },
+    {
+      "id": "helpers_cleanup_rundbcleanup",
+      "label": "runDbCleanup()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/cleanup.ts",
+      "source_location": "L45"
+    }
+  ],
+  "edges": [
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_e2e_helpers_cleanup_ts",
+      "target": "test",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/cleanup.ts",
+      "source_location": "L8",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_e2e_helpers_cleanup_ts",
+      "target": "helpers_cleanup_deleteproperty",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/cleanup.ts",
+      "source_location": "L17",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_e2e_helpers_cleanup_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_db",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/cleanup.ts",
+      "source_location": "L40",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_e2e_helpers_cleanup_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_db_schema_property_schema",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/cleanup.ts",
+      "source_location": "L41",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_e2e_helpers_cleanup_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_db_schema_team_schema",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/cleanup.ts",
+      "source_location": "L42",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_e2e_helpers_cleanup_ts",
+      "target": "drizzle_orm",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/cleanup.ts",
+      "source_location": "L43",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_e2e_helpers_cleanup_ts",
+      "target": "helpers_cleanup_rundbcleanup",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/cleanup.ts",
+      "source_location": "L45",
+      "weight": 1.0
+    }
+  ],
+  "raw_calls": [
+    {
+      "caller_nid": "helpers_cleanup_deleteproperty",
+      "callee": "goto",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/cleanup.ts",
+      "source_location": "L19"
+    },
+    {
+      "caller_nid": "helpers_cleanup_deleteproperty",
+      "callee": "on",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/cleanup.ts",
+      "source_location": "L22"
+    },
+    {
+      "caller_nid": "helpers_cleanup_deleteproperty",
+      "callee": "click",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/cleanup.ts",
+      "source_location": "L26"
+    },
+    {
+      "caller_nid": "helpers_cleanup_deleteproperty",
+      "callee": "first",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/cleanup.ts",
+      "source_location": "L26"
+    },
+    {
+      "caller_nid": "helpers_cleanup_deleteproperty",
+      "callee": "getByRole",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/cleanup.ts",
+      "source_location": "L26"
+    },
+    {
+      "caller_nid": "helpers_cleanup_rundbcleanup",
+      "callee": "getDb",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/cleanup.ts",
+      "source_location": "L46"
+    },
+    {
+      "caller_nid": "helpers_cleanup_rundbcleanup",
+      "callee": "log",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/cleanup.ts",
+      "source_location": "L47"
+    },
+    {
+      "caller_nid": "helpers_cleanup_rundbcleanup",
+      "callee": "returning",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/cleanup.ts",
+      "source_location": "L50"
+    },
+    {
+      "caller_nid": "helpers_cleanup_rundbcleanup",
+      "callee": "where",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/cleanup.ts",
+      "source_location": "L50"
+    },
+    {
+      "caller_nid": "helpers_cleanup_rundbcleanup",
+      "callee": "delete",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/cleanup.ts",
+      "source_location": "L50"
+    },
+    {
+      "caller_nid": "helpers_cleanup_rundbcleanup",
+      "callee": "like",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/cleanup.ts",
+      "source_location": "L52"
+    },
+    {
+      "caller_nid": "helpers_cleanup_rundbcleanup",
+      "callee": "log",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/cleanup.ts",
+      "source_location": "L54"
+    },
+    {
+      "caller_nid": "helpers_cleanup_rundbcleanup",
+      "callee": "returning",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/cleanup.ts",
+      "source_location": "L57"
+    },
+    {
+      "caller_nid": "helpers_cleanup_rundbcleanup",
+      "callee": "where",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/cleanup.ts",
+      "source_location": "L57"
+    },
+    {
+      "caller_nid": "helpers_cleanup_rundbcleanup",
+      "callee": "delete",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/cleanup.ts",
+      "source_location": "L57"
+    },
+    {
+      "caller_nid": "helpers_cleanup_rundbcleanup",
+      "callee": "or",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/cleanup.ts",
+      "source_location": "L59"
+    },
+    {
+      "caller_nid": "helpers_cleanup_rundbcleanup",
+      "callee": "like",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/cleanup.ts",
+      "source_location": "L59"
+    },
+    {
+      "caller_nid": "helpers_cleanup_rundbcleanup",
+      "callee": "like",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/cleanup.ts",
+      "source_location": "L59"
+    },
+    {
+      "caller_nid": "helpers_cleanup_rundbcleanup",
+      "callee": "log",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/cleanup.ts",
+      "source_location": "L61"
+    },
+    {
+      "caller_nid": "helpers_cleanup_rundbcleanup",
+      "callee": "log",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/cleanup.ts",
+      "source_location": "L63"
+    }
+  ]
+}

@@ -1,0 +1,131 @@
+{
+  "nodes": [
+    {
+      "id": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_router_tsx",
+      "label": "router.tsx",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/router.tsx",
+      "source_location": "L1"
+    },
+    {
+      "id": "src_router_defaultpendingcomponent",
+      "label": "DefaultPendingComponent()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/router.tsx",
+      "source_location": "L10"
+    },
+    {
+      "id": "src_router_defaulterrorcomponent",
+      "label": "DefaultErrorComponent()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/router.tsx",
+      "source_location": "L23"
+    },
+    {
+      "id": "src_router_getrouter",
+      "label": "getRouter()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/router.tsx",
+      "source_location": "L41"
+    }
+  ],
+  "edges": [
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_router_tsx",
+      "target": "react_router",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/router.tsx",
+      "source_location": "L1",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_router_tsx",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_routetree_gen",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/router.tsx",
+      "source_location": "L2",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_router_tsx",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_components_ui_skeleton",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/router.tsx",
+      "source_location": "L4",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_router_tsx",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_components_ui_alert",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/router.tsx",
+      "source_location": "L5",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_router_tsx",
+      "target": "lucide_react",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/router.tsx",
+      "source_location": "L6",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_router_tsx",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_components_ui_button",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/router.tsx",
+      "source_location": "L7",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_router_tsx",
+      "target": "src_router_defaultpendingcomponent",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/router.tsx",
+      "source_location": "L10",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_router_tsx",
+      "target": "src_router_defaulterrorcomponent",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/router.tsx",
+      "source_location": "L23",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_router_tsx",
+      "target": "src_router_getrouter",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/router.tsx",
+      "source_location": "L41",
+      "weight": 1.0
+    }
+  ],
+  "raw_calls": [
+    {
+      "caller_nid": "src_router_defaulterrorcomponent",
+      "callee": "useRouter",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/router.tsx",
+      "source_location": "L24"
+    },
+    {
+      "caller_nid": "src_router_getrouter",
+      "callee": "createTanStackRouter",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/router.tsx",
+      "source_location": "L42"
+    }
+  ]
+}
