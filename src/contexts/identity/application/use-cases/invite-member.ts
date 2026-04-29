@@ -12,7 +12,9 @@ import { identityError } from '../../domain/errors'
 import { memberInvited } from '../../domain/events'
 import type { InviteMemberInput } from '../dto/invitation.dto'
 
+// fallow-ignore-next-line unused-type
 export type { InviteMemberInput }
+// fallow-ignore-next-line unused-type
 export type InviteMemberOutput = Readonly<{
   success: boolean
 }>

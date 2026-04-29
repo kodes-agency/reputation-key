@@ -5,6 +5,7 @@
 import type { PropertyId } from './types'
 import type { OrganizationId } from '#/shared/domain/ids'
 
+// fallow-ignore-next-line unused-type
 export type PropertyCreated = Readonly<{
   _tag: 'property.created'
   propertyId: PropertyId
@@ -14,6 +15,7 @@ export type PropertyCreated = Readonly<{
   occurredAt: Date
 }>
 
+// fallow-ignore-next-line unused-type
 export type PropertyUpdated = Readonly<{
   _tag: 'property.updated'
   propertyId: PropertyId
@@ -23,6 +25,7 @@ export type PropertyUpdated = Readonly<{
   occurredAt: Date
 }>
 
+// fallow-ignore-next-line unused-type
 export type PropertyDeleted = Readonly<{
   _tag: 'property.deleted'
   propertyId: PropertyId

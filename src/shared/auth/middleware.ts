@@ -13,6 +13,7 @@ import { throwContextError } from './server-errors'
 
 // ── Tagged errors ──────────────────────────────────────────────────
 
+// fallow-ignore-next-line unused-type
 export type AuthError = Readonly<{
   _tag: 'AuthError'
   code: 'unauthorized' | 'session_expired' | 'forbidden' | 'no_active_org'

@@ -8,6 +8,7 @@ import { can } from '#/shared/domain/permissions'
 import { teamError } from '../../domain/errors'
 import { teamDeleted } from '../../domain/events'
 
+// fallow-ignore-next-line unused-type
 export type SoftDeleteTeamDeps = Readonly<{
   teamRepo: TeamRepository
   events: EventBus
@@ -41,4 +42,5 @@ export const softDeleteTeam =
     )
   }
 
+// fallow-ignore-next-line unused-type
 export type SoftDeleteTeam = ReturnType<typeof softDeleteTeam>

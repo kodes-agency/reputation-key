@@ -7,6 +7,7 @@ import pino from 'pino'
 
 export const JOB_NAME = 'health-check' as const
 
+// fallow-ignore-next-line unused-type
 export type HealthCheckResult = Readonly<{
   db: boolean
   redis: boolean

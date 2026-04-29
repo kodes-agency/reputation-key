@@ -3,6 +3,7 @@
 import type { StaffAssignmentId } from './types'
 import type { OrganizationId, PropertyId, TeamId, UserId } from '#/shared/domain/ids'
 
+// fallow-ignore-next-line unused-type
 export type StaffAssigned = Readonly<{
   _tag: 'staff.assigned'
   assignmentId: StaffAssignmentId
@@ -13,6 +14,7 @@ export type StaffAssigned = Readonly<{
   occurredAt: Date
 }>
 
+// fallow-ignore-next-line unused-type
 export type StaffUnassigned = Readonly<{
   _tag: 'staff.unassigned'
   assignmentId: StaffAssignmentId

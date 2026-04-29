@@ -7,7 +7,9 @@ import { getRedis } from '#/shared/cache/redis'
 import { getLogger } from '#/shared/observability/logger'
 import type { JobHandler } from './registry'
 
+// fallow-ignore-next-line unused-type
 export type { Job }
+// fallow-ignore-next-line unused-type
 export type { JobHandler }
 
 export function createJobWorker<T>(

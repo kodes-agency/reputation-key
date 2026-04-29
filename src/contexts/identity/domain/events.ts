@@ -13,6 +13,7 @@ export type IdentityEvent =
   | MemberRemoved
   | MemberRoleChanged
 
+// fallow-ignore-next-line unused-type
 export type OrganizationCreated = Readonly<{
   _tag: 'organization.created'
   organizationId: OrganizationId
@@ -22,6 +23,7 @@ export type OrganizationCreated = Readonly<{
   occurredAt: Date
 }>
 
+// fallow-ignore-next-line unused-type
 export type MemberInvited = Readonly<{
   _tag: 'member.invited'
   organizationId: OrganizationId
@@ -32,6 +34,7 @@ export type MemberInvited = Readonly<{
   occurredAt: Date
 }>
 
+// fallow-ignore-next-line unused-type
 export type InvitationAccepted = Readonly<{
   _tag: 'invitation.accepted'
   organizationId: OrganizationId
@@ -41,6 +44,7 @@ export type InvitationAccepted = Readonly<{
   occurredAt: Date
 }>
 
+// fallow-ignore-next-line unused-type
 export type InvitationRejected = Readonly<{
   _tag: 'invitation.rejected'
   organizationId: OrganizationId
@@ -49,6 +53,7 @@ export type InvitationRejected = Readonly<{
   occurredAt: Date
 }>
 
+// fallow-ignore-next-line unused-type
 export type MemberRemoved = Readonly<{
   _tag: 'member.removed'
   organizationId: OrganizationId
@@ -57,6 +62,7 @@ export type MemberRemoved = Readonly<{
   occurredAt: Date
 }>
 
+// fallow-ignore-next-line unused-type
 export type MemberRoleChanged = Readonly<{
   _tag: 'member.role-changed'
   organizationId: OrganizationId
@@ -78,11 +84,11 @@ export const memberInvited = (args: Omit<MemberInvited, '_tag'>): MemberInvited 
   ...args,
 })
 
-export const invitationAccepted = (
+const invitationAccepted = (
   args: Omit<InvitationAccepted, '_tag'>,
 ): InvitationAccepted => ({ _tag: 'invitation.accepted', ...args })
 
-export const invitationRejected = (
+const invitationRejected = (
   args: Omit<InvitationRejected, '_tag'>,
 ): InvitationRejected => ({ _tag: 'invitation.rejected', ...args })
 

@@ -13,6 +13,7 @@ import { teamError } from '../../domain/errors'
 import { teamUpdated } from '../../domain/events'
 import { teamId as toTeamId } from '#/shared/domain/ids'
 
+// fallow-ignore-next-line unused-type
 export type UpdateTeamDeps = Readonly<{
   teamRepo: TeamRepository
   events: EventBus
@@ -98,4 +99,5 @@ export const updateTeam =
     return updated
   }
 
+// fallow-ignore-next-line unused-type
 export type UpdateTeam = ReturnType<typeof updateTeam>

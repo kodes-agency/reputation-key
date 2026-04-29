@@ -13,6 +13,7 @@ import { buildTeam } from '../../domain/constructors'
 import { teamError } from '../../domain/errors'
 import { teamCreated } from '../../domain/events'
 
+// fallow-ignore-next-line unused-type
 export type CreateTeamDeps = Readonly<{
   teamRepo: TeamRepository
   propertyExists: PropertyExistsPort
@@ -81,4 +82,5 @@ export const createTeam =
     return team
   }
 
+// fallow-ignore-next-line unused-type
 export type CreateTeam = ReturnType<typeof createTeam>

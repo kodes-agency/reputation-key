@@ -1,107 +1,144 @@
 // Property context — update property use case
 
-import type { PropertyRepository } from '../ports/property.repository'
-import type { EventBus } from '#/shared/events/event-bus'
-import type { Property } from '../../domain/types'
-import type { AuthContext } from '#/shared/domain/auth-context'
-import type { UpdatePropertyInput } from '../dto/update-property.dto'
-import { can } from '#/shared/domain/permissions'
-import { propertyId as toPropertyId } from '#/shared/domain/ids'
-import { validatePropertyName, validateSlug, validateTimezone } from '../../domain/rules'
-import { propertyError } from '../../domain/errors'
-import { propertyUpdated } from '../../domain/events'
+import type { PropertyRepository } from "../ports/property.repository";
+import type { EventBus } from "#/shared/events/event-bus";
+import type { Property } from "../../domain/types";
+import type { AuthContext } from "#/shared/domain/auth-context";
+import type { UpdatePropertyInput } from "../dto/update-property.dto";
+import { can } from "#/shared/domain/permissions";
+import { propertyId as toPropertyId } from "#/shared/domain/ids";
+import {
+	validatePropertyName,
+	validateSlug,
+	validateTimezone,
+} from "../../domain/rules";
+import { propertyError } from "../../domain/errors";
+import { propertyUpdated } from "../../domain/events";
 
+// fallow-ignore-next-line unused-type
 export type UpdatePropertyDeps = Readonly<{
-  propertyRepo: PropertyRepository
-  events: EventBus
-  clock: () => Date
-}>
+	propertyRepo: PropertyRepository;
+	events: EventBus;
+	clock: () => Date;
+}>;
+
+function authorize(ctx: AuthContext): void {
+	if (!can(ctx.role, "property.update")) {
+		throw propertyError("forbidden", "this role cannot edit properties");
+	}
+}
+
+async function resolveExisting(
+	deps: UpdatePropertyDeps,
+	ctx: AuthContext,
+	propertyIdStr: string,
+) {
+	const propertyId = toPropertyId(propertyIdStr);
+	const existing = await deps.propertyRepo.findById(
+		ctx.organizationId,
+		propertyId,
+	);
+	if (!existing) {
+		throw propertyError(
+			"property_not_found",
+			"property not found in this organization",
+		);
+	}
+	return { propertyId, existing };
+}
+
+async function validateUpdateFields(
+	deps: UpdatePropertyDeps,
+	input: UpdatePropertyInput,
+	existing: Property,
+	propertyId: ReturnType<typeof toPropertyId>,
+	organizationId: AuthContext["organizationId"],
+) {
+	const newSlug = input.slug ?? existing.slug;
+	if (input.slug && input.slug !== existing.slug) {
+		const slugResult = validateSlug(input.slug);
+		if (slugResult.isErr()) throw slugResult.error;
+		if (
+			await deps.propertyRepo.slugExists(organizationId, input.slug, propertyId)
+		) {
+			throw propertyError(
+				"slug_taken",
+				"a property with this slug already exists",
+			);
+		}
+	}
+
+	const newName = input.name ?? existing.name;
+	if (input.name !== undefined) {
+		const nameResult = validatePropertyName(input.name);
+		if (nameResult.isErr()) throw nameResult.error;
+	}
+
+	const newTimezone = input.timezone ?? existing.timezone;
+	if (input.timezone !== undefined) {
+		const tzResult = validateTimezone(input.timezone);
+		if (tzResult.isErr()) throw tzResult.error;
+	}
+
+	const newGbpPlaceId =
+		input.gbpPlaceId !== undefined ? input.gbpPlaceId : existing.gbpPlaceId;
+
+	return { newName, newSlug, newTimezone, newGbpPlaceId };
+}
 
 export const updateProperty =
-  (deps: UpdatePropertyDeps) =>
-  async (input: UpdatePropertyInput, ctx: AuthContext): Promise<Property> => {
-    // 1. Authorize
-    if (!can(ctx.role, 'property.update')) {
-      throw propertyError('forbidden', 'this role cannot edit properties')
-    }
+	(deps: UpdatePropertyDeps) =>
+	async (input: UpdatePropertyInput, ctx: AuthContext): Promise<Property> => {
+		authorize(ctx);
+		const { propertyId, existing } = await resolveExisting(
+			deps,
+			ctx,
+			input.propertyId,
+		);
+		const fields = await validateUpdateFields(
+			deps,
+			input,
+			existing,
+			propertyId,
+			ctx.organizationId,
+		);
 
-    // 2. Validate referenced entity exists
-    const propertyId = toPropertyId(input.propertyId)
-    const existing = await deps.propertyRepo.findById(ctx.organizationId, propertyId)
-    if (!existing) {
-      throw propertyError('property_not_found', 'property not found in this organization')
-    }
+		const hasChanges =
+			fields.newName !== existing.name ||
+			fields.newSlug !== existing.slug ||
+			fields.newTimezone !== existing.timezone ||
+			fields.newGbpPlaceId !== existing.gbpPlaceId;
 
-    // 3. Check uniqueness if slug is changing
-    const newSlug = input.slug ?? existing.slug
-    if (input.slug && input.slug !== existing.slug) {
-      const slugResult = validateSlug(input.slug)
-      if (slugResult.isErr()) throw slugResult.error
+		if (!hasChanges) return existing;
 
-      if (
-        await deps.propertyRepo.slugExists(ctx.organizationId, input.slug, propertyId)
-      ) {
-        throw propertyError('slug_taken', 'a property with this slug already exists')
-      }
-    }
+		const updatedAt = deps.clock();
+		await deps.propertyRepo.update(ctx.organizationId, propertyId, {
+			name: fields.newName,
+			slug: fields.newSlug,
+			timezone: fields.newTimezone,
+			gbpPlaceId: fields.newGbpPlaceId,
+			updatedAt,
+		});
 
-    // 4. Validate individual fields if provided
-    const newName = input.name ?? existing.name
-    if (input.name !== undefined) {
-      const nameResult = validatePropertyName(input.name)
-      if (nameResult.isErr()) throw nameResult.error
-    }
+		deps.events.emit(
+			propertyUpdated({
+				propertyId,
+				organizationId: ctx.organizationId,
+				name: fields.newName,
+				slug: fields.newSlug,
+				occurredAt: updatedAt,
+			}),
+		);
 
-    const newTimezone = input.timezone ?? existing.timezone
-    if (input.timezone !== undefined) {
-      const tzResult = validateTimezone(input.timezone)
-      if (tzResult.isErr()) throw tzResult.error
-    }
+		return {
+			...existing,
+			name: fields.newName,
+			slug: fields.newSlug,
+			timezone: fields.newTimezone,
+			gbpPlaceId: fields.newGbpPlaceId,
+			updatedAt,
+		};
+	};
 
-    const newGbpPlaceId =
-      input.gbpPlaceId !== undefined ? input.gbpPlaceId : existing.gbpPlaceId
-
-    // Skip persist + event if nothing actually changed
-    const hasChanges =
-      newName !== existing.name ||
-      newSlug !== existing.slug ||
-      newTimezone !== existing.timezone ||
-      newGbpPlaceId !== existing.gbpPlaceId
-
-    if (!hasChanges) {
-      return existing
-    }
-
-    // 5. Persist
-    const updatedAt = deps.clock()
-    await deps.propertyRepo.update(ctx.organizationId, propertyId, {
-      name: newName,
-      slug: newSlug,
-      timezone: newTimezone,
-      gbpPlaceId: newGbpPlaceId,
-      updatedAt,
-    })
-
-    // 6. Emit event
-    deps.events.emit(
-      propertyUpdated({
-        propertyId,
-        organizationId: ctx.organizationId,
-        name: newName,
-        slug: newSlug,
-        occurredAt: updatedAt,
-      }),
-    )
-
-    // 7. Return updated property
-    return {
-      ...existing,
-      name: newName,
-      slug: newSlug,
-      timezone: newTimezone,
-      gbpPlaceId: newGbpPlaceId,
-      updatedAt,
-    }
-  }
-
-export type UpdateProperty = ReturnType<typeof updateProperty>
+// fallow-ignore-next-line unused-type
+export type UpdateProperty = ReturnType<typeof updateProperty>;

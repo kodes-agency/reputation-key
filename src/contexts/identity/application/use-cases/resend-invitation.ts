@@ -9,6 +9,7 @@ import { can } from '#/shared/domain/permissions'
 import { identityError } from '../../domain/errors'
 import type { AcceptInvitationInput } from '../dto/invitation.dto'
 
+// fallow-ignore-next-line unused-type
 export type ResendInvitationOutput = Readonly<{
   success: boolean
 }>

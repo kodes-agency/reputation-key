@@ -36,6 +36,7 @@ export const registerUserInputSchema = z.object({
     .min(2, 'Organization name must be at least 2 characters')
     .max(100, 'Organization name must be at most 100 characters'),
 })
+// fallow-ignore-next-line unused-type
 export type RegisterUserInput = z.infer<typeof registerUserInputSchema>
 
 /** Member registration — creates user only, no organization. */
@@ -44,24 +45,28 @@ export const registerMemberInputSchema = z.object({
   email: z.email('A valid email address is required'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
 })
+// fallow-ignore-next-line unused-type
 export type RegisterMemberInput = z.infer<typeof registerMemberInputSchema>
 
 export const setActiveOrgInputSchema = z.object({
   organizationId: z.string().min(1, 'Organization ID is required'),
 })
+// fallow-ignore-next-line unused-type
 export type SetActiveOrgInput = z.infer<typeof setActiveOrgInputSchema>
 
 export const signInInputSchema = z.object({
   email: z.email('A valid email address is required'),
   password: z.string().min(1, 'Password is required'),
 })
+// fallow-ignore-next-line unused-type
 export type SignInInput = z.infer<typeof signInInputSchema>
 
 /** Role as returned in API responses */
-export const roleSchema = z.enum(['AccountAdmin', 'PropertyManager', 'Staff'] as const)
+const roleSchema = z.enum(['AccountAdmin', 'PropertyManager', 'Staff'] as const)
+// fallow-ignore-next-line unused-type
 export type RoleResponse = z.infer<typeof roleSchema>
 
-export const memberResponseSchema = z.object({
+const memberResponseSchema = z.object({
   id: z.string(),
   userId: z.string(),
   role: roleSchema,
@@ -70,9 +75,10 @@ export const memberResponseSchema = z.object({
   image: z.string().nullable(),
   createdAt: z.date(),
 })
+// fallow-ignore-next-line unused-type
 export type MemberResponse = z.infer<typeof memberResponseSchema>
 
-export const invitationResponseSchema = z.object({
+const invitationResponseSchema = z.object({
   id: z.string(),
   email: z.string(),
   role: roleSchema,
@@ -80,4 +86,5 @@ export const invitationResponseSchema = z.object({
   expiresAt: z.date(),
   createdAt: z.date(),
 })
+// fallow-ignore-next-line unused-type
 export type InvitationResponse = z.infer<typeof invitationResponseSchema>

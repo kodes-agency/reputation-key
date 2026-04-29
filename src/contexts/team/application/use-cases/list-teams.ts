@@ -8,6 +8,7 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import type { PropertyId } from '#/shared/domain/ids'
 import type { PropertyAccessProvider } from '#/shared/domain/property-access.port'
 
+// fallow-ignore-next-line unused-type
 export type ListTeamsDeps = Readonly<{
   teamRepo: TeamRepository
   propertyAccess: PropertyAccessProvider
@@ -36,4 +37,5 @@ export const listTeams =
     return deps.teamRepo.listByProperty(ctx.organizationId, input.propertyId)
   }
 
+// fallow-ignore-next-line unused-type
 export type ListTeams = ReturnType<typeof listTeams>

@@ -9,6 +9,7 @@ import type { StaffError } from './errors'
 import type { OrganizationId, PropertyId, TeamId, UserId } from '#/shared/domain/ids'
 import { validateNotSelfAssignment } from './rules'
 
+// fallow-ignore-next-line unused-type
 export type BuildStaffAssignmentInput = Readonly<{
   id: StaffAssignmentId
   organizationId: OrganizationId

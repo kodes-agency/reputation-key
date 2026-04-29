@@ -7,6 +7,7 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import { can } from '#/shared/domain/permissions'
 import { identityError } from '../../domain/errors'
 
+// fallow-ignore-next-line unused-type
 export type ListInvitationsOutput = Readonly<{
   invitations: ReadonlyArray<InvitationRecord>
 }>

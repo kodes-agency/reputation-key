@@ -30,7 +30,7 @@ export function buildTestAuthContext(overrides: Partial<AuthContext> = {}): Auth
  *
  * e.g. uuidFromLabel('prop-a') → '1c34beef-0000-0000-0000-000000000000'
  */
-export function uuidFromLabel(label: string): string {
+function uuidFromLabel(label: string): string {
   let hash = 0
   for (let i = 0; i < label.length; i++) {
     hash = ((hash << 5) - hash + label.charCodeAt(i)) | 0

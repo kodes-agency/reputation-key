@@ -7,6 +7,7 @@ import type { Property } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { PropertyAccessProvider } from '#/shared/domain/property-access.port'
 
+// fallow-ignore-next-line unused-type
 export type ListPropertiesDeps = Readonly<{
   propertyRepo: PropertyRepository
   propertyAccess: PropertyAccessProvider
@@ -32,4 +33,5 @@ export const listProperties =
     return all.filter((p) => idSet.has(p.id))
   }
 
+// fallow-ignore-next-line unused-type
 export type ListProperties = ReturnType<typeof listProperties>

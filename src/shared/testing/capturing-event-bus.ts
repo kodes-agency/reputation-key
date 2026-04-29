@@ -5,6 +5,7 @@
 import type { EventBus } from '#/shared/events/event-bus'
 import type { DomainEvent } from '#/shared/events/events'
 
+// fallow-ignore-next-line unused-type
 export type CapturingEventBus = EventBus & {
   /** All events emitted since the last clear. */
   readonly capturedEvents: ReadonlyArray<DomainEvent>

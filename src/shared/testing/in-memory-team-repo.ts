@@ -6,6 +6,7 @@ import type { TeamRepository } from '#/contexts/team/application/ports/team.repo
 import type { Team } from '#/contexts/team/domain/types'
 import type { OrganizationId } from '#/shared/domain/ids'
 
+// fallow-ignore-next-line unused-type
 export type InMemoryTeamRepo = TeamRepository &
   Readonly<{
     seed: (teams: ReadonlyArray<Team>) => void

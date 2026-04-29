@@ -8,6 +8,7 @@ import { can } from '#/shared/domain/permissions'
 import { staffError } from '../../domain/errors'
 import { staffUnassigned } from '../../domain/events'
 
+// fallow-ignore-next-line unused-type
 export type RemoveStaffAssignmentDeps = Readonly<{
   assignmentRepo: StaffAssignmentRepository
   events: EventBus
@@ -46,4 +47,5 @@ export const removeStaffAssignment =
     )
   }
 
+// fallow-ignore-next-line unused-type
 export type RemoveStaffAssignment = ReturnType<typeof removeStaffAssignment>
