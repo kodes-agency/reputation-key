@@ -6,12 +6,17 @@ import type { Brand } from './brand'
 export type OrganizationId = Brand<string, 'OrganizationId'>
 export type UserId = Brand<string, 'UserId'>
 export type PropertyId = Brand<string, 'PropertyId'>
+// fallow-ignore-next-line unused-type
 export type PortalId = Brand<string, 'PortalId'>
+// fallow-ignore-next-line unused-type
 export type ReviewId = Brand<string, 'ReviewId'>
+// fallow-ignore-next-line unused-type
 export type FeedbackId = Brand<string, 'FeedbackId'>
 export type TeamId = Brand<string, 'TeamId'>
 export type StaffAssignmentId = Brand<string, 'StaffAssignmentId'>
+// fallow-ignore-next-line unused-type
 export type MetricId = Brand<string, 'MetricId'>
+// fallow-ignore-next-line unused-type
 export type GoalId = Brand<string, 'GoalId'>
 
 // Convenience constructors — each wraps brandId with the correct tag.
@@ -25,13 +30,13 @@ export function userId(id: string): UserId {
 export function propertyId(id: string): PropertyId {
   return id as PropertyId
 }
-export function portalId(id: string): PortalId {
+function portalId(id: string): PortalId {
   return id as PortalId
 }
-export function reviewId(id: string): ReviewId {
+function reviewId(id: string): ReviewId {
   return id as ReviewId
 }
-export function feedbackId(id: string): FeedbackId {
+function feedbackId(id: string): FeedbackId {
   return id as FeedbackId
 }
 export function teamId(id: string): TeamId {
@@ -40,9 +45,9 @@ export function teamId(id: string): TeamId {
 export function staffAssignmentId(id: string): StaffAssignmentId {
   return id as StaffAssignmentId
 }
-export function metricId(id: string): MetricId {
+function metricId(id: string): MetricId {
   return id as MetricId
 }
-export function goalId(id: string): GoalId {
+function goalId(id: string): GoalId {
   return id as GoalId
 }

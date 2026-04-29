@@ -8,12 +8,14 @@ import { propertyId as toPropertyId } from '#/shared/domain/ids'
 import { propertyError } from '../../domain/errors'
 import { propertyDeleted } from '../../domain/events'
 
+// fallow-ignore-next-line unused-type
 export type SoftDeletePropertyDeps = Readonly<{
   propertyRepo: PropertyRepository
   events: EventBus
   clock: () => Date
 }>
 
+// fallow-ignore-next-line unused-type
 export type SoftDeletePropertyInput = Readonly<{
   propertyId: string
 }>
@@ -46,4 +48,5 @@ export const softDeleteProperty =
     )
   }
 
+// fallow-ignore-next-line unused-type
 export type SoftDeleteProperty = ReturnType<typeof softDeleteProperty>

@@ -5,12 +5,14 @@
 import type { IdentityPort } from '../ports/identity.port'
 import { identityError } from '../../domain/errors'
 
+// fallow-ignore-next-line unused-type
 export type RegisterUserInput = Readonly<{
   name: string
   email: string
   password: string
 }>
 
+// fallow-ignore-next-line unused-type
 export type RegisterUserDeps = Readonly<{
   identity: IdentityPort
 }>

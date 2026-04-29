@@ -13,6 +13,7 @@
 // - Server functions translate tagged errors to HTTP using match().exhaustive().
 // - No plain Error objects. Ever.
 
+// fallow-ignore-next-line unused-type
 export type TaggedError<
   Tag extends string = string,
   Code extends string = string,

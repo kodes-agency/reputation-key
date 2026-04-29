@@ -11,6 +11,7 @@ import type {
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Role } from '#/shared/domain/roles'
 
+// fallow-ignore-next-line unused-type
 export type InMemoryIdentityPort = IdentityPort & {
   /** Seed members for testing. */
   seedMembers: (members: ReadonlyArray<MemberRecord>) => void

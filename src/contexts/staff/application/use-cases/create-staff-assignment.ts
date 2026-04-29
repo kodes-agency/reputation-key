@@ -15,6 +15,7 @@ import {
   teamId as toTeamId,
 } from '#/shared/domain/ids'
 
+// fallow-ignore-next-line unused-type
 export type CreateStaffAssignmentDeps = Readonly<{
   assignmentRepo: StaffAssignmentRepository
   events: EventBus
@@ -88,4 +89,5 @@ export const createStaffAssignment =
     return assignment
   }
 
+// fallow-ignore-next-line unused-type
 export type CreateStaffAssignment = ReturnType<typeof createStaffAssignment>

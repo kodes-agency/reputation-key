@@ -14,6 +14,7 @@ import {
   validateTimezone,
 } from './rules'
 
+// fallow-ignore-next-line unused-type
 export type BuildPropertyInput = Readonly<{
   id: PropertyId
   organizationId: OrganizationId

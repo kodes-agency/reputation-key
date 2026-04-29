@@ -6,10 +6,12 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import { propertyError } from '../../domain/errors'
 import { propertyId } from '#/shared/domain/ids'
 
+// fallow-ignore-next-line unused-type
 export type GetPropertyDeps = Readonly<{
   propertyRepo: PropertyRepository
 }>
 
+// fallow-ignore-next-line unused-type
 export type GetPropertyInput = Readonly<{
   propertyId: string
 }>
@@ -30,4 +32,5 @@ export const getProperty =
     return property
   }
 
+// fallow-ignore-next-line unused-type
 export type GetProperty = ReturnType<typeof getProperty>

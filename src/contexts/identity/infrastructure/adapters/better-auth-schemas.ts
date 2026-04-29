@@ -11,7 +11,7 @@ import type { IdentityErrorCode } from '../../domain/errors'
 // ── Primitive schemas ───────────────────────────────────────────────
 
 /** User object nested inside member responses. */
-export const betterAuthUserSchema = z.object({
+const betterAuthUserSchema = z.object({
   id: z.string(),
   email: z.string(),
   name: z.string(),
@@ -19,7 +19,7 @@ export const betterAuthUserSchema = z.object({
 })
 
 /** Member object returned by listMembers (includes nested user). */
-export const betterAuthMemberSchema = z.object({
+const betterAuthMemberSchema = z.object({
   id: z.string(),
   userId: z.string(),
   role: z.string(),

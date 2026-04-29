@@ -4,12 +4,12 @@ export type Brand<T, B extends string> = T & { __brand: B }
 
 // Brand constructor — the only acceptable `as` cast in the codebase.
 // Per conventions: "as casts except for branded ID parsing" are forbidden.
-export function brandId<T extends string>(id: string, _brand: T): Brand<string, T> {
+function brandId<T extends string>(id: string, _brand: T): Brand<string, T> {
   return id as Brand<string, T>
 }
 
 // Brand guard — checks if a value is branded with a specific tag.
-export function isBrand<T extends string>(
+function isBrand<T extends string>(
   value: unknown,
   brand: T,
 ): value is Brand<string, T> {

@@ -7,6 +7,7 @@ import type { TeamError } from './errors'
 import type { OrganizationId, UserId, PropertyId } from '#/shared/domain/ids'
 import { validateTeamName } from './rules'
 
+// fallow-ignore-next-line unused-type
 export type BuildTeamInput = Readonly<{
   id: TeamId
   organizationId: OrganizationId

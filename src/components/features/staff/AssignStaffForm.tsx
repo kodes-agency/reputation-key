@@ -19,12 +19,14 @@ import { createStaffAssignmentInputSchema } from '#/contexts/staff/application/d
 import { Skeleton } from '#/components/ui/skeleton'
 import { z } from 'zod/v4'
 
+// fallow-ignore-next-line unused-type
 export type MemberOption = Readonly<{
   userId: string
   name: string
   email: string
 }>
 
+// fallow-ignore-next-line unused-type
 export type TeamOption = Readonly<{
   id: string
   name: string

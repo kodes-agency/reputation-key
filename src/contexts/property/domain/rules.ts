@@ -13,7 +13,7 @@ import { propertyError } from './errors'
 
 // ── Slug validation ────────────────────────────────────────────────
 
-export const SLUG_PATTERN = /^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$/
+const SLUG_PATTERN = /^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$/
 
 /** Normalize a string into a URL-friendly slug (infallible). */
 export const normalizeSlug = (input: string): string =>
@@ -52,7 +52,6 @@ export const validatePropertyName = (name: string): Result<string, PropertyError
 
 // VALID_TIMEZONES is defined in shared/domain/timezones.ts — imported above.
 // Re-exported for backward compatibility with existing consumers.
-export { VALID_TIMEZONES } from '#/shared/domain/timezones'
 
 /** Validate that a timezone string is a recognized IANA timezone. */
 export const validateTimezone = (tz: string): Result<string, PropertyError> => {

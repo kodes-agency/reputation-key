@@ -28,7 +28,7 @@ const emailError = createErrorFactory('EmailError')
 
 // ── Resend client ────────────────────────────────────────────────────
 
-export function getResend(): Resend {
+function getResend(): Resend {
   if (!_resend) {
     const env = getEnv()
     _resend = new Resend(env.RESEND_API_KEY)
@@ -65,7 +65,7 @@ async function sendEmail({ to, subject, html }: SendEmailParams): Promise<void> 
 }
 
 /** Send email verification link */
-export async function sendVerificationEmail(to: string, url: string): Promise<void> {
+async function sendVerificationEmail(to: string, url: string): Promise<void> {
   await sendEmail({
     to,
     subject: 'Verify your email — Reputation Key',
@@ -137,6 +137,7 @@ function resetPasswordEmailHtml(resetUrl: string): string {
 
 // ─── Organization Invitation Email ────────────────────────────────────
 
+// fallow-ignore-next-line unused-type
 export type InvitationEmailParams = Readonly<{
   email: string
   invitedByUsername: string

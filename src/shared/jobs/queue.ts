@@ -8,6 +8,7 @@
 import { Queue } from 'bullmq'
 import { getRedis } from '#/shared/cache/redis'
 
+// fallow-ignore-next-line unused-type
 export type { Queue }
 
 export function createJobQueue(name: string): Queue | undefined {

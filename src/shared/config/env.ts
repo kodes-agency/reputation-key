@@ -27,6 +27,7 @@ const envSchema = z.object({
   SENTRY_TRACES_SAMPLE_RATE: z.coerce.number().min(0).max(1).default(0.1),
 })
 
+// fallow-ignore-next-line unused-type
 export type Env = z.infer<typeof envSchema>
 
 let _env: Env | undefined

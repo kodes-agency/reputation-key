@@ -1,0 +1,22 @@
+{
+  "regression": {
+    "baseline":     {
+      "totalIssues": 247,
+      "unusedFiles": 7,
+      "unusedExports": 104,
+      "unusedTypes": 121,
+      "unusedDependencies": 6,
+      "unusedDevDependencies": 5,
+      "unusedOptionalDependencies": 0,
+      "unusedEnumMembers": 0,
+      "unusedClassMembers": 0,
+      "unresolvedImports": 0,
+      "unlistedDependencies": 0,
+      "duplicateExports": 1,
+      "circularDependencies": 0,
+      "typeOnlyDependencies": 0,
+      "testOnlyDependencies": 3,
+      "boundaryViolations": 0
+    }
+  }
+}

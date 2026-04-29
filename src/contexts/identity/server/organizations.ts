@@ -166,7 +166,7 @@ export const acceptInvitation = createServerFn({ method: 'POST' })
 
 // ── Reject invitation ──────────────────────────────────────────────
 
-export const rejectInvitation = createServerFn({ method: 'POST' })
+const rejectInvitation = createServerFn({ method: 'POST' })
   .inputValidator(acceptInvitationInputSchema)
   .handler(async ({ data }) => {
     const headers = headersFromContext()

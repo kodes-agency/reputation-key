@@ -12,6 +12,7 @@ import { buildProperty } from '../../domain/constructors'
 import { propertyError } from '../../domain/errors'
 import { propertyCreated } from '../../domain/events'
 
+// fallow-ignore-next-line unused-type
 export type CreatePropertyDeps = Readonly<{
   propertyRepo: PropertyRepository
   events: EventBus
@@ -73,4 +74,5 @@ export const createProperty =
     return property
   }
 
+// fallow-ignore-next-line unused-type
 export type CreateProperty = ReturnType<typeof createProperty>

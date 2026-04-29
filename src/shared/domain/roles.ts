@@ -7,6 +7,7 @@
 export type Role = 'AccountAdmin' | 'PropertyManager' | 'Staff'
 
 /** The roles as better-auth understands them. */
+// fallow-ignore-next-line unused-type
 export type BetterAuthRole = 'owner' | 'admin' | 'member'
 
 /** Role hierarchy: AccountAdmin > PropertyManager > Staff */

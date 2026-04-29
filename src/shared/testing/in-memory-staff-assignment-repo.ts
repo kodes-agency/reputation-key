@@ -4,6 +4,7 @@ import type { StaffAssignmentRepository } from '#/contexts/staff/application/por
 import type { StaffAssignment } from '#/contexts/staff/domain/types'
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 
+// fallow-ignore-next-line unused-type
 export type InMemoryStaffAssignmentRepo = StaffAssignmentRepository &
   Readonly<{
     seed: (assignments: ReadonlyArray<StaffAssignment>) => void

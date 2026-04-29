@@ -8,6 +8,7 @@ import type { TeamId } from '#/shared/domain/ids'
 import type { PropertyAccessProvider } from '#/shared/domain/property-access.port'
 import { teamError } from '../../domain/errors'
 
+// fallow-ignore-next-line unused-type
 export type GetTeamDeps = Readonly<{
   teamRepo: TeamRepository
   propertyAccess: PropertyAccessProvider
@@ -39,4 +40,5 @@ export const getTeam =
     return team
   }
 
+// fallow-ignore-next-line unused-type
 export type GetTeam = ReturnType<typeof getTeam>

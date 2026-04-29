@@ -5,6 +5,7 @@ import type { StaffAssignment } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { PropertyId, TeamId, UserId } from '#/shared/domain/ids'
 
+// fallow-ignore-next-line unused-type
 export type ListStaffAssignmentsDeps = Readonly<{
   assignmentRepo: StaffAssignmentRepository
 }>
@@ -28,4 +29,5 @@ export const listStaffAssignments =
     return []
   }
 
+// fallow-ignore-next-line unused-type
 export type ListStaffAssignments = ReturnType<typeof listStaffAssignments>

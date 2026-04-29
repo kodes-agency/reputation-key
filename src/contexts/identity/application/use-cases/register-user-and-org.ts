@@ -11,6 +11,7 @@ import {
   userId as toUserId,
 } from '#/shared/domain/ids'
 
+// fallow-ignore-next-line unused-type
 export type RegisterUserAndOrgInput = Readonly<{
   name: string
   email: string
@@ -18,6 +19,7 @@ export type RegisterUserAndOrgInput = Readonly<{
   organizationName: string
 }>
 
+// fallow-ignore-next-line unused-type
 export type RegisterUserAndOrgOutput = Readonly<{
   organizationId: string
 }>

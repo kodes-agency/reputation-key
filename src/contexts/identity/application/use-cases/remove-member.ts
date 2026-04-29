@@ -12,6 +12,7 @@ import { memberRemoved } from '../../domain/events'
 import { userId as toUserId } from '#/shared/domain/ids'
 import type { RemoveMemberInput } from '../dto/invitation.dto'
 
+// fallow-ignore-next-line unused-type
 export type RemoveMemberOutput = Readonly<{
   success: boolean
 }>
