@@ -16,10 +16,11 @@ import {
 import { SubmitButton } from '#/components/forms/SubmitButton'
 import { FormErrorBanner } from '#/components/forms/FormErrorBanner'
 import { createTeamInputSchema } from '#/contexts/team/application/dto/create-team.dto'
-import type { UseMutationResult } from '@tanstack/react-query'
 import type { CreateTeamInput } from '#/contexts/team/application/dto/create-team.dto'
 
 type MemberOption = { userId: string; name: string; email: string }
+
+import type { Action } from '#/components/hooks/use-action'
 
 // Derive form schema from DTO — omit fields the server sets or that aren't needed in the form
 const formSchema = createTeamInputSchema
@@ -28,7 +29,7 @@ const formSchema = createTeamInputSchema
 
 type Props = Readonly<{
   propertyId: string
-  mutation: UseMutationResult<unknown, unknown, { data: CreateTeamInput }>
+  mutation: Action<{ data: CreateTeamInput }>
   members?: ReadonlyArray<MemberOption>
 }>
 
@@ -44,7 +45,7 @@ export function CreateTeamForm({ propertyId, mutation, members }: Props) {
       onSubmit: formSchema,
     },
     onSubmit: async ({ value }) => {
-      await mutation.mutateAsync({
+      await mutation({
         data: {
           ...value,
           description: value.description || undefined,

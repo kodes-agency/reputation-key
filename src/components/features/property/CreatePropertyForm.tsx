@@ -8,7 +8,6 @@
 
 import { useForm } from '@tanstack/react-form'
 import { z } from 'zod/v4'
-import type { UseMutationResult } from '@tanstack/react-query'
 import { FieldGroup } from '#/components/ui/field'
 import { SubmitButton } from '#/components/forms/SubmitButton'
 import { FormErrorBanner } from '#/components/forms/FormErrorBanner'
@@ -36,8 +35,10 @@ type CreatePropertyVariables = {
   }
 }
 
+import type { Action } from '#/components/hooks/use-action'
+
 type Props = Readonly<{
-  mutation: UseMutationResult<unknown, unknown, CreatePropertyVariables, unknown>
+  mutation: Action<CreatePropertyVariables>
 }>
 
 export function CreatePropertyForm({ mutation }: Props) {
@@ -59,7 +60,7 @@ export function CreatePropertyForm({ mutation }: Props) {
         timezone: value.timezone,
         gbpPlaceId: value.gbpPlaceId || undefined,
       }
-      await mutation.mutateAsync({ data })
+      await mutation({ data })
     },
   })
 

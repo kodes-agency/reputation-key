@@ -14,7 +14,6 @@ import {
 } from '#/components/ui/select'
 import { SubmitButton } from '#/components/forms/SubmitButton'
 import { FormErrorBanner } from '#/components/forms/FormErrorBanner'
-import type { UseMutationResult } from '@tanstack/react-query'
 import type { CreateStaffAssignmentInput } from '#/contexts/staff/application/dto/staff-assignment.dto'
 import { createStaffAssignmentInputSchema } from '#/contexts/staff/application/dto/staff-assignment.dto'
 import { Skeleton } from '#/components/ui/skeleton'
@@ -39,9 +38,11 @@ const formSchema = createStaffAssignmentInputSchema.extend({
   teamId: z.string().nullable(),
 })
 
+import type { Action } from '#/components/hooks/use-action'
+
 type Props = Readonly<{
   propertyId: string
-  mutation: UseMutationResult<unknown, unknown, { data: CreateStaffAssignmentInput }>
+  mutation: Action<{ data: CreateStaffAssignmentInput }>
   members: ReadonlyArray<MemberOption>
   teams: ReadonlyArray<TeamOption>
   isLoadingMembers?: boolean
@@ -64,7 +65,7 @@ export function AssignStaffForm({
       onSubmit: formSchema,
     },
     onSubmit: async ({ value }) => {
-      await mutation.mutateAsync({
+      await mutation({
         data: {
           userId: value.userId,
           propertyId: value.propertyId,

@@ -2,7 +2,6 @@
 // P2 gap: Provides an org-wide view of who is assigned where.
 
 import { createFileRoute } from '@tanstack/react-router'
-import { useQuery } from '@tanstack/react-query'
 import { listProperties } from '#/contexts/property/server/properties'
 import { listStaffAssignments } from '#/contexts/staff/server/staff-assignments'
 import { listMembers } from '#/contexts/identity/server/organizations'
@@ -15,7 +14,6 @@ import {
   CardTitle,
 } from '#/components/ui/card'
 import { Badge } from '#/components/ui/badge'
-import { Skeleton } from '#/components/ui/skeleton'
 import {
   Table,
   TableBody,
@@ -28,28 +26,14 @@ import { Users, Building2 } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/_authenticated/staff/')({
-  component: OrgStaffPage,
-})
+  loader: async () => {
+    const [{ properties }, { members }] = await Promise.all([
+      listProperties(),
+      listMembers(),
+    ])
 
-function OrgStaffPage() {
-  // Fetch all properties
-  const propertiesQuery = useQuery({
-    queryKey: ['properties'],
-    queryFn: () => listProperties(),
-  })
-
-  // Fetch org members
-  const membersQuery = useQuery({
-    queryKey: ['org-members'],
-    queryFn: () => listMembers(),
-  })
-
-  const properties = propertiesQuery.data?.properties ?? []
-
-  // Fetch staff assignments for each property
-  const assignmentsQueries = useQuery({
-    queryKey: ['all-staff-assignments', properties.map((p) => p.id).join(',')],
-    queryFn: async () => {
+    const assignments = []
+    if (properties.length > 0) {
       const results = await Promise.all(
         properties.map(async (p) => {
           const res = await listStaffAssignments({ data: { propertyId: p.id } })
@@ -60,18 +44,22 @@ function OrgStaffPage() {
           }))
         }),
       )
-      return results.flat()
-    },
-    enabled: properties.length > 0,
-  })
+      assignments.push(...results.flat())
+    }
+
+    return { properties, members, assignments }
+  },
+  component: OrgStaffPage,
+})
+
+function OrgStaffPage() {
+  const { members, assignments } = Route.useLoaderData()
 
   // Build lookups
   const memberLookup = new Map<string, { name: string; email: string }>()
-  for (const m of membersQuery.data?.members ?? []) {
+  for (const m of members) {
     memberLookup.set(m.userId, { name: m.name, email: m.email })
   }
-
-  const assignments = assignmentsQueries.data ?? []
 
   return (
     <div className="page-wrap px-4 pb-8 pt-14">
@@ -85,13 +73,7 @@ function OrgStaffPage() {
         </CardHeader>
 
         <CardContent>
-          {propertiesQuery.isLoading || membersQuery.isLoading ? (
-            <div className="flex flex-col gap-3">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <Skeleton key={i} className="h-12 w-full" />
-              ))}
-            </div>
-          ) : assignments.length === 0 ? (
+          {assignments.length === 0 ? (
             <Card className="border-dashed">
               <CardContent className="flex flex-col items-center gap-2 py-8 text-center">
                 <p className="text-muted-foreground">No staff assignments yet.</p>

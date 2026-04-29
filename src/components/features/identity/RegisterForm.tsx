@@ -42,17 +42,11 @@ type JoinFormValues = z.infer<typeof joinFormSchema>
 type RegisterVariables = z.infer<typeof registerUserInputSchema>
 type JoinVariables = z.infer<typeof registerMemberInputSchema>
 
-type MutationLike = {
-  isPending: boolean
-  isError: boolean
-  error: unknown
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  mutateAsync: (variables: any) => Promise<any>
-}
+import type { AnyAction } from '#/components/hooks/use-action'
 
 type Props = Readonly<{
   mode: 'register' | 'join'
-  mutation: MutationLike
+  mutation: AnyAction
 }>
 
 // ── Component ────────────────────────────────────────────────────────
@@ -81,9 +75,9 @@ export function RegisterForm({ mode, mutation }: Props) {
     onSubmit: async ({ value }: { value: RegisterFormValues | JoinFormValues }) => {
       const { confirmPassword: _, ...rest } = value
       if (isJoinMode) {
-        await mutation.mutateAsync(rest as JoinVariables)
+        await mutation(rest as JoinVariables)
       } else {
-        await mutation.mutateAsync(rest as RegisterVariables)
+        await mutation(rest as RegisterVariables)
       }
     },
   })

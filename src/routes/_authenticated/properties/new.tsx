@@ -1,7 +1,7 @@
 // Create property — route defines mutation, renders form component.
 
-import { createFileRoute, useNavigate, redirect } from '@tanstack/react-router'
-import { useMutation } from '@tanstack/react-query'
+import { createFileRoute, useNavigate, redirect, useRouter } from '@tanstack/react-router'
+import { useServerFn } from '@tanstack/react-start'
 import { createProperty } from '#/contexts/property/server/properties'
 import { CreatePropertyForm } from '#/components/features/property/CreatePropertyForm'
 import { Button } from '#/components/ui/button'
@@ -14,6 +14,7 @@ import {
 } from '#/components/ui/card'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
+import { useAction, wrapAction } from '#/components/hooks/use-action'
 
 export const Route = createFileRoute('/_authenticated/properties/new')({
   beforeLoad: ({ context }) => {
@@ -27,13 +28,12 @@ export const Route = createFileRoute('/_authenticated/properties/new')({
 
 function CreatePropertyPage() {
   const navigate = useNavigate()
+  const router = useRouter()
+  const createPropertyFn = useAction(useServerFn(createProperty))
 
-  const mutation = useMutation({
-    mutationFn: (input: { data: Parameters<typeof createProperty>[0]['data'] }) =>
-      createProperty(input),
-    onSuccess: () => {
-      navigate({ to: '/properties' })
-    },
+  const mutation = wrapAction(createPropertyFn, async () => {
+    await router.invalidate()
+    navigate({ to: '/properties' })
   })
 
   return (

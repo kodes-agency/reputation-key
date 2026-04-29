@@ -1,8 +1,8 @@
 // Members page — manage organization members, invite, change roles, remove
 // P0 gap: This is the primary UI for organization member management.
 
-import { createFileRoute } from '@tanstack/react-router'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { createFileRoute, useRouter } from '@tanstack/react-router'
+import { useServerFn } from '@tanstack/react-start'
 import {
   listMembers,
   listInvitations,
@@ -24,7 +24,6 @@ import {
   CardTitle,
 } from '#/components/ui/card'
 import { Badge } from '#/components/ui/badge'
-import { Skeleton } from '#/components/ui/skeleton'
 import { Separator } from '#/components/ui/separator'
 import {
   Table,
@@ -65,8 +64,17 @@ import { InviteMemberForm } from '#/components/features/identity/InviteMemberFor
 import { UserPlus, Shield, Users } from 'lucide-react'
 import { toast } from 'sonner'
 import { useState } from 'react'
+import { useAction, wrapAction } from '#/components/hooks/use-action'
 
 export const Route = createFileRoute('/_authenticated/settings/members')({
+  loader: async () => {
+    const [{ properties }, { members }, { invitations }] = await Promise.all([
+      listProperties(),
+      listMembers(),
+      listInvitations(),
+    ])
+    return { properties, members, invitations }
+  },
   component: MembersPage,
 })
 
@@ -79,101 +87,78 @@ function MembersPage() {
   const canInvite = can(role, 'invitation.create')
   const canRemove = can(role, 'member.delete')
   const canManageMembers = canChangeRoles || canInvite || canRemove
+  const router = useRouter()
 
-  // Properties for the invite form's assignment multi-select
-  const propertiesQuery = useQuery({
-    queryKey: ['properties'],
-    queryFn: async () => {
-      const result = await listProperties()
-      return result.properties
-    },
-  })
-  const propertyOptions = (propertiesQuery.data ?? []).map((p) => ({
+  const { properties, members, invitations } = Route.useLoaderData()
+
+  const propertyOptions = properties.map((p) => ({
     id: p.id,
     name: p.name,
   }))
 
-  const queryClient = useQueryClient()
   const [inviteOpen, setInviteOpen] = useState(false)
 
-  const membersQuery = useQuery({
-    queryKey: ['org-members'],
-    queryFn: () => listMembers(),
-  })
+  const updateRole = useAction(useServerFn(updateMemberRole))
+  const removeMemberFn = useAction(useServerFn(removeMember))
+  const inviteMemberFn = useAction(useServerFn(inviteMember))
+  const cancelInvite = useAction(useServerFn(cancelInvitation))
+  const resendInvite = useAction(useServerFn(resendInvitation))
 
-  const invitationsQuery = useQuery({
-    queryKey: ['org-invitations'],
-    queryFn: () => listInvitations(),
-  })
-
-  const updateRoleMutation = useMutation({
-    mutationFn: (input: {
-      memberId: string
-      role: 'AccountAdmin' | 'PropertyManager' | 'Staff'
-    }) => updateMemberRole({ data: input }),
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['org-members'] })
-      toast.success(`Role updated to ${roleLabel(variables.role)}`)
-    },
-    onError: (error) => {
+  async function handleUpdateRole(input: {
+    memberId: string
+    role: 'AccountAdmin' | 'PropertyManager' | 'Staff'
+  }) {
+    try {
+      await updateRole({ data: input })
+      await router.invalidate()
+      toast.success(`Role updated to ${roleLabel(input.role)}`)
+    } catch (error) {
       toast.error('Failed to update role', {
         description: error instanceof Error ? error.message : 'Please try again.',
       })
-    },
-  })
+    }
+  }
 
-  const removeMemberMutation = useMutation({
-    mutationFn: (memberId: string) => removeMember({ data: { memberId } }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['org-members'] })
+  async function handleRemoveMember(memberId: string) {
+    try {
+      await removeMemberFn({ data: { memberId } })
+      await router.invalidate()
       toast.success('Member removed')
-    },
-    onError: (error) => {
+    } catch (error) {
       toast.error('Failed to remove member', {
         description: error instanceof Error ? error.message : 'Please try again.',
       })
-    },
+    }
+  }
+
+  const inviteMutation = wrapAction(inviteMemberFn, async () => {
+    await router.invalidate()
+    setInviteOpen(false)
+    toast.success('Invitation sent')
   })
 
-  const inviteMutation = useMutation({
-    mutationFn: (input: {
-      email: string
-      role: 'AccountAdmin' | 'PropertyManager' | 'Staff'
-    }) => inviteMember({ data: input }),
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['org-invitations'] })
-      setInviteOpen(false)
-      toast.success(`Invitation sent to ${variables.email}`)
-    },
-  })
-
-  const cancelInviteMutation = useMutation({
-    mutationFn: (invitationId: string) => cancelInvitation({ data: { invitationId } }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['org-invitations'] })
+  async function handleCancelInvite(invitationId: string) {
+    try {
+      await cancelInvite({ data: { invitationId } })
+      await router.invalidate()
       toast.success('Invitation cancelled')
-    },
-    onError: (error) => {
+    } catch (error) {
       toast.error('Failed to cancel invitation', {
         description: error instanceof Error ? error.message : 'Please try again.',
       })
-    },
-  })
+    }
+  }
 
-  const resendInviteMutation = useMutation({
-    mutationFn: (invitationId: string) => resendInvitation({ data: { invitationId } }),
-    onSuccess: () => {
+  async function handleResendInvite(invitationId: string) {
+    try {
+      await resendInvite({ data: { invitationId } })
       toast.success('Invitation email resent')
-    },
-    onError: (error) => {
+    } catch (error) {
       toast.error('Failed to resend invitation', {
         description: error instanceof Error ? error.message : 'Please try again.',
       })
-    },
-  })
-
-  const members = membersQuery.data?.members ?? []
-  const invitations = invitationsQuery.data?.invitations ?? []
+    }
+  }
 
   return (
     <div className="page-wrap px-4 pb-8 pt-14">
@@ -222,13 +207,7 @@ function MembersPage() {
 
         <CardContent>
           {/* Members list */}
-          {membersQuery.isLoading ? (
-            <div className="flex flex-col gap-3">
-              {Array.from({ length: 3 }).map((_, i) => (
-                <Skeleton key={i} className="h-12 w-full" />
-              ))}
-            </div>
-          ) : members.length === 0 ? (
+          {members.length === 0 ? (
             <p className="text-sm text-muted-foreground">No members found.</p>
           ) : (
             <Table>
@@ -254,7 +233,7 @@ function MembersPage() {
                         <Select
                           value={member.role}
                           onValueChange={(newRole) =>
-                            updateRoleMutation.mutate({
+                            handleUpdateRole({
                               memberId: member.id,
                               role: newRole as
                                 | 'AccountAdmin'
@@ -262,7 +241,7 @@ function MembersPage() {
                                 | 'Staff',
                             })
                           }
-                          disabled={updateRoleMutation.isPending}
+                          disabled={updateRole.isPending}
                         >
                           <SelectTrigger className="w-[160px]">
                             <SelectValue />
@@ -305,13 +284,11 @@ function MembersPage() {
                             <AlertDialogFooter>
                               <AlertDialogCancel>Cancel</AlertDialogCancel>
                               <AlertDialogAction
-                                onClick={() => removeMemberMutation.mutate(member.id)}
-                                disabled={removeMemberMutation.isPending}
+                                onClick={() => handleRemoveMember(member.id)}
+                                disabled={removeMemberFn.isPending}
                                 className="bg-destructive text-white hover:bg-destructive/90"
                               >
-                                {removeMemberMutation.isPending
-                                  ? 'Removing…'
-                                  : 'Remove member'}
+                                {removeMemberFn.isPending ? 'Removing…' : 'Remove member'}
                               </AlertDialogAction>
                             </AlertDialogFooter>
                           </AlertDialogContent>
@@ -360,8 +337,8 @@ function MembersPage() {
                               <Button
                                 variant="outline"
                                 size="sm"
-                                disabled={resendInviteMutation.isPending}
-                                onClick={() => resendInviteMutation.mutate(inv.id)}
+                                disabled={resendInvite.isPending}
+                                onClick={() => handleResendInvite(inv.id)}
                               >
                                 Resend
                               </Button>
@@ -388,11 +365,11 @@ function MembersPage() {
                                   <AlertDialogFooter>
                                     <AlertDialogCancel>Keep invitation</AlertDialogCancel>
                                     <AlertDialogAction
-                                      onClick={() => cancelInviteMutation.mutate(inv.id)}
-                                      disabled={cancelInviteMutation.isPending}
+                                      onClick={() => handleCancelInvite(inv.id)}
+                                      disabled={cancelInvite.isPending}
                                       className="bg-destructive text-white hover:bg-destructive/90"
                                     >
-                                      {cancelInviteMutation.isPending
+                                      {cancelInvite.isPending
                                         ? 'Cancelling…'
                                         : 'Cancel invitation'}
                                     </AlertDialogAction>

@@ -14,7 +14,6 @@ import { FormErrorBanner } from '#/components/forms/FormErrorBanner'
 import { FormTextField } from '#/components/forms/FormTextField'
 import type { BaseFieldApi } from '#/components/forms/FormTextField'
 import { TimezoneSelect } from './TimezoneSelect'
-import type { UseMutationResult } from '@tanstack/react-query'
 import { Button } from '#/components/ui/button'
 import { updatePropertyInputSchema } from '#/contexts/property/application/dto/update-property.dto'
 
@@ -52,9 +51,11 @@ type PropertyData = Readonly<{
   gbpPlaceId: string | null
 }>
 
+import type { Action } from '#/components/hooks/use-action'
+
 type Props = Readonly<{
   property: PropertyData
-  mutation: UseMutationResult<unknown, unknown, UpdatePropertyVariables, unknown>
+  mutation: Action<UpdatePropertyVariables>
   onCancel: () => void
 }>
 
@@ -70,7 +71,7 @@ export function EditPropertyForm({ property, mutation, onCancel }: Props) {
       onSubmit: editFormSchema,
     },
     onSubmit: async ({ value }) => {
-      await mutation.mutateAsync({
+      await mutation({
         data: {
           propertyId: property.id,
           name: value.name,

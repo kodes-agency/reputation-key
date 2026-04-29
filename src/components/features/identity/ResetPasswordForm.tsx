@@ -17,12 +17,10 @@ const resetPasswordSchema = z.object({
 
 type FormValues = z.infer<typeof resetPasswordSchema>
 
+import type { AnyAction } from '#/components/hooks/use-action'
+
 type Props = Readonly<{
-  mutation: {
-    isPending: boolean
-    error: unknown
-    mutateAsync: (input: FormValues) => Promise<unknown>
-  }
+  mutation: AnyAction
 }>
 
 export function ResetPasswordForm({ mutation }: Props) {
@@ -34,7 +32,7 @@ export function ResetPasswordForm({ mutation }: Props) {
       onSubmit: resetPasswordSchema,
     },
     onSubmit: async ({ value }: { value: FormValues }) => {
-      await mutation.mutateAsync(value)
+      await mutation(value)
     },
   })
 

@@ -6,11 +6,12 @@ import {
   useNavigate,
   useRouter,
 } from '@tanstack/react-router'
-import { useMutation } from '@tanstack/react-query'
+import { useServerFn } from '@tanstack/react-start'
 import { getSession, ensureActiveOrg } from '#/shared/auth/auth.functions'
 import { AuthCard, AuthFooterLink } from '#/components/features/identity/AuthLayout'
 import { LoginForm } from '#/components/features/identity/LoginForm'
 import { signInUser } from '#/contexts/identity/server/organizations'
+import { useAction, wrapAction } from '#/components/hooks/use-action'
 
 export const Route = createFileRoute('/login')({
   beforeLoad: async () => {
@@ -26,19 +27,16 @@ function LoginPage() {
   const search = Route.useSearch() as { redirect?: string }
   const navigate = useNavigate()
   const router = useRouter()
+  const signIn = useAction(useServerFn(signInUser))
 
-  const mutation = useMutation({
-    mutationFn: (input: { email: string; password: string }) =>
-      signInUser({ data: input }),
-    onSuccess: async () => {
-      await ensureActiveOrg()
-      await router.invalidate()
-      if (search.redirect) {
-        router.history.push(search.redirect)
-      } else {
-        await navigate({ to: '/dashboard' })
-      }
-    },
+  const mutation = wrapAction(signIn, async () => {
+    await ensureActiveOrg()
+    await router.invalidate()
+    if (search.redirect) {
+      router.history.push(search.redirect)
+    } else {
+      await navigate({ to: '/dashboard' })
+    }
   })
 
   return (

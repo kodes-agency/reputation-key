@@ -17,7 +17,6 @@ import {
 import { Button } from '#/components/ui/button'
 import { SubmitButton } from '#/components/forms/SubmitButton'
 import { FormErrorBanner } from '#/components/forms/FormErrorBanner'
-import type { UseMutationResult } from '@tanstack/react-query'
 import type { UpdateTeamInput } from '#/contexts/team/application/dto/update-team.dto'
 
 type MemberOption = { userId: string; name: string; email: string }
@@ -33,13 +32,15 @@ const formSchema = z.object({
   teamLeadId: z.string(),
 })
 
+import type { Action } from '#/components/hooks/use-action'
+
 type Props = Readonly<{
   teamId: string
   initialName: string
   initialDescription: string | null
   initialTeamLeadId: string | null
   members?: ReadonlyArray<MemberOption>
-  mutation: UseMutationResult<unknown, unknown, { data: UpdateTeamInput }>
+  mutation: Action<{ data: UpdateTeamInput }>
   onCancel: () => void
 }>
 
@@ -63,7 +64,7 @@ export function EditTeamForm({
       onSubmit: formSchema,
     },
     onSubmit: async ({ value }) => {
-      await mutation.mutateAsync({
+      await mutation({
         data: {
           teamId: value.teamId,
           name: value.name,

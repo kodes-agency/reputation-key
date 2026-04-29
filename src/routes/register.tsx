@@ -1,11 +1,11 @@
 // Register page — creates user + organization in one step
 import { createFileRoute, Link, redirect } from '@tanstack/react-router'
-import { useMutation } from '@tanstack/react-query'
+import { useServerFn } from '@tanstack/react-start'
 import { getSession, ensureActiveOrg } from '#/shared/auth/auth.functions'
 import { AuthCard, AuthFooterLink } from '#/components/features/identity/AuthLayout'
 import { RegisterForm } from '#/components/features/identity/RegisterForm'
 import { registerUserAndOrg } from '#/contexts/identity/server/organizations'
-import type { RegisterUserInput } from '#/contexts/identity/application/dto/invitation.dto'
+import { useAction, wrapAction } from '#/components/hooks/use-action'
 import { useState } from 'react'
 
 export const Route = createFileRoute('/register')({
@@ -20,15 +20,11 @@ export const Route = createFileRoute('/register')({
 
 function RegisterPage() {
   const [success, setSuccess] = useState(false)
+  const register = useAction(useServerFn(registerUserAndOrg))
 
-  const mutation = useMutation({
-    mutationFn: (input: RegisterUserInput) => registerUserAndOrg({ data: input }),
-    // Per architecture: "The mutation is defined in the route, not in the form component."
-    // onSuccess drives the UI state change — the form component just submits.
-    onSuccess: async () => {
-      await ensureActiveOrg()
-      setSuccess(true)
-    },
+  const mutation = wrapAction(register, async () => {
+    await ensureActiveOrg()
+    setSuccess(true)
   })
 
   if (success) {

@@ -1,8 +1,14 @@
 // Property layout — shared shell with header + tab navigation.
 // Child routes (overview, teams, staff) render via <Outlet />.
 
-import { createFileRoute, Link, Outlet, useNavigate } from '@tanstack/react-router'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import {
+  createFileRoute,
+  Link,
+  Outlet,
+  useNavigate,
+  useRouter,
+} from '@tanstack/react-router'
+import { useServerFn } from '@tanstack/react-start'
 import { getProperty, deleteProperty } from '#/contexts/property/server/properties'
 import { Button } from '#/components/ui/button'
 import {
@@ -18,6 +24,7 @@ import { Tabs, TabsList, TabsTrigger } from '#/components/ui/tabs'
 import { AlertCircle, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useRouterState } from '@tanstack/react-router'
+import { useAction } from '#/components/hooks/use-action'
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId')({
   loader: async ({ params: { propertyId } }) => {
@@ -30,24 +37,26 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId')({
 function PropertyLayout() {
   const { propertyId } = Route.useParams()
   const navigate = useNavigate()
-  const queryClient = useQueryClient()
+  const router = useRouter()
   const routerState = useRouterState()
   const currentPath = routerState.location.pathname
   const { property } = Route.useLoaderData()
 
-  const deleteMutation = useMutation({
-    mutationFn: () => deleteProperty({ data: { propertyId } }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['properties'] })
+  const deletePropertyFn = useAction(useServerFn(deleteProperty))
+
+  async function handleDelete() {
+    if (!window.confirm('Are you sure you want to delete this property?')) return
+    try {
+      await deletePropertyFn({ data: { propertyId } })
+      await router.invalidate()
       toast.success('Property deleted')
       navigate({ to: '/properties' })
-    },
-    onError: (error) => {
+    } catch (error) {
       toast.error('Failed to delete property', {
         description: error instanceof Error ? error.message : 'Please try again.',
       })
-    },
-  })
+    }
+  }
 
   if (!property) {
     return (
@@ -126,15 +135,11 @@ function PropertyLayout() {
             <Button
               variant="outline"
               className="border-destructive/50 text-destructive hover:bg-destructive/10"
-              disabled={deleteMutation.isPending}
-              onClick={() => {
-                if (window.confirm('Are you sure you want to delete this property?')) {
-                  deleteMutation.mutate()
-                }
-              }}
+              disabled={deletePropertyFn.isPending}
+              onClick={handleDelete}
             >
               <Trash2 />
-              {deleteMutation.isPending ? 'Deleting…' : 'Delete Property'}
+              {deletePropertyFn.isPending ? 'Deleting…' : 'Delete Property'}
             </Button>
           </div>
         </CardContent>
