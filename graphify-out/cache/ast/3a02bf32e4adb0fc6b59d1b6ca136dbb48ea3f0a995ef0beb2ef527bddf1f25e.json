@@ -1,0 +1,224 @@
+{
+  "nodes": [
+    {
+      "id": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_e2e_helpers_auth_ts",
+      "label": "auth.ts",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/auth.ts",
+      "source_location": "L1"
+    },
+    {
+      "id": "helpers_auth_signin",
+      "label": "signIn()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/auth.ts",
+      "source_location": "L9"
+    },
+    {
+      "id": "helpers_auth_registeraccount",
+      "label": "registerAccount()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/auth.ts",
+      "source_location": "L18"
+    }
+  ],
+  "edges": [
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_e2e_helpers_auth_ts",
+      "target": "test",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/auth.ts",
+      "source_location": "L3",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_e2e_helpers_auth_ts",
+      "target": "helpers_auth_signin",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/auth.ts",
+      "source_location": "L9",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_e2e_helpers_auth_ts",
+      "target": "helpers_auth_registeraccount",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/auth.ts",
+      "source_location": "L18",
+      "weight": 1.0
+    }
+  ],
+  "raw_calls": [
+    {
+      "caller_nid": "helpers_auth_signin",
+      "callee": "goto",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/auth.ts",
+      "source_location": "L10"
+    },
+    {
+      "caller_nid": "helpers_auth_signin",
+      "callee": "fill",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/auth.ts",
+      "source_location": "L11"
+    },
+    {
+      "caller_nid": "helpers_auth_signin",
+      "callee": "getByLabel",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/auth.ts",
+      "source_location": "L11"
+    },
+    {
+      "caller_nid": "helpers_auth_signin",
+      "callee": "fill",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/auth.ts",
+      "source_location": "L12"
+    },
+    {
+      "caller_nid": "helpers_auth_signin",
+      "callee": "getByLabel",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/auth.ts",
+      "source_location": "L12"
+    },
+    {
+      "caller_nid": "helpers_auth_signin",
+      "callee": "click",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/auth.ts",
+      "source_location": "L13"
+    },
+    {
+      "caller_nid": "helpers_auth_signin",
+      "callee": "getByRole",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/auth.ts",
+      "source_location": "L13"
+    },
+    {
+      "caller_nid": "helpers_auth_signin",
+      "callee": "waitForURL",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/auth.ts",
+      "source_location": "L14"
+    },
+    {
+      "caller_nid": "helpers_auth_registeraccount",
+      "callee": "goto",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/auth.ts",
+      "source_location": "L23"
+    },
+    {
+      "caller_nid": "helpers_auth_registeraccount",
+      "callee": "fill",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/auth.ts",
+      "source_location": "L24"
+    },
+    {
+      "caller_nid": "helpers_auth_registeraccount",
+      "callee": "getByLabel",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/auth.ts",
+      "source_location": "L24"
+    },
+    {
+      "caller_nid": "helpers_auth_registeraccount",
+      "callee": "fill",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/auth.ts",
+      "source_location": "L25"
+    },
+    {
+      "caller_nid": "helpers_auth_registeraccount",
+      "callee": "getByLabel",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/auth.ts",
+      "source_location": "L25"
+    },
+    {
+      "caller_nid": "helpers_auth_registeraccount",
+      "callee": "fill",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/auth.ts",
+      "source_location": "L26"
+    },
+    {
+      "caller_nid": "helpers_auth_registeraccount",
+      "callee": "getByLabel",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/auth.ts",
+      "source_location": "L26"
+    },
+    {
+      "caller_nid": "helpers_auth_registeraccount",
+      "callee": "fill",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/auth.ts",
+      "source_location": "L27"
+    },
+    {
+      "caller_nid": "helpers_auth_registeraccount",
+      "callee": "getByLabel",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/auth.ts",
+      "source_location": "L27"
+    },
+    {
+      "caller_nid": "helpers_auth_registeraccount",
+      "callee": "fill",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/auth.ts",
+      "source_location": "L28"
+    },
+    {
+      "caller_nid": "helpers_auth_registeraccount",
+      "callee": "getByLabel",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/auth.ts",
+      "source_location": "L28"
+    },
+    {
+      "caller_nid": "helpers_auth_registeraccount",
+      "callee": "click",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/auth.ts",
+      "source_location": "L29"
+    },
+    {
+      "caller_nid": "helpers_auth_registeraccount",
+      "callee": "getByRole",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/auth.ts",
+      "source_location": "L29"
+    },
+    {
+      "caller_nid": "helpers_auth_registeraccount",
+      "callee": "toBeVisible",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/auth.ts",
+      "source_location": "L31"
+    },
+    {
+      "caller_nid": "helpers_auth_registeraccount",
+      "callee": "expect",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/auth.ts",
+      "source_location": "L31"
+    },
+    {
+      "caller_nid": "helpers_auth_registeraccount",
+      "callee": "getByText",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/auth.ts",
+      "source_location": "L31"
+    }
+  ]
+}

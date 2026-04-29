@@ -1,0 +1,405 @@
+{
+  "nodes": [
+    {
+      "id": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_auth_emails_ts",
+      "label": "emails.ts",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/auth/emails.ts",
+      "source_location": "L1"
+    },
+    {
+      "id": "auth_emails_escapehtml",
+      "label": "escapeHtml()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/auth/emails.ts",
+      "source_location": "L11"
+    },
+    {
+      "id": "auth_emails_getresend",
+      "label": "getResend()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/auth/emails.ts",
+      "source_location": "L31"
+    },
+    {
+      "id": "auth_emails_sendemail",
+      "label": "sendEmail()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/auth/emails.ts",
+      "source_location": "L45"
+    },
+    {
+      "id": "auth_emails_sendverificationemail",
+      "label": "sendVerificationEmail()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/auth/emails.ts",
+      "source_location": "L68"
+    },
+    {
+      "id": "auth_emails_sendresetpasswordemail",
+      "label": "sendResetPasswordEmail()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/auth/emails.ts",
+      "source_location": "L77"
+    },
+    {
+      "id": "auth_emails_emailshell",
+      "label": "emailShell()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/auth/emails.ts",
+      "source_location": "L87"
+    },
+    {
+      "id": "auth_emails_verificationemailhtml",
+      "label": "verificationEmailHtml()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/auth/emails.ts",
+      "source_location": "L116"
+    },
+    {
+      "id": "auth_emails_resetpasswordemailhtml",
+      "label": "resetPasswordEmailHtml()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/auth/emails.ts",
+      "source_location": "L127"
+    },
+    {
+      "id": "auth_emails_sendinvitationemail",
+      "label": "sendInvitationEmail()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/auth/emails.ts",
+      "source_location": "L148"
+    },
+    {
+      "id": "auth_emails_invitationemailhtml",
+      "label": "invitationEmailHtml()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/auth/emails.ts",
+      "source_location": "L156"
+    }
+  ],
+  "edges": [
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_auth_emails_ts",
+      "target": "resend",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/auth/emails.ts",
+      "source_location": "L2",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_auth_emails_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_config_env",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/auth/emails.ts",
+      "source_location": "L3",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_auth_emails_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_observability_logger",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/auth/emails.ts",
+      "source_location": "L4",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_auth_emails_ts",
+      "target": "auth_emails_escapehtml",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/auth/emails.ts",
+      "source_location": "L11",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_auth_emails_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_domain_errors",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/auth/emails.ts",
+      "source_location": "L22",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_auth_emails_ts",
+      "target": "auth_emails_getresend",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/auth/emails.ts",
+      "source_location": "L31",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_auth_emails_ts",
+      "target": "auth_emails_sendemail",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/auth/emails.ts",
+      "source_location": "L45",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_auth_emails_ts",
+      "target": "auth_emails_sendverificationemail",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/auth/emails.ts",
+      "source_location": "L68",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_auth_emails_ts",
+      "target": "auth_emails_sendresetpasswordemail",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/auth/emails.ts",
+      "source_location": "L77",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_auth_emails_ts",
+      "target": "auth_emails_emailshell",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/auth/emails.ts",
+      "source_location": "L87",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_auth_emails_ts",
+      "target": "auth_emails_verificationemailhtml",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/auth/emails.ts",
+      "source_location": "L116",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_auth_emails_ts",
+      "target": "auth_emails_resetpasswordemailhtml",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/auth/emails.ts",
+      "source_location": "L127",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_auth_emails_ts",
+      "target": "auth_emails_sendinvitationemail",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/auth/emails.ts",
+      "source_location": "L148",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_full_bobble_src_shared_auth_emails_ts",
+      "target": "auth_emails_invitationemailhtml",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/auth/emails.ts",
+      "source_location": "L156",
+      "weight": 1.0
+    },
+    {
+      "source": "auth_emails_sendemail",
+      "target": "auth_emails_getresend",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/auth/emails.ts",
+      "source_location": "L47",
+      "weight": 1.0
+    },
+    {
+      "source": "auth_emails_sendverificationemail",
+      "target": "auth_emails_sendemail",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/auth/emails.ts",
+      "source_location": "L69",
+      "weight": 1.0
+    },
+    {
+      "source": "auth_emails_sendverificationemail",
+      "target": "auth_emails_verificationemailhtml",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/auth/emails.ts",
+      "source_location": "L72",
+      "weight": 1.0
+    },
+    {
+      "source": "auth_emails_sendresetpasswordemail",
+      "target": "auth_emails_sendemail",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/auth/emails.ts",
+      "source_location": "L78",
+      "weight": 1.0
+    },
+    {
+      "source": "auth_emails_sendresetpasswordemail",
+      "target": "auth_emails_resetpasswordemailhtml",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/auth/emails.ts",
+      "source_location": "L81",
+      "weight": 1.0
+    },
+    {
+      "source": "auth_emails_verificationemailhtml",
+      "target": "auth_emails_emailshell",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/auth/emails.ts",
+      "source_location": "L117",
+      "weight": 1.0
+    },
+    {
+      "source": "auth_emails_verificationemailhtml",
+      "target": "auth_emails_escapehtml",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/auth/emails.ts",
+      "source_location": "L119",
+      "weight": 1.0
+    },
+    {
+      "source": "auth_emails_resetpasswordemailhtml",
+      "target": "auth_emails_emailshell",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/auth/emails.ts",
+      "source_location": "L128",
+      "weight": 1.0
+    },
+    {
+      "source": "auth_emails_resetpasswordemailhtml",
+      "target": "auth_emails_escapehtml",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/auth/emails.ts",
+      "source_location": "L130",
+      "weight": 1.0
+    },
+    {
+      "source": "auth_emails_sendinvitationemail",
+      "target": "auth_emails_sendemail",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/auth/emails.ts",
+      "source_location": "L149",
+      "weight": 1.0
+    },
+    {
+      "source": "auth_emails_sendinvitationemail",
+      "target": "auth_emails_invitationemailhtml",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/auth/emails.ts",
+      "source_location": "L152",
+      "weight": 1.0
+    },
+    {
+      "source": "auth_emails_invitationemailhtml",
+      "target": "auth_emails_emailshell",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/auth/emails.ts",
+      "source_location": "L157",
+      "weight": 1.0
+    },
+    {
+      "source": "auth_emails_invitationemailhtml",
+      "target": "auth_emails_escapehtml",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/auth/emails.ts",
+      "source_location": "L158",
+      "weight": 1.0
+    }
+  ],
+  "raw_calls": [
+    {
+      "caller_nid": "auth_emails_escapehtml",
+      "callee": "replace",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/auth/emails.ts",
+      "source_location": "L12"
+    },
+    {
+      "caller_nid": "auth_emails_escapehtml",
+      "callee": "replace",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/auth/emails.ts",
+      "source_location": "L12"
+    },
+    {
+      "caller_nid": "auth_emails_escapehtml",
+      "callee": "replace",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/auth/emails.ts",
+      "source_location": "L12"
+    },
+    {
+      "caller_nid": "auth_emails_escapehtml",
+      "callee": "replace",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/auth/emails.ts",
+      "source_location": "L12"
+    },
+    {
+      "caller_nid": "auth_emails_escapehtml",
+      "callee": "replace",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/auth/emails.ts",
+      "source_location": "L12"
+    },
+    {
+      "caller_nid": "auth_emails_getresend",
+      "callee": "getEnv",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/auth/emails.ts",
+      "source_location": "L33"
+    },
+    {
+      "caller_nid": "auth_emails_sendemail",
+      "callee": "getLogger",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/auth/emails.ts",
+      "source_location": "L46"
+    },
+    {
+      "caller_nid": "auth_emails_sendemail",
+      "callee": "send",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/auth/emails.ts",
+      "source_location": "L49"
+    },
+    {
+      "caller_nid": "auth_emails_sendemail",
+      "callee": "error",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/auth/emails.ts",
+      "source_location": "L57"
+    },
+    {
+      "caller_nid": "auth_emails_sendemail",
+      "callee": "emailError",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/auth/emails.ts",
+      "source_location": "L58"
+    },
+    {
+      "caller_nid": "auth_emails_sendemail",
+      "callee": "info",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/auth/emails.ts",
+      "source_location": "L64"
+    }
+  ]
+}

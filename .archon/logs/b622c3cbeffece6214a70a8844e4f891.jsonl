@@ -1,0 +1,12 @@
+{"type":"workflow_start","workflow_name":"archon-architect","content":"i want you to analyse the codebase and provide me with a detailed report of the quality and things to improve if any","workflow_id":"b622c3cbeffece6214a70a8844e4f891","ts":"2026-04-29T20:06:26.227Z"}
+{"type":"node_start","step":"scan-metrics","content":"<bash>","workflow_id":"b622c3cbeffece6214a70a8844e4f891","ts":"2026-04-29T20:06:26.232Z"}
+{"type":"node_complete","step":"scan-metrics","content":"<bash>","duration_ms":2215,"workflow_id":"b622c3cbeffece6214a70a8844e4f891","ts":"2026-04-29T20:06:28.447Z"}
+{"type":"node_start","step":"analyze","content":"<inline>","workflow_id":"b622c3cbeffece6214a70a8844e4f891","ts":"2026-04-29T20:06:28.451Z"}
+{"type":"assistant","content":"Not logged in · Please run /login","workflow_id":"b622c3cbeffece6214a70a8844e4f891","ts":"2026-04-29T20:06:28.725Z"}
+{"type":"node_error","step":"analyze","error":"Node 'analyze' failed: SDK returned success","workflow_id":"b622c3cbeffece6214a70a8844e4f891","ts":"2026-04-29T20:06:28.727Z"}
+{"type":"node_skipped","step":"plan","content":"trigger_rule","workflow_id":"b622c3cbeffece6214a70a8844e4f891","ts":"2026-04-29T20:06:28.728Z"}
+{"type":"node_skipped","step":"simplify","content":"trigger_rule","workflow_id":"b622c3cbeffece6214a70a8844e4f891","ts":"2026-04-29T20:06:28.728Z"}
+{"type":"node_skipped","step":"validate","content":"trigger_rule","workflow_id":"b622c3cbeffece6214a70a8844e4f891","ts":"2026-04-29T20:06:28.728Z"}
+{"type":"node_skipped","step":"fix-failures","content":"trigger_rule","workflow_id":"b622c3cbeffece6214a70a8844e4f891","ts":"2026-04-29T20:06:28.729Z"}
+{"type":"node_skipped","step":"create-pr","content":"trigger_rule","workflow_id":"b622c3cbeffece6214a70a8844e4f891","ts":"2026-04-29T20:06:28.729Z"}
+{"type":"workflow_error","error":"DAG workflow 'archon-architect' completed with failures: 'analyze': Node 'analyze' failed: SDK returned success","workflow_id":"b622c3cbeffece6214a70a8844e4f891","ts":"2026-04-29T20:06:28.730Z"}

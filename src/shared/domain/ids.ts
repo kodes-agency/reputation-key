@@ -30,13 +30,13 @@ export function userId(id: string): UserId {
 export function propertyId(id: string): PropertyId {
   return id as PropertyId
 }
-function portalId(id: string): PortalId {
+export function portalId(id: string): PortalId {
   return id as PortalId
 }
-function reviewId(id: string): ReviewId {
+export function reviewId(id: string): ReviewId {
   return id as ReviewId
 }
-function feedbackId(id: string): FeedbackId {
+export function feedbackId(id: string): FeedbackId {
   return id as FeedbackId
 }
 export function teamId(id: string): TeamId {
@@ -45,9 +45,9 @@ export function teamId(id: string): TeamId {
 export function staffAssignmentId(id: string): StaffAssignmentId {
   return id as StaffAssignmentId
 }
-function metricId(id: string): MetricId {
+export function metricId(id: string): MetricId {
   return id as MetricId
 }
-function goalId(id: string): GoalId {
+export function goalId(id: string): GoalId {
   return id as GoalId
 }

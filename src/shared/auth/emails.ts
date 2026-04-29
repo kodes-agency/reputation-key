@@ -65,7 +65,7 @@ async function sendEmail({ to, subject, html }: SendEmailParams): Promise<void> 
 }
 
 /** Send email verification link */
-async function sendVerificationEmail(to: string, url: string): Promise<void> {
+export async function sendVerificationEmail(to: string, url: string): Promise<void> {
   await sendEmail({
     to,
     subject: 'Verify your email — Reputation Key',
