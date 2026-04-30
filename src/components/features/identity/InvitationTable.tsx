@@ -4,7 +4,7 @@
  */
 
 import type { Role } from "#/shared/domain/roles";
-import { can } from "#/shared/domain/permissions";
+import { hasRole } from "#/shared/domain/roles";
 import { RoleBadge } from "#/components/features/identity/RoleBadge";
 import { Button } from "#/components/ui/button";
 import { Badge } from "#/components/ui/badge";
@@ -51,7 +51,7 @@ export function InvitationTable({
 	resendAction,
 	cancelAction,
 }: Props) {
-	const canManage = can(viewerRole, "invitation.create");
+	const canManage = hasRole(viewerRole, "PropertyManager");
 
 	return (
 		<div className="flex flex-col gap-4">

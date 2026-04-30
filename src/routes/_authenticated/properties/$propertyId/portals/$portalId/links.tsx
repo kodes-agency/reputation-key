@@ -18,16 +18,9 @@ import { LinkAddInlineForm } from "#/components/features/portal/LinkAddInlineFor
 import { LinkEditInlineForm } from "#/components/features/portal/LinkEditInlineForm";
 import { CategoryAddForm } from "#/components/features/portal/CategoryAddForm";
 import { CategoryEditInlineForm } from "#/components/features/portal/CategoryEditInlineForm";
-import type { AuthRouteContext } from "#/routes/_authenticated";
-import { can } from "#/shared/domain/permissions";
+import { hasRole } from "#/shared/domain/roles";
 import { Button } from "#/components/ui/button";
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "#/components/ui/card";
+
 import { ArrowLeft } from "lucide-react";
 import { useState } from "react";
 import { generateKeyBetween } from "fractional-indexing";
@@ -72,9 +65,9 @@ type LinkItem = {
 };
 
 function PortalLinksPage() {
-	const ctx = Route.useRouteContext() as AuthRouteContext;
+	const ctx = Route.useRouteContext();
 	const { propertyId, portalId } = Route.useLoaderData();
-	const canEdit = can(ctx.role, "portal.update");
+	const canEdit = hasRole(ctx.role, "PropertyManager");
 
 	// Local state for categories and links (in full implementation, loaded from server)
 	const [categories, setCategories] = useState<Category[]>([]);
@@ -267,8 +260,8 @@ function PortalLinksPage() {
 	};
 
 	return (
-		<div className="page-wrap px-4 pb-8 pt-14">
-			<div className="mb-4 flex items-center gap-2">
+		<div className="mx-auto max-w-2xl space-y-6">
+			<div className="flex items-center gap-2">
 				<Button variant="ghost" asChild>
 					<Link to="/properties/$propertyId/portals" params={{ propertyId }}>
 						<ArrowLeft />
@@ -283,18 +276,12 @@ function PortalLinksPage() {
 				activeTab="links"
 			/>
 
-			<Card className="island-shell rise-in rounded-2xl">
-				<CardHeader>
-					<div className="flex items-center justify-between">
-						<div>
-							<CardTitle className="text-2xl">Link Tree</CardTitle>
-							<CardDescription>
-								Organize links into categories for your portal visitors.
-							</CardDescription>
-						</div>
-					</div>
-				</CardHeader>
-				<CardContent>
+			<div>
+				<h1 className="text-xl font-semibold tracking-tight">Link Tree</h1>
+				<p className="mt-1 text-sm text-muted-foreground">
+					Organize links into categories for your portal visitors.
+				</p>
+			</div>
 					{canEdit && (
 						<CategoryAddForm
 							onSubmit={handleAddCategory}
@@ -390,8 +377,6 @@ function PortalLinksPage() {
 							</p>
 						</div>
 					)}
-				</CardContent>
-			</Card>
 		</div>
 	);
 }

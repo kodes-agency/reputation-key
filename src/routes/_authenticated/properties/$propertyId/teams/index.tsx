@@ -1,6 +1,4 @@
 // Teams within a property — list, create, edit, and manage members
-// Thin route: loader fetches data, component renders feature components.
-
 import { createFileRoute } from "@tanstack/react-router";
 import {
 	listTeams,
@@ -14,7 +12,6 @@ import {
 	removeStaffAssignment,
 } from "#/contexts/staff/server/staff-assignments";
 import { listMembers } from "#/contexts/identity/server/organizations";
-import { Card, CardContent } from "#/components/ui/card";
 import { CreateTeamForm } from "#/components/features/team/CreateTeamForm";
 import { TeamCard } from "#/components/features/team/TeamCard";
 import { useMutationAction } from "#/components/hooks/use-mutation-action";
@@ -38,7 +35,6 @@ function TeamListPage() {
 	const { propertyId } = Route.useParams();
 	const { teams, members, assignments } = Route.useLoaderData();
 
-	// Mutations — one line each instead of 3-5
 	const createMutation = useMutationAction(createTeam, {
 		successMessage: "Team created",
 	});
@@ -58,19 +54,19 @@ function TeamListPage() {
 	const memberOptions = toMemberOptions(members);
 
 	return (
-		<div className="flex flex-col gap-6">
-			<h2 className="text-lg font-semibold">Teams</h2>
+		<div className="mx-auto max-w-3xl space-y-6">
+			<div>
+				<h1 className="text-xl font-semibold tracking-tight">Teams</h1>
+				<p className="mt-1 text-sm text-muted-foreground">
+					Create and manage teams for this property.
+				</p>
+			</div>
 
-			<Card>
-				<CardContent className="pt-6">
-					<h3 className="mb-3 text-sm font-medium">Create a new team</h3>
-					<CreateTeamForm
-						propertyId={propertyId}
-						mutation={createMutation}
-						members={memberOptions}
-					/>
-				</CardContent>
-			</Card>
+			<CreateTeamForm
+				propertyId={propertyId}
+				mutation={createMutation}
+				members={memberOptions}
+			/>
 
 			{teams.length === 0 ? (
 				<p className="text-sm text-muted-foreground">

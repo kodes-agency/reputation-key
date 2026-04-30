@@ -1,6 +1,4 @@
 // Staff assignments for a property — list and assign
-// Thin route: loader fetches data, component renders feature components.
-
 import { createFileRoute } from "@tanstack/react-router";
 import {
 	listStaffAssignments,
@@ -9,7 +7,6 @@ import {
 } from "#/contexts/staff/server/staff-assignments";
 import { listTeams } from "#/contexts/team/server/teams";
 import { listMembers } from "#/contexts/identity/server/organizations";
-import { Card, CardContent } from "#/components/ui/card";
 import { AssignStaffForm } from "#/components/features/staff/AssignStaffForm";
 import { StaffAssignmentList } from "#/components/features/staff/StaffAssignmentList";
 import { useMutationAction } from "#/components/hooks/use-mutation-action";
@@ -44,20 +41,20 @@ function StaffListPage() {
 	const teamOptions = toTeamOptions(teams);
 
 	return (
-		<div className="flex flex-col gap-6">
-			<h2 className="text-lg font-semibold">Staff</h2>
+		<div className="mx-auto max-w-3xl space-y-6">
+			<div>
+				<h1 className="text-xl font-semibold tracking-tight">Staff</h1>
+				<p className="mt-1 text-sm text-muted-foreground">
+					Assign staff members to this property.
+				</p>
+			</div>
 
-			<Card>
-				<CardContent className="pt-6">
-					<h3 className="mb-3 text-sm font-medium">Assign a staff member</h3>
-					<AssignStaffForm
-						propertyId={propertyId}
-						mutation={assignMutation}
-						members={memberOptions}
-						teams={teamOptions}
-					/>
-				</CardContent>
-			</Card>
+			<AssignStaffForm
+				propertyId={propertyId}
+				mutation={assignMutation}
+				members={memberOptions}
+				teams={teamOptions}
+			/>
 
 			<StaffAssignmentList
 				assignments={assignments}
