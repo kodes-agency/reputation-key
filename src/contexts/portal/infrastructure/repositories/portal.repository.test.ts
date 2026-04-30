@@ -12,7 +12,7 @@ import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 const ORG_A = organizationId('org-aaaaaaaaaaaa')
 const ORG_B = organizationId('org-bbbbbbbbbbbb')
 
-const { getPool } = setupIntegrationDb({
+setupIntegrationDb({
   orgA: ORG_A,
   orgB: ORG_B,
   tables: ['portal_links', 'portal_link_categories', 'portals'],

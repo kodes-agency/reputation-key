@@ -34,39 +34,19 @@ import { sendInvitationEmail } from '#/shared/auth/emails'
 import { headersFromContext } from '#/shared/auth/headers'
 import { getEnv } from '#/shared/config/env'
 import type { Queue } from 'bullmq'
-import type { Database } from '#/shared/db'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { Redis } from 'ioredis'
 import { buildPropertyContext } from '#/contexts/property/build'
 import { createPropertyRepository } from '#/contexts/property/infrastructure/repositories/property.repository'
 import { buildTeamContext } from '#/contexts/team/build'
 import { buildStaffContext } from '#/contexts/staff/build'
+import { buildPortalContext } from '#/contexts/portal/build'
 import { createStaffAssignmentRepository } from '#/contexts/staff/infrastructure/repositories/staff-assignment.repository'
 import {
   propertyId,
-  portalId,
   organizationId as toOrgId,
   userId as toUserId,
 } from '#/shared/domain/ids'
-import { randomUUID } from 'crypto'
-import { createPortalRepository } from '#/contexts/portal/infrastructure/repositories/portal.repository'
-import { createPortalLinkRepository } from '#/contexts/portal/infrastructure/repositories/portal-link.repository'
-import { createR2StorageAdapter } from '#/contexts/portal/infrastructure/adapters/r2-storage.adapter'
-import { createPortal } from '#/contexts/portal/application/use-cases/create-portal'
-import { updatePortal } from '#/contexts/portal/application/use-cases/update-portal'
-import { getPortal } from '#/contexts/portal/application/use-cases/get-portal'
-import { listPortals } from '#/contexts/portal/application/use-cases/list-portals'
-import { softDeletePortal } from '#/contexts/portal/application/use-cases/soft-delete-portal'
-import { createLinkCategory } from '#/contexts/portal/application/use-cases/create-link-category'
-import { updateLinkCategory } from '#/contexts/portal/application/use-cases/update-link-category'
-import { deleteLinkCategory } from '#/contexts/portal/application/use-cases/delete-link-category'
-import { reorderCategories } from '#/contexts/portal/application/use-cases/reorder-categories'
-import { createLink } from '#/contexts/portal/application/use-cases/create-link'
-import { updateLink } from '#/contexts/portal/application/use-cases/update-link'
-import { deleteLink } from '#/contexts/portal/application/use-cases/delete-link'
-import { reorderLinks } from '#/contexts/portal/application/use-cases/reorder-links'
-import { requestUploadUrl } from '#/contexts/portal/application/use-cases/request-upload-url'
-import { finalizeUpload } from '#/contexts/portal/application/use-cases/finalize-upload'
 
 // ── Infrastructure ─────────────────────────────────────────────────
 
@@ -125,38 +105,6 @@ function buildIdentityContext() {
   return { identityPort, createOrg, setActiveOrg }
 }
 
-// ── Portal context ─────────────────────────────────────────────────
-
-function buildPortalContext(deps: {
-  db: Database
-  propertyRepo: ReturnType<typeof createPropertyRepository>
-}) {
-  const portalRepo = createPortalRepository(deps.db)
-  const portalLinkRepo = createPortalLinkRepository(deps.db)
-  const storage = createR2StorageAdapter()
-  const portalIdGen = () => portalId(randomUUID())
-  const linkIdGen = () => randomUUID()
-
-  const portalPropertyExists = {
-    exists: async (orgId: string, pid: string) => {
-      const p = await deps.propertyRepo.findById(
-        orgId as unknown as import('#/shared/domain/ids').OrganizationId,
-        pid as unknown as import('#/shared/domain/ids').PropertyId,
-      )
-      return p !== null
-    },
-  }
-
-  return {
-    portalRepo,
-    portalLinkRepo,
-    storage,
-    portalIdGen,
-    linkIdGen,
-    portalPropertyExists,
-  }
-}
-
 // ── Use cases ──────────────────────────────────────────────────────
 
 function buildUseCases(deps: {
@@ -165,12 +113,6 @@ function buildUseCases(deps: {
   setActiveOrg: ReturnType<typeof buildIdentityContext>['setActiveOrg']
   eventBus: EventBus
   clock: () => Date
-  portalRepo: ReturnType<typeof buildPortalContext>['portalRepo']
-  portalLinkRepo: ReturnType<typeof buildPortalContext>['portalLinkRepo']
-  storage: ReturnType<typeof buildPortalContext>['storage']
-  portalIdGen: ReturnType<typeof buildPortalContext>['portalIdGen']
-  linkIdGen: ReturnType<typeof buildPortalContext>['linkIdGen']
-  portalPropertyExists: ReturnType<typeof buildPortalContext>['portalPropertyExists']
 }) {
   return {
     // Identity
@@ -210,65 +152,6 @@ function buildUseCases(deps: {
       clock: deps.clock,
     }),
     registerUser: registerUser({ identity: deps.identityPort }),
-    // Portal
-    createPortal: createPortal({
-      portalRepo: deps.portalRepo,
-      propertyExists: deps.portalPropertyExists.exists,
-      events: deps.eventBus,
-      idGen: deps.portalIdGen,
-      clock: deps.clock,
-    }),
-    updatePortal: updatePortal({
-      portalRepo: deps.portalRepo,
-      events: deps.eventBus,
-      clock: deps.clock,
-    }),
-    getPortal: getPortal({ portalRepo: deps.portalRepo }),
-    listPortals: listPortals({ portalRepo: deps.portalRepo }),
-    softDeletePortal: softDeletePortal({
-      portalRepo: deps.portalRepo,
-      events: deps.eventBus,
-      clock: deps.clock,
-    }),
-    createLinkCategory: createLinkCategory({
-      portalRepo: deps.portalRepo,
-      portalLinkRepo: deps.portalLinkRepo,
-      events: deps.eventBus,
-      idGen: deps.linkIdGen,
-      clock: deps.clock,
-    }),
-    updateLinkCategory: updateLinkCategory({
-      portalLinkRepo: deps.portalLinkRepo,
-      clock: deps.clock,
-    }),
-    deleteLinkCategory: deleteLinkCategory({ portalLinkRepo: deps.portalLinkRepo }),
-    reorderCategories: reorderCategories({
-      portalLinkRepo: deps.portalLinkRepo,
-      events: deps.eventBus,
-      clock: deps.clock,
-    }),
-    createLink: createLink({
-      portalLinkRepo: deps.portalLinkRepo,
-      events: deps.eventBus,
-      idGen: deps.linkIdGen,
-      clock: deps.clock,
-    }),
-    updateLink: updateLink({ portalLinkRepo: deps.portalLinkRepo, clock: deps.clock }),
-    deleteLink: deleteLink({ portalLinkRepo: deps.portalLinkRepo }),
-    reorderLinks: reorderLinks({
-      portalLinkRepo: deps.portalLinkRepo,
-      events: deps.eventBus,
-      clock: deps.clock,
-    }),
-    requestUploadUrl: requestUploadUrl({
-      portalRepo: deps.portalRepo,
-      storage: deps.storage,
-    }),
-    finalizeUpload: finalizeUpload({
-      portalRepo: deps.portalRepo,
-      storage: deps.storage,
-      clock: deps.clock,
-    }),
   } as const
 }
 
@@ -303,18 +186,17 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     propertyApi: property.publicApi,
     staffApi: staff.publicApi,
   })
-  const portal = buildPortalContext({ db, propertyRepo })
+  const portal = buildPortalContext({
+    db,
+    events: eventBus,
+    clock,
+    propertyApi: property.publicApi,
+  })
 
   const useCases = buildUseCases({
     ...identity,
     eventBus,
     clock,
-    portalRepo: portal.portalRepo,
-    portalLinkRepo: portal.portalLinkRepo,
-    storage: portal.storage,
-    portalIdGen: portal.portalIdGen,
-    linkIdGen: portal.linkIdGen,
-    portalPropertyExists: portal.portalPropertyExists,
   })
 
   // ── Wire invitation acceptance hook ────────────────────────────
@@ -353,6 +235,7 @@ export function createContainer(options?: { enableJobs?: boolean }) {
       ...property.useCases,
       ...staff.useCases,
       ...team.useCases,
+      ...portal.useCases,
     },
     storage: portal.storage,
     portalRepo: portal.portalRepo,
