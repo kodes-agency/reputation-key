@@ -5,7 +5,6 @@ import { createFileRoute } from "@tanstack/react-router";
 import { listProperties } from "#/contexts/property/server/properties";
 import { listStaffAssignments } from "#/contexts/staff/server/staff-assignments";
 import { listMembers } from "#/contexts/identity/server/organizations";
-import { PageShell } from "#/components/layout/PageShell";
 import { OrgStaffTable } from "#/components/features/staff/OrgStaffTable";
 import { toMemberOptions } from "#/lib/lookups";
 
@@ -45,11 +44,16 @@ function OrgStaffPage() {
 	const memberOptions = toMemberOptions(members);
 
 	return (
-		<PageShell
-			title="Organization Staff"
-			description="All staff assignments across your properties."
-		>
+		<div className="mx-auto max-w-3xl space-y-6">
+			<div>
+				<h1 className="text-xl font-semibold tracking-tight">
+					Organization Staff
+				</h1>
+				<p className="mt-1 text-sm text-muted-foreground">
+					All staff assignments across your properties.
+				</p>
+			</div>
 			<OrgStaffTable assignments={assignments} members={memberOptions} />
-		</PageShell>
+		</div>
 	);
 }

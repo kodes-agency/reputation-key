@@ -1,65 +1,65 @@
 // Portal editor — main tab with basic info + theme + smart routing
-
-import { createFileRoute, Link } from '@tanstack/react-router'
-import { getPortal, updatePortal } from '#/contexts/portal/server/portals'
-import { EditPortalForm } from '#/components/features/portal/EditPortalForm'
-import { PortalTabNav } from '#/components/features/portal/PortalTabNav'
-import type { AuthRouteContext } from '#/routes/_authenticated'
-import { can } from '#/shared/domain/permissions'
-import { Button } from '#/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '#/components/ui/card'
-import { ArrowLeft } from 'lucide-react'
-import { useMutationAction } from '#/components/hooks/use-mutation-action'
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { getPortal, updatePortal } from "#/contexts/portal/server/portals";
+import { EditPortalForm } from "#/components/features/portal/EditPortalForm";
+import { PortalTabNav } from "#/components/features/portal/PortalTabNav";
+import { hasRole } from "#/shared/domain/roles";
+import { Button } from "#/components/ui/button";
+import { ArrowLeft } from "lucide-react";
+import { useMutationAction } from "#/components/hooks/use-mutation-action";
 
 export const Route = createFileRoute(
-  '/_authenticated/properties/$propertyId/portals/$portalId/',
+	"/_authenticated/properties/$propertyId/portals/$portalId/",
 )({
-  loader: async ({ params }) => {
-    const { portal } = await getPortal({ data: { portalId: params.portalId } })
-    return { portal, propertyId: params.propertyId, portalId: params.portalId }
-  },
-  component: PortalEditorPage,
-})
+	loader: async ({ params }) => {
+		const { portal } = await getPortal({
+			data: { portalId: params.portalId },
+		});
+		return {
+			portal,
+			propertyId: params.propertyId,
+			portalId: params.portalId,
+		};
+	},
+	component: PortalEditorPage,
+});
 
 function PortalEditorPage() {
-  const ctx = Route.useRouteContext() as AuthRouteContext
-  const { portal, propertyId, portalId } = Route.useLoaderData()
-  const canEdit = can(ctx.role, 'portal.update')
+	const ctx = Route.useRouteContext();
+	const { portal, propertyId, portalId } = Route.useLoaderData();
+	const canEdit = hasRole(ctx.role, "PropertyManager");
 
-  const mutation = useMutationAction(updatePortal, {
-    successMessage: 'Portal updated',
-  })
+	const mutation = useMutationAction(updatePortal, {
+		successMessage: "Portal updated",
+	});
 
-  return (
-    <div className="page-wrap px-4 pb-8 pt-14">
-      <div className="mb-4 flex items-center gap-2">
-        <Button variant="ghost" asChild>
-          <Link to="/properties/$propertyId/portals" params={{ propertyId }}>
-            <ArrowLeft />
-            Back
-          </Link>
-        </Button>
-      </div>
+	return (
+		<div className="mx-auto max-w-2xl space-y-6">
+			<div className="flex items-center gap-2">
+				<Button variant="ghost" asChild>
+					<Link to="/properties/$propertyId/portals" params={{ propertyId }}>
+						<ArrowLeft />
+						Back
+					</Link>
+				</Button>
+			</div>
 
-      <PortalTabNav propertyId={propertyId} portalId={portalId} activeTab="settings" />
+			<PortalTabNav
+				propertyId={propertyId}
+				portalId={portalId}
+				activeTab="settings"
+			/>
 
-      <Card className="island-shell rise-in rounded-2xl">
-        <CardHeader>
-          <CardTitle className="text-2xl">Portal Settings</CardTitle>
-          <CardDescription>
-            Configure your portal&apos;s basic info, theme, and routing.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <EditPortalForm portal={portal} mutation={mutation} canEdit={canEdit} />
-        </CardContent>
-      </Card>
-    </div>
-  )
+			<div>
+				<h1 className="text-xl font-semibold tracking-tight">
+					Portal Settings
+				</h1>
+				<p className="mt-1 text-sm text-muted-foreground">
+					Configure your portal's basic info, theme, and routing.
+				</p>
+			</div>
+
+			<EditPortalForm portal={portal} mutation={mutation} canEdit={canEdit} />
+		</div>
+	);
 }

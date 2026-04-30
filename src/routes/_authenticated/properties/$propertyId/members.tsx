@@ -1,5 +1,5 @@
-// Members page — manage organization members, invite, change roles, remove
-// Thin route: loader fetches data, component renders feature components.
+// Members — manage organization members, invite, change roles, remove
+// Adapted from settings/members.tsx to fit the new sidebar layout.
 
 import { createFileRoute } from "@tanstack/react-router";
 import {
@@ -12,9 +12,7 @@ import {
 	resendInvitation,
 } from "#/contexts/identity/server/organizations";
 import { listProperties } from "#/contexts/property/server/properties";
-import type { AuthRouteContext } from "#/routes/_authenticated";
-import { can } from "#/shared/domain/permissions";
-import { PageShell } from "#/components/layout/PageShell";
+import { hasRole } from "#/shared/domain/roles";
 import { MemberTable } from "#/components/features/identity/MemberTable";
 import { InvitationTable } from "#/components/features/identity/InvitationTable";
 import { InviteMemberForm } from "#/components/features/identity/InviteMemberForm";
@@ -32,7 +30,9 @@ import { UserPlus } from "lucide-react";
 import { useState } from "react";
 import { useMutationAction } from "#/components/hooks/use-mutation-action";
 
-export const Route = createFileRoute("/_authenticated/settings/members")({
+export const Route = createFileRoute(
+	"/_authenticated/properties/$propertyId/members",
+)({
 	loader: async () => {
 		const [{ properties }, { members }, { invitations }] = await Promise.all([
 			listProperties(),
@@ -45,15 +45,14 @@ export const Route = createFileRoute("/_authenticated/settings/members")({
 });
 
 function MembersPage() {
-	const ctx = Route.useRouteContext() as AuthRouteContext;
+	const ctx = Route.useRouteContext();
 	const currentUserId = ctx.user.id;
 	const role = ctx.role ?? "Staff";
-	const canInvite = can(role, "invitation.create");
+	const canInvite = hasRole(role, "PropertyManager");
 	const { properties, members, invitations } = Route.useLoaderData();
 
 	const [inviteOpen, setInviteOpen] = useState(false);
 
-	// Mutations — each replaces 3-5 lines of useAction+useServerFn+wrapAction+toast
 	const updateRole = useMutationAction(updateMemberRole, {
 		successMessage: "Role updated",
 	});
@@ -74,17 +73,24 @@ function MembersPage() {
 		invalidate: false,
 	});
 
-	const propertyOptions = properties.map((p) => ({ id: p.id, name: p.name }));
+	const propertyOptions = properties.map((p) => ({
+		id: p.id,
+		name: p.name,
+	}));
 	const pendingInvitations = invitations.filter(
 		(inv: { status: string }) => inv.status === "pending",
 	);
 
 	return (
-		<PageShell
-			title="Members"
-			description="Manage your organization's members, roles, and invitations."
-			actions={
-				canInvite ? (
+		<div className="mx-auto max-w-3xl space-y-6">
+			<div className="flex items-center justify-between">
+				<div>
+					<h1 className="text-xl font-semibold tracking-tight">Members</h1>
+					<p className="mt-1 text-sm text-muted-foreground">
+						Manage your organization's members, roles, and invitations.
+					</p>
+				</div>
+				{canInvite && (
 					<Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
 						<DialogTrigger asChild>
 							<Button>
@@ -110,9 +116,9 @@ function MembersPage() {
 							/>
 						</DialogContent>
 					</Dialog>
-				) : undefined
-			}
-		>
+				)}
+			</div>
+
 			<MemberTable
 				members={members}
 				currentUserId={currentUserId}
@@ -123,7 +129,7 @@ function MembersPage() {
 
 			{canInvite && pendingInvitations.length > 0 && (
 				<>
-					<Separator className="my-6" />
+					<Separator />
 					<InvitationTable
 						invitations={pendingInvitations}
 						viewerRole={role}
@@ -132,6 +138,6 @@ function MembersPage() {
 					/>
 				</>
 			)}
-		</PageShell>
+		</div>
 	);
 }

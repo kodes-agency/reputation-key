@@ -357,3 +357,22 @@ a {
     color: var(--foreground);
   }
 }
+
+/* Sidebar active state — lagoon accent */
+[data-slot="sidebar-menu-button"][data-active="true"] {
+  background: oklch(0.92 0.03 185);
+  color: var(--lagoon-deep);
+  font-weight: 600;
+}
+
+[data-slot="sidebar-menu-sub-button"][data-active="true"] {
+  background: oklch(0.92 0.03 185);
+  color: var(--lagoon-deep);
+  font-weight: 600;
+}
+
+.dark [data-slot="sidebar-menu-button"][data-active="true"],
+.dark [data-slot="sidebar-menu-sub-button"][data-active="true"] {
+  background: oklch(0.28 0.03 185);
+  color: var(--lagoon);
+}
