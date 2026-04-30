@@ -234,8 +234,8 @@ export default tseslint.config(
               },
             },
 
-            // components → imports from other components/, shared/*, application/dto/ (form schemas only)
-            // Per conventions: "components/ imports from ... contexts/<ctx>/application/dto/ (for form schemas only)"
+            // components → imports from other components/, shared/*, application/, server/ (TanStack server functions)
+            // Per conventions: components call server functions via useServerFn
             {
               from: { type: 'components' },
               allow: {
@@ -246,6 +246,7 @@ export default tseslint.config(
                     'shared-auth',
                     'shared-other',
                     'application',
+                    'server',
                   ],
                 },
               },
