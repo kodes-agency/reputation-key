@@ -6,12 +6,12 @@ import type { TeamRepository } from '../ports/team.repository'
 import type { Team } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { PropertyId } from '#/shared/domain/ids'
-import type { PropertyAccessProvider } from '#/shared/domain/property-access.port'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 
 // fallow-ignore-next-line unused-type
 export type ListTeamsDeps = Readonly<{
   teamRepo: TeamRepository
-  propertyAccess: PropertyAccessProvider
+  staffApi: StaffPublicApi
 }>
 
 export const listTeams =
@@ -20,7 +20,7 @@ export const listTeams =
     input: { propertyId: PropertyId },
     ctx: AuthContext,
   ): Promise<ReadonlyArray<Team>> => {
-    const accessibleIds = await deps.propertyAccess.getAccessiblePropertyIds(
+    const accessibleIds = await deps.staffApi.getAccessiblePropertyIds(
       ctx.organizationId,
       ctx.userId,
       ctx.role,

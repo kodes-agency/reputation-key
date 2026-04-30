@@ -2,6 +2,7 @@
 // Full 7-step pattern: authorize → validate refs → check uniqueness → build → persist → emit → return
 
 import type { PortalRepository } from '../ports/portal.repository'
+import type { PropertyPublicApi } from '#/contexts/property/application/public-api'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { Portal, PortalId } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
@@ -16,7 +17,7 @@ import { propertyId } from '#/shared/domain/ids'
 // fallow-ignore-next-line unused-type
 export type CreatePortalDeps = Readonly<{
   portalRepo: PortalRepository
-  propertyExists: (orgId: string, propertyId: string) => Promise<boolean>
+  propertyApi: PropertyPublicApi
   events: EventBus
   idGen: () => PortalId
   clock: () => Date
@@ -31,7 +32,12 @@ export const createPortal =
     }
 
     // 2. Validate referenced property exists
-    if (!(await deps.propertyExists(ctx.organizationId, input.propertyId))) {
+    if (
+      !(await deps.propertyApi.propertyExists(
+        ctx.organizationId,
+        propertyId(input.propertyId),
+      ))
+    ) {
       throw portalError('property_not_found', 'property not found in this organization')
     }
 

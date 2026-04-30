@@ -15,6 +15,7 @@ export default tseslint.config(
       '**/drizzle/**',
       '**/node_modules/**',
       '**/.a5c/**',
+      '**/.agents/**',
       'src/routeTree.gen.ts',
     ],
   },
@@ -166,12 +167,15 @@ export default tseslint.config(
               allow: { to: { type: 'shared-domain' } },
             },
 
-            // application → imports from domain/, shared/domain/, shared-events
+            // application → imports from domain/, shared/domain/, shared-events, application/ (cross-context public-api types)
             // Per architecture: use cases need EventBus to emit domain events (patterns #9, #22).
+            // Per ADR-0001: contexts may import another context's application/public-api.ts types only.
             {
               from: { type: 'application' },
               allow: {
-                to: { type: ['domain', 'shared-domain', 'shared-events'] },
+                to: {
+                  type: ['domain', 'shared-domain', 'shared-events', 'application'],
+                },
               },
             },
 
@@ -230,8 +234,8 @@ export default tseslint.config(
               },
             },
 
-            // components → imports from other components/, shared/*, application/dto/ (form schemas only)
-            // Per conventions: "components/ imports from ... contexts/<ctx>/application/dto/ (for form schemas only)"
+            // components → imports from other components/, shared/*, application/, server/ (TanStack server functions)
+            // Per conventions: components call server functions via useServerFn
             {
               from: { type: 'components' },
               allow: {
@@ -242,6 +246,7 @@ export default tseslint.config(
                     'shared-auth',
                     'shared-other',
                     'application',
+                    'server',
                   ],
                 },
               },

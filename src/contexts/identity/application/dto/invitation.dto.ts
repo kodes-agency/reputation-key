@@ -66,7 +66,7 @@ const roleSchema = z.enum(['AccountAdmin', 'PropertyManager', 'Staff'] as const)
 // fallow-ignore-next-line unused-type
 export type RoleResponse = z.infer<typeof roleSchema>
 
-const memberResponseSchema = z.object({
+const _memberResponseSchema = z.object({
   id: z.string(),
   userId: z.string(),
   role: roleSchema,
@@ -76,9 +76,9 @@ const memberResponseSchema = z.object({
   createdAt: z.date(),
 })
 // fallow-ignore-next-line unused-type
-export type MemberResponse = z.infer<typeof memberResponseSchema>
+export type MemberResponse = z.infer<typeof _memberResponseSchema>
 
-const invitationResponseSchema = z.object({
+const _invitationResponseSchema = z.object({
   id: z.string(),
   email: z.string(),
   role: roleSchema,
@@ -87,4 +87,4 @@ const invitationResponseSchema = z.object({
   createdAt: z.date(),
 })
 // fallow-ignore-next-line unused-type
-export type InvitationResponse = z.infer<typeof invitationResponseSchema>
+export type InvitationResponse = z.infer<typeof _invitationResponseSchema>
