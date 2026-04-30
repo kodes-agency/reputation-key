@@ -1,45 +1,30 @@
-// Portal context — inline link creation form
+// Portal context — inline link creation form (thin wrapper around LinkInlineForm)
 
-import { useState } from 'react'
-import { Input } from '#/components/ui/input'
-import { Button } from '#/components/ui/button'
+import { LinkInlineForm } from "./LinkInlineForm";
 
 type Props = Readonly<{
-  onSubmit: (label: string, url: string) => Promise<void> | void
-  onCancel: () => void
-}>
+	onSubmit: (label: string, url: string) => Promise<void> | void;
+	onCancel: () => void;
+	isPending?: boolean;
+	error?: unknown;
+}>;
 
-export function LinkAddInlineForm({ onSubmit, onCancel }: Props) {
-  const [label, setLabel] = useState('')
-  const [url, setUrl] = useState('')
-
-  const handleSubmit = async () => {
-    const trimmedLabel = label.trim()
-    const trimmedUrl = url.trim()
-    if (!trimmedLabel || !trimmedUrl) return
-    await onSubmit(trimmedLabel, trimmedUrl)
-    setLabel('')
-    setUrl('')
-  }
-
-  return (
-    <div className="mb-4 flex gap-2 rounded-lg border p-3">
-      <Input
-        value={label}
-        onChange={(e) => setLabel(e.target.value)}
-        placeholder="Link label"
-      />
-      <Input
-        value={url}
-        onChange={(e) => setUrl(e.target.value)}
-        placeholder="https://..."
-      />
-      <Button onClick={handleSubmit} disabled={!label.trim() || !url.trim()}>
-        Add
-      </Button>
-      <Button variant="ghost" onClick={onCancel}>
-        Cancel
-      </Button>
-    </div>
-  )
+export function LinkAddInlineForm({
+	onSubmit,
+	onCancel,
+	isPending,
+	error,
+}: Props) {
+	return (
+		<LinkInlineForm
+			submitLabel="Add"
+			onSubmit={async (label, url) => {
+				await onSubmit(label, url);
+			}}
+			onCancel={onCancel}
+			isPending={isPending}
+			error={error}
+			className="mb-4 flex flex-col gap-1 rounded-lg border p-3"
+		/>
+	);
 }

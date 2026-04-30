@@ -1,45 +1,34 @@
-// Portal context — inline link editing form
+// Portal context — inline link editing form (thin wrapper around LinkInlineForm)
 
-import { useState } from 'react'
-import { Input } from '#/components/ui/input'
-import { Button } from '#/components/ui/button'
+import { LinkInlineForm } from "./LinkInlineForm";
 
 type Props = Readonly<{
-  initialLabel: string
-  initialUrl: string
-  onSubmit: (label: string, url: string) => Promise<void> | void
-  onCancel: () => void
-}>
+	initialLabel: string;
+	initialUrl: string;
+	onSubmit: (label: string, url: string) => Promise<void> | void;
+	onCancel: () => void;
+	isPending?: boolean;
+	error?: unknown;
+}>;
 
-export function LinkEditInlineForm({ initialLabel, initialUrl, onSubmit, onCancel }: Props) {
-  const [label, setLabel] = useState(initialLabel)
-  const [url, setUrl] = useState(initialUrl)
-
-  const handleSubmit = async () => {
-    const trimmedLabel = label.trim()
-    const trimmedUrl = url.trim()
-    if (!trimmedLabel || !trimmedUrl) return
-    await onSubmit(trimmedLabel, trimmedUrl)
-  }
-
-  return (
-    <div className="mb-2 flex gap-2 rounded-lg border bg-muted/30 p-3">
-      <Input
-        value={label}
-        onChange={(e) => setLabel(e.target.value)}
-        placeholder="Link label"
-      />
-      <Input
-        value={url}
-        onChange={(e) => setUrl(e.target.value)}
-        placeholder="https://..."
-      />
-      <Button onClick={handleSubmit} disabled={!label.trim() || !url.trim()}>
-        Save
-      </Button>
-      <Button variant="ghost" onClick={onCancel}>
-        Cancel
-      </Button>
-    </div>
-  )
+export function LinkEditInlineForm({
+	initialLabel,
+	initialUrl,
+	onSubmit,
+	onCancel,
+	isPending,
+	error,
+}: Props) {
+	return (
+		<LinkInlineForm
+			initialLabel={initialLabel}
+			initialUrl={initialUrl}
+			submitLabel="Save"
+			onSubmit={onSubmit}
+			onCancel={onCancel}
+			isPending={isPending}
+			error={error}
+			className="mb-2 flex flex-col gap-1 rounded-lg border bg-muted/30 p-3"
+		/>
+	);
 }
