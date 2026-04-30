@@ -8,55 +8,67 @@
 
 // Identity context events
 export type {
-// fallow-ignore-next-line unused-type
+  // fallow-ignore-next-line unused-type
   IdentityEvent,
-// fallow-ignore-next-line unused-type
+  // fallow-ignore-next-line unused-type
   OrganizationCreated,
-// fallow-ignore-next-line unused-type
+  // fallow-ignore-next-line unused-type
   MemberInvited,
-// fallow-ignore-next-line unused-type
+  // fallow-ignore-next-line unused-type
   InvitationAccepted,
-// fallow-ignore-next-line unused-type
+  // fallow-ignore-next-line unused-type
   InvitationRejected,
-// fallow-ignore-next-line unused-type
+  // fallow-ignore-next-line unused-type
   MemberRemoved,
-// fallow-ignore-next-line unused-type
+  // fallow-ignore-next-line unused-type
   MemberRoleChanged,
 } from '#/contexts/identity/domain/events'
 
 // Property context events
 export type {
-// fallow-ignore-next-line unused-type
+  // fallow-ignore-next-line unused-type
   PropertyEvent,
-// fallow-ignore-next-line unused-type
+  // fallow-ignore-next-line unused-type
   PropertyCreated,
-// fallow-ignore-next-line unused-type
+  // fallow-ignore-next-line unused-type
   PropertyUpdated,
-// fallow-ignore-next-line unused-type
+  // fallow-ignore-next-line unused-type
   PropertyDeleted,
 } from '#/contexts/property/domain/events'
 
 // Team context events
 export type {
-// fallow-ignore-next-line unused-type
+  // fallow-ignore-next-line unused-type
   TeamEvent,
-// fallow-ignore-next-line unused-type
+  // fallow-ignore-next-line unused-type
   TeamCreated,
-// fallow-ignore-next-line unused-type
+  // fallow-ignore-next-line unused-type
   TeamUpdated,
-// fallow-ignore-next-line unused-type
+  // fallow-ignore-next-line unused-type
   TeamDeleted,
 } from '#/contexts/team/domain/events'
 
 // Staff context events
 export type {
-// fallow-ignore-next-line unused-type
+  // fallow-ignore-next-line unused-type
   StaffEvent,
-// fallow-ignore-next-line unused-type
+  // fallow-ignore-next-line unused-type
   StaffAssigned,
-// fallow-ignore-next-line unused-type
+  // fallow-ignore-next-line unused-type
   StaffUnassigned,
 } from '#/contexts/staff/domain/events'
+
+// Portal context events
+export type {
+  // fallow-ignore-next-line unused-type
+  PortalEvent,
+  // fallow-ignore-next-line unused-type
+  PortalCreated,
+  // fallow-ignore-next-line unused-type
+  PortalUpdated,
+  // fallow-ignore-next-line unused-type
+  PortalDeleted,
+} from '#/contexts/portal/domain/events'
 
 // Master union — adding a new context's events requires extending this.
 // This ensures ts-pattern exhaustive checks catch new event types.
@@ -64,5 +76,11 @@ import type { IdentityEvent } from '#/contexts/identity/domain/events'
 import type { PropertyEvent } from '#/contexts/property/domain/events'
 import type { TeamEvent } from '#/contexts/team/domain/events'
 import type { StaffEvent } from '#/contexts/staff/domain/events'
+import type { PortalEvent } from '#/contexts/portal/domain/events'
 
-export type DomainEvent = IdentityEvent | PropertyEvent | TeamEvent | StaffEvent
+export type DomainEvent =
+  | IdentityEvent
+  | PropertyEvent
+  | TeamEvent
+  | StaffEvent
+  | PortalEvent

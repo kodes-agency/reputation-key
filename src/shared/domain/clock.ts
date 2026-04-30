@@ -6,26 +6,8 @@ export type Clock = Readonly<{
   now: () => Date
 }>
 
-/** Real clock using system time. */
-export const systemClock: Clock = {
-  now: () => new Date(),
-}
-
-/** Test clock with a fixed time. */
-export function fixedClock(fixedDate: Date): Clock {
-  return {
-    now: () => fixedDate,
-  }
-}
-
-/** Test clock that advances by `incrementMs` on each call. */
-export function advancingClock(startDate: Date, incrementMs: number): Clock {
-  let current = startDate.getTime()
-  return {
-    now: () => {
-      const date = new Date(current)
-      current += incrementMs
-      return date
-    },
-  }
-}
+// Clock implementations are inlined by consumers:
+//   real:    () => new Date()
+//   fixed:   (d) => () => d
+//   advancing: (start, inc) => { let c = start.getTime(); return () => { const d = new Date(c); c += inc; return d; } }
+// Keeping the type only avoids dead-code warnings for unused helpers.

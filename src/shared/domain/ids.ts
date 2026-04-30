@@ -6,18 +6,13 @@ import type { Brand } from './brand'
 export type OrganizationId = Brand<string, 'OrganizationId'>
 export type UserId = Brand<string, 'UserId'>
 export type PropertyId = Brand<string, 'PropertyId'>
-// fallow-ignore-next-line unused-type
 export type PortalId = Brand<string, 'PortalId'>
-// fallow-ignore-next-line unused-type
-export type ReviewId = Brand<string, 'ReviewId'>
-// fallow-ignore-next-line unused-type
-export type FeedbackId = Brand<string, 'FeedbackId'>
+// ReviewId, FeedbackId — deferred to Phase 8/9
 export type TeamId = Brand<string, 'TeamId'>
 export type StaffAssignmentId = Brand<string, 'StaffAssignmentId'>
-// fallow-ignore-next-line unused-type
-export type MetricId = Brand<string, 'MetricId'>
-// fallow-ignore-next-line unused-type
-export type GoalId = Brand<string, 'GoalId'>
+// MetricId, GoalId — deferred to Phase 10/11
+export type PortalLinkCategoryId = Brand<string, 'PortalLinkCategoryId'>
+export type PortalLinkId = Brand<string, 'PortalLinkId'>
 
 // Convenience constructors — each wraps brandId with the correct tag.
 // These are the only acceptable `as` casts: branded ID parsing.
@@ -33,21 +28,17 @@ export function propertyId(id: string): PropertyId {
 export function portalId(id: string): PortalId {
   return id as PortalId
 }
-export function reviewId(id: string): ReviewId {
-  return id as ReviewId
-}
-export function feedbackId(id: string): FeedbackId {
-  return id as FeedbackId
-}
+
 export function teamId(id: string): TeamId {
   return id as TeamId
 }
 export function staffAssignmentId(id: string): StaffAssignmentId {
   return id as StaffAssignmentId
 }
-export function metricId(id: string): MetricId {
-  return id as MetricId
+
+export function portalLinkCategoryId(id: string): PortalLinkCategoryId {
+  return id as PortalLinkCategoryId
 }
-export function goalId(id: string): GoalId {
-  return id as GoalId
+export function portalLinkId(id: string): PortalLinkId {
+  return id as PortalLinkId
 }

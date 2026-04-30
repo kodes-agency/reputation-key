@@ -26,6 +26,7 @@ type Props = Readonly<{
   type?: string
   placeholder?: string
   autoComplete?: string
+  disabled?: boolean
 }>
 
 export function FormTextField({
@@ -35,6 +36,7 @@ export function FormTextField({
   type = 'text',
   placeholder,
   autoComplete,
+  disabled,
 }: Props) {
   const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid
 
@@ -51,6 +53,7 @@ export function FormTextField({
         aria-invalid={isInvalid}
         placeholder={placeholder}
         autoComplete={autoComplete}
+        disabled={disabled}
       />
       {isInvalid && <FieldError errors={field.state.meta.errors} />}
     </Field>
