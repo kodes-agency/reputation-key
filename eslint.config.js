@@ -15,6 +15,7 @@ export default tseslint.config(
       '**/drizzle/**',
       '**/node_modules/**',
       '**/.a5c/**',
+      '**/.agents/**',
       'src/routeTree.gen.ts',
     ],
   },
