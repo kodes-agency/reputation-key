@@ -49,14 +49,12 @@ import { updateTeam } from '#/contexts/team/application/use-cases/update-team'
 import { listTeams } from '#/contexts/team/application/use-cases/list-teams'
 import { getTeam } from '#/contexts/team/application/use-cases/get-team'
 import { softDeleteTeam } from '#/contexts/team/application/use-cases/soft-delete-team'
+import { buildStaffContext } from '#/contexts/staff/build'
 import { createStaffAssignmentRepository } from '#/contexts/staff/infrastructure/repositories/staff-assignment.repository'
-import { createStaffAssignment } from '#/contexts/staff/application/use-cases/create-staff-assignment'
-import { removeStaffAssignment } from '#/contexts/staff/application/use-cases/remove-staff-assignment'
-import { listStaffAssignments } from '#/contexts/staff/application/use-cases/list-staff-assignments'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import {
   propertyId,
   teamId,
-  staffAssignmentId,
   portalId,
   organizationId as toOrgId,
   userId as toUserId,
@@ -91,7 +89,9 @@ function buildInfrastructure(options: { redis: Redis | undefined; enableJobs: bo
     maxRequests: 60,
     windowSeconds: 60,
   })
-  const jobQueue: Queue | undefined = options.enableJobs ? createJobQueue('default') : undefined
+  const jobQueue: Queue | undefined = options.enableJobs
+    ? createJobQueue('default')
+    : undefined
   const jobRegistry: JobRegistry = createJobRegistry()
   return { cache, rateLimiter, jobQueue, jobRegistry }
 }
@@ -148,7 +148,10 @@ function buildPropertyContext(deps: { db: Database; eventBus: EventBus }) {
 
 // ── Team context ───────────────────────────────────────────────────
 
-function buildTeamContext(deps: { db: Database; propertyRepo: ReturnType<typeof createPropertyRepository> }) {
+function buildTeamContext(deps: {
+  db: Database
+  propertyRepo: ReturnType<typeof createPropertyRepository>
+}) {
   const teamRepo = createTeamRepository(deps.db)
   const teamIdGen = () => teamId(randomUUID())
 
@@ -165,17 +168,12 @@ function buildTeamContext(deps: { db: Database; propertyRepo: ReturnType<typeof 
   return { teamRepo, teamIdGen, propertyExists }
 }
 
-// ── Staff context ──────────────────────────────────────────────────
-
-function buildStaffContext(deps: { db: Database }) {
-  const staffAssignmentRepo = createStaffAssignmentRepository(deps.db)
-  const staffIdGen = () => staffAssignmentId(randomUUID())
-  return { staffAssignmentRepo, staffIdGen }
-}
-
 // ── Portal context ─────────────────────────────────────────────────
 
-function buildPortalContext(deps: { db: Database; propertyRepo: ReturnType<typeof createPropertyRepository> }) {
+function buildPortalContext(deps: {
+  db: Database
+  propertyRepo: ReturnType<typeof createPropertyRepository>
+}) {
   const portalRepo = createPortalRepository(deps.db)
   const portalLinkRepo = createPortalLinkRepository(deps.db)
   const storage = createR2StorageAdapter()
@@ -192,36 +190,42 @@ function buildPortalContext(deps: { db: Database; propertyRepo: ReturnType<typeo
     },
   }
 
-  return { portalRepo, portalLinkRepo, storage, portalIdGen, linkIdGen, portalPropertyExists }
+  return {
+    portalRepo,
+    portalLinkRepo,
+    storage,
+    portalIdGen,
+    linkIdGen,
+    portalPropertyExists,
+  }
 }
 
 // ── Use cases ──────────────────────────────────────────────────────
 
-function buildUseCases(deps: {
-  identityPort: ReturnType<typeof buildIdentityContext>['identityPort']
-  createOrg: ReturnType<typeof buildIdentityContext>['createOrg']
-  setActiveOrg: ReturnType<typeof buildIdentityContext>['setActiveOrg']
-  propertyRepo: ReturnType<typeof buildPropertyContext>['propertyRepo']
-  eventBus: EventBus
-  idGen: ReturnType<typeof buildPropertyContext>['idGen']
-  clock: ReturnType<typeof buildPropertyContext>['clock']
-  teamRepo: ReturnType<typeof buildTeamContext>['teamRepo']
-  teamIdGen: ReturnType<typeof buildTeamContext>['teamIdGen']
-  propertyExists: ReturnType<typeof buildTeamContext>['propertyExists']
-  staffAssignmentRepo: ReturnType<typeof buildStaffContext>['staffAssignmentRepo']
-  staffIdGen: ReturnType<typeof buildStaffContext>['staffIdGen']
-  portalRepo: ReturnType<typeof buildPortalContext>['portalRepo']
-  portalLinkRepo: ReturnType<typeof buildPortalContext>['portalLinkRepo']
-  storage: ReturnType<typeof buildPortalContext>['storage']
-  portalIdGen: ReturnType<typeof buildPortalContext>['portalIdGen']
-  linkIdGen: ReturnType<typeof buildPortalContext>['linkIdGen']
-  portalPropertyExists: ReturnType<typeof buildPortalContext>['portalPropertyExists']
-}) {
+function buildUseCases(
+  deps: {
+    identityPort: ReturnType<typeof buildIdentityContext>['identityPort']
+    createOrg: ReturnType<typeof buildIdentityContext>['createOrg']
+    setActiveOrg: ReturnType<typeof buildIdentityContext>['setActiveOrg']
+    propertyRepo: ReturnType<typeof buildPropertyContext>['propertyRepo']
+    eventBus: EventBus
+    idGen: ReturnType<typeof buildPropertyContext>['idGen']
+    clock: ReturnType<typeof buildPropertyContext>['clock']
+    teamRepo: ReturnType<typeof buildTeamContext>['teamRepo']
+    teamIdGen: ReturnType<typeof buildTeamContext>['teamIdGen']
+    propertyExists: ReturnType<typeof buildTeamContext>['propertyExists']
+    portalRepo: ReturnType<typeof buildPortalContext>['portalRepo']
+    portalLinkRepo: ReturnType<typeof buildPortalContext>['portalLinkRepo']
+    storage: ReturnType<typeof buildPortalContext>['storage']
+    portalIdGen: ReturnType<typeof buildPortalContext>['portalIdGen']
+    linkIdGen: ReturnType<typeof buildPortalContext>['linkIdGen']
+    portalPropertyExists: ReturnType<typeof buildPortalContext>['portalPropertyExists']
+  },
+  staffPublicApi: StaffPublicApi,
+) {
   const propertyAccess: PropertyAccessProvider = {
-    getAccessiblePropertyIds: async (orgId, uid, role) => {
-      if (role === 'AccountAdmin') return null
-      return deps.staffAssignmentRepo.getAccessiblePropertyIds(orgId, uid)
-    },
+    getAccessiblePropertyIds: (orgId, userId, role) =>
+      staffPublicApi.getAccessiblePropertyIds(orgId, userId, role),
   }
 
   return {
@@ -269,7 +273,11 @@ function buildUseCases(deps: {
       idGen: deps.idGen,
       clock: deps.clock,
     }),
-    updateProperty: updateProperty({ propertyRepo: deps.propertyRepo, events: deps.eventBus, clock: deps.clock }),
+    updateProperty: updateProperty({
+      propertyRepo: deps.propertyRepo,
+      events: deps.eventBus,
+      clock: deps.clock,
+    }),
     listProperties: listProperties({ propertyRepo: deps.propertyRepo, propertyAccess }),
     getProperty: getProperty({ propertyRepo: deps.propertyRepo }),
     softDeleteProperty: softDeleteProperty({
@@ -285,24 +293,17 @@ function buildUseCases(deps: {
       idGen: deps.teamIdGen,
       clock: deps.clock,
     }),
-    updateTeam: updateTeam({ teamRepo: deps.teamRepo, events: deps.eventBus, clock: deps.clock }),
+    updateTeam: updateTeam({
+      teamRepo: deps.teamRepo,
+      events: deps.eventBus,
+      clock: deps.clock,
+    }),
     listTeams: listTeams({ teamRepo: deps.teamRepo, propertyAccess }),
     getTeam: getTeam({ teamRepo: deps.teamRepo, propertyAccess }),
-    softDeleteTeam: softDeleteTeam({ teamRepo: deps.teamRepo, events: deps.eventBus, clock: deps.clock }),
-    // Staff
-    createStaffAssignment: createStaffAssignment({
-      assignmentRepo: deps.staffAssignmentRepo,
-      events: deps.eventBus,
-      idGen: deps.staffIdGen,
-      clock: deps.clock,
-    }),
-    removeStaffAssignment: removeStaffAssignment({
-      assignmentRepo: deps.staffAssignmentRepo,
+    softDeleteTeam: softDeleteTeam({
+      teamRepo: deps.teamRepo,
       events: deps.eventBus,
       clock: deps.clock,
-    }),
-    listStaffAssignments: listStaffAssignments({
-      assignmentRepo: deps.staffAssignmentRepo,
     }),
     // Portal
     createPortal: createPortal({
@@ -312,10 +313,18 @@ function buildUseCases(deps: {
       idGen: deps.portalIdGen,
       clock: deps.clock,
     }),
-    updatePortal: updatePortal({ portalRepo: deps.portalRepo, events: deps.eventBus, clock: deps.clock }),
+    updatePortal: updatePortal({
+      portalRepo: deps.portalRepo,
+      events: deps.eventBus,
+      clock: deps.clock,
+    }),
     getPortal: getPortal({ portalRepo: deps.portalRepo }),
     listPortals: listPortals({ portalRepo: deps.portalRepo }),
-    softDeletePortal: softDeletePortal({ portalRepo: deps.portalRepo, events: deps.eventBus, clock: deps.clock }),
+    softDeletePortal: softDeletePortal({
+      portalRepo: deps.portalRepo,
+      events: deps.eventBus,
+      clock: deps.clock,
+    }),
     createLinkCategory: createLinkCategory({
       portalRepo: deps.portalRepo,
       portalLinkRepo: deps.portalLinkRepo,
@@ -323,9 +332,16 @@ function buildUseCases(deps: {
       idGen: deps.linkIdGen,
       clock: deps.clock,
     }),
-    updateLinkCategory: updateLinkCategory({ portalLinkRepo: deps.portalLinkRepo, clock: deps.clock }),
+    updateLinkCategory: updateLinkCategory({
+      portalLinkRepo: deps.portalLinkRepo,
+      clock: deps.clock,
+    }),
     deleteLinkCategory: deleteLinkCategory({ portalLinkRepo: deps.portalLinkRepo }),
-    reorderCategories: reorderCategories({ portalLinkRepo: deps.portalLinkRepo, events: deps.eventBus, clock: deps.clock }),
+    reorderCategories: reorderCategories({
+      portalLinkRepo: deps.portalLinkRepo,
+      events: deps.eventBus,
+      clock: deps.clock,
+    }),
     createLink: createLink({
       portalLinkRepo: deps.portalLinkRepo,
       events: deps.eventBus,
@@ -334,9 +350,20 @@ function buildUseCases(deps: {
     }),
     updateLink: updateLink({ portalLinkRepo: deps.portalLinkRepo, clock: deps.clock }),
     deleteLink: deleteLink({ portalLinkRepo: deps.portalLinkRepo }),
-    reorderLinks: reorderLinks({ portalLinkRepo: deps.portalLinkRepo, events: deps.eventBus, clock: deps.clock }),
-    requestUploadUrl: requestUploadUrl({ portalRepo: deps.portalRepo, storage: deps.storage }),
-    finalizeUpload: finalizeUpload({ portalRepo: deps.portalRepo, storage: deps.storage, clock: deps.clock }),
+    reorderLinks: reorderLinks({
+      portalLinkRepo: deps.portalLinkRepo,
+      events: deps.eventBus,
+      clock: deps.clock,
+    }),
+    requestUploadUrl: requestUploadUrl({
+      portalRepo: deps.portalRepo,
+      storage: deps.storage,
+    }),
+    finalizeUpload: finalizeUpload({
+      portalRepo: deps.portalRepo,
+      storage: deps.storage,
+      clock: deps.clock,
+    }),
   } as const
 }
 
@@ -352,18 +379,25 @@ export function createContainer(options?: { enableJobs?: boolean }) {
   const infra = buildInfrastructure({ redis, enableJobs })
   const identity = buildIdentityContext()
   const property = buildPropertyContext({ db, eventBus })
+  const clock = () => new Date()
+  const staff = buildStaffContext({
+    repo: createStaffAssignmentRepository(db),
+    events: eventBus,
+    clock,
+  })
   const team = buildTeamContext({ db, propertyRepo: property.propertyRepo })
-  const staff = buildStaffContext({ db })
   const portal = buildPortalContext({ db, propertyRepo: property.propertyRepo })
 
-  const useCases = buildUseCases({
-    ...identity,
-    ...property,
-    ...team,
-    ...staff,
-    ...portal,
-    eventBus,
-  })
+  const useCases = buildUseCases(
+    {
+      ...identity,
+      ...property,
+      ...team,
+      ...portal,
+      eventBus,
+    },
+    staff.publicApi,
+  )
 
   // ── Wire invitation acceptance hook ────────────────────────────
   setOnAcceptInvitation(async ({ userId, organizationId, propertyIds }) => {
@@ -371,7 +405,7 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     const oid = toOrgId(organizationId)
     for (const pid of propertyIds) {
       try {
-        await useCases.createStaffAssignment(
+        await staff.useCases.createStaffAssignment(
           {
             userId: uid,
             propertyId: propertyId(pid),
@@ -396,7 +430,10 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     rateLimiter: infra.rateLimiter,
     jobQueue: infra.jobQueue,
     jobRegistry: infra.jobRegistry,
-    useCases,
+    useCases: {
+      ...useCases,
+      ...staff.useCases,
+    },
     storage: portal.storage,
     portalRepo: portal.portalRepo,
   } as const
