@@ -63,17 +63,6 @@ export function groupAssignmentsByTeam(
 	return map;
 }
 
-/** Build assignmentId → userId lookup for cross-referencing. */
-export function buildAssignmentUserMap(
-	assignments: ReadonlyArray<AssignmentLike>,
-): Map<string, string> {
-	const map = new Map<string, string>();
-	for (const a of assignments) {
-		map.set(a.id, a.userId);
-	}
-	return map;
-}
-
 export function toMemberOptions(
 	members: ReadonlyArray<{ userId: string; name: string; email: string }>,
 ): MemberLike[] {

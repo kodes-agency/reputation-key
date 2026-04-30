@@ -73,7 +73,7 @@ function TabsTrigger({
   )
 }
 
-export function TabsContent({
+function TabsContent({
   className,
   ...props
 }: React.ComponentProps<typeof TabsPrimitive.Content>) {
@@ -86,4 +86,4 @@ export function TabsContent({
   )
 }
 
-export { Tabs, TabsList, TabsTrigger }
+export { Tabs, TabsList, TabsTrigger, TabsContent }

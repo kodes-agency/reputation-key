@@ -12,6 +12,8 @@ import {
 import type { Property } from '#/contexts/property/domain/types'
 import type { Team } from '#/contexts/team/domain/types'
 import type { StaffAssignment } from '#/contexts/staff/domain/types'
+import type { Portal, PortalLinkCategory, PortalLink } from '#/contexts/portal/domain/types'
+import { portalId, portalLinkCategoryId, portalLinkId } from '#/shared/domain/ids'
 
 /** Build a deterministic AuthContext for tests. */
 export function buildTestAuthContext(overrides: Partial<AuthContext> = {}): AuthContext {
@@ -118,4 +120,69 @@ export function buildTestStaffAssignment(
     deletedAt: null,
     ...rest,
   } as StaffAssignment
+}
+
+/** Build a deterministic Portal for tests. */
+export function buildTestPortal(
+  overrides: Partial<Omit<Portal, 'id'>> & { id?: string } = {},
+): Portal {
+  const idStr = overrides.id
+    ? toTestId(overrides.id)
+    : 'd0000000-0000-0000-0000-000000000001'
+  const id = portalId(idStr)
+  const { id: _ignored, ...rest } = overrides
+  return {
+    id,
+    organizationId: organizationId('org-00000000-0000-0000-0000-000000000001'),
+    propertyId: propertyId('a0000000-0000-0000-0000-000000000001'),
+    entityType: 'property',
+    entityId: 'a0000000-0000-0000-0000-000000000001',
+    name: 'Test Portal',
+    slug: 'test-portal',
+    description: null,
+    heroImageUrl: null,
+    theme: { primaryColor: '#6366F1' },
+    smartRoutingEnabled: false,
+    smartRoutingThreshold: 4,
+    isActive: true,
+    createdAt: new Date('2026-04-10T12:00:00Z'),
+    updatedAt: new Date('2026-04-10T12:00:00Z'),
+    deletedAt: null,
+    ...rest,
+  } as Portal
+}
+
+/** Build a deterministic PortalLinkCategory for tests. */
+export function buildTestPortalLinkCategory(
+  overrides: Partial<PortalLinkCategory> = {},
+): PortalLinkCategory {
+  return {
+    id: portalLinkCategoryId('c0000000-0000-0000-0000-000000000001'),
+    portalId: portalId('d0000000-0000-0000-0000-000000000001'),
+    organizationId: organizationId('org-00000000-0000-0000-0000-000000000001'),
+    title: 'Test Category',
+    sortKey: 'a0',
+    createdAt: new Date('2026-04-10T12:00:00Z'),
+    updatedAt: new Date('2026-04-10T12:00:00Z'),
+    ...overrides,
+  }
+}
+
+/** Build a deterministic PortalLink for tests. */
+export function buildTestPortalLink(
+  overrides: Partial<PortalLink> = {},
+): PortalLink {
+  return {
+    id: portalLinkId('10000000-0000-0000-0000-000000000001'),
+    categoryId: portalLinkCategoryId('c0000000-0000-0000-0000-000000000001'),
+    portalId: portalId('d0000000-0000-0000-0000-000000000001'),
+    organizationId: organizationId('org-00000000-0000-0000-0000-000000000001'),
+    label: 'Test Link',
+    url: 'https://example.com',
+    iconKey: null,
+    sortKey: 'a0',
+    createdAt: new Date('2026-04-10T12:00:00Z'),
+    updatedAt: new Date('2026-04-10T12:00:00Z'),
+    ...overrides,
+  }
 }

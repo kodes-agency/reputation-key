@@ -34,6 +34,9 @@ import { sendInvitationEmail } from '#/shared/auth/emails'
 import { headersFromContext } from '#/shared/auth/headers'
 import { getEnv } from '#/shared/config/env'
 import type { Queue } from 'bullmq'
+import type { Database } from '#/shared/db'
+import type { EventBus } from '#/shared/events/event-bus'
+import type { Redis } from 'ioredis'
 import { createPropertyRepository } from '#/contexts/property/infrastructure/repositories/property.repository'
 import { createProperty } from '#/contexts/property/application/use-cases/create-property'
 import { updateProperty } from '#/contexts/property/application/use-cases/update-property'
@@ -54,36 +57,50 @@ import {
   propertyId,
   teamId,
   staffAssignmentId,
+  portalId,
   organizationId as toOrgId,
   userId as toUserId,
 } from '#/shared/domain/ids'
 import { randomUUID } from 'crypto'
 import type { PropertyAccessProvider } from '#/shared/domain/property-access.port'
+import { createPortalRepository } from '#/contexts/portal/infrastructure/repositories/portal.repository'
+import { createPortalLinkRepository } from '#/contexts/portal/infrastructure/repositories/portal-link.repository'
+import { createR2StorageAdapter } from '#/contexts/portal/infrastructure/adapters/r2-storage.adapter'
+import { createPortal } from '#/contexts/portal/application/use-cases/create-portal'
+import { updatePortal } from '#/contexts/portal/application/use-cases/update-portal'
+import { getPortal } from '#/contexts/portal/application/use-cases/get-portal'
+import { listPortals } from '#/contexts/portal/application/use-cases/list-portals'
+import { softDeletePortal } from '#/contexts/portal/application/use-cases/soft-delete-portal'
+import { createLinkCategory } from '#/contexts/portal/application/use-cases/create-link-category'
+import { updateLinkCategory } from '#/contexts/portal/application/use-cases/update-link-category'
+import { deleteLinkCategory } from '#/contexts/portal/application/use-cases/delete-link-category'
+import { reorderCategories } from '#/contexts/portal/application/use-cases/reorder-categories'
+import { createLink } from '#/contexts/portal/application/use-cases/create-link'
+import { updateLink } from '#/contexts/portal/application/use-cases/update-link'
+import { deleteLink } from '#/contexts/portal/application/use-cases/delete-link'
+import { reorderLinks } from '#/contexts/portal/application/use-cases/reorder-links'
+import { requestUploadUrl } from '#/contexts/portal/application/use-cases/request-upload-url'
+import { finalizeUpload } from '#/contexts/portal/application/use-cases/finalize-upload'
 
-export function createContainer(options?: { enableJobs?: boolean }) {
-  const { enableJobs = false } = options ?? {}
-  const db = getDb()
-  const logger = getLogger()
-  const redis = getRedis()
-  const eventBus = createEventBus()
+// ── Infrastructure ─────────────────────────────────────────────────
 
-  // ── Infrastructure ──────────────────────────────────────────────
-  const cache: Cache = redis ? createRedisCache(redis) : createNoopCache()
-  const rateLimiter: RateLimiter = createRateLimiter(redis, {
+function buildInfrastructure(options: { redis: Redis | undefined; enableJobs: boolean }) {
+  const cache: Cache = options.redis ? createRedisCache(options.redis) : createNoopCache()
+  const rateLimiter: RateLimiter = createRateLimiter(options.redis, {
     keyPrefix: 'ratelimit:public',
     maxRequests: 60,
     windowSeconds: 60,
   })
-  // Only create job infrastructure in the worker process
-  const jobQueue: Queue | undefined = enableJobs ? createJobQueue('default') : undefined
-  const jobRegistry: JobRegistry = enableJobs ? createJobRegistry() : createJobRegistry()
+  const jobQueue: Queue | undefined = options.enableJobs ? createJobQueue('default') : undefined
+  const jobRegistry: JobRegistry = createJobRegistry()
+  return { cache, rateLimiter, jobQueue, jobRegistry }
+}
 
-  // ── Identity context ─────────────────────────────────────────────
+// ── Identity context ───────────────────────────────────────────────
+
+function buildIdentityContext() {
   const identityPort = createAuthIdentityAdapter()
 
-  // Helper: create org via better-auth using the server-side userId field.
-  // Uses userId instead of session headers so it works during registration
-  // (when the new user's session cookies aren't available yet).
   const createOrg = async (
     _headers: Headers,
     name: string,
@@ -103,9 +120,6 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     return parsed.id
   }
 
-  // Helper: set active org via better-auth.
-  // Falls back to setting via headers (works after registration when
-  // the sign-up response has set cookies on the incoming request).
   const setActiveOrg = async (headers: Headers, orgId: string): Promise<void> => {
     const auth = getAuth()
     try {
@@ -120,59 +134,116 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     }
   }
 
-  // ── Property context ────────────────────────────────────────────
-  const propertyRepo = createPropertyRepository(db)
+  return { identityPort, createOrg, setActiveOrg }
+}
+
+// ── Property context ───────────────────────────────────────────────
+
+function buildPropertyContext(deps: { db: Database; eventBus: EventBus }) {
+  const propertyRepo = createPropertyRepository(deps.db)
   const idGen = () => propertyId(randomUUID())
   const clock = () => new Date()
+  return { propertyRepo, idGen, clock }
+}
 
-  // ── Team context ────────────────────────────────────────────────
-  const teamRepo = createTeamRepository(db)
+// ── Team context ───────────────────────────────────────────────────
+
+function buildTeamContext(deps: { db: Database; propertyRepo: ReturnType<typeof createPropertyRepository> }) {
+  const teamRepo = createTeamRepository(deps.db)
   const teamIdGen = () => teamId(randomUUID())
 
-  // Property existence port for team context (boundary-safe)
   const propertyExists = {
     exists: async (
-      orgId: Parameters<typeof propertyRepo.findById>[0],
-      pid: Parameters<typeof propertyRepo.findById>[1],
+      orgId: Parameters<typeof deps.propertyRepo.findById>[0],
+      pid: Parameters<typeof deps.propertyRepo.findById>[1],
     ) => {
-      const p = await propertyRepo.findById(orgId, pid)
+      const p = await deps.propertyRepo.findById(orgId, pid)
       return p !== null
     },
   }
 
-  // ── Staff context ──────────────────────────────────────────────
-  const staffAssignmentRepo = createStaffAssignmentRepository(db)
-  const staffIdGen = () => staffAssignmentId(randomUUID())
+  return { teamRepo, teamIdGen, propertyExists }
+}
 
-  // Property access provider: AccountAdmin sees all, others see assigned only
-  // Implements the shared PropertyAccessProvider port used by property and team contexts
-  const propertyAccess: PropertyAccessProvider = {
-    getAccessiblePropertyIds: async (orgId, uid, role) => {
-      if (role === 'AccountAdmin') return null
-      return staffAssignmentRepo.getAccessiblePropertyIds(orgId, uid)
+// ── Staff context ──────────────────────────────────────────────────
+
+function buildStaffContext(deps: { db: Database }) {
+  const staffAssignmentRepo = createStaffAssignmentRepository(deps.db)
+  const staffIdGen = () => staffAssignmentId(randomUUID())
+  return { staffAssignmentRepo, staffIdGen }
+}
+
+// ── Portal context ─────────────────────────────────────────────────
+
+function buildPortalContext(deps: { db: Database; propertyRepo: ReturnType<typeof createPropertyRepository> }) {
+  const portalRepo = createPortalRepository(deps.db)
+  const portalLinkRepo = createPortalLinkRepository(deps.db)
+  const storage = createR2StorageAdapter()
+  const portalIdGen = () => portalId(randomUUID())
+  const linkIdGen = () => randomUUID()
+
+  const portalPropertyExists = {
+    exists: async (orgId: string, pid: string) => {
+      const p = await deps.propertyRepo.findById(
+        orgId as unknown as import('#/shared/domain/ids').OrganizationId,
+        pid as unknown as import('#/shared/domain/ids').PropertyId,
+      )
+      return p !== null
     },
   }
 
-  const useCases = {
+  return { portalRepo, portalLinkRepo, storage, portalIdGen, linkIdGen, portalPropertyExists }
+}
+
+// ── Use cases ──────────────────────────────────────────────────────
+
+function buildUseCases(deps: {
+  identityPort: ReturnType<typeof buildIdentityContext>['identityPort']
+  createOrg: ReturnType<typeof buildIdentityContext>['createOrg']
+  setActiveOrg: ReturnType<typeof buildIdentityContext>['setActiveOrg']
+  propertyRepo: ReturnType<typeof buildPropertyContext>['propertyRepo']
+  eventBus: EventBus
+  idGen: ReturnType<typeof buildPropertyContext>['idGen']
+  clock: ReturnType<typeof buildPropertyContext>['clock']
+  teamRepo: ReturnType<typeof buildTeamContext>['teamRepo']
+  teamIdGen: ReturnType<typeof buildTeamContext>['teamIdGen']
+  propertyExists: ReturnType<typeof buildTeamContext>['propertyExists']
+  staffAssignmentRepo: ReturnType<typeof buildStaffContext>['staffAssignmentRepo']
+  staffIdGen: ReturnType<typeof buildStaffContext>['staffIdGen']
+  portalRepo: ReturnType<typeof buildPortalContext>['portalRepo']
+  portalLinkRepo: ReturnType<typeof buildPortalContext>['portalLinkRepo']
+  storage: ReturnType<typeof buildPortalContext>['storage']
+  portalIdGen: ReturnType<typeof buildPortalContext>['portalIdGen']
+  linkIdGen: ReturnType<typeof buildPortalContext>['linkIdGen']
+  portalPropertyExists: ReturnType<typeof buildPortalContext>['portalPropertyExists']
+}) {
+  const propertyAccess: PropertyAccessProvider = {
+    getAccessiblePropertyIds: async (orgId, uid, role) => {
+      if (role === 'AccountAdmin') return null
+      return deps.staffAssignmentRepo.getAccessiblePropertyIds(orgId, uid)
+    },
+  }
+
+  return {
     // Identity
     inviteMember: inviteMember({
-      identity: identityPort,
-      events: eventBus,
-      clock,
+      identity: deps.identityPort,
+      events: deps.eventBus,
+      clock: deps.clock,
     }),
     updateMemberRole: updateMemberRole({
-      identity: identityPort,
-      events: eventBus,
-      clock,
+      identity: deps.identityPort,
+      events: deps.eventBus,
+      clock: deps.clock,
     }),
     removeMember: removeMember({
-      identity: identityPort,
-      events: eventBus,
-      clock,
+      identity: deps.identityPort,
+      events: deps.eventBus,
+      clock: deps.clock,
     }),
-    listInvitations: listInvitations({ identity: identityPort }),
+    listInvitations: listInvitations({ identity: deps.identityPort }),
     resendInvitation: resendInvitation({
-      identity: identityPort,
+      identity: deps.identityPort,
       sendEmail: sendInvitationEmail,
       getOrganizationName: async (_ctx) => {
         const auth = getAuth()
@@ -183,61 +254,118 @@ export function createContainer(options?: { enableJobs?: boolean }) {
       baseUrl: getEnv().BETTER_AUTH_URL,
     }),
     registerUserAndOrg: registerUserAndOrg({
-      events: eventBus,
-      signUp: identityPort.signUp,
-      createOrg,
-      setActiveOrg,
+      events: deps.eventBus,
+      signUp: deps.identityPort.signUp,
+      createOrg: deps.createOrg,
+      setActiveOrg: deps.setActiveOrg,
       headers: headersFromContext,
-      clock,
+      clock: deps.clock,
     }),
-    registerUser: registerUser({ identity: identityPort }),
+    registerUser: registerUser({ identity: deps.identityPort }),
     // Property
     createProperty: createProperty({
-      propertyRepo,
-      events: eventBus,
-      idGen,
-      clock,
+      propertyRepo: deps.propertyRepo,
+      events: deps.eventBus,
+      idGen: deps.idGen,
+      clock: deps.clock,
     }),
-    updateProperty: updateProperty({ propertyRepo, events: eventBus, clock }),
-    listProperties: listProperties({ propertyRepo, propertyAccess }),
-    getProperty: getProperty({ propertyRepo }),
+    updateProperty: updateProperty({ propertyRepo: deps.propertyRepo, events: deps.eventBus, clock: deps.clock }),
+    listProperties: listProperties({ propertyRepo: deps.propertyRepo, propertyAccess }),
+    getProperty: getProperty({ propertyRepo: deps.propertyRepo }),
     softDeleteProperty: softDeleteProperty({
-      propertyRepo,
-      events: eventBus,
-      clock,
+      propertyRepo: deps.propertyRepo,
+      events: deps.eventBus,
+      clock: deps.clock,
     }),
     // Team
     createTeam: createTeam({
-      teamRepo,
-      propertyExists,
-      events: eventBus,
-      idGen: teamIdGen,
-      clock,
+      teamRepo: deps.teamRepo,
+      propertyExists: deps.propertyExists,
+      events: deps.eventBus,
+      idGen: deps.teamIdGen,
+      clock: deps.clock,
     }),
-    updateTeam: updateTeam({ teamRepo, events: eventBus, clock }),
-    listTeams: listTeams({ teamRepo, propertyAccess }),
-    getTeam: getTeam({ teamRepo, propertyAccess }),
-    softDeleteTeam: softDeleteTeam({ teamRepo, events: eventBus, clock }),
+    updateTeam: updateTeam({ teamRepo: deps.teamRepo, events: deps.eventBus, clock: deps.clock }),
+    listTeams: listTeams({ teamRepo: deps.teamRepo, propertyAccess }),
+    getTeam: getTeam({ teamRepo: deps.teamRepo, propertyAccess }),
+    softDeleteTeam: softDeleteTeam({ teamRepo: deps.teamRepo, events: deps.eventBus, clock: deps.clock }),
     // Staff
     createStaffAssignment: createStaffAssignment({
-      assignmentRepo: staffAssignmentRepo,
-      events: eventBus,
-      idGen: staffIdGen,
-      clock,
+      assignmentRepo: deps.staffAssignmentRepo,
+      events: deps.eventBus,
+      idGen: deps.staffIdGen,
+      clock: deps.clock,
     }),
     removeStaffAssignment: removeStaffAssignment({
-      assignmentRepo: staffAssignmentRepo,
-      events: eventBus,
-      clock,
+      assignmentRepo: deps.staffAssignmentRepo,
+      events: deps.eventBus,
+      clock: deps.clock,
     }),
     listStaffAssignments: listStaffAssignments({
-      assignmentRepo: staffAssignmentRepo,
+      assignmentRepo: deps.staffAssignmentRepo,
     }),
+    // Portal
+    createPortal: createPortal({
+      portalRepo: deps.portalRepo,
+      propertyExists: deps.portalPropertyExists.exists,
+      events: deps.eventBus,
+      idGen: deps.portalIdGen,
+      clock: deps.clock,
+    }),
+    updatePortal: updatePortal({ portalRepo: deps.portalRepo, events: deps.eventBus, clock: deps.clock }),
+    getPortal: getPortal({ portalRepo: deps.portalRepo }),
+    listPortals: listPortals({ portalRepo: deps.portalRepo }),
+    softDeletePortal: softDeletePortal({ portalRepo: deps.portalRepo, events: deps.eventBus, clock: deps.clock }),
+    createLinkCategory: createLinkCategory({
+      portalRepo: deps.portalRepo,
+      portalLinkRepo: deps.portalLinkRepo,
+      events: deps.eventBus,
+      idGen: deps.linkIdGen,
+      clock: deps.clock,
+    }),
+    updateLinkCategory: updateLinkCategory({ portalLinkRepo: deps.portalLinkRepo, clock: deps.clock }),
+    deleteLinkCategory: deleteLinkCategory({ portalLinkRepo: deps.portalLinkRepo }),
+    reorderCategories: reorderCategories({ portalLinkRepo: deps.portalLinkRepo, events: deps.eventBus, clock: deps.clock }),
+    createLink: createLink({
+      portalLinkRepo: deps.portalLinkRepo,
+      events: deps.eventBus,
+      idGen: deps.linkIdGen,
+      clock: deps.clock,
+    }),
+    updateLink: updateLink({ portalLinkRepo: deps.portalLinkRepo, clock: deps.clock }),
+    deleteLink: deleteLink({ portalLinkRepo: deps.portalLinkRepo }),
+    reorderLinks: reorderLinks({ portalLinkRepo: deps.portalLinkRepo, events: deps.eventBus, clock: deps.clock }),
+    requestUploadUrl: requestUploadUrl({ portalRepo: deps.portalRepo, storage: deps.storage }),
+    finalizeUpload: finalizeUpload({ portalRepo: deps.portalRepo, storage: deps.storage, clock: deps.clock }),
   } as const
+}
+
+// ── Main container ─────────────────────────────────────────────────
+
+export function createContainer(options?: { enableJobs?: boolean }) {
+  const { enableJobs = false } = options ?? {}
+  const db = getDb()
+  const logger = getLogger()
+  const redis = getRedis()
+  const eventBus = createEventBus()
+
+  const infra = buildInfrastructure({ redis, enableJobs })
+  const identity = buildIdentityContext()
+  const property = buildPropertyContext({ db, eventBus })
+  const team = buildTeamContext({ db, propertyRepo: property.propertyRepo })
+  const staff = buildStaffContext({ db })
+  const portal = buildPortalContext({ db, propertyRepo: property.propertyRepo })
+
+  const useCases = buildUseCases({
+    ...identity,
+    ...property,
+    ...team,
+    ...staff,
+    ...portal,
+    eventBus,
+  })
 
   // ── Wire invitation acceptance hook ────────────────────────────
-  // When a member accepts an invitation, auto-create staff assignments
-  // for the properties specified in the invitation's propertyIds field.
   setOnAcceptInvitation(async ({ userId, organizationId, propertyIds }) => {
     const uid = toUserId(userId)
     const oid = toOrgId(organizationId)
@@ -251,7 +379,6 @@ export function createContainer(options?: { enableJobs?: boolean }) {
           { userId: uid, organizationId: oid, role: 'AccountAdmin' },
         )
       } catch {
-        // Assignment may already exist or property may not exist — non-fatal
         logger.warn(
           { userId, propertyId: pid },
           'Failed to auto-assign property on invitation acceptance',
@@ -265,11 +392,13 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     logger,
     redis,
     eventBus,
-    cache,
-    rateLimiter,
-    jobQueue,
-    jobRegistry,
+    cache: infra.cache,
+    rateLimiter: infra.rateLimiter,
+    jobQueue: infra.jobQueue,
+    jobRegistry: infra.jobRegistry,
     useCases,
+    storage: portal.storage,
+    portalRepo: portal.portalRepo,
   } as const
 }
 

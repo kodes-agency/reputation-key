@@ -26,6 +26,7 @@ type Props = Readonly<{
 	id: string;
 	placeholder?: string;
 	rows?: number;
+	disabled?: boolean;
 }>;
 
 export function FormTextarea({
@@ -34,6 +35,7 @@ export function FormTextarea({
 	id,
 	placeholder,
 	rows = 3,
+	disabled,
 }: Props) {
 	const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid;
 
@@ -49,6 +51,7 @@ export function FormTextarea({
 				aria-invalid={isInvalid}
 				placeholder={placeholder}
 				rows={rows}
+				disabled={disabled}
 			/>
 			{isInvalid && <FieldError errors={field.state.meta.errors} />}
 		</Field>

@@ -10,6 +10,7 @@ import { createHealthCheckHandler, JOB_NAME } from '#/shared/jobs/health-check.j
 import { isDbHealthy } from '#/shared/db'
 import { isRedisHealthy } from '#/shared/cache/redis'
 import { getLogger } from '#/shared/observability/logger'
+import { createProcessImageJob } from '#/contexts/portal/infrastructure/jobs/process-image.job'
 
 export function bootstrap(container: Container): void {
   const logger = getLogger()
@@ -27,6 +28,17 @@ export function bootstrap(container: Container): void {
     void (await healthCheckHandler(job))
   })
   logger.info({ job: JOB_NAME }, 'registered health-check job handler')
+
+  // ── Portal image processing job ──────────────────────────────────
+  const processImageHandler = createProcessImageJob({
+    storage: container.storage,
+    portalRepo: container.portalRepo,
+  })
+  container.jobRegistry.register('process-image', async (job) => {
+     
+    await processImageHandler(job as import('bullmq').Job<import('#/contexts/portal/infrastructure/jobs/process-image.job').ProcessImageJobData>)
+  })
+  logger.info({ job: 'process-image' }, 'registered process-image job handler')
 
   // ── Register event handlers here as contexts are added ────────────
   // Example:
