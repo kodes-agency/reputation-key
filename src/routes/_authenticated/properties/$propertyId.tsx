@@ -78,7 +78,9 @@ function PropertyLayout() {
 		? "staff"
 		: currentPath.endsWith("/teams")
 			? "teams"
-			: "overview";
+			: currentPath.includes("/portals")
+				? "portals"
+				: "overview";
 
 	return (
 		<div className="page-wrap px-4 pb-8 pt-14">
@@ -114,7 +116,15 @@ function PropertyLayout() {
 									Staff
 								</Link>
 							</TabsTrigger>
-						</TabsList>
+						<TabsTrigger value="portals" asChild>
+							<Link
+								to="/properties/$propertyId/portals"
+								params={{ propertyId }}
+							>
+								Portals
+							</Link>
+						</TabsTrigger>
+					</TabsList>
 					</Tabs>
 
 					<div className="mt-6">
