@@ -22,19 +22,12 @@ import {
   betterAuthOrganizationSchema,
   parseBetterAuthResponse,
 } from '#/contexts/identity/infrastructure/adapters/better-auth-schemas'
-import { inviteMember } from '#/contexts/identity/application/use-cases/invite-member'
-import { updateMemberRole } from '#/contexts/identity/application/use-cases/update-member-role'
-import { removeMember } from '#/contexts/identity/application/use-cases/remove-member'
-import { listInvitations } from '#/contexts/identity/application/use-cases/list-invitations'
-import { resendInvitation } from '#/contexts/identity/application/use-cases/resend-invitation'
-import { registerUserAndOrg } from '#/contexts/identity/application/use-cases/register-user-and-org'
-import { registerUser } from '#/contexts/identity/application/use-cases/register-user'
+import { buildIdentityContext } from '#/contexts/identity/build'
 import { getAuth, setOnAcceptInvitation } from '#/shared/auth/auth'
 import { sendInvitationEmail } from '#/shared/auth/emails'
 import { headersFromContext } from '#/shared/auth/headers'
 import { getEnv } from '#/shared/config/env'
 import type { Queue } from 'bullmq'
-import type { EventBus } from '#/shared/events/event-bus'
 import type { Redis } from 'ioredis'
 import { buildPropertyContext } from '#/contexts/property/build'
 import { createPropertyRepository } from '#/contexts/property/infrastructure/repositories/property.repository'
@@ -64,95 +57,42 @@ function buildInfrastructure(options: { redis: Redis | undefined; enableJobs: bo
   return { cache, rateLimiter, jobQueue, jobRegistry }
 }
 
-// ── Identity context ───────────────────────────────────────────────
+// ── Identity infrastructure helpers ────────────────────────────────
 
-function buildIdentityContext() {
-  const identityPort = createAuthIdentityAdapter()
-
-  const createOrg = async (
-    _headers: Headers,
-    name: string,
-    slug: string,
-    userId?: string,
-  ): Promise<string> => {
-    const auth = getAuth()
-    const org = await auth.api.createOrganization({
+function createOrg(
+  _headers: Headers,
+  name: string,
+  slug: string,
+  userId?: string,
+): Promise<string> {
+  const auth = getAuth()
+  return auth.api
+    .createOrganization({
       body: { name, slug, userId },
     })
-    const parsed = parseBetterAuthResponse(
-      betterAuthOrganizationSchema,
-      org,
-      'org_setup_failed',
-      'Invalid organization response from auth provider',
-    )
-    return parsed.id
-  }
-
-  const setActiveOrg = async (headers: Headers, orgId: string): Promise<void> => {
-    const auth = getAuth()
-    try {
-      await auth.api.setActiveOrganization({
-        headers,
-        body: { organizationId: orgId },
-      })
-    } catch {
-      // If headers don't carry a valid session (e.g., during registration
-      // where cookies aren't yet available), this is non-fatal — the user
-      // will set their active org on first login.
-    }
-  }
-
-  return { identityPort, createOrg, setActiveOrg }
+    .then((org) => {
+      const parsed = parseBetterAuthResponse(
+        betterAuthOrganizationSchema,
+        org,
+        'org_setup_failed',
+        'Invalid organization response from auth provider',
+      )
+      return parsed.id
+    })
 }
 
-// ── Use cases ──────────────────────────────────────────────────────
-
-function buildUseCases(deps: {
-  identityPort: ReturnType<typeof buildIdentityContext>['identityPort']
-  createOrg: ReturnType<typeof buildIdentityContext>['createOrg']
-  setActiveOrg: ReturnType<typeof buildIdentityContext>['setActiveOrg']
-  eventBus: EventBus
-  clock: () => Date
-}) {
-  return {
-    // Identity
-    inviteMember: inviteMember({
-      identity: deps.identityPort,
-      events: deps.eventBus,
-      clock: deps.clock,
-    }),
-    updateMemberRole: updateMemberRole({
-      identity: deps.identityPort,
-      events: deps.eventBus,
-      clock: deps.clock,
-    }),
-    removeMember: removeMember({
-      identity: deps.identityPort,
-      events: deps.eventBus,
-      clock: deps.clock,
-    }),
-    listInvitations: listInvitations({ identity: deps.identityPort }),
-    resendInvitation: resendInvitation({
-      identity: deps.identityPort,
-      sendEmail: sendInvitationEmail,
-      getOrganizationName: async (_ctx) => {
-        const auth = getAuth()
-        const headers = headersFromContext()
-        const org = await auth.api.getFullOrganization({ headers })
-        return org?.name ?? 'Unknown Organization'
-      },
-      baseUrl: getEnv().BETTER_AUTH_URL,
-    }),
-    registerUserAndOrg: registerUserAndOrg({
-      events: deps.eventBus,
-      signUp: deps.identityPort.signUp,
-      createOrg: deps.createOrg,
-      setActiveOrg: deps.setActiveOrg,
-      headers: headersFromContext,
-      clock: deps.clock,
-    }),
-    registerUser: registerUser({ identity: deps.identityPort }),
-  } as const
+async function setActiveOrg(headers: Headers, orgId: string): Promise<void> {
+  const auth = getAuth()
+  try {
+    await auth.api.setActiveOrganization({
+      headers,
+      body: { organizationId: orgId },
+    })
+  } catch {
+    // If headers don't carry a valid session (e.g., during registration
+    // where cookies aren't yet available), this is non-fatal — the user
+    // will set their active org on first login.
+  }
 }
 
 // ── Main container ─────────────────────────────────────────────────
@@ -164,21 +104,46 @@ export function createContainer(options?: { enableJobs?: boolean }) {
   const redis = getRedis()
   const eventBus = createEventBus()
   const clock = () => new Date()
+  const env = getEnv()
 
+  // Infrastructure
   const infra = buildInfrastructure({ redis, enableJobs })
-  const identity = buildIdentityContext()
-  const propertyRepo = createPropertyRepository(db)
+
+  // Identity port (adapter)
+  const identityPort = createAuthIdentityAdapter()
+
+  // ── Context builds (dependency order) ──────────────────────────────
   const staff = buildStaffContext({
     repo: createStaffAssignmentRepository(db),
     events: eventBus,
     clock,
   })
+
+  const identity = buildIdentityContext({
+    identityPort,
+    events: eventBus,
+    clock,
+    signUp: identityPort.signUp,
+    createOrg,
+    setActiveOrg,
+    headers: headersFromContext,
+    sendEmail: sendInvitationEmail,
+    getOrganizationName: async (_ctx) => {
+      const auth = getAuth()
+      const headers = headersFromContext()
+      const org = await auth.api.getFullOrganization({ headers })
+      return org?.name ?? 'Unknown Organization'
+    },
+    baseUrl: env.BETTER_AUTH_URL,
+  })
+
   const property = buildPropertyContext({
-    repo: propertyRepo,
+    repo: createPropertyRepository(db),
     events: eventBus,
     clock,
     staffPublicApi: staff.publicApi,
   })
+
   const team = buildTeamContext({
     db,
     events: eventBus,
@@ -186,6 +151,7 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     propertyApi: property.publicApi,
     staffApi: staff.publicApi,
   })
+
   const portal = buildPortalContext({
     db,
     events: eventBus,
@@ -193,13 +159,10 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     propertyApi: property.publicApi,
   })
 
-  const useCases = buildUseCases({
-    ...identity,
-    eventBus,
-    clock,
-  })
-
   // ── Wire invitation acceptance hook ────────────────────────────
+  // The hook creates staff assignments when a member accepts an invite.
+  // This is the only cross-context dependency: identity acceptance
+  // triggers staff creation. Identity context does NOT import staff.
   setOnAcceptInvitation(async ({ userId, organizationId, propertyIds }) => {
     const uid = toUserId(userId)
     const oid = toOrgId(organizationId)
@@ -231,7 +194,7 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     jobQueue: infra.jobQueue,
     jobRegistry: infra.jobRegistry,
     useCases: {
-      ...useCases,
+      ...identity.useCases,
       ...property.useCases,
       ...staff.useCases,
       ...team.useCases,
