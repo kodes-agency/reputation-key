@@ -48,8 +48,10 @@ TanStack Start (SSR + server functions + routing) on Railway Node. Drizzle + Neo
 ```
 src/
   contexts/<n>/
+    build.ts           context build function (wires repos, use cases, publicApi)
     domain/          types.ts, rules.ts, constructors.ts, events.ts, errors.ts (+ optional: compliance.ts, scoring.ts)
     application/
+      public-api.ts  typed cross-context query surface (only if other contexts query this one)
       ports/         repository and external-service interfaces
       dto/           Zod input/output schemas (forms derive from these)
       use-cases/     one file per user action
@@ -88,11 +90,11 @@ src/
 **Implemented:** `identity`, `property`, `team`, `staff`.
 **Planned (not yet built):** `portal`, `guest`, `review`, `metric`, `gamification`, `notification`, `ai`, `audit`.
 
-Each context owns its data, rules, events, errors, and public API. Contexts communicate via domain events. Cross-context type imports allowed for events only.
+Each context owns its data, rules, events, errors, and public API. Contexts communicate via domain events (async) and typed PublicApi surfaces (sync). Cross-context type imports allowed for events and PublicApi types only.
 
 Contexts vary in "thickness": thick contexts (`portal`, `review`, `metric`) own their tables and have their own domain logic; thin contexts (`identity`) primarily wrap a third-party library. Thin contexts will legitimately have empty layer folders (no mappers, no jobs, sparse use cases). That's expected.
 
-A context can import another context's _types_ and _events_ (these are the public API). A context **cannot** import another context's use cases, repositories, or internal domain functions. If you need another context's behavior, subscribe to an event, define a port, or reconsider the boundary.
+A context can import another context's _event types_ and _PublicApi types_ (`application/public-api.ts`). A context **cannot** import another context's use cases, repositories, or internal domain functions. Synchronous cross-context queries go through a PublicApi method injected as a dependency by the composition root (per ADR-0001).
 
 ---
 
@@ -168,7 +170,9 @@ See `docs/patterns.md` section 25 for a canonical form example (portal create fo
 | Tagged error                                     | `contexts/<ctx>/domain/errors.ts`                                                                                |
 | Use case (one user action)                       | `contexts/<ctx>/application/use-cases/<verb-noun>.ts`                                                            |
 | Repository or service interface                  | `contexts/<ctx>/application/ports/`                                                                              |
+| PublicApi type (cross-context query surface)     | `contexts/<ctx>/application/public-api.ts` (only if other contexts query this one)                               |
 | Zod schema for HTTP input (forms derive from it) | `contexts/<ctx>/application/dto/`                                                                                |
+| Context build function (wires repos + use cases) | `contexts/<ctx>/build.ts`                                                                                        |
 | Drizzle repository implementation                | `contexts/<ctx>/infrastructure/repositories/`                                                                    |
 | Row ↔ domain mapper                              | `contexts/<ctx>/infrastructure/mappers/`                                                                         |
 | External service adapter (R2, GBP, AI, ...)      | `contexts/<ctx>/infrastructure/<service>/`                                                                       |
@@ -348,16 +352,17 @@ Every business table includes: `id`, `organization_id`, `created_at`, `updated_a
 ## Dependency rules (enforced by lint)
 
 - `domain/` imports nothing outside `domain/` and `shared/domain/`.
-- `application/` imports from `domain/`, `shared/domain/`, `shared/events/`.
+- `application/` imports from `domain/`, `shared/domain/`, `shared/events/`, and may import **type-only** from another context's `application/public-api.ts` (per ADR-0001).
 - `infrastructure/` imports from `domain/`, `application/`, `shared/`, external libs.
 - `server/` imports from `application/` (use cases, dtos), `shared/`, TanStack Start.
 - `routes/` imports from `contexts/<ctx>/server/` (server functions only — not domain, application, infrastructure), `components/`, `shared/`.
 - `components/` imports from other `components/`, `shared/`, `contexts/<ctx>/application/dto/` (to derive form schemas). Never from domain, application (non-dto), infrastructure, or server.
 - `shared/` imports from itself and external libs only. **Exception:** `shared/events/events.ts` imports context event types (`domain/events.ts`) to build the master `DomainEvent` union — this is the only allowed cross-context type import in shared.
+- `contexts/<ctx>/build.ts` may import **type-only** from another context's `application/public-api.ts` to declare it as a dependency. It imports its own use cases, ports, and repositories by value.
 
 Forbidden:
 
-- `contexts/A/<non-server-non-dto>` from `contexts/B/*`
+- `contexts/A/<non-server-non-dto-non-public-api>` from `contexts/B/*` (exception: `contexts/A/application/public-api.ts` types are allowed in `contexts/B/application/` and `contexts/B/build.ts`)
 - `drizzle-orm` outside `infrastructure/`
 - React outside `routes/` and `components/`
 - Direct DB access in `routes/` or `components/`
@@ -433,6 +438,7 @@ These principles drive every architectural decision. When in doubt, return to th
 
 - No DI framework, no decorators, no auto-wiring
 - All dependencies visible in one file
+- Each context has a `build.ts` that wires its own repos, use cases, and optional PublicApi surface. The composition root calls these build functions in dependency order and passes PublicApi surfaces between contexts (per ADR-0001).
 - Easy to substitute parts in tests (build a test container with in-memory repos)
 - `bootstrap.ts` registers event handlers and job handlers separately from construction
 - The event bus is passed to every use case that emits events via the `events` dependency

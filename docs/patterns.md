@@ -66,6 +66,9 @@ The default for anything non-trivial is the full use case. The thin and direct p
 28. [Soft-delete use case (minimal deps)](#29-soft-delete-use-case-minimal-deps)
 29. [Form schema rules — when forms differ from DTOs](#30-form-schema-rules--when-forms-differ-from-dtos)
 30. [Route file (loader + useLoaderData + useServerFn)](#31-route-file-loader--useloaderdata--useserverfn)
+31. [PublicApi type definition](#32-publicapi-type-definition)
+32. [Context build.ts (build function)](#33-context-buildts-build-function)
+33. [Consuming a PublicApi in a use case](#34-consuming-a-publicapi-in-a-use-case)
 
 - [Choosing the right pattern](#choosing-the-right-pattern)
 - [How to use this document](#how-to-use-this-document)
@@ -2082,6 +2085,256 @@ function PropertyDetailPage() {
 - **Never use `useQuery` for route-scoped data** — route loaders provide SSR, caching, and preloading without an extra dependency
 - **`useServerFn` gives reactive state:** `isPending`, `error`, `data`, `status` — no manual `useState` needed
 - Server functions are imported from `contexts/<ctx>/server/` — dependency rules allow this in `routes/`
+
+---
+
+## 32. PublicApi type definition
+
+**Location:** `src/contexts/<ctx>/application/public-api.ts`
+**Purpose:** Define the typed interface that other contexts consume for synchronous cross-context queries. Per ADR-0001, this is the only surface a context exposes to other contexts.
+
+```ts
+// src/contexts/staff/application/public-api.ts
+import type { OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
+import type { Role } from '#/shared/domain/roles'
+
+export type StaffPublicApi = Readonly<{
+  /**
+   * Get property IDs accessible to a user based on their role and assignments.
+   * Returns null for AccountAdmin (meaning "all properties in org").
+   * Returns specific IDs for PropertyManager/Staff (from staff_assignments).
+   */
+  getAccessiblePropertyIds: (
+    orgId: OrganizationId,
+    userId: UserId,
+    role: Role,
+  ) => Promise<ReadonlyArray<PropertyId> | null>
+}>
+```
+
+```ts
+// src/contexts/property/application/public-api.ts
+import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
+
+export type PropertyPublicApi = Readonly<{
+  /**
+   * Check whether a property exists within an organization.
+   */
+  propertyExists: (orgId: OrganizationId, propertyId: PropertyId) => Promise<boolean>
+}>
+```
+
+**Key points:**
+
+- **File is optional.** Only create `public-api.ts` when another context needs to query this context synchronously. Contexts with no cross-context consumers (identity, portal) don't have one.
+- **Type-only file.** It exports a single `Readonly<>` type alias. No runtime code.
+- **Methods are async.** All PublicApi methods return Promises because the implementation will query a repository.
+- **Importable by other contexts.** The dependency rules allow `contexts/B/` to import types from `contexts/A/application/public-api.ts`.
+- **Named `<Context>PublicApi`.** The type name follows the `<Context>PublicApi` convention so the composition root can identify it easily.
+
+---
+
+## 33. Context build.ts (build function)
+
+**Location:** `src/contexts/<ctx>/build.ts`
+**Purpose:** Wire the context's repositories, use cases, and PublicApi surface. Per ADR-0001, the composition root calls this function and passes the resulting `publicApi` to downstream contexts.
+
+### Provider context (exposes a PublicApi)
+
+```ts
+// src/contexts/staff/build.ts
+import type { StaffAssignmentRepository } from './application/ports/staff-assignment.repository'
+import type { StaffPublicApi } from './application/public-api'
+import type { OrganizationId, UserId } from '#/shared/domain/ids'
+import type { Role } from '#/shared/domain/roles'
+import type { EventBus } from '#/shared/events/event-bus'
+import { createStaffAssignment } from './application/use-cases/create-staff-assignment'
+import { removeStaffAssignment } from './application/use-cases/remove-staff-assignment'
+import { listStaffAssignments } from './application/use-cases/list-staff-assignments'
+import { staffAssignmentId } from '#/shared/domain/ids'
+import { randomUUID } from 'crypto'
+
+type StaffContextDeps = Readonly<{
+  repo: StaffAssignmentRepository
+  events: EventBus
+  clock: () => Date
+}>
+
+export const buildStaffContext = (deps: StaffContextDeps) => {
+  const idGen = () => staffAssignmentId(randomUUID())
+
+  const useCases = {
+    createStaffAssignment: createStaffAssignment({
+      assignmentRepo: deps.repo,
+      events: deps.events,
+      idGen,
+      clock: deps.clock,
+    }),
+    removeStaffAssignment: removeStaffAssignment({
+      assignmentRepo: deps.repo,
+      events: deps.events,
+      clock: deps.clock,
+    }),
+    listStaffAssignments: listStaffAssignments({
+      assignmentRepo: deps.repo,
+    }),
+  } as const
+
+  const publicApi: StaffPublicApi = {
+    getAccessiblePropertyIds: async (
+      orgId: OrganizationId,
+      userId: UserId,
+      role: Role,
+    ) => {
+      if (role === 'AccountAdmin') return null
+      return deps.repo.getAccessiblePropertyIds(orgId, userId)
+    },
+  }
+
+  return { useCases, publicApi } as const
+}
+```
+
+### Provider that also consumes a PublicApi
+
+```ts
+// src/contexts/property/build.ts — consumes StaffPublicApi, exposes PropertyPublicApi
+import type { PropertyPublicApi } from './application/public-api'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+// ...other imports
+
+type PropertyContextDeps = Readonly<{
+  repo: PropertyRepository
+  events: EventBus
+  clock: () => Date
+  staffPublicApi: StaffPublicApi
+}>
+
+export const buildPropertyContext = (deps: PropertyContextDeps) => {
+  // ...useCases wire staffApi into listProperties
+
+  const publicApi: PropertyPublicApi = {
+    propertyExists: async (orgId, pid) => {
+      const p = await deps.repo.findById(orgId, pid)
+      return p !== null
+    },
+  }
+
+  return { useCases, publicApi } as const
+}
+```
+
+### Leaf context (consumes PublicApis, does not expose one)
+
+```ts
+// src/contexts/team/build.ts — leaf context, no publicApi in return
+import type { PropertyPublicApi } from '#/contexts/property/application/public-api'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+// ...other imports
+
+type TeamContextDeps = Readonly<{
+  db: Database
+  events: EventBus
+  clock: () => Date
+  propertyApi: PropertyPublicApi
+  staffApi: StaffPublicApi
+}>
+
+export const buildTeamContext = (deps: TeamContextDeps) => {
+  // ...useCases wire the apis as needed
+
+  return { useCases } as const // no publicApi — team is a leaf
+}
+```
+
+### Composition root assembly
+
+```ts
+// src/composition.ts — builds contexts in dependency order
+const staff = buildStaffContext({ repo, events, clock })
+
+const property = buildPropertyContext({
+  repo: createPropertyRepository(db),
+  events: eventBus,
+  clock,
+  staffPublicApi: staff.publicApi, // pass staff's publicApi to property
+})
+
+const team = buildTeamContext({
+  db,
+  events: eventBus,
+  clock,
+  propertyApi: property.publicApi, // pass property's publicApi to team
+  staffApi: staff.publicApi, // pass staff's publicApi to team
+})
+
+// Merge use cases into the container
+return {
+  useCases: {
+    ...identity.useCases,
+    ...property.useCases,
+    ...staff.useCases,
+    ...team.useCases,
+  },
+}
+```
+
+**Key points:**
+
+- **build.ts is the context's wiring boundary.** All dependency injection for the context happens here. Repositories, event bus, clock, and any PublicApis from upstream contexts are received as parameters.
+- **The deps type is `Readonly<{}>`** with explicit fields for every dependency. No optional dependencies — if a use case needs it, it's in the deps.
+- **PublicApi is built from the context's own repos.** The `publicApi` object implements the `PublicApi` type by delegating to repositories already in deps. It does not call use cases.
+- **Return shape is `{ useCases, publicApi }` or just `{ useCases }`.** Leaf contexts that no other context queries omit `publicApi`.
+- **Composition root builds in dependency order.** The DAG is: `staff` (no deps) -> `property` (needs staff) -> `team` (needs staff + property). Circular dependencies are structurally impossible because TypeScript won't let you pass a PublicApi that hasn't been constructed yet.
+- **One line per new context.** Adding a new context means adding its `buildXxxContext()` call to `composition.ts` in the right position. No other files change.
+
+---
+
+## 34. Consuming a PublicApi in a use case
+
+**Location:** `src/contexts/<consumer>/application/use-cases/<verb-noun>.ts`
+**Purpose:** Use another context's PublicApi as a dependency in a use case to query cross-context data.
+
+```ts
+// src/contexts/property/application/use-cases/list-properties.ts
+import type { PropertyRepository } from '../ports/property.repository'
+import type { Property } from '../../domain/types'
+import type { AuthContext } from '#/shared/domain/auth-context'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+
+export type ListPropertiesDeps = Readonly<{
+  propertyRepo: PropertyRepository
+  staffApi: StaffPublicApi
+}>
+
+export const listProperties =
+  (deps: ListPropertiesDeps) =>
+  async (ctx: AuthContext): Promise<ReadonlyArray<Property>> => {
+    const accessibleIds = await deps.staffApi.getAccessiblePropertyIds(
+      ctx.organizationId,
+      ctx.userId,
+      ctx.role,
+    )
+
+    // null means "all properties" (AccountAdmin)
+    if (accessibleIds === null) {
+      return deps.propertyRepo.list(ctx.organizationId)
+    }
+
+    // Filter to only accessible properties
+    const all = await deps.propertyRepo.list(ctx.organizationId)
+    const idSet = new Set(accessibleIds)
+    return all.filter((p) => idSet.has(p.id))
+  }
+```
+
+**Key points:**
+
+- **Import the type, not the implementation.** The use case imports `StaffPublicApi` from `#/contexts/staff/application/public-api` — a type-only file. It never touches staff's repositories or domain.
+- **PublicApi arrives via the deps object.** It's injected through the same factory-function pattern as repositories. The use case doesn't know (or care) how the PublicApi is implemented.
+- **Testable with a stub.** In tests, pass a plain object matching the PublicApi shape. No mocking library needed.
+- **This replaces shared-domain port types.** Previously, cross-context interfaces like `PropertyAccessProvider` lived in `shared/domain/`. Now each context owns its public surface, and consumers import only the type they need.
+- **build.ts passes it through.** The context's `build.ts` receives the PublicApi as a dep and forwards it to the use case. The use case never appears in `build.ts`'s import of the PublicApi type — only the `build.ts` file imports it.
 
 ---
 
