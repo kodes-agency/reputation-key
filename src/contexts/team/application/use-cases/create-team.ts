@@ -2,7 +2,7 @@
 // Full 7-step pattern: authorize → validate refs → check uniqueness → build → persist → emit → return
 
 import type { TeamRepository } from '../ports/team.repository'
-import type { PropertyExistsPort } from '../ports/property-exists.port'
+import type { PropertyPublicApi } from '#/contexts/property/application/public-api'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { Team, TeamId } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
@@ -16,7 +16,7 @@ import { teamCreated } from '../../domain/events'
 // fallow-ignore-next-line unused-type
 export type CreateTeamDeps = Readonly<{
   teamRepo: TeamRepository
-  propertyExists: PropertyExistsPort
+  propertyApi: PropertyPublicApi
   events: EventBus
   idGen: () => TeamId
   clock: () => Date
@@ -32,7 +32,7 @@ export const createTeam =
 
     // 2. Validate referenced entity — property must exist in this org
     const pid = toPropertyId(input.propertyId)
-    if (!(await deps.propertyExists.exists(ctx.organizationId, pid))) {
+    if (!(await deps.propertyApi.propertyExists(ctx.organizationId, pid))) {
       throw teamError(
         'property_not_found',
         'property does not exist in this organization',

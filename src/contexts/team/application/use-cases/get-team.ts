@@ -5,13 +5,13 @@ import type { TeamRepository } from '../ports/team.repository'
 import type { Team } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { TeamId } from '#/shared/domain/ids'
-import type { PropertyAccessProvider } from '#/shared/domain/property-access.port'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { teamError } from '../../domain/errors'
 
 // fallow-ignore-next-line unused-type
 export type GetTeamDeps = Readonly<{
   teamRepo: TeamRepository
-  propertyAccess: PropertyAccessProvider
+  staffApi: StaffPublicApi
 }>
 
 export const getTeam =
@@ -23,7 +23,7 @@ export const getTeam =
     }
 
     // Check property access for non-admin users
-    const accessibleIds = await deps.propertyAccess.getAccessiblePropertyIds(
+    const accessibleIds = await deps.staffApi.getAccessiblePropertyIds(
       ctx.organizationId,
       ctx.userId,
       ctx.role,

@@ -1,22 +1,22 @@
 // Property context — list properties use case
-// Uses PropertyAccessProvider to filter by user assignment.
+// Uses StaffPublicApi to filter by user assignment.
 // AccountAdmin sees all properties; PropertyManager/Staff see only assigned.
 
 import type { PropertyRepository } from '../ports/property.repository'
 import type { Property } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import type { PropertyAccessProvider } from '#/shared/domain/property-access.port'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 
 // fallow-ignore-next-line unused-type
 export type ListPropertiesDeps = Readonly<{
   propertyRepo: PropertyRepository
-  propertyAccess: PropertyAccessProvider
+  staffApi: StaffPublicApi
 }>
 
 export const listProperties =
   (deps: ListPropertiesDeps) =>
   async (ctx: AuthContext): Promise<ReadonlyArray<Property>> => {
-    const accessibleIds = await deps.propertyAccess.getAccessiblePropertyIds(
+    const accessibleIds = await deps.staffApi.getAccessiblePropertyIds(
       ctx.organizationId,
       ctx.userId,
       ctx.role,

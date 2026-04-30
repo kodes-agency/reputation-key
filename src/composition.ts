@@ -37,12 +37,9 @@ import type { Queue } from 'bullmq'
 import type { Database } from '#/shared/db'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { Redis } from 'ioredis'
+import { buildPropertyContext } from '#/contexts/property/build'
 import { createPropertyRepository } from '#/contexts/property/infrastructure/repositories/property.repository'
-import { createProperty } from '#/contexts/property/application/use-cases/create-property'
-import { updateProperty } from '#/contexts/property/application/use-cases/update-property'
-import { listProperties } from '#/contexts/property/application/use-cases/list-properties'
-import { getProperty } from '#/contexts/property/application/use-cases/get-property'
-import { softDeleteProperty } from '#/contexts/property/application/use-cases/soft-delete-property'
+import type { PropertyPublicApi } from '#/contexts/property/application/public-api'
 import { createTeamRepository } from '#/contexts/team/infrastructure/repositories/team.repository'
 import { createTeam } from '#/contexts/team/application/use-cases/create-team'
 import { updateTeam } from '#/contexts/team/application/use-cases/update-team'
@@ -60,7 +57,6 @@ import {
   userId as toUserId,
 } from '#/shared/domain/ids'
 import { randomUUID } from 'crypto'
-import type { PropertyAccessProvider } from '#/shared/domain/property-access.port'
 import { createPortalRepository } from '#/contexts/portal/infrastructure/repositories/portal.repository'
 import { createPortalLinkRepository } from '#/contexts/portal/infrastructure/repositories/portal-link.repository'
 import { createR2StorageAdapter } from '#/contexts/portal/infrastructure/adapters/r2-storage.adapter'
@@ -137,35 +133,13 @@ function buildIdentityContext() {
   return { identityPort, createOrg, setActiveOrg }
 }
 
-// ── Property context ───────────────────────────────────────────────
-
-function buildPropertyContext(deps: { db: Database; eventBus: EventBus }) {
-  const propertyRepo = createPropertyRepository(deps.db)
-  const idGen = () => propertyId(randomUUID())
-  const clock = () => new Date()
-  return { propertyRepo, idGen, clock }
-}
-
 // ── Team context ───────────────────────────────────────────────────
 
-function buildTeamContext(deps: {
-  db: Database
-  propertyRepo: ReturnType<typeof createPropertyRepository>
-}) {
+function buildTeamContext(deps: { db: Database; propertyApi: PropertyPublicApi }) {
   const teamRepo = createTeamRepository(deps.db)
   const teamIdGen = () => teamId(randomUUID())
 
-  const propertyExists = {
-    exists: async (
-      orgId: Parameters<typeof deps.propertyRepo.findById>[0],
-      pid: Parameters<typeof deps.propertyRepo.findById>[1],
-    ) => {
-      const p = await deps.propertyRepo.findById(orgId, pid)
-      return p !== null
-    },
-  }
-
-  return { teamRepo, teamIdGen, propertyExists }
+  return { teamRepo, teamIdGen }
 }
 
 // ── Portal context ─────────────────────────────────────────────────
@@ -202,32 +176,23 @@ function buildPortalContext(deps: {
 
 // ── Use cases ──────────────────────────────────────────────────────
 
-function buildUseCases(
-  deps: {
-    identityPort: ReturnType<typeof buildIdentityContext>['identityPort']
-    createOrg: ReturnType<typeof buildIdentityContext>['createOrg']
-    setActiveOrg: ReturnType<typeof buildIdentityContext>['setActiveOrg']
-    propertyRepo: ReturnType<typeof buildPropertyContext>['propertyRepo']
-    eventBus: EventBus
-    idGen: ReturnType<typeof buildPropertyContext>['idGen']
-    clock: ReturnType<typeof buildPropertyContext>['clock']
-    teamRepo: ReturnType<typeof buildTeamContext>['teamRepo']
-    teamIdGen: ReturnType<typeof buildTeamContext>['teamIdGen']
-    propertyExists: ReturnType<typeof buildTeamContext>['propertyExists']
-    portalRepo: ReturnType<typeof buildPortalContext>['portalRepo']
-    portalLinkRepo: ReturnType<typeof buildPortalContext>['portalLinkRepo']
-    storage: ReturnType<typeof buildPortalContext>['storage']
-    portalIdGen: ReturnType<typeof buildPortalContext>['portalIdGen']
-    linkIdGen: ReturnType<typeof buildPortalContext>['linkIdGen']
-    portalPropertyExists: ReturnType<typeof buildPortalContext>['portalPropertyExists']
-  },
-  staffPublicApi: StaffPublicApi,
-) {
-  const propertyAccess: PropertyAccessProvider = {
-    getAccessiblePropertyIds: (orgId, userId, role) =>
-      staffPublicApi.getAccessiblePropertyIds(orgId, userId, role),
-  }
-
+function buildUseCases(deps: {
+  identityPort: ReturnType<typeof buildIdentityContext>['identityPort']
+  createOrg: ReturnType<typeof buildIdentityContext>['createOrg']
+  setActiveOrg: ReturnType<typeof buildIdentityContext>['setActiveOrg']
+  eventBus: EventBus
+  clock: () => Date
+  teamRepo: ReturnType<typeof buildTeamContext>['teamRepo']
+  teamIdGen: ReturnType<typeof buildTeamContext>['teamIdGen']
+  propertyApi: PropertyPublicApi
+  staffApi: StaffPublicApi
+  portalRepo: ReturnType<typeof buildPortalContext>['portalRepo']
+  portalLinkRepo: ReturnType<typeof buildPortalContext>['portalLinkRepo']
+  storage: ReturnType<typeof buildPortalContext>['storage']
+  portalIdGen: ReturnType<typeof buildPortalContext>['portalIdGen']
+  linkIdGen: ReturnType<typeof buildPortalContext>['linkIdGen']
+  portalPropertyExists: ReturnType<typeof buildPortalContext>['portalPropertyExists']
+}) {
   return {
     // Identity
     inviteMember: inviteMember({
@@ -266,29 +231,10 @@ function buildUseCases(
       clock: deps.clock,
     }),
     registerUser: registerUser({ identity: deps.identityPort }),
-    // Property
-    createProperty: createProperty({
-      propertyRepo: deps.propertyRepo,
-      events: deps.eventBus,
-      idGen: deps.idGen,
-      clock: deps.clock,
-    }),
-    updateProperty: updateProperty({
-      propertyRepo: deps.propertyRepo,
-      events: deps.eventBus,
-      clock: deps.clock,
-    }),
-    listProperties: listProperties({ propertyRepo: deps.propertyRepo, propertyAccess }),
-    getProperty: getProperty({ propertyRepo: deps.propertyRepo }),
-    softDeleteProperty: softDeleteProperty({
-      propertyRepo: deps.propertyRepo,
-      events: deps.eventBus,
-      clock: deps.clock,
-    }),
     // Team
     createTeam: createTeam({
       teamRepo: deps.teamRepo,
-      propertyExists: deps.propertyExists,
+      propertyApi: deps.propertyApi,
       events: deps.eventBus,
       idGen: deps.teamIdGen,
       clock: deps.clock,
@@ -298,8 +244,8 @@ function buildUseCases(
       events: deps.eventBus,
       clock: deps.clock,
     }),
-    listTeams: listTeams({ teamRepo: deps.teamRepo, propertyAccess }),
-    getTeam: getTeam({ teamRepo: deps.teamRepo, propertyAccess }),
+    listTeams: listTeams({ teamRepo: deps.teamRepo, staffApi: deps.staffApi }),
+    getTeam: getTeam({ teamRepo: deps.teamRepo, staffApi: deps.staffApi }),
     softDeleteTeam: softDeleteTeam({
       teamRepo: deps.teamRepo,
       events: deps.eventBus,
@@ -375,29 +321,40 @@ export function createContainer(options?: { enableJobs?: boolean }) {
   const logger = getLogger()
   const redis = getRedis()
   const eventBus = createEventBus()
+  const clock = () => new Date()
 
   const infra = buildInfrastructure({ redis, enableJobs })
   const identity = buildIdentityContext()
-  const property = buildPropertyContext({ db, eventBus })
-  const clock = () => new Date()
+  const propertyRepo = createPropertyRepository(db)
   const staff = buildStaffContext({
     repo: createStaffAssignmentRepository(db),
     events: eventBus,
     clock,
   })
-  const team = buildTeamContext({ db, propertyRepo: property.propertyRepo })
-  const portal = buildPortalContext({ db, propertyRepo: property.propertyRepo })
+  const property = buildPropertyContext({
+    repo: propertyRepo,
+    events: eventBus,
+    clock,
+    staffPublicApi: staff.publicApi,
+  })
+  const team = buildTeamContext({ db, propertyApi: property.publicApi })
+  const portal = buildPortalContext({ db, propertyRepo })
 
-  const useCases = buildUseCases(
-    {
-      ...identity,
-      ...property,
-      ...team,
-      ...portal,
-      eventBus,
-    },
-    staff.publicApi,
-  )
+  const useCases = buildUseCases({
+    ...identity,
+    eventBus,
+    clock,
+    teamRepo: team.teamRepo,
+    teamIdGen: team.teamIdGen,
+    propertyApi: property.publicApi,
+    staffApi: staff.publicApi,
+    portalRepo: portal.portalRepo,
+    portalLinkRepo: portal.portalLinkRepo,
+    storage: portal.storage,
+    portalIdGen: portal.portalIdGen,
+    linkIdGen: portal.linkIdGen,
+    portalPropertyExists: portal.portalPropertyExists,
+  })
 
   // ── Wire invitation acceptance hook ────────────────────────────
   setOnAcceptInvitation(async ({ userId, organizationId, propertyIds }) => {
@@ -432,6 +389,7 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     jobRegistry: infra.jobRegistry,
     useCases: {
       ...useCases,
+      ...property.useCases,
       ...staff.useCases,
     },
     storage: portal.storage,

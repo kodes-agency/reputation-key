@@ -6,27 +6,25 @@ import { getTeam } from './get-team'
 import { createInMemoryTeamRepo } from '#/shared/testing/in-memory-team-repo'
 import { buildTestAuthContext, buildTestTeam } from '#/shared/testing/fixtures'
 import { isTeamError } from '../../domain/errors'
-import type { PropertyAccessProvider } from '#/shared/domain/property-access.port'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { PropertyId } from '#/shared/domain/ids'
 
-const createAccessProvider = (
-  accessibleIds: PropertyId[] | null,
-): PropertyAccessProvider => ({
+const createStaffApi = (accessibleIds: PropertyId[] | null): StaffPublicApi => ({
   getAccessiblePropertyIds: async () => accessibleIds,
 })
 
-const setup = (accessProvider?: PropertyAccessProvider) => {
+const setup = (staffApi?: StaffPublicApi) => {
   const teamRepo = createInMemoryTeamRepo()
-  const propertyAccess = accessProvider ?? createAccessProvider(null) // null = AccountAdmin (all access)
+  const api = staffApi ?? createStaffApi(null) // null = AccountAdmin (all access)
 
-  const deps = { teamRepo, propertyAccess }
+  const deps = { teamRepo, staffApi: api }
   const useCase = getTeam(deps)
   return { useCase, teamRepo }
 }
 
 describe('getTeam', () => {
   it('returns team for AccountAdmin (all properties accessible)', async () => {
-    const { useCase, teamRepo } = setup(createAccessProvider(null))
+    const { useCase, teamRepo } = setup(createStaffApi(null))
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
     const team = buildTestTeam({ organizationId: ctx.organizationId })
     teamRepo.seed([team])
@@ -38,7 +36,7 @@ describe('getTeam', () => {
 
   it('returns team when user has access to the property', async () => {
     const team = buildTestTeam()
-    const accessProvider = createAccessProvider([team.propertyId])
+    const accessProvider = createStaffApi([team.propertyId])
     const { useCase, teamRepo } = setup(accessProvider)
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
     const orgTeam = buildTestTeam({
@@ -52,7 +50,7 @@ describe('getTeam', () => {
   })
 
   it('throws team_not_found when user lacks property access', async () => {
-    const accessProvider = createAccessProvider([]) // no properties accessible
+    const accessProvider = createStaffApi([]) // no properties accessible
     const { useCase, teamRepo } = setup(accessProvider)
     const ctx = buildTestAuthContext({ role: 'Staff' })
     const team = buildTestTeam({ organizationId: ctx.organizationId })
