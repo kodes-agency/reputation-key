@@ -12,7 +12,6 @@ import type { Role } from '#/shared/domain/roles'
 import { SidebarProvider, SidebarInset } from '#/components/ui/sidebar'
 import { AppSidebar } from '#/components/layout/AppSidebar'
 import { AppTopBar } from '#/components/layout/AppTopBar'
-import { DebugBar } from '#/components/debug/DebugBar'
 
 export type AuthRouteContext = Readonly<{
   user: {
@@ -114,7 +113,6 @@ function AuthenticatedLayout() {
           <Outlet />
         </main>
       </SidebarInset>
-      <DebugBar />
     </SidebarProvider>
   )
 }
