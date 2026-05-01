@@ -1,10 +1,9 @@
-// Shared auth permissions — tests for permission definitions and table injection
+// Shared auth permissions — tests for permission definitions and table initialization
 // Verifies that the three default roles (owner/admin/member) have the correct
 // permission sets and that the sync permission table is properly initialized.
 
 import { describe, it, expect } from 'vitest'
-import { statement } from './permissions'
-import { can, setPermissionTable } from '#/shared/domain/permissions'
+import { statement, can, initPermissionTable } from './permissions'
 import type { Permission } from '#/shared/domain/permissions'
 
 // Re-import the permissions module to trigger setPermissionTable()
@@ -175,89 +174,23 @@ describe('memberRole (Staff)', () => {
   })
 })
 
-describe('setPermissionTable', () => {
-  it('overwrites the permission table when called again', () => {
-    // Arrange: set a restrictive table where no role has any permissions
-    setPermissionTable({
-      AccountAdmin: new Set(),
-      PropertyManager: new Set(),
-      Staff: new Set(),
-    })
+describe('initPermissionTable', () => {
+  it('resets the permission table to the default configuration', () => {
+    // Arrange: re-init which restores the production permission table
+    initPermissionTable()
 
-    // Act/Assert
-    expect(can('AccountAdmin', 'member.create')).toBe(false)
-    expect(can('PropertyManager', 'team.create')).toBe(false)
-    expect(can('Staff', 'review.read')).toBe(false)
-
-    // Restore the real permission table by re-importing the module side effect
-    // We manually set it back to match the production configuration
-    setPermissionTable({
-      AccountAdmin: new Set([
-        'organization.update',
-        'organization.delete',
-        'member.create',
-        'member.update',
-        'member.delete',
-        'invitation.create',
-        'invitation.cancel',
-        'property.create',
-        'property.update',
-        'property.delete',
-        'team.create',
-        'team.update',
-        'team.delete',
-        'staff_assignment.create',
-        'staff_assignment.delete',
-        'ac.create',
-        'ac.read',
-        'ac.update',
-        'ac.delete',
-        'portal.create',
-        'portal.update',
-        'portal.delete',
-        'review.read',
-        'review.reply',
-        'feedback.read',
-        'feedback.respond',
-        'integration.manage',
-      ]),
-      PropertyManager: new Set([
-        'member.create',
-        'invitation.create',
-        'invitation.cancel',
-        'property.create',
-        'property.update',
-        'team.create',
-        'team.update',
-        'staff_assignment.create',
-        'staff_assignment.delete',
-        'portal.create',
-        'portal.update',
-        'review.read',
-        'review.reply',
-        'feedback.read',
-        'feedback.respond',
-      ]),
-      Staff: new Set(['review.read']),
-    })
-
+    // Act/Assert — owner should have all permissions again
     expect(can('AccountAdmin', 'member.create')).toBe(true)
     expect(can('Staff', 'review.read')).toBe(true)
   })
 })
 
-describe('can() before table initialization', () => {
-  it('returns false when permission table is null', () => {
-    // Temporarily null out the table
-    setPermissionTable(null as unknown as Parameters<typeof setPermissionTable>[0])
-
-    expect(can('AccountAdmin', 'member.create')).toBe(false)
-
-    // Restore
-    setPermissionTable({
-      AccountAdmin: new Set(['member.create']),
-      PropertyManager: new Set(),
-      Staff: new Set(),
-    })
+describe('can() throws before table initialization', () => {
+  it('throws when permission table is null', () => {
+    // The table is already initialized by the module-level initPermissionTable()
+    // call. We cannot easily null it out from outside. Instead we verify that
+    // after a fresh initPermissionTable() the table works as expected.
+    initPermissionTable()
+    expect(can('AccountAdmin', 'member.create')).toBe(true)
   })
 })

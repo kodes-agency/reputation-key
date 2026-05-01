@@ -1,13 +1,8 @@
-// Sync permission check — pure function, no framework dependencies.
-// Used by use cases (application layer) and server functions.
-//
-// The permission data (which role has which actions) is defined in
-// shared/auth/permissions.ts using better-auth's createAccessControl.
-// This file holds only the pure lookup function and the Permission type,
-// so application-layer code can import it without depending on better-auth.
-//
-// The permission table is injected at startup via setPermissionTable(),
-// called from shared/auth/permissions.ts which owns the AC definitions.
+// Permission type and sync permission check — no mutable permission data.
+// The permission table and its initialization live in shared/auth/permissions.ts.
+// This file holds the Permission type and a can() function that delegates to
+// an injected lookup, so application-layer code can import from shared/domain
+// (which the boundary rules allow) without depending on better-auth.
 
 import type { Role } from './roles'
 
@@ -46,22 +41,27 @@ export type Permission =
   | 'feedback.respond'
   | 'integration.manage'
 
-// ── Permission table (injected from shared/auth/permissions.ts) ────
+// ── Injected permission lookup ─────────────────────────────────────
+// The actual permission table lives in shared/auth/permissions.ts.
+// It injects the lookup function at startup via setPermissionLookup().
+// This keeps this file free of mutable permission data.
 
-type PermissionTable = Record<Role, ReadonlySet<string>>
+type PermissionLookup = (role: Role, permission: Permission) => boolean
 
-let _table: PermissionTable | null = null
+let _lookup: PermissionLookup | null = null
 
 /** Called once at startup by shared/auth/permissions.ts */
-export function setPermissionTable(table: PermissionTable): void {
-  _table = table
+export function setPermissionLookup(lookup: PermissionLookup): void {
+  _lookup = lookup
 }
 
 // ── Sync permission check ─────────────────────────────────────────
 // Pure, synchronous, nanosecond-cost. Used by use cases and server functions.
-// Returns false if the permission table hasn't been initialized (shouldn't happen in practice).
+// Throws if the permission table hasn't been initialized.
 
 export function can(role: Role, permission: Permission): boolean {
-  if (!_table) return false
-  return _table[role]?.has(permission) ?? false
+  if (!_lookup) {
+    throw new Error('Permission table not initialized — call initPermissionTable() first')
+  }
+  return _lookup(role, permission)
 }
