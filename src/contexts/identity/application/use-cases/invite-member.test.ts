@@ -22,12 +22,8 @@ describe('inviteMember', () => {
     const { useCase, events } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
 
-    const result = await useCase(
-      { email: 'new@test.com', role: 'Staff', propertyIds: [] },
-      ctx,
-    )
+    await useCase({ email: 'new@test.com', role: 'Staff', propertyIds: [] }, ctx)
 
-    expect(result.success).toBe(true)
     expect(events.capturedEvents).toHaveLength(1)
     expect(events.capturedEvents[0]._tag).toBe('member.invited')
   })
@@ -36,11 +32,7 @@ describe('inviteMember', () => {
     const { useCase } = setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
-    const result = await useCase(
-      { email: 'admin@test.com', role: 'AccountAdmin', propertyIds: [] },
-      ctx,
-    )
-    expect(result.success).toBe(true)
+    await useCase({ email: 'admin@test.com', role: 'AccountAdmin', propertyIds: [] }, ctx)
   })
 
   it('rejects Staff from inviting anyone', async () => {

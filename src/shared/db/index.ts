@@ -17,6 +17,11 @@ export function getDb() {
 
 export type Database = ReturnType<typeof getDb>
 
+/**
+ * Health check uses raw SQL (not Drizzle) because Drizzle's query builder
+ * doesn't provide a lightweight "ping" API. SELECT 1 via the shared pool
+ * is the standard Postgres liveness check.
+ */
 export async function isDbHealthy(): Promise<boolean> {
   try {
     const pool = getPool()

@@ -73,12 +73,18 @@ export function createInMemoryIdentityPort(): InMemoryIdentityPort {
       return id
     },
 
-    async acceptInvitation(_invitationId: string, _headers: Headers): Promise<void> {
-      // Test fake — no-op
+    async acceptInvitation(invitationId: string, _headers: Headers): Promise<void> {
+      const inv = invitations.get(invitationId)
+      if (inv) {
+        invitations.set(invitationId, { ...inv, status: 'accepted' })
+      }
     },
 
-    async rejectInvitation(_invitationId: string, _headers: Headers): Promise<void> {
-      // Test fake — no-op
+    async rejectInvitation(invitationId: string, _headers: Headers): Promise<void> {
+      const inv = invitations.get(invitationId)
+      if (inv) {
+        invitations.set(invitationId, { ...inv, status: 'rejected' })
+      }
     },
 
     async listInvitations(_ctx: AuthContext): Promise<ReadonlyArray<InvitationRecord>> {

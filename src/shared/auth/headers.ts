@@ -10,7 +10,7 @@ export function headersFromContext(): Headers {
   const req = getRequest()
   if (req) {
     req.headers.forEach((value: string, key: string) => {
-      headers.set(key, value)
+      headers.append(key, value)
     })
   }
   return headers

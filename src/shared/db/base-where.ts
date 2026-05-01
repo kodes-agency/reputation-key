@@ -9,18 +9,18 @@
 // Drizzle's PgColumn has table-specific metadata that varies per schema, but the
 // structural constraint prevents passing a table that lacks these columns.
 
-import { eq, isNull, type SQL } from 'drizzle-orm'
+import { eq, isNull, type SQL, type Column } from 'drizzle-orm'
 import type { OrganizationId } from '#/shared/domain/ids'
 
 /**
  * Structural constraint: any Drizzle table with `organizationId` and `deletedAt` columns.
- * We check for existence of these properties rather than exact column types,
- * because Drizzle generates PgColumn subtypes with per-table metadata
- * (tableName, notNull, hasDefault, etc.) that vary per schema definition.
+ * Requires Drizzle Column instances (not just any value) so that plain objects or
+ * string properties are rejected at compile time. The `as` casts in `baseWhere` are
+ * still needed because Drizzle's PgColumn carries table-specific metadata.
  */
 type TenantTable = {
-  organizationId: unknown
-  deletedAt: unknown
+  organizationId: Column
+  deletedAt: Column
 }
 
 /**

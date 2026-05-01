@@ -158,4 +158,49 @@ describe('listTeams', () => {
     expect(result).toHaveLength(1)
     expect(result[0].id as string).toBe('t-2')
   })
+
+  it('excludes soft-deleted teams', async () => {
+    // Arrange
+    const { teamRepo, responses, useCase } = setup()
+    teamRepo.seed([
+      makeTeam({ id: 't-active', propertyId: 'prop-1' }),
+      makeTeam({
+        id: 't-deleted',
+        propertyId: 'prop-1',
+        deletedAt: new Date('2026-04-20T12:00:00Z'),
+      }),
+    ])
+    responses.set('AccountAdmin', null)
+
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+
+    // Act
+    const result = await useCase({ propertyId: propertyId('prop-1') }, ctx)
+
+    // Assert
+    expect(result).toHaveLength(1)
+    expect(result[0].id as string).toBe('t-active')
+  })
+
+  it('does not return teams from other organizations', async () => {
+    // Arrange
+    const { teamRepo, responses, useCase } = setup()
+    const otherOrgId = organizationId('org-99999999-0000-0000-0000-000000000001')
+    const ownTeam = makeTeam({ id: 't-own', propertyId: 'prop-1' })
+    const otherOrgTeam: Team = {
+      ...makeTeam({ id: 't-other', propertyId: 'prop-1' }),
+      organizationId: otherOrgId,
+    }
+    teamRepo.seed([ownTeam, otherOrgTeam])
+    responses.set('AccountAdmin', null)
+
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+
+    // Act
+    const result = await useCase({ propertyId: propertyId('prop-1') }, ctx)
+
+    // Assert
+    expect(result).toHaveLength(1)
+    expect(result[0].id as string).toBe('t-own')
+  })
 })

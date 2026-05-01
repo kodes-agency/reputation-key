@@ -12,6 +12,11 @@ export type { Job }
 // fallow-ignore-next-line unused-type
 export type { JobHandler }
 
+/**
+ * Create a BullMQ worker for the given queue name.
+ * Returns undefined if Redis is not configured (REDIS_URL missing).
+ * Callers MUST check for undefined before using the worker.
+ */
 export function createJobWorker<T>(
   name: string,
   handler: JobHandler<T>,

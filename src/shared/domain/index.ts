@@ -1,27 +1,44 @@
 // Shared domain barrel — re-exports all shared domain utilities
 // Contexts import from here, never from the individual files directly.
 
+// ── Branded IDs ───────────────────────────────────────────────────
 export type {
-  // fallow-ignore-next-line unused-type
   OrganizationId,
-  // fallow-ignore-next-line unused-type
   UserId,
-  // fallow-ignore-next-line unused-type
   PropertyId,
-  // fallow-ignore-next-line unused-type
+  PortalId,
   TeamId,
+  StaffAssignmentId,
+  PortalLinkCategoryId,
+  PortalLinkId,
 } from './ids'
 
+// ── ID constructors ───────────────────────────────────────────────
+export {
+  organizationId,
+  userId,
+  propertyId,
+  portalId,
+  teamId,
+  staffAssignmentId,
+  portalLinkCategoryId,
+  portalLinkId,
+} from './ids'
+
+// ── Core types ────────────────────────────────────────────────────
 export type { Result } from './result'
 export { ok, err } from './result'
 
-// fallow-ignore-next-line unused-type
 export type { TaggedError } from './errors'
-// fallow-ignore-next-line unused-type
+export { createErrorFactory } from './errors'
+
 export type { Clock } from './clock'
-// fallow-ignore-next-line unused-type
 export type { AuthContext } from './auth-context'
-// fallow-ignore-next-line unused-type
+
+// ── Roles & permissions ───────────────────────────────────────────
 export type { Role } from './roles'
-// fallow-ignore-next-line unused-type
-export type { BetterAuthRole } from './roles'
+export { hasRole, ROLE_HIERARCHY, toDomainRole, toBetterAuthRole } from './roles'
+export type { Permission } from './permissions'
+
+// ── Timezones ─────────────────────────────────────────────────────
+export { VALID_TIMEZONES } from './timezones'
