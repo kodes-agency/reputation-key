@@ -4,7 +4,7 @@
 
 import { useForm } from '@tanstack/react-form'
 import { z } from 'zod/v4'
-import { FieldGroup } from '#/components/ui/field'
+import { Field, FieldLabel, FieldGroup } from '#/components/ui/field'
 import { SubmitButton } from '#/components/forms/SubmitButton'
 import { FormErrorBanner } from '#/components/forms/FormErrorBanner'
 import { FormTextField } from '#/components/forms/FormTextField'
@@ -12,11 +12,23 @@ import { FormTextarea } from '#/components/forms/FormTextarea'
 import type { BaseFieldApi } from '#/components/forms/FormTextField'
 import type { BaseFieldApiTextarea } from '#/components/forms/FormTextarea'
 import type { Action } from '#/components/hooks/use-action'
+import {
+  ColorPicker,
+  ColorPickerArea,
+  ColorPickerContent,
+  ColorPickerEyeDropper,
+  ColorPickerFormatSelect,
+  ColorPickerHueSlider,
+  ColorPickerInput,
+  ColorPickerSwatch,
+  ColorPickerTrigger,
+} from '#/components/ui/color-picker'
 
 const createFormSchema = z.object({
   name: z.string().min(1, 'Name is required').max(100),
   slug: z.string().max(64, 'Slug must be at most 64 characters'),
   description: z.string().max(500, 'Description must be at most 500 characters'),
+  primaryColor: z.string().min(1, 'Color is required'),
 })
 
 type FormValues = z.infer<typeof createFormSchema>
@@ -41,6 +53,7 @@ export function CreatePortalForm({ propertyId, mutation }: Props) {
       name: '',
       slug: '',
       description: '',
+      primaryColor: '#6366f1',
     } satisfies FormValues,
     validators: {
       onSubmit: createFormSchema,
@@ -51,6 +64,7 @@ export function CreatePortalForm({ propertyId, mutation }: Props) {
         slug: value.slug || undefined,
         description: value.description || undefined,
         propertyId,
+        theme: { primaryColor: value.primaryColor },
       }
       await mutation({ data })
     },
@@ -100,6 +114,37 @@ export function CreatePortalForm({ propertyId, mutation }: Props) {
               rows={3}
             />
           )}
+        </form.Field>
+
+        <form.Field name="primaryColor">
+          {(field) => {
+            const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid
+            return (
+              <Field data-invalid={isInvalid}>
+                <FieldLabel htmlFor="portal-primary-color">Primary Color</FieldLabel>
+                <ColorPicker
+                  value={field.state.value}
+                  onValueChange={(value) => field.handleChange(value)}
+                  name="primaryColor"
+                >
+                  <div className="flex items-center gap-2">
+                    <ColorPickerTrigger>
+                      <ColorPickerSwatch />
+                    </ColorPickerTrigger>
+                    <ColorPickerContent>
+                      <ColorPickerArea />
+                      <ColorPickerHueSlider />
+                      <div className="flex items-center gap-2">
+                        <ColorPickerInput withoutAlpha />
+                        <ColorPickerFormatSelect />
+                        <ColorPickerEyeDropper />
+                      </div>
+                    </ColorPickerContent>
+                  </div>
+                </ColorPicker>
+              </Field>
+            )
+          }}
         </form.Field>
       </FieldGroup>
 
