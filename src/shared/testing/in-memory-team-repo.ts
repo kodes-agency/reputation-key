@@ -21,7 +21,7 @@ export const createInMemoryTeamRepo = (): InMemoryTeamRepo => {
 
   return {
     findById: async (orgId, id) => {
-      const team = store.get(id as string)
+      const team = store.get(String(id))
       return team && isAccessible(orgId, team) ? team : null
     },
 
@@ -40,32 +40,29 @@ export const createInMemoryTeamRepo = (): InMemoryTeamRepo => {
       ),
 
     insert: async (_orgId, team) => {
-      store.set(team.id as string, team)
+      store.set(String(team.id), team)
     },
 
     update: async (orgId, id, patch) => {
-      const existing = store.get(id as string)
+      const existing = store.get(String(id))
       if (!existing || !isAccessible(orgId, existing)) return
-      store.set(id as string, { ...existing, ...patch } as Team)
+      store.set(String(id), { ...existing, ...patch } as Team)
     },
 
     softDelete: async (orgId, id) => {
-      const existing = store.get(id as string)
+      const existing = store.get(String(id))
       if (!existing || !isAccessible(orgId, existing)) return
-      store.set(
-        id as string,
-        {
-          ...existing,
-          deletedAt: new Date(),
-          updatedAt: new Date(),
-        } as Team,
-      )
+      store.set(String(id), {
+        ...existing,
+        deletedAt: new Date(),
+        updatedAt: new Date(),
+      } as Team)
     },
 
     // ── Test-only helpers ───────────────────────────────────────────
 
     seed: (teams) => {
-      for (const t of teams) store.set(t.id as string, t)
+      for (const t of teams) store.set(String(t.id), t)
     },
 
     all: () => [...store.values()],

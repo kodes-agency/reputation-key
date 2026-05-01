@@ -19,7 +19,7 @@ export const createInMemoryStaffAssignmentRepo = (): InMemoryStaffAssignmentRepo
 
   return {
     findById: async (orgId, id) => {
-      const a = store.get(id as string)
+      const a = store.get(String(id))
       return a && isAccessible(orgId, a) ? a : null
     },
 
@@ -44,20 +44,17 @@ export const createInMemoryStaffAssignmentRepo = (): InMemoryStaffAssignmentRepo
       ),
 
     insert: async (_orgId, assignment) => {
-      store.set(assignment.id as string, assignment)
+      store.set(String(assignment.id), assignment)
     },
 
     softDelete: async (orgId, id) => {
-      const existing = store.get(id as string)
+      const existing = store.get(String(id))
       if (!existing || !isAccessible(orgId, existing)) return
-      store.set(
-        id as string,
-        {
-          ...existing,
-          deletedAt: new Date(),
-          updatedAt: new Date(),
-        } as StaffAssignment,
-      )
+      store.set(String(id), {
+        ...existing,
+        deletedAt: new Date(),
+        updatedAt: new Date(),
+      } as StaffAssignment)
     },
 
     getAccessiblePropertyIds: async (orgId, userId) => {
@@ -72,7 +69,7 @@ export const createInMemoryStaffAssignmentRepo = (): InMemoryStaffAssignmentRepo
     },
 
     seed: (assignments) => {
-      for (const a of assignments) store.set(a.id as string, a)
+      for (const a of assignments) store.set(String(a.id), a)
     },
 
     all: () => [...store.values()],
