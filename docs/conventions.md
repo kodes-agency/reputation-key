@@ -61,9 +61,9 @@ src/
       <service>/     external service adapters (storage, ai, gbp, ...)
     server/          TanStack Start server functions
   shared/
-    domain/          brand, ids, result, pattern, errors, clock, auth-context, roles (Role type and hierarchy), permissions (Permission type and sync can() check), property-access.port (cross-context port), timezones
+    domain/          brand, ids, result, pattern, errors, clock, auth-context, roles (Role type and hierarchy), permissions (Permission type and sync can() check), timezones
     events/          event bus, master event union
-    db/              index.ts (Drizzle client factory + isDbHealthy), pool.ts (shared pg Pool), columns.ts (common Drizzle column helpers), schema/ (index.ts barrel, auth.ts, property.schema.ts, team.schema.ts, staff-assignment.schema.ts, audit.ts), migrations
+    db/              index.ts (Drizzle client factory + isDbHealthy), pool.ts (shared pg Pool), columns.ts (common Drizzle column helpers), schema/ (index.ts barrel, auth.ts, property.schema.ts, team.schema.ts, staff-assignment.schema.ts, portal.schema.ts, audit.ts), migrations
     auth/            better-auth config (auth.ts), auth-client.ts, headers.ts, middleware.ts (resolveTenantContext), permissions.ts (access control statement), auth.functions.ts (server-side session helpers), emails.ts (email sending via Resend), server-errors.ts (shared throwContextError), auth-cli.ts (CLI config)
     jobs/            queue, worker, registry
     cache/           redis client, cache port + impl
@@ -85,8 +85,8 @@ src/
 
 ## Bounded contexts
 
-**Implemented:** `identity`, `property`, `team`, `staff`.
-**Planned (not yet built):** `portal`, `guest`, `review`, `metric`, `gamification`, `notification`, `ai`, `audit`.
+**Implemented:** `identity`, `property`, `team`, `staff`, `portal`.
+**Planned (not yet built):** `guest`, `review`, `metric`, `gamification`, `notification`, `ai`, `audit`.
 
 Each context owns its data, rules, events, errors, and public API. Contexts communicate via domain events. Cross-context type imports allowed for events only.
 
@@ -350,10 +350,10 @@ Every business table includes: `id`, `organization_id`, `created_at`, `updated_a
 - `domain/` imports nothing outside `domain/` and `shared/domain/`.
 - `application/` imports from `domain/`, `shared/domain/`, `shared/events/`.
 - `infrastructure/` imports from `domain/`, `application/`, `shared/`, external libs.
-- `server/` imports from `application/` (use cases, dtos), `shared/`, TanStack Start.
+- `server/` imports from `application/` (use cases, dtos), `shared/`, TanStack Start. `server/` may import error type guards (`isXxxError`) and error code types from its own context's `domain/errors.ts`. This is the only permitted server-to-domain import path, since the server boundary is where domain errors are caught and mapped to HTTP responses.
 - `routes/` imports from `contexts/<ctx>/server/` (server functions only — not domain, application, infrastructure), `components/`, `shared/`.
 - `components/` imports from other `components/`, `shared/`, `contexts/<ctx>/application/dto/` (to derive form schemas). Never from domain, application (non-dto), infrastructure, or server.
-- `shared/` imports from itself and external libs only. **Exception:** `shared/events/events.ts` imports context event types (`domain/events.ts`) to build the master `DomainEvent` union — this is the only allowed cross-context type import in shared.
+- `shared/` imports from itself and external libs only. **Exception:** `shared/events/events.ts` imports context event types (`domain/events.ts`) to build the master `DomainEvent` union — this is the only allowed cross-context type import in shared. `shared/testing/` may import types from `contexts/` to implement test doubles (in-memory repos, fakes). This is test-only code and never imported by production modules.
 
 Forbidden:
 
