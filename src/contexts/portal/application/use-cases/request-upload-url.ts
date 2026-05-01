@@ -5,6 +5,7 @@ import type { StoragePort } from '../ports/storage.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { portalError } from '../../domain/errors'
 import { randomUUID } from 'crypto'
+import { can } from '#/shared/domain/permissions'
 
 // fallow-ignore-next-line unused-type
 export type RequestUploadUrlDeps = Readonly<{
@@ -21,6 +22,9 @@ export const requestUploadUrl =
     input: { portalId: string; contentType: string; fileSize: number },
     ctx: AuthContext,
   ): Promise<{ uploadUrl: string; key: string }> => {
+    if (!can(ctx.role, 'portal.update')) {
+      throw portalError('forbidden', 'Insufficient permissions to upload portal images')
+    }
     const portal = await deps.portalRepo.findById(
       ctx.organizationId,
       input.portalId as unknown as import('#/shared/domain/ids').PortalId,
