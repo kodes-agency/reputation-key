@@ -146,7 +146,12 @@ export function AppTopBar({ user, properties }: Props) {
                 : 'Dark mode'}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={() => authClient.signOut()}>
+          <DropdownMenuItem
+            onClick={async () => {
+              await authClient.signOut()
+              await navigate({ to: '/login' })
+            }}
+          >
             <LogOut className="size-4" />
             Sign out
           </DropdownMenuItem>
