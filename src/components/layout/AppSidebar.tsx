@@ -3,8 +3,6 @@ import {
   LayoutDashboard,
   Users,
   Globe,
-  MessageSquare,
-  BarChart3,
   Contact,
   ChevronRight,
   Building2,
@@ -40,7 +38,7 @@ import {
   CollapsibleTrigger,
 } from '#/components/ui/collapsible'
 import { useServerFn } from '@tanstack/react-start'
-// eslint-disable-next-line boundaries/dependencies
+
 import { setActiveOrganization } from '#/contexts/identity/server/organizations'
 import { useAction } from '#/components/hooks/use-action'
 import { usePropertyId } from '#/components/hooks/use-property-id'
@@ -77,20 +75,6 @@ const navItems = [
     label: 'Portals',
     icon: Globe,
     to: '/properties/$propertyId/portals' as const,
-  },
-  {
-    key: 'reviews',
-    label: 'Reviews',
-    icon: MessageSquare,
-    to: '/properties/$propertyId/reviews' as const,
-    disabled: true,
-  },
-  {
-    key: 'metrics',
-    label: 'Metrics',
-    icon: BarChart3,
-    to: '/properties/$propertyId/metrics' as const,
-    disabled: true,
   },
   {
     key: 'members',
@@ -166,20 +150,6 @@ export function AppSidebar({ role, organizations, activeOrganization }: Props) {
             <SidebarMenu>
               {navItems.map((item) => {
                 const isActive = !!propertyId && activeSection === item.key
-
-                if (item.disabled) {
-                  return (
-                    <SidebarMenuItem key={item.key}>
-                      <SidebarMenuButton disabled tooltip={item.label}>
-                        <item.icon />
-                        <span>{item.label}</span>
-                        <span className="ml-auto text-[10px] font-medium text-muted-foreground">
-                          Soon
-                        </span>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  )
-                }
 
                 if (!propertyId) {
                   return (
