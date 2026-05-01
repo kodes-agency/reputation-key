@@ -4,10 +4,7 @@ import { listTeams, createTeam, deleteTeam } from '#/contexts/team/server/teams'
 import { listStaffAssignments } from '#/contexts/staff/server/staff-assignments'
 import { listMembers } from '#/contexts/identity/server/organizations'
 import { CreateTeamForm } from '#/components/features/team/CreateTeamForm'
-import {
-  useMutationAction,
-  useMutationActionSilent,
-} from '#/components/hooks/use-mutation-action'
+import { useMutationAction } from '#/components/hooks/use-mutation-action'
 import { toMemberOptions } from '#/lib/lookups'
 import { Button } from '#/components/ui/button'
 import { Badge } from '#/components/ui/badge'
@@ -57,8 +54,7 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/tea
 
 function TeamListPage() {
   const { propertyId } = Route.useParams()
-  const { teams: initialTeams, members, assignments } = Route.useLoaderData()
-  const [teams, setTeams] = useState(initialTeams)
+  const { teams, members, assignments } = Route.useLoaderData()
   const [createOpen, setCreateOpen] = useState(false)
 
   const createMutation = useMutationAction(createTeam, {
@@ -67,12 +63,9 @@ function TeamListPage() {
       setCreateOpen(false)
     },
   })
-  const deleteMutation = useMutationActionSilent(deleteTeam)
-
-  const handleDelete = async (teamId: string) => {
-    await deleteMutation({ data: { teamId } })
-    setTeams((prev) => prev.filter((t) => t.id !== teamId))
-  }
+  const deleteMutation = useMutationAction(deleteTeam, {
+    successMessage: 'Team deleted',
+  })
 
   const memberOptions = toMemberOptions(members)
 
@@ -178,7 +171,9 @@ function TeamListPage() {
                           <AlertDialogFooter>
                             <AlertDialogCancel>Cancel</AlertDialogCancel>
                             <AlertDialogAction
-                              onClick={() => handleDelete(team.id)}
+                              onClick={() =>
+                                deleteMutation({ data: { teamId: team.id } })
+                              }
                               disabled={deleteMutation.isPending}
                               className="bg-destructive text-white hover:bg-destructive/90"
                             >

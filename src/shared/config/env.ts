@@ -25,12 +25,11 @@ const envSchema = z.object({
   // Logging
   LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),
 
-  // Storage — Cloudflare R2 (S3-compatible)
-  R2_ACCOUNT_ID: z.string().min(1).optional(),
-  R2_ACCESS_KEY_ID: z.string().min(1).optional(),
-  R2_SECRET_ACCESS_KEY: z.string().min(1).optional(),
-  R2_BUCKET_NAME: z.string().min(1).optional(),
-  R2_PUBLIC_URL: z.url().optional(),
+  // Storage — AWS S3
+  AWS_S3_ACCESS_KEY: z.string().min(1).optional(),
+  AWS_S3_SECRET_ACCESS_KEY: z.string().min(1).optional(),
+  AWS_S3_BUCKET_NAME: z.string().min(1).optional(),
+  AWS_S3_REGION: z.string().min(1).optional(),
 
   // Error tracking — Sentry (optional, Phase 22 for full integration)
   SENTRY_DSN: z.string().optional(),

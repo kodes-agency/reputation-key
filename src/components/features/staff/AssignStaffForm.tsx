@@ -1,6 +1,5 @@
 // Assign staff form — used in property staff page
-// Per architecture: receives mutation + members + teams as props, uses DTO schema for validation.
-// The route fetches members and teams from server functions and passes them here.
+// Multi-select: pick multiple members, optionally assign to a team, submit all at once.
 
 import { useForm } from '@tanstack/react-form'
 import { Field, FieldGroup, FieldLabel, FieldError } from '#/components/ui/field'
@@ -12,12 +11,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '#/components/ui/select'
+import { Checkbox } from '#/components/ui/checkbox'
 import { SubmitButton } from '#/components/forms/SubmitButton'
 import { FormErrorBanner } from '#/components/forms/FormErrorBanner'
 import type { CreateStaffAssignmentInput } from '#/contexts/staff/application/dto/staff-assignment.dto'
-import { createStaffAssignmentInputSchema } from '#/contexts/staff/application/dto/staff-assignment.dto'
-import { Skeleton } from '#/components/ui/skeleton'
 import { z } from 'zod/v4'
+import { toast } from 'sonner'
 
 // fallow-ignore-next-line unused-type
 export type MemberOption = Readonly<{
@@ -32,11 +31,9 @@ export type TeamOption = Readonly<{
   name: string
 }>
 
-// Form schema derived from DTO — single source of truth for validation rules.
-// Per patterns.md section 30: extend DTO schema for form-specific shape.
-// teamId is nullable in the form (select uses null for "no team") vs optional in DTO.
-const formSchema = createStaffAssignmentInputSchema.extend({
-  userId: z.string().min(1, 'Select a staff member'),
+const formSchema = z.object({
+  userIds: z.array(z.string()).min(1, 'Select at least one staff member'),
+  propertyId: z.string(),
   teamId: z.string().nullable(),
 })
 
@@ -47,7 +44,8 @@ type Props = Readonly<{
   mutation: Action<{ data: CreateStaffAssignmentInput }>
   members: ReadonlyArray<MemberOption>
   teams: ReadonlyArray<TeamOption>
-  isLoadingMembers?: boolean
+  assignedUserIds: ReadonlySet<string>
+  onSuccess?: (count: number) => void
 }>
 
 export function AssignStaffForm({
@@ -55,11 +53,14 @@ export function AssignStaffForm({
   mutation,
   members,
   teams,
-  isLoadingMembers,
+  assignedUserIds,
+  onSuccess,
 }: Props) {
+  const unassigned = members.filter((m) => !assignedUserIds.has(m.userId))
+
   const form = useForm({
     defaultValues: {
-      userId: '',
+      userIds: [] as string[],
       propertyId,
       teamId: null as string | null,
     },
@@ -67,13 +68,31 @@ export function AssignStaffForm({
       onSubmit: formSchema,
     },
     onSubmit: async ({ value }) => {
-      await mutation({
-        data: {
-          userId: value.userId,
-          propertyId: value.propertyId,
-          teamId: value.teamId ?? undefined,
-        },
-      })
+      const results = await Promise.allSettled(
+        value.userIds.map((userId) =>
+          mutation({
+            data: {
+              userId,
+              propertyId: value.propertyId,
+              teamId: value.teamId ?? undefined,
+            },
+          }),
+        ),
+      )
+
+      const succeeded = results.filter((r) => r.status === 'fulfilled').length
+      const failed = results.filter((r) => r.status === 'rejected').length
+
+      if (succeeded > 0) {
+        toast.success(
+          failed > 0
+            ? `${succeeded} staff member${succeeded > 1 ? 's' : ''} assigned (${failed} failed)`
+            : `${succeeded} staff member${succeeded > 1 ? 's' : ''} assigned`,
+        )
+        onSuccess?.(succeeded)
+      } else if (failed > 0) {
+        toast.error('Failed to assign staff members')
+      }
     },
   })
 
@@ -89,36 +108,71 @@ export function AssignStaffForm({
       <FormErrorBanner error={mutation.error} />
 
       <FieldGroup>
-        {/* Member picker */}
-        <form.Field name="userId">
+        {/* Multi-select member picker */}
+        <form.Field name="userIds">
           {(field) => {
             const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid
+            const selected = new Set(field.state.value)
             return (
               <Field data-invalid={isInvalid}>
-                <FieldLabel>Staff member</FieldLabel>
-                {isLoadingMembers ? (
-                  <div className="flex flex-col gap-2">
-                    <Skeleton className="h-9 w-full" />
-                    <Skeleton className="h-4 w-32" />
-                  </div>
+                <FieldLabel>
+                  Staff members{' '}
+                  {selected.size > 0 && (
+                    <span className="font-normal text-muted-foreground">
+                      ({selected.size} selected)
+                    </span>
+                  )}
+                </FieldLabel>
+                {unassigned.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    All members are already assigned.
+                  </p>
                 ) : (
-                  <Select
-                    value={field.state.value || undefined}
-                    onValueChange={(value) => field.handleChange(value)}
-                  >
-                    <SelectTrigger aria-invalid={isInvalid}>
-                      <SelectValue placeholder="Select a staff member…" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectGroup>
-                        {members.map((m) => (
-                          <SelectItem key={m.userId} value={m.userId}>
-                            {m.name} — {m.email}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
+                  <>
+                    <label className="flex cursor-pointer items-center gap-3 rounded-md border-b px-3 pb-2 text-sm font-medium text-muted-foreground hover:text-foreground">
+                      <Checkbox
+                        checked={
+                          selected.size === unassigned.length
+                            ? true
+                            : selected.size > 0
+                              ? 'indeterminate'
+                              : false
+                        }
+                        onCheckedChange={(checked) => {
+                          field.handleChange(
+                            checked ? unassigned.map((m) => m.userId) : [],
+                          )
+                        }}
+                      />
+                      Select all
+                    </label>
+                    <div className="max-h-60 space-y-2 overflow-y-auto p-3">
+                      {unassigned.map((m) => (
+                        <label
+                          key={m.userId}
+                          className="flex cursor-pointer items-center gap-3 rounded-sm px-1 py-1.5 hover:bg-accent"
+                        >
+                          <Checkbox
+                            checked={selected.has(m.userId)}
+                            onCheckedChange={(checked) => {
+                              const next = checked
+                                ? [...field.state.value, m.userId]
+                                : field.state.value.filter(
+                                    (id: string) => id !== m.userId,
+                                  )
+                              field.handleChange(next)
+                            }}
+                          />
+                          <div className="flex-1">
+                            <p className="text-sm font-medium leading-none">{m.name}</p>
+                            <p className="mt-0.5 text-xs text-muted-foreground">
+                              {m.email}
+                            </p>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  </>
                 )}
                 {isInvalid && <FieldError errors={field.state.meta.errors} />}
               </Field>

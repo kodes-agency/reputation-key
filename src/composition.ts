@@ -202,6 +202,7 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     },
     storage: portal.storage,
     portalRepo: portal.portalRepo,
+    portalLinkRepo: portal.portalLinkRepo,
   } as const
 }
 

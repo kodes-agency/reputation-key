@@ -7,7 +7,7 @@ import type { EventBus } from '#/shared/events/event-bus'
 import type { Database } from '#/shared/db'
 import { createPortalRepository } from './infrastructure/repositories/portal.repository'
 import { createPortalLinkRepository } from './infrastructure/repositories/portal-link.repository'
-import { createR2StorageAdapter } from './infrastructure/adapters/r2-storage.adapter'
+import { createS3StorageAdapter } from './infrastructure/adapters/r2-storage.adapter'
 import { createPortal } from './application/use-cases/create-portal'
 import { updatePortal } from './application/use-cases/update-portal'
 import { getPortal } from './application/use-cases/get-portal'
@@ -36,7 +36,7 @@ type PortalContextDeps = Readonly<{
 export const buildPortalContext = (deps: PortalContextDeps) => {
   const portalRepo = createPortalRepository(deps.db)
   const portalLinkRepo = createPortalLinkRepository(deps.db)
-  const storage = createR2StorageAdapter()
+  const storage = createS3StorageAdapter()
   const portalIdGen = () => portalId(randomUUID())
   const linkIdGen = () => randomUUID()
 
@@ -101,5 +101,5 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     }),
   } as const
 
-  return { useCases, storage, portalRepo } as const
+  return { useCases, storage, portalRepo, portalLinkRepo } as const
 }

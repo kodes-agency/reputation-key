@@ -9,8 +9,22 @@ import { listTeams } from '#/contexts/team/server/teams'
 import { listMembers } from '#/contexts/identity/server/organizations'
 import { AssignStaffForm } from '#/components/features/staff/AssignStaffForm'
 import { StaffAssignmentList } from '#/components/features/staff/StaffAssignmentList'
-import { useMutationAction } from '#/components/hooks/use-mutation-action'
+import {
+  useMutationAction,
+  useMutationActionSilent,
+} from '#/components/hooks/use-mutation-action'
 import { toMemberOptions, toTeamOptions } from '#/lib/lookups'
+import { Button } from '#/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '#/components/ui/dialog'
+import { Plus } from 'lucide-react'
+import { useState } from 'react'
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/staff/')({
   staleTime: 30_000,
@@ -28,32 +42,51 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/sta
 function StaffListPage() {
   const { propertyId } = Route.useParams()
   const { assignments, members, teams } = Route.useLoaderData()
+  const [assignOpen, setAssignOpen] = useState(false)
 
-  const assignMutation = useMutationAction(createStaffAssignment, {
-    successMessage: 'Staff member assigned',
-  })
+  const assignMutation = useMutationActionSilent(createStaffAssignment)
   const removeMutation = useMutationAction(removeStaffAssignment, {
     successMessage: 'Staff member unassigned',
   })
 
   const memberOptions = toMemberOptions(members)
   const teamOptions = toTeamOptions(teams)
+  const assignedUserIds = new Set(assignments.map((a: { userId: string }) => a.userId))
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">Staff</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Assign staff members to this property.
-        </p>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight">Staff</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Assign staff members to this property.
+          </p>
+        </div>
+        <Dialog open={assignOpen} onOpenChange={setAssignOpen}>
+          <DialogTrigger asChild>
+            <Button>
+              <Plus />
+              Assign Staff
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Assign Staff</DialogTitle>
+              <DialogDescription>
+                Select staff members to assign to this property.
+              </DialogDescription>
+            </DialogHeader>
+            <AssignStaffForm
+              propertyId={propertyId}
+              mutation={assignMutation}
+              members={memberOptions}
+              teams={teamOptions}
+              assignedUserIds={assignedUserIds}
+              onSuccess={() => setAssignOpen(false)}
+            />
+          </DialogContent>
+        </Dialog>
       </div>
-
-      <AssignStaffForm
-        propertyId={propertyId}
-        mutation={assignMutation}
-        members={memberOptions}
-        teams={teamOptions}
-      />
 
       <StaffAssignmentList
         assignments={assignments}

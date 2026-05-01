@@ -25,8 +25,7 @@ import {
   AlertDialogTrigger,
 } from '#/components/ui/alert-dialog'
 import { Plus, Globe, Trash2 } from 'lucide-react'
-import { useMutationActionSilent } from '#/components/hooks/use-mutation-action'
-import { useState } from 'react'
+import { useMutationAction } from '#/components/hooks/use-mutation-action'
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/portals/')({
   staleTime: 30_000,
@@ -45,15 +44,11 @@ function PortalListPage() {
   const canCreate = hasRole(role, 'PropertyManager')
   const canDelete = hasRole(role, 'PropertyManager')
   const { propertyId } = Route.useParams()
-  const { portals: initialPortals } = Route.useLoaderData()
-  const [portals, setPortals] = useState(initialPortals)
+  const { portals } = Route.useLoaderData()
 
-  const deleteMutation = useMutationActionSilent(deletePortal)
-
-  const handleDelete = async (portalId: string) => {
-    await deleteMutation({ data: { portalId } })
-    setPortals((prev) => prev.filter((p) => p.id !== portalId))
-  }
+  const deleteMutation = useMutationAction(deletePortal, {
+    successMessage: 'Portal deleted',
+  })
 
   return (
     <div className="space-y-8">
@@ -145,7 +140,7 @@ function PortalListPage() {
                         <AlertDialogFooter>
                           <AlertDialogCancel>Cancel</AlertDialogCancel>
                           <AlertDialogAction
-                            onClick={() => handleDelete(p.id)}
+                            onClick={() => deleteMutation({ data: { portalId: p.id } })}
                             disabled={deleteMutation.isPending}
                             className="bg-destructive text-white hover:bg-destructive/90"
                           >

@@ -1,5 +1,5 @@
 // Team settings — edit name, description, and team lead
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { updateTeam } from '#/contexts/team/server/teams'
 import { EditTeamForm } from '#/components/features/team/EditTeamForm'
 import { useTeamLayout } from '../$teamId'
@@ -12,7 +12,8 @@ export const Route = createFileRoute(
 })
 
 function TeamSettingsPage() {
-  const { team, memberOptions } = useTeamLayout()
+  const { team, memberOptions, propertyId } = useTeamLayout()
+  const navigate = useNavigate()
 
   const mutation = useMutationAction(updateTeam, {
     successMessage: 'Team updated',
@@ -38,7 +39,9 @@ function TeamSettingsPage() {
           email: m.email,
         }))}
         mutation={mutation}
-        onCancel={() => {}}
+        onCancel={() =>
+          navigate({ to: '/properties/$propertyId/teams', params: { propertyId } })
+        }
       />
     </>
   )

@@ -10,6 +10,7 @@ import {
   updateLink,
   updateLinkCategory,
   reorderLinks,
+  listPortalLinks,
 } from '#/contexts/portal/server/portal-links'
 import { SortableCategory } from '#/components/features/portal/SortableCategory'
 import { LinkAddInlineForm } from '#/components/features/portal/LinkAddInlineForm'
@@ -17,6 +18,7 @@ import { LinkEditInlineForm } from '#/components/features/portal/LinkEditInlineF
 import { CategoryAddForm } from '#/components/features/portal/CategoryAddForm'
 import { CategoryEditInlineForm } from '#/components/features/portal/CategoryEditInlineForm'
 import { useState } from 'react'
+import { toast } from 'sonner'
 import { generateKeyBetween } from 'fractional-indexing'
 import {
   useMutationAction,
@@ -42,6 +44,13 @@ import { usePortalLayout } from '../$portalId'
 export const Route = createFileRoute(
   '/_authenticated/properties/$propertyId/portals/$portalId/links',
 )({
+  staleTime: 30_000,
+  loader: async ({ params }) => {
+    const { categories, links } = await listPortalLinks({
+      data: { portalId: params.portalId },
+    })
+    return { categories, links }
+  },
   component: PortalLinksPage,
 })
 
@@ -58,9 +67,20 @@ type LinkItem = {
 function PortalLinksPage() {
   const { portalId, canEdit } = usePortalLayout()
 
-  // Local state for categories and links (in full implementation, loaded from server)
-  const [categories, setCategories] = useState<Category[]>([])
-  const [links, setLinks] = useState<LinkItem[]>([])
+  // Initialize from loader data, then track locally for optimistic updates
+  const { categories: loaderCategories, links: loaderLinks } = Route.useLoaderData()
+  const [categories, setCategories] = useState<Category[]>(
+    loaderCategories.map((c) => ({ id: c.id, title: c.title, sortKey: c.sortKey })),
+  )
+  const [links, setLinks] = useState<LinkItem[]>(
+    loaderLinks.map((l) => ({
+      id: l.id,
+      label: l.label,
+      url: l.url,
+      sortKey: l.sortKey,
+      categoryId: l.categoryId,
+    })),
+  )
   const [addingToCategory, setAddingToCategory] = useState<string | null>(null)
   const [editingLink, setEditingLink] = useState<string | null>(null)
   const [editingCategory, setEditingCategory] = useState<string | null>(null)
@@ -106,6 +126,7 @@ function PortalLinksPage() {
       ])
     } catch (err) {
       console.error('Failed to create category:', err)
+      toast.error('Failed to create category')
     }
   }
 
@@ -127,6 +148,7 @@ function PortalLinksPage() {
       setAddingToCategory(null)
     } catch (err) {
       console.error('Failed to create link:', err)
+      toast.error('Failed to create link')
     }
   }
 
@@ -138,6 +160,7 @@ function PortalLinksPage() {
       setLinks((prev) => prev.filter((l) => l.categoryId !== catId))
     } catch (err) {
       console.error('Failed to delete category:', err)
+      toast.error('Failed to delete category')
     } finally {
       setDeletingCategoryId(null)
     }
@@ -150,6 +173,7 @@ function PortalLinksPage() {
       setLinks((prev) => prev.filter((l) => l.id !== linkId))
     } catch (err) {
       console.error('Failed to delete link:', err)
+      toast.error('Failed to delete link')
     } finally {
       setDeletingLinkIdState(null)
     }
@@ -168,6 +192,7 @@ function PortalLinksPage() {
       setEditingLink(null)
     } catch (err) {
       console.error('Failed to update link:', err)
+      toast.error('Failed to update link')
     }
   }
 
@@ -182,6 +207,7 @@ function PortalLinksPage() {
       setEditingCategory(null)
     } catch (err) {
       console.error('Failed to update category:', err)
+      toast.error('Failed to update category')
     }
   }
 
@@ -207,6 +233,7 @@ function PortalLinksPage() {
       })
     } catch (err) {
       console.error('Failed to reorder categories:', err)
+      toast.error('Failed to reorder categories')
     }
   }
 
@@ -230,6 +257,7 @@ function PortalLinksPage() {
       })
     } catch (err) {
       console.error('Failed to reorder links:', err)
+      toast.error('Failed to reorder links')
     }
   }
 
