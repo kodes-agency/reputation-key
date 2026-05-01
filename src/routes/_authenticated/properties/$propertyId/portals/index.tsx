@@ -29,6 +29,7 @@ import { useMutationActionSilent } from '#/components/hooks/use-mutation-action'
 import { useState } from 'react'
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/portals/')({
+  staleTime: 30_000,
   loader: async ({ params }) => {
     const { portals } = await listPortals({
       data: { propertyId: params.propertyId },

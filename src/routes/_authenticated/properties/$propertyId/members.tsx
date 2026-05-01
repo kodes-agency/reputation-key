@@ -1,7 +1,7 @@
 // Members — manage organization members, invite, change roles, remove
 // Adapted from settings/members.tsx to fit the new sidebar layout.
 
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, getRouteApi } from '@tanstack/react-router'
 import {
   listMembers,
   listInvitations,
@@ -11,7 +11,6 @@ import {
   cancelInvitation,
   resendInvitation,
 } from '#/contexts/identity/server/organizations'
-import { listProperties } from '#/contexts/property/server/properties'
 import { hasRole } from '#/shared/domain/roles'
 import { MemberTable } from '#/components/features/identity/MemberTable'
 import { InvitationTable } from '#/components/features/identity/InvitationTable'
@@ -31,13 +30,13 @@ import { useState } from 'react'
 import { useMutationAction } from '#/components/hooks/use-mutation-action'
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/members')({
+  staleTime: 30_000,
   loader: async () => {
-    const [{ properties }, { members }, { invitations }] = await Promise.all([
-      listProperties(),
+    const [{ members }, { invitations }] = await Promise.all([
       listMembers(),
       listInvitations(),
     ])
-    return { properties, members, invitations }
+    return { members, invitations }
   },
   component: MembersPage,
 })
@@ -47,7 +46,8 @@ function MembersPage() {
   const currentUserId = ctx.user.id
   const role = ctx.role ?? 'Staff'
   const canInvite = hasRole(role, 'PropertyManager')
-  const { properties, members, invitations } = Route.useLoaderData()
+  const { members, invitations } = Route.useLoaderData()
+  const { properties } = getRouteApi('/_authenticated').useLoaderData()
 
   const [inviteOpen, setInviteOpen] = useState(false)
 

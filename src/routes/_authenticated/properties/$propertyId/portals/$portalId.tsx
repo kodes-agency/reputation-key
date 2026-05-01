@@ -27,6 +27,7 @@ export function usePortalLayout() {
 export const Route = createFileRoute(
   '/_authenticated/properties/$propertyId/portals/$portalId',
 )({
+  staleTime: 30_000,
   loader: async ({ params }) => {
     const { portal } = await getPortal({
       data: { portalId: params.portalId },

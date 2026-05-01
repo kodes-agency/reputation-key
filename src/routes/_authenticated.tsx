@@ -91,6 +91,9 @@ export const Route = createFileRoute('/_authenticated')({
         propsResult.status === 'rejected' ? String(propsResult.reason) : null,
     }
   },
+  // Structural data (orgs, properties) rarely changes.
+  // Refetch only on explicit router.invalidate() after mutations.
+  staleTime: Infinity,
   component: AuthenticatedLayout,
 })
 

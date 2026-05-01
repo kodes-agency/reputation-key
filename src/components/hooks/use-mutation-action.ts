@@ -17,22 +17,28 @@
  * Fully type-safe — no casts, same generic constraint as useAction.
  */
 
-import { useRouter } from "@tanstack/react-router";
-import { useServerFn } from "@tanstack/react-start";
-import { toast } from "sonner";
-import { useAction, wrapAction } from "./use-action";
-import type { Action } from "./use-action";
+import { useRouter } from '@tanstack/react-router'
+import { useServerFn } from '@tanstack/react-start'
+import { toast } from 'sonner'
+import { useAction, wrapAction } from './use-action'
+import type { Action } from './use-action'
 
 // fallow-ignore-next-line unused-type
 export interface MutationActionOptions<TOutput> {
-	/** Message shown via toast.success on success. Defaults to 'Saved'. */
-	successMessage?: string;
-	/** Whether to call router.invalidate() after success. Defaults to true. */
-	invalidate?: boolean;
-	/** Navigate after success. */
-	navigateTo?: string;
-	/** Custom post-success callback (runs after invalidate and toast). */
-	onSuccess?: (output: TOutput) => void | Promise<void>;
+  /** Message shown via toast.success on success. Defaults to 'Saved'. */
+  successMessage?: string
+  /** Whether to call router.invalidate() after success. Defaults to true. */
+  invalidate?: boolean
+  /**
+   * Route path patterns to invalidate instead of all routes.
+   * When provided, only matching routes are invalidated.
+   * When undefined (default), router.invalidate() invalidates everything.
+   */
+  invalidateRoutes?: string[]
+  /** Navigate after success. */
+  navigateTo?: string
+  /** Custom post-success callback (runs after invalidate and toast). */
+  onSuccess?: (output: TOutput) => void | Promise<void>
 }
 
 /**
@@ -41,34 +47,43 @@ export interface MutationActionOptions<TOutput> {
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function useMutationAction<TFn extends (...args: any[]) => Promise<any>>(
-	serverFn: TFn,
-	options?: MutationActionOptions<Awaited<ReturnType<TFn>>>,
+  serverFn: TFn,
+  options?: MutationActionOptions<Awaited<ReturnType<TFn>>>,
 ): Action<Parameters<TFn>[0], Awaited<ReturnType<TFn>>> {
-	const router = useRouter();
-	const rawAction = useAction(useServerFn(serverFn));
+  const router = useRouter()
+  const rawAction = useAction(useServerFn(serverFn))
 
-	const {
-		successMessage = "Saved",
-		invalidate = true,
-		navigateTo,
-		onSuccess,
-	} = options ?? {};
+  const {
+    successMessage = 'Saved',
+    invalidate = true,
+    invalidateRoutes,
+    navigateTo,
+    onSuccess,
+  } = options ?? {}
 
-	return wrapAction(rawAction, async (output) => {
-		if (invalidate) {
-			await router.invalidate();
-		}
+  return wrapAction(rawAction, async (output) => {
+    if (invalidate) {
+      if (invalidateRoutes && invalidateRoutes.length > 0) {
+        for (const routePath of invalidateRoutes) {
+          await router.invalidate({
+            filter: (route: { routeId: string }) => route.routeId === routePath,
+          })
+        }
+      } else {
+        await router.invalidate()
+      }
+    }
 
-		toast.success(successMessage);
+    toast.success(successMessage)
 
-		if (onSuccess) {
-			await onSuccess(output);
-		}
+    if (onSuccess) {
+      await onSuccess(output)
+    }
 
-		if (navigateTo) {
-			router.navigate({ to: navigateTo });
-		}
-	});
+    if (navigateTo) {
+      router.navigate({ to: navigateTo })
+    }
+  })
 }
 
 /**
@@ -76,26 +91,35 @@ export function useMutationAction<TFn extends (...args: any[]) => Promise<any>>(
  * Useful for inline mutations (not form-driven).
  */
 export function useMutationActionSilent<
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	TFn extends (...args: any[]) => Promise<any>,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  TFn extends (...args: any[]) => Promise<any>,
 >(
-	serverFn: TFn,
-	options?: {
-		invalidate?: boolean;
-		onSuccess?: (output: Awaited<ReturnType<TFn>>) => void | Promise<void>;
-	},
+  serverFn: TFn,
+  options?: {
+    invalidate?: boolean
+    invalidateRoutes?: string[]
+    onSuccess?: (output: Awaited<ReturnType<TFn>>) => void | Promise<void>
+  },
 ): Action<Parameters<TFn>[0], Awaited<ReturnType<TFn>>> {
-	const router = useRouter();
-	const rawAction = useAction(useServerFn(serverFn));
+  const router = useRouter()
+  const rawAction = useAction(useServerFn(serverFn))
 
-	const { invalidate = true, onSuccess } = options ?? {};
+  const { invalidate = true, invalidateRoutes, onSuccess } = options ?? {}
 
-	return wrapAction(rawAction, async (output) => {
-		if (invalidate) {
-			await router.invalidate();
-		}
-		if (onSuccess) {
-			await onSuccess(output);
-		}
-	});
+  return wrapAction(rawAction, async (output) => {
+    if (invalidate) {
+      if (invalidateRoutes && invalidateRoutes.length > 0) {
+        for (const routePath of invalidateRoutes) {
+          await router.invalidate({
+            filter: (route: { routeId: string }) => route.routeId === routePath,
+          })
+        }
+      } else {
+        await router.invalidate()
+      }
+    }
+    if (onSuccess) {
+      await onSuccess(output)
+    }
+  })
 }

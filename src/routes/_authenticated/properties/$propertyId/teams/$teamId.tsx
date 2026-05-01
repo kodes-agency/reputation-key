@@ -24,6 +24,7 @@ export function useTeamLayout() {
 export const Route = createFileRoute(
   '/_authenticated/properties/$propertyId/teams/$teamId',
 )({
+  staleTime: 30_000,
   loader: async ({ params }) => {
     const [{ teams }, { members }, { assignments }] = await Promise.all([
       listTeams({ data: { propertyId: params.propertyId } }),

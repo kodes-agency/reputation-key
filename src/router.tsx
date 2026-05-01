@@ -43,15 +43,13 @@ export function getRouter() {
     routeTree,
     scrollRestoration: true,
     // ── Caching ─────────────────────────────────────────────────────────
-    // defaultStaleTime: 0 means loaders re-run on EVERY navigation.
-    // We set 30s so data stays fresh across route switches, matching the
-    // old Query staleTime. After mutations we call router.invalidate()
-    // which forces a refresh regardless of staleTime.
-    defaultStaleTime: 30_000,
-    // Keep preloaded data fresh for 10s (hover preloads via defaultPreload).
-    defaultPreloadStaleTime: 10_000,
-    // Garbage-collect unused loader data after 5 minutes.
-    defaultGcTime: 5 * 60 * 1000,
+    // Remove defaultStaleTime — fall back to TanStack default (0).
+    // Each route opts into its own staleTime based on data volatility.
+    // After mutations we call router.invalidate() which forces a refresh
+    // regardless of staleTime.
+    defaultPreloadStaleTime: 30_000,
+    // Garbage-collect unused loader data after 30 minutes (TanStack default).
+    defaultGcTime: 30 * 60 * 1000,
 
     // ── Preload ─────────────────────────────────────────────────────────
     // Hovering a <Link> preloads the target route's loader.
