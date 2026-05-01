@@ -34,18 +34,18 @@ export const createInMemoryPortalLinkRepo = (): InMemoryPortalLinkRepo => {
         .sort((a, b) => a.sortKey.localeCompare(b.sortKey)),
 
     insertCategory: async (_orgId, cat) => {
-      categoryStore.set(cat.id as unknown as string, cat)
+      categoryStore.set(String(cat.id), cat)
     },
 
     updateCategory: async (orgId, id, patch) => {
-      const key = id as unknown as string
+      const key = String(id)
       const existing = categoryStore.get(key)
       if (!existing || existing.organizationId !== orgId) return
       categoryStore.set(key, { ...existing, ...patch })
     },
 
     deleteCategory: async (orgId, id) => {
-      const key = id as unknown as string
+      const key = String(id)
       const existing = categoryStore.get(key)
       if (!existing || existing.organizationId !== orgId) return
       categoryStore.delete(key)
@@ -59,7 +59,7 @@ export const createInMemoryPortalLinkRepo = (): InMemoryPortalLinkRepo => {
 
     reorderCategories: async (orgId, updates) => {
       for (const { id, sortKey } of updates) {
-        const key = id as unknown as string
+        const key = String(id)
         const existing = categoryStore.get(key)
         if (existing && existing.organizationId === orgId) {
           categoryStore.set(key, { ...existing, sortKey, updatedAt: new Date() })
@@ -68,18 +68,18 @@ export const createInMemoryPortalLinkRepo = (): InMemoryPortalLinkRepo => {
     },
 
     insertLink: async (_orgId, link) => {
-      linkStore.set(link.id as unknown as string, link)
+      linkStore.set(String(link.id), link)
     },
 
     updateLink: async (orgId, id, patch) => {
-      const key = id as unknown as string
+      const key = String(id)
       const existing = linkStore.get(key)
       if (!existing || existing.organizationId !== orgId) return
       linkStore.set(key, { ...existing, ...patch })
     },
 
     deleteLink: async (orgId, id) => {
-      const key = id as unknown as string
+      const key = String(id)
       const existing = linkStore.get(key)
       if (!existing || existing.organizationId !== orgId) return
       linkStore.delete(key)
@@ -87,7 +87,7 @@ export const createInMemoryPortalLinkRepo = (): InMemoryPortalLinkRepo => {
 
     reorderLinks: async (orgId, updates) => {
       for (const { id, sortKey } of updates) {
-        const key = id as unknown as string
+        const key = String(id)
         const existing = linkStore.get(key)
         if (existing && existing.organizationId === orgId) {
           linkStore.set(key, { ...existing, sortKey, updatedAt: new Date() })
@@ -96,23 +96,23 @@ export const createInMemoryPortalLinkRepo = (): InMemoryPortalLinkRepo => {
     },
 
     findCategoryById: async (orgId, id) => {
-      const cat = categoryStore.get(id as unknown as string)
+      const cat = categoryStore.get(String(id))
       return cat && cat.organizationId === orgId ? cat : null
     },
 
     findLinkById: async (orgId, id) => {
-      const link = linkStore.get(id as unknown as string)
+      const link = linkStore.get(String(id))
       return link && link.organizationId === orgId ? link : null
     },
 
     // ── Test-only helpers ───────────────────────────────────────────
 
     seedCategories: (categories) => {
-      for (const c of categories) categoryStore.set(c.id as unknown as string, c)
+      for (const c of categories) categoryStore.set(String(c.id), c)
     },
 
     seedLinks: (links) => {
-      for (const l of links) linkStore.set(l.id as unknown as string, l)
+      for (const l of links) linkStore.set(String(l.id), l)
     },
 
     allCategories: () => [...categoryStore.values()],

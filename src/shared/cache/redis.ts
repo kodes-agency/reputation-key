@@ -6,17 +6,19 @@ import { getLogger } from '#/shared/observability/logger'
 let _redis: Redis | undefined
 
 export function getRedis(): Redis | undefined {
-  const env = getEnv()
-  if (!env.REDIS_URL) return undefined
-
   if (!_redis) {
+    const env = getEnv()
+    if (!env.REDIS_URL) return undefined
+
     _redis = new Redis(env.REDIS_URL, {
       maxRetriesPerRequest: 3,
       lazyConnect: true,
     })
     _redis.on('error', (err) => {
-      // Swallow connection errors in dev — health check will report status
-      if (env.NODE_ENV === 'development') return
+      if (env.NODE_ENV === 'development') {
+        getLogger().warn({ err }, '[redis] connection error (dev mode — non-fatal)')
+        return
+      }
       getLogger().error({ err }, '[redis] connection error')
     })
   }

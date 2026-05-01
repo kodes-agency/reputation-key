@@ -8,11 +8,11 @@ import {
   listUserOrganizations,
 } from '#/contexts/identity/server/organizations'
 import { listProperties } from '#/contexts/property/server/properties'
+import { toDomainRole } from '#/shared/domain/roles'
 import type { Role } from '#/shared/domain/roles'
 import { SidebarProvider, SidebarInset } from '#/components/ui/sidebar'
 import { AppSidebar } from '#/components/layout/AppSidebar'
 import { AppTopBar } from '#/components/layout/AppTopBar'
-import { DebugBar } from '#/components/debug/DebugBar'
 
 export type AuthRouteContext = Readonly<{
   user: {
@@ -41,7 +41,7 @@ export const Route = createFileRoute('/_authenticated')({
     try {
       const org = await getActiveOrganization()
       if (org.role) {
-        role = org.role as Role
+        role = toDomainRole(org.role)
       }
       if (org.organization) {
         activeOrganization = {
@@ -111,7 +111,6 @@ function AuthenticatedLayout() {
           <Outlet />
         </main>
       </SidebarInset>
-      <DebugBar />
     </SidebarProvider>
   )
 }

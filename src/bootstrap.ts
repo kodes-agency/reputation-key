@@ -20,6 +20,7 @@ export function bootstrap(container: Container): void {
     dbHealthy: isDbHealthy,
     redisHealthy: isRedisHealthy,
     logger,
+    clock: () => new Date(),
   })
 
   // Handler returns HealthCheckResult (BullMQ stores it as return value);
@@ -35,8 +36,11 @@ export function bootstrap(container: Container): void {
     portalRepo: container.portalRepo,
   })
   container.jobRegistry.register('process-image', async (job) => {
-     
-    await processImageHandler(job as import('bullmq').Job<import('#/contexts/portal/infrastructure/jobs/process-image.job').ProcessImageJobData>)
+    await processImageHandler(
+      job as import('bullmq').Job<
+        import('#/contexts/portal/infrastructure/jobs/process-image.job').ProcessImageJobData
+      >,
+    )
   })
   logger.info({ job: 'process-image' }, 'registered process-image job handler')
 

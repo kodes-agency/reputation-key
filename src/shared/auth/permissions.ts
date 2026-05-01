@@ -11,7 +11,9 @@
 // only controls what actions a role can perform within its own organization.
 
 import { createAccessControl } from 'better-auth/plugins/access'
-import { setPermissionTable } from '#/shared/domain/permissions'
+import type { Permission } from '#/shared/domain/permissions'
+import { setPermissionLookup } from '#/shared/domain/permissions'
+import type { Role } from '#/shared/domain/roles'
 
 // ── Permission statement ──────────────────────────────────────────
 // Defines the universe of all resources and actions in the application.
@@ -70,10 +72,44 @@ function buildPermissionSet(
   return new Set(entries)
 }
 
-setPermissionTable({
-  AccountAdmin: buildPermissionSet(owner.statements as Record<string, readonly string[]>),
-  PropertyManager: buildPermissionSet(
-    admin.statements as Record<string, readonly string[]>,
-  ),
-  Staff: buildPermissionSet(memberRole.statements as Record<string, readonly string[]>),
-})
+// ── Mutable permission table ───────────────────────────────────────
+// Initialized once at startup. Lives here (not in shared/domain)
+// because shared/domain must be pure — no mutable permission data.
+
+type PermissionTable = Record<Role, ReadonlySet<string>>
+
+let _table: PermissionTable | null = null
+
+/** Build and set the permission table from the role definitions above. */
+export function initPermissionTable(): void {
+  _table = {
+    AccountAdmin: buildPermissionSet(
+      owner.statements as Record<string, readonly string[]>,
+    ),
+    PropertyManager: buildPermissionSet(
+      admin.statements as Record<string, readonly string[]>,
+    ),
+    Staff: buildPermissionSet(memberRole.statements as Record<string, readonly string[]>),
+  }
+
+  // Inject the lookup into shared/domain so application-layer code
+  // can import can() from shared/domain/permissions (boundary-compliant).
+  setPermissionLookup((role, permission) => {
+    return _table![role]?.has(permission) ?? false
+  })
+}
+
+// ── Sync permission check ─────────────────────────────────────────
+// Pure, synchronous, nanosecond-cost. Exported for direct callers
+// (server layer, components). Application-layer code should import
+// can() from shared/domain/permissions instead (boundary-compliant).
+
+export function can(role: Role, permission: Permission): boolean {
+  if (!_table) {
+    throw new Error('Permission table not initialized — call initPermissionTable() first')
+  }
+  return _table[role]?.has(permission) ?? false
+}
+
+// ── Auto-initialize on import ──────────────────────────────────────
+initPermissionTable()

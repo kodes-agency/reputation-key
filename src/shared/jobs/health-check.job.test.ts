@@ -10,6 +10,7 @@ function createMockDeps(
     dbHealthy: vi.fn(async () => overrides.dbHealthy ?? true),
     redisHealthy: vi.fn(async () => overrides.redisHealthy ?? true),
     logger: pino({ level: 'silent' }),
+    clock: () => new Date(),
   }
 }
 
@@ -26,6 +27,7 @@ function createThrowingDeps(throwDb: boolean, throwRedis: boolean): HealthCheckD
         })
       : vi.fn(async () => true),
     logger: pino({ level: 'silent' }),
+    clock: () => new Date(),
   }
 }
 

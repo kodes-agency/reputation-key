@@ -14,10 +14,6 @@ import type { InviteMemberInput } from '../dto/invitation.dto'
 
 // fallow-ignore-next-line unused-type
 export type { InviteMemberInput }
-// fallow-ignore-next-line unused-type
-export type InviteMemberOutput = Readonly<{
-  success: boolean
-}>
 
 type Deps = Readonly<{
   identity: IdentityPort
@@ -37,7 +33,7 @@ type Deps = Readonly<{
  */
 export const inviteMember =
   (deps: Deps) =>
-  async (input: InviteMemberInput, ctx: AuthContext): Promise<InviteMemberOutput> => {
+  async (input: InviteMemberInput, ctx: AuthContext): Promise<void> => {
     // 1. Authorize — permission check + role hierarchy
     if (!can(ctx.role, 'invitation.create')) {
       throw identityError('forbidden', 'Insufficient role to invite members')
@@ -69,5 +65,5 @@ export const inviteMember =
       }),
     )
 
-    return { success: true }
+    return
   }
