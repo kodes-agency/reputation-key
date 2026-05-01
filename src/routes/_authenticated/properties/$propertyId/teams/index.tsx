@@ -59,6 +59,12 @@ function TeamListPage() {
   const { propertyId } = Route.useParams()
   const { teams: initialTeams, members, assignments } = Route.useLoaderData()
   const [teams, setTeams] = useState(initialTeams)
+
+  // Sync when loader data changes (e.g. after router.invalidate)
+  if (initialTeams !== teams && initialTeams.length >= teams.length) {
+    setTeams(initialTeams)
+  }
+
   const [createOpen, setCreateOpen] = useState(false)
 
   const createMutation = useMutationAction(createTeam, {
