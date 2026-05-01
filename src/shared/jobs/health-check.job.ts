@@ -18,6 +18,7 @@ export type HealthCheckDeps = Readonly<{
   dbHealthy: () => Promise<boolean>
   redisHealthy: () => Promise<boolean>
   logger: pino.Logger
+  clock: () => Date
 }>
 
 export function createHealthCheckHandler(deps: HealthCheckDeps) {
@@ -36,7 +37,7 @@ export function createHealthCheckHandler(deps: HealthCheckDeps) {
     const result: HealthCheckResult = {
       db,
       redis,
-      timestamp: new Date().toISOString(),
+      timestamp: deps.clock().toISOString(),
     }
 
     deps.logger.info(result, '[health-check] status')

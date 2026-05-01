@@ -11,6 +11,11 @@ import { getRedis } from '#/shared/cache/redis'
 // fallow-ignore-next-line unused-type
 export type { Queue }
 
+/**
+ * Create a named BullMQ queue.
+ * Returns undefined if Redis is not configured (REDIS_URL missing).
+ * Callers MUST check for undefined before using the queue.
+ */
 export function createJobQueue(name: string): Queue | undefined {
   const redis = getRedis()
   if (!redis) return undefined
