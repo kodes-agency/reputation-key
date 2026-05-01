@@ -92,7 +92,7 @@ export const Route = createFileRoute('/_authenticated')({
   },
   // Structural data (orgs, properties) rarely changes.
   // Refetch only on explicit router.invalidate() after mutations.
-  staleTime: Infinity,
+  staleTime: 5 * 60 * 1000, // 5 min — structural data rarely changes
   component: AuthenticatedLayout,
 })
 
