@@ -8,6 +8,7 @@ import { isTeamError } from '../../domain/errors'
 import type { TeamId } from '../../domain/types'
 import { teamId } from '#/shared/domain/ids'
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
+import type { PropertyPublicApi } from '#/contexts/property/application/public-api'
 
 const FIXED_ID = teamId('team-00000000-0000-0000-0000-000000000001') as TeamId
 const FIXED_TIME = new Date('2026-04-15T12:00:00Z')
@@ -17,16 +18,16 @@ const setup = () => {
   const propertyRepo = createInMemoryPropertyRepo()
   const events = createCapturingEventBus()
 
-  const propertyExists = {
-    exists: async (_orgId: OrganizationId, pid: PropertyId) => {
-      const p = await propertyRepo.findById(_orgId, pid)
+  const propertyApi: PropertyPublicApi = {
+    propertyExists: async (orgId: OrganizationId, pid: PropertyId) => {
+      const p = await propertyRepo.findById(orgId, pid)
       return p !== null
     },
   }
 
   const deps = {
     teamRepo,
-    propertyExists,
+    propertyApi,
     events,
     idGen: () => FIXED_ID,
     clock: () => FIXED_TIME,

@@ -6,11 +6,12 @@ import { createInMemoryPropertyRepo } from '#/shared/testing/in-memory-property-
 import { buildTestAuthContext, buildTestProperty } from '#/shared/testing/fixtures'
 import type { PropertyId, OrganizationId, UserId } from '#/shared/domain/ids'
 import type { Role } from '#/shared/domain/roles'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 
-/** Create a propertyAccess provider that returns null for AccountAdmin, specific IDs otherwise. */
-const createTestPropertyAccess = (
+/** Create a staffApi stub that returns null for AccountAdmin, specific IDs otherwise. */
+const createTestStaffApi = (
   assignments: Map<string, ReadonlyArray<PropertyId>>,
-) => ({
+): StaffPublicApi => ({
   getAccessiblePropertyIds: async (
     _orgId: OrganizationId,
     userId: UserId,
@@ -23,8 +24,8 @@ const createTestPropertyAccess = (
 
 const setup = () => {
   const propertyRepo = createInMemoryPropertyRepo()
-  const propertyAccess = createTestPropertyAccess(new Map())
-  const useCase = listProperties({ propertyRepo, propertyAccess })
+  const staffApi = createTestStaffApi(new Map())
+  const useCase = listProperties({ propertyRepo, staffApi })
   return { useCase, propertyRepo }
 }
 
@@ -62,8 +63,8 @@ describe('listProperties', () => {
     const userAssignments = new Map([
       [ctx.userId as string, [p1.id as PropertyId, p3.id as PropertyId]],
     ])
-    const propertyAccess = createTestPropertyAccess(userAssignments)
-    const useCase = listProperties({ propertyRepo, propertyAccess })
+    const staffApi = createTestStaffApi(userAssignments)
+    const useCase = listProperties({ propertyRepo, staffApi })
 
     const properties = await useCase(ctx)
 
@@ -80,8 +81,8 @@ describe('listProperties', () => {
     const userAssignments = new Map([
       [ctx.userId as string, []], // no assignments
     ])
-    const propertyAccess = createTestPropertyAccess(userAssignments)
-    const useCase = listProperties({ propertyRepo, propertyAccess })
+    const staffApi = createTestStaffApi(userAssignments)
+    const useCase = listProperties({ propertyRepo, staffApi })
 
     const properties = await useCase(ctx)
 

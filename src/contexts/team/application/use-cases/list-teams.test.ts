@@ -7,7 +7,7 @@ import { listTeams } from './list-teams'
 import { createInMemoryTeamRepo } from '#/shared/testing/in-memory-team-repo'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { organizationId, propertyId, teamId } from '#/shared/domain/ids'
-import type { PropertyAccessProvider } from '#/shared/domain/property-access.port'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Team } from '../../domain/types'
 
@@ -33,10 +33,10 @@ const makeTeam = (
   propertyId: propertyId(overrides.propertyId),
 })
 
-/** Create a PropertyAccessProvider fake. null = admin (all access), array = specific property IDs. */
-const createFakePropertyAccess = (
+/** Create a StaffPublicApi fake. null = admin (all access), array = specific property IDs. */
+const createFakeStaffApi = (
   responses: Map<string, ReadonlyArray<string> | null>,
-): PropertyAccessProvider =>
+): StaffPublicApi =>
   ({
     getAccessiblePropertyIds: async (
       _orgId: AuthContext['organizationId'],
@@ -45,14 +45,14 @@ const createFakePropertyAccess = (
     ) => {
       return responses.get(role) ?? null
     },
-  }) as PropertyAccessProvider
+  }) as StaffPublicApi
 
 const setup = () => {
   const teamRepo = createInMemoryTeamRepo()
   const responses = new Map<string, ReadonlyArray<string> | null>()
-  const propertyAccess = createFakePropertyAccess(responses)
-  const useCase = listTeams({ teamRepo, propertyAccess })
-  return { teamRepo, propertyAccess, responses, useCase }
+  const staffApi = createFakeStaffApi(responses)
+  const useCase = listTeams({ teamRepo, staffApi })
+  return { teamRepo, staffApi, responses, useCase }
 }
 
 describe('listTeams', () => {

@@ -6,7 +6,12 @@ import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
 import { isPortalError } from '../../domain/errors'
-import { portalId } from '#/shared/domain/ids'
+import {
+  portalId,
+  propertyId,
+  type OrganizationId,
+  type PropertyId,
+} from '#/shared/domain/ids'
 
 const FIXED_ID = portalId('portal-00000000-0000-0000-0000-000000000001')
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
@@ -16,8 +21,10 @@ const setup = () => {
   const events = createCapturingEventBus()
   const deps = {
     portalRepo,
-    propertyExists: async (_orgId: string, propertyId: string) =>
-      propertyId === 'a0000000-0000-0000-0000-000000000001',
+    propertyApi: {
+      propertyExists: async (_orgId: OrganizationId, pid: PropertyId) =>
+        pid === propertyId('a0000000-0000-0000-0000-000000000001'),
+    },
     events,
     idGen: () => FIXED_ID,
     clock: () => FIXED_TIME,
@@ -81,12 +88,10 @@ describe('createPortal', () => {
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
 
     await expect(
-      useCase(
-        { name: 'Test', propertyId: 'nonexistent-property-id' },
-        ctx,
-      ),
+      useCase({ name: 'Test', propertyId: 'nonexistent-property-id' }, ctx),
     ).rejects.toSatisfy(
-      (e: unknown) => isPortalError(e) && (e as { code: string }).code === 'property_not_found',
+      (e: unknown) =>
+        isPortalError(e) && (e as { code: string }).code === 'property_not_found',
     )
   })
 
@@ -101,7 +106,10 @@ describe('createPortal', () => {
     portalRepo.seed([existing])
 
     await expect(
-      useCase({ name: 'My Portal', propertyId: 'a0000000-0000-0000-0000-000000000001' }, ctx),
+      useCase(
+        { name: 'My Portal', propertyId: 'a0000000-0000-0000-0000-000000000001' },
+        ctx,
+      ),
     ).rejects.toSatisfy(
       (e: unknown) => isPortalError(e) && (e as { code: string }).code === 'slug_taken',
     )
@@ -146,7 +154,8 @@ describe('createPortal', () => {
         ctx,
       ),
     ).rejects.toSatisfy(
-      (e: unknown) => isPortalError(e) && (e as { code: string }).code === 'invalid_theme',
+      (e: unknown) =>
+        isPortalError(e) && (e as { code: string }).code === 'invalid_theme',
     )
   })
 
