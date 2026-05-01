@@ -30,6 +30,7 @@ import { useState } from 'react'
 import { useMutationAction } from '#/components/hooks/use-mutation-action'
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/members')({
+  staleTime: 30_000,
   loader: async () => {
     const [{ members }, { invitations }] = await Promise.all([
       listMembers(),

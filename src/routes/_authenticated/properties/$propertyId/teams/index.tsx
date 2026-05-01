@@ -43,6 +43,7 @@ import { Plus, Users, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/teams/')({
+  staleTime: 30_000,
   loader: async ({ params: { propertyId } }) => {
     const [{ teams }, { members }, { assignments }] = await Promise.all([
       listTeams({ data: { propertyId } }),
