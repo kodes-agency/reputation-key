@@ -18,6 +18,7 @@ import {
   reorderLinksInputSchema,
 } from '../application/dto/portal-link.dto'
 import { isPortalError } from '../domain/errors'
+import { portalId as toPortalId } from '#/shared/domain/ids'
 import { portalErrorStatus } from './portals'
 
 // ── Category CRUD ──────────────────────────────────────────────────
@@ -142,4 +143,21 @@ export const reorderLinks = createServerFn({ method: 'POST' })
       if (isPortalError(e)) throwContextError('PortalError', e, portalErrorStatus(e.code))
       throw e
     }
+  })
+
+// ── List (read) ────────────────────────────────────────────────────
+
+export const listPortalLinks = createServerFn({ method: 'GET' })
+  .inputValidator(z.object({ portalId: z.string().min(1) }))
+  .handler(async ({ data }) => {
+    const headers = headersFromContext()
+    const ctx = await resolveTenantContext(headers)
+    const { portalLinkRepo } = getContainer()
+
+    const [categories, links] = await Promise.all([
+      portalLinkRepo.listCategories(ctx.organizationId, toPortalId(data.portalId)),
+      portalLinkRepo.listAllLinks(ctx.organizationId, toPortalId(data.portalId)),
+    ])
+
+    return { categories, links }
   })

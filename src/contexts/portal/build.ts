@@ -101,5 +101,5 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     }),
   } as const
 
-  return { useCases, storage, portalRepo } as const
+  return { useCases, storage, portalRepo, portalLinkRepo } as const
 }
