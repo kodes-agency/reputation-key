@@ -2,24 +2,46 @@
 // Per architecture: pure functions, the only place where both row and domain shapes are known.
 
 import type { portals } from '#/shared/db/schema/portal.schema'
-import type { Portal } from '../../domain/types'
+import type { Portal, PortalTheme, EntityType } from '../../domain/types'
 import { portalId, organizationId, propertyId } from '#/shared/domain/ids'
-import type { PortalTheme } from '../../domain/types'
 
 type PortalRow = typeof portals.$inferSelect
 type PortalInsertRow = typeof portals.$inferInsert
+
+const VALID_ENTITY_TYPES: ReadonlySet<string> = new Set(['property', 'team', 'staff'])
+
+function parseEntityType(value: string): EntityType {
+  if (!VALID_ENTITY_TYPES.has(value)) {
+    throw new Error(`[portal.mapper] invalid entityType: ${value}`)
+  }
+  return value as EntityType
+}
+
+function parseTheme(value: Record<string, unknown> | null): PortalTheme {
+  const raw = value ?? { primaryColor: '#6366F1' }
+  if (typeof raw.primaryColor !== 'string') {
+    throw new Error('[portal.mapper] invalid theme: missing primaryColor')
+  }
+  return {
+    primaryColor: raw.primaryColor,
+    ...(typeof raw.backgroundColor === 'string' && {
+      backgroundColor: raw.backgroundColor,
+    }),
+    ...(typeof raw.textColor === 'string' && { textColor: raw.textColor }),
+  }
+}
 
 export const portalFromRow = (row: PortalRow): Portal => ({
   id: portalId(row.id),
   organizationId: organizationId(row.organizationId),
   propertyId: propertyId(row.propertyId),
-  entityType: row.entityType as 'property' | 'team' | 'staff',
+  entityType: parseEntityType(row.entityType),
   entityId: row.entityId,
   name: row.name,
   slug: row.slug,
   description: row.description,
   heroImageUrl: row.heroImageUrl,
-  theme: (row.theme ?? { primaryColor: '#6366F1' }) as PortalTheme,
+  theme: parseTheme(row.theme as Record<string, unknown> | null),
   smartRoutingEnabled: row.smartRoutingEnabled,
   smartRoutingThreshold: row.smartRoutingThreshold,
   isActive: row.isActive,
