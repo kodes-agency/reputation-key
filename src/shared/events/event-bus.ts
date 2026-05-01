@@ -19,7 +19,13 @@ export type EventBus = Readonly<{
     handler: (event: Extract<DomainEvent, { _tag: T }>) => Promise<void>,
   ): void
 
-  /** Emit an event to all registered handlers. */
+  /**
+   * Emit an event to all registered handlers.
+   * TRADE-OFF: Handlers run concurrently via Promise.allSettled — no guaranteed
+   * execution order. If one handler's side effects must complete before another
+   * runs, enqueue a BullMQ job from the first handler and let the job trigger
+   * the second handler.
+   */
   emit(event: DomainEvent): Promise<void>
 
   /** Remove all handlers (useful for tests). */

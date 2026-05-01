@@ -10,7 +10,10 @@ const envSchema = z.object({
   DATABASE_URL_POOLER: z.url().optional(),
 
   // Auth — Better Auth
-  BETTER_AUTH_SECRET: z.string().min(32),
+  BETTER_AUTH_SECRET: z
+    .string()
+    .min(32)
+    .regex(/[a-zA-Z0-9]/, 'Must contain alphanumeric characters'),
   BETTER_AUTH_URL: z.url(),
 
   // Email — Resend
@@ -48,7 +51,7 @@ export function getEnv(): Env {
         .join('\n')
       // Startup-time assertion (not domain/application logic).
       // Plain Error is acceptable here — tagged errors are for domain and application layers.
-      throw new Error(`❌ Invalid environment variables:\n${errors}`)
+      throw new Error(`[CONFIG] Invalid environment variables:\n${errors}`)
     }
     _env = parsed.data
   }
