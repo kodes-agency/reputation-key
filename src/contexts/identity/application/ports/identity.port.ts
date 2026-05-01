@@ -53,7 +53,7 @@ export type IdentityPort = Readonly<{
   createInvitation: (
     ctx: AuthContext,
     email: string,
-    role: string,
+    role: Role,
     propertyIds?: ReadonlyArray<string>,
   ) => Promise<string>
 
@@ -70,7 +70,7 @@ export type IdentityPort = Readonly<{
   listUserInvitations: (headers: Headers) => Promise<ReadonlyArray<InvitationRecord>>
 
   /** Update a member's role. */
-  updateMemberRole: (ctx: AuthContext, memberId: string, role: string) => Promise<void>
+  updateMemberRole: (ctx: AuthContext, memberId: string, role: Role) => Promise<void>
 
   /** Remove a member from the organization. */
   removeMember: (ctx: AuthContext, memberId: string) => Promise<void>
