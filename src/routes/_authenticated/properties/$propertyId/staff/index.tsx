@@ -9,7 +9,10 @@ import { listTeams } from '#/contexts/team/server/teams'
 import { listMembers } from '#/contexts/identity/server/organizations'
 import { AssignStaffForm } from '#/components/features/staff/AssignStaffForm'
 import { StaffAssignmentList } from '#/components/features/staff/StaffAssignmentList'
-import { useMutationAction } from '#/components/hooks/use-mutation-action'
+import {
+  useMutationAction,
+  useMutationActionSilent,
+} from '#/components/hooks/use-mutation-action'
 import { toMemberOptions, toTeamOptions } from '#/lib/lookups'
 import { Button } from '#/components/ui/button'
 import {
@@ -41,16 +44,14 @@ function StaffListPage() {
   const { assignments, members, teams } = Route.useLoaderData()
   const [assignOpen, setAssignOpen] = useState(false)
 
-  const assignMutation = useMutationAction(createStaffAssignment, {
-    successMessage: 'Staff member assigned',
-    onSuccess: () => setAssignOpen(false),
-  })
+  const assignMutation = useMutationActionSilent(createStaffAssignment)
   const removeMutation = useMutationAction(removeStaffAssignment, {
     successMessage: 'Staff member unassigned',
   })
 
   const memberOptions = toMemberOptions(members)
   const teamOptions = toTeamOptions(teams)
+  const assignedUserIds = new Set(assignments.map((a: { userId: string }) => a.userId))
 
   return (
     <div className="space-y-6">
@@ -70,14 +71,18 @@ function StaffListPage() {
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Assign Staff Member</DialogTitle>
-              <DialogDescription>Add a staff member to this property.</DialogDescription>
+              <DialogTitle>Assign Staff</DialogTitle>
+              <DialogDescription>
+                Select staff members to assign to this property.
+              </DialogDescription>
             </DialogHeader>
             <AssignStaffForm
               propertyId={propertyId}
               mutation={assignMutation}
               members={memberOptions}
               teams={teamOptions}
+              assignedUserIds={assignedUserIds}
+              onSuccess={() => setAssignOpen(false)}
             />
           </DialogContent>
         </Dialog>
