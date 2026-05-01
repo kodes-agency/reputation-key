@@ -165,6 +165,13 @@ export function TeamMemberList({
                 <FormErrorBanner error={addAction.error} />
               </div>
               <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setAddOpen(false)}
+                  disabled={adding}
+                >
+                  Cancel
+                </Button>
                 <Button onClick={handleAdd} disabled={selectedIds.size === 0 || adding}>
                   {adding
                     ? 'Adding...'
