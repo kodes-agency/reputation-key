@@ -14,11 +14,12 @@ import type { BaseFieldApi } from '#/components/forms/FormTextField'
 import type { BaseFieldApiTextarea } from '#/components/forms/FormTextarea'
 import { updatePortalInputSchema } from '#/contexts/portal/application/dto/update-portal.dto'
 import type { Action } from '#/components/hooks/use-action'
-// eslint-disable-next-line boundaries/dependencies
+
 import { requestUploadUrl, finalizeUpload } from '#/contexts/portal/server/portals'
 import { Button } from '#/components/ui/button'
 import { Upload, ImageIcon } from 'lucide-react'
 import { useState } from 'react'
+import { toast } from 'sonner'
 
 const editFormSchema = updatePortalInputSchema
   .omit({ portalId: true, isActive: true })
@@ -95,11 +96,11 @@ export function EditPortalForm({ portal, mutation, canEdit }: Props) {
 
   const handleImageUpload = async (file: File) => {
     if (!file.type.startsWith('image/')) {
-      alert('Please select an image file')
+      toast.error('Please select an image file')
       return
     }
     if (file.size > 10 * 1024 * 1024) {
-      alert('File size must be less than 10 MB')
+      toast.error('File size must be less than 10 MB')
       return
     }
 
@@ -130,7 +131,7 @@ export function EditPortalForm({ portal, mutation, canEdit }: Props) {
       setHeroImageUrl(url)
     } catch (err) {
       console.error('Image upload failed:', err)
-      alert('Failed to upload image. Please try again.')
+      toast.error('Failed to upload image. Please try again.')
     } finally {
       setUploading(false)
     }
