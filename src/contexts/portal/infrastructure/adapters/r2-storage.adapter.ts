@@ -1,59 +1,61 @@
-// Portal context — R2 storage adapter
-// Implements StoragePort using Cloudflare R2 (S3-compatible API).
-// Uses @aws-sdk/client-s3 for R2 operations.
+// Portal context — S3 storage adapter
+// Implements StoragePort using AWS S3.
+// Uses @aws-sdk/client-s3 for S3 operations.
 
-import { S3Client, HeadObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
+import {
+  S3Client,
+  HeadObjectCommand,
+  DeleteObjectCommand,
+  PutObjectCommand,
+} from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
-import { PutObjectCommand } from '@aws-sdk/client-s3'
 import type { StoragePort } from '../../application/ports/storage.port'
 import { getEnv } from '#/shared/config/env'
 
-export const createR2StorageAdapter = (): StoragePort => {
+export const createS3StorageAdapter = (): StoragePort => {
   const env = getEnv()
 
-  // If R2 is not configured, return a noop adapter
+  // If S3 is not configured, return a noop adapter
   if (
-    !env.R2_ACCOUNT_ID ||
-    !env.R2_ACCESS_KEY_ID ||
-    !env.R2_SECRET_ACCESS_KEY ||
-    !env.R2_BUCKET_NAME
+    !env.AWS_S3_ACCESS_KEY ||
+    !env.AWS_S3_SECRET_ACCESS_KEY ||
+    !env.AWS_S3_BUCKET_NAME ||
+    !env.AWS_S3_REGION
   ) {
     return {
       createPresignedUploadUrl: async () => {
-        throw new Error('R2 storage is not configured')
+        throw new Error('S3 storage is not configured')
       },
       confirmUpload: async () => {
-        throw new Error('R2 storage is not configured')
+        throw new Error('S3 storage is not configured')
       },
       deleteObject: async () => {
-        throw new Error('R2 storage is not configured')
+        throw new Error('S3 storage is not configured')
       },
       getPublicUrl: () => '',
       putObject: async () => {
-        throw new Error('R2 storage is not configured')
+        throw new Error('S3 storage is not configured')
       },
     }
   }
 
   const client = new S3Client({
-    region: 'auto',
-    endpoint: `https://${env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+    region: env.AWS_S3_REGION,
     credentials: {
-      accessKeyId: env.R2_ACCESS_KEY_ID,
-      secretAccessKey: env.R2_SECRET_ACCESS_KEY,
+      accessKeyId: env.AWS_S3_ACCESS_KEY,
+      secretAccessKey: env.AWS_S3_SECRET_ACCESS_KEY,
     },
   })
 
-  const bucketName = env.R2_BUCKET_NAME
-  const publicUrl = env.R2_PUBLIC_URL ?? ''
+  const bucketName = env.AWS_S3_BUCKET_NAME
+  const region = env.AWS_S3_REGION
 
   return {
-    createPresignedUploadUrl: async (key, contentType, maxSizeBytes) => {
+    createPresignedUploadUrl: async (key, contentType, _maxSizeBytes) => {
       const command = new PutObjectCommand({
         Bucket: bucketName,
         Key: key,
         ContentType: contentType,
-        ContentLength: maxSizeBytes,
       })
 
       const uploadUrl = await getSignedUrl(client, command, {
@@ -65,11 +67,7 @@ export const createR2StorageAdapter = (): StoragePort => {
 
     confirmUpload: async (key) => {
       await client.send(new HeadObjectCommand({ Bucket: bucketName, Key: key }))
-
-      if (publicUrl) {
-        return `${publicUrl}/${key}`
-      }
-      return key
+      return `https://${bucketName}.s3.${region}.amazonaws.com/${key}`
     },
 
     deleteObject: async (key) => {
@@ -77,7 +75,7 @@ export const createR2StorageAdapter = (): StoragePort => {
     },
 
     getPublicUrl: (key) => {
-      return publicUrl ? `${publicUrl}/${key}` : key
+      return `https://${bucketName}.s3.${region}.amazonaws.com/${key}`
     },
 
     putObject: async (key, body, contentType) => {

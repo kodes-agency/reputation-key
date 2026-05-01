@@ -167,7 +167,8 @@ export const requestUploadUrl = createServerFn({ method: 'POST' })
       return result
     } catch (e) {
       if (isPortalError(e)) throwContextError('PortalError', e, portalErrorStatus(e.code))
-      throw e
+      const message = e instanceof Error ? e.message : 'Upload request failed'
+      throwContextError('PortalError', { code: 'upload_failed', message }, 422)
     }
   })
 
@@ -185,6 +186,7 @@ export const finalizeUpload = createServerFn({ method: 'POST' })
       return result
     } catch (e) {
       if (isPortalError(e)) throwContextError('PortalError', e, portalErrorStatus(e.code))
-      throw e
+      const message = e instanceof Error ? e.message : 'Upload finalization failed'
+      throwContextError('PortalError', { code: 'upload_failed', message }, 422)
     }
   })
