@@ -48,6 +48,11 @@ function PortalListPage() {
   const { portals: initialPortals } = Route.useLoaderData()
   const [portals, setPortals] = useState(initialPortals)
 
+  // Sync when loader data changes (e.g. after router.invalidate)
+  if (initialPortals !== portals && initialPortals.length >= portals.length) {
+    setPortals(initialPortals)
+  }
+
   const deleteMutation = useMutationActionSilent(deletePortal)
 
   const handleDelete = async (portalId: string) => {
