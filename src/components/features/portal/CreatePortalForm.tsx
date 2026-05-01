@@ -63,7 +63,7 @@ export function CreatePortalForm({ propertyId, mutation }: Props) {
         e.stopPropagation()
         form.handleSubmit()
       }}
-      className="max-w-lg space-y-4"
+      className="space-y-4"
     >
       <FormErrorBanner error={mutation.error} />
 

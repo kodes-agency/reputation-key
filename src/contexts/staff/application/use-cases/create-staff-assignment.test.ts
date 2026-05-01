@@ -103,4 +103,17 @@ describe('createStaffAssignment', () => {
     expect(events.capturedEvents).toHaveLength(1)
     expect(events.capturedEvents[0]._tag).toBe('staff.assigned')
   })
+
+  it('allows PropertyManager to self-assign', async () => {
+    const { useCase, assignmentRepo } = setup()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+
+    const assignment = await useCase(
+      { userId: ctx.userId as string, propertyId: FIXED_PROPERTY as string },
+      ctx,
+    )
+
+    expect(assignment.userId).toBe(ctx.userId)
+    expect(assignmentRepo.all()).toHaveLength(1)
+  })
 })
