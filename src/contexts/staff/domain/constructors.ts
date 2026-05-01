@@ -3,11 +3,10 @@
 // returning a Result."
 // Pure — ID and time are inputs, no side effects.
 
-import { Result } from 'neverthrow'
+import { ok, Result } from 'neverthrow'
 import type { StaffAssignment, StaffAssignmentId } from './types'
 import type { StaffError } from './errors'
 import type { OrganizationId, PropertyId, TeamId, UserId } from '#/shared/domain/ids'
-import { validateNotSelfAssignment } from './rules'
 
 // fallow-ignore-next-line unused-type
 export type BuildStaffAssignmentInput = Readonly<{
@@ -16,25 +15,20 @@ export type BuildStaffAssignmentInput = Readonly<{
   userId: UserId
   propertyId: PropertyId
   teamId?: TeamId | null
-  actingUserId: UserId
   now: Date
 }>
 
 export const buildStaffAssignment = (
   input: BuildStaffAssignmentInput,
 ): Result<StaffAssignment, StaffError> => {
-  const selfAssignCheck = validateNotSelfAssignment(input.userId, input.actingUserId)
-
-  return selfAssignCheck.map(
-    (): StaffAssignment => ({
-      id: input.id,
-      organizationId: input.organizationId,
-      userId: input.userId,
-      propertyId: input.propertyId,
-      teamId: input.teamId ?? null,
-      createdAt: input.now,
-      updatedAt: input.now,
-      deletedAt: null,
-    }),
-  )
+  return ok({
+    id: input.id,
+    organizationId: input.organizationId,
+    userId: input.userId,
+    propertyId: input.propertyId,
+    teamId: input.teamId ?? null,
+    createdAt: input.now,
+    updatedAt: input.now,
+    deletedAt: null,
+  })
 }

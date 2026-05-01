@@ -6,6 +6,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
+// eslint-disable-next-line boundaries/dependencies
 import { acceptInvitation } from '#/contexts/identity/server/organizations'
 import { useAction } from '#/components/hooks/use-action'
 import { Button } from '#/components/ui/button'

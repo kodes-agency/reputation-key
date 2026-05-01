@@ -6,6 +6,7 @@ import type { StaffAssignment, StaffAssignmentId } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { CreateStaffAssignmentInput } from '../dto/staff-assignment.dto'
 import { can } from '#/shared/domain/permissions'
+import { hasRole } from '#/shared/domain/roles'
 import { buildStaffAssignment } from '../../domain/constructors'
 import { staffError } from '../../domain/errors'
 import { staffAssigned } from '../../domain/events'
@@ -34,11 +35,16 @@ export const createStaffAssignment =
       throw staffError('forbidden', 'this role cannot manage staff assignments')
     }
 
-    // 3. Check uniqueness — prevent duplicate assignments
     const userId = toUserId(input.userId)
     const propertyId = toPropertyId(input.propertyId)
     const teamId = input.teamId != null ? toTeamId(input.teamId) : null
 
+    // 2. Self-assignment guard — only Staff role is blocked
+    if (userId === ctx.userId && !hasRole(ctx.role, 'PropertyManager')) {
+      throw staffError('invalid_input', 'Cannot assign yourself to a property')
+    }
+
+    // 3. Check uniqueness — prevent duplicate assignments
     if (
       await deps.assignmentRepo.assignmentExists(
         ctx.organizationId,
@@ -60,7 +66,6 @@ export const createStaffAssignment =
       userId,
       propertyId,
       teamId,
-      actingUserId: ctx.userId,
       now: deps.clock(),
     })
 
