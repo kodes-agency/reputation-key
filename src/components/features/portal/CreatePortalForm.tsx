@@ -18,6 +18,7 @@ import { createPortalInputSchema } from '#/contexts/portal/application/dto/creat
 
 const createFormSchema = createPortalInputSchema
   .pick({ name: true, slug: true, description: true })
+  .required()
   .extend({
     slug: z.string().max(64, 'Slug must be at most 64 characters'),
     primaryColor: z.string().min(1, 'Color is required'),
