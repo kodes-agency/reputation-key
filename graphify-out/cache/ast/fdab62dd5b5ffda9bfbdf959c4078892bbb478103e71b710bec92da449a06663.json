@@ -1,0 +1,215 @@
+{
+  "nodes": [
+    {
+      "id": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_portal_domain_constructors_ts",
+      "label": "constructors.ts",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/constructors.ts",
+      "source_location": "L1"
+    },
+    {
+      "id": "domain_constructors_buildportal",
+      "label": "buildPortal()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/constructors.ts",
+      "source_location": "L47"
+    },
+    {
+      "id": "domain_constructors_buildportallinkcategory",
+      "label": "buildPortalLinkCategory()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/constructors.ts",
+      "source_location": "L89"
+    },
+    {
+      "id": "domain_constructors_buildportallink",
+      "label": "buildPortalLink()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/constructors.ts",
+      "source_location": "L121"
+    }
+  ],
+  "edges": [
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_portal_domain_constructors_ts",
+      "target": "neverthrow",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/constructors.ts",
+      "source_location": "L6",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_portal_domain_constructors_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_portal_domain_types",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/constructors.ts",
+      "source_location": "L7",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_portal_domain_constructors_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_shared_domain_ids",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/constructors.ts",
+      "source_location": "L14",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_portal_domain_constructors_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_portal_domain_errors",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/constructors.ts",
+      "source_location": "L15",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_portal_domain_constructors_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_shared_domain_ids",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/constructors.ts",
+      "source_location": "L16",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_portal_domain_constructors_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_portal_domain_rules",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/constructors.ts",
+      "source_location": "L17",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_portal_domain_constructors_ts",
+      "target": "domain_constructors_buildportal",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/constructors.ts",
+      "source_location": "L47",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_portal_domain_constructors_ts",
+      "target": "domain_constructors_buildportallinkcategory",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/constructors.ts",
+      "source_location": "L89",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_portal_domain_constructors_ts",
+      "target": "domain_constructors_buildportallink",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/constructors.ts",
+      "source_location": "L121",
+      "weight": 1.0
+    }
+  ],
+  "raw_calls": [
+    {
+      "caller_nid": "domain_constructors_buildportal",
+      "callee": "validatePortalName",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/constructors.ts",
+      "source_location": "L48"
+    },
+    {
+      "caller_nid": "domain_constructors_buildportal",
+      "callee": "validateSlug",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/constructors.ts",
+      "source_location": "L49"
+    },
+    {
+      "caller_nid": "domain_constructors_buildportal",
+      "callee": "normalizeSlug",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/constructors.ts",
+      "source_location": "L49"
+    },
+    {
+      "caller_nid": "domain_constructors_buildportal",
+      "callee": "validateDescription",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/constructors.ts",
+      "source_location": "L50"
+    },
+    {
+      "caller_nid": "domain_constructors_buildportal",
+      "callee": "validatePortalTheme",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/constructors.ts",
+      "source_location": "L52"
+    },
+    {
+      "caller_nid": "domain_constructors_buildportal",
+      "callee": "validateSmartRoutingThreshold",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/constructors.ts",
+      "source_location": "L53"
+    },
+    {
+      "caller_nid": "domain_constructors_buildportal",
+      "callee": "map",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/constructors.ts",
+      "source_location": "L55"
+    },
+    {
+      "caller_nid": "domain_constructors_buildportal",
+      "callee": "combine",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/constructors.ts",
+      "source_location": "L55"
+    },
+    {
+      "caller_nid": "domain_constructors_buildportallinkcategory",
+      "callee": "validateCategoryTitle",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/constructors.ts",
+      "source_location": "L92"
+    },
+    {
+      "caller_nid": "domain_constructors_buildportallinkcategory",
+      "callee": "map",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/constructors.ts",
+      "source_location": "L93"
+    },
+    {
+      "caller_nid": "domain_constructors_buildportallink",
+      "callee": "validateLinkLabel",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/constructors.ts",
+      "source_location": "L124"
+    },
+    {
+      "caller_nid": "domain_constructors_buildportallink",
+      "callee": "validateUrl",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/constructors.ts",
+      "source_location": "L125"
+    },
+    {
+      "caller_nid": "domain_constructors_buildportallink",
+      "callee": "map",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/constructors.ts",
+      "source_location": "L126"
+    },
+    {
+      "caller_nid": "domain_constructors_buildportallink",
+      "callee": "combine",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/constructors.ts",
+      "source_location": "L126"
+    }
+  ]
+}

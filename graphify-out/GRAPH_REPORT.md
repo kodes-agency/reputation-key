@@ -1,14 +1,14 @@
-# Graph Report - full-bobble (2026-04-29)
+# Graph Report - orderly-pigeon (2026-05-02)
 
 ## Corpus Check
 
-- 244 files · ~98,610 words
+- 412 files · ~179,574 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
 
-- 531 nodes · 503 edges · 13 communities detected
-- Extraction: 64% EXTRACTED · 36% INFERRED · 0% AMBIGUOUS · INFERRED: 182 edges (avg confidence: 0.8)
+- 947 nodes · 983 edges · 21 communities detected
+- Extraction: 60% EXTRACTED · 40% INFERRED · 0% AMBIGUOUS · INFERRED: 398 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Community Hubs (Navigation)
@@ -24,117 +24,178 @@
 - [[_COMMUNITY_Community 8|Community 8]]
 - [[_COMMUNITY_Community 9|Community 9]]
 - [[_COMMUNITY_Community 10|Community 10]]
+- [[_COMMUNITY_Community 11|Community 11]]
 - [[_COMMUNITY_Community 12|Community 12]]
-- [[_COMMUNITY_Community 14|Community 14]]
+- [[_COMMUNITY_Community 16|Community 16]]
+- [[_COMMUNITY_Community 18|Community 18]]
+- [[_COMMUNITY_Community 21|Community 21]]
+- [[_COMMUNITY_Community 22|Community 22]]
+- [[_COMMUNITY_Community 32|Community 32]]
+- [[_COMMUNITY_Community 38|Community 38]]
+- [[_COMMUNITY_Community 40|Community 40]]
+- [[_COMMUNITY_Community 59|Community 59]]
 
 ## God Nodes (most connected - your core abstractions)
 
-1. `createContainer()` - 37 edges
-2. `createCapturingEventBus()` - 13 edges
-3. `organizationId()` - 13 edges
-4. `propertyId()` - 11 edges
-5. `getLogger()` - 10 edges
-6. `getEnv()` - 9 edges
-7. `userId()` - 8 edges
-8. `resolveTenantContext()` - 7 edges
-9. `createInMemoryPropertyRepo()` - 7 edges
-10. `teamId()` - 7 edges
+1. `createContainer()` - 44 edges
+2. `organizationId()` - 26 edges
+3. `buildPortalContext()` - 20 edges
+4. `createCapturingEventBus()` - 20 edges
+5. `propertyId()` - 20 edges
+6. `portalId()` - 14 edges
+7. `getEnv()` - 12 edges
+8. `getLogger()` - 11 edges
+9. `portalError()` - 10 edges
+10. `validateSlug()` - 10 edges
 
 ## Surprising Connections (you probably didn't know these)
 
-- `runDbCleanup()` --calls--> `getDb()` [INFERRED]
-  e2e/helpers/cleanup.ts → src/shared/db/index.ts
 - `createContainer()` --calls--> `createAuthIdentityAdapter()` [INFERRED]
-  src/composition.ts → src/contexts/identity/infrastructure/adapters/auth-identity.adapter.ts
-- `createContainer()` --calls--> `setOnAcceptInvitation()` [INFERRED]
-  src/composition.ts → src/shared/auth/auth.ts
-- `createContainer()` --calls--> `getDb()` [INFERRED]
-  src/composition.ts → src/shared/db/index.ts
-- `createContainer()` --calls--> `createEventBus()` [INFERRED]
-  src/composition.ts → src/shared/events/event-bus.ts
+  src/composition.ts → /Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/contexts/identity/infrastructure/adapters/auth-identity.adapter.ts
+- `runDbCleanup()` --calls--> `getDb()` [INFERRED]
+  /Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/e2e/helpers/cleanup.ts → src/shared/db/index.ts
+- `createContainer()` --calls--> `getLogger()` [INFERRED]
+  src/composition.ts → /Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/shared/observability/logger.ts
+- `createContainer()` --calls--> `createStaffAssignmentRepository()` [INFERRED]
+  src/composition.ts → /Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/contexts/staff/infrastructure/repositories/staff-assignment.repository.ts
+- `createContainer()` --calls--> `createPropertyRepository()` [INFERRED]
+  src/composition.ts → /Users/bozhidardenev/.superset/worktrees/reputation-key/full-bobble/src/contexts/property/infrastructure/repositories/property.repository.ts
 
 ## Communities
 
 ### Community 0 - "Community 0"
 
-Cohesion: 0.06
-Nodes (22): createNoopCache(), createRedisCache(), getRedis(), isRedisHealthy(), getEnv(), createEventBus(), createHealthCheckHandler(), createJobQueue() (+14 more)
+Cohesion: 0.03
+Nodes (35): buildPortalContext(), createPortalLinkRepository(), createCapturingEventBus(), createInMemoryPortalLinkRepo(), createInMemoryPortalRepo(), createLinkCategory(), setup(), createLink() (+27 more)
 
 ### Community 1 - "Community 1"
 
-Cohesion: 0.1
-Nodes (18): organizationId(), propertyId(), staffAssignmentId(), teamId(), userId(), propertyFromRow(), makeProperty(), staffAssignmentFromRow() (+10 more)
+Cohesion: 0.04
+Nodes (36): createNoopCache(), createRedisCache(), createEventBus(), buildIdentityContext(), createJobQueue(), createRateLimiter(), createPropertyRepository(), createStaffAssignmentRepository() (+28 more)
 
 ### Community 2 - "Community 2"
 
 Cohesion: 0.07
-Nodes (17): createCapturingEventBus(), createInMemoryPropertyRepo(), createProperty(), setup(), createTeam(), setup(), getProperty(), setup() (+9 more)
+Nodes (40): feedbackId(), organizationId(), portalId(), portalLinkCategoryId(), portalLinkId(), propertyId(), ratingId(), scanEventId() (+32 more)
 
 ### Community 3 - "Community 3"
 
-Cohesion: 0.12
-Nodes (15): createAuthIdentityAdapter(), toMemberRecord(), createAuth(), getAuth(), setOnAcceptInvitation(), authErrorStatus(), getSessionFromHeaders(), getUserFromHeaders() (+7 more)
+Cohesion: 0.08
+Nodes (30): parseBetterAuthResponse(), buildPortal(), buildPortalLink(), buildPortalLinkCategory(), buildProperty(), identityError(), portalError(), propertyError() (+22 more)
 
 ### Community 4 - "Community 4"
 
-Cohesion: 0.09
-Nodes (11): createInMemoryIdentityPort(), inviteMember(), setup(), listInvitations(), setup(), removeMember(), setup(), resendInvitation() (+3 more)
+Cohesion: 0.07
+Nodes (24): createS3StorageAdapter(), emailShell(), escapeHtml(), getResend(), invitationEmailHtml(), resetPasswordEmailHtml(), sendEmail(), sendInvitationEmail() (+16 more)
 
 ### Community 5 - "Community 5"
 
-Cohesion: 0.15
-Nodes (12): parseBetterAuthResponse(), buildProperty(), identityError(), propertyError(), hasRole(), canChangeRole(), canInviteWithRole(), normalizeSlug() (+4 more)
+Cohesion: 0.06
+Nodes (20): useAction(), wrapAction(), useMutationAction(), useMutationActionSilent(), toMemberOptions(), toTeamOptions(), CreatePortalPage(), PortalDetailRoute() (+12 more)
 
 ### Community 6 - "Community 6"
 
-Cohesion: 0.11
-Nodes (11): createInMemoryTeamRepo(), getTeam(), createAccessProvider(), setup(), listTeams(), createFakePropertyAccess(), setup(), softDeleteTeam() (+3 more)
+Cohesion: 0.09
+Nodes (15): createTeamRepository(), buildTeamContext(), createInMemoryTeamRepo(), createTeam(), setup(), getTeam(), createStaffApi(), setup() (+7 more)
 
 ### Community 7 - "Community 7"
 
-Cohesion: 0.14
-Nodes (7): createInMemoryStaffAssignmentRepo(), createStaffAssignment(), setup(), listStaffAssignments(), setup(), removeStaffAssignment(), setup()
+Cohesion: 0.1
+Nodes (16): createAuthIdentityAdapter(), toMemberRecord(), createAuth(), getAuth(), setOnAcceptInvitation(), authErrorStatus(), getSessionFromHeaders(), getUserFromHeaders() (+8 more)
 
 ### Community 8 - "Community 8"
 
-Cohesion: 0.21
-Nodes (7): useAction(), wrapAction(), CreatePropertyPage(), PropertyLayout(), JoinPage(), LoginPage(), RegisterPage()
+Cohesion: 0.1
+Nodes (13): buildPropertyContext(), createInMemoryPropertyRepo(), createProperty(), setup(), getProperty(), setup(), listProperties(), createTestStaffApi() (+5 more)
 
 ### Community 9 - "Community 9"
 
-Cohesion: 0.42
-Nodes (10): emailShell(), escapeHtml(), getResend(), invitationEmailHtml(), resetPasswordEmailHtml(), sendEmail(), sendInvitationEmail(), sendResetPasswordEmail() (+2 more)
+Cohesion: 0.15
+Nodes (12): useAsRef(), useLazyRef(), ColorPicker(), colorToString(), hexToRgb(), hsvToRgb(), parseColorString(), rgbToHex() (+4 more)
 
 ### Community 10 - "Community 10"
 
-Cohesion: 0.2
-Nodes (5): getDb(), isDbHealthy(), getPool(), runDbCleanup(), setupTestDatabase()
+Cohesion: 0.14
+Nodes (6): getDb(), isDbHealthy(), getPool(), runDbCleanup(), seedPortal(), createPortalRepository()
+
+### Community 11 - "Community 11"
+
+Cohesion: 0.17
+Nodes (6): buildGuestContext(), createGuestInteractionRepository(), recordScan(), submitFeedback(), submitRating(), trackReviewLinkClick()
 
 ### Community 12 - "Community 12"
+
+Cohesion: 0.31
+Nodes (6): buildFeedback(), buildRating(), guestError(), validateFeedback(), validateRating(), validateSource()
+
+### Community 16 - "Community 16"
 
 Cohesion: 0.29
 Nodes (4): buildStaffAssignment(), staffError(), validateNotSelfAssignment(), validateRequiredId()
 
-### Community 14 - "Community 14"
+### Community 18 - "Community 18"
 
 Cohesion: 0.29
 Nodes (3): buildTeam(), teamError(), validateTeamName()
+
+### Community 21 - "Community 21"
+
+Cohesion: 0.33
+Nodes (2): SidebarMenuButton(), useSidebar()
+
+### Community 22 - "Community 22"
+
+Cohesion: 0.4
+Nodes (3): buildPermissionSet(), initPermissionTable(), setPermissionLookup()
+
+### Community 32 - "Community 32"
+
+Cohesion: 0.5
+Nodes (2): getTimezoneOffsetLabel(), TimezoneCombobox()
+
+### Community 38 - "Community 38"
+
+Cohesion: 0.5
+Nodes (2): usePermissions(), EditPortalForm()
+
+### Community 40 - "Community 40"
+
+Cohesion: 0.67
+Nodes (2): composeRefs(), useComposedRefs()
+
+### Community 59 - "Community 59"
+
+Cohesion: 1.0
+Nodes (2): parseSource(), PublicPortalPage()
+
+## Knowledge Gaps
+
+- **Thin community `Community 21`** (7 nodes): `sidebar.tsx`, `cn()`, `handleKeyDown()`, `SidebarMenu()`, `SidebarMenuButton()`, `SidebarMenuItem()`, `useSidebar()`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 32`** (4 nodes): `getTimezoneOffsetLabel()`, `TimezoneCombobox()`, `TimezoneCombobox.tsx`, `timezones.ts`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 38`** (4 nodes): `usePermissions()`, `EditPortalForm()`, `EditPortalForm.tsx`, `usePermissions.ts`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 40`** (4 nodes): `composeRefs()`, `setRef()`, `useComposedRefs()`, `compose-refs.ts`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 59`** (3 nodes): `parseSource()`, `PublicPortalPage()`, `$portalSlug.tsx`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 
 ## Suggested Questions
 
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `createContainer()` connect `Community 0` to `Community 2`, `Community 3`, `Community 4`, `Community 6`, `Community 7`, `Community 10`?**
-  _High betweenness centrality (0.121) - this node is a cross-community bridge._
-- **Why does `resolveTenantContext()` connect `Community 3` to `Community 1`?**
-  _High betweenness centrality (0.048) - this node is a cross-community bridge._
-- **Are the 35 inferred relationships involving `createContainer()` (e.g. with `getDb()` and `getLogger()`) actually correct?**
-  _`createContainer()` has 35 INFERRED edges - model-reasoned connections that need verification._
-- **Are the 12 inferred relationships involving `createCapturingEventBus()` (e.g. with `setup()` and `setup()`) actually correct?**
-  _`createCapturingEventBus()` has 12 INFERRED edges - model-reasoned connections that need verification._
-- **Are the 12 inferred relationships involving `organizationId()` (e.g. with `makeProperty()` and `propertyFromRow()`) actually correct?**
-  _`organizationId()` has 12 INFERRED edges - model-reasoned connections that need verification._
-- **Are the 10 inferred relationships involving `propertyId()` (e.g. with `makeProperty()` and `propertyFromRow()`) actually correct?**
-  _`propertyId()` has 10 INFERRED edges - model-reasoned connections that need verification._
-- **Are the 8 inferred relationships involving `getLogger()` (e.g. with `createContainer()` and `bootstrap()`) actually correct?**
-  _`getLogger()` has 8 INFERRED edges - model-reasoned connections that need verification._
+- **Why does `createContainer()` connect `Community 1` to `Community 0`, `Community 4`, `Community 6`, `Community 7`, `Community 8`, `Community 10`, `Community 11`?**
+  _High betweenness centrality (0.107) - this node is a cross-community bridge._
+- **Why does `buildPortalContext()` connect `Community 0` to `Community 1`, `Community 10`, `Community 4`?**
+  _High betweenness centrality (0.057) - this node is a cross-community bridge._
+- **Why does `updateProperty()` connect `Community 8` to `Community 1`, `Community 3`?**
+  _High betweenness centrality (0.024) - this node is a cross-community bridge._
+- **Are the 41 inferred relationships involving `createContainer()` (e.g. with `getDb()` and `getLogger()`) actually correct?**
+  _`createContainer()` has 41 INFERRED edges - model-reasoned connections that need verification._
+- **Are the 25 inferred relationships involving `organizationId()` (e.g. with `portalFromRow()` and `categoryFromRow()`) actually correct?**
+  _`organizationId()` has 25 INFERRED edges - model-reasoned connections that need verification._
+- **Are the 19 inferred relationships involving `buildPortalContext()` (e.g. with `createContainer()` and `createPortalRepository()`) actually correct?**
+  _`buildPortalContext()` has 19 INFERRED edges - model-reasoned connections that need verification._
+- **Are the 19 inferred relationships involving `createCapturingEventBus()` (e.g. with `setup()` and `setup()`) actually correct?**
+  _`createCapturingEventBus()` has 19 INFERRED edges - model-reasoned connections that need verification._
