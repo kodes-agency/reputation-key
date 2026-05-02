@@ -11,7 +11,7 @@ import {
   cancelInvitation,
   resendInvitation,
 } from '#/contexts/identity/server/organizations'
-import { hasRole } from '#/shared/domain/roles'
+import { usePermissions } from '#/shared/hooks/usePermissions'
 import { MemberTable } from '#/components/features/identity/MemberTable'
 import { InvitationTable } from '#/components/features/identity/InvitationTable'
 import { InviteMemberForm } from '#/components/features/identity/InviteMemberForm'
@@ -45,7 +45,7 @@ function MembersPage() {
   const ctx = Route.useRouteContext()
   const currentUserId = ctx.user.id
   const role = ctx.role ?? 'Staff'
-  const canInvite = hasRole(role, 'PropertyManager')
+  const { can } = usePermissions()
   const { members, invitations } = Route.useLoaderData()
   const { properties } = getRouteApi('/_authenticated').useLoaderData()
 
@@ -88,7 +88,7 @@ function MembersPage() {
             Manage your organization's members, roles, and invitations.
           </p>
         </div>
-        {canInvite && (
+        {can('invitation.create') && (
           <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
             <DialogTrigger asChild>
               <Button>
@@ -125,7 +125,7 @@ function MembersPage() {
         removeMemberAction={removeMemberFn}
       />
 
-      {canInvite && pendingInvitations.length > 0 && (
+      {can('invitation.create') && pendingInvitations.length > 0 && (
         <>
           <Separator />
           <InvitationTable

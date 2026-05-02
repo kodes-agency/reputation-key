@@ -5,8 +5,7 @@ import { Button } from '#/components/ui/button'
 import { Badge } from '#/components/ui/badge'
 import { Plus, ChevronRight } from 'lucide-react'
 import { useEffect } from 'react'
-import type { AuthRouteContext } from '#/routes/_authenticated'
-import { hasRole } from '#/shared/domain/roles'
+import { usePermissions } from '#/shared/hooks/usePermissions'
 
 const authRoute = getRouteApi('/_authenticated')
 
@@ -16,7 +15,6 @@ export const Route = createFileRoute('/_authenticated/dashboard')({
 
 function DashboardPage() {
   const { properties } = authRoute.useLoaderData()
-  const ctx = Route.useRouteContext() as AuthRouteContext
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -52,7 +50,7 @@ function DashboardPage() {
   }
 
   // Multiple properties — show list
-  const canCreate = hasRole(ctx.role, 'PropertyManager')
+  const { can } = usePermissions()
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -63,7 +61,7 @@ function DashboardPage() {
             Manage your organization's properties and locations.
           </p>
         </div>
-        {canCreate && (
+        {can('property.create') && (
           <Button asChild>
             <Link to="/properties/new">
               <Plus />

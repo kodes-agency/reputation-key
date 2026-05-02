@@ -3,8 +3,9 @@
 // Never imports server functions directly (dependency rules).
 
 import { useForm } from '@tanstack/react-form'
+import { useEffect, useRef } from 'react'
 import { z } from 'zod/v4'
-import { Field, FieldLabel, FieldGroup } from '#/components/ui/field'
+import { FieldGroup } from '#/components/ui/field'
 import { SubmitButton } from '#/components/forms/SubmitButton'
 import { FormErrorBanner } from '#/components/forms/FormErrorBanner'
 import { FormTextField } from '#/components/forms/FormTextField'
@@ -12,17 +13,7 @@ import { FormTextarea } from '#/components/forms/FormTextarea'
 import type { BaseFieldApi } from '#/components/forms/FormTextField'
 import type { BaseFieldApiTextarea } from '#/components/forms/FormTextarea'
 import type { Action } from '#/components/hooks/use-action'
-import {
-  ColorPicker,
-  ColorPickerArea,
-  ColorPickerContent,
-  ColorPickerEyeDropper,
-  ColorPickerFormatSelect,
-  ColorPickerHueSlider,
-  ColorPickerInput,
-  ColorPickerSwatch,
-  ColorPickerTrigger,
-} from '#/components/ui/color-picker'
+import { ThemePresetSelector } from './ThemePresetSelector'
 
 const createFormSchema = z.object({
   name: z.string().min(1, 'Name is required').max(100),
@@ -45,9 +36,14 @@ type CreatePortalVariables = {
 type Props = Readonly<{
   propertyId: string
   mutation: Action<CreatePortalVariables>
+  onPreviewChange?: (preview: {
+    name: string
+    description: string
+    primaryColor: string
+  }) => void
 }>
 
-export function CreatePortalForm({ propertyId, mutation }: Props) {
+export function CreatePortalForm({ propertyId, mutation, onPreviewChange }: Props) {
   const form = useForm({
     defaultValues: {
       name: '',
@@ -70,6 +66,9 @@ export function CreatePortalForm({ propertyId, mutation }: Props) {
     },
   })
 
+  // Track previous name to detect changes
+  const previousNameRef = useRef<string>('')
+
   return (
     <form
       onSubmit={(e) => {
@@ -81,16 +80,50 @@ export function CreatePortalForm({ propertyId, mutation }: Props) {
     >
       <FormErrorBanner error={mutation.error} />
 
+      {/* Track form changes for preview */}
+      <form.Subscribe
+        selector={(state) => ({
+          name: state.values.name,
+          description: state.values.description,
+          primaryColor: state.values.primaryColor,
+        })}
+      >
+        {(previewState) => {
+          useEffect(() => {
+            onPreviewChange?.(previewState)
+          }, [previewState])
+          return null
+        }}
+      </form.Subscribe>
+
       <FieldGroup>
         <form.Field name="name">
-          {(field: BaseFieldApi) => (
-            <FormTextField
-              field={field}
-              label="Name"
-              id="portal-name"
-              placeholder="My Portal"
-            />
-          )}
+          {(field: BaseFieldApi) => {
+            // Auto-generate slug from name when name changes and slug is empty
+            const currentValue = field.state.value
+            useEffect(() => {
+              if (currentValue && currentValue !== previousNameRef.current) {
+                const currentSlug = form.getFieldValue('slug')
+                if (!currentSlug) {
+                  const generated = currentValue
+                    .toLowerCase()
+                    .replace(/[^a-z0-9]+/g, '-')
+                    .replace(/^-|-$/g, '')
+                  form.setFieldValue('slug', generated)
+                }
+                previousNameRef.current = currentValue
+              }
+            }, [currentValue])
+
+            return (
+              <FormTextField
+                field={field}
+                label="Name"
+                id="portal-name"
+                placeholder="My Portal"
+              />
+            )
+          }}
         </form.Field>
 
         <form.Field name="slug">
@@ -117,34 +150,15 @@ export function CreatePortalForm({ propertyId, mutation }: Props) {
         </form.Field>
 
         <form.Field name="primaryColor">
-          {(field) => {
-            const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid
-            return (
-              <Field data-invalid={isInvalid}>
-                <FieldLabel htmlFor="portal-primary-color">Primary Color</FieldLabel>
-                <ColorPicker
-                  value={field.state.value}
-                  onValueChange={(value) => field.handleChange(value)}
-                  name="primaryColor"
-                >
-                  <div className="flex items-center gap-2">
-                    <ColorPickerTrigger>
-                      <ColorPickerSwatch />
-                    </ColorPickerTrigger>
-                    <ColorPickerContent>
-                      <ColorPickerArea />
-                      <ColorPickerHueSlider />
-                      <div className="flex items-center gap-2">
-                        <ColorPickerInput withoutAlpha />
-                        <ColorPickerFormatSelect />
-                        <ColorPickerEyeDropper />
-                      </div>
-                    </ColorPickerContent>
-                  </div>
-                </ColorPicker>
-              </Field>
-            )
-          }}
+          {(field) => (
+            <div className="space-y-2">
+              <h3 className="font-semibold">Theme</h3>
+              <ThemePresetSelector
+                primaryColor={field.state.value}
+                onPrimaryColorChange={(color) => field.handleChange(color)}
+              />
+            </div>
+          )}
         </form.Field>
       </FieldGroup>
 

@@ -12,8 +12,14 @@ import {
 import type { Property } from '#/contexts/property/domain/types'
 import type { Team } from '#/contexts/team/domain/types'
 import type { StaffAssignment } from '#/contexts/staff/domain/types'
-import type { Portal, PortalLinkCategory, PortalLink } from '#/contexts/portal/domain/types'
+import type {
+  Portal,
+  PortalLinkCategory,
+  PortalLink,
+} from '#/contexts/portal/domain/types'
 import { portalId, portalLinkCategoryId, portalLinkId } from '#/shared/domain/ids'
+import type { ScanEvent, Rating, Feedback } from '#/contexts/guest/domain/types'
+import { scanEventId, ratingId, feedbackId } from '#/shared/domain/ids'
 
 /** Build a deterministic AuthContext for tests. */
 export function buildTestAuthContext(overrides: Partial<AuthContext> = {}): AuthContext {
@@ -169,9 +175,7 @@ export function buildTestPortalLinkCategory(
 }
 
 /** Build a deterministic PortalLink for tests. */
-export function buildTestPortalLink(
-  overrides: Partial<PortalLink> = {},
-): PortalLink {
+export function buildTestPortalLink(overrides: Partial<PortalLink> = {}): PortalLink {
   return {
     id: portalLinkId('10000000-0000-0000-0000-000000000001'),
     categoryId: portalLinkCategoryId('c0000000-0000-0000-0000-000000000001'),
@@ -183,6 +187,51 @@ export function buildTestPortalLink(
     sortKey: 'a0',
     createdAt: new Date('2026-04-10T12:00:00Z'),
     updatedAt: new Date('2026-04-10T12:00:00Z'),
+    ...overrides,
+  }
+}
+
+export function buildTestScanEvent(overrides: Partial<ScanEvent> = {}): ScanEvent {
+  return {
+    id: scanEventId('e0000000-0000-0000-0000-000000000001'),
+    organizationId: organizationId('org-00000000-0000-0000-0000-000000000001'),
+    portalId: portalId('d0000000-0000-0000-0000-000000000001'),
+    propertyId: propertyId('a0000000-0000-0000-0000-000000000001'),
+    source: 'qr',
+    sessionId: 'session-test-001',
+    ipHash: 'hash-test',
+    createdAt: new Date('2026-05-01T12:00:00Z'),
+    ...overrides,
+  }
+}
+
+export function buildTestRating(overrides: Partial<Rating> = {}): Rating {
+  return {
+    id: ratingId('f0000000-0000-0000-0000-000000000001'),
+    organizationId: organizationId('org-00000000-0000-0000-0000-000000000001'),
+    portalId: portalId('d0000000-0000-0000-0000-000000000001'),
+    propertyId: propertyId('a0000000-0000-0000-0000-000000000001'),
+    sessionId: 'session-test-001',
+    value: 4,
+    source: 'qr',
+    ipHash: 'hash-test',
+    createdAt: new Date('2026-05-01T12:00:00Z'),
+    ...overrides,
+  }
+}
+
+export function buildTestFeedback(overrides: Partial<Feedback> = {}): Feedback {
+  return {
+    id: feedbackId('g0000000-0000-0000-0000-000000000001'),
+    organizationId: organizationId('org-00000000-0000-0000-0000-000000000001'),
+    portalId: portalId('d0000000-0000-0000-0000-000000000001'),
+    propertyId: propertyId('a0000000-0000-0000-0000-000000000001'),
+    sessionId: 'session-test-001',
+    ratingId: ratingId('f0000000-0000-0000-0000-000000000001'),
+    comment: 'Test feedback',
+    source: 'qr',
+    ipHash: 'hash-test',
+    createdAt: new Date('2026-05-01T12:00:00Z'),
     ...overrides,
   }
 }

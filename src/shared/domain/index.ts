@@ -11,6 +11,9 @@ export type {
   StaffAssignmentId,
   PortalLinkCategoryId,
   PortalLinkId,
+  ScanEventId,
+  RatingId,
+  FeedbackId,
 } from './ids'
 
 // ── ID constructors ───────────────────────────────────────────────
@@ -23,6 +26,9 @@ export {
   staffAssignmentId,
   portalLinkCategoryId,
   portalLinkId,
+  scanEventId,
+  ratingId,
+  feedbackId,
 } from './ids'
 
 // ── Core types ────────────────────────────────────────────────────

@@ -7,7 +7,10 @@ export type OrganizationId = Brand<string, 'OrganizationId'>
 export type UserId = Brand<string, 'UserId'>
 export type PropertyId = Brand<string, 'PropertyId'>
 export type PortalId = Brand<string, 'PortalId'>
-// ReviewId, FeedbackId — deferred to Phase 8/9
+// ReviewId — deferred to Phase 8/9
+export type ScanEventId = Brand<string, 'ScanEventId'>
+export type RatingId = Brand<string, 'RatingId'>
+export type FeedbackId = Brand<string, 'FeedbackId'>
 export type TeamId = Brand<string, 'TeamId'>
 export type StaffAssignmentId = Brand<string, 'StaffAssignmentId'>
 // MetricId, GoalId — deferred to Phase 10/11
@@ -27,6 +30,18 @@ export function propertyId(id: string): PropertyId {
 }
 export function portalId(id: string): PortalId {
   return id as PortalId
+}
+
+export function scanEventId(id: string): ScanEventId {
+  return id as ScanEventId
+}
+
+export function ratingId(id: string): RatingId {
+  return id as RatingId
+}
+
+export function feedbackId(id: string): FeedbackId {
+  return id as FeedbackId
 }
 
 export function teamId(id: string): TeamId {

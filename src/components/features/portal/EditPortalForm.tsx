@@ -4,14 +4,13 @@
 
 import { useForm } from '@tanstack/react-form'
 import { z } from 'zod/v4'
-import { Field, FieldLabel, FieldGroup } from '#/components/ui/field'
+import { FieldGroup } from '#/components/ui/field'
 import { SubmitButton } from '#/components/forms/SubmitButton'
 import { FormErrorBanner } from '#/components/forms/FormErrorBanner'
 import { FormTextField } from '#/components/forms/FormTextField'
 import { FormTextarea } from '#/components/forms/FormTextarea'
 import type { BaseFieldApi } from '#/components/forms/FormTextField'
 import type { BaseFieldApiTextarea } from '#/components/forms/FormTextarea'
-import { updatePortalInputSchema } from '#/contexts/portal/application/dto/update-portal.dto'
 import type { Action } from '#/components/hooks/use-action'
 
 import { requestUploadUrl, finalizeUpload } from '#/contexts/portal/server/portals'
@@ -19,31 +18,16 @@ import { Button } from '#/components/ui/button'
 import { Upload, ImageIcon, X, Loader2 } from 'lucide-react'
 import { useState, useRef, useCallback } from 'react'
 import { toast } from 'sonner'
-import {
-  ColorPicker,
-  ColorPickerArea,
-  ColorPickerContent,
-  ColorPickerEyeDropper,
-  ColorPickerFormatSelect,
-  ColorPickerHueSlider,
-  ColorPickerInput,
-  ColorPickerSwatch,
-  ColorPickerTrigger,
-} from '#/components/ui/color-picker'
+import { usePermissions } from '#/shared/hooks/usePermissions'
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 
-const editFormSchema = updatePortalInputSchema
-  .omit({ portalId: true, isActive: true })
-  .extend({
-    name: z.string().min(1, 'Name is required').max(100),
-    slug: z.string().min(2, 'Slug must be at least 2 characters').max(64),
-    description: z.string().max(500),
-    primaryColor: z.string().min(1, 'Color is required'),
-    smartRoutingEnabled: z.boolean(),
-    smartRoutingThreshold: z.number().int().min(1).max(4),
-  })
+const editFormSchema = z.object({
+  name: z.string().min(1, 'Name is required').max(100),
+  slug: z.string().min(2, 'Slug must be at least 2 characters').max(64),
+  description: z.string().max(500),
+})
 
 type FormValues = z.infer<typeof editFormSchema>
 
@@ -73,10 +57,10 @@ type PortalData = Readonly<{
 type Props = Readonly<{
   portal: PortalData
   mutation: Action<UpdatePortalVariables>
-  canEdit: boolean
 }>
 
-export function EditPortalForm({ portal, mutation, canEdit }: Props) {
+export function EditPortalForm({ portal, mutation }: Props) {
+  const { can } = usePermissions()
   const [heroImageUrl, setHeroImageUrl] = useState(portal.heroImageUrl)
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
@@ -88,25 +72,21 @@ export function EditPortalForm({ portal, mutation, canEdit }: Props) {
       name: portal.name,
       slug: portal.slug,
       description: portal.description ?? '',
-      primaryColor: portal.theme.primaryColor,
-      smartRoutingEnabled: portal.smartRoutingEnabled,
-      smartRoutingThreshold: portal.smartRoutingThreshold,
     } satisfies FormValues,
     validators: {
       onSubmit: editFormSchema,
     },
     onSubmit: async ({ value }) => {
-      await mutation({
-        data: {
-          portalId: portal.id,
-          name: value.name,
-          slug: value.slug,
-          description: value.description || null,
-          theme: { primaryColor: value.primaryColor },
-          smartRoutingEnabled: value.smartRoutingEnabled,
-          smartRoutingThreshold: value.smartRoutingThreshold,
-        },
-      })
+      const data = {
+        portalId: portal.id,
+        name: value.name,
+        slug: value.slug,
+        description: value.description || null,
+        theme: portal.theme,
+        smartRoutingEnabled: portal.smartRoutingEnabled,
+        smartRoutingThreshold: portal.smartRoutingThreshold,
+      }
+      await mutation({ data })
     },
   })
 
@@ -184,11 +164,11 @@ export function EditPortalForm({ portal, mutation, canEdit }: Props) {
     (e: React.DragEvent) => {
       e.preventDefault()
       e.stopPropagation()
-      if (canEdit && !uploading) {
+      if (can('portal.update') && !uploading) {
         setDragOver(true)
       }
     },
-    [canEdit, uploading],
+    [can, uploading],
   )
 
   const handleDragLeave = useCallback((e: React.DragEvent) => {
@@ -203,14 +183,14 @@ export function EditPortalForm({ portal, mutation, canEdit }: Props) {
       e.stopPropagation()
       setDragOver(false)
 
-      if (!canEdit || uploading) return
+      if (!can('portal.update') || uploading) return
 
       const file = e.dataTransfer.files[0]
       if (file) {
         void handleImageUpload(file)
       }
     },
-    [canEdit, uploading, handleImageUpload],
+    [can, uploading, handleImageUpload],
   )
 
   return (
@@ -231,11 +211,13 @@ export function EditPortalForm({ portal, mutation, canEdit }: Props) {
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
-          onClick={() => canEdit && !uploading && fileInputRef.current?.click()}
+          onClick={() =>
+            can('portal.update') && !uploading && fileInputRef.current?.click()
+          }
           className={[
             'relative flex items-center justify-center overflow-hidden rounded-lg border-2 border-dashed transition-colors',
             dragOver ? 'border-primary bg-primary/5' : 'border-border',
-            canEdit && !uploading ? 'cursor-pointer' : '',
+            can('portal.update') && !uploading ? 'cursor-pointer' : '',
             heroImageUrl ? 'h-48' : 'h-32',
           ].join(' ')}
         >
@@ -258,7 +240,7 @@ export function EditPortalForm({ portal, mutation, canEdit }: Props) {
                   <p className="mt-1 text-xs text-white">{uploadProgress}%</p>
                 </div>
               )}
-              {canEdit && !uploading && (
+              {can('portal.update') && !uploading && (
                 <button
                   type="button"
                   onClick={(e) => {
@@ -270,7 +252,7 @@ export function EditPortalForm({ portal, mutation, canEdit }: Props) {
                   <X className="size-4" />
                 </button>
               )}
-              {canEdit && !uploading && !dragOver && (
+              {can('portal.update') && !uploading && !dragOver && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors hover:bg-black/30">
                   <span className="rounded bg-black/60 px-3 py-1.5 text-sm text-white opacity-0 transition-opacity group-hover:opacity-100">
                     Drop or click to replace
@@ -324,7 +306,7 @@ export function EditPortalForm({ portal, mutation, canEdit }: Props) {
           disabled={uploading}
         />
 
-        {canEdit && !heroImageUrl && (
+        {can('portal.update') && !heroImageUrl && (
           <Button
             type="button"
             variant="outline"
@@ -348,7 +330,7 @@ export function EditPortalForm({ portal, mutation, canEdit }: Props) {
                 field={field}
                 label="Name"
                 id="edit-portal-name"
-                disabled={!canEdit}
+                disabled={!can('portal.update')}
               />
             )}
           </form.Field>
@@ -360,97 +342,14 @@ export function EditPortalForm({ portal, mutation, canEdit }: Props) {
                 label="Description"
                 id="edit-portal-description"
                 rows={3}
-                disabled={!canEdit}
+                disabled={!can('portal.update')}
               />
             )}
           </form.Field>
         </FieldGroup>
       </div>
 
-      {/* Theme */}
-      <div className="flex flex-col gap-4">
-        <h3 className="font-semibold">Theme</h3>
-        <form.Field name="primaryColor">
-          {(field) => {
-            const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid
-            return (
-              <Field data-invalid={isInvalid}>
-                <FieldLabel htmlFor="edit-portal-primary-color">Primary Color</FieldLabel>
-                <ColorPicker
-                  value={field.state.value}
-                  onValueChange={(value) => field.handleChange(value)}
-                  name="primaryColor"
-                  disabled={!canEdit}
-                >
-                  <div className="flex items-center gap-2">
-                    <ColorPickerTrigger>
-                      <ColorPickerSwatch />
-                    </ColorPickerTrigger>
-                    <ColorPickerContent>
-                      <ColorPickerArea />
-                      <ColorPickerHueSlider />
-                      <div className="flex items-center gap-2">
-                        <ColorPickerInput withoutAlpha />
-                        <ColorPickerFormatSelect />
-                        <ColorPickerEyeDropper />
-                      </div>
-                    </ColorPickerContent>
-                  </div>
-                </ColorPicker>
-              </Field>
-            )
-          }}
-        </form.Field>
-      </div>
-
-      {/* Smart routing */}
-      <div className="flex flex-col gap-4">
-        <h3 className="font-semibold">Smart Routing</h3>
-        <form.Field name="smartRoutingEnabled">
-          {(field) => (
-            <div className="flex items-center justify-between rounded-lg border p-4">
-              <div>
-                <p className="font-medium">Enable Smart Routing</p>
-                <p className="text-sm text-muted-foreground">
-                  Show review links only to guests rating above the threshold.
-                </p>
-              </div>
-              <input
-                type="checkbox"
-                checked={field.state.value}
-                onChange={(e) => field.handleChange(e.target.checked)}
-                className="size-5 cursor-pointer rounded border"
-                disabled={!canEdit}
-              />
-            </div>
-          )}
-        </form.Field>
-
-        <form.Field name="smartRoutingThreshold">
-          {(field) =>
-            field.state.value > 0 && (
-              <div className="flex flex-col gap-2">
-                <FieldLabel>Rating Threshold ({field.state.value}+ stars)</FieldLabel>
-                <input
-                  type="range"
-                  min={1}
-                  max={4}
-                  value={field.state.value}
-                  onChange={(e) => field.handleChange(Number(e.target.value))}
-                  className="w-full"
-                  disabled={!canEdit}
-                />
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>1 star</span>
-                  <span>4 stars</span>
-                </div>
-              </div>
-            )
-          }
-        </form.Field>
-      </div>
-
-      {canEdit && (
+      {can('portal.update') && (
         <SubmitButton mutation={mutation} form={form}>
           Save Changes
         </SubmitButton>

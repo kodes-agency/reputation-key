@@ -34,6 +34,7 @@ import { createPropertyRepository } from '#/contexts/property/infrastructure/rep
 import { buildTeamContext } from '#/contexts/team/build'
 import { buildStaffContext } from '#/contexts/staff/build'
 import { buildPortalContext } from '#/contexts/portal/build'
+import { buildGuestContext } from '#/contexts/guest/build'
 import { createStaffAssignmentRepository } from '#/contexts/staff/infrastructure/repositories/staff-assignment.repository'
 import {
   propertyId,
@@ -159,6 +160,12 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     propertyApi: property.publicApi,
   })
 
+  const guest = buildGuestContext({
+    db,
+    events: eventBus,
+    clock,
+  })
+
   // ── Wire invitation acceptance hook ────────────────────────────
   // The hook creates staff assignments when a member accepts an invite.
   // This is the only cross-context dependency: identity acceptance
@@ -199,6 +206,7 @@ export function createContainer(options?: { enableJobs?: boolean }) {
       ...staff.useCases,
       ...team.useCases,
       ...portal.useCases,
+      ...guest.useCases,
     },
     storage: portal.storage,
     portalRepo: portal.portalRepo,
