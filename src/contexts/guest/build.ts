@@ -2,11 +2,13 @@ import type { EventBus } from '#/shared/events/event-bus'
 import type { Database } from '#/shared/db'
 import { createGuestInteractionRepository } from './infrastructure/repositories/guest-interaction.repository'
 import { createPortalContextResolver } from './infrastructure/resolvers/portal-context-resolver'
+import { createPublicPortalLookup } from './infrastructure/resolvers/public-portal-lookup'
 import { recordScan } from './application/use-cases/record-scan'
 import { submitRating } from './application/use-cases/submit-rating'
 import { submitFeedback } from './application/use-cases/submit-feedback'
 import { trackReviewLinkClick } from './application/use-cases/track-review-link-click'
 import { resolvePortalContext } from './application/use-cases/resolve-portal-context'
+import { getPublicPortal } from './application/use-cases/get-public-portal'
 import { scanEventId, ratingId, feedbackId } from '#/shared/domain/ids'
 import { randomUUID } from 'crypto'
 
@@ -19,6 +21,7 @@ type GuestContextDeps = Readonly<{
 export const buildGuestContext = (deps: GuestContextDeps) => {
   const guestRepo = createGuestInteractionRepository(deps.db)
   const portalContextResolver = createPortalContextResolver(deps.db)
+  const publicPortalLookup = createPublicPortalLookup(deps.db)
 
   const useCases = {
     recordScan: recordScan({
@@ -46,7 +49,8 @@ export const buildGuestContext = (deps: GuestContextDeps) => {
     resolvePortalContext: resolvePortalContext({
       portalContextResolver,
     }),
+    getPublicPortal: getPublicPortal({ publicPortalLookup }),
   } as const
 
-  return { useCases, guestRepo, portalContextResolver } as const
+  return { useCases, guestRepo, portalContextResolver, publicPortalLookup } as const
 }
