@@ -38,7 +38,7 @@ export const Route = createFileRoute('/api/portals/$id/qr')({
           margin: 2,
         })
 
-        return new Response(pngBuffer as unknown as BodyInit, {
+        return new Response(new Uint8Array(pngBuffer), {
           headers: {
             'Content-Type': 'image/png',
             'Content-Disposition': `attachment; filename="qr-${portal[0].slug}.png"`,

@@ -10,33 +10,35 @@ export const Route = createFileRoute('/api/public/click/$linkId')({
         const { portalLinks, portals } = await import('#/shared/db/schema/portal.schema')
         const { eq } = await import('drizzle-orm')
 
-        const links = await db
-          .select()
+        const result = await db
+          .select({
+            url: portalLinks.url,
+            organizationId: portalLinks.organizationId,
+            portalId: portalLinks.portalId,
+            propertyId: portals.propertyId,
+          })
           .from(portalLinks)
+          .innerJoin(portals, eq(portalLinks.portalId, portals.id))
           .where(eq(portalLinks.id, params.linkId))
           .limit(1)
 
-        if (links.length === 0) {
+        if (result.length === 0) {
           return new Response('Link not found', { status: 404 })
         }
 
-        const link = links[0]
-
-        // Fetch portal to get propertyId
-        const portalResult = await db
-          .select({ propertyId: portals.propertyId })
-          .from(portals)
-          .where(eq(portals.id, link.portalId))
-          .limit(1)
-
-        const propId = portalResult[0]?.propertyId ?? 'unknown'
+        const {
+          url,
+          organizationId: orgId,
+          portalId: pId,
+          propertyId: propId,
+        } = result[0]
 
         // Track click (fire-and-forget)
         try {
           await useCases.trackReviewLinkClick({
             linkId: params.linkId,
-            organizationId: organizationId(link.organizationId),
-            portalId: portalId(link.portalId),
+            organizationId: organizationId(orgId),
+            portalId: portalId(pId),
             propertyId: propertyId(propId),
           })
         } catch {
@@ -46,7 +48,7 @@ export const Route = createFileRoute('/api/public/click/$linkId')({
         // Redirect to actual review URL
         return new Response(null, {
           status: 302,
-          headers: { Location: link.url },
+          headers: { Location: url },
         })
       },
     },
