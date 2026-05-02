@@ -11,6 +11,7 @@ import {
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import type { StoragePort } from '../../application/ports/storage.port'
 import { getEnv } from '#/shared/config/env'
+import { portalError } from '../../domain/errors'
 
 export const createS3StorageAdapter = (): StoragePort => {
   const env = getEnv()
@@ -24,17 +25,17 @@ export const createS3StorageAdapter = (): StoragePort => {
   ) {
     return {
       createPresignedUploadUrl: async () => {
-        throw new Error('S3 storage is not configured')
+        throw portalError('upload_failed', 'S3 storage is not configured')
       },
       confirmUpload: async () => {
-        throw new Error('S3 storage is not configured')
+        throw portalError('upload_failed', 'S3 storage is not configured')
       },
       deleteObject: async () => {
-        throw new Error('S3 storage is not configured')
+        throw portalError('upload_failed', 'S3 storage is not configured')
       },
       getPublicUrl: () => '',
       putObject: async () => {
-        throw new Error('S3 storage is not configured')
+        throw portalError('upload_failed', 'S3 storage is not configured')
       },
     }
   }
