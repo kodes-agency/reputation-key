@@ -2,7 +2,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { updateOrganization } from '#/contexts/identity/server/organizations'
 import { useMutationAction } from '#/components/hooks/use-mutation-action'
-import { OrganizationSettingsForm } from '#/components/features/identity/OrganizationSettingsForm'
+import { OrganizationSettingsForm } from '#/components/features/organization/OrganizationSettingsForm'
 
 export const Route = createFileRoute(
   '/_authenticated/properties/$propertyId/settings/organization',
