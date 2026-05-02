@@ -70,8 +70,8 @@ type PortalDetailPageProps = Readonly<{
     smartRoutingEnabled: boolean
     smartRoutingThreshold: number
     organizationId: string
-    organizationName: string
   }
+  organizationName: string
   propertyId: string
   categories: Category[]
   links: LinkItem[]
@@ -91,6 +91,7 @@ type PortalDetailPageProps = Readonly<{
 
 export function PortalDetailPage({
   portal,
+  organizationName,
   propertyId,
   categories: initialCategories,
   links: initialLinks,
@@ -271,7 +272,7 @@ export function PortalDetailPage({
     id: portal.id,
     name: portal.name,
     description: portal.description,
-    organizationName: portal.organizationName,
+    organizationName,
     heroImageUrl: portal.heroImageUrl,
     theme: {
       primaryColor,

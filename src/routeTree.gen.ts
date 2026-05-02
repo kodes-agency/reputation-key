@@ -39,10 +39,7 @@ import { Route as AuthenticatedPropertiesPropertyIdSettingsOrganizationRouteImpo
 import { Route as AuthenticatedPropertiesPropertyIdPortalsNewRouteImport } from './routes/_authenticated/properties/$propertyId/portals/new'
 import { Route as AuthenticatedPropertiesPropertyIdPortalsPortalIdRouteImport } from './routes/_authenticated/properties/$propertyId/portals/$portalId'
 import { Route as AuthenticatedPropertiesPropertyIdTeamsTeamIdIndexRouteImport } from './routes/_authenticated/properties/$propertyId/teams/$teamId/index'
-import { Route as AuthenticatedPropertiesPropertyIdPortalsPortalIdIndexRouteImport } from './routes/_authenticated/properties/$propertyId/portals/$portalId/index'
 import { Route as AuthenticatedPropertiesPropertyIdTeamsTeamIdMembersRouteImport } from './routes/_authenticated/properties/$propertyId/teams/$teamId/members'
-import { Route as AuthenticatedPropertiesPropertyIdPortalsPortalIdPreviewRouteImport } from './routes/_authenticated/properties/$propertyId/portals/$portalId/preview'
-import { Route as AuthenticatedPropertiesPropertyIdPortalsPortalIdLinksRouteImport } from './routes/_authenticated/properties/$propertyId/portals/$portalId/links'
 
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
   id: '/reset-password',
@@ -207,29 +204,11 @@ const AuthenticatedPropertiesPropertyIdTeamsTeamIdIndexRoute =
     path: '/',
     getParentRoute: () => AuthenticatedPropertiesPropertyIdTeamsTeamIdRoute,
   } as any)
-const AuthenticatedPropertiesPropertyIdPortalsPortalIdIndexRoute =
-  AuthenticatedPropertiesPropertyIdPortalsPortalIdIndexRouteImport.update({
-    id: '/',
-    path: '/',
-    getParentRoute: () => AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute,
-  } as any)
 const AuthenticatedPropertiesPropertyIdTeamsTeamIdMembersRoute =
   AuthenticatedPropertiesPropertyIdTeamsTeamIdMembersRouteImport.update({
     id: '/members',
     path: '/members',
     getParentRoute: () => AuthenticatedPropertiesPropertyIdTeamsTeamIdRoute,
-  } as any)
-const AuthenticatedPropertiesPropertyIdPortalsPortalIdPreviewRoute =
-  AuthenticatedPropertiesPropertyIdPortalsPortalIdPreviewRouteImport.update({
-    id: '/preview',
-    path: '/preview',
-    getParentRoute: () => AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute,
-  } as any)
-const AuthenticatedPropertiesPropertyIdPortalsPortalIdLinksRoute =
-  AuthenticatedPropertiesPropertyIdPortalsPortalIdLinksRouteImport.update({
-    id: '/links',
-    path: '/links',
-    getParentRoute: () => AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -253,7 +232,7 @@ export interface FileRoutesByFullPath {
   '/api/portals/$id/qr': typeof ApiPortalsIdQrRoute
   '/api/public/click/$linkId': typeof ApiPublicClickLinkIdRoute
   '/properties/$propertyId/': typeof AuthenticatedPropertiesPropertyIdIndexRoute
-  '/properties/$propertyId/portals/$portalId': typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdRouteWithChildren
+  '/properties/$propertyId/portals/$portalId': typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute
   '/properties/$propertyId/portals/new': typeof AuthenticatedPropertiesPropertyIdPortalsNewRoute
   '/properties/$propertyId/settings/organization': typeof AuthenticatedPropertiesPropertyIdSettingsOrganizationRoute
   '/properties/$propertyId/settings/property': typeof AuthenticatedPropertiesPropertyIdSettingsPropertyRoute
@@ -261,10 +240,7 @@ export interface FileRoutesByFullPath {
   '/properties/$propertyId/portals/': typeof AuthenticatedPropertiesPropertyIdPortalsIndexRoute
   '/properties/$propertyId/staff/': typeof AuthenticatedPropertiesPropertyIdStaffIndexRoute
   '/properties/$propertyId/teams/': typeof AuthenticatedPropertiesPropertyIdTeamsIndexRoute
-  '/properties/$propertyId/portals/$portalId/links': typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdLinksRoute
-  '/properties/$propertyId/portals/$portalId/preview': typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdPreviewRoute
   '/properties/$propertyId/teams/$teamId/members': typeof AuthenticatedPropertiesPropertyIdTeamsTeamIdMembersRoute
-  '/properties/$propertyId/portals/$portalId/': typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdIndexRoute
   '/properties/$propertyId/teams/$teamId/': typeof AuthenticatedPropertiesPropertyIdTeamsTeamIdIndexRoute
 }
 export interface FileRoutesByTo {
@@ -287,16 +263,14 @@ export interface FileRoutesByTo {
   '/api/portals/$id/qr': typeof ApiPortalsIdQrRoute
   '/api/public/click/$linkId': typeof ApiPublicClickLinkIdRoute
   '/properties/$propertyId': typeof AuthenticatedPropertiesPropertyIdIndexRoute
+  '/properties/$propertyId/portals/$portalId': typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute
   '/properties/$propertyId/portals/new': typeof AuthenticatedPropertiesPropertyIdPortalsNewRoute
   '/properties/$propertyId/settings/organization': typeof AuthenticatedPropertiesPropertyIdSettingsOrganizationRoute
   '/properties/$propertyId/settings/property': typeof AuthenticatedPropertiesPropertyIdSettingsPropertyRoute
   '/properties/$propertyId/portals': typeof AuthenticatedPropertiesPropertyIdPortalsIndexRoute
   '/properties/$propertyId/staff': typeof AuthenticatedPropertiesPropertyIdStaffIndexRoute
   '/properties/$propertyId/teams': typeof AuthenticatedPropertiesPropertyIdTeamsIndexRoute
-  '/properties/$propertyId/portals/$portalId/links': typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdLinksRoute
-  '/properties/$propertyId/portals/$portalId/preview': typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdPreviewRoute
   '/properties/$propertyId/teams/$teamId/members': typeof AuthenticatedPropertiesPropertyIdTeamsTeamIdMembersRoute
-  '/properties/$propertyId/portals/$portalId': typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdIndexRoute
   '/properties/$propertyId/teams/$teamId': typeof AuthenticatedPropertiesPropertyIdTeamsTeamIdIndexRoute
 }
 export interface FileRoutesById {
@@ -322,7 +296,7 @@ export interface FileRoutesById {
   '/api/portals/$id/qr': typeof ApiPortalsIdQrRoute
   '/api/public/click/$linkId': typeof ApiPublicClickLinkIdRoute
   '/_authenticated/properties/$propertyId/': typeof AuthenticatedPropertiesPropertyIdIndexRoute
-  '/_authenticated/properties/$propertyId/portals/$portalId': typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdRouteWithChildren
+  '/_authenticated/properties/$propertyId/portals/$portalId': typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute
   '/_authenticated/properties/$propertyId/portals/new': typeof AuthenticatedPropertiesPropertyIdPortalsNewRoute
   '/_authenticated/properties/$propertyId/settings/organization': typeof AuthenticatedPropertiesPropertyIdSettingsOrganizationRoute
   '/_authenticated/properties/$propertyId/settings/property': typeof AuthenticatedPropertiesPropertyIdSettingsPropertyRoute
@@ -330,10 +304,7 @@ export interface FileRoutesById {
   '/_authenticated/properties/$propertyId/portals/': typeof AuthenticatedPropertiesPropertyIdPortalsIndexRoute
   '/_authenticated/properties/$propertyId/staff/': typeof AuthenticatedPropertiesPropertyIdStaffIndexRoute
   '/_authenticated/properties/$propertyId/teams/': typeof AuthenticatedPropertiesPropertyIdTeamsIndexRoute
-  '/_authenticated/properties/$propertyId/portals/$portalId/links': typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdLinksRoute
-  '/_authenticated/properties/$propertyId/portals/$portalId/preview': typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdPreviewRoute
   '/_authenticated/properties/$propertyId/teams/$teamId/members': typeof AuthenticatedPropertiesPropertyIdTeamsTeamIdMembersRoute
-  '/_authenticated/properties/$propertyId/portals/$portalId/': typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdIndexRoute
   '/_authenticated/properties/$propertyId/teams/$teamId/': typeof AuthenticatedPropertiesPropertyIdTeamsTeamIdIndexRoute
 }
 export interface FileRouteTypes {
@@ -367,10 +338,7 @@ export interface FileRouteTypes {
     | '/properties/$propertyId/portals/'
     | '/properties/$propertyId/staff/'
     | '/properties/$propertyId/teams/'
-    | '/properties/$propertyId/portals/$portalId/links'
-    | '/properties/$propertyId/portals/$portalId/preview'
     | '/properties/$propertyId/teams/$teamId/members'
-    | '/properties/$propertyId/portals/$portalId/'
     | '/properties/$propertyId/teams/$teamId/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -393,16 +361,14 @@ export interface FileRouteTypes {
     | '/api/portals/$id/qr'
     | '/api/public/click/$linkId'
     | '/properties/$propertyId'
+    | '/properties/$propertyId/portals/$portalId'
     | '/properties/$propertyId/portals/new'
     | '/properties/$propertyId/settings/organization'
     | '/properties/$propertyId/settings/property'
     | '/properties/$propertyId/portals'
     | '/properties/$propertyId/staff'
     | '/properties/$propertyId/teams'
-    | '/properties/$propertyId/portals/$portalId/links'
-    | '/properties/$propertyId/portals/$portalId/preview'
     | '/properties/$propertyId/teams/$teamId/members'
-    | '/properties/$propertyId/portals/$portalId'
     | '/properties/$propertyId/teams/$teamId'
   id:
     | '__root__'
@@ -435,10 +401,7 @@ export interface FileRouteTypes {
     | '/_authenticated/properties/$propertyId/portals/'
     | '/_authenticated/properties/$propertyId/staff/'
     | '/_authenticated/properties/$propertyId/teams/'
-    | '/_authenticated/properties/$propertyId/portals/$portalId/links'
-    | '/_authenticated/properties/$propertyId/portals/$portalId/preview'
     | '/_authenticated/properties/$propertyId/teams/$teamId/members'
-    | '/_authenticated/properties/$propertyId/portals/$portalId/'
     | '/_authenticated/properties/$propertyId/teams/$teamId/'
   fileRoutesById: FileRoutesById
 }
@@ -669,13 +632,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdTeamsTeamIdIndexRouteImport
       parentRoute: typeof AuthenticatedPropertiesPropertyIdTeamsTeamIdRoute
     }
-    '/_authenticated/properties/$propertyId/portals/$portalId/': {
-      id: '/_authenticated/properties/$propertyId/portals/$portalId/'
-      path: '/'
-      fullPath: '/properties/$propertyId/portals/$portalId/'
-      preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdIndexRouteImport
-      parentRoute: typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute
-    }
     '/_authenticated/properties/$propertyId/teams/$teamId/members': {
       id: '/_authenticated/properties/$propertyId/teams/$teamId/members'
       path: '/members'
@@ -683,43 +639,8 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdTeamsTeamIdMembersRouteImport
       parentRoute: typeof AuthenticatedPropertiesPropertyIdTeamsTeamIdRoute
     }
-    '/_authenticated/properties/$propertyId/portals/$portalId/preview': {
-      id: '/_authenticated/properties/$propertyId/portals/$portalId/preview'
-      path: '/preview'
-      fullPath: '/properties/$propertyId/portals/$portalId/preview'
-      preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdPreviewRouteImport
-      parentRoute: typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute
-    }
-    '/_authenticated/properties/$propertyId/portals/$portalId/links': {
-      id: '/_authenticated/properties/$propertyId/portals/$portalId/links'
-      path: '/links'
-      fullPath: '/properties/$propertyId/portals/$portalId/links'
-      preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdLinksRouteImport
-      parentRoute: typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute
-    }
   }
 }
-
-interface AuthenticatedPropertiesPropertyIdPortalsPortalIdRouteChildren {
-  AuthenticatedPropertiesPropertyIdPortalsPortalIdLinksRoute: typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdLinksRoute
-  AuthenticatedPropertiesPropertyIdPortalsPortalIdPreviewRoute: typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdPreviewRoute
-  AuthenticatedPropertiesPropertyIdPortalsPortalIdIndexRoute: typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdIndexRoute
-}
-
-const AuthenticatedPropertiesPropertyIdPortalsPortalIdRouteChildren: AuthenticatedPropertiesPropertyIdPortalsPortalIdRouteChildren =
-  {
-    AuthenticatedPropertiesPropertyIdPortalsPortalIdLinksRoute:
-      AuthenticatedPropertiesPropertyIdPortalsPortalIdLinksRoute,
-    AuthenticatedPropertiesPropertyIdPortalsPortalIdPreviewRoute:
-      AuthenticatedPropertiesPropertyIdPortalsPortalIdPreviewRoute,
-    AuthenticatedPropertiesPropertyIdPortalsPortalIdIndexRoute:
-      AuthenticatedPropertiesPropertyIdPortalsPortalIdIndexRoute,
-  }
-
-const AuthenticatedPropertiesPropertyIdPortalsPortalIdRouteWithChildren =
-  AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute._addFileChildren(
-    AuthenticatedPropertiesPropertyIdPortalsPortalIdRouteChildren,
-  )
 
 interface AuthenticatedPropertiesPropertyIdTeamsTeamIdRouteChildren {
   AuthenticatedPropertiesPropertyIdTeamsTeamIdMembersRoute: typeof AuthenticatedPropertiesPropertyIdTeamsTeamIdMembersRoute
@@ -744,7 +665,7 @@ interface AuthenticatedPropertiesPropertyIdRouteChildren {
   AuthenticatedPropertiesPropertyIdMetricsRoute: typeof AuthenticatedPropertiesPropertyIdMetricsRoute
   AuthenticatedPropertiesPropertyIdReviewsRoute: typeof AuthenticatedPropertiesPropertyIdReviewsRoute
   AuthenticatedPropertiesPropertyIdIndexRoute: typeof AuthenticatedPropertiesPropertyIdIndexRoute
-  AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute: typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdRouteWithChildren
+  AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute: typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute
   AuthenticatedPropertiesPropertyIdPortalsNewRoute: typeof AuthenticatedPropertiesPropertyIdPortalsNewRoute
   AuthenticatedPropertiesPropertyIdSettingsOrganizationRoute: typeof AuthenticatedPropertiesPropertyIdSettingsOrganizationRoute
   AuthenticatedPropertiesPropertyIdSettingsPropertyRoute: typeof AuthenticatedPropertiesPropertyIdSettingsPropertyRoute
@@ -765,7 +686,7 @@ const AuthenticatedPropertiesPropertyIdRouteChildren: AuthenticatedPropertiesPro
     AuthenticatedPropertiesPropertyIdIndexRoute:
       AuthenticatedPropertiesPropertyIdIndexRoute,
     AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute:
-      AuthenticatedPropertiesPropertyIdPortalsPortalIdRouteWithChildren,
+      AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute,
     AuthenticatedPropertiesPropertyIdPortalsNewRoute:
       AuthenticatedPropertiesPropertyIdPortalsNewRoute,
     AuthenticatedPropertiesPropertyIdSettingsOrganizationRoute:
