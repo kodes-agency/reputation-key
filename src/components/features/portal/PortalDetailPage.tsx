@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { Link } from '@tanstack/react-router'
+import type { FormApi } from '@tanstack/react-form'
 import { Button } from '#/components/ui/button'
 import { ArrowLeft, Eye } from 'lucide-react'
 import { EditPortalForm } from './EditPortalForm'
@@ -73,6 +74,7 @@ type PortalDetailPageProps = Readonly<{
     organizationId: string
   }
   organizationName: string
+  propertySlug: string
   propertyId: string
   categories: Category[]
   links: LinkItem[]
@@ -92,6 +94,7 @@ type PortalDetailPageProps = Readonly<{
 export function PortalDetailPage({
   portal,
   organizationName,
+  propertySlug,
   propertyId,
   categories: initialCategories,
   links: initialLinks,
@@ -99,6 +102,11 @@ export function PortalDetailPage({
 }: PortalDetailPageProps) {
   const { can } = usePermissions()
   const { previewOpen, setPreviewOpen } = usePreviewToggle(portal.id)
+  const editFormRef = useRef<FormApi<{
+    name: string
+    slug: string
+    description: string
+  }> | null>(null)
 
   // Link tree state
   const [categories, setCategories] = useState(initialCategories)
@@ -237,11 +245,11 @@ export function PortalDetailPage({
     const newIndex = categories.findIndex((c) => c.id === over.id)
     const reordered = arrayMove(categories, oldIndex, newIndex)
     setCategories(reordered)
-    const updates = reordered.map((cat, i) => {
-      const prev = i > 0 ? reordered[i - 1].sortKey : null
-      const sortKey = generateKeyBetween(prev, cat.sortKey)
-      return { id: cat.id, sortKey }
-    })
+    const updates: { id: string; sortKey: string }[] = []
+    for (const cat of reordered) {
+      const prev = updates.length > 0 ? updates[updates.length - 1].sortKey : null
+      updates.push({ id: cat.id, sortKey: generateKeyBetween(prev, null) })
+    }
     try {
       await reorderCategoriesMutation({ data: { portalId, items: updates } })
     } catch {
@@ -251,11 +259,11 @@ export function PortalDetailPage({
 
   const handleReorderLinks = async (categoryId: string, reordered: LinkItem[]) => {
     const otherLinks = links.filter((l) => l.categoryId !== categoryId)
-    const updates = reordered.map((link, i) => {
-      const prev = i > 0 ? reordered[i - 1].sortKey : null
-      const sortKey = generateKeyBetween(prev, link.sortKey)
-      return { id: link.id, sortKey }
-    })
+    const updates: { id: string; sortKey: string }[] = []
+    for (const link of reordered) {
+      const prev = updates.length > 0 ? updates[updates.length - 1].sortKey : null
+      updates.push({ id: link.id, sortKey: generateKeyBetween(prev, null) })
+    }
     setLinks([
       ...otherLinks,
       ...reordered.map((l, i) => ({ ...l, sortKey: updates[i].sortKey })),
@@ -320,6 +328,7 @@ export function PortalDetailPage({
             smartRoutingThreshold,
           }}
           mutation={updateMutation}
+          formRef={editFormRef}
         />
 
         {/* Theme Presets */}
@@ -343,6 +352,12 @@ export function PortalDetailPage({
             disabled={!can('portal.update')}
           />
         </div>
+
+        {can('portal.update') && (
+          <Button onClick={() => editFormRef.current?.handleSubmit()}>
+            {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
+          </Button>
+        )}
       </section>
 
       {/* Link Tree Section */}
@@ -446,7 +461,7 @@ export function PortalDetailPage({
       <ShareSection
         portalId={portal.id}
         portalSlug={portal.slug}
-        organizationId={portal.organizationId}
+        propertySlug={propertySlug}
       />
 
       {/* Slide-over Preview */}

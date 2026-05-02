@@ -1,28 +1,18 @@
 import { createFileRoute } from '@tanstack/react-router'
 import QRCode from 'qrcode'
 import { getContainer } from '#/composition'
-import { resolveTenantContext } from '#/shared/auth/middleware'
-import { headersFromContext } from '#/shared/auth/headers'
 
 export const Route = createFileRoute('/api/portals/$id/qr')({
   server: {
     handlers: {
-      GET: async ({ params }) => {
-        const headers = headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-
+      GET: async ({ params, request }) => {
         const { db } = getContainer()
         const { portals } = await import('#/shared/db/schema/portal.schema')
-        const { eq, and } = await import('drizzle-orm')
+        const { eq } = await import('drizzle-orm')
         const portal = await db
           .select()
           .from(portals)
-          .where(
-            and(
-              eq(portals.id, params.id),
-              eq(portals.organizationId, ctx.organizationId),
-            ),
-          )
+          .where(eq(portals.id, params.id))
           .limit(1)
 
         if (portal.length === 0) {
@@ -30,7 +20,17 @@ export const Route = createFileRoute('/api/portals/$id/qr')({
         }
 
         const baseUrl = process.env.BETTER_AUTH_URL ?? 'http://localhost:3000'
-        const portalUrl = `${baseUrl}/p/${ctx.organizationId}/${portal[0].slug}?source=qr`
+
+        // Look up org slug for public URL
+        const { sql } = await import('drizzle-orm')
+        const orgRow = await db.execute(
+          sql`SELECT slug FROM "organization" WHERE id = ${portal[0].organizationId} LIMIT 1`,
+        )
+        const orgSlug =
+          (orgRow.rows[0] as { slug: string } | undefined)?.slug ??
+          portal[0].organizationId
+
+        const portalUrl = `${baseUrl}/p/${orgSlug}/${portal[0].slug}?source=qr`
 
         const pngBuffer = await QRCode.toBuffer(portalUrl, {
           type: 'png',
@@ -38,10 +38,19 @@ export const Route = createFileRoute('/api/portals/$id/qr')({
           margin: 2,
         })
 
+        // Check if this is an inline request (img tag) or a download
+        const acceptHeader = request.headers.get('accept') ?? ''
+        const isInline = acceptHeader.includes('image/')
+
         return new Response(new Uint8Array(pngBuffer), {
           headers: {
             'Content-Type': 'image/png',
-            'Content-Disposition': `attachment; filename="qr-${portal[0].slug}.png"`,
+            'Cache-Control': 'public, max-age=3600',
+            ...(isInline
+              ? {}
+              : {
+                  'Content-Disposition': `attachment; filename="qr-${portal[0].slug}.png"`,
+                }),
           },
         })
       },

@@ -5,12 +5,12 @@
 import { useForm } from '@tanstack/react-form'
 import { z } from 'zod/v4'
 import { FieldGroup } from '#/components/ui/field'
-import { SubmitButton } from '#/components/forms/SubmitButton'
 import { FormErrorBanner } from '#/components/forms/FormErrorBanner'
 import { FormTextField } from '#/components/forms/FormTextField'
 import { FormTextarea } from '#/components/forms/FormTextarea'
 import type { BaseFieldApi } from '#/components/forms/FormTextField'
 import type { BaseFieldApiTextarea } from '#/components/forms/FormTextarea'
+import type { FormApi } from '@tanstack/react-form'
 import type { Action } from '#/components/hooks/use-action'
 
 import { requestUploadUrl, finalizeUpload } from '#/contexts/portal/server/portals'
@@ -57,9 +57,10 @@ type PortalData = Readonly<{
 type Props = Readonly<{
   portal: PortalData
   mutation: Action<UpdatePortalVariables>
+  formRef?: React.RefObject<FormApi<FormValues> | null>
 }>
 
-export function EditPortalForm({ portal, mutation }: Props) {
+export function EditPortalForm({ portal, mutation, formRef }: Props) {
   const { can } = usePermissions()
   const [heroImageUrl, setHeroImageUrl] = useState(portal.heroImageUrl)
   const [uploading, setUploading] = useState(false)
@@ -89,6 +90,8 @@ export function EditPortalForm({ portal, mutation }: Props) {
       await mutation({ data })
     },
   })
+
+  if (formRef) formRef.current = form
 
   const handleImageUpload = useCallback(
     async (file: File) => {
@@ -348,12 +351,6 @@ export function EditPortalForm({ portal, mutation }: Props) {
           </form.Field>
         </FieldGroup>
       </div>
-
-      {can('portal.update') && (
-        <SubmitButton mutation={mutation} form={form}>
-          Save Changes
-        </SubmitButton>
-      )}
     </form>
   )
 }

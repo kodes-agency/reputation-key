@@ -50,6 +50,12 @@ function PortalDetailRoute() {
     successMessage: 'Portal updated',
   })
 
+  // Get property slug from parent layout's loaded properties
+  const parentRoute = Route.useMatch({ from: '/_authenticated', strict: false })
+  const propertySlug =
+    parentRoute?.loaderData?.properties?.find((p: { id: string }) => p.id === propertyId)
+      ?.slug ?? ''
+
   return (
     <PortalDetailPage
       portal={portal}
@@ -58,6 +64,7 @@ function PortalDetailRoute() {
       links={links}
       updateMutation={mutation}
       organizationName={ctx.activeOrganization?.name ?? 'Your Organization'}
+      propertySlug={propertySlug}
     />
   )
 }

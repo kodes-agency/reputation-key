@@ -19,7 +19,7 @@ function hashIp(ip: string): string {
 // ── getPublicPortal ────────────────────────────────────────────────
 
 const publicPortalSchema = z.object({
-  orgSlug: z.string().min(1),
+  propertySlug: z.string().min(1),
   portalSlug: z.string().min(1),
 })
 
@@ -27,25 +27,20 @@ export const getPublicPortal = createServerFn({ method: 'GET' })
   .inputValidator(publicPortalSchema)
   .handler(async ({ data }) => {
     const { db } = getContainer()
-    const { portals, portalLinkCategories, portalLinks } =
+    const { portals, portalLinkCategories, portalLinks, properties } =
       await import('#/shared/db/schema/portal.schema')
     const { eq, and } = await import('drizzle-orm')
     const { sql } = await import('drizzle-orm')
 
-    // Find portal by org + slug
+    // Find portal by property + slug
     // Organization table is managed by Better Auth (not in Drizzle schema),
     // so we query it via raw SQL for the org name.
     const portalRows = await db
       .select()
       .from(portals)
+      .innerJoin(properties, eq(portals.propertyId, properties.id))
       .where(
-        and(
-          eq(
-            portals.organizationId,
-            sql`(SELECT id FROM "organization" WHERE slug = ${data.orgSlug} LIMIT 1)`,
-          ),
-          eq(portals.slug, data.portalSlug),
-        ),
+        and(eq(properties.slug, data.propertySlug), eq(portals.slug, data.portalSlug)),
       )
       .limit(1)
 
@@ -53,7 +48,12 @@ export const getPublicPortal = createServerFn({ method: 'GET' })
       throw guestError('portal_not_found', 'Portal not found')
     }
 
-    const portal = portalRows[0]
+    const portal = portalRows[0].portals
+
+    // Check if portal is active
+    if (!portal.isActive) {
+      throw guestError('portal_inactive', 'Portal is inactive')
+    }
 
     // Get org name via raw query
     const orgResult = await db.execute(
@@ -106,10 +106,8 @@ export const submitRatingFn = createServerFn({ method: 'POST' })
     const headers = headersFromContext()
 
     const cookieHeader = headers?.get('cookie') ?? ''
-    const sessionId = cookieHeader.match(/guest_session=([^;]+)/)?.[1]
-    if (!sessionId) {
-      throw guestError('invalid_session', 'No session cookie found')
-    }
+    const sessionId =
+      cookieHeader.match(/guest_session=([^;]+)/)?.[1] ?? crypto.randomUUID()
 
     const { rateLimiter } = getContainer()
     const rateResult = await rateLimiter.check(`rating:${sessionId}`)
@@ -159,10 +157,8 @@ export const submitFeedbackFn = createServerFn({ method: 'POST' })
     const headers = headersFromContext()
 
     const cookieHeader = headers?.get('cookie') ?? ''
-    const sessionId = cookieHeader.match(/guest_session=([^;]+)/)?.[1]
-    if (!sessionId) {
-      throw guestError('invalid_session', 'No session cookie found')
-    }
+    const sessionId =
+      cookieHeader.match(/guest_session=([^;]+)/)?.[1] ?? crypto.randomUUID()
 
     const { rateLimiter } = getContainer()
     const rateResult = await rateLimiter.check(`feedback:${sessionId}`)

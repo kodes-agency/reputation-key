@@ -75,9 +75,9 @@ export function RegisterForm({ mode, mutation }: Props) {
     onSubmit: async ({ value }: { value: RegisterFormValues | JoinFormValues }) => {
       const { confirmPassword: _, ...rest } = value
       if (isJoinMode) {
-        await mutation(rest as JoinVariables)
+        await mutation({ data: rest as JoinVariables })
       } else {
-        await mutation(rest as RegisterVariables)
+        await mutation({ data: rest as RegisterVariables })
       }
     },
   })

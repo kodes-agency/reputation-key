@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { useEffect } from 'react'
 import { getPublicPortal } from '#/contexts/guest/server/public'
-import { PortalNotFound } from '#/components/guest/portal-not-found'
+import { PortalUnavailable } from '#/components/guest/portal-unavailable'
 import { PublicPortalContent } from '#/components/guest/PublicPortalContent'
 import { CookieConsentBanner } from '#/components/guest/cookie-consent-banner'
 import type { PublicPortalLoaderData } from '#/contexts/guest/application/dto/public-portal.dto'
@@ -12,7 +13,7 @@ function parseSource(raw: string | null): ScanSource {
   return raw && VALID_SOURCES.has(raw) ? (raw as ScanSource) : 'direct'
 }
 
-export const Route = createFileRoute('/p/$orgSlug/$portalSlug')({
+export const Route = createFileRoute('/p/$propertySlug/$portalSlug')({
   validateSearch: (search: Record<string, string>) => ({
     source: search.source,
   }),
@@ -20,12 +21,13 @@ export const Route = createFileRoute('/p/$orgSlug/$portalSlug')({
     try {
       const portalData = await getPublicPortal({
         data: {
-          orgSlug: params.orgSlug,
+          propertySlug: params.propertySlug,
           portalSlug: params.portalSlug,
         },
       })
       return portalData
     } catch {
+      // Return null for portal_not_found, portal_inactive, and other errors
       return null
     }
   },
@@ -48,8 +50,16 @@ function PublicPortalPage() {
   const search = Route.useSearch()
   const source = parseSource(search.source ?? null)
 
+  // Ensure guest session cookie exists for rating/feedback
+  useEffect(() => {
+    if (!document.cookie.includes('guest_session')) {
+      const sessionId = crypto.randomUUID()
+      document.cookie = `guest_session=${sessionId}; path=/p/; max-age=86400; SameSite=Lax`
+    }
+  }, [])
+
   if (!data) {
-    return <PortalNotFound />
+    return <PortalUnavailable />
   }
 
   const { portal, categories, links } = data

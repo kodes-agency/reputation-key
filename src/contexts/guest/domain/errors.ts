@@ -4,6 +4,7 @@ export type GuestErrorCode =
   | 'feedback_too_long'
   | 'feedback_empty'
   | 'portal_not_found'
+  | 'portal_inactive'
   | 'rate_limit_exceeded'
   | 'invalid_source'
   | 'invalid_session'

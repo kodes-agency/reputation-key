@@ -55,7 +55,10 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/por
     const { portals } = await listPortals({
       data: { propertyId: params.propertyId },
     })
-    return { portals, propertyId: params.propertyId }
+    return {
+      portals,
+      propertyId: params.propertyId,
+    }
   },
   component: PortalListPage,
 })
@@ -64,6 +67,12 @@ function PortalListPage() {
   const { can } = usePermissions()
   const { propertyId } = Route.useParams()
   const { portals } = Route.useLoaderData()
+
+  // Get property slug from parent layout's loaded properties
+  const parentRoute = Route.useMatch({ from: '/_authenticated', strict: false })
+  const propertySlug =
+    parentRoute?.loaderData?.properties?.find((p: { id: string }) => p.id === propertyId)
+      ?.slug ?? ''
 
   const deleteMutation = useMutationAction(deletePortal, {
     successMessage: 'Portal deleted',
@@ -115,7 +124,7 @@ function PortalListPage() {
           </TableHeader>
           <TableBody>
             {portals.map((p) => (
-              <TableRow key={p.id}>
+              <TableRow key={p.id} className={p.isActive ? '' : 'opacity-50'}>
                 <TableCell>
                   <Link
                     to="/properties/$propertyId/portals/$portalId"
@@ -128,9 +137,9 @@ function PortalListPage() {
                 <TableCell>
                   <div className="flex items-center gap-1">
                     <code className="text-xs text-muted-foreground">
-                      /p/{p.organizationId}/{p.slug}
+                      /p/{propertySlug}/{p.slug}
                     </code>
-                    <CopyButton text={`/p/${p.organizationId}/${p.slug}`} />
+                    <CopyButton text={`/p/${propertySlug}/${p.slug}`} />
                   </div>
                 </TableCell>
                 <TableCell>
