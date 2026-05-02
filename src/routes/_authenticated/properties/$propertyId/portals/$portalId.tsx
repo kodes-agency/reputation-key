@@ -1,9 +1,14 @@
 import { createFileRoute, getRouteApi } from '@tanstack/react-router'
 import { getPortal } from '#/contexts/portal/server/portals'
+import {
+  requestUploadUrl,
+  finalizeUpload,
+  updatePortal,
+} from '#/contexts/portal/server/portals'
 import { listPortalLinks } from '#/contexts/portal/server/portal-links'
-import { updatePortal } from '#/contexts/portal/server/portals'
 import { PortalDetailPage } from '#/components/features/portal/PortalDetailPage'
 import { useMutationAction } from '#/components/hooks/use-mutation-action'
+import { useServerFn } from '@tanstack/react-start'
 
 export const Route = createFileRoute(
   '/_authenticated/properties/$propertyId/portals/$portalId',
@@ -50,6 +55,9 @@ function PortalDetailRoute() {
     successMessage: 'Portal updated',
   })
 
+  const requestUploadUrlFn = useServerFn(requestUploadUrl)
+  const finalizeUploadFn = useServerFn(finalizeUpload)
+
   // Get property slug from parent layout's loaded properties
   const authRoute = getRouteApi('/_authenticated')
   const { properties } = authRoute.useLoaderData()
@@ -65,6 +73,8 @@ function PortalDetailRoute() {
       updateMutation={mutation}
       organizationName={ctx.activeOrganization?.name ?? 'Your Organization'}
       propertySlug={propertySlug}
+      requestUploadUrl={requestUploadUrlFn}
+      finalizeUpload={finalizeUploadFn}
     />
   )
 }

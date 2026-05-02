@@ -11,7 +11,6 @@ import { FormTextarea } from '#/components/forms/FormTextarea'
 import type { BaseFieldApi } from '#/components/forms/FormTextField'
 import type { BaseFieldApiTextarea } from '#/components/forms/FormTextarea'
 import type { Action } from '#/components/hooks/use-action'
-import { requestUploadUrl, finalizeUpload } from '#/contexts/portal/server/portals'
 
 // Minimal form type for ref that avoids TanStack Form's complex generic signature
 type FormLike = {
@@ -61,9 +60,19 @@ type Props = Readonly<{
   portal: PortalData
   mutation: Action<UpdatePortalVariables>
   formRef?: React.RefObject<FormLike | null>
+  requestUploadUrl: Action<{
+    data: { portalId: string; contentType: string; fileSize: number }
+  }>
+  finalizeUpload: Action<{ data: { portalId: string; key: string } }>
 }>
 
-export function EditPortalForm({ portal, mutation, formRef }: Props) {
+export function EditPortalForm({
+  portal,
+  mutation,
+  formRef,
+  requestUploadUrl,
+  finalizeUpload,
+}: Props) {
   const { can } = usePermissions()
   const [heroImageUrl, setHeroImageUrl] = useState(portal.heroImageUrl)
   const [uploading, setUploading] = useState(false)

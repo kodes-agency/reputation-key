@@ -97,6 +97,10 @@ type PortalDetailPageProps = Readonly<{
       isActive?: boolean
     }
   }>
+  requestUploadUrl: Action<{
+    data: { portalId: string; contentType: string; fileSize: number }
+  }>
+  finalizeUpload: Action<{ data: { portalId: string; key: string } }>
 }>
 
 export function PortalDetailPage({
@@ -107,6 +111,8 @@ export function PortalDetailPage({
   categories: initialCategories,
   links: initialLinks,
   updateMutation,
+  requestUploadUrl,
+  finalizeUpload,
 }: PortalDetailPageProps) {
   const { can } = usePermissions()
   const { previewOpen, setPreviewOpen } = usePreviewToggle(portal.id)
@@ -357,6 +363,8 @@ export function PortalDetailPage({
           }}
           mutation={updateMutation}
           formRef={editFormRef}
+          requestUploadUrl={requestUploadUrl}
+          finalizeUpload={finalizeUpload}
         />
 
         {/* Theme Presets */}
