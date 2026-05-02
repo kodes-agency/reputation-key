@@ -1,8 +1,7 @@
 // Property list — shows all properties for the active organization
 // Reads from parent layout loader instead of re-fetching.
 import { createFileRoute, getRouteApi, Link } from '@tanstack/react-router'
-import type { AuthRouteContext } from '#/routes/_authenticated'
-import { hasRole } from '#/shared/domain/roles'
+import { usePermissions } from '#/shared/hooks/usePermissions'
 import { Button } from '#/components/ui/button'
 import { Badge } from '#/components/ui/badge'
 import { Plus, ChevronRight } from 'lucide-react'
@@ -14,9 +13,7 @@ export const Route = createFileRoute('/_authenticated/properties/')({
 })
 
 function PropertyListPage() {
-  const ctx = Route.useRouteContext() as AuthRouteContext
-  const role = ctx.role
-  const canCreate = hasRole(role, 'PropertyManager')
+  const { can } = usePermissions()
   const { properties } = authRoute.useLoaderData()
 
   return (
@@ -28,7 +25,7 @@ function PropertyListPage() {
             Manage your organization's properties and locations.
           </p>
         </div>
-        {canCreate && (
+        {can('property.create') && (
           <Button asChild>
             <Link to="/properties/new">
               <Plus />

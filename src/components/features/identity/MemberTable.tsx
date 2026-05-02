@@ -4,7 +4,7 @@
  */
 
 import type { Role } from '#/shared/domain/roles'
-import { hasRole } from '#/shared/domain/roles'
+import { can } from '#/shared/domain/permissions'
 import { RoleBadge } from '#/components/features/identity/RoleBadge'
 import { Button } from '#/components/ui/button'
 import {
@@ -67,8 +67,8 @@ export function MemberTable({
   updateRoleAction,
   removeMemberAction,
 }: Props) {
-  const canChangeRoles = hasRole(viewerRole, 'PropertyManager')
-  const canRemove = hasRole(viewerRole, 'PropertyManager')
+  const canChangeRoles = can(viewerRole, 'member.update')
+  const canRemove = can(viewerRole, 'member.delete')
   const canManageMembers = canChangeRoles || canRemove
 
   if (members.length === 0) {

@@ -3,7 +3,7 @@ import { createFileRoute, useNavigate, redirect } from '@tanstack/react-router'
 import { createPortal } from '#/contexts/portal/server/portals'
 import { PortalCreationWithPreview } from '#/components/features/portal/PortalCreationWithPreview'
 import type { AuthRouteContext } from '#/routes/_authenticated'
-import { hasRole } from '#/shared/domain/roles'
+import { can } from '#/shared/domain/permissions'
 import { useMutationAction } from '#/components/hooks/use-mutation-action'
 
 export const Route = createFileRoute(
@@ -11,7 +11,7 @@ export const Route = createFileRoute(
 )({
   beforeLoad: ({ context }) => {
     const role = (context as AuthRouteContext).role
-    if (!hasRole(role, 'PropertyManager')) {
+    if (!can(role, 'portal.create')) {
       throw redirect({ to: '/properties' })
     }
   },

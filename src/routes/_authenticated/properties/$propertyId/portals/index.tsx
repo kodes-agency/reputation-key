@@ -1,7 +1,7 @@
 // Portal list — shows all portals for a property
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { listPortals, deletePortal } from '#/contexts/portal/server/portals'
-import { hasRole } from '#/shared/domain/roles'
+import { usePermissions } from '#/shared/hooks/usePermissions'
 import { Button } from '#/components/ui/button'
 import { Badge } from '#/components/ui/badge'
 import { EmptyState } from '#/components/ui/empty-state'
@@ -61,10 +61,7 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/por
 })
 
 function PortalListPage() {
-  const ctx = Route.useRouteContext()
-  const role = ctx.role
-  const canCreate = hasRole(role, 'PropertyManager')
-  const canDelete = hasRole(role, 'PropertyManager')
+  const { can } = usePermissions()
   const { propertyId } = Route.useParams()
   const { portals } = Route.useLoaderData()
 
@@ -81,7 +78,7 @@ function PortalListPage() {
             Manage guest-facing portal pages for this property.
           </p>
         </div>
-        {canCreate && (
+        {can('portal.create') && (
           <Button asChild>
             <Link to="/properties/$propertyId/portals/new" params={{ propertyId }}>
               <Plus />
@@ -96,7 +93,7 @@ function PortalListPage() {
           <p className="text-sm text-muted-foreground">
             Create a portal to set up a guest-facing page with links.
           </p>
-          {canCreate && (
+          {can('portal.create') && (
             <Button asChild>
               <Link to="/properties/$propertyId/portals/new" params={{ propertyId }}>
                 <Plus />
@@ -162,7 +159,7 @@ function PortalListPage() {
                         <Eye className="size-3.5" />
                       </Link>
                     </Button>
-                    {canDelete && (
+                    {can('portal.delete') && (
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
                           <Button

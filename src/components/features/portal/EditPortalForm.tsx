@@ -18,6 +18,7 @@ import { Button } from '#/components/ui/button'
 import { Upload, ImageIcon, X, Loader2 } from 'lucide-react'
 import { useState, useRef, useCallback } from 'react'
 import { toast } from 'sonner'
+import { usePermissions } from '#/shared/hooks/usePermissions'
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp']
@@ -56,10 +57,10 @@ type PortalData = Readonly<{
 type Props = Readonly<{
   portal: PortalData
   mutation: Action<UpdatePortalVariables>
-  canEdit: boolean
 }>
 
-export function EditPortalForm({ portal, mutation, canEdit }: Props) {
+export function EditPortalForm({ portal, mutation }: Props) {
+  const { can } = usePermissions()
   const [heroImageUrl, setHeroImageUrl] = useState(portal.heroImageUrl)
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
@@ -163,11 +164,11 @@ export function EditPortalForm({ portal, mutation, canEdit }: Props) {
     (e: React.DragEvent) => {
       e.preventDefault()
       e.stopPropagation()
-      if (canEdit && !uploading) {
+      if (can('portal.update') && !uploading) {
         setDragOver(true)
       }
     },
-    [canEdit, uploading],
+    [can, uploading],
   )
 
   const handleDragLeave = useCallback((e: React.DragEvent) => {
@@ -182,14 +183,14 @@ export function EditPortalForm({ portal, mutation, canEdit }: Props) {
       e.stopPropagation()
       setDragOver(false)
 
-      if (!canEdit || uploading) return
+      if (!can('portal.update') || uploading) return
 
       const file = e.dataTransfer.files[0]
       if (file) {
         void handleImageUpload(file)
       }
     },
-    [canEdit, uploading, handleImageUpload],
+    [can, uploading, handleImageUpload],
   )
 
   return (
@@ -210,11 +211,13 @@ export function EditPortalForm({ portal, mutation, canEdit }: Props) {
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
-          onClick={() => canEdit && !uploading && fileInputRef.current?.click()}
+          onClick={() =>
+            can('portal.update') && !uploading && fileInputRef.current?.click()
+          }
           className={[
             'relative flex items-center justify-center overflow-hidden rounded-lg border-2 border-dashed transition-colors',
             dragOver ? 'border-primary bg-primary/5' : 'border-border',
-            canEdit && !uploading ? 'cursor-pointer' : '',
+            can('portal.update') && !uploading ? 'cursor-pointer' : '',
             heroImageUrl ? 'h-48' : 'h-32',
           ].join(' ')}
         >
@@ -237,7 +240,7 @@ export function EditPortalForm({ portal, mutation, canEdit }: Props) {
                   <p className="mt-1 text-xs text-white">{uploadProgress}%</p>
                 </div>
               )}
-              {canEdit && !uploading && (
+              {can('portal.update') && !uploading && (
                 <button
                   type="button"
                   onClick={(e) => {
@@ -249,7 +252,7 @@ export function EditPortalForm({ portal, mutation, canEdit }: Props) {
                   <X className="size-4" />
                 </button>
               )}
-              {canEdit && !uploading && !dragOver && (
+              {can('portal.update') && !uploading && !dragOver && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors hover:bg-black/30">
                   <span className="rounded bg-black/60 px-3 py-1.5 text-sm text-white opacity-0 transition-opacity group-hover:opacity-100">
                     Drop or click to replace
@@ -303,7 +306,7 @@ export function EditPortalForm({ portal, mutation, canEdit }: Props) {
           disabled={uploading}
         />
 
-        {canEdit && !heroImageUrl && (
+        {can('portal.update') && !heroImageUrl && (
           <Button
             type="button"
             variant="outline"
@@ -327,7 +330,7 @@ export function EditPortalForm({ portal, mutation, canEdit }: Props) {
                 field={field}
                 label="Name"
                 id="edit-portal-name"
-                disabled={!canEdit}
+                disabled={!can('portal.update')}
               />
             )}
           </form.Field>
@@ -339,14 +342,14 @@ export function EditPortalForm({ portal, mutation, canEdit }: Props) {
                 label="Description"
                 id="edit-portal-description"
                 rows={3}
-                disabled={!canEdit}
+                disabled={!can('portal.update')}
               />
             )}
           </form.Field>
         </FieldGroup>
       </div>
 
-      {canEdit && (
+      {can('portal.update') && (
         <SubmitButton mutation={mutation} form={form}>
           Save Changes
         </SubmitButton>

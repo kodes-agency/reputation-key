@@ -49,6 +49,7 @@ import type {
   PortalLinkItem,
 } from '#/components/guest/PublicPortalContent'
 import type { Action } from '#/components/hooks/use-action'
+import { usePermissions } from '#/shared/hooks/usePermissions'
 
 type Category = { id: string; title: string; sortKey: string }
 type LinkItem = {
@@ -75,7 +76,6 @@ type PortalDetailPageProps = Readonly<{
   propertyId: string
   categories: Category[]
   links: LinkItem[]
-  canEdit: boolean
   updateMutation: Action<{
     data: {
       portalId: string
@@ -95,9 +95,9 @@ export function PortalDetailPage({
   propertyId,
   categories: initialCategories,
   links: initialLinks,
-  canEdit,
   updateMutation,
 }: PortalDetailPageProps) {
+  const { can } = usePermissions()
   const { previewOpen, setPreviewOpen } = usePreviewToggle(portal.id)
 
   // Link tree state
@@ -320,7 +320,6 @@ export function PortalDetailPage({
             smartRoutingThreshold,
           }}
           mutation={updateMutation}
-          canEdit={canEdit}
         />
 
         {/* Theme Presets */}
@@ -329,7 +328,7 @@ export function PortalDetailPage({
           <ThemePresetSelector
             primaryColor={primaryColor}
             onPrimaryColorChange={setPrimaryColor}
-            disabled={!canEdit}
+            disabled={!can('portal.update')}
           />
         </div>
 
@@ -341,7 +340,7 @@ export function PortalDetailPage({
             onEnabledChange={setSmartRoutingEnabled}
             threshold={smartRoutingThreshold}
             onThresholdChange={setSmartRoutingThreshold}
-            disabled={!canEdit}
+            disabled={!can('portal.update')}
           />
         </div>
       </section>
@@ -350,7 +349,7 @@ export function PortalDetailPage({
       <section className="rounded-lg border p-4 space-y-4">
         <h2 className="text-lg font-semibold">Link Tree</h2>
 
-        {canEdit && (
+        {can('portal.update') && (
           <CategoryAddForm
             onSubmit={handleAddCategory}
             isPending={createCategoryMutation.isPending}
@@ -358,7 +357,7 @@ export function PortalDetailPage({
           />
         )}
 
-        {addingToCategory && canEdit && (
+        {addingToCategory && can('portal.update') && (
           <LinkAddInlineForm
             onSubmit={(label, url) => handleAddLink(addingToCategory, label, url)}
             onCancel={() => setAddingToCategory(null)}
@@ -379,7 +378,7 @@ export function PortalDetailPage({
             <div className="flex flex-col gap-4">
               {categories.map((cat) => (
                 <div key={cat.id}>
-                  {editingCategory === cat.id && canEdit ? (
+                  {editingCategory === cat.id && can('portal.update') ? (
                     <CategoryEditInlineForm
                       initialTitle={cat.title}
                       onSubmit={(title) => handleUpdateCategory(cat.id, title)}
@@ -407,14 +406,14 @@ export function PortalDetailPage({
                         setEditingCategory(null)
                       }}
                       onReorderLinks={handleReorderLinks}
-                      canEdit={canEdit}
+                      canEdit={can('portal.update')}
                     />
                   )}
                   {editingLink &&
                     links
                       .filter((l) => l.categoryId === cat.id)
                       .map((link) =>
-                        link.id === editingLink && canEdit ? (
+                        link.id === editingLink && can('portal.update') ? (
                           <LinkEditInlineForm
                             key={link.id}
                             initialLabel={link.label}

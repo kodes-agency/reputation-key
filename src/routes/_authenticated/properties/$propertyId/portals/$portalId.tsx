@@ -1,7 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { getPortal } from '#/contexts/portal/server/portals'
 import { listPortalLinks } from '#/contexts/portal/server/portal-links'
-import { hasRole } from '#/shared/domain/roles'
 import { updatePortal } from '#/contexts/portal/server/portals'
 import { PortalDetailPage } from '#/components/features/portal/PortalDetailPage'
 import { useMutationAction } from '#/components/hooks/use-mutation-action'
@@ -46,7 +45,6 @@ export const Route = createFileRoute(
 function PortalDetailRoute() {
   const { portal, categories, links, propertyId } = Route.useLoaderData()
   const ctx = Route.useRouteContext()
-  const canEdit = hasRole(ctx.role, 'PropertyManager')
 
   const mutation = useMutationAction(updatePortal, {
     successMessage: 'Portal updated',
@@ -58,7 +56,6 @@ function PortalDetailRoute() {
       propertyId={propertyId}
       categories={categories}
       links={links}
-      canEdit={canEdit}
       updateMutation={mutation}
       organizationName={ctx.activeOrganization?.name ?? 'Your Organization'}
     />
