@@ -1,5 +1,5 @@
 import { useNavigate } from '@tanstack/react-router'
-import { ChevronsUpDown, LogOut, Moon, Sun, Monitor } from 'lucide-react'
+import { ChevronsUpDown, LogOut, Moon, Sun, Monitor, Plus } from 'lucide-react'
 import { SidebarTrigger } from '#/components/ui/sidebar'
 import { Button } from '#/components/ui/button'
 import { Separator } from '#/components/ui/separator'
@@ -82,35 +82,32 @@ export function AppTopBar({ user, properties }: Props) {
       <SidebarTrigger className="-ml-1" />
       <Separator orientation="vertical" className="mr-2 h-4" />
 
-      {/* Property switcher — interactive for multi-property, static for single */}
-      {properties.length > 1 ? (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="gap-2 px-2">
-              <span className="text-sm font-medium">
-                {currentProperty?.name ?? 'Select property'}
-              </span>
-              <ChevronsUpDown className="size-3.5 text-muted-foreground" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-64">
-            {properties.map((p) => (
-              <DropdownMenuItem key={p.id} onClick={() => handlePropertySwitch(p.id)}>
-                {p.name}
-                {p.id === propertyId && (
-                  <span className="ml-auto text-xs text-muted-foreground">Active</span>
-                )}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      ) : (
-        currentProperty && (
-          <span className="text-sm font-medium text-muted-foreground">
-            {currentProperty.name}
-          </span>
-        )
-      )}
+      {/* Property switcher — always visible */}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" className="gap-2 px-2">
+            <span className="text-sm font-medium">
+              {currentProperty?.name ?? 'Select property'}
+            </span>
+            <ChevronsUpDown className="size-3.5 text-muted-foreground" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-64">
+          {properties.map((p) => (
+            <DropdownMenuItem key={p.id} onClick={() => handlePropertySwitch(p.id)}>
+              {p.name}
+              {p.id === propertyId && (
+                <span className="ml-auto text-xs text-muted-foreground">Active</span>
+              )}
+            </DropdownMenuItem>
+          ))}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => navigate({ to: '/properties/new' })}>
+            <Plus className="size-3.5 mr-1" />
+            Add Property
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
 
       <div className="flex-1" />
 
