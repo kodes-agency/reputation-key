@@ -83,6 +83,9 @@ export function createAuth() {
           admin,
           member: memberRole,
         },
+        dynamicAccessControl: {
+          enabled: true,
+        },
         invitationExpiresIn: INVITATION_EXPIRY_SECONDS, // 7 days
         // Custom fields on the invitation table — stores which properties
         // the invitee should be assigned to upon acceptance.
