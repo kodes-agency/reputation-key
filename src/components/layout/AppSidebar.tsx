@@ -39,10 +39,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '#/components/ui/collapsible'
-import { useServerFn } from '@tanstack/react-start'
-
-import { setActiveOrganization } from '#/contexts/identity/server/organizations'
-import { useAction } from '#/components/hooks/use-action'
+import type { Action } from '#/components/hooks/use-action'
 import { usePropertyId } from '#/components/hooks/use-property-id'
 import { hasRole } from '#/shared/domain/roles'
 import { CreateOrganizationDialog } from '#/components/features/organization/CreateOrganizationDialog'
@@ -52,6 +49,7 @@ type Props = Readonly<{
   role: Role
   organizations: ReadonlyArray<{ id: string; name: string }>
   activeOrganization: { id: string; name: string } | null
+  setActiveOrganization: Action<{ data: { organizationId: string } }>
 }>
 
 const navItems = [
@@ -114,17 +112,21 @@ function useActiveSection(): string {
   })
 }
 
-export function AppSidebar({ role, organizations, activeOrganization }: Props) {
+export function AppSidebar({
+  role,
+  organizations,
+  activeOrganization,
+  setActiveOrganization,
+}: Props) {
   const propertyId = usePropertyId()
   const activeSection = useActiveSection()
   const navigate = useNavigate()
-  const setOrg = useAction(useServerFn(setActiveOrganization))
   const [createOrgOpen, setCreateOrgOpen] = useState(false)
 
   const isManager = hasRole(role, 'PropertyManager')
 
   function handleOrgSwitch(orgId: string) {
-    setOrg({ data: { organizationId: orgId } }).then(() => {
+    setActiveOrganization({ data: { organizationId: orgId } }).then(() => {
       navigate({ to: '/' })
     })
   }

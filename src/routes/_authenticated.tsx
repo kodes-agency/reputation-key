@@ -6,6 +6,7 @@ import { getSession } from '#/shared/auth/auth.functions'
 import {
   getActiveOrganization,
   listUserOrganizations,
+  setActiveOrganization,
 } from '#/contexts/identity/server/organizations'
 import { listProperties } from '#/contexts/property/server/properties'
 import type { Role } from '#/shared/domain/roles'
@@ -13,6 +14,7 @@ import { SidebarProvider, SidebarInset } from '#/components/ui/sidebar'
 import { AppSidebar } from '#/components/layout/AppSidebar'
 import { AppTopBar } from '#/components/layout/AppTopBar'
 import { getLogger } from '#/shared/observability/logger'
+import { useServerFn } from '@tanstack/react-start'
 
 export type AuthRouteContext = Readonly<{
   user: {
@@ -130,6 +132,7 @@ export const Route = createFileRoute('/_authenticated')({
 function AuthenticatedLayout() {
   const ctx = Route.useRouteContext()
   const { organizations, properties } = Route.useLoaderData()
+  const setActiveOrganizationFn = useServerFn(setActiveOrganization)
 
   return (
     <SidebarProvider>
@@ -137,6 +140,7 @@ function AuthenticatedLayout() {
         role={ctx.role}
         organizations={organizations}
         activeOrganization={ctx.activeOrganization}
+        setActiveOrganization={setActiveOrganizationFn}
       />
       <SidebarInset>
         <AppTopBar user={ctx.user} properties={properties} />
