@@ -9,7 +9,7 @@ import type {
 import type { ScanSource } from './types'
 
 export type ScanRecorded = Readonly<{
-  type: 'scan.recorded'
+  _tag: 'scan.recorded'
   scanId: ScanEventId
   organizationId: OrganizationId
   portalId: PortalId
@@ -18,13 +18,13 @@ export type ScanRecorded = Readonly<{
   occurredAt: Date
 }>
 
-export const scanRecorded = (payload: Omit<ScanRecorded, 'type'>): ScanRecorded => ({
-  type: 'scan.recorded',
+export const scanRecorded = (payload: Omit<ScanRecorded, '_tag'>): ScanRecorded => ({
+  _tag: 'scan.recorded',
   ...payload,
 })
 
 export type RatingSubmitted = Readonly<{
-  type: 'rating.submitted'
+  _tag: 'rating.submitted'
   ratingId: RatingId
   organizationId: OrganizationId
   portalId: PortalId
@@ -34,14 +34,14 @@ export type RatingSubmitted = Readonly<{
 }>
 
 export const ratingSubmitted = (
-  payload: Omit<RatingSubmitted, 'type'>,
+  payload: Omit<RatingSubmitted, '_tag'>,
 ): RatingSubmitted => ({
-  type: 'rating.submitted',
+  _tag: 'rating.submitted',
   ...payload,
 })
 
 export type FeedbackSubmitted = Readonly<{
-  type: 'feedback.submitted'
+  _tag: 'feedback.submitted'
   feedbackId: FeedbackId
   organizationId: OrganizationId
   portalId: PortalId
@@ -51,14 +51,14 @@ export type FeedbackSubmitted = Readonly<{
 }>
 
 export const feedbackSubmitted = (
-  payload: Omit<FeedbackSubmitted, 'type'>,
+  payload: Omit<FeedbackSubmitted, '_tag'>,
 ): FeedbackSubmitted => ({
-  type: 'feedback.submitted',
+  _tag: 'feedback.submitted',
   ...payload,
 })
 
 export type ReviewLinkClicked = Readonly<{
-  type: 'review-link.clicked'
+  _tag: 'review-link.clicked'
   linkId: string
   organizationId: OrganizationId
   portalId: PortalId
@@ -67,9 +67,9 @@ export type ReviewLinkClicked = Readonly<{
 }>
 
 export const reviewLinkClicked = (
-  payload: Omit<ReviewLinkClicked, 'type'>,
+  payload: Omit<ReviewLinkClicked, '_tag'>,
 ): ReviewLinkClicked => ({
-  type: 'review-link.clicked',
+  _tag: 'review-link.clicked',
   ...payload,
 })
 

@@ -70,6 +70,20 @@ export type {
   PortalDeleted,
 } from '#/contexts/portal/domain/events'
 
+// Guest context events
+export type {
+  // fallow-ignore-next-line unused-type
+  GuestEvent,
+  // fallow-ignore-next-line unused-type
+  ScanRecorded,
+  // fallow-ignore-next-line unused-type
+  RatingSubmitted,
+  // fallow-ignore-next-line unused-type
+  FeedbackSubmitted,
+  // fallow-ignore-next-line unused-type
+  ReviewLinkClicked,
+} from '#/contexts/guest/domain/events'
+
 // Master union — adding a new context's events requires extending this.
 // This ensures ts-pattern exhaustive checks catch new event types.
 import type { IdentityEvent } from '#/contexts/identity/domain/events'
@@ -77,6 +91,7 @@ import type { PropertyEvent } from '#/contexts/property/domain/events'
 import type { TeamEvent } from '#/contexts/team/domain/events'
 import type { StaffEvent } from '#/contexts/staff/domain/events'
 import type { PortalEvent } from '#/contexts/portal/domain/events'
+import type { GuestEvent } from '#/contexts/guest/domain/events'
 
 export type DomainEvent =
   | IdentityEvent
@@ -84,3 +99,4 @@ export type DomainEvent =
   | TeamEvent
   | StaffEvent
   | PortalEvent
+  | GuestEvent
