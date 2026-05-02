@@ -13,7 +13,7 @@ import { SubmitButton } from '#/components/forms/SubmitButton'
 import { FormErrorBanner } from '#/components/forms/FormErrorBanner'
 import { FormTextField } from '#/components/forms/FormTextField'
 import type { BaseFieldApi } from '#/components/forms/FormTextField'
-import { TimezoneSelect } from './TimezoneSelect'
+import { TimezoneCombobox } from './TimezoneCombobox'
 import { createPropertyInputSchema } from '#/contexts/property/application/dto/create-property.dto'
 
 // Derive form schema from DTO: .required() removes optional wrappers,
@@ -100,7 +100,7 @@ export function CreatePropertyForm({ mutation }: Props) {
 
         <form.Field name="timezone">
           {(field: BaseFieldApi) => (
-            <TimezoneSelect field={field} label="Timezone" id="property-timezone" />
+            <TimezoneCombobox field={field} label="Timezone" id="property-timezone" />
           )}
         </form.Field>
 
