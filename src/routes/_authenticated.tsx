@@ -12,6 +12,7 @@ import type { Role } from '#/shared/domain/roles'
 import { SidebarProvider, SidebarInset } from '#/components/ui/sidebar'
 import { AppSidebar } from '#/components/layout/AppSidebar'
 import { AppTopBar } from '#/components/layout/AppTopBar'
+import { getLogger } from '#/shared/observability/logger'
 
 export type AuthRouteContext = Readonly<{
   user: {
@@ -36,6 +37,7 @@ export type AuthRouteContext = Readonly<{
 
 export const Route = createFileRoute('/_authenticated')({
   beforeLoad: async ({ location }) => {
+    const logger = getLogger()
     const session = await getSession()
     if (!session) {
       throw redirect({
@@ -77,7 +79,7 @@ export const Route = createFileRoute('/_authenticated')({
       }
     } catch (e) {
       if (isRedirect(e)) throw e
-      console.error('[beforeLoad] getActiveOrganization FAILED:', e)
+      logger.error({ err: e }, '[beforeLoad] getActiveOrganization FAILED')
     }
 
     return {
@@ -92,16 +94,17 @@ export const Route = createFileRoute('/_authenticated')({
     } satisfies AuthRouteContext
   },
   loader: async () => {
+    const logger = getLogger()
     const [orgsResult, propsResult] = await Promise.allSettled([
       listUserOrganizations(),
       listProperties(),
     ])
 
     if (orgsResult.status === 'rejected') {
-      console.error('[loader] listUserOrganizations failed:', orgsResult.reason)
+      logger.error({ err: orgsResult.reason }, '[loader] listUserOrganizations failed')
     }
     if (propsResult.status === 'rejected') {
-      console.error('[loader] listProperties failed:', propsResult.reason)
+      logger.error({ err: propsResult.reason }, '[loader] listProperties failed')
     }
 
     const organizations =

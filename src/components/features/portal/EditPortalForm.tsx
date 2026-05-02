@@ -156,7 +156,6 @@ export function EditPortalForm({ portal, mutation, formRef }: Props) {
             ? String((err as { message: unknown }).message)
             : '') ||
           'Upload failed. Please try again.'
-        console.error('Image upload failed:', err)
         toast.error(message)
       } finally {
         setUploading(false)
