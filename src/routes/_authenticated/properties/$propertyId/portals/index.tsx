@@ -24,8 +24,28 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '#/components/ui/alert-dialog'
-import { Plus, Globe, Trash2 } from 'lucide-react'
+import { Plus, Globe, Trash2, Copy, Eye } from 'lucide-react'
 import { useMutationAction } from '#/components/hooks/use-mutation-action'
+
+function CopyButton({ text }: { text: string }) {
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(text)
+    } catch {
+      // fallback
+    }
+  }
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      className="p-1 hover:bg-muted rounded transition-colors"
+      title="Copy URL"
+    >
+      <Copy className="size-3 text-muted-foreground" />
+    </button>
+  )
+}
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/portals/')({
   staleTime: 30_000,
@@ -88,9 +108,10 @@ function PortalListPage() {
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead>
-              <TableHead>Slug</TableHead>
+              <TableHead>Guest URL</TableHead>
+              <TableHead>Theme</TableHead>
               <TableHead>Status</TableHead>
-              {canDelete && <TableHead className="text-right">Actions</TableHead>}
+              <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -105,8 +126,24 @@ function PortalListPage() {
                     {p.name}
                   </Link>
                 </TableCell>
-                <TableCell className="font-mono text-xs text-muted-foreground">
-                  {p.slug}
+                <TableCell>
+                  <div className="flex items-center gap-1">
+                    <code className="text-xs text-muted-foreground">
+                      /p/{p.organizationId}/{p.slug}
+                    </code>
+                    <CopyButton
+                      text={`${window.location.origin}/p/${p.organizationId}/${p.slug}`}
+                    />
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <div
+                    className="size-5 rounded-full border"
+                    style={{
+                      backgroundColor:
+                        (p.theme as Record<string, string>)?.primaryColor ?? '#6366f1',
+                    }}
+                  />
                 </TableCell>
                 <TableCell>
                   {p.isActive ? (
@@ -115,42 +152,52 @@ function PortalListPage() {
                     <Badge variant="outline">Inactive</Badge>
                   )}
                 </TableCell>
-                {canDelete && (
-                  <TableCell className="text-right">
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="text-destructive hover:text-destructive"
-                          disabled={deleteMutation.isPending}
-                        >
-                          <Trash2 className="size-3.5" />
-                          Delete
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Delete {p.name}?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            This portal and all its links will be permanently removed.
-                            This action cannot be undone.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction
-                            onClick={() => deleteMutation({ data: { portalId: p.id } })}
+                <TableCell className="text-right">
+                  <div className="flex items-center justify-end gap-1">
+                    <Button variant="ghost" size="sm" asChild>
+                      <Link
+                        to="/properties/$propertyId/portals/$portalId"
+                        params={{ propertyId, portalId: p.id }}
+                      >
+                        <Eye className="size-3.5" />
+                      </Link>
+                    </Button>
+                    {canDelete && (
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-destructive hover:text-destructive"
                             disabled={deleteMutation.isPending}
-                            className="bg-destructive text-white hover:bg-destructive/90"
                           >
-                            {deleteMutation.isPending ? 'Deleting...' : 'Delete portal'}
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </TableCell>
-                )}
+                            <Trash2 className="size-3.5" />
+                            Delete
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete {p.name}?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This portal and all its links will be permanently removed.
+                              This action cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => deleteMutation({ data: { portalId: p.id } })}
+                              disabled={deleteMutation.isPending}
+                              className="bg-destructive text-white hover:bg-destructive/90"
+                            >
+                              {deleteMutation.isPending ? 'Deleting...' : 'Delete portal'}
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    )}
+                  </div>
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
