@@ -89,6 +89,27 @@ type AuthOrganizationResponse = Readonly<{
 // headersFromContext is imported from shared/auth/headers.ts —
 // single source of truth for extracting request headers in server context.
 
+// ── Helper: Extract billing fields from loosely-typed org response ────────
+
+function extractOrgBillingFields(org: unknown): {
+  contactEmail: string | null
+  billingCompanyName: string | null
+  billingAddress: string | null
+  billingCity: string | null
+  billingPostalCode: string | null
+  billingCountry: string | null
+} {
+  const o = org as Record<string, unknown>
+  return {
+    contactEmail: (o.contactEmail as string | null) ?? null,
+    billingCompanyName: (o.billingCompanyName as string | null) ?? null,
+    billingAddress: (o.billingAddress as string | null) ?? null,
+    billingCity: (o.billingCity as string | null) ?? null,
+    billingPostalCode: (o.billingPostalCode as string | null) ?? null,
+    billingCountry: (o.billingCountry as string | null) ?? null,
+  }
+}
+
 // ── Get active organization ────────────────────────────────────────
 
 export const getActiveOrganization = createServerFn({ method: 'GET' }).handler(
@@ -110,18 +131,7 @@ export const getActiveOrganization = createServerFn({ method: 'GET' }).handler(
         slug: org.slug,
         logo: org.logo ?? null,
         createdAt: org.createdAt,
-        contactEmail:
-          ((org as Record<string, unknown>).contactEmail as string | null) ?? null,
-        billingCompanyName:
-          ((org as Record<string, unknown>).billingCompanyName as string | null) ?? null,
-        billingAddress:
-          ((org as Record<string, unknown>).billingAddress as string | null) ?? null,
-        billingCity:
-          ((org as Record<string, unknown>).billingCity as string | null) ?? null,
-        billingPostalCode:
-          ((org as Record<string, unknown>).billingPostalCode as string | null) ?? null,
-        billingCountry:
-          ((org as Record<string, unknown>).billingCountry as string | null) ?? null,
+        ...extractOrgBillingFields(org),
       },
       role: ctx.role,
     }
@@ -340,18 +350,7 @@ export const listUserOrganizations = createServerFn({ method: 'GET' }).handler(
       slug: org.slug,
       logo: org.logo ?? null,
       createdAt: org.createdAt,
-      contactEmail:
-        ((org as Record<string, unknown>).contactEmail as string | null) ?? null,
-      billingCompanyName:
-        ((org as Record<string, unknown>).billingCompanyName as string | null) ?? null,
-      billingAddress:
-        ((org as Record<string, unknown>).billingAddress as string | null) ?? null,
-      billingCity:
-        ((org as Record<string, unknown>).billingCity as string | null) ?? null,
-      billingPostalCode:
-        ((org as Record<string, unknown>).billingPostalCode as string | null) ?? null,
-      billingCountry:
-        ((org as Record<string, unknown>).billingCountry as string | null) ?? null,
+      ...extractOrgBillingFields(org),
     }))
 
     return { organizations }

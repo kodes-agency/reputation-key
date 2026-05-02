@@ -90,6 +90,7 @@ export function createAuth() {
         // Custom fields on the invitation table — stores which properties
         // the invitee should be assigned to upon acceptance.
         // Custom fields on the organization table — billing and contact info.
+
         schema: {
           invitation: {
             additionalFields: {
