@@ -39,7 +39,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '#/components/ui/collapsible'
-import type { Action } from '#/components/hooks/use-action'
+import { useAction } from '#/components/hooks/use-action'
 import { usePropertyId } from '#/components/hooks/use-property-id'
 import { hasRole } from '#/shared/domain/roles'
 import { CreateOrganizationDialog } from '#/components/features/organization/CreateOrganizationDialog'
@@ -49,7 +49,7 @@ type Props = Readonly<{
   role: Role
   organizations: ReadonlyArray<{ id: string; name: string }>
   activeOrganization: { id: string; name: string } | null
-  setActiveOrganization: Action<{ data: { organizationId: string } }>
+  setActiveOrganization: (input: { data: { organizationId: string } }) => Promise<void>
 }>
 
 const navItems = [
@@ -123,10 +123,12 @@ export function AppSidebar({
   const navigate = useNavigate()
   const [createOrgOpen, setCreateOrgOpen] = useState(false)
 
+  const setOrg = useAction(setActiveOrganization)
+
   const isManager = hasRole(role, 'PropertyManager')
 
   function handleOrgSwitch(orgId: string) {
-    setActiveOrganization({ data: { organizationId: orgId } }).then(() => {
+    void setOrg({ data: { organizationId: orgId } }).then(() => {
       navigate({ to: '/' })
     })
   }

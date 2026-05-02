@@ -11,6 +11,7 @@ import { FormTextarea } from '#/components/forms/FormTextarea'
 import type { BaseFieldApi } from '#/components/forms/FormTextField'
 import type { BaseFieldApiTextarea } from '#/components/forms/FormTextarea'
 import type { Action } from '#/components/hooks/use-action'
+import { useAction } from '#/components/hooks/use-action'
 
 // Minimal form type for ref that avoids TanStack Form's complex generic signature
 type FormLike = {
@@ -60,10 +61,12 @@ type Props = Readonly<{
   portal: PortalData
   mutation: Action<UpdatePortalVariables>
   formRef?: React.RefObject<FormLike | null>
-  requestUploadUrl: Action<{
+  requestUploadUrl: (input: {
     data: { portalId: string; contentType: string; fileSize: number }
+  }) => Promise<{ uploadUrl: string; key: string }>
+  finalizeUpload: (input: { data: { portalId: string; key: string } }) => Promise<{
+    heroImageUrl: string
   }>
-  finalizeUpload: Action<{ data: { portalId: string; key: string } }>
 }>
 
 export function EditPortalForm({
@@ -79,6 +82,9 @@ export function EditPortalForm({
   const [uploadProgress, setUploadProgress] = useState(0)
   const [dragOver, setDragOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const uploadRequest = useAction(requestUploadUrl)
+  const uploadFinalize = useAction(finalizeUpload)
 
   const form = useForm({
     defaultValues: {
@@ -119,7 +125,7 @@ export function EditPortalForm({
       setUploading(true)
       setUploadProgress(0)
       try {
-        const { uploadUrl, key } = await requestUploadUrl({
+        const { uploadUrl, key } = await uploadRequest({
           data: {
             portalId: portal.id,
             contentType: file.type,
@@ -152,7 +158,7 @@ export function EditPortalForm({
           xhr.send(file)
         })
 
-        const { heroImageUrl: url } = await finalizeUpload({
+        const { heroImageUrl: url } = await uploadFinalize({
           data: { portalId: portal.id, key },
         })
 

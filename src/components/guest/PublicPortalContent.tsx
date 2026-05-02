@@ -1,7 +1,6 @@
 import { StarRating } from './star-rating'
 import { FeedbackForm } from './feedback-form'
 import type { ScanSource } from '#/contexts/guest/application/dto/public-portal.dto'
-import type { Action } from '#/components/hooks/use-action'
 
 export type PortalCategory = {
   id: string
@@ -27,7 +26,7 @@ export type PublicPortalContentProps = Readonly<{
   categories: PortalCategory[]
   links: PortalLinkItem[]
   source?: ScanSource
-  submitFeedback?: Action<{
+  submitFeedback?: (input: {
     data: {
       portalId: string
       comment: string
@@ -35,10 +34,10 @@ export type PublicPortalContentProps = Readonly<{
       honeypot: string
       submittedAt: number
     }
-  }>
-  submitRating?: Action<{
+  }) => Promise<unknown>
+  submitRating?: (input: {
     data: { portalId: string; value: number; source: ScanSource }
-  }>
+  }) => Promise<unknown>
 }>
 
 export function PublicPortalContent({

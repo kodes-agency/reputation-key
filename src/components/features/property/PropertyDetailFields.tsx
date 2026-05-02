@@ -8,7 +8,7 @@ import { EditPropertyForm } from '#/components/features/property/EditPropertyFor
 import { Button } from '#/components/ui/button'
 import { Pencil } from 'lucide-react'
 import { useMutationAction } from '#/components/hooks/use-mutation-action'
-import type { Action } from '#/components/hooks/use-action'
+import { useAction } from '#/components/hooks/use-action'
 
 type PropertyData = Readonly<{
   id: string
@@ -21,15 +21,22 @@ type PropertyData = Readonly<{
 
 type Props = Readonly<{
   property: PropertyData
-  updateProperty: Action<{
-    data: { propertyId: string; name: string; slug: string; timezone: string }
-  }>
+  updateProperty: (input: {
+    data: {
+      propertyId: string
+      name?: string
+      slug?: string
+      timezone?: string
+      gbpPlaceId?: string | null
+    }
+  }) => Promise<{ property: PropertyData }>
 }>
 
 export function PropertyDetailFields({ property, updateProperty }: Props) {
   const [editing, setEditing] = useState(false)
 
-  const updateMutation = useMutationAction(updateProperty, {
+  const updatePropertyAction = useAction(updateProperty)
+  const updateMutation = useMutationAction(updatePropertyAction, {
     successMessage: 'Property updated',
     onSuccess: async () => {
       setEditing(false)

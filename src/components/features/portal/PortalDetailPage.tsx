@@ -97,10 +97,12 @@ type PortalDetailPageProps = Readonly<{
       isActive?: boolean
     }
   }>
-  requestUploadUrl: Action<{
+  requestUploadUrl: (input: {
     data: { portalId: string; contentType: string; fileSize: number }
+  }) => Promise<{ uploadUrl: string; key: string }>
+  finalizeUpload: (input: { data: { portalId: string; key: string } }) => Promise<{
+    heroImageUrl: string
   }>
-  finalizeUpload: Action<{ data: { portalId: string; key: string } }>
 }>
 
 export function PortalDetailPage({

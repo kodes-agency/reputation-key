@@ -5,7 +5,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from '@tanstack/react-router'
-import type { Action } from '#/components/hooks/use-action'
+import { useAction } from '#/components/hooks/use-action'
 import { Button } from '#/components/ui/button'
 import { Card } from '#/components/ui/card'
 import { Skeleton } from '#/components/ui/skeleton'
@@ -118,7 +118,7 @@ function InvitationListView({
 type Props = Readonly<{
   invitationId?: string
   invitations: PendingInvitation[]
-  acceptInvitation: Action<{ data: { invitationId: string } }>
+  acceptInvitation: (input: { data: { invitationId: string } }) => Promise<void>
 }>
 
 export function AcceptInvitationPage({
@@ -131,7 +131,7 @@ export function AcceptInvitationPage({
   const [accepting, setAccepting] = useState(false)
   const [autoAcceptError, setAutoAcceptError] = useState<string | null>(null)
 
-  const accept = acceptInvitation
+  const accept = useAction(acceptInvitation)
 
   async function handleAccept(invId: string) {
     setAccepting(true)
