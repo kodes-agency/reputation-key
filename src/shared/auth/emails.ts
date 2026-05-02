@@ -64,15 +64,6 @@ async function sendEmail({ to, subject, html }: SendEmailParams): Promise<void> 
   logger.info({ to, subject }, 'Email sent')
 }
 
-/** Send email verification link */
-export async function sendVerificationEmail(to: string, url: string): Promise<void> {
-  await sendEmail({
-    to,
-    subject: 'Verify your email — Reputation Key',
-    html: verificationEmailHtml(url),
-  })
-}
-
 /** Send password reset link */
 export async function sendResetPasswordEmail(to: string, url: string): Promise<void> {
   await sendEmail({
@@ -111,17 +102,6 @@ function emailShell(innerHtml: string): string {
   </div>
 </body>
 </html>`
-}
-
-function verificationEmailHtml(verificationUrl: string): string {
-  return emailShell(`
-      <p>Welcome! Please verify your email address to get started.</p>
-      <a href="${escapeHtml(verificationUrl)}" class="button">Verify Email</a>
-      <p>If you didn't create an account, you can safely ignore this email.</p>
-    </div>
-    <div class="footer">
-      <p>This link expires in 24 hours.</p>
-`)
 }
 
 function resetPasswordEmailHtml(resetUrl: string): string {

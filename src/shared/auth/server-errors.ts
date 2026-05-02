@@ -8,7 +8,7 @@
  * Per architecture: "always tagged errors" — this is the server-boundary
  * representation that gets serialized via seroval to the client mutation error.
  */
-export class ServerFunctionError extends Error {
+class ServerFunctionError extends Error {
   readonly _tag: string
   readonly code: string
   readonly status: number

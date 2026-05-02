@@ -84,14 +84,6 @@ export const memberInvited = (args: Omit<MemberInvited, '_tag'>): MemberInvited 
   ...args,
 })
 
-export const invitationAccepted = (
-  args: Omit<InvitationAccepted, '_tag'>,
-): InvitationAccepted => ({ _tag: 'invitation.accepted', ...args })
-
-export const invitationRejected = (
-  args: Omit<InvitationRejected, '_tag'>,
-): InvitationRejected => ({ _tag: 'invitation.rejected', ...args })
-
 export const memberRemoved = (args: Omit<MemberRemoved, '_tag'>): MemberRemoved => ({
   _tag: 'member.removed',
   ...args,
