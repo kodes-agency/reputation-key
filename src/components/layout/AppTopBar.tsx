@@ -102,7 +102,9 @@ export function AppTopBar({ user, properties }: Props) {
             </DropdownMenuItem>
           ))}
           <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={() => navigate({ to: '/properties/new' })}>
+          <DropdownMenuItem
+            onClick={() => navigate({ to: '/_authenticated/properties/new' })}
+          >
             <Plus className="size-3.5 mr-1" />
             Add Property
           </DropdownMenuItem>
