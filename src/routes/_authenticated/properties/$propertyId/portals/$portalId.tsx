@@ -37,6 +37,7 @@ export const Route = createFileRoute(
         }),
       ),
       propertyId: params.propertyId,
+      propertyId: params.propertyId,
     }
   },
   component: PortalDetailRoute,

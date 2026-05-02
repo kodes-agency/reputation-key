@@ -20,7 +20,7 @@ import { Route as AuthenticatedDashboardRouteImport } from './routes/_authentica
 import { Route as ApiHealthIndexRouteImport } from './routes/api/health/index'
 import { Route as AuthenticatedStaffIndexRouteImport } from './routes/_authenticated/staff/index'
 import { Route as AuthenticatedPropertiesIndexRouteImport } from './routes/_authenticated/properties/index'
-import { Route as POrgSlugPortalSlugRouteImport } from './routes/p/$orgSlug/$portalSlug'
+import { Route as PPropertySlugPortalSlugRouteImport } from './routes/p/$propertySlug/$portalSlug'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as AuthenticatedPropertiesNewRouteImport } from './routes/_authenticated/properties/new'
 import { Route as AuthenticatedPropertiesPropertyIdRouteImport } from './routes/_authenticated/properties/$propertyId'
@@ -95,9 +95,9 @@ const AuthenticatedPropertiesIndexRoute = AuthenticatedPropertiesIndexRouteImpor
   path: '/properties/',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
-const POrgSlugPortalSlugRoute = POrgSlugPortalSlugRouteImport.update({
-  id: '/p/$orgSlug/$portalSlug',
-  path: '/p/$orgSlug/$portalSlug',
+const PPropertySlugPortalSlugRoute = PPropertySlugPortalSlugRouteImport.update({
+  id: '/p/$propertySlug/$portalSlug',
+  path: '/p/$propertySlug/$portalSlug',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
@@ -222,7 +222,7 @@ export interface FileRoutesByFullPath {
   '/properties/$propertyId': typeof AuthenticatedPropertiesPropertyIdRouteWithChildren
   '/properties/new': typeof AuthenticatedPropertiesNewRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
-  '/p/$orgSlug/$portalSlug': typeof POrgSlugPortalSlugRoute
+  '/p/$propertySlug/$portalSlug': typeof PPropertySlugPortalSlugRoute
   '/properties/': typeof AuthenticatedPropertiesIndexRoute
   '/staff/': typeof AuthenticatedStaffIndexRoute
   '/api/health/': typeof ApiHealthIndexRoute
@@ -253,7 +253,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/properties/new': typeof AuthenticatedPropertiesNewRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
-  '/p/$orgSlug/$portalSlug': typeof POrgSlugPortalSlugRoute
+  '/p/$propertySlug/$portalSlug': typeof PPropertySlugPortalSlugRoute
   '/properties': typeof AuthenticatedPropertiesIndexRoute
   '/staff': typeof AuthenticatedStaffIndexRoute
   '/api/health': typeof ApiHealthIndexRoute
@@ -286,7 +286,7 @@ export interface FileRoutesById {
   '/_authenticated/properties/$propertyId': typeof AuthenticatedPropertiesPropertyIdRouteWithChildren
   '/_authenticated/properties/new': typeof AuthenticatedPropertiesNewRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
-  '/p/$orgSlug/$portalSlug': typeof POrgSlugPortalSlugRoute
+  '/p/$propertySlug/$portalSlug': typeof PPropertySlugPortalSlugRoute
   '/_authenticated/properties/': typeof AuthenticatedPropertiesIndexRoute
   '/_authenticated/staff/': typeof AuthenticatedStaffIndexRoute
   '/api/health/': typeof ApiHealthIndexRoute
@@ -320,7 +320,7 @@ export interface FileRouteTypes {
     | '/properties/$propertyId'
     | '/properties/new'
     | '/api/auth/$'
-    | '/p/$orgSlug/$portalSlug'
+    | '/p/$propertySlug/$portalSlug'
     | '/properties/'
     | '/staff/'
     | '/api/health/'
@@ -351,7 +351,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/properties/new'
     | '/api/auth/$'
-    | '/p/$orgSlug/$portalSlug'
+    | '/p/$propertySlug/$portalSlug'
     | '/properties'
     | '/staff'
     | '/api/health'
@@ -383,7 +383,7 @@ export interface FileRouteTypes {
     | '/_authenticated/properties/$propertyId'
     | '/_authenticated/properties/new'
     | '/api/auth/$'
-    | '/p/$orgSlug/$portalSlug'
+    | '/p/$propertySlug/$portalSlug'
     | '/_authenticated/properties/'
     | '/_authenticated/staff/'
     | '/api/health/'
@@ -414,7 +414,7 @@ export interface RootRouteChildren {
   RegisterRoute: typeof RegisterRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
-  POrgSlugPortalSlugRoute: typeof POrgSlugPortalSlugRoute
+  PPropertySlugPortalSlugRoute: typeof PPropertySlugPortalSlugRoute
   ApiHealthIndexRoute: typeof ApiHealthIndexRoute
   ApiPortalsIdQrRoute: typeof ApiPortalsIdQrRoute
   ApiPublicClickLinkIdRoute: typeof ApiPublicClickLinkIdRoute
@@ -499,11 +499,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPropertiesIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/p/$orgSlug/$portalSlug': {
-      id: '/p/$orgSlug/$portalSlug'
-      path: '/p/$orgSlug/$portalSlug'
-      fullPath: '/p/$orgSlug/$portalSlug'
-      preLoaderRoute: typeof POrgSlugPortalSlugRouteImport
+    '/p/$propertySlug/$portalSlug': {
+      id: '/p/$propertySlug/$portalSlug'
+      path: '/p/$propertySlug/$portalSlug'
+      fullPath: '/p/$propertySlug/$portalSlug'
+      preLoaderRoute: typeof PPropertySlugPortalSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/auth/$': {
@@ -738,7 +738,7 @@ const rootRouteChildren: RootRouteChildren = {
   RegisterRoute: RegisterRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
-  POrgSlugPortalSlugRoute: POrgSlugPortalSlugRoute,
+  PPropertySlugPortalSlugRoute: PPropertySlugPortalSlugRoute,
   ApiHealthIndexRoute: ApiHealthIndexRoute,
   ApiPortalsIdQrRoute: ApiPortalsIdQrRoute,
   ApiPublicClickLinkIdRoute: ApiPublicClickLinkIdRoute,

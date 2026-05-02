@@ -2,6 +2,8 @@ import { useState, useRef } from 'react'
 import { Link } from '@tanstack/react-router'
 import type { FormApi } from '@tanstack/react-form'
 import { Button } from '#/components/ui/button'
+import { Switch } from '#/components/ui/switch'
+import { Label } from '#/components/ui/label'
 import { ArrowLeft, Eye } from 'lucide-react'
 import { EditPortalForm } from './EditPortalForm'
 import { ShareSection } from './ShareSection'
@@ -72,6 +74,7 @@ type PortalDetailPageProps = Readonly<{
     smartRoutingEnabled: boolean
     smartRoutingThreshold: number
     organizationId: string
+    isActive: boolean
   }
   organizationName: string
   propertySlug: string
@@ -87,6 +90,7 @@ type PortalDetailPageProps = Readonly<{
       theme?: { primaryColor: string }
       smartRoutingEnabled?: boolean
       smartRoutingThreshold?: number
+      isActive?: boolean
     }
   }>
 }>
@@ -102,6 +106,7 @@ export function PortalDetailPage({
 }: PortalDetailPageProps) {
   const { can } = usePermissions()
   const { previewOpen, setPreviewOpen } = usePreviewToggle(portal.id)
+  const [isActive, setIsActive] = useState(portal.isActive)
   const editFormRef = useRef<FormApi<{
     name: string
     slug: string
@@ -319,6 +324,31 @@ export function PortalDetailPage({
       {/* Settings Section */}
       <section className="rounded-lg border p-4 space-y-4">
         <h2 className="text-lg font-semibold">Settings</h2>
+
+        {/* Active/Inactive toggle */}
+        <div className="flex items-center justify-between rounded-md border px-4 py-3">
+          <div className="space-y-0.5">
+            <Label htmlFor="portal-active" className="text-sm font-medium">
+              Portal Active
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              {isActive
+                ? 'Guests can access this portal.'
+                : 'Guests will see an "unavailable" message.'}
+            </p>
+          </div>
+          <Switch
+            id="portal-active"
+            checked={isActive}
+            onCheckedChange={(checked) => {
+              setIsActive(checked)
+              updateMutation.mutate({
+                data: { portalId: portal.id, isActive: checked },
+              })
+            }}
+            disabled={!can('portal.update') || updateMutation.isPending}
+          />
+        </div>
 
         <EditPortalForm
           portal={{
