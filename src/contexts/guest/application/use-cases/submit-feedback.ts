@@ -1,3 +1,4 @@
+import type { Feedback } from '../../domain/types'
 import type { GuestInteractionRepository } from '../ports/guest-interaction.repository'
 import type { EventBus } from '#/shared/events/event-bus'
 import type {
@@ -30,7 +31,8 @@ export type SubmitFeedbackInput = Readonly<{
 }>
 
 export const submitFeedback =
-  (deps: SubmitFeedbackDeps) => async (input: SubmitFeedbackInput) => {
+  (deps: SubmitFeedbackDeps) =>
+  async (input: SubmitFeedbackInput): Promise<Feedback> => {
     const feedbackResult = buildFeedback({
       id: deps.idGen(),
       ...input,

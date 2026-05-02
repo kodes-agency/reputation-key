@@ -1,3 +1,4 @@
+import type { Rating } from '../../domain/types'
 import type { GuestInteractionRepository } from '../ports/guest-interaction.repository'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { OrganizationId, PortalId, PropertyId, RatingId } from '#/shared/domain/ids'
@@ -24,7 +25,8 @@ export type SubmitRatingInput = Readonly<{
 }>
 
 export const submitRating =
-  (deps: SubmitRatingDeps) => async (input: SubmitRatingInput) => {
+  (deps: SubmitRatingDeps) =>
+  async (input: SubmitRatingInput): Promise<Rating> => {
     const alreadyRated = await deps.guestRepo.hasRated(
       input.organizationId,
       input.sessionId,
