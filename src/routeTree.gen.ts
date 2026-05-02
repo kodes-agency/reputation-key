@@ -25,6 +25,8 @@ import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as AuthenticatedPropertiesNewRouteImport } from './routes/_authenticated/properties/new'
 import { Route as AuthenticatedPropertiesPropertyIdRouteImport } from './routes/_authenticated/properties/$propertyId'
 import { Route as AuthenticatedPropertiesPropertyIdIndexRouteImport } from './routes/_authenticated/properties/$propertyId/index'
+import { Route as ApiPublicClickLinkIdRouteImport } from './routes/api/public/click/$linkId'
+import { Route as ApiPortalsIdQrRouteImport } from './routes/api/portals/$id/qr'
 import { Route as AuthenticatedPropertiesPropertyIdReviewsRouteImport } from './routes/_authenticated/properties/$propertyId/reviews'
 import { Route as AuthenticatedPropertiesPropertyIdMetricsRouteImport } from './routes/_authenticated/properties/$propertyId/metrics'
 import { Route as AuthenticatedPropertiesPropertyIdMembersRouteImport } from './routes/_authenticated/properties/$propertyId/members'
@@ -123,6 +125,16 @@ const AuthenticatedPropertiesPropertyIdIndexRoute =
     path: '/',
     getParentRoute: () => AuthenticatedPropertiesPropertyIdRoute,
   } as any)
+const ApiPublicClickLinkIdRoute = ApiPublicClickLinkIdRouteImport.update({
+  id: '/api/public/click/$linkId',
+  path: '/api/public/click/$linkId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPortalsIdQrRoute = ApiPortalsIdQrRouteImport.update({
+  id: '/api/portals/$id/qr',
+  path: '/api/portals/$id/qr',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedPropertiesPropertyIdReviewsRoute =
   AuthenticatedPropertiesPropertyIdReviewsRouteImport.update({
     id: '/reviews',
@@ -238,6 +250,8 @@ export interface FileRoutesByFullPath {
   '/properties/$propertyId/members': typeof AuthenticatedPropertiesPropertyIdMembersRoute
   '/properties/$propertyId/metrics': typeof AuthenticatedPropertiesPropertyIdMetricsRoute
   '/properties/$propertyId/reviews': typeof AuthenticatedPropertiesPropertyIdReviewsRoute
+  '/api/portals/$id/qr': typeof ApiPortalsIdQrRoute
+  '/api/public/click/$linkId': typeof ApiPublicClickLinkIdRoute
   '/properties/$propertyId/': typeof AuthenticatedPropertiesPropertyIdIndexRoute
   '/properties/$propertyId/portals/$portalId': typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdRouteWithChildren
   '/properties/$propertyId/portals/new': typeof AuthenticatedPropertiesPropertyIdPortalsNewRoute
@@ -270,6 +284,8 @@ export interface FileRoutesByTo {
   '/properties/$propertyId/members': typeof AuthenticatedPropertiesPropertyIdMembersRoute
   '/properties/$propertyId/metrics': typeof AuthenticatedPropertiesPropertyIdMetricsRoute
   '/properties/$propertyId/reviews': typeof AuthenticatedPropertiesPropertyIdReviewsRoute
+  '/api/portals/$id/qr': typeof ApiPortalsIdQrRoute
+  '/api/public/click/$linkId': typeof ApiPublicClickLinkIdRoute
   '/properties/$propertyId': typeof AuthenticatedPropertiesPropertyIdIndexRoute
   '/properties/$propertyId/portals/new': typeof AuthenticatedPropertiesPropertyIdPortalsNewRoute
   '/properties/$propertyId/settings/organization': typeof AuthenticatedPropertiesPropertyIdSettingsOrganizationRoute
@@ -303,6 +319,8 @@ export interface FileRoutesById {
   '/_authenticated/properties/$propertyId/members': typeof AuthenticatedPropertiesPropertyIdMembersRoute
   '/_authenticated/properties/$propertyId/metrics': typeof AuthenticatedPropertiesPropertyIdMetricsRoute
   '/_authenticated/properties/$propertyId/reviews': typeof AuthenticatedPropertiesPropertyIdReviewsRoute
+  '/api/portals/$id/qr': typeof ApiPortalsIdQrRoute
+  '/api/public/click/$linkId': typeof ApiPublicClickLinkIdRoute
   '/_authenticated/properties/$propertyId/': typeof AuthenticatedPropertiesPropertyIdIndexRoute
   '/_authenticated/properties/$propertyId/portals/$portalId': typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdRouteWithChildren
   '/_authenticated/properties/$propertyId/portals/new': typeof AuthenticatedPropertiesPropertyIdPortalsNewRoute
@@ -338,6 +356,8 @@ export interface FileRouteTypes {
     | '/properties/$propertyId/members'
     | '/properties/$propertyId/metrics'
     | '/properties/$propertyId/reviews'
+    | '/api/portals/$id/qr'
+    | '/api/public/click/$linkId'
     | '/properties/$propertyId/'
     | '/properties/$propertyId/portals/$portalId'
     | '/properties/$propertyId/portals/new'
@@ -370,6 +390,8 @@ export interface FileRouteTypes {
     | '/properties/$propertyId/members'
     | '/properties/$propertyId/metrics'
     | '/properties/$propertyId/reviews'
+    | '/api/portals/$id/qr'
+    | '/api/public/click/$linkId'
     | '/properties/$propertyId'
     | '/properties/$propertyId/portals/new'
     | '/properties/$propertyId/settings/organization'
@@ -402,6 +424,8 @@ export interface FileRouteTypes {
     | '/_authenticated/properties/$propertyId/members'
     | '/_authenticated/properties/$propertyId/metrics'
     | '/_authenticated/properties/$propertyId/reviews'
+    | '/api/portals/$id/qr'
+    | '/api/public/click/$linkId'
     | '/_authenticated/properties/$propertyId/'
     | '/_authenticated/properties/$propertyId/portals/$portalId'
     | '/_authenticated/properties/$propertyId/portals/new'
@@ -429,6 +453,8 @@ export interface RootRouteChildren {
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   POrgSlugPortalSlugRoute: typeof POrgSlugPortalSlugRoute
   ApiHealthIndexRoute: typeof ApiHealthIndexRoute
+  ApiPortalsIdQrRoute: typeof ApiPortalsIdQrRoute
+  ApiPublicClickLinkIdRoute: typeof ApiPublicClickLinkIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -544,6 +570,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/properties/$propertyId/'
       preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdIndexRouteImport
       parentRoute: typeof AuthenticatedPropertiesPropertyIdRoute
+    }
+    '/api/public/click/$linkId': {
+      id: '/api/public/click/$linkId'
+      path: '/api/public/click/$linkId'
+      fullPath: '/api/public/click/$linkId'
+      preLoaderRoute: typeof ApiPublicClickLinkIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/portals/$id/qr': {
+      id: '/api/portals/$id/qr'
+      path: '/api/portals/$id/qr'
+      fullPath: '/api/portals/$id/qr'
+      preLoaderRoute: typeof ApiPortalsIdQrRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_authenticated/properties/$propertyId/reviews': {
       id: '/_authenticated/properties/$propertyId/reviews'
@@ -779,17 +819,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   POrgSlugPortalSlugRoute: POrgSlugPortalSlugRoute,
   ApiHealthIndexRoute: ApiHealthIndexRoute,
+  ApiPortalsIdQrRoute: ApiPortalsIdQrRoute,
+  ApiPublicClickLinkIdRoute: ApiPublicClickLinkIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
