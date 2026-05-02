@@ -34,6 +34,9 @@ const envSchema = z.object({
   // Error tracking — Sentry (optional, Phase 22 for full integration)
   SENTRY_DSN: z.string().optional(),
   SENTRY_TRACES_SAMPLE_RATE: z.coerce.number().min(0).max(1).default(0.1),
+
+  // Guest sessions
+  GUEST_SESSION_SALT: z.string().min(16).default('default-salt-change-in-production'),
 })
 
 // fallow-ignore-next-line unused-type
