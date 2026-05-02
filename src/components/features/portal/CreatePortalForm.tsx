@@ -14,13 +14,14 @@ import type { BaseFieldApi } from '#/components/forms/FormTextField'
 import type { BaseFieldApiTextarea } from '#/components/forms/FormTextarea'
 import type { Action } from '#/components/hooks/use-action'
 import { ThemePresetSelector } from './ThemePresetSelector'
+import { createPortalInputSchema } from '#/contexts/portal/application/dto/create-portal.dto'
 
-const createFormSchema = z.object({
-  name: z.string().min(1, 'Name is required').max(100),
-  slug: z.string().max(64, 'Slug must be at most 64 characters'),
-  description: z.string().max(500, 'Description must be at most 500 characters'),
-  primaryColor: z.string().min(1, 'Color is required'),
-})
+const createFormSchema = createPortalInputSchema
+  .pick({ name: true, slug: true, description: true })
+  .extend({
+    slug: z.string().max(64, 'Slug must be at most 64 characters'),
+    primaryColor: z.string().min(1, 'Color is required'),
+  })
 
 type FormValues = z.infer<typeof createFormSchema>
 
