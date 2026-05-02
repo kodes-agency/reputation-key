@@ -1,8 +1,9 @@
 // Property settings — view and edit property details with danger zone
 import { createFileRoute, getRouteApi } from '@tanstack/react-router'
-import { deleteProperty } from '#/contexts/property/server/properties'
+import { deleteProperty, updateProperty } from '#/contexts/property/server/properties'
 import { PropertyDetailFields } from '#/components/features/property/PropertyDetailFields'
 import { useMutationAction } from '#/components/hooks/use-mutation-action'
+import { useServerFn } from '@tanstack/react-start'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,6 +33,8 @@ function PropertySettingsPage() {
     navigateTo: '/properties',
   })
 
+  const updatePropertyFn = useServerFn(updateProperty)
+
   if (!property) return null
 
   return (
@@ -43,7 +46,7 @@ function PropertySettingsPage() {
         </p>
       </div>
 
-      <PropertyDetailFields property={property} />
+      <PropertyDetailFields property={property} updateProperty={updatePropertyFn} />
 
       <div className="space-y-3 rounded-lg border border-destructive/30 p-4">
         <h2 className="text-sm font-semibold text-destructive">Danger Zone</h2>

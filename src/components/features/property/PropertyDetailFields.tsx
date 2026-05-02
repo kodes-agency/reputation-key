@@ -4,12 +4,11 @@
  */
 
 import { useState } from 'react'
-// eslint-disable-next-line boundaries/dependencies
-import { updateProperty } from '#/contexts/property/server/properties'
 import { EditPropertyForm } from '#/components/features/property/EditPropertyForm'
 import { Button } from '#/components/ui/button'
 import { Pencil } from 'lucide-react'
 import { useMutationAction } from '#/components/hooks/use-mutation-action'
+import type { Action } from '#/components/hooks/use-action'
 
 type PropertyData = Readonly<{
   id: string
@@ -22,9 +21,12 @@ type PropertyData = Readonly<{
 
 type Props = Readonly<{
   property: PropertyData
+  updateProperty: Action<{
+    data: { propertyId: string; name: string; slug: string; timezone: string }
+  }>
 }>
 
-export function PropertyDetailFields({ property }: Props) {
+export function PropertyDetailFields({ property, updateProperty }: Props) {
   const [editing, setEditing] = useState(false)
 
   const updateMutation = useMutationAction(updateProperty, {
