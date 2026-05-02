@@ -6,7 +6,17 @@ import { FeedbackForm } from '#/components/guest/feedback-form'
 import { CookieConsentBanner } from '#/components/guest/cookie-consent-banner'
 import type { PublicPortalLoaderData } from '#/contexts/guest/application/dto/public-portal.dto'
 
+const VALID_SOURCES: ReadonlySet<string> = new Set(['qr', 'nfc', 'direct'])
+type ScanSource = 'qr' | 'nfc' | 'direct'
+
+function parseSource(raw: string | null): ScanSource {
+  return raw && VALID_SOURCES.has(raw) ? (raw as ScanSource) : 'direct'
+}
+
 export const Route = createFileRoute('/p/$orgSlug/$portalSlug')({
+  validateSearch: (search: Record<string, string>) => ({
+    source: search.source,
+  }),
   loader: async ({ params }): Promise<PublicPortalLoaderData | null> => {
     try {
       const portalData = await getPublicPortal({
@@ -36,6 +46,8 @@ export const Route = createFileRoute('/p/$orgSlug/$portalSlug')({
 
 function PublicPortalPage() {
   const data = Route.useLoaderData()
+  const search = Route.useSearch()
+  const source = parseSource(search.source ?? null)
 
   if (!data) {
     return <PortalNotFound />
@@ -81,25 +93,9 @@ function PublicPortalPage() {
           <p className="text-center text-gray-600">{portal.description}</p>
         )}
 
-        <StarRating
-          portalId={portal.id}
-          source={
-            (new URLSearchParams(window.location.search).get('source') as
-              | 'qr'
-              | 'nfc'
-              | 'direct') ?? 'direct'
-          }
-        />
+        <StarRating portalId={portal.id} source={source} />
 
-        <FeedbackForm
-          portalId={portal.id}
-          source={
-            (new URLSearchParams(window.location.search).get('source') as
-              | 'qr'
-              | 'nfc'
-              | 'direct') ?? 'direct'
-          }
-        />
+        <FeedbackForm portalId={portal.id} source={source} />
 
         <div className="space-y-6">
           {categories.map((category) => {
