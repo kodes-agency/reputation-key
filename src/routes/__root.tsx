@@ -32,7 +32,9 @@ function RootDocument({ children }: { children: React.ReactNode }) {
   const showChrome = useRouterState({
     select: (s) => {
       const ids = s.matches.map((m) => m.routeId)
-      return !ids.includes('/_authenticated') && !ids.includes('/p/$orgSlug/$portalSlug')
+      return (
+        !ids.includes('/_authenticated') && !ids.includes('/p/$propertySlug/$portalSlug')
+      )
     },
   })
 

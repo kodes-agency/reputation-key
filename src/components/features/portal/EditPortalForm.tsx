@@ -10,10 +10,13 @@ import { FormTextField } from '#/components/forms/FormTextField'
 import { FormTextarea } from '#/components/forms/FormTextarea'
 import type { BaseFieldApi } from '#/components/forms/FormTextField'
 import type { BaseFieldApiTextarea } from '#/components/forms/FormTextarea'
-import type { FormApi } from '@tanstack/react-form'
 import type { Action } from '#/components/hooks/use-action'
-
 import { requestUploadUrl, finalizeUpload } from '#/contexts/portal/server/portals'
+
+// Minimal form type for ref that avoids TanStack Form's complex generic signature
+type FormLike = {
+  handleSubmit: () => void
+}
 import { Button } from '#/components/ui/button'
 import { Upload, ImageIcon, X, Loader2 } from 'lucide-react'
 import { useState, useRef, useCallback } from 'react'
@@ -57,7 +60,7 @@ type PortalData = Readonly<{
 type Props = Readonly<{
   portal: PortalData
   mutation: Action<UpdatePortalVariables>
-  formRef?: React.RefObject<FormApi<FormValues> | null>
+  formRef?: React.RefObject<FormLike | null>
 }>
 
 export function EditPortalForm({ portal, mutation, formRef }: Props) {

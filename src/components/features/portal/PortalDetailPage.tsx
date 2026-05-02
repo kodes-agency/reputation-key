@@ -1,8 +1,12 @@
 import { useState, useRef } from 'react'
 import { Link } from '@tanstack/react-router'
-import type { FormApi } from '@tanstack/react-form'
 import { Button } from '#/components/ui/button'
 import { Switch } from '#/components/ui/switch'
+
+// Minimal form type for ref that avoids TanStack Form's complex generic signature
+type FormLike = {
+  handleSubmit: () => void
+}
 import { Label } from '#/components/ui/label'
 import { ArrowLeft, Eye } from 'lucide-react'
 import { EditPortalForm } from './EditPortalForm'
@@ -107,11 +111,7 @@ export function PortalDetailPage({
   const { can } = usePermissions()
   const { previewOpen, setPreviewOpen } = usePreviewToggle(portal.id)
   const [isActive, setIsActive] = useState(portal.isActive)
-  const editFormRef = useRef<FormApi<{
-    name: string
-    slug: string
-    description: string
-  }> | null>(null)
+  const editFormRef = useRef<FormLike | null>(null)
 
   // Link tree state
   const [categories, setCategories] = useState(initialCategories)
@@ -342,9 +342,7 @@ export function PortalDetailPage({
             checked={isActive}
             onCheckedChange={(checked) => {
               setIsActive(checked)
-              updateMutation.mutate({
-                data: { portalId: portal.id, isActive: checked },
-              })
+              updateMutation({ data: { portalId: portal.id, isActive: checked } })
             }}
             disabled={!can('portal.update') || updateMutation.isPending}
           />
@@ -488,11 +486,7 @@ export function PortalDetailPage({
       </section>
 
       {/* Share Section */}
-      <ShareSection
-        portalId={portal.id}
-        portalSlug={portal.slug}
-        propertySlug={propertySlug}
-      />
+      <ShareSection portalSlug={portal.slug} propertySlug={propertySlug} />
 
       {/* Slide-over Preview */}
       <PortalPreviewPanel

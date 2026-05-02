@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, getRouteApi } from '@tanstack/react-router'
 import { getPortal } from '#/contexts/portal/server/portals'
 import { listPortalLinks } from '#/contexts/portal/server/portal-links'
 import { updatePortal } from '#/contexts/portal/server/portals'
@@ -37,7 +37,6 @@ export const Route = createFileRoute(
         }),
       ),
       propertyId: params.propertyId,
-      propertyId: params.propertyId,
     }
   },
   component: PortalDetailRoute,
@@ -52,10 +51,10 @@ function PortalDetailRoute() {
   })
 
   // Get property slug from parent layout's loaded properties
-  const parentRoute = Route.useMatch({ from: '/_authenticated', strict: false })
+  const authRoute = getRouteApi('/_authenticated')
+  const { properties } = authRoute.useLoaderData()
   const propertySlug =
-    parentRoute?.loaderData?.properties?.find((p: { id: string }) => p.id === propertyId)
-      ?.slug ?? ''
+    properties?.find((p: { id: string }) => p.id === propertyId)?.slug ?? ''
 
   return (
     <PortalDetailPage

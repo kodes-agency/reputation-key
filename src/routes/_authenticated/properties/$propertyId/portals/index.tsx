@@ -1,5 +1,5 @@
 // Portal list — shows all portals for a property
-import { createFileRoute, Link } from '@tanstack/react-router'
+import { createFileRoute, Link, getRouteApi } from '@tanstack/react-router'
 import { listPortals, deletePortal } from '#/contexts/portal/server/portals'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { Button } from '#/components/ui/button'
@@ -69,10 +69,10 @@ function PortalListPage() {
   const { portals } = Route.useLoaderData()
 
   // Get property slug from parent layout's loaded properties
-  const parentRoute = Route.useMatch({ from: '/_authenticated', strict: false })
+  const authRoute = getRouteApi('/_authenticated')
+  const { properties } = authRoute.useLoaderData()
   const propertySlug =
-    parentRoute?.loaderData?.properties?.find((p: { id: string }) => p.id === propertyId)
-      ?.slug ?? ''
+    properties?.find((p: { id: string }) => p.id === propertyId)?.slug ?? ''
 
   const deleteMutation = useMutationAction(deletePortal, {
     successMessage: 'Portal deleted',

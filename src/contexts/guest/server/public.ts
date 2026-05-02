@@ -27,8 +27,9 @@ export const getPublicPortal = createServerFn({ method: 'GET' })
   .inputValidator(publicPortalSchema)
   .handler(async ({ data }) => {
     const { db } = getContainer()
-    const { portals, portalLinkCategories, portalLinks, properties } =
+    const { portals, portalLinkCategories, portalLinks } =
       await import('#/shared/db/schema/portal.schema')
+    const { properties } = await import('#/shared/db/schema/property.schema')
     const { eq, and } = await import('drizzle-orm')
     const { sql } = await import('drizzle-orm')
 

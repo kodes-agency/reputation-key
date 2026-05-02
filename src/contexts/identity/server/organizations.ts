@@ -433,20 +433,45 @@ export const updateOrganization = createServerFn({ method: 'POST' })
     const ctx = await resolveTenantContext(headers)
     const auth = getAuth()
 
-    // Validate role - only Owner or PropertyManager can update organization
-    if (ctx.role !== 'Owner' && ctx.role !== 'PropertyManager') {
+    // Validate role - only AccountAdmin or PropertyManager can update organization
+    if (ctx.role !== 'AccountAdmin' && ctx.role !== 'PropertyManager') {
       throwContextError(
         'AuthError',
         {
           code: 'forbidden',
-          message: 'Only Owner or PropertyManager can update organization',
+          message: 'Only AccountAdmin or PropertyManager can update organization',
         },
         403,
       )
     }
 
+    // Convert null values to undefined for Better Auth compatibility
+    const updateData: Record<string, unknown> = {
+      ...(data.name && { name: data.name }),
+      ...(data.slug && { slug: data.slug }),
+      logo: data.logo ?? undefined,
+      ...(data.contactEmail !== undefined && {
+        contactEmail: data.contactEmail ?? undefined,
+      }),
+      ...(data.billingCompanyName !== undefined && {
+        billingCompanyName: data.billingCompanyName ?? undefined,
+      }),
+      ...(data.billingAddress !== undefined && {
+        billingAddress: data.billingAddress ?? undefined,
+      }),
+      ...(data.billingCity !== undefined && {
+        billingCity: data.billingCity ?? undefined,
+      }),
+      ...(data.billingPostalCode !== undefined && {
+        billingPostalCode: data.billingPostalCode ?? undefined,
+      }),
+      ...(data.billingCountry !== undefined && {
+        billingCountry: data.billingCountry ?? undefined,
+      }),
+    }
+
     await auth.api.updateOrganization({
       headers,
-      body: { data },
+      body: { data: updateData },
     })
   })
