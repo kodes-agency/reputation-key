@@ -111,6 +111,12 @@ export const submitRatingFn = createServerFn({ method: 'POST' })
       throw guestError('invalid_session', 'No session cookie found')
     }
 
+    const { rateLimiter } = getContainer()
+    const rateResult = await rateLimiter.check(`rating:${sessionId}`)
+    if (!rateResult.allowed) {
+      throw guestError('rate_limit_exceeded', 'Too many requests')
+    }
+
     const ip = headers?.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
     const ipHash = hashIp(ip)
 
@@ -156,6 +162,12 @@ export const submitFeedbackFn = createServerFn({ method: 'POST' })
     const sessionId = cookieHeader.match(/guest_session=([^;]+)/)?.[1]
     if (!sessionId) {
       throw guestError('invalid_session', 'No session cookie found')
+    }
+
+    const { rateLimiter } = getContainer()
+    const rateResult = await rateLimiter.check(`feedback:${sessionId}`)
+    if (!rateResult.allowed) {
+      throw guestError('rate_limit_exceeded', 'Too many requests')
     }
 
     const ip = headers?.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
