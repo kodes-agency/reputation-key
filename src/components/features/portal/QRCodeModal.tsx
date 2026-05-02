@@ -26,12 +26,15 @@ export function QRCodeModal({
 }: QRCodeModalProps) {
   const [copied, setCopied] = useState(false)
 
-  const guestUrl = `${window.location.origin}/p/${organizationId}/${portalSlug}?source=qr`
+  const getGuestUrl = () =>
+    typeof window !== 'undefined'
+      ? `${window.location.origin}/p/${organizationId}/${portalSlug}?source=qr`
+      : ''
   const qrApiUrl = `/api/portals/${portalId}/qr`
 
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(guestUrl)
+      await navigator.clipboard.writeText(getGuestUrl())
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch {
@@ -63,7 +66,9 @@ export function QRCodeModal({
 
           <div className="flex items-center gap-2 w-full px-4">
             <code className="flex-1 text-sm bg-muted px-3 py-2 rounded-md truncate">
-              {guestUrl}
+              {typeof window !== 'undefined'
+                ? `${window.location.origin}/p/${organizationId}/${portalSlug}?source=qr`
+                : ''}
             </code>
             <Button variant="outline" size="sm" onClick={handleCopy}>
               <Copy className="size-3.5" />

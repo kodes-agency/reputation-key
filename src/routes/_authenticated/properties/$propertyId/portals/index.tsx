@@ -30,7 +30,9 @@ import { useMutationAction } from '#/components/hooks/use-mutation-action'
 function CopyButton({ text }: { text: string }) {
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(text)
+      const fullUrl =
+        typeof window !== 'undefined' ? `${window.location.origin}${text}` : text
+      await navigator.clipboard.writeText(fullUrl)
     } catch {
       // fallback
     }
@@ -131,9 +133,7 @@ function PortalListPage() {
                     <code className="text-xs text-muted-foreground">
                       /p/{p.organizationId}/{p.slug}
                     </code>
-                    <CopyButton
-                      text={`${window.location.origin}/p/${p.organizationId}/${p.slug}`}
-                    />
+                    <CopyButton text={`/p/${p.organizationId}/${p.slug}`} />
                   </div>
                 </TableCell>
                 <TableCell>

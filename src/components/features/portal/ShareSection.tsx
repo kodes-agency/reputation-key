@@ -18,11 +18,13 @@ export function ShareSection({
   const [qrOpen, setQrOpen] = useState(false)
 
   const guestUrl = `/p/${organizationId}/${portalSlug}`
-  const fullUrl = `${window.location.origin}${guestUrl}`
+
+  const getFullUrl = () =>
+    typeof window !== 'undefined' ? `${window.location.origin}${guestUrl}` : ''
 
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(fullUrl)
+      await navigator.clipboard.writeText(getFullUrl())
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch {
