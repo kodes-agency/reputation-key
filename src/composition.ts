@@ -84,15 +84,17 @@ function createOrg(
 
 async function setActiveOrg(headers: Headers, orgId: string): Promise<void> {
   const auth = getAuth()
+  const logger = getLogger()
   try {
     await auth.api.setActiveOrganization({
       headers,
       body: { organizationId: orgId },
     })
-  } catch {
+  } catch (e) {
     // If headers don't carry a valid session (e.g., during registration
     // where cookies aren't yet available), this is non-fatal — the user
     // will set their active org on first login.
+    logger.warn({ err: e, orgId }, 'Failed to set active organization during setup')
   }
 }
 
