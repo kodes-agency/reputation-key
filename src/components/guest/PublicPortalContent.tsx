@@ -1,6 +1,7 @@
 import { StarRating } from './star-rating'
 import { FeedbackForm } from './feedback-form'
 import type { ScanSource } from '#/contexts/guest/application/dto/public-portal.dto'
+import type { Action } from '#/components/hooks/use-action'
 
 export type PortalCategory = {
   id: string
@@ -26,6 +27,18 @@ export type PublicPortalContentProps = Readonly<{
   categories: PortalCategory[]
   links: PortalLinkItem[]
   source?: ScanSource
+  submitFeedback?: Action<{
+    data: {
+      portalId: string
+      comment: string
+      source: ScanSource
+      honeypot: string
+      submittedAt: number
+    }
+  }>
+  submitRating?: Action<{
+    data: { portalId: string; value: number; source: ScanSource }
+  }>
 }>
 
 export function PublicPortalContent({
@@ -33,6 +46,8 @@ export function PublicPortalContent({
   categories,
   links,
   source = 'direct',
+  submitFeedback,
+  submitRating,
 }: PublicPortalContentProps) {
   const theme = portal.theme as Record<string, string> | null
   const themeStyle = theme
@@ -70,9 +85,13 @@ export function PublicPortalContent({
           <p className="text-center text-gray-600">{portal.description}</p>
         )}
 
-        <StarRating portalId={portal.id} source={source} />
+        <StarRating portalId={portal.id} source={source} submitRating={submitRating} />
 
-        <FeedbackForm portalId={portal.id} source={source} />
+        <FeedbackForm
+          portalId={portal.id}
+          source={source}
+          submitFeedback={submitFeedback}
+        />
 
         <div className="space-y-6">
           {categories.map((category) => {

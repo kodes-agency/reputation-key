@@ -1,15 +1,24 @@
 import { useState } from 'react'
-import { submitFeedbackFn } from '#/contexts/guest/server/public'
 import { Button } from '#/components/ui/button'
 import { Textarea } from '#/components/ui/textarea'
 import type { ScanSource } from '#/contexts/guest/application/dto/public-portal.dto'
+import type { Action } from '#/components/hooks/use-action'
 
 interface FeedbackFormProps {
   portalId: string
   source: ScanSource
+  submitFeedback: Action<{
+    data: {
+      portalId: string
+      comment: string
+      source: ScanSource
+      honeypot: string
+      submittedAt: number
+    }
+  }>
 }
 
-export function FeedbackForm({ portalId, source }: FeedbackFormProps) {
+export function FeedbackForm({ portalId, source, submitFeedback }: FeedbackFormProps) {
   const [comment, setComment] = useState('')
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -21,7 +30,7 @@ export function FeedbackForm({ portalId, source }: FeedbackFormProps) {
     setError(null)
 
     try {
-      const result = await submitFeedbackFn({
+      const result = await submitFeedback({
         data: {
           portalId,
           comment,

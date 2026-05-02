@@ -1,14 +1,15 @@
 import { useState } from 'react'
-import { submitRatingFn } from '#/contexts/guest/server/public'
 import { Star } from 'lucide-react'
 import type { ScanSource } from '#/contexts/guest/application/dto/public-portal.dto'
+import type { Action } from '#/components/hooks/use-action'
 
 interface StarRatingProps {
   portalId: string
   source: ScanSource
+  submitRating?: Action<{ data: { portalId: string; value: number; source: ScanSource } }>
 }
 
-export function StarRating({ portalId, source }: StarRatingProps) {
+export function StarRating({ portalId, source, submitRating }: StarRatingProps) {
   const [selectedValue, setSelectedValue] = useState<number | null>(null)
   const [hoveredValue, setHoveredValue] = useState<number | null>(null)
   const [submitted, setSubmitted] = useState(false)
@@ -16,10 +17,11 @@ export function StarRating({ portalId, source }: StarRatingProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const handleSubmit = async (value: number) => {
+    if (!submitRating) return
     setIsSubmitting(true)
     setError(null)
     try {
-      await submitRatingFn({
+      await submitRating({
         data: { portalId, value, source },
       })
       setSelectedValue(value)

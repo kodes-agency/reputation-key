@@ -1,10 +1,15 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useEffect } from 'react'
-import { getPublicPortal } from '#/contexts/guest/server/public'
+import {
+  getPublicPortal,
+  submitFeedbackFn,
+  submitRatingFn,
+} from '#/contexts/guest/server/public'
 import { PortalUnavailable } from '#/components/guest/portal-unavailable'
 import { PublicPortalContent } from '#/components/guest/PublicPortalContent'
 import { CookieConsentBanner } from '#/components/guest/cookie-consent-banner'
 import type { PublicPortalLoaderData } from '#/contexts/guest/application/dto/public-portal.dto'
+import { useServerFn } from '@tanstack/react-start'
 
 const VALID_SOURCES: ReadonlySet<string> = new Set(['qr', 'nfc', 'direct'])
 type ScanSource = 'qr' | 'nfc' | 'direct'
@@ -50,6 +55,9 @@ function PublicPortalPage() {
   const search = Route.useSearch()
   const source = parseSource(search.source ?? null)
 
+  const submitFeedback = useServerFn(submitFeedbackFn)
+  const submitRating = useServerFn(submitRatingFn)
+
   // Ensure guest session cookie exists for rating/feedback
   useEffect(() => {
     if (!document.cookie.includes('guest_session')) {
@@ -72,6 +80,8 @@ function PublicPortalPage() {
         categories={categories}
         links={links}
         source={source}
+        submitFeedback={submitFeedback}
+        submitRating={submitRating}
       />
     </>
   )
