@@ -22,15 +22,15 @@ import { Upload, ImageIcon, X, Loader2 } from 'lucide-react'
 import { useState, useRef, useCallback } from 'react'
 import { toast } from 'sonner'
 import { usePermissions } from '#/shared/hooks/usePermissions'
+import { updatePortalInputSchema } from '#/contexts/portal/application/dto/update-portal.dto'
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 
-const editFormSchema = z.object({
-  name: z.string().min(1, 'Name is required').max(100),
-  slug: z.string().min(2, 'Slug must be at least 2 characters').max(64),
-  description: z.string().max(500),
-})
+const editFormSchema = updatePortalInputSchema
+  .pick({ name: true, slug: true, description: true })
+  .required()
+  .extend({ description: z.string().max(500) })
 
 type FormValues = z.infer<typeof editFormSchema>
 
