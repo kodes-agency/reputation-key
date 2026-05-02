@@ -8,7 +8,6 @@ import {
   listUserOrganizations,
 } from '#/contexts/identity/server/organizations'
 import { listProperties } from '#/contexts/property/server/properties'
-import { toDomainRole } from '#/shared/domain/roles'
 import type { Role } from '#/shared/domain/roles'
 import { SidebarProvider, SidebarInset } from '#/components/ui/sidebar'
 import { AppSidebar } from '#/components/layout/AppSidebar'
@@ -41,7 +40,7 @@ export const Route = createFileRoute('/_authenticated')({
     try {
       const org = await getActiveOrganization()
       if (org.role) {
-        role = toDomainRole(org.role)
+        role = org.role as Role
       }
       if (org.organization) {
         activeOrganization = {
@@ -51,6 +50,7 @@ export const Route = createFileRoute('/_authenticated')({
       }
     } catch (e) {
       if (isRedirect(e)) throw e
+      console.error('[beforeLoad] getActiveOrganization FAILED:', e)
     }
 
     return {
