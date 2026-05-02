@@ -98,5 +98,10 @@ export function initPermissionTable(): void {
   })
 }
 
+// ── Re-export for test convenience ─────────────────────────────────
+// The canonical `can` lives in shared/domain/permissions.ts.
+// Re-exported here so internal tests can import from './permissions'.
+export { can } from '#/shared/domain/permissions'
+
 // ── Auto-initialize on import ──────────────────────────────────────
 initPermissionTable()
