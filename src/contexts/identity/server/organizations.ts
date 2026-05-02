@@ -5,6 +5,7 @@
 
 import { createServerFn } from '@tanstack/react-start'
 import { match } from 'ts-pattern'
+import { z } from 'zod/v4'
 import { getAuth } from '#/shared/auth/auth'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
@@ -77,6 +78,12 @@ type AuthOrganizationResponse = Readonly<{
   slug: string
   logo: string | null
   createdAt: Date
+  contactEmail: string | null
+  billingCompanyName: string | null
+  billingAddress: string | null
+  billingCity: string | null
+  billingPostalCode: string | null
+  billingCountry: string | null
 }>
 
 // headersFromContext is imported from shared/auth/headers.ts —
@@ -103,6 +110,18 @@ export const getActiveOrganization = createServerFn({ method: 'GET' }).handler(
         slug: org.slug,
         logo: org.logo ?? null,
         createdAt: org.createdAt,
+        contactEmail:
+          ((org as Record<string, unknown>).contactEmail as string | null) ?? null,
+        billingCompanyName:
+          ((org as Record<string, unknown>).billingCompanyName as string | null) ?? null,
+        billingAddress:
+          ((org as Record<string, unknown>).billingAddress as string | null) ?? null,
+        billingCity:
+          ((org as Record<string, unknown>).billingCity as string | null) ?? null,
+        billingPostalCode:
+          ((org as Record<string, unknown>).billingPostalCode as string | null) ?? null,
+        billingCountry:
+          ((org as Record<string, unknown>).billingCountry as string | null) ?? null,
       },
       role: ctx.role,
     }
@@ -321,6 +340,18 @@ export const listUserOrganizations = createServerFn({ method: 'GET' }).handler(
       slug: org.slug,
       logo: org.logo ?? null,
       createdAt: org.createdAt,
+      contactEmail:
+        ((org as Record<string, unknown>).contactEmail as string | null) ?? null,
+      billingCompanyName:
+        ((org as Record<string, unknown>).billingCompanyName as string | null) ?? null,
+      billingAddress:
+        ((org as Record<string, unknown>).billingAddress as string | null) ?? null,
+      billingCity:
+        ((org as Record<string, unknown>).billingCity as string | null) ?? null,
+      billingPostalCode:
+        ((org as Record<string, unknown>).billingPostalCode as string | null) ?? null,
+      billingCountry:
+        ((org as Record<string, unknown>).billingCountry as string | null) ?? null,
     }))
 
     return { organizations }
@@ -377,4 +408,46 @@ export const signInUser = createServerFn({ method: 'POST' })
         401,
       )
     }
+  })
+
+// ── Update organization ──────────────────────────────────────────────
+// Updates organization metadata including billing fields.
+
+const updateOrganizationInputSchema = z
+  .object({
+    name: z.string().min(1).optional(),
+    slug: z.string().min(1).optional(),
+    logo: z.string().nullable().optional(),
+    contactEmail: z.string().email().nullable().optional(),
+    billingCompanyName: z.string().nullable().optional(),
+    billingAddress: z.string().nullable().optional(),
+    billingCity: z.string().nullable().optional(),
+    billingPostalCode: z.string().nullable().optional(),
+    billingCountry: z.string().nullable().optional(),
+  })
+  .strict()
+
+export const updateOrganization = createServerFn({ method: 'POST' })
+  .inputValidator(updateOrganizationInputSchema)
+  .handler(async ({ data }) => {
+    const headers = headersFromContext()
+    const ctx = await resolveTenantContext(headers)
+    const auth = getAuth()
+
+    // Validate role - only Owner or PropertyManager can update organization
+    if (ctx.role !== 'Owner' && ctx.role !== 'PropertyManager') {
+      throwContextError(
+        'AuthError',
+        {
+          code: 'forbidden',
+          message: 'Only Owner or PropertyManager can update organization',
+        },
+        403,
+      )
+    }
+
+    await auth.api.updateOrganization({
+      headers,
+      body: { data },
+    })
   })

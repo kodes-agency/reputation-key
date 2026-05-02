@@ -21,7 +21,17 @@ export type AuthRouteContext = Readonly<{
     image: string | null
   }
   role: Role
-  activeOrganization: { id: string; name: string } | null
+  activeOrganization: {
+    id: string
+    name: string
+    slug: string
+    contactEmail: string | null
+    billingCompanyName: string | null
+    billingAddress: string | null
+    billingCity: string | null
+    billingPostalCode: string | null
+    billingCountry: string | null
+  } | null
 }>
 
 export const Route = createFileRoute('/_authenticated')({
@@ -35,7 +45,17 @@ export const Route = createFileRoute('/_authenticated')({
     }
 
     let role: Role = 'Staff'
-    let activeOrganization: { id: string; name: string } | null = null
+    let activeOrganization: {
+      id: string
+      name: string
+      slug: string
+      contactEmail: string | null
+      billingCompanyName: string | null
+      billingAddress: string | null
+      billingCity: string | null
+      billingPostalCode: string | null
+      billingCountry: string | null
+    } | null = null
 
     try {
       const org = await getActiveOrganization()
@@ -46,6 +66,13 @@ export const Route = createFileRoute('/_authenticated')({
         activeOrganization = {
           id: org.organization.id,
           name: org.organization.name,
+          slug: org.organization.slug,
+          contactEmail: org.organization.contactEmail,
+          billingCompanyName: org.organization.billingCompanyName,
+          billingAddress: org.organization.billingAddress,
+          billingCity: org.organization.billingCity,
+          billingPostalCode: org.organization.billingPostalCode,
+          billingCountry: org.organization.billingCountry,
         }
       }
     } catch (e) {
