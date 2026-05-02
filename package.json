@@ -82,7 +82,6 @@
     "drizzle-kit": "^0.31.10",
     "eslint": "^10.2.1",
     "eslint-config-prettier": "^10.1.8",
-    "eslint-import-resolver-typescript": "^4.4.4",
     "eslint-plugin-boundaries": "^6.0.2",
     "husky": "^9.1.7",
     "jsdom": "^28.1.0",
