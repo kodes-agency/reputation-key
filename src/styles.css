@@ -3,7 +3,7 @@
 @import 'tailwindcss';
 @plugin '@tailwindcss/typography';
 @import 'tw-animate-css';
-@custom-variant dark (&:not(.light) *);
+@custom-variant dark (&:not(.light*));
 
 :root {
   /* Surface tokens */
@@ -120,6 +120,8 @@
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
+  --color-surface: var(--surface);
+  --color-surface-elevated: var(--surface-elevated);
   --color-accent: var(--accent-muted);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
