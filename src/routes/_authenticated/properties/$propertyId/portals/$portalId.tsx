@@ -58,7 +58,7 @@ function PortalDetailRoute() {
   const requestUploadUrlFn = useServerFn(requestUploadUrl)
   const finalizeUploadFn = useServerFn(finalizeUpload)
 
-  // Get property slug from parent layout's loaded properties
+  // Guest-facing portal URLs use the property slug (portals belong to properties)
   const authRoute = getRouteApi('/_authenticated')
   const { properties } = authRoute.useLoaderData()
   const propertySlug =

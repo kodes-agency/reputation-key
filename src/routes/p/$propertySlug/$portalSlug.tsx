@@ -26,7 +26,7 @@ export const Route = createFileRoute('/p/$propertySlug/$portalSlug')({
     try {
       const portalData = await getPublicPortal({
         data: {
-          orgSlug: params.propertySlug,
+          propertySlug: params.propertySlug,
           portalSlug: params.portalSlug,
         },
       })

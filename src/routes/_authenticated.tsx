@@ -13,7 +13,6 @@ import type { Role } from '#/shared/domain/roles'
 import { SidebarProvider, SidebarInset } from '#/components/ui/sidebar'
 import { AppSidebar } from '#/components/layout/AppSidebar'
 import { AppTopBar } from '#/components/layout/AppTopBar'
-import { getLogger } from '#/shared/observability/logger'
 import { useServerFn } from '@tanstack/react-start'
 
 export type AuthRouteContext = Readonly<{
@@ -39,7 +38,6 @@ export type AuthRouteContext = Readonly<{
 
 export const Route = createFileRoute('/_authenticated')({
   beforeLoad: async ({ location }) => {
-    const logger = getLogger()
     const session = await getSession()
     if (!session) {
       throw redirect({
@@ -81,7 +79,7 @@ export const Route = createFileRoute('/_authenticated')({
       }
     } catch (e) {
       if (isRedirect(e)) throw e
-      logger.error({ err: e }, '[beforeLoad] getActiveOrganization FAILED')
+      console.error('[beforeLoad] getActiveOrganization FAILED:', e)
     }
 
     return {
@@ -96,17 +94,16 @@ export const Route = createFileRoute('/_authenticated')({
     } satisfies AuthRouteContext
   },
   loader: async () => {
-    const logger = getLogger()
     const [orgsResult, propsResult] = await Promise.allSettled([
       listUserOrganizations(),
       listProperties(),
     ])
 
     if (orgsResult.status === 'rejected') {
-      logger.error({ err: orgsResult.reason }, '[loader] listUserOrganizations failed')
+      console.error('[loader] listUserOrganizations failed:', orgsResult.reason)
     }
     if (propsResult.status === 'rejected') {
-      logger.error({ err: propsResult.reason }, '[loader] listProperties failed')
+      console.error('[loader] listProperties failed:', propsResult.reason)
     }
 
     const organizations =

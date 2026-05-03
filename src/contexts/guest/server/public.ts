@@ -19,7 +19,7 @@ function hashIp(ip: string): string {
 // ── getPublicPortal ────────────────────────────────────────────────
 
 const publicPortalSchema = z.object({
-  orgSlug: z.string().min(1),
+  propertySlug: z.string().min(1),
   portalSlug: z.string().min(1),
 })
 
@@ -28,7 +28,7 @@ export const getPublicPortal = createServerFn({ method: 'GET' })
   .handler(async ({ data }) => {
     const { useCases } = getContainer()
     return useCases.getPublicPortal({
-      orgSlug: data.orgSlug,
+      propertySlug: data.propertySlug,
       portalSlug: data.portalSlug,
     })
   })

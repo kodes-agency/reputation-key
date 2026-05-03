@@ -10,18 +10,15 @@ import { eq, and } from 'drizzle-orm'
 import { sql } from 'drizzle-orm'
 
 export const createPublicPortalLookup = (db: Database): PublicPortalLookup => ({
-  findBySlug: async (orgSlug: string, portalSlug: string) => {
-    // Find portal by org + slug
-    // Organization table is managed by Better Auth (not in Drizzle schema),
-    // so we query it via raw SQL for the org name.
+  findBySlug: async (propertySlug: string, portalSlug: string) => {
     const portalRows = await db
       .select()
       .from(portals)
       .where(
         and(
           eq(
-            portals.organizationId,
-            sql`(SELECT id FROM "organization" WHERE slug = ${orgSlug} LIMIT 1)`,
+            portals.propertyId,
+            sql`(SELECT id::text FROM properties WHERE slug = ${propertySlug} LIMIT 1)`,
           ),
           eq(portals.slug, portalSlug),
         ),

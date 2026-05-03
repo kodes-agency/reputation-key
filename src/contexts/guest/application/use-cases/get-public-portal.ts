@@ -6,14 +6,14 @@ export type GetPublicPortalDeps = Readonly<{
 }>
 
 export type GetPublicPortalInput = Readonly<{
-  orgSlug: string
+  propertySlug: string
   portalSlug: string
 }>
 
 export const getPublicPortal =
   (deps: GetPublicPortalDeps) => async (input: GetPublicPortalInput) => {
     const result = await deps.publicPortalLookup.findBySlug(
-      input.orgSlug,
+      input.propertySlug,
       input.portalSlug,
     )
     if (!result) {
