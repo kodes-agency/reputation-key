@@ -13,7 +13,7 @@ export const Route = createFileRoute('/')({ component: HomePage })
 function HomePage() {
   return (
     <div className="page-wrap px-4 pb-8 pt-14">
-      <section className="island-shell rise-in relative overflow-hidden rounded-[2rem] px-6 py-10 sm:px-10 sm:py-14">
+      <section className="relative overflow-hidden rounded-[2rem] px-6 py-10 sm:px-10 sm:py-14">
         <div className="pointer-events-none absolute -left-20 -top-24 size-56 rounded-full bg-[radial-gradient(circle,rgba(79,184,178,0.32),transparent_66%)]" />
         <div className="pointer-events-none absolute -bottom-20 -right-20 size-56 rounded-full bg-[radial-gradient(circle,rgba(47,106,74,0.18),transparent_66%)]" />
         <Badge variant="secondary" className="island-kicker mb-3">
@@ -37,11 +37,7 @@ function HomePage() {
           ['Team Dashboards', 'Track performance with goals, badges, and leaderboards.'],
           ['AI-Powered', 'Sentiment analysis, reply drafting, and trend detection.'],
         ].map(([title, desc], index) => (
-          <Card
-            key={title}
-            className="island-shell feature-card rise-in"
-            style={{ animationDelay: `${index * 90 + 80}ms` }}
-          >
+          <Card key={title} style={{ animationDelay: `${index * 90 + 80}ms` }}>
             <CardHeader>
               <CardTitle className="text-base">{title}</CardTitle>
             </CardHeader>

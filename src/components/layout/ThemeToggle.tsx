@@ -18,19 +18,17 @@ function getInitialMode(): ThemeMode {
 }
 
 function applyThemeMode(mode: ThemeMode) {
-  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-  const resolved = mode === 'auto' ? (prefersDark ? 'dark' : 'light') : mode
+  const prefersLight = window.matchMedia('(prefers-color-scheme: light)').matches
+  const resolved = mode === 'auto' ? (prefersLight ? 'light' : 'dark') : mode
 
-  document.documentElement.classList.remove('light', 'dark')
-  document.documentElement.classList.add(resolved)
-
-  if (mode === 'auto') {
-    document.documentElement.removeAttribute('data-theme')
+  const root = document.documentElement
+  if (resolved === 'light') {
+    root.classList.add('light')
   } else {
-    document.documentElement.setAttribute('data-theme', mode)
+    root.classList.remove('light')
   }
 
-  document.documentElement.style.colorScheme = resolved
+  root.style.colorScheme = resolved
 }
 
 export default function ThemeToggle() {
