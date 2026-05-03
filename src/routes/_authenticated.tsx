@@ -11,8 +11,10 @@ import {
 import { listProperties } from '#/contexts/property/server/properties'
 import type { Role } from '#/shared/domain/roles'
 import { SidebarProvider, SidebarInset } from '#/components/ui/sidebar'
-import { AppSidebar } from '#/components/layout/AppSidebar'
+import { ManagerSidebar } from '#/components/layout/ManagerSidebar'
+import { StaffSidebar } from '#/components/layout/StaffSidebar'
 import { AppTopBar } from '#/components/layout/AppTopBar'
+import { hasRole } from '#/shared/domain/roles'
 import { useServerFn } from '@tanstack/react-start'
 import { getLogger } from '#/shared/observability/logger'
 
@@ -137,14 +139,24 @@ function AuthenticatedLayout() {
 
   return (
     <SidebarProvider>
-      <AppSidebar
-        role={ctx.role}
-        organizations={organizations}
-        activeOrganization={ctx.activeOrganization}
-        setActiveOrganization={setActiveOrganizationFn}
-      />
+      {hasRole(ctx.role, 'PropertyManager') ? (
+        <ManagerSidebar
+          role={ctx.role}
+          organizations={organizations}
+          activeOrganization={ctx.activeOrganization}
+          setActiveOrganization={setActiveOrganizationFn}
+          properties={properties}
+        />
+      ) : (
+        <StaffSidebar
+          role={ctx.role}
+          organizations={organizations}
+          activeOrganization={ctx.activeOrganization}
+          hasTeam={false}
+        />
+      )}
       <SidebarInset>
-        <AppTopBar user={ctx.user} properties={properties} />
+        <AppTopBar user={ctx.user} />
         <main className="flex-1 overflow-auto">
           <Outlet />
         </main>
