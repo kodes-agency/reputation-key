@@ -11,6 +11,33 @@ import { toDomainRole } from '#/shared/domain/roles'
 import { organizationId, userId } from '#/shared/domain/ids'
 import { throwContextError } from './server-errors'
 
+// ── Request-scoped tenant cache ───────────────────────────────
+// Within a single page load, multiple server functions call resolveTenantContext
+// with identical cookies. This cache deduplicates the getActiveMember() DB call.
+// Keyed by raw cookie header — different users/sessions get different entries.
+
+const TENANT_CACHE_TTL_MS = 5_000 // 5 seconds — covers a single page load
+const tenantCache = new Map<string, { ctx: AuthContext; ts: number }>()
+
+function tenantCacheKey(headers: Headers): string {
+  return headers.get('cookie') ?? ''
+}
+
+/** Evict expired entries from the tenant cache. Called at the end of each server function. */
+export function clearTenantCache(): void {
+  const now = Date.now()
+  for (const [key, entry] of tenantCache) {
+    if (now - entry.ts >= TENANT_CACHE_TTL_MS) {
+      tenantCache.delete(key)
+    }
+  }
+}
+
+/** Reset the tenant cache completely. Test-only. */
+export function resetTenantCache(): void {
+  tenantCache.clear()
+}
+
 // ── Tagged errors ──────────────────────────────────────────────────
 
 // fallow-ignore-next-line unused-type
@@ -74,6 +101,13 @@ export async function requireAuth(headers: Headers): Promise<AuthUser> {
  * Throws if user is not authenticated or has no active organization.
  */
 export async function resolveTenantContext(headers: Headers): Promise<AuthContext> {
+  // Check cache first
+  const key = tenantCacheKey(headers)
+  const cached = tenantCache.get(key)
+  if (cached && Date.now() - cached.ts < TENANT_CACHE_TTL_MS) {
+    return cached.ctx
+  }
+
   const session = await getSessionFromHeaders(headers)
   if (!session) {
     throwAuthError('unauthorized', 'Valid session required')
@@ -91,9 +125,12 @@ export async function resolveTenantContext(headers: Headers): Promise<AuthContex
     throwAuthError('forbidden', 'Not a member of the active organization')
   }
 
-  return {
+  const ctx: AuthContext = {
     userId: userId(session.user.id),
     organizationId: organizationId(activeOrgId),
     role: toDomainRole(member.role),
   }
+
+  tenantCache.set(key, { ctx, ts: Date.now() })
+  return ctx
 }
