@@ -4,7 +4,7 @@ import {
   Scripts,
   useRouterState,
 } from '@tanstack/react-router'
-import { TanStackRouterDevtools } from '@tanstack/react-router-devtools'
+
 import Footer from '#/components/layout/Footer'
 import Header from '#/components/layout/Header'
 import { authClient } from '#/shared/auth/auth-client'
@@ -56,7 +56,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         )}
         <Toaster position="top-right" richColors closeButton />
         <Scripts />
-        <TanStackRouterDevtools initialIsOpen={false} />
+        {/*<TanStackRouterDevtools initialIsOpen={false} />*/}
       </body>
     </html>
   )
