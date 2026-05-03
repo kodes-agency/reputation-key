@@ -218,11 +218,6 @@ pre code {
   font-weight: 600;
 }
 
-.light [data-slot="sidebar-menu-button"][data-active="true"],
-.light [data-slot="sidebar-menu-sub-button"][data-active="true"] {
-  background: var(--accent-muted);
-  color: var(--accent);
-}
 
 .page-wrap {
   max-width: 72rem;
