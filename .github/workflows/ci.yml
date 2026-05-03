@@ -48,7 +48,9 @@ jobs:
       - name: Push database schema
         env:
           DATABASE_URL: postgresql://test:test@localhost:5432/test
-        run: pnpm db:push
+          BETTER_AUTH_SECRET: test-secret-at-least-32-characters-long-for-ci
+          BETTER_AUTH_URL: http://localhost:3000
+        run: pnpm db:push --force && pnpm auth:migrate
 
       - name: Test
         env:
