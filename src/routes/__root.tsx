@@ -56,7 +56,6 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         )}
         <Toaster position="top-right" richColors closeButton />
         <Scripts />
-        {/*<TanStackRouterDevtools initialIsOpen={false} />*/}
       </body>
     </html>
   )
