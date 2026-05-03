@@ -1,0 +1,66 @@
+{
+  "nodes": [
+    {
+      "id": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_property_application_use_cases_list_properties_ts",
+      "label": "list-properties.ts",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/property/application/use-cases/list-properties.ts",
+      "source_location": "L1"
+    },
+    {
+      "id": "use_cases_list_properties_listproperties",
+      "label": "listProperties()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/property/application/use-cases/list-properties.ts",
+      "source_location": "L16"
+    }
+  ],
+  "edges": [
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_property_application_use_cases_list_properties_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_property_application_ports_property_repository",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/property/application/use-cases/list-properties.ts",
+      "source_location": "L5",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_property_application_use_cases_list_properties_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_property_domain_types",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/property/application/use-cases/list-properties.ts",
+      "source_location": "L6",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_property_application_use_cases_list_properties_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_shared_domain_auth_context",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/property/application/use-cases/list-properties.ts",
+      "source_location": "L7",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_property_application_use_cases_list_properties_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_staff_application_public_api",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/property/application/use-cases/list-properties.ts",
+      "source_location": "L8",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_property_application_use_cases_list_properties_ts",
+      "target": "use_cases_list_properties_listproperties",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/property/application/use-cases/list-properties.ts",
+      "source_location": "L16",
+      "weight": 1.0
+    }
+  ],
+  "raw_calls": []
+}

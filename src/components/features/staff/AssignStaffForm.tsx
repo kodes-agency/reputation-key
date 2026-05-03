@@ -15,6 +15,7 @@ import { Checkbox } from '#/components/ui/checkbox'
 import { SubmitButton } from '#/components/forms/SubmitButton'
 import { FormErrorBanner } from '#/components/forms/FormErrorBanner'
 import type { CreateStaffAssignmentInput } from '#/contexts/staff/application/dto/staff-assignment.dto'
+import { createStaffAssignmentInputSchema } from '#/contexts/staff/application/dto/staff-assignment.dto'
 import { z } from 'zod/v4'
 import { toast } from 'sonner'
 
@@ -31,9 +32,8 @@ export type TeamOption = Readonly<{
   name: string
 }>
 
-const formSchema = z.object({
+const formSchema = createStaffAssignmentInputSchema.pick({ propertyId: true }).extend({
   userIds: z.array(z.string()).min(1, 'Select at least one staff member'),
-  propertyId: z.string(),
   teamId: z.string().nullable(),
 })
 

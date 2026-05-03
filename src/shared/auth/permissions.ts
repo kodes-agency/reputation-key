@@ -11,7 +11,6 @@
 // only controls what actions a role can perform within its own organization.
 
 import { createAccessControl } from 'better-auth/plugins/access'
-import type { Permission } from '#/shared/domain/permissions'
 import { setPermissionLookup } from '#/shared/domain/permissions'
 import type { Role } from '#/shared/domain/roles'
 
@@ -99,17 +98,10 @@ export function initPermissionTable(): void {
   })
 }
 
-// ── Sync permission check ─────────────────────────────────────────
-// Pure, synchronous, nanosecond-cost. Exported for direct callers
-// (server layer, components). Application-layer code should import
-// can() from shared/domain/permissions instead (boundary-compliant).
-
-export function can(role: Role, permission: Permission): boolean {
-  if (!_table) {
-    throw new Error('Permission table not initialized — call initPermissionTable() first')
-  }
-  return _table[role]?.has(permission) ?? false
-}
+// ── Re-export for test convenience ─────────────────────────────────
+// The canonical `can` lives in shared/domain/permissions.ts.
+// Re-exported here so internal tests can import from './permissions'.
+export { can } from '#/shared/domain/permissions'
 
 // ── Auto-initialize on import ──────────────────────────────────────
 initPermissionTable()

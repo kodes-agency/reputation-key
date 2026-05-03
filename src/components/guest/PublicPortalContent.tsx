@@ -26,6 +26,18 @@ export type PublicPortalContentProps = Readonly<{
   categories: PortalCategory[]
   links: PortalLinkItem[]
   source?: ScanSource
+  submitFeedback?: (input: {
+    data: {
+      portalId: string
+      comment: string
+      source: ScanSource
+      honeypot: string
+      submittedAt: number
+    }
+  }) => Promise<unknown>
+  submitRating?: (input: {
+    data: { portalId: string; value: number; source: ScanSource }
+  }) => Promise<unknown>
 }>
 
 export function PublicPortalContent({
@@ -33,6 +45,8 @@ export function PublicPortalContent({
   categories,
   links,
   source = 'direct',
+  submitFeedback,
+  submitRating,
 }: PublicPortalContentProps) {
   const theme = portal.theme as Record<string, string> | null
   const themeStyle = theme
@@ -70,9 +84,13 @@ export function PublicPortalContent({
           <p className="text-center text-gray-600">{portal.description}</p>
         )}
 
-        <StarRating portalId={portal.id} source={source} />
+        <StarRating portalId={portal.id} source={source} submitRating={submitRating} />
 
-        <FeedbackForm portalId={portal.id} source={source} />
+        <FeedbackForm
+          portalId={portal.id}
+          source={source}
+          submitFeedback={submitFeedback}
+        />
 
         <div className="space-y-6">
           {categories.map((category) => {

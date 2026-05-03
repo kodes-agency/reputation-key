@@ -1,0 +1,41 @@
+{
+  "nodes": [
+    {
+      "id": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_routes_api_public_click_linkid_ts",
+      "label": "$linkId.ts",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/routes/api/public/click/$linkId.ts",
+      "source_location": "L1"
+    }
+  ],
+  "edges": [
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_routes_api_public_click_linkid_ts",
+      "target": "react_router",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/routes/api/public/click/$linkId.ts",
+      "source_location": "L1",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_routes_api_public_click_linkid_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_composition",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/routes/api/public/click/$linkId.ts",
+      "source_location": "L2",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_routes_api_public_click_linkid_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_shared_domain_ids",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/routes/api/public/click/$linkId.ts",
+      "source_location": "L3",
+      "weight": 1.0
+    }
+  ],
+  "raw_calls": []
+}

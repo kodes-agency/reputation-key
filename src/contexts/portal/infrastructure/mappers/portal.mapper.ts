@@ -4,6 +4,7 @@
 import type { portals } from '#/shared/db/schema/portal.schema'
 import type { Portal, PortalTheme, EntityType } from '../../domain/types'
 import { portalId, organizationId, propertyId } from '#/shared/domain/ids'
+import { portalError } from '../../domain/errors'
 
 type PortalRow = typeof portals.$inferSelect
 type PortalInsertRow = typeof portals.$inferInsert
@@ -12,7 +13,7 @@ const VALID_ENTITY_TYPES: ReadonlySet<string> = new Set(['property', 'team', 'st
 
 function parseEntityType(value: string): EntityType {
   if (!VALID_ENTITY_TYPES.has(value)) {
-    throw new Error(`[portal.mapper] invalid entityType: ${value}`)
+    throw portalError('portal_not_found', `[portal.mapper] invalid entityType: ${value}`)
   }
   return value as EntityType
 }
@@ -20,7 +21,10 @@ function parseEntityType(value: string): EntityType {
 function parseTheme(value: Record<string, unknown> | null): PortalTheme {
   const raw = value ?? { primaryColor: '#6366F1' }
   if (typeof raw.primaryColor !== 'string') {
-    throw new Error('[portal.mapper] invalid theme: missing primaryColor')
+    throw portalError(
+      'portal_not_found',
+      '[portal.mapper] invalid theme: missing primaryColor',
+    )
   }
   return {
     primaryColor: raw.primaryColor,

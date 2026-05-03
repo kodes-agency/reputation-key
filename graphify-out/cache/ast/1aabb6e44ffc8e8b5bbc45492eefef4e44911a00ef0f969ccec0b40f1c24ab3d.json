@@ -1,0 +1,13 @@
+{
+  "nodes": [
+    {
+      "id": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_portal_application_ports_storage_port_ts",
+      "label": "storage.port.ts",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/application/ports/storage.port.ts",
+      "source_location": "L1"
+    }
+  ],
+  "edges": [],
+  "raw_calls": []
+}

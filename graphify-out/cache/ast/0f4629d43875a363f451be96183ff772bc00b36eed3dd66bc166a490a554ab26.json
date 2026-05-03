@@ -1,0 +1,129 @@
+{
+  "nodes": [
+    {
+      "id": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_staff_application_use_cases_create_staff_assignment_ts",
+      "label": "create-staff-assignment.ts",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/staff/application/use-cases/create-staff-assignment.ts",
+      "source_location": "L1"
+    },
+    {
+      "id": "use_cases_create_staff_assignment_createstaffassignment",
+      "label": "createStaffAssignment()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/staff/application/use-cases/create-staff-assignment.ts",
+      "source_location": "L27"
+    }
+  ],
+  "edges": [
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_staff_application_use_cases_create_staff_assignment_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_staff_application_ports_staff_assignment_repository",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/staff/application/use-cases/create-staff-assignment.ts",
+      "source_location": "L3",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_staff_application_use_cases_create_staff_assignment_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_shared_events_event_bus",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/staff/application/use-cases/create-staff-assignment.ts",
+      "source_location": "L4",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_staff_application_use_cases_create_staff_assignment_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_staff_domain_types",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/staff/application/use-cases/create-staff-assignment.ts",
+      "source_location": "L5",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_staff_application_use_cases_create_staff_assignment_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_shared_domain_auth_context",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/staff/application/use-cases/create-staff-assignment.ts",
+      "source_location": "L6",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_staff_application_use_cases_create_staff_assignment_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_staff_application_dto_staff_assignment_dto",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/staff/application/use-cases/create-staff-assignment.ts",
+      "source_location": "L7",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_staff_application_use_cases_create_staff_assignment_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_shared_domain_permissions",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/staff/application/use-cases/create-staff-assignment.ts",
+      "source_location": "L8",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_staff_application_use_cases_create_staff_assignment_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_shared_domain_roles",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/staff/application/use-cases/create-staff-assignment.ts",
+      "source_location": "L9",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_staff_application_use_cases_create_staff_assignment_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_staff_domain_constructors",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/staff/application/use-cases/create-staff-assignment.ts",
+      "source_location": "L10",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_staff_application_use_cases_create_staff_assignment_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_staff_domain_errors",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/staff/application/use-cases/create-staff-assignment.ts",
+      "source_location": "L11",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_staff_application_use_cases_create_staff_assignment_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_staff_domain_events",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/staff/application/use-cases/create-staff-assignment.ts",
+      "source_location": "L12",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_staff_application_use_cases_create_staff_assignment_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_shared_domain_ids",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/staff/application/use-cases/create-staff-assignment.ts",
+      "source_location": "L13",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_staff_application_use_cases_create_staff_assignment_ts",
+      "target": "use_cases_create_staff_assignment_createstaffassignment",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/staff/application/use-cases/create-staff-assignment.ts",
+      "source_location": "L27",
+      "weight": 1.0
+    }
+  ],
+  "raw_calls": []
+}

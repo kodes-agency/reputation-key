@@ -29,8 +29,13 @@ export const Route = createRootRoute({
 })
 
 function RootDocument({ children }: { children: React.ReactNode }) {
-  const isAuthRoute = useRouterState({
-    select: (s) => s.matches.some((m) => m.routeId === '/_authenticated'),
+  const showChrome = useRouterState({
+    select: (s) => {
+      const ids = s.matches.map((m) => m.routeId)
+      return (
+        !ids.includes('/_authenticated') && !ids.includes('/p/$propertySlug/$portalSlug')
+      )
+    },
   })
 
   return (
@@ -40,14 +45,14 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body className="font-sans antialiased [overflow-wrap:anywhere] selection:bg-[rgba(79,184,178,0.24)]">
-        {isAuthRoute ? (
-          children
-        ) : (
+        {showChrome ? (
           <>
             <Header onSignOut={() => authClient.signOut()} />
             <main>{children}</main>
             <Footer />
           </>
+        ) : (
+          children
         )}
         <Toaster position="top-right" richColors closeButton />
         <Scripts />

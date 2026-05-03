@@ -5,29 +5,32 @@
 import { useForm } from '@tanstack/react-form'
 import { z } from 'zod/v4'
 import { FieldGroup } from '#/components/ui/field'
-import { SubmitButton } from '#/components/forms/SubmitButton'
 import { FormErrorBanner } from '#/components/forms/FormErrorBanner'
 import { FormTextField } from '#/components/forms/FormTextField'
 import { FormTextarea } from '#/components/forms/FormTextarea'
 import type { BaseFieldApi } from '#/components/forms/FormTextField'
 import type { BaseFieldApiTextarea } from '#/components/forms/FormTextarea'
 import type { Action } from '#/components/hooks/use-action'
+import { useAction } from '#/components/hooks/use-action'
 
-import { requestUploadUrl, finalizeUpload } from '#/contexts/portal/server/portals'
+// Minimal form type for ref that avoids TanStack Form's complex generic signature
+type FormLike = {
+  handleSubmit: () => void
+}
 import { Button } from '#/components/ui/button'
 import { Upload, ImageIcon, X, Loader2 } from 'lucide-react'
 import { useState, useRef, useCallback } from 'react'
 import { toast } from 'sonner'
 import { usePermissions } from '#/shared/hooks/usePermissions'
+import { updatePortalInputSchema } from '#/contexts/portal/application/dto/update-portal.dto'
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 
-const editFormSchema = z.object({
-  name: z.string().min(1, 'Name is required').max(100),
-  slug: z.string().min(2, 'Slug must be at least 2 characters').max(64),
-  description: z.string().max(500),
-})
+const editFormSchema = updatePortalInputSchema
+  .pick({ name: true, slug: true, description: true })
+  .required()
+  .extend({ description: z.string().max(500) })
 
 type FormValues = z.infer<typeof editFormSchema>
 
@@ -57,15 +60,31 @@ type PortalData = Readonly<{
 type Props = Readonly<{
   portal: PortalData
   mutation: Action<UpdatePortalVariables>
+  formRef?: React.RefObject<FormLike | null>
+  requestUploadUrl: (input: {
+    data: { portalId: string; contentType: string; fileSize: number }
+  }) => Promise<{ uploadUrl: string; key: string }>
+  finalizeUpload: (input: { data: { portalId: string; key: string } }) => Promise<{
+    heroImageUrl: string
+  }>
 }>
 
-export function EditPortalForm({ portal, mutation }: Props) {
+export function EditPortalForm({
+  portal,
+  mutation,
+  formRef,
+  requestUploadUrl,
+  finalizeUpload,
+}: Props) {
   const { can } = usePermissions()
   const [heroImageUrl, setHeroImageUrl] = useState(portal.heroImageUrl)
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [dragOver, setDragOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const uploadRequest = useAction(requestUploadUrl)
+  const uploadFinalize = useAction(finalizeUpload)
 
   const form = useForm({
     defaultValues: {
@@ -90,6 +109,8 @@ export function EditPortalForm({ portal, mutation }: Props) {
     },
   })
 
+  if (formRef) formRef.current = form
+
   const handleImageUpload = useCallback(
     async (file: File) => {
       if (!ACCEPTED_TYPES.includes(file.type)) {
@@ -104,7 +125,7 @@ export function EditPortalForm({ portal, mutation }: Props) {
       setUploading(true)
       setUploadProgress(0)
       try {
-        const { uploadUrl, key } = await requestUploadUrl({
+        const { uploadUrl, key } = await uploadRequest({
           data: {
             portalId: portal.id,
             contentType: file.type,
@@ -137,7 +158,7 @@ export function EditPortalForm({ portal, mutation }: Props) {
           xhr.send(file)
         })
 
-        const { heroImageUrl: url } = await finalizeUpload({
+        const { heroImageUrl: url } = await uploadFinalize({
           data: { portalId: portal.id, key },
         })
 
@@ -150,7 +171,6 @@ export function EditPortalForm({ portal, mutation }: Props) {
             ? String((err as { message: unknown }).message)
             : '') ||
           'Upload failed. Please try again.'
-        console.error('Image upload failed:', err)
         toast.error(message)
       } finally {
         setUploading(false)
@@ -348,12 +368,6 @@ export function EditPortalForm({ portal, mutation }: Props) {
           </form.Field>
         </FieldGroup>
       </div>
-
-      {can('portal.update') && (
-        <SubmitButton mutation={mutation} form={form}>
-          Save Changes
-        </SubmitButton>
-      )}
     </form>
   )
 }

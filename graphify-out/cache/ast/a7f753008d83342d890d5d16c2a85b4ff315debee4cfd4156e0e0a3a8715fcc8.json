@@ -1,0 +1,62 @@
+{
+  "nodes": [
+    {
+      "id": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_shared_domain_roles_ts",
+      "label": "roles.ts",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/shared/domain/roles.ts",
+      "source_location": "L1"
+    },
+    {
+      "id": "domain_roles_hasrole",
+      "label": "hasRole()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/shared/domain/roles.ts",
+      "source_location": "L21"
+    },
+    {
+      "id": "domain_roles_todomainrole",
+      "label": "toDomainRole()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/shared/domain/roles.ts",
+      "source_location": "L26"
+    },
+    {
+      "id": "domain_roles_tobetterauthrole",
+      "label": "toBetterAuthRole()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/shared/domain/roles.ts",
+      "source_location": "L40"
+    }
+  ],
+  "edges": [
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_shared_domain_roles_ts",
+      "target": "domain_roles_hasrole",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/shared/domain/roles.ts",
+      "source_location": "L21",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_shared_domain_roles_ts",
+      "target": "domain_roles_todomainrole",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/shared/domain/roles.ts",
+      "source_location": "L26",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_shared_domain_roles_ts",
+      "target": "domain_roles_tobetterauthrole",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/shared/domain/roles.ts",
+      "source_location": "L40",
+      "weight": 1.0
+    }
+  ],
+  "raw_calls": []
+}

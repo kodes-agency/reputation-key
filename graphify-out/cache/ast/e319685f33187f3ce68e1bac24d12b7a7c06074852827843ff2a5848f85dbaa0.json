@@ -1,0 +1,152 @@
+{
+  "nodes": [
+    {
+      "id": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_portal_infrastructure_mappers_portal_mapper_ts",
+      "label": "portal.mapper.ts",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/infrastructure/mappers/portal.mapper.ts",
+      "source_location": "L1"
+    },
+    {
+      "id": "mappers_portal_mapper_parseentitytype",
+      "label": "parseEntityType()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/infrastructure/mappers/portal.mapper.ts",
+      "source_location": "L13"
+    },
+    {
+      "id": "mappers_portal_mapper_parsetheme",
+      "label": "parseTheme()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/infrastructure/mappers/portal.mapper.ts",
+      "source_location": "L20"
+    },
+    {
+      "id": "mappers_portal_mapper_portalfromrow",
+      "label": "portalFromRow()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/infrastructure/mappers/portal.mapper.ts",
+      "source_location": "L34"
+    },
+    {
+      "id": "mappers_portal_mapper_portaltorow",
+      "label": "portalToRow()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/infrastructure/mappers/portal.mapper.ts",
+      "source_location": "L53"
+    }
+  ],
+  "edges": [
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_portal_infrastructure_mappers_portal_mapper_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_shared_db_schema_portal_schema",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/infrastructure/mappers/portal.mapper.ts",
+      "source_location": "L4",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_portal_infrastructure_mappers_portal_mapper_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_portal_domain_types",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/infrastructure/mappers/portal.mapper.ts",
+      "source_location": "L5",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_portal_infrastructure_mappers_portal_mapper_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_shared_domain_ids",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/infrastructure/mappers/portal.mapper.ts",
+      "source_location": "L6",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_portal_infrastructure_mappers_portal_mapper_ts",
+      "target": "mappers_portal_mapper_parseentitytype",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/infrastructure/mappers/portal.mapper.ts",
+      "source_location": "L13",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_portal_infrastructure_mappers_portal_mapper_ts",
+      "target": "mappers_portal_mapper_parsetheme",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/infrastructure/mappers/portal.mapper.ts",
+      "source_location": "L20",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_portal_infrastructure_mappers_portal_mapper_ts",
+      "target": "mappers_portal_mapper_portalfromrow",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/infrastructure/mappers/portal.mapper.ts",
+      "source_location": "L34",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_portal_infrastructure_mappers_portal_mapper_ts",
+      "target": "mappers_portal_mapper_portaltorow",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/infrastructure/mappers/portal.mapper.ts",
+      "source_location": "L53",
+      "weight": 1.0
+    },
+    {
+      "source": "mappers_portal_mapper_portalfromrow",
+      "target": "mappers_portal_mapper_parseentitytype",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/infrastructure/mappers/portal.mapper.ts",
+      "source_location": "L38",
+      "weight": 1.0
+    },
+    {
+      "source": "mappers_portal_mapper_portalfromrow",
+      "target": "mappers_portal_mapper_parsetheme",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/infrastructure/mappers/portal.mapper.ts",
+      "source_location": "L44",
+      "weight": 1.0
+    }
+  ],
+  "raw_calls": [
+    {
+      "caller_nid": "mappers_portal_mapper_parseentitytype",
+      "callee": "has",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/infrastructure/mappers/portal.mapper.ts",
+      "source_location": "L14"
+    },
+    {
+      "caller_nid": "mappers_portal_mapper_portalfromrow",
+      "callee": "portalId",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/infrastructure/mappers/portal.mapper.ts",
+      "source_location": "L35"
+    },
+    {
+      "caller_nid": "mappers_portal_mapper_portalfromrow",
+      "callee": "organizationId",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/infrastructure/mappers/portal.mapper.ts",
+      "source_location": "L36"
+    },
+    {
+      "caller_nid": "mappers_portal_mapper_portalfromrow",
+      "callee": "propertyId",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/infrastructure/mappers/portal.mapper.ts",
+      "source_location": "L37"
+    }
+  ]
+}

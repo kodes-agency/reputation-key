@@ -4,20 +4,15 @@ import { Copy, QrCode } from 'lucide-react'
 import { QRCodeModal } from './QRCodeModal'
 
 type ShareSectionProps = Readonly<{
-  portalId: string
   portalSlug: string
-  organizationId: string
+  propertySlug: string
 }>
 
-export function ShareSection({
-  portalId,
-  portalSlug,
-  organizationId,
-}: ShareSectionProps) {
+export function ShareSection({ portalSlug, propertySlug }: ShareSectionProps) {
   const [copied, setCopied] = useState(false)
   const [qrOpen, setQrOpen] = useState(false)
 
-  const guestUrl = `/p/${organizationId}/${portalSlug}`
+  const guestUrl = `/p/${propertySlug}/${portalSlug}`
 
   const getFullUrl = () =>
     typeof window !== 'undefined' ? `${window.location.origin}${guestUrl}` : ''
@@ -53,9 +48,8 @@ export function ShareSection({
       <QRCodeModal
         open={qrOpen}
         onOpenChange={setQrOpen}
-        portalId={portalId}
         portalSlug={portalSlug}
-        organizationId={organizationId}
+        propertySlug={propertySlug}
       />
     </>
   )

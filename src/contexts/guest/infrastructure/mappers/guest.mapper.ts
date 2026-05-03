@@ -1,28 +1,4 @@
-import type { scanEvents, ratings, feedback } from '#/shared/db/schema/guest.schema'
 import type { ScanEvent, Rating, Feedback } from '../../domain/types'
-import {
-  scanEventId,
-  ratingId,
-  feedbackId,
-  organizationId,
-  portalId,
-  propertyId,
-} from '#/shared/domain/ids'
-
-type ScanRow = typeof scanEvents.$inferSelect
-type RatingRow = typeof ratings.$inferSelect
-type FeedbackRow = typeof feedback.$inferSelect
-
-export const scanEventFromRow = (row: ScanRow): ScanEvent => ({
-  id: scanEventId(row.id),
-  organizationId: organizationId(row.organizationId),
-  portalId: portalId(row.portalId),
-  propertyId: propertyId(row.propertyId),
-  source: row.source as ScanEvent['source'],
-  sessionId: row.sessionId,
-  ipHash: row.ipHash,
-  createdAt: row.createdAt,
-})
 
 export const scanEventToRow = (scan: ScanEvent) => ({
   id: scan.id as unknown as string,
@@ -35,18 +11,6 @@ export const scanEventToRow = (scan: ScanEvent) => ({
   createdAt: scan.createdAt,
 })
 
-export const ratingFromRow = (row: RatingRow): Rating => ({
-  id: ratingId(row.id),
-  organizationId: organizationId(row.organizationId),
-  portalId: portalId(row.portalId),
-  propertyId: propertyId(row.propertyId),
-  sessionId: row.sessionId,
-  value: row.value,
-  source: row.source as Rating['source'],
-  ipHash: row.ipHash,
-  createdAt: row.createdAt,
-})
-
 export const ratingToRow = (rating: Rating) => ({
   id: rating.id as unknown as string,
   organizationId: rating.organizationId as unknown as string,
@@ -57,19 +21,6 @@ export const ratingToRow = (rating: Rating) => ({
   source: rating.source,
   ipHash: rating.ipHash,
   createdAt: rating.createdAt,
-})
-
-export const feedbackFromRow = (row: FeedbackRow): Feedback => ({
-  id: feedbackId(row.id),
-  organizationId: organizationId(row.organizationId),
-  portalId: portalId(row.portalId),
-  propertyId: propertyId(row.propertyId),
-  sessionId: row.sessionId,
-  ratingId: row.ratingId ? ratingId(row.ratingId) : null,
-  comment: row.comment,
-  source: row.source as Feedback['source'],
-  ipHash: row.ipHash,
-  createdAt: row.createdAt,
 })
 
 export const feedbackToRow = (fb: Feedback) => ({

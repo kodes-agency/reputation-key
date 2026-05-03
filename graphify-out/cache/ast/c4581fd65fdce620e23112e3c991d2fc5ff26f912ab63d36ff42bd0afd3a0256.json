@@ -1,0 +1,554 @@
+{
+  "nodes": [
+    {
+      "id": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_portal_domain_rules_ts",
+      "label": "rules.ts",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L1"
+    },
+    {
+      "id": "domain_rules_normalizeslug",
+      "label": "normalizeSlug()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L16"
+    },
+    {
+      "id": "domain_rules_validateslug",
+      "label": "validateSlug()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L27"
+    },
+    {
+      "id": "domain_rules_validateportalname",
+      "label": "validatePortalName()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L35"
+    },
+    {
+      "id": "domain_rules_validatedescription",
+      "label": "validateDescription()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L49"
+    },
+    {
+      "id": "domain_rules_validateportaltheme",
+      "label": "validatePortalTheme()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L66"
+    },
+    {
+      "id": "domain_rules_validatesmartroutingthreshold",
+      "label": "validateSmartRoutingThreshold()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L93"
+    },
+    {
+      "id": "domain_rules_validateurl",
+      "label": "validateUrl()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L105"
+    },
+    {
+      "id": "domain_rules_validatelinklabel",
+      "label": "validateLinkLabel()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L117"
+    },
+    {
+      "id": "domain_rules_validatecategorytitle",
+      "label": "validateCategoryTitle()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L131"
+    }
+  ],
+  "edges": [
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_portal_domain_rules_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_shared_domain",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L5",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_portal_domain_rules_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_shared_domain",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L6",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_portal_domain_rules_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_portal_domain_errors",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L7",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_portal_domain_rules_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_portal_domain_errors",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L8",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_portal_domain_rules_ts",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_portal_domain_types",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L9",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_portal_domain_rules_ts",
+      "target": "domain_rules_normalizeslug",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L16",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_portal_domain_rules_ts",
+      "target": "domain_rules_validateslug",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L27",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_portal_domain_rules_ts",
+      "target": "domain_rules_validateportalname",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L35",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_portal_domain_rules_ts",
+      "target": "domain_rules_validatedescription",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L49",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_portal_domain_rules_ts",
+      "target": "domain_rules_validateportaltheme",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L66",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_portal_domain_rules_ts",
+      "target": "domain_rules_validatesmartroutingthreshold",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L93",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_portal_domain_rules_ts",
+      "target": "domain_rules_validateurl",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L105",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_portal_domain_rules_ts",
+      "target": "domain_rules_validatelinklabel",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L117",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_contexts_portal_domain_rules_ts",
+      "target": "domain_rules_validatecategorytitle",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L131",
+      "weight": 1.0
+    }
+  ],
+  "raw_calls": [
+    {
+      "caller_nid": "domain_rules_normalizeslug",
+      "callee": "slice",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L17"
+    },
+    {
+      "caller_nid": "domain_rules_normalizeslug",
+      "callee": "replace",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L17"
+    },
+    {
+      "caller_nid": "domain_rules_normalizeslug",
+      "callee": "replace",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L17"
+    },
+    {
+      "caller_nid": "domain_rules_normalizeslug",
+      "callee": "replace",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L17"
+    },
+    {
+      "caller_nid": "domain_rules_normalizeslug",
+      "callee": "replace",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L17"
+    },
+    {
+      "caller_nid": "domain_rules_normalizeslug",
+      "callee": "trim",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L17"
+    },
+    {
+      "caller_nid": "domain_rules_normalizeslug",
+      "callee": "toLowerCase",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L17"
+    },
+    {
+      "caller_nid": "domain_rules_validateslug",
+      "callee": "test",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L28"
+    },
+    {
+      "caller_nid": "domain_rules_validateslug",
+      "callee": "ok",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L29"
+    },
+    {
+      "caller_nid": "domain_rules_validateslug",
+      "callee": "err",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L30"
+    },
+    {
+      "caller_nid": "domain_rules_validateslug",
+      "callee": "portalError",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L30"
+    },
+    {
+      "caller_nid": "domain_rules_validateportalname",
+      "callee": "trim",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L36"
+    },
+    {
+      "caller_nid": "domain_rules_validateportalname",
+      "callee": "err",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L38"
+    },
+    {
+      "caller_nid": "domain_rules_validateportalname",
+      "callee": "portalError",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L38"
+    },
+    {
+      "caller_nid": "domain_rules_validateportalname",
+      "callee": "err",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L41"
+    },
+    {
+      "caller_nid": "domain_rules_validateportalname",
+      "callee": "portalError",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L41"
+    },
+    {
+      "caller_nid": "domain_rules_validateportalname",
+      "callee": "ok",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L43"
+    },
+    {
+      "caller_nid": "domain_rules_validatedescription",
+      "callee": "ok",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L52"
+    },
+    {
+      "caller_nid": "domain_rules_validatedescription",
+      "callee": "err",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L54"
+    },
+    {
+      "caller_nid": "domain_rules_validatedescription",
+      "callee": "portalError",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L55"
+    },
+    {
+      "caller_nid": "domain_rules_validatedescription",
+      "callee": "ok",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L58"
+    },
+    {
+      "caller_nid": "domain_rules_validateportaltheme",
+      "callee": "test",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L69"
+    },
+    {
+      "caller_nid": "domain_rules_validateportaltheme",
+      "callee": "err",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L70"
+    },
+    {
+      "caller_nid": "domain_rules_validateportaltheme",
+      "callee": "portalError",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L71"
+    },
+    {
+      "caller_nid": "domain_rules_validateportaltheme",
+      "callee": "test",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L77"
+    },
+    {
+      "caller_nid": "domain_rules_validateportaltheme",
+      "callee": "err",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L78"
+    },
+    {
+      "caller_nid": "domain_rules_validateportaltheme",
+      "callee": "portalError",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L78"
+    },
+    {
+      "caller_nid": "domain_rules_validateportaltheme",
+      "callee": "test",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L80"
+    },
+    {
+      "caller_nid": "domain_rules_validateportaltheme",
+      "callee": "err",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L81"
+    },
+    {
+      "caller_nid": "domain_rules_validateportaltheme",
+      "callee": "portalError",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L81"
+    },
+    {
+      "caller_nid": "domain_rules_validateportaltheme",
+      "callee": "ok",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L83"
+    },
+    {
+      "caller_nid": "domain_rules_validatesmartroutingthreshold",
+      "callee": "isInteger",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L94"
+    },
+    {
+      "caller_nid": "domain_rules_validatesmartroutingthreshold",
+      "callee": "err",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L95"
+    },
+    {
+      "caller_nid": "domain_rules_validatesmartroutingthreshold",
+      "callee": "portalError",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L96"
+    },
+    {
+      "caller_nid": "domain_rules_validatesmartroutingthreshold",
+      "callee": "ok",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L99"
+    },
+    {
+      "caller_nid": "domain_rules_validateurl",
+      "callee": "ok",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L108"
+    },
+    {
+      "caller_nid": "domain_rules_validateurl",
+      "callee": "err",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L110"
+    },
+    {
+      "caller_nid": "domain_rules_validateurl",
+      "callee": "portalError",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L110"
+    },
+    {
+      "caller_nid": "domain_rules_validatelinklabel",
+      "callee": "trim",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L118"
+    },
+    {
+      "caller_nid": "domain_rules_validatelinklabel",
+      "callee": "err",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L120"
+    },
+    {
+      "caller_nid": "domain_rules_validatelinklabel",
+      "callee": "portalError",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L120"
+    },
+    {
+      "caller_nid": "domain_rules_validatelinklabel",
+      "callee": "err",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L123"
+    },
+    {
+      "caller_nid": "domain_rules_validatelinklabel",
+      "callee": "portalError",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L123"
+    },
+    {
+      "caller_nid": "domain_rules_validatelinklabel",
+      "callee": "ok",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L125"
+    },
+    {
+      "caller_nid": "domain_rules_validatecategorytitle",
+      "callee": "trim",
+      "is_member_call": true,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L132"
+    },
+    {
+      "caller_nid": "domain_rules_validatecategorytitle",
+      "callee": "err",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L134"
+    },
+    {
+      "caller_nid": "domain_rules_validatecategorytitle",
+      "callee": "portalError",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L134"
+    },
+    {
+      "caller_nid": "domain_rules_validatecategorytitle",
+      "callee": "err",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L137"
+    },
+    {
+      "caller_nid": "domain_rules_validatecategorytitle",
+      "callee": "portalError",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L138"
+    },
+    {
+      "caller_nid": "domain_rules_validatecategorytitle",
+      "callee": "ok",
+      "is_member_call": false,
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/contexts/portal/domain/rules.ts",
+      "source_location": "L141"
+    }
+  ]
+}

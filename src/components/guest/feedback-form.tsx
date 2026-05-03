@@ -1,27 +1,41 @@
 import { useState } from 'react'
-import { submitFeedbackFn } from '#/contexts/guest/server/public'
 import { Button } from '#/components/ui/button'
 import { Textarea } from '#/components/ui/textarea'
 import type { ScanSource } from '#/contexts/guest/application/dto/public-portal.dto'
+import { useAction } from '#/components/hooks/use-action'
 
 interface FeedbackFormProps {
   portalId: string
   source: ScanSource
+  submitFeedback?: (input: {
+    data: {
+      portalId: string
+      comment: string
+      source: ScanSource
+      honeypot: string
+      submittedAt: number
+    }
+  }) => Promise<unknown>
 }
 
-export function FeedbackForm({ portalId, source }: FeedbackFormProps) {
+export function FeedbackForm({ portalId, source, submitFeedback }: FeedbackFormProps) {
   const [comment, setComment] = useState('')
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const submit = submitFeedback ? useAction(submitFeedback as any) : null
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!submit) return
+
     setIsSubmitting(true)
     setError(null)
 
     try {
-      const result = await submitFeedbackFn({
+      const result = await submit({
         data: {
           portalId,
           comment,

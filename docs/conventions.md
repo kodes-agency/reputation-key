@@ -363,6 +363,11 @@ Forbidden:
 - Direct DB access in `routes/` or `components/`
 - `shared/testing/*` from production code
 
+**Exception — cross-context public API:**
+Contexts may import from another context's `application/public-api.ts` file. This file acts as a bounded-context facade — it exposes only the operations and types that the owning context makes available to other contexts. It is the approved mechanism for cross-context communication at the application layer.
+
+This exception does NOT allow importing from another context's `domain/`, `infrastructure/`, `server/`, or non-public-api `application/` files.
+
 ---
 
 ## Testing

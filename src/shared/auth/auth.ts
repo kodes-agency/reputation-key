@@ -89,10 +89,46 @@ export function createAuth() {
         invitationExpiresIn: INVITATION_EXPIRY_SECONDS, // 7 days
         // Custom fields on the invitation table — stores which properties
         // the invitee should be assigned to upon acceptance.
+        // Custom fields on the organization table — billing and contact info.
+
         schema: {
           invitation: {
             additionalFields: {
               propertyIds: {
+                type: 'string' as const,
+                input: true,
+                required: false,
+              },
+            },
+          },
+          organization: {
+            additionalFields: {
+              contactEmail: {
+                type: 'string' as const,
+                input: true,
+                required: false,
+              },
+              billingCompanyName: {
+                type: 'string' as const,
+                input: true,
+                required: false,
+              },
+              billingAddress: {
+                type: 'string' as const,
+                input: true,
+                required: false,
+              },
+              billingCity: {
+                type: 'string' as const,
+                input: true,
+                required: false,
+              },
+              billingPostalCode: {
+                type: 'string' as const,
+                input: true,
+                required: false,
+              },
+              billingCountry: {
                 type: 'string' as const,
                 input: true,
                 required: false,

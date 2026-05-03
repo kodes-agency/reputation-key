@@ -5,6 +5,7 @@
 
 import { createServerFn } from '@tanstack/react-start'
 import { match } from 'ts-pattern'
+import { z } from 'zod/v4'
 import { getAuth } from '#/shared/auth/auth'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
@@ -77,10 +78,37 @@ type AuthOrganizationResponse = Readonly<{
   slug: string
   logo: string | null
   createdAt: Date
+  contactEmail: string | null
+  billingCompanyName: string | null
+  billingAddress: string | null
+  billingCity: string | null
+  billingPostalCode: string | null
+  billingCountry: string | null
 }>
 
 // headersFromContext is imported from shared/auth/headers.ts —
 // single source of truth for extracting request headers in server context.
+
+// ── Helper: Extract billing fields from loosely-typed org response ────────
+
+function extractOrgBillingFields(org: unknown): {
+  contactEmail: string | null
+  billingCompanyName: string | null
+  billingAddress: string | null
+  billingCity: string | null
+  billingPostalCode: string | null
+  billingCountry: string | null
+} {
+  const o = org as Record<string, unknown>
+  return {
+    contactEmail: (o.contactEmail as string | null) ?? null,
+    billingCompanyName: (o.billingCompanyName as string | null) ?? null,
+    billingAddress: (o.billingAddress as string | null) ?? null,
+    billingCity: (o.billingCity as string | null) ?? null,
+    billingPostalCode: (o.billingPostalCode as string | null) ?? null,
+    billingCountry: (o.billingCountry as string | null) ?? null,
+  }
+}
 
 // ── Get active organization ────────────────────────────────────────
 
@@ -103,6 +131,7 @@ export const getActiveOrganization = createServerFn({ method: 'GET' }).handler(
         slug: org.slug,
         logo: org.logo ?? null,
         createdAt: org.createdAt,
+        ...extractOrgBillingFields(org),
       },
       role: ctx.role,
     }
@@ -159,20 +188,6 @@ export const acceptInvitation = createServerFn({ method: 'POST' })
     const auth = getAuth()
 
     await auth.api.acceptInvitation({
-      headers,
-      body: { invitationId: data.invitationId },
-    })
-  })
-
-// ── Reject invitation ──────────────────────────────────────────────
-
-export const rejectInvitation = createServerFn({ method: 'POST' })
-  .inputValidator(acceptInvitationInputSchema)
-  .handler(async ({ data }) => {
-    const headers = headersFromContext()
-    const auth = getAuth()
-
-    await auth.api.rejectInvitation({
       headers,
       body: { invitationId: data.invitationId },
     })
@@ -321,6 +336,7 @@ export const listUserOrganizations = createServerFn({ method: 'GET' }).handler(
       slug: org.slug,
       logo: org.logo ?? null,
       createdAt: org.createdAt,
+      ...extractOrgBillingFields(org),
     }))
 
     return { organizations }
@@ -377,4 +393,71 @@ export const signInUser = createServerFn({ method: 'POST' })
         401,
       )
     }
+  })
+
+// ── Update organization ──────────────────────────────────────────────
+// Updates organization metadata including billing fields.
+
+const updateOrganizationInputSchema = z
+  .object({
+    name: z.string().min(1).optional(),
+    slug: z.string().min(1).optional(),
+    logo: z.string().nullable().optional(),
+    contactEmail: z.string().email().nullable().optional(),
+    billingCompanyName: z.string().nullable().optional(),
+    billingAddress: z.string().nullable().optional(),
+    billingCity: z.string().nullable().optional(),
+    billingPostalCode: z.string().nullable().optional(),
+    billingCountry: z.string().nullable().optional(),
+  })
+  .strict()
+
+export const updateOrganization = createServerFn({ method: 'POST' })
+  .inputValidator(updateOrganizationInputSchema)
+  .handler(async ({ data }) => {
+    const headers = headersFromContext()
+    const ctx = await resolveTenantContext(headers)
+    const auth = getAuth()
+
+    // Validate role - only AccountAdmin or PropertyManager can update organization
+    if (ctx.role !== 'AccountAdmin' && ctx.role !== 'PropertyManager') {
+      throwContextError(
+        'AuthError',
+        {
+          code: 'forbidden',
+          message: 'Only AccountAdmin or PropertyManager can update organization',
+        },
+        403,
+      )
+    }
+
+    // Convert null values to undefined for Better Auth compatibility
+    const updateData: Record<string, unknown> = {
+      ...(data.name && { name: data.name }),
+      ...(data.slug && { slug: data.slug }),
+      logo: data.logo ?? undefined,
+      ...(data.contactEmail !== undefined && {
+        contactEmail: data.contactEmail ?? undefined,
+      }),
+      ...(data.billingCompanyName !== undefined && {
+        billingCompanyName: data.billingCompanyName ?? undefined,
+      }),
+      ...(data.billingAddress !== undefined && {
+        billingAddress: data.billingAddress ?? undefined,
+      }),
+      ...(data.billingCity !== undefined && {
+        billingCity: data.billingCity ?? undefined,
+      }),
+      ...(data.billingPostalCode !== undefined && {
+        billingPostalCode: data.billingPostalCode ?? undefined,
+      }),
+      ...(data.billingCountry !== undefined && {
+        billingCountry: data.billingCountry ?? undefined,
+      }),
+    }
+
+    await auth.api.updateOrganization({
+      headers,
+      body: { data: updateData },
+    })
   })

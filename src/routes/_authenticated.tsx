@@ -6,12 +6,14 @@ import { getSession } from '#/shared/auth/auth.functions'
 import {
   getActiveOrganization,
   listUserOrganizations,
+  setActiveOrganization,
 } from '#/contexts/identity/server/organizations'
 import { listProperties } from '#/contexts/property/server/properties'
 import type { Role } from '#/shared/domain/roles'
 import { SidebarProvider, SidebarInset } from '#/components/ui/sidebar'
 import { AppSidebar } from '#/components/layout/AppSidebar'
 import { AppTopBar } from '#/components/layout/AppTopBar'
+import { useServerFn } from '@tanstack/react-start'
 
 export type AuthRouteContext = Readonly<{
   user: {
@@ -21,7 +23,17 @@ export type AuthRouteContext = Readonly<{
     image: string | null
   }
   role: Role
-  activeOrganization: { id: string; name: string } | null
+  activeOrganization: {
+    id: string
+    name: string
+    slug: string
+    contactEmail: string | null
+    billingCompanyName: string | null
+    billingAddress: string | null
+    billingCity: string | null
+    billingPostalCode: string | null
+    billingCountry: string | null
+  } | null
 }>
 
 export const Route = createFileRoute('/_authenticated')({
@@ -35,7 +47,17 @@ export const Route = createFileRoute('/_authenticated')({
     }
 
     let role: Role = 'Staff'
-    let activeOrganization: { id: string; name: string } | null = null
+    let activeOrganization: {
+      id: string
+      name: string
+      slug: string
+      contactEmail: string | null
+      billingCompanyName: string | null
+      billingAddress: string | null
+      billingCity: string | null
+      billingPostalCode: string | null
+      billingCountry: string | null
+    } | null = null
 
     try {
       const org = await getActiveOrganization()
@@ -46,6 +68,13 @@ export const Route = createFileRoute('/_authenticated')({
         activeOrganization = {
           id: org.organization.id,
           name: org.organization.name,
+          slug: org.organization.slug,
+          contactEmail: org.organization.contactEmail,
+          billingCompanyName: org.organization.billingCompanyName,
+          billingAddress: org.organization.billingAddress,
+          billingCity: org.organization.billingCity,
+          billingPostalCode: org.organization.billingPostalCode,
+          billingCountry: org.organization.billingCountry,
         }
       }
     } catch (e) {
@@ -100,6 +129,7 @@ export const Route = createFileRoute('/_authenticated')({
 function AuthenticatedLayout() {
   const ctx = Route.useRouteContext()
   const { organizations, properties } = Route.useLoaderData()
+  const setActiveOrganizationFn = useServerFn(setActiveOrganization)
 
   return (
     <SidebarProvider>
@@ -107,6 +137,7 @@ function AuthenticatedLayout() {
         role={ctx.role}
         organizations={organizations}
         activeOrganization={ctx.activeOrganization}
+        setActiveOrganization={setActiveOrganizationFn}
       />
       <SidebarInset>
         <AppTopBar user={ctx.user} properties={properties} />

@@ -1,0 +1,194 @@
+{
+  "nodes": [
+    {
+      "id": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_components_ui_select_tsx",
+      "label": "select.tsx",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/components/ui/select.tsx",
+      "source_location": "L1"
+    },
+    {
+      "id": "ui_select_select",
+      "label": "Select()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/components/ui/select.tsx",
+      "source_location": "L8"
+    },
+    {
+      "id": "ui_select_selectgroup",
+      "label": "SelectGroup()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/components/ui/select.tsx",
+      "source_location": "L14"
+    },
+    {
+      "id": "ui_select_selectvalue",
+      "label": "SelectValue()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/components/ui/select.tsx",
+      "source_location": "L20"
+    },
+    {
+      "id": "ui_select_selecttrigger",
+      "label": "SelectTrigger()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/components/ui/select.tsx",
+      "source_location": "L26"
+    },
+    {
+      "id": "ui_select_selectlabel",
+      "label": "SelectLabel()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/components/ui/select.tsx",
+      "source_location": "L89"
+    },
+    {
+      "id": "ui_select_selectitem",
+      "label": "SelectItem()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/components/ui/select.tsx",
+      "source_location": "L102"
+    },
+    {
+      "id": "ui_select_selectseparator",
+      "label": "SelectSeparator()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/components/ui/select.tsx",
+      "source_location": "L129"
+    },
+    {
+      "id": "ui_select_selectscrollupbutton",
+      "label": "SelectScrollUpButton()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/components/ui/select.tsx",
+      "source_location": "L142"
+    },
+    {
+      "id": "ui_select_selectscrolldownbutton",
+      "label": "SelectScrollDownButton()",
+      "file_type": "code",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/components/ui/select.tsx",
+      "source_location": "L160"
+    }
+  ],
+  "edges": [
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_components_ui_select_tsx",
+      "target": "react",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/components/ui/select.tsx",
+      "source_location": "L2",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_components_ui_select_tsx",
+      "target": "lucide_react",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/components/ui/select.tsx",
+      "source_location": "L3",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_components_ui_select_tsx",
+      "target": "radix_ui",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/components/ui/select.tsx",
+      "source_location": "L4",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_components_ui_select_tsx",
+      "target": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_lib_utils",
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/components/ui/select.tsx",
+      "source_location": "L6",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_components_ui_select_tsx",
+      "target": "ui_select_select",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/components/ui/select.tsx",
+      "source_location": "L8",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_components_ui_select_tsx",
+      "target": "ui_select_selectgroup",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/components/ui/select.tsx",
+      "source_location": "L14",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_components_ui_select_tsx",
+      "target": "ui_select_selectvalue",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/components/ui/select.tsx",
+      "source_location": "L20",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_components_ui_select_tsx",
+      "target": "ui_select_selecttrigger",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/components/ui/select.tsx",
+      "source_location": "L26",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_components_ui_select_tsx",
+      "target": "ui_select_selectlabel",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/components/ui/select.tsx",
+      "source_location": "L89",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_components_ui_select_tsx",
+      "target": "ui_select_selectitem",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/components/ui/select.tsx",
+      "source_location": "L102",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_components_ui_select_tsx",
+      "target": "ui_select_selectseparator",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/components/ui/select.tsx",
+      "source_location": "L129",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_components_ui_select_tsx",
+      "target": "ui_select_selectscrollupbutton",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/components/ui/select.tsx",
+      "source_location": "L142",
+      "weight": 1.0
+    },
+    {
+      "source": "users_bozhidardenev_superset_worktrees_reputation_key_orderly_pigeon_src_components_ui_select_tsx",
+      "target": "ui_select_selectscrolldownbutton",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "/Users/bozhidardenev/.superset/worktrees/reputation-key/orderly-pigeon/src/components/ui/select.tsx",
+      "source_location": "L160",
+      "weight": 1.0
+    }
+  ],
+  "raw_calls": []
+}

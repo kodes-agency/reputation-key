@@ -3,7 +3,7 @@
 // Never imports server functions directly (dependency rules).
 
 import { useForm } from '@tanstack/react-form'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { z } from 'zod/v4'
 import { FieldGroup } from '#/components/ui/field'
 import { SubmitButton } from '#/components/forms/SubmitButton'
@@ -14,13 +14,15 @@ import type { BaseFieldApi } from '#/components/forms/FormTextField'
 import type { BaseFieldApiTextarea } from '#/components/forms/FormTextarea'
 import type { Action } from '#/components/hooks/use-action'
 import { ThemePresetSelector } from './ThemePresetSelector'
+import { createPortalInputSchema } from '#/contexts/portal/application/dto/create-portal.dto'
 
-const createFormSchema = z.object({
-  name: z.string().min(1, 'Name is required').max(100),
-  slug: z.string().max(64, 'Slug must be at most 64 characters'),
-  description: z.string().max(500, 'Description must be at most 500 characters'),
-  primaryColor: z.string().min(1, 'Color is required'),
-})
+const createFormSchema = createPortalInputSchema
+  .pick({ name: true, slug: true, description: true })
+  .required()
+  .extend({
+    slug: z.string().max(64, 'Slug must be at most 64 characters'),
+    primaryColor: z.string().min(1, 'Color is required'),
+  })
 
 type FormValues = z.infer<typeof createFormSchema>
 
@@ -69,6 +71,38 @@ export function CreatePortalForm({ propertyId, mutation, onPreviewChange }: Prop
   // Track previous name to detect changes
   const previousNameRef = useRef<string>('')
 
+  // Sync preview state at component level (no hooks inside render props)
+  const [prevName, setPrevName] = useState('')
+  const [prevDesc, setPrevDesc] = useState('')
+  const [prevColor, setPrevColor] = useState('')
+
+  useEffect(() => {
+    const name = form.getFieldValue('name') as string
+    const description = form.getFieldValue('description') as string
+    const primaryColor = form.getFieldValue('primaryColor') as string
+
+    if (name !== prevName || description !== prevDesc || primaryColor !== prevColor) {
+      setPrevName(name)
+      setPrevDesc(description)
+      setPrevColor(primaryColor)
+      onPreviewChange?.({ name, description, primaryColor })
+    }
+  })
+
+  useEffect(() => {
+    if (prevName && prevName !== previousNameRef.current) {
+      const currentSlug = form.getFieldValue('slug') as string
+      if (!currentSlug) {
+        const generated = prevName
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-|-$/g, '')
+        form.setFieldValue('slug', generated)
+      }
+      previousNameRef.current = prevName
+    }
+  }, [prevName, form])
+
   return (
     <form
       onSubmit={(e) => {
@@ -80,50 +114,16 @@ export function CreatePortalForm({ propertyId, mutation, onPreviewChange }: Prop
     >
       <FormErrorBanner error={mutation.error} />
 
-      {/* Track form changes for preview */}
-      <form.Subscribe
-        selector={(state) => ({
-          name: state.values.name,
-          description: state.values.description,
-          primaryColor: state.values.primaryColor,
-        })}
-      >
-        {(previewState) => {
-          useEffect(() => {
-            onPreviewChange?.(previewState)
-          }, [previewState])
-          return null
-        }}
-      </form.Subscribe>
-
       <FieldGroup>
         <form.Field name="name">
-          {(field: BaseFieldApi) => {
-            // Auto-generate slug from name when name changes and slug is empty
-            const currentValue = field.state.value
-            useEffect(() => {
-              if (currentValue && currentValue !== previousNameRef.current) {
-                const currentSlug = form.getFieldValue('slug')
-                if (!currentSlug) {
-                  const generated = currentValue
-                    .toLowerCase()
-                    .replace(/[^a-z0-9]+/g, '-')
-                    .replace(/^-|-$/g, '')
-                  form.setFieldValue('slug', generated)
-                }
-                previousNameRef.current = currentValue
-              }
-            }, [currentValue])
-
-            return (
-              <FormTextField
-                field={field}
-                label="Name"
-                id="portal-name"
-                placeholder="My Portal"
-              />
-            )
-          }}
+          {(field: BaseFieldApi) => (
+            <FormTextField
+              field={field}
+              label="Name"
+              id="portal-name"
+              placeholder="My Portal"
+            />
+          )}
         </form.Field>
 
         <form.Field name="slug">

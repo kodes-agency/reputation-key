@@ -45,8 +45,8 @@ export function PortalPreviewPanel({
             This is how guests will see your portal on mobile.
           </SheetDescription>
         </SheetHeader>
-        <div className="flex justify-center p-4 bg-gray-100 min-h-[calc(100vh-80px)]">
-          <div className="w-[400px] max-w-full bg-white rounded-lg shadow-lg overflow-hidden">
+        <div className="flex justify-center p-4 bg-gray-100">
+          <div className="w-[400px] max-w-full bg-white rounded-lg shadow-lg max-h-[calc(100vh-120px)] overflow-y-auto">
             <PublicPortalContent
               portal={portal}
               categories={categories}

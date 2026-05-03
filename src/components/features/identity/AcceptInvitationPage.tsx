@@ -5,9 +5,6 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from '@tanstack/react-router'
-import { useServerFn } from '@tanstack/react-start'
-// eslint-disable-next-line boundaries/dependencies
-import { acceptInvitation } from '#/contexts/identity/server/organizations'
 import { useAction } from '#/components/hooks/use-action'
 import { Button } from '#/components/ui/button'
 import { Card } from '#/components/ui/card'
@@ -121,15 +118,20 @@ function InvitationListView({
 type Props = Readonly<{
   invitationId?: string
   invitations: PendingInvitation[]
+  acceptInvitation: (input: { data: { invitationId: string } }) => Promise<void>
 }>
 
-export function AcceptInvitationPage({ invitationId, invitations }: Props) {
+export function AcceptInvitationPage({
+  invitationId,
+  invitations,
+  acceptInvitation,
+}: Props) {
   const router = useRouter()
   const [accepted, setAccepted] = useState(false)
   const [accepting, setAccepting] = useState(false)
   const [autoAcceptError, setAutoAcceptError] = useState<string | null>(null)
 
-  const accept = useAction(useServerFn(acceptInvitation))
+  const accept = useAction(acceptInvitation)
 
   async function handleAccept(invId: string) {
     setAccepting(true)

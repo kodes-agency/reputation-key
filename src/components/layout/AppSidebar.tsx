@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
 import {
   LayoutDashboard,
@@ -8,6 +9,7 @@ import {
   Building2,
   ChevronsUpDown,
   Settings2,
+  Plus,
 } from 'lucide-react'
 import {
   Sidebar,
@@ -37,18 +39,17 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '#/components/ui/collapsible'
-import { useServerFn } from '@tanstack/react-start'
-
-import { setActiveOrganization } from '#/contexts/identity/server/organizations'
 import { useAction } from '#/components/hooks/use-action'
 import { usePropertyId } from '#/components/hooks/use-property-id'
 import { hasRole } from '#/shared/domain/roles'
+import { CreateOrganizationDialog } from '#/components/features/organization/CreateOrganizationDialog'
 import type { Role } from '#/shared/domain/roles'
 
 type Props = Readonly<{
   role: Role
   organizations: ReadonlyArray<{ id: string; name: string }>
   activeOrganization: { id: string; name: string } | null
+  setActiveOrganization: (input: { data: { organizationId: string } }) => Promise<void>
 }>
 
 const navItems = [
@@ -111,170 +112,192 @@ function useActiveSection(): string {
   })
 }
 
-export function AppSidebar({ role, organizations, activeOrganization }: Props) {
+export function AppSidebar({
+  role,
+  organizations,
+  activeOrganization,
+  setActiveOrganization,
+}: Props) {
   const propertyId = usePropertyId()
   const activeSection = useActiveSection()
   const navigate = useNavigate()
-  const setOrg = useAction(useServerFn(setActiveOrganization))
+  const [createOrgOpen, setCreateOrgOpen] = useState(false)
+
+  const setOrg = useAction(setActiveOrganization)
 
   const isManager = hasRole(role, 'PropertyManager')
 
   function handleOrgSwitch(orgId: string) {
-    setOrg({ data: { organizationId: orgId } }).then(() => {
+    void setOrg({ data: { organizationId: orgId } }).then(() => {
       navigate({ to: '/' })
     })
   }
 
   return (
-    <Sidebar collapsible="icon">
-      <SidebarHeader>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton size="lg" asChild>
-              <Link to="/">
-                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                  <span className="text-xs font-bold">RK</span>
-                </div>
-                <div className="flex flex-col gap-0.5 leading-none">
-                  <span className="font-semibold">Reputation Key</span>
-                </div>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
-      </SidebarHeader>
+    <>
+      <Sidebar collapsible="icon">
+        <SidebarHeader>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton size="lg" asChild>
+                <Link to="/">
+                  <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                    <span className="text-xs font-bold">RK</span>
+                  </div>
+                  <div className="flex flex-col gap-0.5 leading-none">
+                    <span className="font-semibold">Reputation Key</span>
+                  </div>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarHeader>
 
-      <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {navItems.map((item) => {
-                const isActive = !!propertyId && activeSection === item.key
+        <SidebarContent>
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {navItems.map((item) => {
+                  const isActive = !!propertyId && activeSection === item.key
 
-                if (!propertyId) {
+                  if (!propertyId) {
+                    return (
+                      <SidebarMenuItem key={item.key}>
+                        <SidebarMenuButton disabled tooltip={item.label}>
+                          <item.icon />
+                          <span>{item.label}</span>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    )
+                  }
+
                   return (
                     <SidebarMenuItem key={item.key}>
-                      <SidebarMenuButton disabled tooltip={item.label}>
-                        <item.icon />
-                        <span>{item.label}</span>
+                      <SidebarMenuButton asChild isActive={isActive} tooltip={item.label}>
+                        <Link to={item.to} params={{ propertyId }}>
+                          <item.icon />
+                          <span>{item.label}</span>
+                        </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                   )
-                }
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
 
-                return (
-                  <SidebarMenuItem key={item.key}>
-                    <SidebarMenuButton asChild isActive={isActive} tooltip={item.label}>
-                      <Link to={item.to} params={{ propertyId }}>
-                        <item.icon />
-                        <span>{item.label}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                )
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+          <SidebarSeparator />
 
-        <SidebarSeparator />
+          <SidebarGroup>
+            <Collapsible
+              defaultOpen={activeSection.startsWith('settings')}
+              className="group/collapsible"
+            >
+              <CollapsibleTrigger asChild>
+                <SidebarGroupLabel className="cursor-pointer select-none">
+                  <Settings2 className="size-4" />
+                  <span>Settings</span>
+                  <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                </SidebarGroupLabel>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <SidebarGroupContent>
+                  <SidebarMenu>
+                    {settingsItems.map((item) => {
+                      if (item.managerOnly && !isManager) return null
 
-        <SidebarGroup>
-          <Collapsible
-            defaultOpen={activeSection.startsWith('settings')}
-            className="group/collapsible"
-          >
-            <CollapsibleTrigger asChild>
-              <SidebarGroupLabel className="cursor-pointer select-none">
-                <Settings2 className="size-4" />
-                <span>Settings</span>
-                <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
-              </SidebarGroupLabel>
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {settingsItems.map((item) => {
-                    if (item.managerOnly && !isManager) return null
+                      const isActive = !!propertyId && activeSection === item.key
 
-                    const isActive = !!propertyId && activeSection === item.key
+                      if (!propertyId) {
+                        return (
+                          <SidebarMenuSubItem key={item.key}>
+                            <div className="flex h-7 -translate-x-px items-center gap-2 rounded-md px-2 text-sm opacity-50">
+                              <span>{item.label}</span>
+                            </div>
+                          </SidebarMenuSubItem>
+                        )
+                      }
 
-                    if (!propertyId) {
                       return (
                         <SidebarMenuSubItem key={item.key}>
-                          <div className="flex h-7 -translate-x-px items-center gap-2 rounded-md px-2 text-sm opacity-50">
-                            <span>{item.label}</span>
-                          </div>
+                          <SidebarMenuSubButton asChild isActive={isActive}>
+                            <Link
+                              to={item.to}
+                              params={{
+                                propertyId,
+                              }}
+                            >
+                              <span>{item.label}</span>
+                            </Link>
+                          </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
                       )
-                    }
+                    })}
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </CollapsibleContent>
+            </Collapsible>
+          </SidebarGroup>
+        </SidebarContent>
 
-                    return (
-                      <SidebarMenuSubItem key={item.key}>
-                        <SidebarMenuSubButton asChild isActive={isActive}>
-                          <Link
-                            to={item.to}
-                            params={{
-                              propertyId,
-                            }}
-                          >
-                            <span>{item.label}</span>
-                          </Link>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                    )
-                  })}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </CollapsibleContent>
-          </Collapsible>
-        </SidebarGroup>
-      </SidebarContent>
-
-      <SidebarFooter>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <SidebarMenuButton size="lg">
-                  <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-muted">
-                    <Building2 className="size-4" />
-                  </div>
-                  <div className="grid flex-1 text-left text-sm leading-tight">
-                    <span className="truncate font-medium">
-                      {activeOrganization?.name ?? 'No organization'}
-                    </span>
-                    <span className="truncate text-xs text-muted-foreground">
-                      {organizations.length > 1
-                        ? `${organizations.length} organizations`
-                        : 'Organization'}
-                    </span>
-                  </div>
-                  <ChevronsUpDown className="ml-auto size-4" />
-                </SidebarMenuButton>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent side="top" align="start" className="w-64">
-                <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
-                  Organizations
-                </div>
-                <DropdownMenuSeparator />
-                {organizations.map((org) => (
-                  <DropdownMenuItem key={org.id} onClick={() => handleOrgSwitch(org.id)}>
-                    {org.name}
-                    {org.id === activeOrganization?.id && (
-                      <span className="ml-auto text-xs text-muted-foreground">
-                        Active
+        <SidebarFooter>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <SidebarMenuButton size="lg">
+                    <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-muted">
+                      <Building2 className="size-4" />
+                    </div>
+                    <div className="grid flex-1 text-left text-sm leading-tight">
+                      <span className="truncate font-medium">
+                        {activeOrganization?.name ?? 'No organization'}
                       </span>
-                    )}
+                      <span className="truncate text-xs text-muted-foreground">
+                        {organizations.length > 1
+                          ? `${organizations.length} organizations`
+                          : 'Organization'}
+                      </span>
+                    </div>
+                    <ChevronsUpDown className="ml-auto size-4" />
+                  </SidebarMenuButton>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent side="top" align="start" className="w-64">
+                  <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+                    Organizations
+                  </div>
+                  <DropdownMenuSeparator />
+                  {organizations.map((org) => (
+                    <DropdownMenuItem
+                      key={org.id}
+                      onClick={() => handleOrgSwitch(org.id)}
+                    >
+                      {org.name}
+                      {org.id === activeOrganization?.id && (
+                        <span className="ml-auto text-xs text-muted-foreground">
+                          Active
+                        </span>
+                      )}
+                    </DropdownMenuItem>
+                  ))}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => setCreateOrgOpen(true)}>
+                    <Plus className="size-4 mr-2" />
+                    Create Organization
                   </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </SidebarMenuItem>
-        </SidebarMenu>
-      </SidebarFooter>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarFooter>
 
-      <SidebarRail />
-    </Sidebar>
+        <SidebarRail />
+      </Sidebar>
+      <CreateOrganizationDialog
+        open={createOrgOpen}
+        onOpenChange={setCreateOrgOpen}
+        onSuccess={() => window.location.reload()}
+      />
+    </>
   )
 }
