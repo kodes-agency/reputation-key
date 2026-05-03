@@ -9,6 +9,7 @@ import { portals } from '#/shared/db/schema/portal.schema'
 import type { PortalRepository } from '../../application/ports/portal.repository'
 import { portalFromRow, portalToRow } from '../mappers/portal.mapper'
 import { portalError } from '../../domain/errors'
+import { trace } from '#/shared/observability/trace'
 
 /** Mutable set-values type for Drizzle .set() — strips readonly from Portal fields. */
 type SetValues = {
@@ -26,21 +27,25 @@ type SetValues = {
 
 export const createPortalRepository = (db: Database): PortalRepository => ({
   findById: async (orgId, id) => {
-    const rows = await db
-      .select()
-      .from(portals)
-      .where(and(...baseWhere(portals, orgId), eq(portals.id, id as unknown as string)))
-      .limit(1)
-    return rows[0] ? portalFromRow(rows[0]) : null
+    return trace('portal.findById', async () => {
+      const rows = await db
+        .select()
+        .from(portals)
+        .where(and(...baseWhere(portals, orgId), eq(portals.id, id as unknown as string)))
+        .limit(1)
+      return rows[0] ? portalFromRow(rows[0]) : null
+    })
   },
 
   findBySlug: async (orgId, slug) => {
-    const rows = await db
-      .select()
-      .from(portals)
-      .where(and(...baseWhere(portals, orgId), eq(portals.slug, slug)))
-      .limit(1)
-    return rows[0] ? portalFromRow(rows[0]) : null
+    return trace('portal.findBySlug', async () => {
+      const rows = await db
+        .select()
+        .from(portals)
+        .where(and(...baseWhere(portals, orgId), eq(portals.slug, slug)))
+        .limit(1)
+      return rows[0] ? portalFromRow(rows[0]) : null
+    })
   },
 
   list: async (orgId) => {
@@ -73,38 +78,44 @@ export const createPortalRepository = (db: Database): PortalRepository => ({
   },
 
   insert: async (orgId, portal) => {
-    if (portal.organizationId !== orgId) {
-      throw portalError('forbidden', 'Tenant mismatch on portal insert')
-    }
-    await db.insert(portals).values(portalToRow(portal))
+    return trace('portal.insert', async () => {
+      if (portal.organizationId !== orgId) {
+        throw portalError('forbidden', 'Tenant mismatch on portal insert')
+      }
+      await db.insert(portals).values(portalToRow(portal))
+    })
   },
 
   update: async (orgId, id, patch) => {
-    const setValues: SetValues = {}
-    if (patch.updatedAt !== undefined) setValues.updatedAt = patch.updatedAt
-    if (patch.name !== undefined) setValues.name = patch.name
-    if (patch.slug !== undefined) setValues.slug = patch.slug
-    if (patch.description !== undefined) setValues.description = patch.description
-    if (patch.heroImageUrl !== undefined) setValues.heroImageUrl = patch.heroImageUrl
-    if (patch.theme !== undefined)
-      setValues.theme = patch.theme as Record<string, unknown>
-    if (patch.smartRoutingEnabled !== undefined)
-      setValues.smartRoutingEnabled = patch.smartRoutingEnabled
-    if (patch.smartRoutingThreshold !== undefined)
-      setValues.smartRoutingThreshold = patch.smartRoutingThreshold
-    if (patch.isActive !== undefined) setValues.isActive = patch.isActive
+    return trace('portal.update', async () => {
+      const setValues: SetValues = {}
+      if (patch.updatedAt !== undefined) setValues.updatedAt = patch.updatedAt
+      if (patch.name !== undefined) setValues.name = patch.name
+      if (patch.slug !== undefined) setValues.slug = patch.slug
+      if (patch.description !== undefined) setValues.description = patch.description
+      if (patch.heroImageUrl !== undefined) setValues.heroImageUrl = patch.heroImageUrl
+      if (patch.theme !== undefined)
+        setValues.theme = patch.theme as Record<string, unknown>
+      if (patch.smartRoutingEnabled !== undefined)
+        setValues.smartRoutingEnabled = patch.smartRoutingEnabled
+      if (patch.smartRoutingThreshold !== undefined)
+        setValues.smartRoutingThreshold = patch.smartRoutingThreshold
+      if (patch.isActive !== undefined) setValues.isActive = patch.isActive
 
-    await db
-      .update(portals)
-      .set(setValues)
-      .where(and(...baseWhere(portals, orgId), eq(portals.id, id as unknown as string)))
+      await db
+        .update(portals)
+        .set(setValues)
+        .where(and(...baseWhere(portals, orgId), eq(portals.id, id as unknown as string)))
+    })
   },
 
   softDelete: async (orgId, id) => {
-    const now = new Date()
-    await db
-      .update(portals)
-      .set({ deletedAt: now, updatedAt: now })
-      .where(and(...baseWhere(portals, orgId), eq(portals.id, id as unknown as string)))
+    return trace('portal.softDelete', async () => {
+      const now = new Date()
+      await db
+        .update(portals)
+        .set({ deletedAt: now, updatedAt: now })
+        .where(and(...baseWhere(portals, orgId), eq(portals.id, id as unknown as string)))
+    })
   },
 })

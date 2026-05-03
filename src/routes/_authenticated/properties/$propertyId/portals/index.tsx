@@ -26,6 +26,7 @@ import {
 } from '#/components/ui/alert-dialog'
 import { Plus, Globe, Trash2, Copy, Eye } from 'lucide-react'
 import { useMutationAction } from '#/components/hooks/use-mutation-action'
+import { getLogger } from '#/shared/observability/logger'
 
 function CopyButton({ text }: { text: string }) {
   const handleCopy = async () => {
@@ -52,12 +53,20 @@ function CopyButton({ text }: { text: string }) {
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/portals/')({
   staleTime: 30_000,
   loader: async ({ params }) => {
-    const { portals } = await listPortals({
-      data: { propertyId: params.propertyId },
-    })
-    return {
-      portals,
-      propertyId: params.propertyId,
+    try {
+      const { portals } = await listPortals({
+        data: { propertyId: params.propertyId },
+      })
+      return {
+        portals,
+        propertyId: params.propertyId,
+      }
+    } catch (e) {
+      getLogger().error(
+        { err: e, propertyId: params.propertyId },
+        '[loader] listPortals failed',
+      )
+      return { portals: [], propertyId: params.propertyId }
     }
   },
   component: PortalListPage,

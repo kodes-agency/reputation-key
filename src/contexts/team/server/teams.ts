@@ -2,6 +2,7 @@
 // Per architecture: thin — resolve auth → validate input → call use case → translate errors → return
 
 import { createServerFn } from '@tanstack/react-start'
+import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { match } from 'ts-pattern'
 import { z } from 'zod/v4'
 import { headersFromContext } from '#/shared/auth/headers'
@@ -34,73 +35,97 @@ const propertyIdSchema = z.object({
 
 export const createTeam = createServerFn({ method: 'POST' })
   .inputValidator(createTeamInputSchema)
-  .handler(async ({ data }) => {
-    const headers = headersFromContext()
-    const ctx = await resolveTenantContext(headers)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const headers = headersFromContext()
+        const ctx = await resolveTenantContext(headers)
 
-    try {
-      const { useCases } = getContainer()
-      const team = await useCases.createTeam(data, ctx)
-      return { team }
-    } catch (e) {
-      if (isTeamError(e)) throwContextError('TeamError', e, teamErrorStatus(e.code))
-      throw e
-    }
-  })
+        try {
+          const { useCases } = getContainer()
+          const team = await useCases.createTeam(data, ctx)
+          return { team }
+        } catch (e) {
+          if (isTeamError(e)) throwContextError('TeamError', e, teamErrorStatus(e.code))
+          throw e
+        }
+      },
+      'POST',
+      'team.createTeam',
+    ),
+  )
 
 // ── updateTeam ──────────────────────────────────────────────────────
 
 export const updateTeam = createServerFn({ method: 'POST' })
   .inputValidator(updateTeamInputSchema)
-  .handler(async ({ data }) => {
-    const headers = headersFromContext()
-    const ctx = await resolveTenantContext(headers)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const headers = headersFromContext()
+        const ctx = await resolveTenantContext(headers)
 
-    try {
-      const { useCases } = getContainer()
-      const team = await useCases.updateTeam(data, ctx)
-      return { team }
-    } catch (e) {
-      if (isTeamError(e)) throwContextError('TeamError', e, teamErrorStatus(e.code))
-      throw e
-    }
-  })
+        try {
+          const { useCases } = getContainer()
+          const team = await useCases.updateTeam(data, ctx)
+          return { team }
+        } catch (e) {
+          if (isTeamError(e)) throwContextError('TeamError', e, teamErrorStatus(e.code))
+          throw e
+        }
+      },
+      'POST',
+      'team.updateTeam',
+    ),
+  )
 
 // ── listTeams ───────────────────────────────────────────────────────
 
 export const listTeams = createServerFn({ method: 'GET' })
   .inputValidator(propertyIdSchema)
-  .handler(async ({ data }) => {
-    const headers = headersFromContext()
-    const ctx = await resolveTenantContext(headers)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const headers = headersFromContext()
+        const ctx = await resolveTenantContext(headers)
 
-    try {
-      const { useCases } = getContainer()
-      const teams_list = await useCases.listTeams(
-        { propertyId: toPropertyId(data.propertyId) },
-        ctx,
-      )
-      return { teams: teams_list }
-    } catch (e) {
-      if (isTeamError(e)) throwContextError('TeamError', e, teamErrorStatus(e.code))
-      throw e
-    }
-  })
+        try {
+          const { useCases } = getContainer()
+          const teams_list = await useCases.listTeams(
+            { propertyId: toPropertyId(data.propertyId) },
+            ctx,
+          )
+          return { teams: teams_list }
+        } catch (e) {
+          if (isTeamError(e)) throwContextError('TeamError', e, teamErrorStatus(e.code))
+          throw e
+        }
+      },
+      'GET',
+      'team.listTeams',
+    ),
+  )
 
 // ── deleteTeam (soft-delete) ────────────────────────────────────────
 
 export const deleteTeam = createServerFn({ method: 'POST' })
   .inputValidator(teamIdSchema)
-  .handler(async ({ data }) => {
-    const headers = headersFromContext()
-    const ctx = await resolveTenantContext(headers)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const headers = headersFromContext()
+        const ctx = await resolveTenantContext(headers)
 
-    try {
-      const { useCases } = getContainer()
-      await useCases.softDeleteTeam({ teamId: toTeamId(data.teamId) }, ctx)
-      return { deleted: true, teamId: data.teamId }
-    } catch (e) {
-      if (isTeamError(e)) throwContextError('TeamError', e, teamErrorStatus(e.code))
-      throw e
-    }
-  })
+        try {
+          const { useCases } = getContainer()
+          await useCases.softDeleteTeam({ teamId: toTeamId(data.teamId) }, ctx)
+          return { deleted: true, teamId: data.teamId }
+        } catch (e) {
+          if (isTeamError(e)) throwContextError('TeamError', e, teamErrorStatus(e.code))
+          throw e
+        }
+      },
+      'POST',
+      'team.deleteTeam',
+    ),
+  )

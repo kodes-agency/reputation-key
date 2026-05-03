@@ -7,6 +7,7 @@
 // and mutation.error is populated.
 
 import { createServerFn } from '@tanstack/react-start'
+import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { match } from 'ts-pattern'
 import { z } from 'zod/v4'
 import { headersFromContext } from '#/shared/auth/headers'
@@ -38,92 +39,122 @@ const propertyIdSchema = z.object({
 
 export const createProperty = createServerFn({ method: 'POST' })
   .inputValidator(createPropertyInputSchema)
-  .handler(async ({ data }) => {
-    const headers = headersFromContext()
-    const ctx = await resolveTenantContext(headers)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const headers = headersFromContext()
+        const ctx = await resolveTenantContext(headers)
 
-    try {
-      const { useCases } = getContainer()
-      const property = await useCases.createProperty(data, ctx)
-      return { property }
-    } catch (e) {
-      if (isPropertyError(e))
-        throwContextError('PropertyError', e, propertyErrorStatus(e.code))
-      throw e
-    }
-  })
+        try {
+          const { useCases } = getContainer()
+          const property = await useCases.createProperty(data, ctx)
+          return { property }
+        } catch (e) {
+          if (isPropertyError(e))
+            throwContextError('PropertyError', e, propertyErrorStatus(e.code))
+          throw e
+        }
+      },
+      'POST',
+      'property.createProperty',
+    ),
+  )
 
 // ── updateProperty ─────────────────────────────────────────────────
 
 export const updateProperty = createServerFn({ method: 'POST' })
   .inputValidator(updatePropertyInputSchema)
-  .handler(async ({ data }) => {
-    const headers = headersFromContext()
-    const ctx = await resolveTenantContext(headers)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const headers = headersFromContext()
+        const ctx = await resolveTenantContext(headers)
 
-    try {
-      const { useCases } = getContainer()
-      const property = await useCases.updateProperty(data, ctx)
-      return { property }
-    } catch (e) {
-      if (isPropertyError(e))
-        throwContextError('PropertyError', e, propertyErrorStatus(e.code))
-      throw e
-    }
-  })
+        try {
+          const { useCases } = getContainer()
+          const property = await useCases.updateProperty(data, ctx)
+          return { property }
+        } catch (e) {
+          if (isPropertyError(e))
+            throwContextError('PropertyError', e, propertyErrorStatus(e.code))
+          throw e
+        }
+      },
+      'POST',
+      'property.updateProperty',
+    ),
+  )
 
 // ── listProperties ─────────────────────────────────────────────────
 
-export const listProperties = createServerFn({ method: 'GET' }).handler(async () => {
-  const headers = headersFromContext()
-  const ctx = await resolveTenantContext(headers)
-  // All authenticated roles can list properties
+export const listProperties = createServerFn({ method: 'GET' }).handler(
+  tracedHandler(
+    async () => {
+      const headers = headersFromContext()
+      const ctx = await resolveTenantContext(headers)
+      // All authenticated roles can list properties
 
-  try {
-    const { useCases } = getContainer()
-    const properties_list = await useCases.listProperties(ctx)
-    return { properties: properties_list }
-  } catch (e) {
-    if (isPropertyError(e))
-      throwContextError('PropertyError', e, propertyErrorStatus(e.code))
-    throw e
-  }
-})
+      try {
+        const { useCases } = getContainer()
+        const properties_list = await useCases.listProperties(ctx)
+        return { properties: properties_list }
+      } catch (e) {
+        if (isPropertyError(e))
+          throwContextError('PropertyError', e, propertyErrorStatus(e.code))
+        throw e
+      }
+    },
+    'GET',
+    'property.listProperties',
+  ),
+)
 
 // ── getProperty ────────────────────────────────────────────────────
 
 export const getProperty = createServerFn({ method: 'GET' })
   .inputValidator(propertyIdSchema)
-  .handler(async ({ data }) => {
-    const headers = headersFromContext()
-    const ctx = await resolveTenantContext(headers)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const headers = headersFromContext()
+        const ctx = await resolveTenantContext(headers)
 
-    try {
-      const { useCases } = getContainer()
-      const property = await useCases.getProperty(data, ctx)
-      return { property }
-    } catch (e) {
-      if (isPropertyError(e))
-        throwContextError('PropertyError', e, propertyErrorStatus(e.code))
-      throw e
-    }
-  })
+        try {
+          const { useCases } = getContainer()
+          const property = await useCases.getProperty(data, ctx)
+          return { property }
+        } catch (e) {
+          if (isPropertyError(e))
+            throwContextError('PropertyError', e, propertyErrorStatus(e.code))
+          throw e
+        }
+      },
+      'GET',
+      'property.getProperty',
+    ),
+  )
 
 // ── deleteProperty (soft-delete) ───────────────────────────────────
 
 export const deleteProperty = createServerFn({ method: 'POST' })
   .inputValidator(propertyIdSchema)
-  .handler(async ({ data }) => {
-    const headers = headersFromContext()
-    const ctx = await resolveTenantContext(headers)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const headers = headersFromContext()
+        const ctx = await resolveTenantContext(headers)
 
-    try {
-      const { useCases } = getContainer()
-      await useCases.softDeleteProperty(data, ctx)
-      return { deleted: true, propertyId: data.propertyId }
-    } catch (e) {
-      if (isPropertyError(e))
-        throwContextError('PropertyError', e, propertyErrorStatus(e.code))
-      throw e
-    }
-  })
+        try {
+          const { useCases } = getContainer()
+          await useCases.softDeleteProperty(data, ctx)
+          return { deleted: true, propertyId: data.propertyId }
+        } catch (e) {
+          if (isPropertyError(e))
+            throwContextError('PropertyError', e, propertyErrorStatus(e.code))
+          throw e
+        }
+      },
+      'POST',
+      'property.deleteProperty',
+    ),
+  )

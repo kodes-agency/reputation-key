@@ -45,6 +45,13 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      - name: Push database schema
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/test
+          BETTER_AUTH_SECRET: test-secret-at-least-32-characters-long-for-ci
+          BETTER_AUTH_URL: http://localhost:3000
+        run: echo "y" | pnpm db:push && echo "y" | pnpm auth:migrate
+
       - name: Test
         env:
           NODE_ENV: test

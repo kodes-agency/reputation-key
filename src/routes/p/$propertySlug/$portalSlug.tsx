@@ -10,6 +10,7 @@ import { PublicPortalContent } from '#/components/guest/PublicPortalContent'
 import { CookieConsentBanner } from '#/components/guest/cookie-consent-banner'
 import type { PublicPortalLoaderData } from '#/contexts/guest/application/dto/public-portal.dto'
 import { useServerFn } from '@tanstack/react-start'
+import { getLogger } from '#/shared/observability/logger'
 
 const VALID_SOURCES: ReadonlySet<string> = new Set(['qr', 'nfc', 'direct'])
 type ScanSource = 'qr' | 'nfc' | 'direct'
@@ -31,8 +32,11 @@ export const Route = createFileRoute('/p/$propertySlug/$portalSlug')({
         },
       })
       return portalData
-    } catch {
-      // Return null for portal_not_found, portal_inactive, and other errors
+    } catch (e) {
+      getLogger().error(
+        { err: e, propertySlug: params.propertySlug, portalSlug: params.portalSlug },
+        '[loader] /p/:propertySlug/:portalSlug — returning null',
+      )
       return null
     }
   },
