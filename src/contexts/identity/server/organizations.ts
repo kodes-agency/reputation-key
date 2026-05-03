@@ -4,6 +4,7 @@
 // and translate tagged errors to HTTP responses.
 
 import { createServerFn } from '@tanstack/react-start'
+import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { match } from 'ts-pattern'
 import { z } from 'zod/v4'
 import { getAuth } from '#/shared/auth/auth'
@@ -113,234 +114,304 @@ function extractOrgBillingFields(org: unknown): {
 // ── Get active organization ────────────────────────────────────────
 
 export const getActiveOrganization = createServerFn({ method: 'GET' }).handler(
-  async () => {
-    const headers = headersFromContext()
-    const ctx = await resolveTenantContext(headers)
-    const auth = getAuth()
+  tracedHandler(
+    async () => {
+      const headers = headersFromContext()
+      const ctx = await resolveTenantContext(headers)
+      const auth = getAuth()
 
-    const org = await auth.api.getFullOrganization({ headers })
+      const org = await auth.api.getFullOrganization({ headers })
 
-    if (!org) {
-      return { organization: null, role: ctx.role }
-    }
+      if (!org) {
+        return { organization: null, role: ctx.role }
+      }
 
-    return {
-      organization: {
-        id: org.id,
-        name: org.name,
-        slug: org.slug,
-        logo: org.logo ?? null,
-        createdAt: org.createdAt,
-        ...extractOrgBillingFields(org),
-      },
-      role: ctx.role,
-    }
-  },
+      return {
+        organization: {
+          id: org.id,
+          name: org.name,
+          slug: org.slug,
+          logo: org.logo ?? null,
+          createdAt: org.createdAt,
+          ...extractOrgBillingFields(org),
+        },
+        role: ctx.role,
+      }
+    },
+    'GET',
+    'identity.getActiveOrganization',
+  ),
 )
 
 // ── List members ────────────────────────────────────────────────────
 
-export const listMembers = createServerFn({ method: 'GET' }).handler(async () => {
-  const headers = headersFromContext()
-  const ctx = await resolveTenantContext(headers)
-  const auth = getAuth()
+export const listMembers = createServerFn({ method: 'GET' }).handler(
+  tracedHandler(
+    async () => {
+      const headers = headersFromContext()
+      const ctx = await resolveTenantContext(headers)
+      const auth = getAuth()
 
-  const result = await auth.api.listMembers({ headers })
+      const result = await auth.api.listMembers({ headers })
 
-  const rawMembers = (result?.members ?? result ?? []) as AuthMemberResponse[]
-  const members = rawMembers.map((m) => ({
-    id: m.id,
-    userId: m.userId,
-    role: toDomainRole(m.role),
-    email: m.user?.email ?? '',
-    name: m.user?.name ?? '',
-    image: m.user?.image ?? null,
-    createdAt: m.createdAt,
-  }))
+      const rawMembers = (result?.members ?? result ?? []) as AuthMemberResponse[]
+      const members = rawMembers.map((m) => ({
+        id: m.id,
+        userId: m.userId,
+        role: toDomainRole(m.role),
+        email: m.user?.email ?? '',
+        name: m.user?.name ?? '',
+        image: m.user?.image ?? null,
+        createdAt: m.createdAt,
+      }))
 
-  return { members, requestingRole: ctx.role }
-})
+      return { members, requestingRole: ctx.role }
+    },
+    'GET',
+    'identity.listMembers',
+  ),
+)
 
 // ── Invite member ──────────────────────────────────────────────────
 // Uses the use case through the composition root.
 
 export const inviteMember = createServerFn({ method: 'POST' })
   .inputValidator(inviteMemberInputSchema)
-  .handler(async ({ data }) => {
-    const headers = headersFromContext()
-    const ctx = await resolveTenantContext(headers)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const headers = headersFromContext()
+        const ctx = await resolveTenantContext(headers)
 
-    try {
-      const { useCases } = getContainer()
-      await useCases.inviteMember(data, ctx)
-    } catch (e) {
-      if (isIdentityError(e)) throwIdentityError(e)
-      throw e
-    }
-  })
+        try {
+          const { useCases } = getContainer()
+          await useCases.inviteMember(data, ctx)
+        } catch (e) {
+          if (isIdentityError(e)) throwIdentityError(e)
+          throw e
+        }
+      },
+      'POST',
+      'identity.inviteMember',
+    ),
+  )
 
 // ── Accept invitation ──────────────────────────────────────────────
 
 export const acceptInvitation = createServerFn({ method: 'POST' })
   .inputValidator(acceptInvitationInputSchema)
-  .handler(async ({ data }) => {
-    const headers = headersFromContext()
-    const auth = getAuth()
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const headers = headersFromContext()
+        const auth = getAuth()
 
-    await auth.api.acceptInvitation({
-      headers,
-      body: { invitationId: data.invitationId },
-    })
-  })
+        await auth.api.acceptInvitation({
+          headers,
+          body: { invitationId: data.invitationId },
+        })
+      },
+      'POST',
+      'identity.acceptInvitation',
+    ),
+  )
 
 // ── Cancel invitation ──────────────────────────────────────────────
 
 export const cancelInvitation = createServerFn({ method: 'POST' })
   .inputValidator(acceptInvitationInputSchema)
-  .handler(async ({ data }) => {
-    const headers = headersFromContext()
-    await resolveTenantContext(headers)
-    const auth = getAuth()
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const headers = headersFromContext()
+        await resolveTenantContext(headers)
+        const auth = getAuth()
 
-    await auth.api.cancelInvitation({
-      headers,
-      body: { invitationId: data.invitationId },
-    })
-  })
+        await auth.api.cancelInvitation({
+          headers,
+          body: { invitationId: data.invitationId },
+        })
+      },
+      'POST',
+      'identity.cancelInvitation',
+    ),
+  )
 
 // ── Resend invitation ──────────────────────────────────────────────
 // Uses the use case through the composition root.
 
 export const resendInvitation = createServerFn({ method: 'POST' })
   .inputValidator(acceptInvitationInputSchema)
-  .handler(async ({ data }) => {
-    const headers = headersFromContext()
-    const ctx = await resolveTenantContext(headers)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const headers = headersFromContext()
+        const ctx = await resolveTenantContext(headers)
 
-    try {
-      const { useCases } = getContainer()
-      await useCases.resendInvitation(data, ctx)
-    } catch (e) {
-      if (isIdentityError(e)) throwIdentityError(e)
-      throw e
-    }
-  })
+        try {
+          const { useCases } = getContainer()
+          await useCases.resendInvitation(data, ctx)
+        } catch (e) {
+          if (isIdentityError(e)) throwIdentityError(e)
+          throw e
+        }
+      },
+      'POST',
+      'identity.resendInvitation',
+    ),
+  )
 
 // ── List invitations ────────────────────────────────────────────────
 // Uses the use case through the composition root.
 
-export const listInvitations = createServerFn({ method: 'GET' }).handler(async () => {
-  const headers = headersFromContext()
-  const ctx = await resolveTenantContext(headers)
+export const listInvitations = createServerFn({ method: 'GET' }).handler(
+  tracedHandler(
+    async () => {
+      const headers = headersFromContext()
+      const ctx = await resolveTenantContext(headers)
 
-  try {
-    const { useCases } = getContainer()
-    return await useCases.listInvitations(undefined, ctx)
-  } catch (e) {
-    if (isIdentityError(e)) throwIdentityError(e)
-    throw e
-  }
-})
+      try {
+        const { useCases } = getContainer()
+        return await useCases.listInvitations(undefined, ctx)
+      } catch (e) {
+        if (isIdentityError(e)) throwIdentityError(e)
+        throw e
+      }
+    },
+    'GET',
+    'identity.listInvitations',
+  ),
+)
 
 // ── Update member role ──────────────────────────────────────────────
 // Uses the use case through the composition root.
 
 export const updateMemberRole = createServerFn({ method: 'POST' })
   .inputValidator(updateMemberRoleInputSchema)
-  .handler(async ({ data }) => {
-    const headers = headersFromContext()
-    const ctx = await resolveTenantContext(headers)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const headers = headersFromContext()
+        const ctx = await resolveTenantContext(headers)
 
-    try {
-      const { useCases } = getContainer()
-      await useCases.updateMemberRole(data, ctx)
-    } catch (e) {
-      if (isIdentityError(e)) throwIdentityError(e)
-      throw e
-    }
-  })
+        try {
+          const { useCases } = getContainer()
+          await useCases.updateMemberRole(data, ctx)
+        } catch (e) {
+          if (isIdentityError(e)) throwIdentityError(e)
+          throw e
+        }
+      },
+      'POST',
+      'identity.updateMemberRole',
+    ),
+  )
 
 // ── Remove member ──────────────────────────────────────────────────
 // Uses the use case through the composition root.
 
 export const removeMember = createServerFn({ method: 'POST' })
   .inputValidator(removeMemberInputSchema)
-  .handler(async ({ data }) => {
-    const headers = headersFromContext()
-    const ctx = await resolveTenantContext(headers)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const headers = headersFromContext()
+        const ctx = await resolveTenantContext(headers)
 
-    try {
-      const { useCases } = getContainer()
-      await useCases.removeMember(data, ctx)
-    } catch (e) {
-      if (isIdentityError(e)) throwIdentityError(e)
-      throw e
-    }
-  })
+        try {
+          const { useCases } = getContainer()
+          await useCases.removeMember(data, ctx)
+        } catch (e) {
+          if (isIdentityError(e)) throwIdentityError(e)
+          throw e
+        }
+      },
+      'POST',
+      'identity.removeMember',
+    ),
+  )
 
 // ── List user invitations (for accept invitation page) ──────────────
 
-export const listUserInvitations = createServerFn({ method: 'GET' }).handler(async () => {
-  const headers = headersFromContext()
-  const auth = getAuth()
+export const listUserInvitations = createServerFn({ method: 'GET' }).handler(
+  tracedHandler(
+    async () => {
+      const headers = headersFromContext()
+      const auth = getAuth()
 
-  const result = await auth.api.listUserInvitations({ headers })
+      const result = await auth.api.listUserInvitations({ headers })
 
-  const rawInvitations = (Array.isArray(result) ? result : []) as AuthInvitationResponse[]
-  const invitations = rawInvitations.map((inv) => ({
-    id: inv.id,
-    organizationId: inv.organizationId,
-    organizationName: inv.organization?.name ?? 'Unknown Organization',
-    email: inv.email,
-    role: toDomainRole(inv.role),
-    status: inv.status,
-    expiresAt: inv.expiresAt,
-    createdAt: inv.createdAt,
-  }))
+      const rawInvitations = (
+        Array.isArray(result) ? result : []
+      ) as AuthInvitationResponse[]
+      const invitations = rawInvitations.map((inv) => ({
+        id: inv.id,
+        organizationId: inv.organizationId,
+        organizationName: inv.organization?.name ?? 'Unknown Organization',
+        email: inv.email,
+        role: toDomainRole(inv.role),
+        status: inv.status,
+        expiresAt: inv.expiresAt,
+        createdAt: inv.createdAt,
+      }))
 
-  return { invitations }
-})
+      return { invitations }
+    },
+    'GET',
+    'identity.listUserInvitations',
+  ),
+)
 
 // ── Set active organization ────────────────────────────────────────
 
 export const setActiveOrganization = createServerFn({ method: 'POST' })
   .inputValidator(setActiveOrgInputSchema)
-  .handler(async ({ data }) => {
-    const headers = headersFromContext()
-    const auth = getAuth()
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const headers = headersFromContext()
+        const auth = getAuth()
 
-    await auth.api.setActiveOrganization({
-      headers,
-      body: { organizationId: data.organizationId },
-    })
-  })
+        await auth.api.setActiveOrganization({
+          headers,
+          body: { organizationId: data.organizationId },
+        })
+      },
+      'POST',
+      'identity.setActiveOrganization',
+    ),
+  )
 
 // ── List user's organizations ──────────────────────────────────────
 
 export const listUserOrganizations = createServerFn({ method: 'GET' }).handler(
-  async () => {
-    const headers = headersFromContext()
-    const auth = getAuth()
+  tracedHandler(
+    async () => {
+      const headers = headersFromContext()
+      const auth = getAuth()
 
-    const session = await auth.api.getSession({ headers })
-    if (!session) {
-      return { organizations: [] }
-    }
+      const session = await auth.api.getSession({ headers })
+      if (!session) {
+        return { organizations: [] }
+      }
 
-    const result = await auth.api.listOrganizations({ headers })
+      const result = await auth.api.listOrganizations({ headers })
 
-    const rawOrgs = (Array.isArray(result) ? result : []) as AuthOrganizationResponse[]
-    const organizations = rawOrgs.map((org) => ({
-      id: org.id,
-      name: org.name,
-      slug: org.slug,
-      logo: org.logo ?? null,
-      createdAt: org.createdAt,
-      ...extractOrgBillingFields(org),
-    }))
+      const rawOrgs = (Array.isArray(result) ? result : []) as AuthOrganizationResponse[]
+      const organizations = rawOrgs.map((org) => ({
+        id: org.id,
+        name: org.name,
+        slug: org.slug,
+        logo: org.logo ?? null,
+        createdAt: org.createdAt,
+        ...extractOrgBillingFields(org),
+      }))
 
-    return { organizations }
-  },
+      return { organizations }
+    },
+    'GET',
+    'identity.listUserOrganizations',
+  ),
 )
 
 // ── Register user only (no organization) ────────────────────────────
@@ -349,51 +420,69 @@ export const listUserOrganizations = createServerFn({ method: 'GET' }).handler(
 
 export const registerMember = createServerFn({ method: 'POST' })
   .inputValidator(registerMemberInputSchema)
-  .handler(async ({ data }) => {
-    try {
-      const { useCases } = getContainer()
-      await useCases.registerUser(data)
-    } catch (e) {
-      if (isIdentityError(e)) throwIdentityError(e)
-      throw e
-    }
-  })
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        try {
+          const { useCases } = getContainer()
+          await useCases.registerUser(data)
+        } catch (e) {
+          if (isIdentityError(e)) throwIdentityError(e)
+          throw e
+        }
+      },
+      'POST',
+      'identity.registerMember',
+    ),
+  )
 
 // ── Register user + create organization ────────────────────────────
 // Uses the use case through the composition root.
 
 export const registerUserAndOrg = createServerFn({ method: 'POST' })
   .inputValidator(registerUserInputSchema)
-  .handler(async ({ data }) => {
-    try {
-      const { useCases } = getContainer()
-      await useCases.registerUserAndOrg(data)
-    } catch (e) {
-      if (isIdentityError(e)) throwIdentityError(e)
-      throw e
-    }
-  })
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        try {
+          const { useCases } = getContainer()
+          await useCases.registerUserAndOrg(data)
+        } catch (e) {
+          if (isIdentityError(e)) throwIdentityError(e)
+          throw e
+        }
+      },
+      'POST',
+      'identity.registerUserAndOrg',
+    ),
+  )
 
 // ── Sign in user ────────────────────────────────────────────────────
 // Direct delegation: no use case because this is pure delegation to better-auth.
 
 export const signInUser = createServerFn({ method: 'POST' })
   .inputValidator(signInInputSchema)
-  .handler(async ({ data }) => {
-    const auth = getAuth()
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const auth = getAuth()
 
-    try {
-      await auth.api.signInEmail({
-        body: { email: data.email, password: data.password },
-      })
-    } catch {
-      throwContextError(
-        'AuthError',
-        { code: 'invalid_credentials', message: 'Invalid email or password' },
-        401,
-      )
-    }
-  })
+        try {
+          await auth.api.signInEmail({
+            body: { email: data.email, password: data.password },
+          })
+        } catch {
+          throwContextError(
+            'AuthError',
+            { code: 'invalid_credentials', message: 'Invalid email or password' },
+            401,
+          )
+        }
+      },
+      'POST',
+      'identity.signInUser',
+    ),
+  )
 
 // ── Update organization ──────────────────────────────────────────────
 // Updates organization metadata including billing fields.
@@ -414,50 +503,56 @@ const updateOrganizationInputSchema = z
 
 export const updateOrganization = createServerFn({ method: 'POST' })
   .inputValidator(updateOrganizationInputSchema)
-  .handler(async ({ data }) => {
-    const headers = headersFromContext()
-    const ctx = await resolveTenantContext(headers)
-    const auth = getAuth()
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const headers = headersFromContext()
+        const ctx = await resolveTenantContext(headers)
+        const auth = getAuth()
 
-    // Validate role - only AccountAdmin or PropertyManager can update organization
-    if (ctx.role !== 'AccountAdmin' && ctx.role !== 'PropertyManager') {
-      throwContextError(
-        'AuthError',
-        {
-          code: 'forbidden',
-          message: 'Only AccountAdmin or PropertyManager can update organization',
-        },
-        403,
-      )
-    }
+        // Validate role - only AccountAdmin or PropertyManager can update organization
+        if (ctx.role !== 'AccountAdmin' && ctx.role !== 'PropertyManager') {
+          throwContextError(
+            'AuthError',
+            {
+              code: 'forbidden',
+              message: 'Only AccountAdmin or PropertyManager can update organization',
+            },
+            403,
+          )
+        }
 
-    // Convert null values to undefined for Better Auth compatibility
-    const updateData: Record<string, unknown> = {
-      ...(data.name && { name: data.name }),
-      ...(data.slug && { slug: data.slug }),
-      logo: data.logo ?? undefined,
-      ...(data.contactEmail !== undefined && {
-        contactEmail: data.contactEmail ?? undefined,
-      }),
-      ...(data.billingCompanyName !== undefined && {
-        billingCompanyName: data.billingCompanyName ?? undefined,
-      }),
-      ...(data.billingAddress !== undefined && {
-        billingAddress: data.billingAddress ?? undefined,
-      }),
-      ...(data.billingCity !== undefined && {
-        billingCity: data.billingCity ?? undefined,
-      }),
-      ...(data.billingPostalCode !== undefined && {
-        billingPostalCode: data.billingPostalCode ?? undefined,
-      }),
-      ...(data.billingCountry !== undefined && {
-        billingCountry: data.billingCountry ?? undefined,
-      }),
-    }
+        // Convert null values to undefined for Better Auth compatibility
+        const updateData: Record<string, unknown> = {
+          ...(data.name && { name: data.name }),
+          ...(data.slug && { slug: data.slug }),
+          logo: data.logo ?? undefined,
+          ...(data.contactEmail !== undefined && {
+            contactEmail: data.contactEmail ?? undefined,
+          }),
+          ...(data.billingCompanyName !== undefined && {
+            billingCompanyName: data.billingCompanyName ?? undefined,
+          }),
+          ...(data.billingAddress !== undefined && {
+            billingAddress: data.billingAddress ?? undefined,
+          }),
+          ...(data.billingCity !== undefined && {
+            billingCity: data.billingCity ?? undefined,
+          }),
+          ...(data.billingPostalCode !== undefined && {
+            billingPostalCode: data.billingPostalCode ?? undefined,
+          }),
+          ...(data.billingCountry !== undefined && {
+            billingCountry: data.billingCountry ?? undefined,
+          }),
+        }
 
-    await auth.api.updateOrganization({
-      headers,
-      body: { data: updateData },
-    })
-  })
+        await auth.api.updateOrganization({
+          headers,
+          body: { data: updateData },
+        })
+      },
+      'POST',
+      'identity.updateOrganization',
+    ),
+  )

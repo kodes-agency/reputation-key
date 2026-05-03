@@ -14,6 +14,7 @@ import { SidebarProvider, SidebarInset } from '#/components/ui/sidebar'
 import { AppSidebar } from '#/components/layout/AppSidebar'
 import { AppTopBar } from '#/components/layout/AppTopBar'
 import { useServerFn } from '@tanstack/react-start'
+import { getLogger } from '#/shared/observability/logger'
 
 export type AuthRouteContext = Readonly<{
   user: {
@@ -79,7 +80,7 @@ export const Route = createFileRoute('/_authenticated')({
       }
     } catch (e) {
       if (isRedirect(e)) throw e
-      console.error('[beforeLoad] getActiveOrganization FAILED:', e)
+      getLogger().error({ err: e }, '[beforeLoad] getActiveOrganization FAILED')
     }
 
     return {
@@ -100,10 +101,13 @@ export const Route = createFileRoute('/_authenticated')({
     ])
 
     if (orgsResult.status === 'rejected') {
-      console.error('[loader] listUserOrganizations failed:', orgsResult.reason)
+      getLogger().error(
+        { err: orgsResult.reason },
+        '[loader] listUserOrganizations failed',
+      )
     }
     if (propsResult.status === 'rejected') {
-      console.error('[loader] listProperties failed:', propsResult.reason)
+      getLogger().error({ err: propsResult.reason }, '[loader] listProperties failed')
     }
 
     const organizations =
