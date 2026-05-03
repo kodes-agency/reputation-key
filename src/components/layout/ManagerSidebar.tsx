@@ -256,7 +256,11 @@ export function ManagerSidebar({
         <SidebarFooter>
           <SidebarMenu>
             <SidebarMenuItem>
-              <SidebarMenuButton asChild tooltip="Settings">
+              <SidebarMenuButton
+                asChild
+                isActive={activeSection === 'settings'}
+                tooltip="Settings"
+              >
                 <Link to={'/settings/profile' as never}>
                   <Settings />
                   <span>Settings</span>
