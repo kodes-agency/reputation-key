@@ -164,6 +164,7 @@ function AuthenticatedLayout() {
           organizations={organizations}
           activeOrganization={ctx.activeOrganization}
           setActiveOrganization={setActiveOrganizationFn}
+          // TODO: wire to real team membership query when staff context is built
           hasTeam={false}
         />
       )}

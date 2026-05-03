@@ -79,6 +79,11 @@ function useActiveSection(): string {
   return useRouterState({
     select: (s) => {
       if (s.location.pathname.startsWith('/settings')) return 'settings'
+      if (
+        s.location.pathname === '/properties' ||
+        s.location.pathname === '/properties/new'
+      )
+        return ''
       const m = s.location.pathname.match(/\/properties\/[^/]+(?:\/([^/]+))?/)
       if (!m) return 'dashboard'
       if (m[1] === 'portals') return 'portals'
@@ -105,16 +110,18 @@ export function ManagerSidebar({
   const setOrg = useAction(setActiveOrganization)
 
   function handleOrgSwitch(orgId: string) {
-    void setOrg({ data: { organizationId: orgId } }).then(() => {
-      if (properties.length > 0) {
-        navigate({
-          to: '/properties/$propertyId',
-          params: { propertyId: properties[0].id },
-        })
-      } else {
-        navigate({ to: '/properties' })
-      }
-    })
+    void setOrg({ data: { organizationId: orgId } })
+      .then(() => {
+        if (properties.length > 0) {
+          navigate({
+            to: '/properties/$propertyId',
+            params: { propertyId: properties[0].id },
+          })
+        } else {
+          navigate({ to: '/properties' })
+        }
+      })
+      .catch(() => {})
   }
 
   function handlePropertySwitch(newPropertyId: string) {
