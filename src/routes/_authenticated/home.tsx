@@ -1,19 +1,21 @@
 import { createFileRoute } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/_authenticated/home')({
-  component: StaffHome,
+  component: StaffHomePage,
 })
 
-function StaffHome() {
+function StaffHomePage() {
   return (
-    <>
-      <h1 className="text-xl font-semibold tracking-tight">Home</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Your personal overview and quick actions.
-      </p>
-      <div className="mt-6 rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-        Staff home dashboard will appear here.
+    <div className="mx-auto max-w-2xl space-y-8">
+      <div>
+        <h1 className="text-xl font-semibold tracking-tight">Home</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Your performance at a glance.
+        </p>
       </div>
-    </>
+      <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
+        Your stats, badges, and goal progress will appear here.
+      </div>
+    </div>
   )
 }
