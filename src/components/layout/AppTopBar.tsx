@@ -10,31 +10,22 @@ import {
   DropdownMenuTrigger,
 } from '#/components/ui/dropdown-menu'
 import { authClient } from '#/shared/auth/auth-client'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 
 type ThemeMode = 'light' | 'dark' | 'auto'
+
+function readStoredMode(): ThemeMode {
+  const stored = window.localStorage.getItem('theme')
+  if (stored === 'light' || stored === 'dark' || stored === 'auto') return stored
+  return 'auto'
+}
 
 type Props = Readonly<{
   user: { id: string; name: string; email: string; image: string | null }
 }>
 
 function useThemeMode() {
-  const [mode, setMode] = useState<ThemeMode>('auto')
-
-  useEffect(() => {
-    const stored = window.localStorage.getItem('theme')
-    if (stored === 'light' || stored === 'dark' || stored === 'auto') {
-      setMode(stored)
-    }
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-    const resolved =
-      stored === 'auto' || !stored ? (prefersDark ? 'dark' : 'light') : stored
-
-    const root = document.documentElement
-    root.classList.remove('light', 'dark')
-    root.classList.add(resolved)
-    root.style.colorScheme = resolved
-  }, [])
+  const [mode, setMode] = useState<ThemeMode>(readStoredMode)
 
   function applyMode(next: ThemeMode) {
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
