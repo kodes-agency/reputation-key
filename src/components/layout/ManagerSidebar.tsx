@@ -78,12 +78,12 @@ const navItems: ReadonlyArray<{
 function useActiveSection(): string {
   return useRouterState({
     select: (s) => {
+      if (s.location.pathname.startsWith('/settings')) return 'settings'
       const m = s.location.pathname.match(/\/properties\/[^/]+(?:\/([^/]+))?/)
       if (!m) return 'dashboard'
       if (m[1] === 'portals') return 'portals'
       if (m[1] === 'reviews') return 'reviews'
       if (m[1] === 'people') return 'people'
-      if (s.location.pathname.startsWith('/settings')) return 'settings'
       return 'dashboard'
     },
   })
@@ -261,7 +261,7 @@ export function ManagerSidebar({
                 isActive={activeSection === 'settings'}
                 tooltip="Settings"
               >
-                <Link to={'/settings/profile' as never}>
+                <Link to="/settings/profile">
                   <Settings />
                   <span>Settings</span>
                 </Link>

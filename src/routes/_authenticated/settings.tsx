@@ -1,8 +1,6 @@
-// Settings layout route — separate sidebar with settings navigation.
-// Nested under _authenticated so role context is available.
+// Settings layout route — renders within the authenticated layout's SidebarProvider.
+// The authenticated layout swaps to SettingsSidebar when on /settings/* routes.
 import { createFileRoute, Outlet } from '@tanstack/react-router'
-import { SidebarProvider, SidebarInset } from '#/components/ui/sidebar'
-import { SettingsSidebar } from '#/components/layout/SettingsSidebar'
 
 export const Route = createFileRoute('/_authenticated/settings')({
   component: SettingsLayout,
@@ -10,13 +8,8 @@ export const Route = createFileRoute('/_authenticated/settings')({
 
 function SettingsLayout() {
   return (
-    <SidebarProvider>
-      <SettingsSidebar />
-      <SidebarInset>
-        <div className="mx-auto max-w-2xl space-y-8 px-6 py-8">
-          <Outlet />
-        </div>
-      </SidebarInset>
-    </SidebarProvider>
+    <div className="mx-auto max-w-2xl space-y-8 px-6 py-8">
+      <Outlet />
+    </div>
   )
 }

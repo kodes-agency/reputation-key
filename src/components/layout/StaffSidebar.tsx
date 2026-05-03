@@ -1,4 +1,4 @@
-import { Link, useRouterState } from '@tanstack/react-router'
+import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
 import { Home, TrendingUp, Trophy, Users, Settings, ChevronsUpDown } from 'lucide-react'
 import {
   Sidebar,
@@ -19,12 +19,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '#/components/ui/dropdown-menu'
+import { useAction } from '#/components/hooks/use-action'
 import type { Role } from '#/shared/domain/roles'
 
 type Props = Readonly<{
   role: Role
   organizations: ReadonlyArray<{ id: string; name: string }>
   activeOrganization: { id: string; name: string } | null
+  setActiveOrganization: (input: { data: { organizationId: string } }) => Promise<void>
   hasTeam: boolean
 }>
 
@@ -57,10 +59,19 @@ export function StaffSidebar({
   role: _role,
   organizations,
   activeOrganization,
+  setActiveOrganization,
   hasTeam,
 }: Props) {
   void _role
   const activeSection = useActiveSection()
+  const navigate = useNavigate()
+  const setOrg = useAction(setActiveOrganization)
+
+  function handleOrgSwitch(orgId: string) {
+    void setOrg({ data: { organizationId: orgId } }).then(() => {
+      navigate({ to: '/' })
+    })
+  }
 
   return (
     <Sidebar collapsible="icon">
@@ -92,7 +103,10 @@ export function StaffSidebar({
                     Organizations
                   </div>
                   {organizations.map((org) => (
-                    <DropdownMenuItem key={org.id}>
+                    <DropdownMenuItem
+                      key={org.id}
+                      onClick={() => handleOrgSwitch(org.id)}
+                    >
                       {org.name}
                       {org.id === activeOrganization.id && (
                         <span className="ml-auto text-xs text-muted-foreground">
@@ -155,7 +169,7 @@ export function StaffSidebar({
               isActive={activeSection === 'settings'}
               tooltip="Settings"
             >
-              <Link to={'/settings/profile' as never}>
+              <Link to="/settings/profile">
                 <Settings />
                 <span>Settings</span>
               </Link>

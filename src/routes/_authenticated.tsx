@@ -1,7 +1,13 @@
 // Authenticated layout route — protects all nested routes and renders the app shell.
 // Per better-auth TanStack Start docs: use createServerFn (getSession)
 // in beforeLoad — not authClient.getSession(), which can't forward cookies during SSR.
-import { createFileRoute, Outlet, redirect, isRedirect } from '@tanstack/react-router'
+import {
+  createFileRoute,
+  Outlet,
+  redirect,
+  isRedirect,
+  useRouterState,
+} from '@tanstack/react-router'
 import { getSession } from '#/shared/auth/auth.functions'
 import {
   getActiveOrganization,
@@ -13,6 +19,7 @@ import type { Role } from '#/shared/domain/roles'
 import { SidebarProvider, SidebarInset } from '#/components/ui/sidebar'
 import { ManagerSidebar } from '#/components/layout/ManagerSidebar'
 import { StaffSidebar } from '#/components/layout/StaffSidebar'
+import { SettingsSidebar } from '#/components/layout/SettingsSidebar'
 import { AppTopBar } from '#/components/layout/AppTopBar'
 import { hasRole } from '#/shared/domain/roles'
 import { useServerFn } from '@tanstack/react-start'
@@ -136,10 +143,14 @@ function AuthenticatedLayout() {
   const ctx = Route.useRouteContext()
   const { organizations, properties } = Route.useLoaderData()
   const setActiveOrganizationFn = useServerFn(setActiveOrganization)
+  const pathname = useRouterState({ select: (s) => s.location.pathname })
+  const isSettings = pathname.startsWith('/settings')
 
   return (
     <SidebarProvider>
-      {hasRole(ctx.role, 'PropertyManager') ? (
+      {isSettings ? (
+        <SettingsSidebar />
+      ) : hasRole(ctx.role, 'PropertyManager') ? (
         <ManagerSidebar
           role={ctx.role}
           organizations={organizations}
@@ -152,11 +163,12 @@ function AuthenticatedLayout() {
           role={ctx.role}
           organizations={organizations}
           activeOrganization={ctx.activeOrganization}
+          setActiveOrganization={setActiveOrganizationFn}
           hasTeam={false}
         />
       )}
       <SidebarInset>
-        <AppTopBar user={ctx.user} />
+        {!isSettings && <AppTopBar user={ctx.user} />}
         <main className="flex-1 overflow-auto">
           <Outlet />
         </main>
