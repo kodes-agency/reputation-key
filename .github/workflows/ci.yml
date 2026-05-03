@@ -50,7 +50,7 @@ jobs:
           DATABASE_URL: postgresql://test:test@localhost:5432/test
           BETTER_AUTH_SECRET: test-secret-at-least-32-characters-long-for-ci
           BETTER_AUTH_URL: http://localhost:3000
-        run: pnpm db:push -- --force && echo "y" | pnpm auth:migrate
+        run: echo "y" | pnpm db:push && echo "y" | pnpm auth:migrate
 
       - name: Test
         env:
