@@ -29,19 +29,35 @@ function useThemeMode() {
     if (stored === 'light' || stored === 'dark' || stored === 'auto') {
       setMode(stored)
     }
+    const resolved =
+      stored === 'light'
+        ? 'light'
+        : stored === 'dark'
+          ? 'dark'
+          : window.matchMedia('(prefers-color-scheme: light)').matches
+            ? 'light'
+            : 'dark'
+
+    if (resolved === 'light') {
+      document.documentElement.classList.add('light')
+    } else {
+      document.documentElement.classList.remove('light')
+    }
+    document.documentElement.style.colorScheme = resolved
   }, [])
 
   function applyMode(next: ThemeMode) {
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-    const resolved = next === 'auto' ? (prefersDark ? 'dark' : 'light') : next
+    const resolved =
+      next === 'auto'
+        ? window.matchMedia('(prefers-color-scheme: light)').matches
+          ? 'light'
+          : 'dark'
+        : next
 
-    document.documentElement.classList.remove('light', 'dark')
-    document.documentElement.classList.add(resolved)
-
-    if (next === 'auto') {
-      document.documentElement.removeAttribute('data-theme')
+    if (resolved === 'light') {
+      document.documentElement.classList.add('light')
     } else {
-      document.documentElement.setAttribute('data-theme', next)
+      document.documentElement.classList.remove('light')
     }
 
     document.documentElement.style.colorScheme = resolved
