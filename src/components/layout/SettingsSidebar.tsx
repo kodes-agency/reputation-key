@@ -12,6 +12,7 @@ import {
   SidebarRail,
 } from '#/components/ui/sidebar'
 import { usePermissions } from '#/shared/hooks/usePermissions'
+import { hasRole } from '#/shared/domain/roles'
 
 function useActiveSettingsSection(): string {
   return useRouterState({
@@ -25,7 +26,7 @@ function useActiveSettingsSection(): string {
 export function SettingsSidebar() {
   const activeSection = useActiveSettingsSection()
   const { can, role } = usePermissions()
-  const returnPath = role === 'Staff' ? '/' : '/properties'
+  const returnPath = hasRole(role, 'PropertyManager') ? '/properties' : '/'
 
   const items = [
     { key: 'profile', label: 'Profile', icon: User, href: '/settings/profile' },
