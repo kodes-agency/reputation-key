@@ -111,15 +111,8 @@ export function ManagerSidebar({
 
   function handleOrgSwitch(orgId: string) {
     setOrg({ data: { organizationId: orgId } })
-      .then(() => {
-        if (properties.length > 0) {
-          navigate({
-            to: '/properties/$propertyId',
-            params: { propertyId: properties[0].id },
-          })
-        } else {
-          navigate({ to: '/properties' })
-        }
+      .then(async () => {
+        await navigate({ to: '/properties' })
       })
       .catch(() => {
         // Error is tracked in setOrg.error via useAction
