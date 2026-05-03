@@ -18,16 +18,12 @@ function getInitialMode(): ThemeMode {
 }
 
 function applyThemeMode(mode: ThemeMode) {
-  const prefersLight = window.matchMedia('(prefers-color-scheme: light)').matches
-  const resolved = mode === 'auto' ? (prefersLight ? 'light' : 'dark') : mode
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+  const resolved = mode === 'auto' ? (prefersDark ? 'dark' : 'light') : mode
 
   const root = document.documentElement
-  if (resolved === 'light') {
-    root.classList.add('light')
-  } else {
-    root.classList.remove('light')
-  }
-
+  root.classList.remove('light', 'dark')
+  root.classList.add(resolved)
   root.style.colorScheme = resolved
 }
 

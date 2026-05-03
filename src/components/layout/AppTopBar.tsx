@@ -29,38 +29,25 @@ function useThemeMode() {
     if (stored === 'light' || stored === 'dark' || stored === 'auto') {
       setMode(stored)
     }
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
     const resolved =
-      stored === 'light'
-        ? 'light'
-        : stored === 'dark'
-          ? 'dark'
-          : window.matchMedia('(prefers-color-scheme: light)').matches
-            ? 'light'
-            : 'dark'
+      stored === 'auto' || !stored ? (prefersDark ? 'dark' : 'light') : stored
 
-    if (resolved === 'light') {
-      document.documentElement.classList.add('light')
-    } else {
-      document.documentElement.classList.remove('light')
-    }
-    document.documentElement.style.colorScheme = resolved
+    const root = document.documentElement
+    root.classList.remove('light', 'dark')
+    root.classList.add(resolved)
+    root.style.colorScheme = resolved
   }, [])
 
   function applyMode(next: ThemeMode) {
-    const resolved =
-      next === 'auto'
-        ? window.matchMedia('(prefers-color-scheme: light)').matches
-          ? 'light'
-          : 'dark'
-        : next
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+    const resolved = next === 'auto' ? (prefersDark ? 'dark' : 'light') : next
 
-    if (resolved === 'light') {
-      document.documentElement.classList.add('light')
-    } else {
-      document.documentElement.classList.remove('light')
-    }
+    const root = document.documentElement
+    root.classList.remove('light', 'dark')
+    root.classList.add(resolved)
+    root.style.colorScheme = resolved
 
-    document.documentElement.style.colorScheme = resolved
     window.localStorage.setItem('theme', next)
     setMode(next)
   }
