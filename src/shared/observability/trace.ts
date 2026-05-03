@@ -23,14 +23,13 @@ function createSpan(name: string): Span {
 function endSpan(span: Span, error?: unknown): void {
   const logger = getLogger()
   const duration = Math.round(performance.now() - span.startedAt)
-  const ctx = getRequestContext()
 
   if (error) {
     const message = error instanceof Error ? error.message : String(error)
     logger.error(
       {
         span: span.name,
-        requestId: ctx?.requestId,
+        requestId: span.requestId,
         duration,
         error: message,
         stack: error instanceof Error ? error.stack : undefined,
@@ -39,7 +38,7 @@ function endSpan(span: Span, error?: unknown): void {
     )
   } else {
     logger.debug(
-      { span: span.name, requestId: ctx?.requestId, duration },
+      { span: span.name, requestId: span.requestId, duration },
       `✓ ${span.name} ${duration}ms`,
     )
   }

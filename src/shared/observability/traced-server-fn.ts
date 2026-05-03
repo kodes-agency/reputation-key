@@ -15,7 +15,7 @@
 
 import { generateRequestId, runWithContext } from '#/shared/observability/request-context'
 import { startRequestSpan } from '#/shared/observability/trace'
-import { catchUntagged } from '#/shared/auth/server-errors'
+import { ServerFunctionError, catchUntagged } from '#/shared/auth/server-errors'
 
 /**
  * Wraps a server function handler with tracing and error safety net.
@@ -38,7 +38,7 @@ export function tracedHandler<TInput, TOutput>(
       } catch (e) {
         span.end(e)
         // Already a ServerFunctionError (tagged by domain catch block) — just re-throw
-        if (e instanceof Error && '_tag' in e && 'status' in e) {
+        if (e instanceof ServerFunctionError) {
           throw e
         }
         // Untagged error — log full detail and wrap as generic 500

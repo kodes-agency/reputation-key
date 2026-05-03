@@ -5,7 +5,7 @@
 import { getLogger } from '#/shared/observability/logger'
 import { getRequestContext } from '#/shared/observability/request-context'
 
-class ServerFunctionError extends Error {
+export class ServerFunctionError extends Error {
   readonly _tag: string
   readonly code: string
   readonly status: number
