@@ -40,7 +40,7 @@ function TeamSettingsPage() {
         }))}
         mutation={mutation}
         onCancel={() =>
-          navigate({ to: '/properties/$propertyId/teams', params: { propertyId } })
+          navigate({ to: '/properties/$propertyId/people', params: { propertyId } })
         }
       />
     </>

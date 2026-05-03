@@ -34,5 +34,9 @@ function CreatePortalPage() {
     },
   })
 
-  return <PortalCreationWithPreview propertyId={propertyId} mutation={mutation} />
+  return (
+    <div className="mx-auto max-w-2xl">
+      <PortalCreationWithPreview propertyId={propertyId} mutation={mutation} />
+    </div>
+  )
 }
