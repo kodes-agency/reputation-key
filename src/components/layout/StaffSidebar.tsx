@@ -68,11 +68,13 @@ export function StaffSidebar({
   const setOrg = useAction(setActiveOrganization)
 
   function handleOrgSwitch(orgId: string) {
-    void setOrg({ data: { organizationId: orgId } })
+    setOrg({ data: { organizationId: orgId } })
       .then(() => {
         navigate({ to: '/' })
       })
-      .catch(() => {})
+      .catch(() => {
+        // Error is tracked in setOrg.error via useAction
+      })
   }
 
   return (

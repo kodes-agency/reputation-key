@@ -169,7 +169,7 @@ function AuthenticatedLayout() {
         />
       )}
       <SidebarInset>
-        {!isSettings && <AppTopBar user={ctx.user} />}
+        <AppTopBar user={ctx.user} />
         <main className="flex-1 overflow-auto">
           <Outlet />
         </main>

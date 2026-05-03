@@ -110,7 +110,7 @@ export function ManagerSidebar({
   const setOrg = useAction(setActiveOrganization)
 
   function handleOrgSwitch(orgId: string) {
-    void setOrg({ data: { organizationId: orgId } })
+    setOrg({ data: { organizationId: orgId } })
       .then(() => {
         if (properties.length > 0) {
           navigate({
@@ -121,7 +121,9 @@ export function ManagerSidebar({
           navigate({ to: '/properties' })
         }
       })
-      .catch(() => {})
+      .catch(() => {
+        // Error is tracked in setOrg.error via useAction
+      })
   }
 
   function handlePropertySwitch(newPropertyId: string) {
