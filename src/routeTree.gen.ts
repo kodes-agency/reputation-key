@@ -16,7 +16,11 @@ import { Route as JoinRouteImport } from './routes/join'
 import { Route as AcceptInvitationRouteImport } from './routes/accept-invitation'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedTeamRouteImport } from './routes/_authenticated/team'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
+import { Route as AuthenticatedProgressRouteImport } from './routes/_authenticated/progress'
+import { Route as AuthenticatedLeaderboardRouteImport } from './routes/_authenticated/leaderboard'
+import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as ApiHealthIndexRouteImport } from './routes/api/health/index'
 import { Route as AuthenticatedStaffIndexRouteImport } from './routes/_authenticated/staff/index'
@@ -34,6 +38,7 @@ import { Route as AuthenticatedPropertiesPropertyIdIndexRouteImport } from './ro
 import { Route as ApiPublicClickLinkIdRouteImport } from './routes/api/public/click/$linkId'
 import { Route as ApiPortalsIdQrRouteImport } from './routes/api/portals/$id/qr'
 import { Route as AuthenticatedPropertiesPropertyIdReviewsRouteImport } from './routes/_authenticated/properties/$propertyId/reviews'
+import { Route as AuthenticatedPropertiesPropertyIdPeopleRouteImport } from './routes/_authenticated/properties/$propertyId/people'
 import { Route as AuthenticatedPropertiesPropertyIdMetricsRouteImport } from './routes/_authenticated/properties/$propertyId/metrics'
 import { Route as AuthenticatedPropertiesPropertyIdMembersRouteImport } from './routes/_authenticated/properties/$propertyId/members'
 import { Route as AuthenticatedPropertiesPropertyIdTeamsIndexRouteImport } from './routes/_authenticated/properties/$propertyId/teams/index'
@@ -81,9 +86,29 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedTeamRoute = AuthenticatedTeamRouteImport.update({
+  id: '/team',
+  path: '/team',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedProgressRoute = AuthenticatedProgressRouteImport.update({
+  id: '/progress',
+  path: '/progress',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedLeaderboardRoute = AuthenticatedLeaderboardRouteImport.update({
+  id: '/leaderboard',
+  path: '/leaderboard',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedHomeRoute = AuthenticatedHomeRouteImport.update({
+  id: '/home',
+  path: '/home',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
@@ -177,6 +202,12 @@ const AuthenticatedPropertiesPropertyIdReviewsRoute =
     path: '/reviews',
     getParentRoute: () => AuthenticatedPropertiesPropertyIdRoute,
   } as any)
+const AuthenticatedPropertiesPropertyIdPeopleRoute =
+  AuthenticatedPropertiesPropertyIdPeopleRouteImport.update({
+    id: '/people',
+    path: '/people',
+    getParentRoute: () => AuthenticatedPropertiesPropertyIdRoute,
+  } as any)
 const AuthenticatedPropertiesPropertyIdMetricsRoute =
   AuthenticatedPropertiesPropertyIdMetricsRouteImport.update({
     id: '/metrics',
@@ -258,7 +289,11 @@ export interface FileRoutesByFullPath {
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/home': typeof AuthenticatedHomeRoute
+  '/leaderboard': typeof AuthenticatedLeaderboardRoute
+  '/progress': typeof AuthenticatedProgressRoute
   '/settings': typeof AuthenticatedSettingsRouteWithChildren
+  '/team': typeof AuthenticatedTeamRoute
   '/properties/$propertyId': typeof AuthenticatedPropertiesPropertyIdRouteWithChildren
   '/properties/new': typeof AuthenticatedPropertiesNewRoute
   '/settings/organization': typeof AuthenticatedSettingsOrganizationRoute
@@ -273,6 +308,7 @@ export interface FileRoutesByFullPath {
   '/api/health/': typeof ApiHealthIndexRoute
   '/properties/$propertyId/members': typeof AuthenticatedPropertiesPropertyIdMembersRoute
   '/properties/$propertyId/metrics': typeof AuthenticatedPropertiesPropertyIdMetricsRoute
+  '/properties/$propertyId/people': typeof AuthenticatedPropertiesPropertyIdPeopleRoute
   '/properties/$propertyId/reviews': typeof AuthenticatedPropertiesPropertyIdReviewsRoute
   '/api/portals/$id/qr': typeof ApiPortalsIdQrRoute
   '/api/public/click/$linkId': typeof ApiPublicClickLinkIdRoute
@@ -296,6 +332,10 @@ export interface FileRoutesByTo {
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/home': typeof AuthenticatedHomeRoute
+  '/leaderboard': typeof AuthenticatedLeaderboardRoute
+  '/progress': typeof AuthenticatedProgressRoute
+  '/team': typeof AuthenticatedTeamRoute
   '/properties/new': typeof AuthenticatedPropertiesNewRoute
   '/settings/organization': typeof AuthenticatedSettingsOrganizationRoute
   '/settings/preferences': typeof AuthenticatedSettingsPreferencesRoute
@@ -309,6 +349,7 @@ export interface FileRoutesByTo {
   '/api/health': typeof ApiHealthIndexRoute
   '/properties/$propertyId/members': typeof AuthenticatedPropertiesPropertyIdMembersRoute
   '/properties/$propertyId/metrics': typeof AuthenticatedPropertiesPropertyIdMetricsRoute
+  '/properties/$propertyId/people': typeof AuthenticatedPropertiesPropertyIdPeopleRoute
   '/properties/$propertyId/reviews': typeof AuthenticatedPropertiesPropertyIdReviewsRoute
   '/api/portals/$id/qr': typeof ApiPortalsIdQrRoute
   '/api/public/click/$linkId': typeof ApiPublicClickLinkIdRoute
@@ -333,7 +374,11 @@ export interface FileRoutesById {
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/home': typeof AuthenticatedHomeRoute
+  '/_authenticated/leaderboard': typeof AuthenticatedLeaderboardRoute
+  '/_authenticated/progress': typeof AuthenticatedProgressRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRouteWithChildren
+  '/_authenticated/team': typeof AuthenticatedTeamRoute
   '/_authenticated/properties/$propertyId': typeof AuthenticatedPropertiesPropertyIdRouteWithChildren
   '/_authenticated/properties/new': typeof AuthenticatedPropertiesNewRoute
   '/_authenticated/settings/organization': typeof AuthenticatedSettingsOrganizationRoute
@@ -348,6 +393,7 @@ export interface FileRoutesById {
   '/api/health/': typeof ApiHealthIndexRoute
   '/_authenticated/properties/$propertyId/members': typeof AuthenticatedPropertiesPropertyIdMembersRoute
   '/_authenticated/properties/$propertyId/metrics': typeof AuthenticatedPropertiesPropertyIdMetricsRoute
+  '/_authenticated/properties/$propertyId/people': typeof AuthenticatedPropertiesPropertyIdPeopleRoute
   '/_authenticated/properties/$propertyId/reviews': typeof AuthenticatedPropertiesPropertyIdReviewsRoute
   '/api/portals/$id/qr': typeof ApiPortalsIdQrRoute
   '/api/public/click/$linkId': typeof ApiPublicClickLinkIdRoute
@@ -373,7 +419,11 @@ export interface FileRouteTypes {
     | '/register'
     | '/reset-password'
     | '/dashboard'
+    | '/home'
+    | '/leaderboard'
+    | '/progress'
     | '/settings'
+    | '/team'
     | '/properties/$propertyId'
     | '/properties/new'
     | '/settings/organization'
@@ -388,6 +438,7 @@ export interface FileRouteTypes {
     | '/api/health/'
     | '/properties/$propertyId/members'
     | '/properties/$propertyId/metrics'
+    | '/properties/$propertyId/people'
     | '/properties/$propertyId/reviews'
     | '/api/portals/$id/qr'
     | '/api/public/click/$linkId'
@@ -411,6 +462,10 @@ export interface FileRouteTypes {
     | '/register'
     | '/reset-password'
     | '/dashboard'
+    | '/home'
+    | '/leaderboard'
+    | '/progress'
+    | '/team'
     | '/properties/new'
     | '/settings/organization'
     | '/settings/preferences'
@@ -424,6 +479,7 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/properties/$propertyId/members'
     | '/properties/$propertyId/metrics'
+    | '/properties/$propertyId/people'
     | '/properties/$propertyId/reviews'
     | '/api/portals/$id/qr'
     | '/api/public/click/$linkId'
@@ -447,7 +503,11 @@ export interface FileRouteTypes {
     | '/register'
     | '/reset-password'
     | '/_authenticated/dashboard'
+    | '/_authenticated/home'
+    | '/_authenticated/leaderboard'
+    | '/_authenticated/progress'
     | '/_authenticated/settings'
+    | '/_authenticated/team'
     | '/_authenticated/properties/$propertyId'
     | '/_authenticated/properties/new'
     | '/_authenticated/settings/organization'
@@ -462,6 +522,7 @@ export interface FileRouteTypes {
     | '/api/health/'
     | '/_authenticated/properties/$propertyId/members'
     | '/_authenticated/properties/$propertyId/metrics'
+    | '/_authenticated/properties/$propertyId/people'
     | '/_authenticated/properties/$propertyId/reviews'
     | '/api/portals/$id/qr'
     | '/api/public/click/$linkId'
@@ -544,11 +605,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/team': {
+      id: '/_authenticated/team'
+      path: '/team'
+      fullPath: '/team'
+      preLoaderRoute: typeof AuthenticatedTeamRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/settings': {
       id: '/_authenticated/settings'
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof AuthenticatedSettingsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/progress': {
+      id: '/_authenticated/progress'
+      path: '/progress'
+      fullPath: '/progress'
+      preLoaderRoute: typeof AuthenticatedProgressRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/leaderboard': {
+      id: '/_authenticated/leaderboard'
+      path: '/leaderboard'
+      fullPath: '/leaderboard'
+      preLoaderRoute: typeof AuthenticatedLeaderboardRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/home': {
+      id: '/_authenticated/home'
+      path: '/home'
+      fullPath: '/home'
+      preLoaderRoute: typeof AuthenticatedHomeRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/dashboard': {
@@ -668,6 +757,13 @@ declare module '@tanstack/react-router' {
       path: '/reviews'
       fullPath: '/properties/$propertyId/reviews'
       preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdReviewsRouteImport
+      parentRoute: typeof AuthenticatedPropertiesPropertyIdRoute
+    }
+    '/_authenticated/properties/$propertyId/people': {
+      id: '/_authenticated/properties/$propertyId/people'
+      path: '/people'
+      fullPath: '/properties/$propertyId/people'
+      preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdPeopleRouteImport
       parentRoute: typeof AuthenticatedPropertiesPropertyIdRoute
     }
     '/_authenticated/properties/$propertyId/metrics': {
@@ -797,6 +893,7 @@ const AuthenticatedPropertiesPropertyIdTeamsTeamIdRouteWithChildren =
 interface AuthenticatedPropertiesPropertyIdRouteChildren {
   AuthenticatedPropertiesPropertyIdMembersRoute: typeof AuthenticatedPropertiesPropertyIdMembersRoute
   AuthenticatedPropertiesPropertyIdMetricsRoute: typeof AuthenticatedPropertiesPropertyIdMetricsRoute
+  AuthenticatedPropertiesPropertyIdPeopleRoute: typeof AuthenticatedPropertiesPropertyIdPeopleRoute
   AuthenticatedPropertiesPropertyIdReviewsRoute: typeof AuthenticatedPropertiesPropertyIdReviewsRoute
   AuthenticatedPropertiesPropertyIdIndexRoute: typeof AuthenticatedPropertiesPropertyIdIndexRoute
   AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute: typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute
@@ -815,6 +912,8 @@ const AuthenticatedPropertiesPropertyIdRouteChildren: AuthenticatedPropertiesPro
       AuthenticatedPropertiesPropertyIdMembersRoute,
     AuthenticatedPropertiesPropertyIdMetricsRoute:
       AuthenticatedPropertiesPropertyIdMetricsRoute,
+    AuthenticatedPropertiesPropertyIdPeopleRoute:
+      AuthenticatedPropertiesPropertyIdPeopleRoute,
     AuthenticatedPropertiesPropertyIdReviewsRoute:
       AuthenticatedPropertiesPropertyIdReviewsRoute,
     AuthenticatedPropertiesPropertyIdIndexRoute:
@@ -844,7 +943,11 @@ const AuthenticatedPropertiesPropertyIdRouteWithChildren =
 
 interface AuthenticatedRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedHomeRoute: typeof AuthenticatedHomeRoute
+  AuthenticatedLeaderboardRoute: typeof AuthenticatedLeaderboardRoute
+  AuthenticatedProgressRoute: typeof AuthenticatedProgressRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRouteWithChildren
+  AuthenticatedTeamRoute: typeof AuthenticatedTeamRoute
   AuthenticatedPropertiesPropertyIdRoute: typeof AuthenticatedPropertiesPropertyIdRouteWithChildren
   AuthenticatedPropertiesNewRoute: typeof AuthenticatedPropertiesNewRoute
   AuthenticatedPropertiesIndexRoute: typeof AuthenticatedPropertiesIndexRoute
@@ -853,7 +956,11 @@ interface AuthenticatedRouteChildren {
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedHomeRoute: AuthenticatedHomeRoute,
+  AuthenticatedLeaderboardRoute: AuthenticatedLeaderboardRoute,
+  AuthenticatedProgressRoute: AuthenticatedProgressRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRouteWithChildren,
+  AuthenticatedTeamRoute: AuthenticatedTeamRoute,
   AuthenticatedPropertiesPropertyIdRoute:
     AuthenticatedPropertiesPropertyIdRouteWithChildren,
   AuthenticatedPropertiesNewRoute: AuthenticatedPropertiesNewRoute,
@@ -882,3 +989,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

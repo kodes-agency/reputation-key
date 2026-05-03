@@ -139,7 +139,7 @@ export function StaffSidebar({
                     isActive={activeSection === item.key}
                     tooltip={item.label}
                   >
-                    <Link to={item.href as never}>
+                    <Link to={item.href}>
                       <item.icon />
                       <span>{item.label}</span>
                     </Link>
@@ -153,7 +153,7 @@ export function StaffSidebar({
                     isActive={activeSection === 'team'}
                     tooltip="Team"
                   >
-                    <Link to={'/team' as never}>
+                    <Link to="/team">
                       <Users />
                       <span>Team</span>
                     </Link>
