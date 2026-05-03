@@ -5,7 +5,7 @@ import {
   createStaffAssignment,
   removeStaffAssignment,
 } from '#/contexts/staff/server/staff-assignments'
-import { listTeams, createTeam } from '#/contexts/team/server/teams'
+import { listTeams, createTeam, deleteTeam } from '#/contexts/team/server/teams'
 import { listMembers } from '#/contexts/identity/server/organizations'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '#/components/ui/tabs'
 import { StaffAssignmentList } from '#/components/features/staff/StaffAssignmentList'
@@ -17,6 +17,7 @@ import {
 } from '#/components/hooks/use-mutation-action'
 import { toMemberOptions, toTeamOptions } from '#/lib/lookups'
 import type { TeamLike, MemberLike } from '#/lib/lookups'
+import { usePermissions } from '#/shared/hooks/usePermissions'
 import { Button } from '#/components/ui/button'
 import { Badge } from '#/components/ui/badge'
 import {
@@ -27,7 +28,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '#/components/ui/dialog'
-import { Plus } from 'lucide-react'
+import { Plus, Trash2 } from 'lucide-react'
 import {
   Table,
   TableBody,
@@ -53,6 +54,7 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/peo
 function PeoplePage() {
   const { propertyId } = Route.useParams()
   const { assignments, members, teams } = Route.useLoaderData()
+  const { can: canManage } = usePermissions()
   const [tab, setTab] = useState('staff')
   const [assignOpen, setAssignOpen] = useState(false)
   const [createTeamOpen, setCreateTeamOpen] = useState(false)
@@ -70,6 +72,9 @@ function PeoplePage() {
     onSuccess: async () => {
       setCreateTeamOpen(false)
     },
+  })
+  const deleteTeamMutation = useMutationAction(deleteTeam, {
+    successMessage: 'Team deleted',
   })
 
   return (
@@ -124,27 +129,29 @@ function PeoplePage() {
 
         <TabsContent value="teams" className="mt-4 space-y-4">
           <div className="flex justify-end">
-            <Dialog open={createTeamOpen} onOpenChange={setCreateTeamOpen}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus />
-                  Create Team
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Create a new team</DialogTitle>
-                  <DialogDescription>
-                    Group staff members into teams for this property.
-                  </DialogDescription>
-                </DialogHeader>
-                <CreateTeamForm
-                  propertyId={propertyId}
-                  mutation={createTeamMutation}
-                  members={memberOptions}
-                />
-              </DialogContent>
-            </Dialog>
+            {canManage('team.create') && (
+              <Dialog open={createTeamOpen} onOpenChange={setCreateTeamOpen}>
+                <DialogTrigger asChild>
+                  <Button>
+                    <Plus />
+                    Create Team
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Create a new team</DialogTitle>
+                    <DialogDescription>
+                      Group staff members into teams for this property.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <CreateTeamForm
+                    propertyId={propertyId}
+                    mutation={createTeamMutation}
+                    members={memberOptions}
+                  />
+                </DialogContent>
+              </Dialog>
+            )}
           </div>
           {teams.length === 0 ? (
             <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
@@ -168,6 +175,14 @@ function PeoplePage() {
                       members
                     </p>
                   </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-muted-foreground hover:text-destructive"
+                    onClick={() => deleteTeamMutation({ data: { teamId: team.id } })}
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
                 </div>
               ))}
             </div>
