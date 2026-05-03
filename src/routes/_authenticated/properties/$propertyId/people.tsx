@@ -28,7 +28,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '#/components/ui/dialog'
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus, Trash2, Users } from 'lucide-react'
 import {
   Table,
   TableBody,
@@ -37,6 +37,18 @@ import {
   TableHeader,
   TableRow,
 } from '#/components/ui/table'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '#/components/ui/alert-dialog'
+import { EmptyState } from '#/components/ui/empty-state'
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/people')({
   staleTime: 30_000,
@@ -54,7 +66,7 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/peo
 function PeoplePage() {
   const { propertyId } = Route.useParams()
   const { assignments, members, teams } = Route.useLoaderData()
-  const { can: canManage } = usePermissions()
+  const { can } = usePermissions()
   const [tab, setTab] = useState('staff')
   const [assignOpen, setAssignOpen] = useState(false)
   const [createTeamOpen, setCreateTeamOpen] = useState(false)
@@ -129,7 +141,7 @@ function PeoplePage() {
 
         <TabsContent value="teams" className="mt-4 space-y-4">
           <div className="flex justify-end">
-            {canManage('team.create') && (
+            {can('team.create') && (
               <Dialog open={createTeamOpen} onOpenChange={setCreateTeamOpen}>
                 <DialogTrigger asChild>
                   <Button>
@@ -154,9 +166,11 @@ function PeoplePage() {
             )}
           </div>
           {teams.length === 0 ? (
-            <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-              No teams yet. Create a team to group staff members.
-            </div>
+            <EmptyState icon={Users} title="No teams yet">
+              <p className="text-sm text-muted-foreground">
+                Create a team to group staff members.
+              </p>
+            </EmptyState>
           ) : (
             <div className="flex flex-col gap-2">
               {teams.map((team: TeamLike) => (
@@ -175,14 +189,39 @@ function PeoplePage() {
                       members
                     </p>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="text-muted-foreground hover:text-destructive"
-                    onClick={() => deleteTeamMutation({ data: { teamId: team.id } })}
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
+                  {can('team.delete') && (
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-muted-foreground hover:text-destructive"
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete {team.name}?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This will remove the team. You can recreate it later.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() =>
+                              deleteTeamMutation({ data: { teamId: team.id } })
+                            }
+                            disabled={deleteTeamMutation.isPending}
+                            className="bg-destructive text-white hover:bg-destructive/90"
+                          >
+                            {deleteTeamMutation.isPending ? 'Deleting…' : 'Delete team'}
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  )}
                 </div>
               ))}
             </div>
