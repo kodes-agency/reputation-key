@@ -73,6 +73,10 @@ export function createAuth() {
     session: {
       expiresIn: SESSION_EXPIRY_SECONDS, // 30 days
       updateAge: SESSION_UPDATE_AGE_SECONDS, // Rolling update every 24 hours
+      cookieCache: {
+        enabled: true,
+        maxAge: 5 * 60, // 5 minutes — session revalidated from DB at most every 5 min
+      },
     },
     plugins: [
       tanstackStartCookies(),
