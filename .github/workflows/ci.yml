@@ -45,6 +45,11 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      - name: Push database schema
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/test
+        run: pnpm db:push
+
       - name: Test
         env:
           NODE_ENV: test
