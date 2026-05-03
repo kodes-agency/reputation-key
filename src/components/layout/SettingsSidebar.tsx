@@ -27,16 +27,21 @@ export function SettingsSidebar() {
   const { can } = usePermissions()
 
   const items = [
-    { key: 'profile', label: 'Profile', icon: User, href: '/profile' },
-    { key: 'security', label: 'Security', icon: Shield, href: '/security' },
-    { key: 'preferences', label: 'Preferences', icon: Palette, href: '/preferences' },
+    { key: 'profile', label: 'Profile', icon: User, href: '/settings/profile' },
+    { key: 'security', label: 'Security', icon: Shield, href: '/settings/security' },
+    {
+      key: 'preferences',
+      label: 'Preferences',
+      icon: Palette,
+      href: '/settings/preferences',
+    },
     ...(can('organization.update')
       ? [
           {
             key: 'organization',
             label: 'Organization',
             icon: Building2,
-            href: '/organization',
+            href: '/settings/organization',
           },
         ]
       : []),
