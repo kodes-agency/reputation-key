@@ -1,10 +1,11 @@
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import type { AuthRouteContext } from '#/routes/_authenticated'
+import { can } from '#/shared/domain/permissions'
 
 export const Route = createFileRoute('/_authenticated/settings/organization')({
   beforeLoad: ({ context }) => {
     const { role } = context as AuthRouteContext
-    if (role !== 'AccountAdmin' && role !== 'PropertyManager') {
+    if (!can(role, 'organization.update')) {
       throw redirect({ to: '/settings/profile' })
     }
   },
