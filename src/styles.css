@@ -3,7 +3,7 @@
 @import 'tailwindcss';
 @plugin '@tailwindcss/typography';
 @import 'tw-animate-css';
-@custom-variant dark (&:not(.light*));
+@custom-variant dark (&:where(:not(.light *)));
 
 :root {
   /* Surface tokens */
