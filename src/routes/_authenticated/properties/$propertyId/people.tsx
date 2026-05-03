@@ -16,7 +16,7 @@ import {
   useMutationActionSilent,
 } from '#/components/hooks/use-mutation-action'
 import { toMemberOptions, toTeamOptions } from '#/lib/lookups'
-import type { TeamLike, MemberLike } from '#/lib/lookups'
+import type { MemberLike } from '#/lib/lookups'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { Button } from '#/components/ui/button'
 import { Badge } from '#/components/ui/badge'
@@ -73,7 +73,7 @@ function PeoplePage() {
 
   const memberOptions = toMemberOptions(members)
   const teamOptions = toTeamOptions(teams)
-  const assignedUserIds = new Set(assignments.map((a: { userId: string }) => a.userId))
+  const assignedUserIds = new Set(assignments.map((a) => a.userId))
 
   const assignMutation = useMutationActionSilent(createStaffAssignment)
   const removeMutation = useMutationAction(removeStaffAssignment, {
@@ -173,7 +173,7 @@ function PeoplePage() {
             </EmptyState>
           ) : (
             <div className="flex flex-col gap-2">
-              {teams.map((team: TeamLike) => (
+              {teams.map((team) => (
                 <div
                   key={team.id}
                   className="flex items-center justify-between rounded-lg border p-4"
@@ -181,12 +181,7 @@ function PeoplePage() {
                   <div>
                     <p className="font-semibold">{team.name}</p>
                     <p className="text-sm text-muted-foreground">
-                      {
-                        assignments.filter(
-                          (a: { teamId: string | null }) => a.teamId === team.id,
-                        ).length
-                      }{' '}
-                      members
+                      {assignments.filter((a) => a.teamId === team.id).length} members
                     </p>
                   </div>
                   {can('team.delete') && (
