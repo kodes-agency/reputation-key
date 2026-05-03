@@ -17,6 +17,7 @@ import { Route as AcceptInvitationRouteImport } from './routes/accept-invitation
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/_settings'
 import { Route as ApiHealthIndexRouteImport } from './routes/api/health/index'
 import { Route as AuthenticatedStaffIndexRouteImport } from './routes/_authenticated/staff/index'
 import { Route as AuthenticatedPropertiesIndexRouteImport } from './routes/_authenticated/properties/index'
@@ -24,6 +25,10 @@ import { Route as PPropertySlugPortalSlugRouteImport } from './routes/p/$propert
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as AuthenticatedPropertiesNewRouteImport } from './routes/_authenticated/properties/new'
 import { Route as AuthenticatedPropertiesPropertyIdRouteImport } from './routes/_authenticated/properties/$propertyId'
+import { Route as AuthenticatedSettingsSecurityRouteImport } from './routes/_authenticated/_settings/security'
+import { Route as AuthenticatedSettingsProfileRouteImport } from './routes/_authenticated/_settings/profile'
+import { Route as AuthenticatedSettingsPreferencesRouteImport } from './routes/_authenticated/_settings/preferences'
+import { Route as AuthenticatedSettingsOrganizationRouteImport } from './routes/_authenticated/_settings/organization'
 import { Route as AuthenticatedPropertiesPropertyIdIndexRouteImport } from './routes/_authenticated/properties/$propertyId/index'
 import { Route as ApiPublicClickLinkIdRouteImport } from './routes/api/public/click/$linkId'
 import { Route as ApiPortalsIdQrRouteImport } from './routes/api/portals/$id/qr'
@@ -80,6 +85,10 @@ const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
+  id: '/_settings',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const ApiHealthIndexRoute = ApiHealthIndexRouteImport.update({
   id: '/api/health/',
   path: '/api/health/',
@@ -90,12 +99,11 @@ const AuthenticatedStaffIndexRoute = AuthenticatedStaffIndexRouteImport.update({
   path: '/staff/',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
-const AuthenticatedPropertiesIndexRoute =
-  AuthenticatedPropertiesIndexRouteImport.update({
-    id: '/properties/',
-    path: '/properties/',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
+const AuthenticatedPropertiesIndexRoute = AuthenticatedPropertiesIndexRouteImport.update({
+  id: '/properties/',
+  path: '/properties/',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const PPropertySlugPortalSlugRoute = PPropertySlugPortalSlugRouteImport.update({
   id: '/p/$propertySlug/$portalSlug',
   path: '/p/$propertySlug/$portalSlug',
@@ -106,17 +114,39 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedPropertiesNewRoute =
-  AuthenticatedPropertiesNewRouteImport.update({
-    id: '/properties/new',
-    path: '/properties/new',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
+const AuthenticatedPropertiesNewRoute = AuthenticatedPropertiesNewRouteImport.update({
+  id: '/properties/new',
+  path: '/properties/new',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedPropertiesPropertyIdRoute =
   AuthenticatedPropertiesPropertyIdRouteImport.update({
     id: '/properties/$propertyId',
     path: '/properties/$propertyId',
     getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedSettingsSecurityRoute =
+  AuthenticatedSettingsSecurityRouteImport.update({
+    id: '/security',
+    path: '/security',
+    getParentRoute: () => AuthenticatedSettingsRoute,
+  } as any)
+const AuthenticatedSettingsProfileRoute = AuthenticatedSettingsProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => AuthenticatedSettingsRoute,
+} as any)
+const AuthenticatedSettingsPreferencesRoute =
+  AuthenticatedSettingsPreferencesRouteImport.update({
+    id: '/preferences',
+    path: '/preferences',
+    getParentRoute: () => AuthenticatedSettingsRoute,
+  } as any)
+const AuthenticatedSettingsOrganizationRoute =
+  AuthenticatedSettingsOrganizationRouteImport.update({
+    id: '/organization',
+    path: '/organization',
+    getParentRoute: () => AuthenticatedSettingsRoute,
   } as any)
 const AuthenticatedPropertiesPropertyIdIndexRoute =
   AuthenticatedPropertiesPropertyIdIndexRouteImport.update({
@@ -221,6 +251,10 @@ export interface FileRoutesByFullPath {
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/organization': typeof AuthenticatedSettingsOrganizationRoute
+  '/preferences': typeof AuthenticatedSettingsPreferencesRoute
+  '/profile': typeof AuthenticatedSettingsProfileRoute
+  '/security': typeof AuthenticatedSettingsSecurityRoute
   '/properties/$propertyId': typeof AuthenticatedPropertiesPropertyIdRouteWithChildren
   '/properties/new': typeof AuthenticatedPropertiesNewRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -253,6 +287,10 @@ export interface FileRoutesByTo {
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/organization': typeof AuthenticatedSettingsOrganizationRoute
+  '/preferences': typeof AuthenticatedSettingsPreferencesRoute
+  '/profile': typeof AuthenticatedSettingsProfileRoute
+  '/security': typeof AuthenticatedSettingsSecurityRoute
   '/properties/new': typeof AuthenticatedPropertiesNewRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/p/$propertySlug/$portalSlug': typeof PPropertySlugPortalSlugRoute
@@ -284,7 +322,12 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/_authenticated/_settings': typeof AuthenticatedSettingsRouteWithChildren
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/_settings/organization': typeof AuthenticatedSettingsOrganizationRoute
+  '/_authenticated/_settings/preferences': typeof AuthenticatedSettingsPreferencesRoute
+  '/_authenticated/_settings/profile': typeof AuthenticatedSettingsProfileRoute
+  '/_authenticated/_settings/security': typeof AuthenticatedSettingsSecurityRoute
   '/_authenticated/properties/$propertyId': typeof AuthenticatedPropertiesPropertyIdRouteWithChildren
   '/_authenticated/properties/new': typeof AuthenticatedPropertiesNewRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -319,6 +362,10 @@ export interface FileRouteTypes {
     | '/register'
     | '/reset-password'
     | '/dashboard'
+    | '/organization'
+    | '/preferences'
+    | '/profile'
+    | '/security'
     | '/properties/$propertyId'
     | '/properties/new'
     | '/api/auth/$'
@@ -351,6 +398,10 @@ export interface FileRouteTypes {
     | '/register'
     | '/reset-password'
     | '/dashboard'
+    | '/organization'
+    | '/preferences'
+    | '/profile'
+    | '/security'
     | '/properties/new'
     | '/api/auth/$'
     | '/p/$propertySlug/$portalSlug'
@@ -381,7 +432,12 @@ export interface FileRouteTypes {
     | '/login'
     | '/register'
     | '/reset-password'
+    | '/_authenticated/_settings'
     | '/_authenticated/dashboard'
+    | '/_authenticated/_settings/organization'
+    | '/_authenticated/_settings/preferences'
+    | '/_authenticated/_settings/profile'
+    | '/_authenticated/_settings/security'
     | '/_authenticated/properties/$propertyId'
     | '/_authenticated/properties/new'
     | '/api/auth/$'
@@ -480,6 +536,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/_settings': {
+      id: '/_authenticated/_settings'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedSettingsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/api/health/': {
       id: '/api/health/'
       path: '/api/health'
@@ -528,6 +591,34 @@ declare module '@tanstack/react-router' {
       fullPath: '/properties/$propertyId'
       preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdRouteImport
       parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/_settings/security': {
+      id: '/_authenticated/_settings/security'
+      path: '/security'
+      fullPath: '/security'
+      preLoaderRoute: typeof AuthenticatedSettingsSecurityRouteImport
+      parentRoute: typeof AuthenticatedSettingsRoute
+    }
+    '/_authenticated/_settings/profile': {
+      id: '/_authenticated/_settings/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof AuthenticatedSettingsProfileRouteImport
+      parentRoute: typeof AuthenticatedSettingsRoute
+    }
+    '/_authenticated/_settings/preferences': {
+      id: '/_authenticated/_settings/preferences'
+      path: '/preferences'
+      fullPath: '/preferences'
+      preLoaderRoute: typeof AuthenticatedSettingsPreferencesRouteImport
+      parentRoute: typeof AuthenticatedSettingsRoute
+    }
+    '/_authenticated/_settings/organization': {
+      id: '/_authenticated/_settings/organization'
+      path: '/organization'
+      fullPath: '/organization'
+      preLoaderRoute: typeof AuthenticatedSettingsOrganizationRouteImport
+      parentRoute: typeof AuthenticatedSettingsRoute
     }
     '/_authenticated/properties/$propertyId/': {
       id: '/_authenticated/properties/$propertyId/'
@@ -644,6 +735,23 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AuthenticatedSettingsRouteChildren {
+  AuthenticatedSettingsOrganizationRoute: typeof AuthenticatedSettingsOrganizationRoute
+  AuthenticatedSettingsPreferencesRoute: typeof AuthenticatedSettingsPreferencesRoute
+  AuthenticatedSettingsProfileRoute: typeof AuthenticatedSettingsProfileRoute
+  AuthenticatedSettingsSecurityRoute: typeof AuthenticatedSettingsSecurityRoute
+}
+
+const AuthenticatedSettingsRouteChildren: AuthenticatedSettingsRouteChildren = {
+  AuthenticatedSettingsOrganizationRoute: AuthenticatedSettingsOrganizationRoute,
+  AuthenticatedSettingsPreferencesRoute: AuthenticatedSettingsPreferencesRoute,
+  AuthenticatedSettingsProfileRoute: AuthenticatedSettingsProfileRoute,
+  AuthenticatedSettingsSecurityRoute: AuthenticatedSettingsSecurityRoute,
+}
+
+const AuthenticatedSettingsRouteWithChildren =
+  AuthenticatedSettingsRoute._addFileChildren(AuthenticatedSettingsRouteChildren)
+
 interface AuthenticatedPropertiesPropertyIdTeamsTeamIdRouteChildren {
   AuthenticatedPropertiesPropertyIdTeamsTeamIdMembersRoute: typeof AuthenticatedPropertiesPropertyIdTeamsTeamIdMembersRoute
   AuthenticatedPropertiesPropertyIdTeamsTeamIdIndexRoute: typeof AuthenticatedPropertiesPropertyIdTeamsTeamIdIndexRoute
@@ -711,6 +819,7 @@ const AuthenticatedPropertiesPropertyIdRouteWithChildren =
   )
 
 interface AuthenticatedRouteChildren {
+  AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRouteWithChildren
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedPropertiesPropertyIdRoute: typeof AuthenticatedPropertiesPropertyIdRouteWithChildren
   AuthenticatedPropertiesNewRoute: typeof AuthenticatedPropertiesNewRoute
@@ -719,6 +828,7 @@ interface AuthenticatedRouteChildren {
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
+  AuthenticatedSettingsRoute: AuthenticatedSettingsRouteWithChildren,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedPropertiesPropertyIdRoute:
     AuthenticatedPropertiesPropertyIdRouteWithChildren,
@@ -748,13 +858,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
