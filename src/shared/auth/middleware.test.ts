@@ -2,7 +2,7 @@
 // Tests for getUserFromHeaders, requireAuth, and resolveTenantContext.
 // Mocks getAuth() to return a controllable better-auth API surface.
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 // Mock getAuth before importing the module under test
 const mockGetSession = vi.fn()
@@ -22,6 +22,7 @@ import {
   getSessionFromHeaders,
   requireAuth,
   resolveTenantContext,
+  resetTenantCache,
 } from './middleware'
 
 const makeHeaders = (extra: Record<string, string> = {}): Headers => {
@@ -35,6 +36,11 @@ const makeHeaders = (extra: Record<string, string> = {}): Headers => {
 beforeEach(() => {
   mockGetSession.mockReset()
   mockGetActiveMember.mockReset()
+  resetTenantCache()
+})
+
+afterEach(() => {
+  vi.useRealTimers()
 })
 
 describe('getUserFromHeaders', () => {
@@ -216,5 +222,69 @@ describe('resolveTenantContext', () => {
         (e as unknown as Record<string, unknown>).code === 'forbidden' &&
         (e as unknown as Record<string, unknown>).status === 403,
     )
+  })
+})
+
+describe('resolveTenantContext cache', () => {
+  it('returns cached result on second call with same cookies', async () => {
+    // Arrange
+    const headers = makeHeaders({ cookie: 'session=abc123' })
+    mockGetSession.mockResolvedValue({
+      session: { id: 'sess-1', activeOrganizationId: 'org-1' },
+      user: { id: 'u1' },
+    })
+    mockGetActiveMember.mockResolvedValue({ role: 'admin' })
+
+    // Act — first call
+    const ctx1 = await resolveTenantContext(headers)
+    // Act — second call with identical cookies
+    const headers2 = makeHeaders({ cookie: 'session=abc123' })
+    const ctx2 = await resolveTenantContext(headers2)
+
+    // Assert — both return same result
+    expect(ctx1).toEqual(ctx2)
+    // getActiveMember only called once — second call used cache
+    expect(mockGetActiveMember).toHaveBeenCalledTimes(1)
+  })
+
+  it('bypasses cache after TTL expires', async () => {
+    // Arrange
+    vi.useFakeTimers()
+    const headers = makeHeaders({ cookie: 'session=xyz' })
+    mockGetSession.mockResolvedValue({
+      session: { id: 'sess-2', activeOrganizationId: 'org-2' },
+      user: { id: 'u2' },
+    })
+    mockGetActiveMember.mockResolvedValue({ role: 'owner' })
+
+    // Act — first call
+    await resolveTenantContext(headers)
+    // Advance past TTL
+    vi.advanceTimersByTime(6_000)
+    // Act — second call should miss cache
+    await resolveTenantContext(headers)
+
+    // Assert — getActiveMember called twice
+    expect(mockGetActiveMember).toHaveBeenCalledTimes(2)
+
+    vi.useRealTimers()
+  })
+
+  it('does not cache across different cookies', async () => {
+    // Arrange
+    const headers1 = makeHeaders({ cookie: 'session=aaa' })
+    const headers2 = makeHeaders({ cookie: 'session=bbb' })
+    mockGetSession.mockResolvedValue({
+      session: { id: 'sess-1', activeOrganizationId: 'org-1' },
+      user: { id: 'u1' },
+    })
+    mockGetActiveMember.mockResolvedValue({ role: 'owner' })
+
+    // Act
+    await resolveTenantContext(headers1)
+    await resolveTenantContext(headers2)
+
+    // Assert — both calls hit DB
+    expect(mockGetActiveMember).toHaveBeenCalledTimes(2)
   })
 })

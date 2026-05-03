@@ -16,6 +16,7 @@
 import { generateRequestId, runWithContext } from '#/shared/observability/request-context'
 import { startRequestSpan } from '#/shared/observability/trace'
 import { ServerFunctionError, catchUntagged } from '#/shared/auth/server-errors'
+import { clearTenantCache } from '#/shared/auth/middleware'
 
 /**
  * Wraps a server function handler with tracing and error safety net.
@@ -34,9 +35,11 @@ export function tracedHandler<TInput, TOutput>(
       try {
         const result = await fn(ctx)
         span.end()
+        clearTenantCache()
         return result
       } catch (e) {
         span.end(e)
+        clearTenantCache()
         // Already a ServerFunctionError (tagged by domain catch block) — just re-throw
         if (e instanceof ServerFunctionError) {
           throw e
