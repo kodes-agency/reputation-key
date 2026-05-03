@@ -1,8 +1,9 @@
-@import url('https://fonts.googleapis.com/css2?family=Satoshi:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://api.fontshare.com/v2/css?f[]=satoshi@400,500,600,700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 @import 'tailwindcss';
 @plugin '@tailwindcss/typography';
 @import 'tw-animate-css';
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark (&:not(.light) *);
 
 :root {
   /* Surface tokens */
@@ -221,4 +222,14 @@ pre code {
 .light [data-slot="sidebar-menu-sub-button"][data-active="true"] {
   background: var(--accent-muted);
   color: var(--accent);
+}
+
+.page-wrap {
+  max-width: 72rem;
+  margin-inline: auto;
+  width: 100%;
+}
+
+.display-title {
+  font-family: var(--font-display);
 }
