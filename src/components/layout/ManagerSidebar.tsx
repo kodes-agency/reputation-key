@@ -33,10 +33,8 @@ import {
 import { useAction } from '#/components/hooks/use-action'
 import { usePropertyId } from '#/components/hooks/use-property-id'
 import { CreateOrganizationDialog } from '#/components/features/organization/CreateOrganizationDialog'
-import type { Role } from '#/shared/domain/roles'
 
 type Props = Readonly<{
-  role: Role
   organizations: ReadonlyArray<{ id: string; name: string }>
   activeOrganization: { id: string; name: string } | null
   setActiveOrganization: (input: { data: { organizationId: string } }) => Promise<void>
@@ -95,13 +93,11 @@ function useActiveSection(): string {
 }
 
 export function ManagerSidebar({
-  role: _role,
   organizations,
   activeOrganization,
   setActiveOrganization,
   properties,
 }: Props) {
-  void _role
   const propertyId = usePropertyId()
   const activeSection = useActiveSection()
   const navigate = useNavigate()

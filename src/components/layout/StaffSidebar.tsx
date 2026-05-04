@@ -20,10 +20,8 @@ import {
   DropdownMenuTrigger,
 } from '#/components/ui/dropdown-menu'
 import { useAction } from '#/components/hooks/use-action'
-import type { Role } from '#/shared/domain/roles'
 
 type Props = Readonly<{
-  role: Role
   organizations: ReadonlyArray<{ id: string; name: string }>
   activeOrganization: { id: string; name: string } | null
   setActiveOrganization: (input: { data: { organizationId: string } }) => Promise<void>
@@ -56,13 +54,11 @@ function useActiveSection(): string {
 }
 
 export function StaffSidebar({
-  role: _role,
   organizations,
   activeOrganization,
   setActiveOrganization,
   hasTeam,
 }: Props) {
-  void _role
   const activeSection = useActiveSection()
   const navigate = useNavigate()
   const setOrg = useAction(setActiveOrganization)

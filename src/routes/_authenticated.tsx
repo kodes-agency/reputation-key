@@ -152,7 +152,6 @@ function AuthenticatedLayout() {
         <SettingsSidebar />
       ) : hasRole(ctx.role, 'PropertyManager') ? (
         <ManagerSidebar
-          role={ctx.role}
           organizations={organizations}
           activeOrganization={ctx.activeOrganization}
           setActiveOrganization={setActiveOrganizationFn}
@@ -160,7 +159,6 @@ function AuthenticatedLayout() {
         />
       ) : (
         <StaffSidebar
-          role={ctx.role}
           organizations={organizations}
           activeOrganization={ctx.activeOrganization}
           setActiveOrganization={setActiveOrganizationFn}

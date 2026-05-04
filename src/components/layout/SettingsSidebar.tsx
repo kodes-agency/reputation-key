@@ -26,7 +26,7 @@ function useActiveSettingsSection(): string {
 export function SettingsSidebar() {
   const activeSection = useActiveSettingsSection()
   const { can, role } = usePermissions()
-  const returnPath = hasRole(role, 'PropertyManager') ? '/properties' : '/'
+  const isManager = hasRole(role, 'PropertyManager')
 
   const items = [
     { key: 'profile', label: 'Profile', icon: User, href: '/settings/profile' },
@@ -55,10 +55,17 @@ export function SettingsSidebar() {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton asChild tooltip="Back to app">
-              <Link to={returnPath as never}>
-                <ArrowLeft />
-                <span>Back to app</span>
-              </Link>
+              {isManager ? (
+                <Link to="/properties">
+                  <ArrowLeft />
+                  <span>Back to app</span>
+                </Link>
+              ) : (
+                <Link to="/">
+                  <ArrowLeft />
+                  <span>Back to app</span>
+                </Link>
+              )}
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
