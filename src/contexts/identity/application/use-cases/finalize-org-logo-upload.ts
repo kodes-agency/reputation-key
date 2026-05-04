@@ -20,6 +20,11 @@ export const finalizeOrgLogoUpload =
       )
     }
 
+    const expectedPrefix = `organizations/${ctx.organizationId}/logo/`
+    if (!input.key.startsWith(expectedPrefix)) {
+      throw identityError('forbidden', 'Upload key is not scoped to this organization')
+    }
+
     const logoUrl = await deps.storage.confirmUpload(input.key)
 
     return { logoUrl }
