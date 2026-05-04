@@ -4,8 +4,7 @@
 // Per conventions: shared form building blocks live in components/forms/.
 
 import { useRef, useCallback } from 'react'
-import { ImageIcon, Loader2 } from 'lucide-react'
-import { Button } from '#/components/ui/button'
+import { Loader2 } from 'lucide-react'
 import { ImagePreview } from '#/components/forms/image-upload-field/image-preview'
 import { DropZone } from '#/components/forms/image-upload-field/drop-zone'
 import { RemoveButton } from '#/components/forms/image-upload-field/remove-button'
@@ -69,8 +68,14 @@ export function ImageUploadField({
 
   return (
     <div className="flex flex-col gap-2">
-      {variant === 'circle' && imageUrl && (
-        <div className="relative size-24 mx-auto">
+      {variant === 'circle' && imageUrl ? (
+        <div
+          className="relative size-24 mx-auto cursor-pointer group"
+          onClick={handleClick}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
           <ImagePreview imageUrl={imageUrl} />
           {uploading && (
             <div className="absolute inset-0 flex flex-col items-center justify-center rounded-full bg-black/50">
@@ -79,26 +84,34 @@ export function ImageUploadField({
             </div>
           )}
           {!disabled && !uploading && (
-            <RemoveButton onClick={handleRemove} aria-label="Remove image" />
+            <>
+              <RemoveButton onClick={handleRemove} aria-label="Remove image" />
+              <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/0 transition-colors hover:bg-black/30">
+                <span className="rounded bg-black/60 px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">
+                  Replace
+                </span>
+              </div>
+            </>
           )}
         </div>
+      ) : (
+        <DropZone
+          imageUrl={imageUrl}
+          variant={variant}
+          uploading={uploading}
+          uploadProgress={uploadProgress}
+          dragOver={dragOver}
+          disabled={disabled}
+          acceptedTypes={acceptedTypes}
+          maxFileSize={maxFileSize}
+          emptyLabel={emptyLabel}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          onClick={handleClick}
+          onRemove={handleRemove}
+        />
       )}
-
-      <DropZone
-        imageUrl={imageUrl}
-        variant={variant}
-        uploading={uploading}
-        uploadProgress={uploadProgress}
-        dragOver={dragOver}
-        disabled={disabled}
-        acceptedTypes={acceptedTypes}
-        maxFileSize={maxFileSize}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-        onClick={handleClick}
-        onRemove={handleRemove}
-      />
 
       <input
         ref={fileInputRef}
@@ -108,19 +121,6 @@ export function ImageUploadField({
         onChange={handleFileInputChange}
         disabled={disabled || uploading}
       />
-
-      {!disabled && !imageUrl && !uploading && (
-        <Button
-          type="button"
-          variant="outline"
-          className="self-start"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={uploading}
-        >
-          <ImageIcon className="mr-2 size-4" />
-          {uploading ? 'Uploading...' : emptyLabel}
-        </Button>
-      )}
     </div>
   )
 }

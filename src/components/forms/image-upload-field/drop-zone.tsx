@@ -13,6 +13,7 @@ type DropZoneProps = Readonly<{
   disabled: boolean
   acceptedTypes: string[]
   maxFileSize: number
+  emptyLabel?: string
   onDragOver: (e: React.DragEvent) => void
   onDragLeave: (e: React.DragEvent) => void
   onDrop: (e: React.DragEvent) => void
@@ -29,6 +30,7 @@ export function DropZone({
   disabled,
   acceptedTypes,
   maxFileSize,
+  emptyLabel,
   onDragOver,
   onDragLeave,
   onDrop,
@@ -63,6 +65,7 @@ export function DropZone({
           uploadProgress={uploadProgress}
           acceptedTypes={acceptedTypes}
           maxFileSize={maxFileSize}
+          label={emptyLabel}
         />
       )}
 

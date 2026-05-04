@@ -7,6 +7,7 @@ type EmptyStateProps = Readonly<{
   uploadProgress: number
   acceptedTypes: string[]
   maxFileSize: number
+  label?: string
 }>
 
 export function EmptyState({
@@ -14,6 +15,7 @@ export function EmptyState({
   uploadProgress,
   acceptedTypes,
   maxFileSize,
+  label = 'Upload image',
 }: EmptyStateProps) {
   return (
     <div className="flex flex-col items-center gap-2 p-4 text-muted-foreground">
@@ -35,6 +37,7 @@ export function EmptyState({
             <span className="font-medium text-primary">Click to upload</span> or drag and
             drop
           </p>
+          <p className="text-xs">{label}</p>
           <p className="text-xs">
             {acceptedTypes.map((t) => t.split('/')[1].toUpperCase()).join(', ')} up to{' '}
             {maxFileSize / 1024 / 1024} MB
