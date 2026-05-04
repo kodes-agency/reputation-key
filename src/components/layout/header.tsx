@@ -8,7 +8,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from '#/components/ui/dropdown-menu'
-import ThemeToggle from '#/components/layout/theme-toggle'
+import { ThemeToggle } from '#/components/layout/theme-toggle'
 
 // ── Sub-components ───────────────────────────────────────────────────
 
@@ -66,7 +66,7 @@ function AuthActions({
 
 // ── Main component ───────────────────────────────────────────────────
 
-export default function Header({ onSignOut }: { onSignOut: () => void }) {
+export function Header({ onSignOut }: { onSignOut: () => void }) {
   const { data: session } = authClient.useSession()
   const isLoggedIn = !!session?.user
 

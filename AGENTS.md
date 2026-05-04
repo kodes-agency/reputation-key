@@ -80,4 +80,11 @@ Five canonical labels: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-f
 
 ### Domain docs
 
-Single-context layout: `CONTEXT.md` + `docs/adr/` at repo root. See `docs/agents/domain.md`.
+Co-located context files in the source tree:
+- Root: `CONTEXT.md` — glossary, architecture overview, pointers to layer docs
+- Components: `src/components/CONTEXT.md` — folder structure, naming, forms, hooks
+- Contexts: `src/contexts/CONTEXT.md` — layers, use cases, server functions, dependency rules
+- Shared: `src/shared/CONTEXT.md` — auth, cache, observability, testing
+- Routes: `src/routes/CONTEXT.md` — loaders, mutations, auth guards, staleTime
+- Plan: `docs/plan/plan.md` — remaining phases (10–22)
+- ADRs: `docs/adr/`

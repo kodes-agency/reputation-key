@@ -5,8 +5,8 @@ import {
   useRouterState,
 } from '@tanstack/react-router'
 
-import Footer from '#/components/layout/footer'
-import Header from '#/components/layout/header'
+import { Footer } from '#/components/layout/footer'
+import { Header } from '#/components/layout/header'
 import { authClient } from '#/shared/auth/auth-client'
 import { Toaster } from '#/components/ui/sonner'
 import appCss from '#/styles.css?url'

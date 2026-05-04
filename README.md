@@ -61,15 +61,32 @@ Install hooks after cloning: `pnpm install` (the `prepare` script registers Husk
 
 ```
 src/
-├── contexts/       # Business domains (property, review, portal, etc.)
-├── shared/         # Shared infrastructure
-│   ├── auth/      # Better Auth config
-│   ├── cache/     # Redis client
-│   ├── config/    # Zod-validated env
-│   ├── db/        # Drizzle ORM + schema
-│   ├── domain/    # Brand types, Result
-│   ├── health/    # Health check endpoint
-│   └── observability/ # Pino logger
-├── routes/        # TanStack Start routes
-└── worker/        # Background worker entry point
+├── contexts/       # Bounded business domains (identity, property, portal, guest, team, staff)
+│   └── <name>/    # Each has: domain/, application/, infrastructure/, server/
+├── components/     # React UI
+│   ├── ui/        # shadcn primitives
+│   ├── forms/     # shared form blocks (SubmitButton, FormErrorBanner, etc.)
+│   ├── layout/    # app shell (sidebars, header, top bar)
+│   ├── hooks/     # shared hooks (useMutationAction, useAction, usePropertyId)
+│   └── features/  # domain-concept folders (portal/, identity/, property/, team/, etc.)
+├── shared/         # Cross-cutting infrastructure
+│   ├── auth/      # Better Auth config, middleware, permissions
+│   ├── cache/     # Redis client + cache port/impl
+│   ├── config/    # Zod-validated env schema
+│   ├── db/        # Drizzle ORM, pool, schema/, migrations
+│   ├── domain/    # Brand types, IDs, roles, permissions, clock, Result
+│   ├── events/    # Event bus, master DomainEvent union
+│   ├── jobs/      # BullMQ queue, worker, registry
+│   ├── hooks/     # usePermissions
+│   ├── observability/ # Pino logger, request tracing (tracedHandler)
+│   ├── rate-limit/ # Rate limiting middleware
+│   ├── testing/   # In-memory port fakes, test fixtures
+│   └── fn/        # pipe and other utilities
+├── routes/         # TanStack Router file-based routes
+│   └── _authenticated/ # Protected routes with layout shell
+├── hooks/          # Low-level utility hooks (use-as-ref, use-lazy-ref)
+├── lib/            # Shared utilities (utils, compose-refs, lookups)
+├── composition.ts  # Dependency wiring
+├── bootstrap.ts    # Event/job handler registration
+└── worker/         # Background worker entry point
 ```
