@@ -5,9 +5,9 @@ import {
   submitFeedbackFn,
   submitRatingFn,
 } from '#/contexts/guest/server/public'
-import { PortalUnavailable } from '#/components/guest/portal-unavailable'
-import { PublicPortalContent } from '#/components/guest/PublicPortalContent'
-import { CookieConsentBanner } from '#/components/guest/cookie-consent-banner'
+import { PortalUnavailable } from '#/components/features/guest'
+import { PublicPortalContent } from '#/components/features/guest'
+import { CookieConsentBanner } from '#/components/features/guest'
 import type { PublicPortalLoaderData } from '#/contexts/guest/application/dto/public-portal.dto'
 import { useServerFn } from '@tanstack/react-start'
 import { getLogger } from '#/shared/observability/logger'

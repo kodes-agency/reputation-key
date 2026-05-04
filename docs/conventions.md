@@ -321,27 +321,57 @@ Translate errors to HTTP using `match(e.code).with(...).exhaustive()` so adding 
 
 ## Naming
 
-| Thing                | Convention                   | Example                                |
-| -------------------- | ---------------------------- | -------------------------------------- |
-| Files                | lowercase-hyphen             | `create-portal.ts`                     |
-| Test files           | `.test.ts` suffix, colocated | `rules.test.ts`                        |
-| Types                | PascalCase                   | `Portal`, `PortalRepository`           |
-| Branded IDs          | PascalCase                   | `PortalId`, `OrganizationId`           |
-| Functions            | camelCase                    | `createPortal`, `validateSlug`         |
-| Use case factories   | `xxxYyy` (verb-noun)         | `createPortal`, `submitFeedback`       |
-| Domain constructors  | `buildXxx`                   | `buildPortal`, `buildMetricReading`    |
-| Event constructors   | past-tense matches `_tag`    | `portalCreated`, `reviewReceived`      |
-| Error constructors   | `xxxError`                   | `portalError`, `reviewError`           |
-| Repository factories | `createXxxRepository`        | `createPortalRepository`               |
-| Domain events        | `<context>.<verb-past>`      | `portal.created`, `feedback.submitted` |
-| Job names            | `<verb>-<noun>`              | `sync-reviews`, `process-hero-image`   |
-| Form components      | `<Verb><Noun>Form`           | `CreatePortalForm`, `LoginForm`        |
-| DB tables            | snake_case plural            | `portals`, `metric_readings`           |
-| DB columns           | snake_case                   | `organization_id`, `created_at`        |
+| Thing                | Convention                   | Example                                 |
+| -------------------- | ---------------------------- | --------------------------------------- |
+| Files                | lowercase-hyphen             | `create-portal.ts`                      |
+| Component files      | lowercase-hyphen             | `portal-detail.tsx`, `member-table.tsx` |
+| Test files           | `.test.ts` suffix, colocated | `rules.test.ts`                         |
+| Types                | PascalCase                   | `Portal`, `PortalRepository`            |
+| Branded IDs          | PascalCase                   | `PortalId`, `OrganizationId`            |
+| Functions            | camelCase                    | `createPortal`, `validateSlug`          |
+| Use case factories   | `xxxYyy` (verb-noun)         | `createPortal`, `submitFeedback`        |
+| Domain constructors  | `buildXxx`                   | `buildPortal`, `buildMetricReading`     |
+| Event constructors   | past-tense matches `_tag`    | `portalCreated`, `reviewReceived`       |
+| Error constructors   | `xxxError`                   | `portalError`, `reviewError`            |
+| Repository factories | `createXxxRepository`        | `createPortalRepository`                |
+| Domain events        | `<context>.<verb-past>`      | `portal.created`, `feedback.submitted`  |
+| Job names            | `<verb>-<noun>`              | `sync-reviews`, `process-hero-image`    |
+| Form components      | `<verb>-<noun>-form`         | `create-portal-form`, `login-form`      |
+| DB tables            | snake_case plural            | `portals`, `metric_readings`            |
+| DB columns           | snake_case                   | `organization_id`, `created_at`         |
 
 Exception: better-auth tables use camelCase columns (framework default). Everything else is snake_case.
 
 Every business table includes: `id`, `organization_id`, `created_at`, `updated_at`. Soft-deletable tables include `deleted_at`.
+
+## Component Organization
+
+Feature components use **domain-concept folders**, not type-based folders. Each concept collocates its components, hooks, and forms.
+
+```
+features/portal/
+  portal-list/
+    portal-list.tsx
+    portal-list-item.tsx
+    use-portal-list-actions.ts
+  portal-detail/
+    portal-detail.tsx
+    portal-detail-header.tsx
+    portal-qr-code.tsx
+  portal-form/
+    create-portal-form.tsx
+    edit-portal-form.tsx
+  index.ts              # barrel export (public API)
+```
+
+### Rules
+
+1. **Kebab-case filenames:** All `.tsx` and `.ts` files in `components/` use lowercase-hyphen naming. Enforced by ESLint.
+2. **Named exports only:** No default exports. Barrel `index.ts` re-exports the public surface.
+3. **Export only page-level components:** Sub-components (e.g., `portal-list-item.tsx`) are internal. Only top-level components of each concept are re-exported from the feature barrel.
+4. **Max file length:** 150 lines. If a component exceeds this, extract sub-components into the same concept folder.
+5. **Props typing:** `type Props = Readonly<{ ... }>` for all components.
+6. **One concept per folder:** Each domain-concept folder represents a single user-facing concept (list, detail, form, widget).
 
 ---
 

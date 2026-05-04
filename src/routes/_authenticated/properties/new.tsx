@@ -9,7 +9,7 @@ import {
 } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
 import { createProperty } from '#/contexts/property/server/properties'
-import { CreatePropertyForm } from '#/components/features/property/CreatePropertyForm'
+import { CreatePropertyForm } from '#/components/features/property'
 import { Button } from '#/components/ui/button'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'

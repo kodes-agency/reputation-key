@@ -1,7 +1,7 @@
 // Create portal — route defines mutation, renders form component.
 import { createFileRoute, useNavigate, useRouter, redirect } from '@tanstack/react-router'
 import { createPortal } from '#/contexts/portal/server/portals'
-import { PortalCreationWithPreview } from '#/components/features/portal/PortalCreationWithPreview'
+import { PortalCreationWithPreview } from '#/components/features/portal'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import { useMutationAction } from '#/components/hooks/use-mutation-action'

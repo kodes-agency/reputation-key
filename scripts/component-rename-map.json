@@ -1,0 +1,212 @@
+{
+  "renames": [
+    {
+      "old": "src/components/features/identity/AcceptInvitationPage.tsx",
+      "new": "src/components/features/identity/accept-invitation-page.tsx"
+    },
+    {
+      "old": "src/components/features/identity/AuthLayout.tsx",
+      "new": "src/components/layout/auth-layout.tsx"
+    },
+    {
+      "old": "src/components/features/identity/InvitationTable.tsx",
+      "new": "src/components/features/identity/invitation-table.tsx"
+    },
+    {
+      "old": "src/components/features/identity/InviteMemberForm.tsx",
+      "new": "src/components/features/identity/invite-member-form.tsx"
+    },
+    {
+      "old": "src/components/features/identity/LoginForm.tsx",
+      "new": "src/components/features/identity/login-form.tsx"
+    },
+    {
+      "old": "src/components/features/identity/MemberTable.tsx",
+      "new": "src/components/features/identity/member-table.tsx"
+    },
+    {
+      "old": "src/components/features/identity/RegisterForm.tsx",
+      "new": "src/components/features/identity/register-form.tsx"
+    },
+    {
+      "old": "src/components/features/identity/ResetPasswordForm.tsx",
+      "new": "src/components/features/identity/reset-password-form.tsx"
+    },
+    {
+      "old": "src/components/features/identity/RoleBadge.tsx",
+      "new": "src/components/features/identity/role-badge.tsx"
+    },
+    {
+      "old": "src/components/features/organization/CreateOrganizationDialog.tsx",
+      "new": "src/components/features/organization/create-organization-dialog.tsx"
+    },
+    {
+      "old": "src/components/features/organization/OrganizationSettingsForm.tsx",
+      "new": "src/components/features/organization/organization-settings-form.tsx"
+    },
+    {
+      "old": "src/components/features/portal/CategoryAddForm.tsx",
+      "new": "src/components/features/portal/category-add-form.tsx"
+    },
+    {
+      "old": "src/components/features/portal/CategoryEditInlineForm.tsx",
+      "new": "src/components/features/portal/category-edit-inline-form.tsx"
+    },
+    {
+      "old": "src/components/features/portal/CreatePortalForm.tsx",
+      "new": "src/components/features/portal/create-portal-form.tsx"
+    },
+    {
+      "old": "src/components/features/portal/EditPortalForm.tsx",
+      "new": "src/components/features/portal/edit-portal-form.tsx"
+    },
+    {
+      "old": "src/components/features/portal/LinkAddInlineForm.tsx",
+      "new": "src/components/features/portal/link-add-inline-form.tsx"
+    },
+    {
+      "old": "src/components/features/portal/LinkEditInlineForm.tsx",
+      "new": "src/components/features/portal/link-edit-inline-form.tsx"
+    },
+    {
+      "old": "src/components/features/portal/LinkInlineForm.tsx",
+      "new": "src/components/features/portal/link-inline-form.tsx"
+    },
+    {
+      "old": "src/components/features/portal/PortalCreationWithPreview.tsx",
+      "new": "src/components/features/portal/portal-creation-with-preview.tsx"
+    },
+    {
+      "old": "src/components/features/portal/PortalDetailPage.tsx",
+      "new": "src/components/features/portal/portal-detail-page.tsx"
+    },
+    {
+      "old": "src/components/features/portal/PortalPreviewPanel.tsx",
+      "new": "src/components/features/portal/portal-preview-panel.tsx"
+    },
+    {
+      "old": "src/components/features/portal/QRCodeModal.tsx",
+      "new": "src/components/features/portal/qr-code-modal.tsx"
+    },
+    {
+      "old": "src/components/features/portal/ShareSection.tsx",
+      "new": "src/components/features/portal/share-section.tsx"
+    },
+    {
+      "old": "src/components/features/portal/SmartRoutingConfig.tsx",
+      "new": "src/components/features/portal/smart-routing-config.tsx"
+    },
+    {
+      "old": "src/components/features/portal/SortableCategory.tsx",
+      "new": "src/components/features/portal/sortable-category.tsx"
+    },
+    {
+      "old": "src/components/features/portal/SortableLink.tsx",
+      "new": "src/components/features/portal/sortable-link.tsx"
+    },
+    {
+      "old": "src/components/features/portal/ThemePresetSelector.tsx",
+      "new": "src/components/features/portal/theme-preset-selector.tsx"
+    },
+    {
+      "old": "src/components/features/portal/usePreviewToggle.ts",
+      "new": "src/components/features/portal/use-preview-toggle.ts"
+    },
+    {
+      "old": "src/components/features/property/CreatePropertyForm.tsx",
+      "new": "src/components/features/property/create-property-form.tsx"
+    },
+    {
+      "old": "src/components/features/property/EditPropertyForm.tsx",
+      "new": "src/components/features/property/edit-property-form.tsx"
+    },
+    {
+      "old": "src/components/features/property/PropertyDetailFields.tsx",
+      "new": "src/components/features/property/property-detail-fields.tsx"
+    },
+    {
+      "old": "src/components/features/property/TimezoneCombobox.tsx",
+      "new": "src/components/features/property/timezone-combobox.tsx"
+    },
+    {
+      "old": "src/components/features/property/TimezoneSelect.tsx",
+      "new": "src/components/features/property/timezone-select.tsx"
+    },
+    {
+      "old": "src/components/features/staff/AssignStaffForm.tsx",
+      "new": "src/components/features/staff/assign-staff-form.tsx"
+    },
+    {
+      "old": "src/components/features/staff/OrgStaffTable.tsx",
+      "new": "src/components/features/staff/org-staff-table.tsx"
+    },
+    {
+      "old": "src/components/features/staff/StaffAssignmentList.tsx",
+      "new": "src/components/features/staff/staff-assignment-list.tsx"
+    },
+    {
+      "old": "src/components/features/team/CreateTeamForm.tsx",
+      "new": "src/components/features/team/create-team-form.tsx"
+    },
+    {
+      "old": "src/components/features/team/EditTeamForm.tsx",
+      "new": "src/components/features/team/edit-team-form.tsx"
+    },
+    {
+      "old": "src/components/features/team/TeamLeadSelect.tsx",
+      "new": "src/components/features/team/team-lead-select.tsx"
+    },
+    {
+      "old": "src/components/features/team/TeamMemberList.tsx",
+      "new": "src/components/features/team/team-member-list.tsx"
+    },
+    {
+      "old": "src/components/forms/FormErrorBanner.tsx",
+      "new": "src/components/forms/form-error-banner.tsx"
+    },
+    {
+      "old": "src/components/forms/FormTextField.tsx",
+      "new": "src/components/forms/form-text-field.tsx"
+    },
+    {
+      "old": "src/components/forms/FormTextarea.tsx",
+      "new": "src/components/forms/form-textarea.tsx"
+    },
+    {
+      "old": "src/components/forms/SubmitButton.tsx",
+      "new": "src/components/forms/submit-button.tsx"
+    },
+    {
+      "old": "src/components/guest/PublicPortalContent.tsx",
+      "new": "src/components/guest/public-portal-content.tsx"
+    },
+    {
+      "old": "src/components/layout/AppTopBar.tsx",
+      "new": "src/components/layout/app-top-bar.tsx"
+    },
+    {
+      "old": "src/components/layout/Footer.tsx",
+      "new": "src/components/layout/footer.tsx"
+    },
+    {
+      "old": "src/components/layout/Header.tsx",
+      "new": "src/components/layout/header.tsx"
+    },
+    {
+      "old": "src/components/layout/ManagerSidebar.tsx",
+      "new": "src/components/layout/manager-sidebar.tsx"
+    },
+    {
+      "old": "src/components/layout/SettingsSidebar.tsx",
+      "new": "src/components/layout/settings-sidebar.tsx"
+    },
+    {
+      "old": "src/components/layout/StaffSidebar.tsx",
+      "new": "src/components/layout/staff-sidebar.tsx"
+    },
+    {
+      "old": "src/components/layout/ThemeToggle.tsx",
+      "new": "src/components/layout/theme-toggle.tsx"
+    }
+  ]
+}

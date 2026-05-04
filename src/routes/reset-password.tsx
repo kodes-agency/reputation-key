@@ -1,8 +1,8 @@
 // Password reset request page
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { authClient } from '#/shared/auth/auth-client'
-import { AuthCard, AuthFooterLink } from '#/components/features/identity/AuthLayout'
-import { ResetPasswordForm } from '#/components/features/identity/ResetPasswordForm'
+import { AuthCard, AuthFooterLink } from '#/components/layout/auth-layout'
+import { ResetPasswordForm } from '#/components/features/identity'
 import { useAction } from '#/components/hooks/use-action'
 import { useState } from 'react'
 

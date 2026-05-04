@@ -8,8 +8,8 @@ import {
 } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
 import { getSession, ensureActiveOrg } from '#/shared/auth/auth.functions'
-import { AuthCard, AuthFooterLink } from '#/components/features/identity/AuthLayout'
-import { LoginForm } from '#/components/features/identity/LoginForm'
+import { AuthCard, AuthFooterLink } from '#/components/layout/auth-layout'
+import { LoginForm } from '#/components/features/identity'
 import { signInUser } from '#/contexts/identity/server/organizations'
 import { useAction, wrapAction } from '#/components/hooks/use-action'
 
