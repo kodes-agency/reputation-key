@@ -8,6 +8,7 @@ export type IdentityErrorCode =
   | 'forbidden'
   | 'invalid_slug'
   | 'invalid_name'
+  | 'validation_error'
   | 'member_not_found'
   | 'invitation_not_found'
   | 'registration_failed'

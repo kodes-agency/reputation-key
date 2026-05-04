@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
 import {
   LayoutDashboard,
@@ -21,7 +20,6 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
-  SidebarSeparator,
 } from '#/components/ui/sidebar'
 import {
   DropdownMenu,
@@ -30,14 +28,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '#/components/ui/dropdown-menu'
-import { useAction } from '#/components/hooks/use-action'
 import { usePropertyId } from '#/components/hooks/use-property-id'
-import { CreateOrganizationDialog } from '#/components/features/organization/create-organization-dialog'
 
 type Props = Readonly<{
-  organizations: ReadonlyArray<{ id: string; name: string }>
-  activeOrganization: { id: string; name: string } | null
-  setActiveOrganization: (input: { data: { organizationId: string } }) => Promise<void>
   properties: ReadonlyArray<{ id: string; name: string; slug: string }>
 }>
 
@@ -92,28 +85,10 @@ function useActiveSection(): string {
   })
 }
 
-export function ManagerSidebar({
-  organizations,
-  activeOrganization,
-  setActiveOrganization,
-  properties,
-}: Props) {
+export function ManagerSidebar({ properties }: Props) {
   const propertyId = usePropertyId()
   const activeSection = useActiveSection()
   const navigate = useNavigate()
-  const [createOrgOpen, setCreateOrgOpen] = useState(false)
-
-  const setOrg = useAction(setActiveOrganization)
-
-  function handleOrgSwitch(orgId: string) {
-    setOrg({ data: { organizationId: orgId } })
-      .then(async () => {
-        await navigate({ to: '/properties' })
-      })
-      .catch(() => {
-        // Error is tracked in setOrg.error via useAction
-      })
-  }
 
   function handlePropertySwitch(newPropertyId: string) {
     navigate({
@@ -125,156 +100,112 @@ export function ManagerSidebar({
   const activeProperty = properties.find((p) => p.id === propertyId)
 
   return (
-    <>
-      <Sidebar collapsible="icon">
-        <SidebarHeader>
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <SidebarMenuButton size="lg">
-                    <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-muted">
-                      <Building2 className="size-4" />
-                    </div>
-                    <div className="grid flex-1 text-left text-sm leading-tight">
-                      <span className="truncate font-medium">
-                        {activeOrganization?.name ?? 'No organization'}
-                      </span>
-                      <span className="truncate text-xs text-muted-foreground">
-                        {organizations.length > 1
-                          ? `${organizations.length} organizations`
-                          : 'Organization'}
-                      </span>
-                    </div>
-                    <ChevronsUpDown className="ml-auto size-4" />
-                  </SidebarMenuButton>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent side="bottom" align="start" className="w-64">
-                  <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
-                    Organizations
+    <Sidebar collapsible="icon">
+      <SidebarHeader>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <SidebarMenuButton size="lg">
+                  <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary/10">
+                    <Building2 className="size-4 text-primary" />
                   </div>
-                  <DropdownMenuSeparator />
-                  {organizations.map((org) => (
-                    <DropdownMenuItem
-                      key={org.id}
-                      onClick={() => handleOrgSwitch(org.id)}
-                    >
-                      {org.name}
-                      {org.id === activeOrganization?.id && (
-                        <span className="ml-auto text-xs text-muted-foreground">
-                          Active
-                        </span>
-                      )}
-                    </DropdownMenuItem>
-                  ))}
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => setCreateOrgOpen(true)}>
-                    <Plus className="size-4 mr-2" />
-                    Create Organization
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </SidebarMenuItem>
-
-            {properties.length > 1 && (
-              <SidebarMenuItem>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <SidebarMenuButton size="sm">
-                      <div className="flex aspect-square size-4 items-center justify-center rounded bg-muted">
-                        <Building2 className="size-3" />
-                      </div>
-                      <span className="truncate text-xs">
-                        {activeProperty?.name ?? 'Select property'}
+                  <div className="grid flex-1 text-left text-sm leading-tight">
+                    <span className="truncate font-semibold">
+                      {activeProperty?.name ?? 'Select property'}
+                    </span>
+                    <span className="truncate text-xs text-muted-foreground">
+                      {activeProperty?.slug ?? 'No property selected'}
+                    </span>
+                  </div>
+                  <ChevronsUpDown className="ml-auto size-4" />
+                </SidebarMenuButton>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent side="bottom" align="start" className="w-64">
+                <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+                  Properties
+                </div>
+                <DropdownMenuSeparator />
+                {properties.map((prop) => (
+                  <DropdownMenuItem
+                    key={prop.id}
+                    onClick={() => handlePropertySwitch(prop.id)}
+                  >
+                    {prop.name}
+                    {prop.id === propertyId && (
+                      <span className="ml-auto text-xs text-muted-foreground">
+                        Active
                       </span>
-                      <ChevronsUpDown className="ml-auto size-3" />
-                    </SidebarMenuButton>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent side="bottom" align="start" className="w-56">
-                    <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
-                      Properties
-                    </div>
-                    <DropdownMenuSeparator />
-                    {properties.map((prop) => (
-                      <DropdownMenuItem
-                        key={prop.id}
-                        onClick={() => handlePropertySwitch(prop.id)}
-                      >
-                        {prop.name}
-                        {prop.id === propertyId && (
-                          <span className="ml-auto text-xs text-muted-foreground">
-                            Active
-                          </span>
-                        )}
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </SidebarMenuItem>
-            )}
-          </SidebarMenu>
-        </SidebarHeader>
+                    )}
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => navigate({ to: '/properties' })}>
+                  <Building2 className="mr-2 size-4" />
+                  View all properties
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate({ to: '/properties/new' })}>
+                  <Plus className="mr-2 size-4" />
+                  Create property
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarHeader>
 
-        <SidebarSeparator />
+      <SidebarContent>
+        <SidebarGroup>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {navItems.map((item) => {
+                const isActive = !!propertyId && activeSection === item.key
 
-        <SidebarContent>
-          <SidebarGroup>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {navItems.map((item) => {
-                  const isActive = !!propertyId && activeSection === item.key
-
-                  if (!propertyId) {
-                    return (
-                      <SidebarMenuItem key={item.key}>
-                        <SidebarMenuButton disabled tooltip={item.label}>
-                          <item.icon />
-                          <span>{item.label}</span>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    )
-                  }
-
+                if (!propertyId) {
                   return (
                     <SidebarMenuItem key={item.key}>
-                      <SidebarMenuButton asChild isActive={isActive} tooltip={item.label}>
-                        <Link to={item.to} params={{ propertyId }}>
-                          <item.icon />
-                          <span>{item.label}</span>
-                        </Link>
+                      <SidebarMenuButton disabled tooltip={item.label}>
+                        <item.icon />
+                        <span>{item.label}</span>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                   )
-                })}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        </SidebarContent>
+                }
 
-        <SidebarFooter>
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                asChild
-                isActive={activeSection === 'settings'}
-                tooltip="Settings"
-              >
-                <Link to="/settings/profile">
-                  <Settings />
-                  <span>Settings</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarMenu>
-        </SidebarFooter>
+                return (
+                  <SidebarMenuItem key={item.key}>
+                    <SidebarMenuButton asChild isActive={isActive} tooltip={item.label}>
+                      <Link to={item.to} params={{ propertyId }}>
+                        <item.icon />
+                        <span>{item.label}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )
+              })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      </SidebarContent>
 
-        <SidebarRail />
-      </Sidebar>
-      <CreateOrganizationDialog
-        open={createOrgOpen}
-        onOpenChange={setCreateOrgOpen}
-        onSuccess={() => window.location.reload()}
-      />
-    </>
+      <SidebarFooter>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              asChild
+              isActive={activeSection === 'settings'}
+              tooltip="Settings"
+            >
+              <Link to="/settings/profile">
+                <Settings />
+                <span>Settings</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
+
+      <SidebarRail />
+    </Sidebar>
   )
 }

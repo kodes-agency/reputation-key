@@ -1,6 +1,12 @@
 import { createFileRoute, redirect } from '@tanstack/react-router'
+import { useServerFn } from '@tanstack/react-start'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
+import {
+  getActiveOrganization,
+  listUserOrganizations,
+} from '#/contexts/identity/server/organizations'
+import { OrganizationSettingsPage } from '#/components/features/organization/organization-settings-page'
 
 export const Route = createFileRoute('/_authenticated/settings/organization')({
   beforeLoad: ({ context }) => {
@@ -9,19 +15,36 @@ export const Route = createFileRoute('/_authenticated/settings/organization')({
       throw redirect({ to: '/settings/profile' })
     }
   },
-  component: OrganizationSettings,
+  loader: async () => {
+    const [orgResult, orgsResult] = await Promise.all([
+      useServerFn(getActiveOrganization)(),
+      useServerFn(listUserOrganizations)(),
+    ])
+    return {
+      organization: orgResult.organization,
+      organizations: orgsResult.organizations,
+      activeOrganizationId: orgResult.organization?.id ?? null,
+    }
+  },
+  component: OrganizationSettingsRoute,
 })
 
-function OrganizationSettings() {
-  return (
-    <>
-      <h1 className="text-xl font-semibold tracking-tight">Organization</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Organization name, slug, and billing information.
-      </p>
-      <div className="mt-6 rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-        Organization settings form will appear here.
+function OrganizationSettingsRoute() {
+  const { organization, organizations, activeOrganizationId } = Route.useLoaderData()
+
+  if (!organization) {
+    return (
+      <div className="text-center text-sm text-muted-foreground py-12">
+        No active organization found.
       </div>
-    </>
+    )
+  }
+
+  return (
+    <OrganizationSettingsPage
+      organization={organization}
+      organizations={organizations}
+      activeOrganizationId={activeOrganizationId}
+    />
   )
 }

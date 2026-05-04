@@ -25,6 +25,10 @@ import {
 } from '../application/dto/invitation.dto'
 import { isIdentityError } from '../domain/errors'
 import type { IdentityError, IdentityErrorCode } from '../domain/errors'
+import { requestOrgLogoUpload as requestOrgLogoUploadUseCase } from '../application/use-cases/request-org-logo-upload'
+import { finalizeOrgLogoUpload as finalizeOrgLogoUploadUseCase } from '../application/use-cases/finalize-org-logo-upload'
+import { requestAvatarUpload as requestAvatarUploadUseCase } from '../application/use-cases/request-avatar-upload'
+import { finalizeAvatarUpload as finalizeAvatarUploadUseCase } from '../application/use-cases/finalize-avatar-upload'
 
 // ── Error → HTTP translation ──────────────────────────────────────
 // Per architecture: "ts-pattern with .exhaustive() ensures new error codes
@@ -33,7 +37,7 @@ import type { IdentityError, IdentityErrorCode } from '../domain/errors'
 export const identityErrorStatus = (code: IdentityErrorCode): number =>
   match(code)
     .with('forbidden', () => 403)
-    .with('invalid_slug', 'invalid_name', () => 400)
+    .with('invalid_slug', 'invalid_name', 'validation_error', () => 400)
     .with('registration_failed', () => 400)
     .with('org_setup_failed', () => 409)
     .with('member_not_found', 'invitation_not_found', () => 404)
@@ -554,5 +558,108 @@ export const updateOrganization = createServerFn({ method: 'POST' })
       },
       'POST',
       'identity.updateOrganization',
+    ),
+  )
+
+// ── Organization logo upload ────────────────────────────────────────
+
+const requestOrgLogoUploadSchema = z.object({
+  contentType: z.string(),
+  fileSize: z
+    .number()
+    .positive()
+    .max(5 * 1024 * 1024),
+})
+
+export const requestOrgLogoUpload = createServerFn({ method: 'POST' })
+  .inputValidator(requestOrgLogoUploadSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const headers = headersFromContext()
+        const ctx = await resolveTenantContext(headers)
+        const { storage } = getContainer()
+        const useCase = requestOrgLogoUploadUseCase({ storage })
+        return useCase(data, ctx)
+      },
+      'POST',
+      'identity.requestOrgLogoUpload',
+    ),
+  )
+
+const finalizeOrgLogoUploadSchema = z.object({
+  key: z.string().min(1),
+})
+
+export const finalizeOrgLogoUpload = createServerFn({ method: 'POST' })
+  .inputValidator(finalizeOrgLogoUploadSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const headers = headersFromContext()
+        const ctx = await resolveTenantContext(headers)
+        const { storage } = getContainer()
+        const useCase = finalizeOrgLogoUploadUseCase({ storage })
+        const result = await useCase(data, ctx)
+
+        // Persist the logo URL on the organization via better-auth
+        const auth = getAuth()
+        await auth.api.updateOrganization({
+          headers,
+          body: { data: { logo: result.logoUrl } },
+        })
+
+        return result
+      },
+      'POST',
+      'identity.finalizeOrgLogoUpload',
+    ),
+  )
+
+// ── User avatar upload ──────────────────────────────────────────────
+// Uses user-scoped S3 keys (avatars/${userId}/${uuid}).
+// No org-side side effects — the client persists via authClient.updateUser.
+
+const requestAvatarUploadSchema = z.object({
+  contentType: z.string(),
+  fileSize: z
+    .number()
+    .positive()
+    .max(5 * 1024 * 1024),
+})
+
+export const requestAvatarUpload = createServerFn({ method: 'POST' })
+  .inputValidator(requestAvatarUploadSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const headers = headersFromContext()
+        const ctx = await resolveTenantContext(headers)
+        const { storage } = getContainer()
+        const useCase = requestAvatarUploadUseCase({ storage })
+        return useCase(data, ctx)
+      },
+      'POST',
+      'identity.requestAvatarUpload',
+    ),
+  )
+
+const finalizeAvatarUploadSchema = z.object({
+  key: z.string().min(1),
+})
+
+export const finalizeAvatarUpload = createServerFn({ method: 'POST' })
+  .inputValidator(finalizeAvatarUploadSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const headers = headersFromContext()
+        const ctx = await resolveTenantContext(headers)
+        const { storage } = getContainer()
+        const useCase = finalizeAvatarUploadUseCase({ storage })
+        return useCase(data, ctx)
+      },
+      'POST',
+      'identity.finalizeAvatarUpload',
     ),
   )
