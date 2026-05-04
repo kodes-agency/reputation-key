@@ -8,7 +8,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from '#/components/ui/dropdown-menu'
-import ThemeToggle from '#/components/layout/ThemeToggle'
+import ThemeToggle from '#/components/layout/theme-toggle'
 
 // ── Sub-components ───────────────────────────────────────────────────
 

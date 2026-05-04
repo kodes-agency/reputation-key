@@ -7,7 +7,7 @@ import {
   listUserInvitations,
   acceptInvitation,
 } from '#/contexts/identity/server/organizations'
-import { AcceptInvitationPage } from '#/components/features/identity/AcceptInvitationPage'
+import { AcceptInvitationPage } from '#/components/features/identity'
 import { useServerFn } from '@tanstack/react-start'
 
 export const Route = createFileRoute('/accept-invitation')({

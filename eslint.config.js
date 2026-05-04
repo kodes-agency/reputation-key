@@ -17,6 +17,7 @@ export default tseslint.config(
       '**/.a5c/**',
       '**/.agents/**',
       'src/routeTree.gen.ts',
+      'scripts/**',
     ],
   },
 
@@ -426,6 +427,7 @@ export default tseslint.config(
   },
 
   // ─── Allow React in permitted locations ────────────────────────────
+  // Re-enables no-restricted-imports for React, but keeps the barrel-only rule.
   {
     files: [
       'src/routes/**/*.{ts,tsx}',
@@ -433,7 +435,20 @@ export default tseslint.config(
       'src/integrations/**/*.{ts,tsx}',
     ],
     rules: {
-      'no-restricted-imports': 'off',
+      // React is allowed here — override the global restriction
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            // Block deep imports into feature sub-folders — must go through barrel
+            {
+              group: ['#/components/features/*/*'],
+              message:
+                'Import from the feature barrel (e.g., "#/components/features/identity"), not from sub-folders. See docs/conventions.md "Component Organization".',
+            },
+          ],
+        },
+      ],
     },
   },
 
@@ -443,6 +458,31 @@ export default tseslint.config(
     rules: {
       'boundaries/dependencies': 'off',
       'no-restricted-imports': 'off',
+    },
+  },
+
+  // ─── Component file length enforcement ─────────────────────────────
+  // shadcn/ui primitives are auto-generated and not subject to our limits.
+  // Files exceeding 150 lines are exempt until their feature is restructured
+  // (Phase 2-4). New files and restructured files must comply.
+  {
+    ignores: [
+      'src/components/ui/**',
+      'src/components/features/identity/member-directory/invite-member-form.tsx',
+      'src/components/features/identity/member-directory/member-table.tsx',
+      'src/components/features/organization/organization-settings-form.tsx',
+      'src/components/features/portal/portal-form/edit-portal-form.tsx',
+      'src/components/features/portal/link-tree/link-tree.tsx',
+      'src/components/features/portal/link-tree/sortable-category.tsx',
+      'src/components/features/staff/assign-staff-form.tsx',
+      'src/components/features/team/team-members/team-member-list.tsx',
+      'src/components/layout/manager-sidebar.tsx',
+      'src/components/layout/staff-sidebar.tsx',
+    ],
+    files: ['src/components/**/*.{ts,tsx}'],
+    rules: {
+      // Max file length to prevent monolith components
+      'max-lines': ['error', { max: 150, skipBlankLines: true, skipComments: true }],
     },
   },
 )

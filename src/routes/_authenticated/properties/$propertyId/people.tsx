@@ -8,9 +8,9 @@ import {
 import { listTeams, createTeam, deleteTeam } from '#/contexts/team/server/teams'
 import { listMembers } from '#/contexts/identity/server/organizations'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '#/components/ui/tabs'
-import { StaffAssignmentList } from '#/components/features/staff/StaffAssignmentList'
-import { AssignStaffForm } from '#/components/features/staff/AssignStaffForm'
-import { CreateTeamForm } from '#/components/features/team/CreateTeamForm'
+import { StaffAssignmentList } from '#/components/features/staff/staff-assignment-list'
+import { AssignStaffForm } from '#/components/features/staff/assign-staff-form'
+import { CreateTeamForm } from '#/components/features/team'
 import {
   useMutationAction,
   useMutationActionSilent,

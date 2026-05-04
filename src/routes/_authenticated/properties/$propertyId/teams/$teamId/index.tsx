@@ -1,7 +1,7 @@
 // Team settings — edit name, description, and team lead
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { updateTeam } from '#/contexts/team/server/teams'
-import { EditTeamForm } from '#/components/features/team/EditTeamForm'
+import { EditTeamForm } from '#/components/features/team'
 import { useTeamLayout } from '../$teamId'
 import { useMutationAction } from '#/components/hooks/use-mutation-action'
 

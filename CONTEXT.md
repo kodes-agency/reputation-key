@@ -110,6 +110,72 @@ See `docs/adr/` for formal ADRs.
 | **Dashboard**                | Manager landing page. Property-scoped summary: metric strip, recent reviews, goal progress, team snapshot. Teaser/router, not a data deep-dive.                           |
 | **Layout width**             | Per-page declaration. Lists `max-w-4xl`, forms/settings `max-w-2xl`, data pages full-width with `px-8`. No width in layout wrapper.                                       |
 
+## Component Organization
+
+### Structure
+
+Features use **domain-concept folders**, not type-based folders. Each concept collocates its components, hooks, and forms.
+
+```
+features/portal/
+├── portal-form/
+│   ├── create-portal-form.tsx
+│   ├── edit-portal-form.tsx
+│   └── portal-creation-with-preview.tsx
+├── portal-detail/
+│   └── portal-detail-page.tsx    # Thin orchestrator (~60 lines)
+├── portal-settings/
+│   ├── portal-settings.tsx
+│   ├── theme-preset-selector.tsx
+│   └── smart-routing-config.tsx
+├── link-tree/
+│   ├── link-tree.tsx             # Owns CRUD state, mutations, DnD
+│   ├── sortable-category.tsx
+│   ├── sortable-link.tsx
+│   ├── category-add-form.tsx
+│   ├── category-edit-inline-form.tsx
+│   ├── link-add-inline-form.tsx
+│   ├── link-edit-inline-form.tsx
+│   └── link-inline-form.tsx
+├── portal-share/
+│   ├── portal-share.tsx
+│   └── qr-code-modal.tsx
+├── portal-preview/
+│   └── portal-preview-panel.tsx
+└── index.ts
+```
+
+`PortalDetailPage` is a thin orchestrator that composes `PortalSettings`, `LinkTree`, `PortalShare`, and `PortalPreviewPanel`. All link-tree CRUD state, mutations, and DnD logic live in `link-tree/link-tree.tsx`.
+
+Each feature has a `shared/` subfolder for components used across multiple concept folders within that feature. Concept folders are self-contained. The feature barrel (`index.ts`) re-exports from both concept folders and `shared/`.
+
+Shared directories: `components/ui/` (shadcn primitives), `components/forms/` (shared form blocks), `components/hooks/` (shared hooks) stay flat. `components/layout/` stays flat. `components/guest/` moves to `features/guest/` — Guest is a bounded context.
+
+### Naming
+
+All component files use **kebab-case** (`portal-detail.tsx`, `star-rating.tsx`). This applies to features, layout, forms, and guest components. UI primitives already follow this convention. Hook files use `use-` prefix with kebab-case (`use-action.ts`, `use-mobile.ts`).
+
+### Exports
+
+Named exports only. Barrel `index.ts` files re-export only page-level components (not internal sub-components) from each feature folder.
+
+### Enforcement
+
+- Kebab-case: `scripts/check-filenames.mjs` (runs on `pnpm lint`)
+- Max file length: ESLint `max-lines` rule (150 lines, exempting old PascalCase files and `ui/` during migration)
+- Barrel-only imports: ESLint `no-restricted-imports` blocks `#/components/features/*/*` deep imports
+
+### Migration Plan
+
+- **Phase 1:** Rename all 52 PascalCase files to kebab-case (mechanical, `scripts/rename-components.mjs`)
+- **Phase 2:** Restructure Identity (pilot) into domain-concept folders
+- **Phase 3:** Restructure Portal into domain-concept folders + extract `PortalDetailPage` god component
+- **Phase 4:** Restructure remaining features:
+  - **Property:** `property-form/` (create, edit, timezone components) + `property-detail/` (detail fields)
+  - **Team:** `team-form/` (create, edit, lead select) + `team-members/` (member list)
+  - **Guest:** `public-portal/` (content, star-rating, feedback-form) + standalone (`portal-unavailable`, `cookie-consent-banner`)
+  - **Staff + Organization:** Leave flat, rename only (too few files to justify sub-folders)
+
 ## Key Files
 
 | Area                      | Path                                 |

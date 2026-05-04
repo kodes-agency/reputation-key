@@ -4,7 +4,7 @@ import {
   createStaffAssignment,
   removeStaffAssignment,
 } from '#/contexts/staff/server/staff-assignments'
-import { TeamMemberList } from '#/components/features/team/TeamMemberList'
+import { TeamMemberList } from '#/components/features/team'
 import { useMutationAction } from '#/components/hooks/use-mutation-action'
 import { useTeamLayout } from '../$teamId'
 

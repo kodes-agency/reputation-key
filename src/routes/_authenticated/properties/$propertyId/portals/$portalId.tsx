@@ -6,7 +6,7 @@ import {
   updatePortal,
 } from '#/contexts/portal/server/portals'
 import { listPortalLinks } from '#/contexts/portal/server/portal-links'
-import { PortalDetailPage } from '#/components/features/portal/PortalDetailPage'
+import { PortalDetailPage } from '#/components/features/portal'
 import { useMutationAction } from '#/components/hooks/use-mutation-action'
 import { useServerFn } from '@tanstack/react-start'
 
