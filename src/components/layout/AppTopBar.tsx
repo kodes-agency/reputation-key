@@ -26,14 +26,6 @@ function useThemeMode() {
     if (stored === 'light' || stored === 'dark' || stored === 'auto') {
       setMode(stored)
     }
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-    const resolved =
-      stored === 'auto' || !stored ? (prefersDark ? 'dark' : 'light') : stored
-
-    const root = document.documentElement
-    root.classList.remove('light', 'dark')
-    root.classList.add(resolved)
-    root.style.colorScheme = resolved
   }, [])
 
   function applyMode(next: ThemeMode) {

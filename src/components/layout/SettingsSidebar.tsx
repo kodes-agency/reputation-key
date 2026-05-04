@@ -55,17 +55,10 @@ export function SettingsSidebar() {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton asChild tooltip="Back to app">
-              {isManager ? (
-                <Link to="/properties">
-                  <ArrowLeft />
-                  <span>Back to app</span>
-                </Link>
-              ) : (
-                <Link to="/">
-                  <ArrowLeft />
-                  <span>Back to app</span>
-                </Link>
-              )}
+              <Link to={isManager ? '/properties' : '/'}>
+                <ArrowLeft />
+                <span>Back to app</span>
+              </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
