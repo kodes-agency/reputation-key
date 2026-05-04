@@ -25,6 +25,8 @@ import {
 } from '../application/dto/invitation.dto'
 import { isIdentityError } from '../domain/errors'
 import type { IdentityError, IdentityErrorCode } from '../domain/errors'
+import { requestOrgLogoUpload as requestOrgLogoUploadUseCase } from '../application/use-cases/request-org-logo-upload'
+import { finalizeOrgLogoUpload as finalizeOrgLogoUploadUseCase } from '../application/use-cases/finalize-org-logo-upload'
 
 // ── Error → HTTP translation ──────────────────────────────────────
 // Per architecture: "ts-pattern with .exhaustive() ensures new error codes
@@ -554,5 +556,60 @@ export const updateOrganization = createServerFn({ method: 'POST' })
       },
       'POST',
       'identity.updateOrganization',
+    ),
+  )
+
+// ── Organization logo upload ────────────────────────────────────────
+
+const requestOrgLogoUploadSchema = z.object({
+  contentType: z.string(),
+  fileSize: z
+    .number()
+    .positive()
+    .max(5 * 1024 * 1024),
+})
+
+export const requestOrgLogoUpload = createServerFn({ method: 'POST' })
+  .inputValidator(requestOrgLogoUploadSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const headers = headersFromContext()
+        const ctx = await resolveTenantContext(headers)
+        const { storage } = getContainer()
+        const useCase = requestOrgLogoUploadUseCase({ storage })
+        return useCase(data, ctx)
+      },
+      'POST',
+      'identity.requestOrgLogoUpload',
+    ),
+  )
+
+const finalizeOrgLogoUploadSchema = z.object({
+  key: z.string().min(1),
+})
+
+export const finalizeOrgLogoUpload = createServerFn({ method: 'POST' })
+  .inputValidator(finalizeOrgLogoUploadSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const headers = headersFromContext()
+        const ctx = await resolveTenantContext(headers)
+        const { storage } = getContainer()
+        const useCase = finalizeOrgLogoUploadUseCase({ storage })
+        const result = await useCase(data, ctx)
+
+        // Persist the logo URL on the organization via better-auth
+        const auth = getAuth()
+        await auth.api.updateOrganization({
+          headers,
+          body: { data: { logo: result.logoUrl } },
+        })
+
+        return result
+      },
+      'POST',
+      'identity.finalizeOrgLogoUpload',
     ),
   )
