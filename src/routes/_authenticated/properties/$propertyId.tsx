@@ -2,6 +2,8 @@
 // Child routes render via <Outlet />. Navigation is handled by the sidebar.
 import { createFileRoute, Outlet, useNavigate } from '@tanstack/react-router'
 import { getProperty } from '#/contexts/property/server/properties'
+import { listStaffAssignments } from '#/contexts/staff/server/staff-assignments'
+import { listTeams } from '#/contexts/team/server/teams'
 import { Button } from '#/components/ui/button'
 import { Alert, AlertDescription } from '#/components/ui/alert'
 import { AlertCircle } from 'lucide-react'
@@ -9,8 +11,16 @@ import { AlertCircle } from 'lucide-react'
 export const Route = createFileRoute('/_authenticated/properties/$propertyId')({
   staleTime: 60_000,
   loader: async ({ params: { propertyId } }) => {
-    const res = await getProperty({ data: { propertyId } })
-    return { property: res.property }
+    const [propertyRes, staffRes, teamsRes] = await Promise.all([
+      getProperty({ data: { propertyId } }),
+      listStaffAssignments({ data: { propertyId } }),
+      listTeams({ data: { propertyId } }),
+    ])
+    return {
+      property: propertyRes.property,
+      staffCount: staffRes.assignments.length,
+      teamCount: teamsRes.teams.length,
+    }
   },
   component: PropertyLayout,
 })

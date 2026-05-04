@@ -65,16 +65,18 @@ function PortalDetailRoute() {
     properties?.find((p: { id: string }) => p.id === propertyId)?.slug ?? ''
 
   return (
-    <PortalDetailPage
-      portal={portal}
-      propertyId={propertyId}
-      categories={categories}
-      links={links}
-      updateMutation={mutation}
-      organizationName={ctx.activeOrganization?.name ?? 'Your Organization'}
-      propertySlug={propertySlug}
-      requestUploadUrl={requestUploadUrlFn}
-      finalizeUpload={finalizeUploadFn}
-    />
+    <div className="mx-auto max-w-2xl">
+      <PortalDetailPage
+        portal={portal}
+        propertyId={propertyId}
+        categories={categories}
+        links={links}
+        updateMutation={mutation}
+        organizationName={ctx.activeOrganization?.name ?? 'Your Organization'}
+        propertySlug={propertySlug}
+        requestUploadUrl={requestUploadUrlFn}
+        finalizeUpload={finalizeUploadFn}
+      />
+    </div>
   )
 }

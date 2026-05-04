@@ -58,7 +58,7 @@ function TeamLayout() {
     <div className="space-y-6">
       <div className="flex items-center gap-2">
         <Button variant="ghost" asChild>
-          <Link to="/properties/$propertyId/teams" params={{ propertyId }}>
+          <Link to="/properties/$propertyId/people" params={{ propertyId }}>
             <ArrowLeft />
             Back
           </Link>

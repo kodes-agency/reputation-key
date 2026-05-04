@@ -1,8 +1,7 @@
 import { useNavigate } from '@tanstack/react-router'
-import { ChevronsUpDown, LogOut, Moon, Sun, Monitor, Plus } from 'lucide-react'
+import { LogOut, Moon, Sun, Monitor } from 'lucide-react'
 import { SidebarTrigger } from '#/components/ui/sidebar'
 import { Button } from '#/components/ui/button'
-import { Separator } from '#/components/ui/separator'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,14 +10,12 @@ import {
   DropdownMenuTrigger,
 } from '#/components/ui/dropdown-menu'
 import { authClient } from '#/shared/auth/auth-client'
-import { usePropertyId } from '#/components/hooks/use-property-id'
 import { useEffect, useState } from 'react'
 
 type ThemeMode = 'light' | 'dark' | 'auto'
 
 type Props = Readonly<{
   user: { id: string; name: string; email: string; image: string | null }
-  properties: ReadonlyArray<{ id: string; name: string; slug: string }>
 }>
 
 function useThemeMode() {
@@ -35,16 +32,11 @@ function useThemeMode() {
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
     const resolved = next === 'auto' ? (prefersDark ? 'dark' : 'light') : next
 
-    document.documentElement.classList.remove('light', 'dark')
-    document.documentElement.classList.add(resolved)
+    const root = document.documentElement
+    root.classList.remove('light', 'dark')
+    root.classList.add(resolved)
+    root.style.colorScheme = resolved
 
-    if (next === 'auto') {
-      document.documentElement.removeAttribute('data-theme')
-    } else {
-      document.documentElement.setAttribute('data-theme', next)
-    }
-
-    document.documentElement.style.colorScheme = resolved
     window.localStorage.setItem('theme', next)
     setMode(next)
   }
@@ -52,19 +44,9 @@ function useThemeMode() {
   return { mode, applyMode } as const
 }
 
-export function AppTopBar({ user, properties }: Props) {
-  const propertyId = usePropertyId()
+export function AppTopBar({ user }: Props) {
   const navigate = useNavigate()
   const { mode, applyMode } = useThemeMode()
-
-  const currentProperty = properties.find((p) => p.id === propertyId)
-
-  function handlePropertySwitch(id: string) {
-    navigate({
-      to: '/properties/$propertyId',
-      params: { propertyId: id },
-    })
-  }
 
   const ThemeIcon = mode === 'light' ? Sun : mode === 'dark' ? Moon : Monitor
 
@@ -80,34 +62,6 @@ export function AppTopBar({ user, properties }: Props) {
   return (
     <header className="flex h-13 shrink-0 items-center gap-2 border-b px-4">
       <SidebarTrigger className="-ml-1" />
-      <Separator orientation="vertical" className="mr-2 h-4" />
-
-      {/* Property switcher — always visible */}
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" className="gap-2 px-2">
-            <span className="text-sm font-medium">
-              {currentProperty?.name ?? 'Select property'}
-            </span>
-            <ChevronsUpDown className="size-3.5 text-muted-foreground" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-64">
-          {properties.map((p) => (
-            <DropdownMenuItem key={p.id} onClick={() => handlePropertySwitch(p.id)}>
-              {p.name}
-              {p.id === propertyId && (
-                <span className="ml-auto text-xs text-muted-foreground">Active</span>
-              )}
-            </DropdownMenuItem>
-          ))}
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={() => navigate({ to: '/properties/new' })}>
-            <Plus className="size-3.5 mr-1" />
-            Add Property
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
 
       <div className="flex-1" />
 

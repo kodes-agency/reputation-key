@@ -97,6 +97,19 @@ if (!can(ctx.role, 'member.update')) {
 
 See `docs/adr/` for formal ADRs.
 
+## Navigation & Layout
+
+| Term                         | Definition                                                                                                                                                                |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Section-based navigation** | Sidebar items represent functional sections (Reviews, People, Portals), not nested property sub-pages. Property switcher at top scopes all sections.                      |
+| **Property switcher**        | Scope filter at the top of the sidebar. Selects which property data flows through all sections. Single-property orgs hide it.                                             |
+| **Staff sidebar**            | Distinct sidebar for Staff role: Home, Progress, Leaderboard, Team (conditional). Not a trimmed manager sidebar.                                                          |
+| **Progress**                 | Staff-only page combining stats and goals. Answers "where I am and where I'm going" in one view.                                                                          |
+| **People section**           | Tabbed section replacing separate Staff/Members/Teams pages. Tabs: Directory (org members), Staff (property assignments), Teams (property teams).                         |
+| **Settings route**           | Separate `/settings` route with its own sidebar. Profile, Security, Preferences, Organization, Property config, Billing (later), Agent (later). Not part of main sidebar. |
+| **Dashboard**                | Manager landing page. Property-scoped summary: metric strip, recent reviews, goal progress, team snapshot. Teaser/router, not a data deep-dive.                           |
+| **Layout width**             | Per-page declaration. Lists `max-w-4xl`, forms/settings `max-w-2xl`, data pages full-width with `px-8`. No width in layout wrapper.                                       |
+
 ## Key Files
 
 | Area                      | Path                                 |
