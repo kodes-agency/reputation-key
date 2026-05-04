@@ -6,7 +6,7 @@ import { toast } from 'sonner'
 type UseFileUploadOptions = Readonly<{
   acceptedTypes: string[]
   maxFileSize: number
-  onUpload: (file: File) => Promise<string>
+  onUpload: (file: File, onProgress: (percent: number) => void) => Promise<string>
   onImageUrlChange: (url: string | null) => void
 }>
 
@@ -44,7 +44,7 @@ export function useFileUpload({
       setUploading(true)
       setUploadProgress(0)
       try {
-        const url = await onUpload(file)
+        const url = await onUpload(file, (p) => setUploadProgress(p))
         onImageUrlChange(url)
       } catch (err: unknown) {
         const message =

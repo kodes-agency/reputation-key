@@ -10,6 +10,7 @@ import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { FormTextField } from '#/components/forms/form-text-field'
 import { FormTextarea } from '#/components/forms/form-textarea'
 import { ImageUploadField } from '#/components/forms/image-upload-field'
+import { putFilePresigned } from '#/components/forms/image-upload-field/put-file-presigned'
 import type { BaseFieldApi } from '#/components/forms/form-text-field'
 import type { BaseFieldApiTextarea } from '#/components/forms/form-textarea'
 import type { Action } from '#/components/hooks/use-action'
@@ -63,21 +64,6 @@ type Props = Readonly<{
   }>
 }>
 
-// Helper function for PUT request to presigned URL with progress tracking
-async function putFilePresigned(url: string, file: File): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest()
-    xhr.open('PUT', url)
-    xhr.setRequestHeader('Content-Type', file.type)
-    xhr.addEventListener('load', () => {
-      if (xhr.status >= 200 && xhr.status < 300) resolve()
-      else reject(new Error(`Upload failed: ${xhr.status}`))
-    })
-    xhr.addEventListener('error', () => reject(new Error('Upload failed')))
-    xhr.send(file)
-  })
-}
-
 export function EditPortalForm({
   portal,
   mutation,
@@ -130,11 +116,11 @@ export function EditPortalForm({
         <ImageUploadField
           imageUrl={heroImageUrl}
           onImageUrlChange={setHeroImageUrl}
-          onUpload={async (file) => {
+          onUpload={async (file, onProgress) => {
             const { uploadUrl, key } = await requestUploadUrl({
               data: { portalId: portal.id, contentType: file.type, fileSize: file.size },
             })
-            await putFilePresigned(uploadUrl, file)
+            await putFilePresigned(uploadUrl, file, onProgress)
             const { heroImageUrl: url } = await finalizeUpload({
               data: { portalId: portal.id, key },
             })

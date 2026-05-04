@@ -3,6 +3,7 @@ import { useServerFn } from '@tanstack/react-start'
 import { useAction } from '#/components/hooks/use-action'
 import { Badge } from '#/components/ui/badge'
 import { ImageUploadField } from '#/components/forms/image-upload-field'
+import { putFilePresigned } from '#/components/forms/image-upload-field/put-file-presigned'
 import { OrganizationSettingsForm } from './organization-settings-form'
 import { OrganizationSwitchList } from './organization-switch-list'
 import {
@@ -47,19 +48,16 @@ export function OrganizationSettingsPage({
           imageUrl={logoUrl}
           onImageUrlChange={(url) => {
             setLogoUrl(url)
-            if (url !== organization.logo) {
-              updateOrg({ data: { logo: url } }).catch(() => {})
+            // Only persist on remove (null) — upload persistence is handled by finalizeOrgLogoUpload
+            if (url === null) {
+              updateOrg({ data: { logo: null } }).catch(() => {})
             }
           }}
-          onUpload={async (file) => {
+          onUpload={async (file, onProgress) => {
             const { uploadUrl, key } = await requestUpload({
               data: { contentType: file.type, fileSize: file.size },
             })
-            await fetch(uploadUrl, {
-              method: 'PUT',
-              body: file,
-              headers: { 'Content-Type': file.type },
-            })
+            await putFilePresigned(uploadUrl, file, onProgress)
             const { logoUrl: url } = await finalizeUpload({ data: { key } })
             return url
           }}

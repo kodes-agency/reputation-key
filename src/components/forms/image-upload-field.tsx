@@ -14,7 +14,7 @@ import { useDragDrop } from '#/components/forms/image-upload-field/use-drag-drop
 type ImageUploadFieldProps = Readonly<{
   imageUrl: string | null
   onImageUrlChange: (url: string | null) => void
-  onUpload: (file: File) => Promise<string>
+  onUpload: (file: File, onProgress: (percent: number) => void) => Promise<string>
   disabled?: boolean
   variant?: 'rect' | 'circle'
   acceptedTypes?: string[]

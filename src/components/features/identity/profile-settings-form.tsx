@@ -5,7 +5,7 @@ import { useForm } from '@tanstack/react-form'
 import { useState } from 'react'
 import { useServerFn } from '@tanstack/react-start'
 import { z } from 'zod/v4'
-import { putFilePresigned } from './upload-utils'
+import { putFilePresigned } from '#/components/forms/image-upload-field/put-file-presigned'
 import { Field, FieldLabel } from '#/components/ui/field'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { FormTextField } from '#/components/forms/form-text-field'
@@ -78,11 +78,14 @@ export function ProfileSettingsForm({ user }: Props) {
   })
 
   // Avatar upload handler
-  async function handleAvatarUpload(file: File): Promise<string> {
+  async function handleAvatarUpload(
+    file: File,
+    onProgress: (percent: number) => void,
+  ): Promise<string> {
     const { uploadUrl, key } = await requestUpload({
       data: { contentType: file.type, fileSize: file.size },
     })
-    await putFilePresigned(uploadUrl, file)
+    await putFilePresigned(uploadUrl, file, onProgress)
     const result = await finalizeUpload({ data: { key } })
 
     // Persist avatar URL via better-auth
