@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useServerFn } from '@tanstack/react-start'
 import { useAction } from '#/components/hooks/use-action'
+import { toast } from 'sonner'
 import { Badge } from '#/components/ui/badge'
 import { ImageUploadField } from '#/components/forms/image-upload-field'
 import { putFilePresigned } from '#/components/forms/image-upload-field/put-file-presigned'
@@ -50,7 +51,10 @@ export function OrganizationSettingsPage({
             setLogoUrl(url)
             // Only persist on remove (null) — upload persistence is handled by finalizeOrgLogoUpload
             if (url === null) {
-              updateOrg({ data: { logo: null } }).catch(() => {})
+              updateOrg({ data: { logo: null } }).catch(() => {
+                toast.error('Failed to remove logo')
+                setLogoUrl(organization.logo)
+              })
             }
           }}
           onUpload={async (file, onProgress) => {

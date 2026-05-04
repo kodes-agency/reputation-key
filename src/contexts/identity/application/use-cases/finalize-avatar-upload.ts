@@ -4,6 +4,7 @@
 
 import type { StoragePort } from '#/contexts/portal/application/ports/storage.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
+import { identityError } from '../../domain/errors'
 
 // fallow-ignore-next-line unused-type
 export type FinalizeAvatarUploadDeps = Readonly<{
@@ -12,7 +13,12 @@ export type FinalizeAvatarUploadDeps = Readonly<{
 
 export const finalizeAvatarUpload =
   (deps: FinalizeAvatarUploadDeps) =>
-  async (input: { key: string }, _ctx: AuthContext): Promise<{ avatarUrl: string }> => {
+  async (input: { key: string }, ctx: AuthContext): Promise<{ avatarUrl: string }> => {
+    const expectedPrefix = `avatars/${ctx.userId}/`
+    if (!input.key.startsWith(expectedPrefix)) {
+      throw identityError('forbidden', 'Upload key is not scoped to this user')
+    }
+
     const avatarUrl = await deps.storage.confirmUpload(input.key)
     return { avatarUrl }
   }

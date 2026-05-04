@@ -36,7 +36,10 @@ export function useDragDrop({
   const handleDragLeave = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    setDragOver(false)
+    // Only deactivate when leaving the drop zone entirely, not when entering a child
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+      setDragOver(false)
+    }
   }, [])
 
   const handleDrop = useCallback(
