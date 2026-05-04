@@ -1,6 +1,6 @@
 // Profile settings form — edit name, email (read-only), and avatar
 // Per conventions: receives user data, uses TanStack Form + Zod schema.
-// Avatar upload uses org logo upload functions (TODO: fix S3 key to user profile path).
+// Avatar upload uses dedicated avatar server functions with user-scoped S3 keys.
 import { useForm } from '@tanstack/react-form'
 import { useState } from 'react'
 import { useServerFn } from '@tanstack/react-start'
@@ -23,8 +23,8 @@ import type { BaseFieldApi } from '#/components/forms/form-text-field'
 import { authClient } from '#/shared/auth/auth-client'
 import { toast } from 'sonner'
 import {
-  requestOrgLogoUpload,
-  finalizeOrgLogoUpload,
+  requestAvatarUpload,
+  finalizeAvatarUpload,
 } from '#/contexts/identity/server/organizations'
 
 // ── Schema ──────────────────────────────────────────────────────────
@@ -55,8 +55,8 @@ export function ProfileSettingsForm({ user }: Props) {
   const [error, setError] = useState<unknown>(null)
   const [avatarUrl, setAvatarUrl] = useState<string | null>(user.image)
 
-  const requestUpload = useServerFn(requestOrgLogoUpload)
-  const finalizeUpload = useServerFn(finalizeOrgLogoUpload)
+  const requestUpload = useServerFn(requestAvatarUpload)
+  const finalizeUpload = useServerFn(finalizeAvatarUpload)
 
   const form = useForm({
     defaultValues: {
@@ -89,9 +89,9 @@ export function ProfileSettingsForm({ user }: Props) {
     const result = await finalizeUpload({ data: { key } })
 
     // Persist avatar URL via better-auth
-    await authClient.updateUser({ image: result.logoUrl })
+    await authClient.updateUser({ image: result.avatarUrl })
     toast.success('Avatar updated successfully')
-    return result.logoUrl
+    return result.avatarUrl
   }
 
   return (
@@ -112,6 +112,7 @@ export function ProfileSettingsForm({ user }: Props) {
             onImageUrlChange={setAvatarUrl}
             onUpload={handleAvatarUpload}
             variant="circle"
+            maxFileSize={5 * 1024 * 1024}
             disabled={isPending}
           />
         </CardContent>
