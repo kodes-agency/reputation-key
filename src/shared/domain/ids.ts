@@ -57,3 +57,14 @@ export function portalLinkCategoryId(id: string): PortalLinkCategoryId {
 export function portalLinkId(id: string): PortalLinkId {
   return id as PortalLinkId
 }
+
+export type GoogleConnectionId = Brand<string, 'GoogleConnectionId'>
+export type GbpImportJobId = Brand<string, 'GbpImportJobId'>
+
+export function googleConnectionId(id: string): GoogleConnectionId {
+  return id as GoogleConnectionId
+}
+
+export function gbpImportJobId(id: string): GbpImportJobId {
+  return id as GbpImportJobId
+}
