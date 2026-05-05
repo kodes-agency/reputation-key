@@ -37,6 +37,7 @@ User clicks "Add property" → redirected to Google OAuth consent screen → aut
 | scopes | varchar[] | Granted scopes |
 | connected_by | varchar(255) | User ID who created the connection |
 | visibility | enum: 'private', 'organization' | Default: 'private' |
+| status | enum: 'active', 'disconnected' | Default: 'active' |
 | created_at | timestamp | |
 | updated_at | timestamp | |
 
@@ -48,15 +49,15 @@ User clicks "Add property" → redirected to Google OAuth consent screen → aut
 - Only the connection owner or org owner/admin can toggle visibility or disconnect.
 - Refresh tokens used for persistence. A utility function refreshes access tokens before API calls.
 - Token encryption at rest using an application-level encryption key from env vars.
-- Disconnecting revokes the token with Google and deletes the row (7-day SLA compliance).
+- Disconnecting revokes the token with Google and sets status to `disconnected` rather than deleting the row. This preserves the association history and allows the UI to show "reconnect" instead of "connect" for previously-linked accounts. The row can be hard-deleted after a retention period if desired.
 
 ### Unlinking
 
 A `disconnectGoogleAccount` server function:
 1. Revokes tokens with Google's token revocation endpoint.
 2. Purges all `gbp_cache` rows for properties linked to this connection.
-3. Sets `google_connection_id` to null on affected properties (or marks them as disconnected).
-4. Deletes the `google_connections` row.
+3. Sets `status` to `disconnected` on the connection row (does not delete — preserves history).
+4. Properties retain their `google_connection_id` reference. UI shows "disconnected" state for these.
 
 ## Section 2: Import Flow
 
@@ -70,7 +71,7 @@ A `disconnectGoogleAccount` server function:
 6. User selects locations → clicks "Import N properties".
 7. Server side: for each selected location:
    - Check if `gbpPlaceId` already exists in the org → if yes, queue as skipped.
-   - Create property with `name` (from GBP), derived `timezone` (from GBP address), `gbpPlaceId`.
+   - Create property with `name` (from GBP), `timezone` (derived from GBP coordinates via `getTimezoneIdForLatLng` or similar utility), `gbpPlaceId`.
    - Link property to the Google connection via `google_connection_id`.
 8. Each import is a BullMQ job. Progress tracked as queued/in-progress/done/skipped.
 
@@ -97,6 +98,7 @@ This links each imported property to the Google connection that can manage its r
 | skipped_count | int | |
 | failed_count | int | |
 | created_at | timestamp | |
+| updated_at | timestamp | |
 
 Individual item progress is tracked via BullMQ job state. The import page polls a server function that returns the batch status.
 
