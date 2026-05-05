@@ -15,6 +15,7 @@ export const properties = pgTable(
     slug: varchar('slug', { length: 64 }).notNull(),
     timezone: varchar('timezone', { length: 64 }).notNull(),
     gbpPlaceId: varchar('gbp_place_id', { length: 500 }),
+    googleConnectionId: uuid('google_connection_id'),
     createdAt: createdAtColumn(),
     updatedAt: updatedAtColumn(),
     deletedAt: deletedAtColumn(),
