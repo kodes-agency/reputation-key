@@ -41,6 +41,9 @@ const envSchema = z.object({
   // Google OAuth
   GOOGLE_CLIENT_ID: z.string().min(1),
   GOOGLE_CLIENT_SECRET: z.string().min(1),
+
+  // Token encryption (32-byte hex key for AES-256-GCM)
+  ENCRYPTION_KEY: z.string().min(1),
 })
 
 // fallow-ignore-next-line unused-type
