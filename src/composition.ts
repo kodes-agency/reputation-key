@@ -31,6 +31,13 @@ import type { Queue } from 'bullmq'
 import type { Redis } from 'ioredis'
 import { buildPropertyContext } from '#/contexts/property/build'
 import { createPropertyRepository } from '#/contexts/property/infrastructure/repositories/property.repository'
+import { buildIntegrationContext } from '#/contexts/integration/build'
+import { createGoogleConnectionRepository } from '#/contexts/integration/infrastructure/repositories/google-connection.repository'
+import { createGbpCacheRepository } from '#/contexts/integration/infrastructure/repositories/gbp-cache.repository'
+import { createGbpImportRepository } from '#/contexts/integration/infrastructure/repositories/gbp-import.repository'
+import { createGoogleOAuthAdapter } from '#/contexts/integration/infrastructure/adapters/google-oauth.adapter'
+import { createTokenEncryptionAdapter } from '#/contexts/integration/infrastructure/adapters/token-encryption.adapter'
+import { createGbpApiAdapter } from '#/contexts/integration/infrastructure/adapters/gbp-api.adapter'
 import { buildTeamContext } from '#/contexts/team/build'
 import { buildStaffContext } from '#/contexts/staff/build'
 import { buildPortalContext } from '#/contexts/portal/build'
@@ -168,6 +175,13 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     clock,
   })
 
+  const integration = buildIntegrationContext({
+    db,
+    events: eventBus,
+    clock,
+    jobQueue: infra.jobQueue,
+  })
+
   // ── Wire invitation acceptance hook ────────────────────────────
   // The hook creates staff assignments when a member accepts an invite.
   // This is the only cross-context dependency: identity acceptance
@@ -209,6 +223,7 @@ export function createContainer(options?: { enableJobs?: boolean }) {
       ...team.useCases,
       ...portal.useCases,
       ...guest.useCases,
+      ...integration.useCases,
     },
     storage: portal.storage,
     portalRepo: portal.portalRepo,
