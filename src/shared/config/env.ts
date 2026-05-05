@@ -37,6 +37,10 @@ const envSchema = z.object({
 
   // Guest sessions
   GUEST_SESSION_SALT: z.string().min(16).default('default-salt-change-in-production'),
+
+  // Google OAuth
+  GOOGLE_CLIENT_ID: z.string().min(1),
+  GOOGLE_CLIENT_SECRET: z.string().min(1),
 })
 
 // fallow-ignore-next-line unused-type
