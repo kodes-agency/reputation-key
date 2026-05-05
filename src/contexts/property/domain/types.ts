@@ -13,6 +13,7 @@ export type Property = Readonly<{
   slug: string
   timezone: string
   gbpPlaceId: string | null
+  googleConnectionId: string | null
   createdAt: Date
   updatedAt: Date
   deletedAt: Date | null
