@@ -8,7 +8,10 @@ import type { GbpLocation } from '../../domain/types'
 const GBP_API_BASE = 'https://mybusiness.googleapis.com/v4'
 
 export const createGbpApiAdapter = (): GbpApiPort => {
-  const listLocations = async (accessToken: string, accountName: string): Promise<ReadonlyArray<GbpLocation>> => {
+  const listLocations = async (
+    accessToken: string,
+    accountName: string,
+  ): Promise<ReadonlyArray<GbpLocation>> => {
     const url = `${GBP_API_BASE}/${accountName}/locations?pageSize=100`
     const response = await fetch(url, {
       headers: {
@@ -27,7 +30,11 @@ export const createGbpApiAdapter = (): GbpApiPort => {
     return locations.map(mapGbpLocation)
   }
 
-  const getLocation = async (accessToken: string, accountName: string, locationName: string): Promise<GbpLocation> => {
+  const getLocation = async (
+    accessToken: string,
+    _accountName: string,
+    locationName: string,
+  ): Promise<GbpLocation> => {
     const url = `${GBP_API_BASE}/${locationName}`
     const response = await fetch(url, {
       headers: {
@@ -112,9 +119,10 @@ function mapGbpLocation(location: unknown): GbpLocation {
     name,
     gbpPlaceId: storeCode,
     businessName: loc.title as string,
-    address: address && address.length > 0
-      ? `${address.join(', ')}, ${locality || ''} ${administrativeArea || ''} ${postalCode || ''}`.trim()
-      : null,
+    address:
+      address && address.length > 0
+        ? `${address.join(', ')}, ${locality || ''} ${administrativeArea || ''} ${postalCode || ''}`.trim()
+        : null,
     primaryCategory: categoryName || null,
     latitude: latitude ?? null,
     longitude: longitude ?? null,

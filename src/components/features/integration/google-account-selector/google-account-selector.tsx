@@ -1,4 +1,4 @@
-import { GoogleConnection } from '#/contexts/integration/domain/types'
+import type { GoogleConnection } from '#/shared/domain'
 import {
   Select,
   SelectContent,

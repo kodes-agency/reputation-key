@@ -6,19 +6,37 @@ import { and, eq, or } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { googleConnections } from '#/shared/db/schema/google-connection.schema'
 import type { GoogleConnectionRepository } from '../../application/ports/google-connection.repository'
-import { googleConnectionFromRow, googleConnectionToInsert } from '../mappers/google-connection.mapper'
+import {
+  googleConnectionFromRow,
+  googleConnectionToInsert,
+} from '../mappers/google-connection.mapper'
 import { trace } from '#/shared/observability/trace'
 
-export const createGoogleConnectionRepository = (db: Database): GoogleConnectionRepository => ({
+export const createGoogleConnectionRepository = (
+  db: Database,
+): GoogleConnectionRepository => ({
   findById: async (orgId, id) => {
     return trace('googleConnection.findById', async () => {
       const rows = await db
         .select()
         .from(googleConnections)
         .where(
+          and(eq(googleConnections.organizationId, orgId), eq(googleConnections.id, id)),
+        )
+        .limit(1)
+      return rows[0] ? googleConnectionFromRow(rows[0]) : null
+    })
+  },
+
+  findByGoogleAccountId: async (orgId, googleAccountId) => {
+    return trace('googleConnection.findByGoogleAccountId', async () => {
+      const rows = await db
+        .select()
+        .from(googleConnections)
+        .where(
           and(
             eq(googleConnections.organizationId, orgId),
-            eq(googleConnections.id, id),
+            eq(googleConnections.googleAccountId, googleAccountId),
           ),
         )
         .limit(1)
@@ -70,6 +88,18 @@ export const createGoogleConnectionRepository = (db: Database): GoogleConnection
         .update(googleConnections)
         .set({
           status,
+          updatedAt: new Date(),
+        })
+        .where(eq(googleConnections.id, id))
+    })
+  },
+
+  updateVisibility: async (id, visibility) => {
+    return trace('googleConnection.updateVisibility', async () => {
+      await db
+        .update(googleConnections)
+        .set({
+          visibility,
           updatedAt: new Date(),
         })
         .where(eq(googleConnections.id, id))

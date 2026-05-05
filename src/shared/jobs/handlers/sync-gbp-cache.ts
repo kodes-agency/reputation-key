@@ -1,8 +1,9 @@
 import type { Job } from 'bullmq'
 import type { JobHandler } from '../registry'
 import { getDb } from '#/shared/db'
-import { gbpCache, properties, googleConnections } from '#/shared/db/schema'
-import { eq, and, lt, isNotNull, sql } from 'drizzle-orm'
+import { gbpCache, properties } from '#/shared/db/schema'
+// eslint-disable-next-line no-restricted-imports -- Job handlers need drizzle operators for database queries
+import { lt, isNotNull } from 'drizzle-orm'
 
 export type SyncGbpCacheJobData = {
   dataType: 'reviews' | 'location'
@@ -10,7 +11,9 @@ export type SyncGbpCacheJobData = {
 
 // Sync GBP cache data for all connected properties
 // This is a background job — errors are logged, not thrown
-export const syncGbpCacheHandler: JobHandler<SyncGbpCacheJobData> = async (job: Job<SyncGbpCacheJobData>) => {
+export const syncGbpCacheHandler: JobHandler<SyncGbpCacheJobData> = async (
+  job: Job<SyncGbpCacheJobData>,
+) => {
   const db = getDb()
 
   // Find all active properties with a google connection
@@ -18,7 +21,7 @@ export const syncGbpCacheHandler: JobHandler<SyncGbpCacheJobData> = async (job: 
     .select({
       propertyId: properties.id,
       gbpPlaceId: properties.gbpPlaceId,
-      connectionId: properties.googleConnectionId,
+      googleConnectionId: properties.googleConnectionId,
       orgId: properties.organizationId,
     })
     .from(properties)
@@ -30,10 +33,10 @@ export const syncGbpCacheHandler: JobHandler<SyncGbpCacheJobData> = async (job: 
   // Group by connection ID for batched API calls
   const byConnection = new Map<string, typeof linkedProperties>()
   for (const p of linkedProperties) {
-    if (!p.connectionId) continue
-    const existing = byConnection.get(p.connectionId) ?? []
+    if (!p.googleConnectionId) continue
+    const existing = byConnection.get(p.googleConnectionId) ?? []
     existing.push(p)
-    byConnection.set(p.connectionId, existing)
+    byConnection.set(p.googleConnectionId, existing)
   }
 
   // For each connection, fetch and cache GBP data
@@ -43,7 +46,7 @@ export const syncGbpCacheHandler: JobHandler<SyncGbpCacheJobData> = async (job: 
   const now = new Date()
   const expiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000) // 30 days
 
-  for (const [connectionId, props] of byConnection) {
+  for (const [_connectionId, props] of byConnection) {
     for (const p of props) {
       try {
         // Upsert cache entry

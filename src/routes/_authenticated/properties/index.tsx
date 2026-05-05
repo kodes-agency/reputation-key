@@ -27,6 +27,7 @@ function PropertyListPage() {
         </div>
         {can('property.create') && (
           <Button asChild>
+            {/* @ts-expect-error - Route will be registered after router codegen */}
             <Link to="/properties/import">
               <Plus />
               Import Properties

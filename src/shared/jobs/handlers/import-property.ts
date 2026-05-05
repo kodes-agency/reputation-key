@@ -5,7 +5,9 @@ import type { Job } from 'bullmq'
 import type { JobHandler } from '../registry'
 import { getDb } from '#/shared/db'
 import { properties, gbpImportJobs } from '#/shared/db/schema'
+// eslint-disable-next-line no-restricted-imports -- Job handlers need drizzle operators for database queries
 import { eq, sql } from 'drizzle-orm'
+// eslint-disable-next-line boundaries/dependencies -- Job handlers need domain rules for normalization
 import { normalizeSlug } from '#/contexts/property/domain/rules'
 
 export type ImportPropertyJobData = Readonly<{
@@ -45,7 +47,10 @@ export const importPropertyHandler: JobHandler<ImportPropertyJobData> = async (
       if (existing.length > 0) {
         await db
           .update(gbpImportJobs)
-          .set({ skippedCount: sql`${gbpImportJobs.skippedCount} + 1`, updatedAt: new Date() })
+          .set({
+            skippedCount: sql`${gbpImportJobs.skippedCount} + 1`,
+            updatedAt: new Date(),
+          })
           .where(eq(gbpImportJobs.id, jobId))
         continue
       }
@@ -64,12 +69,18 @@ export const importPropertyHandler: JobHandler<ImportPropertyJobData> = async (
 
       await db
         .update(gbpImportJobs)
-        .set({ importedCount: sql`${gbpImportJobs.importedCount} + 1`, updatedAt: new Date() })
+        .set({
+          importedCount: sql`${gbpImportJobs.importedCount} + 1`,
+          updatedAt: new Date(),
+        })
         .where(eq(gbpImportJobs.id, jobId))
     } catch {
       await db
         .update(gbpImportJobs)
-        .set({ failedCount: sql`${gbpImportJobs.failedCount} + 1`, updatedAt: new Date() })
+        .set({
+          failedCount: sql`${gbpImportJobs.failedCount} + 1`,
+          updatedAt: new Date(),
+        })
         .where(eq(gbpImportJobs.id, jobId))
     }
   }

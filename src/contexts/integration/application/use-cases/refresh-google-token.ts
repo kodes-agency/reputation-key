@@ -5,7 +5,7 @@
 import type { GoogleConnectionRepository } from '../ports/google-connection.repository'
 import type { GoogleOAuthPort } from '../ports/google-oauth.port'
 import type { TokenEncryptionPort } from '../ports/token-encryption.port'
-import type { GoogleConnection, GoogleConnectionId } from '../../domain/types'
+import type { GoogleConnection } from '../../domain/types'
 import type { OrganizationId } from '#/shared/domain/ids'
 import { googleConnectionId } from '#/shared/domain/ids'
 import { integrationError } from '../../domain/errors'
@@ -31,7 +31,10 @@ export const refreshGoogleToken =
 
     // 2. Check status
     if (connection.status === 'disconnected') {
-      throw integrationError('connection_disconnected', 'Cannot refresh token for disconnected connection')
+      throw integrationError(
+        'connection_disconnected',
+        'Cannot refresh token for disconnected connection',
+      )
     }
 
     // 3. Check if token needs refresh (5 min buffer)
@@ -64,7 +67,10 @@ export const refreshGoogleToken =
     // 8. Return refreshed connection
     const updatedConnection = await deps.connectionRepo.findById(orgId, connectionId)
     if (!updatedConnection) {
-      throw integrationError('connection_not_found', 'Connection not found after token refresh')
+      throw integrationError(
+        'connection_not_found',
+        'Connection not found after token refresh',
+      )
     }
 
     return updatedConnection

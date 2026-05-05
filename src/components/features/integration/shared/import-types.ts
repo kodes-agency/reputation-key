@@ -1,6 +1,5 @@
 // Shared types for GBP import components
-import type { GoogleConnection } from '#/contexts/integration/domain/types'
-import type { GbpLocation } from '#/contexts/integration/domain/types'
+import type { GoogleConnection, GbpLocation } from '#/shared/domain'
 
 export type GoogleConnectionDisplay = GoogleConnection & {
   displayName: string

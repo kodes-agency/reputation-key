@@ -7,6 +7,7 @@ import type { EventBus } from '#/shared/events/event-bus'
 import type { Queue } from 'bullmq'
 import type { GbpQueuePort } from './application/ports/gbp-queue.port'
 import type { GbpImportJobId } from '#/shared/domain/ids'
+import { getEnv } from '#/shared/config/env'
 import {
   connectGoogleAccount,
   disconnectGoogleAccount,
@@ -38,7 +39,9 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
   const importRepo = createGbpImportRepository(deps.db)
 
   // ── Adapters ──────────────────────────────────────────────────────
-  const oauthPort = createGoogleOAuthAdapter(deps.clock)
+  const oauthPort = createGoogleOAuthAdapter(
+    getEnv().BETTER_AUTH_URL + '/api/auth/google/callback',
+  )
   const encryptionPort = createTokenEncryptionAdapter()
   const gbpApiPort = createGbpApiAdapter()
 
@@ -96,7 +99,6 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       connectionRepo,
       oauth: oauthPort,
       encryption: encryptionPort,
-      clock: deps.clock,
     }),
 
     listGbpLocations: listGbpLocations({

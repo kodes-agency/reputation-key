@@ -9,15 +9,15 @@ const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token'
 const GOOGLE_USERINFO_URL = 'https://www.googleapis.com/oauth2/v2/userinfo'
 const GOOGLE_REVOKE_URL = 'https://oauth2.googleapis.com/revoke'
 
-export const createGoogleOAuthAdapter = (redirectUri: string): GoogleOAuthPort => {
+export const createGoogleOAuthAdapter = (_redirectUri: string): GoogleOAuthPort => {
   const clientId = getEnv().GOOGLE_CLIENT_ID
   const clientSecret = getEnv().GOOGLE_CLIENT_SECRET
 
-  const getAuthorizationUrl = (scopes: ReadonlyArray<string>, state: string): string => {
+  const getAuthorizationUrl = (redirectUriParam: string, state: string): string => {
     const params = new URLSearchParams({
       client_id: clientId,
-      redirect_uri: redirectUri,
-      scope: scopes.join(' '),
+      redirect_uri: redirectUriParam,
+      scope: 'https://www.googleapis.com/auth/business.manage',
       response_type: 'code',
       state,
       access_type: 'offline',
@@ -27,7 +27,17 @@ export const createGoogleOAuthAdapter = (redirectUri: string): GoogleOAuthPort =
     return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`
   }
 
-  const exchangeCode = async (code: string): Promise<{ accessToken: string; refreshToken: string; expiresAt: Date; googleAccountId: string; email: string; scopes: ReadonlyArray<string> }> => {
+  const exchangeCode = async (
+    code: string,
+    redirectUriParam: string,
+  ): Promise<{
+    googleAccountId: string
+    googleEmail: string
+    accessToken: string
+    refreshToken: string
+    expiresIn: number
+    scopes: readonly string[]
+  }> => {
     const response = await fetch(GOOGLE_TOKEN_URL, {
       method: 'POST',
       headers: {
@@ -37,14 +47,16 @@ export const createGoogleOAuthAdapter = (redirectUri: string): GoogleOAuthPort =
         code,
         client_id: clientId,
         client_secret: clientSecret,
-        redirect_uri: redirectUri,
+        redirect_uri: redirectUriParam,
         grant_type: 'authorization_code',
       }),
     })
 
     if (!response.ok) {
       const errorText = await response.text()
-      throw new Error(`Google OAuth token exchange failed: ${response.status} ${errorText}`)
+      throw new Error(
+        `Google OAuth token exchange failed: ${response.status} ${errorText}`,
+      )
     }
 
     const data = await response.json()
@@ -54,7 +66,9 @@ export const createGoogleOAuthAdapter = (redirectUri: string): GoogleOAuthPort =
     const scopes = (data.scope as string).split(' ')
 
     if (!refreshToken) {
-      throw new Error('Google OAuth did not return a refresh token. Ensure prompt=consent is set.')
+      throw new Error(
+        'Google OAuth did not return a refresh token. Ensure prompt=consent is set.',
+      )
     }
 
     // Fetch user info
@@ -73,14 +87,16 @@ export const createGoogleOAuthAdapter = (redirectUri: string): GoogleOAuthPort =
     return {
       accessToken,
       refreshToken,
-      expiresAt: new Date(Date.now() + expiresIn * 1000),
+      expiresIn,
       googleAccountId: userInfo.id,
-      email: userInfo.email,
+      googleEmail: userInfo.email,
       scopes: Object.freeze(scopes),
     }
   }
 
-  const refreshAccessToken = async (refreshToken: string): Promise<{ accessToken: string; refreshToken: string; expiresAt: Date }> => {
+  const refreshAccessToken = async (
+    refreshToken: string,
+  ): Promise<{ accessToken: string; expiresIn: number }> => {
     const response = await fetch(GOOGLE_TOKEN_URL, {
       method: 'POST',
       headers: {
@@ -96,18 +112,18 @@ export const createGoogleOAuthAdapter = (redirectUri: string): GoogleOAuthPort =
 
     if (!response.ok) {
       const errorText = await response.text()
-      throw new Error(`Google OAuth token refresh failed: ${response.status} ${errorText}`)
+      throw new Error(
+        `Google OAuth token refresh failed: ${response.status} ${errorText}`,
+      )
     }
 
     const data = await response.json()
     const accessToken = data.access_token
-    const newRefreshToken = data.refresh_token ?? refreshToken // Some providers don't return new refresh token
     const expiresIn = data.expires_in
 
     return {
       accessToken,
-      refreshToken: newRefreshToken,
-      expiresAt: new Date(Date.now() + expiresIn * 1000),
+      expiresIn,
     }
   }
 

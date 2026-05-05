@@ -3,7 +3,6 @@
 
 import type { GbpImportRepository } from '../ports/gbp-import.repository'
 import type { GbpImportJob } from '../../domain/types'
-import type { OrganizationId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { ImportStatusInput } from '../dto/import-status.dto'
 import { gbpImportJobId } from '#/shared/domain/ids'

@@ -1,6 +1,6 @@
 import { Badge } from '#/components/ui/badge'
 import { CheckCircle2, Circle, XCircle, Loader2 } from 'lucide-react'
-import type { GbpImportJobStatus } from '#/contexts/integration/domain/types'
+import type { GbpImportJobStatus } from '#/shared/domain'
 
 interface ImportStatusBadgeProps {
   status: GbpImportJobStatus
@@ -30,9 +30,7 @@ export function ImportStatusBadge({ status }: ImportStatusBadgeProps) {
 
   return (
     <Badge variant={variant} className="gap-1.5">
-      {status === 'in_progress' && (
-        <Icon className="size-3.5 animate-spin" />
-      )}
+      {status === 'in_progress' && <Icon className="size-3.5 animate-spin" />}
       {status !== 'in_progress' && <Icon className="size-3.5" />}
       {label}
     </Badge>

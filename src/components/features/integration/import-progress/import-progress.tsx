@@ -1,4 +1,4 @@
-import type { GbpImportJob } from '#/contexts/integration/domain/types'
+import type { GbpImportJob } from '#/shared/domain'
 import { Card } from '#/components/ui/card'
 import { ImportStatusBadge } from './import-status-badge'
 import { Button } from '#/components/ui/button'
@@ -19,9 +19,7 @@ export function ImportProgress({ job, onRetryFailed }: ImportProgressProps) {
     <div className="mx-auto max-w-2xl space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">
-            Import Properties
-          </h1>
+          <h1 className="text-xl font-semibold tracking-tight">Import Properties</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {isComplete
               ? 'Import completed successfully'

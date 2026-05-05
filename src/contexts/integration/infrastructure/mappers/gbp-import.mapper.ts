@@ -3,14 +3,15 @@
 
 import type { gbpImportJobs } from '#/shared/db/schema/gbp-import-job.schema'
 import type { GbpImportJob } from '../../domain/types'
+import { gbpImportJobId, organizationId, userId } from '#/shared/domain/ids'
 
 type GbpImportJobRow = typeof gbpImportJobs.$inferSelect
 type GbpImportJobInsertRow = typeof gbpImportJobs.$inferInsert
 
 export const gbpImportJobFromRow = (row: GbpImportJobRow): GbpImportJob => ({
-  id: row.id,
-  organizationId: row.organizationId,
-  initiatedBy: row.initiatedBy,
+  id: gbpImportJobId(row.id),
+  organizationId: organizationId(row.organizationId),
+  initiatedBy: userId(row.initiatedBy),
   status: row.status,
   totalCount: row.totalCount,
   importedCount: row.importedCount,

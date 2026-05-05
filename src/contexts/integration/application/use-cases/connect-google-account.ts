@@ -5,8 +5,7 @@ import type { GoogleConnectionRepository } from '../ports/google-connection.repo
 import type { GoogleOAuthPort } from '../ports/google-oauth.port'
 import type { TokenEncryptionPort } from '../ports/token-encryption.port'
 import type { EventBus } from '#/shared/events/event-bus'
-import type { GoogleConnection, GoogleConnectionId } from '../../domain/types'
-import type { OrganizationId, UserId } from '#/shared/domain/ids'
+import type { GoogleConnection } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { ConnectGoogleInput } from '../dto/connect-google.dto'
 import { can } from '#/shared/domain/permissions'
@@ -28,7 +27,10 @@ export const connectGoogleAccount =
   async (input: ConnectGoogleInput, ctx: AuthContext): Promise<GoogleConnection> => {
     // 1. Authorize
     if (!can(ctx.role, 'integration.manage')) {
-      throw integrationError('forbidden', 'You do not have permission to manage integrations')
+      throw integrationError(
+        'forbidden',
+        'You do not have permission to manage integrations',
+      )
     }
 
     // 2. Exchange OAuth code
@@ -57,9 +59,15 @@ export const connectGoogleAccount =
       )
       await deps.connectionRepo.updateStatus(existingConnection.id, 'active')
 
-      const updatedConnection = await deps.connectionRepo.findById(ctx.organizationId, existingConnection.id)
+      const updatedConnection = await deps.connectionRepo.findById(
+        ctx.organizationId,
+        existingConnection.id,
+      )
       if (!updatedConnection) {
-        throw integrationError('connection_not_found', 'Connection not found after update')
+        throw integrationError(
+          'connection_not_found',
+          'Connection not found after update',
+        )
       }
 
       // Emit event for reconnection

@@ -1,4 +1,4 @@
-import { GbpLocation } from '#/contexts/integration/domain/types'
+import type { GbpLocation } from '#/shared/domain'
 import { Checkbox } from '#/components/ui/checkbox'
 import { LocationRow } from './location-row'
 
@@ -14,13 +14,10 @@ export function LocationPicker({
   onSelectionChange,
 }: LocationPickerProps) {
   const allSelected = locations.length > 0 && selectedIds.size === locations.length
-  const someSelected = selectedIds.size > 0 && !allSelected
 
   const handleSelectAll = (checked: boolean | string) => {
     const isChecked = checked === true
-    onSelectionChange(
-      isChecked ? new Set(locations.map((l) => l.gbpPlaceId)) : new Set(),
-    )
+    onSelectionChange(isChecked ? new Set(locations.map((l) => l.gbpPlaceId)) : new Set())
   }
 
   const handleLocationToggle = (gbpPlaceId: string, checked: boolean) => {
@@ -52,10 +49,7 @@ export function LocationPicker({
           onCheckedChange={handleSelectAll}
           aria-label="Select all locations"
         />
-        <label
-          htmlFor="select-all"
-          className="text-sm font-medium cursor-pointer"
-        >
+        <label htmlFor="select-all" className="text-sm font-medium cursor-pointer">
           Select all ({locations.length})
         </label>
       </div>
@@ -66,9 +60,7 @@ export function LocationPicker({
             key={location.gbpPlaceId}
             location={location}
             selected={selectedIds.has(location.gbpPlaceId)}
-            onSelect={(checked) =>
-              handleLocationToggle(location.gbpPlaceId, checked)
-            }
+            onSelect={(checked) => handleLocationToggle(location.gbpPlaceId, checked)}
           />
         ))}
       </div>
