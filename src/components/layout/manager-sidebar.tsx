@@ -72,7 +72,7 @@ function useActiveSection(): string {
       if (s.location.pathname.startsWith('/settings')) return 'settings'
       if (
         s.location.pathname === '/properties' ||
-        s.location.pathname === '/properties/new'
+        s.location.pathname.startsWith('/properties/import')
       )
         return ''
       const m = s.location.pathname.match(/\/properties\/[^/]+(?:\/([^/]+))?/)
@@ -144,9 +144,9 @@ export function ManagerSidebar({ properties }: Props) {
                   <Building2 className="mr-2 size-4" />
                   View all properties
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => navigate({ to: '/properties/new' })}>
+                <DropdownMenuItem onClick={() => navigate({ to: '/properties/import' })}>
                   <Plus className="mr-2 size-4" />
-                  Create property
+                  Import property
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
