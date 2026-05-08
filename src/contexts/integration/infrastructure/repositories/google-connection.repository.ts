@@ -49,19 +49,17 @@ export const createGoogleConnectionRepository = (
     return trace('googleConnection.listByOrganization', async () => {
       const isAdminOrOwner = hasRole(role, 'AccountAdmin')
 
-      const visibilityFilter = isAdminOrOwner
-        ? // Admins/owners see ALL connections (both organization and private)
-          undefined // No visibility filter needed for admins
-        : // Non-admins see organization connections + only their own private connections
-          or(
-            eq(googleConnections.visibility, 'organization'),
-            eq(googleConnections.connectedBy, userId),
+      const whereClause = isAdminOrOwner
+        ? eq(googleConnections.organizationId, orgId)
+        : and(
+            eq(googleConnections.organizationId, orgId),
+            or(
+              eq(googleConnections.visibility, 'organization'),
+              eq(googleConnections.connectedBy, userId),
+            ),
           )
 
-      const rows = await db
-        .select()
-        .from(googleConnections)
-        .where(and(eq(googleConnections.organizationId, orgId), visibilityFilter))
+      const rows = await db.select().from(googleConnections).where(whereClause)
       return rows.map(googleConnectionFromRow)
     })
   },
