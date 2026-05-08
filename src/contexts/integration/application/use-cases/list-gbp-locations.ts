@@ -95,8 +95,6 @@ export const listGbpLocations =
     } catch (err) {
       if (!isRetryableError(err)) throw err
 
-      console.error('GBP account-scoped listing failed, retrying with wildcard:', err)
-
       locations = await deps.gbpApi.listLocations(accessToken, '-')
     }
 
