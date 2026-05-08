@@ -20,6 +20,7 @@ export type ConnectGoogleAccountDeps = Readonly<{
   encryption: TokenEncryptionPort
   events: EventBus
   clock: () => Date
+  callbackUrl: string
 }>
 
 export const connectGoogleAccount =
@@ -34,8 +35,9 @@ export const connectGoogleAccount =
     }
 
     // 2. Exchange OAuth code
-    const oauthResult = await deps.oauth.exchangeCode(input.code, input.redirectUri)
-    const tokenExpiresAt = new Date(Date.now() + oauthResult.expiresIn * 1000)
+    const oauthResult = await deps.oauth.exchangeCode(input.code, deps.callbackUrl)
+    const now = deps.clock()
+    const tokenExpiresAt = new Date(now.getTime() + oauthResult.expiresIn * 1000)
 
     // 3. Encrypt tokens
     const encryptedAccessToken = deps.encryption.encrypt(oauthResult.accessToken)
@@ -47,17 +49,21 @@ export const connectGoogleAccount =
       oauthResult.googleAccountId,
     )
 
-    const now = deps.clock()
-
     if (existingConnection) {
-      // Reactivate and update tokens
-      await deps.connectionRepo.updateTokens(
+      // Reactivate, update tokens, and apply new visibility
+      await deps.connectionRepo.updateTokensAndStatus(
+        ctx.organizationId,
         existingConnection.id,
         encryptedAccessToken,
         encryptedRefreshToken,
         tokenExpiresAt,
+        'active',
       )
-      await deps.connectionRepo.updateStatus(existingConnection.id, 'active')
+      await deps.connectionRepo.updateVisibility(
+        ctx.organizationId,
+        existingConnection.id,
+        input.visibility,
+      )
 
       const updatedConnection = await deps.connectionRepo.findById(
         ctx.organizationId,

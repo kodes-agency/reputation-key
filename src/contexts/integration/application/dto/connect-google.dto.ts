@@ -6,7 +6,6 @@ import { z } from 'zod/v4'
 
 export const connectGoogleInputSchema = z.object({
   code: z.string().min(1, 'Authorization code is required'),
-  redirectUri: z.string().url(),
   visibility: z.enum(['private', 'organization']).default('private'),
 })
 

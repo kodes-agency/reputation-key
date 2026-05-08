@@ -6,8 +6,7 @@ import type { Database } from '#/shared/db'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { Queue } from 'bullmq'
 import type { GbpQueuePort } from './application/ports/gbp-queue.port'
-import type { GbpImportJobId } from '#/shared/domain/ids'
-import { getEnv } from '#/shared/config/env'
+import type { ImportPropertyJobData } from '#/shared/jobs/handlers/import-property'
 import {
   connectGoogleAccount,
   disconnectGoogleAccount,
@@ -24,6 +23,7 @@ import { createGbpImportRepository } from './infrastructure/repositories/gbp-imp
 import { createGoogleOAuthAdapter } from './infrastructure/adapters/google-oauth.adapter'
 import { createTokenEncryptionAdapter } from './infrastructure/adapters/token-encryption.adapter'
 import { createGbpApiAdapter } from './infrastructure/adapters/gbp-api.adapter'
+import { getEnv } from '#/shared/config/env'
 
 type IntegrationContextDeps = Readonly<{
   db: Database
@@ -39,25 +39,19 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
   const importRepo = createGbpImportRepository(deps.db)
 
   // ── Adapters ──────────────────────────────────────────────────────
-  const oauthPort = createGoogleOAuthAdapter(
-    getEnv().BETTER_AUTH_URL + '/api/auth/google/callback',
-  )
+  const oauthPort = createGoogleOAuthAdapter()
   const encryptionPort = createTokenEncryptionAdapter()
   const gbpApiPort = createGbpApiAdapter()
 
   // ── Queue Port ───────────────────────────────────────────────────
   const queuePort: GbpQueuePort = deps.jobQueue
     ? {
-        addBulkImportJob: async (importJobId: GbpImportJobId) => {
-          await deps.jobQueue!.add(
-            'import-property',
-            { jobId: importJobId },
-            {
-              jobId: importJobId,
-              removeOnComplete: { count: 100 },
-              removeOnFail: { count: 50 },
-            },
-          )
+        addBulkImportJob: async (data: ImportPropertyJobData) => {
+          await deps.jobQueue!.add('import-property', data, {
+            jobId: data.jobId,
+            removeOnComplete: { count: 100 },
+            removeOnFail: { count: 50 },
+          })
         },
       }
     : {
@@ -67,6 +61,12 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       }
 
   // ── Use Cases ────────────────────────────────────────────────────
+  const refreshGoogleTokenUseCase = refreshGoogleToken({
+    connectionRepo,
+    oauth: oauthPort,
+    encryption: encryptionPort,
+  })
+
   const useCases = {
     connectGoogleAccount: connectGoogleAccount({
       connectionRepo,
@@ -74,6 +74,7 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       encryption: encryptionPort,
       events: deps.events,
       clock: deps.clock,
+      callbackUrl: `${getEnv().BETTER_AUTH_URL}/api/auth/google/callback`,
     }),
 
     disconnectGoogleAccount: disconnectGoogleAccount({
@@ -95,16 +96,13 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       clock: deps.clock,
     }),
 
-    refreshGoogleToken: refreshGoogleToken({
-      connectionRepo,
-      oauth: oauthPort,
-      encryption: encryptionPort,
-    }),
+    refreshGoogleToken: refreshGoogleTokenUseCase,
 
     listGbpLocations: listGbpLocations({
       connectionRepo,
       encryption: encryptionPort,
       gbpApi: gbpApiPort,
+      refreshGoogleToken: refreshGoogleTokenUseCase,
     }),
 
     startPropertyImport: startPropertyImport({

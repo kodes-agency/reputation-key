@@ -4,7 +4,7 @@
 
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
-import { match } from 'ts-pattern'
+import { createHmac } from 'crypto'
 import { z } from 'zod/v4'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
@@ -14,23 +14,24 @@ import { connectGoogleInputSchema } from '../application/dto/connect-google.dto'
 import { disconnectGoogleInputSchema } from '../application/dto/disconnect-google.dto'
 import { updateConnectionVisibilityInputSchema } from '../application/dto/update-connection-visibility.dto'
 import { isIntegrationError } from '../domain/errors'
-import type { IntegrationErrorCode } from '../domain/errors'
+import { integrationErrorStatus } from './shared'
+import { getEnv } from '#/shared/config/env'
 
-// ── Error → HTTP status mapping ───────────────────────────────────
+/** Dedicated HMAC key for OAuth state signing, separate from token encryption. */
+function stateHmacKey(): string {
+  return getEnv().OAUTH_STATE_SECRET ?? getEnv().ENCRYPTION_KEY
+}
 
-export const integrationErrorStatus = (code: IntegrationErrorCode): number =>
-  match(code)
-    .with('forbidden', () => 403)
-    .with('connection_not_found', 'import_not_found', () => 404)
-    .with('oauth_failed', 'oauth_denied', 'token_refresh_failed', 'gbp_api_error', 'invalid_visibility', 'encryption_error', () => 400)
-    .with('gbp_api_rate_limited', () => 429)
-    .with('connection_disconnected', () => 409)
-    .exhaustive()
+/** HMAC-sign OAuth state to prevent forgery. */
+function signState(payload: { visibility: string; nonce: string; ts: number }): string {
+  return createHmac('sha256', stateHmacKey())
+    .update(JSON.stringify(payload))
+    .digest('hex')
+}
 
 // ── Shared Zod validators ──────────────────────────────────────────
 
 const getAuthUrlInputSchema = z.object({
-  redirectUri: z.string().url('Redirect URI must be a valid URL'),
   visibility: z.enum(['private', 'organization']).default('private'),
 })
 
@@ -41,18 +42,28 @@ export const getGoogleAuthUrl = createServerFn({ method: 'GET' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const { redirectUri, visibility } = data
+        // Require authentication — only logged-in users can generate OAuth URLs
+        const headers = headersFromContext()
+        await resolveTenantContext(headers)
 
-        // Build state with visibility preference
-        const state = Buffer.from(JSON.stringify({ visibility })).toString('base64')
+        const { visibility } = data
+        const callbackUrl = `${getEnv().BETTER_AUTH_URL}/api/auth/google/callback`
+
+        // Build state with visibility preference, CSRF nonce, and HMAC signature
+        const nonce = crypto.randomUUID()
+        const payload = { visibility, nonce, ts: Date.now() }
+        const signature = signState(payload)
+        const state = Buffer.from(JSON.stringify({ ...payload, signature })).toString(
+          'base64',
+        )
 
         // Google OAuth scopes for Business Profile API
         const scopes = ['https://www.googleapis.com/auth/business.manage']
 
         // Build OAuth URL
         const params = new URLSearchParams({
-          client_id: process.env.GOOGLE_CLIENT_ID!,
-          redirect_uri: redirectUri,
+          client_id: getEnv().GOOGLE_CLIENT_ID,
+          redirect_uri: callbackUrl,
           scope: scopes.join(' '),
           response_type: 'code',
           state,
@@ -104,7 +115,7 @@ export const listGoogleConnections = createServerFn({ method: 'GET' }).handler(
 
       try {
         const { useCases } = getContainer()
-        const connections = await useCases.listGoogleConnections(undefined, ctx)
+        const connections = await useCases.listGoogleConnections(ctx)
         return { connections }
       } catch (e) {
         if (isIntegrationError(e))
