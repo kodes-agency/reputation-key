@@ -10,6 +10,8 @@ import type { ListLocationsInput } from '../dto/list-locations.dto'
 import { can } from '#/shared/domain/permissions'
 import { googleConnectionId, type OrganizationId } from '#/shared/domain/ids'
 import { integrationError } from '../../domain/errors'
+import { GbpApiError } from '../../domain/gbp-api-error'
+import { TOKEN_EXPIRY_BUFFER_MS } from '../constants'
 
 export type ListGbpLocationsDeps = Readonly<{
   connectionRepo: GoogleConnectionRepository
@@ -20,8 +22,6 @@ export type ListGbpLocationsDeps = Readonly<{
     connectionId: string,
   ) => Promise<GoogleConnection>
 }>
-
-const TOKEN_EXPIRY_BUFFER_MS = 5 * 60 * 1000
 
 export const listGbpLocations =
   (deps: ListGbpLocationsDeps) =>
@@ -71,13 +71,11 @@ export const listGbpLocations =
     // 5. Try to list locations from available GBP accounts, fall back to wildcard
     //    Only retry on permission/account-scope errors — propagate auth and rate-limit errors.
     const isRetryableError = (err: unknown): boolean => {
-      if (!(err instanceof Error)) return true
-      const msg = err.message.toLowerCase()
-      // Token/auth errors — do NOT retry
-      if (msg.includes('401') || msg.includes('403')) return false
-      // Rate limiting — do NOT retry
-      if (msg.includes('429')) return false
-      // Permission/account-scope errors — retry with wildcard
+      if (err instanceof GbpApiError) {
+        // Token/auth/rate-limit errors — do NOT retry
+        if ([401, 403, 429].includes(err.status)) return false
+      }
+      // Unknown error types or server errors — retry with wildcard
       return true
     }
 

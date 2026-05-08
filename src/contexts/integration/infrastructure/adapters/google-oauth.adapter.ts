@@ -39,8 +39,10 @@ export const createGoogleOAuthAdapter = (): GoogleOAuthPort => {
     })
 
     if (!response.ok) {
-      await response.text().catch(() => '')
-      throw new Error('Failed to exchange authorization code with Google')
+      const errorBody = await response.text().catch(() => 'unable to read response body')
+      throw new Error(
+        `Failed to exchange authorization code with Google: ${response.status} ${errorBody}`,
+      )
     }
 
     const data = await response.json()
@@ -64,8 +66,12 @@ export const createGoogleOAuthAdapter = (): GoogleOAuthPort => {
     })
 
     if (!userInfoResponse.ok) {
-      await userInfoResponse.text().catch(() => '')
-      throw new Error('Failed to fetch Google account information')
+      const errorBody = await userInfoResponse
+        .text()
+        .catch(() => 'unable to read response body')
+      throw new Error(
+        `Failed to fetch Google account information: ${userInfoResponse.status} ${errorBody}`,
+      )
     }
 
     const userInfo = await userInfoResponse.json()
@@ -97,8 +103,10 @@ export const createGoogleOAuthAdapter = (): GoogleOAuthPort => {
     })
 
     if (!response.ok) {
-      await response.text().catch(() => '')
-      throw new Error('Failed to refresh Google access token')
+      const errorBody = await response.text().catch(() => 'unable to read response body')
+      throw new Error(
+        `Failed to refresh Google access token: ${response.status} ${errorBody}`,
+      )
     }
 
     const data = await response.json()
@@ -123,8 +131,8 @@ export const createGoogleOAuthAdapter = (): GoogleOAuthPort => {
     })
 
     if (!response.ok) {
-      await response.text().catch(() => '')
-      throw new Error('Failed to revoke Google token')
+      const errorBody = await response.text().catch(() => 'unable to read response body')
+      throw new Error(`Failed to revoke Google token: ${response.status} ${errorBody}`)
     }
   }
 

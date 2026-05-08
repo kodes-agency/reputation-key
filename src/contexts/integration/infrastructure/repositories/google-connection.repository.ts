@@ -138,6 +138,31 @@ export const createGoogleConnectionRepository = (
     })
   },
 
+  updateReconnection: async (
+    orgId,
+    id,
+    accessToken,
+    refreshToken,
+    expiresAt,
+    visibility,
+  ) => {
+    return trace('googleConnection.updateReconnection', async () => {
+      await db
+        .update(googleConnections)
+        .set({
+          encryptedAccessToken: accessToken,
+          encryptedRefreshToken: refreshToken,
+          tokenExpiresAt: expiresAt,
+          status: 'active',
+          visibility,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(eq(googleConnections.organizationId, orgId), eq(googleConnections.id, id)),
+        )
+    })
+  },
+
   delete: async (orgId, id) => {
     return trace('googleConnection.delete', async () => {
       await db

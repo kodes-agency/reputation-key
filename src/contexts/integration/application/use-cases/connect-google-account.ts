@@ -50,18 +50,13 @@ export const connectGoogleAccount =
     )
 
     if (existingConnection) {
-      // Reactivate, update tokens, and apply new visibility
-      await deps.connectionRepo.updateTokensAndStatus(
+      // Reactivate, update tokens, and apply new visibility — single atomic write
+      await deps.connectionRepo.updateReconnection(
         ctx.organizationId,
         existingConnection.id,
         encryptedAccessToken,
         encryptedRefreshToken,
         tokenExpiresAt,
-        'active',
-      )
-      await deps.connectionRepo.updateVisibility(
-        ctx.organizationId,
-        existingConnection.id,
         input.visibility,
       )
 

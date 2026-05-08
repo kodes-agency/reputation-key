@@ -4,6 +4,7 @@
 
 import type { GbpApiPort, GbpAccount } from '../../application/ports/gbp-api.port'
 import type { GbpLocation } from '../../domain/types'
+import { GbpApiError } from '../../domain/gbp-api-error'
 
 const GBP_API_BASE = 'https://mybusinessbusinessinformation.googleapis.com/v1'
 
@@ -27,7 +28,7 @@ export const createGbpApiAdapter = (): GbpApiPort => {
 
       if (!response.ok) {
         const errorText = await response.text()
-        throw new Error(`GBP API listAccounts failed: ${response.status} ${errorText}`)
+        throw new GbpApiError('listAccounts', response.status, errorText)
       }
 
       const data = await response.json()
@@ -59,7 +60,7 @@ export const createGbpApiAdapter = (): GbpApiPort => {
 
       if (!response.ok) {
         const errorText = await response.text()
-        throw new Error(`GBP API listLocations failed: ${response.status} ${errorText}`)
+        throw new GbpApiError('listLocations', response.status, errorText)
       }
 
       const data = await response.json()
@@ -84,7 +85,7 @@ export const createGbpApiAdapter = (): GbpApiPort => {
 
     if (!response.ok) {
       const errorText = await response.text()
-      throw new Error(`GBP API getLocation failed: ${response.status} ${errorText}`)
+      throw new GbpApiError('getLocation', response.status, errorText)
     }
 
     const location = await response.json()
@@ -111,7 +112,7 @@ export const createGbpApiAdapter = (): GbpApiPort => {
 
     if (!response.ok) {
       const errorText = await response.text()
-      throw new Error(`GBP API batchGetReviews failed: ${response.status} ${errorText}`)
+      throw new GbpApiError('batchGetReviews', response.status, errorText)
     }
 
     const data = await response.json()

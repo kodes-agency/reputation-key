@@ -9,8 +9,7 @@ import type { GoogleConnection } from '../../domain/types'
 import type { OrganizationId } from '#/shared/domain/ids'
 import { googleConnectionId } from '#/shared/domain/ids'
 import { integrationError } from '../../domain/errors'
-
-const TOKEN_EXPIRY_BUFFER_MS = 5 * 60 * 1000 // 5 minutes
+import { TOKEN_EXPIRY_BUFFER_MS } from '../constants'
 
 export type RefreshGoogleTokenDeps = Readonly<{
   connectionRepo: GoogleConnectionRepository
