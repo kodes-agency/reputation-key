@@ -3,7 +3,14 @@
 import { createdAtColumn, updatedAtColumn } from '../columns'
 import { pgTable, uuid, varchar, integer, pgEnum } from 'drizzle-orm/pg-core'
 
-export const importJobStatusEnum = pgEnum('import_job_status', ['queued', 'in_progress', 'completed', 'failed'])
+export const importJobStatusEnum = pgEnum('import_job_status', [
+  'queued',
+  'in_progress',
+  'completed',
+  'failed',
+  'completed_with_skips',
+  'completed_with_failures',
+])
 
 export const gbpImportJobs = pgTable('gbp_import_jobs', {
   id: uuid('id').primaryKey().defaultRandom(),

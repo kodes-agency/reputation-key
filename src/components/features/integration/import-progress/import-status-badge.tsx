@@ -24,6 +24,11 @@ export function ImportStatusBadge({ status }: ImportStatusBadgeProps) {
       label: 'Completed (some skipped)',
       variant: 'outline' as const,
     },
+    completed_with_failures: {
+      icon: XCircle,
+      label: 'Completed (some failed)',
+      variant: 'destructive' as const,
+    },
     failed: {
       icon: XCircle,
       label: 'Failed',

@@ -10,7 +10,10 @@ interface ImportProgressProps {
 }
 
 export function ImportProgress({ job }: ImportProgressProps) {
-  const isComplete = job.status === 'completed' || job.status === 'completed_with_skips'
+  const isComplete =
+    job.status === 'completed' ||
+    job.status === 'completed_with_skips' ||
+    job.status === 'completed_with_failures'
   const hasFailures = job.failedCount > 0
   const isFinal = isComplete || job.status === 'failed'
 

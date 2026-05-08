@@ -2,7 +2,13 @@
 // Per architecture: types are data only — no methods, no classes.
 // readonly on every field. Branded IDs prevent accidental substitution.
 
-import type { OrganizationId, UserId, GoogleConnectionId, GbpImportJobId, PropertyId } from '#/shared/domain/ids'
+import type {
+  OrganizationId,
+  UserId,
+  GoogleConnectionId,
+  GbpImportJobId,
+  PropertyId,
+} from '#/shared/domain/ids'
 
 export type GoogleConnectionVisibility = 'private' | 'organization'
 
@@ -37,7 +43,13 @@ export type GbpCacheEntry = Readonly<{
   expiresAt: Date
 }>
 
-export type GbpImportJobStatus = 'queued' | 'in_progress' | 'completed' | 'failed'
+export type GbpImportJobStatus =
+  | 'queued'
+  | 'in_progress'
+  | 'completed'
+  | 'failed'
+  | 'completed_with_skips'
+  | 'completed_with_failures'
 
 export type GbpImportJob = Readonly<{
   id: GbpImportJobId

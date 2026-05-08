@@ -1,20 +1,21 @@
 // Shared domain types for integration UI components
 // These are simplified types needed by components - the actual domain logic
 // lives in contexts/integration/domain/
+import type { GoogleConnectionId, GbpImportJobId, UserId } from './ids'
 
 export type GoogleConnectionVisibility = 'private' | 'organization'
 
 export type GoogleConnectionStatus = 'active' | 'disconnected'
 
 export type GoogleConnection = Readonly<{
-  id: string
+  id: GoogleConnectionId
   organizationId: string
   googleAccountId: string
   googleEmail: string
   status: GoogleConnectionStatus
   visibility: GoogleConnectionVisibility
-  connectedBy: string
-  connectedAt: Date
+  connectedBy: UserId
+  createdAt: Date
   updatedAt: Date
 }>
 
@@ -28,12 +29,18 @@ export type GbpLocation = Readonly<{
   longitude: number | null
 }>
 
-export type GbpImportJobStatus = 'queued' | 'in_progress' | 'completed' | 'failed'
+export type GbpImportJobStatus =
+  | 'queued'
+  | 'in_progress'
+  | 'completed'
+  | 'completed_with_skips'
+  | 'completed_with_failures'
+  | 'failed'
 
 export type GbpImportJob = Readonly<{
-  id: string
+  id: GbpImportJobId
   organizationId: string
-  initiatedBy: string
+  initiatedBy: UserId
   status: GbpImportJobStatus
   totalCount: number
   importedCount: number

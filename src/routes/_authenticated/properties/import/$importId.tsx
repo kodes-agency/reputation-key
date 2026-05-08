@@ -29,7 +29,8 @@ function ImportProgressPage() {
       const status = query.state.data?.status
       return status === 'completed' ||
         status === 'failed' ||
-        status === 'completed_with_skips'
+        status === 'completed_with_skips' ||
+        status === 'completed_with_failures'
         ? false
         : 2000
     },
