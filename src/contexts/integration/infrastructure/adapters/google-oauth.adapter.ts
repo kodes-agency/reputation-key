@@ -9,23 +9,9 @@ const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token'
 const GOOGLE_USERINFO_URL = 'https://www.googleapis.com/oauth2/v2/userinfo'
 const GOOGLE_REVOKE_URL = 'https://oauth2.googleapis.com/revoke'
 
-export const createGoogleOAuthAdapter = (_redirectUri: string): GoogleOAuthPort => {
+export const createGoogleOAuthAdapter = (): GoogleOAuthPort => {
   const clientId = getEnv().GOOGLE_CLIENT_ID
   const clientSecret = getEnv().GOOGLE_CLIENT_SECRET
-
-  const getAuthorizationUrl = (redirectUriParam: string, state: string): string => {
-    const params = new URLSearchParams({
-      client_id: clientId,
-      redirect_uri: redirectUriParam,
-      scope: 'https://www.googleapis.com/auth/business.manage',
-      response_type: 'code',
-      state,
-      access_type: 'offline',
-      prompt: 'consent', // Force consent to get refresh token
-    })
-
-    return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`
-  }
 
   const exchangeCode = async (
     code: string,
@@ -53,10 +39,8 @@ export const createGoogleOAuthAdapter = (_redirectUri: string): GoogleOAuthPort 
     })
 
     if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(
-        `Google OAuth token exchange failed: ${response.status} ${errorText}`,
-      )
+      await response.text().catch(() => '')
+      throw new Error('Failed to exchange authorization code with Google')
     }
 
     const data = await response.json()
@@ -79,7 +63,8 @@ export const createGoogleOAuthAdapter = (_redirectUri: string): GoogleOAuthPort 
     })
 
     if (!userInfoResponse.ok) {
-      throw new Error(`Google OAuth user info fetch failed: ${userInfoResponse.status}`)
+      await userInfoResponse.text().catch(() => '')
+      throw new Error('Failed to fetch Google account information')
     }
 
     const userInfo = await userInfoResponse.json()
@@ -111,10 +96,8 @@ export const createGoogleOAuthAdapter = (_redirectUri: string): GoogleOAuthPort 
     })
 
     if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(
-        `Google OAuth token refresh failed: ${response.status} ${errorText}`,
-      )
+      await response.text().catch(() => '')
+      throw new Error('Failed to refresh Google access token')
     }
 
     const data = await response.json()
@@ -139,12 +122,12 @@ export const createGoogleOAuthAdapter = (_redirectUri: string): GoogleOAuthPort 
     })
 
     if (!response.ok) {
-      throw new Error(`Google OAuth token revoke failed: ${response.status}`)
+      await response.text().catch(() => '')
+      throw new Error('Failed to revoke Google token')
     }
   }
 
   return {
-    getAuthorizationUrl,
     exchangeCode,
     refreshAccessToken,
     revokeToken,
