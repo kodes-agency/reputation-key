@@ -47,7 +47,8 @@ export const createGoogleOAuthAdapter = (): GoogleOAuthPort => {
     const accessToken = data.access_token
     const refreshToken = data.refresh_token
     const expiresIn = data.expires_in
-    const scopes = (data.scope as string).split(' ')
+    const scopes =
+      typeof data.scope === 'string' && data.scope.length > 0 ? data.scope.split(' ') : []
 
     if (!refreshToken) {
       throw new Error(
