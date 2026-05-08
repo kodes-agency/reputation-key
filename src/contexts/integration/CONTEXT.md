@@ -42,10 +42,11 @@ _Avoid_: Permission, access level, sharing
 
 - A connection must be `active` to start an import or list locations
 - Duplicate GBP place IDs within the same organization are skipped during import
-- Token refresh happens automatically when the access token is expired or close to expiry
+- Token refresh happens automatically with a 5-minute expiry buffer — the `refreshGoogleToken` use case is called before any GBP API interaction
 - Cache entries expire after a configurable TTL and are refreshed on next access
 - Only users with `property.create` permission can start an import
 - Disconnecting a connection deletes all associated cache entries
+- Import jobs track three terminal statuses: `completed`, `completed_with_skips` (some skipped or failed), and `failed` (all failed)
 
 ## Example dialogue
 
@@ -70,3 +71,4 @@ _Avoid_: Permission, access level, sharing
 - "Import" refers to the GBP→Property sync flow, not file uploads or data migrations.
 - "Connection" specifically means Google OAuth connection — other integrations would have their own connection types.
 - "Queue" refers to BullMQ job queue for background processing, not a message broker.
+- "completed_with_skips" means the import finished but some locations were skipped (duplicates) or failed — it is NOT a failure state.

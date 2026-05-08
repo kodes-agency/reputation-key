@@ -28,13 +28,19 @@ export const disconnectGoogleAccount =
   async (input: DisconnectGoogleInput, ctx: AuthContext): Promise<GoogleConnection> => {
     // 1. Authorize
     if (!can(ctx.role, 'integration.manage')) {
-      throw integrationError('forbidden', 'You do not have permission to manage integrations')
+      throw integrationError(
+        'forbidden',
+        'You do not have permission to manage integrations',
+      )
     }
 
     const connectionId = googleConnectionId(input.connectionId)
 
     // 2. Find connection
-    const connection = await deps.connectionRepo.findById(ctx.organizationId, connectionId)
+    const connection = await deps.connectionRepo.findById(
+      ctx.organizationId,
+      connectionId,
+    )
     if (!connection) {
       throw integrationError('connection_not_found', 'Google connection not found')
     }
@@ -53,10 +59,14 @@ export const disconnectGoogleAccount =
     }
 
     // 4. Mark status as disconnected
-    await deps.connectionRepo.updateStatus(connectionId, 'disconnected')
+    await deps.connectionRepo.updateStatus(
+      ctx.organizationId,
+      connectionId,
+      'disconnected',
+    )
 
     // 5. Purge cache
-    await deps.cacheRepo.deleteByConnectionId(connectionId)
+    await deps.cacheRepo.deleteByConnectionId(connectionId, ctx.organizationId)
 
     // 6. Emit event
     await deps.events.emit(
@@ -67,10 +77,15 @@ export const disconnectGoogleAccount =
       }),
     )
 
-    return {
-      ...connection,
-      status: 'disconnected' as const,
+    const updated = await deps.connectionRepo.findById(ctx.organizationId, connectionId)
+    if (!updated) {
+      throw integrationError(
+        'connection_not_found',
+        'Connection not found after disconnect',
+      )
     }
+
+    return updated
   }
 
 export type DisconnectGoogleAccount = ReturnType<typeof disconnectGoogleAccount>

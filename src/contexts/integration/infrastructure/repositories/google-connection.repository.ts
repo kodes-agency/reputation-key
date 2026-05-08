@@ -11,6 +11,7 @@ import {
   googleConnectionToInsert,
 } from '../mappers/google-connection.mapper'
 import { trace } from '#/shared/observability/trace'
+import { hasRole } from '#/shared/domain/roles'
 
 export const createGoogleConnectionRepository = (
   db: Database,
@@ -44,20 +45,23 @@ export const createGoogleConnectionRepository = (
     })
   },
 
-  listByOrganization: async (orgId, userId) => {
+  listByOrganization: async (orgId, userId, role) => {
     return trace('googleConnection.listByOrganization', async () => {
+      const isAdminOrOwner = hasRole(role, 'AccountAdmin')
+
+      const visibilityFilter = isAdminOrOwner
+        ? // Admins/owners see ALL connections (both organization and private)
+          undefined // No visibility filter needed for admins
+        : // Non-admins see organization connections + only their own private connections
+          or(
+            eq(googleConnections.visibility, 'organization'),
+            eq(googleConnections.connectedBy, userId),
+          )
+
       const rows = await db
         .select()
         .from(googleConnections)
-        .where(
-          and(
-            eq(googleConnections.organizationId, orgId),
-            or(
-              eq(googleConnections.visibility, 'organization'),
-              eq(googleConnections.connectedBy, userId),
-            ),
-          ),
-        )
+        .where(and(eq(googleConnections.organizationId, orgId), visibilityFilter))
       return rows.map(googleConnectionFromRow)
     })
   },
@@ -68,7 +72,7 @@ export const createGoogleConnectionRepository = (
     })
   },
 
-  updateTokens: async (id, accessToken, refreshToken, expiresAt) => {
+  updateTokens: async (orgId, id, accessToken, refreshToken, expiresAt) => {
     return trace('googleConnection.updateTokens', async () => {
       await db
         .update(googleConnections)
@@ -78,11 +82,37 @@ export const createGoogleConnectionRepository = (
           tokenExpiresAt: expiresAt,
           updatedAt: new Date(),
         })
-        .where(eq(googleConnections.id, id))
+        .where(
+          and(eq(googleConnections.organizationId, orgId), eq(googleConnections.id, id)),
+        )
     })
   },
 
-  updateStatus: async (id, status) => {
+  updateTokensAndStatus: async (
+    orgId,
+    id,
+    accessToken,
+    refreshToken,
+    expiresAt,
+    status,
+  ) => {
+    return trace('googleConnection.updateTokensAndStatus', async () => {
+      await db
+        .update(googleConnections)
+        .set({
+          encryptedAccessToken: accessToken,
+          encryptedRefreshToken: refreshToken,
+          tokenExpiresAt: expiresAt,
+          status,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(eq(googleConnections.organizationId, orgId), eq(googleConnections.id, id)),
+        )
+    })
+  },
+
+  updateStatus: async (orgId, id, status) => {
     return trace('googleConnection.updateStatus', async () => {
       await db
         .update(googleConnections)
@@ -90,11 +120,13 @@ export const createGoogleConnectionRepository = (
           status,
           updatedAt: new Date(),
         })
-        .where(eq(googleConnections.id, id))
+        .where(
+          and(eq(googleConnections.organizationId, orgId), eq(googleConnections.id, id)),
+        )
     })
   },
 
-  updateVisibility: async (id, visibility) => {
+  updateVisibility: async (orgId, id, visibility) => {
     return trace('googleConnection.updateVisibility', async () => {
       await db
         .update(googleConnections)
@@ -102,13 +134,19 @@ export const createGoogleConnectionRepository = (
           visibility,
           updatedAt: new Date(),
         })
-        .where(eq(googleConnections.id, id))
+        .where(
+          and(eq(googleConnections.organizationId, orgId), eq(googleConnections.id, id)),
+        )
     })
   },
 
-  delete: async (id) => {
+  delete: async (orgId, id) => {
     return trace('googleConnection.delete', async () => {
-      await db.delete(googleConnections).where(eq(googleConnections.id, id))
+      await db
+        .delete(googleConnections)
+        .where(
+          and(eq(googleConnections.organizationId, orgId), eq(googleConnections.id, id)),
+        )
     })
   },
 })

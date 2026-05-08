@@ -29,4 +29,7 @@ export const integrationError = (
 })
 
 export const isIntegrationError = (e: unknown): e is IntegrationError =>
-  typeof e === 'object' && e !== null && '_tag' in e && (e as { _tag: string })._tag === 'IntegrationError'
+  typeof e === 'object' &&
+  e !== null &&
+  '_tag' in e &&
+  (e as { _tag: string })._tag === 'IntegrationError'

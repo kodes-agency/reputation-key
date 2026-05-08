@@ -48,7 +48,12 @@ export const startPropertyImport =
       throw integrationError('connection_disconnected', 'Google account is not connected')
     }
 
-    // 4. Build import job
+    // 4. Validate non-empty locations
+    if (input.locations.length === 0) {
+      throw integrationError('gbp_api_error', 'Select at least one location to import')
+    }
+
+    // 5. Build import job
     const importJobId = gbpImportJobId(crypto.randomUUID())
     const now = deps.clock()
 
@@ -66,13 +71,18 @@ export const startPropertyImport =
 
     const importJob = buildResult.value
 
-    // 5. Insert job
+    // 6. Insert job
     await deps.importRepo.insert(importJob)
 
-    // 6. Enqueue BullMQ job
-    await deps.queue.addBulkImportJob(importJobId)
+    // 7. Enqueue BullMQ job with full payload
+    await deps.queue.addBulkImportJob({
+      jobId: importJobId,
+      organizationId: ctx.organizationId,
+      connectionId: input.connectionId,
+      locations: input.locations,
+    })
 
-    // 7. Return the job
+    // 8. Return the job
     return importJob
   }
 

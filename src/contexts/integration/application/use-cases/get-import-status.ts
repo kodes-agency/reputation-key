@@ -17,14 +17,9 @@ export const getImportStatus =
   async (input: ImportStatusInput, ctx: AuthContext): Promise<GbpImportJob> => {
     const importJobId = gbpImportJobId(input.importId)
 
-    // Find job
-    const job = await deps.importRepo.findById(importJobId)
+    // Find job scoped to organization
+    const job = await deps.importRepo.findById(ctx.organizationId, importJobId)
     if (!job) {
-      throw integrationError('import_not_found', 'Import job not found')
-    }
-
-    // Verify job belongs to the user's organization
-    if (job.organizationId !== ctx.organizationId) {
       throw integrationError('import_not_found', 'Import job not found')
     }
 

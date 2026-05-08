@@ -24,7 +24,9 @@ export const googleConnectionFromRow = (row: GoogleConnectionRow): GoogleConnect
   updatedAt: row.updatedAt,
 })
 
-export const googleConnectionToInsert = (conn: GoogleConnection): GoogleConnectionInsertRow => ({
+export const googleConnectionToInsert = (
+  conn: GoogleConnection,
+): GoogleConnectionInsertRow => ({
   id: conn.id,
   organizationId: conn.organizationId,
   googleAccountId: conn.googleAccountId,

@@ -6,14 +6,16 @@ import { z } from 'zod/v4'
 
 export const importPropertiesInputSchema = z.object({
   connectionId: z.string().min(1, 'Connection ID is required'),
-  locations: z.array(z.object({
-    gbpPlaceId: z.string().min(1),
-    businessName: z.string().min(1),
-    address: z.string().nullable(),
-    primaryCategory: z.string().nullable(),
-    latitude: z.number().nullable(),
-    longitude: z.number().nullable(),
-  })).min(1, 'Select at least one location'),
+  locations: z
+    .array(
+      z.object({
+        gbpPlaceId: z.string().min(1),
+        businessName: z.string().min(1),
+        address: z.string().nullable(),
+        primaryCategory: z.string().nullable(),
+      }),
+    )
+    .min(1, 'Select at least one location'),
 })
 
 export type ImportPropertiesInput = z.infer<typeof importPropertiesInputSchema>

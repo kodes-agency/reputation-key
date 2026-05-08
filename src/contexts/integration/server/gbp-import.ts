@@ -4,7 +4,6 @@
 
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
-import { match } from 'ts-pattern'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { throwContextError } from '#/shared/auth/server-errors'
@@ -13,26 +12,7 @@ import { listLocationsInputSchema } from '../application/dto/list-locations.dto'
 import { importPropertiesInputSchema } from '../application/dto/import-properties.dto'
 import { importStatusInputSchema } from '../application/dto/import-status.dto'
 import { isIntegrationError } from '../domain/errors'
-import type { IntegrationErrorCode } from '../domain/errors'
-
-// ── Error → HTTP status mapping ───────────────────────────────────
-
-export const integrationErrorStatus = (code: IntegrationErrorCode): number =>
-  match(code)
-    .with('forbidden', () => 403)
-    .with('connection_not_found', 'import_not_found', () => 404)
-    .with(
-      'oauth_failed',
-      'oauth_denied',
-      'token_refresh_failed',
-      'gbp_api_error',
-      'invalid_visibility',
-      'encryption_error',
-      () => 400,
-    )
-    .with('gbp_api_rate_limited', () => 429)
-    .with('connection_disconnected', () => 409)
-    .exhaustive()
+import { integrationErrorStatus } from './shared'
 
 // ── listGbpLocations ───────────────────────────────────────────────
 

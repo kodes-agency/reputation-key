@@ -1,7 +1,12 @@
 // Integration context — entity constructors
 
 import type { GoogleConnection, GbpImportJob } from './types'
-import type { GoogleConnectionId, GbpImportJobId, OrganizationId, UserId } from '#/shared/domain/ids'
+import type {
+  GoogleConnectionId,
+  GbpImportJobId,
+  OrganizationId,
+  UserId,
+} from '#/shared/domain/ids'
 import { ok, err } from 'neverthrow'
 import { integrationError } from './errors'
 import { isValidVisibility } from './rules'
@@ -20,14 +25,14 @@ type BuildConnectionArgs = {
   now: Date
 }
 
-export const buildGoogleConnection = (
-  args: BuildConnectionArgs,
-) => {
+export const buildGoogleConnection = (args: BuildConnectionArgs) => {
   if (!args.googleEmail.includes('@')) {
     return err(integrationError('oauth_failed', 'Invalid Google email'))
   }
   if (!isValidVisibility(args.visibility)) {
-    return err(integrationError('invalid_visibility', `Invalid visibility: ${args.visibility}`))
+    return err(
+      integrationError('invalid_visibility', `Invalid visibility: ${args.visibility}`),
+    )
   }
 
   return ok<GoogleConnection>({

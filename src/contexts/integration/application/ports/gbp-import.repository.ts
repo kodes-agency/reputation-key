@@ -6,11 +6,15 @@ import type { GbpImportJob, GbpImportJobId, GbpImportJobStatus } from '../../dom
 import type { OrganizationId } from '#/shared/domain/ids'
 
 export type GbpImportRepository = Readonly<{
-  findById: (id: GbpImportJobId) => Promise<GbpImportJob | null>
+  findById: (orgId: OrganizationId, id: GbpImportJobId) => Promise<GbpImportJob | null>
   findByOrganization: (orgId: OrganizationId) => Promise<ReadonlyArray<GbpImportJob>>
   insert: (job: GbpImportJob) => Promise<void>
-  updateStatus: (id: GbpImportJobId, status: GbpImportJobStatus) => Promise<void>
-  incrementImported: (id: GbpImportJobId) => Promise<void>
-  incrementSkipped: (id: GbpImportJobId) => Promise<void>
-  incrementFailed: (id: GbpImportJobId) => Promise<void>
+  updateStatus: (
+    id: GbpImportJobId,
+    orgId: OrganizationId,
+    status: GbpImportJobStatus,
+  ) => Promise<void>
+  incrementImported: (id: GbpImportJobId, orgId: OrganizationId) => Promise<void>
+  incrementSkipped: (id: GbpImportJobId, orgId: OrganizationId) => Promise<void>
+  incrementFailed: (id: GbpImportJobId, orgId: OrganizationId) => Promise<void>
 }>

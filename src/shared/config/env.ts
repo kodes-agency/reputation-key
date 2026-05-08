@@ -43,7 +43,13 @@ const envSchema = z.object({
   GOOGLE_CLIENT_SECRET: z.string().min(1),
 
   // Token encryption (32-byte hex key for AES-256-GCM)
-  ENCRYPTION_KEY: z.string().min(1),
+  ENCRYPTION_KEY: z
+    .string()
+    .length(64)
+    .regex(/^[a-f0-9]{64}$/, 'Must be 64 hex characters (32 bytes)'),
+
+  // OAuth state signing secret (falls back to ENCRYPTION_KEY if not set)
+  OAUTH_STATE_SECRET: z.string().min(32).optional(),
 })
 
 // fallow-ignore-next-line unused-type

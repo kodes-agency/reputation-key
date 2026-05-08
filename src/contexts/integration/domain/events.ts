@@ -1,7 +1,11 @@
 // Integration context — domain events
 // Per architecture: "Events are facts, named in the past tense."
 
-import type { GoogleConnectionId, GbpImportJobId, OrganizationId } from '#/shared/domain/ids'
+import type {
+  GoogleConnectionId,
+  GbpImportJobId,
+  OrganizationId,
+} from '#/shared/domain/ids'
 
 export type GoogleAccountConnected = Readonly<{
   _tag: 'google_account.connected'
@@ -29,9 +33,18 @@ export type PropertyImportCompleted = Readonly<{
   occurredAt: Date
 }>
 
+export type GoogleConnectionVisibilityChanged = Readonly<{
+  _tag: 'google_connection.visibility_changed'
+  connectionId: GoogleConnectionId
+  organizationId: OrganizationId
+  visibility: 'private' | 'organization'
+  occurredAt: Date
+}>
+
 export type IntegrationEvent =
   | GoogleAccountConnected
   | GoogleAccountDisconnected
+  | GoogleConnectionVisibilityChanged
   | PropertyImportCompleted
 
 export const googleAccountConnected = (
@@ -45,3 +58,10 @@ export const googleAccountDisconnected = (
 export const propertyImportCompleted = (
   args: Omit<PropertyImportCompleted, '_tag'>,
 ): PropertyImportCompleted => ({ _tag: 'property_import.completed', ...args })
+
+export const googleConnectionVisibilityChanged = (
+  args: Omit<GoogleConnectionVisibilityChanged, '_tag'>,
+): GoogleConnectionVisibilityChanged => ({
+  _tag: 'google_connection.visibility_changed',
+  ...args,
+})

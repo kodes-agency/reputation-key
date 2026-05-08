@@ -13,7 +13,8 @@ export type GoogleOAuthResult = Readonly<{
 
 export type GoogleOAuthPort = Readonly<{
   exchangeCode: (code: string, redirectUri: string) => Promise<GoogleOAuthResult>
-  refreshAccessToken: (refreshToken: string) => Promise<{ accessToken: string; expiresIn: number }>
+  refreshAccessToken: (
+    refreshToken: string,
+  ) => Promise<{ accessToken: string; expiresIn: number }>
   revokeToken: (token: string) => Promise<void>
-  getAuthorizationUrl: (redirectUri: string, state: string) => string
 }>

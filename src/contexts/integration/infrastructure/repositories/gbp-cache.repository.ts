@@ -2,7 +2,7 @@
 // Per architecture: factory function returning Readonly<{ method }>.
 // Uses onConflictDoUpdate for upserts based on (propertyId, dataType) unique constraint.
 
-import { and, eq, lt } from 'drizzle-orm'
+import { and, eq, inArray, lt } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { gbpCache, properties } from '#/shared/db/schema'
 import type { GbpCacheRepository } from '../../application/ports/gbp-cache.repository'
@@ -39,8 +39,15 @@ export const createGbpCacheRepository = (db: Database): GbpCacheRepository => ({
     })
   },
 
-  deleteByProperty: async (propertyId) => {
+  deleteByProperty: async (propertyId, orgId) => {
     return trace('gbpCache.deleteByProperty', async () => {
+      // Verify property belongs to the org before deleting cache entries
+      const property = await db
+        .select({ id: properties.id })
+        .from(properties)
+        .where(and(eq(properties.id, propertyId), eq(properties.organizationId, orgId)))
+        .limit(1)
+      if (property.length === 0) return
       await db.delete(gbpCache).where(eq(gbpCache.propertyId, propertyId))
     })
   },
@@ -55,13 +62,18 @@ export const createGbpCacheRepository = (db: Database): GbpCacheRepository => ({
     })
   },
 
-  deleteByConnectionId: async (connectionId) => {
+  deleteByConnectionId: async (connectionId, orgId) => {
     return trace('gbpCache.deleteByConnectionId', async () => {
       // Find all properties linked to this connection
       const propertyResult = await db
         .select({ id: properties.id })
         .from(properties)
-        .where(eq(properties.googleConnectionId, connectionId))
+        .where(
+          and(
+            eq(properties.googleConnectionId, connectionId),
+            eq(properties.organizationId, orgId),
+          ),
+        )
 
       if (propertyResult.length === 0) {
         return 0
@@ -69,12 +81,9 @@ export const createGbpCacheRepository = (db: Database): GbpCacheRepository => ({
 
       const propertyIds = propertyResult.map((p) => p.id)
 
-      // Delete cache entries for these properties
-      // Use sql to delete multiple propertyIds in one query
-      const { sql } = await import('drizzle-orm')
       const result = await db
         .delete(gbpCache)
-        .where(sql`${gbpCache.propertyId} = ANY(${propertyIds})`)
+        .where(inArray(gbpCache.propertyId, propertyIds))
         .returning({ id: gbpCache.id })
 
       return result.length

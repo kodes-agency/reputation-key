@@ -58,6 +58,7 @@ export const refreshGoogleToken =
 
     // 7. Update tokens
     await deps.connectionRepo.updateTokens(
+      orgId,
       connectionId,
       encryptedAccessToken,
       connection.encryptedRefreshToken, // Keep same refresh token

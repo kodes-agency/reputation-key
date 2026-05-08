@@ -9,4 +9,6 @@ export const updateConnectionVisibilityInputSchema = z.object({
   visibility: z.enum(['private', 'organization']),
 })
 
-export type UpdateConnectionVisibilityInput = z.infer<typeof updateConnectionVisibilityInputSchema>
+export type UpdateConnectionVisibilityInput = z.infer<
+  typeof updateConnectionVisibilityInputSchema
+>

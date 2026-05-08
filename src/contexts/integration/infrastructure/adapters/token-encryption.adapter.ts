@@ -13,10 +13,7 @@ export const createTokenEncryptionAdapter = (): TokenEncryptionPort => {
     const iv = randomBytes(12) // 12 bytes for GCM (recommended)
     const cipher = createCipheriv('aes-256-gcm', key, iv)
 
-    const encrypted = Buffer.concat([
-      cipher.update(plaintext, 'utf8'),
-      cipher.final(),
-    ])
+    const encrypted = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()])
 
     const authTag = cipher.getAuthTag()
 
@@ -25,7 +22,11 @@ export const createTokenEncryptionAdapter = (): TokenEncryptionPort => {
   }
 
   const decrypt = (ciphertext: string): string => {
-    const [ivBase64, authTagBase64, encryptedBase64] = ciphertext.split(':')
+    const parts = ciphertext.split(':')
+    if (parts.length !== 3) {
+      throw new Error('Invalid ciphertext format: expected iv:authTag:ciphertext')
+    }
+    const [ivBase64, authTagBase64, encryptedBase64] = parts
 
     const iv = Buffer.from(ivBase64, 'base64')
     const authTag = Buffer.from(authTagBase64, 'base64')
@@ -34,10 +35,7 @@ export const createTokenEncryptionAdapter = (): TokenEncryptionPort => {
     const decipher = createDecipheriv('aes-256-gcm', key, iv)
     decipher.setAuthTag(authTag)
 
-    const decrypted = Buffer.concat([
-      decipher.update(encrypted),
-      decipher.final(),
-    ])
+    const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()])
 
     return decrypted.toString('utf8')
   }

@@ -31,7 +31,11 @@ export {
   type RefreshGoogleToken,
 } from './refresh-google-token'
 
-export { listGbpLocations, type ListGbpLocationsDeps, type ListGbpLocations } from './list-gbp-locations'
+export {
+  listGbpLocations,
+  type ListGbpLocationsDeps,
+  type ListGbpLocations,
+} from './list-gbp-locations'
 
 export {
   startPropertyImport,
@@ -39,4 +43,8 @@ export {
   type StartPropertyImport,
 } from './start-property-import'
 
-export { getImportStatus, type GetImportStatusDeps, type GetImportStatus } from './get-import-status'
+export {
+  getImportStatus,
+  type GetImportStatusDeps,
+  type GetImportStatus,
+} from './get-import-status'

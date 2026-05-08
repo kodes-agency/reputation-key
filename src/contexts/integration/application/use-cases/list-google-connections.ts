@@ -11,8 +11,12 @@ export type ListGoogleConnectionsDeps = Readonly<{
 
 export const listGoogleConnections =
   (deps: ListGoogleConnectionsDeps) =>
-  async (_input: void, ctx: AuthContext): Promise<ReadonlyArray<GoogleConnection>> => {
-    return deps.connectionRepo.listByOrganization(ctx.organizationId, ctx.userId)
+  async (ctx: AuthContext): Promise<ReadonlyArray<GoogleConnection>> => {
+    return deps.connectionRepo.listByOrganization(
+      ctx.organizationId,
+      ctx.userId,
+      ctx.role,
+    )
   }
 
 export type ListGoogleConnections = ReturnType<typeof listGoogleConnections>

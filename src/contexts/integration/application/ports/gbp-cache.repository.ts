@@ -6,9 +6,12 @@ import type { GbpCacheEntry, GbpCacheDataType } from '../../domain/types'
 import type { PropertyId } from '#/shared/domain/ids'
 
 export type GbpCacheRepository = Readonly<{
-  findByPropertyAndType: (propertyId: PropertyId, dataType: GbpCacheDataType) => Promise<GbpCacheEntry | null>
+  findByPropertyAndType: (
+    propertyId: PropertyId,
+    dataType: GbpCacheDataType,
+  ) => Promise<GbpCacheEntry | null>
   upsert: (entry: GbpCacheEntry) => Promise<void>
-  deleteByProperty: (propertyId: PropertyId) => Promise<void>
+  deleteByProperty: (propertyId: PropertyId, orgId: string) => Promise<void>
   deleteExpired: () => Promise<number>
-  deleteByConnectionId: (connectionId: string) => Promise<number>
+  deleteByConnectionId: (connectionId: string, orgId: string) => Promise<number>
 }>
