@@ -87,7 +87,9 @@ export function ImportConnectedView({ connections, initialConnectionId }: Props)
   return (
     <div className="space-y-6">
       <div className="space-y-2">
-        <label className="text-sm font-medium">Google Account</label>
+        <label htmlFor="google-account-select" className="text-sm font-medium">
+          Google Account
+        </label>
         <GoogleAccountSelector
           connections={connections}
           value={selectedConnectionId}

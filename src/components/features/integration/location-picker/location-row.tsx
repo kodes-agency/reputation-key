@@ -11,7 +11,12 @@ interface LocationRowProps {
 export function LocationRow({ location, selected, onSelect }: LocationRowProps) {
   return (
     <label className="flex items-start gap-3 rounded-lg border p-4 transition-colors hover:bg-accent cursor-pointer">
-      <Checkbox checked={selected} onCheckedChange={onSelect} className="mt-0.5" />
+      <Checkbox
+        checked={selected}
+        onCheckedChange={onSelect}
+        className="mt-0.5"
+        aria-label={`Select ${location.businessName}`}
+      />
       <div className="flex-1 space-y-1">
         <p className="font-medium">{location.businessName}</p>
         {location.address && (

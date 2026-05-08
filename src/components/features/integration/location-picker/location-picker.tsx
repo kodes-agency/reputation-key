@@ -45,6 +45,7 @@ export function LocationPicker({
     <div className="space-y-4">
       <div className="flex items-center gap-2">
         <Checkbox
+          id="select-all"
           checked={allSelected}
           onCheckedChange={handleSelectAll}
           aria-label="Select all locations"

@@ -25,7 +25,7 @@ export function GoogleAccountSelector({
 
   return (
     <Select value={value} onValueChange={onValueChange}>
-      <SelectTrigger className="w-[300px]">
+      <SelectTrigger className="w-full max-w-[300px]" id="google-account-select">
         <SelectValue placeholder="Select Google account" />
       </SelectTrigger>
       <SelectContent>

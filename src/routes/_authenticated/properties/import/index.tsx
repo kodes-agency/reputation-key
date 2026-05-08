@@ -31,8 +31,16 @@ function ImportPage() {
     return (
       <div className="mx-auto max-w-2xl space-y-6">
         <ImportPageHeader />
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="size-6 animate-spin text-muted-foreground" />
+        <div
+          className="flex items-center justify-center py-12"
+          role="status"
+          aria-live="polite"
+        >
+          <Loader2
+            className="size-6 animate-spin text-muted-foreground"
+            aria-hidden="true"
+          />
+          <span className="sr-only">Loading Google accounts...</span>
         </div>
       </div>
     )
