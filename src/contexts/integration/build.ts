@@ -6,7 +6,7 @@ import type { Database } from '#/shared/db'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { Queue } from 'bullmq'
 import type { GbpQueuePort } from './application/ports/gbp-queue.port'
-import type { ImportPropertyJobData } from '#/shared/jobs/handlers/import-property'
+import type { ImportPropertyJobData } from './application/ports/gbp-queue.port'
 import {
   connectGoogleAccount,
   disconnectGoogleAccount,
