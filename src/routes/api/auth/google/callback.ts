@@ -157,10 +157,21 @@ export const Route = createFileRoute('/api/auth/google/callback')({
         } catch (e) {
           const logger = getLogger()
           logger.error({ err: e }, 'Google OAuth connection failed')
+
+          const isSessionError =
+            e instanceof Error &&
+            '_tag' in e &&
+            (e as { _tag: string })._tag === 'AuthError' &&
+            'code' in e &&
+            ((e as { code: string }).code === 'session_expired' ||
+              (e as { code: string }).code === 'unauthorized')
+
+          const errorParam = isSessionError ? 'session_expired' : 'connection_failed'
+
           return new Response(null, {
             status: 302,
             headers: {
-              Location: `${env.BETTER_AUTH_URL}/properties/import?error=connection_failed`,
+              Location: `${env.BETTER_AUTH_URL}/properties/import?error=${errorParam}`,
             },
           })
         }
