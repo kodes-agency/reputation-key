@@ -132,6 +132,19 @@ export function ImportConnectedView({ connections, initialConnectionId }: Props)
         isImporting={importMutation.isPending}
         hasConnection={!!selectedConnectionId}
       />
+      {importMutation.isError && (
+        <div
+          className="rounded-lg border border-destructive/50 bg-destructive/10 p-4"
+          role="alert"
+        >
+          <p className="text-sm text-destructive">
+            Failed to start import.{' '}
+            {importMutation.error instanceof Error
+              ? importMutation.error.message
+              : 'Please try again.'}
+          </p>
+        </div>
+      )}
     </div>
   )
 }
