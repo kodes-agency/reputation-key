@@ -7,31 +7,32 @@ import { CheckCircle2, XCircle, AlertCircle } from 'lucide-react'
 
 interface ImportProgressProps {
   job: GbpImportJob
-  onRetryFailed?: () => void
 }
 
-export function ImportProgress({ job, onRetryFailed }: ImportProgressProps) {
-  const isComplete = job.status === 'completed'
+export function ImportProgress({ job }: ImportProgressProps) {
+  const isComplete = job.status === 'completed' || job.status === 'completed_with_skips'
   const hasFailures = job.failedCount > 0
   const isFinal = isComplete || job.status === 'failed'
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">Import Properties</h1>
+          <h2 className="text-xl font-semibold tracking-tight">Import Progress</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            {isComplete
+            {isComplete && !hasFailures
               ? 'Import completed successfully'
-              : job.status === 'failed'
-                ? 'Import failed'
-                : 'Importing properties from Google Business Profile...'}
+              : isComplete && hasFailures
+                ? 'Import completed with some failures'
+                : job.status === 'failed'
+                  ? 'Import failed'
+                  : 'Importing properties from Google Business Profile...'}
           </p>
         </div>
         <ImportStatusBadge status={job.status} />
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Card className="p-4">
           <div className="flex items-center gap-2">
             <CheckCircle2 className="size-4 text-green-600" />
@@ -68,11 +69,6 @@ export function ImportProgress({ job, onRetryFailed }: ImportProgressProps) {
           <Button asChild>
             <Link to="/properties">Go to Properties</Link>
           </Button>
-          {hasFailures && onRetryFailed && (
-            <Button variant="outline" onClick={onRetryFailed}>
-              Retry Failed
-            </Button>
-          )}
         </div>
       )}
     </div>
