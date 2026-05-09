@@ -2,12 +2,26 @@ import { FieldGroup } from '#/components/ui/field'
 import { FormTextField } from '#/components/forms/form-text-field'
 import type { BaseFieldApi } from '#/components/forms/form-text-field'
 
+type OrgBillingFormValues = {
+  billingCompanyName: string
+  billingAddress: string
+  billingCity: string
+  billingPostalCode: string
+  billingCountry: string
+  name: string
+  slug: string
+  contactEmail: string
+}
+
+type FormWithField = {
+  Field: React.FC<{
+    name: keyof OrgBillingFormValues
+    children: (field: BaseFieldApi) => React.ReactNode
+  }>
+}
+
 type Props = Readonly<{
-  form: {
-    Field: (name: string) => {
-      (render: (field: BaseFieldApi) => JSX.Element): JSX.Element
-    }
-  }
+  form: FormWithField
 }>
 
 export function OrgBillingCard({ form }: Props) {

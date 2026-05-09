@@ -4,22 +4,23 @@ import { FormTextarea } from '#/components/forms/form-textarea'
 import type { BaseFieldApi } from '#/components/forms/form-text-field'
 import type { BaseFieldApiTextarea } from '#/components/forms/form-textarea'
 import { ThemeFieldGroup } from './theme-field-group'
-import type { FormApi } from '@tanstack/react-form'
+
+type PortalFormValues = {
+  name: string
+  slug: string
+  description: string
+  primaryColor: string
+}
+
+type FormWithField = {
+  Field: React.FC<{
+    name: keyof PortalFormValues
+    children: (field: BaseFieldApi | BaseFieldApiTextarea) => React.ReactNode
+  }>
+}
 
 type Props = Readonly<{
-  form: FormApi<
-    unknown,
-    unknown,
-    unknown,
-    unknown,
-    unknown,
-    unknown,
-    unknown,
-    unknown,
-    unknown,
-    unknown,
-    unknown
-  >
+  form: FormWithField
 }>
 
 export function PortalNameSlugGroup({ form }: Props) {

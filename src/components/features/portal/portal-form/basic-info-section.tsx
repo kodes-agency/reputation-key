@@ -3,22 +3,22 @@ import { FormTextField } from '#/components/forms/form-text-field'
 import { FormTextarea } from '#/components/forms/form-textarea'
 import type { BaseFieldApi } from '#/components/forms/form-text-field'
 import type { BaseFieldApiTextarea } from '#/components/forms/form-textarea'
-import type { FormApi } from '@tanstack/react-form'
+
+type PortalBasicInfoFormValues = {
+  name: string
+  slug: string
+  description: string
+}
+
+type FormWithField = {
+  Field: React.FC<{
+    name: keyof PortalBasicInfoFormValues
+    children: (field: BaseFieldApi | BaseFieldApiTextarea) => React.ReactNode
+  }>
+}
 
 type Props = Readonly<{
-  form: FormApi<
-    unknown,
-    unknown,
-    unknown,
-    unknown,
-    unknown,
-    unknown,
-    unknown,
-    unknown,
-    unknown,
-    unknown,
-    unknown
-  >
+  form: FormWithField
   disabled?: boolean
 }>
 

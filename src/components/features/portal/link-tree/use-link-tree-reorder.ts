@@ -3,6 +3,7 @@
 import { generateKeyBetween } from 'fractional-indexing'
 import { arrayMove } from '@dnd-kit/sortable'
 import { type DragEndEvent } from '@dnd-kit/core'
+import type { Action } from '#/components/hooks/use-action'
 
 type Category = { id: string; title: string; sortKey: string }
 type LinkItem = {
@@ -13,13 +14,28 @@ type LinkItem = {
   categoryId: string
 }
 
+type ReorderCategoriesVariables = {
+  data: {
+    portalId: string
+    items: Array<{ id: string; sortKey: string }>
+  }
+}
+
+type ReorderLinksVariables = {
+  data: {
+    portalId: string
+    categoryId: string
+    items: Array<{ id: string; sortKey: string }>
+  }
+}
+
 export function useLinkTreeReorder(
   categories: Category[],
   links: LinkItem[],
   setCategories: (c: Category[] | ((prev: Category[]) => Category[])) => void,
   setLinks: (l: LinkItem[] | ((prev: LinkItem[]) => LinkItem[])) => void,
-  reorderCategoriesMutation: { mutateAsync: (data: unknown) => Promise<unknown> },
-  reorderLinksMutation: { mutateAsync: (data: unknown) => Promise<unknown> },
+  reorderCategoriesMutation: Action<ReorderCategoriesVariables>,
+  reorderLinksMutation: Action<ReorderLinksVariables>,
   portalId: string,
 ) {
   const handleDragEnd = async (event: DragEndEvent) => {
@@ -53,7 +69,9 @@ export function useLinkTreeReorder(
       ...reordered.map((l, i) => ({ ...l, sortKey: updates[i].sortKey })),
     ])
     try {
-      await reorderLinksMutation({ data: { portalId, categoryId, items: updates } })
+      await reorderLinksMutation({
+        data: { portalId, categoryId, items: updates },
+      })
     } catch {
       console.error('Failed to reorder links')
     }

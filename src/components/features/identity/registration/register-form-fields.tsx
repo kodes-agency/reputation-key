@@ -1,22 +1,24 @@
 import { FieldGroup } from '#/components/ui/field'
 import { FormTextField } from '#/components/forms/form-text-field'
 import type { BaseFieldApi } from '#/components/forms/form-text-field'
-import type { FormApi } from '@tanstack/react-form'
+
+type FormFieldValues = {
+  name: string
+  email: string
+  password: string
+  confirmPassword: string
+  organizationName?: string
+}
+
+type FormWithField = {
+  Field: React.FC<{
+    name: keyof FormFieldValues
+    children: (field: BaseFieldApi) => React.ReactNode
+  }>
+}
 
 type Props = Readonly<{
-  form: FormApi<
-    unknown,
-    unknown,
-    unknown,
-    unknown,
-    unknown,
-    unknown,
-    unknown,
-    unknown,
-    unknown,
-    unknown,
-    unknown
-  >
+  form: FormWithField
   mode: 'register' | 'join'
 }>
 

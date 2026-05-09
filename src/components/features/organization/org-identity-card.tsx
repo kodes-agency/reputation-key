@@ -4,12 +4,26 @@ import type { BaseFieldApi } from '#/components/forms/form-text-field'
 import { Alert, AlertDescription } from '#/components/ui/alert'
 import { AlertTriangle } from 'lucide-react'
 
+type OrgIdentityFormValues = {
+  name: string
+  slug: string
+  contactEmail: string
+  billingCompanyName: string
+  billingAddress: string
+  billingCity: string
+  billingPostalCode: string
+  billingCountry: string
+}
+
+type FormWithField = {
+  Field: React.FC<{
+    name: keyof OrgIdentityFormValues
+    children: (field: BaseFieldApi) => React.ReactNode
+  }>
+}
+
 type Props = Readonly<{
-  form: {
-    Field: (name: string) => {
-      (render: (field: BaseFieldApi) => JSX.Element): JSX.Element
-    }
-  }
+  form: FormWithField
   slugChanged: boolean
 }>
 

@@ -58,7 +58,11 @@ export function RoleSelector({ field, allowedRoles }: Props) {
           </SelectGroup>
         </SelectContent>
       </Select>
-      {isInvalid && <FieldError errors={field.state.meta.errors} />}
+      {isInvalid && (
+        <FieldError
+          errors={field.state.meta.errors as Array<{ message?: string } | undefined>}
+        />
+      )}
     </Field>
   )
 }

@@ -79,7 +79,11 @@ export function MemberSelector({ field, unassigned }: Props) {
           </div>
         </>
       )}
-      {isInvalid && <FieldError errors={field.state.meta.errors} />}
+      {isInvalid && (
+        <FieldError
+          errors={field.state.meta.errors as Array<{ message?: string } | undefined>}
+        />
+      )}
     </Field>
   )
 }
