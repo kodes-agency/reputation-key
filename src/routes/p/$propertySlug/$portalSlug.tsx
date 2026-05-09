@@ -8,7 +8,7 @@ import {
 import { PortalUnavailable } from '#/components/features/guest'
 import { PublicPortalContent } from '#/components/features/guest'
 import { CookieConsentBanner } from '#/components/features/guest'
-import type { PublicPortalLoaderData } from '#/contexts/guest/application/dto/public-portal.dto'
+import type { PublicPortalLoaderData } from '#/contexts/guest/server/public'
 import { useServerFn } from '@tanstack/react-start'
 import { getLogger } from '#/shared/observability/logger'
 
