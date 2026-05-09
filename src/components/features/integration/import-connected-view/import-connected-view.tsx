@@ -104,8 +104,7 @@ export function ImportConnectedView({ connections, initialConnectionId }: Props)
               setConnectError(null)
               const result = await getAuthUrl({ data: { visibility: 'private' } })
               window.location.href = result.url
-            } catch (err) {
-              console.error('Failed to connect Google account:', err)
+            } catch {
               setConnectError('Failed to connect Google account. Please try again.')
               setIsConnectingNewAccount(false)
             }

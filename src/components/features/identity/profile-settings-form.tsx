@@ -1,6 +1,3 @@
-// Profile settings form — edit name, email (read-only), and avatar
-// Per conventions: receives user data, uses TanStack Form + Zod schema.
-// Avatar upload uses dedicated avatar server functions with user-scoped S3 keys.
 import { useForm } from '@tanstack/react-form'
 import { useState } from 'react'
 import { z } from 'zod/v4'
@@ -17,12 +14,10 @@ import {
   CardTitle,
   CardDescription,
 } from '#/components/ui/card'
-import { ImageUploadField } from '#/components/forms/image-upload-field'
 import type { BaseFieldApi } from '#/components/forms/form-text-field'
 import { authClient } from '#/shared/auth/auth-client'
 import { toast } from 'sonner'
-
-// ── Schema ──────────────────────────────────────────────────────────
+import { AvatarCard } from './avatar-card'
 
 const profileSchema = z.object({
   name: z
@@ -32,8 +27,6 @@ const profileSchema = z.object({
 })
 
 type FormValues = z.infer<typeof profileSchema>
-
-// ── Props ───────────────────────────────────────────────────────────
 
 export type Props = Readonly<{
   user: {
@@ -48,8 +41,6 @@ export type Props = Readonly<{
     avatarUrl: string
   }>
 }>
-
-// ── Component ───────────────────────────────────────────────────────
 
 export function ProfileSettingsForm({
   user,
@@ -90,7 +81,6 @@ export function ProfileSettingsForm({
     await putFilePresigned(uploadUrl, file, onProgress)
     const result = await finalizeAvatarUpload({ data: { key } })
 
-    // Persist avatar URL via better-auth
     await authClient.updateUser({ image: result.avatarUrl })
     toast.success('Avatar updated successfully')
     return result.avatarUrl
@@ -100,25 +90,12 @@ export function ProfileSettingsForm({
     <div className="space-y-6">
       <FormErrorBanner error={error} />
 
-      {/* Avatar card */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Avatar</CardTitle>
-          <CardDescription>
-            Upload a profile image. JPG, PNG, WebP, and GIF up to 5MB.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ImageUploadField
-            imageUrl={avatarUrl}
-            onImageUrlChange={setAvatarUrl}
-            onUpload={handleAvatarUpload}
-            variant="circle"
-            maxFileSize={5 * 1024 * 1024}
-            disabled={isPending}
-          />
-        </CardContent>
-      </Card>
+      <AvatarCard
+        avatarUrl={avatarUrl}
+        onAvatarUrlChange={setAvatarUrl}
+        onUpload={handleAvatarUpload}
+        disabled={isPending}
+      />
 
       {/* Profile information card */}
       <Card>
