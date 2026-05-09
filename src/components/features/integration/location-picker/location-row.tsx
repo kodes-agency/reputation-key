@@ -2,13 +2,13 @@ import type { GbpLocation } from '#/shared/domain'
 import { Checkbox } from '#/components/ui/checkbox'
 import { Badge } from '#/components/ui/badge'
 
-interface LocationRowProps {
+type Props = Readonly<{
   location: GbpLocation
   selected: boolean
   onSelect: (selected: boolean) => void
-}
+}>
 
-export function LocationRow({ location, selected, onSelect }: LocationRowProps) {
+export function LocationRow({ location, selected, onSelect }: Props) {
   return (
     <label className="flex items-start gap-3 rounded-lg border p-4 transition-colors hover:bg-accent cursor-pointer">
       <Checkbox

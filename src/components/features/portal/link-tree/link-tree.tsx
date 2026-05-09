@@ -1,3 +1,4 @@
+// Server import exception: 8+ mutations (CRUD categories + CRUD links + reorder categories + reorder links)
 // Link tree — full CRUD for categories and links with DnD support.
 // Extracted from portal-detail-page to separate the link-tree concern.
 

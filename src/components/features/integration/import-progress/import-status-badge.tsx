@@ -2,11 +2,11 @@ import { AlertCircle, CheckCircle2, Circle, Loader2, XCircle } from 'lucide-reac
 import { Badge } from '#/components/ui/badge'
 import type { GbpImportJobStatus } from '#/shared/domain'
 
-interface ImportStatusBadgeProps {
+type Props = Readonly<{
   status: GbpImportJobStatus
-}
+}>
 
-export function ImportStatusBadge({ status }: ImportStatusBadgeProps) {
+export function ImportStatusBadge({ status }: Props) {
   const variants = {
     queued: { icon: Circle, label: 'Queued', variant: 'secondary' as const },
     in_progress: {

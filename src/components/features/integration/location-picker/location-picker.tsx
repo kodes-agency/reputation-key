@@ -2,17 +2,13 @@ import type { GbpLocation } from '#/shared/domain'
 import { Checkbox } from '#/components/ui/checkbox'
 import { LocationRow } from './location-row'
 
-interface LocationPickerProps {
+type Props = Readonly<{
   locations: GbpLocation[]
   selectedIds: Set<string>
   onSelectionChange: (ids: Set<string>) => void
-}
+}>
 
-export function LocationPicker({
-  locations,
-  selectedIds,
-  onSelectionChange,
-}: LocationPickerProps) {
+export function LocationPicker({ locations, selectedIds, onSelectionChange }: Props) {
   const allSelected = locations.length > 0 && selectedIds.size === locations.length
 
   const handleSelectAll = (checked: boolean | string) => {

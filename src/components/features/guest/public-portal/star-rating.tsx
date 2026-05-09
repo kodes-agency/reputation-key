@@ -3,15 +3,15 @@ import { Star } from 'lucide-react'
 import type { ScanSource } from '#/contexts/guest/application/dto/public-portal.dto'
 import { useAction } from '#/components/hooks/use-action'
 
-interface StarRatingProps {
+type Props = Readonly<{
   portalId: string
   source: ScanSource
   submitRating?: (input: {
     data: { portalId: string; value: number; source: ScanSource }
   }) => Promise<unknown>
-}
+}>
 
-export function StarRating({ portalId, source, submitRating }: StarRatingProps) {
+export function StarRating({ portalId, source, submitRating }: Props) {
   const [selectedValue, setSelectedValue] = useState<number | null>(null)
   const [hoveredValue, setHoveredValue] = useState<number | null>(null)
   const [submitted, setSubmitted] = useState(false)

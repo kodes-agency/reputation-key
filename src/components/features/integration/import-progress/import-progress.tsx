@@ -5,11 +5,11 @@ import { Button } from '#/components/ui/button'
 import { Link } from '@tanstack/react-router'
 import { CheckCircle2, XCircle, AlertCircle } from 'lucide-react'
 
-interface ImportProgressProps {
+type Props = Readonly<{
   job: GbpImportJob
-}
+}>
 
-export function ImportProgress({ job }: ImportProgressProps) {
+export function ImportProgress({ job }: Props) {
   const isComplete =
     job.status === 'completed' ||
     job.status === 'completed_with_skips' ||

@@ -4,7 +4,7 @@ import { Textarea } from '#/components/ui/textarea'
 import type { ScanSource } from '#/contexts/guest/application/dto/public-portal.dto'
 import { useAction } from '#/components/hooks/use-action'
 
-interface FeedbackFormProps {
+type Props = Readonly<{
   portalId: string
   source: ScanSource
   submitFeedback?: (input: {
@@ -16,9 +16,9 @@ interface FeedbackFormProps {
       submittedAt: number
     }
   }) => Promise<unknown>
-}
+}>
 
-export function FeedbackForm({ portalId, source, submitFeedback }: FeedbackFormProps) {
+export function FeedbackForm({ portalId, source, submitFeedback }: Props) {
   const [comment, setComment] = useState('')
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState<string | null>(null)

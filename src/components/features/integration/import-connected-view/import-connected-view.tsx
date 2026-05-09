@@ -1,6 +1,6 @@
+// Server import exception: 6 mutations (getAuthUrl, listLocations, startImport + state orchestration)
 import { useState, useEffect } from 'react'
 import { useServerFn } from '@tanstack/react-start'
-// @ts-expect-error - useQuery will work with TanStack Router loaders after refactor
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { getGoogleAuthUrl } from '#/contexts/integration/server/google-connections'
@@ -50,7 +50,7 @@ export function ImportConnectedView({ connections, initialConnectionId }: Props)
     staleTime: 30000,
   })
 
-  const locations = locationsData ?? []
+  const locations = locationsData ? [...locationsData] : []
 
   const importMutation = useMutation({
     mutationFn: async () => {
@@ -58,13 +58,11 @@ export function ImportConnectedView({ connections, initialConnectionId }: Props)
         throw new Error('No locations selected')
       }
 
-      // @ts-expect-error - l will have proper type after refactor
       const selectedLocations = locations.filter((l) => selectedIds.has(l.gbpPlaceId))
 
       const result = await startImport({
         data: {
           connectionId: selectedConnectionId,
-          // @ts-expect-error - l will have proper type after refactor
           locations: selectedLocations.map((l) => ({
             gbpPlaceId: l.gbpPlaceId,
             businessName: l.businessName,

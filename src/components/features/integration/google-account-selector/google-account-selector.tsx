@@ -7,17 +7,13 @@ import {
   SelectValue,
 } from '#/components/ui/select'
 
-interface GoogleAccountSelectorProps {
+type Props = Readonly<{
   connections: GoogleConnection[]
   value: string | undefined
   onValueChange: (value: string) => void
-}
+}>
 
-export function GoogleAccountSelector({
-  connections,
-  value,
-  onValueChange,
-}: GoogleAccountSelectorProps) {
+export function GoogleAccountSelector({ connections, value, onValueChange }: Props) {
   const getDisplayName = (connection: GoogleConnection): string => {
     const visibilityLabel = connection.visibility === 'private' ? '(you)' : '(shared)'
     return `${connection.googleEmail} ${visibilityLabel}`
