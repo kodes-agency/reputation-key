@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
 import { useAction } from '#/components/hooks/use-action'
 import { toast } from 'sonner'
@@ -11,6 +12,7 @@ import {
   updateOrganization,
   requestOrgLogoUpload,
   finalizeOrgLogoUpload,
+  setActiveOrganization,
 } from '#/contexts/identity/server/organizations'
 
 type OrgData = Readonly<{
@@ -38,9 +40,11 @@ export function OrganizationSettingsPage({
   activeOrganizationId,
 }: Props) {
   const [logoUrl, setLogoUrl] = useState(organization.logo)
+  const navigate = useNavigate()
   const updateOrg = useAction(useServerFn(updateOrganization))
   const requestUpload = useServerFn(requestOrgLogoUpload)
   const finalizeUpload = useServerFn(finalizeOrgLogoUpload)
+  const switchOrg = useAction(useServerFn(setActiveOrganization))
 
   return (
     <div className="space-y-6">
@@ -92,6 +96,12 @@ export function OrganizationSettingsPage({
       <OrganizationSwitchList
         organizations={organizations}
         activeOrganizationId={activeOrganizationId}
+        onSwitch={(orgId) =>
+          switchOrg({ data: { organizationId: orgId } }).then(() =>
+            navigate({ to: '/properties' }),
+          )
+        }
+        isPending={switchOrg.isPending}
       />
     </div>
   )
