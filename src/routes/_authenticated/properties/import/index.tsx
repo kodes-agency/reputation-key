@@ -2,11 +2,16 @@ import { createFileRoute, useSearch } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
 // @ts-expect-error - useQuery will work with TanStack Router loaders after refactor
 import { useQuery } from '@tanstack/react-query'
-import { listGoogleConnections } from '#/contexts/integration/server/google-connections'
-import { ConnectGoogleButton } from '#/components/features/integration'
+import {
+  getGoogleAuthUrl,
+  listGoogleConnections,
+} from '#/contexts/integration/server/google-connections'
+import {
+  ConnectGoogleButton,
+  ImportConnectedView,
+} from '#/components/features/integration'
 import { Loader2 } from 'lucide-react'
-import { ImportPageHeader } from './import-page-header'
-import { ImportConnectedView } from './import-connected-view'
+import { ImportPageHeader } from './-import-page-header'
 
 export const Route = createFileRoute('/_authenticated/properties/import/')({
   component: ImportPage,
@@ -15,6 +20,7 @@ export const Route = createFileRoute('/_authenticated/properties/import/')({
 function ImportPage() {
   const search = useSearch({ strict: false }) as { connectionId?: string; error?: string }
   const listConnections = useServerFn(listGoogleConnections)
+  const getAuthUrl = useServerFn(getGoogleAuthUrl)
 
   const { data: connectionsData, isLoading: isLoadingConnections } = useQuery({
     queryKey: ['google-connections'],
@@ -65,7 +71,7 @@ function ImportPage() {
       {connections.length === 0 ? (
         <div className="flex flex-col items-center gap-4 rounded-lg border py-12">
           <p className="text-muted-foreground">No Google accounts connected yet.</p>
-          <ConnectGoogleButton />
+          <ConnectGoogleButton getAuthUrl={getAuthUrl} />
         </div>
       ) : (
         <ImportConnectedView

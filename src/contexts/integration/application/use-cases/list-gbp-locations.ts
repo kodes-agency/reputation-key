@@ -84,15 +84,18 @@ export const listGbpLocations =
 
       if (accounts.length > 0) {
         // Query all accounts and merge results (multi-account users)
-        const allLocations: GbpLocation[] = []
+        // Deduplicate by gbpPlaceId — overlapping accounts share locations
+        const seen = new Map<string, GbpLocation>()
         for (const account of accounts) {
           const accountLocations = await deps.gbpApi.listLocations(
             accessToken,
             account.accountName,
           )
-          allLocations.push(...accountLocations)
+          for (const loc of accountLocations) {
+            if (!seen.has(loc.gbpPlaceId)) seen.set(loc.gbpPlaceId, loc)
+          }
         }
-        locations = allLocations
+        locations = [...seen.values()]
       } else {
         locations = await deps.gbpApi.listLocations(accessToken, '-')
       }

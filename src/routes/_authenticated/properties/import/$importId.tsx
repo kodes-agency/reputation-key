@@ -4,7 +4,7 @@ import { useServerFn } from '@tanstack/react-start'
 import { useQuery } from '@tanstack/react-query'
 import { getImportStatus } from '#/contexts/integration/server/gbp-import'
 import { ImportProgress } from '#/components/features/integration'
-import { ImportPageHeader } from './import-page-header'
+import { ImportPageHeader } from './-import-page-header'
 
 export const Route = createFileRoute('/_authenticated/properties/import/$importId')({
   component: ImportProgressPage,

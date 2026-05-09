@@ -1,17 +1,15 @@
 import { useState } from 'react'
-import { useServerFn } from '@tanstack/react-start'
 import { Button } from '#/components/ui/button'
 import { Loader2 } from 'lucide-react'
-import { getGoogleAuthUrl } from '#/contexts/integration/server/google-connections'
 
-interface ConnectGoogleButtonProps {
+type Props = Readonly<{
   visibility?: 'private' | 'organization'
-}
+  getAuthUrl: (opts: {
+    data: { visibility: 'private' | 'organization' }
+  }) => Promise<{ url: string }>
+}>
 
-export function ConnectGoogleButton({
-  visibility = 'private',
-}: ConnectGoogleButtonProps) {
-  const getAuthUrl = useServerFn(getGoogleAuthUrl)
+export function ConnectGoogleButton({ visibility = 'private', getAuthUrl }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [isConnecting, setIsConnecting] = useState(false)
 
@@ -21,8 +19,7 @@ export function ConnectGoogleButton({
       setIsConnecting(true)
       const result = await getAuthUrl({ data: { visibility } })
       window.location.href = result.url
-    } catch (err) {
-      console.error('Failed to connect Google account:', err)
+    } catch {
       setError('Failed to connect Google account. Please try again.')
       setIsConnecting(false)
     }
