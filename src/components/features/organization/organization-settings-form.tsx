@@ -4,9 +4,7 @@
 
 import { useForm } from '@tanstack/react-form'
 import { z } from 'zod/v4'
-import { FieldGroup } from '#/components/ui/field'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
-import { FormTextField } from '#/components/forms/form-text-field'
 import { SubmitButton } from '#/components/forms/submit-button'
 import {
   Card,
@@ -15,9 +13,8 @@ import {
   CardTitle,
   CardDescription,
 } from '#/components/ui/card'
-import type { BaseFieldApi } from '#/components/forms/form-text-field'
-import { Alert, AlertDescription } from '#/components/ui/alert'
-import { AlertTriangle } from 'lucide-react'
+import { OrgIdentityCard } from './org-identity-card'
+import { OrgBillingCard } from './org-billing-card'
 
 // ── Schema ──────────────────────────────────────────────────────────
 
@@ -101,54 +98,8 @@ export function OrganizationSettingsForm({
             Organization name, slug, and contact information.
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <FieldGroup>
-            <form.Field name="name">
-              {(field: BaseFieldApi) => (
-                <FormTextField
-                  field={field}
-                  label="Name"
-                  id="org-name"
-                  autoComplete="organization"
-                />
-              )}
-            </form.Field>
-
-            <form.Field name="slug">
-              {(field: BaseFieldApi) => (
-                <FormTextField
-                  field={field}
-                  label="Slug"
-                  id="org-slug"
-                  autoComplete="off"
-                />
-              )}
-            </form.Field>
-
-            <form.Field name="contactEmail">
-              {(field: BaseFieldApi) => (
-                <FormTextField
-                  field={field}
-                  label="Contact email"
-                  id="org-contact-email"
-                  type="email"
-                  placeholder="contact@example.com"
-                  autoComplete="email"
-                />
-              )}
-            </form.Field>
-          </FieldGroup>
-
-          {/* Slug change warning */}
-          {slugChanged && (
-            <Alert variant="destructive">
-              <AlertTriangle className="size-4" />
-              <AlertDescription>
-                Changing the slug will break existing guest portal URLs. Guests using the
-                old slug URL will no longer be able to access the portal.
-              </AlertDescription>
-            </Alert>
-          )}
+        <CardContent>
+          <OrgIdentityCard form={form} slugChanged={slugChanged} />
         </CardContent>
       </Card>
 
@@ -159,67 +110,7 @@ export function OrganizationSettingsForm({
           <CardDescription>Billing address and company information.</CardDescription>
         </CardHeader>
         <CardContent>
-          <FieldGroup>
-            <form.Field name="billingCompanyName">
-              {(field: BaseFieldApi) => (
-                <FormTextField
-                  field={field}
-                  label="Company name"
-                  id="billing-company-name"
-                  placeholder="Acme Inc."
-                  autoComplete="organization"
-                />
-              )}
-            </form.Field>
-
-            <form.Field name="billingAddress">
-              {(field: BaseFieldApi) => (
-                <FormTextField
-                  field={field}
-                  label="Address"
-                  id="billing-address"
-                  placeholder="123 Main St"
-                  autoComplete="street-address"
-                />
-              )}
-            </form.Field>
-
-            <form.Field name="billingCity">
-              {(field: BaseFieldApi) => (
-                <FormTextField
-                  field={field}
-                  label="City"
-                  id="billing-city"
-                  placeholder="San Francisco"
-                  autoComplete="address-level2"
-                />
-              )}
-            </form.Field>
-
-            <form.Field name="billingPostalCode">
-              {(field: BaseFieldApi) => (
-                <FormTextField
-                  field={field}
-                  label="Postal code"
-                  id="billing-postal-code"
-                  placeholder="94102"
-                  autoComplete="postal-code"
-                />
-              )}
-            </form.Field>
-
-            <form.Field name="billingCountry">
-              {(field: BaseFieldApi) => (
-                <FormTextField
-                  field={field}
-                  label="Country"
-                  id="billing-country"
-                  placeholder="United States"
-                  autoComplete="country-name"
-                />
-              )}
-            </form.Field>
-          </FieldGroup>
+          <OrgBillingCard form={form} />
         </CardContent>
       </Card>
 

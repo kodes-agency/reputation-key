@@ -2,22 +2,15 @@
 // Multi-select: pick multiple members, optionally assign to a team, submit all at once.
 
 import { useForm } from '@tanstack/react-form'
-import { Field, FieldGroup, FieldLabel, FieldError } from '#/components/ui/field'
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '#/components/ui/select'
-import { Checkbox } from '#/components/ui/checkbox'
+import { FieldGroup } from '#/components/ui/field'
 import { SubmitButton } from '#/components/forms/submit-button'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import type { CreateStaffAssignmentInput } from '#/contexts/staff/application/dto/staff-assignment.dto'
 import { createStaffAssignmentInputSchema } from '#/contexts/staff/application/dto/staff-assignment.dto'
 import { z } from 'zod/v4'
 import { toast } from 'sonner'
+import { MemberSelector } from './member-selector'
+import { TeamSelector } from './team-selector'
 
 // fallow-ignore-next-line unused-type
 export type MemberOption = Readonly<{
@@ -108,110 +101,13 @@ export function AssignStaffForm({
       <FormErrorBanner error={mutation.error} />
 
       <FieldGroup>
-        {/* Multi-select member picker */}
         <form.Field name="userIds">
-          {(field) => {
-            const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid
-            const selected = new Set(field.state.value)
-            return (
-              <Field data-invalid={isInvalid}>
-                <FieldLabel>
-                  Staff members{' '}
-                  {selected.size > 0 && (
-                    <span className="font-normal text-muted-foreground">
-                      ({selected.size} selected)
-                    </span>
-                  )}
-                </FieldLabel>
-                {unassigned.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    All members are already assigned.
-                  </p>
-                ) : (
-                  <>
-                    <label className="flex cursor-pointer items-center gap-3 rounded-md border-b px-3 pb-2 text-sm font-medium text-muted-foreground hover:text-foreground">
-                      <Checkbox
-                        checked={
-                          selected.size === unassigned.length
-                            ? true
-                            : selected.size > 0
-                              ? 'indeterminate'
-                              : false
-                        }
-                        onCheckedChange={(checked) => {
-                          field.handleChange(
-                            checked ? unassigned.map((m) => m.userId) : [],
-                          )
-                        }}
-                      />
-                      Select all
-                    </label>
-                    <div className="max-h-60 space-y-2 overflow-y-auto p-3">
-                      {unassigned.map((m) => (
-                        <label
-                          key={m.userId}
-                          className="flex cursor-pointer items-center gap-3 rounded-sm px-1 py-1.5 hover:bg-accent"
-                        >
-                          <Checkbox
-                            checked={selected.has(m.userId)}
-                            onCheckedChange={(checked) => {
-                              const next = checked
-                                ? [...field.state.value, m.userId]
-                                : field.state.value.filter(
-                                    (id: string) => id !== m.userId,
-                                  )
-                              field.handleChange(next)
-                            }}
-                          />
-                          <div className="flex-1">
-                            <p className="text-sm font-medium leading-none">{m.name}</p>
-                            <p className="mt-0.5 text-xs text-muted-foreground">
-                              {m.email}
-                            </p>
-                          </div>
-                        </label>
-                      ))}
-                    </div>
-                  </>
-                )}
-                {isInvalid && <FieldError errors={field.state.meta.errors} />}
-              </Field>
-            )
-          }}
+          {(field) => <MemberSelector field={field} unassigned={unassigned} />}
         </form.Field>
 
-        {/* Team picker (optional) */}
         {teams.length > 0 && (
           <form.Field name="teamId">
-            {(field) => (
-              <Field>
-                <FieldLabel>Assign to team (optional)</FieldLabel>
-                <Select
-                  value={field.state.value ?? '__none__'}
-                  onValueChange={(value) =>
-                    field.handleChange(value === '__none__' ? null : value)
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="No team" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      <SelectItem value="__none__">
-                        <span className="italic text-muted-foreground">
-                          No team (direct to property)
-                        </span>
-                      </SelectItem>
-                      {teams.map((t) => (
-                        <SelectItem key={t.id} value={t.id}>
-                          {t.name}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </Field>
-            )}
+            {(field) => <TeamSelector field={field} teams={teams} />}
           </form.Field>
         )}
       </FieldGroup>

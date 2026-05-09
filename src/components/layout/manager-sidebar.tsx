@@ -1,4 +1,4 @@
-import { useRouterState } from '@tanstack/react-router'
+import { useRouterState, useNavigate } from '@tanstack/react-router'
 import { Settings } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import {
@@ -57,7 +57,7 @@ export function ManagerSidebar({ properties }: Props) {
       <SidebarHeader>
         <ManagerPropertySwitcher
           properties={properties}
-          propertyId={propertyId}
+          propertyId={propertyId ?? undefined}
           onSwitch={handlePropertySwitch}
         />
       </SidebarHeader>
@@ -65,7 +65,10 @@ export function ManagerSidebar({ properties }: Props) {
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupContent>
-            <ManagerNavItems propertyId={propertyId} activeSection={activeSection} />
+            <ManagerNavItems
+              propertyId={propertyId ?? undefined}
+              activeSection={activeSection}
+            />
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
