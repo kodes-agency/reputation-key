@@ -76,11 +76,11 @@ const { property } = parentLoader.useLoaderData()
 
 ### StaleTime strategy
 
-| Data type | staleTime | Why |
-| --------- | --------- | --- |
+| Data type                 | staleTime            | Why                             |
+| ------------------------- | -------------------- | ------------------------------- |
 | Organizations, properties | 5 min (layout level) | Structural data, rarely changes |
-| Property detail | 60s | Moderate freshness needed |
-| Active sub-routes | 30s | Most dynamic |
+| Property detail           | 60s                  | Moderate freshness needed       |
+| Active sub-routes         | 30s                  | Most dynamic                    |
 
 ## Mutation pattern
 
@@ -97,6 +97,7 @@ const deleteAction = useMutationAction(deleteProperty, {
 Combines `useServerFn` + router invalidation + toast + optional navigation. Returns `Action<TInput, TOutput>` compatible with all form components.
 
 Options:
+
 - `successMessage` — auto-toasts on success (default: `'Saved'`)
 - `invalidate: false` — skip router invalidation
 - `invalidateRoutes` — targeted invalidation of specific route IDs instead of full `router.invalidate()`
@@ -135,12 +136,14 @@ beforeLoad: ({ context }) => {
 ## Dependency rules
 
 Routes may import from:
+
 - `contexts/<ctx>/server/` (server functions only — never domain, application, infrastructure)
 - `components/`
 - `shared/`
 
 Routes must **never**:
-- Import from `domain/`, `application/`, `infrastructure/`
+
+- Import values from `domain/`, `application/`, `infrastructure/` — `type`-only imports from `application/dto/` are allowed for loader return types
 - Access the database directly
 - Contain business logic
 
