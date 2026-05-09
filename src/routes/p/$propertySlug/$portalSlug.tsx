@@ -23,6 +23,7 @@ export const Route = createFileRoute('/p/$propertySlug/$portalSlug')({
   validateSearch: (search: Record<string, string>) => ({
     source: search.source,
   }),
+  staleTime: 5 * 60 * 1000,
   loader: async ({ params }): Promise<PublicPortalLoaderData | null> => {
     try {
       const portalData = await getPublicPortal({

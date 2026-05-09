@@ -11,6 +11,7 @@ import { AcceptInvitationPage } from '#/components/features/identity'
 import { useServerFn } from '@tanstack/react-start'
 
 export const Route = createFileRoute('/accept-invitation')({
+  staleTime: 30_000,
   beforeLoad: async ({ location }) => {
     const session = await getSession()
     if (!session) {
