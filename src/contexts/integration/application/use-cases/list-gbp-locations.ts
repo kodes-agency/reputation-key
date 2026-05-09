@@ -68,14 +68,12 @@ export const listGbpLocations =
       accessToken = deps.encryption.decrypt(connection.encryptedAccessToken)
     }
 
-    // 5. Try to list locations from available GBP accounts, fall back to wildcard
+    // 5. List locations — try each account, fall back to wildcard
     //    Only retry on permission/account-scope errors — propagate auth and rate-limit errors.
     const isRetryableError = (err: unknown): boolean => {
       if (err instanceof GbpApiError) {
-        // Token/auth/rate-limit errors — do NOT retry
         if ([401, 403, 429].includes(err.status)) return false
       }
-      // Unknown error types or server errors — retry with wildcard
       return true
     }
 
@@ -85,15 +83,28 @@ export const listGbpLocations =
       const accounts = await deps.gbpApi.listAccounts(accessToken)
 
       if (accounts.length > 0) {
-        const firstAccount = accounts[0]
-        locations = await deps.gbpApi.listLocations(accessToken, firstAccount.accountName)
+        // Query all accounts and merge results (multi-account users)
+        const allLocations: GbpLocation[] = []
+        for (const account of accounts) {
+          const accountLocations = await deps.gbpApi.listLocations(
+            accessToken,
+            account.accountName,
+          )
+          allLocations.push(...accountLocations)
+        }
+        locations = allLocations
       } else {
         locations = await deps.gbpApi.listLocations(accessToken, '-')
       }
-    } catch (err) {
-      if (!isRetryableError(err)) throw err
+    } catch (originalErr) {
+      if (!isRetryableError(originalErr)) throw originalErr
 
-      locations = await deps.gbpApi.listLocations(accessToken, '-')
+      try {
+        locations = await deps.gbpApi.listLocations(accessToken, '-')
+      } catch {
+        // Wildcard also failed — throw the original error so caller sees root cause
+        throw originalErr
+      }
     }
 
     return locations

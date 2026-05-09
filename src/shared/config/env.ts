@@ -48,8 +48,11 @@ const envSchema = z.object({
     .length(64)
     .regex(/^[a-f0-9]{64}$/, 'Must be 64 hex characters (32 bytes)'),
 
-  // OAuth state signing secret (falls back to ENCRYPTION_KEY if not set)
-  OAUTH_STATE_SECRET: z.string().min(32).optional(),
+  // OAuth state signing secret — dedicated key, independent of ENCRYPTION_KEY
+  OAUTH_STATE_SECRET: z
+    .string()
+    .min(32)
+    .regex(/^[a-f0-9]+$/, 'Must be hex characters'),
 })
 
 // fallow-ignore-next-line unused-type

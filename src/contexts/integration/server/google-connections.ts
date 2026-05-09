@@ -17,9 +17,9 @@ import { isIntegrationError } from '../domain/errors'
 import { integrationErrorStatus } from './shared'
 import { getEnv } from '#/shared/config/env'
 
-/** Dedicated HMAC key for OAuth state signing, separate from token encryption. */
+/** HMAC key for OAuth state signing — dedicated, separate from token encryption. */
 function stateHmacKey(): string {
-  return getEnv().OAUTH_STATE_SECRET ?? getEnv().ENCRYPTION_KEY
+  return getEnv().OAUTH_STATE_SECRET
 }
 
 /** HMAC-sign OAuth state to prevent forgery. */

@@ -5,6 +5,7 @@
 import { and, eq, or } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { googleConnections } from '#/shared/db/schema/google-connection.schema'
+import { properties } from '#/shared/db/schema/property.schema'
 import type { GoogleConnectionRepository } from '../../application/ports/google-connection.repository'
 import {
   googleConnectionFromRow,
@@ -165,6 +166,17 @@ export const createGoogleConnectionRepository = (
 
   delete: async (orgId, id) => {
     return trace('googleConnection.delete', async () => {
+      // Null out FK references before deleting the connection row
+      await db
+        .update(properties)
+        .set({ googleConnectionId: null, updatedAt: new Date() })
+        .where(
+          and(
+            eq(properties.organizationId, orgId),
+            eq(properties.googleConnectionId, id),
+          ),
+        )
+
       await db
         .delete(googleConnections)
         .where(

@@ -97,12 +97,26 @@ export const Route = createFileRoute('/api/auth/google/callback')({
             })
           }
 
+          if (parsed.visibility !== 'private' && parsed.visibility !== 'organization') {
+            const logger = getLogger()
+            logger.warn(
+              { security: true, visibility: parsed.visibility },
+              'OAuth state missing or invalid visibility',
+            )
+            return new Response(null, {
+              status: 302,
+              headers: {
+                Location: `${env.BETTER_AUTH_URL}/properties/import?error=invalid_state`,
+              },
+            })
+          }
+
           const payload = {
-            visibility: parsed.visibility ?? 'private',
+            visibility: parsed.visibility,
             nonce: parsed.nonce,
             ts: parsed.ts,
           }
-          const hmacKey = getEnv().OAUTH_STATE_SECRET ?? getEnv().ENCRYPTION_KEY
+          const hmacKey = getEnv().OAUTH_STATE_SECRET
           const expectedSig = createHmac('sha256', hmacKey)
             .update(JSON.stringify(payload))
             .digest('hex')
