@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
+import { useNavigate } from '@tanstack/react-router'
 import {
   listStaffAssignments,
   createStaffAssignment,
@@ -51,6 +52,9 @@ import {
 import { EmptyState } from '#/components/ui/empty-state'
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/people')({
+  validateSearch: (search: Record<string, string>) => ({
+    tab: search.tab ?? 'staff',
+  }),
   staleTime: 30_000,
   loader: async ({ params: { propertyId } }) => {
     const [{ assignments }, { members }, { teams }] = await Promise.all([
@@ -66,10 +70,11 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/peo
 function PeoplePage() {
   const { propertyId } = Route.useParams()
   const { assignments, members, teams } = Route.useLoaderData()
+  const { tab } = Route.useSearch()
   const { can } = usePermissions()
-  const [tab, setTab] = useState('staff')
   const [assignOpen, setAssignOpen] = useState(false)
   const [createTeamOpen, setCreateTeamOpen] = useState(false)
+  const navigate = useNavigate()
 
   const memberOptions = toMemberOptions(members)
   const teamOptions = toTeamOptions(teams)
@@ -98,7 +103,7 @@ function PeoplePage() {
         </p>
       </div>
 
-      <Tabs value={tab} onValueChange={setTab}>
+      <Tabs value={tab} onValueChange={(t) => navigate({ to: '.', search: { tab: t } })}>
         <TabsList>
           <TabsTrigger value="staff">Staff</TabsTrigger>
           <TabsTrigger value="teams">Teams</TabsTrigger>
