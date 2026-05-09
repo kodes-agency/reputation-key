@@ -12,20 +12,10 @@ import {
   type DragEndEvent,
 } from '@dnd-kit/core'
 import { arrayMove } from '@dnd-kit/sortable'
-import { Plus, Trash2, GripVertical, Pencil } from 'lucide-react'
+import { Plus, GripVertical, Pencil } from 'lucide-react'
 import { Button } from '#/components/ui/button'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '#/components/ui/alert-dialog'
 import { SortableLink } from './sortable-link'
+import { DeleteCategoryDialog } from './delete-category-dialog'
 
 type Category = { id: string; title: string; sortKey: string }
 type LinkItem = {
@@ -106,31 +96,11 @@ export function SortableCategory({
                 <Plus className="size-3" />
                 Add Link
               </Button>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button size="sm" variant="ghost" disabled={isDeletingCategory}>
-                    <Trash2 className="size-3 text-muted-foreground" />
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Delete Category</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Delete &quot;{category.title}&quot; and all its links? This cannot
-                      be undone.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction
-                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                      onClick={() => onDeleteCategory(category.id)}
-                    >
-                      Delete
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+              <DeleteCategoryDialog
+                categoryTitle={category.title}
+                isDeleting={!!isDeletingCategory}
+                onDelete={() => onDeleteCategory(category.id)}
+              />
             </>
           )}
         </div>
