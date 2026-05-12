@@ -1,17 +1,17 @@
-// BullMQ job handler for importing GBP locations as properties.
+// Integration context — GBP property import job handler.
 // Processes a batch of GBP locations, creates properties, tracks counts.
+// Moved from shared/jobs/handlers/ — this is business logic that belongs in its context.
 
 import type { Job } from 'bullmq'
-import type { JobHandler } from '../registry'
-// eslint-disable-next-line boundaries/dependencies -- Job handlers implement the port contract
-import type { ImportPropertyJobData } from '#/contexts/integration/application/ports/gbp-queue.port'
+import type { JobHandler } from '#/shared/jobs/registry'
+import type { ImportPropertyJobData } from '../../application/ports/gbp-queue.port'
+
+export type { ImportPropertyJobData }
 import { createHash } from 'crypto'
 import { getDb } from '#/shared/db'
 import { properties, gbpImportJobs } from '#/shared/db/schema'
 import { getLogger } from '#/shared/observability/logger'
-// eslint-disable-next-line no-restricted-imports -- Job handlers need drizzle operators for database queries
 import { and, eq, inArray, sql } from 'drizzle-orm'
-// eslint-disable-next-line boundaries/dependencies -- Job handlers need domain rules for normalization
 import { normalizeSlug } from '#/contexts/property/domain/rules'
 
 export const importPropertyHandler: JobHandler<ImportPropertyJobData> = async (
