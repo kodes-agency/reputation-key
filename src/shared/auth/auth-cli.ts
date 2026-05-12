@@ -24,7 +24,7 @@ if (!process.env.BETTER_AUTH_SECRET) {
   throw new Error('BETTER_AUTH_SECRET environment variable is required')
 }
 
-export const auth = betterAuth({
+const auth = betterAuth({
   database: pool,
   secret: process.env.BETTER_AUTH_SECRET,
   baseURL: process.env.BETTER_AUTH_URL,
@@ -45,4 +45,4 @@ export const auth = betterAuth({
   ],
 })
 
-export default auth
+export { auth }

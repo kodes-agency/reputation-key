@@ -10,7 +10,7 @@ import type { ListLocationsInput } from '../dto/list-locations.dto'
 import { can } from '#/shared/domain/permissions'
 import { googleConnectionId, type OrganizationId } from '#/shared/domain/ids'
 import { integrationError } from '../../domain/errors'
-import { GbpApiError } from '../../domain/gbp-api-error'
+import type { GbpApiError } from '../../domain/gbp-api-error'
 import { TOKEN_EXPIRY_BUFFER_MS } from '../constants'
 
 export type ListGbpLocationsDeps = Readonly<{
@@ -70,8 +70,14 @@ export const listGbpLocations =
 
     // 5. List locations — try each account, fall back to wildcard
     //    Only retry on permission/account-scope errors — propagate auth and rate-limit errors.
+    const isGbpApiError = (err: unknown): err is GbpApiError =>
+      typeof err === 'object' &&
+      err !== null &&
+      '_tag' in err &&
+      (err as GbpApiError)._tag === 'GbpApiError'
+
     const isRetryableError = (err: unknown): boolean => {
-      if (err instanceof GbpApiError) {
+      if (isGbpApiError(err)) {
         if ([401, 403, 429].includes(err.status)) return false
       }
       return true

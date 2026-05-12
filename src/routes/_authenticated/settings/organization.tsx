@@ -1,5 +1,4 @@
 import { createFileRoute, redirect } from '@tanstack/react-router'
-import { useServerFn } from '@tanstack/react-start'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import {
@@ -17,8 +16,8 @@ export const Route = createFileRoute('/_authenticated/settings/organization')({
   },
   loader: async () => {
     const [orgResult, orgsResult] = await Promise.all([
-      useServerFn(getActiveOrganization)(),
-      useServerFn(listUserOrganizations)(),
+      getActiveOrganization(),
+      listUserOrganizations(),
     ])
     return {
       organization: orgResult.organization,

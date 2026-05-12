@@ -127,10 +127,6 @@ export const Route = createFileRoute('/_authenticated')({
     return {
       organizations,
       properties,
-      _debug_orgsError:
-        orgsResult.status === 'rejected' ? String(orgsResult.reason) : null,
-      _debug_propsError:
-        propsResult.status === 'rejected' ? String(propsResult.reason) : null,
     }
   },
   // Structural data (orgs, properties) rarely changes.

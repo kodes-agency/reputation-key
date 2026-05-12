@@ -16,6 +16,7 @@ import { Plus, GripVertical, Pencil } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { SortableLink } from './sortable-link'
 import { DeleteCategoryDialog } from './delete-category-dialog'
+import { usePermissions } from '#/shared/hooks/usePermissions'
 
 type Category = { id: string; title: string; sortKey: string }
 type LinkItem = {
@@ -29,7 +30,6 @@ type LinkItem = {
 type Props = Readonly<{
   category: Category
   links: LinkItem[]
-  canEdit: boolean
   isDeletingCategory?: boolean
   deletingLinkId?: string
   onAddLink: (catId: string) => void
@@ -43,7 +43,6 @@ type Props = Readonly<{
 export function SortableCategory({
   category,
   links,
-  canEdit,
   isDeletingCategory,
   deletingLinkId,
   onAddLink,
@@ -53,6 +52,8 @@ export function SortableCategory({
   onEditLink,
   onReorderLinks,
 }: Props) {
+  const { can } = usePermissions()
+  const canEdit = can('portal.update')
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({
     id: category.id,
     disabled: !canEdit,
@@ -120,7 +121,6 @@ export function SortableCategory({
               <SortableLink
                 key={link.id}
                 link={link}
-                canEdit={canEdit}
                 isDeleting={deletingLinkId === link.id}
                 onDelete={onDeleteLink}
                 onEdit={onEditLink}

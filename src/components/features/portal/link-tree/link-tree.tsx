@@ -83,7 +83,6 @@ export function LinkTree({
         deletingLinkId={deletingLinkId}
         editingCategory={editingCategory}
         editingLink={editingLink}
-        canEdit={can('portal.update')}
         onDragEnd={handleDragEnd}
         onReorderLinks={handleReorderLinks}
         onDeleteLink={handleDeleteLink}
