@@ -1,11 +1,6 @@
 import { Table, TableBody, TableHead, TableHeader, TableRow } from '#/components/ui/table'
 import { MemberTableRow } from './member-table-row'
-
-interface AssignmentInTeam {
-  id: string
-  userId: string
-  teamId: string | null
-}
+import type { AssignmentInTeam } from '#/components/features/team/shared/types'
 
 type Props = Readonly<{
   assignments: ReadonlyArray<AssignmentInTeam>

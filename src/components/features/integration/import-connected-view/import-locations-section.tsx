@@ -1,10 +1,10 @@
-import type { GbpLocation } from '#/shared/domain'
+import type { GbpLocation } from '#/contexts/integration/application/public-api'
 import { LocationPicker } from '#/components/features/integration'
 import { Button } from '#/components/ui/button'
 import { Loader2 } from 'lucide-react'
 
 type Props = Readonly<{
-  locations: GbpLocation[]
+  locations: readonly GbpLocation[]
   isLoading: boolean
   error: Error | null
   selectedIds: Set<string>
@@ -42,7 +42,10 @@ export function ImportLocationsSection({
 
   if (error) {
     return (
-      <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4">
+      <div
+        className="rounded-lg border border-destructive/50 bg-destructive/10 p-4"
+        role="alert"
+      >
         <p className="text-sm text-destructive">
           Failed to load locations. Please try selecting a different account.
         </p>
@@ -81,7 +84,11 @@ export function ImportLocationsSection({
 
   if (hasConnection) {
     return (
-      <p className="text-center text-muted-foreground py-12">
+      <p
+        className="text-center text-muted-foreground py-12"
+        role="status"
+        aria-live="polite"
+      >
         No locations found for this account.
       </p>
     )

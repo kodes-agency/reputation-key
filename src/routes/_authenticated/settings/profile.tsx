@@ -1,10 +1,12 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
+import { useMutationAction } from '#/components/hooks/use-mutation-action'
+import { updateProfileFn } from '#/contexts/identity/server/auth-settings'
 import {
   requestAvatarUpload,
   finalizeAvatarUpload,
 } from '#/contexts/identity/server/organizations'
-import { ProfileSettingsPage } from '#/components/features/identity/profile-settings-page'
+import { ProfileSettingsPage } from '#/components/features/identity'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 
 export const Route = createFileRoute('/_authenticated/settings/profile')({
@@ -13,6 +15,9 @@ export const Route = createFileRoute('/_authenticated/settings/profile')({
 
 function ProfileSettings() {
   const ctx = Route.useRouteContext() as AuthRouteContext
+  const updateProfile = useMutationAction(updateProfileFn, {
+    successMessage: 'Profile updated successfully',
+  })
   const requestUpload = useServerFn(requestAvatarUpload)
   const finalizeUpload = useServerFn(finalizeAvatarUpload)
 
@@ -25,6 +30,7 @@ function ProfileSettings() {
       <div className="mt-6">
         <ProfileSettingsPage
           user={ctx.user}
+          updateProfile={updateProfile}
           requestAvatarUpload={requestUpload}
           finalizeAvatarUpload={finalizeUpload}
         />

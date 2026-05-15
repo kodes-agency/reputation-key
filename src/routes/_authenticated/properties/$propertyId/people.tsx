@@ -10,15 +10,13 @@ import {
 import { listTeams, createTeam, deleteTeam } from '#/contexts/team/server/teams'
 import { listMembers } from '#/contexts/identity/server/organizations'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '#/components/ui/tabs'
-import { StaffAssignmentList } from '#/components/features/staff/staff-assignment-list'
-import { AssignStaffForm } from '#/components/features/staff/assign-staff-form'
+import { StaffAssignmentList, AssignStaffForm } from '#/components/features/staff'
 import { CreateTeamForm } from '#/components/features/team'
 import {
   useMutationAction,
   useMutationActionSilent,
 } from '#/components/hooks/use-mutation-action'
 import { toMemberOptions, toTeamOptions } from '#/lib/lookups'
-import type { MemberLike } from '#/lib/lookups'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { Button } from '#/components/ui/button'
 import { Badge } from '#/components/ui/badge'
@@ -84,18 +82,28 @@ function PeoplePage() {
   const teamOptions = toTeamOptions(teams)
   const assignedUserIds = new Set(assignments.map((a) => a.userId))
 
-  const assignMutation = useMutationActionSilent(createStaffAssignment)
+  const invalidateRoutes = [
+    '/_authenticated/properties/$propertyId/people',
+    '/_authenticated/properties/$propertyId',
+  ] as const
+
+  const assignMutation = useMutationActionSilent(createStaffAssignment, {
+    invalidateRoutes: [...invalidateRoutes],
+  })
   const removeMutation = useMutationAction(removeStaffAssignment, {
     successMessage: 'Staff member unassigned',
+    invalidateRoutes: [...invalidateRoutes],
   })
   const createTeamMutation = useMutationAction(createTeam, {
     successMessage: 'Team created',
+    invalidateRoutes: [...invalidateRoutes],
     onSuccess: async () => {
       setCreateTeamOpen(false)
     },
   })
   const deleteTeamMutation = useMutationAction(deleteTeam, {
     successMessage: 'Team deleted',
+    invalidateRoutes: [...invalidateRoutes],
   })
 
   return (
@@ -248,7 +256,7 @@ function PeoplePage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {members.map((member: MemberLike & { role?: string }) => (
+                {members.map((member) => (
                   <TableRow key={member.userId}>
                     <TableCell className="font-medium">{member.name}</TableCell>
                     <TableCell className="text-muted-foreground">

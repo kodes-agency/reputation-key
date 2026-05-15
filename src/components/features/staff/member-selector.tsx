@@ -1,11 +1,6 @@
 import { Checkbox } from '#/components/ui/checkbox'
 import { Field, FieldLabel, FieldError } from '#/components/ui/field'
-
-type MemberOption = Readonly<{
-  userId: string
-  name: string
-  email: string
-}>
+import type { MemberOption } from '#/components/features/team/shared/types'
 
 type Props = Readonly<{
   field: {

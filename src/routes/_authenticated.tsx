@@ -22,7 +22,7 @@ import { StaffSidebar } from '#/components/layout/staff-sidebar'
 import { SettingsSidebar } from '#/components/layout/settings-sidebar'
 import { AppTopBar } from '#/components/layout/app-top-bar'
 import { hasRole } from '#/shared/domain/roles'
-import { useServerFn } from '@tanstack/react-start'
+import { useMutationActionSilent } from '#/components/hooks/use-mutation-action'
 import { getLogger } from '#/shared/observability/logger'
 
 export type AuthRouteContext = Readonly<{
@@ -69,6 +69,12 @@ export const Route = createFileRoute('/_authenticated')({
       billingCountry: string | null
     } | null = null
 
+    // Error handling strategy for getActiveOrganization:
+    //  1. isRedirect — always forward (e.g., auth middleware redirects).
+    //  2. no_active_org — expected for new users who haven't selected an org yet;
+    //     silently default to Staff role with no active organization.
+    //  3. Everything else (network failures, server errors) — propagate to
+    //     TanStack Router's error boundary so the user sees a real error page.
     try {
       const org = await getActiveOrganization()
       if (org.role) {
@@ -89,7 +95,18 @@ export const Route = createFileRoute('/_authenticated')({
       }
     } catch (e) {
       if (isRedirect(e)) throw e
-      getLogger().error({ err: e }, '[beforeLoad] getActiveOrganization FAILED')
+
+      // Expected: new user with no active organization yet — valid empty state.
+      const isNoActiveOrg =
+        e instanceof Error &&
+        'code' in e &&
+        (e as { code: string }).code === 'no_active_org'
+      if (isNoActiveOrg) {
+        getLogger().info('[beforeLoad] No active organization selected — using defaults')
+      } else {
+        // Unexpected error — propagate to error boundary
+        throw e
+      }
     }
 
     return {
@@ -104,29 +121,14 @@ export const Route = createFileRoute('/_authenticated')({
     } satisfies AuthRouteContext
   },
   loader: async () => {
-    const [orgsResult, propsResult] = await Promise.allSettled([
+    const [orgsResult, propsResult] = await Promise.all([
       listUserOrganizations(),
       listProperties(),
     ])
 
-    if (orgsResult.status === 'rejected') {
-      getLogger().error(
-        { err: orgsResult.reason },
-        '[loader] listUserOrganizations failed',
-      )
-    }
-    if (propsResult.status === 'rejected') {
-      getLogger().error({ err: propsResult.reason }, '[loader] listProperties failed')
-    }
-
-    const organizations =
-      orgsResult.status === 'fulfilled' ? orgsResult.value.organizations : []
-    const properties =
-      propsResult.status === 'fulfilled' ? propsResult.value.properties : []
-
     return {
-      organizations,
-      properties,
+      organizations: orgsResult.organizations,
+      properties: propsResult.properties,
     }
   },
   // Structural data (orgs, properties) rarely changes.
@@ -138,7 +140,9 @@ export const Route = createFileRoute('/_authenticated')({
 function AuthenticatedLayout() {
   const ctx = Route.useRouteContext()
   const { organizations, properties } = Route.useLoaderData()
-  const setActiveOrganizationFn = useServerFn(setActiveOrganization)
+  const setActiveOrganizationFn = useMutationActionSilent(setActiveOrganization, {
+    invalidateRoutes: ['/_authenticated'],
+  })
   const pathname = useRouterState({ select: (s) => s.location.pathname })
   const isSettings = pathname.startsWith('/settings')
 

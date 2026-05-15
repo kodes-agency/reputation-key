@@ -8,6 +8,7 @@ import {
   SelectValue,
 } from '#/components/ui/select'
 import type { Role } from '#/shared/domain/roles'
+import { roleLabel } from '#/components/features/identity/shared/role-utils'
 
 type Props = Readonly<{
   field: {
@@ -23,17 +24,6 @@ type Props = Readonly<{
   }
   allowedRoles: ReadonlyArray<Role>
 }>
-
-function roleLabel(role: Role): string {
-  switch (role) {
-    case 'AccountAdmin':
-      return 'Account Admin'
-    case 'PropertyManager':
-      return 'Property Manager'
-    case 'Staff':
-      return 'Staff'
-  }
-}
 
 export function RoleSelector({ field, allowedRoles }: Props) {
   const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid
@@ -52,7 +42,7 @@ export function RoleSelector({ field, allowedRoles }: Props) {
           <SelectGroup>
             {allowedRoles.map((r) => (
               <SelectItem key={r} value={r}>
-                {roleLabel(r)}
+                {roleLabel(r, 'full')}
               </SelectItem>
             ))}
           </SelectGroup>

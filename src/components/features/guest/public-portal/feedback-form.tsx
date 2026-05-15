@@ -4,18 +4,20 @@ import { Textarea } from '#/components/ui/textarea'
 import type { ScanSource } from '#/contexts/guest/application/dto/public-portal.dto'
 import { useAction } from '#/components/hooks/use-action'
 
+type SubmitFeedbackFn = (input: {
+  data: {
+    portalId: string
+    comment: string
+    source: ScanSource
+    honeypot: string
+    submittedAt: number
+  }
+}) => Promise<unknown>
+
 type Props = Readonly<{
   portalId: string
   source: ScanSource
-  submitFeedback?: (input: {
-    data: {
-      portalId: string
-      comment: string
-      source: ScanSource
-      honeypot: string
-      submittedAt: number
-    }
-  }) => Promise<unknown>
+  submitFeedback?: SubmitFeedbackFn
 }>
 
 export function FeedbackForm({ portalId, source, submitFeedback }: Props) {
@@ -24,18 +26,17 @@ export function FeedbackForm({ portalId, source, submitFeedback }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const submit = submitFeedback ? useAction(submitFeedback as any) : null
+  const submitAction = useAction(submitFeedback ?? (() => Promise.resolve()))
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!submit) return
+    if (!submitFeedback) return
 
     setIsSubmitting(true)
     setError(null)
 
     try {
-      const result = await submit({
+      const result = await submitAction({
         data: {
           portalId,
           comment,
@@ -45,7 +46,12 @@ export function FeedbackForm({ portalId, source, submitFeedback }: Props) {
         },
       })
 
-      if ((result as { blocked?: boolean })?.blocked) {
+      if (
+        typeof result === 'object' &&
+        result !== null &&
+        'blocked' in result &&
+        (result as { blocked?: boolean }).blocked
+      ) {
         setSubmitted(true)
         return
       }

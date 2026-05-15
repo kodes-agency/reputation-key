@@ -1,9 +1,9 @@
-import type { GbpLocation } from '#/shared/domain'
+import type { GbpLocation } from '#/contexts/integration/application/public-api'
 import { Checkbox } from '#/components/ui/checkbox'
 import { LocationRow } from './location-row'
 
 type Props = Readonly<{
-  locations: GbpLocation[]
+  locations: readonly GbpLocation[]
   selectedIds: Set<string>
   onSelectionChange: (ids: Set<string>) => void
 }>
@@ -24,17 +24,6 @@ export function LocationPicker({ locations, selectedIds, onSelectionChange }: Pr
       newIds.delete(gbpPlaceId)
     }
     onSelectionChange(newIds)
-  }
-
-  if (locations.length === 0) {
-    return (
-      <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed py-12 text-center">
-        <p className="text-muted-foreground">No locations found.</p>
-        <p className="text-sm text-muted-foreground">
-          Select a different Google account or connect a new one.
-        </p>
-      </div>
-    )
   }
 
   return (

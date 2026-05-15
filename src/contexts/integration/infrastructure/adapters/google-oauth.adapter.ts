@@ -3,6 +3,7 @@
 // Handles code exchange, token refresh, user info fetch, and URL building.
 
 import type { GoogleOAuthPort } from '../../application/ports/google-oauth.port'
+import { integrationError } from '../../domain/errors'
 import { getEnv } from '#/shared/config/env'
 
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token'
@@ -40,7 +41,8 @@ export const createGoogleOAuthAdapter = (): GoogleOAuthPort => {
 
     if (!response.ok) {
       const errorBody = await response.text().catch(() => 'unable to read response body')
-      throw new Error(
+      throw integrationError(
+        'oauth_failed',
         `Failed to exchange authorization code with Google: ${response.status} ${errorBody}`,
       )
     }
@@ -53,7 +55,8 @@ export const createGoogleOAuthAdapter = (): GoogleOAuthPort => {
       typeof data.scope === 'string' && data.scope.length > 0 ? data.scope.split(' ') : []
 
     if (!refreshToken) {
-      throw new Error(
+      throw integrationError(
+        'oauth_failed',
         'Google OAuth did not return a refresh token. Ensure prompt=consent is set.',
       )
     }
@@ -69,7 +72,8 @@ export const createGoogleOAuthAdapter = (): GoogleOAuthPort => {
       const errorBody = await userInfoResponse
         .text()
         .catch(() => 'unable to read response body')
-      throw new Error(
+      throw integrationError(
+        'oauth_failed',
         `Failed to fetch Google account information: ${userInfoResponse.status} ${errorBody}`,
       )
     }
@@ -104,7 +108,8 @@ export const createGoogleOAuthAdapter = (): GoogleOAuthPort => {
 
     if (!response.ok) {
       const errorBody = await response.text().catch(() => 'unable to read response body')
-      throw new Error(
+      throw integrationError(
+        'token_refresh_failed',
         `Failed to refresh Google access token: ${response.status} ${errorBody}`,
       )
     }
@@ -132,7 +137,10 @@ export const createGoogleOAuthAdapter = (): GoogleOAuthPort => {
 
     if (!response.ok) {
       const errorBody = await response.text().catch(() => 'unable to read response body')
-      throw new Error(`Failed to revoke Google token: ${response.status} ${errorBody}`)
+      throw integrationError(
+        'oauth_failed',
+        `Failed to revoke Google token: ${response.status} ${errorBody}`,
+      )
     }
   }
 

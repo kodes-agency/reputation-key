@@ -240,3 +240,51 @@ export const finalizeUpload = createServerFn({ method: 'POST' })
       'portal.finalizeUpload',
     ),
   )
+
+// ── getPortalForQR ────────────────────────────────────────────────
+// Returns the public-facing URL for a portal (used to generate QR codes).
+// No auth required — this is called from a public API route.
+
+const portalSlugSchema = z.object({
+  portalId: z.string().min(1),
+})
+
+export const getPortalForQR = createServerFn({ method: 'GET' })
+  .inputValidator(portalSlugSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const { db } = getContainer()
+        const { portals } = await import('#/shared/db/schema/portal.schema')
+        const { eq } = await import('drizzle-orm')
+
+        const portal = await db
+          .select()
+          .from(portals)
+          .where(eq(portals.id, data.portalId))
+          .limit(1)
+
+        if (portal.length === 0) {
+          return null
+        }
+
+        const baseUrl = process.env.BETTER_AUTH_URL ?? 'http://localhost:3000'
+
+        // The "organization" table is managed by Better Auth and has no Drizzle
+        // schema in our codebase. Raw SQL is the correct approach here.
+        const { sql } = await import('drizzle-orm')
+        const orgRow = await db.execute(
+          sql`SELECT slug FROM "organization" WHERE id = ${portal[0].organizationId} LIMIT 1`,
+        )
+        const orgSlug =
+          (orgRow.rows[0] as { slug: string } | undefined)?.slug ??
+          portal[0].organizationId
+
+        const portalUrl = `${baseUrl}/p/${orgSlug}/${portal[0].slug}?source=qr`
+
+        return { portalUrl, slug: portal[0].slug }
+      },
+      'GET',
+      'portal.getPortalForQR',
+    ),
+  )

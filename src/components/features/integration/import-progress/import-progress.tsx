@@ -1,4 +1,4 @@
-import type { GbpImportJob } from '#/shared/domain'
+import type { GbpImportJob } from '#/contexts/integration/application/public-api'
 import { Card } from '#/components/ui/card'
 import { ImportStatusBadge } from './import-status-badge'
 import { Button } from '#/components/ui/button'

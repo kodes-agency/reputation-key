@@ -13,8 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '#/components/ui/select'
-
-type MemberOption = { userId: string; name: string; email: string }
+import type { MemberOption } from '#/components/features/team/shared/types'
 
 type Props = Readonly<{
   field: BaseFieldApi

@@ -7,11 +7,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '#/components/ui/select'
-
-type TeamOption = Readonly<{
-  id: string
-  name: string
-}>
+import type { TeamOption } from '#/components/features/team/shared/types'
 
 type Props = Readonly<{
   field: {

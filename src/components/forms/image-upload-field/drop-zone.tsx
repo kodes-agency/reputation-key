@@ -11,7 +11,7 @@ type DropZoneProps = Readonly<{
   uploadProgress: number
   dragOver: boolean
   disabled: boolean
-  acceptedTypes: string[]
+  acceptedTypes: ReadonlyArray<string>
   maxFileSize: number
   emptyLabel?: string
   onDragOver: (e: React.DragEvent) => void

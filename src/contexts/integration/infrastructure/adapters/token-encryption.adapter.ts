@@ -8,6 +8,9 @@ import type { TokenEncryptionPort } from '../../application/ports/token-encrypti
 
 export const createTokenEncryptionAdapter = (): TokenEncryptionPort => {
   const key = Buffer.from(getEnv().ENCRYPTION_KEY, 'hex')
+  if (key.length !== 32) {
+    throw new Error('ENCRYPTION_KEY must be 64 hex characters (32 bytes) for AES-256-GCM')
+  }
 
   const encrypt = (plaintext: string): string => {
     const iv = randomBytes(12) // 12 bytes for GCM (recommended)

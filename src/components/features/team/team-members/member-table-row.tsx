@@ -1,11 +1,6 @@
 import { Button } from '#/components/ui/button'
 import { TableCell, TableRow } from '#/components/ui/table'
-
-interface AssignmentInTeam {
-  id: string
-  userId: string
-  teamId: string | null
-}
+import type { AssignmentInTeam } from '#/components/features/team/shared/types'
 
 type Props = Readonly<{
   assignment: AssignmentInTeam

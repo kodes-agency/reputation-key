@@ -19,9 +19,11 @@ function TeamMembersPage() {
 
   const addMemberMutation = useMutationAction(createStaffAssignment, {
     successMessage: 'Member added to team',
+    invalidateRoutes: ['/_authenticated/properties/$propertyId/teams/$teamId'],
   })
   const removeMemberMutation = useMutationAction(removeStaffAssignment, {
     successMessage: 'Member removed from team',
+    invalidateRoutes: ['/_authenticated/properties/$propertyId/teams/$teamId'],
   })
 
   return (

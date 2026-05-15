@@ -19,8 +19,8 @@ type PortalPreviewPanelProps = Readonly<{
     heroImageUrl: string | null
     theme: Record<string, string> | null
   }
-  categories: PortalCategory[]
-  links: PortalLinkItem[]
+  categories: ReadonlyArray<PortalCategory>
+  links: ReadonlyArray<PortalLinkItem>
 }>
 
 export function PortalPreviewPanel({

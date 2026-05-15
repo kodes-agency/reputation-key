@@ -48,14 +48,3 @@ export type { Permission } from './permissions'
 
 // ── Timezones ─────────────────────────────────────────────────────
 export { VALID_TIMEZONES } from './timezones'
-
-// ── Integration domain types ───────────────────────────────────────
-export type {
-  GoogleConnection,
-  GoogleConnectionVisibility,
-  GoogleConnectionStatus,
-  GbpLocation,
-  GbpCacheEntry,
-  GbpImportJob,
-  GbpImportJobStatus,
-} from './integration'

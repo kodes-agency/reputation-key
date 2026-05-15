@@ -21,26 +21,8 @@ export const Route = createFileRoute(
     ])
     return {
       portal,
-      categories: categories.map((c: { id: string; title: string; sortKey: string }) => ({
-        id: c.id,
-        title: c.title,
-        sortKey: c.sortKey,
-      })),
-      links: links.map(
-        (l: {
-          id: string
-          label: string
-          url: string
-          sortKey: string
-          categoryId: string
-        }) => ({
-          id: l.id,
-          label: l.label,
-          url: l.url,
-          sortKey: l.sortKey,
-          categoryId: l.categoryId,
-        }),
-      ),
+      categories,
+      links,
       propertyId: params.propertyId,
     }
   },
@@ -53,16 +35,18 @@ function PortalDetailRoute() {
 
   const mutation = useMutationAction(updatePortal, {
     successMessage: 'Portal updated',
+    invalidateRoutes: ['/_authenticated/properties/$propertyId/portals/$portalId'],
   })
 
+  // useServerFn for non-mutation server calls (upload URL generation/finalization)
+  // These aren't form mutations — no auto-invalidation or toast needed
   const requestUploadUrlFn = useServerFn(requestUploadUrl)
   const finalizeUploadFn = useServerFn(finalizeUpload)
 
   // Guest-facing portal URLs use the property slug (portals belong to properties)
   const authRoute = getRouteApi('/_authenticated')
   const { properties } = authRoute.useLoaderData()
-  const propertySlug =
-    properties?.find((p: { id: string }) => p.id === propertyId)?.slug ?? ''
+  const propertySlug = properties?.find((p) => p.id === propertyId)?.slug ?? ''
 
   return (
     <div className="mx-auto max-w-2xl">

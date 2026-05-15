@@ -1,6 +1,7 @@
 import { FieldGroup } from '#/components/ui/field'
 import { FormTextField } from '#/components/forms/form-text-field'
 import type { BaseFieldApi } from '#/components/forms/form-text-field'
+import type { FormWithField } from '#/components/forms/form-with-field'
 
 type FormFieldValues = {
   name: string
@@ -10,15 +11,8 @@ type FormFieldValues = {
   organizationName?: string
 }
 
-type FormWithField = {
-  Field: React.FC<{
-    name: keyof FormFieldValues
-    children: (field: BaseFieldApi) => React.ReactNode
-  }>
-}
-
 type Props = Readonly<{
-  form: FormWithField
+  form: FormWithField<FormFieldValues>
   mode: 'register' | 'join'
 }>
 

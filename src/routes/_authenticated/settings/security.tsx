@@ -1,10 +1,16 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { SecuritySettingsForm } from '#/components/features/identity/security-settings-form'
+import { useMutationAction } from '#/components/hooks/use-mutation-action'
+import { changePasswordFn } from '#/contexts/identity/server/auth-settings'
+import { SecuritySettingsForm } from '#/components/features/identity'
 
 export const Route = createFileRoute('/_authenticated/settings/security')({
   component: SecuritySettings,
 })
 
 function SecuritySettings() {
-  return <SecuritySettingsForm />
+  const changePassword = useMutationAction(changePasswordFn, {
+    successMessage: 'Password changed successfully',
+  })
+
+  return <SecuritySettingsForm changePassword={changePassword} />
 }

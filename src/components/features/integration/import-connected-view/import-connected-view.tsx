@@ -1,86 +1,73 @@
-// Server import exception: 6 mutations (getAuthUrl, listLocations, startImport + state orchestration)
-import { useState, useEffect } from 'react'
-import { useServerFn } from '@tanstack/react-start'
-import { useQuery, useMutation } from '@tanstack/react-query'
+import { useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { getGoogleAuthUrl } from '#/contexts/integration/server/google-connections'
 import {
-  listGbpLocations,
-  startPropertyImport,
-} from '#/contexts/integration/server/gbp-import'
-import { GoogleAccountSelector } from '#/components/features/integration'
-import type { GoogleConnection } from '#/shared/domain'
+  GoogleAccountSelector,
+  ConnectGoogleButton,
+} from '#/components/features/integration'
+import type { GoogleConnection } from '#/contexts/integration/application/public-api'
 import { ImportLocationsSection } from './import-locations-section'
+import { useGbpLocations } from './use-gbp-locations'
+import type { Action } from '#/components/hooks/use-action'
 
 type Props = Readonly<{
-  connections: GoogleConnection[]
+  connections: ReadonlyArray<GoogleConnection>
   initialConnectionId?: string
+  getAuthUrl: (opts: {
+    data: { visibility: 'private' | 'organization' }
+  }) => Promise<{ url: string }>
+  importAction: Action<
+    {
+      data: {
+        connectionId: string
+        locations: Array<{
+          gbpPlaceId: string
+          businessName: string
+          address: string | null
+          primaryCategory: string | null
+        }>
+      }
+    },
+    { job: { id: string } }
+  >
 }>
 
-export function ImportConnectedView({ connections, initialConnectionId }: Props) {
+export function ImportConnectedView({
+  connections,
+  initialConnectionId,
+  getAuthUrl,
+  importAction,
+}: Props) {
   const navigate = useNavigate()
   const [selectedConnectionId, setSelectedConnectionId] = useState<string | undefined>(
     initialConnectionId ?? undefined,
   )
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const [isConnectingNewAccount, setIsConnectingNewAccount] = useState(false)
-  const [connectError, setConnectError] = useState<string | null>(null)
-  const getAuthUrl = useServerFn(getGoogleAuthUrl)
-  const listLocations = useServerFn(listGbpLocations)
-  const startImport = useServerFn(startPropertyImport)
 
-  useEffect(() => {
-    if (initialConnectionId && connections.length > 0) {
-      setSelectedConnectionId(initialConnectionId)
-    }
-  }, [initialConnectionId, connections])
+  // Data fetching delegated to hook — no effects or fetch callbacks in component
+  const { locations, isLoading, error } = useGbpLocations(selectedConnectionId)
 
-  const {
-    data: locationsData,
-    isLoading: isLoadingLocations,
-    error: locationsError,
-  } = useQuery({
-    queryKey: ['gbp-locations', selectedConnectionId],
-    queryFn: async () => {
-      if (!selectedConnectionId) throw new Error('No connection selected')
-      const result = await listLocations({ data: { connectionId: selectedConnectionId } })
-      return result.locations
-    },
-    enabled: !!selectedConnectionId,
-    staleTime: 30000,
-  })
+  const handleImport = async () => {
+    if (!selectedConnectionId || selectedIds.size === 0) return
 
-  const locations = locationsData ? [...locationsData] : []
+    const selectedLocations = locations.filter((l) => selectedIds.has(l.gbpPlaceId))
 
-  const importMutation = useMutation({
-    mutationFn: async () => {
-      if (!selectedConnectionId || selectedIds.size === 0) {
-        throw new Error('No locations selected')
-      }
+    const job = await importAction({
+      data: {
+        connectionId: selectedConnectionId,
+        locations: selectedLocations.map((l) => ({
+          gbpPlaceId: l.gbpPlaceId,
+          businessName: l.businessName,
+          address: l.address,
+          primaryCategory: l.primaryCategory,
+        })),
+      },
+    })
 
-      const selectedLocations = locations.filter((l) => selectedIds.has(l.gbpPlaceId))
-
-      const result = await startImport({
-        data: {
-          connectionId: selectedConnectionId,
-          locations: selectedLocations.map((l) => ({
-            gbpPlaceId: l.gbpPlaceId,
-            businessName: l.businessName,
-            address: l.address,
-            primaryCategory: l.primaryCategory,
-          })),
-        },
-      })
-
-      return result.job
-    },
-    onSuccess: (job: { id: string }) => {
-      navigate({
-        to: '/properties/import/$importId',
-        params: { importId: job.id },
-      })
-    },
-  })
+    navigate({
+      to: '/properties/import/$importId',
+      params: { importId: job.job.id },
+    })
+  }
 
   return (
     <div className="space-y-6">
@@ -96,54 +83,32 @@ export function ImportConnectedView({ connections, initialConnectionId }: Props)
             setSelectedIds(new Set())
           }}
         />
-        <button
-          type="button"
-          onClick={async () => {
-            try {
-              setIsConnectingNewAccount(true)
-              setConnectError(null)
-              const result = await getAuthUrl({ data: { visibility: 'private' } })
-              window.location.href = result.url
-            } catch {
-              setConnectError('Failed to connect Google account. Please try again.')
-              setIsConnectingNewAccount(false)
-            }
-          }}
-          disabled={isConnectingNewAccount}
-          className="text-sm text-primary hover:underline disabled:opacity-50"
-        >
-          {isConnectingNewAccount ? 'Connecting...' : 'Connect another account'}
-        </button>
-        {connectError && (
-          <p className="mt-1 text-sm text-destructive" role="alert">
-            {connectError}
-          </p>
-        )}
+        <ConnectGoogleButton getAuthUrl={getAuthUrl} />
       </div>
 
       <ImportLocationsSection
         locations={locations}
-        isLoading={isLoadingLocations}
-        error={locationsError}
+        isLoading={isLoading}
+        error={error}
         selectedIds={selectedIds}
         onSelectionChange={setSelectedIds}
-        onImport={() => importMutation.mutate()}
-        isImporting={importMutation.isPending}
+        onImport={handleImport}
+        isImporting={importAction.isPending}
         hasConnection={!!selectedConnectionId}
       />
-      {importMutation.isError && (
+      {importAction.error ? (
         <div
           className="rounded-lg border border-destructive/50 bg-destructive/10 p-4"
           role="alert"
         >
           <p className="text-sm text-destructive">
             Failed to start import.{' '}
-            {importMutation.error instanceof Error
-              ? importMutation.error.message
+            {importAction.error instanceof Error
+              ? importAction.error.message
               : 'Please try again.'}
           </p>
         </div>
-      )}
+      ) : null}
     </div>
   )
 }

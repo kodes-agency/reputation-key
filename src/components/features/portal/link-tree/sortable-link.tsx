@@ -16,20 +16,13 @@ import {
   AlertDialogTrigger,
 } from '#/components/ui/alert-dialog'
 import { usePermissions } from '#/shared/hooks/usePermissions'
-
-type LinkItem = {
-  id: string
-  label: string
-  url: string
-  sortKey: string
-  categoryId: string
-}
+import type { LinkTreeLink } from './link-tree-types'
 
 type Props = Readonly<{
-  link: LinkItem
+  link: LinkTreeLink
   isDeleting?: boolean
   onDelete: (linkId: string) => void
-  onEdit: (link: LinkItem) => void
+  onEdit: (link: LinkTreeLink) => void
 }>
 
 export function SortableLink({ link, isDeleting, onDelete, onEdit }: Props) {

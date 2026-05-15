@@ -3,7 +3,6 @@
 // Shows warning when slug changes (breaks guest URLs).
 
 import { useForm } from '@tanstack/react-form'
-import { z } from 'zod/v4'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { SubmitButton } from '#/components/forms/submit-button'
 import {
@@ -15,21 +14,8 @@ import {
 } from '#/components/ui/card'
 import { OrgIdentityCard } from './org-identity-card'
 import { OrgBillingCard } from './org-billing-card'
-
-// ── Schema ──────────────────────────────────────────────────────────
-
-const orgSettingsSchema = z.object({
-  name: z.string().min(1, 'Name is required').max(100),
-  slug: z.string().min(1, 'Slug is required').max(64),
-  contactEmail: z.union([z.string().email('Invalid email'), z.literal('')]).nullable(),
-  billingCompanyName: z.string().max(200).nullable(),
-  billingAddress: z.string().max(300).nullable(),
-  billingCity: z.string().max(100).nullable(),
-  billingPostalCode: z.string().max(20).nullable(),
-  billingCountry: z.string().max(100).nullable(),
-})
-
-type FormValues = z.infer<typeof orgSettingsSchema>
+import { updateOrgSettingsSchema } from '#/contexts/identity/application/dto/update-org-settings.dto'
+import type { UpdateOrgSettingsInput } from '#/contexts/identity/application/dto/update-org-settings.dto'
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -44,7 +30,7 @@ type Props = Readonly<{
     billingPostalCode: string | null
     billingCountry: string | null
   }
-  onSubmit: (values: FormValues) => Promise<void>
+  onSubmit: (values: UpdateOrgSettingsInput) => Promise<void>
   isPending: boolean
   error: unknown
 }>
@@ -67,9 +53,9 @@ export function OrganizationSettingsForm({
       billingCity: organization.billingCity ?? '',
       billingPostalCode: organization.billingPostalCode ?? '',
       billingCountry: organization.billingCountry ?? '',
-    } as FormValues,
+    } as UpdateOrgSettingsInput,
     validators: {
-      onSubmit: orgSettingsSchema,
+      onSubmit: updateOrgSettingsSchema,
     },
     onSubmit: async ({ value }) => {
       await onSubmit(value)

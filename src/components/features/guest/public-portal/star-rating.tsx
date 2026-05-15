@@ -3,12 +3,14 @@ import { Star } from 'lucide-react'
 import type { ScanSource } from '#/contexts/guest/application/dto/public-portal.dto'
 import { useAction } from '#/components/hooks/use-action'
 
+type SubmitRatingFn = (input: {
+  data: { portalId: string; value: number; source: ScanSource }
+}) => Promise<unknown>
+
 type Props = Readonly<{
   portalId: string
   source: ScanSource
-  submitRating?: (input: {
-    data: { portalId: string; value: number; source: ScanSource }
-  }) => Promise<unknown>
+  submitRating?: SubmitRatingFn
 }>
 
 export function StarRating({ portalId, source, submitRating }: Props) {
@@ -18,15 +20,14 @@ export function StarRating({ portalId, source, submitRating }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const submit = submitRating ? useAction(submitRating as any) : null
+  const submitAction = useAction(submitRating ?? (() => Promise.resolve()))
 
   const handleSubmit = async (value: number) => {
-    if (!submit) return
+    if (!submitRating) return
     setIsSubmitting(true)
     setError(null)
     try {
-      await submit({
+      await submitAction({
         data: { portalId, value, source },
       })
       setSelectedValue(value)

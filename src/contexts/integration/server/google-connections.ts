@@ -57,8 +57,12 @@ export const getGoogleAuthUrl = createServerFn({ method: 'GET' })
           'base64',
         )
 
-        // Google OAuth scopes for Business Profile API
-        const scopes = ['https://www.googleapis.com/auth/business.manage']
+        // Google OAuth scopes for Business Profile API + user identity
+        const scopes = [
+          'https://www.googleapis.com/auth/business.manage',
+          'https://www.googleapis.com/auth/userinfo.email',
+          'https://www.googleapis.com/auth/userinfo.profile',
+        ]
 
         // Build OAuth URL
         const params = new URLSearchParams({

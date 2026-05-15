@@ -56,8 +56,14 @@ export function InviteMemberForm({ mutation, allowedRoles, properties }: Props) 
     },
   })
 
+  /** TanStack Form's getFieldValue returns unknown; defaultValues types propertyIds as string[] */
+  const getPropertyIds = (): string[] => {
+    const raw = form.getFieldValue('propertyIds')
+    return Array.isArray(raw) ? raw.filter((v): v is string => typeof v === 'string') : []
+  }
+
   const toggleProperty = (propertyId: string) => {
-    const current = form.getFieldValue('propertyIds') as string[]
+    const current = getPropertyIds()
     const next = current.includes(propertyId)
       ? current.filter((id) => id !== propertyId)
       : [...current, propertyId]
@@ -65,7 +71,7 @@ export function InviteMemberForm({ mutation, allowedRoles, properties }: Props) 
   }
 
   const removeProperty = (propertyId: string) => {
-    const current = form.getFieldValue('propertyIds') as string[]
+    const current = getPropertyIds()
     form.setFieldValue(
       'propertyIds',
       current.filter((id) => id !== propertyId),

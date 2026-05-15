@@ -1,21 +1,13 @@
 // Link tree state management hook with mutations
 import { useState } from 'react'
-import { toast } from 'sonner'
 import { useLinkTreeMutations } from './use-link-tree-mutations'
 import { useLinkTreeReorder } from './use-link-tree-reorder'
+import type { LinkTreeCategory, LinkTreeLink } from './link-tree-types'
 
-type Category = { id: string; title: string; sortKey: string }
-type LinkItem = {
-  id: string
-  label: string
-  url: string
-  sortKey: string
-  categoryId: string
-}
 export function useLinkTreeState(
   portalId: string,
-  initialCategories: Category[],
-  initialLinks: LinkItem[],
+  initialCategories: readonly LinkTreeCategory[],
+  initialLinks: readonly LinkTreeLink[],
 ) {
   const [categories, setCategories] = useState(initialCategories)
   const [links, setLinks] = useState(initialLinks)
@@ -28,40 +20,32 @@ export function useLinkTreeState(
   const mutations = useLinkTreeMutations()
 
   const handleAddCategory = async (title: string) => {
-    try {
-      const result = await mutations.createCategoryMutation({ data: { portalId, title } })
-      setCategories((prev) => [
-        ...prev,
-        {
-          id: result.category.id,
-          title: result.category.title,
-          sortKey: result.category.sortKey,
-        },
-      ])
-    } catch {
-      toast.error('Failed to create category')
-    }
+    const result = await mutations.createCategoryMutation({ data: { portalId, title } })
+    setCategories((prev) => [
+      ...prev,
+      {
+        id: result.category.id,
+        title: result.category.title,
+        sortKey: result.category.sortKey,
+      },
+    ])
   }
 
   const handleAddLink = async (categoryId: string, label: string, url: string) => {
-    try {
-      const result = await mutations.createLinkMutation({
-        data: { categoryId, portalId, label, url },
-      })
-      setLinks((prev) => [
-        ...prev,
-        {
-          id: result.link.id,
-          label: result.link.label,
-          url: result.link.url,
-          sortKey: result.link.sortKey,
-          categoryId,
-        },
-      ])
-      setAddingToCategory(null)
-    } catch {
-      toast.error('Failed to create link')
-    }
+    const result = await mutations.createLinkMutation({
+      data: { categoryId, portalId, label, url },
+    })
+    setLinks((prev) => [
+      ...prev,
+      {
+        id: result.link.id,
+        label: result.link.label,
+        url: result.link.url,
+        sortKey: result.link.sortKey,
+        categoryId,
+      },
+    ])
+    setAddingToCategory(null)
   }
 
   const handleDeleteCategory = async (catId: string) => {
@@ -70,8 +54,6 @@ export function useLinkTreeState(
       await mutations.deleteCategoryMutation({ data: { categoryId: catId } })
       setCategories((prev) => prev.filter((c) => c.id !== catId))
       setLinks((prev) => prev.filter((l) => l.categoryId !== catId))
-    } catch {
-      toast.error('Failed to delete category')
     } finally {
       setDeletingCategoryId(null)
     }
@@ -82,39 +64,29 @@ export function useLinkTreeState(
     try {
       await mutations.deleteLinkMutation({ data: { linkId } })
       setLinks((prev) => prev.filter((l) => l.id !== linkId))
-    } catch {
-      toast.error('Failed to delete link')
     } finally {
       setDeletingLinkIdState(null)
     }
   }
 
   const handleUpdateLink = async (linkId: string, label: string, url: string) => {
-    try {
-      const result = await mutations.updateLinkMutation({ data: { linkId, label, url } })
-      setLinks((prev) =>
-        prev.map((l) =>
-          l.id === linkId ? { ...l, label: result.link.label, url: result.link.url } : l,
-        ),
-      )
-      setEditingLink(null)
-    } catch {
-      toast.error('Failed to update link')
-    }
+    const result = await mutations.updateLinkMutation({ data: { linkId, label, url } })
+    setLinks((prev) =>
+      prev.map((l) =>
+        l.id === linkId ? { ...l, label: result.link.label, url: result.link.url } : l,
+      ),
+    )
+    setEditingLink(null)
   }
 
   const handleUpdateCategory = async (catId: string, title: string) => {
-    try {
-      const result = await mutations.updateCategoryMutation({
-        data: { categoryId: catId, title },
-      })
-      setCategories((prev) =>
-        prev.map((c) => (c.id === catId ? { ...c, title: result.category.title } : c)),
-      )
-      setEditingCategory(null)
-    } catch {
-      toast.error('Failed to update category')
-    }
+    const result = await mutations.updateCategoryMutation({
+      data: { categoryId: catId, title },
+    })
+    setCategories((prev) =>
+      prev.map((c) => (c.id === catId ? { ...c, title: result.category.title } : c)),
+    )
+    setEditingCategory(null)
   }
 
   const { handleDragEnd, handleReorderLinks } = useLinkTreeReorder(

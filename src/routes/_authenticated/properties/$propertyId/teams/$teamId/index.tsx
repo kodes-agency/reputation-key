@@ -17,6 +17,7 @@ function TeamSettingsPage() {
 
   const mutation = useMutationAction(updateTeam, {
     successMessage: 'Team updated',
+    invalidateRoutes: ['/_authenticated/properties/$propertyId/teams/$teamId'],
   })
 
   return (

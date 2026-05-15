@@ -8,20 +8,12 @@ import { LinkTreeEmptyState } from './link-tree-empty-state'
 import { LinkTreeCategoryList } from './link-tree-category-list'
 import { useLinkTreeState } from './use-link-tree-state'
 import { usePermissions } from '#/shared/hooks/usePermissions'
-
-type Category = { id: string; title: string; sortKey: string }
-type LinkItem = {
-  id: string
-  label: string
-  url: string
-  sortKey: string
-  categoryId: string
-}
+import type { LinkTreeCategory, LinkTreeLink } from './link-tree-types'
 
 type Props = Readonly<{
   portalId: string
-  categories: Category[]
-  links: LinkItem[]
+  categories: readonly LinkTreeCategory[]
+  links: readonly LinkTreeLink[]
 }>
 
 export function LinkTree({
@@ -94,8 +86,8 @@ export function LinkTree({
         onUpdateLink={handleUpdateLink}
         isUpdateCategoryPending={updateCategoryMutation.isPending}
         isUpdateLinkPending={updateLinkMutation.isPending}
-        updateCategoryError={updateCategoryMutation.error as unknown}
-        updateLinkError={updateLinkMutation.error as unknown}
+        updateCategoryError={updateCategoryMutation.error}
+        updateLinkError={updateLinkMutation.error}
       />
 
       {categories.length === 0 && <LinkTreeEmptyState />}

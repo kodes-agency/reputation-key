@@ -3,6 +3,7 @@ import { FormTextField } from '#/components/forms/form-text-field'
 import { FormTextarea } from '#/components/forms/form-textarea'
 import type { BaseFieldApi } from '#/components/forms/form-text-field'
 import type { BaseFieldApiTextarea } from '#/components/forms/form-textarea'
+import type { FormWithField } from '#/components/forms/form-with-field'
 
 type PortalBasicInfoFormValues = {
   name: string
@@ -10,15 +11,8 @@ type PortalBasicInfoFormValues = {
   description: string
 }
 
-type FormWithField = {
-  Field: React.FC<{
-    name: keyof PortalBasicInfoFormValues
-    children: (field: BaseFieldApi | BaseFieldApiTextarea) => React.ReactNode
-  }>
-}
-
 type Props = Readonly<{
-  form: FormWithField
+  form: FormWithField<PortalBasicInfoFormValues>
   disabled?: boolean
 }>
 

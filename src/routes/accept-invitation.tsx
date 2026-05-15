@@ -8,7 +8,7 @@ import {
   acceptInvitation,
 } from '#/contexts/identity/server/organizations'
 import { AcceptInvitationPage } from '#/components/features/identity'
-import { useServerFn } from '@tanstack/react-start'
+import { useMutationAction } from '#/components/hooks/use-mutation-action'
 
 export const Route = createFileRoute('/accept-invitation')({
   staleTime: 30_000,
@@ -24,9 +24,7 @@ export const Route = createFileRoute('/accept-invitation')({
   loader: async () => {
     const { invitations } = await listUserInvitations()
     return {
-      invitations: invitations.filter(
-        (inv: { status: string }) => inv.status === 'pending',
-      ),
+      invitations: invitations.filter((inv) => inv.status === 'pending'),
     }
   },
   component: AcceptInvitationRoute,
@@ -35,7 +33,10 @@ export const Route = createFileRoute('/accept-invitation')({
 function AcceptInvitationRoute() {
   const search = Route.useSearch() as { id?: string }
   const { invitations } = Route.useLoaderData()
-  const acceptInvitationFn = useServerFn(acceptInvitation)
+  const acceptInvitationFn = useMutationAction(acceptInvitation, {
+    successMessage: 'Invitation accepted',
+    invalidateRoutes: ['/_authenticated'],
+  })
 
   return (
     <AcceptInvitationPage

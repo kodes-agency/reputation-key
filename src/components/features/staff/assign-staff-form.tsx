@@ -11,19 +11,7 @@ import { z } from 'zod/v4'
 import { toast } from 'sonner'
 import { MemberSelector } from './member-selector'
 import { TeamSelector } from './team-selector'
-
-// fallow-ignore-next-line unused-type
-export type MemberOption = Readonly<{
-  userId: string
-  name: string
-  email: string
-}>
-
-// fallow-ignore-next-line unused-type
-export type TeamOption = Readonly<{
-  id: string
-  name: string
-}>
+import type { MemberOption, TeamOption } from '#/components/features/team/shared/types'
 
 const formSchema = createStaffAssignmentInputSchema.pick({ propertyId: true }).extend({
   userIds: z.array(z.string()).min(1, 'Select at least one staff member'),

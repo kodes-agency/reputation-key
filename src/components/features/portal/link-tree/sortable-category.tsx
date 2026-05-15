@@ -17,27 +17,19 @@ import { Button } from '#/components/ui/button'
 import { SortableLink } from './sortable-link'
 import { DeleteCategoryDialog } from './delete-category-dialog'
 import { usePermissions } from '#/shared/hooks/usePermissions'
-
-type Category = { id: string; title: string; sortKey: string }
-type LinkItem = {
-  id: string
-  label: string
-  url: string
-  sortKey: string
-  categoryId: string
-}
+import type { LinkTreeCategory, LinkTreeLink } from './link-tree-types'
 
 type Props = Readonly<{
-  category: Category
-  links: LinkItem[]
+  category: LinkTreeCategory
+  links: readonly LinkTreeLink[]
   isDeletingCategory?: boolean
   deletingLinkId?: string
   onAddLink: (catId: string) => void
   onDeleteLink: (linkId: string) => void
   onDeleteCategory: (catId: string) => void
-  onEditCategory: (cat: Category) => void
-  onEditLink: (link: LinkItem) => void
-  onReorderLinks: (catId: string, reordered: LinkItem[]) => void
+  onEditCategory: (cat: LinkTreeCategory) => void
+  onEditLink: (link: LinkTreeLink) => void
+  onReorderLinks: (catId: string, reordered: readonly LinkTreeLink[]) => void
 }>
 
 export function SortableCategory({
@@ -72,7 +64,7 @@ export function SortableCategory({
     if (!over || active.id === over.id) return
     const oldIndex = links.findIndex((l) => l.id === active.id)
     const newIndex = links.findIndex((l) => l.id === over.id)
-    const reordered = arrayMove(links, oldIndex, newIndex)
+    const reordered = arrayMove([...links], oldIndex, newIndex)
     onReorderLinks(category.id, reordered)
   }
 

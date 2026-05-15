@@ -11,28 +11,8 @@ import { PortalPreviewPanel } from '../portal-preview/portal-preview-panel'
 import { usePreviewToggle } from '../portal-preview/use-preview-toggle'
 import type { Action } from '#/components/hooks/use-action'
 import type { PortalCategory, PortalLinkItem } from '#/components/features/guest'
-
-type Category = { id: string; title: string; sortKey: string }
-type LinkItem = {
-  id: string
-  label: string
-  url: string
-  sortKey: string
-  categoryId: string
-}
-type FormLike = { handleSubmit: () => void }
-type UpdatePortalVariables = {
-  data: {
-    portalId: string
-    name?: string
-    slug?: string
-    description?: string | null
-    theme?: { primaryColor: string }
-    smartRoutingEnabled?: boolean
-    smartRoutingThreshold?: number
-    isActive?: boolean
-  }
-}
+import type { LinkTreeCategory, LinkTreeLink } from '../link-tree/link-tree-types'
+import type { FormLike, UpdatePortalVariables } from '../shared/types'
 
 type Props = Readonly<{
   portal: Readonly<{
@@ -50,8 +30,8 @@ type Props = Readonly<{
   organizationName: string
   propertySlug: string
   propertyId: string
-  categories: Category[]
-  links: LinkItem[]
+  categories: readonly LinkTreeCategory[]
+  links: readonly LinkTreeLink[]
   updateMutation: Action<UpdatePortalVariables>
   requestUploadUrl: (input: {
     data: { portalId: string; contentType: string; fileSize: number }

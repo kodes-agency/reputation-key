@@ -56,7 +56,7 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       }
     : {
         addBulkImportJob: async () => {
-          throw new Error('Job queue not available — enableJobs not set')
+          throw new Error('Job queue not available — Redis not configured')
         },
       }
 

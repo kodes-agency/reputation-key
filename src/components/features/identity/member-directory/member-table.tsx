@@ -20,7 +20,6 @@ import { Contact } from 'lucide-react'
 import { RemoveMemberDialog } from './remove-member-dialog'
 import { RoleSelect } from './role-select'
 
-// fallow-ignore-next-line unused-type
 export interface MemberRow {
   id: string
   userId: string
