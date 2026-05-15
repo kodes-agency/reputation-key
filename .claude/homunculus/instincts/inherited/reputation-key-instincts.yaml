@@ -1,0 +1,366 @@
+# Instincts generated from https://github.com/kodes-agency/reputation-key
+# Generated: 2026-05-15T16:21:46.911Z
+# Version: 2.0
+# NOTE: This file supplements (does not replace) any existing curated instincts.
+# High-confidence manually curated instincts should be preserved alongside these.
+
+---
+id: reputation-key-commit-conventional
+trigger: "when writing a commit message"
+confidence: 0.85
+domain: git
+source: repo-analysis
+source_repo: https://github.com/kodes-agency/reputation-key
+---
+
+# Reputation Key Commit Conventional
+
+## Action
+
+Use conventional commit format with prefixes: fix, refactor
+
+## Evidence
+
+- 3 commits analyzed
+- Detected conventional commit pattern
+- Examples: refactor: comprehensive codebase audit — conventions, architecture, type safety, fix: rename link-tree.types.ts → link-tree-types.ts (kebab-case convention)
+
+---
+id: reputation-key-commit-length
+trigger: "when writing a commit message"
+confidence: 0.6
+domain: git
+source: repo-analysis
+source_repo: https://github.com/kodes-agency/reputation-key
+---
+
+# Reputation Key Commit Length
+
+## Action
+
+Write moderate-length commit messages (~68 characters)
+
+## Evidence
+
+- Average commit message length: 68 chars
+- Based on 3 commits
+
+---
+id: reputation-key-naming-files
+trigger: "when creating a new file"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/kodes-agency/reputation-key
+---
+
+# Reputation Key Naming Files
+
+## Action
+
+Use kebab-case naming convention
+
+## Evidence
+
+- Analyzed file naming patterns in repository
+- Dominant pattern: kebab-case
+
+---
+id: reputation-key-export-style
+trigger: "when exporting from a module"
+confidence: 0.7
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/kodes-agency/reputation-key
+---
+
+# Reputation Key Export Style
+
+## Action
+
+Prefer named exports
+
+## Evidence
+
+- Export pattern analysis
+- Dominant style: named
+
+---
+id: reputation-key-arch-type-based
+trigger: "when adding new code"
+confidence: 0.8
+domain: architecture
+source: repo-analysis
+source_repo: https://github.com/kodes-agency/reputation-key
+---
+
+# Reputation Key Arch Type Based
+
+## Action
+
+Place code in the appropriate type folder (components/, services/, utils/, etc.)
+
+## Evidence
+
+- Type-based module organization detected
+- Folders: components, contexts, routes, shared
+
+---
+id: reputation-key-test-separate
+trigger: "when writing tests"
+confidence: 0.8
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/kodes-agency/reputation-key
+---
+
+# Reputation Key Test Separate
+
+## Action
+
+Place tests in the tests/ or __tests__/ directory, mirroring src structure
+
+## Evidence
+
+- Separate test directory pattern detected
+- Tests live in dedicated test folders
+
+---
+id: reputation-key-workflow-file-rename-and-import-update
+trigger: "when doing file rename and import update"
+confidence: 0.55
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/kodes-agency/reputation-key
+---
+
+# Reputation Key Workflow File Rename And Import Update
+
+## Action
+
+Follow the file-rename-and-import-update workflow:
+1. Rename the target file to the new naming convention.
+2. Search for all imports of the old file name across the codebase.
+3. Update each import statement to use the new file name.
+4. Test affected features to ensure no import errors.
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~1x per month
+- Files: src/components/features/portal/link-tree/link-tree-types.ts, src/components/features/portal/link-tree/link-tree-category-list.tsx, src/components/features/portal/link-tree/link-tree.tsx
+
+---
+id: reputation-key-instinct-file-kebab-case
+trigger: "When creating or renaming a file in the codebase"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: kodes-agency/reputation-key
+---
+
+# Reputation Key Instinct File Kebab Case
+
+## Action
+
+Name the file using kebab-case (e.g., link-tree-types.ts)
+
+## Evidence
+
+- fix: rename link-tree.types.ts → link-tree-types.ts (kebab-case convention)
+- Pattern in src/components/features/portal/link-tree/link-tree-types.ts
+
+---
+id: reputation-key-instinct-function-camelCase
+trigger: "When defining a function"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: kodes-agency/reputation-key
+---
+
+# Reputation Key Instinct Function CamelCase
+
+## Action
+
+Name the function using camelCase
+
+## Evidence
+
+- Naming convention in codeStyle: functions: camelCase
+
+---
+id: reputation-key-instinct-class-PascalCase
+trigger: "When defining a class"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: kodes-agency/reputation-key
+---
+
+# Reputation Key Instinct Class PascalCase
+
+## Action
+
+Name the class using PascalCase
+
+## Evidence
+
+- Naming convention in codeStyle: classes: PascalCase
+
+---
+id: reputation-key-instinct-constant-screaming-snake-case
+trigger: "When defining a constant"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: kodes-agency/reputation-key
+---
+
+# Reputation Key Instinct Constant Screaming Snake Case
+
+## Action
+
+Name the constant using SCREAMING_SNAKE_CASE
+
+## Evidence
+
+- Naming convention in codeStyle: constants: SCREAMING_SNAKE_CASE
+
+---
+id: reputation-key-instinct-import-absolute
+trigger: "When importing modules"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: kodes-agency/reputation-key
+---
+
+# Reputation Key Instinct Import Absolute
+
+## Action
+
+Use absolute import paths
+
+## Evidence
+
+- importStyle: absolute
+
+---
+id: reputation-key-instinct-export-named
+trigger: "When exporting modules or functions"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: kodes-agency/reputation-key
+---
+
+# Reputation Key Instinct Export Named
+
+## Action
+
+Use named exports
+
+## Evidence
+
+- exportStyle: named
+
+---
+id: reputation-key-instinct-try-catch-error-handling
+trigger: "When handling errors in code"
+confidence: 0.7
+domain: code-style
+source: repo-analysis
+source_repo: kodes-agency/reputation-key
+---
+
+# Reputation Key Instinct Try Catch Error Handling
+
+## Action
+
+Use try-catch blocks for error handling
+
+## Evidence
+
+- errorHandling: style: try-catch
+
+---
+id: reputation-key-instinct-git-conventional-commits
+trigger: "When writing a commit message"
+confidence: 0.9
+domain: git
+source: repo-analysis
+source_repo: kodes-agency/reputation-key
+---
+
+# Reputation Key Instinct Git Conventional Commits
+
+## Action
+
+Use conventional commit prefixes such as 'fix' or 'refactor' followed by a colon
+
+## Evidence
+
+- refactor: comprehensive codebase audit — conventions, architecture, type safety
+- fix: update imports after link-tree-types.ts rename
+
+---
+id: reputation-key-instinct-git-commit-length
+trigger: "When writing a commit message"
+confidence: 0.7
+domain: git
+source: repo-analysis
+source_repo: kodes-agency/reputation-key
+---
+
+# Reputation Key Instinct Git Commit Length
+
+## Action
+
+Write descriptive commit messages averaging around 68 characters
+
+## Evidence
+
+- averageLength: 68
+- Examples: 'refactor: comprehensive codebase audit — conventions, architecture, type safety'
+
+---
+id: reputation-key-instinct-file-rename-import-update
+trigger: "When renaming a file to follow naming conventions (e.g., kebab-case)"
+confidence: 0.95
+domain: workflow
+source: repo-analysis
+source_repo: kodes-agency/reputation-key
+---
+
+# Reputation Key Instinct File Rename Import Update
+
+## Action
+
+Update all import statements referencing the old file name to use the new file name
+
+## Evidence
+
+- fix: rename link-tree.types.ts → link-tree-types.ts (kebab-case convention)
+- fix: update imports after link-tree-types.ts rename
+- Workflow: file-rename-and-import-update
+
+---
+id: reputation-key-instinct-test-location-separate
+trigger: "When adding or updating tests"
+confidence: 0.7
+domain: testing
+source: repo-analysis
+source_repo: kodes-agency/reputation-key
+---
+
+# Reputation Key Instinct Test Location Separate
+
+## Action
+
+Place test files in a separate directory from source code
+
+## Evidence
+
+- architecture: testLocation: separate
+
