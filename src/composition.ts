@@ -52,7 +52,9 @@ function buildInfrastructure(options: { redis: Redis | undefined; enableJobs: bo
     maxRequests: 60,
     windowSeconds: 60,
   })
-  const jobQueue: Queue | undefined = options.enableJobs
+  // Create queue whenever Redis is available — the web server needs it to
+  // enqueue jobs; the worker process also needs it for processing.
+  const jobQueue: Queue | undefined = options.redis
     ? createJobQueue('default')
     : undefined
   const jobRegistry: JobRegistry = createJobRegistry()

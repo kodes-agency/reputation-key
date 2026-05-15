@@ -1,4 +1,4 @@
-import type { GbpLocation } from '#/shared/domain'
+import type { GbpLocation } from '#/contexts/integration/application/public-api'
 import { Checkbox } from '#/components/ui/checkbox'
 import { Badge } from '#/components/ui/badge'
 

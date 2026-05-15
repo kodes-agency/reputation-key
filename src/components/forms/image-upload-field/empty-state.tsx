@@ -5,7 +5,7 @@ import { ImageIcon, Loader2 } from 'lucide-react'
 type EmptyStateProps = Readonly<{
   uploading: boolean
   uploadProgress: number
-  acceptedTypes: string[]
+  acceptedTypes: ReadonlyArray<string>
   maxFileSize: number
   label?: string
 }>

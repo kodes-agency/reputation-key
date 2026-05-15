@@ -5,6 +5,7 @@ import {
   portalLinkCategories,
   portalLinks,
 } from '#/shared/db/schema/portal.schema'
+import { properties } from '#/shared/db/schema/property.schema'
 import { guestError } from '../../domain/errors'
 import { eq, and } from 'drizzle-orm'
 import { sql } from 'drizzle-orm'
@@ -13,18 +14,23 @@ import { trace } from '#/shared/observability/trace'
 export const createPublicPortalLookup = (db: Database): PublicPortalLookup => ({
   findBySlug: async (propertySlug: string, portalSlug: string) => {
     return trace('publicPortal.findBySlug', async () => {
+      // Look up property by slug using Drizzle query builder
+      const propertyRows = await db
+        .select({ id: properties.id })
+        .from(properties)
+        .where(eq(properties.slug, propertySlug))
+        .limit(1)
+
+      if (propertyRows.length === 0) {
+        return null
+      }
+
+      const propertyId = propertyRows[0].id
+
       const portalRows = await db
         .select()
         .from(portals)
-        .where(
-          and(
-            eq(
-              portals.propertyId,
-              sql`(SELECT id::text FROM properties WHERE slug = ${propertySlug} LIMIT 1)`,
-            ),
-            eq(portals.slug, portalSlug),
-          ),
-        )
+        .where(and(eq(portals.propertyId, propertyId), eq(portals.slug, portalSlug)))
         .limit(1)
 
       if (portalRows.length === 0) {
@@ -38,7 +44,8 @@ export const createPublicPortalLookup = (db: Database): PublicPortalLookup => ({
         throw guestError('portal_inactive', 'Portal is inactive')
       }
 
-      // Get org name via raw query
+      // Raw SQL required — the "organization" table is managed by Better Auth CLI
+      // and has no Drizzle schema definition in this codebase.
       const orgResult = await db.execute(
         sql`SELECT id, name FROM "organization" WHERE id = ${portal.organizationId} LIMIT 1`,
       )

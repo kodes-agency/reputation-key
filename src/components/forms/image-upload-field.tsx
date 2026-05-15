@@ -17,7 +17,7 @@ type ImageUploadFieldProps = Readonly<{
   onUpload: (file: File, onProgress: (percent: number) => void) => Promise<string>
   disabled?: boolean
   variant?: 'rect' | 'circle'
-  acceptedTypes?: string[]
+  acceptedTypes?: ReadonlyArray<string>
   maxFileSize?: number
   emptyLabel?: string
 }>

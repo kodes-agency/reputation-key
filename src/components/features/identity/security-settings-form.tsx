@@ -1,6 +1,4 @@
-import { useState } from 'react'
 import { useForm } from '@tanstack/react-form'
-import { z } from 'zod/v4'
 import { FieldGroup } from '#/components/ui/field'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { FormTextField } from '#/components/forms/form-text-field'
@@ -13,49 +11,31 @@ import {
   CardTitle,
   CardDescription,
 } from '#/components/ui/card'
-import { authClient } from '#/shared/auth/auth-client'
 import { Shield } from 'lucide-react'
-import { toast } from 'sonner'
+import { changePasswordSchema } from '#/contexts/identity/application/dto/change-password.dto'
+import type { ChangePasswordInput } from '#/contexts/identity/application/dto/change-password.dto'
+import type { Action } from '#/components/hooks/use-action'
 
-const passwordSchema = z
-  .object({
-    currentPassword: z.string().min(1, 'Current password is required'),
-    newPassword: z.string().min(8, 'Password must be at least 8 characters'),
-    confirmPassword: z.string().min(1, 'Please confirm your password'),
-  })
-  .refine((data) => data.newPassword === data.confirmPassword, {
-    message: 'Passwords do not match',
-    path: ['confirmPassword'],
-  })
+type Props = Readonly<{
+  changePassword: Action<{ data: { currentPassword: string; newPassword: string } }>
+}>
 
-type FormValues = z.infer<typeof passwordSchema>
-
-export function SecuritySettingsForm() {
-  const [error, setError] = useState<unknown>(null)
-  const [isPending, setIsPending] = useState(false)
-
+export function SecuritySettingsForm({ changePassword }: Props) {
   const form = useForm({
     defaultValues: {
       currentPassword: '',
       newPassword: '',
       confirmPassword: '',
-    } satisfies FormValues,
-    validators: { onSubmit: passwordSchema },
+    } satisfies ChangePasswordInput,
+    validators: { onSubmit: changePasswordSchema },
     onSubmit: async ({ value }) => {
-      setIsPending(true)
-      setError(null)
-      try {
-        await authClient.changePassword({
+      await changePassword({
+        data: {
           currentPassword: value.currentPassword,
           newPassword: value.newPassword,
-        })
-        toast.success('Password changed successfully')
-        form.reset()
-      } catch (err) {
-        setError(err)
-      } finally {
-        setIsPending(false)
-      }
+        },
+      })
+      form.reset()
     },
   })
 
@@ -68,7 +48,7 @@ export function SecuritySettingsForm() {
         }}
         className="space-y-6"
       >
-        <FormErrorBanner error={error} />
+        <FormErrorBanner error={changePassword.error} />
         <Card>
           <CardHeader>
             <CardTitle>Change password</CardTitle>
@@ -114,7 +94,7 @@ export function SecuritySettingsForm() {
             </FieldGroup>
           </CardContent>
           <div className="px-6 pb-2">
-            <SubmitButton mutation={{ isPending, error }} form={form}>
+            <SubmitButton mutation={changePassword} form={form}>
               Update password
             </SubmitButton>
           </div>

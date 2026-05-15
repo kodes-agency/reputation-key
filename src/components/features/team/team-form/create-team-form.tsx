@@ -13,9 +13,7 @@ import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { z } from 'zod/v4'
 import { createTeamInputSchema } from '#/contexts/team/application/dto/create-team.dto'
 import type { CreateTeamInput } from '#/contexts/team/application/dto/create-team.dto'
-
-type MemberOption = { userId: string; name: string; email: string }
-
+import type { MemberOption } from '#/components/features/team/shared/types'
 import type { Action } from '#/components/hooks/use-action'
 
 const formSchema = createTeamInputSchema

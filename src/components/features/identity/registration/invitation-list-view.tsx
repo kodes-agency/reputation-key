@@ -1,16 +1,10 @@
 import { Skeleton } from '#/components/ui/skeleton'
 import { AuthCard, ErrorBanner } from '#/components/layout/auth-layout'
 import { InvitationCard } from './invitation-card'
-
-type PendingInvitation = Readonly<{
-  id: string
-  organizationName: string
-  role: string
-  expiresAt: Date
-}>
+import type { PendingInvitation } from './shared-types'
 
 type Props = Readonly<{
-  invitations: PendingInvitation[]
+  invitations: ReadonlyArray<PendingInvitation>
   loading: boolean
   error: string | null
   onAccept: (id: string) => void

@@ -1,5 +1,5 @@
 // Create portal — route defines mutation, renders form component.
-import { createFileRoute, useNavigate, useRouter, redirect } from '@tanstack/react-router'
+import { createFileRoute, useNavigate, redirect } from '@tanstack/react-router'
 import { createPortal } from '#/contexts/portal/server/portals'
 import { PortalCreationWithPreview } from '#/components/features/portal'
 import type { AuthRouteContext } from '#/routes/_authenticated'
@@ -21,12 +21,11 @@ export const Route = createFileRoute(
 function CreatePortalPage() {
   const { propertyId } = Route.useParams()
   const navigate = useNavigate()
-  const router = useRouter()
 
   const mutation = useMutationAction(createPortal, {
     successMessage: 'Portal created',
+    invalidateRoutes: ['/_authenticated/properties/$propertyId/portals/'],
     onSuccess: async (output) => {
-      await router.invalidate()
       await navigate({
         to: '/properties/$propertyId/portals/$portalId',
         params: { propertyId, portalId: output.portal.id },

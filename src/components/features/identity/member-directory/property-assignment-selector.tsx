@@ -18,7 +18,7 @@ type PropertyOption = Readonly<{
 type Props = Readonly<{
   field: {
     state: {
-      value: unknown
+      value: string[]
     }
   }
   properties: ReadonlyArray<PropertyOption>
@@ -32,7 +32,7 @@ export function PropertyAssignmentSelector({
   onToggleProperty,
   onRemoveProperty,
 }: Props) {
-  const selectedIds = field.state.value as string[]
+  const selectedIds = field.state.value
   const availableProperties = properties.filter((p) => !selectedIds.includes(p.id))
 
   return (

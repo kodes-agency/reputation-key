@@ -1,4 +1,4 @@
-import type { GoogleConnection } from '#/shared/domain'
+import type { GoogleConnection } from '#/contexts/integration/application/public-api'
 import {
   Select,
   SelectContent,
@@ -8,7 +8,7 @@ import {
 } from '#/components/ui/select'
 
 type Props = Readonly<{
-  connections: GoogleConnection[]
+  connections: readonly GoogleConnection[]
   value: string | undefined
   onValueChange: (value: string) => void
 }>

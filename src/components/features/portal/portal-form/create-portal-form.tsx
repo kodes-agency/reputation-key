@@ -3,7 +3,7 @@
 // Never imports server functions directly (dependency rules).
 
 import { useForm } from '@tanstack/react-form'
-import { useEffect, useRef, useState } from 'react'
+import { useRef } from 'react'
 import { z } from 'zod/v4'
 import { SubmitButton } from '#/components/forms/submit-button'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
@@ -30,17 +30,21 @@ type CreatePortalVariables = {
   }
 }
 
+type PreviewState = {
+  name: string
+  description: string
+  primaryColor: string
+}
+
 type Props = Readonly<{
   propertyId: string
   mutation: Action<CreatePortalVariables>
-  onPreviewChange?: (preview: {
-    name: string
-    description: string
-    primaryColor: string
-  }) => void
+  onPreviewChange?: (preview: PreviewState) => void
 }>
 
 export function CreatePortalForm({ propertyId, mutation, onPreviewChange }: Props) {
+  const previousNameRef = useRef<string>('')
+
   const form = useForm({
     defaultValues: {
       name: '',
@@ -63,57 +67,55 @@ export function CreatePortalForm({ propertyId, mutation, onPreviewChange }: Prop
     },
   })
 
-  // Track previous name to detect changes
-  const previousNameRef = useRef<string>('')
-
-  // Sync preview state at component level (no hooks inside render props)
-  const [prevName, setPrevName] = useState('')
-  const [prevDesc, setPrevDesc] = useState('')
-  const [prevColor, setPrevColor] = useState('')
-
-  useEffect(() => {
-    const name = form.getFieldValue('name') as string
-    const description = form.getFieldValue('description') as string
-    const primaryColor = form.getFieldValue('primaryColor') as string
-
-    if (name !== prevName || description !== prevDesc || primaryColor !== prevColor) {
-      setPrevName(name)
-      setPrevDesc(description)
-      setPrevColor(primaryColor)
-      onPreviewChange?.({ name, description, primaryColor })
-    }
-  })
-
-  useEffect(() => {
-    if (prevName && prevName !== previousNameRef.current) {
-      const currentSlug = form.getFieldValue('slug') as string
-      if (!currentSlug) {
-        const generated = prevName
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, '-')
-          .replace(/^-|-$/g, '')
-        form.setFieldValue('slug', generated)
-      }
-      previousNameRef.current = prevName
-    }
-  }, [prevName, form])
-
   return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault()
-        e.stopPropagation()
-        form.handleSubmit()
-      }}
-      className="space-y-4"
-    >
-      <FormErrorBanner error={mutation.error} />
+    <>
+      {/*
+        Subscribe to form values reactively.
+        Replaces the old dep-less useEffect that ran every render.
+        Uses TanStack Form's Subscribe component with selector.
+      */}
+      <form.Subscribe
+        selector={(state) => ({
+          name: state.values.name,
+          description: state.values.description,
+          primaryColor: state.values.primaryColor,
+        })}
+        children={(values) => {
+          onPreviewChange?.(values)
 
-      <PortalNameSlugGroup form={form} />
+          // Auto-generate slug from name when name changes
+          if (values.name && values.name !== previousNameRef.current) {
+            const currentSlug = form.getFieldValue('slug') as string
+            if (!currentSlug) {
+              const generated = values.name
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, '-')
+                .replace(/^-|-$/g, '')
+              form.setFieldValue('slug', generated)
+            }
+            previousNameRef.current = values.name
+          }
 
-      <SubmitButton mutation={mutation} form={form}>
-        Create Portal
-      </SubmitButton>
-    </form>
+          return null
+        }}
+      />
+
+      <form
+        onSubmit={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          form.handleSubmit()
+        }}
+        className="space-y-4"
+      >
+        <FormErrorBanner error={mutation.error} />
+
+        <PortalNameSlugGroup form={form} />
+
+        <SubmitButton mutation={mutation} form={form}>
+          Create Portal
+        </SubmitButton>
+      </form>
+    </>
   )
 }

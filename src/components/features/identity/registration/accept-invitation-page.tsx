@@ -3,13 +3,14 @@
  * Fixes the side-effect-in-render bug by using useEffect for auto-accept.
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from '@tanstack/react-router'
 import { useAction } from '#/components/hooks/use-action'
 import { Skeleton } from '#/components/ui/skeleton'
 import { AuthCard, AuthFooterLink, ErrorBanner } from '#/components/layout/auth-layout'
 import { Link } from '@tanstack/react-router'
 import { InvitationListView } from './invitation-list-view'
+import type { PendingInvitation } from './shared-types'
 
 // ── Sub-views ──────────────────────────────────────────────────────────
 
@@ -49,16 +50,9 @@ function AutoAcceptView({
 
 // ── Main page component ────────────────────────────────────────────────
 
-type PendingInvitation = Readonly<{
-  id: string
-  organizationName: string
-  role: string
-  expiresAt: Date
-}>
-
 type Props = Readonly<{
   invitationId?: string
-  invitations: PendingInvitation[]
+  invitations: ReadonlyArray<PendingInvitation>
   acceptInvitation: (input: { data: { invitationId: string } }) => Promise<void>
 }>
 
@@ -74,28 +68,31 @@ export function AcceptInvitationPage({
 
   const accept = useAction(acceptInvitation)
 
-  async function handleAccept(invId: string) {
-    setAccepting(true)
-    setAutoAcceptError(null)
-    try {
-      await accept({ data: { invitationId: invId } })
-      await router.invalidate()
-      setAccepted(true)
-    } catch (err) {
-      setAutoAcceptError(
-        err instanceof Error ? err.message : 'An unexpected error occurred',
-      )
-    } finally {
-      setAccepting(false)
-    }
-  }
+  const handleAccept = useCallback(
+    async (invId: string) => {
+      setAccepting(true)
+      setAutoAcceptError(null)
+      try {
+        await accept({ data: { invitationId: invId } })
+        await router.invalidate()
+        setAccepted(true)
+      } catch (err) {
+        setAutoAcceptError(
+          err instanceof Error ? err.message : 'An unexpected error occurred',
+        )
+      } finally {
+        setAccepting(false)
+      }
+    },
+    [accept, router],
+  )
 
   // Auto-accept when arriving with ?id= query param — useEffect, not render-body
   useEffect(() => {
     if (invitationId && !accepted) {
       handleAccept(invitationId)
     }
-  }, [invitationId])
+  }, [invitationId, accepted, handleAccept])
 
   if (accepted) return <SuccessView />
   if (invitationId) return <AutoAcceptView error={autoAcceptError} loading={accepting} />

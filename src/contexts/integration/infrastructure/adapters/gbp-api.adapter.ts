@@ -48,7 +48,10 @@ export const createGbpApiAdapter = (): GbpApiPort => {
     let nextPageToken: string | undefined
 
     do {
-      const params = new URLSearchParams({ pageSize: '100' })
+      const params = new URLSearchParams({
+        pageSize: '100',
+        readMask: 'name,title,storefrontAddress,categories,latlng',
+      })
       if (nextPageToken) params.set('pageToken', nextPageToken)
 
       const url = `${GBP_API_BASE}/accounts/${accountName}/locations?${params.toString()}`
@@ -134,19 +137,23 @@ export const createGbpApiAdapter = (): GbpApiPort => {
 
 function mapGbpAccount(account: unknown): GbpAccount {
   if (!account || typeof account !== 'object') {
-    throw new Error('Invalid GBP account data')
+    throw createGbpApiError('mapAccount', 500, 'Invalid GBP account data')
   }
 
   const acc = account as Record<string, unknown>
   const name = acc.name as string | undefined
 
   if (!name) {
-    throw new Error('GBP account missing required field: name')
+    throw createGbpApiError('mapAccount', 500, 'GBP account missing required field: name')
   }
 
   const accountName = name.split('/')[1]
   if (!accountName) {
-    throw new Error(`GBP account has invalid name format: ${name}`)
+    throw createGbpApiError(
+      'mapAccount',
+      500,
+      `GBP account has invalid name format: ${name}`,
+    )
   }
 
   const roleInfo = acc.roleInfo as Record<string, unknown> | undefined
@@ -160,27 +167,40 @@ function mapGbpAccount(account: unknown): GbpAccount {
 
 function mapGbpLocation(location: unknown): GbpLocation {
   if (!location || typeof location !== 'object') {
-    throw new Error('Invalid GBP location data')
+    throw createGbpApiError('mapLocation', 500, 'Invalid GBP location data')
   }
 
   const loc = location as Record<string, unknown>
   const name = loc.name as string | undefined
 
   if (!name) {
-    throw new Error('GBP location missing required field: name')
+    throw createGbpApiError(
+      'mapLocation',
+      500,
+      'GBP location missing required field: name',
+    )
   }
 
   const locationId = name.split('/').pop()
   if (!locationId) {
-    throw new Error(`GBP location has invalid name format: ${name}`)
+    throw createGbpApiError(
+      'mapLocation',
+      500,
+      `GBP location has invalid name format: ${name}`,
+    )
   }
 
-  const locationInfo = loc.locationInfo as Record<string, unknown> | undefined
-  const address = locationInfo?.addressLines as ReadonlyArray<string> | undefined
-  const postalCode = locationInfo?.postalCode as string | undefined
-  const locality = locationInfo?.locality as string | undefined
-  const administrativeArea = locationInfo?.administrativeArea as string | undefined
-  const primaryCategory = loc.primaryCategory as Record<string, unknown> | undefined
+  const storefrontAddress = loc.storefrontAddress as Record<string, unknown> | undefined
+  const addressLines = storefrontAddress?.addressLines as
+    | ReadonlyArray<string>
+    | undefined
+  const postalCode = storefrontAddress?.postalCode as string | undefined
+  const locality = storefrontAddress?.locality as string | undefined
+  const administrativeArea = storefrontAddress?.administrativeArea as string | undefined
+  const categories = loc.categories as Record<string, unknown> | undefined
+  const primaryCategory = categories?.primaryCategory as
+    | Record<string, unknown>
+    | undefined
   const categoryName = primaryCategory?.displayName as string | undefined
 
   const latlng = loc.latlng as Record<string, unknown> | undefined
@@ -192,8 +212,8 @@ function mapGbpLocation(location: unknown): GbpLocation {
     gbpPlaceId: locationId,
     businessName: loc.title as string,
     address:
-      address && address.length > 0
-        ? `${address.join(', ')}, ${locality || ''} ${administrativeArea || ''} ${postalCode || ''}`.trim()
+      addressLines && addressLines.length > 0
+        ? `${addressLines.join(', ')}, ${locality || ''} ${administrativeArea || ''} ${postalCode || ''}`.trim()
         : null,
     primaryCategory: categoryName || null,
     latitude: latitude ?? null,

@@ -1,36 +1,18 @@
 import { createFileRoute } from '@tanstack/react-router'
 import QRCode from 'qrcode'
-import { getContainer } from '#/composition'
+import { getPortalForQR } from '#/contexts/portal/server/portals'
 
 export const Route = createFileRoute('/api/portals/$id/qr')({
   server: {
     handlers: {
       GET: async ({ params, request }) => {
-        const { db } = getContainer()
-        const { portals } = await import('#/shared/db/schema/portal.schema')
-        const { eq } = await import('drizzle-orm')
-        const portal = await db
-          .select()
-          .from(portals)
-          .where(eq(portals.id, params.id))
-          .limit(1)
+        const result = await getPortalForQR({ data: { portalId: params.id } })
 
-        if (portal.length === 0) {
+        if (!result) {
           return new Response('Portal not found', { status: 404 })
         }
 
-        const baseUrl = process.env.BETTER_AUTH_URL ?? 'http://localhost:3000'
-
-        // Look up org slug for public URL
-        const { sql } = await import('drizzle-orm')
-        const orgRow = await db.execute(
-          sql`SELECT slug FROM "organization" WHERE id = ${portal[0].organizationId} LIMIT 1`,
-        )
-        const orgSlug =
-          (orgRow.rows[0] as { slug: string } | undefined)?.slug ??
-          portal[0].organizationId
-
-        const portalUrl = `${baseUrl}/p/${orgSlug}/${portal[0].slug}?source=qr`
+        const { portalUrl, slug } = result
 
         const pngBuffer = await QRCode.toBuffer(portalUrl, {
           type: 'png',
@@ -49,7 +31,7 @@ export const Route = createFileRoute('/api/portals/$id/qr')({
             ...(isInline
               ? {}
               : {
-                  'Content-Disposition': `attachment; filename="qr-${portal[0].slug}.png"`,
+                  'Content-Disposition': `attachment; filename="qr-${slug}.png"`,
                 }),
           },
         })

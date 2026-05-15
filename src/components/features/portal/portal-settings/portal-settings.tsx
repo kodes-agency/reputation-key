@@ -9,33 +9,7 @@ import { Switch } from '#/components/ui/switch'
 import { Label } from '#/components/ui/label'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import type { Action } from '#/components/hooks/use-action'
-
-type FormLike = { handleSubmit: () => void }
-
-type PortalData = Readonly<{
-  id: string
-  name: string
-  slug: string
-  description: string | null
-  heroImageUrl: string | null
-  theme: { primaryColor: string }
-  smartRoutingEnabled: boolean
-  smartRoutingThreshold: number
-  isActive: boolean
-}>
-
-type UpdatePortalVariables = {
-  data: {
-    portalId: string
-    name?: string
-    slug?: string
-    description?: string | null
-    theme?: { primaryColor: string }
-    smartRoutingEnabled?: boolean
-    smartRoutingThreshold?: number
-    isActive?: boolean
-  }
-}
+import type { FormLike, PortalData, UpdatePortalVariables } from '../shared/types'
 
 type Props = Readonly<{
   portal: PortalData

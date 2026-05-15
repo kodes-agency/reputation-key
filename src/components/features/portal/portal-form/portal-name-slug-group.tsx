@@ -4,6 +4,7 @@ import { FormTextarea } from '#/components/forms/form-textarea'
 import type { BaseFieldApi } from '#/components/forms/form-text-field'
 import type { BaseFieldApiTextarea } from '#/components/forms/form-textarea'
 import { ThemeFieldGroup } from './theme-field-group'
+import type { FormWithField } from '#/components/forms/form-with-field'
 
 type PortalFormValues = {
   name: string
@@ -12,15 +13,8 @@ type PortalFormValues = {
   primaryColor: string
 }
 
-type FormWithField = {
-  Field: React.FC<{
-    name: keyof PortalFormValues
-    children: (field: BaseFieldApi | BaseFieldApiTextarea) => React.ReactNode
-  }>
-}
-
 type Props = Readonly<{
-  form: FormWithField
+  form: FormWithField<PortalFormValues>
 }>
 
 export function PortalNameSlugGroup({ form }: Props) {

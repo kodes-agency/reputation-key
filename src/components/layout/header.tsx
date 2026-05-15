@@ -26,10 +26,10 @@ function LogoLink() {
 function AuthActions({
   isLoggedIn,
   onSignOut,
-}: {
+}: Readonly<{
   isLoggedIn: boolean
   onSignOut: () => void
-}) {
+}>) {
   if (isLoggedIn) {
     return (
       <DropdownMenu>
@@ -66,7 +66,7 @@ function AuthActions({
 
 // ── Main component ───────────────────────────────────────────────────
 
-export function Header({ onSignOut }: { onSignOut: () => void }) {
+export function Header({ onSignOut }: Readonly<{ onSignOut: () => void }>) {
   const { data: session } = authClient.useSession()
   const isLoggedIn = !!session?.user
 

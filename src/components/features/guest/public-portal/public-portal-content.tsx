@@ -23,8 +23,8 @@ export type PublicPortalContentProps = Readonly<{
     heroImageUrl: string | null
     theme: Record<string, string | number | boolean | null> | null
   }
-  categories: PortalCategory[]
-  links: PortalLinkItem[]
+  categories: ReadonlyArray<PortalCategory>
+  links: ReadonlyArray<PortalLinkItem>
   source?: ScanSource
   submitFeedback?: (input: {
     data: {

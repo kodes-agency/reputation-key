@@ -14,8 +14,7 @@ import { SubmitButton } from '#/components/forms/submit-button'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import type { UpdateTeamInput } from '#/contexts/team/application/dto/update-team.dto'
 import { updateTeamInputSchema } from '#/contexts/team/application/dto/update-team.dto'
-
-type MemberOption = { userId: string; name: string; email: string }
+import type { MemberOption } from '#/components/features/team/shared/types'
 
 const formSchema = updateTeamInputSchema.required().extend({
   description: z.string().max(500),

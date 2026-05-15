@@ -1,15 +1,38 @@
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { z } from 'zod/v4'
+import { match } from 'ts-pattern'
 import { getContainer } from '#/composition'
 import { headersFromContext } from '#/shared/auth/headers'
+import { throwContextError } from '#/shared/auth/server-errors'
 import { ratingInputSchema } from '../application/dto/rating.dto'
 import { feedbackInputSchema } from '../application/dto/feedback.dto'
-import { isGuestError, guestError } from '../domain/errors'
+import { isGuestError } from '../domain/errors'
+import type { GuestErrorCode } from '../domain/errors'
 export type { PublicPortalLoaderData } from '../application/dto/public-portal.dto'
-import { portalId, ratingId } from '#/shared/domain/ids'
+import { organizationId, portalId, propertyId, ratingId } from '#/shared/domain/ids'
 import { getEnv } from '#/shared/config/env'
 import { createHash } from 'crypto'
+
+// ── Error → HTTP status mapping (exhaustive) ──────────────────────
+
+const guestErrorStatus = (code: GuestErrorCode): number =>
+  match(code)
+    .with('rate_limit_exceeded', () => 429)
+    .with(
+      'invalid_rating',
+      'duplicate_rating',
+      'feedback_too_long',
+      'feedback_empty',
+      'invalid_source',
+      'invalid_session',
+      () => 400,
+    )
+    .with('portal_not_found', () => 404)
+    .with('portal_inactive', () => 410)
+    .exhaustive()
+
+// ── Helpers ───────────────────────────────────────────────────────
 
 function hashIp(ip: string): string {
   const env = getEnv()
@@ -31,10 +54,16 @@ export const getPublicPortal = createServerFn({ method: 'GET' })
     tracedHandler(
       async ({ data }) => {
         const { useCases } = getContainer()
-        return useCases.getPublicPortal({
-          propertySlug: data.propertySlug,
-          portalSlug: data.portalSlug,
-        })
+        try {
+          return await useCases.getPublicPortal({
+            propertySlug: data.propertySlug,
+            portalSlug: data.portalSlug,
+          })
+        } catch (e) {
+          if (isGuestError(e))
+            throwContextError('GuestError', e, guestErrorStatus(e.code))
+          throw e
+        }
       },
       'GET',
       'guest.getPublicPortal',
@@ -57,7 +86,11 @@ export const submitRatingFn = createServerFn({ method: 'POST' })
 
         const rateResult = await rateLimiter.check(`rating:${sessionId}`)
         if (!rateResult.allowed) {
-          throw guestError('rate_limit_exceeded', 'Too many requests')
+          throwContextError(
+            'GuestError',
+            { code: 'rate_limit_exceeded', message: 'Too many requests' },
+            429,
+          )
         }
 
         const ip = headers?.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
@@ -79,7 +112,8 @@ export const submitRatingFn = createServerFn({ method: 'POST' })
           })
           return { success: true, ratingId: rating.id }
         } catch (e) {
-          if (isGuestError(e)) throw e
+          if (isGuestError(e))
+            throwContextError('GuestError', e, guestErrorStatus(e.code))
           throw e
         }
       },
@@ -109,7 +143,11 @@ export const submitFeedbackFn = createServerFn({ method: 'POST' })
 
         const rateResult = await rateLimiter.check(`feedback:${sessionId}`)
         if (!rateResult.allowed) {
-          throw guestError('rate_limit_exceeded', 'Too many requests')
+          throwContextError(
+            'GuestError',
+            { code: 'rate_limit_exceeded', message: 'Too many requests' },
+            429,
+          )
         }
 
         const ip = headers?.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
@@ -132,11 +170,66 @@ export const submitFeedbackFn = createServerFn({ method: 'POST' })
           })
           return { success: true, feedbackId: fb.id }
         } catch (e) {
-          if (isGuestError(e)) throw e
+          if (isGuestError(e))
+            throwContextError('GuestError', e, guestErrorStatus(e.code))
           throw e
         }
       },
       'POST',
       'guest.submitFeedback',
+    ),
+  )
+
+// ── resolveLinkAndTrack ───────────────────────────────────────────
+// Resolves a portal link to its redirect URL and tracks the click.
+// Used by the public click-tracking API route.
+
+const resolveLinkSchema = z.object({
+  linkId: z.string().min(1),
+})
+
+export const resolveLinkAndTrack = createServerFn({ method: 'GET' })
+  .inputValidator(resolveLinkSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const { db, useCases } = getContainer()
+        const { portalLinks, portals } = await import('#/shared/db/schema/portal.schema')
+        const { eq } = await import('drizzle-orm')
+
+        const result = await db
+          .select({
+            url: portalLinks.url,
+            organizationId: portalLinks.organizationId,
+            portalId: portalLinks.portalId,
+            propertyId: portals.propertyId,
+          })
+          .from(portalLinks)
+          .innerJoin(portals, eq(portalLinks.portalId, portals.id))
+          .where(eq(portalLinks.id, data.linkId))
+          .limit(1)
+
+        if (result.length === 0) {
+          return null
+        }
+
+        const {
+          url,
+          organizationId: orgId,
+          portalId: pId,
+          propertyId: propId,
+        } = result[0]
+
+        await useCases.trackReviewLinkClick({
+          linkId: data.linkId,
+          organizationId: organizationId(orgId),
+          portalId: portalId(pId),
+          propertyId: propertyId(propId),
+        })
+
+        return { url }
+      },
+      'GET',
+      'guest.resolveLinkAndTrack',
     ),
   )

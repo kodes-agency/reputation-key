@@ -18,25 +18,17 @@ import { SortableCategory } from './sortable-category'
 import { LinkEditInlineForm } from './link-edit-inline-form'
 import { CategoryEditInlineForm } from './category-edit-inline-form'
 import { usePermissions } from '#/shared/hooks/usePermissions'
-
-type Category = { id: string; title: string; sortKey: string }
-type LinkItem = {
-  id: string
-  label: string
-  url: string
-  sortKey: string
-  categoryId: string
-}
+import type { LinkTreeCategory, LinkTreeLink } from './link-tree.types'
 
 type Props = Readonly<{
-  categories: Category[]
-  links: LinkItem[]
+  categories: readonly LinkTreeCategory[]
+  links: readonly LinkTreeLink[]
   deletingCategoryId: string | null
   deletingLinkId: string | null
   editingCategory: string | null
   editingLink: string | null
   onDragEnd: (event: DragEndEvent) => void
-  onReorderLinks: (categoryId: string, reordered: LinkItem[]) => void
+  onReorderLinks: (categoryId: string, reordered: readonly LinkTreeLink[]) => void
   onDeleteLink: (linkId: string) => void
   onDeleteCategory: (catId: string) => void
   onEditCategory: (catId: string | null) => void

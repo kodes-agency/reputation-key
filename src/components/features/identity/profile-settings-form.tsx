@@ -18,6 +18,7 @@ import type { BaseFieldApi } from '#/components/forms/form-text-field'
 import { authClient } from '#/shared/auth/auth-client'
 import { toast } from 'sonner'
 import { AvatarCard } from './avatar-card'
+import type { Action } from '#/components/hooks/use-action'
 
 const profileSchema = z.object({
   name: z
@@ -34,6 +35,7 @@ export type Props = Readonly<{
     email: string
     image: string | null
   }
+  updateProfile: Action<{ data: { name: string } }>
   requestAvatarUpload: (data: {
     data: { contentType: string; fileSize: number }
   }) => Promise<{ uploadUrl: string; key: string }>
@@ -44,11 +46,10 @@ export type Props = Readonly<{
 
 export function ProfileSettingsForm({
   user,
+  updateProfile,
   requestAvatarUpload,
   finalizeAvatarUpload,
 }: Props) {
-  const [isPending, setIsPending] = useState(false)
-  const [error, setError] = useState<unknown>(null)
   const [avatarUrl, setAvatarUrl] = useState<string | null>(user.image)
 
   const form = useForm({
@@ -57,16 +58,7 @@ export function ProfileSettingsForm({
     } satisfies FormValues,
     validators: { onSubmit: profileSchema },
     onSubmit: async ({ value }) => {
-      setIsPending(true)
-      setError(null)
-      try {
-        await authClient.updateUser({ name: value.name })
-        toast.success('Profile updated successfully')
-      } catch (err) {
-        setError(err)
-      } finally {
-        setIsPending(false)
-      }
+      await updateProfile({ data: { name: value.name } })
     },
   })
 
@@ -88,13 +80,13 @@ export function ProfileSettingsForm({
 
   return (
     <div className="space-y-6">
-      <FormErrorBanner error={error} />
+      <FormErrorBanner error={updateProfile.error} />
 
       <AvatarCard
         avatarUrl={avatarUrl}
         onAvatarUrlChange={setAvatarUrl}
         onUpload={handleAvatarUpload}
-        disabled={isPending}
+        disabled={updateProfile.isPending}
       />
 
       {/* Profile information card */}
@@ -135,7 +127,7 @@ export function ProfileSettingsForm({
             </div>
 
             <div className="flex justify-end">
-              <SubmitButton mutation={{ isPending, error }} form={form}>
+              <SubmitButton mutation={updateProfile} form={form}>
                 Save Changes
               </SubmitButton>
             </div>

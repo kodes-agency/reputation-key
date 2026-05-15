@@ -5,15 +5,7 @@ import { arrayMove } from '@dnd-kit/sortable'
 import { type DragEndEvent } from '@dnd-kit/core'
 import type { Action } from '#/components/hooks/use-action'
 import { getLogger } from '#/shared/observability/logger'
-
-type Category = { id: string; title: string; sortKey: string }
-type LinkItem = {
-  id: string
-  label: string
-  url: string
-  sortKey: string
-  categoryId: string
-}
+import type { LinkTreeCategory, LinkTreeLink } from './link-tree.types'
 
 type ReorderCategoriesVariables = {
   data: {
@@ -31,10 +23,18 @@ type ReorderLinksVariables = {
 }
 
 export function useLinkTreeReorder(
-  categories: Category[],
-  links: LinkItem[],
-  setCategories: (c: Category[] | ((prev: Category[]) => Category[])) => void,
-  setLinks: (l: LinkItem[] | ((prev: LinkItem[]) => LinkItem[])) => void,
+  categories: readonly LinkTreeCategory[],
+  links: readonly LinkTreeLink[],
+  setCategories: (
+    value:
+      | readonly LinkTreeCategory[]
+      | ((prev: readonly LinkTreeCategory[]) => readonly LinkTreeCategory[]),
+  ) => void,
+  setLinks: (
+    value:
+      | readonly LinkTreeLink[]
+      | ((prev: readonly LinkTreeLink[]) => readonly LinkTreeLink[]),
+  ) => void,
   reorderCategoriesMutation: Action<ReorderCategoriesVariables>,
   reorderLinksMutation: Action<ReorderLinksVariables>,
   portalId: string,
@@ -44,7 +44,7 @@ export function useLinkTreeReorder(
     if (!over || active.id === over.id) return
     const oldIndex = categories.findIndex((c) => c.id === active.id)
     const newIndex = categories.findIndex((c) => c.id === over.id)
-    const reordered = arrayMove(categories, oldIndex, newIndex)
+    const reordered = arrayMove([...categories], oldIndex, newIndex)
     setCategories(reordered)
     const updates: { id: string; sortKey: string }[] = []
     for (const cat of reordered) {
@@ -58,7 +58,10 @@ export function useLinkTreeReorder(
     }
   }
 
-  const handleReorderLinks = async (categoryId: string, reordered: LinkItem[]) => {
+  const handleReorderLinks = async (
+    categoryId: string,
+    reordered: readonly LinkTreeLink[],
+  ) => {
     const otherLinks = links.filter((l) => l.categoryId !== categoryId)
     const updates: { id: string; sortKey: string }[] = []
     for (const link of reordered) {

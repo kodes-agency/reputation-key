@@ -5,7 +5,7 @@ import {
   getActiveOrganization,
   listUserOrganizations,
 } from '#/contexts/identity/server/organizations'
-import { OrganizationSettingsPage } from '#/components/features/organization/organization-settings-page'
+import { OrganizationSettingsPage } from '#/components/features/organization'
 
 export const Route = createFileRoute('/_authenticated/settings/organization')({
   beforeLoad: ({ context }) => {
@@ -25,6 +25,8 @@ export const Route = createFileRoute('/_authenticated/settings/organization')({
       activeOrganizationId: orgResult.organization?.id ?? null,
     }
   },
+  // Organization settings rarely change — refetch only on explicit invalidation.
+  staleTime: 60_000,
   component: OrganizationSettingsRoute,
 })
 

@@ -10,12 +10,7 @@ import { buildMemberLookup, getAvailableMembers } from '#/lib/lookups'
 import { TeamEmptyState } from './team-empty-state'
 import { TeamHeader } from './team-header'
 import { MemberTable } from './member-table'
-
-interface AssignmentInTeam {
-  id: string
-  userId: string
-  teamId: string | null
-}
+import type { AssignmentInTeam } from '#/components/features/team/shared/types'
 
 type Props = Readonly<{
   teamId: string

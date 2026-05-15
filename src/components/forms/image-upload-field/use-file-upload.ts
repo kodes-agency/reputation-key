@@ -4,7 +4,7 @@ import { useState, useCallback } from 'react'
 import { toast } from 'sonner'
 
 type UseFileUploadOptions = Readonly<{
-  acceptedTypes: string[]
+  acceptedTypes: ReadonlyArray<string>
   maxFileSize: number
   onUpload: (file: File, onProgress: (percent: number) => void) => Promise<string>
   onImageUrlChange: (url: string | null) => void

@@ -12,6 +12,7 @@ import { BasicInfoSection } from './basic-info-section'
 import type { Action } from '#/components/hooks/use-action'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { updatePortalInputSchema } from '#/contexts/portal/application/dto/update-portal.dto'
+import type { PortalData, UpdatePortalVariables } from '../shared/types'
 
 const editFormSchema = updatePortalInputSchema
   .pick({ name: true, slug: true, description: true })
@@ -19,29 +20,6 @@ const editFormSchema = updatePortalInputSchema
   .extend({ description: z.string().max(500) })
 
 type FormValues = z.infer<typeof editFormSchema>
-
-type UpdatePortalVariables = {
-  data: {
-    portalId: string
-    name?: string
-    slug?: string
-    description?: string | null
-    theme?: { primaryColor: string }
-    smartRoutingEnabled?: boolean
-    smartRoutingThreshold?: number
-  }
-}
-
-type PortalData = Readonly<{
-  id: string
-  name: string
-  slug: string
-  description: string | null
-  theme: { primaryColor: string }
-  smartRoutingEnabled: boolean
-  smartRoutingThreshold: number
-  heroImageUrl: string | null
-}>
 
 type Props = Readonly<{
   portal: PortalData

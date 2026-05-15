@@ -1,6 +1,6 @@
 import { AlertCircle, CheckCircle2, Circle, Loader2, XCircle } from 'lucide-react'
 import { Badge } from '#/components/ui/badge'
-import type { GbpImportJobStatus } from '#/shared/domain'
+import type { GbpImportJobStatus } from '#/contexts/integration/application/public-api'
 
 type Props = Readonly<{
   status: GbpImportJobStatus

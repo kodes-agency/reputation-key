@@ -1,8 +1,6 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { useServerFn } from '@tanstack/react-start'
-import { useQuery } from '@tanstack/react-query'
 import { getImportStatus } from '#/contexts/integration/server/gbp-import'
-import { ImportProgress } from '#/components/features/integration'
+import { ImportProgress, useImportJobPolling } from '#/components/features/integration'
 import { ImportPageHeader } from './-import-page-header'
 
 export const Route = createFileRoute('/_authenticated/properties/import/$importId')({
@@ -17,28 +15,11 @@ export const Route = createFileRoute('/_authenticated/properties/import/$importI
 function ImportProgressPage() {
   const { importId } = Route.useParams()
   const initialData = Route.useLoaderData()
-  const getStatus = useServerFn(getImportStatus)
 
-  const { data: statusData } = useQuery({
-    queryKey: ['import-status', importId],
-    queryFn: async () => {
-      const result = await getStatus({ data: { importId } })
-      return result.job
-    },
-    initialData: initialData.job,
-    refetchInterval: (query) => {
-      const status = query.state.data?.status
-      return status === 'completed' ||
-        status === 'failed' ||
-        status === 'completed_with_skips' ||
-        status === 'completed_with_failures'
-        ? false
-        : 2000
-    },
-    staleTime: 0,
-  })
+  // Delegated to hook — stable interval, error cap, terminal detection
+  const { job, error } = useImportJobPolling(importId, initialData.job)
 
-  if (!statusData) {
+  if (!job) {
     return (
       <div className="mx-auto max-w-2xl space-y-6">
         <div className="flex flex-col items-center justify-center gap-4 py-12">
@@ -54,7 +35,12 @@ function ImportProgressPage() {
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <ImportPageHeader />
-      <ImportProgress job={statusData} />
+      <ImportProgress job={job} />
+      {error && (
+        <p className="text-sm text-destructive" role="alert">
+          Lost connection to server. Showing last known status.
+        </p>
+      )}
     </div>
   )
 }

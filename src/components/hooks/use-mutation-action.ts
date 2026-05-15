@@ -23,7 +23,6 @@ import { toast } from 'sonner'
 import { useAction, wrapAction } from './use-action'
 import type { Action } from './use-action'
 
-// fallow-ignore-next-line unused-type
 export interface MutationActionOptions<TOutput> {
   /** Message shown via toast.success on success. Defaults to 'Saved'. */
   successMessage?: string

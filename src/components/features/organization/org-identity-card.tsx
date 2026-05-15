@@ -1,6 +1,7 @@
 import { FieldGroup } from '#/components/ui/field'
 import { FormTextField } from '#/components/forms/form-text-field'
 import type { BaseFieldApi } from '#/components/forms/form-text-field'
+import type { FormWithField } from '#/components/forms/form-with-field'
 import { Alert, AlertDescription } from '#/components/ui/alert'
 import { AlertTriangle } from 'lucide-react'
 
@@ -15,15 +16,8 @@ type OrgIdentityFormValues = {
   billingCountry: string
 }
 
-type FormWithField = {
-  Field: React.FC<{
-    name: keyof OrgIdentityFormValues
-    children: (field: BaseFieldApi) => React.ReactNode
-  }>
-}
-
 type Props = Readonly<{
-  form: FormWithField
+  form: FormWithField<OrgIdentityFormValues>
   slugChanged: boolean
 }>
 

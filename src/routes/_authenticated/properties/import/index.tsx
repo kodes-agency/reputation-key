@@ -4,10 +4,13 @@ import {
   getGoogleAuthUrl,
   listGoogleConnections,
 } from '#/contexts/integration/server/google-connections'
+import { startPropertyImport } from '#/contexts/integration/server/gbp-import'
 import {
   ConnectGoogleButton,
   ImportConnectedView,
 } from '#/components/features/integration'
+import { useMutationActionSilent } from '#/components/hooks/use-mutation-action'
+import { useAction } from '#/components/hooks/use-action'
 import { ImportPageHeader } from './-import-page-header'
 
 export const Route = createFileRoute('/_authenticated/properties/import/')({
@@ -22,7 +25,11 @@ export const Route = createFileRoute('/_authenticated/properties/import/')({
 function ImportPage() {
   const search = useSearch({ strict: false }) as { connectionId?: string; error?: string }
   const { connections } = Route.useLoaderData()
-  const getAuthUrl = useServerFn(getGoogleAuthUrl)
+  const getAuthUrl = useAction(useServerFn(getGoogleAuthUrl))
+
+  const importAction = useMutationActionSilent(startPropertyImport, {
+    invalidateRoutes: ['/_authenticated'],
+  })
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -40,17 +47,17 @@ function ImportPage() {
         </div>
       )}
 
-      {[...connections].length === 0 ? (
+      {connections.length === 0 ? (
         <div className="flex flex-col items-center gap-4 rounded-lg border py-12">
           <p className="text-muted-foreground">No Google accounts connected yet.</p>
           <ConnectGoogleButton getAuthUrl={getAuthUrl} />
         </div>
       ) : (
         <ImportConnectedView
-          connections={
-            connections as unknown as Array<import('#/shared/domain').GoogleConnection>
-          }
+          connections={connections}
           initialConnectionId={search.connectionId}
+          getAuthUrl={getAuthUrl}
+          importAction={importAction}
         />
       )}
     </div>

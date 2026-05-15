@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, notFound } from '@tanstack/react-router'
 import { useEffect } from 'react'
 import {
   getPublicPortal,
@@ -10,7 +10,7 @@ import { PublicPortalContent } from '#/components/features/guest'
 import { CookieConsentBanner } from '#/components/features/guest'
 import type { PublicPortalLoaderData } from '#/contexts/guest/server/public'
 import { useServerFn } from '@tanstack/react-start'
-import { getLogger } from '#/shared/observability/logger'
+import { useAction } from '#/components/hooks/use-action'
 
 const VALID_SOURCES: ReadonlySet<string> = new Set(['qr', 'nfc', 'direct'])
 type ScanSource = 'qr' | 'nfc' | 'direct'
@@ -24,22 +24,22 @@ export const Route = createFileRoute('/p/$propertySlug/$portalSlug')({
     source: search.source,
   }),
   staleTime: 5 * 60 * 1000,
-  loader: async ({ params }): Promise<PublicPortalLoaderData | null> => {
-    try {
-      const portalData = await getPublicPortal({
-        data: {
-          propertySlug: params.propertySlug,
-          portalSlug: params.portalSlug,
-        },
-      })
-      return portalData
-    } catch (e) {
-      getLogger().error(
-        { err: e, propertySlug: params.propertySlug, portalSlug: params.portalSlug },
-        '[loader] /p/:propertySlug/:portalSlug — returning null',
-      )
-      return null
+  loader: async ({ params }): Promise<PublicPortalLoaderData> => {
+    const portalData = await getPublicPortal({
+      data: {
+        propertySlug: params.propertySlug,
+        portalSlug: params.portalSlug,
+      },
+    })
+
+    // getPublicPortal throws on server errors (500, network, etc.).
+    // A null return means the portal was not found — convert to notFound()
+    // so TanStack Router renders the notFoundComponent.
+    if (!portalData) {
+      throw notFound()
     }
+
+    return portalData
   },
   head: ({ loaderData }) => {
     if (!loaderData) return { meta: [{ title: 'Portal Not Found' }] }
@@ -52,6 +52,7 @@ export const Route = createFileRoute('/p/$propertySlug/$portalSlug')({
       ],
     }
   },
+  notFoundComponent: PortalUnavailable,
   component: PublicPortalPage,
 })
 
@@ -60,8 +61,8 @@ function PublicPortalPage() {
   const search = Route.useSearch()
   const source = parseSource(search.source ?? null)
 
-  const submitFeedback = useServerFn(submitFeedbackFn)
-  const submitRating = useServerFn(submitRatingFn)
+  const submitFeedback = useAction(useServerFn(submitFeedbackFn))
+  const submitRating = useAction(useServerFn(submitRatingFn))
 
   // Ensure guest session cookie exists for rating/feedback
   useEffect(() => {
@@ -70,10 +71,6 @@ function PublicPortalPage() {
       document.cookie = `guest_session=${sessionId}; path=/p/; max-age=86400; SameSite=Lax`
     }
   }, [])
-
-  if (!data) {
-    return <PortalUnavailable />
-  }
 
   const { portal, categories, links } = data
 

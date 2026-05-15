@@ -30,7 +30,6 @@ import {
 import { Shield } from 'lucide-react'
 import type { Action } from '#/components/hooks/use-action'
 
-// fallow-ignore-next-line unused-type
 export interface InvitationRow {
   id: string
   email: string

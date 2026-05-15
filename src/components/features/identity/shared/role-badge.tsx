@@ -1,22 +1,10 @@
 /**
- * Shared RoleBadge component and roleLabel helper.
- * Extracted from members.tsx and InviteMemberForm.tsx where they were duplicated.
+ * Shared RoleBadge component — uses unified roleLabel from role-utils.
  */
 
 import type { Role } from '#/shared/domain/roles'
 import { Badge } from '#/components/ui/badge'
-
-/** Convert a Role enum value to a human-readable label. */
-function roleLabel(role: Role): string {
-  switch (role) {
-    case 'AccountAdmin':
-      return 'Admin'
-    case 'PropertyManager':
-      return 'Manager'
-    case 'Staff':
-      return 'Staff'
-  }
-}
+import { roleLabel } from './role-utils'
 
 /** Render a role as a Badge with variant matching the role level. */
 export function RoleBadge({ role }: Readonly<{ role: Role }>) {

@@ -1,11 +1,11 @@
 // BullMQ worker factory — creates workers with default retry and logging.
 // Per architecture: "Default retry policy: exponential backoff, max 3 attempts."
 
-import { Worker } from 'bullmq'
-import type { Job } from 'bullmq'
-import { getRedis } from '#/shared/cache/redis'
+import { Worker, type Job } from 'bullmq'
+import { getEnv } from '#/shared/config/env'
 import { getLogger } from '#/shared/observability/logger'
 import type { JobHandler } from './registry'
+import { Redis } from 'ioredis'
 
 // fallow-ignore-next-line unused-type
 export type { Job }
@@ -14,20 +14,27 @@ export type { JobHandler }
 
 /**
  * Create a BullMQ worker for the given queue name.
+ * Uses a dedicated Redis connection with maxRetriesPerRequest=null
+ * (required by BullMQ for blocking BRPOPLPUSH operations).
  * Returns undefined if Redis is not configured (REDIS_URL missing).
- * Callers MUST check for undefined before using the worker.
  */
 export function createJobWorker<T>(
   name: string,
   handler: JobHandler<T>,
 ): Worker<T> | undefined {
-  const redis = getRedis()
-  if (!redis) return undefined
+  const env = getEnv()
+  if (!env.REDIS_URL) return undefined
 
   const logger = getLogger()
 
+  // BullMQ Worker requires maxRetriesPerRequest=null for blocking connections.
+  // Cannot share the caching Redis client which uses maxRetriesPerRequest=3.
+  const connection = new Redis(env.REDIS_URL, {
+    maxRetriesPerRequest: null,
+  })
+
   const worker = new Worker<T>(name, handler, {
-    connection: redis,
+    connection,
     settings: {
       backoffStrategy: (attemptsMade: number) => {
         // Exponential backoff: 1s, 2s, 4s, 8s...
