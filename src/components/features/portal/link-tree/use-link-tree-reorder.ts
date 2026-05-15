@@ -5,7 +5,7 @@ import { arrayMove } from '@dnd-kit/sortable'
 import { type DragEndEvent } from '@dnd-kit/core'
 import type { Action } from '#/components/hooks/use-action'
 import { getLogger } from '#/shared/observability/logger'
-import type { LinkTreeCategory, LinkTreeLink } from './link-tree.types'
+import type { LinkTreeCategory, LinkTreeLink } from './link-tree-types'
 
 type ReorderCategoriesVariables = {
   data: {

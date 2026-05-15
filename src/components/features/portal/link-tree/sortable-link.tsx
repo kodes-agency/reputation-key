@@ -16,7 +16,7 @@ import {
   AlertDialogTrigger,
 } from '#/components/ui/alert-dialog'
 import { usePermissions } from '#/shared/hooks/usePermissions'
-import type { LinkTreeLink } from './link-tree.types'
+import type { LinkTreeLink } from './link-tree-types'
 
 type Props = Readonly<{
   link: LinkTreeLink

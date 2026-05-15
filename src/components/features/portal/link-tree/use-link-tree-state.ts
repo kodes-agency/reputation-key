@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { useLinkTreeMutations } from './use-link-tree-mutations'
 import { useLinkTreeReorder } from './use-link-tree-reorder'
-import type { LinkTreeCategory, LinkTreeLink } from './link-tree.types'
+import type { LinkTreeCategory, LinkTreeLink } from './link-tree-types'
 
 export function useLinkTreeState(
   portalId: string,

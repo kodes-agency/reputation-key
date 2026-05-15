@@ -18,7 +18,7 @@ import { SortableCategory } from './sortable-category'
 import { LinkEditInlineForm } from './link-edit-inline-form'
 import { CategoryEditInlineForm } from './category-edit-inline-form'
 import { usePermissions } from '#/shared/hooks/usePermissions'
-import type { LinkTreeCategory, LinkTreeLink } from './link-tree.types'
+import type { LinkTreeCategory, LinkTreeLink } from './link-tree-types'
 
 type Props = Readonly<{
   categories: readonly LinkTreeCategory[]

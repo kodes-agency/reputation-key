@@ -17,7 +17,7 @@ import { Button } from '#/components/ui/button'
 import { SortableLink } from './sortable-link'
 import { DeleteCategoryDialog } from './delete-category-dialog'
 import { usePermissions } from '#/shared/hooks/usePermissions'
-import type { LinkTreeCategory, LinkTreeLink } from './link-tree.types'
+import type { LinkTreeCategory, LinkTreeLink } from './link-tree-types'
 
 type Props = Readonly<{
   category: LinkTreeCategory

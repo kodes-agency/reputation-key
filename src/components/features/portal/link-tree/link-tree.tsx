@@ -8,7 +8,7 @@ import { LinkTreeEmptyState } from './link-tree-empty-state'
 import { LinkTreeCategoryList } from './link-tree-category-list'
 import { useLinkTreeState } from './use-link-tree-state'
 import { usePermissions } from '#/shared/hooks/usePermissions'
-import type { LinkTreeCategory, LinkTreeLink } from './link-tree.types'
+import type { LinkTreeCategory, LinkTreeLink } from './link-tree-types'
 
 type Props = Readonly<{
   portalId: string

@@ -11,7 +11,7 @@ import { PortalPreviewPanel } from '../portal-preview/portal-preview-panel'
 import { usePreviewToggle } from '../portal-preview/use-preview-toggle'
 import type { Action } from '#/components/hooks/use-action'
 import type { PortalCategory, PortalLinkItem } from '#/components/features/guest'
-import type { LinkTreeCategory, LinkTreeLink } from '../link-tree/link-tree.types'
+import type { LinkTreeCategory, LinkTreeLink } from '../link-tree/link-tree-types'
 import type { FormLike, UpdatePortalVariables } from '../shared/types'
 
 type Props = Readonly<{
