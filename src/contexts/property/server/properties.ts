@@ -96,8 +96,8 @@ export const listProperties = createServerFn({ method: 'GET' }).handler(
 
       try {
         const { useCases } = getContainer()
-        const properties_list = await useCases.listProperties(ctx)
-        return { properties: properties_list }
+        const properties = await useCases.listProperties(ctx)
+        return { properties }
       } catch (e) {
         if (isPropertyError(e))
           throwContextError('PropertyError', e, propertyErrorStatus(e.code))

@@ -17,6 +17,7 @@ import {
 import { SortableCategory } from './sortable-category'
 import { LinkEditInlineForm } from './link-edit-inline-form'
 import { CategoryEditInlineForm } from './category-edit-inline-form'
+import { usePermissions } from '#/shared/hooks/usePermissions'
 
 type Category = { id: string; title: string; sortKey: string }
 type LinkItem = {
@@ -34,7 +35,6 @@ type Props = Readonly<{
   deletingLinkId: string | null
   editingCategory: string | null
   editingLink: string | null
-  canEdit: boolean
   onDragEnd: (event: DragEndEvent) => void
   onReorderLinks: (categoryId: string, reordered: LinkItem[]) => void
   onDeleteLink: (linkId: string) => void
@@ -57,7 +57,6 @@ export function LinkTreeCategoryList({
   deletingLinkId,
   editingCategory,
   editingLink,
-  canEdit,
   onDragEnd,
   onReorderLinks,
   onDeleteLink,
@@ -72,6 +71,9 @@ export function LinkTreeCategoryList({
   updateCategoryError,
   updateLinkError,
 }: Props) {
+  const { can } = usePermissions()
+  const canEdit = can('portal.update')
+
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
@@ -118,7 +120,6 @@ export function LinkTreeCategoryList({
                     onEditCategory(null)
                   }}
                   onReorderLinks={onReorderLinks}
-                  canEdit={canEdit}
                 />
               )}
               {editingLink &&

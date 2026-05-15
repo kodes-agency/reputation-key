@@ -1,12 +1,23 @@
-// Integration context — GBP API error class
+// Integration context — GBP API error type
+// Tagged union instead of class — per project convention: no class, use tagged discriminated unions.
 // Carries the HTTP status code so callers can make decisions without string parsing.
 
-export class GbpApiError extends Error {
-  readonly status: number
+export type GbpApiError = Readonly<{
+  _tag: 'GbpApiError'
+  operation: string
+  status: number
+  body: string
+  message: string
+}>
 
-  constructor(operation: string, status: number, body: string) {
-    super(`GBP API ${operation} failed: ${status} ${body}`)
-    this.name = 'GbpApiError'
-    this.status = status
-  }
-}
+export const createGbpApiError = (
+  operation: string,
+  status: number,
+  body: string,
+): GbpApiError => ({
+  _tag: 'GbpApiError',
+  operation,
+  status,
+  body,
+  message: `GBP API ${operation} failed: ${status} ${body}`,
+})

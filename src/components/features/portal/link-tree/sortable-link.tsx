@@ -15,6 +15,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '#/components/ui/alert-dialog'
+import { usePermissions } from '#/shared/hooks/usePermissions'
 
 type LinkItem = {
   id: string
@@ -26,13 +27,14 @@ type LinkItem = {
 
 type Props = Readonly<{
   link: LinkItem
-  canEdit: boolean
   isDeleting?: boolean
   onDelete: (linkId: string) => void
   onEdit: (link: LinkItem) => void
 }>
 
-export function SortableLink({ link, canEdit, isDeleting, onDelete, onEdit }: Props) {
+export function SortableLink({ link, isDeleting, onDelete, onEdit }: Props) {
+  const { can } = usePermissions()
+  const canEdit = can('portal.update')
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({
     id: link.id,
     disabled: !canEdit,

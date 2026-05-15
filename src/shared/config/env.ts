@@ -35,8 +35,11 @@ const envSchema = z.object({
   SENTRY_DSN: z.string().optional(),
   SENTRY_TRACES_SAMPLE_RATE: z.coerce.number().min(0).max(1).default(0.1),
 
-  // Guest sessions
-  GUEST_SESSION_SALT: z.string().min(16).default('default-salt-change-in-production'),
+  // Guest sessions — required in production, dev-only default for convenience
+  GUEST_SESSION_SALT:
+    process.env.NODE_ENV === 'production'
+      ? z.string().min(16)
+      : z.string().min(16).default('dev-only-salt-not-for-production'),
 
   // Google OAuth
   GOOGLE_CLIENT_ID: z.string().min(1),

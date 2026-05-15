@@ -114,10 +114,6 @@ export function CreatePortalForm({ propertyId, mutation, onPreviewChange }: Prop
       <SubmitButton mutation={mutation} form={form}>
         Create Portal
       </SubmitButton>
-
-      <SubmitButton mutation={mutation} form={form}>
-        Create Portal
-      </SubmitButton>
     </form>
   )
 }

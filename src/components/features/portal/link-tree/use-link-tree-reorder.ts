@@ -4,6 +4,7 @@ import { generateKeyBetween } from 'fractional-indexing'
 import { arrayMove } from '@dnd-kit/sortable'
 import { type DragEndEvent } from '@dnd-kit/core'
 import type { Action } from '#/components/hooks/use-action'
+import { getLogger } from '#/shared/observability/logger'
 
 type Category = { id: string; title: string; sortKey: string }
 type LinkItem = {
@@ -53,7 +54,7 @@ export function useLinkTreeReorder(
     try {
       await reorderCategoriesMutation({ data: { portalId, items: updates } })
     } catch {
-      console.error('Failed to reorder categories')
+      getLogger().error('Failed to reorder categories')
     }
   }
 
@@ -73,7 +74,7 @@ export function useLinkTreeReorder(
         data: { portalId, categoryId, items: updates },
       })
     } catch {
-      console.error('Failed to reorder links')
+      getLogger().error('Failed to reorder links')
     }
   }
 
