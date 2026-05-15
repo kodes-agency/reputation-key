@@ -6,26 +6,6 @@
 import type { Role } from '#/shared/domain/roles'
 import { can } from '#/shared/domain/permissions'
 import { RoleBadge } from '#/components/features/identity/shared/role-badge'
-import { Button } from '#/components/ui/button'
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '#/components/ui/select'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '#/components/ui/alert-dialog'
 import {
   Table,
   TableBody,
@@ -37,6 +17,8 @@ import {
 import type { Action } from '#/components/hooks/use-action'
 import { EmptyState } from '#/components/ui/empty-state'
 import { Contact } from 'lucide-react'
+import { RemoveMemberDialog } from './remove-member-dialog'
+import { RoleSelect } from './role-select'
 
 // fallow-ignore-next-line unused-type
 export interface MemberRow {
@@ -98,69 +80,30 @@ export function MemberTable({
             <TableCell className="text-muted-foreground">{member.email}</TableCell>
             <TableCell>
               {canChangeRoles && member.userId !== currentUserId ? (
-                <Select
-                  value={member.role}
-                  onValueChange={(newRole) =>
+                <RoleSelect
+                  role={member.role}
+                  onRoleChange={(newRole) =>
                     updateRoleAction({
                       data: {
                         memberId: member.id,
-                        role: newRole as 'AccountAdmin' | 'PropertyManager' | 'Staff',
+                        role: newRole,
                       },
                     })
                   }
-                  disabled={updateRoleAction.isPending}
-                >
-                  <SelectTrigger className="w-[160px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      <SelectItem value="AccountAdmin">Account Admin</SelectItem>
-                      <SelectItem value="PropertyManager">Property Manager</SelectItem>
-                      <SelectItem value="Staff">Staff</SelectItem>
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
+                  isPending={updateRoleAction.isPending}
+                />
               ) : (
                 <RoleBadge role={member.role} />
               )}
             </TableCell>
             <TableCell className="text-right">
               {canRemove && member.userId !== currentUserId && (
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="text-destructive hover:text-destructive"
-                    >
-                      Remove
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Remove {member.name}?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This will remove {member.name} ({member.email}) from your
-                        organization. They will lose access to all properties and teams.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction
-                        onClick={() =>
-                          removeMemberAction({
-                            data: { memberId: member.id },
-                          })
-                        }
-                        disabled={removeMemberAction.isPending}
-                        className="bg-destructive text-white hover:bg-destructive/90"
-                      >
-                        {removeMemberAction.isPending ? 'Removing…' : 'Remove member'}
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
+                <RemoveMemberDialog
+                  memberName={member.name}
+                  memberEmail={member.email}
+                  onRemove={() => removeMemberAction({ data: { memberId: member.id } })}
+                  isPending={removeMemberAction.isPending}
+                />
               )}
             </TableCell>
           </TableRow>

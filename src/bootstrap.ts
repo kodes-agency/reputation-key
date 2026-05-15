@@ -11,6 +11,7 @@ import { isDbHealthy } from '#/shared/db'
 import { isRedisHealthy } from '#/shared/cache/redis'
 import { getLogger } from '#/shared/observability/logger'
 import { createProcessImageJob } from '#/contexts/portal/infrastructure/jobs/process-image.job'
+import { importPropertyHandler } from '#/contexts/integration/infrastructure/jobs/import-property.job'
 
 export function bootstrap(container: Container): void {
   const logger = getLogger()
@@ -43,6 +44,16 @@ export function bootstrap(container: Container): void {
     )
   })
   logger.info({ job: 'process-image' }, 'registered process-image job handler')
+
+  // ── GBP property import job ─────────────────────────────────────
+  container.jobRegistry.register('import-property', async (job) => {
+    await importPropertyHandler(
+      job as import('bullmq').Job<
+        import('#/contexts/integration/infrastructure/jobs/import-property.job').ImportPropertyJobData
+      >,
+    )
+  })
+  logger.info({ job: 'import-property' }, 'registered import-property job handler')
 
   // ── Register event handlers here as contexts are added ────────────
   // Example:

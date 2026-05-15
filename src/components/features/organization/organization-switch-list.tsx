@@ -1,20 +1,20 @@
-import { useNavigate } from '@tanstack/react-router'
 import { Check } from 'lucide-react'
-import { useAction } from '#/components/hooks/use-action'
-import { useServerFn } from '@tanstack/react-start'
-import { setActiveOrganization } from '#/contexts/identity/server/organizations'
 
 type Org = Readonly<{ id: string; name: string }>
 
 type Props = Readonly<{
   organizations: ReadonlyArray<Org>
   activeOrganizationId: string | null
+  onSwitch: (orgId: string) => Promise<void>
+  isPending?: boolean
 }>
 
-export function OrganizationSwitchList({ organizations, activeOrganizationId }: Props) {
-  const navigate = useNavigate()
-  const switchOrg = useAction(useServerFn(setActiveOrganization))
-
+export function OrganizationSwitchList({
+  organizations,
+  activeOrganizationId,
+  onSwitch,
+  isPending,
+}: Props) {
   if (organizations.length <= 1) return null
 
   return (
@@ -32,11 +32,9 @@ export function OrganizationSwitchList({ organizations, activeOrganizationId }: 
             <button
               key={org.id}
               type="button"
-              disabled={isActive || switchOrg.isPending}
+              disabled={isActive || isPending}
               onClick={() => {
-                switchOrg({ data: { organizationId: org.id } })
-                  .then(() => navigate({ to: '/properties' }))
-                  .catch(() => {})
+                onSwitch(org.id).catch(() => {})
               }}
               className={
                 'flex w-full items-center justify-between px-4 py-3 text-left text-sm transition-colors hover:bg-accent' +

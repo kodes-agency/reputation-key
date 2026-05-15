@@ -1,5 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { z } from 'zod'
 import { useState } from 'react'
+import { useNavigate } from '@tanstack/react-router'
 import {
   listStaffAssignments,
   createStaffAssignment,
@@ -50,7 +52,12 @@ import {
 } from '#/components/ui/alert-dialog'
 import { EmptyState } from '#/components/ui/empty-state'
 
+const peopleSearchSchema = z.object({
+  tab: z.string().optional(),
+})
+
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/people')({
+  validateSearch: (search) => peopleSearchSchema.parse(search),
   staleTime: 30_000,
   loader: async ({ params: { propertyId } }) => {
     const [{ assignments }, { members }, { teams }] = await Promise.all([
@@ -66,10 +73,12 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/peo
 function PeoplePage() {
   const { propertyId } = Route.useParams()
   const { assignments, members, teams } = Route.useLoaderData()
+  const { tab } = Route.useSearch()
+  const defaultTab = tab ?? 'staff'
   const { can } = usePermissions()
-  const [tab, setTab] = useState('staff')
   const [assignOpen, setAssignOpen] = useState(false)
   const [createTeamOpen, setCreateTeamOpen] = useState(false)
+  const navigate = useNavigate()
 
   const memberOptions = toMemberOptions(members)
   const teamOptions = toTeamOptions(teams)
@@ -98,7 +107,10 @@ function PeoplePage() {
         </p>
       </div>
 
-      <Tabs value={tab} onValueChange={setTab}>
+      <Tabs
+        value={defaultTab}
+        onValueChange={(t) => navigate({ to: '.', search: { tab: t } })}
+      >
         <TabsList>
           <TabsTrigger value="staff">Staff</TabsTrigger>
           <TabsTrigger value="teams">Teams</TabsTrigger>

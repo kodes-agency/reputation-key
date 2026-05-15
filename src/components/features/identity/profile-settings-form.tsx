@@ -1,9 +1,5 @@
-// Profile settings form — edit name, email (read-only), and avatar
-// Per conventions: receives user data, uses TanStack Form + Zod schema.
-// Avatar upload uses dedicated avatar server functions with user-scoped S3 keys.
 import { useForm } from '@tanstack/react-form'
 import { useState } from 'react'
-import { useServerFn } from '@tanstack/react-start'
 import { z } from 'zod/v4'
 import { putFilePresigned } from '#/components/forms/image-upload-field/put-file-presigned'
 import { Field, FieldLabel } from '#/components/ui/field'
@@ -18,16 +14,10 @@ import {
   CardTitle,
   CardDescription,
 } from '#/components/ui/card'
-import { ImageUploadField } from '#/components/forms/image-upload-field'
 import type { BaseFieldApi } from '#/components/forms/form-text-field'
 import { authClient } from '#/shared/auth/auth-client'
 import { toast } from 'sonner'
-import {
-  requestAvatarUpload,
-  finalizeAvatarUpload,
-} from '#/contexts/identity/server/organizations'
-
-// ── Schema ──────────────────────────────────────────────────────────
+import { AvatarCard } from './avatar-card'
 
 const profileSchema = z.object({
   name: z
@@ -38,25 +28,28 @@ const profileSchema = z.object({
 
 type FormValues = z.infer<typeof profileSchema>
 
-// ── Props ───────────────────────────────────────────────────────────
-
 export type Props = Readonly<{
   user: {
     name: string
     email: string
     image: string | null
   }
+  requestAvatarUpload: (data: {
+    data: { contentType: string; fileSize: number }
+  }) => Promise<{ uploadUrl: string; key: string }>
+  finalizeAvatarUpload: (data: { data: { key: string } }) => Promise<{
+    avatarUrl: string
+  }>
 }>
 
-// ── Component ───────────────────────────────────────────────────────
-
-export function ProfileSettingsForm({ user }: Props) {
+export function ProfileSettingsForm({
+  user,
+  requestAvatarUpload,
+  finalizeAvatarUpload,
+}: Props) {
   const [isPending, setIsPending] = useState(false)
   const [error, setError] = useState<unknown>(null)
   const [avatarUrl, setAvatarUrl] = useState<string | null>(user.image)
-
-  const requestUpload = useServerFn(requestAvatarUpload)
-  const finalizeUpload = useServerFn(finalizeAvatarUpload)
 
   const form = useForm({
     defaultValues: {
@@ -82,13 +75,12 @@ export function ProfileSettingsForm({ user }: Props) {
     file: File,
     onProgress: (percent: number) => void,
   ): Promise<string> {
-    const { uploadUrl, key } = await requestUpload({
+    const { uploadUrl, key } = await requestAvatarUpload({
       data: { contentType: file.type, fileSize: file.size },
     })
     await putFilePresigned(uploadUrl, file, onProgress)
-    const result = await finalizeUpload({ data: { key } })
+    const result = await finalizeAvatarUpload({ data: { key } })
 
-    // Persist avatar URL via better-auth
     await authClient.updateUser({ image: result.avatarUrl })
     toast.success('Avatar updated successfully')
     return result.avatarUrl
@@ -98,25 +90,12 @@ export function ProfileSettingsForm({ user }: Props) {
     <div className="space-y-6">
       <FormErrorBanner error={error} />
 
-      {/* Avatar card */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Avatar</CardTitle>
-          <CardDescription>
-            Upload a profile image. JPG, PNG, WebP, and GIF up to 5MB.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ImageUploadField
-            imageUrl={avatarUrl}
-            onImageUrlChange={setAvatarUrl}
-            onUpload={handleAvatarUpload}
-            variant="circle"
-            maxFileSize={5 * 1024 * 1024}
-            disabled={isPending}
-          />
-        </CardContent>
-      </Card>
+      <AvatarCard
+        avatarUrl={avatarUrl}
+        onAvatarUrlChange={setAvatarUrl}
+        onUpload={handleAvatarUpload}
+        disabled={isPending}
+      />
 
       {/* Profile information card */}
       <Card>

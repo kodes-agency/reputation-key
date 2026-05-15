@@ -6,18 +6,10 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from '@tanstack/react-router'
 import { useAction } from '#/components/hooks/use-action'
-import { Button } from '#/components/ui/button'
-import { Card } from '#/components/ui/card'
 import { Skeleton } from '#/components/ui/skeleton'
 import { AuthCard, AuthFooterLink, ErrorBanner } from '#/components/layout/auth-layout'
 import { Link } from '@tanstack/react-router'
-
-type PendingInvitation = Readonly<{
-  id: string
-  organizationName: string
-  role: string
-  expiresAt: Date
-}>
+import { InvitationListView } from './invitation-list-view'
 
 // ── Sub-views ──────────────────────────────────────────────────────────
 
@@ -55,61 +47,14 @@ function AutoAcceptView({
   )
 }
 
-function InvitationListView({
-  invitations,
-  loading,
-  error,
-  onAccept,
-  accepting,
-}: Readonly<{
-  invitations: PendingInvitation[]
-  loading: boolean
-  error: string | null
-  onAccept: (id: string) => void
-  accepting: boolean
-}>) {
-  return (
-    <AuthCard
-      title="Pending invitations"
-      description="You have pending invitations to join organizations"
-    >
-      {error && <ErrorBanner message={error} />}
-
-      {loading ? (
-        <div className="flex flex-col gap-3">
-          <Skeleton className="h-16 w-full" />
-          <Skeleton className="h-16 w-full" />
-        </div>
-      ) : invitations.length === 0 ? (
-        <p className="text-center text-sm text-muted-foreground">
-          No pending invitations.
-        </p>
-      ) : (
-        <div className="flex flex-col gap-3">
-          {invitations.map((inv) => (
-            <Card key={inv.id}>
-              <div className="flex items-center justify-between p-4">
-                <div>
-                  <p className="font-medium">{inv.organizationName}</p>
-                  <p className="text-sm text-muted-foreground">Role: {inv.role}</p>
-                </div>
-                <div className="flex gap-2">
-                  <Button size="sm" onClick={() => onAccept(inv.id)} disabled={accepting}>
-                    Accept
-                  </Button>
-                </div>
-              </div>
-            </Card>
-          ))}
-        </div>
-      )}
-
-      <AuthFooterLink message="" linkText="Back to dashboard" to="/dashboard" />
-    </AuthCard>
-  )
-}
-
 // ── Main page component ────────────────────────────────────────────────
+
+type PendingInvitation = Readonly<{
+  id: string
+  organizationName: string
+  role: string
+  expiresAt: Date
+}>
 
 type Props = Readonly<{
   invitationId?: string
@@ -156,12 +101,15 @@ export function AcceptInvitationPage({
   if (invitationId) return <AutoAcceptView error={autoAcceptError} loading={accepting} />
 
   return (
-    <InvitationListView
-      invitations={invitations}
-      loading={false}
-      error={accept.error ? 'Failed to accept invitation' : null}
-      onAccept={handleAccept}
-      accepting={accepting}
-    />
+    <>
+      <InvitationListView
+        invitations={invitations}
+        loading={false}
+        error={accept.error ? 'Failed to accept invitation' : null}
+        onAccept={handleAccept}
+        accepting={accepting}
+      />
+      <AuthFooterLink message="" linkText="Back to dashboard" to="/dashboard" />
+    </>
   )
 }

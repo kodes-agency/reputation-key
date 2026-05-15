@@ -7,15 +7,13 @@
 
 import { useForm } from '@tanstack/react-form'
 import { z } from 'zod/v4'
-import { FieldGroup } from '#/components/ui/field'
 import { SubmitButton } from '#/components/forms/submit-button'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
-import { FormTextField } from '#/components/forms/form-text-field'
-import type { BaseFieldApi } from '#/components/forms/form-text-field'
 import {
   registerUserInputSchema,
   registerMemberInputSchema,
 } from '#/contexts/identity/application/dto/invitation.dto'
+import { RegisterFormFields } from './register-form-fields'
 // MutateAsync uses `unknown` so specific mutation types are compatible via structural typing.
 
 // ── Schemas ──────────────────────────────────────────────────────────
@@ -93,72 +91,7 @@ export function RegisterForm({ mode, mutation }: Props) {
     >
       <FormErrorBanner error={mutation.error} />
 
-      <FieldGroup>
-        <form.Field name="name">
-          {(field: BaseFieldApi) => (
-            <FormTextField
-              field={field}
-              label="Full name"
-              id={`${mode}-name`}
-              placeholder="John Doe"
-              autoComplete="name"
-            />
-          )}
-        </form.Field>
-
-        <form.Field name="email">
-          {(field: BaseFieldApi) => (
-            <FormTextField
-              field={field}
-              label="Email"
-              id={`${mode}-email`}
-              type="email"
-              placeholder="you@example.com"
-              autoComplete="email"
-            />
-          )}
-        </form.Field>
-
-        {!isJoinMode && (
-          <form.Field name="organizationName">
-            {(field: BaseFieldApi) => (
-              <FormTextField
-                field={field}
-                label="Organization name"
-                id="organization-name"
-                placeholder="My Business"
-                autoComplete="organization"
-              />
-            )}
-          </form.Field>
-        )}
-
-        <form.Field name="password">
-          {(field: BaseFieldApi) => (
-            <FormTextField
-              field={field}
-              label="Password"
-              id={`${mode}-password`}
-              type="password"
-              placeholder="At least 8 characters"
-              autoComplete="new-password"
-            />
-          )}
-        </form.Field>
-
-        <form.Field name="confirmPassword">
-          {(field: BaseFieldApi) => (
-            <FormTextField
-              field={field}
-              label="Confirm password"
-              id={`${mode}-confirm-password`}
-              type="password"
-              placeholder="Repeat your password"
-              autoComplete="new-password"
-            />
-          )}
-        </form.Field>
-      </FieldGroup>
+      <RegisterFormFields form={form} mode={mode} />
 
       <SubmitButton mutation={mutation} form={form} className="w-full">
         {isJoinMode ? 'Create account' : 'Create account & organization'}

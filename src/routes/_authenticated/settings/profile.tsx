@@ -1,4 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { useServerFn } from '@tanstack/react-start'
+import {
+  requestAvatarUpload,
+  finalizeAvatarUpload,
+} from '#/contexts/identity/server/organizations'
 import { ProfileSettingsPage } from '#/components/features/identity/profile-settings-page'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 
@@ -8,6 +13,9 @@ export const Route = createFileRoute('/_authenticated/settings/profile')({
 
 function ProfileSettings() {
   const ctx = Route.useRouteContext() as AuthRouteContext
+  const requestUpload = useServerFn(requestAvatarUpload)
+  const finalizeUpload = useServerFn(finalizeAvatarUpload)
+
   return (
     <>
       <h1 className="text-xl font-semibold tracking-tight">Profile</h1>
@@ -15,7 +23,11 @@ function ProfileSettings() {
         Manage your name, email, and avatar.
       </p>
       <div className="mt-6">
-        <ProfileSettingsPage user={ctx.user} />
+        <ProfileSettingsPage
+          user={ctx.user}
+          requestAvatarUpload={requestUpload}
+          finalizeAvatarUpload={finalizeUpload}
+        />
       </div>
     </>
   )

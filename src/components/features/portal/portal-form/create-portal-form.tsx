@@ -5,16 +5,11 @@
 import { useForm } from '@tanstack/react-form'
 import { useEffect, useRef, useState } from 'react'
 import { z } from 'zod/v4'
-import { FieldGroup } from '#/components/ui/field'
 import { SubmitButton } from '#/components/forms/submit-button'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
-import { FormTextField } from '#/components/forms/form-text-field'
-import { FormTextarea } from '#/components/forms/form-textarea'
-import type { BaseFieldApi } from '#/components/forms/form-text-field'
-import type { BaseFieldApiTextarea } from '#/components/forms/form-textarea'
 import type { Action } from '#/components/hooks/use-action'
-import { ThemePresetSelector } from '../portal-settings/theme-preset-selector'
 import { createPortalInputSchema } from '#/contexts/portal/application/dto/create-portal.dto'
+import { PortalNameSlugGroup } from './portal-name-slug-group'
 
 const createFormSchema = createPortalInputSchema
   .pick({ name: true, slug: true, description: true })
@@ -114,53 +109,11 @@ export function CreatePortalForm({ propertyId, mutation, onPreviewChange }: Prop
     >
       <FormErrorBanner error={mutation.error} />
 
-      <FieldGroup>
-        <form.Field name="name">
-          {(field: BaseFieldApi) => (
-            <FormTextField
-              field={field}
-              label="Name"
-              id="portal-name"
-              placeholder="My Portal"
-            />
-          )}
-        </form.Field>
+      <PortalNameSlugGroup form={form} />
 
-        <form.Field name="slug">
-          {(field: BaseFieldApi) => (
-            <FormTextField
-              field={field}
-              label="Slug (optional)"
-              id="portal-slug"
-              placeholder="auto-generated from name"
-            />
-          )}
-        </form.Field>
-
-        <form.Field name="description">
-          {(field: BaseFieldApiTextarea) => (
-            <FormTextarea
-              field={field}
-              label="Description (optional)"
-              id="portal-description"
-              placeholder="A short description of this portal"
-              rows={3}
-            />
-          )}
-        </form.Field>
-
-        <form.Field name="primaryColor">
-          {(field) => (
-            <div className="space-y-2">
-              <h3 className="font-semibold">Theme</h3>
-              <ThemePresetSelector
-                primaryColor={field.state.value}
-                onPrimaryColorChange={(color) => field.handleChange(color)}
-              />
-            </div>
-          )}
-        </form.Field>
-      </FieldGroup>
+      <SubmitButton mutation={mutation} form={form}>
+        Create Portal
+      </SubmitButton>
 
       <SubmitButton mutation={mutation} form={form}>
         Create Portal

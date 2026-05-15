@@ -84,6 +84,18 @@ export type {
   ReviewLinkClicked,
 } from '#/contexts/guest/domain/events'
 
+// Integration context events
+export type {
+  // fallow-ignore-next-line unused-type
+  IntegrationEvent,
+  // fallow-ignore-next-line unused-type
+  GoogleAccountConnected,
+  // fallow-ignore-next-line unused-type
+  GoogleAccountDisconnected,
+  // fallow-ignore-next-line unused-type
+  PropertyImportCompleted,
+} from '#/contexts/integration/domain/events'
+
 // Master union — adding a new context's events requires extending this.
 // This ensures ts-pattern exhaustive checks catch new event types.
 import type { IdentityEvent } from '#/contexts/identity/domain/events'
@@ -92,6 +104,7 @@ import type { TeamEvent } from '#/contexts/team/domain/events'
 import type { StaffEvent } from '#/contexts/staff/domain/events'
 import type { PortalEvent } from '#/contexts/portal/domain/events'
 import type { GuestEvent } from '#/contexts/guest/domain/events'
+import type { IntegrationEvent } from '#/contexts/integration/domain/events'
 
 export type DomainEvent =
   | IdentityEvent
@@ -100,3 +113,4 @@ export type DomainEvent =
   | StaffEvent
   | PortalEvent
   | GuestEvent
+  | IntegrationEvent

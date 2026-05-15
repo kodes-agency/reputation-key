@@ -40,7 +40,7 @@ function DashboardPage() {
           reputation.
         </p>
         <Button asChild>
-          <Link to="/properties/new">
+          <Link to="/properties/import">
             <Plus />
             Create Property
           </Link>
@@ -63,7 +63,7 @@ function DashboardPage() {
         </div>
         {can('property.create') && (
           <Button asChild>
-            <Link to="/properties/new">
+            <Link to="/properties/import">
               <Plus />
               Add Property
             </Link>

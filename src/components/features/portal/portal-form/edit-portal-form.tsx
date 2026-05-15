@@ -5,20 +5,13 @@
 import { useForm } from '@tanstack/react-form'
 import { z } from 'zod/v4'
 import { useState } from 'react'
-import { FieldGroup } from '#/components/ui/field'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
-import { FormTextField } from '#/components/forms/form-text-field'
-import { FormTextarea } from '#/components/forms/form-textarea'
-import { ImageUploadField } from '#/components/forms/image-upload-field'
 import { putFilePresigned } from '#/components/forms/image-upload-field/put-file-presigned'
-import type { BaseFieldApi } from '#/components/forms/form-text-field'
-import type { BaseFieldApiTextarea } from '#/components/forms/form-textarea'
+import { HeroImageSection } from './hero-image-section'
+import { BasicInfoSection } from './basic-info-section'
 import type { Action } from '#/components/hooks/use-action'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { updatePortalInputSchema } from '#/contexts/portal/application/dto/update-portal.dto'
-
-const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp']
-const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
 
 const editFormSchema = updatePortalInputSchema
   .pick({ name: true, slug: true, description: true })
@@ -110,58 +103,23 @@ export function EditPortalForm({
     >
       <FormErrorBanner error={mutation.error} />
 
-      {/* Hero image */}
-      <div className="flex flex-col gap-4">
-        <h3 className="font-semibold">Hero Image</h3>
-        <ImageUploadField
-          imageUrl={heroImageUrl}
-          onImageUrlChange={setHeroImageUrl}
-          onUpload={async (file, onProgress) => {
-            const { uploadUrl, key } = await requestUploadUrl({
-              data: { portalId: portal.id, contentType: file.type, fileSize: file.size },
-            })
-            await putFilePresigned(uploadUrl, file, onProgress)
-            const { heroImageUrl: url } = await finalizeUpload({
-              data: { portalId: portal.id, key },
-            })
-            return url
-          }}
-          disabled={!can('portal.update')}
-          variant="rect"
-          acceptedTypes={ACCEPTED_TYPES}
-          maxFileSize={MAX_FILE_SIZE}
-          emptyLabel="Upload hero image"
-        />
-      </div>
+      <HeroImageSection
+        heroImageUrl={heroImageUrl}
+        onImageUrlChange={setHeroImageUrl}
+        onUpload={async (file, onProgress) => {
+          const { uploadUrl, key } = await requestUploadUrl({
+            data: { portalId: portal.id, contentType: file.type, fileSize: file.size },
+          })
+          await putFilePresigned(uploadUrl, file, onProgress)
+          const { heroImageUrl: url } = await finalizeUpload({
+            data: { portalId: portal.id, key },
+          })
+          return url
+        }}
+        disabled={!can('portal.update')}
+      />
 
-      {/* Basic info */}
-      <div className="flex flex-col gap-4">
-        <h3 className="font-semibold">Basic Info</h3>
-        <FieldGroup>
-          <form.Field name="name">
-            {(field: BaseFieldApi) => (
-              <FormTextField
-                field={field}
-                label="Name"
-                id="edit-portal-name"
-                disabled={!can('portal.update')}
-              />
-            )}
-          </form.Field>
-
-          <form.Field name="description">
-            {(field: BaseFieldApiTextarea) => (
-              <FormTextarea
-                field={field}
-                label="Description"
-                id="edit-portal-description"
-                rows={3}
-                disabled={!can('portal.update')}
-              />
-            )}
-          </form.Field>
-        </FieldGroup>
-      </div>
+      <BasicInfoSection form={form} disabled={!can('portal.update')} />
     </form>
   )
 }

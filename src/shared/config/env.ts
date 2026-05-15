@@ -37,6 +37,22 @@ const envSchema = z.object({
 
   // Guest sessions
   GUEST_SESSION_SALT: z.string().min(16).default('default-salt-change-in-production'),
+
+  // Google OAuth
+  GOOGLE_CLIENT_ID: z.string().min(1),
+  GOOGLE_CLIENT_SECRET: z.string().min(1),
+
+  // Token encryption (32-byte hex key for AES-256-GCM)
+  ENCRYPTION_KEY: z
+    .string()
+    .length(64)
+    .regex(/^[a-f0-9]{64}$/, 'Must be 64 hex characters (32 bytes)'),
+
+  // OAuth state signing secret — dedicated key, independent of ENCRYPTION_KEY
+  OAUTH_STATE_SECRET: z
+    .string()
+    .min(32)
+    .regex(/^[a-f0-9]+$/, 'Must be hex characters'),
 })
 
 // fallow-ignore-next-line unused-type

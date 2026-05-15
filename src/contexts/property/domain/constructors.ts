@@ -22,6 +22,7 @@ export type BuildPropertyInput = Readonly<{
   providedSlug?: string
   timezone: string
   gbpPlaceId?: string | null
+  googleConnectionId?: string | null
   now: Date
 }>
 
@@ -40,6 +41,7 @@ export const buildProperty = (
       slug: validSlug,
       timezone: validTz,
       gbpPlaceId: input.gbpPlaceId ?? null,
+      googleConnectionId: input.googleConnectionId ?? null,
       createdAt: input.now,
       updatedAt: input.now,
       deletedAt: null,

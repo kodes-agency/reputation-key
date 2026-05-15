@@ -7,27 +7,9 @@ import { useState } from 'react'
 import type { Action } from '#/components/hooks/use-action'
 import type { MemberLike } from '#/lib/lookups'
 import { buildMemberLookup, getAvailableMembers } from '#/lib/lookups'
-import { Button } from '#/components/ui/button'
-import { Checkbox } from '#/components/ui/checkbox'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '#/components/ui/table'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '#/components/ui/dialog'
-import { FormErrorBanner } from '#/components/forms/form-error-banner'
-import { UserPlus } from 'lucide-react'
+import { TeamEmptyState } from './team-empty-state'
+import { TeamHeader } from './team-header'
+import { MemberTable } from './member-table'
 
 interface AssignmentInTeam {
   id: string
@@ -108,136 +90,35 @@ export function TeamMemberList({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-sm font-medium">
-            {assignments.length} {assignments.length === 1 ? 'member' : 'members'}
-          </h2>
-        </div>
-        {available.length > 0 && (
-          <Dialog open={addOpen} onOpenChange={handleOpenChange}>
-            <DialogTrigger asChild>
-              <Button size="sm" variant="outline">
-                <UserPlus />
-                Add Members
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add team members</DialogTitle>
-                <DialogDescription>
-                  Select people from your organization to add to this team.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-3">
-                {available.length > 1 && (
-                  <div className="flex items-center gap-2 border-b pb-2">
-                    <Checkbox
-                      checked={selectedIds.size === available.length}
-                      onCheckedChange={toggleAll}
-                      aria-label="Select all"
-                    />
-                    <span className="text-sm text-muted-foreground">
-                      {selectedIds.size === available.length
-                        ? 'Deselect all'
-                        : 'Select all'}
-                    </span>
-                  </div>
-                )}
-                <div className="max-h-[300px] space-y-1 overflow-y-auto">
-                  {available.map((m) => (
-                    <label
-                      key={m.userId}
-                      className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-1.5 hover:bg-muted"
-                    >
-                      <Checkbox
-                        checked={selectedIds.has(m.userId)}
-                        onCheckedChange={() => toggleMember(m.userId)}
-                        aria-label={`Select ${m.name}`}
-                      />
-                      <div className="flex-1">
-                        <div className="text-sm font-medium">{m.name}</div>
-                        <div className="text-xs text-muted-foreground">{m.email}</div>
-                      </div>
-                    </label>
-                  ))}
-                </div>
-                <FormErrorBanner error={addAction.error} />
-              </div>
-              <DialogFooter>
-                <Button
-                  variant="outline"
-                  onClick={() => setAddOpen(false)}
-                  disabled={adding}
-                >
-                  Cancel
-                </Button>
-                <Button onClick={handleAdd} disabled={selectedIds.size === 0 || adding}>
-                  {adding
-                    ? 'Adding...'
-                    : `Add ${selectedIds.size || ''} member${selectedIds.size !== 1 ? 's' : ''}`}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        )}
-      </div>
+      <TeamHeader
+        memberCount={assignments.length}
+        availableCount={available.length}
+        addDialog={{
+          isOpen: addOpen,
+          available,
+          selectedIds,
+          error: addAction.error,
+          isAdding: adding,
+          onOpenChange: handleOpenChange,
+          onToggleMember: toggleMember,
+          onToggleAll: toggleAll,
+          onAdd: handleAdd,
+        }}
+      />
 
       {assignments.length === 0 ? (
-        <div className="rounded-lg border py-8 text-center">
-          <p className="text-sm text-muted-foreground">No members in this team yet.</p>
-          {available.length > 0 && (
-            <Button variant="link" size="sm" onClick={() => setAddOpen(true)}>
-              Add the first members
-            </Button>
-          )}
-        </div>
+        <TeamEmptyState
+          hasAvailable={available.length > 0}
+          onAdd={() => setAddOpen(true)}
+        />
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {assignments.map((a) => {
-              const member = memberLookup.get(a.userId)
-              const isLead = teamLeadId != null && a.userId === teamLeadId
-              return (
-                <TableRow key={a.id}>
-                  <TableCell className="font-medium">
-                    {member?.name ?? a.userId}
-                    {isLead && (
-                      <span className="ml-2 rounded bg-primary/10 px-1.5 py-0.5 text-xs font-medium text-primary">
-                        Lead
-                      </span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {member?.email ?? '\u2014'}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() =>
-                        removeAction({
-                          data: { assignmentId: a.id },
-                        })
-                      }
-                      disabled={removeAction.isPending}
-                      className="text-muted-foreground hover:text-destructive"
-                    >
-                      Remove
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              )
-            })}
-          </TableBody>
-        </Table>
+        <MemberTable
+          assignments={assignments}
+          memberLookup={memberLookup}
+          teamLeadId={teamLeadId}
+          onRemove={(assignmentId) => removeAction({ data: { assignmentId } })}
+          isRemoving={removeAction.isPending}
+        />
       )}
 
       {available.length === 0 && assignments.length > 0 && (

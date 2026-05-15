@@ -27,9 +27,9 @@ function PropertyListPage() {
         </div>
         {can('property.create') && (
           <Button asChild>
-            <Link to="/properties/new">
+            <Link to="/properties/import">
               <Plus />
-              Add Property
+              Import Properties
             </Link>
           </Button>
         )}
