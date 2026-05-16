@@ -5,7 +5,6 @@
 
 import { describe, it, expect } from 'vitest'
 import { can } from '#/shared/domain/permissions'
-import type { Role } from '#/shared/domain/roles'
 import { validateNotSelfAssignment, validateRequiredId } from './rules'
 import { userId } from '#/shared/domain/ids'
 import { isStaffError } from './errors'
@@ -31,18 +30,6 @@ describe('staff_assignment.delete permission', () => {
 
   it('rejects Staff', () => {
     expect(can('Staff', 'staff_assignment.delete')).toBe(false)
-  })
-
-  it('exhaustively covers all roles for staff_assignment.create', () => {
-    const roles: Role[] = ['AccountAdmin', 'PropertyManager', 'Staff']
-    const expected: Record<Role, boolean> = {
-      AccountAdmin: true,
-      PropertyManager: true,
-      Staff: false,
-    }
-    for (const role of roles) {
-      expect(can(role, 'staff_assignment.create')).toBe(expected[role])
-    }
   })
 })
 

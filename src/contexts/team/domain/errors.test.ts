@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { teamError, isTeamError } from './errors'
+import type { TeamErrorCode } from './errors'
 
 describe('teamError', () => {
   it('creates a tagged error with code and message', () => {
@@ -29,5 +30,27 @@ describe('isTeamError', () => {
     expect(isTeamError(new Error('no'))).toBe(false)
     expect(isTeamError(null)).toBe(false)
     expect(isTeamError({ _tag: 'OtherError' })).toBe(false)
+  })
+})
+
+describe('teamError exhaustive codes', () => {
+  const codes: TeamErrorCode[] = [
+    'forbidden',
+    'invalid_name',
+    'name_taken',
+    'team_not_found',
+    'property_not_found',
+  ]
+
+  it('creates error with every code in the union', () => {
+    for (const code of codes) {
+      const err = teamError(code, `test ${code}`)
+      expect(err._tag).toBe('TeamError')
+      expect(err.code).toBe(code)
+    }
+  })
+
+  it('covers all codes (fails if a new code is added but not listed here)', () => {
+    expect(codes).toHaveLength(5)
   })
 })

@@ -146,7 +146,7 @@ describe('createAuthIdentityAdapter', () => {
       expect(members).toEqual([])
     })
 
-    it('handles null user image with default', async () => {
+    it('preserves null user image', async () => {
       // Arrange
       const createdAt = new Date('2026-01-01')
       mockListMembers.mockResolvedValue({

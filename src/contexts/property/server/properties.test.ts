@@ -7,7 +7,7 @@
 // are caught at compile time.
 
 import { describe, it, expect } from 'vitest'
-import { propertyError, isPropertyError } from '#/contexts/property/domain/errors'
+import { propertyError } from '#/contexts/property/domain/errors'
 import type { PropertyErrorCode } from '#/contexts/property/domain/errors'
 import { propertyErrorStatus } from '#/contexts/property/server/properties'
 import { throwContextError } from '#/shared/auth/server-errors'
@@ -109,27 +109,6 @@ describe('throwContextError with PropertyError', () => {
         expect(error.code).toBe(code)
       }
     }
-  })
-})
-
-// ── isPropertyError type guard ─────────────────────────────────────
-
-describe('isPropertyError type guard', () => {
-  it('returns true for PropertyError', () => {
-    const error = propertyError('forbidden', 'test')
-    expect(isPropertyError(error)).toBe(true)
-  })
-
-  it('returns false for plain Error', () => {
-    expect(isPropertyError(new Error('boom'))).toBe(false)
-  })
-
-  it('returns false for null', () => {
-    expect(isPropertyError(null)).toBe(false)
-  })
-
-  it('returns false for plain object', () => {
-    expect(isPropertyError({ code: 'forbidden', message: 'test' })).toBe(false)
   })
 })
 

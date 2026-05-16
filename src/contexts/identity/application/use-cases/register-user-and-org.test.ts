@@ -98,7 +98,6 @@ describe('registerUserAndOrg', () => {
       (e: unknown) =>
         isIdentityError(e) &&
         e.code === 'registration_failed' &&
-        isIdentityError(e) &&
         e.message.includes('Email already taken'),
     )
     // Should not attempt org creation
