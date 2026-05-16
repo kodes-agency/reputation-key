@@ -112,7 +112,7 @@ describe('disconnectGoogleAccount', () => {
     connectionRepo.seed([connection])
 
     // Make revocation throw — use case should still succeed
-    oauth.revokeToken = async () => {
+    ;(oauth as Record<string, unknown>).revokeToken = async () => {
       throw new Error('Google revocation endpoint unreachable')
     }
 
