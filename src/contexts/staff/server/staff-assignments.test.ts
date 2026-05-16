@@ -3,7 +3,7 @@
 // Follows the same pattern as organizations.test.ts and teams.test.ts.
 
 import { describe, it, expect } from 'vitest'
-import { staffError, isStaffError } from '#/contexts/staff/domain/errors'
+import { staffError } from '#/contexts/staff/domain/errors'
 import type { StaffErrorCode } from '#/contexts/staff/domain/errors'
 import { throwContextError } from '#/shared/auth/server-errors'
 
@@ -47,58 +47,6 @@ describe('staffErrorStatus (error → HTTP status mapping)', () => {
 
   it('maps invalid_input → 400', () => {
     expect(staffErrorStatus('invalid_input')).toBe(400)
-  })
-})
-
-describe('isStaffError type guard', () => {
-  it('returns true for staff errors', () => {
-    const err = staffError('forbidden', 'no access')
-    expect(isStaffError(err)).toBe(true)
-  })
-
-  it('returns false for plain Error', () => {
-    expect(isStaffError(new Error('something'))).toBe(false)
-  })
-
-  it('returns false for null', () => {
-    expect(isStaffError(null)).toBe(false)
-  })
-
-  it('returns false for undefined', () => {
-    expect(isStaffError(undefined)).toBe(false)
-  })
-
-  it('returns false for string', () => {
-    expect(isStaffError('error')).toBe(false)
-  })
-
-  it('returns false for object without _tag', () => {
-    expect(isStaffError({ code: 'forbidden', message: 'no' })).toBe(false)
-  })
-
-  it('returns false for object with wrong _tag', () => {
-    expect(isStaffError({ _tag: 'TeamError', code: 'forbidden', message: 'no' })).toBe(
-      false,
-    )
-  })
-})
-
-describe('staffError smart constructor', () => {
-  it('creates error with correct _tag and code', () => {
-    const err = staffError('already_assigned', 'user already assigned')
-    expect(err._tag).toBe('StaffError')
-    expect(err.code).toBe('already_assigned')
-    expect(err.message).toBe('user already assigned')
-  })
-
-  it('includes context when provided', () => {
-    const err = staffError('assignment_not_found', 'not found', { assignmentId: 'a-1' })
-    expect(err.context).toEqual({ assignmentId: 'a-1' })
-  })
-
-  it('omits context when not provided', () => {
-    const err = staffError('forbidden', 'denied')
-    expect(err.context).toBeUndefined()
   })
 })
 

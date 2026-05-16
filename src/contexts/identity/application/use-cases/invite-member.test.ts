@@ -29,10 +29,16 @@ describe('inviteMember', () => {
   })
 
   it('allows AccountAdmin to invite with any role', async () => {
-    const { useCase } = setup()
+    const { useCase, identity, events } = setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
     await useCase({ email: 'admin@test.com', role: 'AccountAdmin', propertyIds: [] }, ctx)
+
+    expect(identity.allInvitations).toHaveLength(1)
+    expect(identity.allInvitations[0].email).toBe('admin@test.com')
+    expect(identity.allInvitations[0].role).toBe('AccountAdmin')
+    expect(events.capturedEvents).toHaveLength(1)
+    expect(events.capturedEvents[0]._tag).toBe('member.invited')
   })
 
   it('rejects Staff from inviting anyone', async () => {

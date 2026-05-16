@@ -7,7 +7,7 @@
 // logic and tagged error detection that lives at the server boundary.
 
 import { describe, it, expect } from 'vitest'
-import { teamError, isTeamError } from '#/contexts/team/domain/errors'
+import { teamError } from '#/contexts/team/domain/errors'
 import type { TeamErrorCode } from '#/contexts/team/domain/errors'
 import { throwContextError } from '#/shared/auth/server-errors'
 
@@ -48,52 +48,6 @@ describe('teamErrorStatus (error → HTTP status mapping)', () => {
 
   it('maps invalid_name → 400', () => {
     expect(teamErrorStatus('invalid_name')).toBe(400)
-  })
-})
-
-describe('isTeamError type guard', () => {
-  it('returns true for team errors', () => {
-    const err = teamError('forbidden', 'no access')
-    expect(isTeamError(err)).toBe(true)
-  })
-
-  it('returns false for plain Error', () => {
-    expect(isTeamError(new Error('something'))).toBe(false)
-  })
-
-  it('returns false for null', () => {
-    expect(isTeamError(null)).toBe(false)
-  })
-
-  it('returns false for undefined', () => {
-    expect(isTeamError(undefined)).toBe(false)
-  })
-
-  it('returns false for string', () => {
-    expect(isTeamError('error')).toBe(false)
-  })
-
-  it('returns false for plain object without _tag', () => {
-    expect(isTeamError({ code: 'forbidden', message: 'no' })).toBe(false)
-  })
-})
-
-describe('teamError smart constructor', () => {
-  it('creates error with correct _tag and code', () => {
-    const err = teamError('name_taken', 'name already taken')
-    expect(err._tag).toBe('TeamError')
-    expect(err.code).toBe('name_taken')
-    expect(err.message).toBe('name already taken')
-  })
-
-  it('includes context when provided', () => {
-    const err = teamError('team_not_found', 'not found', { teamId: 't-1' })
-    expect(err.context).toEqual({ teamId: 't-1' })
-  })
-
-  it('omits context when not provided', () => {
-    const err = teamError('forbidden', 'denied')
-    expect(err.context).toBeUndefined()
   })
 })
 

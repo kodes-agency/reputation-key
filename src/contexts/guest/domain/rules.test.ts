@@ -8,11 +8,19 @@ describe('validateRating', () => {
   })
 
   it('rejects 0', () => {
-    expect(validateRating(0).isErr()).toBe(true)
+    const result = validateRating(0)
+    expect(result.isErr()).toBe(true)
+    if (result.isErr()) {
+      expect(result.error.code).toBe('invalid_rating')
+    }
   })
 
   it('rejects 6', () => {
-    expect(validateRating(6).isErr()).toBe(true)
+    const result = validateRating(6)
+    expect(result.isErr()).toBe(true)
+    if (result.isErr()) {
+      expect(result.error.code).toBe('invalid_rating')
+    }
   })
 })
 
@@ -22,15 +30,27 @@ describe('validateFeedback', () => {
   })
 
   it('rejects empty string', () => {
-    expect(validateFeedback('').isErr()).toBe(true)
+    const result = validateFeedback('')
+    expect(result.isErr()).toBe(true)
+    if (result.isErr()) {
+      expect(result.error.code).toBe('feedback_empty')
+    }
   })
 
   it('rejects whitespace-only', () => {
-    expect(validateFeedback('   ').isErr()).toBe(true)
+    const result = validateFeedback('   ')
+    expect(result.isErr()).toBe(true)
+    if (result.isErr()) {
+      expect(result.error.code).toBe('feedback_empty')
+    }
   })
 
   it('rejects over 1000 chars', () => {
-    expect(validateFeedback('a'.repeat(1001)).isErr()).toBe(true)
+    const result = validateFeedback('a'.repeat(1001))
+    expect(result.isErr()).toBe(true)
+    if (result.isErr()) {
+      expect(result.error.code).toBe('feedback_too_long')
+    }
   })
 
   it('accepts exactly 1000 chars', () => {
@@ -46,6 +66,10 @@ describe('validateSource', () => {
   })
 
   it('rejects unknown source', () => {
-    expect(validateSource('email').isErr()).toBe(true)
+    const result = validateSource('email')
+    expect(result.isErr()).toBe(true)
+    if (result.isErr()) {
+      expect(result.error.code).toBe('invalid_source')
+    }
   })
 })

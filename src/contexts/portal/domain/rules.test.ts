@@ -49,19 +49,35 @@ describe('validateSlug', () => {
   })
 
   it('rejects empty', () => {
-    expect(validateSlug('').isErr()).toBe(true)
+    const result = validateSlug('')
+    expect(result.isErr()).toBe(true)
+    if (result.isErr()) {
+      expect(result.error.code).toBe('invalid_slug')
+    }
   })
 
   it('rejects single char', () => {
-    expect(validateSlug('a').isErr()).toBe(true)
+    const result = validateSlug('a')
+    expect(result.isErr()).toBe(true)
+    if (result.isErr()) {
+      expect(result.error.code).toBe('invalid_slug')
+    }
   })
 
   it('rejects uppercase', () => {
-    expect(validateSlug('My-Portal').isErr()).toBe(true)
+    const result = validateSlug('My-Portal')
+    expect(result.isErr()).toBe(true)
+    if (result.isErr()) {
+      expect(result.error.code).toBe('invalid_slug')
+    }
   })
 
   it('rejects leading hyphen', () => {
-    expect(validateSlug('-hello').isErr()).toBe(true)
+    const result = validateSlug('-hello')
+    expect(result.isErr()).toBe(true)
+    if (result.isErr()) {
+      expect(result.error.code).toBe('invalid_slug')
+    }
   })
 })
 
@@ -73,15 +89,27 @@ describe('validatePortalName', () => {
   })
 
   it('rejects empty', () => {
-    expect(validatePortalName('').isErr()).toBe(true)
+    const result = validatePortalName('')
+    expect(result.isErr()).toBe(true)
+    if (result.isErr()) {
+      expect(result.error.code).toBe('invalid_name')
+    }
   })
 
   it('rejects whitespace-only', () => {
-    expect(validatePortalName('   ').isErr()).toBe(true)
+    const result = validatePortalName('   ')
+    expect(result.isErr()).toBe(true)
+    if (result.isErr()) {
+      expect(result.error.code).toBe('invalid_name')
+    }
   })
 
   it('rejects over 100 chars', () => {
-    expect(validatePortalName('x'.repeat(101)).isErr()).toBe(true)
+    const result = validatePortalName('x'.repeat(101))
+    expect(result.isErr()).toBe(true)
+    if (result.isErr()) {
+      expect(result.error.code).toBe('invalid_name')
+    }
   })
 
   it('trims whitespace', () => {
@@ -111,7 +139,11 @@ describe('validateDescription', () => {
   })
 
   it('rejects over 500 chars', () => {
-    expect(validateDescription('x'.repeat(501)).isErr()).toBe(true)
+    const result = validateDescription('x'.repeat(501))
+    expect(result.isErr()).toBe(true)
+    if (result.isErr()) {
+      expect(result.error.code).toBe('invalid_description')
+    }
   })
 })
 
@@ -133,15 +165,27 @@ describe('validatePortalTheme', () => {
   })
 
   it('rejects missing primaryColor', () => {
-    expect(validatePortalTheme({ backgroundColor: '#FFFFFF' }).isErr()).toBe(true)
+    const result = validatePortalTheme({ backgroundColor: '#FFFFFF' })
+    expect(result.isErr()).toBe(true)
+    if (result.isErr()) {
+      expect(result.error.code).toBe('invalid_theme')
+    }
   })
 
   it('rejects invalid hex', () => {
-    expect(validatePortalTheme({ primaryColor: 'red' }).isErr()).toBe(true)
+    const result = validatePortalTheme({ primaryColor: 'red' })
+    expect(result.isErr()).toBe(true)
+    if (result.isErr()) {
+      expect(result.error.code).toBe('invalid_theme')
+    }
   })
 
   it('rejects short hex', () => {
-    expect(validatePortalTheme({ primaryColor: '#FFF' }).isErr()).toBe(true)
+    const result = validatePortalTheme({ primaryColor: '#FFF' })
+    expect(result.isErr()).toBe(true)
+    if (result.isErr()) {
+      expect(result.error.code).toBe('invalid_theme')
+    }
   })
 })
 
@@ -156,15 +200,27 @@ describe('validateSmartRoutingThreshold', () => {
   })
 
   it('rejects 0', () => {
-    expect(validateSmartRoutingThreshold(0).isErr()).toBe(true)
+    const result = validateSmartRoutingThreshold(0)
+    expect(result.isErr()).toBe(true)
+    if (result.isErr()) {
+      expect(result.error.code).toBe('invalid_threshold')
+    }
   })
 
   it('rejects 5', () => {
-    expect(validateSmartRoutingThreshold(5).isErr()).toBe(true)
+    const result = validateSmartRoutingThreshold(5)
+    expect(result.isErr()).toBe(true)
+    if (result.isErr()) {
+      expect(result.error.code).toBe('invalid_threshold')
+    }
   })
 
   it('rejects non-integer', () => {
-    expect(validateSmartRoutingThreshold(2.5).isErr()).toBe(true)
+    const result = validateSmartRoutingThreshold(2.5)
+    expect(result.isErr()).toBe(true)
+    if (result.isErr()) {
+      expect(result.error.code).toBe('invalid_threshold')
+    }
   })
 })
 
@@ -177,11 +233,19 @@ describe('validateUrl', () => {
   })
 
   it('rejects non-URLs', () => {
-    expect(validateUrl('not a url').isErr()).toBe(true)
+    const result = validateUrl('not a url')
+    expect(result.isErr()).toBe(true)
+    if (result.isErr()) {
+      expect(result.error.code).toBe('invalid_url')
+    }
   })
 
   it('rejects empty', () => {
-    expect(validateUrl('').isErr()).toBe(true)
+    const result = validateUrl('')
+    expect(result.isErr()).toBe(true)
+    if (result.isErr()) {
+      expect(result.error.code).toBe('invalid_url')
+    }
   })
 })
 
@@ -193,11 +257,19 @@ describe('validateLinkLabel', () => {
   })
 
   it('rejects empty', () => {
-    expect(validateLinkLabel('').isErr()).toBe(true)
+    const result = validateLinkLabel('')
+    expect(result.isErr()).toBe(true)
+    if (result.isErr()) {
+      expect(result.error.code).toBe('invalid_label')
+    }
   })
 
   it('rejects over 100 chars', () => {
-    expect(validateLinkLabel('x'.repeat(101)).isErr()).toBe(true)
+    const result = validateLinkLabel('x'.repeat(101))
+    expect(result.isErr()).toBe(true)
+    if (result.isErr()) {
+      expect(result.error.code).toBe('invalid_label')
+    }
   })
 })
 
@@ -209,10 +281,18 @@ describe('validateCategoryTitle', () => {
   })
 
   it('rejects empty', () => {
-    expect(validateCategoryTitle('').isErr()).toBe(true)
+    const result = validateCategoryTitle('')
+    expect(result.isErr()).toBe(true)
+    if (result.isErr()) {
+      expect(result.error.code).toBe('invalid_title')
+    }
   })
 
   it('rejects over 100 chars', () => {
-    expect(validateCategoryTitle('x'.repeat(101)).isErr()).toBe(true)
+    const result = validateCategoryTitle('x'.repeat(101))
+    expect(result.isErr()).toBe(true)
+    if (result.isErr()) {
+      expect(result.error.code).toBe('invalid_title')
+    }
   })
 })

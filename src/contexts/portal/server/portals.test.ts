@@ -7,7 +7,7 @@
 // are caught at compile time.
 
 import { describe, it, expect } from 'vitest'
-import { portalError, isPortalError } from '#/contexts/portal/domain/errors'
+import { portalError } from '#/contexts/portal/domain/errors'
 import type { PortalErrorCode } from '#/contexts/portal/domain/errors'
 import { portalErrorStatus } from '#/contexts/portal/server/portals'
 import { throwContextError } from '#/shared/auth/server-errors'
@@ -108,9 +108,9 @@ describe('portalErrorStatus (imported from server module)', () => {
 describe('throwContextError with PortalError', () => {
   it('throws an Error with the domain message', () => {
     const e = portalError('invalid_slug', 'slug must be URL-friendly')
-    expect(() =>
-      throwContextError('PortalError', e, portalErrorStatus(e.code)),
-    ).toThrow('slug must be URL-friendly')
+    expect(() => throwContextError('PortalError', e, portalErrorStatus(e.code))).toThrow(
+      'slug must be URL-friendly',
+    )
   })
 
   it('sets error.name to PortalError', () => {
@@ -162,27 +162,6 @@ describe('throwContextError with PortalError', () => {
         expect(error.code).toBe(code)
       }
     }
-  })
-})
-
-// ── isPortalError type guard ───────────────────────────────────────
-
-describe('isPortalError type guard', () => {
-  it('returns true for PortalError', () => {
-    const error = portalError('forbidden', 'test')
-    expect(isPortalError(error)).toBe(true)
-  })
-
-  it('returns false for plain Error', () => {
-    expect(isPortalError(new Error('boom'))).toBe(false)
-  })
-
-  it('returns false for null', () => {
-    expect(isPortalError(null)).toBe(false)
-  })
-
-  it('returns false for plain object', () => {
-    expect(isPortalError({ code: 'forbidden', message: 'test' })).toBe(false)
   })
 })
 

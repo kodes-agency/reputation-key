@@ -33,6 +33,9 @@ describe('buildRating', () => {
   it('rejects invalid rating value', () => {
     const result = buildRating({ ...baseRatingInput, value: 0 })
     expect(result.isErr()).toBe(true)
+    if (result.isErr()) {
+      expect(result.error.code).toBe('invalid_rating')
+    }
   })
 })
 
@@ -53,10 +56,20 @@ describe('buildFeedback', () => {
   it('builds valid feedback', () => {
     const result = buildFeedback(baseFeedbackInput)
     expect(result.isOk()).toBe(true)
+    if (result.isOk()) {
+      expect(result.value.comment).toBe('Great service!')
+      expect(result.value.sessionId).toBe('session-abc')
+      expect(result.value.source).toBe('qr')
+      expect(result.value.ipHash).toBe('hash123')
+      expect(result.value.ratingId).toBe(ratingId('10000000-0000-0000-0000-000000000001'))
+    }
   })
 
   it('rejects empty feedback', () => {
     const result = buildFeedback({ ...baseFeedbackInput, comment: '' })
     expect(result.isErr()).toBe(true)
+    if (result.isErr()) {
+      expect(result.error.code).toBe('feedback_empty')
+    }
   })
 })

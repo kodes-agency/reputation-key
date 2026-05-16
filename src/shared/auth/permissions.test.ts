@@ -185,7 +185,7 @@ describe('initPermissionTable', () => {
   })
 })
 
-describe('can() throws before table initialization', () => {
+describe('re-initializing permission table restores defaults', () => {
   it('throws when permission table is null', () => {
     // The table is already initialized by the module-level initPermissionTable()
     // call. We cannot easily null it out from outside. Instead we verify that

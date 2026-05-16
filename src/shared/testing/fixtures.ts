@@ -20,6 +20,12 @@ import type {
 import { portalId, portalLinkCategoryId, portalLinkId } from '#/shared/domain/ids'
 import type { ScanEvent, Rating, Feedback } from '#/contexts/guest/domain/types'
 import { scanEventId, ratingId, feedbackId } from '#/shared/domain/ids'
+import type {
+  GoogleConnection,
+  GbpImportJob,
+  GbpLocation,
+} from '#/contexts/integration/domain/types'
+import { googleConnectionId, gbpImportJobId } from '#/shared/domain/ids'
 
 /** Build a deterministic AuthContext for tests. */
 export function buildTestAuthContext(overrides: Partial<AuthContext> = {}): AuthContext {
@@ -232,6 +238,68 @@ export function buildTestFeedback(overrides: Partial<Feedback> = {}): Feedback {
     source: 'qr',
     ipHash: 'hash-test',
     createdAt: new Date('2026-05-01T12:00:00Z'),
+    ...overrides,
+  }
+}
+
+export function buildTestGoogleConnection(
+  overrides: Partial<Omit<GoogleConnection, 'id'>> & { id?: string } = {},
+): GoogleConnection {
+  const idStr = overrides.id
+    ? toTestId(overrides.id)
+    : 'e0000000-0000-0000-0000-000000000001'
+  const id = googleConnectionId(idStr)
+  const { id: _ignored, ...rest } = overrides
+  return {
+    id,
+    organizationId: organizationId('org-00000000-0000-0000-0000-000000000001'),
+    googleAccountId: 'google-account-123',
+    googleEmail: 'test@gmail.com',
+    encryptedAccessToken: 'enc:access-token',
+    encryptedRefreshToken: 'enc:refresh-token',
+    tokenExpiresAt: new Date('2026-12-31T23:59:59Z'),
+    scopes: ['https://www.googleapis.com/auth/business.manage'],
+    connectedBy: userId('user-00000000-0000-0000-0000-000000000001'),
+    visibility: 'private',
+    status: 'active',
+    createdAt: new Date('2026-04-10T12:00:00Z'),
+    updatedAt: new Date('2026-04-10T12:00:00Z'),
+    ...rest,
+  } as GoogleConnection
+}
+
+export function buildTestGbpImportJob(
+  overrides: Partial<Omit<GbpImportJob, 'id'>> & { id?: string } = {},
+): GbpImportJob {
+  const idStr = overrides.id
+    ? toTestId(overrides.id)
+    : 'f0000000-0000-0000-0000-000000000001'
+  const id = gbpImportJobId(idStr)
+  const { id: _ignored, ...rest } = overrides
+  return {
+    id,
+    organizationId: organizationId('org-00000000-0000-0000-0000-000000000001'),
+    initiatedBy: userId('user-00000000-0000-0000-0000-000000000001'),
+    status: 'queued',
+    totalCount: 5,
+    importedCount: 0,
+    skippedCount: 0,
+    failedCount: 0,
+    createdAt: new Date('2026-04-10T12:00:00Z'),
+    updatedAt: new Date('2026-04-10T12:00:00Z'),
+    ...rest,
+  } as GbpImportJob
+}
+
+export function buildTestGbpLocation(overrides: Partial<GbpLocation> = {}): GbpLocation {
+  return {
+    name: 'accounts/123/locations/456',
+    gbpPlaceId: 'ChIJ-test-place-id',
+    businessName: 'Test Business',
+    address: '123 Test St, Test City, TC',
+    primaryCategory: 'restaurant',
+    latitude: 40.7128,
+    longitude: -74.006,
     ...overrides,
   }
 }

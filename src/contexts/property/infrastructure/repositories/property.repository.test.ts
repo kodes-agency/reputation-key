@@ -176,7 +176,12 @@ describe('propertyRepository (integration)', () => {
         organizationId: ORG_A,
         slug: 'reusable-slug',
       })
-      await expect(repo.insert(ORG_A, replacement)).resolves.not.toThrow()
+      await repo.insert(ORG_A, replacement)
+
+      // Verify the replacement was actually persisted
+      const found = await repo.findById(ORG_A, replacement.id as never)
+      expect(found).not.toBeNull()
+      expect(found!.slug).toBe('reusable-slug')
     })
   })
 

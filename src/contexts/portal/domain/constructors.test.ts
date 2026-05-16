@@ -3,7 +3,13 @@
 
 import { describe, it, expect } from 'vitest'
 import { buildPortal, buildPortalLinkCategory, buildPortalLink } from './constructors'
-import { portalId, organizationId, propertyId, portalLinkCategoryId, portalLinkId } from '#/shared/domain/ids'
+import {
+  portalId,
+  organizationId,
+  propertyId,
+  portalLinkCategoryId,
+  portalLinkId,
+} from '#/shared/domain/ids'
 
 const now = new Date('2025-01-01T00:00:00Z')
 
@@ -48,6 +54,9 @@ describe('buildPortal', () => {
   it('rejects invalid name', () => {
     const result = buildPortal({ ...base, name: '' })
     expect(result.isErr()).toBe(true)
+    if (result.isErr()) {
+      expect(result.error.code).toBe('invalid_name')
+    }
   })
 
   it('rejects invalid theme', () => {
@@ -57,6 +66,9 @@ describe('buildPortal', () => {
       theme: { primaryColor: 'not-a-color' },
     })
     expect(result.isErr()).toBe(true)
+    if (result.isErr()) {
+      expect(result.error.code).toBe('invalid_theme')
+    }
   })
 
   it('accepts custom theme', () => {
@@ -110,6 +122,9 @@ describe('buildPortalLinkCategory', () => {
       now,
     })
     expect(result.isErr()).toBe(true)
+    if (result.isErr()) {
+      expect(result.error.code).toBe('invalid_title')
+    }
   })
 })
 
@@ -165,6 +180,9 @@ describe('buildPortalLink', () => {
       now,
     })
     expect(result.isErr()).toBe(true)
+    if (result.isErr()) {
+      expect(result.error.code).toBe('invalid_url')
+    }
   })
 
   it('rejects empty label', () => {
@@ -179,5 +197,8 @@ describe('buildPortalLink', () => {
       now,
     })
     expect(result.isErr()).toBe(true)
+    if (result.isErr()) {
+      expect(result.error.code).toBe('invalid_label')
+    }
   })
 })

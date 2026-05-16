@@ -51,10 +51,30 @@ describe('portalFromRow', () => {
 })
 
 describe('portalToRow', () => {
-  it('round-trips through fromRow → toRow', () => {
+  it('round-trips all fields through fromRow → toRow', () => {
     const portal = portalFromRow(sampleRow)
     const row = portalToRow(portal)
+
+    expect(row.id).toBe(sampleRow.id)
+    expect(row.organizationId).toBe(sampleRow.organizationId)
+    expect(row.propertyId).toBe(sampleRow.propertyId)
+    expect(row.entityType).toBe(sampleRow.entityType)
+    expect(row.entityId).toBe(sampleRow.entityId)
     expect(row.name).toBe(sampleRow.name)
     expect(row.slug).toBe(sampleRow.slug)
+    expect(row.description).toBe(sampleRow.description)
+    expect(row.heroImageUrl).toBe(sampleRow.heroImageUrl)
+    expect(row.smartRoutingEnabled).toBe(sampleRow.smartRoutingEnabled)
+    expect(row.smartRoutingThreshold).toBe(sampleRow.smartRoutingThreshold)
+    expect(row.isActive).toBe(sampleRow.isActive)
+    expect(row.createdAt).toBe(sampleRow.createdAt)
+    expect(row.updatedAt).toBe(sampleRow.updatedAt)
+    expect(row.deletedAt).toBe(sampleRow.deletedAt)
+  })
+
+  it('preserves theme object through round-trip', () => {
+    const portal = portalFromRow(sampleRow)
+    const row = portalToRow(portal)
+    expect((row.theme as Record<string, unknown>).primaryColor).toBe('#6366F1')
   })
 })

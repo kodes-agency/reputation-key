@@ -191,7 +191,12 @@ describe('teamRepository (integration)', () => {
         propertyId: PROP_A1,
         name: 'Reusable',
       })
-      await expect(repo.insert(ORG_A, replacement)).resolves.not.toThrow()
+      await repo.insert(ORG_A, replacement)
+
+      // Verify the replacement was actually persisted
+      const found = await repo.findById(ORG_A, replacement.id as never)
+      expect(found).not.toBeNull()
+      expect(found!.name).toBe('Reusable')
     })
   })
 

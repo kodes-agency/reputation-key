@@ -2,6 +2,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { portalError, isPortalError } from './errors'
+import type { PortalErrorCode } from './errors'
 
 describe('portalError', () => {
   it('creates a tagged error', () => {
@@ -38,5 +39,37 @@ describe('isPortalError', () => {
 
   it('returns false for undefined', () => {
     expect(isPortalError(undefined)).toBe(false)
+  })
+})
+
+describe('portalError exhaustive codes', () => {
+  const codes: PortalErrorCode[] = [
+    'forbidden',
+    'invalid_slug',
+    'invalid_name',
+    'invalid_description',
+    'invalid_theme',
+    'invalid_threshold',
+    'invalid_url',
+    'invalid_label',
+    'invalid_title',
+    'slug_taken',
+    'portal_not_found',
+    'category_not_found',
+    'link_not_found',
+    'property_not_found',
+    'upload_failed',
+  ]
+
+  it('creates error with every code in the union', () => {
+    for (const code of codes) {
+      const err = portalError(code, `test ${code}`)
+      expect(err._tag).toBe('PortalError')
+      expect(err.code).toBe(code)
+    }
+  })
+
+  it('covers all codes (fails if a new code is added but not listed here)', () => {
+    expect(codes).toHaveLength(15)
   })
 })
