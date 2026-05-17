@@ -80,8 +80,8 @@ const isGbpApiErrorWithStatus = (expectedStatus: number) => (e: unknown) =>
   typeof e === 'object' &&
   e !== null &&
   '_tag' in e &&
-  (e as { _tag: string })._tag === 'GbpApiError' &&
-  (e as { status: number }).status === expectedStatus
+  (e as unknown as { _tag: string })._tag === 'GbpApiError' &&
+  (e as unknown as { status: number }).status === expectedStatus
 
 const withFixedNow = <T>(fn: () => Promise<T>): Promise<T> => {
   const originalNow = Date.now
