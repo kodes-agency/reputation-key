@@ -118,5 +118,5 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
     }),
   } as const
 
-  return { useCases } as const
+  return { useCases, connectionRepo, encryptionPort, oauthPort, refreshGoogleTokenUseCase } as const
 }

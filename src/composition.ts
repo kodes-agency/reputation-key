@@ -36,7 +36,9 @@ import { buildTeamContext } from '#/contexts/team/build'
 import { buildStaffContext } from '#/contexts/staff/build'
 import { buildPortalContext } from '#/contexts/portal/build'
 import { buildGuestContext } from '#/contexts/guest/build'
+import { buildReviewContext } from '#/contexts/review/build'
 import { createStaffAssignmentRepository } from '#/contexts/staff/infrastructure/repositories/staff-assignment.repository'
+import { createGoogleReviewApiAdapter } from '#/contexts/integration/infrastructure/adapters/google-review-api.adapter'
 import {
   propertyId,
   organizationId as toOrgId,
@@ -178,6 +180,23 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     jobQueue: infra.jobQueue,
   })
 
+  // ── Review context (cross-context wiring) ──────────────────────────
+  // The GoogleReviewApiAdapter lives in integration/infrastructure but
+  // implements review context's port. Composition root wires them.
+  const googleReviewApi = createGoogleReviewApiAdapter({
+    connectionRepo: integration.connectionRepo,
+    encryption: integration.encryptionPort,
+    refreshToken: integration.refreshGoogleTokenUseCase,
+  })
+
+  const review = buildReviewContext({
+    db,
+    events: eventBus,
+    clock,
+    googleReviewApi,
+    jobQueue: infra.jobQueue,
+  })
+
   // ── Wire invitation acceptance hook ────────────────────────────
   // The hook creates staff assignments when a member accepts an invite.
   // This is the only cross-context dependency: identity acceptance
@@ -220,10 +239,15 @@ export function createContainer(options?: { enableJobs?: boolean }) {
       ...portal.useCases,
       ...guest.useCases,
       ...integration.useCases,
+      syncReviews: review.syncReviews,
     },
     storage: portal.storage,
     portalRepo: portal.portalRepo,
     portalLinkRepo: portal.portalLinkRepo,
+    reviewRepo: review.reviewRepo,
+    replyRepo: review.replyRepo,
+    reviewQueue: review.queue,
+    googleReviewApi,
   } as const
 }
 

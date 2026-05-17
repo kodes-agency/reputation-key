@@ -6,8 +6,9 @@ import type { Brand } from './brand'
 export type OrganizationId = Brand<string, 'OrganizationId'>
 export type UserId = Brand<string, 'UserId'>
 export type PropertyId = Brand<string, 'PropertyId'>
+export type ReviewId = Brand<string, 'ReviewId'>
+export type ReplyId = Brand<string, 'ReplyId'>
 export type PortalId = Brand<string, 'PortalId'>
-// ReviewId — deferred to Phase 8/9
 export type ScanEventId = Brand<string, 'ScanEventId'>
 export type RatingId = Brand<string, 'RatingId'>
 export type FeedbackId = Brand<string, 'FeedbackId'>
@@ -27,6 +28,12 @@ export function userId(id: string): UserId {
 }
 export function propertyId(id: string): PropertyId {
   return id as PropertyId
+}
+export function reviewId(id: string): ReviewId {
+  return id as ReviewId
+}
+export function replyId(id: string): ReplyId {
+  return id as ReplyId
 }
 export function portalId(id: string): PortalId {
   return id as PortalId

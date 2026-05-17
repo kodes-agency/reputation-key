@@ -27,6 +27,9 @@ function main() {
   if (container.jobQueue) {
     const registry = container.jobRegistry
 
+    // NOTE: All job types (review sync, import, retention) share the 'default' queue.
+    // At scale, consider separate queues per job type for isolation.
+    // Single queue is acceptable for current traffic levels.
     worker = createJobWorker('default', async (job) => {
       const handler = registry.getHandler(job.name)
       if (!handler) {
@@ -56,6 +59,39 @@ function main() {
       .catch((err: unknown) => {
         logger.warn({ err }, 'Failed to schedule health-check job (may already exist)')
       })
+
+    // Schedule review retention jobs
+    container.jobQueue
+      .add(
+        'refresh-expiring-reviews',
+        {},
+        {
+          repeat: { every: 24 * 60 * 60 * 1000 },
+          jobId: 'refresh-expiring-reviews-recurring',
+        },
+      )
+      .then(() => {
+        logger.info('Refresh expiring reviews job scheduled (daily)')
+      })
+      .catch((err: unknown) => {
+        logger.warn({ err }, 'Failed to schedule refresh-expiring-reviews job')
+      })
+
+    container.jobQueue
+      .add(
+        'purge-expired-reviews',
+        {},
+        {
+          repeat: { every: 24 * 60 * 60 * 1000, offset: 2 * 60 * 60 * 1000 },
+          jobId: 'purge-expired-reviews-recurring',
+        },
+      )
+      .then(() => {
+        logger.info('Purge expired reviews job scheduled (daily)')
+      })
+      .catch((err: unknown) => {
+        logger.warn({ err }, 'Failed to schedule purge-expired-reviews job')
+      })
   } else {
     logger.warn('No Redis available — worker running without job processing')
   }
@@ -69,6 +105,14 @@ function main() {
         logger.info('Worker drained successfully')
       } catch (err) {
         logger.error({ err }, 'Error draining worker')
+      }
+    }
+    if (container.jobQueue) {
+      try {
+        await container.jobQueue.close()
+        logger.info('Queue closed successfully')
+      } catch (err) {
+        logger.error({ err }, 'Error closing queue')
       }
     }
     process.exit(0)

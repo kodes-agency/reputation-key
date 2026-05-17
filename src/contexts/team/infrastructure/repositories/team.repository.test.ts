@@ -24,11 +24,11 @@ let pool: Pool
 
 async function seedOrg(pool: Pool, ids: string[]) {
   for (const id of ids) {
-    const slug = 't-' + id.replace(/-/g, '').slice(-12)
+    const slug = 't-' + id.slice(-20)
     await pool.query(
       `INSERT INTO organization (id, name, slug, "createdAt")
        VALUES ($1, $2, $3, NOW())
-       ON CONFLICT (id) DO NOTHING`,
+       ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, slug = EXCLUDED.slug`,
       [id, `Test Org ${slug}`, slug],
     )
   }
@@ -38,7 +38,7 @@ async function seedProperty(pool: Pool, id: string, orgId: string, slug: string)
   await pool.query(
     `INSERT INTO properties (id, organization_id, name, slug, timezone, created_at, updated_at)
      VALUES ($1, $2, $3, $4, 'UTC', NOW(), NOW())
-     ON CONFLICT (id) DO NOTHING`,
+     ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, slug = EXCLUDED.slug`,
     [id, orgId, `Property ${slug}`, slug],
   )
 }

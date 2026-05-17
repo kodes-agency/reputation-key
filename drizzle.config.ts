@@ -30,5 +30,7 @@ export default defineConfig({
     'google_connections',
     'gbp_cache',
     'gbp_import_jobs',
+    'reviews',
+    'replies',
   ],
 })

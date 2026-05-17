@@ -150,3 +150,17 @@ Routes must **never**:
 ## Public routes
 
 Login (`/login`), join (`/join`), accept-invitation — these are outside `_authenticated` and have no auth guard. Guest portal routes resolve org from URL slug, not from session.
+
+### Webhook route exception
+
+Webhook routes (`routes/api/webhooks/`) are exempt from the standard API route rules. Allowed:
+- `getDb()` + Drizzle schema table imports + `drizzle-orm` helpers for resource resolution
+- `getContainer()` for queue access (to enqueue background jobs)
+- `shared/auth/` imports for token/JWT verification
+- Direct `Response` construction (no server fn wrapping needed)
+
+NOT allowed:
+- Importing use cases, repositories, or domain logic directly
+- Creating new Queue instances (use container's singleton)
+
+**Pattern:** Verify the request signature/token, extract the relevant identifiers from the payload, look up the local resource, enqueue a job for processing, return 200 OK immediately.
