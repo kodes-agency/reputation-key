@@ -16,10 +16,7 @@ export async function truncateTables(
   orgIds: string[],
 ): Promise<void> {
   for (const table of tables) {
-    await pool.query(
-      `DELETE FROM ${table} WHERE organization_id = ANY($1)`,
-      [orgIds],
-    )
+    await pool.query(`DELETE FROM ${table} WHERE organization_id = ANY($1)`, [orgIds])
   }
 }
 
@@ -51,7 +48,7 @@ export function setupIntegrationDb(options: {
   })
 
   afterAll(async () => {
-    await pool.end()
+    await pool?.end()
   })
 
   beforeEach(async () => {
