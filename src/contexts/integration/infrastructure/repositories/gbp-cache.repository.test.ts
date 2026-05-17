@@ -100,8 +100,8 @@ describe('gbpCacheRepository (integration)', () => {
     it('returns null when no entry exists for given type', async () => {
       const db = getDb()
       const repo = createGbpCacheRepository(db)
-      const found = await repo.findByPropertyAndType(PROP_A, 'reviews')
-      expect(found).toBeNull()
+      // 'location' is the only valid type now; no entry inserted in this scope
+      expect(await repo.findByPropertyAndType(PROP_A, 'location')).toBeNull()
     })
   })
 
@@ -123,7 +123,7 @@ describe('gbpCacheRepository (integration)', () => {
       const repo = createGbpCacheRepository(db)
       await repo.upsert(
         buildTestCacheEntry({
-          dataType: 'reviews',
+          dataType: 'location',
           expiresAt: new Date('2020-01-01T00:00:00Z'),
         }),
       )
@@ -131,7 +131,7 @@ describe('gbpCacheRepository (integration)', () => {
       const count = await repo.deleteExpired()
       expect(count).toBeGreaterThanOrEqual(1)
 
-      const found = await repo.findByPropertyAndType(PROP_A, 'reviews')
+      const found = await repo.findByPropertyAndType(PROP_A, 'location')
       expect(found).toBeNull()
     })
   })

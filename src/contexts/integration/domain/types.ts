@@ -30,7 +30,7 @@ export type GoogleConnection = Readonly<{
   updatedAt: Date
 }>
 
-export type GbpCacheDataType = 'location' | 'reviews'
+export type GbpCacheDataType = 'location'
 
 export type GbpCacheEntry = Readonly<{
   id: string

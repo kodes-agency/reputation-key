@@ -4,14 +4,16 @@
 
 ## Bounded contexts
 
-| Context  | Responsibility                                         | Key Entities                           | Thickness |
-| -------- | ------------------------------------------------------ | -------------------------------------- | --------- |
-| Identity | Users, organizations, members, invitations             | User, Organization, Member, Invitation | Thin (wraps better-auth) |
-| Property | Properties (hotels/restaurants) owned by organizations | Property                               | Thick     |
-| Portal   | Guest-facing portal pages with links, per property     | Portal, Link, LinkCategory             | Thick     |
-| Guest    | Public portal rendering, review collection, feedback   | Review, Feedback                       | Thick     |
-| Team     | Staff teams and shift management                       | Team, StaffAssignment                  | Thick     |
-| Staff    | Staff assignments to properties                        | StaffAssignment                        | Standard  |
+|| Context     | Responsibility                                         | Key Entities                           | Thickness |
+|| ----------- | ------------------------------------------------------ | -------------------------------------- | --------- ||
+|| Identity    | Users, organizations, members, invitations             | User, Organization, Member, Invitation | Thin (wraps better-auth) |
+|| Property    | Properties (hotels/restaurants) + GBP location import  | Property                               | Thick     |
+|| Portal      | Guest-facing portal pages with links, per property     | Portal, Link, LinkCategory             | Thick     |
+|| Guest       | Public portal rendering, rating collection, feedback   | Rating, Feedback                       | Thick     |
+|| Team        | Staff teams and shift management                       | Team, StaffAssignment                  | Thick     |
+|| Staff       | Staff assignments to properties                        | StaffAssignment                        | Standard  |
+|| Integration | Google connections, OAuth, tokens, GBP API adapter     | GoogleConnection                       | Standard  |
+|| Review      | External platform reviews (Google), sync, replies      | Review                                 | Thick     |
 
 **Thin contexts** (like Identity) may have empty layer folders — no mappers, no jobs, sparse use cases. That's expected.
 
@@ -51,6 +53,7 @@ Dependencies point inward: `server` → `application` → `domain`. Infrastructu
 - `infrastructure/` imports from `domain/`, `application/`, `shared/`, external libs.
 - `server/` imports from `application/` (use cases, DTOs), `shared/`, TanStack Start. May import error type guards (`isXxxError`) and error code types from its own `domain/errors.ts` — the only permitted server-to-domain path.
 - Cross-context: import from `application/public-api.ts` only. Never from `domain/`, `infrastructure/`, `server/`, or non-public-api `application/`.
+- **Exception:** Cross-context adapter implementations (e.g., `integration/infrastructure/adapters/google-review-api.adapter.ts` implementing `review/application/ports/google-review-api.port.ts`) may import the port they implement. The port IS the public interface for adapter contracts.
 
 ## Use case shape
 

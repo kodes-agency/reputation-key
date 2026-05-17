@@ -23,13 +23,15 @@ Composition root: `src/composition.ts`. Bootstrap: `src/bootstrap.ts`.
 
 ## Bounded contexts
 
-| Context  | Responsibility                                         | Key Entities                           |
-| -------- | ------------------------------------------------------ | -------------------------------------- |
-| Identity | Users, organizations, members, invitations             | User, Organization, Member, Invitation |
-| Property | Properties (hotels/restaurants) owned by organizations | Property                               |
-| Portal   | Guest-facing portal pages with links, per property     | Portal, Link, LinkCategory             |
-| Guest    | Public portal rendering, review collection, feedback   | Review, Feedback                       |
-| Team     | Staff teams and shift management                       | Team, StaffAssignment                  |
+|| Context     | Responsibility                                         | Key Entities                           |
+|| ----------- | ------------------------------------------------------ | -------------------------------------- |
+|| Identity    | Users, organizations, members, invitations             | User, Organization, Member, Invitation |
+|| Property    | Properties (hotels/restaurants) owned by organizations | Property                               |
+|| Portal      | Guest-facing portal pages with links, per property     | Portal, Link, LinkCategory             |
+|| Guest       | Public portal rendering, rating collection, feedback   | Rating, Feedback                       |
+|| Team        | Staff teams and shift management                       | Team, StaffAssignment                  |
+|| Integration | Google connections, OAuth, tokens, GBP API adapter     | GoogleConnection                       |
+|| Review      | External platform reviews (Google), sync, replies      | Review                                 |
 
 ## Glossary
 
@@ -61,6 +63,19 @@ Composition root: `src/composition.ts`. Bootstrap: `src/bootstrap.ts`.
 | **Property Assignment** | A `staff_assignment` record linking a user to a property. PropertyManagers only manage assigned properties.  |
 | **Org-wide role**       | A member's role applies across the entire organization, but property-level actions are scoped by assignment. |
 
+### Reviews & Feedback
+
+| Term                    | Definition                                                                                                                              |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| **Review**              | A public review from an external platform (Google, future TripAdvisor). Has `platform`, `externalId`, `rating`, `text`, `reviewerName`. Reply state lives in a separate `Reply` entity. Lives in the `review` context. |
+| **Rating**              | A private 1–5 star rating submitted by a portal visitor. Lives in the `guest` context.                                                  |
+| **Feedback**            | A private text comment submitted by a portal visitor. Lives in the `guest` context.                                                     |
+| **GoogleConnection**    | An OAuth connection to a Google account. Stores encrypted tokens, scopes, visibility. Lives in the `integration` context.               |
+| **ReviewPlatform**      | The external source of a review (`'google'`). Extensible for future platforms.                                                          |
+| **Review Sync**         | Process of fetching reviews from GBP. Triggered by Pub/Sub push notification (new/updated review) or manual "Sync Now" button. No periodic polling. |
+| **GBP Notification**    | GCP Pub/Sub push from Google when a review is created or updated. Subscribed per-account on first property import, unsubscribed on last property removal or disconnect. |
+| **Reply**               | A response to a review. Separate entity from Review. Phase 10: `status = 'published'`, `source = 'google_sync'` (reply detected from GBP). Phase 12 extends with draft/approve/reject workflow and `source = 'internal'`. |
+
 ## Permission Patterns
 
 ### When to use what
@@ -79,7 +94,13 @@ Composition root: `src/composition.ts`. Bootstrap: `src/bootstrap.ts`.
 
 ## Architecture Decisions
 
-See `docs/adr/` for formal ADRs.
+See `docs/adr/` for formal ADRs. Key ADRs:
+
+| ADR | Title | Context |
+|-----|-------|---------|
+| 0001 | Dynamic Access Control via Better-auth | Identity & Authorization |
+| 0002 | Section-Based Navigation | Navigation Architecture |
+| 0003 | Review as a Separate Bounded Context | Reviews, Google Integration |
 
 ## Key Files
 

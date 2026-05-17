@@ -1,138 +1,101 @@
-# GBP Import Feature — Master Review Report
-
-> **Quality gate review** for the Google Business Profile property import feature.
-> Reviews: `01-domain-application.md`, `02-infrastructure-server.md`, `03-frontend.md`
-
----
+# Master Review Report — Independent Re-Review (Round 2)
 
 ## Executive Summary
 
-| Split                                 | Files  | Lines     | P0    | P1    | P2     | P3     |
-| ------------------------------------- | ------ | --------- | ----- | ----- | ------ | ------ |
-| Domain + Application + Build          | 30     | 1,462     | 0     | 1     | 5      | 3      |
-| Infrastructure + Server + Shared Jobs | 22     | 2,083     | 3     | 5     | 7      | 6      |
-| Frontend (Routes + Components)        | 20     | 1,066     | 0     | 3     | 9      | 5      |
-| **Total**                             | **72** | **4,611** | **3** | **9** | **21** | **14** |
+3 independent subagents reviewed 55+ files across the review bounded context, shared infrastructure, integration changes, and wiring. **1 broken test confirmed**, **1 architectural concern**, **1 runtime risk**, and **11 quality warnings** found.
 
-**Verdict:** 3 critical issues must be fixed before proceeding. The codebase architecture is strong — clean hexagonal boundaries, consistent error handling, proper tenant isolation, and good security posture (AES-256-GCM token encryption, HMAC-signed OAuth state). The critical issues are all dead code / error-handling gaps, not architectural flaws.
+| Split | Issues | P0 | P1 | P2 | P3 |
+|-------|--------|----|----|----|----|
+| Domain + Application | 17 | 0 | 4 | 8 | 5 |
+| Infrastructure | 7 | 0 | 1 | 4 | 2 |
+| Shared + Integration + Wiring | 4 | 0 | 1 | 2 | 1 |
+| **Total** | **28** | **0** | **6** | **14** | **8** |
 
----
+After deduplication and filtering noise: **4 issues worth fixing** (1 test bug, 2 P1s, 1 P2).
 
-## Critical Issues (P0) — Must Fix
+## Issues to Fix (Prioritized)
 
-| #    | Area  | Issue                                                                                                                                                                                                | File                                              |
-| ---- | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| P0-1 | Infra | **Duplicate import-property handler** — `shared/jobs/handlers/import-property.ts` is a byte-for-byte copy of `infrastructure/jobs/import-property.job.ts`, never imported anywhere. Divergence risk. | `src/shared/jobs/handlers/import-property.ts`     |
-| P0-2 | Infra | **OAuth adapter throws raw `Error`** — all 5 error paths throw untagged `new Error(...)` instead of `IntegrationError`. Server fns can't pattern-match → generic 500s.                               | `infrastructure/adapters/google-oauth.adapter.ts` |
-| P0-3 | Infra | **Dead job handlers** — `syncGbpCacheHandler` and `purgeExpiredCacheHandler` are exported but never registered in bootstrap.                                                                         | `src/shared/jobs/handlers/sync-gbp-cache.ts`      |
+### P0 — Broken Test (MUST FIX)
 
----
+**1. `constructors.test.ts:169` — Test expects wrong error code**
+- File: `src/contexts/review/domain/constructors.test.ts`
+- Test expects `'reply_not_found'` but `buildReply` returns `'invalid_reply'`
+- **Test FAILS at runtime.** Confirmed: `npx vitest run` shows 1 failure
+- Root cause: previous fix changed constructor error code but missed updating the test
+- Fix: change line 169 from `'reply_not_found'` to `'invalid_reply'`
 
-## High Issues (P1) — Should Fix
+### P1 — Architectural: Domain Constructor Bypass
 
-| #    | Area     | Issue                                                              | File                              |
-| ---- | -------- | ------------------------------------------------------------------ | --------------------------------- |
-| P1-1 | Infra    | GBP API adapter mapping helpers throw raw `Error`                  | `gbp-api.adapter.ts`              |
-| P1-2 | Infra    | sync-gbp-cache is a no-op stub (queries then discards)             | `sync-gbp-cache.ts`               |
-| P1-3 | Infra    | Token encryption has no key-length validation                      | `token-encryption.adapter.ts`     |
-| P1-4 | Infra    | `import-property.job.ts` is 207 lines (38% over limit)             | `import-property.job.ts`          |
-| P1-5 | Infra    | `google-connection.repository.ts` is 187 lines (25% over)          | `google-connection.repository.ts` |
-| P1-6 | Domain   | `GbpApiError` hybrid tagged-union + Error class breaks pure domain | `gbp-api-error.ts`                |
-| P1-7 | Frontend | Domain import in route file (`$importId.tsx`)                      | `$importId.tsx`                   |
-| P1-8 | Frontend | Unsafe `as unknown as` double cast in `index.tsx` loader           | `index.tsx`                       |
-| P1-9 | Frontend | `import-connected-view.tsx` exceeds 150-line limit                 | `import-connected-view.tsx`       |
+**2. `sync-reviews.ts:75-92` — Use case bypasses `buildReview` domain constructor**
+- File: `src/contexts/review/application/use-cases/sync-reviews.ts`
+- The sync use case manually assembles `Review` objects (line 75) instead of calling `buildReview()`
+- This skips `isValidRating()` domain rule — a corrupt Google payload with `rating: 0` or `rating: 6` would be persisted
+- `mirrorReply` (lines 153-174) similarly bypasses `buildReply()`, skipping empty-text validation
+- **Assessment:** This may be intentional (trusted external data, already validated by adapter). If so, add a comment documenting the rationale. If not, route through constructors.
+- **Verdict:** Flag but defer — document the intentional bypass with a comment
 
----
+### P1 — Runtime: Queue Uses Shared Redis Connection
 
-## Medium Issues (P2) — Nice to Fix
+**3. `queue.ts:23` — BullMQ Queue uses shared Redis (`maxRetriesPerRequest: 3`)**
+- File: `src/shared/jobs/queue.ts`
+- `createJobQueue` uses `getRedis()` which has `maxRetriesPerRequest: 3`
+- Worker correctly creates dedicated connection with `maxRetriesPerRequest: null`
+- Under Redis instability, queue `.add()` may throw `MaxRetriesPerRequestError` → silent job loss
+- Impact: webhook notifications and manual sync triggers
+- Fix: create dedicated ioredis connection with `maxRetriesPerRequest: null` for Queue
 
-| #     | Area     | Issue                                                                                 |
-| ----- | -------- | ------------------------------------------------------------------------------------- |
-| P2-1  | Domain   | Email validation weak (`includes('@')`)                                               |
-| P2-2  | Domain   | `GbpCacheEntry.payload` is `unknown` — no type safety                                 |
-| P2-3  | Domain   | `connect-google-account` doesn't verify granted scopes match requested                |
-| P2-4  | Domain   | `disconnect-google-account` silently succeeds on revocation failure (document intent) |
-| P2-5  | Domain   | Queue fallback error message misleading after composition change                      |
-| P2-6  | Infra    | `gbp-api.adapter.ts` 206 lines (over limit)                                           |
-| P2-7  | Infra    | `google-connections.ts` 183 lines (over limit)                                        |
-| P2-8  | Infra    | `batchGetReviews` returns `unknown` type                                              |
-| P2-9  | Infra    | Queue factory passes shared Redis client                                              |
-| P2-10 | Infra    | `getGoogleAuthUrl` doesn't use tenant context result                                  |
-| P2-11 | Infra    | `health-check.job.ts` imports `pino` directly                                         |
-| P2-12 | Infra    | `createJobQueue` type fragility                                                       |
-| P2-13 | Frontend | Dead types in `import-types.ts`                                                       |
-| P2-14 | Frontend | Missing `beforeLoad` auth guards on both routes                                       |
-| P2-15 | Frontend | Unnecessary array spreads (2 instances)                                               |
-| P2-16 | Frontend | Missing `useEffect` dependency in `$importId.tsx`                                     |
-| P2-17 | Frontend | Duplicated connect-Google logic (inline vs component)                                 |
-| P2-18 | Frontend | No loading state for initial import progress render                                   |
-| P2-19 | Frontend | Error state not cleared on retry                                                      |
-| P2-20 | Frontend | Shared types not `Readonly`                                                           |
-| P2-21 | Frontend | Missing authorization guard (`beforeLoad`)                                            |
+### P2 — Missing Test Coverage
 
----
+**4. No cross-org delete protection tests for `deleteById`**
+- Files: `review.repository.test.ts`, `reply.repository.test.ts`
+- Both `deleteById` tests only verify same-org deletion works
+- No test verifies that `deleteById(reviewId, ORG_B)` for ORG_A's review is a safe no-op
+- The WHERE clause includes `organizationId` so it's safe — but untested
 
-## Low Issues (P3) — Suggestions
+## Confirmed Clean (Previous Fixes Verified)
 
-| #     | Area     | Issue                                                     |
-| ----- | -------- | --------------------------------------------------------- |
-| P3-1  | Domain   | `constants.ts` has only one export                        |
-| P3-2  | Domain   | Types re-export branded IDs redundantly                   |
-| P3-3  | Domain   | DTO files could be consolidated                           |
-| P3-4  | Infra    | Container singleton not thread-safe                       |
-| P3-5  | Infra    | `getAuthUrlInputSchema` defined locally instead of in DTO |
-| P3-6  | Infra    | Non-null assertion in `build.ts`                          |
-| P3-7  | Infra    | `as` type assertions in GBP API mappers                   |
-| P3-8  | Infra    | No rate-limiting on GBP API calls                         |
-| P3-9  | Infra    | `fallow-ignore` comments may be unused                    |
-| P3-10 | Frontend | Hardcoded UI strings (no i18n)                            |
-| P3-11 | Frontend | Inline `import()` type syntax                             |
-| P3-12 | Frontend | Missing aria attributes on empty/error states             |
-| P3-13 | Frontend | Polling interval hardcoded                                |
-| P3-14 | Frontend | Error div missing `role="alert"`                          |
+All 18 fixes from the previous review round were verified present:
+- ✅ `organizationId` added to `findByPropertyId`, `deleteById`, `deleteByPropertyId` (review)
+- ✅ `organizationId` added to `deleteById` (reply)
+- ✅ `'invalid_reply'` error code added to union (constructor fixed, **test missed**)
+- ✅ `getLogger()` import + warning log in sync loop catch
+- ✅ 429 → `gbp_api_rate_limited` mapping in adapter
+- ✅ `.comment` field for GBP reviewReply
+- ✅ `GoogleConnectionVisibilityChanged` re-exported
+- ✅ `findAll*` prefix on system-level queries
+- ✅ Tenant isolation TODO comment in `gbp-cache.schema.ts`
+- ✅ 24h JWKS cache TTL
+- ✅ `Response.json({ ok: true })` for webhook responses
+- ✅ Single-queue decision documented in worker
 
----
+## Additional Findings (Low Priority / Informational)
 
-## Top Positive Findings
+These were found but don't require immediate action:
 
-1. **Hexagonal architecture is exemplary** — domain is pure, application throws tagged errors, infrastructure translates, server maps to HTTP
-2. **Strong security** — AES-256-GCM token encryption, HMAC-signed OAuth state, no hardcoded secrets
-3. **Proper multi-tenant isolation** — every repo query includes `organizationId`
-4. **Clean frontend architecture** — zero `useQuery`/`useMutation` violations, server fns via `useServerFn` only
-5. **Consistent UX** — loading/error/empty/disabled states across all components
-6. **Robust import job handler** — handles race conditions (PG 23505), proper status transitions, outer try/catch guarantees final state
-7. **No `console.*` anywhere** — all files use `getLogger()`
-8. **No `class`, `this`, `enum` in domain/application** — functional style throughout
+- **P2:** Branded IDs in mappers (`review.mapper.ts`, `reply.mapper.ts`) not explicitly cast with `as string` — works at runtime but contradicts convention
+- **P2:** `pubsub-jwt.verifier.test.ts` has no test for JWKS cache TTL invalidation
+- **P2:** Missing `review.purged` event — purge job reuses `review.expired` (semantically ambiguous but functional)
+- **P2:** Mapper round-trip test doesn't cover `null googleConnectionId` path
+- **P3:** `reply.repository.test.ts` line 7: `../repositories/review.repository` should be `./review.repository`
+- **P3:** Undocumented magic-number query limits (500, 5000) in repositories
+- **P3:** `sentimentLabel` is `string | null` — could be a union type for type safety
+- **P3:** `syncReviews` doesn't follow full 7-step use case pattern (no authorize step) — acceptable for system-level job, but worth a comment
 
----
+## Test Results
 
-## Recommended Fix Priority
+- `tsc --noEmit`: ✅ Clean (0 errors)
+- Domain + Application unit tests: ❌ **1 failure** (`constructors.test.ts > buildReply > returns Err for empty text`)
+- Infrastructure integration tests: Not run (requires Postgres)
 
-### Immediate (before proceeding)
+## Recommendations
 
-1. Delete `src/shared/jobs/handlers/import-property.ts` (P0-1)
-2. Fix `google-oauth.adapter.ts` to throw `integrationError()` instead of `new Error()` (P0-2)
-3. Delete `src/shared/jobs/handlers/sync-gbp-cache.ts` (P0-3 + P1-2)
-
-### Next sprint
-
-4. Fix `gbp-api.adapter.ts` mapping helpers to throw domain errors (P1-1)
-5. Add key-length validation to `token-encryption.adapter.ts` (P1-3)
-6. Fix `GbpApiError` to be a pure tagged union or document the hybrid (P1-6)
-7. Remove domain import from `$importId.tsx` route (P1-7)
-8. Fix `as unknown as` double cast in `index.tsx` (P1-8)
-9. Add `beforeLoad` auth guards to import routes (P2-14/21)
-
-### Backlog
-
-10. Refactor oversized files (P1-4, P1-5, P1-9, P2-6, P2-7)
-11. Clean up dead types, unnecessary spreads, missing deps (P2 category)
-12. Scope verification in OAuth connect use case (P2-3)
-
----
+1. **Fix the broken test immediately** — one-line change in `constructors.test.ts:169`
+2. **Decide on constructor bypass** — either route through `buildReview`/`buildReply` or document the intentional choice
+3. **Fix Queue Redis connection** — prevents silent job loss under Redis instability
+4. **Add cross-org delete tests** — completes tenant isolation coverage
 
 ## Detailed Reports
 
-- [01-domain-application.md](./01-domain-application.md) — Domain, Application, Build layers
-- [02-infrastructure-server.md](./02-infrastructure-server.md) — Infrastructure, Server, Shared Jobs
-- [03-frontend.md](./03-frontend.md) — Routes, Components, Hooks
+- [01-review-domain-application.md](./01-review-domain-application.md)
+- [02-review-infrastructure.md](./02-review-infrastructure.md)
+- [03-shared-integration-wiring.md](./03-shared-integration-wiring.md)

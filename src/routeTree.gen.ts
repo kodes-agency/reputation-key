@@ -34,6 +34,7 @@ import { Route as AuthenticatedSettingsOrganizationRouteImport } from './routes/
 import { Route as AuthenticatedPropertiesPropertyIdRouteImport } from './routes/_authenticated/properties/$propertyId'
 import { Route as AuthenticatedPropertiesImportIndexRouteImport } from './routes/_authenticated/properties/import/index'
 import { Route as AuthenticatedPropertiesPropertyIdIndexRouteImport } from './routes/_authenticated/properties/$propertyId/index'
+import { Route as ApiWebhooksGbpNotificationsRouteImport } from './routes/api/webhooks/gbp/notifications'
 import { Route as ApiPublicClickLinkIdRouteImport } from './routes/api/public/click/$linkId'
 import { Route as ApiPortalsIdQrRouteImport } from './routes/api/portals/$id/qr'
 import { Route as ApiAuthGoogleCallbackRouteImport } from './routes/api/auth/google/callback'
@@ -97,11 +98,12 @@ const AuthenticatedProgressRoute = AuthenticatedProgressRouteImport.update({
   path: '/progress',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
-const AuthenticatedLeaderboardRoute = AuthenticatedLeaderboardRouteImport.update({
-  id: '/leaderboard',
-  path: '/leaderboard',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
+const AuthenticatedLeaderboardRoute =
+  AuthenticatedLeaderboardRouteImport.update({
+    id: '/leaderboard',
+    path: '/leaderboard',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedHomeRoute = AuthenticatedHomeRouteImport.update({
   id: '/home',
   path: '/home',
@@ -117,16 +119,18 @@ const ApiHealthIndexRoute = ApiHealthIndexRouteImport.update({
   path: '/api/health/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedSettingsIndexRoute = AuthenticatedSettingsIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => AuthenticatedSettingsRoute,
-} as any)
-const AuthenticatedPropertiesIndexRoute = AuthenticatedPropertiesIndexRouteImport.update({
-  id: '/properties/',
-  path: '/properties/',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
+const AuthenticatedSettingsIndexRoute =
+  AuthenticatedSettingsIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedSettingsRoute,
+  } as any)
+const AuthenticatedPropertiesIndexRoute =
+  AuthenticatedPropertiesIndexRouteImport.update({
+    id: '/properties/',
+    path: '/properties/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const PPropertySlugPortalSlugRoute = PPropertySlugPortalSlugRouteImport.update({
   id: '/p/$propertySlug/$portalSlug',
   path: '/p/$propertySlug/$portalSlug',
@@ -143,11 +147,12 @@ const AuthenticatedSettingsSecurityRoute =
     path: '/security',
     getParentRoute: () => AuthenticatedSettingsRoute,
   } as any)
-const AuthenticatedSettingsProfileRoute = AuthenticatedSettingsProfileRouteImport.update({
-  id: '/profile',
-  path: '/profile',
-  getParentRoute: () => AuthenticatedSettingsRoute,
-} as any)
+const AuthenticatedSettingsProfileRoute =
+  AuthenticatedSettingsProfileRouteImport.update({
+    id: '/profile',
+    path: '/profile',
+    getParentRoute: () => AuthenticatedSettingsRoute,
+  } as any)
 const AuthenticatedSettingsPreferencesRoute =
   AuthenticatedSettingsPreferencesRouteImport.update({
     id: '/preferences',
@@ -177,6 +182,12 @@ const AuthenticatedPropertiesPropertyIdIndexRoute =
     id: '/',
     path: '/',
     getParentRoute: () => AuthenticatedPropertiesPropertyIdRoute,
+  } as any)
+const ApiWebhooksGbpNotificationsRoute =
+  ApiWebhooksGbpNotificationsRouteImport.update({
+    id: '/api/webhooks/gbp/notifications',
+    path: '/api/webhooks/gbp/notifications',
+    getParentRoute: () => rootRouteImport,
   } as any)
 const ApiPublicClickLinkIdRoute = ApiPublicClickLinkIdRouteImport.update({
   id: '/api/public/click/$linkId',
@@ -284,6 +295,7 @@ export interface FileRoutesByFullPath {
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
   '/api/portals/$id/qr': typeof ApiPortalsIdQrRoute
   '/api/public/click/$linkId': typeof ApiPublicClickLinkIdRoute
+  '/api/webhooks/gbp/notifications': typeof ApiWebhooksGbpNotificationsRoute
   '/properties/$propertyId/': typeof AuthenticatedPropertiesPropertyIdIndexRoute
   '/properties/import/': typeof AuthenticatedPropertiesImportIndexRoute
   '/properties/$propertyId/portals/$portalId': typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute
@@ -321,6 +333,7 @@ export interface FileRoutesByTo {
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
   '/api/portals/$id/qr': typeof ApiPortalsIdQrRoute
   '/api/public/click/$linkId': typeof ApiPublicClickLinkIdRoute
+  '/api/webhooks/gbp/notifications': typeof ApiWebhooksGbpNotificationsRoute
   '/properties/$propertyId': typeof AuthenticatedPropertiesPropertyIdIndexRoute
   '/properties/import': typeof AuthenticatedPropertiesImportIndexRoute
   '/properties/$propertyId/portals/$portalId': typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute
@@ -361,6 +374,7 @@ export interface FileRoutesById {
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
   '/api/portals/$id/qr': typeof ApiPortalsIdQrRoute
   '/api/public/click/$linkId': typeof ApiPublicClickLinkIdRoute
+  '/api/webhooks/gbp/notifications': typeof ApiWebhooksGbpNotificationsRoute
   '/_authenticated/properties/$propertyId/': typeof AuthenticatedPropertiesPropertyIdIndexRoute
   '/_authenticated/properties/import/': typeof AuthenticatedPropertiesImportIndexRoute
   '/_authenticated/properties/$propertyId/portals/$portalId': typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute
@@ -402,6 +416,7 @@ export interface FileRouteTypes {
     | '/api/auth/google/callback'
     | '/api/portals/$id/qr'
     | '/api/public/click/$linkId'
+    | '/api/webhooks/gbp/notifications'
     | '/properties/$propertyId/'
     | '/properties/import/'
     | '/properties/$propertyId/portals/$portalId'
@@ -439,6 +454,7 @@ export interface FileRouteTypes {
     | '/api/auth/google/callback'
     | '/api/portals/$id/qr'
     | '/api/public/click/$linkId'
+    | '/api/webhooks/gbp/notifications'
     | '/properties/$propertyId'
     | '/properties/import'
     | '/properties/$propertyId/portals/$portalId'
@@ -478,6 +494,7 @@ export interface FileRouteTypes {
     | '/api/auth/google/callback'
     | '/api/portals/$id/qr'
     | '/api/public/click/$linkId'
+    | '/api/webhooks/gbp/notifications'
     | '/_authenticated/properties/$propertyId/'
     | '/_authenticated/properties/import/'
     | '/_authenticated/properties/$propertyId/portals/$portalId'
@@ -502,6 +519,7 @@ export interface RootRouteChildren {
   ApiAuthGoogleCallbackRoute: typeof ApiAuthGoogleCallbackRoute
   ApiPortalsIdQrRoute: typeof ApiPortalsIdQrRoute
   ApiPublicClickLinkIdRoute: typeof ApiPublicClickLinkIdRoute
+  ApiWebhooksGbpNotificationsRoute: typeof ApiWebhooksGbpNotificationsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -681,6 +699,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdIndexRouteImport
       parentRoute: typeof AuthenticatedPropertiesPropertyIdRoute
     }
+    '/api/webhooks/gbp/notifications': {
+      id: '/api/webhooks/gbp/notifications'
+      path: '/api/webhooks/gbp/notifications'
+      fullPath: '/api/webhooks/gbp/notifications'
+      preLoaderRoute: typeof ApiWebhooksGbpNotificationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/click/$linkId': {
       id: '/api/public/click/$linkId'
       path: '/api/public/click/$linkId'
@@ -784,7 +809,8 @@ interface AuthenticatedSettingsRouteChildren {
 }
 
 const AuthenticatedSettingsRouteChildren: AuthenticatedSettingsRouteChildren = {
-  AuthenticatedSettingsOrganizationRoute: AuthenticatedSettingsOrganizationRoute,
+  AuthenticatedSettingsOrganizationRoute:
+    AuthenticatedSettingsOrganizationRoute,
   AuthenticatedSettingsPreferencesRoute: AuthenticatedSettingsPreferencesRoute,
   AuthenticatedSettingsProfileRoute: AuthenticatedSettingsProfileRoute,
   AuthenticatedSettingsSecurityRoute: AuthenticatedSettingsSecurityRoute,
@@ -792,7 +818,9 @@ const AuthenticatedSettingsRouteChildren: AuthenticatedSettingsRouteChildren = {
 }
 
 const AuthenticatedSettingsRouteWithChildren =
-  AuthenticatedSettingsRoute._addFileChildren(AuthenticatedSettingsRouteChildren)
+  AuthenticatedSettingsRoute._addFileChildren(
+    AuthenticatedSettingsRouteChildren,
+  )
 
 interface AuthenticatedPropertiesPropertyIdTeamsTeamIdRouteChildren {
   AuthenticatedPropertiesPropertyIdTeamsTeamIdMembersRoute: typeof AuthenticatedPropertiesPropertyIdTeamsTeamIdMembersRoute
@@ -871,8 +899,10 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedPropertiesPropertyIdRoute:
     AuthenticatedPropertiesPropertyIdRouteWithChildren,
   AuthenticatedPropertiesIndexRoute: AuthenticatedPropertiesIndexRoute,
-  AuthenticatedPropertiesImportImportIdRoute: AuthenticatedPropertiesImportImportIdRoute,
-  AuthenticatedPropertiesImportIndexRoute: AuthenticatedPropertiesImportIndexRoute,
+  AuthenticatedPropertiesImportImportIdRoute:
+    AuthenticatedPropertiesImportImportIdRoute,
+  AuthenticatedPropertiesImportIndexRoute:
+    AuthenticatedPropertiesImportIndexRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
@@ -893,17 +923,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAuthGoogleCallbackRoute: ApiAuthGoogleCallbackRoute,
   ApiPortalsIdQrRoute: ApiPortalsIdQrRoute,
   ApiPublicClickLinkIdRoute: ApiPublicClickLinkIdRoute,
+  ApiWebhooksGbpNotificationsRoute: ApiWebhooksGbpNotificationsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

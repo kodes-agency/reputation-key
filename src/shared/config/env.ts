@@ -56,6 +56,9 @@ const envSchema = z.object({
     .string()
     .min(32)
     .regex(/^[a-f0-9]+$/, 'Must be hex characters'),
+
+  // Google Pub/Sub webhook audience verification (optional — defaults to /webhooks/gbp path)
+  GBP_PUBSUB_AUDIENCE: z.string().optional(),
 })
 
 // fallow-ignore-next-line unused-type

@@ -168,19 +168,21 @@ export default tseslint.config(
               allow: { to: { type: 'shared-domain' } },
             },
 
-            // application → imports from domain/, shared/domain/, shared-events, application/ (cross-context public-api types)
+            // application → imports from domain/, shared/domain/, shared-events, shared-other (logger), application/ (cross-context public-api types)
             // Per architecture: use cases need EventBus to emit domain events (patterns #9, #22).
+            // Per architecture: use cases may import logger for error resilience catch blocks.
             // Per ADR-0001: contexts may import another context's application/public-api.ts types only.
             {
               from: { type: 'application' },
               allow: {
                 to: {
-                  type: ['domain', 'shared-domain', 'shared-events', 'application'],
+                  type: ['domain', 'shared-domain', 'shared-events', 'shared-other', 'application'],
                 },
               },
             },
 
             // infrastructure → imports from domain/, application/, shared/*, external libs
+            // Per architecture: job handlers need EventBus to emit domain events.
             {
               from: { type: 'infrastructure' },
               allow: {
@@ -191,6 +193,7 @@ export default tseslint.config(
                     'shared-domain',
                     'shared-auth',
                     'shared-db',
+                    'shared-events',
                     'shared-other',
                   ],
                 },
