@@ -165,14 +165,11 @@ function mapGbpAccount(account: unknown): GbpAccount {
   }
 }
 
-function mapGbpLocation(location: unknown): GbpLocation {
-  if (!location || typeof location !== 'object') {
-    throw createGbpApiError('mapLocation', 500, 'Invalid GBP location data')
-  }
-
-  const loc = location as Record<string, unknown>
+function parseLocationName(loc: Record<string, unknown>): {
+  name: string
+  gbpPlaceId: string
+} {
   const name = loc.name as string | undefined
-
   if (!name) {
     throw createGbpApiError(
       'mapLocation',
@@ -180,43 +177,64 @@ function mapGbpLocation(location: unknown): GbpLocation {
       'GBP location missing required field: name',
     )
   }
-
-  const locationId = name.split('/').pop()
-  if (!locationId) {
+  const gbpPlaceId = name.split('/').pop()
+  if (!gbpPlaceId) {
     throw createGbpApiError(
       'mapLocation',
       500,
       `GBP location has invalid name format: ${name}`,
     )
   }
+  return { name, gbpPlaceId }
+}
 
+function parseAddress(loc: Record<string, unknown>): string | null {
   const storefrontAddress = loc.storefrontAddress as Record<string, unknown> | undefined
   const addressLines = storefrontAddress?.addressLines as
     | ReadonlyArray<string>
     | undefined
-  const postalCode = storefrontAddress?.postalCode as string | undefined
-  const locality = storefrontAddress?.locality as string | undefined
-  const administrativeArea = storefrontAddress?.administrativeArea as string | undefined
+  if (!addressLines || addressLines.length === 0) return null
+
+  const postalCode = (storefrontAddress?.postalCode as string | undefined) ?? ''
+  const locality = (storefrontAddress?.locality as string | undefined) ?? ''
+  const administrativeArea =
+    (storefrontAddress?.administrativeArea as string | undefined) ?? ''
+
+  return `${addressLines.join(', ')}, ${locality} ${administrativeArea} ${postalCode}`.trim()
+}
+
+function parseCoordinates(loc: Record<string, unknown>): {
+  latitude: number | null
+  longitude: number | null
+} {
+  const latlng = loc.latlng as Record<string, unknown> | undefined
+  return {
+    latitude: (latlng?.latitude as number | undefined) ?? null,
+    longitude: (latlng?.longitude as number | undefined) ?? null,
+  }
+}
+
+function mapGbpLocation(location: unknown): GbpLocation {
+  if (!location || typeof location !== 'object') {
+    throw createGbpApiError('mapLocation', 500, 'Invalid GBP location data')
+  }
+
+  const loc = location as Record<string, unknown>
+  const { name, gbpPlaceId } = parseLocationName(loc)
+  const { latitude, longitude } = parseCoordinates(loc)
+
   const categories = loc.categories as Record<string, unknown> | undefined
   const primaryCategory = categories?.primaryCategory as
     | Record<string, unknown>
     | undefined
-  const categoryName = primaryCategory?.displayName as string | undefined
-
-  const latlng = loc.latlng as Record<string, unknown> | undefined
-  const latitude = latlng?.latitude as number | undefined
-  const longitude = latlng?.longitude as number | undefined
 
   return {
     name,
-    gbpPlaceId: locationId,
+    gbpPlaceId,
     businessName: loc.title as string,
-    address:
-      addressLines && addressLines.length > 0
-        ? `${addressLines.join(', ')}, ${locality || ''} ${administrativeArea || ''} ${postalCode || ''}`.trim()
-        : null,
-    primaryCategory: categoryName || null,
-    latitude: latitude ?? null,
-    longitude: longitude ?? null,
+    address: parseAddress(loc),
+    primaryCategory: (primaryCategory?.displayName as string | undefined) ?? null,
+    latitude,
+    longitude,
   }
 }

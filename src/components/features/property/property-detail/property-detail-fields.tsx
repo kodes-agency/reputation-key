@@ -1,3 +1,4 @@
+// fallow-ignore-file unused-files — reserved for upcoming phases (property detail fields component)
 /**
  * PropertyDetailFields — view property details.
  * Extracted from the property overview route.

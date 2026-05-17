@@ -1,3 +1,4 @@
+// fallow-ignore-file unused-files — reserved for upcoming phases (command palette / searchable lists)
 'use client'
 
 import * as React from 'react'

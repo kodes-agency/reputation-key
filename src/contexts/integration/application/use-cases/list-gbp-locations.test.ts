@@ -15,6 +15,8 @@ import { createGbpApiError } from '../../domain/gbp-api-error'
 
 const FIXED_NOW = new Date('2026-06-01T12:00:00Z')
 
+// --- Shared helpers ----------------------------------------------------------
+
 const setup = () => {
   const connectionRepo = createInMemoryGoogleConnectionRepo()
   const gbpApi = createInMemoryGbpApiPort()
@@ -49,6 +51,38 @@ const setup = () => {
   }
 }
 
+/** Seeds an active connection with a PropertyManager auth context. */
+const seedActiveConnection = (
+  deps: Pick<ReturnType<typeof setup>, 'connectionRepo'>,
+  overrides: Parameters<typeof buildTestGoogleConnection>[0] = {},
+) => {
+  const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+  const conn = buildTestGoogleConnection({
+    status: 'active',
+    tokenExpiresAt: new Date(FIXED_NOW.getTime() + 3600_000),
+    ...overrides,
+  })
+  deps.connectionRepo.seed([conn])
+  return { ctx, conn }
+}
+
+/** Creates a GBP account object for the in-memory fake. */
+const createAccount = (name: string, overrides: Record<string, string> = {}) => ({
+  name,
+  accountName: name,
+  type: 'BUSINESS' as const,
+  role: 'OWNER' as const,
+  ...overrides,
+})
+
+/** Predicate: true when the value is a GbpApiError with the given HTTP status. */
+const isGbpApiErrorWithStatus = (expectedStatus: number) => (e: unknown) =>
+  typeof e === 'object' &&
+  e !== null &&
+  '_tag' in e &&
+  (e as unknown as { _tag: string })._tag === 'GbpApiError' &&
+  (e as unknown as { status: number }).status === expectedStatus
+
 const withFixedNow = <T>(fn: () => Promise<T>): Promise<T> => {
   const originalNow = Date.now
   Date.now = () => FIXED_NOW.getTime()
@@ -57,27 +91,17 @@ const withFixedNow = <T>(fn: () => Promise<T>): Promise<T> => {
   })
 }
 
+// --- Tests -------------------------------------------------------------------
+
 describe('listGbpLocations', () => {
   it('returns deduped locations for active connection with valid token', async () => {
     const { useCase, connectionRepo, gbpApi } = setup()
-    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
-    const conn = buildTestGoogleConnection({
-      status: 'active',
-      tokenExpiresAt: new Date(FIXED_NOW.getTime() + 3600_000),
-    })
-    connectionRepo.seed([conn])
+    const { ctx, conn } = seedActiveConnection({ connectionRepo })
 
     const loc1 = buildTestGbpLocation({ gbpPlaceId: 'ChIJ-aaa', businessName: 'Biz A' })
     const loc2 = buildTestGbpLocation({ gbpPlaceId: 'ChIJ-bbb', businessName: 'Biz B' })
 
-    gbpApi.setAccounts([
-      {
-        name: 'accounts/111',
-        accountName: 'accounts/111',
-        type: 'BUSINESS',
-        role: 'OWNER',
-      },
-    ])
+    gbpApi.setAccounts([createAccount('accounts/111')])
     gbpApi.setLocations('accounts/111', [loc1, loc2])
 
     const result = await withFixedNow(() =>
@@ -114,9 +138,10 @@ describe('listGbpLocations', () => {
 
   it('rejects when connection is disconnected', async () => {
     const { useCase, connectionRepo } = setup()
-    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
-    const conn = buildTestGoogleConnection({ status: 'disconnected' })
-    connectionRepo.seed([conn])
+    const { ctx, conn } = seedActiveConnection(
+      { connectionRepo },
+      { status: 'disconnected' },
+    )
 
     await expect(useCase({ connectionId: conn.id as string }, ctx)).rejects.toSatisfy(
       (e: unknown) =>
@@ -127,14 +152,12 @@ describe('listGbpLocations', () => {
 
   it('refreshes token when expired (within 5-minute buffer)', async () => {
     const { useCase, connectionRepo, gbpApi, refreshCalls } = setup()
-    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
     // Token expires in 3 minutes — within the 5-minute buffer
     const almostExpired = new Date(FIXED_NOW.getTime() + 3 * 60 * 1000)
-    const conn = buildTestGoogleConnection({
-      status: 'active',
-      tokenExpiresAt: almostExpired,
-    })
-    connectionRepo.seed([conn])
+    const { ctx, conn } = seedActiveConnection(
+      { connectionRepo },
+      { tokenExpiresAt: almostExpired },
+    )
 
     gbpApi.setAccounts([])
     gbpApi.setLocations('-', [])
@@ -147,14 +170,8 @@ describe('listGbpLocations', () => {
 
   it('does NOT refresh token when valid', async () => {
     const { useCase, connectionRepo, gbpApi, refreshCalls } = setup()
-    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
-    // Token expires in 1 hour — well beyond buffer
-    const valid = new Date(FIXED_NOW.getTime() + 3600_000)
-    const conn = buildTestGoogleConnection({
-      status: 'active',
-      tokenExpiresAt: valid,
-    })
-    connectionRepo.seed([conn])
+    // Token expires in 1 hour — well beyond buffer (already the seedActiveConnection default)
+    const { ctx, conn } = seedActiveConnection({ connectionRepo })
 
     gbpApi.setAccounts([])
     gbpApi.setLocations('-', [])
@@ -166,12 +183,7 @@ describe('listGbpLocations', () => {
 
   it('deduplicates locations by gbpPlaceId across accounts', async () => {
     const { useCase, connectionRepo, gbpApi } = setup()
-    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
-    const conn = buildTestGoogleConnection({
-      status: 'active',
-      tokenExpiresAt: new Date(FIXED_NOW.getTime() + 3600_000),
-    })
-    connectionRepo.seed([conn])
+    const { ctx, conn } = seedActiveConnection({ connectionRepo })
 
     const sharedLoc = buildTestGbpLocation({
       gbpPlaceId: 'ChIJ-shared',
@@ -183,18 +195,8 @@ describe('listGbpLocations', () => {
     })
 
     gbpApi.setAccounts([
-      {
-        name: 'accounts/111',
-        accountName: 'accounts/111',
-        type: 'BUSINESS',
-        role: 'OWNER',
-      },
-      {
-        name: 'accounts/222',
-        accountName: 'accounts/222',
-        type: 'BUSINESS',
-        role: 'MANAGER',
-      },
+      createAccount('accounts/111'),
+      createAccount('accounts/222', { role: 'MANAGER' }),
     ])
     gbpApi.setLocations('accounts/111', [sharedLoc, onlyInAcct1])
     gbpApi.setLocations('accounts/222', [sharedLoc])
@@ -211,26 +213,8 @@ describe('listGbpLocations', () => {
 
   it('falls back to wildcard when accounts exist but listLocations fails with retryable error', async () => {
     const { useCase, connectionRepo, gbpApi } = setup()
-    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
-    const conn = buildTestGoogleConnection({
-      status: 'active',
-      tokenExpiresAt: new Date(FIXED_NOW.getTime() + 3600_000),
-    })
-    connectionRepo.seed([conn])
+    const { ctx, conn } = seedActiveConnection({ connectionRepo })
 
-    // The in-memory fake has a global error map — setting an error on 'listLocations'
-    // means wildcard also fails. The use case will throw the original error.
-    // To properly test wildcard fallback, we need to NOT set global error.
-    // Instead, test the behavior where listAccounts returns accounts but no locations
-    // are configured for those accounts (empty result), then test the "no accounts" path.
-    //
-    // For the retryable fallback: the source code catches the error from inside
-    // the accounts loop (listLocations for a specific account) and falls back.
-    // The in-memory fake can't distinguish per-account errors, so we test the
-    // wildcard fallback via the "no accounts" path (accounts.length === 0 → wildcard).
-    //
-    // Test that the wildcard path is reached when listAccounts throws a retryable error.
-    // listAccounts error is retryable → catch block → try wildcard.
     const wildcardLoc = buildTestGbpLocation({
       gbpPlaceId: 'ChIJ-wildcard-retry',
       businessName: 'Wildcard Biz',
@@ -252,84 +236,52 @@ describe('listGbpLocations', () => {
 
   it('propagates non-retryable GbpApiError (401)', async () => {
     const { useCase, connectionRepo, gbpApi } = setup()
-    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
-    const conn = buildTestGoogleConnection({
-      status: 'active',
-      tokenExpiresAt: new Date(FIXED_NOW.getTime() + 3600_000),
-    })
-    connectionRepo.seed([conn])
+    const { ctx, conn } = seedActiveConnection({ connectionRepo })
 
-    const apiError = createGbpApiError('listAccounts', 401, 'Unauthorized')
-    gbpApi.setError('listAccounts', apiError)
+    gbpApi.setError(
+      'listAccounts',
+      createGbpApiError('listAccounts', 401, 'Unauthorized'),
+    )
 
     await withFixedNow(async () => {
       await expect(useCase({ connectionId: conn.id as string }, ctx)).rejects.toSatisfy(
-        (e: unknown) =>
-          typeof e === 'object' &&
-          e !== null &&
-          '_tag' in e &&
-          (e as unknown as { _tag: string })._tag === 'GbpApiError' &&
-          (e as unknown as { status: number }).status === 401,
+        isGbpApiErrorWithStatus(401),
       )
     })
   })
 
   it('propagates non-retryable GbpApiError (403)', async () => {
     const { useCase, connectionRepo, gbpApi } = setup()
-    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
-    const conn = buildTestGoogleConnection({
-      status: 'active',
-      tokenExpiresAt: new Date(FIXED_NOW.getTime() + 3600_000),
-    })
-    connectionRepo.seed([conn])
+    const { ctx, conn } = seedActiveConnection({ connectionRepo })
 
-    const apiError = createGbpApiError('listAccounts', 403, 'Forbidden')
-    gbpApi.setError('listAccounts', apiError)
+    gbpApi.setError('listAccounts', createGbpApiError('listAccounts', 403, 'Forbidden'))
 
     await withFixedNow(async () => {
       await expect(useCase({ connectionId: conn.id as string }, ctx)).rejects.toSatisfy(
-        (e: unknown) =>
-          typeof e === 'object' &&
-          e !== null &&
-          '_tag' in e &&
-          (e as unknown as { _tag: string })._tag === 'GbpApiError' &&
-          (e as unknown as { status: number }).status === 403,
+        isGbpApiErrorWithStatus(403),
       )
     })
   })
 
   it('propagates non-retryable GbpApiError (429)', async () => {
     const { useCase, connectionRepo, gbpApi } = setup()
-    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
-    const conn = buildTestGoogleConnection({
-      status: 'active',
-      tokenExpiresAt: new Date(FIXED_NOW.getTime() + 3600_000),
-    })
-    connectionRepo.seed([conn])
+    const { ctx, conn } = seedActiveConnection({ connectionRepo })
 
-    const apiError = createGbpApiError('listAccounts', 429, 'Rate Limited')
-    gbpApi.setError('listAccounts', apiError)
+    gbpApi.setError(
+      'listAccounts',
+      createGbpApiError('listAccounts', 429, 'Rate Limited'),
+    )
 
     await withFixedNow(async () => {
       await expect(useCase({ connectionId: conn.id as string }, ctx)).rejects.toSatisfy(
-        (e: unknown) =>
-          typeof e === 'object' &&
-          e !== null &&
-          '_tag' in e &&
-          (e as unknown as { _tag: string })._tag === 'GbpApiError' &&
-          (e as unknown as { status: number }).status === 429,
+        isGbpApiErrorWithStatus(429),
       )
     })
   })
 
   it('falls back to wildcard when no accounts', async () => {
     const { useCase, connectionRepo, gbpApi } = setup()
-    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
-    const conn = buildTestGoogleConnection({
-      status: 'active',
-      tokenExpiresAt: new Date(FIXED_NOW.getTime() + 3600_000),
-    })
-    connectionRepo.seed([conn])
+    const { ctx, conn } = seedActiveConnection({ connectionRepo })
 
     const wildcardLoc = buildTestGbpLocation({
       gbpPlaceId: 'ChIJ-wildcard-no-accts',
