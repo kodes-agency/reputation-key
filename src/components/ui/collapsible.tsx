@@ -1,6 +1,7 @@
-"use client"
+// fallow-ignore-file unused-files — reserved for upcoming phases (sidebar collapsible nav)
+'use client'
 
-import { Collapsible as CollapsiblePrimitive } from "radix-ui"
+import { Collapsible as CollapsiblePrimitive } from 'radix-ui'
 
 function Collapsible({
   ...props
@@ -12,10 +13,7 @@ function CollapsibleTrigger({
   ...props
 }: React.ComponentProps<typeof CollapsiblePrimitive.CollapsibleTrigger>) {
   return (
-    <CollapsiblePrimitive.CollapsibleTrigger
-      data-slot="collapsible-trigger"
-      {...props}
-    />
+    <CollapsiblePrimitive.CollapsibleTrigger data-slot="collapsible-trigger" {...props} />
   )
 }
 
@@ -23,10 +21,7 @@ function CollapsibleContent({
   ...props
 }: React.ComponentProps<typeof CollapsiblePrimitive.CollapsibleContent>) {
   return (
-    <CollapsiblePrimitive.CollapsibleContent
-      data-slot="collapsible-content"
-      {...props}
-    />
+    <CollapsiblePrimitive.CollapsibleContent data-slot="collapsible-content" {...props} />
   )
 }
 
