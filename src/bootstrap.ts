@@ -12,6 +12,9 @@ import { isRedisHealthy } from '#/shared/cache/redis'
 import { getLogger } from '#/shared/observability/logger'
 import { createProcessImageJob } from '#/contexts/portal/infrastructure/jobs/process-image.job'
 import { importPropertyHandler } from '#/contexts/integration/infrastructure/jobs/import-property.job'
+import { createSyncPropertyReviewsHandler } from '#/contexts/review/infrastructure/jobs/sync-property-reviews.job'
+import { createRefreshExpiringReviewsHandler } from '#/contexts/review/infrastructure/jobs/refresh-expiring-reviews.job'
+import { createPurgeExpiredReviewsHandler } from '#/contexts/review/infrastructure/jobs/purge-expired-reviews.job'
 
 export function bootstrap(container: Container): void {
   const logger = getLogger()
@@ -54,6 +57,47 @@ export function bootstrap(container: Container): void {
     )
   })
   logger.info({ job: 'import-property' }, 'registered import-property job handler')
+
+  // ── Review sync jobs ─────────────────────────────────────────────
+  // Reuse the single GoogleReviewApiAdapter from the composition root (S15 fix).
+  const googleReviewApiForJobs = container.googleReviewApi
+
+  const syncReviewsHandler = createSyncPropertyReviewsHandler({
+    reviewRepo: container.reviewRepo,
+    replyRepo: container.replyRepo,
+    googleReviewApi: googleReviewApiForJobs,
+    events: container.eventBus,
+    clock: () => new Date(),
+  })
+  container.jobRegistry.register('sync-property-reviews', async (job) => {
+    await syncReviewsHandler(
+      job as import('bullmq').Job<
+        import('#/contexts/review/application/ports/review-queue.port').SyncPropertyReviewsJobData
+      >,
+    )
+  })
+  logger.info({ job: 'sync-property-reviews' }, 'registered sync-property-reviews job handler')
+
+  // ── Review retention jobs ────────────────────────────────────────
+  const refreshHandler = createRefreshExpiringReviewsHandler({
+    reviewRepo: container.reviewRepo,
+    queue: container.reviewQueue,
+    clock: () => new Date(),
+  })
+  container.jobRegistry.register('refresh-expiring-reviews', async (job) => {
+    await refreshHandler(job)
+  })
+  logger.info({ job: 'refresh-expiring-reviews' }, 'registered refresh-expiring-reviews job handler')
+
+  const purgeHandler = createPurgeExpiredReviewsHandler({
+    reviewRepo: container.reviewRepo,
+    events: container.eventBus,
+    clock: () => new Date(),
+  })
+  container.jobRegistry.register('purge-expired-reviews', async (job) => {
+    await purgeHandler(job)
+  })
+  logger.info({ job: 'purge-expired-reviews' }, 'registered purge-expired-reviews job handler')
 
   // ── Register event handlers here as contexts are added ────────────
   // Example:

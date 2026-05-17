@@ -3,6 +3,7 @@
 export type IntegrationErrorCode =
   | 'forbidden'
   | 'connection_not_found'
+  | 'connection_inactive'
   | 'connection_disconnected'
   | 'oauth_failed'
   | 'oauth_denied'

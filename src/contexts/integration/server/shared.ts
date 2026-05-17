@@ -18,5 +18,5 @@ export const integrationErrorStatus = (code: IntegrationErrorCode): number =>
       () => 400,
     )
     .with('gbp_api_rate_limited', () => 429)
-    .with('connection_disconnected', () => 409)
+    .with('connection_disconnected', 'connection_inactive', () => 409)
     .exhaustive()

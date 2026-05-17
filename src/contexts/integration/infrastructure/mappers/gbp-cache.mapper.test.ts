@@ -48,17 +48,6 @@ describe('gbpCacheFromRow', () => {
     const entry = gbpCacheFromRow(row)
     expect(entry.googleAttribution).toBeNull()
   })
-
-  it('handles reviews data type', () => {
-    const row = {
-      ...sampleRow,
-      dataType: 'reviews' as const,
-      payload: [{ rating: 5, text: 'Great!' }],
-    }
-    const entry = gbpCacheFromRow(row)
-    expect(entry.dataType).toBe('reviews')
-    expect(entry.payload).toEqual([{ rating: 5, text: 'Great!' }])
-  })
 })
 
 describe('gbpCacheToUpsert', () => {

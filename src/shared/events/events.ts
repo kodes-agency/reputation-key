@@ -93,8 +93,22 @@ export type {
   // fallow-ignore-next-line unused-type
   GoogleAccountDisconnected,
   // fallow-ignore-next-line unused-type
+  GoogleConnectionVisibilityChanged,
+  // fallow-ignore-next-line unused-type
   PropertyImportCompleted,
 } from '#/contexts/integration/domain/events'
+
+// Review context events
+export type {
+  // fallow-ignore-next-line unused-type
+  ReviewEvent,
+  // fallow-ignore-next-line unused-type
+  ReviewCreated,
+  // fallow-ignore-next-line unused-type
+  ReviewUpdated,
+  // fallow-ignore-next-line unused-type
+  ReviewExpired,
+} from '#/contexts/review/domain/events'
 
 // Master union — adding a new context's events requires extending this.
 // This ensures ts-pattern exhaustive checks catch new event types.
@@ -105,6 +119,7 @@ import type { StaffEvent } from '#/contexts/staff/domain/events'
 import type { PortalEvent } from '#/contexts/portal/domain/events'
 import type { GuestEvent } from '#/contexts/guest/domain/events'
 import type { IntegrationEvent } from '#/contexts/integration/domain/events'
+import type { ReviewEvent } from '#/contexts/review/domain/events'
 
 export type DomainEvent =
   | IdentityEvent
@@ -114,3 +129,4 @@ export type DomainEvent =
   | PortalEvent
   | GuestEvent
   | IntegrationEvent
+  | ReviewEvent

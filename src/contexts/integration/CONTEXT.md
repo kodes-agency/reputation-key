@@ -1,6 +1,6 @@
 # Integration Context
 
-Manages third-party integrations, primarily Google Business Profile (GBP) connections, OAuth flows, location synchronization, and bulk property imports.
+Manages Google OAuth connections, token lifecycle, GBP API infrastructure, and Pub/Sub subscription management. Connection management only — review syncing and property import live in their own contexts (`review` and `property`).
 
 ## Language
 
@@ -13,7 +13,7 @@ A specific business location from Google Business Profile, identified by a `plac
 _Avoid_: Place, business, store
 
 **GBP Cache**:
-Cached data from GBP API (locations, reviews, insights) stored locally to reduce API calls and improve performance.
+Cached data from GBP API (locations only) stored locally to reduce API calls and improve performance. Reviews are normalized in the `reviews` table (review context).
 _Avoid_: Cache, data store, snapshot
 
 **Import Job**:
@@ -33,10 +33,11 @@ _Avoid_: Permission, access level, sharing
 - An **Organization** can have multiple **Google Connections** (different accounts)
 - Each **Google Connection** belongs to a single **Organization** and has a `connectedBy` user
 - A **Google Connection** has many **GBP Locations** (fetched via GBP API)
-- **GBP Cache** entries are stored per Property and data type (locations, reviews, insights)
-- An **Import Job** is created for a specific **Google Connection** and processes a batch of **GBP Locations**
+- **GBP Cache** entries are stored per Property and data type (locations only)
+- An **Import Job** is created for a specific **Google Connection** and processes a batch of **GBP Locations** (lives in `property` context)
 - Successful **Import Job** items create **Properties** linked to the originating **Google Connection**
 - **Import Job** tracks three counters: `importedCount`, `skippedCount`, `failedCount`
+- **Pub/Sub Subscription** is created per Google account on first property import, removed on last property deletion or disconnect
 
 ## Domain Rules
 
