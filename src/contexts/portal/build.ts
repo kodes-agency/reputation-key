@@ -7,6 +7,7 @@ import type { EventBus } from '#/shared/events/event-bus'
 import type { Database } from '#/shared/db'
 import { createPortalRepository } from './infrastructure/repositories/portal.repository'
 import { createPortalLinkRepository } from './infrastructure/repositories/portal-link.repository'
+import { createLinkResolverPort } from './infrastructure/repositories/link-resolver.repository'
 import { createS3StorageAdapter } from './infrastructure/adapters/s3-storage.adapter'
 import { createPortal } from './application/use-cases/create-portal'
 import { updatePortal } from './application/use-cases/update-portal'
@@ -23,6 +24,7 @@ import { deleteLink } from './application/use-cases/delete-link'
 import { reorderLinks } from './application/use-cases/reorder-links'
 import { requestUploadUrl } from './application/use-cases/request-upload-url'
 import { finalizeUpload } from './application/use-cases/finalize-upload'
+import { getPortalQrUrl } from './application/use-cases/get-portal-qr-url'
 import { portalId } from '#/shared/domain/ids'
 import { randomUUID } from 'crypto'
 
@@ -31,11 +33,13 @@ type PortalContextDeps = Readonly<{
   events: EventBus
   clock: () => Date
   propertyApi: PropertyPublicApi
+  baseUrl: string
 }>
 
 export const buildPortalContext = (deps: PortalContextDeps) => {
   const portalRepo = createPortalRepository(deps.db)
   const portalLinkRepo = createPortalLinkRepository(deps.db)
+  const linkResolver = createLinkResolverPort(deps.db)
   const storage = createS3StorageAdapter()
   const portalIdGen = () => portalId(randomUUID())
   const linkIdGen = () => randomUUID()
@@ -99,7 +103,11 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       storage,
       clock: deps.clock,
     }),
+    getPortalQrUrl: getPortalQrUrl({
+      portalRepo,
+      baseUrl: deps.baseUrl,
+    }),
   } as const
 
-  return { useCases, storage, portalRepo, portalLinkRepo } as const
+  return { useCases, storage, portalRepo, portalLinkRepo, linkResolver } as const
 }

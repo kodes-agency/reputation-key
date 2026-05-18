@@ -22,6 +22,9 @@ import { isPortalError } from '../domain/errors'
 import { portalId as toPortalId } from '#/shared/domain/ids'
 import { portalErrorStatus } from './portals'
 
+// Re-export domain rules for route-layer consumption (boundary compliance)
+export { isValidExternalUrl } from '../domain/rules'
+
 // ── Category CRUD ──────────────────────────────────────────────────
 
 export const createLinkCategory = createServerFn({ method: 'POST' })

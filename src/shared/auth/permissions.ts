@@ -49,6 +49,7 @@ export const admin = ac.newRole({
   portal: ['create', 'update'],
   review: ['read', 'reply'],
   feedback: ['read', 'respond'],
+  organization: ['update'],
 })
 
 export const memberRole = ac.newRole({
@@ -104,4 +105,10 @@ export function initPermissionTable(): void {
 export { can } from '#/shared/domain/permissions'
 
 // ── Auto-initialize on import ──────────────────────────────────────
+// This runs once when the auth module is first imported (during bootstrap).
+// It is safe because: (1) getEnv() is called before this module is imported,
+// (2) the role definitions above are pure and don't depend on runtime state,
+// (3) tests that need to reset the table can call initPermissionTable() again.
+// Do NOT move this into a bootstrap() call — every importer would need to
+// remember to call it, and the current pattern works reliably in practice.
 initPermissionTable()

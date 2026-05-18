@@ -79,7 +79,7 @@ export const createStaffAssignment =
     await deps.assignmentRepo.insert(ctx.organizationId, assignment)
 
     // 6. Emit event
-    deps.events.emit(
+    await deps.events.emit(
       staffAssigned({
         assignmentId: assignment.id,
         organizationId: assignment.organizationId,

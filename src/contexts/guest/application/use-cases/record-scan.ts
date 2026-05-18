@@ -36,7 +36,7 @@ export const recordScan =
         createdAt: deps.clock(),
       }
       await deps.guestRepo.recordScan(scan)
-      deps.events.emit(
+      await deps.events.emit(
         scanRecorded({
           scanId,
           organizationId: input.organizationId,

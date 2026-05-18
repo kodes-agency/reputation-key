@@ -10,6 +10,8 @@ import { portalLinkCreated } from '../../domain/events'
 import type { EventBus } from '#/shared/events/event-bus'
 import { portalId, portalLinkCategoryId, portalLinkId } from '#/shared/domain/ids'
 
+import { isValidExternalUrl } from '../../domain/rules'
+
 // fallow-ignore-next-line unused-type
 export type CreateLinkDeps = Readonly<{
   portalLinkRepo: PortalLinkRepository
@@ -38,6 +40,10 @@ export const createLink =
       throw portalError('category_not_found', 'category not found')
     }
 
+    if (!isValidExternalUrl(input.url)) {
+      throw portalError('invalid_url', 'link URL must use https:// scheme')
+    }
+
     const existing = await deps.portalLinkRepo.listLinks(
       ctx.organizationId,
       portalLinkCategoryId(input.categoryId),
@@ -61,7 +67,7 @@ export const createLink =
 
     await deps.portalLinkRepo.insertLink(ctx.organizationId, result.value)
 
-    deps.events.emit(
+    await deps.events.emit(
       portalLinkCreated({
         portalId: portalId(input.portalId),
         linkId: result.value.id,

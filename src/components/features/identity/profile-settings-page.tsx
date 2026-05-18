@@ -5,6 +5,7 @@ import { ProfileSettingsForm, type Props as FormProps } from './profile-settings
 export type Props = Readonly<{
   user: FormProps['user']
   updateProfile: FormProps['updateProfile']
+  updateUserImage: FormProps['updateUserImage']
   requestAvatarUpload: FormProps['requestAvatarUpload']
   finalizeAvatarUpload: FormProps['finalizeAvatarUpload']
 }>
@@ -12,6 +13,7 @@ export type Props = Readonly<{
 export function ProfileSettingsPage({
   user,
   updateProfile,
+  updateUserImage,
   requestAvatarUpload,
   finalizeAvatarUpload,
 }: Props) {
@@ -19,6 +21,7 @@ export function ProfileSettingsPage({
     <ProfileSettingsForm
       user={user}
       updateProfile={updateProfile}
+      updateUserImage={updateUserImage}
       requestAvatarUpload={requestAvatarUpload}
       finalizeAvatarUpload={finalizeAvatarUpload}
     />

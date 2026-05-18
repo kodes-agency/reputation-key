@@ -1,4 +1,4 @@
-import { createFileRoute, getRouteApi } from '@tanstack/react-router'
+import { createFileRoute, getRouteApi, notFound } from '@tanstack/react-router'
 import { getPortal } from '#/contexts/portal/server/portals'
 import {
   requestUploadUrl,
@@ -19,6 +19,7 @@ export const Route = createFileRoute(
       getPortal({ data: { portalId: params.portalId } }),
       listPortalLinks({ data: { portalId: params.portalId } }),
     ])
+    if (!portal) throw notFound()
     return {
       portal,
       categories,

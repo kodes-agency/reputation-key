@@ -17,10 +17,10 @@ describe('toDomainRole', () => {
     expect(toDomainRole('member')).toBe('Staff')
   })
 
-  it('maps unknown roles to Staff', () => {
-    expect(toDomainRole('unknown')).toBe('Staff')
-    expect(toDomainRole('')).toBe('Staff')
-    expect(toDomainRole('custom')).toBe('Staff')
+  it('throws on unknown roles', () => {
+    expect(() => toDomainRole('unknown')).toThrow('Unknown better-auth role: unknown')
+    expect(() => toDomainRole('')).toThrow('Unknown better-auth role: ')
+    expect(() => toDomainRole('custom')).toThrow('Unknown better-auth role: custom')
   })
 })
 

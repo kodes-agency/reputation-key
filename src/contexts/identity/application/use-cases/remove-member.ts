@@ -43,7 +43,7 @@ export const removeMember =
     await deps.identity.removeMember(ctx, input.memberId)
 
     // 3. Emit event
-    deps.events.emit(
+    await deps.events.emit(
       memberRemoved({
         organizationId: ctx.organizationId,
         userId: toUserId(input.memberId), // memberId is the member's user-facing ID

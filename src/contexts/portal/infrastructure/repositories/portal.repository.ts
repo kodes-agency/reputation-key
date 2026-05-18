@@ -2,7 +2,7 @@
 // Per architecture: factory function returning Readonly<{ method }>.
 // Every query filters by organization_id AND deleted_at IS NULL via baseWhere().
 
-import { and, eq, not } from 'drizzle-orm'
+import { and, eq, not, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { baseWhere } from '#/shared/db/base-where'
 import { portals } from '#/shared/db/schema/portal.schema'
@@ -49,19 +49,23 @@ export const createPortalRepository = (db: Database): PortalRepository => ({
   },
 
   list: async (orgId) => {
-    const rows = await db
-      .select()
-      .from(portals)
-      .where(and(...baseWhere(portals, orgId)))
-    return rows.map(portalFromRow)
+    return trace('portal.list', async () => {
+      const rows = await db
+        .select()
+        .from(portals)
+        .where(and(...baseWhere(portals, orgId)))
+      return rows.map(portalFromRow)
+    })
   },
 
   listByProperty: async (orgId, propertyId) => {
-    const rows = await db
-      .select()
-      .from(portals)
-      .where(and(...baseWhere(portals, orgId), eq(portals.propertyId, propertyId)))
-    return rows.map(portalFromRow)
+    return trace('portal.listByProperty', async () => {
+      const rows = await db
+        .select()
+        .from(portals)
+        .where(and(...baseWhere(portals, orgId), eq(portals.propertyId, propertyId)))
+      return rows.map(portalFromRow)
+    })
   },
 
   slugExists: async (orgId, slug, excludeId) => {
@@ -116,6 +120,30 @@ export const createPortalRepository = (db: Database): PortalRepository => ({
         .update(portals)
         .set({ deletedAt: now, updatedAt: now })
         .where(and(...baseWhere(portals, orgId), eq(portals.id, id as unknown as string)))
+    })
+  },
+
+  getPortalQrInfo: async (orgId, id) => {
+    return trace('portal.getPortalQrInfo', async () => {
+      // The "organization" table is managed by Better Auth and has no Drizzle
+      // schema in our codebase. Raw SQL for the org slug lookup is correct.
+      const result = await db.execute(sql`
+        SELECT p.slug, o.slug AS org_slug
+        FROM portals p
+        JOIN "organization" o ON o.id = p.organization_id
+        WHERE p.id = ${id as unknown as string}
+          AND p.organization_id = ${orgId as unknown as string}
+          AND p.deleted_at IS NULL
+        LIMIT 1
+      `)
+
+      const rows = result.rows as unknown as ReadonlyArray<{
+        slug: string
+        org_slug: string
+      }>
+      if (rows.length === 0) return null
+
+      return { slug: rows[0].slug, orgSlug: rows[0].org_slug }
     })
   },
 })

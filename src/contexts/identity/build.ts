@@ -12,6 +12,7 @@ import { listInvitations } from './application/use-cases/list-invitations'
 import { resendInvitation } from './application/use-cases/resend-invitation'
 import { registerUserAndOrg } from './application/use-cases/register-user-and-org'
 import { registerUser } from './application/use-cases/register-user'
+import { updateOrganization } from './application/use-cases/update-organization'
 
 /** Callback invoked after an invitation is accepted.
  * The composition root provides the implementation that creates
@@ -37,6 +38,8 @@ type IdentityContextDeps = Readonly<{
   ) => Promise<string>
   /** Set the active organization for the current session. */
   setActiveOrg: (headers: Headers, orgId: string) => Promise<void>
+  /** Update organization fields via auth provider. */
+  updateOrg: (headers: Headers, data: Record<string, unknown>) => Promise<void>
   /** Build headers carrying the current request session. */
   headers: () => Headers
   /** Send an invitation email. */
@@ -85,6 +88,10 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
       clock: deps.clock,
     }),
     registerUser: registerUser({ identity: deps.identityPort }),
+    updateOrganization: updateOrganization({
+      updateOrg: deps.updateOrg,
+      getHeaders: deps.headers,
+    }),
   } as const
 
   return { useCases } as const

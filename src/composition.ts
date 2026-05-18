@@ -134,6 +134,10 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     signUp: identityPort.signUp,
     createOrg,
     setActiveOrg,
+    updateOrg: async (headers, data) => {
+      const auth = getAuth()
+      await auth.api.updateOrganization({ headers, body: { data } })
+    },
     headers: headersFromContext,
     sendEmail: sendInvitationEmail,
     getOrganizationName: async (_ctx) => {
@@ -165,12 +169,14 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     events: eventBus,
     clock,
     propertyApi: property.publicApi,
+    baseUrl: env.BETTER_AUTH_URL ?? 'http://localhost:3000',
   })
 
   const guest = buildGuestContext({
     db,
     events: eventBus,
     clock,
+    linkResolver: portal.linkResolver,
   })
 
   const integration = buildIntegrationContext({

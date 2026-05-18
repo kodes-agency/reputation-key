@@ -3,13 +3,14 @@
 
 import type { gbpCache } from '#/shared/db/schema/gbp-cache.schema'
 import type { GbpCacheEntry } from '../../domain/types'
-import { propertyId } from '#/shared/domain/ids'
+import { organizationId, propertyId } from '#/shared/domain/ids'
 
 type GbpCacheRow = typeof gbpCache.$inferSelect
 type GbpCacheUpsertRow = typeof gbpCache.$inferInsert
 
 export const gbpCacheFromRow = (row: GbpCacheRow): GbpCacheEntry => ({
   id: row.id,
+  organizationId: organizationId(row.organizationId),
   propertyId: propertyId(row.propertyId),
   gbpPlaceId: row.gbpPlaceId,
   dataType: row.dataType,
@@ -17,10 +18,12 @@ export const gbpCacheFromRow = (row: GbpCacheRow): GbpCacheEntry => ({
   googleAttribution: row.googleAttribution,
   fetchedAt: row.fetchedAt,
   expiresAt: row.expiresAt,
+  updatedAt: row.updatedAt,
 })
 
 export const gbpCacheToUpsert = (entry: GbpCacheEntry): GbpCacheUpsertRow => ({
   id: entry.id,
+  organizationId: entry.organizationId,
   propertyId: entry.propertyId,
   gbpPlaceId: entry.gbpPlaceId,
   dataType: entry.dataType,
@@ -28,4 +31,5 @@ export const gbpCacheToUpsert = (entry: GbpCacheEntry): GbpCacheUpsertRow => ({
   googleAttribution: entry.googleAttribution,
   fetchedAt: entry.fetchedAt,
   expiresAt: entry.expiresAt,
+  updatedAt: entry.updatedAt ?? new Date(),
 })

@@ -35,7 +35,7 @@ export const reorderLinks =
       input.items.map((item) => ({ id: portalLinkId(item.id), sortKey: item.sortKey })),
     )
 
-    deps.events.emit(
+    await deps.events.emit(
       portalLinkReordered({
         portalId: portalId(input.portalId),
         categoryId: input.categoryId,

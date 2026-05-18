@@ -39,7 +39,7 @@ export const softDeleteProperty =
     await deps.propertyRepo.softDelete(ctx.organizationId, propertyId)
 
     // 6. Emit event
-    deps.events.emit(
+    await deps.events.emit(
       propertyDeleted({
         propertyId,
         organizationId: ctx.organizationId,

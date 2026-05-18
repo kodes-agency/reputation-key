@@ -34,6 +34,7 @@ export type GbpCacheDataType = 'location'
 
 export type GbpCacheEntry = Readonly<{
   id: string
+  organizationId: OrganizationId
   propertyId: PropertyId
   gbpPlaceId: string
   dataType: GbpCacheDataType
@@ -41,6 +42,7 @@ export type GbpCacheEntry = Readonly<{
   googleAttribution: string | null
   fetchedAt: Date
   expiresAt: Date
+  updatedAt?: Date
 }>
 
 export type GbpImportJobStatus =

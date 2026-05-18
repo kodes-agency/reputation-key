@@ -9,7 +9,7 @@ import { match } from 'ts-pattern'
 import { z } from 'zod/v4'
 import { getAuth } from '#/shared/auth/auth'
 import { headersFromContext } from '#/shared/auth/headers'
-import { resolveTenantContext } from '#/shared/auth/middleware'
+import { requireAuth, resolveTenantContext } from '#/shared/auth/middleware'
 import { throwContextError } from '#/shared/auth/server-errors'
 import { toDomainRole } from '#/shared/domain/roles'
 import { getContainer } from '#/composition'
@@ -201,6 +201,8 @@ export const inviteMember = createServerFn({ method: 'POST' })
   )
 
 // ── Accept invitation ──────────────────────────────────────────────
+// User may not have an active org yet (they're joining), so we only
+// require authentication — not tenant context.
 
 export const acceptInvitation = createServerFn({ method: 'POST' })
   .inputValidator(acceptInvitationInputSchema)
@@ -208,6 +210,7 @@ export const acceptInvitation = createServerFn({ method: 'POST' })
     tracedHandler(
       async ({ data }) => {
         const headers = headersFromContext()
+        await requireAuth(headers)
         const auth = getAuth()
 
         await auth.api.acceptInvitation({
@@ -221,6 +224,7 @@ export const acceptInvitation = createServerFn({ method: 'POST' })
   )
 
 // ── Cancel invitation ──────────────────────────────────────────────
+// Requires authenticated tenant context — only org members can cancel invitations.
 
 export const cancelInvitation = createServerFn({ method: 'POST' })
   .inputValidator(acceptInvitationInputSchema)
@@ -475,7 +479,9 @@ export const signInUser = createServerFn({ method: 'POST' })
           await auth.api.signInEmail({
             body: { email: data.email, password: data.password },
           })
-        } catch {
+        } catch (e) {
+          const { getLogger } = await import('#/shared/observability/logger')
+          getLogger().warn({ email: data.email, err: e }, 'Sign-in failed')
           throwContextError(
             'AuthError',
             { code: 'invalid_credentials', message: 'Invalid email or password' },
@@ -490,6 +496,9 @@ export const signInUser = createServerFn({ method: 'POST' })
 
 // ── Update organization ──────────────────────────────────────────────
 // Updates organization metadata including billing fields.
+// Per architecture: authorization lives in the use case, not the server function.
+
+import { updateOrganization as updateOrganizationUseCase } from '../application/use-cases/update-organization'
 
 const updateOrganizationInputSchema = z
   .object({
@@ -512,49 +521,20 @@ export const updateOrganization = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        const auth = getAuth()
 
-        // Validate role - only AccountAdmin or PropertyManager can update organization
-        if (ctx.role !== 'AccountAdmin' && ctx.role !== 'PropertyManager') {
-          throwContextError(
-            'AuthError',
-            {
-              code: 'forbidden',
-              message: 'Only AccountAdmin or PropertyManager can update organization',
+        try {
+          const useCase = updateOrganizationUseCase({
+            updateOrg: async (h, d) => {
+              const auth = getAuth()
+              await auth.api.updateOrganization({ headers: h, body: { data: d } })
             },
-            403,
-          )
+            getHeaders: () => headers,
+          })
+          await useCase(data, ctx)
+        } catch (e) {
+          if (isIdentityError(e)) throwIdentityError(e)
+          throw e
         }
-
-        // Convert null values to undefined for Better Auth compatibility
-        const updateData: Record<string, unknown> = {
-          ...(data.name && { name: data.name }),
-          ...(data.slug && { slug: data.slug }),
-          logo: data.logo ?? undefined,
-          ...(data.contactEmail !== undefined && {
-            contactEmail: data.contactEmail ?? undefined,
-          }),
-          ...(data.billingCompanyName !== undefined && {
-            billingCompanyName: data.billingCompanyName ?? undefined,
-          }),
-          ...(data.billingAddress !== undefined && {
-            billingAddress: data.billingAddress ?? undefined,
-          }),
-          ...(data.billingCity !== undefined && {
-            billingCity: data.billingCity ?? undefined,
-          }),
-          ...(data.billingPostalCode !== undefined && {
-            billingPostalCode: data.billingPostalCode ?? undefined,
-          }),
-          ...(data.billingCountry !== undefined && {
-            billingCountry: data.billingCountry ?? undefined,
-          }),
-        }
-
-        await auth.api.updateOrganization({
-          headers,
-          body: { data: updateData },
-        })
       },
       'POST',
       'identity.updateOrganization',
@@ -580,7 +560,12 @@ export const requestOrgLogoUpload = createServerFn({ method: 'POST' })
         const ctx = await resolveTenantContext(headers)
         const { storage } = getContainer()
         const useCase = requestOrgLogoUploadUseCase({ storage })
-        return useCase(data, ctx)
+        try {
+          return await useCase(data, ctx)
+        } catch (e) {
+          if (isIdentityError(e)) throwIdentityError(e)
+          throw e
+        }
       },
       'POST',
       'identity.requestOrgLogoUpload',
@@ -600,16 +585,21 @@ export const finalizeOrgLogoUpload = createServerFn({ method: 'POST' })
         const ctx = await resolveTenantContext(headers)
         const { storage } = getContainer()
         const useCase = finalizeOrgLogoUploadUseCase({ storage })
-        const result = await useCase(data, ctx)
+        try {
+          const result = await useCase(data, ctx)
 
-        // Persist the logo URL on the organization via better-auth
-        const auth = getAuth()
-        await auth.api.updateOrganization({
-          headers,
-          body: { data: { logo: result.logoUrl } },
-        })
+          // Persist the logo URL on the organization via better-auth
+          const auth = getAuth()
+          await auth.api.updateOrganization({
+            headers,
+            body: { data: { logo: result.logoUrl } },
+          })
 
-        return result
+          return result
+        } catch (e) {
+          if (isIdentityError(e)) throwIdentityError(e)
+          throw e
+        }
       },
       'POST',
       'identity.finalizeOrgLogoUpload',
@@ -637,7 +627,12 @@ export const requestAvatarUpload = createServerFn({ method: 'POST' })
         const ctx = await resolveTenantContext(headers)
         const { storage } = getContainer()
         const useCase = requestAvatarUploadUseCase({ storage })
-        return useCase(data, ctx)
+        try {
+          return await useCase(data, ctx)
+        } catch (e) {
+          if (isIdentityError(e)) throwIdentityError(e)
+          throw e
+        }
       },
       'POST',
       'identity.requestAvatarUpload',
@@ -657,7 +652,12 @@ export const finalizeAvatarUpload = createServerFn({ method: 'POST' })
         const ctx = await resolveTenantContext(headers)
         const { storage } = getContainer()
         const useCase = finalizeAvatarUploadUseCase({ storage })
-        return useCase(data, ctx)
+        try {
+          return await useCase(data, ctx)
+        } catch (e) {
+          if (isIdentityError(e)) throwIdentityError(e)
+          throw e
+        }
       },
       'POST',
       'identity.finalizeAvatarUpload',

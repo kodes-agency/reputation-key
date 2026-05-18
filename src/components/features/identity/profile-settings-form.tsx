@@ -15,7 +15,6 @@ import {
   CardDescription,
 } from '#/components/ui/card'
 import type { BaseFieldApi } from '#/components/forms/form-text-field'
-import { authClient } from '#/shared/auth/auth-client'
 import { toast } from 'sonner'
 import { AvatarCard } from './avatar-card'
 import type { Action } from '#/components/hooks/use-action'
@@ -36,6 +35,7 @@ export type Props = Readonly<{
     image: string | null
   }
   updateProfile: Action<{ data: { name: string } }>
+  updateUserImage: Action<{ data: { imageUrl: string } }>
   requestAvatarUpload: (data: {
     data: { contentType: string; fileSize: number }
   }) => Promise<{ uploadUrl: string; key: string }>
@@ -47,6 +47,7 @@ export type Props = Readonly<{
 export function ProfileSettingsForm({
   user,
   updateProfile,
+  updateUserImage,
   requestAvatarUpload,
   finalizeAvatarUpload,
 }: Props) {
@@ -73,7 +74,7 @@ export function ProfileSettingsForm({
     await putFilePresigned(uploadUrl, file, onProgress)
     const result = await finalizeAvatarUpload({ data: { key } })
 
-    await authClient.updateUser({ image: result.avatarUrl })
+    await updateUserImage({ data: { imageUrl: result.avatarUrl } })
     toast.success('Avatar updated successfully')
     return result.avatarUrl
   }

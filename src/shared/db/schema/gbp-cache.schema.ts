@@ -18,6 +18,7 @@ export const gbpCache = pgTable(
   'gbp_cache',
   {
     id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
     propertyId: uuid('property_id')
       .notNull()
       .references(() => properties.id, { onDelete: 'cascade' }),
@@ -27,11 +28,13 @@ export const gbpCache = pgTable(
     googleAttribution: text('google_attribution'),
     fetchedAt: timestamp('fetched_at', { withTimezone: true }).notNull(),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    // NOTE: gbp_cache unique index does not include organizationId.
-    // Tenant isolation relies on the property→organization FK chain.
-    // If gbp_cache is ever queried directly by organizationId, add the column.
-    uniqueIndex('gbp_cache_property_type_unique').on(t.propertyId, t.dataType),
+    uniqueIndex('gbp_cache_org_property_type_unique').on(
+      t.organizationId,
+      t.propertyId,
+      t.dataType,
+    ),
   ],
 )

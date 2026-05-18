@@ -36,7 +36,7 @@ export const removeStaffAssignment =
     await deps.assignmentRepo.softDelete(ctx.organizationId, assignment.id)
 
     // 6. Emit event
-    deps.events.emit(
+    await deps.events.emit(
       staffUnassigned({
         assignmentId: assignment.id,
         organizationId: assignment.organizationId,

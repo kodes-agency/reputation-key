@@ -85,7 +85,7 @@ export const updateTeam =
     })
 
     // 6. Emit event
-    deps.events.emit(
+    await deps.events.emit(
       teamUpdated({
         teamId: updated.id,
         organizationId: updated.organizationId,

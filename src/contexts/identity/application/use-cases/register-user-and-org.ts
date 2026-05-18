@@ -94,7 +94,7 @@ export const registerUserAndOrg =
     }
 
     // 5. Emit event
-    deps.events.emit(
+    await deps.events.emit(
       organizationCreated({
         organizationId: toOrganizationId(orgId),
         organizationName: validName,

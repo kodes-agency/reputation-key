@@ -13,6 +13,7 @@ const samplePayload = { name: 'Test Business', rating: 4.5 }
 
 const sampleRow: GbpCacheRow = {
   id: 'cache-uuid-001',
+  organizationId: 'org-uuid-001',
   propertyId: 'prop-uuid-001',
   gbpPlaceId: 'ChIJN1t_tDeuEmsRUsoyG83frY4',
   dataType: 'location',
@@ -20,6 +21,7 @@ const sampleRow: GbpCacheRow = {
   googleAttribution: 'Attributed to Google',
   fetchedAt: now,
   expiresAt,
+  updatedAt: now,
 }
 
 describe('gbpCacheFromRow', () => {
@@ -56,6 +58,7 @@ describe('gbpCacheToUpsert', () => {
     const upsert = gbpCacheToUpsert(entry)
 
     expect(upsert.id).toBe(sampleRow.id)
+    expect(upsert.organizationId).toBe(sampleRow.organizationId)
     expect(upsert.propertyId).toBe(sampleRow.propertyId)
     expect(upsert.gbpPlaceId).toBe(sampleRow.gbpPlaceId)
     expect(upsert.dataType).toBe(sampleRow.dataType)

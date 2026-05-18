@@ -20,5 +20,7 @@ export function runWithContext<T>(requestId: string, fn: () => Promise<T>): Prom
 }
 
 export function generateRequestId(): string {
-  return randomUUID().slice(0, 8)
+  // 16 hex chars = 64 bits of entropy. Birthday collision risk drops to
+  // ~1 in 10^9 at 1M requests/day. Full UUID (36 chars) is overkill for logs.
+  return randomUUID().slice(0, 16)
 }

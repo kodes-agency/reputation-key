@@ -54,7 +54,7 @@ export const inviteMember =
     )
 
     // 5. Emit event
-    deps.events.emit(
+    await deps.events.emit(
       memberInvited({
         organizationId: ctx.organizationId,
         email: input.email,

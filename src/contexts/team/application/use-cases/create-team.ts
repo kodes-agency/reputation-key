@@ -68,7 +68,7 @@ export const createTeam =
     await deps.teamRepo.insert(ctx.organizationId, team)
 
     // 6. Emit event
-    deps.events.emit(
+    await deps.events.emit(
       teamCreated({
         teamId: team.id,
         organizationId: team.organizationId,

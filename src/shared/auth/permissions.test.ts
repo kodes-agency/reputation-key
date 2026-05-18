@@ -105,10 +105,10 @@ describe('admin role (PropertyManager)', () => {
     'review.reply',
     'feedback.read',
     'feedback.respond',
+    'organization.update',
   ]
 
   const deniedPermissions: Permission[] = [
-    'organization.update',
     'organization.delete',
     'member.update',
     'member.delete',

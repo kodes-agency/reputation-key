@@ -101,7 +101,7 @@ export const updateProperty =
       updatedAt,
     })
 
-    deps.events.emit(
+    await deps.events.emit(
       propertyUpdated({
         propertyId,
         organizationId: ctx.organizationId,
