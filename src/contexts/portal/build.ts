@@ -6,10 +6,8 @@ import type { PropertyPublicApi } from '#/contexts/property/application/public-a
 import type { EventBus } from '#/shared/events/event-bus'
 import type { Database } from '#/shared/db'
 import { createPortalRepository } from './infrastructure/repositories/portal.repository'
-import {
-  createPortalLinkRepository,
-  createLinkResolverPort,
-} from './infrastructure/repositories/portal-link.repository'
+import { createPortalLinkRepository } from './infrastructure/repositories/portal-link.repository'
+import { createLinkResolverPort } from './infrastructure/repositories/link-resolver.repository'
 import { createS3StorageAdapter } from './infrastructure/adapters/s3-storage.adapter'
 import { createPortal } from './application/use-cases/create-portal'
 import { updatePortal } from './application/use-cases/update-portal'
