@@ -3,6 +3,7 @@ import {
   createFileRoute,
   getRouteApi,
   Link,
+  notFound,
   Outlet,
   useLocation,
   useNavigate,
@@ -32,7 +33,7 @@ export const Route = createFileRoute(
       listStaffAssignments({ data: { propertyId: params.propertyId } }),
     ])
     const team = teams.find((t) => t.id === params.teamId)
-    if (!team) throw new Error('Team not found')
+    if (!team) throw notFound()
     const teamAssignments = assignments.filter((a) => a.teamId === params.teamId)
     const memberOptions = toMemberOptions(members)
     return {

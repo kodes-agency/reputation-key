@@ -10,6 +10,7 @@ import {
   validatePortalTheme,
   validateSmartRoutingThreshold,
   validateUrl,
+  isValidExternalUrl,
   validateLinkLabel,
   validateCategoryTitle,
 } from './rules'
@@ -294,5 +295,39 @@ describe('validateCategoryTitle', () => {
     if (result.isErr()) {
       expect(result.error.code).toBe('invalid_title')
     }
+  })
+})
+
+// ── isValidExternalUrl ────────────────────────────────────────────
+
+describe('isValidExternalUrl', () => {
+  it('accepts valid https URLs', () => {
+    expect(isValidExternalUrl('https://example.com')).toBe(true)
+    expect(isValidExternalUrl('https://example.com/path?q=1#hash')).toBe(true)
+  })
+
+  it('rejects http URLs', () => {
+    expect(isValidExternalUrl('http://example.com')).toBe(false)
+  })
+
+  it('rejects javascript: scheme', () => {
+    expect(isValidExternalUrl('javascript:alert(1)')).toBe(false)
+  })
+
+  it('rejects data: scheme', () => {
+    expect(isValidExternalUrl('data:text/html,<script>alert(1)</script>')).toBe(false)
+  })
+
+  it('rejects protocol-relative URLs', () => {
+    expect(isValidExternalUrl('//evil.com')).toBe(false)
+  })
+
+  it('rejects malformed URLs', () => {
+    expect(isValidExternalUrl('')).toBe(false)
+    expect(isValidExternalUrl('not-a-url')).toBe(false)
+  })
+
+  it('rejects mailto: scheme', () => {
+    expect(isValidExternalUrl('mailto:admin@example.com')).toBe(false)
   })
 })
