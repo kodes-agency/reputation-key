@@ -14,6 +14,7 @@
 || Staff       | Staff assignments to properties                        | StaffAssignment                        | Standard  |
 || Integration | Google connections, OAuth, tokens, GBP API adapter     | GoogleConnection                       | Standard  |
 || Review      | External platform reviews (Google), sync, replies      | Review                                 | Thick     |
+|| Inbox       | Unified triage surface for reviews + feedback          | InboxItem, InboxNote                   | Thick     |
 
 **Thin contexts** (like Identity) may have empty layer folders — no mappers, no jobs, sparse use cases. That's expected.
 

@@ -32,6 +32,7 @@ Composition root: `src/composition.ts`. Bootstrap: `src/bootstrap.ts`.
 || Team        | Staff teams and shift management                       | Team, StaffAssignment                  |
 || Integration | Google connections, OAuth, tokens, GBP API adapter     | GoogleConnection                       |
 || Review      | External platform reviews (Google), sync, replies      | Review                                 |
+|| Inbox       | Unified triage surface for reviews + feedback          | InboxItem, InboxNote                   |
 
 ## Glossary
 
@@ -75,6 +76,10 @@ Composition root: `src/composition.ts`. Bootstrap: `src/bootstrap.ts`.
 | **Review Sync**         | Process of fetching reviews from GBP. Triggered by Pub/Sub push notification (new/updated review) or manual "Sync Now" button. No periodic polling. |
 | **GBP Notification**    | GCP Pub/Sub push from Google when a review is created or updated. Subscribed per-account on first property import, unsubscribed on last property removal or disconnect. |
 | **Reply**               | A response to a review. Separate entity from Review. Phase 10: `status = 'published'`, `source = 'google_sync'` (reply detected from GBP). Phase 12 extends with draft/approve/reject workflow and `source = 'internal'`. |
+| **Inbox Item**          | A unified triage entry pointing to a Review or Feedback. Carries denormalized filter/sort fields and inbox state (status, assignment). Lives in the `inbox` context. |
+| **Inbox Status**        | The triage state of an inbox item: `new`, `read`, `addressed`, `escalated`, `archived`. Transitions follow a defined graph (see ADR 0004). |
+| **Addressed**           | Inbox item has been handled. For reviews: reply published or manually marked. For feedback: internally handled. |
+| **Internal Note**       | A text annotation on an inbox item. Multiple per item, tracks author and timestamp. Lives in `inbox` context. |
 
 ## Permission Patterns
 
@@ -101,6 +106,7 @@ See `docs/adr/` for formal ADRs. Key ADRs:
 | 0001 | Dynamic Access Control via Better-auth | Identity & Authorization |
 | 0002 | Section-Based Navigation | Navigation Architecture |
 | 0003 | Review as a Separate Bounded Context | Reviews, Google Integration |
+| 0004 | Inbox as a Separate Bounded Context | Unified Inbox, Reviews, Feedback |
 
 ## Key Files
 

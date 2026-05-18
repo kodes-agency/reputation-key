@@ -37,6 +37,7 @@ import { buildStaffContext } from '#/contexts/staff/build'
 import { buildPortalContext } from '#/contexts/portal/build'
 import { buildGuestContext } from '#/contexts/guest/build'
 import { buildReviewContext } from '#/contexts/review/build'
+import { buildInboxContext } from '#/contexts/inbox/build'
 import { createStaffAssignmentRepository } from '#/contexts/staff/infrastructure/repositories/staff-assignment.repository'
 import { createGoogleReviewApiAdapter } from '#/contexts/integration/infrastructure/adapters/google-review-api.adapter'
 import {
@@ -203,6 +204,13 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     jobQueue: infra.jobQueue,
   })
 
+  const inbox = buildInboxContext({
+    db,
+    events: eventBus,
+    redis,
+    clock,
+  })
+
   // ── Wire invitation acceptance hook ────────────────────────────
   // The hook creates staff assignments when a member accepts an invite.
   // This is the only cross-context dependency: identity acceptance
@@ -246,6 +254,7 @@ export function createContainer(options?: { enableJobs?: boolean }) {
       ...guest.useCases,
       ...integration.useCases,
       syncReviews: review.syncReviews,
+      ...inbox.useCases,
     },
     storage: portal.storage,
     portalRepo: portal.portalRepo,
@@ -254,6 +263,9 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     replyRepo: review.replyRepo,
     reviewQueue: review.queue,
     googleReviewApi,
+    inboxRepo: inbox.inboxRepo,
+    inboxNoteRepo: inbox.inboxNoteRepo,
+    unreadCounter: inbox.unreadCounter,
   } as const
 }
 

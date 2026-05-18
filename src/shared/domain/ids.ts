@@ -17,6 +17,8 @@ export type StaffAssignmentId = Brand<string, 'StaffAssignmentId'>
 // MetricId, GoalId — deferred to Phase 10/11
 export type PortalLinkCategoryId = Brand<string, 'PortalLinkCategoryId'>
 export type PortalLinkId = Brand<string, 'PortalLinkId'>
+export type InboxItemId = Brand<string, 'InboxItemId'>
+export type InboxNoteId = Brand<string, 'InboxNoteId'>
 
 // Convenience constructors — each wraps brandId with the correct tag.
 // These are the only acceptable `as` casts: branded ID parsing.
@@ -63,6 +65,13 @@ export function portalLinkCategoryId(id: string): PortalLinkCategoryId {
 }
 export function portalLinkId(id: string): PortalLinkId {
   return id as PortalLinkId
+}
+
+export function inboxItemId(id: string): InboxItemId {
+  return id as InboxItemId
+}
+export function inboxNoteId(id: string): InboxNoteId {
+  return id as InboxNoteId
 }
 
 export type GoogleConnectionId = Brand<string, 'GoogleConnectionId'>

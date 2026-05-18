@@ -110,6 +110,18 @@ export type {
   ReviewExpired,
 } from '#/contexts/review/domain/events'
 
+// Inbox context events
+export type {
+  // fallow-ignore-next-line unused-type
+  InboxEvent,
+  // fallow-ignore-next-line unused-type
+  InboxItemCreated,
+  // fallow-ignore-next-line unused-type
+  InboxStatusChanged,
+  // fallow-ignore-next-line unused-type
+  InboxItemAssigned,
+} from '#/contexts/inbox/domain/events'
+
 // Master union — adding a new context's events requires extending this.
 // This ensures ts-pattern exhaustive checks catch new event types.
 import type { IdentityEvent } from '#/contexts/identity/domain/events'
@@ -120,6 +132,7 @@ import type { PortalEvent } from '#/contexts/portal/domain/events'
 import type { GuestEvent } from '#/contexts/guest/domain/events'
 import type { IntegrationEvent } from '#/contexts/integration/domain/events'
 import type { ReviewEvent } from '#/contexts/review/domain/events'
+import type { InboxEvent } from '#/contexts/inbox/domain/events'
 
 export type DomainEvent =
   | IdentityEvent
@@ -130,3 +143,4 @@ export type DomainEvent =
   | GuestEvent
   | IntegrationEvent
   | ReviewEvent
+  | InboxEvent
