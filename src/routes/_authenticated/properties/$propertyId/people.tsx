@@ -9,46 +9,15 @@ import {
 } from '#/contexts/staff/server/staff-assignments'
 import { listTeams, createTeam, deleteTeam } from '#/contexts/team/server/teams'
 import { listMembers } from '#/contexts/identity/server/organizations'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '#/components/ui/tabs'
-import { StaffAssignmentList, AssignStaffForm } from '#/components/features/staff'
-import { CreateTeamForm } from '#/components/features/team'
+import { Tabs, TabsList, TabsTrigger } from '#/components/ui/tabs'
 import {
   useMutationAction,
   useMutationActionSilent,
 } from '#/components/hooks/use-mutation-action'
 import { toMemberOptions, toTeamOptions } from '#/lib/lookups'
-import { usePermissions } from '#/shared/hooks/usePermissions'
-import { Button } from '#/components/ui/button'
-import { Badge } from '#/components/ui/badge'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '#/components/ui/dialog'
-import { Plus, Trash2, Users } from 'lucide-react'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '#/components/ui/table'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '#/components/ui/alert-dialog'
-import { EmptyState } from '#/components/ui/empty-state'
+import { StaffTab } from '#/components/features/property/people/staff-tab'
+import { TeamsTab } from '#/components/features/property/people/teams-tab'
+import { DirectoryTab } from '#/components/features/property/people/directory-tab'
 
 const peopleSearchSchema = z.object({
   tab: z.string().optional(),
@@ -73,7 +42,6 @@ function PeoplePage() {
   const { assignments, members, teams } = Route.useLoaderData()
   const { tab } = Route.useSearch()
   const defaultTab = tab ?? 'staff'
-  const { can } = usePermissions()
   const [assignOpen, setAssignOpen] = useState(false)
   const [createTeamOpen, setCreateTeamOpen] = useState(false)
   const navigate = useNavigate()
@@ -125,156 +93,28 @@ function PeoplePage() {
           <TabsTrigger value="directory">Directory</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="staff" className="mt-4 space-y-4">
-          <div className="flex justify-end">
-            <Dialog open={assignOpen} onOpenChange={setAssignOpen}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus />
-                  Assign Staff
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Assign Staff</DialogTitle>
-                  <DialogDescription>
-                    Select staff members to assign to this property.
-                  </DialogDescription>
-                </DialogHeader>
-                <AssignStaffForm
-                  propertyId={propertyId}
-                  mutation={assignMutation}
-                  members={memberOptions}
-                  teams={teamOptions}
-                  assignedUserIds={assignedUserIds}
-                />
-              </DialogContent>
-            </Dialog>
-          </div>
-          <StaffAssignmentList
-            assignments={assignments}
-            members={memberOptions}
-            teams={teamOptions}
-            removeAction={removeMutation}
-          />
-        </TabsContent>
-
-        <TabsContent value="teams" className="mt-4 space-y-4">
-          <div className="flex justify-end">
-            {can('team.create') && (
-              <Dialog open={createTeamOpen} onOpenChange={setCreateTeamOpen}>
-                <DialogTrigger asChild>
-                  <Button>
-                    <Plus />
-                    Create Team
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Create a new team</DialogTitle>
-                    <DialogDescription>
-                      Group staff members into teams for this property.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <CreateTeamForm
-                    propertyId={propertyId}
-                    mutation={createTeamMutation}
-                    members={memberOptions}
-                  />
-                </DialogContent>
-              </Dialog>
-            )}
-          </div>
-          {teams.length === 0 ? (
-            <EmptyState icon={Users} title="No teams yet">
-              <p className="text-sm text-muted-foreground">
-                Create a team to group staff members.
-              </p>
-            </EmptyState>
-          ) : (
-            <div className="flex flex-col gap-2">
-              {teams.map((team) => (
-                <div
-                  key={team.id}
-                  className="flex items-center justify-between rounded-lg border p-4"
-                >
-                  <div>
-                    <p className="font-semibold">{team.name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {assignments.filter((a) => a.teamId === team.id).length} members
-                    </p>
-                  </div>
-                  {can('team.delete') && (
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-muted-foreground hover:text-destructive"
-                        >
-                          <Trash2 className="size-4" />
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Delete {team.name}?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            This will remove the team. You can recreate it later.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction
-                            onClick={() =>
-                              deleteTeamMutation({ data: { teamId: team.id } })
-                            }
-                            disabled={deleteTeamMutation.isPending}
-                            className="bg-destructive text-white hover:bg-destructive/90"
-                          >
-                            {deleteTeamMutation.isPending ? 'Deleting…' : 'Delete team'}
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </TabsContent>
-
-        <TabsContent value="directory" className="mt-4">
-          {members.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No members found.</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Role</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {members.map((member) => (
-                  <TableRow key={member.userId}>
-                    <TableCell className="font-medium">{member.name}</TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {member.email}
-                    </TableCell>
-                    <TableCell>
-                      {member.role ? (
-                        <Badge variant="secondary">{member.role}</Badge>
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </TabsContent>
+        <StaffTab
+          propertyId={propertyId}
+          assignments={assignments}
+          memberOptions={memberOptions}
+          teamOptions={teamOptions}
+          assignedUserIds={assignedUserIds}
+          assignMutation={assignMutation}
+          removeMutation={removeMutation}
+          assignOpen={assignOpen}
+          onAssignOpenChange={setAssignOpen}
+        />
+        <TeamsTab
+          propertyId={propertyId}
+          teams={teams}
+          assignments={assignments}
+          memberOptions={memberOptions}
+          createTeamMutation={createTeamMutation}
+          deleteTeamMutation={deleteTeamMutation}
+          createTeamOpen={createTeamOpen}
+          onCreateTeamOpenChange={setCreateTeamOpen}
+        />
+        <DirectoryTab members={members} />
       </Tabs>
     </div>
   )
