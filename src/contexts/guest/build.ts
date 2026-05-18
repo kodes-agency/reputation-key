@@ -1,5 +1,6 @@
 import type { EventBus } from '#/shared/events/event-bus'
 import type { Database } from '#/shared/db'
+import type { LinkResolverPort } from '#/contexts/portal/application/ports/link-resolver.port'
 import { createGuestInteractionRepository } from './infrastructure/repositories/guest-interaction.repository'
 import { createPortalContextResolver } from './infrastructure/resolvers/portal-context-resolver'
 import { createPublicPortalLookup } from './infrastructure/resolvers/public-portal-lookup'
@@ -7,6 +8,7 @@ import { recordScan } from './application/use-cases/record-scan'
 import { submitRating } from './application/use-cases/submit-rating'
 import { submitFeedback } from './application/use-cases/submit-feedback'
 import { trackReviewLinkClick } from './application/use-cases/track-review-link-click'
+import { resolveLinkAndTrack } from './application/use-cases/resolve-link-and-track'
 import { resolvePortalContext } from './application/use-cases/resolve-portal-context'
 import { getPublicPortal } from './application/use-cases/get-public-portal'
 import { scanEventId, ratingId, feedbackId } from '#/shared/domain/ids'
@@ -16,6 +18,7 @@ type GuestContextDeps = Readonly<{
   db: Database
   events: EventBus
   clock: () => Date
+  linkResolver: LinkResolverPort
 }>
 
 export const buildGuestContext = (deps: GuestContextDeps) => {
@@ -45,6 +48,13 @@ export const buildGuestContext = (deps: GuestContextDeps) => {
     trackReviewLinkClick: trackReviewLinkClick({
       events: deps.events,
       clock: deps.clock,
+    }),
+    resolveLinkAndTrack: resolveLinkAndTrack({
+      linkResolver: deps.linkResolver,
+      trackClick: trackReviewLinkClick({
+        events: deps.events,
+        clock: deps.clock,
+      }),
     }),
     resolvePortalContext: resolvePortalContext({
       portalContextResolver,

@@ -30,7 +30,7 @@ export const softDeletePortal =
 
     await deps.portalRepo.softDelete(ctx.organizationId, pid)
 
-    deps.events.emit(
+    await deps.events.emit(
       portalDeleted({
         portalId: pid,
         organizationId: ctx.organizationId,

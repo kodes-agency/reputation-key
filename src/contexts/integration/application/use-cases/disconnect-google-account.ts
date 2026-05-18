@@ -13,6 +13,7 @@ import { can } from '#/shared/domain/permissions'
 import { googleConnectionId } from '#/shared/domain/ids'
 import { integrationError } from '../../domain/errors'
 import { googleAccountDisconnected } from '../../domain/events'
+import { getLogger } from '#/shared/observability/logger'
 
 export type DisconnectGoogleAccountDeps = Readonly<{
   connectionRepo: GoogleConnectionRepository
@@ -53,9 +54,12 @@ export const disconnectGoogleAccount =
     try {
       const refreshToken = deps.encryption.decrypt(connection.encryptedRefreshToken)
       await deps.oauth.revokeToken(refreshToken)
-    } catch {
-      // Best-effort: log and continue even if revocation fails
-      // The connection will be marked as disconnected locally regardless
+    } catch (e) {
+      const logger = getLogger()
+      logger.warn(
+        { connectionId: input.connectionId, err: e },
+        'Google token revocation failed — disconnecting locally anyway',
+      )
     }
 
     // 4. Mark status as disconnected

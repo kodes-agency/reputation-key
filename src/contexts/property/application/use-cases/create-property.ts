@@ -60,7 +60,7 @@ export const createProperty =
     await deps.propertyRepo.insert(ctx.organizationId, property)
 
     // 6. Emit event
-    deps.events.emit(
+    await deps.events.emit(
       propertyCreated({
         propertyId: property.id,
         organizationId: property.organizationId,

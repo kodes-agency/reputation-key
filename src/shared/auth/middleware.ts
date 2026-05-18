@@ -15,12 +15,27 @@ import { throwContextError } from './server-errors'
 // Within a single page load, multiple server functions call resolveTenantContext
 // with identical cookies. This cache deduplicates the getActiveMember() DB call.
 // Keyed by raw cookie header — different users/sessions get different entries.
+// Max-size eviction prevents unbounded memory growth under high concurrency.
 
 const TENANT_CACHE_TTL_MS = 5_000 // 5 seconds — covers a single page load
+const TENANT_CACHE_MAX_SIZE = 100 // Evict oldest entry when full
 const tenantCache = new Map<string, { ctx: AuthContext; ts: number }>()
 
-function tenantCacheKey(headers: Headers): string {
-  return headers.get('cookie') ?? ''
+function tenantCacheKey(headers: Headers): string | null {
+  const cookie = headers.get('cookie')
+  if (!cookie || cookie.trim() === '') {
+    return null // Skip cache for empty cookies — prevents collision
+  }
+  return cookie
+}
+
+function evictOldestIfNeeded(): void {
+  if (tenantCache.size >= TENANT_CACHE_MAX_SIZE) {
+    const firstKey = tenantCache.keys().next().value
+    if (firstKey) {
+      tenantCache.delete(firstKey)
+    }
+  }
 }
 
 /** Evict expired entries from the tenant cache. Called at the end of each server function. */
@@ -103,9 +118,11 @@ export async function requireAuth(headers: Headers): Promise<AuthUser> {
 export async function resolveTenantContext(headers: Headers): Promise<AuthContext> {
   // Check cache first
   const key = tenantCacheKey(headers)
-  const cached = tenantCache.get(key)
-  if (cached && Date.now() - cached.ts < TENANT_CACHE_TTL_MS) {
-    return cached.ctx
+  if (key) {
+    const cached = tenantCache.get(key)
+    if (cached && Date.now() - cached.ts < TENANT_CACHE_TTL_MS) {
+      return cached.ctx
+    }
   }
 
   const session = await getSessionFromHeaders(headers)
@@ -131,6 +148,10 @@ export async function resolveTenantContext(headers: Headers): Promise<AuthContex
     role: toDomainRole(member.role),
   }
 
-  tenantCache.set(key, { ctx, ts: Date.now() })
+  // Only cache if we have a valid key (non-empty cookies)
+  if (key) {
+    evictOldestIfNeeded()
+    tenantCache.set(key, { ctx, ts: Date.now() })
+  }
   return ctx
 }

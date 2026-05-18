@@ -107,8 +107,27 @@ export const connectGoogleAccount =
 
     const connection = buildResult.value
 
-    // 6. Persist
-    await deps.connectionRepo.insert(connection)
+    // 6. Persist — handle race condition where another request inserted
+    // the same connection between our check and this insert.
+    try {
+      await deps.connectionRepo.insert(connection)
+    } catch (err) {
+      const isUniqueViolation =
+        err instanceof Error &&
+        'code' in err &&
+        (err as { code: string }).code === '23505'
+
+      if (!isUniqueViolation) throw err
+
+      // Another request created the connection concurrently — fetch and return it
+      const concurrentConnection = await deps.connectionRepo.findByGoogleAccountId(
+        ctx.organizationId,
+        oauthResult.googleAccountId,
+      )
+      if (!concurrentConnection) throw err
+
+      return concurrentConnection
+    }
 
     // 7. Emit event
     await deps.events.emit(

@@ -10,7 +10,7 @@ import { feedbackInputSchema } from '../application/dto/feedback.dto'
 import { isGuestError } from '../domain/errors'
 import type { GuestErrorCode } from '../domain/errors'
 export type { PublicPortalLoaderData } from '../application/dto/public-portal.dto'
-import { organizationId, portalId, propertyId, ratingId } from '#/shared/domain/ids'
+import { portalId, ratingId } from '#/shared/domain/ids'
 import { getEnv } from '#/shared/config/env'
 import { createHash } from 'crypto'
 
@@ -193,41 +193,8 @@ export const resolveLinkAndTrack = createServerFn({ method: 'GET' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const { db, useCases } = getContainer()
-        const { portalLinks, portals } = await import('#/shared/db/schema/portal.schema')
-        const { eq } = await import('drizzle-orm')
-
-        const result = await db
-          .select({
-            url: portalLinks.url,
-            organizationId: portalLinks.organizationId,
-            portalId: portalLinks.portalId,
-            propertyId: portals.propertyId,
-          })
-          .from(portalLinks)
-          .innerJoin(portals, eq(portalLinks.portalId, portals.id))
-          .where(eq(portalLinks.id, data.linkId))
-          .limit(1)
-
-        if (result.length === 0) {
-          return null
-        }
-
-        const {
-          url,
-          organizationId: orgId,
-          portalId: pId,
-          propertyId: propId,
-        } = result[0]
-
-        await useCases.trackReviewLinkClick({
-          linkId: data.linkId,
-          organizationId: organizationId(orgId),
-          portalId: portalId(pId),
-          propertyId: propertyId(propId),
-        })
-
-        return { url }
+        const { useCases } = getContainer()
+        return await useCases.resolveLinkAndTrack({ linkId: data.linkId })
       },
       'GET',
       'guest.resolveLinkAndTrack',

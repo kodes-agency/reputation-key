@@ -6,6 +6,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import { getRequestHeaders } from '@tanstack/react-start/server'
 import { getAuth } from './auth'
+import { getLogger } from '#/shared/observability/logger'
 
 /** Get the current session using server-side request headers. */
 export const getSession = createServerFn({ method: 'GET' }).handler(async () => {
@@ -33,5 +34,11 @@ export const ensureActiveOrg = createServerFn({ method: 'POST' }).handler(async 
       headers,
       body: { organizationId: orgList[0].id },
     })
+  } else {
+    const logger = getLogger()
+    logger.warn(
+      { userId: session.user.id },
+      'User has no organizations — cannot set active org',
+    )
   }
 })

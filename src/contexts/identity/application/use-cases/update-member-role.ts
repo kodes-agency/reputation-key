@@ -64,7 +64,7 @@ export const updateMemberRole =
     await deps.identity.updateMemberRole(ctx, input.memberId, input.role)
 
     // 5. Emit event
-    deps.events.emit(
+    await deps.events.emit(
       memberRoleChanged({
         organizationId: ctx.organizationId,
         userId: toUserId(targetMember.userId),

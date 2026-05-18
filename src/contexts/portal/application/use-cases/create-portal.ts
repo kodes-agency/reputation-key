@@ -73,7 +73,7 @@ export const createPortal =
     await deps.portalRepo.insert(ctx.organizationId, portal)
 
     // 6. Emit event
-    deps.events.emit(
+    await deps.events.emit(
       portalCreated({
         portalId: portal.id,
         organizationId: portal.organizationId,

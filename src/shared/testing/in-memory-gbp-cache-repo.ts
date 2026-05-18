@@ -3,7 +3,7 @@
 
 import type { GbpCacheRepository } from '#/contexts/integration/application/ports/gbp-cache.repository'
 import type { GbpCacheEntry, GbpCacheDataType } from '#/contexts/integration/domain/types'
-import type { PropertyId } from '#/shared/domain/ids'
+import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 
 // fallow-ignore-next-line unused-type
 export type InMemoryGbpCacheRepo = GbpCacheRepository &
@@ -13,20 +13,26 @@ export type InMemoryGbpCacheRepo = GbpCacheRepository &
     testSetConnectionForProperty: (connectionId: string, propertyId: string) => void
   }>
 
-const compoundKey = (propertyId: PropertyId, dataType: GbpCacheDataType) =>
-  `${propertyId as string}:${dataType}`
+const compoundKey = (
+  organizationId: OrganizationId,
+  propertyId: PropertyId,
+  dataType: GbpCacheDataType,
+) => `${organizationId as string}:${propertyId as string}:${dataType}`
 
 export const createInMemoryGbpCacheRepo = (): InMemoryGbpCacheRepo => {
   const store = new Map<string, GbpCacheEntry>()
   const connectionPropertyMap = new Map<string, string>()
 
   return {
-    findByPropertyAndType: async (propertyId, dataType) => {
-      return store.get(compoundKey(propertyId, dataType)) ?? null
+    findByPropertyAndType: async (organizationId, propertyId, dataType) => {
+      return store.get(compoundKey(organizationId, propertyId, dataType)) ?? null
     },
 
     upsert: async (entry) => {
-      store.set(compoundKey(entry.propertyId, entry.dataType), entry)
+      store.set(
+        compoundKey(entry.organizationId, entry.propertyId, entry.dataType),
+        entry,
+      )
     },
 
     deleteByProperty: async (propertyId, _orgId) => {
@@ -37,7 +43,7 @@ export const createInMemoryGbpCacheRepo = (): InMemoryGbpCacheRepo => {
       }
     },
 
-    deleteExpired: async () => {
+    deleteAllExpired: async () => {
       const now = new Date()
       let count = 0
       for (const [key, entry] of store.entries()) {
@@ -66,7 +72,10 @@ export const createInMemoryGbpCacheRepo = (): InMemoryGbpCacheRepo => {
 
     seed: (entries) => {
       for (const entry of entries) {
-        store.set(compoundKey(entry.propertyId, entry.dataType), entry)
+        store.set(
+          compoundKey(entry.organizationId, entry.propertyId, entry.dataType),
+          entry,
+        )
       }
     },
 

@@ -49,7 +49,7 @@ export const submitRating =
     const rating = ratingResult.value
     await deps.guestRepo.insertRating(rating)
 
-    deps.events.emit(
+    await deps.events.emit(
       ratingSubmitted({
         ratingId: rating.id,
         organizationId: input.organizationId,

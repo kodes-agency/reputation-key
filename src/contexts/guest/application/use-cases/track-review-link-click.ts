@@ -19,7 +19,7 @@ export const trackReviewLinkClick =
   async (input: TrackReviewLinkClickInput): Promise<void> => {
     try {
       const now = deps.clock()
-      deps.events.emit(
+      await deps.events.emit(
         reviewLinkClicked({
           linkId: input.linkId,
           organizationId: input.organizationId,

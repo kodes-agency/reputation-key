@@ -15,6 +15,9 @@ export async function truncateTables(
   tables: string[],
   orgIds: string[],
 ): Promise<void> {
+  // WARNING: Table names are interpolated directly into SQL. This is safe
+  // because callers pass hardcoded arrays from test setup. Never use this
+  // pattern with user-supplied input — it is a SQL injection vector.
   for (const table of tables) {
     await pool.query(`DELETE FROM ${table} WHERE organization_id = ANY($1)`, [orgIds])
   }

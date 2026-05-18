@@ -33,7 +33,7 @@ export const softDeleteTeam =
     await deps.teamRepo.softDelete(ctx.organizationId, team.id)
 
     // 6. Emit event
-    deps.events.emit(
+    await deps.events.emit(
       teamDeleted({
         teamId: team.id,
         organizationId: team.organizationId,

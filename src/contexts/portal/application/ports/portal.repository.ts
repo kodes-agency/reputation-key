@@ -5,6 +5,11 @@
 import type { Portal, PortalId } from '../../domain/types'
 import type { OrganizationId } from '#/shared/domain/ids'
 
+export type PortalQrInfo = Readonly<{
+  slug: string
+  orgSlug: string
+}>
+
 export type PortalRepository = Readonly<{
   findById: (orgId: OrganizationId, id: PortalId) => Promise<Portal | null>
   findBySlug: (orgId: OrganizationId, slug: string) => Promise<Portal | null>
@@ -25,4 +30,5 @@ export type PortalRepository = Readonly<{
     patch: Readonly<Partial<Portal>>,
   ) => Promise<void>
   softDelete: (orgId: OrganizationId, id: PortalId) => Promise<void>
+  getPortalQrInfo: (orgId: OrganizationId, id: PortalId) => Promise<PortalQrInfo | null>
 }>

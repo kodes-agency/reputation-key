@@ -48,13 +48,17 @@ async function buildPortalPatch(
   orgId: OrganizationId,
 ): Promise<PortalPatch> {
   const patch: PortalPatch = {
-    name: input.name !== undefined ? unwrap(validatePortalName(input.name)) : existing.name,
+    name:
+      input.name !== undefined ? unwrap(validatePortalName(input.name)) : existing.name,
     slug: existing.slug,
     description:
       input.description !== undefined
         ? unwrap(validateDescription(input.description))
         : existing.description,
-    theme: input.theme !== undefined ? unwrap(validatePortalTheme(input.theme)) : existing.theme,
+    theme:
+      input.theme !== undefined
+        ? unwrap(validatePortalTheme(input.theme))
+        : existing.theme,
     smartRoutingEnabled: input.smartRoutingEnabled ?? existing.smartRoutingEnabled,
     smartRoutingThreshold:
       input.smartRoutingThreshold !== undefined
@@ -85,7 +89,11 @@ function hasPortalChanges(existing: Portal, patch: PortalPatch): boolean {
   )
 }
 
-function buildUpdatedPortal(existing: Portal, patch: PortalPatch, updatedAt: Date): Portal {
+function buildUpdatedPortal(
+  existing: Portal,
+  patch: PortalPatch,
+  updatedAt: Date,
+): Portal {
   return {
     ...existing,
     ...patch,
@@ -106,7 +114,12 @@ export const updatePortal =
       throw portalError('portal_not_found', 'portal not found in this organization')
     }
 
-    const patch = await buildPortalPatch(input, existing, deps.portalRepo, ctx.organizationId)
+    const patch = await buildPortalPatch(
+      input,
+      existing,
+      deps.portalRepo,
+      ctx.organizationId,
+    )
 
     if (!hasPortalChanges(existing, patch)) {
       return existing
@@ -118,7 +131,7 @@ export const updatePortal =
       updatedAt,
     })
 
-    deps.events.emit(
+    await deps.events.emit(
       portalUpdated({
         portalId: pid,
         organizationId: ctx.organizationId,

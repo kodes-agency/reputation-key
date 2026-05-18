@@ -20,6 +20,7 @@ let pool: Pool
 function buildTestCacheEntry(overrides: Partial<GbpCacheEntry> = {}): GbpCacheEntry {
   return {
     id: crypto.randomUUID(),
+    organizationId: ORG_A,
     propertyId: PROP_A,
     gbpPlaceId: 'ChIJ-test-place-id',
     dataType: 'location' as GbpCacheDataType,
@@ -71,7 +72,7 @@ describe('gbpCacheRepository (integration)', () => {
       const entry = buildTestCacheEntry()
 
       await repo.upsert(entry)
-      const found = await repo.findByPropertyAndType(PROP_A, 'location')
+      const found = await repo.findByPropertyAndType(ORG_A, PROP_A, 'location')
 
       expect(found).not.toBeNull()
       expect(found!.gbpPlaceId).toBe('ChIJ-test-place-id')
@@ -92,7 +93,7 @@ describe('gbpCacheRepository (integration)', () => {
       })
       await repo.upsert(updated)
 
-      const found = await repo.findByPropertyAndType(PROP_A, 'location')
+      const found = await repo.findByPropertyAndType(ORG_A, PROP_A, 'location')
       expect(found!.gbpPlaceId).toBe('ChIJ-updated-place')
       expect(found!.payload).toEqual({ name: 'Updated Business' })
     })
@@ -101,7 +102,7 @@ describe('gbpCacheRepository (integration)', () => {
       const db = getDb()
       const repo = createGbpCacheRepository(db)
       // 'location' is the only valid type now; no entry inserted in this scope
-      expect(await repo.findByPropertyAndType(PROP_A, 'location')).toBeNull()
+      expect(await repo.findByPropertyAndType(ORG_A, PROP_A, 'location')).toBeNull()
     })
   })
 
@@ -112,12 +113,12 @@ describe('gbpCacheRepository (integration)', () => {
       await repo.upsert(buildTestCacheEntry({ dataType: 'location' }))
 
       await repo.deleteByProperty(PROP_A, ORG_A as string)
-      const found = await repo.findByPropertyAndType(PROP_A, 'location')
+      const found = await repo.findByPropertyAndType(ORG_A, PROP_A, 'location')
       expect(found).toBeNull()
     })
   })
 
-  describe('deleteExpired', () => {
+  describe('deleteAllExpired', () => {
     it('deletes entries with past expiry', async () => {
       const db = getDb()
       const repo = createGbpCacheRepository(db)
@@ -128,10 +129,10 @@ describe('gbpCacheRepository (integration)', () => {
         }),
       )
 
-      const count = await repo.deleteExpired()
+      const count = await repo.deleteAllExpired()
       expect(count).toBeGreaterThanOrEqual(1)
 
-      const found = await repo.findByPropertyAndType(PROP_A, 'location')
+      const found = await repo.findByPropertyAndType(ORG_A, PROP_A, 'location')
       expect(found).toBeNull()
     })
   })

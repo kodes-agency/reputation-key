@@ -85,6 +85,41 @@ export const updateProfileFn = createServerFn({ method: 'POST' })
     ),
   )
 
+// ── Update user image ──────────────────────────────────────────────
+
+const updateUserImageSchema = z.object({
+  imageUrl: z.string().url(),
+})
+
+export const updateUserImageFn = createServerFn({ method: 'POST' })
+  .inputValidator(updateUserImageSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const headers = headersFromContext()
+        const auth = getAuth()
+
+        try {
+          await auth.api.updateUser({
+            headers,
+            body: { image: data.imageUrl },
+          })
+        } catch {
+          throwContextError(
+            'AuthError',
+            {
+              code: 'avatar_update_failed',
+              message: 'Failed to update avatar.',
+            },
+            400,
+          )
+        }
+      },
+      'POST',
+      'identity.updateUserImage',
+    ),
+  )
+
 // ── Create organization ────────────────────────────────────────────
 
 const createOrganizationSchema = z.object({

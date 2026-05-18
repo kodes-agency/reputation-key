@@ -47,7 +47,7 @@ export const submitFeedback =
     const feedback = feedbackResult.value
     await deps.guestRepo.insertFeedback(feedback)
 
-    deps.events.emit(
+    await deps.events.emit(
       feedbackSubmitted({
         feedbackId: feedback.id,
         organizationId: input.organizationId,

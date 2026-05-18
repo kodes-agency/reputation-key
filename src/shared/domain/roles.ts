@@ -22,7 +22,7 @@ export function hasRole(userRole: Role, requiredRole: Role): boolean {
   return ROLE_HIERARCHY[userRole] >= ROLE_HIERARCHY[requiredRole]
 }
 
-/** Map a better-auth role string to our domain Role. */
+/** Map a better-auth role string to our domain Role. Throws on unknown roles. */
 export function toDomainRole(betterAuthRole: string): Role {
   switch (betterAuthRole) {
     case 'owner':
@@ -32,7 +32,7 @@ export function toDomainRole(betterAuthRole: string): Role {
     case 'member':
       return 'Staff'
     default:
-      return 'Staff'
+      throw new Error(`Unknown better-auth role: ${betterAuthRole}`)
   }
 }
 

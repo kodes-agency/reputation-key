@@ -28,10 +28,13 @@ export const reorderCategories =
 
     await deps.portalLinkRepo.reorderCategories(
       ctx.organizationId,
-      input.items.map((item) => ({ id: portalLinkCategoryId(item.id), sortKey: item.sortKey })),
+      input.items.map((item) => ({
+        id: portalLinkCategoryId(item.id),
+        sortKey: item.sortKey,
+      })),
     )
 
-    deps.events.emit(
+    await deps.events.emit(
       portalLinkCategoryReordered({
         portalId: portalId(input.portalId),
         organizationId: ctx.organizationId,

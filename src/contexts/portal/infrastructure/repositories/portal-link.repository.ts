@@ -4,12 +4,19 @@
 
 import { eq, and, type SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import { portalLinkCategories, portalLinks } from '#/shared/db/schema/portal.schema'
+import {
+  portalLinkCategories,
+  portalLinks,
+  portals,
+} from '#/shared/db/schema/portal.schema'
 import type { PortalLinkRepository } from '../../application/ports/portal-link.repository'
+import type { LinkResolverPort } from '../../application/ports/link-resolver.port'
 import type {
   OrganizationId,
+  PortalId,
   PortalLinkCategoryId,
   PortalLinkId,
+  PropertyId,
 } from '#/shared/domain/ids'
 import {
   categoryFromRow,
@@ -179,6 +186,38 @@ export const createPortalLinkRepository = (db: Database): PortalLinkRepository =
         .where(and(linkOrg(orgId), linkIdEq(id)))
         .limit(1)
       return rows[0] ? linkFromRow(rows[0]) : null
+    })
+  },
+})
+
+export const createLinkResolverPort = (db: Database): LinkResolverPort => ({
+  resolveLinkById: async (linkId) => {
+    return trace('portalLink.resolveLinkById', async () => {
+      const result = await db
+        .select({
+          id: portalLinks.id,
+          url: portalLinks.url,
+          organizationId: portalLinks.organizationId,
+          portalId: portalLinks.portalId,
+          propertyId: portals.propertyId,
+        })
+        .from(portalLinks)
+        .innerJoin(portals, eq(portalLinks.portalId, portals.id))
+        .where(eq(portalLinks.id, linkId))
+        .limit(1)
+
+      if (result.length === 0) {
+        return null
+      }
+
+      const row = result[0]
+      return {
+        id: row.id,
+        url: row.url,
+        organizationId: row.organizationId as OrganizationId,
+        portalId: row.portalId as unknown as PortalId,
+        propertyId: row.propertyId as unknown as PropertyId,
+      }
     })
   },
 })

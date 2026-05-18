@@ -64,6 +64,12 @@ export const createInMemoryPortalRepo = (): InMemoryPortalRepo => {
       store.set(id, { ...existing, deletedAt: new Date(), updatedAt: new Date() })
     },
 
+    getPortalQrInfo: async (orgId, id) => {
+      const portal = store.get(id)
+      if (!portal || !isAccessible(orgId, portal)) return null
+      return { slug: portal.slug, orgSlug: 'test-org' }
+    },
+
     // ── Test-only helpers ───────────────────────────────────────────
 
     seed: (portals) => {

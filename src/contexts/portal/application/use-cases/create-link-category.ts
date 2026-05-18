@@ -34,7 +34,10 @@ export const createLinkCategory =
       throw portalError('portal_not_found', 'portal not found in this organization')
     }
 
-    const existing = await deps.portalLinkRepo.listCategories(ctx.organizationId, portal.id)
+    const existing = await deps.portalLinkRepo.listCategories(
+      ctx.organizationId,
+      portal.id,
+    )
     const lastSortKey = existing.length > 0 ? existing[existing.length - 1].sortKey : null
     const sortKey = generateKeyBetween(lastSortKey, null)
 
@@ -51,7 +54,7 @@ export const createLinkCategory =
 
     await deps.portalLinkRepo.insertCategory(ctx.organizationId, result.value)
 
-    deps.events.emit(
+    await deps.events.emit(
       portalLinkCategoryCreated({
         portalId: portal.id,
         categoryId: result.value.id,
