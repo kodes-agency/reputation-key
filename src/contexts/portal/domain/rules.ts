@@ -111,6 +111,16 @@ export const validateUrl = (url: string): Result<string, PortalError> => {
   }
 }
 
+/** Check whether a URL is a valid external HTTPS URL. */
+export const isValidExternalUrl = (url: string): boolean => {
+  try {
+    const parsed = new URL(url)
+    return parsed.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
 // ── Link label validation ──────────────────────────────────────────
 
 /** Validate a link label. */

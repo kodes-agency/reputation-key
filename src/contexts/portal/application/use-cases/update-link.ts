@@ -4,7 +4,7 @@ import type { PortalLinkRepository } from '../ports/portal-link.repository'
 import type { PortalLink } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { portalError } from '../../domain/errors'
-import { validateLinkLabel, validateUrl } from '../../domain/rules'
+import { validateLinkLabel, isValidExternalUrl } from '../../domain/rules'
 import { can } from '#/shared/domain/permissions'
 import { portalLinkId } from '#/shared/domain/ids'
 
@@ -51,9 +51,10 @@ export const updateLink =
     }
 
     if (input.url !== undefined) {
-      const r = validateUrl(input.url)
-      if (r.isErr()) throw r.error
-      newUrl = r.value
+      if (!isValidExternalUrl(input.url)) {
+        throw portalError('invalid_url', 'Link URL must use https:// scheme')
+      }
+      newUrl = input.url
       needsUpdate = true
     }
 

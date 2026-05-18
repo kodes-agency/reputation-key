@@ -10,14 +10,7 @@ import { portalLinkCreated } from '../../domain/events'
 import type { EventBus } from '#/shared/events/event-bus'
 import { portalId, portalLinkCategoryId, portalLinkId } from '#/shared/domain/ids'
 
-function isValidExternalUrl(url: string): boolean {
-  try {
-    const parsed = new URL(url)
-    return parsed.protocol === 'https:'
-  } catch {
-    return false
-  }
-}
+import { isValidExternalUrl } from '../../domain/rules'
 
 // fallow-ignore-next-line unused-type
 export type CreateLinkDeps = Readonly<{

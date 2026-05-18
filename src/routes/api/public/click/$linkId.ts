@@ -1,15 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { resolveLinkAndTrack } from '#/contexts/guest/server/public'
 import { getLogger } from '#/shared/observability/logger'
-
-function isValidRedirectUrl(url: string): boolean {
-  try {
-    const parsed = new URL(url)
-    return parsed.protocol === 'https:'
-  } catch {
-    return false
-  }
-}
+import { isValidExternalUrl } from '#/contexts/portal/server/portal-links'
 
 export const Route = createFileRoute('/api/public/click/$linkId')({
   server: {
@@ -23,7 +15,7 @@ export const Route = createFileRoute('/api/public/click/$linkId')({
             return new Response('Link not found', { status: 404 }) as Response
           }
 
-          if (!isValidRedirectUrl(result.url)) {
+          if (!isValidExternalUrl(result.url)) {
             logger.warn(
               { linkId: params.linkId, url: result.url },
               'Invalid redirect URL blocked',
