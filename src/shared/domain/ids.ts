@@ -84,3 +84,8 @@ export function googleConnectionId(id: string): GoogleConnectionId {
 export function gbpImportJobId(id: string): GbpImportJobId {
   return id as GbpImportJobId
 }
+
+/** Safely strip brand from a branded ID type for use at infrastructure boundaries. */
+export function unbrand<T extends string>(branded: T): string {
+  return String(branded)
+}

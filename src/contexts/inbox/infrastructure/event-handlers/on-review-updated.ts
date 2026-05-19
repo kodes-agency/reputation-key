@@ -1,13 +1,12 @@
 // Inbox context — event handler for review.updated
 // Syncs denormalized fields (rating) when a review is updated.
 
-import type { EventBus } from '#/shared/events/event-bus'
 import type { ReviewUpdated } from '#/contexts/review/domain/events'
 import type { InboxRepository } from '../../application/ports/inbox.repository'
 import { getLogger } from '#/shared/observability/logger'
+import { unbrand } from '#/shared/domain/ids'
 
 export type OnReviewUpdatedDeps = Readonly<{
-  events: EventBus
   repo: InboxRepository
 }>
 
@@ -15,13 +14,10 @@ export const onReviewUpdated =
   (deps: OnReviewUpdatedDeps) =>
   async (event: ReviewUpdated): Promise<void> => {
     try {
-      // Find the inbox item by source (review)
-      // reviewId is a branded ReviewId — explicit unbrand for repo query (infrastructure boundary)
-      const sourceId: string = event.reviewId as unknown as string
+      const sourceId = unbrand(event.reviewId)
       const item = await deps.repo.findBySource('review', sourceId, event.organizationId)
-      if (!item) return // no inbox item for this review — nothing to sync
+      if (!item) return
 
-      // Sync the denormalized rating field
       await deps.repo.syncDenormalizedFields(item.id, item.organizationId, {
         rating: event.rating,
       })
