@@ -32,5 +32,7 @@ export default defineConfig({
     'gbp_import_jobs',
     'reviews',
     'replies',
+    'inbox_items',
+    'inbox_notes',
   ],
 })
