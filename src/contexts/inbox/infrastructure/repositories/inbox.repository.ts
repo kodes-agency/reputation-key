@@ -11,12 +11,7 @@ import type {
   Cursor,
   PaginatedResult,
 } from '../../application/ports/inbox.repository'
-import type {
-  InboxItem,
-  InboxItemDetail,
-  InboxStatus,
-  SourceType,
-} from '../../domain/types'
+import type { InboxItem, InboxStatus, SourceType } from '../../domain/types'
 import type { InboxItemId, OrganizationId, UserId } from '#/shared/domain/ids'
 import { inboxItemFromRow, inboxItemToInsertRow } from '../mappers/inbox.mapper'
 import { trace } from '#/shared/observability/trace'
@@ -222,7 +217,6 @@ export const createInboxRepository = (db: Database): InboxRepository => ({
 
   findDetailById: async (id: InboxItemId, orgId: OrganizationId) => {
     return trace('inbox.findDetailById', async () => {
-      // Fetch the inbox item; LEFT JOINs to reviews/feedback deferred to integration testing
       const rows = await db
         .select()
         .from(inboxItems)
@@ -233,16 +227,60 @@ export const createInboxRepository = (db: Database): InboxRepository => ({
 
       const item = inboxItemFromRow(rows[0])
 
-      // Joins deferred — return item with null source detail fields
-      const detail: InboxItemDetail = {
+      // JOIN with source table based on sourceType
+      if (item.sourceType === 'review') {
+        const { reviews } = await import('#/shared/db/schema/review.schema')
+        const reviewRows = await db
+          .select({
+            reviewerName: reviews.reviewerName,
+            reviewText: reviews.text,
+            reviewerProfilePhotoUrl: reviews.reviewerProfilePhotoUrl,
+          })
+          .from(reviews)
+          .where(and(eq(reviews.id, item.sourceId), eq(reviews.organizationId, orgId)))
+          .limit(1)
+
+        const review = reviewRows[0]
+        return {
+          item,
+          reviewerName: review?.reviewerName ?? null,
+          reviewText: review?.reviewText ?? null,
+          reviewerProfilePhotoUrl: review?.reviewerProfilePhotoUrl ?? null,
+          feedbackComment: null,
+          feedbackRatingValue: null,
+        }
+      }
+
+      // sourceType === 'feedback'
+      const { feedback, ratings } = await import('#/shared/db/schema/guest.schema')
+      const feedbackRows = await db
+        .select({
+          comment: feedback.comment,
+          ratingId: feedback.ratingId,
+        })
+        .from(feedback)
+        .where(and(eq(feedback.id, item.sourceId), eq(feedback.organizationId, orgId)))
+        .limit(1)
+
+      const fb = feedbackRows[0]
+      let ratingValue: number | null = null
+      if (fb?.ratingId) {
+        const ratingRows = await db
+          .select({ value: ratings.value })
+          .from(ratings)
+          .where(and(eq(ratings.id, fb.ratingId), eq(ratings.organizationId, orgId)))
+          .limit(1)
+        ratingValue = ratingRows[0]?.value ?? null
+      }
+
+      return {
         item,
         reviewerName: null,
         reviewText: null,
         reviewerProfilePhotoUrl: null,
-        feedbackComment: null,
-        feedbackRatingValue: null,
+        feedbackComment: fb?.comment ?? null,
+        feedbackRatingValue: ratingValue,
       }
-      return detail
     })
   },
 })

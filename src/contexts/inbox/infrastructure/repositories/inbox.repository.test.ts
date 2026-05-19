@@ -7,6 +7,14 @@ import { describe, it, expect } from 'vitest'
 import type { InboxRepository } from '../../application/ports/inbox.repository'
 import type { Database } from '#/shared/db'
 import { createInboxRepository } from './inbox.repository'
+import type { InboxItem } from '../../domain/types'
+import type {
+  InboxItemId,
+  OrganizationId,
+  PropertyId,
+  ReviewId,
+  FeedbackId,
+} from '#/shared/domain/ids'
 
 // Simple mock db — we only need to verify the factory returns the right shape
 function createMockDb() {
@@ -39,6 +47,67 @@ function createMockDb() {
   } as unknown as Database
 }
 
+// In-memory repo for testing findDetailById behavior
+function createInMemoryInboxRepo(): InboxRepository {
+  const items: InboxItem[] = []
+
+  return {
+    findById: async (id, orgId) =>
+      items.find((i) => i.id === id && i.organizationId === orgId) ?? null,
+    findBySource: async () => null,
+    findFilteredPaginated: async () => ({ items: [], nextCursor: null }),
+    create: async (item) => {
+      items.push(item)
+      return item
+    },
+    updateStatus: async (id, orgId, status) => {
+      const item = items.find((i) => i.id === id && i.organizationId === orgId)
+      if (!item) throw new Error('Not found')
+      return { ...item, status }
+    },
+    bulkUpdateStatus: async (ids, orgId, status) => {
+      let updated = 0
+      for (const id of ids) {
+        const idx = items.findIndex((i) => i.id === id && i.organizationId === orgId)
+        if (idx !== -1) {
+          items[idx] = { ...items[idx], status }
+          updated++
+        }
+      }
+      return { updated }
+    },
+    updateAssignment: async (id, orgId, assignedTo) => {
+      const item = items.find((i) => i.id === id && i.organizationId === orgId)
+      if (!item) throw new Error('Not found')
+      return { ...item, assignedTo }
+    },
+    countByStatus: async () => 0,
+    syncDenormalizedFields: async () => {},
+    findDetailById: async (id, orgId) => {
+      const item = items.find((i) => i.id === id && i.organizationId === orgId)
+      if (!item) return null
+      if (item.sourceType === 'review') {
+        return {
+          item,
+          reviewerName: 'Test Reviewer',
+          reviewText: 'Test review text',
+          reviewerProfilePhotoUrl: null,
+          feedbackComment: null,
+          feedbackRatingValue: null,
+        }
+      }
+      return {
+        item,
+        reviewerName: null,
+        reviewText: null,
+        reviewerProfilePhotoUrl: null,
+        feedbackComment: 'Test feedback comment',
+        feedbackRatingValue: item.rating,
+      }
+    },
+  }
+}
+
 describe('createInboxRepository', () => {
   it('returns an object satisfying InboxRepository', () => {
     const db = createMockDb()
@@ -62,5 +131,84 @@ describe('createInboxRepository', () => {
     const repo: InboxRepository = createInboxRepository(db)
     // If this compiles, the factory output matches the port interface
     expect(repo).toBeDefined()
+  })
+})
+
+describe('in-memory inbox repository', () => {
+  it('findDetailById returns review source data for review items', async () => {
+    const repo = createInMemoryInboxRepo()
+    const item: InboxItem = {
+      id: 'item-1' as InboxItemId,
+      organizationId: 'org-1' as OrganizationId,
+      propertyId: 'prop-1' as PropertyId,
+      sourceType: 'review',
+      sourceId: 'review-1' as ReviewId,
+      status: 'new',
+      rating: 4,
+      snippet: 'Great place',
+      sourceDate: new Date(),
+      platform: 'google',
+      assignedTo: null,
+      readAt: null,
+      escalatedAt: null,
+      addressedAt: null,
+      archivedAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }
+    await repo.create(item)
+
+    const result = await repo.findDetailById(
+      'item-1' as InboxItemId,
+      'org-1' as OrganizationId,
+    )
+
+    expect(result).not.toBeNull()
+    expect(result?.reviewerName).toBe('Test Reviewer')
+    expect(result?.reviewText).toBe('Test review text')
+    expect(result?.feedbackComment).toBeNull()
+  })
+
+  it('findDetailById returns feedback source data for feedback items', async () => {
+    const repo = createInMemoryInboxRepo()
+    const item: InboxItem = {
+      id: 'item-2' as InboxItemId,
+      organizationId: 'org-1' as OrganizationId,
+      propertyId: 'prop-1' as PropertyId,
+      sourceType: 'feedback',
+      sourceId: 'feedback-1' as FeedbackId,
+      status: 'new',
+      rating: null,
+      snippet: 'Nice service',
+      sourceDate: new Date(),
+      platform: null,
+      assignedTo: null,
+      readAt: null,
+      escalatedAt: null,
+      addressedAt: null,
+      archivedAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }
+    await repo.create(item)
+
+    const result = await repo.findDetailById(
+      'item-2' as InboxItemId,
+      'org-1' as OrganizationId,
+    )
+
+    expect(result).not.toBeNull()
+    expect(result?.feedbackComment).toBe('Test feedback comment')
+    expect(result?.reviewerName).toBeNull()
+    expect(result?.reviewText).toBeNull()
+  })
+
+  it('findDetailById returns null for non-existent item', async () => {
+    const repo = createInMemoryInboxRepo()
+    const result = await repo.findDetailById(
+      'nonexistent' as InboxItemId,
+      'org-1' as OrganizationId,
+    )
+    expect(result).toBeNull()
   })
 })
