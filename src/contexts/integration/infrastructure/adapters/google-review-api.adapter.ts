@@ -146,6 +146,15 @@ export const createGoogleReviewApiAdapter = (
 
       const data = (await response.json()) as GbpReviewsPageResponse
 
+      getLogger().info(
+        {
+          reviewCount: data.reviews?.length ?? 0,
+          firstReviewKeys: data.reviews?.[0] ? Object.keys(data.reviews[0]) : [],
+          firstReviewRaw: JSON.stringify(data.reviews?.[0] ?? null),
+        },
+        'DEBUG: GBP API raw response first review',
+      )
+
       for (const raw of data.reviews ?? []) {
         const mapped = mapReview(raw)
         if (mapped) {
