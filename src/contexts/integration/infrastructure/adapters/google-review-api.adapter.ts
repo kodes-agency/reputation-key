@@ -33,7 +33,7 @@ type GbpReviewsPageResponse = Readonly<{
 type GbpReviewItem = Readonly<{
   name: string
   starRating?: string
-  text?: { text?: string; languageCode?: string }
+  comment?: string
   reviewer?: { displayName?: string; profilePhotoUrl?: string }
   reviewReply?: { comment?: string; updateTime?: string }
   createTime: string
@@ -93,8 +93,8 @@ export const createGoogleReviewApiAdapter = (
       reviewerName: raw.reviewer?.displayName ?? null,
       reviewerProfilePhotoUrl: raw.reviewer?.profilePhotoUrl ?? null,
       rating,
-      text: raw.text?.text ?? null,
-      languageCode: raw.text?.languageCode ?? null,
+      text: raw.comment ?? null,
+      languageCode: null,
       reviewedAt: new Date(raw.createTime),
       replyText: raw.reviewReply?.comment ?? null,
       replyUpdatedAt: raw.reviewReply?.updateTime
