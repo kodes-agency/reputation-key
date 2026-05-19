@@ -12,6 +12,8 @@ import {
 } from '#/shared/domain/ids'
 import type { InboxItem, InboxStatus, SourceType } from '../../domain/types'
 import type { UnreadCounterPort } from '../ports/unread-counter.port'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { Role } from '#/shared/domain/roles'
 
 const FIXED_TIME = new Date('2026-04-15T12:00:00Z')
 const ORG_ID = organizationId('org-1')
@@ -41,7 +43,11 @@ function seedNew(overrides?: Partial<InboxItem>): InboxItem {
   }
 }
 
-const setup = () => {
+const staffApiAllAccess: StaffPublicApi = {
+  getAccessiblePropertyIds: async () => null,
+}
+
+const setup = (staffApi: StaffPublicApi = staffApiAllAccess) => {
   const repo = createInMemoryInboxRepo()
   const events = createCapturingEventBus()
   const decrements: Array<{ orgId: string; userId: string }> = []
@@ -54,7 +60,13 @@ const setup = () => {
     },
     invalidate: async () => {},
   }
-  const deps = { repo, events, unreadCounter, clock: () => FIXED_TIME }
+  const deps = {
+    repo,
+    events,
+    unreadCounter,
+    clock: () => FIXED_TIME,
+    staffPublicApi: staffApi,
+  }
   const useCase = updateInboxStatus(deps)
   return { useCase, repo, events, decrements }
 }
@@ -69,6 +81,7 @@ describe('updateInboxStatus', () => {
       organizationId: ORG_ID,
       newStatus: 'read',
       userId: USER_ID,
+      role: 'AccountAdmin' as Role,
     })
 
     expect(updated.status).toBe('read')
@@ -85,6 +98,7 @@ describe('updateInboxStatus', () => {
         organizationId: ORG_ID,
         newStatus: 'escalated',
         userId: USER_ID,
+        role: 'AccountAdmin' as Role,
       }),
     ).rejects.toSatisfy(
       (e: unknown) => isInboxError(e) && e.code === 'invalid_transition',
@@ -100,6 +114,7 @@ describe('updateInboxStatus', () => {
         organizationId: ORG_ID,
         newStatus: 'read',
         userId: USER_ID,
+        role: 'AccountAdmin' as Role,
       }),
     ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'not_found')
   })
@@ -113,6 +128,7 @@ describe('updateInboxStatus', () => {
       organizationId: ORG_ID,
       newStatus: 'read',
       userId: USER_ID,
+      role: 'AccountAdmin' as Role,
     })
 
     expect(decrements).toHaveLength(1)
@@ -129,6 +145,7 @@ describe('updateInboxStatus', () => {
       organizationId: ORG_ID,
       newStatus: 'escalated',
       userId: USER_ID,
+      role: 'AccountAdmin' as Role,
     })
 
     expect(decrements).toHaveLength(1)
@@ -143,10 +160,67 @@ describe('updateInboxStatus', () => {
       organizationId: ORG_ID,
       newStatus: 'read',
       userId: USER_ID,
+      role: 'AccountAdmin' as Role,
     })
 
     const emitted = events.capturedEvents
     expect(emitted).toHaveLength(1)
     expect(emitted[0]._tag).toBe('inbox.status.changed')
+  })
+
+  it('allows update when user has access to the property', async () => {
+    const staffApi: StaffPublicApi = {
+      getAccessiblePropertyIds: async () => [propertyId('prop-1')],
+    }
+    const { useCase, repo } = setup(staffApi)
+    repo.items.push(seedNew())
+
+    await expect(
+      useCase({
+        inboxItemId: ITEM_ID,
+        organizationId: ORG_ID,
+        newStatus: 'read',
+        userId: USER_ID,
+        role: 'PropertyManager' as Role,
+      }),
+    ).resolves.toBeDefined()
+  })
+
+  it('throws forbidden when non-admin user cannot access the property', async () => {
+    const staffApi: StaffPublicApi = {
+      getAccessiblePropertyIds: async () => [propertyId('prop-other')],
+    }
+    const { useCase, repo } = setup(staffApi)
+    repo.items.push(seedNew())
+
+    await expect(
+      useCase({
+        inboxItemId: ITEM_ID,
+        organizationId: ORG_ID,
+        newStatus: 'read',
+        userId: USER_ID,
+        role: 'PropertyManager' as Role,
+      }),
+    ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'forbidden')
+  })
+
+  it('skips property check for AccountAdmin role', async () => {
+    const staffApi: StaffPublicApi = {
+      getAccessiblePropertyIds: async () => {
+        throw new Error('Should not be called')
+      },
+    }
+    const { useCase, repo } = setup(staffApi)
+    repo.items.push(seedNew())
+
+    await expect(
+      useCase({
+        inboxItemId: ITEM_ID,
+        organizationId: ORG_ID,
+        newStatus: 'read',
+        userId: USER_ID,
+        role: 'AccountAdmin' as Role,
+      }),
+    ).resolves.toBeDefined()
   })
 })

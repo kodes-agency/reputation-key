@@ -1,11 +1,15 @@
 // Inbox context — update inbox status use case
 // Changes status, validates transition via domain rules.
+// Enforces role-scoped property access.
 
 import type { InboxRepository } from '../ports/inbox.repository'
 import type { UnreadCounterPort } from '../ports/unread-counter.port'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { InboxItemId, OrganizationId, UserId } from '#/shared/domain/ids'
 import type { InboxStatus, InboxItem } from '../../domain/types'
+import type { Role } from '#/shared/domain/roles'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import { hasRole } from '#/shared/domain/roles'
 import { validateTransition } from '../../domain/rules'
 import { inboxStatusChanged } from '../../domain/events'
 import { inboxError } from '../../domain/errors'
@@ -15,6 +19,7 @@ export type UpdateInboxStatusInput = Readonly<{
   organizationId: OrganizationId
   newStatus: InboxStatus
   userId: UserId
+  role: Role
 }>
 
 // fallow-ignore-next-line unused-type
@@ -23,6 +28,7 @@ export type UpdateInboxStatusDeps = Readonly<{
   events: EventBus
   unreadCounter: UnreadCounterPort
   clock: () => Date
+  staffPublicApi: StaffPublicApi
 }>
 
 export const updateInboxStatus =
@@ -34,6 +40,24 @@ export const updateInboxStatus =
       throw inboxError('not_found', 'Inbox item not found', {
         inboxItemId: input.inboxItemId,
       })
+    }
+
+    if (!hasRole(input.role, 'AccountAdmin' as Role)) {
+      const accessible = await deps.staffPublicApi.getAccessiblePropertyIds(
+        input.organizationId,
+        input.userId,
+        input.role,
+      )
+      if (
+        accessible !== null &&
+        !accessible.includes(
+          item.propertyId as ReturnType<typeof import('#/shared/domain/ids').propertyId>,
+        )
+      ) {
+        throw inboxError('forbidden', 'No access to this property', {
+          propertyId: item.propertyId,
+        })
+      }
     }
 
     // 2. Validate transition
