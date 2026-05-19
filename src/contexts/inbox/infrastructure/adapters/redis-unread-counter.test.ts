@@ -25,6 +25,17 @@ function createMockRedis() {
       for (const k of args) store.delete(k)
       return args.length
     },
+    eval: async (script: string, _numKeys: number, ...keys: string[]) => {
+      // Minimal Lua interpreter for the decrement-floor-at-0 script
+      const k = keys[0]
+      const current = parseInt(store.get(k) ?? '0', 10)
+      if (current > 0) {
+        const newVal = current - 1
+        store.set(k, newVal.toString())
+        return newVal
+      }
+      return current
+    },
   } as unknown as import('ioredis').Redis
 }
 
@@ -68,11 +79,11 @@ describe('createRedisUnreadCounter', () => {
     expect(count).toBe(4)
   })
 
-  it('decrements from zero (goes negative)', async () => {
+  it('decrements from zero (floors at 0)', async () => {
     const counter = createRedisUnreadCounter(createMockRedis())
     await counter.decrement(orgId, uid)
     const count = await counter.getCount(orgId, uid)
-    expect(count).toBe(-1)
+    expect(count).toBe(0)
   })
 
   it('invalidates (deletes) the key', async () => {

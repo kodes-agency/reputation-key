@@ -46,14 +46,14 @@ export const createInboxItemUseCase =
       input.organizationId,
     )
     if (existing) {
-      throw inboxError(
-        'already_exists',
-        'An inbox item already exists for this source',
-        { sourceType: input.sourceType, sourceId: input.sourceId },
-      )
+      throw inboxError('already_exists', 'An inbox item already exists for this source', {
+        sourceType: input.sourceType,
+        sourceId: input.sourceId,
+      })
     }
 
     // 2. Build domain object
+    const assignedTo: UserId | null = null
     const result = createInboxItem({
       id: deps.idGen(),
       organizationId: input.organizationId,
@@ -64,7 +64,7 @@ export const createInboxItemUseCase =
       sourceDate: input.sourceDate,
       platform: input.platform,
       snippet: input.snippet,
-      assignedTo: null as UserId | null,
+      assignedTo,
       clock: deps.clock,
     })
 

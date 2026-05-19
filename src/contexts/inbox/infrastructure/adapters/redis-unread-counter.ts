@@ -23,7 +23,15 @@ export const createRedisUnreadCounter = (redis: Redis): UnreadCounterPort => ({
   },
 
   decrement: async (orgId, userId) => {
-    await redis.decr(key(orgId, userId))
+    // Lua script: decrement but floor at 0 to prevent negative counts
+    const script = `
+      local current = tonumber(redis.call('GET', KEYS[1]) or '0')
+      if current > 0 then
+        return redis.call('DECR', KEYS[1])
+      end
+      return current
+    `
+    await redis.eval(script, 1, key(orgId, userId))
   },
 
   invalidate: async (orgId, userId) => {

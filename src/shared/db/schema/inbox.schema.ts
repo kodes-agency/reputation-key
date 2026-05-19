@@ -13,10 +13,7 @@ import {
   index,
 } from 'drizzle-orm/pg-core'
 
-export const inboxSourceTypeEnum = pgEnum('inbox_source_type', [
-  'review',
-  'feedback',
-])
+export const inboxSourceTypeEnum = pgEnum('inbox_source_type', ['review', 'feedback'])
 
 export const inboxStatusEnum = pgEnum('inbox_status', [
   'new',
@@ -54,7 +51,7 @@ export const inboxItems = pgTable(
       t.sourceDate.desc(),
       t.id,
     ),
-    index('inbox_items_property_idx').on(t.propertyId),
+    index('inbox_items_org_property_idx').on(t.organizationId, t.propertyId),
     uniqueIndex('inbox_items_source_unique').on(
       t.sourceType,
       t.sourceId,

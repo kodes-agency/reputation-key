@@ -5,8 +5,18 @@
 import { and, eq, desc, inArray, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { inboxItems } from '#/shared/db/schema/inbox.schema'
-import type { InboxRepository, InboxFilters, Cursor, PaginatedResult } from '../../application/ports/inbox.repository'
-import type { InboxItem, InboxItemDetail, InboxStatus, SourceType } from '../../domain/types'
+import type {
+  InboxRepository,
+  InboxFilters,
+  Cursor,
+  PaginatedResult,
+} from '../../application/ports/inbox.repository'
+import type {
+  InboxItem,
+  InboxItemDetail,
+  InboxStatus,
+  SourceType,
+} from '../../domain/types'
 import type { InboxItemId, OrganizationId, UserId } from '#/shared/domain/ids'
 import { inboxItemFromRow, inboxItemToInsertRow } from '../mappers/inbox.mapper'
 import { trace } from '#/shared/observability/trace'
@@ -17,18 +27,17 @@ export const createInboxRepository = (db: Database): InboxRepository => ({
       const rows = await db
         .select()
         .from(inboxItems)
-        .where(
-          and(
-            eq(inboxItems.id, id),
-            eq(inboxItems.organizationId, orgId),
-          ),
-        )
+        .where(and(eq(inboxItems.id, id), eq(inboxItems.organizationId, orgId)))
         .limit(1)
       return rows[0] ? inboxItemFromRow(rows[0]) : null
     })
   },
 
-  findBySource: async (sourceType: SourceType, sourceId: string, orgId: OrganizationId) => {
+  findBySource: async (
+    sourceType: SourceType,
+    sourceId: string,
+    orgId: OrganizationId,
+  ) => {
     return trace('inbox.findBySource', async () => {
       const rows = await db
         .select()
@@ -45,7 +54,12 @@ export const createInboxRepository = (db: Database): InboxRepository => ({
     })
   },
 
-  findFilteredPaginated: async (filters: InboxFilters, orgId: OrganizationId, cursor?: Cursor, limit: number = 50) => {
+  findFilteredPaginated: async (
+    filters: InboxFilters,
+    orgId: OrganizationId,
+    cursor?: Cursor,
+    limit: number = 50,
+  ) => {
     return trace('inbox.findFilteredPaginated', async () => {
       const conditions = [eq(inboxItems.organizationId, orgId)]
 
@@ -93,9 +107,7 @@ export const createInboxRepository = (db: Database): InboxRepository => ({
       const lastItem = items[items.length - 1]
 
       const nextCursor: Cursor | null =
-        hasNext && lastItem
-          ? { sourceDate: lastItem.sourceDate, id: lastItem.id }
-          : null
+        hasNext && lastItem ? { sourceDate: lastItem.sourceDate, id: lastItem.id } : null
 
       return { items, nextCursor } as PaginatedResult
     })
@@ -104,10 +116,7 @@ export const createInboxRepository = (db: Database): InboxRepository => ({
   create: async (item: InboxItem) => {
     return trace('inbox.create', async () => {
       const row = inboxItemToInsertRow(item)
-      const result = await db
-        .insert(inboxItems)
-        .values(row)
-        .returning()
+      const result = await db.insert(inboxItems).values(row).returning()
 
       if (!result[0]) {
         throw new Error('Inbox item insert failed — no row returned')
@@ -116,7 +125,12 @@ export const createInboxRepository = (db: Database): InboxRepository => ({
     })
   },
 
-  updateStatus: async (id: InboxItemId, orgId: OrganizationId, status: InboxStatus, timestampFields: Partial<Record<string, Date>>) => {
+  updateStatus: async (
+    id: InboxItemId,
+    orgId: OrganizationId,
+    status: InboxStatus,
+    timestampFields: Partial<Record<string, Date>>,
+  ) => {
     return trace('inbox.updateStatus', async () => {
       const result = await db
         .update(inboxItems)
@@ -125,12 +139,7 @@ export const createInboxRepository = (db: Database): InboxRepository => ({
           updatedAt: new Date(),
           ...timestampFields,
         })
-        .where(
-          and(
-            eq(inboxItems.id, id),
-            eq(inboxItems.organizationId, orgId),
-          ),
-        )
+        .where(and(eq(inboxItems.id, id), eq(inboxItems.organizationId, orgId)))
         .returning()
 
       if (!result[0]) {
@@ -140,7 +149,12 @@ export const createInboxRepository = (db: Database): InboxRepository => ({
     })
   },
 
-  bulkUpdateStatus: async (ids: ReadonlyArray<InboxItemId>, orgId: OrganizationId, status: InboxStatus, timestampFields: Partial<Record<string, Date>>) => {
+  bulkUpdateStatus: async (
+    ids: ReadonlyArray<InboxItemId>,
+    orgId: OrganizationId,
+    status: InboxStatus,
+    timestampFields: Partial<Record<string, Date>>,
+  ) => {
     return trace('inbox.bulkUpdateStatus', async () => {
       const result = await db
         .update(inboxItems)
@@ -152,7 +166,7 @@ export const createInboxRepository = (db: Database): InboxRepository => ({
         .where(
           and(
             eq(inboxItems.organizationId, orgId),
-            inArray(inboxItems.id, ids as unknown as string[]),
+            inArray(inboxItems.id, [...ids] as string[]),
           ),
         )
         .returning()
@@ -161,7 +175,11 @@ export const createInboxRepository = (db: Database): InboxRepository => ({
     })
   },
 
-  updateAssignment: async (id: InboxItemId, orgId: OrganizationId, assignedTo: UserId | null) => {
+  updateAssignment: async (
+    id: InboxItemId,
+    orgId: OrganizationId,
+    assignedTo: UserId | null,
+  ) => {
     return trace('inbox.updateAssignment', async () => {
       const result = await db
         .update(inboxItems)
@@ -169,12 +187,7 @@ export const createInboxRepository = (db: Database): InboxRepository => ({
           assignedTo,
           updatedAt: new Date(),
         })
-        .where(
-          and(
-            eq(inboxItems.id, id),
-            eq(inboxItems.organizationId, orgId),
-          ),
-        )
+        .where(and(eq(inboxItems.id, id), eq(inboxItems.organizationId, orgId)))
         .returning()
 
       if (!result[0]) {
@@ -189,27 +202,21 @@ export const createInboxRepository = (db: Database): InboxRepository => ({
       const result = await db
         .select({ count: sql<number>`count(*)` })
         .from(inboxItems)
-        .where(
-          and(
-            eq(inboxItems.organizationId, orgId),
-            eq(inboxItems.status, status),
-          ),
-        )
+        .where(and(eq(inboxItems.organizationId, orgId), eq(inboxItems.status, status)))
       return Number(result[0]?.count ?? 0)
     })
   },
 
-  syncDenormalizedFields: async (id: InboxItemId, orgId: OrganizationId, fields: { rating?: number; snippet?: string; sourceDate?: Date }) => {
+  syncDenormalizedFields: async (
+    id: InboxItemId,
+    orgId: OrganizationId,
+    fields: { rating?: number; snippet?: string; sourceDate?: Date },
+  ) => {
     return trace('inbox.syncDenormalizedFields', async () => {
       await db
         .update(inboxItems)
         .set({ ...fields, updatedAt: new Date() })
-        .where(
-          and(
-            eq(inboxItems.id, id),
-            eq(inboxItems.organizationId, orgId),
-          ),
-        )
+        .where(and(eq(inboxItems.id, id), eq(inboxItems.organizationId, orgId)))
     })
   },
 
@@ -219,12 +226,7 @@ export const createInboxRepository = (db: Database): InboxRepository => ({
       const rows = await db
         .select()
         .from(inboxItems)
-        .where(
-          and(
-            eq(inboxItems.id, id),
-            eq(inboxItems.organizationId, orgId),
-          ),
-        )
+        .where(and(eq(inboxItems.id, id), eq(inboxItems.organizationId, orgId)))
         .limit(1)
 
       if (!rows[0]) return null

@@ -15,7 +15,9 @@ export const onReviewUpdated =
   async (event: ReviewUpdated): Promise<void> => {
     try {
       // Find the inbox item by source (review)
-      const item = await deps.repo.findBySource('review', event.reviewId as string, event.organizationId)
+      // reviewId is a branded ReviewId — explicit unbrand for repo query (infrastructure boundary)
+      const sourceId: string = event.reviewId as unknown as string
+      const item = await deps.repo.findBySource('review', sourceId, event.organizationId)
       if (!item) return // no inbox item for this review — nothing to sync
 
       // Sync the denormalized rating field
@@ -24,6 +26,9 @@ export const onReviewUpdated =
       })
     } catch (err) {
       const { getLogger } = await import('#/shared/observability/logger')
-      getLogger().error({ err, reviewId: event.reviewId }, 'inbox: failed to handle review.updated')
+      getLogger().error(
+        { err, reviewId: event.reviewId },
+        'inbox: failed to handle review.updated',
+      )
     }
   }
