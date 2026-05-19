@@ -1,6 +1,8 @@
 // Inbox notes thread — displays notes and add-note form within the detail panel
 import { useState } from 'react'
 import { useMutationAction } from '#/components/hooks/use-mutation-action'
+// exception: server fn used directly — component is 3 levels deep (route → sheet → content → notes),
+// prop drilling >2 levels is worse than direct server fn import here
 import { addInboxNoteFn } from '#/contexts/inbox/server/inbox'
 import { Button } from '#/components/ui/button'
 import { Textarea } from '#/components/ui/textarea'

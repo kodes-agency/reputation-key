@@ -8,7 +8,13 @@ import type { InboxStatus } from './types'
 // ─── canTransition ──────────────────────────────────────────────────
 
 describe('canTransition', () => {
-  const ALL_STATUSES: InboxStatus[] = ['new', 'read', 'addressed', 'escalated', 'archived']
+  const ALL_STATUSES: InboxStatus[] = [
+    'new',
+    'read',
+    'addressed',
+    'escalated',
+    'archived',
+  ]
 
   // Valid transitions
   describe('valid transitions', () => {
@@ -21,7 +27,6 @@ describe('canTransition', () => {
       ['escalated', 'addressed'],
       ['escalated', 'archived'],
       ['addressed', 'archived'],
-      ['archived', 'read'],
     ]
 
     it.each(validCases)('allows %s → %s', (from, to) => {
@@ -58,8 +63,9 @@ describe('canTransition', () => {
       ['addressed', 'read'],
       ['addressed', 'escalated'],
       ['addressed', 'addressed'],
-      // archived cannot go to new, archived, escalated, addressed
+      // archived cannot go to anything — terminal state
       ['archived', 'new'],
+      ['archived', 'read'],
       ['archived', 'archived'],
       ['archived', 'escalated'],
       ['archived', 'addressed'],

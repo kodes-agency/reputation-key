@@ -26,11 +26,22 @@ export const getUnreadCount =
       if (count > 0) return count
     } catch (e) {
       // Counter unavailable, fall through to repo
-      getLogger().warn({ err: e }, 'Unread counter unavailable, falling back to repo count')
+      getLogger().warn(
+        { err: e },
+        'Unread counter unavailable, falling back to repo count',
+      )
     }
 
-    // 2. Fallback: count from repo
-    return deps.repo.countByStatus(input.organizationId, 'new')
+    // 2. Fallback: count from repo, warm the counter cache
+    const dbCount = await deps.repo.countByStatus(input.organizationId, 'new')
+    if (dbCount > 0) {
+      try {
+        await deps.unreadCounter.setCount(input.organizationId, input.userId, dbCount)
+      } catch {
+        // Cache warm failed — non-critical, just serve the DB count
+      }
+    }
+    return dbCount
   }
 
 // fallow-ignore-next-line unused-type

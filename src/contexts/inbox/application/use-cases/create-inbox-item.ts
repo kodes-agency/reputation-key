@@ -7,12 +7,10 @@ import type {
   InboxItemId,
   OrganizationId,
   PropertyId,
-  UserId,
   ReviewId,
   FeedbackId,
 } from '#/shared/domain/ids'
-import type { SourceType } from '../../domain/types'
-import type { InboxItem } from '../../domain/types'
+import type { SourceType, InboxItem } from '../../domain/types'
 import { createInboxItem } from '../../domain/constructors'
 import { inboxItemCreated } from '../../domain/events'
 import { inboxError } from '../../domain/errors'

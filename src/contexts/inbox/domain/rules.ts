@@ -11,7 +11,7 @@ const VALID_TRANSITIONS: Readonly<Record<InboxStatus, readonly InboxStatus[]>> =
   read: ['addressed', 'escalated'],
   escalated: ['addressed', 'archived'],
   addressed: ['archived'],
-  archived: ['read'],
+  archived: [],
 }
 
 /** Returns true when `from → to` is a legal status transition. Same-status is NOT valid. */
@@ -45,7 +45,9 @@ export const canAssign = (role: string): boolean => {
 export const validateAssignment = (role: string): Result<true, InboxError> => {
   if (!canAssign(role)) {
     return err(
-      inboxError('assignment_not_allowed', `Role '${role}' cannot assign inbox items`, { role }),
+      inboxError('assignment_not_allowed', `Role '${role}' cannot assign inbox items`, {
+        role,
+      }),
     )
   }
   return ok(true)

@@ -63,11 +63,16 @@ export const bulkUpdateInboxStatus =
       timestampFields,
     )
 
-    // Decrement unread counter for items transitioning from 'new' to 'read'
-    if (input.newStatus === 'read') {
+    // Decrement unread counter for items transitioning away from 'new'
+    if (input.newStatus !== 'new') {
       const newCount = validIds.filter((id) => oldStatuses.get(id) === 'new').length
       for (let i = 0; i < newCount; i++) {
-        await deps.unreadCounter.decrement(input.organizationId, input.userId)
+        try {
+          await deps.unreadCounter.decrement(input.organizationId, input.userId)
+        } catch {
+          // Counter unavailable — non-critical, DB is source of truth
+          break
+        }
       }
     }
 

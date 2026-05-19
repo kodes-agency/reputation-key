@@ -17,26 +17,47 @@ import type { UnreadCounterPort } from '../ports/unread-counter.port'
 function createInMemoryInboxRepo(): InboxRepository & { items: InboxItem[] } {
   const items: InboxItem[] = []
   const repo: InboxRepository = {
-    findById: async (id, orgId) => items.find(i => i.id === id && i.organizationId === orgId) ?? null,
+    findById: async (id, orgId) =>
+      items.find((i) => i.id === id && i.organizationId === orgId) ?? null,
     findBySource: async (sourceType, sourceId, orgId) =>
-      items.find(i => i.sourceType === sourceType && i.sourceId === sourceId && i.organizationId === orgId) ?? null,
+      items.find(
+        (i) =>
+          i.sourceType === sourceType &&
+          i.sourceId === sourceId &&
+          i.organizationId === orgId,
+      ) ?? null,
     findFilteredPaginated: async (filters, orgId, cursor, limit = 50) => {
-      let filtered = items.filter(i => i.organizationId === orgId)
-      if (filters.status) filtered = filtered.filter(i => i.status === filters.status)
-      if (filters.propertyId) filtered = filtered.filter(i => i.propertyId === filters.propertyId)
-      if (filters.sourceType) filtered = filtered.filter(i => i.sourceType === filters.sourceType)
-      filtered.sort((a, b) => b.sourceDate.getTime() - a.sourceDate.getTime() || (b.id as string).localeCompare(a.id as string))
+      let filtered = items.filter((i) => i.organizationId === orgId)
+      if (filters.status) filtered = filtered.filter((i) => i.status === filters.status)
+      if (filters.propertyId)
+        filtered = filtered.filter((i) => i.propertyId === filters.propertyId)
+      if (filters.sourceType)
+        filtered = filtered.filter((i) => i.sourceType === filters.sourceType)
+      filtered.sort(
+        (a, b) =>
+          b.sourceDate.getTime() - a.sourceDate.getTime() ||
+          (b.id as string).localeCompare(a.id as string),
+      )
       if (cursor) {
-        const idx = filtered.findIndex(i => i.sourceDate.getTime() === cursor.sourceDate.getTime() && i.id === cursor.id)
+        const idx = filtered.findIndex(
+          (i) =>
+            i.sourceDate.getTime() === cursor.sourceDate.getTime() && i.id === cursor.id,
+        )
         filtered = idx >= 0 ? filtered.slice(idx + 1) : []
       }
       const sliced = filtered.slice(0, limit)
       const last = sliced[sliced.length - 1]
-      return { items: sliced, nextCursor: last ? { sourceDate: last.sourceDate, id: last.id } : null }
+      return {
+        items: sliced,
+        nextCursor: last ? { sourceDate: last.sourceDate, id: last.id } : null,
+      }
     },
-    create: async (item) => { items.push(item); return item },
+    create: async (item) => {
+      items.push(item)
+      return item
+    },
     updateStatus: async (id, orgId, status, timestampFields) => {
-      const item = items.find(i => i.id === id && i.organizationId === orgId)
+      const item = items.find((i) => i.id === id && i.organizationId === orgId)
       if (!item) throw new Error('not found')
       const idx = items.indexOf(item)
       items[idx] = { ...item, status, updatedAt: new Date(), ...timestampFields }
@@ -45,7 +66,7 @@ function createInMemoryInboxRepo(): InboxRepository & { items: InboxItem[] } {
     bulkUpdateStatus: async (ids, orgId, status, timestampFields) => {
       let updated = 0
       for (const id of ids) {
-        const item = items.find(i => i.id === id && i.organizationId === orgId)
+        const item = items.find((i) => i.id === id && i.organizationId === orgId)
         if (item) {
           const idx = items.indexOf(item)
           items[idx] = { ...item, status, updatedAt: new Date(), ...timestampFields }
@@ -55,18 +76,26 @@ function createInMemoryInboxRepo(): InboxRepository & { items: InboxItem[] } {
       return { updated }
     },
     updateAssignment: async (id, orgId, assignedTo) => {
-      const item = items.find(i => i.id === id && i.organizationId === orgId)
+      const item = items.find((i) => i.id === id && i.organizationId === orgId)
       if (!item) throw new Error('not found')
       const idx = items.indexOf(item)
       items[idx] = { ...item, assignedTo, updatedAt: new Date() }
       return items[idx]
     },
-    countByStatus: async (orgId, status) => items.filter(i => i.organizationId === orgId && i.status === status).length,
+    countByStatus: async (orgId, status) =>
+      items.filter((i) => i.organizationId === orgId && i.status === status).length,
     syncDenormalizedFields: async () => {},
     findDetailById: async (id, orgId) => {
-      const item = items.find(i => i.id === id && i.organizationId === orgId)
+      const item = items.find((i) => i.id === id && i.organizationId === orgId)
       if (!item) return null
-      return { item, reviewerName: null, reviewText: null, reviewerProfilePhotoUrl: null, feedbackComment: null, feedbackRatingValue: null }
+      return {
+        item,
+        reviewerName: null,
+        reviewText: null,
+        reviewerProfilePhotoUrl: null,
+        feedbackComment: null,
+        feedbackRatingValue: null,
+      }
     },
   }
   return { ...repo, items }
@@ -108,7 +137,9 @@ const setup = () => {
     getCount: async () => 0,
     setCount: async () => {},
     increment: async () => {},
-    decrement: async (orgId, uId) => { decrements.push({ orgId: orgId as string, userId: uId as string }) },
+    decrement: async (orgId, uId) => {
+      decrements.push({ orgId: orgId as string, userId: uId as string })
+    },
     invalidate: async () => {},
   }
   const deps = { repo, events, unreadCounter, clock: () => FIXED_TIME }
@@ -158,9 +189,7 @@ describe('updateInboxStatus', () => {
         newStatus: 'read',
         userId: USER_ID,
       }),
-    ).rejects.toSatisfy(
-      (e: unknown) => isInboxError(e) && e.code === 'not_found',
-    )
+    ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'not_found')
   })
 
   it('decrements unread counter when transitioning new → read', async () => {
@@ -179,7 +208,7 @@ describe('updateInboxStatus', () => {
     expect(decrements[0].userId).toBe(USER_ID as string)
   })
 
-  it('does not decrement unread counter for non-new→read transitions', async () => {
+  it('decrements unread counter for all new → * transitions', async () => {
     const { useCase, repo, decrements } = setup()
     repo.items.push(seedNew())
 
@@ -190,7 +219,7 @@ describe('updateInboxStatus', () => {
       userId: USER_ID,
     })
 
-    expect(decrements).toHaveLength(0)
+    expect(decrements).toHaveLength(1)
   })
 
   it('emits inbox.status.changed event', async () => {

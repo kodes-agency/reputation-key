@@ -58,9 +58,13 @@ export const updateInboxStatus =
       timestampFields,
     )
 
-    // 5. Decrement unread counter if transitioning from 'new' to 'read'
-    if (item.status === 'new' && input.newStatus === 'read') {
-      await deps.unreadCounter.decrement(input.organizationId, input.userId)
+    // 5. Decrement unread counter if transitioning away from 'new'
+    if (item.status === 'new' && input.newStatus !== 'new') {
+      try {
+        await deps.unreadCounter.decrement(input.organizationId, input.userId)
+      } catch {
+        // Counter unavailable — non-critical, DB is source of truth
+      }
     }
 
     // 6. Emit event

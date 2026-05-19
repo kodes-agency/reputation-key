@@ -4,6 +4,7 @@
 import type { EventBus } from '#/shared/events/event-bus'
 import type { ReviewUpdated } from '#/contexts/review/domain/events'
 import type { InboxRepository } from '../../application/ports/inbox.repository'
+import { getLogger } from '#/shared/observability/logger'
 
 export type OnReviewUpdatedDeps = Readonly<{
   events: EventBus
@@ -25,7 +26,6 @@ export const onReviewUpdated =
         rating: event.rating,
       })
     } catch (err) {
-      const { getLogger } = await import('#/shared/observability/logger')
       getLogger().error(
         { err, reviewId: event.reviewId },
         'inbox: failed to handle review.updated',
