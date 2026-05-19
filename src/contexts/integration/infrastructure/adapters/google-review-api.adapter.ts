@@ -86,6 +86,17 @@ export const createGoogleReviewApiAdapter = (
       return null
     }
 
+    getLogger().info(
+      {
+        reviewId,
+        reviewer: raw.reviewer?.displayName,
+        hasComment: !!raw.comment,
+        commentLength: raw.comment?.length ?? 0,
+        rawKeys: Object.keys(raw),
+      },
+      'DEBUG: GBP review raw fields',
+    )
+
     return {
       reviewName,
       externalId: reviewId,
