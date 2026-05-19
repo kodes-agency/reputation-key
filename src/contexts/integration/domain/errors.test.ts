@@ -35,13 +35,21 @@ describe('integrationError', () => {
 
   it('creates error with all fields matching expected shape', () => {
     const err = integrationError('forbidden', 'nope')
-    expect(err).toEqual({
-      _tag: 'IntegrationError',
-      code: 'forbidden',
-      message: 'nope',
-    })
-    // Verify no extra properties leaked
-    expect(Object.keys(err)).toHaveLength(3)
+    expect(err._tag).toBe('IntegrationError')
+    expect(err.code).toBe('forbidden')
+    expect(err.message).toBe('nope')
+    expect(err.recoverable).toBe(false)
+  })
+
+  it('creates recoverable error', () => {
+    const err = integrationError('gbp_api_rate_limited', 'slow down', true)
+    expect(err.recoverable).toBe(true)
+  })
+
+  it('extends Error', () => {
+    const err = integrationError('oauth_failed', 'Token exchange failed')
+    expect(err).toBeInstanceOf(Error)
+    expect(err.stack).toBeDefined()
   })
 })
 

@@ -4,24 +4,42 @@
 
 import type { GoogleReviewApiPort } from '#/contexts/review/application/ports/google-review-api.port'
 import type { GoogleReview } from '#/contexts/review/domain/types'
+import type { StarRating } from '#/contexts/review/domain/types'
 import type { OrganizationId, GoogleConnectionId } from '#/shared/domain/ids'
 import type { GoogleConnectionRepository } from '../../application/ports/google-connection.repository'
 import type { TokenEncryptionPort } from '../../application/ports/token-encryption.port'
 import type { RefreshGoogleToken } from '../../application/use-cases/refresh-google-token'
-import type { StarRating } from '#/contexts/review/domain/types'
 import { getLogger } from '#/shared/observability/logger'
 import { integrationError } from '../../domain/errors'
 
-const REVIEWS_API_BASE = 'https://mybusiness.googleapis.com/v1'
+const REVIEWS_API_BASE = 'https://mybusiness.googleapis.com/v4'
 
 /** GBP returns star ratings as uppercase words 'ONE' through 'FIVE' */
-const STAR_RATING_MAP = {
+const STAR_RATING_MAP: Record<string, StarRating | undefined> = {
   ONE: 1,
   TWO: 2,
   THREE: 3,
   FOUR: 4,
   FIVE: 5,
-} as const
+}
+
+// ── GBP Reviews API response types ──────────────────────────────────
+
+type GbpReviewsPageResponse = Readonly<{
+  reviews?: ReadonlyArray<GbpReviewItem>
+  nextPageToken?: string
+}>
+
+type GbpReviewItem = Readonly<{
+  name: string
+  starRating?: string
+  text?: { text?: string; languageCode?: string }
+  reviewer?: { displayName?: string; profilePhotoUrl?: string }
+  reviewReply?: { comment?: string; updateTime?: string }
+  createTime: string
+}>
+
+// ── Adapter ─────────────────────────────────────────────────────────
 
 type GoogleReviewApiAdapterDeps = Readonly<{
   connectionRepo: GoogleConnectionRepository
@@ -36,19 +54,53 @@ export const createGoogleReviewApiAdapter = (
     organizationId: OrganizationId,
     connectionId: GoogleConnectionId,
   ): Promise<string> => {
-    // Delegate to the existing RefreshGoogleToken use case:
-    // finds connection, checks status, refreshes if needed, returns connection with fresh tokens
     const connection = await deps.refreshToken(organizationId, connectionId)
-
-    // Decrypt the (now fresh) access token
     return deps.encryption.decrypt(connection.encryptedAccessToken)
   }
 
-  /** Create an AbortController that fires after `ms` milliseconds */
   const withTimeout = (ms: number) => {
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), ms)
     return { signal: controller.signal, clear: () => clearTimeout(timer) }
+  }
+
+  const throwApiError = (operation: string, status: number, body: string): never => {
+    const isRateLimited = status === 429
+    throw integrationError(
+      isRateLimited ? 'gbp_api_rate_limited' : 'gbp_api_error',
+      `GBP ${operation} failed: ${status} ${body}`,
+      isRateLimited,
+    )
+  }
+
+  const mapReview = (raw: GbpReviewItem): GoogleReview | null => {
+    const reviewName = raw.name
+    const reviewId = reviewName.split('/').pop() ?? ''
+    const rating = raw.starRating ? STAR_RATING_MAP[raw.starRating] : undefined
+
+    if (!rating) {
+      getLogger().warn(
+        { starRating: raw.starRating, reviewId },
+        'Unknown star rating, skipping review',
+      )
+      return null
+    }
+
+    return {
+      reviewName,
+      externalId: reviewId,
+      externalLocationId: '',
+      reviewerName: raw.reviewer?.displayName ?? null,
+      reviewerProfilePhotoUrl: raw.reviewer?.profilePhotoUrl ?? null,
+      rating,
+      text: raw.text?.text ?? null,
+      languageCode: raw.text?.languageCode ?? null,
+      reviewedAt: new Date(raw.createTime),
+      replyText: raw.reviewReply?.comment ?? null,
+      replyUpdatedAt: raw.reviewReply?.updateTime
+        ? new Date(raw.reviewReply.updateTime)
+        : null,
+    }
   }
 
   const fetchReviews: GoogleReviewApiPort['fetchReviews'] = async (
@@ -78,65 +130,16 @@ export const createGoogleReviewApiAdapter = (
 
       if (!response.ok) {
         const body = await response.text()
-        const code = response.status === 429 ? 'gbp_api_rate_limited' : 'gbp_api_error'
-        throw integrationError(
-          code,
-          `GBP reviews fetch failed: ${response.status} ${body}`,
-        )
+        throwApiError('reviews fetch', response.status, body)
       }
 
-      const data = (await response.json()) as {
-        reviews?: Array<Record<string, unknown>>
-        nextPageToken?: string
-      }
+      const data = (await response.json()) as GbpReviewsPageResponse
 
       for (const raw of data.reviews ?? []) {
-        const reviewName = raw.name as string
-        const reviewId = reviewName.split('/').pop() ?? ''
-        const starRatingStr = raw.starRating as string | undefined
-
-        const rating = starRatingStr
-          ? (STAR_RATING_MAP as Record<string, StarRating | undefined>)[starRatingStr]
-          : undefined
-        if (!rating) {
-          getLogger().warn(
-            { starRating: starRatingStr, reviewId },
-            'Unknown star rating, skipping review',
-          )
-          continue
+        const mapped = mapReview(raw)
+        if (mapped) {
+          allReviews.push({ ...mapped, externalLocationId: locationName })
         }
-
-        // GBP review.text is { text: string, languageCode: string }, not a plain string
-        const textObj = raw.text as
-          | { text?: string; languageCode?: string }
-          | null
-          | undefined
-
-        allReviews.push({
-          reviewName,
-          externalId: reviewId,
-          externalLocationId: locationName,
-          reviewerName:
-            ((raw.reviewer as Record<string, unknown> | undefined)?.displayName as
-              | string
-              | null) ?? null,
-          reviewerProfilePhotoUrl:
-            ((raw.reviewer as Record<string, unknown> | undefined)?.profilePhotoUrl as
-              | string
-              | null) ?? null,
-          rating,
-          text: textObj?.text ?? null,
-          languageCode: textObj?.languageCode ?? null,
-          reviewedAt: new Date(raw.createTime as string),
-          replyText:
-            ((raw.reviewReply as Record<string, unknown> | undefined)?.comment as
-              | string
-              | null) ?? null,
-          replyUpdatedAt: (raw.reviewReply as Record<string, unknown> | undefined)
-            ?.updateTime
-            ? new Date((raw.reviewReply as Record<string, unknown>).updateTime as string)
-            : null,
-        })
       }
 
       pageToken = data.nextPageToken
@@ -171,8 +174,7 @@ export const createGoogleReviewApiAdapter = (
 
     if (!response.ok) {
       const body = await response.text()
-      const code = response.status === 429 ? 'gbp_api_rate_limited' : 'gbp_api_error'
-      throw integrationError(code, `GBP reply failed: ${response.status} ${body}`)
+      throwApiError('reply', response.status, body)
     }
   }
 
