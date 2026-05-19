@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 import {
   Select,
   SelectContent,
@@ -7,9 +8,14 @@ import {
 } from '#/components/ui/select'
 import { Input } from '#/components/ui/input'
 import { Filter } from 'lucide-react'
+import { useEffect, useState, useCallback, useRef } from 'react'
+import { useServerFn } from '@tanstack/react-start'
+import { useAction } from '#/components/hooks/use-action'
+import { listProperties } from '#/contexts/property/server/properties'
 import type { InboxStatus, SourceType } from '#/contexts/inbox/application/public-api'
 
 export type InboxFilterValues = Readonly<{
+  propertyId: string | undefined
   status: InboxStatus | undefined
   sourceType: SourceType | undefined
   platform: string | undefined
@@ -47,13 +53,69 @@ export function InboxFilters({ value, onChange }: Props) {
     onChange({ ...value, ...patch })
   }
 
+  // Fetch properties for the filter dropdown (role-scoped by the server)
+  const [properties, setProperties] = useState<
+    ReadonlyArray<{ id: string; name: string }>
+  >([])
+  const propertyAction = useAction(useServerFn(listProperties))
+  const propAbortRef = useRef(false)
+
+  // Keep action ref current to avoid stale closures
+  const propertyActionRef = useRef(propertyAction)
+  propertyActionRef.current = propertyAction
+
+  const loadProperties = useCallback(async () => {
+    propAbortRef.current = false
+    try {
+      const result = await propertyActionRef.current({ data: undefined })
+      if (!propAbortRef.current && result?.properties) {
+        setProperties(
+          result.properties.map((p: { id: string; name: string }) => ({
+            id: p.id,
+            name: p.name,
+          })),
+        )
+      }
+    } catch {
+      // Non-critical — filter just won't show properties
+    }
+  }, [])
+
+  useEffect(() => {
+    loadProperties()
+    return () => {
+      propAbortRef.current = true
+    }
+  }, [loadProperties])
+
   return (
     <div className="flex flex-wrap items-center gap-3">
       <Filter className="size-4 text-muted-foreground" />
 
+      {properties.length > 1 && (
+        <Select
+          value={value.propertyId ?? 'all'}
+          onValueChange={(v) => update({ propertyId: v === 'all' ? undefined : v })}
+        >
+          <SelectTrigger size="sm" className="w-[150px]">
+            <SelectValue placeholder="All properties" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All properties</SelectItem>
+            {properties.map((p) => (
+              <SelectItem key={p.id} value={p.id}>
+                {p.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+
       <Select
         value={value.status ?? 'all'}
-        onValueChange={(v) => update({ status: v === 'all' ? undefined : (v as InboxStatus) })}
+        onValueChange={(v) =>
+          update({ status: v === 'all' ? undefined : (v as InboxStatus) })
+        }
       >
         <SelectTrigger size="sm" className="w-[130px]">
           <SelectValue placeholder="All statuses" />
@@ -70,7 +132,9 @@ export function InboxFilters({ value, onChange }: Props) {
 
       <Select
         value={value.sourceType ?? 'all'}
-        onValueChange={(v) => update({ sourceType: v === 'all' ? undefined : (v as SourceType) })}
+        onValueChange={(v) =>
+          update({ sourceType: v === 'all' ? undefined : (v as SourceType) })
+        }
       >
         <SelectTrigger size="sm" className="w-[130px]">
           <SelectValue placeholder="All sources" />

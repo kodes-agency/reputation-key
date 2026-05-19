@@ -19,6 +19,8 @@ export function createInMemoryInboxRepo(): InboxRepository & { items: InboxItem[
       if (filters.status) filtered = filtered.filter((i) => i.status === filters.status)
       if (filters.propertyId)
         filtered = filtered.filter((i) => i.propertyId === filters.propertyId)
+      if (filters.propertyIds && filters.propertyIds.length > 0)
+        filtered = filtered.filter((i) => filters.propertyIds!.includes(i.propertyId))
       if (filters.sourceType)
         filtered = filtered.filter((i) => i.sourceType === filters.sourceType)
       filtered.sort(

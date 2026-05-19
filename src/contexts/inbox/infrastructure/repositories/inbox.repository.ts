@@ -5,6 +5,8 @@
 import { and, eq, desc, inArray, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { inboxItems } from '#/shared/db/schema/inbox.schema'
+import { reviews } from '#/shared/db/schema/review.schema'
+import { feedback, ratings } from '#/shared/db/schema/guest.schema'
 import type {
   InboxRepository,
   InboxFilters,
@@ -60,6 +62,13 @@ export const createInboxRepository = (db: Database): InboxRepository => ({
 
       if (filters.propertyId) {
         conditions.push(eq(inboxItems.propertyId, filters.propertyId))
+      } else if (filters.propertyIds) {
+        if (filters.propertyIds.length === 0) {
+          return { items: [], nextCursor: null } as PaginatedResult
+        }
+        conditions.push(
+          inArray(inboxItems.propertyId, [...filters.propertyIds] as string[]),
+        )
       }
       if (filters.status) {
         conditions.push(eq(inboxItems.status, filters.status))
@@ -229,7 +238,6 @@ export const createInboxRepository = (db: Database): InboxRepository => ({
 
       // JOIN with source table based on sourceType
       if (item.sourceType === 'review') {
-        const { reviews } = await import('#/shared/db/schema/review.schema')
         const reviewRows = await db
           .select({
             reviewerName: reviews.reviewerName,
@@ -252,7 +260,6 @@ export const createInboxRepository = (db: Database): InboxRepository => ({
       }
 
       // sourceType === 'feedback'
-      const { feedback, ratings } = await import('#/shared/db/schema/guest.schema')
       const feedbackRows = await db
         .select({
           comment: feedback.comment,

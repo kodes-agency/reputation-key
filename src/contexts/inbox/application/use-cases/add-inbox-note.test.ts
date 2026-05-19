@@ -13,6 +13,8 @@ import { isInboxError } from '../../domain/errors'
 import type { InboxNote, InboxStatus, SourceType } from '../../domain/types'
 import type { InboxItem } from '../../domain/types'
 import type { InboxNoteRepository } from '../ports/inbox-note.repository'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { Role } from '#/shared/domain/roles'
 
 function createInMemoryNoteRepo(): InboxNoteRepository & { notes: InboxNote[] } {
   const notes: InboxNote[] = []
@@ -56,9 +58,18 @@ const seedItem = (): InboxItem => ({
 const setup = () => {
   const repo = createInMemoryInboxRepo()
   const noteRepo = createInMemoryNoteRepo()
-  const deps = { repo, noteRepo, idGen: () => FIXED_ID, clock: () => FIXED_TIME }
+  const staffPublicApi: StaffPublicApi = {
+    getAccessiblePropertyIds: async () => null, // Default: all access (AccountAdmin)
+  }
+  const deps = {
+    repo,
+    noteRepo,
+    idGen: () => FIXED_ID,
+    clock: () => FIXED_TIME,
+    staffPublicApi,
+  }
   const useCase = addInboxNote(deps)
-  return { useCase, repo, noteRepo }
+  return { useCase, repo, noteRepo, staffPublicApi }
 }
 
 describe('addInboxNote', () => {
@@ -71,6 +82,7 @@ describe('addInboxNote', () => {
       organizationId: ORG_ID,
       authorUserId: USER_ID,
       text: '  This is a note  ',
+      role: 'AccountAdmin' as Role,
     })
 
     expect(note.id).toBe(FIXED_ID)
@@ -89,6 +101,7 @@ describe('addInboxNote', () => {
         organizationId: ORG_ID,
         authorUserId: USER_ID,
         text: '   ',
+        role: 'AccountAdmin' as Role,
       }),
     ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'invalid_input')
   })
@@ -102,7 +115,45 @@ describe('addInboxNote', () => {
         organizationId: ORG_ID,
         authorUserId: USER_ID,
         text: 'A note',
+        role: 'AccountAdmin' as Role,
       }),
     ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'not_found')
+  })
+
+  it('throws forbidden when non-admin adds note for inaccessible property', async () => {
+    const { useCase, repo, staffPublicApi } = setup()
+    repo.items.push(seedItem())
+
+    // Mock staffApi to return access to a different property
+    staffPublicApi.getAccessiblePropertyIds = async () => [propertyId('prop-other')]
+
+    await expect(
+      useCase({
+        inboxItemId: ITEM_ID,
+        organizationId: ORG_ID,
+        authorUserId: USER_ID,
+        text: 'test note',
+        role: 'Staff' as Role,
+      }),
+    ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'forbidden')
+  })
+
+  it('allows note when user has access to the property', async () => {
+    const { useCase, repo, noteRepo, staffPublicApi } = setup()
+    repo.items.push(seedItem())
+
+    // Mock staffApi to return access to prop-1
+    staffPublicApi.getAccessiblePropertyIds = async () => [propertyId('prop-1')]
+
+    const note = await useCase({
+      inboxItemId: ITEM_ID,
+      organizationId: ORG_ID,
+      authorUserId: USER_ID,
+      text: 'test note',
+      role: 'Staff' as Role,
+    })
+
+    expect(note.text).toBe('test note')
+    expect(noteRepo.notes).toHaveLength(1)
   })
 })

@@ -99,6 +99,7 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
       noteRepo: inboxNoteRepo,
       idGen: () => inboxNoteId(crypto.randomUUID()),
       clock: input.clock,
+      staffPublicApi: input.staffPublicApi,
     }),
     getUnreadCount: getUnreadCount({
       unreadCounter,

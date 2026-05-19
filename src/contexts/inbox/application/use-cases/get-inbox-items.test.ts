@@ -7,14 +7,27 @@ import {
   propertyId,
   reviewId,
   feedbackId,
+  userId,
 } from '#/shared/domain/ids'
 import type { InboxItem, InboxStatus, SourceType } from '../../domain/types'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 
 const FIXED_TIME = new Date('2026-04-15T12:00:00Z')
 const ORG_ID = organizationId('org-1')
 const OTHER_ORG_ID = organizationId('org-2')
 const PROP_ID = propertyId('prop-1')
 const OTHER_PROP_ID = propertyId('prop-2')
+const USER_ID = userId('user-1')
+
+// Mock: AccountAdmin gets null (all access)
+const adminStaffApi: StaffPublicApi = {
+  getAccessiblePropertyIds: async () => null,
+}
+
+// Mock: PropertyManager gets specific property IDs
+const createScopedStaffApi = (ids: ReadonlyArray<string>): StaffPublicApi => ({
+  getAccessiblePropertyIds: async () => ids.map(propertyId),
+})
 
 function seedItem(overrides: Omit<Partial<InboxItem>, 'id'> & { id: string }): InboxItem {
   const { id, ...restOverrides } = overrides
@@ -40,11 +53,16 @@ function seedItem(overrides: Omit<Partial<InboxItem>, 'id'> & { id: string }): I
   }
 }
 
-const setup = () => {
+const setup = (staffApi: StaffPublicApi = adminStaffApi) => {
   const repo = createInMemoryInboxRepo()
-  const deps = { repo }
+  const deps = { repo, staffPublicApi: staffApi }
   const useCase = getInboxItems(deps)
   return { useCase, repo }
+}
+
+const adminInput = {
+  userId: USER_ID,
+  role: 'AccountAdmin' as const,
 }
 
 describe('getInboxItems', () => {
@@ -55,6 +73,7 @@ describe('getInboxItems', () => {
 
     const result = await useCase({
       organizationId: ORG_ID,
+      ...adminInput,
       filters: {},
     })
 
@@ -69,6 +88,7 @@ describe('getInboxItems', () => {
 
     const result = await useCase({
       organizationId: ORG_ID,
+      ...adminInput,
       filters: { status: 'new' },
     })
 
@@ -85,6 +105,7 @@ describe('getInboxItems', () => {
 
     const result = await useCase({
       organizationId: ORG_ID,
+      ...adminInput,
       filters: { sourceType: 'feedback' },
     })
 
@@ -99,6 +120,7 @@ describe('getInboxItems', () => {
 
     const result = await useCase({
       organizationId: ORG_ID,
+      ...adminInput,
       filters: { propertyId: PROP_ID },
     })
 
@@ -113,6 +135,7 @@ describe('getInboxItems', () => {
 
     const result = await useCase({
       organizationId: ORG_ID,
+      ...adminInput,
       filters: {},
     })
 
@@ -128,6 +151,7 @@ describe('getInboxItems', () => {
 
     const result = await useCase({
       organizationId: ORG_ID,
+      ...adminInput,
       filters: {},
       limit: 2,
     })
@@ -146,6 +170,7 @@ describe('getInboxItems', () => {
     // First page
     const page1 = await useCase({
       organizationId: ORG_ID,
+      ...adminInput,
       filters: {},
       limit: 1,
     })
@@ -156,6 +181,7 @@ describe('getInboxItems', () => {
     // Second page using cursor
     const page2 = await useCase({
       organizationId: ORG_ID,
+      ...adminInput,
       filters: {},
       cursor: page1.nextCursor!,
       limit: 1,
@@ -163,5 +189,49 @@ describe('getInboxItems', () => {
 
     expect(page2.items).toHaveLength(1)
     expect(page2.items[0].id).not.toBe(page1.items[0].id)
+  })
+
+  it('scopes results to accessible properties for non-admin', async () => {
+    const { useCase, repo } = setup(createScopedStaffApi(['prop-1']))
+    repo.items.push(seedItem({ id: 'ii-1', propertyId: PROP_ID }))
+    repo.items.push(seedItem({ id: 'ii-2', propertyId: OTHER_PROP_ID }))
+
+    const result = await useCase({
+      organizationId: ORG_ID,
+      userId: USER_ID,
+      role: 'PropertyManager',
+      filters: {},
+    })
+
+    expect(result.items).toHaveLength(1)
+    expect(result.items[0].propertyId).toBe(PROP_ID)
+  })
+
+  it('returns empty when non-admin has no property assignments', async () => {
+    const { useCase, repo } = setup(createScopedStaffApi([]))
+    repo.items.push(seedItem({ id: 'ii-1' }))
+
+    const result = await useCase({
+      organizationId: ORG_ID,
+      userId: USER_ID,
+      role: 'PropertyManager',
+      filters: {},
+    })
+
+    expect(result.items).toHaveLength(0)
+  })
+
+  it('throws forbidden when non-admin requests inaccessible property', async () => {
+    const { useCase, repo } = setup(createScopedStaffApi(['prop-1']))
+    repo.items.push(seedItem({ id: 'ii-1', propertyId: OTHER_PROP_ID }))
+
+    await expect(
+      useCase({
+        organizationId: ORG_ID,
+        userId: USER_ID,
+        role: 'PropertyManager',
+        filters: { propertyId: OTHER_PROP_ID },
+      }),
+    ).rejects.toThrow('No access to this property')
   })
 })

@@ -189,6 +189,7 @@ export const addInboxNoteFn = createServerFn({ method: 'POST' })
             organizationId: ctx.organizationId,
             authorUserId: ctx.userId,
             text: data.text,
+            role: ctx.role,
           })
         } catch (e) {
           if (isInboxError(e))
