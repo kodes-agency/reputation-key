@@ -16,6 +16,10 @@ import type {
   InboxNote,
 } from '#/contexts/inbox/application/public-api'
 
+export type UseInboxDetailOptions = Readonly<{
+  autoMarkRead?: boolean
+}>
+
 export type InboxDetailState = Readonly<{
   detail: InboxItemDetail | null
   notes: ReadonlyArray<InboxNote>
@@ -24,11 +28,13 @@ export type InboxDetailState = Readonly<{
   updateStatus: ReturnType<typeof useMutationAction<typeof updateInboxStatusFn>>
   refresh: () => void
   error: string | null
+  lastMarkedId: string | null
 }>
 
 export function useInboxDetail(
   item: InboxItem | null,
   active: boolean,
+  options?: UseInboxDetailOptions,
 ): InboxDetailState {
   const [detail, setDetail] = useState<InboxItemDetail | null>(null)
   const [notes, setNotes] = useState<ReadonlyArray<InboxNote>>([])
@@ -81,6 +87,26 @@ export function useInboxDetail(
   const loadDetailRef = useRef(loadDetail)
   loadDetailRef.current = loadDetail
 
+  // Auto-mark as read (debounced 500ms)
+  const markReadMutation = useMutationAction(updateInboxStatusFn, {
+    onSuccess: () => {},
+  })
+  const markReadRef = useRef(markReadMutation)
+  markReadRef.current = markReadMutation
+  const lastMarkedRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    if (!options?.autoMarkRead || !active || !item) return
+    if (lastMarkedRef.current === item.id) return
+    if (item.status !== 'new') return
+
+    const timer = setTimeout(() => {
+      lastMarkedRef.current = item.id
+      markReadRef.current({ data: { inboxItemId: item.id, status: 'read' } })
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [options?.autoMarkRead, active, item])
+
   const updateStatus = useMutationAction(updateInboxStatusFn, {
     successMessage: 'Status updated',
     onSuccess: () => {
@@ -96,5 +122,6 @@ export function useInboxDetail(
     updateStatus,
     refresh: loadDetail,
     error,
+    lastMarkedId: lastMarkedRef.current,
   }
 }

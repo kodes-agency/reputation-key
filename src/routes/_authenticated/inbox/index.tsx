@@ -3,9 +3,8 @@ import { createFileRoute, getRouteApi, useNavigate } from '@tanstack/react-route
 import { z } from 'zod/v4'
 import { useServerFn } from '@tanstack/react-start'
 import { useAction } from '#/components/hooks/use-action'
-import { useMutationAction } from '#/components/hooks/use-mutation-action'
 import type { AuthRouteContext } from '#/routes/_authenticated'
-import { getInboxItemsFn, updateInboxStatusFn } from '#/contexts/inbox/server/inbox'
+import { getInboxItemsFn } from '#/contexts/inbox/server/inbox'
 import { Badge } from '#/components/ui/badge'
 import { Button } from '#/components/ui/button'
 import { EmptyState } from '#/components/ui/empty-state'
@@ -25,6 +24,8 @@ import type { InboxItem } from '#/contexts/inbox/application/public-api'
 import type { Cursor } from '#/contexts/inbox/application/ports/inbox.repository'
 
 const authRoute = getRouteApi('/_authenticated')
+
+const INBOX_PAGE_SIZE = 50
 
 const inboxSearchSchema = z.object({
   itemId: z.string().uuid().optional(),
@@ -125,7 +126,7 @@ function InboxPage() {
             ratingMin: filters.ratingMin,
             ratingMax: filters.ratingMax,
             cursor: cursor ? btoa(JSON.stringify(cursor)) : undefined,
-            limit: 50,
+            limit: INBOX_PAGE_SIZE,
           },
         })
         if (!abortRef.current) {
@@ -189,32 +190,6 @@ function InboxPage() {
     }
   }, [selectedId, items, isLoading, navigate])
 
-  // Auto-mark as read on selection (debounced 500ms)
-  const markReadMutation = useMutationAction(updateInboxStatusFn, {
-    onSuccess: () => {
-      setItems((prev) =>
-        prev.map((i) =>
-          i.id === selectedId ? { ...i, status: 'read' as const, readAt: new Date() } : i,
-        ),
-      )
-    },
-  })
-  const markReadRef = useRef(markReadMutation)
-  markReadRef.current = markReadMutation
-
-  const lastMarkedRef = useRef<string | null>(null)
-  useEffect(() => {
-    if (!selectedId || lastMarkedRef.current === selectedId) return
-    const item = items.find((i) => i.id === selectedId)
-    if (!item || item.status !== 'new') return
-
-    const timer = setTimeout(() => {
-      lastMarkedRef.current = selectedId
-      markReadRef.current({ data: { inboxItemId: selectedId, status: 'read' } })
-    }, 500)
-    return () => clearTimeout(timer)
-  }, [selectedId, items])
-
   // Row click — set selected item in URL
   const handleRowClick = useCallback(
     (item: InboxItem) => {
@@ -252,7 +227,20 @@ function InboxPage() {
   const newCount = items.filter((i) => i.status === 'new').length
 
   // Single detail hook instance — shared by desktop panel and mobile sheet
-  const detailState = useInboxDetail(selectedItem, !!selectedItem)
+  const detailState = useInboxDetail(selectedItem, !!selectedItem, { autoMarkRead: true })
+
+  // Optimistic update for auto-mark-read
+  useEffect(() => {
+    if (detailState.lastMarkedId) {
+      setItems((prev) =>
+        prev.map((i) =>
+          i.id === detailState.lastMarkedId
+            ? { ...i, status: 'read' as const, readAt: new Date() }
+            : i,
+        ),
+      )
+    }
+  }, [detailState.lastMarkedId])
 
   if (!orgId) {
     return (
