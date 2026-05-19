@@ -25,7 +25,7 @@ function createMockRedis() {
       for (const k of args) store.delete(k)
       return args.length
     },
-    eval: async (script: string, _numKeys: number, ...keys: string[]) => {
+    eval: async (_script: string, _numKeys: number, ...keys: string[]) => {
       // Minimal Lua interpreter for the decrement-floor-at-0 script
       const k = keys[0]
       const current = parseInt(store.get(k) ?? '0', 10)

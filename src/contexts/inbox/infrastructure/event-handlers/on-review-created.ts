@@ -5,6 +5,7 @@ import type { EventBus } from '#/shared/events/event-bus'
 import type { ReviewCreated } from '#/contexts/review/domain/events'
 import type { CreateInboxItemUseCase } from '../../application/use-cases/create-inbox-item'
 import { isInboxError } from '../../domain/errors'
+import { getLogger } from '#/shared/observability/logger'
 
 export type OnReviewCreatedDeps = Readonly<{
   events: EventBus
@@ -28,7 +29,9 @@ export const onReviewCreated =
     } catch (err) {
       // If already_exists, ignore — review may have already been ingested
       if (isInboxError(err) && err.code === 'already_exists') return
-      const { getLogger } = await import('#/shared/observability/logger')
-      getLogger().error({ err, reviewId: event.reviewId }, 'inbox: failed to handle review.created')
+      getLogger().error(
+        { err, reviewId: event.reviewId },
+        'inbox: failed to handle review.created',
+      )
     }
   }

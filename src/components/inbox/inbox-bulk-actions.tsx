@@ -7,12 +7,10 @@ type BulkStatus = 'read' | 'addressed' | 'archived'
 
 type Props = Readonly<{
   selectedIds: ReadonlyArray<string>
-  orgId: string
-  userId: string
   onDone: () => void
 }>
 
-export function InboxBulkActions({ selectedIds, orgId, userId, onDone }: Props) {
+export function InboxBulkActions({ selectedIds, onDone }: Props) {
   const bulkMutation = useMutationAction(bulkUpdateInboxStatusFn, {
     successMessage: 'Items updated',
     onSuccess: onDone,
@@ -23,8 +21,6 @@ export function InboxBulkActions({ selectedIds, orgId, userId, onDone }: Props) 
       data: {
         inboxItemIds: [...selectedIds],
         status,
-        organizationId: orgId,
-        userId,
       },
     })
   }
@@ -33,9 +29,7 @@ export function InboxBulkActions({ selectedIds, orgId, userId, onDone }: Props) 
 
   return (
     <div className="sticky top-0 z-10 flex items-center gap-3 rounded-lg border bg-muted/50 px-4 py-2 backdrop-blur-sm">
-      <span className="text-sm font-medium">
-        {selectedIds.length} selected
-      </span>
+      <span className="text-sm font-medium">{selectedIds.length} selected</span>
       <div className="flex items-center gap-2">
         <Button
           size="sm"

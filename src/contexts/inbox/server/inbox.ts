@@ -57,7 +57,15 @@ export const getInboxItemsFn = createServerFn({ method: 'GET' })
               sourceDateTo: data.sourceDateTo,
             },
             cursor: data.cursor
-              ? JSON.parse(Buffer.from(data.cursor, 'base64').toString('utf-8'))
+              ? (() => {
+                  try {
+                    return JSON.parse(
+                      Buffer.from(data.cursor, 'base64').toString('utf-8'),
+                    )
+                  } catch {
+                    return undefined // ignore malformed cursor — treat as first page
+                  }
+                })()
               : undefined,
             limit: data.limit,
           })

@@ -25,7 +25,6 @@ export const Route = createFileRoute('/_authenticated/inbox/')({
 function InboxPage() {
   const ctx = authRoute.useRouteContext() as AuthRouteContext
   const orgId = ctx.activeOrganization?.id
-  const userId = ctx.user.id
 
   const [filters, setFilters] = useState<InboxFilterValues>({
     status: undefined,
@@ -49,7 +48,6 @@ function InboxPage() {
     try {
       const result = await loadAction({
         data: {
-          organizationId: orgId,
           status: filters.status,
           sourceType: filters.sourceType,
           platform: filters.platform,
@@ -68,8 +66,14 @@ function InboxPage() {
         setIsLoading(false)
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgId, filters.status, filters.sourceType, filters.platform, filters.ratingMin, filters.ratingMax])
+  }, [
+    orgId,
+    filters.status,
+    filters.sourceType,
+    filters.platform,
+    filters.ratingMin,
+    filters.ratingMax,
+  ])
 
   useEffect(() => {
     loadItems()
@@ -136,8 +140,6 @@ function InboxPage() {
       {/* Bulk actions */}
       <InboxBulkActions
         selectedIds={selectedIds}
-        orgId={orgId}
-        userId={userId}
         onDone={() => {
           setSelectedIds([])
           void loadItems()

@@ -5,6 +5,7 @@ import type { EventBus } from '#/shared/events/event-bus'
 import type { FeedbackSubmitted } from '#/contexts/guest/domain/events'
 import type { CreateInboxItemUseCase } from '../../application/use-cases/create-inbox-item'
 import { isInboxError } from '../../domain/errors'
+import { getLogger } from '#/shared/observability/logger'
 
 export type OnFeedbackSubmittedDeps = Readonly<{
   events: EventBus
@@ -28,7 +29,9 @@ export const onFeedbackSubmitted =
     } catch (err) {
       // If already_exists, ignore — feedback may have already been ingested
       if (isInboxError(err) && err.code === 'already_exists') return
-      const { getLogger } = await import('#/shared/observability/logger')
-      getLogger().error({ err, feedbackId: event.feedbackId }, 'inbox: failed to handle feedback.submitted')
+      getLogger().error(
+        { err, feedbackId: event.feedbackId },
+        'inbox: failed to handle feedback.submitted',
+      )
     }
   }

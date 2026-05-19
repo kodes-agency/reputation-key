@@ -5,12 +5,7 @@ import { useAction } from '#/components/hooks/use-action'
 import { getUnreadCountFn } from '#/contexts/inbox/server/inbox'
 import { Badge } from '#/components/ui/badge'
 
-type Props = Readonly<{
-  organizationId: string
-  userId: string
-}>
-
-export function InboxUnreadBadge({ organizationId, userId }: Props) {
+export function InboxUnreadBadge() {
   const loadAction = useAction(useServerFn(getUnreadCountFn))
   const [count, setCount] = useState<number | null>(null)
   const abortRef = useRef(false)
@@ -18,17 +13,14 @@ export function InboxUnreadBadge({ organizationId, userId }: Props) {
   const loadCount = useCallback(async () => {
     abortRef.current = false
     try {
-      const result = await loadAction({
-        data: { organizationId, userId },
-      })
+      const result = await loadAction({ data: {} })
       if (!abortRef.current) {
-        setCount(typeof result === 'number' ? result : (result as { count: number }).count)
+        setCount(typeof result === 'number' ? result : 0)
       }
     } catch {
       // Silently fail — badge is non-critical
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [organizationId, userId])
+  }, [])
 
   useEffect(() => {
     loadCount()

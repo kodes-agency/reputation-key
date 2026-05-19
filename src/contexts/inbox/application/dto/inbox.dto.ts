@@ -1,11 +1,12 @@
 // Inbox context — Zod schemas for server function validation
 // Per architecture: "Zod schema for HTTP input, also reused as the form schema."
+// Note: organizationId and userId are derived from the authenticated session
+// via resolveTenantContext(headers), never from client input.
 
 import { z } from 'zod/v4'
 
 // GET inbox items — query params
 export const getInboxItemsDto = z.object({
-  organizationId: z.string().uuid(),
   propertyId: z.string().optional(),
   status: z.enum(['new', 'read', 'addressed', 'escalated', 'archived']).optional(),
   sourceType: z.enum(['review', 'feedback']).optional(),
@@ -19,47 +20,36 @@ export const getInboxItemsDto = z.object({
 })
 
 // POST update status
+// 'new' excluded — domain rules enforce forward-only transitions
 export const updateStatusDto = z.object({
   inboxItemId: z.string().uuid(),
-  status: z.enum(['new', 'read', 'addressed', 'escalated', 'archived']),
-  organizationId: z.string().uuid(),
-  userId: z.string().uuid(),
+  status: z.enum(['read', 'addressed', 'escalated', 'archived']),
 })
 
 // POST bulk update status
 export const bulkUpdateStatusDto = z.object({
   inboxItemIds: z.array(z.string().uuid()).min(1).max(100),
   status: z.enum(['read', 'addressed', 'archived']),
-  organizationId: z.string().uuid(),
-  userId: z.string().uuid(),
 })
 
 // POST assign
 export const assignInboxItemDto = z.object({
   inboxItemId: z.string().uuid(),
   assignedToUserId: z.string().nullable(),
-  organizationId: z.string().uuid(),
-  role: z.string().min(1),
 })
 
 // POST add note
 export const addInboxNoteDto = z.object({
   inboxItemId: z.string().uuid(),
   text: z.string().min(1).max(5000),
-  organizationId: z.string().uuid(),
-  authorUserId: z.string().uuid(),
 })
 
 // GET unread count
-export const getUnreadCountDto = z.object({
-  organizationId: z.string().uuid(),
-  userId: z.string().uuid(),
-})
+export const getUnreadCountDto = z.object({})
 
 // GET inbox item detail
 export const getInboxItemDetailDto = z.object({
   inboxItemId: z.string().uuid(),
-  organizationId: z.string().uuid(),
 })
 
 // Type exports

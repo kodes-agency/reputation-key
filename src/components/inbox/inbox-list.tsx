@@ -11,6 +11,7 @@ import { InboxStatusBadge } from './inbox-status-badge'
 import { Star, ExternalLink } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import type { InboxItem } from '#/contexts/inbox/application/public-api'
+import { formatDate } from './utils'
 
 type Props = Readonly<{
   items: ReadonlyArray<InboxItem>
@@ -20,14 +21,6 @@ type Props = Readonly<{
   onDeselectAll: () => void
   onRowClick: (item: InboxItem) => void
 }>
-
-function formatDate(date: Date): string {
-  return new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  }).format(typeof date === 'string' ? new Date(date) : date)
-}
 
 function RatingDisplay({ rating }: Readonly<{ rating: number | null }>) {
   if (rating === null) return <span className="text-muted-foreground">–</span>
@@ -47,7 +40,8 @@ export function InboxList({
   onDeselectAll,
   onRowClick,
 }: Props) {
-  const allSelected = items.length > 0 && items.every((item) => selectedIds.includes(item.id))
+  const allSelected =
+    items.length > 0 && items.every((item) => selectedIds.includes(item.id))
   const someSelected = selectedIds.length > 0 && !allSelected
 
   return (
@@ -113,11 +107,7 @@ export function InboxList({
                 </span>
               </TableCell>
               <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => onRowClick(item)}
-                >
+                <Button variant="ghost" size="sm" onClick={() => onRowClick(item)}>
                   <ExternalLink className="size-3.5" />
                 </Button>
               </TableCell>

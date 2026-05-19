@@ -10,8 +10,6 @@ import type { InboxNote } from '#/contexts/inbox/application/public-api'
 type Props = Readonly<{
   notes: ReadonlyArray<InboxNote>
   inboxItemId: string
-  organizationId: string
-  userId: string
   onNoteAdded: () => void
 }>
 
@@ -35,13 +33,7 @@ function formatRelativeTime(date: Date): string {
   }).format(d)
 }
 
-export function InboxNotesThread({
-  notes,
-  inboxItemId,
-  organizationId,
-  userId,
-  onNoteAdded,
-}: Props) {
+export function InboxNotesThread({ notes, inboxItemId, onNoteAdded }: Props) {
   const [noteText, setNoteText] = useState('')
 
   const addNote = useMutationAction(addInboxNoteFn, {
@@ -60,8 +52,6 @@ export function InboxNotesThread({
       data: {
         inboxItemId,
         text: trimmed,
-        organizationId,
-        authorUserId: userId,
       },
     })
   }
@@ -73,9 +63,7 @@ export function InboxNotesThread({
 
   return (
     <div className="flex flex-col gap-3">
-      <h4 className="text-sm font-medium text-foreground">
-        Notes ({notes.length})
-      </h4>
+      <h4 className="text-sm font-medium text-foreground">Notes ({notes.length})</h4>
 
       {/* Notes list */}
       {sortedNotes.length === 0 ? (
@@ -83,15 +71,10 @@ export function InboxNotesThread({
       ) : (
         <div className="max-h-60 space-y-3 overflow-y-auto">
           {sortedNotes.map((note) => (
-            <div
-              key={note.id}
-              className="rounded-md border bg-muted/30 p-3"
-            >
+            <div key={note.id} className="rounded-md border bg-muted/30 p-3">
               <div className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
                 <User className="size-3" />
-                <span className="font-medium">
-                  {note.authorUserId.slice(0, 8)}…
-                </span>
+                <span className="font-medium">{note.authorUserId.slice(0, 8)}…</span>
                 <span className="flex items-center gap-1">
                   <Clock className="size-3" />
                   {formatRelativeTime(note.createdAt)}

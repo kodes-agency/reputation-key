@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest'
 import { getUnreadCount } from './get-unread-count'
-import { organizationId, userId, inboxItemId, propertyId } from '#/shared/domain/ids'
+import {
+  organizationId,
+  userId,
+  inboxItemId,
+  propertyId,
+  reviewId,
+} from '#/shared/domain/ids'
 import type { InboxItem } from '../../domain/types'
 import type { InboxRepository } from '../ports/inbox.repository'
 import type { UnreadCounterPort } from '../ports/unread-counter.port'
@@ -9,12 +15,15 @@ import type { UnreadCounterPort } from '../ports/unread-counter.port'
 const ORG_ID = organizationId('org-1')
 const USER_ID = userId('user-1')
 
-const makeItem = (overrides: Partial<InboxItem> & { id: string }): InboxItem => ({
-  id: inboxItemId(overrides.id),
+const makeItem = ({
+  id,
+  ...overrides
+}: Partial<Omit<InboxItem, 'id'>> & { id: string }): InboxItem => ({
+  id: inboxItemId(id),
   organizationId: ORG_ID,
   propertyId: propertyId('prop-1'),
   sourceType: 'review',
-  sourceId: `source-${overrides.id}`,
+  sourceId: reviewId(`source-${id}`),
   status: 'new',
   rating: 4,
   sourceDate: new Date('2025-01-01'),
