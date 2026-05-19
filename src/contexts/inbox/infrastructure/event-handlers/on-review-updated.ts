@@ -20,6 +20,7 @@ export const onReviewUpdated =
 
       await deps.repo.syncDenormalizedFields(item.id, item.organizationId, {
         rating: event.rating,
+        snippet: event.reviewText ?? undefined,
       })
     } catch (err) {
       getLogger().error(
