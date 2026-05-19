@@ -42,15 +42,16 @@ const seedItem = (): InboxItem => ({
   updatedAt: FIXED_TIME,
 })
 
-const setup = () => {
+const defaultStaffApi: StaffPublicApi = {
+  getAccessiblePropertyIds: async () => null,
+}
+
+const setup = (staffApi: StaffPublicApi = defaultStaffApi) => {
   const repo = createInMemoryInboxRepo()
   const events = createCapturingEventBus()
-  const staffPublicApi: StaffPublicApi = {
-    getAccessiblePropertyIds: async () => null, // Default: admin (no restrictions)
-  }
-  const deps = { repo, events, clock: () => FIXED_TIME, staffPublicApi }
+  const deps = { repo, events, clock: () => FIXED_TIME, staffPublicApi: staffApi }
   const useCase = assignInboxItem(deps)
-  return { useCase, repo, events, staffPublicApi }
+  return { useCase, repo, events }
 }
 
 describe('assignInboxItem', () => {
@@ -148,11 +149,11 @@ describe('assignInboxItem', () => {
   })
 
   it('throws forbidden when non-admin assigns item for inaccessible property', async () => {
-    const { useCase, repo, staffPublicApi } = setup()
+    const staffApi: StaffPublicApi = {
+      getAccessiblePropertyIds: async () => [PROP_OTHER],
+    }
+    const { useCase, repo } = setup(staffApi)
     repo.items.push(seedItem())
-
-    // Mock staffApi to return a different property that doesn't include prop-1
-    staffPublicApi.getAccessiblePropertyIds = async () => [PROP_OTHER]
 
     await expect(
       useCase({
@@ -166,11 +167,11 @@ describe('assignInboxItem', () => {
   })
 
   it('allows assignment when user has access to the property', async () => {
-    const { useCase, repo, staffPublicApi } = setup()
+    const staffApi: StaffPublicApi = {
+      getAccessiblePropertyIds: async () => [PROP_1],
+    }
+    const { useCase, repo } = setup(staffApi)
     repo.items.push(seedItem())
-
-    // Mock staffApi to return prop-1 in accessible list
-    staffPublicApi.getAccessiblePropertyIds = async () => [PROP_1]
 
     const updated = await useCase({
       inboxItemId: ITEM_ID,

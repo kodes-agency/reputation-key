@@ -40,7 +40,11 @@ function seedItem(id: string, status: InboxStatus, propId: string = 'prop-1'): I
   }
 }
 
-const setup = () => {
+const defaultStaffApi: StaffPublicApi = {
+  getAccessiblePropertyIds: async () => null,
+}
+
+const setup = (staffApi: StaffPublicApi = defaultStaffApi) => {
   const repo = createInMemoryInboxRepo()
   const events = createCapturingEventBus()
   const decrements: Array<{ orgId: string; userId: string }> = []
@@ -53,13 +57,15 @@ const setup = () => {
     },
     invalidate: async () => {},
   }
-  const staffPublicApi: StaffPublicApi = {
-    getAccessiblePropertyIds: async () => [propertyId('prop-1'), propertyId('prop-2')],
-    getStaffMember: async () => null,
+  const deps = {
+    repo,
+    events,
+    unreadCounter,
+    clock: () => FIXED_TIME,
+    staffPublicApi: staffApi,
   }
-  const deps = { repo, events, unreadCounter, clock: () => FIXED_TIME, staffPublicApi }
   const useCase = bulkUpdateInboxStatus(deps)
-  return { useCase, repo, events, decrements, staffPublicApi }
+  return { useCase, repo, events, decrements }
 }
 
 describe('bulkUpdateInboxStatus', () => {
@@ -148,11 +154,12 @@ describe('bulkUpdateInboxStatus', () => {
   })
 
   it('filters out items from inaccessible properties for non-admin', async () => {
-    const { useCase, repo, staffPublicApi } = setup()
+    const staffApi: StaffPublicApi = {
+      getAccessiblePropertyIds: async () => [propertyId('prop-1')],
+    }
+    const { useCase, repo } = setup(staffApi)
     repo.items.push(seedItem('ii-1', 'new', 'prop-1'))
     repo.items.push(seedItem('ii-2', 'new', 'prop-2'))
-
-    staffPublicApi.getAccessiblePropertyIds = async () => [propertyId('prop-1')]
 
     const result = await useCase({
       inboxItemIds: [inboxItemId('ii-1'), inboxItemId('ii-2')],
@@ -168,13 +175,14 @@ describe('bulkUpdateInboxStatus', () => {
   })
 
   it('processes all items for AccountAdmin', async () => {
-    const { useCase, repo, staffPublicApi } = setup()
+    const staffApi: StaffPublicApi = {
+      getAccessiblePropertyIds: async () => {
+        throw new Error('Should not be called for AccountAdmin')
+      },
+    }
+    const { useCase, repo } = setup(staffApi)
     repo.items.push(seedItem('ii-1', 'new', 'prop-1'))
     repo.items.push(seedItem('ii-2', 'new', 'prop-2'))
-
-    staffPublicApi.getAccessiblePropertyIds = async () => {
-      throw new Error('Should not be called for AccountAdmin')
-    }
 
     const result = await useCase({
       inboxItemIds: [inboxItemId('ii-1'), inboxItemId('ii-2')],

@@ -55,21 +55,22 @@ const seedItem = (): InboxItem => ({
   updatedAt: FIXED_TIME,
 })
 
-const setup = () => {
+const defaultStaffApi: StaffPublicApi = {
+  getAccessiblePropertyIds: async () => null,
+}
+
+const setup = (staffApi: StaffPublicApi = defaultStaffApi) => {
   const repo = createInMemoryInboxRepo()
   const noteRepo = createInMemoryNoteRepo()
-  const staffPublicApi: StaffPublicApi = {
-    getAccessiblePropertyIds: async () => null, // Default: all access (AccountAdmin)
-  }
   const deps = {
     repo,
     noteRepo,
     idGen: () => FIXED_ID,
     clock: () => FIXED_TIME,
-    staffPublicApi,
+    staffPublicApi: staffApi,
   }
   const useCase = addInboxNote(deps)
-  return { useCase, repo, noteRepo, staffPublicApi }
+  return { useCase, repo, noteRepo }
 }
 
 describe('addInboxNote', () => {
@@ -121,11 +122,11 @@ describe('addInboxNote', () => {
   })
 
   it('throws forbidden when non-admin adds note for inaccessible property', async () => {
-    const { useCase, repo, staffPublicApi } = setup()
+    const staffApi: StaffPublicApi = {
+      getAccessiblePropertyIds: async () => [propertyId('prop-other')],
+    }
+    const { useCase, repo } = setup(staffApi)
     repo.items.push(seedItem())
-
-    // Mock staffApi to return access to a different property
-    staffPublicApi.getAccessiblePropertyIds = async () => [propertyId('prop-other')]
 
     await expect(
       useCase({
@@ -139,11 +140,11 @@ describe('addInboxNote', () => {
   })
 
   it('allows note when user has access to the property', async () => {
-    const { useCase, repo, noteRepo, staffPublicApi } = setup()
+    const staffApi: StaffPublicApi = {
+      getAccessiblePropertyIds: async () => [propertyId('prop-1')],
+    }
+    const { useCase, repo, noteRepo } = setup(staffApi)
     repo.items.push(seedItem())
-
-    // Mock staffApi to return access to prop-1
-    staffPublicApi.getAccessiblePropertyIds = async () => [propertyId('prop-1')]
 
     const note = await useCase({
       inboxItemId: ITEM_ID,
