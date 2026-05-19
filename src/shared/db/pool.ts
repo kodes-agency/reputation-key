@@ -12,7 +12,7 @@ export function getPool(): Pool {
   if (!_pool) {
     const env = getEnv()
     _pool = new Pool({
-      connectionString: env.DATABASE_URL_POOLER ?? env.DATABASE_URL,
+      connectionString: env.DATABASE_URL,
       max: 10,
     })
   }

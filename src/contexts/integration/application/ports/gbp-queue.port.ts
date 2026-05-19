@@ -11,6 +11,7 @@ export type ImportPropertyJobData = Readonly<{
     businessName: string
     address: string | null
     primaryCategory: string | null
+    gbpLocationName: string
   }>
 }>
 

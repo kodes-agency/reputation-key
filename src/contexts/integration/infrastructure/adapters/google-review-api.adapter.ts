@@ -12,11 +12,15 @@ import type { StarRating } from '#/contexts/review/domain/types'
 import { getLogger } from '#/shared/observability/logger'
 import { integrationError } from '../../domain/errors'
 
-const REVIEWS_API_BASE = 'https://mybusiness.googleapis.com/v4'
+const REVIEWS_API_BASE = 'https://mybusiness.googleapis.com/v1'
 
 /** GBP returns star ratings as uppercase words 'ONE' through 'FIVE' */
 const STAR_RATING_MAP = {
-  ONE: 1, TWO: 2, THREE: 3, FOUR: 4, FIVE: 5,
+  ONE: 1,
+  TWO: 2,
+  THREE: 3,
+  FOUR: 4,
+  FIVE: 5,
 } as const
 
 type GoogleReviewApiAdapterDeps = Readonly<{
@@ -25,8 +29,13 @@ type GoogleReviewApiAdapterDeps = Readonly<{
   refreshToken: RefreshGoogleToken
 }>
 
-export const createGoogleReviewApiAdapter = (deps: GoogleReviewApiAdapterDeps): GoogleReviewApiPort => {
-  const resolveAccessToken = async (organizationId: OrganizationId, connectionId: GoogleConnectionId): Promise<string> => {
+export const createGoogleReviewApiAdapter = (
+  deps: GoogleReviewApiAdapterDeps,
+): GoogleReviewApiPort => {
+  const resolveAccessToken = async (
+    organizationId: OrganizationId,
+    connectionId: GoogleConnectionId,
+  ): Promise<string> => {
     // Delegate to the existing RefreshGoogleToken use case:
     // finds connection, checks status, refreshes if needed, returns connection with fresh tokens
     const connection = await deps.refreshToken(organizationId, connectionId)
@@ -42,7 +51,11 @@ export const createGoogleReviewApiAdapter = (deps: GoogleReviewApiAdapterDeps): 
     return { signal: controller.signal, clear: () => clearTimeout(timer) }
   }
 
-  const fetchReviews: GoogleReviewApiPort['fetchReviews'] = async (organizationId, connectionId, locationName) => {
+  const fetchReviews: GoogleReviewApiPort['fetchReviews'] = async (
+    organizationId,
+    connectionId,
+    locationName,
+  ) => {
     const accessToken = await resolveAccessToken(organizationId, connectionId)
     const allReviews: GoogleReview[] = []
     let pageToken: string | undefined
@@ -66,10 +79,13 @@ export const createGoogleReviewApiAdapter = (deps: GoogleReviewApiAdapterDeps): 
       if (!response.ok) {
         const body = await response.text()
         const code = response.status === 429 ? 'gbp_api_rate_limited' : 'gbp_api_error'
-        throw integrationError(code, `GBP reviews fetch failed: ${response.status} ${body}`)
+        throw integrationError(
+          code,
+          `GBP reviews fetch failed: ${response.status} ${body}`,
+        )
       }
 
-      const data = await response.json() as {
+      const data = (await response.json()) as {
         reviews?: Array<Record<string, unknown>>
         nextPageToken?: string
       }
@@ -79,27 +95,45 @@ export const createGoogleReviewApiAdapter = (deps: GoogleReviewApiAdapterDeps): 
         const reviewId = reviewName.split('/').pop() ?? ''
         const starRatingStr = raw.starRating as string | undefined
 
-        const rating = starRatingStr ? (STAR_RATING_MAP as Record<string, StarRating | undefined>)[starRatingStr] : undefined
+        const rating = starRatingStr
+          ? (STAR_RATING_MAP as Record<string, StarRating | undefined>)[starRatingStr]
+          : undefined
         if (!rating) {
-          getLogger().warn({ starRating: starRatingStr, reviewId }, 'Unknown star rating, skipping review')
+          getLogger().warn(
+            { starRating: starRatingStr, reviewId },
+            'Unknown star rating, skipping review',
+          )
           continue
         }
 
         // GBP review.text is { text: string, languageCode: string }, not a plain string
-        const textObj = raw.text as { text?: string; languageCode?: string } | null | undefined
+        const textObj = raw.text as
+          | { text?: string; languageCode?: string }
+          | null
+          | undefined
 
         allReviews.push({
           reviewName,
           externalId: reviewId,
           externalLocationId: locationName,
-          reviewerName: (raw.reviewer as Record<string, unknown> | undefined)?.displayName as string | null ?? null,
-          reviewerProfilePhotoUrl: (raw.reviewer as Record<string, unknown> | undefined)?.profilePhotoUrl as string | null ?? null,
+          reviewerName:
+            ((raw.reviewer as Record<string, unknown> | undefined)?.displayName as
+              | string
+              | null) ?? null,
+          reviewerProfilePhotoUrl:
+            ((raw.reviewer as Record<string, unknown> | undefined)?.profilePhotoUrl as
+              | string
+              | null) ?? null,
           rating,
           text: textObj?.text ?? null,
           languageCode: textObj?.languageCode ?? null,
           reviewedAt: new Date(raw.createTime as string),
-          replyText: (raw.reviewReply as Record<string, unknown> | undefined)?.comment as string | null ?? null,
-          replyUpdatedAt: (raw.reviewReply as Record<string, unknown> | undefined)?.updateTime
+          replyText:
+            ((raw.reviewReply as Record<string, unknown> | undefined)?.comment as
+              | string
+              | null) ?? null,
+          replyUpdatedAt: (raw.reviewReply as Record<string, unknown> | undefined)
+            ?.updateTime
             ? new Date((raw.reviewReply as Record<string, unknown>).updateTime as string)
             : null,
         })
@@ -111,7 +145,12 @@ export const createGoogleReviewApiAdapter = (deps: GoogleReviewApiAdapterDeps): 
     return allReviews
   }
 
-  const replyToReview: GoogleReviewApiPort['replyToReview'] = async (organizationId, connectionId, reviewName, text) => {
+  const replyToReview: GoogleReviewApiPort['replyToReview'] = async (
+    organizationId,
+    connectionId,
+    reviewName,
+    text,
+  ) => {
     const accessToken = await resolveAccessToken(organizationId, connectionId)
 
     const { signal, clear } = withTimeout(30_000)

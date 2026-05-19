@@ -1,22 +1,30 @@
-// Integration context — GBP property import job handler.
-// Processes a batch of GBP locations, creates properties, tracks counts.
-// Moved from shared/jobs/handlers/ — this is business logic that belongs in its context.
-
 import type { Job } from 'bullmq'
 import type { JobHandler } from '#/shared/jobs/registry'
 import type { ImportPropertyJobData } from '../../application/ports/gbp-queue.port'
+import type { EventBus } from '#/shared/events/event-bus'
 
 export type { ImportPropertyJobData }
 import { createHash } from 'crypto'
 import { getDb } from '#/shared/db'
 import { properties, gbpImportJobs } from '#/shared/db/schema'
 import { getLogger } from '#/shared/observability/logger'
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { normalizeSlug } from '#/contexts/property/domain/rules'
-
-// ── Counter helpers ────────────────────────────────────────────────
+import { propertyCreated } from '#/contexts/property/domain/events'
+import { propertyId, organizationId as toOrgId } from '#/shared/domain/ids'
 
 type CounterType = 'importedCount' | 'skippedCount' | 'failedCount'
+
+type CreatedProperty = Readonly<{
+  id: string
+  organizationId: string
+  name: string
+  slug: string
+  gbpPlaceId: string
+  gbpLocationName: string
+  googleConnectionId: string
+  createdAt: Date
+}>
 
 const incrementJobCounter = async (
   db: ReturnType<typeof getDb>,
@@ -32,8 +40,6 @@ const incrementJobCounter = async (
     )
 }
 
-// ── Slug generation ────────────────────────────────────────────────
-
 function generatePropertySlug(businessName: string, gbpPlaceId: string): string {
   const baseSlug = normalizeSlug(businessName)
   const slugSuffix = createHash('sha256')
@@ -43,34 +49,48 @@ function generatePropertySlug(businessName: string, gbpPlaceId: string): string 
   return `${baseSlug}-${slugSuffix}`
 }
 
-// ── Single location processing ─────────────────────────────────────
-
 async function processLocation(
   db: ReturnType<typeof getDb>,
   organizationId: string,
   connectionId: string,
   jobId: string,
-  location: { gbpPlaceId: string; businessName: string },
+  location: { gbpPlaceId: string; businessName: string; gbpLocationName: string },
   existingGbpPlaceIds: Set<string>,
-): Promise<void> {
-  // Skip if already exists
+): Promise<CreatedProperty | null> {
   if (existingGbpPlaceIds.has(location.gbpPlaceId)) {
     await incrementJobCounter(db, organizationId, jobId, 'skippedCount')
-    return
+    return null
   }
 
   const slug = generatePropertySlug(location.businessName, location.gbpPlaceId)
+  const now = new Date()
 
-  await db.insert(properties).values({
-    organizationId,
-    name: location.businessName,
-    slug,
-    timezone: 'UTC',
-    gbpPlaceId: location.gbpPlaceId,
-    googleConnectionId: connectionId,
-  })
+  const [inserted] = await db
+    .insert(properties)
+    .values({
+      organizationId,
+      name: location.businessName,
+      slug,
+      timezone: 'UTC',
+      gbpPlaceId: location.gbpPlaceId,
+      googleConnectionId: connectionId,
+      createdAt: now,
+      updatedAt: now,
+    })
+    .returning()
 
   await incrementJobCounter(db, organizationId, jobId, 'importedCount')
+
+  return {
+    id: inserted.id,
+    organizationId: inserted.organizationId,
+    name: inserted.name,
+    slug: inserted.slug,
+    gbpPlaceId: inserted.gbpPlaceId!,
+    gbpLocationName: location.gbpLocationName,
+    googleConnectionId: connectionId,
+    createdAt: inserted.createdAt!,
+  }
 }
 
 async function handleLocationError(
@@ -83,9 +103,6 @@ async function handleLocationError(
   const isPg23505 =
     err instanceof Error && 'code' in err && (err as { code: string }).code === '23505'
 
-  // 23505 fires for any unique constraint. Only treat as skip if the
-  // gbpPlaceId already exists (concurrent worker race). Slug collisions
-  // from different locations are real failures.
   let treatAsSkip = false
   if (isPg23505) {
     const race = await db
@@ -95,6 +112,7 @@ async function handleLocationError(
         and(
           eq(properties.organizationId, organizationId),
           eq(properties.gbpPlaceId, location.gbpPlaceId),
+          isNull(properties.deletedAt),
         ),
       )
       .limit(1)
@@ -123,8 +141,6 @@ async function handleLocationError(
   )
 }
 
-// ── Terminal status determination ──────────────────────────────────
-
 function determineTerminalStatus(
   totalCount: number,
   skippedCount: number,
@@ -136,8 +152,6 @@ function determineTerminalStatus(
   if (skippedCount > 0) return 'completed_with_skips'
   return 'completed'
 }
-
-// ── Job status updates ─────────────────────────────────────────────
 
 async function markJobInProgress(
   db: ReturnType<typeof getDb>,
@@ -205,54 +219,85 @@ async function markJobFailed(
     )
 }
 
-// ── Main handler ───────────────────────────────────────────────────
+type ImportPropertyHandlerDeps = Readonly<{
+  events: EventBus
+}>
 
-export const importPropertyHandler: JobHandler<ImportPropertyJobData> = async (
-  job: Job<ImportPropertyJobData>,
-) => {
-  const { jobId, organizationId, connectionId, locations } = job.data
-  const db = getDb()
-  const logger = getLogger()
+export const createImportPropertyHandler = (
+  deps: ImportPropertyHandlerDeps,
+): JobHandler<ImportPropertyJobData> => {
+  return async (job: Job<ImportPropertyJobData>) => {
+    const { jobId, organizationId, connectionId, locations } = job.data
+    const db = getDb()
+    const logger = getLogger()
 
-  await markJobInProgress(db, organizationId, jobId)
+    await markJobInProgress(db, organizationId, jobId)
 
-  try {
-    // Batch fetch existing properties for all gbpPlaceIds (fixes N+1 query)
-    const gbpPlaceIds = locations.map((loc) => loc.gbpPlaceId)
-    const existingProperties = await db
-      .select({ gbpPlaceId: properties.gbpPlaceId })
-      .from(properties)
-      .where(
-        and(
-          eq(properties.organizationId, organizationId),
-          inArray(properties.gbpPlaceId, gbpPlaceIds),
-        ),
+    const createdProperties: CreatedProperty[] = []
+
+    try {
+      const gbpPlaceIds = locations.map((loc) => loc.gbpPlaceId)
+      const existingProperties = await db
+        .select({ gbpPlaceId: properties.gbpPlaceId })
+        .from(properties)
+        .where(
+          and(
+            eq(properties.organizationId, organizationId),
+            isNull(properties.deletedAt),
+            inArray(properties.gbpPlaceId, gbpPlaceIds),
+          ),
+        )
+
+      const existingGbpPlaceIds = new Set(
+        existingProperties
+          .map((p) => p.gbpPlaceId)
+          .filter((id): id is string => id !== null),
       )
 
-    const existingGbpPlaceIds = new Set(
-      existingProperties
-        .map((p) => p.gbpPlaceId)
-        .filter((id): id is string => id !== null),
-    )
-
-    for (const location of locations) {
-      try {
-        await processLocation(
-          db,
-          organizationId,
-          connectionId,
-          jobId,
-          location,
-          existingGbpPlaceIds,
-        )
-      } catch (err) {
-        await handleLocationError(db, organizationId, jobId, location, err)
+      for (const location of locations) {
+        try {
+          const created = await processLocation(
+            db,
+            organizationId,
+            connectionId,
+            jobId,
+            location,
+            existingGbpPlaceIds,
+          )
+          if (created) {
+            createdProperties.push(created)
+          }
+        } catch (err) {
+          await handleLocationError(db, organizationId, jobId, location, err)
+        }
       }
-    }
 
-    await finalizeJobStatus(db, organizationId, jobId)
-  } catch (err) {
-    logger.error({ err, jobId, organizationId }, 'Import handler crashed unexpectedly')
-    await markJobFailed(db, organizationId, jobId)
+      await finalizeJobStatus(db, organizationId, jobId)
+
+      for (const prop of createdProperties) {
+        try {
+          await deps.events.emit(
+            propertyCreated({
+              propertyId: propertyId(prop.id),
+              organizationId: toOrgId(prop.organizationId),
+              name: prop.name,
+              slug: prop.slug,
+              gbpPlaceId: prop.gbpPlaceId,
+              gbpLocationName: prop.gbpLocationName,
+              googleConnectionId: prop.googleConnectionId,
+              occurredAt: prop.createdAt,
+            }),
+          )
+        } catch (err) {
+          logger.warn(
+            { err, propertyId: prop.id },
+            'Failed to emit property.created event',
+          )
+        }
+      }
+    } catch (err) {
+      logger.error({ err, jobId, organizationId }, 'Import handler crashed unexpectedly')
+      await markJobFailed(db, organizationId, jobId)
+    }
   }
 }

@@ -16,7 +16,13 @@ import type { ReviewRepository } from '../ports/review.repository'
 import type { ReplyRepository } from '../ports/reply.repository'
 import type { GoogleReviewApiPort } from '../ports/google-review-api.port'
 import type { EventBus } from '#/shared/events/event-bus'
-import type { ReviewId, ReplyId, OrganizationId, PropertyId, GoogleConnectionId } from '#/shared/domain/ids'
+import type {
+  ReviewId,
+  ReplyId,
+  OrganizationId,
+  PropertyId,
+  GoogleConnectionId,
+} from '#/shared/domain/ids'
 import type { Review, GoogleReview } from '../../domain/types'
 import type { ReviewError } from '../../domain/errors'
 import { getLogger } from '#/shared/observability/logger'
@@ -63,10 +69,16 @@ export const syncReviews =
         input.connectionId,
         input.locationName,
       )
-    } catch (e) {
-      return err(reviewError('sync_failed', 'Failed to fetch reviews from Google', {
-        cause: e instanceof Error ? e.message : String(e),
-      }))
+    } catch (e: unknown) {
+      const cause =
+        e instanceof Error
+          ? e.message
+          : typeof e === 'object' && e !== null && 'message' in e
+            ? (e as { message: string }).message
+            : String(e)
+      return err(
+        reviewError('sync_failed', 'Failed to fetch reviews from Google', { cause }),
+      )
     }
 
     let created = 0
@@ -77,7 +89,11 @@ export const syncReviews =
     for (const gr of googleReviews) {
       try {
         // 2. Check if review already exists
-        const existing = await deps.reviewRepo.findByExternalId('google', gr.externalId, input.organizationId)
+        const existing = await deps.reviewRepo.findByExternalId(
+          'google',
+          gr.externalId,
+          input.organizationId,
+        )
 
         // Calculate expiresAt from reviewedAt per 30-day retention rule
         const expiresAt = calculateExpiresAt(gr.reviewedAt, now)
@@ -130,7 +146,10 @@ export const syncReviews =
           await deps.events.emit(reviewUpdated(eventPayload))
         }
       } catch (err) {
-        getLogger().warn({ err, externalId: gr.externalId }, 'Failed to sync review, continuing')
+        getLogger().warn(
+          { err, externalId: gr.externalId },
+          'Failed to sync review, continuing',
+        )
         failed++
         continue
       }
@@ -145,7 +164,13 @@ export const syncReviews =
     }
 
     return failed > 0
-      ? err(reviewError('sync_failed', `Sync completed with ${failed} failed review(s)`, result))
+      ? err(
+          reviewError(
+            'sync_failed',
+            `Sync completed with ${failed} failed review(s)`,
+            result,
+          ),
+        )
       : ok(result)
   }
 
@@ -155,7 +180,10 @@ async function mirrorReply(
   organizationId: OrganizationId,
   gr: GoogleReview,
 ): Promise<boolean> {
-  const existingGoogleReply = await deps.replyRepo.findGoogleSyncByReviewId(reviewId, organizationId)
+  const existingGoogleReply = await deps.replyRepo.findGoogleSyncByReviewId(
+    reviewId,
+    organizationId,
+  )
 
   if (gr.replyText) {
     // Google has a reply → upsert google_sync reply
@@ -188,7 +216,11 @@ async function mirrorReply(
   } else {
     // Google has no reply → delete google_sync reply if it exists
     if (existingGoogleReply) {
-      await deps.replyRepo.deleteByReviewIdAndSource(reviewId, 'google_sync', organizationId)
+      await deps.replyRepo.deleteByReviewIdAndSource(
+        reviewId,
+        'google_sync',
+        organizationId,
+      )
       return true
     }
     return false

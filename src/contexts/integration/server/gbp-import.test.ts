@@ -57,6 +57,7 @@ describe('importPropertiesInputSchema', () => {
           businessName: 'Test Business',
           address: '123 Main St',
           primaryCategory: 'Restaurant',
+          gbpLocationName: 'accounts/123/locations/456',
         },
       ],
     })
@@ -72,6 +73,7 @@ describe('importPropertiesInputSchema', () => {
           businessName: 'Test Business',
           address: null,
           primaryCategory: 'Restaurant',
+          gbpLocationName: 'accounts/123/locations/456',
         },
       ],
     })
@@ -87,6 +89,7 @@ describe('importPropertiesInputSchema', () => {
           businessName: 'Test Business',
           address: '123 Main St',
           primaryCategory: null,
+          gbpLocationName: 'accounts/123/locations/456',
         },
       ],
     })
@@ -101,6 +104,7 @@ describe('importPropertiesInputSchema', () => {
           businessName: 'Test Business',
           address: '123 Main St',
           primaryCategory: 'Restaurant',
+          gbpLocationName: 'accounts/123/locations/456',
         },
       ],
     })

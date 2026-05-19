@@ -8,7 +8,13 @@ import type { ReplyRepository } from '../../application/ports/reply.repository'
 import type { GoogleReviewApiPort } from '../../application/ports/google-review-api.port'
 import type { EventBus } from '#/shared/events/event-bus'
 import { syncReviews } from '../../application/use-cases/sync-reviews'
-import { reviewId, propertyId, organizationId, googleConnectionId, replyId } from '#/shared/domain/ids'
+import {
+  reviewId,
+  propertyId,
+  organizationId,
+  googleConnectionId,
+  replyId,
+} from '#/shared/domain/ids'
 import { getLogger } from '#/shared/observability/logger'
 
 type SyncHandlerDeps = Readonly<{
@@ -32,10 +38,13 @@ export const createSyncPropertyReviewsHandler = (deps: SyncHandlerDeps) => {
 
   return async (job: Job<SyncPropertyReviewsJobData>) => {
     const logger = getLogger()
-    logger.info({ jobId: job.id, propertyId: job.data.propertyId }, 'Syncing property reviews')
+    logger.info(
+      { jobId: job.id, propertyId: job.data.propertyId },
+      'Syncing property reviews',
+    )
 
     const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    for (const id of [job.data.propertyId, job.data.organizationId, job.data.connectionId]) {
+    for (const id of [job.data.propertyId, job.data.connectionId]) {
       if (!UUID_RE.test(id)) {
         logger.error({ jobData: job.data }, 'Invalid UUID in job data, skipping')
         return

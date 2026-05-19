@@ -7,6 +7,7 @@
   },
   "scripts": {
     "dev": "vite dev --port 3000",
+    "dev:worker": "tsx src/worker/index.ts",
     "build": "vite build",
     "build:worker": "tsup",
     "preview": "vite preview",

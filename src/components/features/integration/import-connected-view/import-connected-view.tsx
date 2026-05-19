@@ -24,6 +24,7 @@ type Props = Readonly<{
           businessName: string
           address: string | null
           primaryCategory: string | null
+          gbpLocationName: string
         }>
       }
     },
@@ -59,6 +60,7 @@ export function ImportConnectedView({
           businessName: l.businessName,
           address: l.address,
           primaryCategory: l.primaryCategory,
+          gbpLocationName: l.name,
         })),
       },
     })

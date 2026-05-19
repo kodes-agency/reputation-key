@@ -57,6 +57,7 @@ describe('startPropertyImport', () => {
           businessName: 'Biz 1',
           address: null,
           primaryCategory: null,
+          gbpLocationName: 'accounts/123/locations/456',
         },
       ],
     }
@@ -102,6 +103,7 @@ describe('startPropertyImport', () => {
               businessName: 'Biz 1',
               address: null,
               primaryCategory: null,
+              gbpLocationName: 'accounts/123/locations/456',
             },
           ],
         },
@@ -128,6 +130,7 @@ describe('startPropertyImport', () => {
               businessName: 'Biz 1',
               address: null,
               primaryCategory: null,
+              gbpLocationName: 'accounts/123/locations/456',
             },
           ],
         },
@@ -158,6 +161,7 @@ describe('startPropertyImport', () => {
               businessName: 'Biz 1',
               address: null,
               primaryCategory: null,
+              gbpLocationName: 'accounts/123/locations/456',
             },
           ],
         },
@@ -181,12 +185,14 @@ describe('startPropertyImport', () => {
         businessName: 'Biz 1',
         address: '123 Main St',
         primaryCategory: 'restaurant',
+        gbpLocationName: 'accounts/123/locations/456',
       },
       {
         gbpPlaceId: 'ChIJ-2',
         businessName: 'Biz 2',
         address: null,
         primaryCategory: null,
+        gbpLocationName: 'accounts/123/locations/789',
       },
     ]
     const input = { connectionId: CONNECTION_ID, locations }

@@ -12,6 +12,9 @@ export type PropertyCreated = Readonly<{
   organizationId: OrganizationId
   name: string
   slug: string
+  gbpPlaceId?: string
+  gbpLocationName?: string
+  googleConnectionId?: string
   occurredAt: Date
 }>
 
