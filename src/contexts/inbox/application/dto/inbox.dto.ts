@@ -52,6 +52,11 @@ export const getInboxItemDetailDto = z.object({
   inboxItemId: z.string().uuid(),
 })
 
+// GET inbox notes
+export const getInboxNotesDto = z.object({
+  inboxItemId: z.string().uuid(),
+})
+
 // Type exports
 export type GetInboxItemsInput = z.infer<typeof getInboxItemsDto>
 export type UpdateStatusInput = z.infer<typeof updateStatusDto>

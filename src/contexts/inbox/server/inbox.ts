@@ -17,6 +17,7 @@ import {
   addInboxNoteDto,
   getUnreadCountDto,
   getInboxItemDetailDto,
+  getInboxNotesDto,
 } from '../application/dto/inbox.dto'
 import { isInboxError } from '../domain/errors'
 import type { InboxErrorCode } from '../domain/errors'
@@ -243,5 +244,31 @@ export const getInboxItemDetailFn = createServerFn({ method: 'GET' })
       },
       'GET',
       'inbox.getInboxItemDetail',
+    ),
+  )
+
+// ── getInboxNotes ──────────────────────────────────────────────────
+
+export const getInboxNotesFn = createServerFn({ method: 'GET' })
+  .inputValidator(getInboxNotesDto)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const headers = headersFromContext()
+        const ctx = await resolveTenantContext(headers)
+        const { useCases } = getContainer()
+        try {
+          return await useCases.getInboxNotes({
+            inboxItemId: inboxItemId(data.inboxItemId),
+            organizationId: ctx.organizationId,
+          })
+        } catch (e) {
+          if (isInboxError(e))
+            throwContextError('InboxError', e, inboxErrorStatus(e.code))
+          throw e
+        }
+      },
+      'GET',
+      'inbox.getInboxNotes',
     ),
   )

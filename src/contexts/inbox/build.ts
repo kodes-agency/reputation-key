@@ -19,6 +19,7 @@ import { getInboxItems } from './application/use-cases/get-inbox-items'
 import { addInboxNote } from './application/use-cases/add-inbox-note'
 import { getUnreadCount } from './application/use-cases/get-unread-count'
 import { getInboxItemDetail } from './application/use-cases/get-inbox-item-detail'
+import { getInboxNotes } from './application/use-cases/get-inbox-notes'
 import { registerInboxHandlers } from './infrastructure/event-handlers'
 import { inboxItemId, inboxNoteId } from '#/shared/domain/ids'
 
@@ -39,6 +40,7 @@ export type InboxContextApi = Readonly<{
     addInboxNote: ReturnType<typeof addInboxNote>
     getUnreadCount: ReturnType<typeof getUnreadCount>
     getInboxItemDetail: ReturnType<typeof getInboxItemDetail>
+    getInboxNotes: ReturnType<typeof getInboxNotes>
   }>
   inboxRepo: InboxRepository
   inboxNoteRepo: InboxNoteRepository
@@ -97,6 +99,9 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
     }),
     getInboxItemDetail: getInboxItemDetail({
       repo: inboxRepo,
+    }),
+    getInboxNotes: getInboxNotes({
+      noteRepo: inboxNoteRepo,
     }),
   }
 

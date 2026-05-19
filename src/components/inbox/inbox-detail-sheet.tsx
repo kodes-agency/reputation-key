@@ -3,7 +3,11 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { useServerFn } from '@tanstack/react-start'
 import { useAction } from '#/components/hooks/use-action'
 import { useMutationAction } from '#/components/hooks/use-mutation-action'
-import { getInboxItemDetailFn, updateInboxStatusFn } from '#/contexts/inbox/server/inbox'
+import {
+  getInboxItemDetailFn,
+  getInboxNotesFn,
+  updateInboxStatusFn,
+} from '#/contexts/inbox/server/inbox'
 import {
   Sheet,
   SheetContent,
@@ -35,15 +39,20 @@ export function InboxDetailSheet({ open, onOpenChange, item }: Props) {
   const abortRef = useRef(false)
 
   const detailAction = useAction(useServerFn(getInboxItemDetailFn))
+  const notesAction = useAction(useServerFn(getInboxNotesFn))
 
   const loadDetail = useCallback(async () => {
     if (!item) return
     abortRef.current = false
     setIsLoadingDetail(true)
     try {
-      const result = await detailAction({ data: { inboxItemId: item.id } })
-      if (!abortRef.current && result) {
-        setDetail(result)
+      const [detailResult, notesResult] = await Promise.all([
+        detailAction({ data: { inboxItemId: item.id } }),
+        notesAction({ data: { inboxItemId: item.id } }),
+      ])
+      if (!abortRef.current) {
+        if (detailResult) setDetail(detailResult)
+        if (notesResult) setNotes(notesResult)
       }
     } catch {
       // Error is on detailAction.error
