@@ -98,7 +98,12 @@ export const listGbpLocations =
             account.accountName,
           )
           for (const loc of accountLocations) {
-            if (!seen.has(loc.gbpPlaceId)) seen.set(loc.gbpPlaceId, loc)
+            if (!seen.has(loc.gbpPlaceId)) {
+              const name = loc.name.startsWith('accounts/')
+                ? loc.name
+                : `accounts/${account.accountName}/${loc.name}`
+              seen.set(loc.gbpPlaceId, { ...loc, name })
+            }
           }
         }
         locations = [...seen.values()]

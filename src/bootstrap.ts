@@ -11,7 +11,7 @@ import { isDbHealthy } from '#/shared/db'
 import { isRedisHealthy } from '#/shared/cache/redis'
 import { getLogger } from '#/shared/observability/logger'
 import { createProcessImageJob } from '#/contexts/portal/infrastructure/jobs/process-image.job'
-import { importPropertyHandler } from '#/contexts/integration/infrastructure/jobs/import-property.job'
+import { createImportPropertyHandler } from '#/contexts/integration/infrastructure/jobs/import-property.job'
 import { createSyncPropertyReviewsHandler } from '#/contexts/review/infrastructure/jobs/sync-property-reviews.job'
 import { createRefreshExpiringReviewsHandler } from '#/contexts/review/infrastructure/jobs/refresh-expiring-reviews.job'
 import { createPurgeExpiredReviewsHandler } from '#/contexts/review/infrastructure/jobs/purge-expired-reviews.job'
@@ -49,8 +49,11 @@ export function bootstrap(container: Container): void {
   logger.info({ job: 'process-image' }, 'registered process-image job handler')
 
   // ── GBP property import job ─────────────────────────────────────
+  const importHandler = createImportPropertyHandler({
+    events: container.eventBus,
+  })
   container.jobRegistry.register('import-property', async (job) => {
-    await importPropertyHandler(
+    await importHandler(
       job as import('bullmq').Job<
         import('#/contexts/integration/infrastructure/jobs/import-property.job').ImportPropertyJobData
       >,
@@ -76,7 +79,10 @@ export function bootstrap(container: Container): void {
       >,
     )
   })
-  logger.info({ job: 'sync-property-reviews' }, 'registered sync-property-reviews job handler')
+  logger.info(
+    { job: 'sync-property-reviews' },
+    'registered sync-property-reviews job handler',
+  )
 
   // ── Review retention jobs ────────────────────────────────────────
   const refreshHandler = createRefreshExpiringReviewsHandler({
@@ -87,7 +93,10 @@ export function bootstrap(container: Container): void {
   container.jobRegistry.register('refresh-expiring-reviews', async (job) => {
     await refreshHandler(job)
   })
-  logger.info({ job: 'refresh-expiring-reviews' }, 'registered refresh-expiring-reviews job handler')
+  logger.info(
+    { job: 'refresh-expiring-reviews' },
+    'registered refresh-expiring-reviews job handler',
+  )
 
   const purgeHandler = createPurgeExpiredReviewsHandler({
     reviewRepo: container.reviewRepo,
@@ -97,7 +106,10 @@ export function bootstrap(container: Container): void {
   container.jobRegistry.register('purge-expired-reviews', async (job) => {
     await purgeHandler(job)
   })
-  logger.info({ job: 'purge-expired-reviews' }, 'registered purge-expired-reviews job handler')
+  logger.info(
+    { job: 'purge-expired-reviews' },
+    'registered purge-expired-reviews job handler',
+  )
 
   // ── Register event handlers here as contexts are added ────────────
   // Example:

@@ -1,6 +1,7 @@
 // Worker entry point — plain Node script, no Nitro
 // Built separately with tsup, runs as: node dist/worker.js
 
+import 'dotenv/config'
 import { getEnv } from '#/shared/config/env'
 import { getLogger } from '#/shared/observability/logger'
 import { createContainer } from '#/composition'

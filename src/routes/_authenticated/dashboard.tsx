@@ -3,11 +3,70 @@
 import { createFileRoute, getRouteApi, Link, useNavigate } from '@tanstack/react-router'
 import { Button } from '#/components/ui/button'
 import { Badge } from '#/components/ui/badge'
-import { Plus, ChevronRight } from 'lucide-react'
+import { Plus, ChevronRight, Trash2 } from 'lucide-react'
 import { useEffect } from 'react'
 import { usePermissions } from '#/shared/hooks/usePermissions'
+import { deleteProperty } from '#/contexts/property/server/properties'
+import { useMutationAction } from '#/components/hooks/use-mutation-action'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '#/components/ui/alert-dialog'
 
 const authRoute = getRouteApi('/_authenticated')
+
+function DeletePropertyDialog({
+  propertyId,
+  propertyName,
+}: {
+  propertyId: string
+  propertyName: string
+}) {
+  const deleteAction = useMutationAction(deleteProperty, {
+    successMessage: `"${propertyName}" deleted`,
+    invalidateRoutes: ['/_authenticated'],
+  })
+
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-8 text-muted-foreground hover:text-destructive"
+        >
+          <Trash2 className="size-4" />
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete property</AlertDialogTitle>
+          <AlertDialogDescription>
+            Are you sure you want to delete &quot;{propertyName}&quot;? This will remove
+            all associated reviews, inbox items, and team assignments. This action cannot
+            be undone.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={() => deleteAction({ data: { propertyId } })}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            Delete
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  )
+}
 
 export const Route = createFileRoute('/_authenticated/dashboard')({
   component: DashboardPage,
@@ -73,23 +132,28 @@ function DashboardPage() {
 
       <div className="flex flex-col gap-2">
         {properties.map((p) => (
-          <Link
+          <div
             key={p.id}
-            to="/properties/$propertyId"
-            params={{ propertyId: p.id }}
-            className="block rounded-lg border p-4 transition-colors hover:bg-accent"
+            className="flex items-center justify-between rounded-lg border p-4 transition-colors hover:bg-accent cursor-pointer"
+            onClick={() =>
+              navigate({
+                to: '/properties/$propertyId',
+                params: { propertyId: p.id },
+              })
+            }
           >
-            <div className="flex items-center justify-between">
-              <div className="flex flex-col gap-1">
-                <p className="font-semibold">{p.name}</p>
-                <div className="flex items-center gap-2">
-                  <Badge variant="secondary">{p.slug}</Badge>
-                  <span className="text-sm text-muted-foreground">{p.timezone}</span>
-                </div>
+            <div className="flex flex-col gap-1">
+              <p className="font-semibold">{p.name}</p>
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary">{p.slug}</Badge>
+                <span className="text-sm text-muted-foreground">{p.timezone}</span>
               </div>
+            </div>
+            <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+              <DeletePropertyDialog propertyId={p.id} propertyName={p.name} />
               <ChevronRight className="size-4 text-muted-foreground" />
             </div>
-          </Link>
+          </div>
         ))}
       </div>
     </div>

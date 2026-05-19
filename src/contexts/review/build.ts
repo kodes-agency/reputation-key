@@ -13,6 +13,7 @@ import { createReviewRepository } from './infrastructure/repositories/review.rep
 import { createReplyRepository } from './infrastructure/repositories/reply.repository'
 import { syncReviews } from './application/use-cases/sync-reviews'
 import { reviewId, replyId } from '#/shared/domain/ids'
+import { registerReviewHandlers } from './infrastructure/event-handlers'
 
 export type ReviewContextBuildInput = Readonly<{
   db: Database
@@ -50,6 +51,12 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
         },
       }
 
+  // Register cross-context event handlers
+  registerReviewHandlers({
+    events: input.events,
+    queue,
+  })
+
   return {
     syncReviews: syncReviews({
       reviewRepo,
@@ -63,5 +70,5 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     reviewRepo,
     replyRepo,
     queue,
-  }
+  } as const
 }
