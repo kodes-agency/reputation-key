@@ -10,7 +10,7 @@ import type { Role } from '#/shared/domain/roles'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { validateTransition } from '../../domain/rules'
 import { inboxStatusChanged } from '../../domain/events'
-import { hasRole } from '#/shared/domain/roles'
+import { hasRole, ADMIN_ROLE } from '#/shared/domain/roles'
 
 export type BulkUpdateInboxStatusInput = Readonly<{
   inboxItemIds: ReadonlyArray<InboxItemId>
@@ -50,7 +50,7 @@ export const bulkUpdateInboxStatus =
       if (!item) continue
 
       // Enforce role-scoped property access
-      if (!hasRole(input.role, 'AccountAdmin' as Role)) {
+      if (!hasRole(input.role, ADMIN_ROLE)) {
         let accessible: Awaited<ReturnType<StaffPublicApi['getAccessiblePropertyIds']>> = // eslint-disable-line no-useless-assignment
           null
         try {

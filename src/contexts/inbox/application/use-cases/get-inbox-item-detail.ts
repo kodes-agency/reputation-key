@@ -7,7 +7,7 @@ import type { InboxItemId, OrganizationId, UserId } from '#/shared/domain/ids'
 import type { InboxItemDetail } from '../../domain/types'
 import type { Role } from '#/shared/domain/roles'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
-import { hasRole } from '#/shared/domain/roles'
+import { hasRole, ADMIN_ROLE } from '#/shared/domain/roles'
 import { inboxError } from '../../domain/errors'
 
 export type GetInboxItemDetailInput = Readonly<{
@@ -33,7 +33,7 @@ export const getInboxItemDetail =
       })
     }
 
-    if (!hasRole(input.role, 'AccountAdmin' as Role)) {
+    if (!hasRole(input.role, ADMIN_ROLE)) {
       const accessible = await deps.staffPublicApi.getAccessiblePropertyIds(
         input.organizationId,
         input.userId,

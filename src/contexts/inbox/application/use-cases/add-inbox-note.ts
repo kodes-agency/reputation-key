@@ -14,7 +14,7 @@ import type { Role } from '#/shared/domain/roles'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { createInboxNote } from '../../domain/constructors'
 import { inboxError } from '../../domain/errors'
-import { hasRole } from '#/shared/domain/roles'
+import { hasRole, ADMIN_ROLE } from '#/shared/domain/roles'
 
 export type AddInboxNoteInput = Readonly<{
   inboxItemId: InboxItemId
@@ -45,7 +45,7 @@ export const addInboxNote =
     }
 
     // Enforce role-scoped property access
-    if (!hasRole(input.role, 'AccountAdmin' as Role)) {
+    if (!hasRole(input.role, ADMIN_ROLE)) {
       const accessible = await deps.staffPublicApi.getAccessiblePropertyIds(
         input.organizationId,
         input.authorUserId,

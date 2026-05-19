@@ -7,7 +7,7 @@ import type { Cursor, InboxFilters, PaginatedResult } from '../ports/inbox.repos
 import type { OrganizationId, UserId } from '#/shared/domain/ids'
 import type { Role } from '#/shared/domain/roles'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
-import { hasRole } from '#/shared/domain/roles'
+import { hasRole, ADMIN_ROLE } from '#/shared/domain/roles'
 import { propertyId as toPropertyId } from '#/shared/domain/ids'
 import { inboxError } from '../../domain/errors'
 
@@ -31,7 +31,7 @@ export const getInboxItems =
   async (input: GetInboxItemsInput): Promise<PaginatedResult> => {
     let propertyIds: ReadonlyArray<ReturnType<typeof toPropertyId>> | undefined
 
-    if (!hasRole(input.role, 'AccountAdmin' as Role)) {
+    if (!hasRole(input.role, ADMIN_ROLE)) {
       const accessible = await deps.staffPublicApi.getAccessiblePropertyIds(
         input.organizationId,
         input.userId,

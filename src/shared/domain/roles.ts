@@ -17,6 +17,9 @@ export const ROLE_HIERARCHY: Readonly<Record<Role, number>> = {
   AccountAdmin: 2,
 }
 
+/** Admin role constant for type-safe role checks. */
+export const ADMIN_ROLE: Role = 'AccountAdmin'
+
 /** Check if a role meets a minimum required role. */
 export function hasRole(userRole: Role, requiredRole: Role): boolean {
   return ROLE_HIERARCHY[userRole] >= ROLE_HIERARCHY[requiredRole]
