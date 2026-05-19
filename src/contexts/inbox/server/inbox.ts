@@ -160,6 +160,7 @@ export const assignInboxItemFn = createServerFn({ method: 'POST' })
               ? toUserId(data.assignedToUserId)
               : null,
             role: ctx.role,
+            userId: ctx.userId,
           })
         } catch (e) {
           if (isInboxError(e))

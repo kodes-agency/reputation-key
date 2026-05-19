@@ -11,16 +11,21 @@ import {
   userId,
 } from '#/shared/domain/ids'
 import type { InboxItem, InboxStatus, SourceType } from '../../domain/types'
+import type { Role } from '#/shared/domain/roles'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 
 const FIXED_TIME = new Date('2026-04-15T12:00:00Z')
 const ORG_ID = organizationId('org-1')
 const ITEM_ID = inboxItemId('ii-1')
 const ASSIGNEE_ID = userId('user-2')
+const USER_ID = userId('user-1')
+const PROP_1 = propertyId('prop-1')
+const PROP_OTHER = propertyId('prop-other')
 
 const seedItem = (): InboxItem => ({
   id: ITEM_ID,
   organizationId: ORG_ID,
-  propertyId: propertyId('prop-1'),
+  propertyId: PROP_1,
   sourceType: 'review' as SourceType,
   sourceId: reviewId('rev-1'),
   status: 'new' as InboxStatus,
@@ -40,9 +45,12 @@ const seedItem = (): InboxItem => ({
 const setup = () => {
   const repo = createInMemoryInboxRepo()
   const events = createCapturingEventBus()
-  const deps = { repo, events, clock: () => FIXED_TIME }
+  const staffPublicApi: StaffPublicApi = {
+    getAccessiblePropertyIds: async () => null, // Default: admin (no restrictions)
+  }
+  const deps = { repo, events, clock: () => FIXED_TIME, staffPublicApi }
   const useCase = assignInboxItem(deps)
-  return { useCase, repo, events }
+  return { useCase, repo, events, staffPublicApi }
 }
 
 describe('assignInboxItem', () => {
@@ -54,7 +62,8 @@ describe('assignInboxItem', () => {
       inboxItemId: ITEM_ID,
       organizationId: ORG_ID,
       assignedToUserId: ASSIGNEE_ID,
-      role: 'PropertyManager',
+      role: 'PropertyManager' as Role,
+      userId: USER_ID,
     })
 
     expect(updated.assignedTo).toBe(ASSIGNEE_ID)
@@ -68,7 +77,8 @@ describe('assignInboxItem', () => {
       inboxItemId: ITEM_ID,
       organizationId: ORG_ID,
       assignedToUserId: ASSIGNEE_ID,
-      role: 'AccountAdmin',
+      role: 'AccountAdmin' as Role,
+      userId: USER_ID,
     })
 
     expect(updated.assignedTo).toBe(ASSIGNEE_ID)
@@ -83,7 +93,8 @@ describe('assignInboxItem', () => {
         inboxItemId: ITEM_ID,
         organizationId: ORG_ID,
         assignedToUserId: ASSIGNEE_ID,
-        role: 'Staff',
+        role: 'Staff' as Role,
+        userId: USER_ID,
       }),
     ).rejects.toSatisfy(
       (e: unknown) => isInboxError(e) && e.code === 'assignment_not_allowed',
@@ -98,7 +109,8 @@ describe('assignInboxItem', () => {
         inboxItemId: ITEM_ID,
         organizationId: ORG_ID,
         assignedToUserId: ASSIGNEE_ID,
-        role: 'PropertyManager',
+        role: 'PropertyManager' as Role,
+        userId: USER_ID,
       }),
     ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'not_found')
   })
@@ -111,7 +123,8 @@ describe('assignInboxItem', () => {
       inboxItemId: ITEM_ID,
       organizationId: ORG_ID,
       assignedToUserId: ASSIGNEE_ID,
-      role: 'PropertyManager',
+      role: 'PropertyManager' as Role,
+      userId: USER_ID,
     })
 
     const emitted = events.capturedEvents
@@ -127,9 +140,46 @@ describe('assignInboxItem', () => {
       inboxItemId: ITEM_ID,
       organizationId: ORG_ID,
       assignedToUserId: null,
-      role: 'PropertyManager',
+      role: 'PropertyManager' as Role,
+      userId: USER_ID,
     })
 
     expect(events.capturedEvents).toHaveLength(0)
+  })
+
+  it('throws forbidden when non-admin assigns item for inaccessible property', async () => {
+    const { useCase, repo, staffPublicApi } = setup()
+    repo.items.push(seedItem())
+
+    // Mock staffApi to return a different property that doesn't include prop-1
+    staffPublicApi.getAccessiblePropertyIds = async () => [PROP_OTHER]
+
+    await expect(
+      useCase({
+        inboxItemId: ITEM_ID,
+        organizationId: ORG_ID,
+        assignedToUserId: ASSIGNEE_ID,
+        role: 'PropertyManager' as Role,
+        userId: USER_ID,
+      }),
+    ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'forbidden')
+  })
+
+  it('allows assignment when user has access to the property', async () => {
+    const { useCase, repo, staffPublicApi } = setup()
+    repo.items.push(seedItem())
+
+    // Mock staffApi to return prop-1 in accessible list
+    staffPublicApi.getAccessiblePropertyIds = async () => [PROP_1]
+
+    const updated = await useCase({
+      inboxItemId: ITEM_ID,
+      organizationId: ORG_ID,
+      assignedToUserId: ASSIGNEE_ID,
+      role: 'PropertyManager' as Role,
+      userId: USER_ID,
+    })
+
+    expect(updated.assignedTo).toBe(ASSIGNEE_ID)
   })
 })

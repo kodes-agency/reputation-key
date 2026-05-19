@@ -88,6 +88,7 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
       repo: inboxRepo,
       events: input.events,
       clock: input.clock,
+      staffPublicApi: input.staffPublicApi,
     }),
     getInboxItems: getInboxItems({
       repo: inboxRepo,
