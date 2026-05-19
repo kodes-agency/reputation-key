@@ -120,7 +120,14 @@ export function InboxDetailContent({
               disabled={updateStatus.isPending}
               onClick={() => {
                 updateStatus({
-                  data: { inboxItemId: currentItem.id, status: action.targetStatus },
+                  data: {
+                    inboxItemId: currentItem.id,
+                    status: action.targetStatus as
+                      | 'read'
+                      | 'addressed'
+                      | 'escalated'
+                      | 'archived',
+                  },
                 })
               }}
             >

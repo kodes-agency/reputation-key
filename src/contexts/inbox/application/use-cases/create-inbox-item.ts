@@ -9,6 +9,7 @@ import type {
   PropertyId,
   ReviewId,
   FeedbackId,
+  UserId,
 } from '#/shared/domain/ids'
 import type { SourceType, InboxItem } from '../../domain/types'
 import { createInboxItem } from '../../domain/constructors'

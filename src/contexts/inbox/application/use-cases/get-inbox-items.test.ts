@@ -16,13 +16,14 @@ const OTHER_ORG_ID = organizationId('org-2')
 const PROP_ID = propertyId('prop-1')
 const OTHER_PROP_ID = propertyId('prop-2')
 
-function seedItem(overrides: Partial<InboxItem> & { id: string }): InboxItem {
+function seedItem(overrides: Omit<Partial<InboxItem>, 'id'> & { id: string }): InboxItem {
+  const { id, ...restOverrides } = overrides
   return {
-    id: inboxItemId(overrides.id),
+    id: inboxItemId(id),
     organizationId: ORG_ID,
     propertyId: PROP_ID,
     sourceType: 'review' as SourceType,
-    sourceId: reviewId(`rev-${overrides.id}`),
+    sourceId: reviewId(`rev-${id}`),
     status: 'new' as InboxStatus,
     rating: 4,
     sourceDate: new Date('2026-04-10'),
@@ -35,7 +36,7 @@ function seedItem(overrides: Partial<InboxItem> & { id: string }): InboxItem {
     archivedAt: null,
     createdAt: FIXED_TIME,
     updatedAt: FIXED_TIME,
-    ...overrides,
+    ...(restOverrides as Partial<InboxItem>),
   }
 }
 

@@ -11,6 +11,7 @@ import {
 } from '#/shared/domain/ids'
 import { isInboxError } from '../../domain/errors'
 import type { InboxNote, InboxStatus, SourceType } from '../../domain/types'
+import type { InboxItem } from '../../domain/types'
 import type { InboxNoteRepository } from '../ports/inbox-note.repository'
 
 function createInMemoryNoteRepo(): InboxNoteRepository & { notes: InboxNote[] } {

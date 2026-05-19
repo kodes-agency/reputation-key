@@ -15,7 +15,6 @@ import type { InboxItem, InboxStatus, SourceType } from '../../domain/types'
 const FIXED_TIME = new Date('2026-04-15T12:00:00Z')
 const ORG_ID = organizationId('org-1')
 const ITEM_ID = inboxItemId('ii-1')
-const _USER_ID = userId('user-1')
 const ASSIGNEE_ID = userId('user-2')
 
 const seedItem = (): InboxItem => ({
