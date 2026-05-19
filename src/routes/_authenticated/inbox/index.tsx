@@ -361,7 +361,20 @@ function InboxPage() {
 
           {/* Detail content */}
           <div className="flex-1 overflow-y-auto">
-            {detailState.isLoading || !currentItem ? (
+            {detailState.error ? (
+              <div className="space-y-4 p-4">
+                <p className="text-sm text-destructive">{detailState.error}</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    void detailState.refresh()
+                  }}
+                >
+                  Retry
+                </Button>
+              </div>
+            ) : detailState.isLoading || !currentItem ? (
               <div className="space-y-4 p-4">
                 <Skeleton className="h-6 w-3/4" />
                 <Skeleton className="h-20 w-full" />

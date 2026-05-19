@@ -13,6 +13,7 @@ import type { InboxItem } from '#/contexts/inbox/application/public-api'
 import { getStatusActions } from './inbox-detail-helpers'
 import { InboxStatusBadge } from './inbox-status-badge'
 import type { InboxDetailState } from './use-inbox-detail'
+import { Button } from '#/components/ui/button'
 
 type Props = Readonly<{
   open: boolean
@@ -46,7 +47,14 @@ export function InboxDetailSheet({ open, onOpenChange, item, detailState }: Prop
           </SheetDescription>
         </SheetHeader>
 
-        {detailState.isLoading || !detailState.currentItem ? (
+        {detailState.error ? (
+          <div className="space-y-4 p-4">
+            <p className="text-sm text-destructive">{detailState.error}</p>
+            <Button variant="outline" size="sm" onClick={detailState.refresh}>
+              Retry
+            </Button>
+          </div>
+        ) : detailState.isLoading || !detailState.currentItem ? (
           <div className="space-y-4 p-4">
             <Skeleton className="h-6 w-3/4" />
             <Skeleton className="h-20 w-full" />

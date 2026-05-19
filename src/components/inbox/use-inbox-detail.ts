@@ -23,6 +23,7 @@ export type InboxDetailState = Readonly<{
   currentItem: InboxItem | null
   updateStatus: ReturnType<typeof useMutationAction<typeof updateInboxStatusFn>>
   refresh: () => void
+  error: string | null
 }>
 
 export function useInboxDetail(
@@ -32,6 +33,7 @@ export function useInboxDetail(
   const [detail, setDetail] = useState<InboxItemDetail | null>(null)
   const [notes, setNotes] = useState<ReadonlyArray<InboxNote>>([])
   const [isLoadingDetail, setIsLoadingDetail] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const abortRef = useRef(false)
 
   const detailAction = useAction(useServerFn(getInboxItemDetailFn))
@@ -46,6 +48,7 @@ export function useInboxDetail(
   const loadDetail = useCallback(async () => {
     if (!item) return
     abortRef.current = false
+    setError(null)
     setIsLoadingDetail(true)
     try {
       const [detailResult, notesResult] = await Promise.all([
@@ -57,7 +60,7 @@ export function useInboxDetail(
         if (notesResult) setNotes(notesResult)
       }
     } catch {
-      // Error is on detailAction.error
+      if (!abortRef.current) setError('Failed to load detail. Try again.')
     } finally {
       if (!abortRef.current) setIsLoadingDetail(false)
     }
@@ -92,5 +95,6 @@ export function useInboxDetail(
     currentItem: detail?.item ?? item,
     updateStatus,
     refresh: loadDetail,
+    error,
   }
 }

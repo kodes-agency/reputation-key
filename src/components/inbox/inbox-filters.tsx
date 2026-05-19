@@ -57,6 +57,7 @@ export function InboxFilters({ value, onChange }: Props) {
   const [properties, setProperties] = useState<
     ReadonlyArray<{ id: string; name: string }>
   >([])
+  const [propertiesError, setPropertiesError] = useState(false)
   const propertyAction = useAction(useServerFn(listProperties))
   const propAbortRef = useRef(false)
 
@@ -77,7 +78,7 @@ export function InboxFilters({ value, onChange }: Props) {
         )
       }
     } catch {
-      // Non-critical — filter just won't show properties
+      setPropertiesError(true)
     }
   }, [])
 
@@ -91,6 +92,10 @@ export function InboxFilters({ value, onChange }: Props) {
   return (
     <div className="flex flex-wrap items-center gap-3">
       <Filter className="size-4 text-muted-foreground" />
+
+      {propertiesError && (
+        <span className="text-xs text-muted-foreground">Properties unavailable</span>
+      )}
 
       {properties.length > 1 && (
         <Select
