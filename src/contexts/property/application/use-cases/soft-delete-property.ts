@@ -1,4 +1,4 @@
-// Property context — soft-delete property use case
+// Property context — hard-delete property use case
 
 import type { PropertyRepository } from '../ports/property.repository'
 import type { AuthContext } from '#/shared/domain/auth-context'
@@ -9,20 +9,20 @@ import { propertyError } from '../../domain/errors'
 import { propertyDeleted } from '../../domain/events'
 
 // fallow-ignore-next-line unused-type
-export type SoftDeletePropertyDeps = Readonly<{
+export type DeletePropertyDeps = Readonly<{
   propertyRepo: PropertyRepository
   events: EventBus
   clock: () => Date
 }>
 
 // fallow-ignore-next-line unused-type
-export type SoftDeletePropertyInput = Readonly<{
+export type DeletePropertyInput = Readonly<{
   propertyId: string
 }>
 
-export const softDeleteProperty =
-  (deps: SoftDeletePropertyDeps) =>
-  async (input: SoftDeletePropertyInput, ctx: AuthContext): Promise<void> => {
+export const deleteProperty =
+  (deps: DeletePropertyDeps) =>
+  async (input: DeletePropertyInput, ctx: AuthContext): Promise<void> => {
     // 1. Authorize — only AccountAdmin can delete
     if (!can(ctx.role, 'property.delete')) {
       throw propertyError('forbidden', 'only AccountAdmin can delete properties')
@@ -35,10 +35,10 @@ export const softDeleteProperty =
       throw propertyError('property_not_found', 'property not found in this organization')
     }
 
-    // 5. Persist (soft delete)
-    await deps.propertyRepo.softDelete(ctx.organizationId, propertyId)
+    // 3. Hard delete — cascades to reviews, replies, inbox items via FK
+    await deps.propertyRepo.hardDelete(ctx.organizationId, propertyId)
 
-    // 6. Emit event
+    // 4. Emit event
     await deps.events.emit(
       propertyDeleted({
         propertyId,
@@ -49,4 +49,4 @@ export const softDeleteProperty =
   }
 
 // fallow-ignore-next-line unused-type
-export type SoftDeleteProperty = ReturnType<typeof softDeleteProperty>
+export type DeletePropertyUseCase = ReturnType<typeof deleteProperty>

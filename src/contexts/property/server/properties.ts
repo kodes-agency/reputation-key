@@ -134,7 +134,7 @@ export const getProperty = createServerFn({ method: 'GET' })
     ),
   )
 
-// ── deleteProperty (soft-delete) ───────────────────────────────────
+// ── deleteProperty ──────────────────────────────────────────────────
 
 export const deleteProperty = createServerFn({ method: 'POST' })
   .inputValidator(propertyIdSchema)

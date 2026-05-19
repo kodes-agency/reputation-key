@@ -11,7 +11,7 @@ import { createProperty } from './application/use-cases/create-property'
 import { updateProperty } from './application/use-cases/update-property'
 import { listProperties } from './application/use-cases/list-properties'
 import { getProperty } from './application/use-cases/get-property'
-import { softDeleteProperty } from './application/use-cases/soft-delete-property'
+import { deleteProperty } from './application/use-cases/soft-delete-property'
 import { propertyId } from '#/shared/domain/ids'
 import { randomUUID } from 'crypto'
 
@@ -44,7 +44,7 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
     getProperty: getProperty({
       propertyRepo: deps.repo,
     }),
-    softDeleteProperty: softDeleteProperty({
+    softDeleteProperty: deleteProperty({
       propertyRepo: deps.repo,
       events: deps.events,
       clock: deps.clock,

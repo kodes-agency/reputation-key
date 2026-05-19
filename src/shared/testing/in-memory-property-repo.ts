@@ -45,10 +45,10 @@ export const createInMemoryPropertyRepo = (): InMemoryPropertyRepo => {
       store.set(id, { ...existing, ...patch })
     },
 
-    softDelete: async (orgId, id) => {
+    hardDelete: async (orgId, id) => {
       const existing = store.get(id)
       if (!existing || !isAccessible(orgId, existing)) return
-      store.set(id, { ...existing, deletedAt: new Date(), updatedAt: new Date() })
+      store.delete(id)
     },
 
     // ── Test-only helpers ───────────────────────────────────────────
