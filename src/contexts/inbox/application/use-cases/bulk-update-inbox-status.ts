@@ -6,14 +6,18 @@ import type { UnreadCounterPort } from '../ports/unread-counter.port'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { InboxItemId, OrganizationId, UserId } from '#/shared/domain/ids'
 import type { InboxStatus } from '../../domain/types'
+import type { Role } from '#/shared/domain/roles'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { validateTransition } from '../../domain/rules'
 import { inboxStatusChanged } from '../../domain/events'
+import { hasRole } from '#/shared/domain/roles'
 
 export type BulkUpdateInboxStatusInput = Readonly<{
   inboxItemIds: ReadonlyArray<InboxItemId>
   organizationId: OrganizationId
   newStatus: InboxStatus
   userId: UserId
+  role: Role
 }>
 
 // fallow-ignore-next-line unused-type
@@ -22,6 +26,7 @@ export type BulkUpdateInboxStatusDeps = Readonly<{
   events: EventBus
   unreadCounter: UnreadCounterPort
   clock: () => Date
+  staffPublicApi: StaffPublicApi
 }>
 
 export const bulkUpdateInboxStatus =
@@ -43,6 +48,31 @@ export const bulkUpdateInboxStatus =
     for (const id of input.inboxItemIds) {
       const item = await deps.repo.findById(id, input.organizationId)
       if (!item) continue
+
+      // Enforce role-scoped property access
+      if (!hasRole(input.role, 'AccountAdmin' as Role)) {
+        let accessible: Awaited<ReturnType<StaffPublicApi['getAccessiblePropertyIds']>> = // eslint-disable-line no-useless-assignment
+          null
+        try {
+          accessible = await deps.staffPublicApi.getAccessiblePropertyIds(
+            input.organizationId,
+            input.userId,
+            input.role,
+          )
+        } catch {
+          continue // If access check fails, skip this item
+        }
+        if (
+          accessible !== null &&
+          !accessible.includes(
+            item.propertyId as ReturnType<
+              typeof import('#/shared/domain/ids').propertyId
+            >,
+          )
+        ) {
+          continue // Skip items from inaccessible properties
+        }
+      }
 
       const transitionResult = validateTransition(item.status, input.newStatus)
       if (transitionResult.isOk()) {

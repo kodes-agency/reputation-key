@@ -11,16 +11,18 @@ import {
 } from '#/shared/domain/ids'
 import type { InboxItem, InboxStatus, SourceType } from '../../domain/types'
 import type { UnreadCounterPort } from '../ports/unread-counter.port'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { Role } from '#/shared/domain/roles'
 
 const FIXED_TIME = new Date('2026-04-15T12:00:00Z')
 const ORG_ID = organizationId('org-1')
 const USER_ID = userId('user-1')
 
-function seedItem(id: string, status: InboxStatus): InboxItem {
+function seedItem(id: string, status: InboxStatus, propId: string = 'prop-1'): InboxItem {
   return {
     id: inboxItemId(id),
     organizationId: ORG_ID,
-    propertyId: propertyId('prop-1'),
+    propertyId: propertyId(propId),
     sourceType: 'review' as SourceType,
     sourceId: reviewId(`rev-${id}`),
     status,
@@ -51,9 +53,13 @@ const setup = () => {
     },
     invalidate: async () => {},
   }
-  const deps = { repo, events, unreadCounter, clock: () => FIXED_TIME }
+  const staffPublicApi: StaffPublicApi = {
+    getAccessiblePropertyIds: async () => [propertyId('prop-1'), propertyId('prop-2')],
+    getStaffMember: async () => null,
+  }
+  const deps = { repo, events, unreadCounter, clock: () => FIXED_TIME, staffPublicApi }
   const useCase = bulkUpdateInboxStatus(deps)
-  return { useCase, repo, events, decrements }
+  return { useCase, repo, events, decrements, staffPublicApi }
 }
 
 describe('bulkUpdateInboxStatus', () => {
@@ -67,6 +73,7 @@ describe('bulkUpdateInboxStatus', () => {
       organizationId: ORG_ID,
       newStatus: 'read',
       userId: USER_ID,
+      role: 'AccountAdmin' as Role,
     })
 
     expect(result.updated).toBe(2)
@@ -84,6 +91,7 @@ describe('bulkUpdateInboxStatus', () => {
       organizationId: ORG_ID,
       newStatus: 'read',
       userId: USER_ID,
+      role: 'AccountAdmin' as Role,
     })
 
     // ii-1: new→read (valid), ii-2: archived→read (valid per rules)
@@ -100,6 +108,7 @@ describe('bulkUpdateInboxStatus', () => {
       organizationId: ORG_ID,
       newStatus: 'new', // addressed → new is invalid
       userId: USER_ID,
+      role: 'AccountAdmin' as Role,
     })
 
     expect(result.updated).toBe(0)
@@ -115,6 +124,7 @@ describe('bulkUpdateInboxStatus', () => {
       organizationId: ORG_ID,
       newStatus: 'read',
       userId: USER_ID,
+      role: 'AccountAdmin' as Role,
     })
 
     const emitted = events.capturedByTag('inbox.status.changed')
@@ -131,8 +141,51 @@ describe('bulkUpdateInboxStatus', () => {
       organizationId: ORG_ID,
       newStatus: 'read',
       userId: USER_ID,
+      role: 'AccountAdmin' as Role,
     })
 
     expect(decrements).toHaveLength(2)
+  })
+
+  it('filters out items from inaccessible properties for non-admin', async () => {
+    const { useCase, repo, staffPublicApi } = setup()
+    repo.items.push(seedItem('ii-1', 'new', 'prop-1'))
+    repo.items.push(seedItem('ii-2', 'new', 'prop-2'))
+
+    staffPublicApi.getAccessiblePropertyIds = async () => [propertyId('prop-1')]
+
+    const result = await useCase({
+      inboxItemIds: [inboxItemId('ii-1'), inboxItemId('ii-2')],
+      organizationId: ORG_ID,
+      newStatus: 'read',
+      userId: USER_ID,
+      role: 'PropertyManager' as Role,
+    })
+
+    expect(result.updated).toBe(1)
+    expect(repo.items[0].status).toBe('read')
+    expect(repo.items[1].status).toBe('new')
+  })
+
+  it('processes all items for AccountAdmin', async () => {
+    const { useCase, repo, staffPublicApi } = setup()
+    repo.items.push(seedItem('ii-1', 'new', 'prop-1'))
+    repo.items.push(seedItem('ii-2', 'new', 'prop-2'))
+
+    staffPublicApi.getAccessiblePropertyIds = async () => {
+      throw new Error('Should not be called for AccountAdmin')
+    }
+
+    const result = await useCase({
+      inboxItemIds: [inboxItemId('ii-1'), inboxItemId('ii-2')],
+      organizationId: ORG_ID,
+      newStatus: 'read',
+      userId: USER_ID,
+      role: 'AccountAdmin' as Role,
+    })
+
+    expect(result.updated).toBe(2)
+    expect(repo.items[0].status).toBe('read')
+    expect(repo.items[1].status).toBe('read')
   })
 })

@@ -129,6 +129,7 @@ export const bulkUpdateInboxStatusFn = createServerFn({ method: 'POST' })
             organizationId: ctx.organizationId,
             newStatus: data.status,
             userId: ctx.userId,
+            role: ctx.role,
           })
         } catch (e) {
           if (isInboxError(e))
