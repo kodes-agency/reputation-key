@@ -15,7 +15,13 @@ export type RegisterInboxHandlersDeps = Readonly<{
 }>
 
 export const registerInboxHandlers = (deps: RegisterInboxHandlersDeps): void => {
-  deps.events.on('review.created', onReviewCreated(deps))
-  deps.events.on('feedback.submitted', onFeedbackSubmitted(deps))
+  deps.events.on(
+    'review.created',
+    onReviewCreated({ createInboxItem: deps.createInboxItem }),
+  )
+  deps.events.on(
+    'feedback.submitted',
+    onFeedbackSubmitted({ createInboxItem: deps.createInboxItem }),
+  )
   deps.events.on('review.updated', onReviewUpdated(deps))
 }
