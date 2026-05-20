@@ -62,16 +62,36 @@ type InnerProps = Readonly<{
 }>
 
 function ReplyEditorInner({ reviewId, reply, loading, onReplyChanged }: InnerProps) {
-  const mut = (fn: typeof draftReplyFn, msg: string, cb: (r: ReplyData | null) => void) =>
-    useMutationAction(fn, { successMessage: msg, invalidate: false, onSuccess: cb })
-
-  const draft = mut(draftReplyFn, 'Draft saved', onReplyChanged)
-  const submit = mut(submitReplyFn, 'Submitted for approval', onReplyChanged)
-  const approve = mut(approveReplyFn, 'Approved and publishing', onReplyChanged)
-  const reject = mut(rejectReplyFn, 'Reply rejected', onReplyChanged)
-  const del = mut(deleteReplyFn, 'Reply deleted', () => onReplyChanged(null))
-  const retry = mut(retryPublishFn, 'Retrying publish...', onReplyChanged)
-
+  const draft = useMutationAction(draftReplyFn, {
+    successMessage: 'Draft saved',
+    invalidate: false,
+    onSuccess: onReplyChanged,
+  })
+  const submit = useMutationAction(submitReplyFn, {
+    successMessage: 'Submitted for approval',
+    invalidate: false,
+    onSuccess: onReplyChanged,
+  })
+  const approve = useMutationAction(approveReplyFn, {
+    successMessage: 'Approved and publishing',
+    invalidate: false,
+    onSuccess: onReplyChanged,
+  })
+  const reject = useMutationAction(rejectReplyFn, {
+    successMessage: 'Reply rejected',
+    invalidate: false,
+    onSuccess: onReplyChanged,
+  })
+  const del = useMutationAction(deleteReplyFn, {
+    successMessage: 'Reply deleted',
+    invalidate: false,
+    onSuccess: () => onReplyChanged(null),
+  })
+  const retry = useMutationAction(retryPublishFn, {
+    successMessage: 'Retrying publish...',
+    invalidate: false,
+    onSuccess: onReplyChanged,
+  })
   const isSaving = [draft, submit, approve, reject, del, retry].some((m) => m.isPending)
 
   if (loading) {
