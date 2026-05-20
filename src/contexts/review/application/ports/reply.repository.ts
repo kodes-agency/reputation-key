@@ -5,10 +5,15 @@ import type { Reply, ReplySource } from '../../domain/types'
 import type { OrganizationId, ReplyId, ReviewId } from '#/shared/domain/ids'
 
 export type ReplyRepository = Readonly<{
+  findById(id: ReplyId, organizationId: OrganizationId): Promise<Reply | null>
   findByReviewId(
     reviewId: ReviewId,
     organizationId: OrganizationId,
   ): Promise<ReadonlyArray<Reply>>
+  findInternalByReviewId(
+    reviewId: ReviewId,
+    organizationId: OrganizationId,
+  ): Promise<Reply | null>
   findGoogleSyncByReviewId(
     reviewId: ReviewId,
     organizationId: OrganizationId,

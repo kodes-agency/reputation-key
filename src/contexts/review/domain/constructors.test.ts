@@ -2,7 +2,13 @@
 
 import { describe, it, expect } from 'vitest'
 import { buildReview, buildReply } from './constructors'
-import { reviewId, replyId, organizationId, propertyId, googleConnectionId } from '#/shared/domain/ids'
+import {
+  reviewId,
+  replyId,
+  organizationId,
+  propertyId,
+  googleConnectionId,
+} from '#/shared/domain/ids'
 
 const ORG_ID = organizationId('org-1')
 const PROP_ID = propertyId('prop-1')
@@ -206,6 +212,8 @@ const ALL_REVIEW_ERROR_CODES: ReviewErrorCode[] = [
   'review_not_found',
   'reply_not_found',
   'reply_already_exists',
+  'invalid_transition',
+  'reply_publish_failed',
 ]
 
 /**
@@ -224,6 +232,8 @@ const CODES_NOT_FROM_CONSTRUCTORS = new Set<ReviewErrorCode>([
   'review_not_found' as ReviewErrorCode,
   'reply_not_found' as ReviewErrorCode,
   'reply_already_exists' as ReviewErrorCode,
+  'invalid_transition' as ReviewErrorCode,
+  'reply_publish_failed' as ReviewErrorCode,
 ])
 
 describe('ReviewErrorCode — exhaustive constructor coverage', () => {
@@ -291,8 +301,8 @@ describe('ReviewErrorCode — exhaustive constructor coverage', () => {
     )
 
     // Also verify the exclusion list doesn't contain codes that ARE produced
-    const staleExclusions = Array.from(CODES_NOT_FROM_CONSTRUCTORS).filter(
-      (c) => producedCodes.has(c),
+    const staleExclusions = Array.from(CODES_NOT_FROM_CONSTRUCTORS).filter((c) =>
+      producedCodes.has(c),
     )
 
     expect(

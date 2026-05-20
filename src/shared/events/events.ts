@@ -108,6 +108,10 @@ export type {
   ReviewUpdated,
   // fallow-ignore-next-line unused-type
   ReviewExpired,
+  // fallow-ignore-next-line unused-type
+  ReplyEvent,
+  // fallow-ignore-next-line unused-type
+  ReplyPublished,
 } from '#/contexts/review/domain/events'
 
 // Inbox context events
@@ -132,6 +136,7 @@ import type { PortalEvent } from '#/contexts/portal/domain/events'
 import type { GuestEvent } from '#/contexts/guest/domain/events'
 import type { IntegrationEvent } from '#/contexts/integration/domain/events'
 import type { ReviewEvent } from '#/contexts/review/domain/events'
+import type { ReplyEvent } from '#/contexts/review/domain/events'
 import type { InboxEvent } from '#/contexts/inbox/domain/events'
 
 export type DomainEvent =
@@ -143,4 +148,5 @@ export type DomainEvent =
   | GuestEvent
   | IntegrationEvent
   | ReviewEvent
+  | ReplyEvent
   | InboxEvent

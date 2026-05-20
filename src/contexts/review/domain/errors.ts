@@ -14,6 +14,8 @@ export type ReviewErrorCode =
   | 'review_not_found'
   | 'reply_not_found'
   | 'reply_already_exists'
+  | 'invalid_transition'
+  | 'reply_publish_failed'
 
 export type ReviewError = Readonly<{
   _tag: 'ReviewError'

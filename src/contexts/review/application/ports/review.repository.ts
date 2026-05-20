@@ -5,6 +5,7 @@ import type { Review, ReviewPlatform } from '../../domain/types'
 import type { OrganizationId, PropertyId, ReviewId } from '#/shared/domain/ids'
 
 export type ReviewRepository = Readonly<{
+  findById(id: ReviewId, organizationId: OrganizationId): Promise<Review | null>
   findByExternalId(
     platform: ReviewPlatform,
     externalId: string,

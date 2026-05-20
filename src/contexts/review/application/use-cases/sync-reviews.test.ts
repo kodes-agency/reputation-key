@@ -92,6 +92,10 @@ function makeReply(overrides: Partial<Reply> = {}): Reply {
     status: 'published',
     source: 'google_sync',
     createdBy: null,
+    approvedBy: null,
+    rejectedBy: null,
+    rejectionReason: null,
+    aiGenerated: false,
     publishedAt: daysAgo(4),
     createdAt: daysAgo(4),
     updatedAt: daysAgo(4),
@@ -119,6 +123,7 @@ function createTestEnv(googleReviews: ReadonlyArray<GoogleReview> = []) {
   }
 
   const reviewRepo: ReviewRepository = {
+    findById: vi.fn(async () => null),
     findByExternalId: vi.fn(
       async (_p, externalId, orgId) => reviewStore.get(`${orgId}:${externalId}`) ?? null,
     ),
@@ -137,7 +142,9 @@ function createTestEnv(googleReviews: ReadonlyArray<GoogleReview> = []) {
   }
 
   const replyRepo: ReplyRepository = {
+    findById: vi.fn(async () => null),
     findByReviewId: vi.fn(async () => []),
+    findInternalByReviewId: vi.fn(async () => null),
     findGoogleSyncByReviewId: vi.fn(async (revId, _orgId) => {
       for (const r of replyStore.values()) {
         if (r.reviewId === revId && r.source === 'google_sync') return r
