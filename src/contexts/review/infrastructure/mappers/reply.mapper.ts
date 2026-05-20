@@ -16,12 +16,18 @@ export const replyFromRow = (row: ReplyRow): Reply => ({
   status: row.status as Reply['status'],
   source: row.source as Reply['source'],
   createdBy: row.createdBy,
+  approvedBy: row.approvedBy,
+  rejectedBy: row.rejectedBy,
+  rejectionReason: row.rejectionReason,
+  aiGenerated: row.aiGenerated,
   publishedAt: row.publishedAt,
   createdAt: row.createdAt,
   updatedAt: row.updatedAt,
 })
 
-export const replyToRow = (reply: Omit<Reply, 'createdAt' | 'updatedAt'>): ReplyInsertRow => ({
+export const replyToRow = (
+  reply: Omit<Reply, 'createdAt' | 'updatedAt'>,
+): ReplyInsertRow => ({
   id: reply.id as string,
   reviewId: reply.reviewId as string,
   organizationId: reply.organizationId as string,
@@ -29,5 +35,9 @@ export const replyToRow = (reply: Omit<Reply, 'createdAt' | 'updatedAt'>): Reply
   status: reply.status,
   source: reply.source,
   createdBy: reply.createdBy,
+  approvedBy: reply.approvedBy,
+  rejectedBy: reply.rejectedBy,
+  rejectionReason: reply.rejectionReason,
+  aiGenerated: reply.aiGenerated,
   publishedAt: reply.publishedAt,
 })

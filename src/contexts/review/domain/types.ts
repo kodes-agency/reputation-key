@@ -42,7 +42,13 @@ export type Review = Readonly<{
   updatedAt: Date
 }>
 
-export type ReplyStatus = 'draft' | 'pending_approval' | 'approved' | 'published' | 'rejected'
+export type ReplyStatus =
+  | 'draft'
+  | 'pending_approval'
+  | 'approved'
+  | 'published'
+  | 'rejected'
+  | 'publish_failed'
 export type ReplySource = 'google_sync' | 'internal'
 
 export type Reply = Readonly<{
@@ -53,6 +59,10 @@ export type Reply = Readonly<{
   status: ReplyStatus
   source: ReplySource
   createdBy: string | null
+  approvedBy: string | null
+  rejectedBy: string | null
+  rejectionReason: string | null
+  aiGenerated: boolean
   publishedAt: Date | null
   createdAt: Date
   updatedAt: Date

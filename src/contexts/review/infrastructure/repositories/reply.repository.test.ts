@@ -18,13 +18,19 @@ const PROP_A = propertyId('2a000000-0000-0000-0000-000000000001')
 let pool: Pool
 
 async function truncateReplies(pool: Pool) {
-  await pool.query('DELETE FROM replies WHERE organization_id IN ($1, $2)', [ORG_A, ORG_B])
-  await pool.query('DELETE FROM reviews WHERE organization_id IN ($1, $2)', [ORG_A, ORG_B])
+  await pool.query('DELETE FROM replies WHERE organization_id IN ($1, $2)', [
+    ORG_A,
+    ORG_B,
+  ])
+  await pool.query('DELETE FROM reviews WHERE organization_id IN ($1, $2)', [
+    ORG_A,
+    ORG_B,
+  ])
 }
 
 async function seedOrgs(pool: Pool, ids: string[]) {
   // Clean up stale rows that hold our target slugs (from previous test runs with different IDs)
-  const slugs = ids.map(id => 't-' + id.replace(/-/g, '').slice(-12))
+  const slugs = ids.map((id) => 't-' + id.replace(/-/g, '').slice(-12))
   await pool.query(
     `DELETE FROM organization WHERE slug = ANY($1) AND NOT (id = ANY($2))`,
     [slugs, ids],
@@ -69,7 +75,10 @@ beforeEach(async () => {
 const now = new Date('2025-06-01T12:00:00Z')
 const reviewedAt = new Date('2025-05-27T12:00:00Z')
 
-async function seedReview(db: ReturnType<typeof getDb>, overrides: Partial<Review> = {}): Promise<Review> {
+async function seedReview(
+  db: ReturnType<typeof getDb>,
+  overrides: Partial<Review> = {},
+): Promise<Review> {
   const reviewRepo = createReviewRepository(db)
   return reviewRepo.upsert({
     id: reviewId('3a000000-0000-0000-0000-000000000001'),
@@ -103,6 +112,10 @@ function makeReply(overrides: Partial<Omit<Reply, 'id'>> & { id?: string } = {})
     status: 'published',
     source: 'google_sync',
     createdBy: null,
+    approvedBy: null,
+    rejectedBy: null,
+    rejectionReason: null,
+    aiGenerated: false,
     publishedAt: now,
     createdAt: now,
     updatedAt: now,
@@ -130,7 +143,10 @@ describe.sequential('replyRepository (integration)', () => {
       const db = getDb()
       await seedReview(db)
       const repo = createReplyRepository(db)
-      const found = await repo.findByReviewId(reviewId('00000000-0000-0000-0000-000000000999'), ORG_A)
+      const found = await repo.findByReviewId(
+        reviewId('00000000-0000-0000-0000-000000000999'),
+        ORG_A,
+      )
       expect(found).toHaveLength(0)
     })
   })
@@ -142,9 +158,18 @@ describe.sequential('replyRepository (integration)', () => {
       const repo = createReplyRepository(db)
 
       await repo.upsert(makeReply({ source: 'google_sync' }))
-      await repo.upsert(makeReply({ id: '2a000000-0000-0000-0000-000000000002', source: 'internal' }))
+      await repo.upsert(
+        makeReply({
+          id: '2a000000-0000-0000-0000-000000000002',
+          source: 'internal',
+          status: 'draft',
+        }),
+      )
 
-      const found = await repo.findGoogleSyncByReviewId(reviewId('3a000000-0000-0000-0000-000000000001'), ORG_A)
+      const found = await repo.findGoogleSyncByReviewId(
+        reviewId('3a000000-0000-0000-0000-000000000001'),
+        ORG_A,
+      )
 
       expect(found).not.toBeNull()
       expect(found!.source).toBe('google_sync')
@@ -157,7 +182,10 @@ describe.sequential('replyRepository (integration)', () => {
 
       await repo.upsert(makeReply({ source: 'internal' }))
 
-      const found = await repo.findGoogleSyncByReviewId(reviewId('3a000000-0000-0000-0000-000000000001'), ORG_A)
+      const found = await repo.findGoogleSyncByReviewId(
+        reviewId('3a000000-0000-0000-0000-000000000001'),
+        ORG_A,
+      )
       expect(found).toBeNull()
     })
   })
@@ -187,20 +215,31 @@ describe.sequential('replyRepository (integration)', () => {
       await seedReview(db)
       const repo = createReplyRepository(db)
 
-      await repo.upsert(makeReply({
-        id: '2a000000-0000-0000-0000-000000000001',
-        organizationId: ORG_A,
-        text: 'Reply from org A',
-      }))
-      await repo.upsert(makeReply({
-        id: '2a000000-0000-0000-0000-000000000002',
-        organizationId: ORG_B,
-        reviewId: reviewId('3a000000-0000-0000-0000-000000000001'),
-        text: 'Reply from org B',
-      }))
+      await repo.upsert(
+        makeReply({
+          id: '2a000000-0000-0000-0000-000000000001',
+          organizationId: ORG_A,
+          text: 'Reply from org A',
+        }),
+      )
+      await repo.upsert(
+        makeReply({
+          id: '2a000000-0000-0000-0000-000000000002',
+          organizationId: ORG_B,
+          reviewId: reviewId('3a000000-0000-0000-0000-000000000001'),
+          text: 'Reply from org B',
+          status: 'draft',
+        }),
+      )
 
-      const foundA = await repo.findByReviewId(reviewId('3a000000-0000-0000-0000-000000000001'), ORG_A)
-      const foundB = await repo.findByReviewId(reviewId('3a000000-0000-0000-0000-000000000001'), ORG_B)
+      const foundA = await repo.findByReviewId(
+        reviewId('3a000000-0000-0000-0000-000000000001'),
+        ORG_A,
+      )
+      const foundB = await repo.findByReviewId(
+        reviewId('3a000000-0000-0000-0000-000000000001'),
+        ORG_B,
+      )
 
       expect(foundA).toHaveLength(1)
       expect(foundB).toHaveLength(1)
@@ -216,11 +255,24 @@ describe.sequential('replyRepository (integration)', () => {
       const repo = createReplyRepository(db)
 
       await repo.upsert(makeReply({ source: 'google_sync' }))
-      await repo.upsert(makeReply({ id: '2a000000-0000-0000-0000-000000000002', source: 'internal' }))
+      await repo.upsert(
+        makeReply({
+          id: '2a000000-0000-0000-0000-000000000002',
+          source: 'internal',
+          status: 'draft',
+        }),
+      )
 
-      await repo.deleteByReviewIdAndSource(reviewId('3a000000-0000-0000-0000-000000000001'), 'google_sync', ORG_A)
+      await repo.deleteByReviewIdAndSource(
+        reviewId('3a000000-0000-0000-0000-000000000001'),
+        'google_sync',
+        ORG_A,
+      )
 
-      const remaining = await repo.findByReviewId(reviewId('3a000000-0000-0000-0000-000000000001'), ORG_A)
+      const remaining = await repo.findByReviewId(
+        reviewId('3a000000-0000-0000-0000-000000000001'),
+        ORG_A,
+      )
       expect(remaining).toHaveLength(1)
       expect(remaining[0].source).toBe('internal')
     })
@@ -274,7 +326,10 @@ describe.sequential('replyRepository (integration)', () => {
       )
 
       // Reply should still exist for ORG_A
-      const found = await repo.findByReviewId(reviewId('3a000000-0000-0000-0000-000000000001'), ORG_A)
+      const found = await repo.findByReviewId(
+        reviewId('3a000000-0000-0000-0000-000000000001'),
+        ORG_A,
+      )
       expect(found).toHaveLength(1)
       expect(found[0].source).toBe('google_sync')
     })

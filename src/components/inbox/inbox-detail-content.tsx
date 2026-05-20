@@ -2,6 +2,7 @@
 import { Badge } from '#/components/ui/badge'
 import { Button } from '#/components/ui/button'
 import { InboxNotesThread } from './inbox-notes-thread'
+import { ReplyEditor } from './reply-editor'
 import { formatDateTime } from './utils'
 import { getStatusActions, RatingStars } from './inbox-detail-helpers'
 import { updateInboxStatusFn } from '#/contexts/inbox/server/inbox'
@@ -136,6 +137,10 @@ export function InboxDetailContent({
             </Button>
           ))}
         </div>
+      )}
+
+      {currentItem.sourceType === 'review' && (
+        <ReplyEditor reviewId={currentItem.sourceId} />
       )}
 
       <div className="border-t pt-4">

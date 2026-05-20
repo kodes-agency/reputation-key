@@ -17,6 +17,10 @@ const sampleRow: ReplyRow = {
   status: 'published',
   source: 'google_sync',
   createdBy: null,
+  approvedBy: null,
+  rejectedBy: null,
+  rejectionReason: null,
+  aiGenerated: false,
   publishedAt,
   createdAt: now,
   updatedAt: now,
@@ -36,6 +40,10 @@ describe('replyFromRow', () => {
     expect(reply.status).toBe('published')
     expect(reply.source).toBe('google_sync')
     expect(reply.createdBy).toBeNull()
+    expect(reply.approvedBy).toBeNull()
+    expect(reply.rejectedBy).toBeNull()
+    expect(reply.rejectionReason).toBeNull()
+    expect(reply.aiGenerated).toBe(false)
     expect(reply.publishedAt).toBe(publishedAt)
     expect(reply.createdAt).toBe(now)
     expect(reply.updatedAt).toBe(now)
@@ -69,6 +77,10 @@ describe('replyToRow', () => {
     expect(row.status).toBe(sampleRow.status)
     expect(row.source).toBe(sampleRow.source)
     expect(row.createdBy).toBe(sampleRow.createdBy)
+    expect(row.approvedBy).toBe(sampleRow.approvedBy)
+    expect(row.rejectedBy).toBe(sampleRow.rejectedBy)
+    expect(row.rejectionReason).toBe(sampleRow.rejectionReason)
+    expect(row.aiGenerated).toBe(sampleRow.aiGenerated)
     expect(row.publishedAt).toBe(sampleRow.publishedAt)
   })
 

@@ -1,7 +1,12 @@
 // Review context — domain rules tests
 
 import { describe, it, expect } from 'vitest'
-import { isValidRating, calculateExpiresAt } from './rules'
+import {
+  isValidRating,
+  calculateExpiresAt,
+  canTransitionReply,
+  MAX_REPLY_LENGTH,
+} from './rules'
 
 describe('isValidRating', () => {
   it('returns true for valid ratings 1-5', () => {
@@ -49,5 +54,54 @@ describe('calculateExpiresAt', () => {
     const expiresAt = calculateExpiresAt(reviewedAt, now)
 
     expect(expiresAt.getTime()).toBe(now.getTime() + THIRTY_DAYS_MS)
+  })
+})
+
+describe('canTransitionReply', () => {
+  it('allows draft → pending_approval', () => {
+    expect(canTransitionReply('draft', 'pending_approval')).toBe(true)
+  })
+
+  it('allows pending_approval → approved', () => {
+    expect(canTransitionReply('pending_approval', 'approved')).toBe(true)
+  })
+
+  it('allows pending_approval → rejected', () => {
+    expect(canTransitionReply('pending_approval', 'rejected')).toBe(true)
+  })
+
+  it('allows approved → published', () => {
+    expect(canTransitionReply('approved', 'published')).toBe(true)
+  })
+
+  it('allows approved → publish_failed', () => {
+    expect(canTransitionReply('approved', 'publish_failed')).toBe(true)
+  })
+
+  it('allows rejected → draft', () => {
+    expect(canTransitionReply('rejected', 'draft')).toBe(true)
+  })
+
+  it('allows publish_failed → approved', () => {
+    expect(canTransitionReply('publish_failed', 'approved')).toBe(true)
+  })
+
+  it('blocks draft → approved (must go through pending_approval)', () => {
+    expect(canTransitionReply('draft', 'approved')).toBe(false)
+  })
+
+  it('blocks published → any', () => {
+    expect(canTransitionReply('published', 'draft')).toBe(false)
+    expect(canTransitionReply('published', 'approved')).toBe(false)
+  })
+
+  it('blocks rejected → pending_approval (must re-draft first)', () => {
+    expect(canTransitionReply('rejected', 'pending_approval')).toBe(false)
+  })
+})
+
+describe('MAX_REPLY_LENGTH', () => {
+  it('is 4096', () => {
+    expect(MAX_REPLY_LENGTH).toBe(4096)
   })
 })
