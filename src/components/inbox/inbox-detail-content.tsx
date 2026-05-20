@@ -143,6 +143,7 @@ export function InboxDetailContent({
           notes={notes}
           inboxItemId={currentItem.id}
           onNoteAdded={onNoteAdded}
+          // TODO(Phase 12): Pass currentUserId from auth context for "You" label
         />
       </div>
     </div>

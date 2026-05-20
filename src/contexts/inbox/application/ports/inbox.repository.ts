@@ -33,6 +33,10 @@ export type PaginatedResult = Readonly<{
 
 export type InboxRepository = Readonly<{
   findById(id: InboxItemId, orgId: OrganizationId): Promise<InboxItem | null>
+  findByIds(
+    ids: ReadonlyArray<InboxItemId>,
+    orgId: OrganizationId,
+  ): Promise<ReadonlyArray<InboxItem>>
   findBySource(
     sourceType: SourceType,
     sourceId: string,
@@ -50,23 +54,27 @@ export type InboxRepository = Readonly<{
     orgId: OrganizationId,
     status: InboxStatus,
     timestampFields: Partial<Record<string, Date>>,
+    now?: Date,
   ): Promise<InboxItem>
   bulkUpdateStatus(
     ids: ReadonlyArray<InboxItemId>,
     orgId: OrganizationId,
     status: InboxStatus,
     timestampFields: Partial<Record<string, Date>>,
+    now?: Date,
   ): Promise<{ updated: number }>
   updateAssignment(
     id: InboxItemId,
     orgId: OrganizationId,
     assignedTo: UserId | null,
+    now?: Date,
   ): Promise<InboxItem>
   countByStatus(orgId: OrganizationId, status: InboxStatus): Promise<number>
   syncDenormalizedFields(
     id: InboxItemId,
     orgId: OrganizationId,
     fields: { rating?: number; snippet?: string; sourceDate?: Date },
+    now?: Date,
   ): Promise<void>
   findDetailById(id: InboxItemId, orgId: OrganizationId): Promise<InboxItemDetail | null>
 }>

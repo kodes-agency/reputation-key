@@ -33,6 +33,8 @@ function seedNew(overrides?: Partial<InboxItem>): InboxItem {
     platform: 'google',
     snippet: 'Great!',
     assignedTo: null,
+    reviewerName: null,
+    propertyName: null,
     readAt: null,
     escalatedAt: null,
     addressedAt: null,
@@ -50,13 +52,13 @@ const staffApiAllAccess: StaffPublicApi = {
 const setup = (staffApi: StaffPublicApi = staffApiAllAccess) => {
   const repo = createInMemoryInboxRepo()
   const events = createCapturingEventBus()
-  const decrements: Array<{ orgId: string; userId: string }> = []
+  const decrements: Array<{ orgId: string }> = []
   const unreadCounter: UnreadCounterPort = {
     getCount: async () => 0,
     setCount: async () => {},
     increment: async () => {},
-    decrement: async (orgId, uId) => {
-      decrements.push({ orgId: orgId as string, userId: uId as string })
+    decrement: async (orgId) => {
+      decrements.push({ orgId: orgId as string })
     },
     invalidate: async () => {},
   }
@@ -133,7 +135,6 @@ describe('updateInboxStatus', () => {
 
     expect(decrements).toHaveLength(1)
     expect(decrements[0].orgId).toBe(ORG_ID as string)
-    expect(decrements[0].userId).toBe(USER_ID as string)
   })
 
   it('decrements unread counter for all new → * transitions', async () => {

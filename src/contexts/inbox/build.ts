@@ -67,6 +67,7 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
     createInboxItem: createInboxItemUseCase({
       repo: inboxRepo,
       events: input.events,
+      unreadCounter,
       idGen: () => inboxItemId(crypto.randomUUID()),
       clock: input.clock,
     }),

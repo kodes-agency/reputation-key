@@ -83,6 +83,7 @@ function createInMemoryInboxRepo(): InboxRepository {
     },
     countByStatus: async () => 0,
     syncDenormalizedFields: async () => {},
+    findByIds: async () => [],
     findDetailById: async (id, orgId) => {
       const item = items.find((i) => i.id === id && i.organizationId === orgId)
       if (!item) return null
@@ -149,6 +150,8 @@ describe('in-memory inbox repository', () => {
       sourceDate: new Date(),
       platform: 'google',
       assignedTo: null,
+      reviewerName: null,
+      propertyName: null,
       readAt: null,
       escalatedAt: null,
       addressedAt: null,
@@ -183,6 +186,8 @@ describe('in-memory inbox repository', () => {
       sourceDate: new Date(),
       platform: null,
       assignedTo: null,
+      reviewerName: null,
+      propertyName: null,
       readAt: null,
       escalatedAt: null,
       addressedAt: null,

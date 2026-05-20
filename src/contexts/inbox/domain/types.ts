@@ -26,6 +26,8 @@ export type InboxItem = Readonly<{
   platform: string | null
   snippet: string | null
   assignedTo: UserId | null
+  reviewerName: string | null
+  propertyName: string | null
   readAt: Date | null
   escalatedAt: Date | null
   addressedAt: Date | null

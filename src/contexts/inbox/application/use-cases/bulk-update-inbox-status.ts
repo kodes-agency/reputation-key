@@ -4,7 +4,7 @@
 import type { InboxRepository } from '../ports/inbox.repository'
 import type { UnreadCounterPort } from '../ports/unread-counter.port'
 import type { EventBus } from '#/shared/events/event-bus'
-import type { InboxItemId, OrganizationId, UserId } from '#/shared/domain/ids'
+import type { InboxItemId, OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
 import type { InboxStatus } from '../../domain/types'
 import type { Role } from '#/shared/domain/roles'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
@@ -41,35 +41,38 @@ export const bulkUpdateInboxStatus =
     if (input.newStatus === 'addressed') timestampFields.addressedAt = now
     if (input.newStatus === 'archived') timestampFields.archivedAt = now
 
+    // Pre-compute accessible property IDs for non-admin users (once, outside loop)
+    let accessiblePropertyIds: Awaited<
+      ReturnType<StaffPublicApi['getAccessiblePropertyIds']>
+    > | null = null
+    if (!hasRole(input.role, ADMIN_ROLE)) {
+      try {
+        accessiblePropertyIds = await deps.staffPublicApi.getAccessiblePropertyIds(
+          input.organizationId,
+          input.userId,
+          input.role,
+        )
+      } catch {
+        // Access check failed — treat as no access
+        return { updated: 0 }
+      }
+    }
+
+    // Batch-fetch all items in one query (eliminates N+1)
+    const items = await deps.repo.findByIds(input.inboxItemIds, input.organizationId)
+    const itemMap = new Map(items.map((item) => [item.id as string, item]))
+
     // Validate each item individually, collect valid IDs
     const validIds: InboxItemId[] = []
     const oldStatuses = new Map<InboxItemId, InboxStatus>()
 
     for (const id of input.inboxItemIds) {
-      const item = await deps.repo.findById(id, input.organizationId)
+      const item = itemMap.get(id as string)
       if (!item) continue
 
-      // Enforce role-scoped property access
-      if (!hasRole(input.role, ADMIN_ROLE)) {
-        let accessible: Awaited<ReturnType<StaffPublicApi['getAccessiblePropertyIds']>> = // eslint-disable-line no-useless-assignment
-          null
-        try {
-          accessible = await deps.staffPublicApi.getAccessiblePropertyIds(
-            input.organizationId,
-            input.userId,
-            input.role,
-          )
-        } catch {
-          continue // If access check fails, skip this item
-        }
-        if (
-          accessible !== null &&
-          !accessible.includes(
-            item.propertyId as ReturnType<
-              typeof import('#/shared/domain/ids').propertyId
-            >,
-          )
-        ) {
+      // Enforce role-scoped property access (using pre-computed list)
+      if (accessiblePropertyIds !== null) {
+        if (!accessiblePropertyIds.includes(item.propertyId as PropertyId)) {
           continue // Skip items from inaccessible properties
         }
       }
@@ -91,6 +94,7 @@ export const bulkUpdateInboxStatus =
       input.organizationId,
       input.newStatus,
       timestampFields,
+      now,
     )
 
     // Decrement unread counter for items transitioning away from 'new'
@@ -98,7 +102,7 @@ export const bulkUpdateInboxStatus =
       const newCount = validIds.filter((id) => oldStatuses.get(id) === 'new').length
       for (let i = 0; i < newCount; i++) {
         try {
-          await deps.unreadCounter.decrement(input.organizationId, input.userId)
+          await deps.unreadCounter.decrement(input.organizationId)
         } catch {
           // Counter unavailable — non-critical, DB is source of truth
           break

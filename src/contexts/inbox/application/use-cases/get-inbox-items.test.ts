@@ -43,6 +43,8 @@ function seedItem(overrides: Omit<Partial<InboxItem>, 'id'> & { id: string }): I
     platform: 'google',
     snippet: 'Great!',
     assignedTo: null,
+    reviewerName: null,
+    propertyName: null,
     readAt: null,
     escalatedAt: null,
     addressedAt: null,

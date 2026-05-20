@@ -61,27 +61,39 @@ export const createSyncPropertyReviewsHandler = (deps: SyncHandlerDeps) => {
 
       if (result.isErr()) {
         const e = result.error
-        logger.warn(
-          { err: e, jobId: job.id, propertyId: job.data.propertyId, context: e.context },
-          'Property reviews sync completed with errors',
+        logger.error(
+          { err: e, jobId: job.id, propertyId: job.data.propertyId },
+          'Property reviews sync failed',
         )
-        // Don't throw — partial sync still persisted data.
-        // BullMQ will not retry since this is not a thrown error.
-        return
+        throw e // Re-throw so BullMQ retries
       }
 
-      const ok = result.value
-      logger.info(
-        {
-          jobId: job.id,
-          propertyId: job.data.propertyId,
-          fetched: ok.fetched,
-          created: ok.created,
-          updated: ok.updated,
-          repliesMirrored: ok.repliesMirrored,
-        },
-        'Property reviews synced',
-      )
+      const syncResult = result.value
+      if (syncResult.partialFailure) {
+        logger.warn(
+          {
+            jobId: job.id,
+            propertyId: job.data.propertyId,
+            fetched: syncResult.fetched,
+            created: syncResult.created,
+            updated: syncResult.updated,
+            failed: syncResult.failed,
+          },
+          'Property reviews sync completed with partial failures',
+        )
+      } else {
+        logger.info(
+          {
+            jobId: job.id,
+            propertyId: job.data.propertyId,
+            fetched: syncResult.fetched,
+            created: syncResult.created,
+            updated: syncResult.updated,
+            repliesMirrored: syncResult.repliesMirrored,
+          },
+          'Property reviews synced',
+        )
+      }
     } catch (err) {
       logger.error(
         { err, jobId: job.id, propertyId: job.data.propertyId },

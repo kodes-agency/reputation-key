@@ -31,6 +31,8 @@ function seedItem(id: string, status: InboxStatus, propId: string = 'prop-1'): I
     platform: 'google',
     snippet: 'Great!',
     assignedTo: null,
+    reviewerName: null,
+    propertyName: null,
     readAt: null,
     escalatedAt: null,
     addressedAt: null,
@@ -47,13 +49,13 @@ const defaultStaffApi: StaffPublicApi = {
 const setup = (staffApi: StaffPublicApi = defaultStaffApi) => {
   const repo = createInMemoryInboxRepo()
   const events = createCapturingEventBus()
-  const decrements: Array<{ orgId: string; userId: string }> = []
+  const decrements: Array<string> = []
   const unreadCounter: UnreadCounterPort = {
     getCount: async () => 0,
     setCount: async () => {},
     increment: async () => {},
-    decrement: async (orgId, uId) => {
-      decrements.push({ orgId: orgId as string, userId: uId as string })
+    decrement: async (orgId) => {
+      decrements.push(orgId as string)
     },
     invalidate: async () => {},
   }
@@ -100,9 +102,10 @@ describe('bulkUpdateInboxStatus', () => {
       role: 'AccountAdmin' as Role,
     })
 
-    // ii-1: new→read (valid), ii-2: archived→read (valid per rules)
-    // Actually archived→read is valid. Let's test a truly invalid one.
-    expect(result.updated).toBeGreaterThan(0)
+    // ii-1: new→read (valid), ii-2: archived→read (invalid — archived is terminal)
+    expect(result.updated).toBe(1)
+    expect(repo.items[0].status).toBe('read')
+    expect(repo.items[1].status).toBe('archived')
   })
 
   it('returns 0 when all transitions are invalid', async () => {

@@ -215,7 +215,6 @@ export const getUnreadCountFn = createServerFn({ method: 'GET' })
         try {
           return await useCases.getUnreadCount({
             organizationId: ctx.organizationId,
-            userId: ctx.userId,
           })
         } catch (e) {
           if (isInboxError(e))

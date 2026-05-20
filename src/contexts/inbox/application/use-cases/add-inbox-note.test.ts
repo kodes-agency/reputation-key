@@ -47,6 +47,8 @@ const seedItem = (): InboxItem => ({
   platform: 'google',
   snippet: 'Great!',
   assignedTo: null,
+  reviewerName: null,
+  propertyName: null,
   readAt: null,
   escalatedAt: null,
   addressedAt: null,

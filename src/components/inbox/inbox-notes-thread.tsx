@@ -12,6 +12,7 @@ import type { InboxNote } from '#/contexts/inbox/application/public-api'
 type Props = Readonly<{
   notes: ReadonlyArray<InboxNote>
   inboxItemId: string
+  currentUserId?: string
   onNoteAdded: () => void
 }>
 
@@ -35,7 +36,12 @@ function formatRelativeTime(date: Date): string {
   }).format(d)
 }
 
-export function InboxNotesThread({ notes, inboxItemId, onNoteAdded }: Props) {
+export function InboxNotesThread({
+  notes,
+  inboxItemId,
+  currentUserId,
+  onNoteAdded,
+}: Props) {
   const [noteText, setNoteText] = useState('')
 
   const addNote = useMutationAction(addInboxNoteFn, {
@@ -76,7 +82,11 @@ export function InboxNotesThread({ notes, inboxItemId, onNoteAdded }: Props) {
             <div key={note.id} className="rounded-md border bg-muted/30 p-3">
               <div className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
                 <User className="size-3" />
-                <span className="font-medium">{note.authorUserId.slice(0, 8)}…</span>
+                <span className="font-medium">
+                  {note.authorUserId === currentUserId
+                    ? 'You'
+                    : `${note.authorUserId.slice(0, 8)}…`}
+                </span>
                 <span className="flex items-center gap-1">
                   <Clock className="size-3" />
                   {formatRelativeTime(note.createdAt)}

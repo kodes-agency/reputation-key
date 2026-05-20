@@ -1,19 +1,12 @@
 import { describe, it, expect } from 'vitest'
 import { getUnreadCount } from './get-unread-count'
 import { createInMemoryInboxRepo } from '#/shared/testing/in-memory-inbox-repo'
-import {
-  organizationId,
-  userId,
-  inboxItemId,
-  propertyId,
-  reviewId,
-} from '#/shared/domain/ids'
+import { organizationId, inboxItemId, propertyId, reviewId } from '#/shared/domain/ids'
 import type { InboxItem } from '../../domain/types'
 import type { UnreadCounterPort } from '../ports/unread-counter.port'
 
 // ── Test data factory (typed, no `any`) ─────────────────────────────
 const ORG_ID = organizationId('org-1')
-const USER_ID = userId('user-1')
 
 const makeItem = ({
   id,
@@ -30,6 +23,8 @@ const makeItem = ({
   platform: null,
   snippet: null,
   assignedTo: null,
+  reviewerName: null,
+  propertyName: null,
   readAt: null,
   escalatedAt: null,
   addressedAt: null,
@@ -78,7 +73,6 @@ describe('getUnreadCount', () => {
 
     const count = await useCase({
       organizationId: ORG_ID,
-      userId: USER_ID,
     })
 
     expect(count).toBe(5)
@@ -95,7 +89,6 @@ describe('getUnreadCount', () => {
 
     const count = await useCase({
       organizationId: ORG_ID,
-      userId: USER_ID,
     })
 
     expect(count).toBe(2)
@@ -109,7 +102,6 @@ describe('getUnreadCount', () => {
 
     const count = await useCase({
       organizationId: ORG_ID,
-      userId: USER_ID,
     })
 
     expect(count).toBe(1)
@@ -121,7 +113,6 @@ describe('getUnreadCount', () => {
 
     const count = await useCase({
       organizationId: ORG_ID,
-      userId: USER_ID,
     })
 
     expect(count).toBe(0)

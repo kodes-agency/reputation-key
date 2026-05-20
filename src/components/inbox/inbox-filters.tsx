@@ -41,12 +41,7 @@ const sourceTypes: Array<{ value: SourceType; label: string }> = [
   { value: 'feedback', label: 'Feedback' },
 ]
 
-const platforms = [
-  { value: 'google', label: 'Google' },
-  { value: 'booking', label: 'Booking.com' },
-  { value: 'tripadvisor', label: 'TripAdvisor' },
-  { value: 'airbnb', label: 'Airbnb' },
-]
+const platforms = [{ value: 'google', label: 'Google' }]
 
 export function InboxFilters({ value, onChange }: Props) {
   const update = (patch: Partial<InboxFilterValues>) => {

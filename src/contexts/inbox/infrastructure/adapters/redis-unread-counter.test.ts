@@ -2,7 +2,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { createRedisUnreadCounter } from './redis-unread-counter'
-import { organizationId, userId } from '#/shared/domain/ids'
+import { organizationId } from '#/shared/domain/ids'
 
 function createMockRedis() {
   const store = new Map<string, string>()
@@ -40,73 +40,71 @@ function createMockRedis() {
 }
 
 const orgId = organizationId('org-001')
-const uid = userId('user-001')
 
 describe('createRedisUnreadCounter', () => {
   it('returns 0 when no count is set', async () => {
     const counter = createRedisUnreadCounter(createMockRedis())
-    const count = await counter.getCount(orgId, uid)
+    const count = await counter.getCount(orgId)
     expect(count).toBe(0)
   })
 
   it('sets and gets a count', async () => {
     const counter = createRedisUnreadCounter(createMockRedis())
-    await counter.setCount(orgId, uid, 5)
-    const count = await counter.getCount(orgId, uid)
+    await counter.setCount(orgId, 5)
+    const count = await counter.getCount(orgId)
     expect(count).toBe(5)
   })
 
   it('increments from zero', async () => {
     const counter = createRedisUnreadCounter(createMockRedis())
-    await counter.increment(orgId, uid)
-    const count = await counter.getCount(orgId, uid)
+    await counter.increment(orgId)
+    const count = await counter.getCount(orgId)
     expect(count).toBe(1)
   })
 
   it('increments from existing value', async () => {
     const counter = createRedisUnreadCounter(createMockRedis())
-    await counter.setCount(orgId, uid, 3)
-    await counter.increment(orgId, uid)
-    const count = await counter.getCount(orgId, uid)
+    await counter.setCount(orgId, 3)
+    await counter.increment(orgId)
+    const count = await counter.getCount(orgId)
     expect(count).toBe(4)
   })
 
   it('decrements from existing value', async () => {
     const counter = createRedisUnreadCounter(createMockRedis())
-    await counter.setCount(orgId, uid, 5)
-    await counter.decrement(orgId, uid)
-    const count = await counter.getCount(orgId, uid)
+    await counter.setCount(orgId, 5)
+    await counter.decrement(orgId)
+    const count = await counter.getCount(orgId)
     expect(count).toBe(4)
   })
 
   it('decrements from zero (floors at 0)', async () => {
     const counter = createRedisUnreadCounter(createMockRedis())
-    await counter.decrement(orgId, uid)
-    const count = await counter.getCount(orgId, uid)
+    await counter.decrement(orgId)
+    const count = await counter.getCount(orgId)
     expect(count).toBe(0)
   })
 
   it('invalidates (deletes) the key', async () => {
     const counter = createRedisUnreadCounter(createMockRedis())
-    await counter.setCount(orgId, uid, 10)
-    await counter.invalidate(orgId, uid)
-    const count = await counter.getCount(orgId, uid)
+    await counter.setCount(orgId, 10)
+    await counter.invalidate(orgId)
+    const count = await counter.getCount(orgId)
     expect(count).toBe(0)
   })
 
-  it('uses separate keys per org/user', async () => {
+  it('uses separate keys per org', async () => {
     const counter = createRedisUnreadCounter(createMockRedis())
     const org2 = organizationId('org-002')
-    const user2 = userId('user-002')
 
-    await counter.setCount(orgId, uid, 5)
-    await counter.setCount(org2, user2, 10)
+    await counter.setCount(orgId, 5)
+    await counter.setCount(org2, 10)
 
-    expect(await counter.getCount(orgId, uid)).toBe(5)
-    expect(await counter.getCount(org2, user2)).toBe(10)
+    expect(await counter.getCount(orgId)).toBe(5)
+    expect(await counter.getCount(org2)).toBe(10)
 
-    await counter.invalidate(orgId, uid)
-    expect(await counter.getCount(orgId, uid)).toBe(0)
-    expect(await counter.getCount(org2, user2)).toBe(10)
+    await counter.invalidate(orgId)
+    expect(await counter.getCount(orgId)).toBe(0)
+    expect(await counter.getCount(org2)).toBe(10)
   })
 })

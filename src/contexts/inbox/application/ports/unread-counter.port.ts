@@ -1,12 +1,18 @@
 // Inbox context — unread counter port (Redis-backed)
 // Per architecture: "Ports are TypeScript interfaces, not classes."
+//
+// Design note: Unread count is org-level, NOT per-user.
+// Inbox items have a shared status field (`new` → `read` → …) with no per-user
+// read tracking. All users in an org see the same "new" items, so the counter
+// is scoped to orgId only. If per-user read state is added later (Phase N+),
+// this port will need userId reintroduced.
 
-import type { OrganizationId, UserId } from '#/shared/domain/ids'
+import type { OrganizationId } from '#/shared/domain/ids'
 
 export type UnreadCounterPort = Readonly<{
-  getCount(orgId: OrganizationId, userId: UserId): Promise<number>
-  setCount(orgId: OrganizationId, userId: UserId, count: number): Promise<void>
-  increment(orgId: OrganizationId, userId: UserId): Promise<void>
-  decrement(orgId: OrganizationId, userId: UserId): Promise<void>
-  invalidate(orgId: OrganizationId, userId: UserId): Promise<void>
+  getCount(orgId: OrganizationId): Promise<number>
+  setCount(orgId: OrganizationId, count: number): Promise<void>
+  increment(orgId: OrganizationId): Promise<void>
+  decrement(orgId: OrganizationId): Promise<void>
+  invalidate(orgId: OrganizationId): Promise<void>
 }>

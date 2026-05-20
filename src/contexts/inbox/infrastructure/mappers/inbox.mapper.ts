@@ -8,7 +8,9 @@ import { inboxItemId, organizationId, propertyId, userId } from '#/shared/domain
 type InboxItemRow = typeof inboxItems.$inferSelect
 type InboxItemInsertRow = typeof inboxItems.$inferInsert
 
-export const inboxItemFromRow = (row: InboxItemRow): InboxItem => ({
+export const inboxItemFromRow = (
+  row: InboxItemRow,
+): Omit<InboxItem, 'reviewerName' | 'propertyName'> => ({
   id: inboxItemId(row.id),
   organizationId: organizationId(row.organizationId),
   propertyId: propertyId(row.propertyId),
@@ -28,7 +30,9 @@ export const inboxItemFromRow = (row: InboxItemRow): InboxItem => ({
   updatedAt: row.updatedAt,
 })
 
-export const inboxItemToInsertRow = (item: Omit<InboxItem, 'createdAt' | 'updatedAt'>): InboxItemInsertRow => ({
+export const inboxItemToInsertRow = (
+  item: Omit<InboxItem, 'createdAt' | 'updatedAt'>,
+): InboxItemInsertRow => ({
   id: item.id as string,
   organizationId: item.organizationId as string,
   propertyId: item.propertyId as string,

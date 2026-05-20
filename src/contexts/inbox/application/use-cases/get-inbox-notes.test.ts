@@ -39,6 +39,8 @@ const makeItem = (): InboxItem => ({
   platform: 'google',
   snippet: 'Test',
   assignedTo: null,
+  reviewerName: null,
+  propertyName: null,
   readAt: null,
   escalatedAt: null,
   addressedAt: null,

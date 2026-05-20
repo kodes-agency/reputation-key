@@ -44,6 +44,8 @@ function makeItem(overrides: Partial<InboxItem> = {}): InboxItem {
     platform: 'google',
     snippet: 'Great!',
     assignedTo: null,
+    reviewerName: null,
+    propertyName: null,
     readAt: null,
     escalatedAt: null,
     addressedAt: null,
@@ -77,6 +79,7 @@ const setup = (staffApi: StaffPublicApi = adminStaffApi) => {
     updateAssignment: async () => storedDetail!.item,
     countByStatus: async () => 0,
     syncDenormalizedFields: async () => {},
+    findByIds: async () => [],
     findDetailById: async (id, orgId) =>
       storedDetail &&
       storedDetail.item.id === id &&

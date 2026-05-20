@@ -7,13 +7,15 @@ import { Badge } from '#/components/ui/badge'
 
 export function InboxUnreadBadge() {
   const loadAction = useAction(useServerFn(getUnreadCountFn))
+  const loadActionRef = useRef(loadAction)
+  loadActionRef.current = loadAction
   const [count, setCount] = useState<number | null>(null)
   const abortRef = useRef(false)
 
   const loadCount = useCallback(async () => {
     abortRef.current = false
     try {
-      const result = await loadAction({ data: {} })
+      const result = await loadActionRef.current({ data: {} })
       if (!abortRef.current) {
         setCount(typeof result === 'number' ? result : 0)
       }

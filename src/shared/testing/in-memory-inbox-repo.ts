@@ -7,6 +7,12 @@ export function createInMemoryInboxRepo(): InboxRepository & { items: InboxItem[
   const repo: InboxRepository = {
     findById: async (id, orgId) =>
       items.find((i) => i.id === id && i.organizationId === orgId) ?? null,
+    findByIds: async (ids, orgId) =>
+      items.filter(
+        (i) =>
+          (ids as unknown as string[]).includes(i.id as string) &&
+          i.organizationId === orgId,
+      ),
     findBySource: async (sourceType, sourceId, orgId) =>
       items.find(
         (i) =>
@@ -35,11 +41,14 @@ export function createInMemoryInboxRepo(): InboxRepository & { items: InboxItem[
         )
         filtered = idx >= 0 ? filtered.slice(idx + 1) : []
       }
-      const sliced = filtered.slice(0, limit)
+      // Fetch limit+1 to detect if there are more pages (matches Drizzle repo behavior)
+      const overflow = filtered.slice(0, limit + 1)
+      const hasMore = overflow.length > limit
+      const sliced = overflow.slice(0, limit)
       const last = sliced[sliced.length - 1]
       return {
         items: sliced,
-        nextCursor: last ? { sourceDate: last.sourceDate, id: last.id } : null,
+        nextCursor: hasMore && last ? { sourceDate: last.sourceDate, id: last.id } : null,
       }
     },
     create: async (item) => {
@@ -50,7 +59,12 @@ export function createInMemoryInboxRepo(): InboxRepository & { items: InboxItem[
       const item = items.find((i) => i.id === id && i.organizationId === orgId)
       if (!item) throw new Error('not found')
       const idx = items.indexOf(item)
-      items[idx] = { ...item, status, updatedAt: new Date(), ...timestampFields }
+      items[idx] = {
+        ...item,
+        status,
+        updatedAt: new Date(),
+        ...timestampFields,
+      }
       return items[idx]
     },
     bulkUpdateStatus: async (ids, orgId, status, timestampFields) => {
