@@ -34,16 +34,15 @@ describe('deleteProperty', () => {
     expect(all).toHaveLength(0)
   })
 
-  it('allows PropertyManager (has property.delete permission)', async () => {
+  it('rejects PropertyManager (only AccountAdmin can delete)', async () => {
     const { useCase, propertyRepo } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
     const prop = buildTestProperty({ id: 'p1' })
     propertyRepo.seed([prop])
 
-    await useCase({ propertyId: prop.id }, ctx)
-
-    const found = await propertyRepo.findById(ctx.organizationId, prop.id as never)
-    expect(found).toBeNull()
+    await expect(useCase({ propertyId: prop.id }, ctx)).rejects.toSatisfy(
+      (e: unknown) => isPropertyError(e) && (e as { code: string }).code === 'forbidden',
+    )
   })
 
   it('rejects Staff', async () => {
