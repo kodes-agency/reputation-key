@@ -85,7 +85,7 @@ export function InboxDetailContent({
         </div>
       )}
 
-      {!detail && currentItem.snippet && (
+      {!detail?.reviewText && !detail?.feedbackComment && currentItem.snippet && (
         <div className="rounded-md border bg-muted/30 p-3">
           <p className="text-sm">{currentItem.snippet}</p>
         </div>
@@ -143,6 +143,7 @@ export function InboxDetailContent({
           notes={notes}
           inboxItemId={currentItem.id}
           onNoteAdded={onNoteAdded}
+          // TODO(Phase 12): Pass currentUserId from auth context for "You" label
         />
       </div>
     </div>

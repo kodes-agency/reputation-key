@@ -5,6 +5,7 @@
 import type { Database } from '#/shared/db'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { Redis } from 'ioredis'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { InboxRepository } from './application/ports/inbox.repository'
 import type { InboxNoteRepository } from './application/ports/inbox-note.repository'
 import type { UnreadCounterPort } from './application/ports/unread-counter.port'
@@ -28,6 +29,7 @@ export type InboxContextBuildInput = Readonly<{
   events: EventBus
   redis: Redis | undefined
   clock: () => Date
+  staffPublicApi: StaffPublicApi
 }>
 
 export type InboxContextApi = Readonly<{
@@ -45,6 +47,7 @@ export type InboxContextApi = Readonly<{
   inboxRepo: InboxRepository
   inboxNoteRepo: InboxNoteRepository
   unreadCounter: UnreadCounterPort
+  staffPublicApi: StaffPublicApi
 }>
 
 export const buildInboxContext = (input: InboxContextBuildInput): InboxContextApi => {
@@ -64,6 +67,7 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
     createInboxItem: createInboxItemUseCase({
       repo: inboxRepo,
       events: input.events,
+      unreadCounter,
       idGen: () => inboxItemId(crypto.randomUUID()),
       clock: input.clock,
     }),
@@ -72,26 +76,31 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
       events: input.events,
       unreadCounter,
       clock: input.clock,
+      staffPublicApi: input.staffPublicApi,
     }),
     bulkUpdateInboxStatus: bulkUpdateInboxStatus({
       repo: inboxRepo,
       events: input.events,
       unreadCounter,
       clock: input.clock,
+      staffPublicApi: input.staffPublicApi,
     }),
     assignInboxItem: assignInboxItem({
       repo: inboxRepo,
       events: input.events,
       clock: input.clock,
+      staffPublicApi: input.staffPublicApi,
     }),
     getInboxItems: getInboxItems({
       repo: inboxRepo,
+      staffPublicApi: input.staffPublicApi,
     }),
     addInboxNote: addInboxNote({
       repo: inboxRepo,
       noteRepo: inboxNoteRepo,
       idGen: () => inboxNoteId(crypto.randomUUID()),
       clock: input.clock,
+      staffPublicApi: input.staffPublicApi,
     }),
     getUnreadCount: getUnreadCount({
       unreadCounter,
@@ -99,9 +108,12 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
     }),
     getInboxItemDetail: getInboxItemDetail({
       repo: inboxRepo,
+      staffPublicApi: input.staffPublicApi,
     }),
     getInboxNotes: getInboxNotes({
       noteRepo: inboxNoteRepo,
+      repo: inboxRepo,
+      staffPublicApi: input.staffPublicApi,
     }),
   }
 
@@ -117,5 +129,6 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
     inboxRepo,
     inboxNoteRepo,
     unreadCounter,
+    staffPublicApi: input.staffPublicApi,
   }
 }

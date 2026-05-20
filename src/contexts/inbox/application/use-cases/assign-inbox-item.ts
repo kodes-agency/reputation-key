@@ -5,15 +5,19 @@ import type { InboxRepository } from '../ports/inbox.repository'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { InboxItemId, OrganizationId, UserId } from '#/shared/domain/ids'
 import type { InboxItem } from '../../domain/types'
+import type { Role } from '#/shared/domain/roles'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { validateAssignment } from '../../domain/rules'
 import { inboxItemAssigned } from '../../domain/events'
 import { inboxError } from '../../domain/errors'
+import { hasRole, ADMIN_ROLE } from '#/shared/domain/roles'
 
 export type AssignInboxItemInput = Readonly<{
   inboxItemId: InboxItemId
   organizationId: OrganizationId
   assignedToUserId: UserId | null
-  role: string
+  role: Role
+  userId: UserId
 }>
 
 // fallow-ignore-next-line unused-type
@@ -21,6 +25,7 @@ export type AssignInboxItemDeps = Readonly<{
   repo: InboxRepository
   events: EventBus
   clock: () => Date
+  staffPublicApi: StaffPublicApi
 }>
 
 export const assignInboxItem =
@@ -38,6 +43,25 @@ export const assignInboxItem =
       throw inboxError('not_found', 'Inbox item not found', {
         inboxItemId: input.inboxItemId,
       })
+    }
+
+    // Enforce role-scoped property access
+    if (!hasRole(input.role, ADMIN_ROLE)) {
+      const accessible = await deps.staffPublicApi.getAccessiblePropertyIds(
+        input.organizationId,
+        input.userId,
+        input.role,
+      )
+      if (
+        accessible !== null &&
+        !accessible.includes(
+          item.propertyId as ReturnType<typeof import('#/shared/domain/ids').propertyId>,
+        )
+      ) {
+        throw inboxError('forbidden', 'No access to this property', {
+          propertyId: item.propertyId,
+        })
+      }
     }
 
     // 3. Update assignment

@@ -22,7 +22,7 @@ export const onReviewCreated =
         rating: event.rating,
         sourceDate: event.occurredAt,
         platform: event.platform,
-        snippet: null,
+        snippet: event.reviewText ?? null,
       })
     } catch (err) {
       if (isInboxError(err) && err.code === 'already_exists') return

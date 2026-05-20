@@ -21,7 +21,8 @@ import {
 } from '../application/dto/inbox.dto'
 import { isInboxError } from '../domain/errors'
 import type { InboxErrorCode } from '../domain/errors'
-import { inboxItemId, propertyId, userId } from '#/shared/domain/ids'
+import { inboxItemId, propertyId } from '#/shared/domain/ids'
+import { userId as toUserId } from '#/shared/domain/ids'
 
 // ── Error → HTTP status mapping (exhaustive) ──────────────────────
 
@@ -47,6 +48,8 @@ export const getInboxItemsFn = createServerFn({ method: 'GET' })
         try {
           return await useCases.getInboxItems({
             organizationId: ctx.organizationId,
+            userId: ctx.userId,
+            role: ctx.role,
             filters: {
               propertyId: data.propertyId ? propertyId(data.propertyId) : undefined,
               status: data.status,
@@ -97,6 +100,7 @@ export const updateInboxStatusFn = createServerFn({ method: 'POST' })
             organizationId: ctx.organizationId,
             newStatus: data.status,
             userId: ctx.userId,
+            role: ctx.role,
           })
         } catch (e) {
           if (isInboxError(e))
@@ -125,6 +129,7 @@ export const bulkUpdateInboxStatusFn = createServerFn({ method: 'POST' })
             organizationId: ctx.organizationId,
             newStatus: data.status,
             userId: ctx.userId,
+            role: ctx.role,
           })
         } catch (e) {
           if (isInboxError(e))
@@ -152,9 +157,10 @@ export const assignInboxItemFn = createServerFn({ method: 'POST' })
             inboxItemId: inboxItemId(data.inboxItemId),
             organizationId: ctx.organizationId,
             assignedToUserId: data.assignedToUserId
-              ? userId(data.assignedToUserId)
+              ? toUserId(data.assignedToUserId)
               : null,
             role: ctx.role,
+            userId: ctx.userId,
           })
         } catch (e) {
           if (isInboxError(e))
@@ -183,6 +189,7 @@ export const addInboxNoteFn = createServerFn({ method: 'POST' })
             organizationId: ctx.organizationId,
             authorUserId: ctx.userId,
             text: data.text,
+            role: ctx.role,
           })
         } catch (e) {
           if (isInboxError(e))
@@ -208,7 +215,6 @@ export const getUnreadCountFn = createServerFn({ method: 'GET' })
         try {
           return await useCases.getUnreadCount({
             organizationId: ctx.organizationId,
-            userId: ctx.userId,
           })
         } catch (e) {
           if (isInboxError(e))
@@ -235,6 +241,8 @@ export const getInboxItemDetailFn = createServerFn({ method: 'GET' })
           return await useCases.getInboxItemDetail({
             inboxItemId: inboxItemId(data.inboxItemId),
             organizationId: ctx.organizationId,
+            userId: ctx.userId,
+            role: ctx.role,
           })
         } catch (e) {
           if (isInboxError(e))
@@ -261,6 +269,8 @@ export const getInboxNotesFn = createServerFn({ method: 'GET' })
           return await useCases.getInboxNotes({
             inboxItemId: inboxItemId(data.inboxItemId),
             organizationId: ctx.organizationId,
+            userId: ctx.userId,
+            role: ctx.role,
           })
         } catch (e) {
           if (isInboxError(e))

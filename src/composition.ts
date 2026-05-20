@@ -209,6 +209,7 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     events: eventBus,
     redis,
     clock,
+    staffPublicApi: staff.publicApi,
   })
 
   // ── Wire invitation acceptance hook ────────────────────────────

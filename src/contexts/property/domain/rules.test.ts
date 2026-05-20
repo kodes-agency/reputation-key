@@ -156,7 +156,6 @@ describe('validateTimezone', () => {
 // These tests verify the permission table entries for property actions.
 // The can() function lives in shared/domain/permissions.ts.
 
-
 describe('property.create permission', () => {
   it('allows PropertyManager and AccountAdmin', () => {
     expect(can('AccountAdmin', 'property.create')).toBe(true)
@@ -180,12 +179,12 @@ describe('property.update permission', () => {
 })
 
 describe('property.delete permission', () => {
-  it('allows only AccountAdmin', () => {
+  it('allows AccountAdmin and PropertyManager', () => {
     expect(can('AccountAdmin', 'property.delete')).toBe(true)
+    expect(can('PropertyManager', 'property.delete')).toBe(true)
   })
 
-  it('rejects PropertyManager and Staff', () => {
-    expect(can('PropertyManager', 'property.delete')).toBe(false)
+  it('rejects Staff', () => {
     expect(can('Staff', 'property.delete')).toBe(false)
   })
 })

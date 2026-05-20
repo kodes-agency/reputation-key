@@ -63,6 +63,8 @@ export function InboxList({
             />
           </TableHead>
           <TableHead>Status</TableHead>
+          <TableHead>Reviewer</TableHead>
+          <TableHead>Property</TableHead>
           <TableHead>Source</TableHead>
           <TableHead>Rating</TableHead>
           <TableHead>Date</TableHead>
@@ -87,6 +89,22 @@ export function InboxList({
               </TableCell>
               <TableCell>
                 <InboxStatusBadge status={item.status} />
+              </TableCell>
+              <TableCell>
+                <span
+                  className="text-sm truncate max-w-[160px] block"
+                  title={item.reviewerName ?? undefined}
+                >
+                  {item.reviewerName ?? '–'}
+                </span>
+              </TableCell>
+              <TableCell>
+                <span
+                  className="text-sm text-muted-foreground truncate max-w-[160px] block"
+                  title={item.propertyName ?? undefined}
+                >
+                  {item.propertyName ?? '–'}
+                </span>
               </TableCell>
               <TableCell>
                 <div className="flex flex-col gap-0.5">

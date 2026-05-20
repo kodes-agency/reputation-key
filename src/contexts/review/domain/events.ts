@@ -13,6 +13,7 @@ export type ReviewCreated = Readonly<{
   platform: ReviewPlatform
   externalId: string
   rating: StarRating
+  reviewText: string | null
   occurredAt: Date
 }>
 
@@ -25,6 +26,7 @@ export type ReviewUpdated = Readonly<{
   platform: ReviewPlatform
   externalId: string
   rating: StarRating
+  reviewText: string | null
   occurredAt: Date
 }>
 

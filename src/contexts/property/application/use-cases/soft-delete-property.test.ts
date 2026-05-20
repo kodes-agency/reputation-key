@@ -1,7 +1,7 @@
-// Property context — soft-delete property use case tests
+// Property context — hard-delete property use case tests
 
 import { describe, it, expect } from 'vitest'
-import { softDeleteProperty } from './soft-delete-property'
+import { deleteProperty } from './soft-delete-property'
 import { createInMemoryPropertyRepo } from '#/shared/testing/in-memory-property-repo'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
 import { buildTestAuthContext, buildTestProperty } from '#/shared/testing/fixtures'
@@ -12,12 +12,12 @@ const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
 const setup = () => {
   const propertyRepo = createInMemoryPropertyRepo()
   const events = createCapturingEventBus()
-  const useCase = softDeleteProperty({ propertyRepo, events, clock: () => FIXED_TIME })
+  const useCase = deleteProperty({ propertyRepo, events, clock: () => FIXED_TIME })
   return { useCase, propertyRepo, events }
 }
 
-describe('softDeleteProperty', () => {
-  it('soft-deletes a property as AccountAdmin', async () => {
+describe('deleteProperty', () => {
+  it('hard-deletes a property as AccountAdmin', async () => {
     const { useCase, propertyRepo } = setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
     const prop = buildTestProperty({ id: 'p1' })
@@ -25,23 +25,25 @@ describe('softDeleteProperty', () => {
 
     await useCase({ propertyId: prop.id }, ctx)
 
-    // Property should no longer be found (soft-deleted)
+    // Property should no longer be found
     const found = await propertyRepo.findById(ctx.organizationId, prop.id as never)
     expect(found).toBeNull()
 
-    // But it still exists in the store
+    // And it should not exist in the store at all
     const all = propertyRepo.all()
-    expect(all).toHaveLength(1)
-    expect(all[0].deletedAt).not.toBeNull()
+    expect(all).toHaveLength(0)
   })
 
-  it('rejects PropertyManager (not AccountAdmin)', async () => {
-    const { useCase } = setup()
+  it('allows PropertyManager (has property.delete permission)', async () => {
+    const { useCase, propertyRepo } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const prop = buildTestProperty({ id: 'p1' })
+    propertyRepo.seed([prop])
 
-    await expect(useCase({ propertyId: 'any' }, ctx)).rejects.toSatisfy(
-      (e: unknown) => isPropertyError(e) && (e as { code: string }).code === 'forbidden',
-    )
+    await useCase({ propertyId: prop.id }, ctx)
+
+    const found = await propertyRepo.findById(ctx.organizationId, prop.id as never)
+    expect(found).toBeNull()
   })
 
   it('rejects Staff', async () => {

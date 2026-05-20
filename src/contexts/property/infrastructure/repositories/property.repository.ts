@@ -86,14 +86,10 @@ export const createPropertyRepository = (db: Database): PropertyRepository => ({
     })
   },
 
-  softDelete: async (orgId, id) => {
-    return trace('property.softDelete', async () => {
-      // Use the current timestamp for the soft-delete marker.
-      // The use case emits the domain event with its own clock-derived timestamp.
-      const now = new Date()
+  hardDelete: async (orgId, id) => {
+    return trace('property.hardDelete', async () => {
       await db
-        .update(properties)
-        .set({ deletedAt: now, updatedAt: now })
+        .delete(properties)
         .where(and(...baseWhere(properties, orgId), eq(properties.id, id)))
     })
   },

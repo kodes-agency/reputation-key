@@ -17,16 +17,16 @@ export const createReplyRepository = (db: Database): ReplyRepository => ({
         .select()
         .from(replies)
         .where(
-          and(
-            eq(replies.reviewId, reviewId),
-            eq(replies.organizationId, organizationId),
-          ),
+          and(eq(replies.reviewId, reviewId), eq(replies.organizationId, organizationId)),
         )
       return rows.map(replyFromRow)
     })
   },
 
-  findGoogleSyncByReviewId: async (reviewId: ReviewId, organizationId: OrganizationId) => {
+  findGoogleSyncByReviewId: async (
+    reviewId: ReviewId,
+    organizationId: OrganizationId,
+  ) => {
     return trace('reply.findGoogleSyncByReviewId', async () => {
       const rows = await db
         .select()
@@ -43,9 +43,10 @@ export const createReplyRepository = (db: Database): ReplyRepository => ({
     })
   },
 
-  upsert: async (reply: Omit<Reply, 'createdAt' | 'updatedAt'>) => {
+  upsert: async (reply: Omit<Reply, 'createdAt' | 'updatedAt'>, now?: Date) => {
     return trace('reply.upsert', async () => {
       const row = replyToRow(reply)
+      const updatedAt = now ?? new Date()
       const result = await db
         .insert(replies)
         .values(row)
@@ -55,7 +56,7 @@ export const createReplyRepository = (db: Database): ReplyRepository => ({
             text: row.text,
             status: row.status,
             publishedAt: row.publishedAt,
-            updatedAt: new Date(),
+            updatedAt,
           },
         })
         .returning()
@@ -69,17 +70,27 @@ export const createReplyRepository = (db: Database): ReplyRepository => ({
 
   deleteById: async (id: ReplyId, organizationId: OrganizationId) => {
     return trace('reply.deleteById', async () => {
-      await db.delete(replies).where(
-        and(eq(replies.id, id), eq(replies.organizationId, organizationId)),
-      )
+      await db
+        .delete(replies)
+        .where(and(eq(replies.id, id), eq(replies.organizationId, organizationId)))
     })
   },
 
-  deleteByReviewIdAndSource: async (reviewId: ReviewId, source: ReplySource, organizationId: OrganizationId) => {
+  deleteByReviewIdAndSource: async (
+    reviewId: ReviewId,
+    source: ReplySource,
+    organizationId: OrganizationId,
+  ) => {
     return trace('reply.deleteByReviewIdAndSource', async () => {
       await db
         .delete(replies)
-        .where(and(eq(replies.reviewId, reviewId), eq(replies.source, source), eq(replies.organizationId, organizationId)))
+        .where(
+          and(
+            eq(replies.reviewId, reviewId),
+            eq(replies.source, source),
+            eq(replies.organizationId, organizationId),
+          ),
+        )
     })
   },
 })

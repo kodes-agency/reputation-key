@@ -81,7 +81,8 @@ describe('inboxItemFromRow', () => {
 describe('inboxItemToInsertRow', () => {
   it('round-trips through fromRow → toInsertRow', () => {
     const item = inboxItemFromRow(sampleRow)
-    const row = inboxItemToInsertRow(item)
+    const fullItem = { ...item, reviewerName: null, propertyName: null }
+    const row = inboxItemToInsertRow(fullItem)
 
     expect(row.id).toBe(sampleRow.id)
     expect(row.organizationId).toBe(sampleRow.organizationId)
@@ -102,7 +103,8 @@ describe('inboxItemToInsertRow', () => {
 
   it('excludes createdAt and updatedAt', () => {
     const item = inboxItemFromRow(sampleRow)
-    const row = inboxItemToInsertRow(item)
+    const fullItem = { ...item, reviewerName: null, propertyName: null }
+    const row = inboxItemToInsertRow(fullItem)
     expect('createdAt' in row).toBe(false)
     expect('updatedAt' in row).toBe(false)
   })
@@ -112,7 +114,8 @@ describe('inboxItemToInsertRow', () => {
     const item = inboxItemFromRow(rowWithNull)
     expect(item.assignedTo).toBeNull()
 
-    const row = inboxItemToInsertRow(item)
+    const fullItem = { ...item, reviewerName: null, propertyName: null }
+    const row = inboxItemToInsertRow(fullItem)
     expect(row.assignedTo).toBeNull()
   })
 
@@ -121,7 +124,8 @@ describe('inboxItemToInsertRow', () => {
     expect(item.assignedTo).not.toBeNull()
     expect(String(item.assignedTo)).toBe('user-uuid-001')
 
-    const row = inboxItemToInsertRow(item)
+    const fullItem = { ...item, reviewerName: null, propertyName: null }
+    const row = inboxItemToInsertRow(fullItem)
     expect(row.assignedTo).toBe('user-uuid-001')
   })
 })

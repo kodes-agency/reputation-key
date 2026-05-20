@@ -27,7 +27,9 @@ export type CreateInboxItemInput = Readonly<{
   clock: () => Date
 }>
 
-export const createInboxItem = (input: CreateInboxItemInput): Result<InboxItem, InboxError> => {
+export const createInboxItem = (
+  input: CreateInboxItemInput,
+): Result<InboxItem, InboxError> => {
   const now = input.clock()
   return ok({
     id: input.id,
@@ -41,6 +43,8 @@ export const createInboxItem = (input: CreateInboxItemInput): Result<InboxItem, 
     platform: input.platform,
     snippet: input.snippet,
     assignedTo: input.assignedTo,
+    reviewerName: null,
+    propertyName: null,
     readAt: null,
     escalatedAt: null,
     addressedAt: null,
@@ -59,7 +63,9 @@ export type CreateInboxNoteInput = Readonly<{
   clock: () => Date
 }>
 
-export const createInboxNote = (input: CreateInboxNoteInput): Result<InboxNote, InboxError> => {
+export const createInboxNote = (
+  input: CreateInboxNoteInput,
+): Result<InboxNote, InboxError> => {
   const trimmed = input.text.trim()
   if (trimmed.length === 0) {
     return err(inboxError('invalid_input', 'Note text cannot be empty'))

@@ -3,16 +3,25 @@
 
 import type { InboxRepository } from '../ports/inbox.repository'
 import type { InboxNoteRepository } from '../ports/inbox-note.repository'
-import type { InboxItemId, InboxNoteId, OrganizationId, UserId } from '#/shared/domain/ids'
+import type {
+  InboxItemId,
+  InboxNoteId,
+  OrganizationId,
+  UserId,
+} from '#/shared/domain/ids'
 import type { InboxNote } from '../../domain/types'
+import type { Role } from '#/shared/domain/roles'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { createInboxNote } from '../../domain/constructors'
 import { inboxError } from '../../domain/errors'
+import { hasRole, ADMIN_ROLE } from '#/shared/domain/roles'
 
 export type AddInboxNoteInput = Readonly<{
   inboxItemId: InboxItemId
   organizationId: OrganizationId
   authorUserId: UserId
   text: string
+  role: Role
 }>
 
 // fallow-ignore-next-line unused-type
@@ -21,6 +30,7 @@ export type AddInboxNoteDeps = Readonly<{
   noteRepo: InboxNoteRepository
   idGen: () => InboxNoteId
   clock: () => Date
+  staffPublicApi: StaffPublicApi
 }>
 
 export const addInboxNote =
@@ -32,6 +42,25 @@ export const addInboxNote =
       throw inboxError('not_found', 'Inbox item not found', {
         inboxItemId: input.inboxItemId,
       })
+    }
+
+    // Enforce role-scoped property access
+    if (!hasRole(input.role, ADMIN_ROLE)) {
+      const accessible = await deps.staffPublicApi.getAccessiblePropertyIds(
+        input.organizationId,
+        input.authorUserId,
+        input.role,
+      )
+      if (
+        accessible !== null &&
+        !accessible.includes(
+          item.propertyId as ReturnType<typeof import('#/shared/domain/ids').propertyId>,
+        )
+      ) {
+        throw inboxError('forbidden', 'No access to this property', {
+          propertyId: item.propertyId,
+        })
+      }
     }
 
     // 2. Build domain note

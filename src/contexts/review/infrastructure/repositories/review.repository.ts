@@ -19,7 +19,11 @@ import { reviewFromRow, reviewToRow } from '../mappers/review.mapper'
 import { trace } from '#/shared/observability/trace'
 
 export const createReviewRepository = (db: Database): ReviewRepository => ({
-  findByExternalId: async (platform: ReviewPlatform, externalId: string, organizationId: OrganizationId) => {
+  findByExternalId: async (
+    platform: ReviewPlatform,
+    externalId: string,
+    organizationId: OrganizationId,
+  ) => {
     return trace('review.findByExternalId', async () => {
       const rows = await db
         .select()
@@ -36,9 +40,10 @@ export const createReviewRepository = (db: Database): ReviewRepository => ({
     })
   },
 
-  upsert: async (review: Omit<Review, 'createdAt' | 'updatedAt'>) => {
+  upsert: async (review: Omit<Review, 'createdAt' | 'updatedAt'>, now?: Date) => {
     return trace('review.upsert', async () => {
       const row = reviewToRow(review)
+      const updatedAt = now ?? new Date()
       const result = await db
         .insert(reviews)
         .values(row)
@@ -55,7 +60,7 @@ export const createReviewRepository = (db: Database): ReviewRepository => ({
             languageCode: row.languageCode,
             reviewedAt: row.reviewedAt,
             expiresAt: row.expiresAt,
-            updatedAt: new Date(),
+            updatedAt,
           },
         })
         .returning()
@@ -120,17 +125,22 @@ export const createReviewRepository = (db: Database): ReviewRepository => ({
 
   deleteById: async (id: ReviewId, organizationId: OrganizationId) => {
     return trace('review.deleteById', async () => {
-      await db.delete(reviews).where(
-        and(eq(reviews.id, id), eq(reviews.organizationId, organizationId)),
-      )
+      await db
+        .delete(reviews)
+        .where(and(eq(reviews.id, id), eq(reviews.organizationId, organizationId)))
     })
   },
 
   deleteByPropertyId: async (propertyId: PropertyId, organizationId: OrganizationId) => {
     return trace('review.deleteByPropertyId', async () => {
-      await db.delete(reviews).where(
-        and(eq(reviews.propertyId, propertyId), eq(reviews.organizationId, organizationId)),
-      )
+      await db
+        .delete(reviews)
+        .where(
+          and(
+            eq(reviews.propertyId, propertyId),
+            eq(reviews.organizationId, organizationId),
+          ),
+        )
     })
   },
 })

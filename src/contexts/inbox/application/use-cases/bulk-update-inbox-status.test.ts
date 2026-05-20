@@ -11,16 +11,18 @@ import {
 } from '#/shared/domain/ids'
 import type { InboxItem, InboxStatus, SourceType } from '../../domain/types'
 import type { UnreadCounterPort } from '../ports/unread-counter.port'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { Role } from '#/shared/domain/roles'
 
 const FIXED_TIME = new Date('2026-04-15T12:00:00Z')
 const ORG_ID = organizationId('org-1')
 const USER_ID = userId('user-1')
 
-function seedItem(id: string, status: InboxStatus): InboxItem {
+function seedItem(id: string, status: InboxStatus, propId: string = 'prop-1'): InboxItem {
   return {
     id: inboxItemId(id),
     organizationId: ORG_ID,
-    propertyId: propertyId('prop-1'),
+    propertyId: propertyId(propId),
     sourceType: 'review' as SourceType,
     sourceId: reviewId(`rev-${id}`),
     status,
@@ -29,6 +31,8 @@ function seedItem(id: string, status: InboxStatus): InboxItem {
     platform: 'google',
     snippet: 'Great!',
     assignedTo: null,
+    reviewerName: null,
+    propertyName: null,
     readAt: null,
     escalatedAt: null,
     addressedAt: null,
@@ -38,20 +42,30 @@ function seedItem(id: string, status: InboxStatus): InboxItem {
   }
 }
 
-const setup = () => {
+const defaultStaffApi: StaffPublicApi = {
+  getAccessiblePropertyIds: async () => null,
+}
+
+const setup = (staffApi: StaffPublicApi = defaultStaffApi) => {
   const repo = createInMemoryInboxRepo()
   const events = createCapturingEventBus()
-  const decrements: Array<{ orgId: string; userId: string }> = []
+  const decrements: Array<string> = []
   const unreadCounter: UnreadCounterPort = {
     getCount: async () => 0,
     setCount: async () => {},
     increment: async () => {},
-    decrement: async (orgId, uId) => {
-      decrements.push({ orgId: orgId as string, userId: uId as string })
+    decrement: async (orgId) => {
+      decrements.push(orgId as string)
     },
     invalidate: async () => {},
   }
-  const deps = { repo, events, unreadCounter, clock: () => FIXED_TIME }
+  const deps = {
+    repo,
+    events,
+    unreadCounter,
+    clock: () => FIXED_TIME,
+    staffPublicApi: staffApi,
+  }
   const useCase = bulkUpdateInboxStatus(deps)
   return { useCase, repo, events, decrements }
 }
@@ -67,6 +81,7 @@ describe('bulkUpdateInboxStatus', () => {
       organizationId: ORG_ID,
       newStatus: 'read',
       userId: USER_ID,
+      role: 'AccountAdmin' as Role,
     })
 
     expect(result.updated).toBe(2)
@@ -84,11 +99,13 @@ describe('bulkUpdateInboxStatus', () => {
       organizationId: ORG_ID,
       newStatus: 'read',
       userId: USER_ID,
+      role: 'AccountAdmin' as Role,
     })
 
-    // ii-1: new→read (valid), ii-2: archived→read (valid per rules)
-    // Actually archived→read is valid. Let's test a truly invalid one.
-    expect(result.updated).toBeGreaterThan(0)
+    // ii-1: new→read (valid), ii-2: archived→read (invalid — archived is terminal)
+    expect(result.updated).toBe(1)
+    expect(repo.items[0].status).toBe('read')
+    expect(repo.items[1].status).toBe('archived')
   })
 
   it('returns 0 when all transitions are invalid', async () => {
@@ -100,6 +117,7 @@ describe('bulkUpdateInboxStatus', () => {
       organizationId: ORG_ID,
       newStatus: 'new', // addressed → new is invalid
       userId: USER_ID,
+      role: 'AccountAdmin' as Role,
     })
 
     expect(result.updated).toBe(0)
@@ -115,6 +133,7 @@ describe('bulkUpdateInboxStatus', () => {
       organizationId: ORG_ID,
       newStatus: 'read',
       userId: USER_ID,
+      role: 'AccountAdmin' as Role,
     })
 
     const emitted = events.capturedByTag('inbox.status.changed')
@@ -131,8 +150,53 @@ describe('bulkUpdateInboxStatus', () => {
       organizationId: ORG_ID,
       newStatus: 'read',
       userId: USER_ID,
+      role: 'AccountAdmin' as Role,
     })
 
     expect(decrements).toHaveLength(2)
+  })
+
+  it('filters out items from inaccessible properties for non-admin', async () => {
+    const staffApi: StaffPublicApi = {
+      getAccessiblePropertyIds: async () => [propertyId('prop-1')],
+    }
+    const { useCase, repo } = setup(staffApi)
+    repo.items.push(seedItem('ii-1', 'new', 'prop-1'))
+    repo.items.push(seedItem('ii-2', 'new', 'prop-2'))
+
+    const result = await useCase({
+      inboxItemIds: [inboxItemId('ii-1'), inboxItemId('ii-2')],
+      organizationId: ORG_ID,
+      newStatus: 'read',
+      userId: USER_ID,
+      role: 'PropertyManager' as Role,
+    })
+
+    expect(result.updated).toBe(1)
+    expect(repo.items[0].status).toBe('read')
+    expect(repo.items[1].status).toBe('new')
+  })
+
+  it('processes all items for AccountAdmin', async () => {
+    const staffApi: StaffPublicApi = {
+      getAccessiblePropertyIds: async () => {
+        throw new Error('Should not be called for AccountAdmin')
+      },
+    }
+    const { useCase, repo } = setup(staffApi)
+    repo.items.push(seedItem('ii-1', 'new', 'prop-1'))
+    repo.items.push(seedItem('ii-2', 'new', 'prop-2'))
+
+    const result = await useCase({
+      inboxItemIds: [inboxItemId('ii-1'), inboxItemId('ii-2')],
+      organizationId: ORG_ID,
+      newStatus: 'read',
+      userId: USER_ID,
+      role: 'AccountAdmin' as Role,
+    })
+
+    expect(result.updated).toBe(2)
+    expect(repo.items[0].status).toBe('read')
+    expect(repo.items[1].status).toBe('read')
   })
 })

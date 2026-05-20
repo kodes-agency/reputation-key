@@ -39,7 +39,9 @@ export const reviews = pgTable(
     platform: reviewPlatformEnum('platform').notNull(),
     externalId: varchar('external_id', { length: 500 }).notNull(),
     externalLocationId: varchar('external_location_id', { length: 500 }).notNull(),
-    googleConnectionId: uuid('google_connection_id').references(() => googleConnections.id),
+    googleConnectionId: uuid('google_connection_id').references(
+      () => googleConnections.id,
+    ),
     reviewerName: varchar('reviewer_name', { length: 255 }),
     reviewerProfilePhotoUrl: varchar('reviewer_profile_photo_url', { length: 1000 }),
     rating: integer('rating').notNull(),
@@ -53,7 +55,11 @@ export const reviews = pgTable(
     updatedAt: updatedAtColumn(),
   },
   (t) => [
-    uniqueIndex('reviews_platform_external_unique').on(t.platform, t.externalId, t.organizationId),
+    uniqueIndex('reviews_platform_external_unique').on(
+      t.platform,
+      t.externalId,
+      t.organizationId,
+    ),
     index('reviews_property_idx').on(t.propertyId),
     index('reviews_org_idx').on(t.organizationId),
     index('reviews_expires_idx').on(t.expiresAt),
@@ -76,8 +82,15 @@ export const replies = pgTable(
     createdAt: createdAtColumn(),
     updatedAt: updatedAtColumn(),
   },
+  // TODO(Phase 12): Add partial unique index so only one published reply per review:
+  //   CREATE UNIQUE INDEX replies_one_published_per_review ON replies (review_id) WHERE status = 'published'
+  //   Drizzle partial unique index support tracked in Phase 12.
   (t) => [
-    uniqueIndex('replies_review_source_unique').on(t.reviewId, t.source, t.organizationId),
+    uniqueIndex('replies_review_source_unique').on(
+      t.reviewId,
+      t.source,
+      t.organizationId,
+    ),
     index('replies_review_idx').on(t.reviewId),
     index('replies_org_idx').on(t.organizationId),
   ],

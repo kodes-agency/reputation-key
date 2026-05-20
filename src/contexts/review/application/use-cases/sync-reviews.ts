@@ -54,6 +54,8 @@ export type SyncReviewsResult = Readonly<{
   updated: number
   repliesMirrored: number
   failed: number
+  /** True when some reviews failed to sync but others succeeded. */
+  partialFailure: boolean
 }>
 
 export const syncReviews =
@@ -119,14 +121,14 @@ export const syncReviews =
         }
 
         // 4. Upsert review
-        await deps.reviewRepo.upsert(review)
+        await deps.reviewRepo.upsert(review, now)
 
         const isNew = !existing
         if (isNew) created++
         else updated++
 
         // 5. Mirror reply state from Google
-        const mirrored = await mirrorReply(deps, review.id, input.organizationId, gr)
+        const mirrored = await mirrorReply(deps, review.id, input.organizationId, gr, now)
         if (mirrored) repliesMirrored++
 
         // 6. Emit domain event
@@ -137,6 +139,7 @@ export const syncReviews =
           platform: 'google' as const,
           externalId: gr.externalId,
           rating: gr.rating,
+          reviewText: gr.text,
           occurredAt: now,
         }
 
@@ -145,9 +148,9 @@ export const syncReviews =
         } else {
           await deps.events.emit(reviewUpdated(eventPayload))
         }
-      } catch (err) {
+      } catch (syncErr) {
         getLogger().warn(
-          { err, externalId: gr.externalId },
+          { err: syncErr, externalId: gr.externalId },
           'Failed to sync review, continuing',
         )
         failed++
@@ -161,17 +164,12 @@ export const syncReviews =
       updated,
       repliesMirrored,
       failed,
+      partialFailure: failed > 0,
     }
 
-    return failed > 0
-      ? err(
-          reviewError(
-            'sync_failed',
-            `Sync completed with ${failed} failed review(s)`,
-            result,
-          ),
-        )
-      : ok(result)
+    // Always return ok — data was persisted for all successful reviews.
+    // Callers should check result.partialFailure to detect partial failures.
+    return ok(result)
   }
 
 async function mirrorReply(
@@ -179,6 +177,7 @@ async function mirrorReply(
   reviewId: ReviewId,
   organizationId: OrganizationId,
   gr: GoogleReview,
+  now: Date,
 ): Promise<boolean> {
   const existingGoogleReply = await deps.replyRepo.findGoogleSyncByReviewId(
     reviewId,
@@ -189,28 +188,34 @@ async function mirrorReply(
     // Google has a reply → upsert google_sync reply
     if (existingGoogleReply) {
       // Update existing google_sync reply text
-      await deps.replyRepo.upsert({
-        id: existingGoogleReply.id,
-        reviewId,
-        organizationId,
-        text: gr.replyText,
-        status: existingGoogleReply.status,
-        source: 'google_sync',
-        createdBy: existingGoogleReply.createdBy,
-        publishedAt: gr.replyUpdatedAt ?? existingGoogleReply.publishedAt,
-      })
+      await deps.replyRepo.upsert(
+        {
+          id: existingGoogleReply.id,
+          reviewId,
+          organizationId,
+          text: gr.replyText,
+          status: existingGoogleReply.status,
+          source: 'google_sync',
+          createdBy: existingGoogleReply.createdBy,
+          publishedAt: gr.replyUpdatedAt ?? existingGoogleReply.publishedAt,
+        },
+        now,
+      )
     } else {
       // Create new google_sync reply
-      await deps.replyRepo.upsert({
-        id: deps.replyIdGen(),
-        reviewId,
-        organizationId,
-        text: gr.replyText,
-        status: 'published',
-        source: 'google_sync',
-        createdBy: null,
-        publishedAt: gr.replyUpdatedAt ?? deps.clock(),
-      })
+      await deps.replyRepo.upsert(
+        {
+          id: deps.replyIdGen(),
+          reviewId,
+          organizationId,
+          text: gr.replyText,
+          status: 'published',
+          source: 'google_sync',
+          createdBy: null,
+          publishedAt: gr.replyUpdatedAt ?? now,
+        },
+        now,
+      )
     }
     return true
   } else {

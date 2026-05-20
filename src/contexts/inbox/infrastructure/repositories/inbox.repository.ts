@@ -5,6 +5,9 @@
 import { and, eq, desc, inArray, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { inboxItems } from '#/shared/db/schema/inbox.schema'
+import { reviews } from '#/shared/db/schema/review.schema'
+import { feedback, ratings } from '#/shared/db/schema/guest.schema'
+import { properties } from '#/shared/db/schema/property.schema'
 import type {
   InboxRepository,
   InboxFilters,
@@ -16,6 +19,14 @@ import type { InboxItemId, OrganizationId, UserId } from '#/shared/domain/ids'
 import { inboxItemFromRow, inboxItemToInsertRow } from '../mappers/inbox.mapper'
 import { trace } from '#/shared/observability/trace'
 
+type InboxItemRow = Parameters<typeof inboxItemFromRow>[0]
+
+const withDefaults = (row: InboxItemRow): InboxItem => ({
+  ...inboxItemFromRow(row),
+  reviewerName: null,
+  propertyName: null,
+})
+
 export const createInboxRepository = (db: Database): InboxRepository => ({
   findById: async (id: InboxItemId, orgId: OrganizationId) => {
     return trace('inbox.findById', async () => {
@@ -24,7 +35,23 @@ export const createInboxRepository = (db: Database): InboxRepository => ({
         .from(inboxItems)
         .where(and(eq(inboxItems.id, id), eq(inboxItems.organizationId, orgId)))
         .limit(1)
-      return rows[0] ? inboxItemFromRow(rows[0]) : null
+      return rows[0] ? withDefaults(rows[0]) : null
+    })
+  },
+
+  findByIds: async (ids: ReadonlyArray<InboxItemId>, orgId: OrganizationId) => {
+    return trace('inbox.findByIds', async () => {
+      if (ids.length === 0) return []
+      const rows = await db
+        .select()
+        .from(inboxItems)
+        .where(
+          and(
+            eq(inboxItems.organizationId, orgId),
+            inArray(inboxItems.id, [...ids] as string[]),
+          ),
+        )
+      return rows.map(withDefaults)
     })
   },
 
@@ -45,7 +72,7 @@ export const createInboxRepository = (db: Database): InboxRepository => ({
           ),
         )
         .limit(1)
-      return rows[0] ? inboxItemFromRow(rows[0]) : null
+      return rows[0] ? withDefaults(rows[0]) : null
     })
   },
 
@@ -60,6 +87,13 @@ export const createInboxRepository = (db: Database): InboxRepository => ({
 
       if (filters.propertyId) {
         conditions.push(eq(inboxItems.propertyId, filters.propertyId))
+      } else if (filters.propertyIds) {
+        if (filters.propertyIds.length === 0) {
+          return { items: [], nextCursor: null } as PaginatedResult
+        }
+        conditions.push(
+          inArray(inboxItems.propertyId, [...filters.propertyIds] as string[]),
+        )
       }
       if (filters.status) {
         conditions.push(eq(inboxItems.status, filters.status))
@@ -91,13 +125,26 @@ export const createInboxRepository = (db: Database): InboxRepository => ({
       }
 
       const rows = await db
-        .select()
+        .select({
+          inboxItems,
+          reviewerName: reviews.reviewerName,
+          propertyName: properties.name,
+        })
         .from(inboxItems)
+        .leftJoin(
+          reviews,
+          and(eq(inboxItems.sourceType, 'review'), eq(inboxItems.sourceId, reviews.id)),
+        )
+        .leftJoin(properties, sql`${inboxItems.propertyId}::uuid = ${properties.id}`)
         .where(and(...conditions))
         .orderBy(desc(inboxItems.sourceDate), desc(inboxItems.id))
         .limit(limit + 1)
 
-      const items = rows.slice(0, limit).map(inboxItemFromRow)
+      const items = rows.slice(0, limit).map((row) => ({
+        ...inboxItemFromRow(row.inboxItems),
+        reviewerName: row.reviewerName ?? null,
+        propertyName: row.propertyName ?? null,
+      }))
       const hasNext = rows.length > limit
       const lastItem = items[items.length - 1]
 
@@ -116,7 +163,7 @@ export const createInboxRepository = (db: Database): InboxRepository => ({
       if (!result[0]) {
         throw new Error('Inbox item insert failed — no row returned')
       }
-      return inboxItemFromRow(result[0])
+      return withDefaults(result[0])
     })
   },
 
@@ -125,13 +172,14 @@ export const createInboxRepository = (db: Database): InboxRepository => ({
     orgId: OrganizationId,
     status: InboxStatus,
     timestampFields: Partial<Record<string, Date>>,
+    now?: Date,
   ) => {
     return trace('inbox.updateStatus', async () => {
       const result = await db
         .update(inboxItems)
         .set({
           status,
-          updatedAt: new Date(),
+          updatedAt: now ?? new Date(),
           ...timestampFields,
         })
         .where(and(eq(inboxItems.id, id), eq(inboxItems.organizationId, orgId)))
@@ -140,7 +188,7 @@ export const createInboxRepository = (db: Database): InboxRepository => ({
       if (!result[0]) {
         throw new Error('Inbox item status update failed — no row returned')
       }
-      return inboxItemFromRow(result[0])
+      return withDefaults(result[0])
     })
   },
 
@@ -149,13 +197,14 @@ export const createInboxRepository = (db: Database): InboxRepository => ({
     orgId: OrganizationId,
     status: InboxStatus,
     timestampFields: Partial<Record<string, Date>>,
+    now?: Date,
   ) => {
     return trace('inbox.bulkUpdateStatus', async () => {
       const result = await db
         .update(inboxItems)
         .set({
           status,
-          updatedAt: new Date(),
+          updatedAt: now ?? new Date(),
           ...timestampFields,
         })
         .where(
@@ -174,13 +223,14 @@ export const createInboxRepository = (db: Database): InboxRepository => ({
     id: InboxItemId,
     orgId: OrganizationId,
     assignedTo: UserId | null,
+    now?: Date,
   ) => {
     return trace('inbox.updateAssignment', async () => {
       const result = await db
         .update(inboxItems)
         .set({
           assignedTo,
-          updatedAt: new Date(),
+          updatedAt: now ?? new Date(),
         })
         .where(and(eq(inboxItems.id, id), eq(inboxItems.organizationId, orgId)))
         .returning()
@@ -188,7 +238,7 @@ export const createInboxRepository = (db: Database): InboxRepository => ({
       if (!result[0]) {
         throw new Error('Inbox item assignment update failed — no row returned')
       }
-      return inboxItemFromRow(result[0])
+      return withDefaults(result[0])
     })
   },
 
@@ -206,11 +256,12 @@ export const createInboxRepository = (db: Database): InboxRepository => ({
     id: InboxItemId,
     orgId: OrganizationId,
     fields: { rating?: number; snippet?: string; sourceDate?: Date },
+    now?: Date,
   ) => {
     return trace('inbox.syncDenormalizedFields', async () => {
       await db
         .update(inboxItems)
-        .set({ ...fields, updatedAt: new Date() })
+        .set({ ...fields, updatedAt: now ?? new Date() })
         .where(and(eq(inboxItems.id, id), eq(inboxItems.organizationId, orgId)))
     })
   },
@@ -225,11 +276,10 @@ export const createInboxRepository = (db: Database): InboxRepository => ({
 
       if (!rows[0]) return null
 
-      const item = inboxItemFromRow(rows[0])
+      const item = withDefaults(rows[0])
 
       // JOIN with source table based on sourceType
       if (item.sourceType === 'review') {
-        const { reviews } = await import('#/shared/db/schema/review.schema')
         const reviewRows = await db
           .select({
             reviewerName: reviews.reviewerName,
@@ -252,7 +302,6 @@ export const createInboxRepository = (db: Database): InboxRepository => ({
       }
 
       // sourceType === 'feedback'
-      const { feedback, ratings } = await import('#/shared/db/schema/guest.schema')
       const feedbackRows = await db
         .select({
           comment: feedback.comment,

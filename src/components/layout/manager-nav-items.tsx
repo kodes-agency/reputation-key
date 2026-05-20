@@ -1,6 +1,12 @@
 import { Link } from '@tanstack/react-router'
 import { LayoutDashboard, MessageSquare, Users, Globe, Inbox } from 'lucide-react'
-import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '#/components/ui/sidebar'
+import {
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarMenuBadge,
+} from '#/components/ui/sidebar'
+import { InboxUnreadBadge } from '#/components/inbox/inbox-unread-badge'
 
 type Props = Readonly<{
   propertyId: string | undefined
@@ -51,6 +57,9 @@ export function ManagerNavItems({ propertyId, activeSection }: Props) {
               <span>Inbox</span>
             </Link>
           </SidebarMenuButton>
+          <SidebarMenuBadge>
+            <InboxUnreadBadge />
+          </SidebarMenuBadge>
         </SidebarMenuItem>
       )}
 

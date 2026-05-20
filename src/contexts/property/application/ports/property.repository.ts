@@ -19,5 +19,5 @@ export type PropertyRepository = Readonly<{
     id: PropertyId,
     patch: Readonly<Partial<Property>>,
   ) => Promise<void>
-  softDelete: (orgId: OrganizationId, id: PropertyId) => Promise<void>
+  hardDelete: (orgId: OrganizationId, id: PropertyId) => Promise<void>
 }>

@@ -109,12 +109,18 @@ function createTestEnv(googleReviews: ReadonlyArray<GoogleReview> = []) {
   let nextId = 0
 
   const clock = () => NOW
-  const idGen = () => { nextId++; return reviewId(`gen-${nextId}`) }
-  const replyIdGen = () => { nextId++; return replyId(`gen-reply-${nextId}`) }
+  const idGen = () => {
+    nextId++
+    return reviewId(`gen-${nextId}`)
+  }
+  const replyIdGen = () => {
+    nextId++
+    return replyId(`gen-reply-${nextId}`)
+  }
 
   const reviewRepo: ReviewRepository = {
-    findByExternalId: vi.fn(async (_p, externalId, orgId) =>
-      reviewStore.get(`${orgId}:${externalId}`) ?? null,
+    findByExternalId: vi.fn(
+      async (_p, externalId, orgId) => reviewStore.get(`${orgId}:${externalId}`) ?? null,
     ),
     upsert: vi.fn(async (review) => {
       const key = `${review.organizationId}:${review.externalId}`
@@ -153,8 +159,12 @@ function createTestEnv(googleReviews: ReadonlyArray<GoogleReview> = []) {
 
   const events: EventBus = {
     on: vi.fn(),
-    emit: vi.fn(async (event) => { emittedEvents.push(event as Record<string, unknown>) }),
-    clear: vi.fn(() => { emittedEvents.length = 0 }),
+    emit: vi.fn(async (event) => {
+      emittedEvents.push(event as Record<string, unknown>)
+    }),
+    clear: vi.fn(() => {
+      emittedEvents.length = 0
+    }),
   }
 
   const googleReviewApi: GoogleReviewApiPort = {
@@ -163,7 +173,13 @@ function createTestEnv(googleReviews: ReadonlyArray<GoogleReview> = []) {
   }
 
   const deps: SyncReviewsDeps = {
-    reviewRepo, replyRepo, googleReviewApi, events, clock, idGen, replyIdGen,
+    reviewRepo,
+    replyRepo,
+    googleReviewApi,
+    events,
+    clock,
+    idGen,
+    replyIdGen,
   }
 
   return {
@@ -172,8 +188,12 @@ function createTestEnv(googleReviews: ReadonlyArray<GoogleReview> = []) {
     reviewStore,
     replyStore,
     emittedEvents,
-    seedReview(r: Review) { reviewStore.set(`${r.organizationId}:${r.externalId}`, r) },
-    seedReply(r: Reply) { replyStore.set(String(r.id), r) },
+    seedReview(r: Review) {
+      reviewStore.set(`${r.organizationId}:${r.externalId}`, r)
+    },
+    seedReply(r: Reply) {
+      replyStore.set(String(r.id), r)
+    },
   }
 }
 
@@ -195,27 +215,39 @@ describe('syncReviews', () => {
 
       expect(result.isOk()).toBe(true)
       if (result.isOk()) {
-        expect(result.value).toEqual({ fetched: 2, created: 2, updated: 0, repliesMirrored: 0, failed: 0 })
+        expect(result.value).toEqual({
+          fetched: 2,
+          created: 2,
+          updated: 0,
+          repliesMirrored: 0,
+          failed: 0,
+          partialFailure: false,
+        })
       }
       expect(env.reviewStore.size).toBe(2)
       expect(env.emittedEvents).toHaveLength(2)
-      expect(env.emittedEvents.every(e => e._tag === 'review.created')).toBe(true)
+      expect(env.emittedEvents.every((e) => e._tag === 'review.created')).toBe(true)
     })
   })
 
   describe('re-sync — all reviews exist', () => {
     it('updates existing reviews and emits review.updated', async () => {
       const existingId = reviewId('rev-existing-1')
-      const env = createTestEnv([
-        makeGoogleReview({ externalId: 'ext-1', rating: 3 }),
-      ])
+      const env = createTestEnv([makeGoogleReview({ externalId: 'ext-1', rating: 3 })])
       env.seedReview(makeReview({ id: existingId, externalId: 'ext-1', rating: 5 }))
 
       const result = await env.sync(defaultInput)
 
       expect(result.isOk()).toBe(true)
       if (result.isOk()) {
-        expect(result.value).toEqual({ fetched: 1, created: 0, updated: 1, repliesMirrored: 0, failed: 0 })
+        expect(result.value).toEqual({
+          fetched: 1,
+          created: 0,
+          updated: 1,
+          repliesMirrored: 0,
+          failed: 0,
+          partialFailure: false,
+        })
       }
       // Rating was updated from 5 → 3
       const stored = env.reviewStore.get(`${ORG_ID}:ext-1`)!
@@ -239,10 +271,17 @@ describe('syncReviews', () => {
 
       expect(result.isOk()).toBe(true)
       if (result.isOk()) {
-        expect(result.value).toEqual({ fetched: 3, created: 2, updated: 1, repliesMirrored: 0, failed: 0 })
+        expect(result.value).toEqual({
+          fetched: 3,
+          created: 2,
+          updated: 1,
+          repliesMirrored: 0,
+          failed: 0,
+          partialFailure: false,
+        })
       }
       expect(env.reviewStore.size).toBe(3)
-      const tags = env.emittedEvents.map(e => e._tag)
+      const tags = env.emittedEvents.map((e) => e._tag)
       expect(tags).toEqual(['review.created', 'review.updated', 'review.created'])
     })
   })
@@ -253,7 +292,8 @@ describe('syncReviews', () => {
     it('Google has reply, no existing google_sync → creates new reply', async () => {
       const env = createTestEnv([
         makeGoogleReview({
-          externalId: 'ext-1', rating: 5,
+          externalId: 'ext-1',
+          rating: 5,
           replyText: 'Thank you!',
           replyUpdatedAt: new Date('2025-05-30T10:00:00.000Z'),
         }),
@@ -278,7 +318,8 @@ describe('syncReviews', () => {
       const rplId = replyId('reply-existing')
       const env = createTestEnv([
         makeGoogleReview({
-          externalId: 'ext-1', rating: 5,
+          externalId: 'ext-1',
+          rating: 5,
           replyText: 'Updated reply text',
           replyUpdatedAt: new Date('2025-05-31T10:00:00.000Z'),
         }),
@@ -292,7 +333,9 @@ describe('syncReviews', () => {
       if (result.isOk()) {
         expect(result.value.repliesMirrored).toBe(1)
       }
-      const reply = Array.from(env.replyStore.values()).find(r => r.source === 'google_sync')!
+      const reply = Array.from(env.replyStore.values()).find(
+        (r) => r.source === 'google_sync',
+      )!
       expect(reply.text).toBe('Updated reply text')
     })
 
@@ -311,14 +354,14 @@ describe('syncReviews', () => {
       if (result.isOk()) {
         expect(result.value.repliesMirrored).toBe(1)
       }
-      const remaining = Array.from(env.replyStore.values()).filter(r => r.source === 'google_sync')
+      const remaining = Array.from(env.replyStore.values()).filter(
+        (r) => r.source === 'google_sync',
+      )
       expect(remaining).toHaveLength(0)
     })
 
     it('Google has no reply, no existing google_sync → no-op', async () => {
-      const env = createTestEnv([
-        makeGoogleReview({ externalId: 'ext-1', rating: 5 }),
-      ])
+      const env = createTestEnv([makeGoogleReview({ externalId: 'ext-1', rating: 5 })])
 
       const result = await env.sync(defaultInput)
 
@@ -368,7 +411,14 @@ describe('syncReviews', () => {
 
       expect(result.isOk()).toBe(true)
       if (result.isOk()) {
-        expect(result.value).toEqual({ fetched: 0, created: 0, updated: 0, repliesMirrored: 0, failed: 0 })
+        expect(result.value).toEqual({
+          fetched: 0,
+          created: 0,
+          updated: 0,
+          repliesMirrored: 0,
+          failed: 0,
+          partialFailure: false,
+        })
       }
       expect(env.reviewStore.size).toBe(0)
       expect(env.emittedEvents).toHaveLength(0)
@@ -380,8 +430,9 @@ describe('syncReviews', () => {
   describe('error propagation', () => {
     it('Google API error returns Err, nothing stored', async () => {
       const env = createTestEnv()
-      ;(env.deps.googleReviewApi.fetchReviews as ReturnType<typeof vi.fn>)
-        .mockRejectedValue(new Error('API down'))
+      ;(
+        env.deps.googleReviewApi.fetchReviews as ReturnType<typeof vi.fn>
+      ).mockRejectedValue(new Error('API down'))
 
       const result = await env.sync(defaultInput)
 
@@ -411,11 +462,17 @@ describe('syncReviews', () => {
 
       const result = await env.sync(defaultInput)
 
-      // Partial failure → Err with stats in context
-      expect(result.isErr()).toBe(true)
-      if (result.isErr()) {
-        expect(result.error.code).toBe('sync_failed')
-        expect(result.error.context).toMatchObject({ fetched: 2, created: 2, updated: 0, repliesMirrored: 0, failed: 1 })
+      // Partial failure → Ok with partialFailure flag
+      expect(result.isOk()).toBe(true)
+      if (result.isOk()) {
+        expect(result.value.partialFailure).toBe(true)
+        expect(result.value).toMatchObject({
+          fetched: 2,
+          created: 2,
+          updated: 0,
+          repliesMirrored: 0,
+          failed: 1,
+        })
       }
       // Both reviews were upserted before emit was called for each
       expect(env.reviewStore.has(`${ORG_ID}:ext-1`)).toBe(true)
@@ -441,10 +498,16 @@ describe('syncReviews', () => {
 
       const result = await env.sync(defaultInput)
 
-      expect(result.isErr()).toBe(true)
-      if (result.isErr()) {
-        expect(result.error.code).toBe('sync_failed')
-        expect(result.error.context).toMatchObject({ fetched: 2, created: 1, updated: 0, repliesMirrored: 0, failed: 1 })
+      expect(result.isOk()).toBe(true)
+      if (result.isOk()) {
+        expect(result.value.partialFailure).toBe(true)
+        expect(result.value).toMatchObject({
+          fetched: 2,
+          created: 1,
+          updated: 0,
+          repliesMirrored: 0,
+          failed: 1,
+        })
       }
       expect(store.has(`${ORG_ID}:ext-1`)).toBe(true)
       expect(store.has(`${ORG_ID}:ext-2`)).toBe(false)
@@ -457,15 +520,15 @@ describe('syncReviews', () => {
   describe('tenant isolation', () => {
     it('same externalId, different org → creates separate review', async () => {
       const sharedId = 'ext-shared'
-      const env = createTestEnv([
-        makeGoogleReview({ externalId: sharedId, rating: 5 }),
-      ])
-      env.seedReview(makeReview({
-        id: reviewId('rev-other'),
-        organizationId: OTHER_ORG_ID,
-        externalId: sharedId,
-        rating: 1,
-      }))
+      const env = createTestEnv([makeGoogleReview({ externalId: sharedId, rating: 5 })])
+      env.seedReview(
+        makeReview({
+          id: reviewId('rev-other'),
+          organizationId: OTHER_ORG_ID,
+          externalId: sharedId,
+          rating: 1,
+        }),
+      )
 
       const result = await env.sync(defaultInput)
 
@@ -487,9 +550,7 @@ describe('syncReviews', () => {
 
   describe('event payload', () => {
     it('review.created has all required fields', async () => {
-      const env = createTestEnv([
-        makeGoogleReview({ externalId: 'ext-1', rating: 4 }),
-      ])
+      const env = createTestEnv([makeGoogleReview({ externalId: 'ext-1', rating: 4 })])
 
       await env.sync(defaultInput)
 
@@ -508,9 +569,7 @@ describe('syncReviews', () => {
 
     it('review.updated reuses existing reviewId', async () => {
       const existingId = reviewId('rev-original')
-      const env = createTestEnv([
-        makeGoogleReview({ externalId: 'ext-1', rating: 3 }),
-      ])
+      const env = createTestEnv([makeGoogleReview({ externalId: 'ext-1', rating: 3 })])
       env.seedReview(makeReview({ id: existingId, externalId: 'ext-1' }))
 
       await env.sync(defaultInput)
@@ -524,14 +583,14 @@ describe('syncReviews', () => {
 
   describe('sentiment', () => {
     it('preserves existing sentiment on update', async () => {
-      const env = createTestEnv([
-        makeGoogleReview({ externalId: 'ext-1', rating: 5 }),
-      ])
-      env.seedReview(makeReview({
-        externalId: 'ext-1',
-        sentimentLabel: 'positive',
-        sentimentScore: 0.92,
-      }))
+      const env = createTestEnv([makeGoogleReview({ externalId: 'ext-1', rating: 5 })])
+      env.seedReview(
+        makeReview({
+          externalId: 'ext-1',
+          sentimentLabel: 'positive',
+          sentimentScore: 0.92,
+        }),
+      )
 
       await env.sync(defaultInput)
 
@@ -541,9 +600,7 @@ describe('syncReviews', () => {
     })
 
     it('sets sentiment to null for new reviews', async () => {
-      const env = createTestEnv([
-        makeGoogleReview({ externalId: 'ext-1', rating: 5 }),
-      ])
+      const env = createTestEnv([makeGoogleReview({ externalId: 'ext-1', rating: 5 })])
 
       await env.sync(defaultInput)
 
@@ -557,9 +614,7 @@ describe('syncReviews', () => {
 
   describe('ID handling', () => {
     it('generates new ID for new reviews via idGen', async () => {
-      const env = createTestEnv([
-        makeGoogleReview({ externalId: 'ext-new', rating: 5 }),
-      ])
+      const env = createTestEnv([makeGoogleReview({ externalId: 'ext-new', rating: 5 })])
 
       await env.sync(defaultInput)
 
@@ -569,9 +624,7 @@ describe('syncReviews', () => {
 
     it('reuses existing ID on update (idGen not called)', async () => {
       const existingId = reviewId('rev-original')
-      const env = createTestEnv([
-        makeGoogleReview({ externalId: 'ext-1', rating: 5 }),
-      ])
+      const env = createTestEnv([makeGoogleReview({ externalId: 'ext-1', rating: 5 })])
       env.seedReview(makeReview({ id: existingId, externalId: 'ext-1' }))
 
       await env.sync(defaultInput)

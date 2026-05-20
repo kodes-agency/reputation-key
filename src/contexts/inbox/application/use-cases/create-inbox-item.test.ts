@@ -14,14 +14,26 @@ const PROP_ID = propertyId('prop-1')
 const setup = () => {
   const repo = createInMemoryInboxRepo()
   const events = createCapturingEventBus()
+  const increments = { count: 0, keys: [] as string[] }
+  const unreadCounter = {
+    getCount: async () => 0,
+    setCount: async () => {},
+    increment: async (key: string) => {
+      increments.count++
+      increments.keys.push(key)
+    },
+    decrement: async () => {},
+    invalidate: async () => {},
+  }
   const deps = {
     repo,
     events,
+    unreadCounter,
     idGen: () => FIXED_ID,
     clock: () => FIXED_TIME,
   }
   const useCase = createInboxItemUseCase(deps)
-  return { useCase, repo, events }
+  return { useCase, repo, events, increments }
 }
 
 describe('createInboxItem', () => {
@@ -85,5 +97,22 @@ describe('createInboxItem', () => {
     await expect(useCase(input)).rejects.toSatisfy(
       (e: unknown) => isInboxError(e) && e.code === 'already_exists',
     )
+  })
+
+  it('increments unread counter on creation', async () => {
+    const { useCase, increments } = setup()
+
+    await useCase({
+      organizationId: ORG_ID,
+      propertyId: PROP_ID,
+      sourceType: 'review' as SourceType,
+      sourceId: reviewId('rev-1'),
+      rating: 4,
+      sourceDate: new Date('2026-04-10'),
+      platform: 'google',
+      snippet: 'test',
+    })
+
+    expect(increments.count).toBe(1)
   })
 })

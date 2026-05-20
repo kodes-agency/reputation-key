@@ -139,8 +139,8 @@ describe('propertyRepository (integration)', () => {
     })
   })
 
-  describe('softDelete', () => {
-    it('removes property from queries but preserves row', async () => {
+  describe('hardDelete', () => {
+    it('removes property row entirely', async () => {
       const db = getDb()
       const repo = createPropertyRepository(db)
       const property = buildTestProperty({
@@ -150,7 +150,7 @@ describe('propertyRepository (integration)', () => {
       })
 
       await repo.insert(ORG_A, property)
-      await repo.softDelete(ORG_A, property.id as never)
+      await repo.hardDelete(ORG_A, property.id as never)
 
       const found = await repo.findById(ORG_A, property.id as never)
       expect(found).toBeNull()
@@ -159,7 +159,7 @@ describe('propertyRepository (integration)', () => {
       expect(listed).toHaveLength(0)
     })
 
-    it('allows a new property with the same slug after soft-delete', async () => {
+    it('allows a new property with the same slug after hard-delete', async () => {
       const db = getDb()
       const repo = createPropertyRepository(db)
       const original = buildTestProperty({
@@ -169,7 +169,7 @@ describe('propertyRepository (integration)', () => {
       })
 
       await repo.insert(ORG_A, original)
-      await repo.softDelete(ORG_A, original.id as never)
+      await repo.hardDelete(ORG_A, original.id as never)
 
       const replacement = buildTestProperty({
         id: 'prop-reuse-2',
@@ -178,7 +178,6 @@ describe('propertyRepository (integration)', () => {
       })
       await repo.insert(ORG_A, replacement)
 
-      // Verify the replacement was actually persisted
       const found = await repo.findById(ORG_A, replacement.id as never)
       expect(found).not.toBeNull()
       expect(found!.slug).toBe('reusable-slug')
