@@ -4,7 +4,9 @@
 // ─── KPI Strip ───
 
 export interface KPIValue {
+  /** The metric value for the current period. 0 when no data exists. */
   value: number
+  /** The metric value for the prior period. 0 when no data exists. */
   priorValue: number
   /** Percentage change vs prior period. Null when priorValue is 0. */
   trend: number | null
