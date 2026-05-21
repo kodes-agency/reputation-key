@@ -36,7 +36,7 @@ export type RatingTrendPoint = Readonly<{
 }>
 
 export type ReviewVolumePoint = Readonly<{
-  date: string // YYYY-MM-DD or YYYY-WNN for weekly
+  date: string // YYYY-MM-DD
   count: number
 }>
 

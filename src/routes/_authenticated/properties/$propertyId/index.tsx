@@ -71,7 +71,7 @@ function KPICard({
   icon: React.ComponentType<{ className?: string }>
   formatValue?: (v: number) => string
 }) {
-  const trendPct = kpi.value === 0 && kpi.priorValue === 0 ? null : kpi.trend
+  const trendPct = kpi.trend
   const display = formatValue ? formatValue(kpi.value) : String(kpi.value)
 
   return (
@@ -146,31 +146,29 @@ function PropertyDashboard() {
       )}
 
       {/* Rating distribution */}
-      {ratingDistribution.length > 0 && (
-        <div>
-          <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-            Rating Distribution
-          </h2>
-          <div className="mt-3 space-y-2">
-            {ratingDistribution.map((bucket) => (
-              <div key={bucket.stars} className="flex items-center gap-3">
-                <span className="w-8 text-right text-sm tabular-nums">{bucket.stars}★</span>
-                <div className="flex-1">
-                  <div
-                    className="h-2 rounded-full bg-primary transition-all"
-                    style={{
-                      width: `${Math.min(100, (bucket.count / Math.max(...ratingDistribution.map((b) => b.count), 1)) * 100)}%`,
-                    }}
-                  />
-                </div>
-                <span className="w-8 text-sm tabular-nums text-muted-foreground">
-                  {bucket.count}
-                </span>
+      <div>
+        <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+          Rating Distribution
+        </h2>
+        <div className="mt-3 space-y-2">
+          {ratingDistribution.map((bucket) => (
+            <div key={bucket.stars} className="flex items-center gap-3">
+              <span className="w-8 text-right text-sm tabular-nums">{bucket.stars}★</span>
+              <div className="flex-1">
+                <div
+                  className="h-2 rounded-full bg-primary transition-all"
+                  style={{
+                    width: `${Math.min(100, (bucket.count / Math.max(...ratingDistribution.map((b) => b.count), 1)) * 100)}%`,
+                  }}
+                />
               </div>
-            ))}
-          </div>
+              <span className="w-8 text-sm tabular-nums text-muted-foreground">
+                {bucket.count}
+              </span>
+            </div>
+          ))}
         </div>
-      )}
+      </div>
 
       {/* Reply performance */}
       <div>
@@ -210,7 +208,7 @@ function PropertyDashboard() {
         </div>
         {recentReviews.length === 0 ? (
           <div className="mt-3 rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-            No reviews in this period.
+            No reviews yet.
           </div>
         ) : (
           <div className="mt-3 space-y-2">

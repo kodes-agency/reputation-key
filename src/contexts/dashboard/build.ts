@@ -3,7 +3,6 @@
 // Returns the public API surface of the dashboard context.
 
 import type { Database } from '#/shared/db'
-import type { DashboardRepository } from './application/ports/dashboard.repository'
 import { createDashboardRepository } from './infrastructure/repositories/dashboard.repository'
 import { getDashboardData } from './application/use-cases/get-dashboard-data'
 
@@ -13,7 +12,6 @@ export type DashboardContextBuildInput = Readonly<{
 
 export type DashboardContextApi = Readonly<{
   getDashboardData: ReturnType<typeof getDashboardData>
-  dashboardRepo: DashboardRepository
 }>
 
 export const buildDashboardContext = (input: DashboardContextBuildInput): DashboardContextApi => {
@@ -25,6 +23,5 @@ export const buildDashboardContext = (input: DashboardContextBuildInput): Dashbo
 
   return {
     getDashboardData: getDashboard,
-    dashboardRepo,
   }
 }

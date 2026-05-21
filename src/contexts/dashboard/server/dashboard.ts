@@ -7,12 +7,12 @@ import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { getContainer } from '#/composition'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
-import { getDashboardDataDto } from '../application/dto/dashboard.dto'
+import { getDashboardDataDto, type TimeRangePreset } from '../application/dto/dashboard.dto'
 import { propertyId, portalId } from '#/shared/domain/ids'
 
 const MS_PER_DAY = 86_400_000
 
-function timeRangeToDates(preset: string) {
+function timeRangeToDates(preset: TimeRangePreset) {
   const days = preset === '7d' ? 7 : preset === '90d' ? 90 : 30
   const now = new Date()
   return {

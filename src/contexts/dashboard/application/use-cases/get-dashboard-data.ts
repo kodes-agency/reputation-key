@@ -23,7 +23,7 @@ function priorPeriod(start: Date, end: Date): { priorStartDate: Date; priorEndDa
   const duration = end.getTime() - start.getTime()
   return {
     priorStartDate: new Date(start.getTime() - duration),
-    priorEndDate: new Date(start.getTime()),
+    priorEndDate: new Date(start.getTime() - 1), // exclusive boundary — no overlap
   }
 }
 
