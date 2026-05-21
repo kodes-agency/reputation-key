@@ -5,15 +5,16 @@ import { getDashboardData } from './get-dashboard-data'
 import { createInMemoryDashboardRepository } from '#/shared/testing/in-memory-dashboard-repo'
 import { organizationId, propertyId, portalId } from '#/shared/domain/ids'
 
+const MS_PER_DAY = 86_400_000
+
 const ORG_A = organizationId('org-test')
 const PROP_A = propertyId('a0000000-0000-0000-0000-000000000001')
 const PORTAL_A = portalId('b0000000-0000-0000-0000-000000000001')
 
 describe('getDashboardData (use case)', () => {
-  const now = new Date()
-  const startDate = new Date(now.getTime() - 30 * 86400000)
-
   it('composes all dashboard sections from repo calls', async () => {
+    const now = new Date()
+    const startDate = new Date(now.getTime() - 30 * MS_PER_DAY)
     const repo = createInMemoryDashboardRepository()
     const getDashboard = getDashboardData({ repo })
 
@@ -47,6 +48,8 @@ describe('getDashboardData (use case)', () => {
   })
 
   it('includes engagement funnel when portalId is provided', async () => {
+    const now = new Date()
+    const startDate = new Date(now.getTime() - 30 * MS_PER_DAY)
     const repo = createInMemoryDashboardRepository()
     const getDashboard = getDashboardData({ repo })
 

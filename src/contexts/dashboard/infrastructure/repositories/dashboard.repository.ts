@@ -11,8 +11,8 @@ import type {
   ReplyPerformance,
   EngagementFunnel,
   RecentReview,
-  ReplyStatus,
 } from '../../domain/types'
+import { toDashboardReplyStatus } from '../../domain/types'
 import type { OrganizationId, PropertyId, PortalId } from '#/shared/domain/ids'
 import { reviews, replies, metricReadings } from '#/shared/db/schema'
 import { and, count, avg, sum, eq, gte, lte, desc, sql } from 'drizzle-orm'
@@ -32,9 +32,11 @@ function reviewWhere(
   )
 }
 
-/** Compute trend percentage. Returns null when prior is 0. */
+/** Compute trend percentage. Returns null when prior is 0 or result is not finite. */
 function trend(current: number, prior: number): number | null {
-  return prior === 0 ? null : Math.round(((current - prior) / prior) * 100)
+  if (prior === 0) return null
+  const result = ((current - prior) / prior) * 100
+  return Number.isFinite(result) ? Math.round(result) : null
 }
 
 const reviewDate = sql`DATE(${reviews.reviewedAt})`
@@ -83,12 +85,12 @@ export function createDashboardRepository(db: Database): DashboardRepository {
         rating: row.rating,
         snippet: row.text ?? '',
         reviewedAt: row.reviewedAt,
-        replyStatus: row.replyStatus as ReplyStatus,
+        replyStatus: toDashboardReplyStatus(row.replyStatus),
       }))
     },
 
     async getKPIs(input): Promise<KPIs> {
-      const { organizationId, propertyId, portalId, startDate, endDate, priorStartDate, priorEndDate } = input
+      const { organizationId, propertyId, startDate, endDate, priorStartDate, priorEndDate } = input
 
       // Reviews: count + avg rating for current and prior periods (parallel)
       const [currentReviews, priorReviews] = await Promise.all([
@@ -112,7 +114,6 @@ export function createDashboardRepository(db: Database): DashboardRepository {
         and(
           eq(metricReadings.organizationId, organizationId),
           eq(metricReadings.propertyId, propertyId),
-          portalId ? eq(metricReadings.portalId, portalId) : sql`TRUE`,
           gte(metricReadings.recordedAt, start),
           lte(metricReadings.recordedAt, end),
         )
@@ -260,12 +261,12 @@ export function createDashboardRepository(db: Database): DashboardRepository {
         )
         .groupBy(metricReadings.metricKey)
 
-      const map = new Map(rows.map((r) => [r.metricKey, Number(r.total ?? 0)]))
+      const metricMap = new Map(rows.map((r) => [r.metricKey, Number(r.total ?? 0)]))
 
       return {
-        scans: map.get('portal.scan') ?? 0,
-        ratings: map.get('portal.feedback') ?? 0,
-        reviewLinkClicks: map.get('portal.review_link_click') ?? 0,
+        scans: metricMap.get('portal.scan') ?? 0,
+        ratings: metricMap.get('portal.feedback') ?? 0,
+        reviewLinkClicks: metricMap.get('portal.review_link_click') ?? 0,
       }
     },
   }

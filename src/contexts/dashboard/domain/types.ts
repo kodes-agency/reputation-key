@@ -3,59 +3,59 @@
 
 // ─── KPI Strip ───
 
-export interface KPIValue {
+export type KPIValue = Readonly<{
   /** The metric value for the current period. 0 when no data exists. */
   value: number
   /** The metric value for the prior period. 0 when no data exists. */
   priorValue: number
   /** Percentage change vs prior period. Null when priorValue is 0. */
   trend: number | null
-}
+}>
 
-export interface KPIs {
+export type KPIs = Readonly<{
   reviews: KPIValue
   avgRating: KPIValue
   scans: KPIValue
   feedback: KPIValue
-}
+}>
 
 // ─── Rating Distribution ───
 
-export interface RatingBucket {
+export type RatingBucket = Readonly<{
   stars: number
   count: number
-}
+}>
 
-export type RatingDistribution = RatingBucket[]
+export type RatingDistribution = readonly RatingBucket[]
 
 // ─── Charts ───
 
-export interface RatingTrendPoint {
+export type RatingTrendPoint = Readonly<{
   date: string // YYYY-MM-DD
   avgRating: number
-}
+}>
 
-export interface ReviewVolumePoint {
+export type ReviewVolumePoint = Readonly<{
   date: string // YYYY-MM-DD or YYYY-WNN for weekly
   count: number
-}
+}>
 
 // ─── Reply Performance ───
 
-export interface ReplyPerformance {
+export type ReplyPerformance = Readonly<{
   /** % of reviews with a published reply (0–100) */
   replyRate: number
   /** Average hours from reviewedAt to publishedAt. Null when no replies. */
   avgReplyHours: number | null
-}
+}>
 
 // ─── Engagement Funnel ───
 
-export interface EngagementFunnel {
+export type EngagementFunnel = Readonly<{
   scans: number
   ratings: number
   reviewLinkClicks: number
-}
+}>
 
 // ─── Recent Reviews ───
 
@@ -64,22 +64,32 @@ export interface EngagementFunnel {
  * Maps DB reply_status_enum values:
  *   - 'published' → 'published'
  *   - 'draft' | 'pending_approval' | 'approved' → 'draft' (in-progress)
- *   - no reply exists → 'none'
- * Note: 'rejected' and 'publish_failed' are treated as 'none' (no active reply).
+ *   - 'rejected' | 'publish_failed' | no reply → 'none'
+ * SQL CASE uses ELSE 'none' catch-all — new enum variants will map here until explicitly handled.
  */
-export type ReplyStatus = 'none' | 'draft' | 'published'
+export type DashboardReplyStatus = 'none' | 'draft' | 'published'
 
-export interface RecentReview {
+const DASHBOARD_REPLY_STATUSES = new Set<string>(['none', 'draft', 'published'])
+
+/** Validate that a SQL CASE result is a valid DashboardReplyStatus. */
+export function toDashboardReplyStatus(value: string): DashboardReplyStatus {
+  if (!DASHBOARD_REPLY_STATUSES.has(value)) {
+    throw new Error(`Invalid DashboardReplyStatus: "${value}"`)
+  }
+  return value as DashboardReplyStatus
+}
+
+export type RecentReview = Readonly<{
   id: string
   rating: number
   snippet: string
   reviewedAt: Date
-  replyStatus: ReplyStatus
-}
+  replyStatus: DashboardReplyStatus
+}>
 
 // ─── Full Dashboard Response ───
 
-export interface DashboardData {
+export type DashboardData = Readonly<{
   kpis: KPIs
   ratingDistribution: RatingDistribution
   ratingTrend: RatingTrendPoint[]
@@ -87,4 +97,4 @@ export interface DashboardData {
   replyPerformance: ReplyPerformance
   engagementFunnel: EngagementFunnel | null
   recentReviews: RecentReview[]
-}
+}>

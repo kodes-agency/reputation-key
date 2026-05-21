@@ -1,4 +1,4 @@
-// Dashboard context — repository port (interface)
+// Dashboard context — repository port
 
 import type {
   KPIs,
@@ -19,11 +19,10 @@ export type DashboardPeriodQuery = Readonly<{
   endDate: Date
 }>
 
-/** Extended query with portal scope and prior period. */
+/** Extended query with prior period. */
 export type DashboardKPIQuery = Readonly<{
   organizationId: OrganizationId
   propertyId: PropertyId
-  portalId: PortalId | null
   startDate: Date
   endDate: Date
   priorStartDate: Date

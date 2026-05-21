@@ -156,6 +156,29 @@ describe('dashboardRepository (integration)', () => {
       expect(result).toHaveLength(1)
       expect(result[0].replyStatus).toBe('published')
     })
+
+    it('shows replyStatus as none when reply is rejected', async () => {
+      const pool = getPool()
+      await seedProperty(pool, PROP_A, ORG_A)
+
+      const reviewId = await seedReview(pool, { rating: 3, text: 'Meh' })
+      await pool.query(
+        `INSERT INTO replies (id, review_id, organization_id, text, status, source)
+         VALUES ($1, $2, $3, 'Rejected reply', 'rejected', 'internal')`,
+        [crypto.randomUUID(), reviewId, ORG_A],
+      )
+
+      const db = getDb()
+      const repo = createDashboardRepository(db)
+      const result = await repo.getRecentReviews({
+        organizationId: ORG_A,
+        propertyId: PROP_A,
+        limit: 5,
+      })
+
+      expect(result).toHaveLength(1)
+      expect(result[0].replyStatus).toBe('none')
+    })
   })
 
   describe('getRatingDistribution', () => {
@@ -235,7 +258,6 @@ describe('dashboardRepository (integration)', () => {
       const result = await repo.getKPIs({
         organizationId: ORG_A,
         propertyId: PROP_A,
-        portalId: null,
         startDate: new Date(now.getTime() - 7 * MS_PER_DAY),
         endDate: now,
         priorStartDate: new Date(now.getTime() - 14 * MS_PER_DAY),
@@ -278,7 +300,6 @@ describe('dashboardRepository (integration)', () => {
       const result = await repo.getKPIs({
         organizationId: ORG_A,
         propertyId: PROP_A,
-        portalId: null,
         startDate: new Date(now.getTime() - 7 * MS_PER_DAY),
         endDate: now,
         priorStartDate: new Date(now.getTime() - 14 * MS_PER_DAY),
@@ -503,7 +524,6 @@ describe('dashboardRepository (integration)', () => {
       const result = await repo.getKPIs({
         organizationId: ORG_A,
         propertyId: PROP_A,
-        portalId: null,
         startDate: new Date(now.getTime() - 7 * MS_PER_DAY),
         endDate: now,
         priorStartDate: new Date(now.getTime() - 14 * MS_PER_DAY),

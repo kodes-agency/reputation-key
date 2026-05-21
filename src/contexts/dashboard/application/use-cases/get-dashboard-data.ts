@@ -41,7 +41,6 @@ export const getDashboardData =
         repo.getKPIs({
           organizationId,
           propertyId,
-          portalId,
           startDate,
           endDate,
           priorStartDate,
