@@ -3,14 +3,11 @@
 import { describe, it, expect } from 'vitest'
 import { getDashboardData } from './get-dashboard-data'
 import { createInMemoryDashboardRepository } from '#/shared/testing/in-memory-dashboard-repo'
-import { organizationId, propertyId, portalId, userId } from '#/shared/domain/ids'
-import type { Role } from '#/shared/domain/roles'
+import { organizationId, propertyId, portalId } from '#/shared/domain/ids'
 
 const ORG_A = organizationId('org-test')
 const PROP_A = propertyId('a0000000-0000-0000-0000-000000000001')
 const PORTAL_A = portalId('b0000000-0000-0000-0000-000000000001')
-const USER_A = userId('user-test')
-const ROLE: Role = 'PropertyManager'
 
 describe('getDashboardData (use case)', () => {
   const now = new Date()
@@ -22,8 +19,6 @@ describe('getDashboardData (use case)', () => {
 
     const result = await getDashboard({
       organizationId: ORG_A,
-      userId: USER_A,
-      role: ROLE,
       propertyId: PROP_A,
       portalId: null,
       startDate,
@@ -57,8 +52,6 @@ describe('getDashboardData (use case)', () => {
 
     const result = await getDashboard({
       organizationId: ORG_A,
-      userId: USER_A,
-      role: ROLE,
       propertyId: PROP_A,
       portalId: PORTAL_A,
       startDate,

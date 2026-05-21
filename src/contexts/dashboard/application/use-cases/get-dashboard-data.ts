@@ -1,16 +1,13 @@
 // Dashboard context — getDashboardData use case
 // Orchestrates all repo queries into a single DashboardData response.
-// Authorizes via auth context (must be PropertyManager or AccountAdmin).
+// Authorization is enforced at the router/loader level (property ownership). No auth logic here.
 
 import type { DashboardRepository } from '../ports/dashboard.repository'
-import type { OrganizationId, PropertyId, PortalId, UserId } from '#/shared/domain/ids'
-import type { Role } from '#/shared/domain/roles'
+import type { OrganizationId, PropertyId, PortalId } from '#/shared/domain/ids'
 import type { DashboardData } from '../../domain/types'
 
 export type GetDashboardDataInput = Readonly<{
   organizationId: OrganizationId
-  userId: UserId
-  role: Role
   propertyId: PropertyId
   portalId: PortalId | null
   startDate: Date
