@@ -59,6 +59,14 @@ export interface EngagementFunnel {
 
 // ─── Recent Reviews ───
 
+/**
+ * Simplified reply status for the dashboard.
+ * Maps DB reply_status_enum values:
+ *   - 'published' → 'published'
+ *   - 'draft' | 'pending_approval' | 'approved' → 'draft' (in-progress)
+ *   - no reply exists → 'none'
+ * Note: 'rejected' and 'publish_failed' are treated as 'none' (no active reply).
+ */
 export type ReplyStatus = 'none' | 'draft' | 'published'
 
 export interface RecentReview {
