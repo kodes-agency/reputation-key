@@ -8,7 +8,7 @@ import type {
   ReplyPerformance,
   EngagementFunnel,
   RecentReview,
-} from '../domain/types'
+} from '../../domain/types'
 import type { OrganizationId, PropertyId, PortalId } from '#/shared/domain/ids'
 
 /** Common query params for most dashboard methods. */

@@ -13,7 +13,7 @@ import type {
   RecentReview,
 } from '../../domain/types'
 import { toDashboardReplyStatus } from '../../domain/types'
-import type { OrganizationId, PropertyId, PortalId } from '#/shared/domain/ids'
+import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import { reviews, replies, metricReadings } from '#/shared/db/schema'
 import { and, count, avg, sum, eq, gte, lte, desc, sql } from 'drizzle-orm'
 

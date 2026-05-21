@@ -2,12 +2,7 @@
 import type { DashboardRepository } from '#/contexts/dashboard/application/ports/dashboard.repository'
 import type {
   KPIs,
-  RatingDistribution,
-  RatingTrendPoint,
-  ReviewVolumePoint,
-  ReplyPerformance,
   EngagementFunnel,
-  RecentReview,
 } from '#/contexts/dashboard/domain/types'
 
 export function createInMemoryDashboardRepository(): DashboardRepository & {
