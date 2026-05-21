@@ -1,5 +1,5 @@
 // Dashboard context — Drizzle repository implementation
-// Aggregation queries against metric_readings, reviews, replies, inbox_items.
+// Aggregation queries against reviews, replies, metric_readings.
 
 import type { Database } from '#/shared/db'
 import type { DashboardRepository } from '../../application/ports/dashboard.repository'
