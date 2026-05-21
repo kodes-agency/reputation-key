@@ -261,7 +261,7 @@ describe('dashboardRepository (integration)', () => {
       expect(result.feedback.trend).toBe(100)
     })
 
-    it('returns null trend when prior period has zero value', async () => {
+    it('returns zero-prior KPIs with null trends when no data in prior period', async () => {
       const pool = getPool()
       await seedProperty(pool, PROP_A, ORG_A)
 
