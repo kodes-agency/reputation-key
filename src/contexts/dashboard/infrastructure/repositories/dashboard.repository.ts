@@ -241,7 +241,7 @@ export function createDashboardRepository(db: Database): DashboardRepository {
       return { replyRate: Math.round(replyRate * 100) / 100, avgReplyHours }
     },
     async getEngagementFunnel(input): Promise<EngagementFunnel> {
-      const { organizationId, portalId, startDate, endDate } = input
+      const { organizationId, propertyId, portalId, startDate, endDate } = input
 
       const rows = await db
         .select({
@@ -252,6 +252,7 @@ export function createDashboardRepository(db: Database): DashboardRepository {
         .where(
           and(
             eq(metricReadings.organizationId, organizationId),
+            eq(metricReadings.propertyId, propertyId),
             eq(metricReadings.portalId, portalId),
             gte(metricReadings.recordedAt, startDate),
             lte(metricReadings.recordedAt, endDate),

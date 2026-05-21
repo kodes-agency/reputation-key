@@ -449,6 +449,7 @@ describe('dashboardRepository (integration)', () => {
       const repo = createDashboardRepository(db)
       const result = await repo.getEngagementFunnel({
         organizationId: ORG_A,
+        propertyId: PROP_A,
         portalId: PORTAL_A,
         startDate: new Date(Date.now() - 7 * 86400000),
         endDate: new Date(),

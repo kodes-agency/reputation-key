@@ -59,7 +59,7 @@ export const getDashboardData =
 
     // Engagement funnel only when portal is selected
     const engagementFunnel = portalId
-      ? await repo.getEngagementFunnel({ organizationId, portalId, startDate, endDate })
+      ? await repo.getEngagementFunnel({ organizationId, propertyId, portalId, startDate, endDate })
       : null
 
     return {
