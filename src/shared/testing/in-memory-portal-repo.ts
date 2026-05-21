@@ -40,10 +40,11 @@ export const createInMemoryPortalRepo = (): InMemoryPortalRepo => {
         (p) => isAccessible(orgId, p) && p.propertyId === propertyId,
       ),
 
-    slugExists: async (orgId, slug, excludeId) =>
+    slugExists: async (orgId, propertyId, slug, excludeId) =>
       [...store.values()].some(
         (p) =>
           isAccessible(orgId, p) &&
+          p.propertyId === propertyId &&
           p.slug === slug &&
           (excludeId === undefined || p.id !== excludeId),
       ),
@@ -67,7 +68,7 @@ export const createInMemoryPortalRepo = (): InMemoryPortalRepo => {
     getPortalQrInfo: async (orgId, id) => {
       const portal = store.get(id)
       if (!portal || !isAccessible(orgId, portal)) return null
-      return { slug: portal.slug, orgSlug: 'test-org' }
+      return { slug: portal.slug, propertySlug: 'test-property' }
     },
 
     // ── Test-only helpers ───────────────────────────────────────────

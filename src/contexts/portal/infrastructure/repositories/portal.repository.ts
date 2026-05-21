@@ -6,6 +6,7 @@ import { and, eq, not, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { baseWhere } from '#/shared/db/base-where'
 import { portals } from '#/shared/db/schema/portal.schema'
+import { properties } from '#/shared/db/schema/property.schema'
 import type { PortalRepository } from '../../application/ports/portal.repository'
 import { portalFromRow, portalToRow } from '../mappers/portal.mapper'
 import { portalError } from '../../domain/errors'
@@ -68,8 +69,12 @@ export const createPortalRepository = (db: Database): PortalRepository => ({
     })
   },
 
-  slugExists: async (orgId, slug, excludeId) => {
-    const conditions = [...baseWhere(portals, orgId), eq(portals.slug, slug)]
+  slugExists: async (orgId, propertyId, slug, excludeId) => {
+    const conditions = [
+      ...baseWhere(portals, orgId),
+      eq(portals.propertyId, propertyId),
+      eq(portals.slug, slug),
+    ]
     if (excludeId) {
       conditions.push(not(eq(portals.id, excludeId as unknown as string)))
     }
@@ -125,12 +130,10 @@ export const createPortalRepository = (db: Database): PortalRepository => ({
 
   getPortalQrInfo: async (orgId, id) => {
     return trace('portal.getPortalQrInfo', async () => {
-      // The "organization" table is managed by Better Auth and has no Drizzle
-      // schema in our codebase. Raw SQL for the org slug lookup is correct.
       const result = await db.execute(sql`
-        SELECT p.slug, o.slug AS org_slug
+        SELECT p.slug AS portal_slug, pr.slug AS property_slug
         FROM portals p
-        JOIN "organization" o ON o.id = p.organization_id
+        JOIN ${properties} pr ON pr.id = p.property_id
         WHERE p.id = ${id as unknown as string}
           AND p.organization_id = ${orgId as unknown as string}
           AND p.deleted_at IS NULL
@@ -138,12 +141,12 @@ export const createPortalRepository = (db: Database): PortalRepository => ({
       `)
 
       const rows = result.rows as unknown as ReadonlyArray<{
-        slug: string
-        org_slug: string
+        portal_slug: string
+        property_slug: string
       }>
       if (rows.length === 0) return null
 
-      return { slug: rows[0].slug, orgSlug: rows[0].org_slug }
+      return { slug: rows[0].portal_slug, propertySlug: rows[0].property_slug }
     })
   },
 })

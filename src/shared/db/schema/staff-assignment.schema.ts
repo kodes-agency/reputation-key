@@ -5,6 +5,7 @@
 import { sql } from 'drizzle-orm'
 import { pgTable, uuid, varchar, index, uniqueIndex } from 'drizzle-orm/pg-core'
 import { properties } from './property.schema'
+import { portals } from './portal.schema'
 import { teams } from './team.schema'
 import { createdAtColumn, updatedAtColumn, deletedAtColumn } from '../columns'
 
@@ -18,6 +19,9 @@ export const staffAssignments = pgTable(
       .notNull()
       .references(() => properties.id, { onDelete: 'cascade' }),
     teamId: uuid('team_id').references(() => teams.id, { onDelete: 'cascade' }),
+    // portal-level assignment — column exists for future portal-scoped staff attribution.
+    // Domain types and mappers will be updated when the feature is implemented.
+    portalId: uuid('portal_id').references(() => portals.id, { onDelete: 'cascade' }),
     createdAt: createdAtColumn(),
     updatedAt: updatedAtColumn(),
     deletedAt: deletedAtColumn(),
@@ -31,7 +35,7 @@ export const staffAssignments = pgTable(
     orgUserPropertyTeamUnique: uniqueIndex(
       'staff_assignments_org_user_property_team_unique',
     )
-      .on(t.organizationId, t.userId, t.propertyId, t.teamId)
+      .on(t.organizationId, t.userId, t.propertyId, t.teamId, t.portalId)
       .where(sql`deleted_at IS NULL`),
   }),
 )

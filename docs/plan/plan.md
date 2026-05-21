@@ -183,52 +183,103 @@ Now we have events flowing. Metrics captures them into structured data that the 
 
 ### Phase 13 — Metrics foundation
 
-**Goal.** Every domain event that matters is captured as a metric reading. The 12 built-in metrics from the spec are defined. Aggregations are pre-computed via materialized views. The metrics system is tenant-isolated and performant at scale.
+**Goal.** Guest and review events are captured as raw metric readings. Aggregations are pre-computed via materialized views. Portal-level staff/team attribution is enabled. The metrics pipeline is tenant-isolated and testable.
 
 **Why now.** The dashboard depends on metrics. Goals and gamification depend on metrics. Conversion analytics depends on metrics.
 
 **Scope (in).**
 
-- `contexts/metric/` with full layer structure
-- `shared/db/schema/metric.schema.ts` with `metric_definitions` and `metric_readings` tables
-- **Partitioned `metric_readings` table** — by month, on `recorded_at`. This is critical for scale.
-- Seed migration for 12 built-in metric definitions
-- Event handlers in `contexts/metric/infrastructure/event-handlers/` subscribing to every relevant event:
-  - `portal.scanned` → `portal.scan_count`
-  - `rating.submitted` → `portal.average_rating`
-  - `review.received` → `portal.public_review_count`, `property.total_reviews`
-  - `feedback.submitted` → `portal.private_feedback_count`
-  - `review-link.clicked` → tracked for `portal.conversion_rate`
-  - etc.
-- Materialized views: `mv_daily_metrics`, `mv_weekly_metrics`
-- Background jobs: `refreshDailyMetrics` (hourly), `refreshWeeklyMetrics` (daily)
-- Background job: `createPartitions` (monthly) — creates 3 months of partitions ahead
-- Background job: `archiveOldReadings` (monthly) — archives partitions older than 24 months
-- Custom metric registration (AccountAdmin can define new metrics)
+- **Prerequisite: portal-level staff/team assignment**
+  - Migration: add nullable `portalId` to `staff_assignments` and `teams` tables
+  - `portalId = null` means "covers all portals on that property"
+  - `portalId = set` means "covers only that specific portal"
+  - Enables per-staff, per-team metric attribution via joins
+
+- **Metric context: `contexts/metric/`** with standard layer structure
+  - `domain/types.ts` — `MetricKey`, `EntityLevel`, `ValueType` types
+  - `application/ports/metric.repository.ts` — insert reading, query aggregates
+  - `application/use-cases/record-metric.ts` — validates metric_key against definitions, inserts reading
+  - `infrastructure/event-handlers/` — 5 handlers subscribing to guest + review events
+  - `infrastructure/jobs/` — 3 refresh jobs for materialized views
+  - `infrastructure/repositories/metric.repository.ts` — Drizzle implementation
+  - `build.ts` — wires deps, returns public API
+
+- **Schema: `shared/db/schema/metric.schema.ts`**
+  - `metric_definitions` table: `id, metric_key (unique), display_name, entity_level ('portal'|'property'), value_type ('count'|'rating'), description`
+  - `metric_readings` table: `id, organizationId, propertyId, portalId (nullable), metric_key, value (real), recorded_at (timestamptz)`
+  - Index on `(organization_id, metric_key, recorded_at)` for dashboard queries
+  - No partitioning at MVP scale (deferred to Phase 22)
+
+- **Seed: 5 built-in metric definitions**
+
+| `metric_key`               | `display_name`            | `entity_level` | `value_type` |
+| -------------------------- | ------------------------- | -------------- | ------------ |
+| `portal.scan`              | Portal Scans              | portal         | count        |
+| `portal.rating`            | Portal Ratings            | portal         | rating       |
+| `portal.feedback`          | Portal Feedback           | portal         | count        |
+| `portal.review_link_click` | Portal Review Link Clicks | portal         | count        |
+| `property.review`          | Property Reviews          | property       | rating       |
+
+- **5 event handlers** (raw readings only, aggregates computed by materialized views):
+
+| Event `_tag`          | `metric_key`               | Raw `value`      |
+| --------------------- | -------------------------- | ---------------- |
+| `scan.recorded`       | `portal.scan`              | `1`              |
+| `rating.submitted`    | `portal.rating`            | star value (1-5) |
+| `feedback.submitted`  | `portal.feedback`          | `1`              |
+| `review-link.clicked` | `portal.review_link_click` | `1`              |
+| `review.created`      | `property.review`          | star value (1-5) |
+
+- **3 materialized views** (raw SQL migrations):
+  - `mv_daily_metrics` — one row per `(org_id, property_id, portal_id, metric_key, date)` with `count, sum_value, avg_value`
+  - `mv_weekly_metrics` — same shape aggregated by ISO week
+  - `mv_daily_inbox_metrics` — computed directly from `inbox_items` table (no metric readings): `new_count, addressed_count, avg_response_hours`
+
+- **3 background jobs:**
+  - `refreshDailyMetrics` (hourly) — `REFRESH MATERIALIZED VIEW mv_daily_metrics`
+  - `refreshWeeklyMetrics` (daily) — `REFRESH MATERIALIZED VIEW mv_weekly_metrics`
+  - `refreshDailyInboxMetrics` (hourly) — `REFRESH MATERIALIZED VIEW mv_daily_inbox_metrics`
+
+- **Wire in `composition.ts`** — build metric context, register event handlers, register jobs
+
+- **Tests:**
+  - Unit: 5 event handler tests (mock event → verify correct `insertReading` call)
+  - Unit: `record-metric` use case (validates metric_key, inserts reading)
+  - Integration: seed readings → refresh view → verify aggregates
+  - Integration: inbox view from `inbox_items` → verify counts and response times
+  - Integration: tenant isolation (two orgs → refresh → verify no cross-contamination)
+  - Integration: background jobs register and run without error
+
+**Design decisions (resolved).**
+
+- **Raw readings, not pre-computed metrics.** Event handlers insert one row per event. Materialized views compute all aggregates (count, avg, conversion rate, distribution). Keeps handlers trivial, moves math to refresh jobs.
+- **No partitioning at MVP.** Good indexes + materialized views handle performance. Deferred to Phase 22 or when 500+ properties.
+- **Plain `REFRESH MATERIALIZED VIEW`** (not `CONCURRENTLY`). View stays readable enough for MVP. `CONCURRENTLY` with unique index added in Phase 22.
+- **No metric readings for inbox events.** Inbox KPIs computed directly from `inbox_items` table in `mv_daily_inbox_metrics`.
+- **No admin/lifecycle events.** Only guest journey events (scan, rate, feedback, click) and review arrival produce metric readings.
+- **Custom metric registration deferred.** Schema supports it; CRUD API and UI come later.
 
 **Scope (out).**
 
 - Dashboard UI (Phase 14)
+- `CONCURRENTLY` refresh upgrade (Phase 22)
+- Table partitioning (Phase 22)
+- Custom metric registration UI
+- E2E tests spanning full pipeline (Phase 14)
 - Analytics page (Arc 8)
 - Leaderboards (Arc 6)
 
 **Gate criteria.**
 
-- Every relevant event produces a metric reading
-- Materialized views refresh on schedule
-- Partition creation job runs and creates future partitions correctly
-- Tenant isolation on all metric queries
-- Performance test: insert 1 million readings across 12 months, verify queries against materialized views return in <100ms
-- All 12 built-in metrics produce sensible values when event data exists
-- Tests: event handler unit tests, materialized view refresh integration tests, partition management tests
+- Each of the 5 events produces a metric reading with correct key and value
+- Materialized views refresh on schedule and produce correct aggregates
+- Inbox materialized view produces correct counts and response times from `inbox_items`
+- Tenant isolation: no cross-org contamination in readings or views
+- `portalId` nullable FK on `staff_assignments` and `teams` enables per-staff/portal attribution
+- All unit and integration tests pass
+- Build order: migration (portalId FK) → schema → seed → handlers → views → jobs → wiring → tests
 
-**Open questions to resolve during this phase.**
-
-- Whether to use `pg_partman` extension (check Neon support) or manual partition SQL (suggest manual — more portable)
-- Refresh strategy for materialized views under load (CONCURRENTLY with unique index required)
-- Whether custom metrics should have their own table or share with built-in (share, via `metric_definitions`)
-
-**Rough effort.** 7-10 days. Partitioning and materialized views need careful testing.
+**Rough effort.** 5-7 days. Materialized view SQL and event handler wiring are straightforward. Portal-level assignment migration is small.
 
 **Phase after this.** Dashboard.
 
@@ -511,22 +562,22 @@ Now we fill in the gaps that make this a real product, not just a collection of 
 
 ## Summary: remaining phases
 
-| Arc | Phase | Name                              | Status     | Rough effort |
-| --- | ----- | --------------------------------- | ---------- | ------------ |
-| 1–3 | 1–9   | Foundation through Guest           | Completed  | ~40 days     |
-| 4   | 10    | Review schema + GBP sync          | Next up    | 7-10 days    |
-| 4   | 11    | Unified inbox                     | Pending    | 5-7 days     |
-| 4   | 12    | Reply flow                        | Pending    | 5-6 days     |
-| 5   | 13    | Metrics foundation                | Pending    | 7-10 days    |
-| 5   | 14    | Dashboard                         | Pending    | 5-7 days     |
-| 6   | 15    | Goals                             | Pending    | 5-7 days     |
-| 6   | 16    | Badges + leaderboards             | Pending    | 5-7 days     |
-| 7   | 17    | AI v1                             | Pending    | 7-10 days    |
-| 7   | 18    | AI v2                             | Pending    | 5-7 days     |
-| 8   | 19    | Notifications                     | Pending    | 5-7 days     |
-| 8   | 20    | Compliance + audit                | Pending    | 5-7 days     |
-| 8   | 21    | Analytics                         | Pending    | 5-7 days     |
-| 8   | 22    | Production hardening              | Pending    | 5-7 days     |
+| Arc | Phase | Name                     | Status    | Rough effort |
+| --- | ----- | ------------------------ | --------- | ------------ |
+| 1–3 | 1–9   | Foundation through Guest | Completed | ~40 days     |
+| 4   | 10    | Review schema + GBP sync | Completed | 7-10 days    |
+| 4   | 11    | Unified inbox            | Completed | 5-7 days     |
+| 4   | 12    | Reply flow               | Completed | 5-6 days     |
+| 5   | 13    | Metrics foundation       | Next up   | 5-7 days     |
+| 5   | 14    | Dashboard                | Pending   | 5-7 days     |
+| 6   | 15    | Goals                    | Pending   | 5-7 days     |
+| 6   | 16    | Badges + leaderboards    | Pending   | 5-7 days     |
+| 7   | 17    | AI v1                    | Pending   | 7-10 days    |
+| 7   | 18    | AI v2                    | Pending   | 5-7 days     |
+| 8   | 19    | Notifications            | Pending   | 5-7 days     |
+| 8   | 20    | Compliance + audit       | Pending   | 5-7 days     |
+| 8   | 21    | Analytics                | Pending   | 5-7 days     |
+| 8   | 22    | Production hardening     | Pending   | 5-7 days     |
 
 **Remaining: 13 phases, roughly 80-120 working days.**
 

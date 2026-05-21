@@ -7,6 +7,7 @@ import { getLogger } from '#/shared/observability/logger'
 import { createContainer } from '#/composition'
 import { bootstrap } from '#/bootstrap'
 import { createJobWorker } from '#/shared/jobs/worker'
+import { JOB_NAMES } from '#/contexts/metric/infrastructure/jobs/refresh-materialized-view.job'
 import type { Worker } from 'bullmq'
 
 function main() {
@@ -93,6 +94,34 @@ function main() {
       .catch((err: unknown) => {
         logger.warn({ err }, 'Failed to schedule purge-expired-reviews job')
       })
+
+    // ── Metric materialized view refresh jobs ──────────────────────────
+    type MetricSchedule = Readonly<{
+      jobName: string
+      every: number
+      label: string
+    }>
+    const metricSchedules: MetricSchedule[] = [
+      { jobName: JOB_NAMES.refreshDailyMetrics, every: 60 * 60 * 1000, label: 'hourly' },
+      {
+        jobName: JOB_NAMES.refreshWeeklyMetrics,
+        every: 24 * 60 * 60 * 1000,
+        label: 'daily',
+      },
+      {
+        jobName: JOB_NAMES.refreshDailyInboxMetrics,
+        every: 60 * 60 * 1000,
+        label: 'hourly',
+      },
+    ]
+    for (const { jobName, every, label } of metricSchedules) {
+      container.jobQueue
+        .add(jobName, {}, { repeat: { every }, jobId: `${jobName}-recurring` })
+        .then(() => logger.info(`${jobName} job scheduled (${label})`))
+        .catch((err: unknown) =>
+          logger.warn({ err }, `Failed to schedule ${jobName} job`),
+        )
+    }
   } else {
     logger.warn('No Redis available — worker running without job processing')
   }

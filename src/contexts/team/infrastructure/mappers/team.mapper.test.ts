@@ -13,6 +13,7 @@ const makeTeamRow = (overrides: Record<string, unknown> = {}) => ({
   id: 'team-1',
   organizationId: 'org-1',
   propertyId: 'prop-1',
+  portalId: null,
   name: 'Alpha Team',
   description: 'The first team',
   teamLeadId: 'user-1',

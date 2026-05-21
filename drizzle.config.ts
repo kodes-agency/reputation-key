@@ -34,5 +34,7 @@ export default defineConfig({
     'replies',
     'inbox_items',
     'inbox_notes',
+    'metric_definitions',
+    'metric_readings',
   ],
 })

@@ -7,7 +7,7 @@ import type { OrganizationId } from '#/shared/domain/ids'
 
 export type PortalQrInfo = Readonly<{
   slug: string
-  orgSlug: string
+  propertySlug: string
 }>
 
 export type PortalRepository = Readonly<{
@@ -20,6 +20,7 @@ export type PortalRepository = Readonly<{
   ) => Promise<ReadonlyArray<Portal>>
   slugExists: (
     orgId: OrganizationId,
+    propertyId: string,
     slug: string,
     excludeId?: PortalId,
   ) => Promise<boolean>

@@ -27,7 +27,7 @@ export const getPortalQrUrl =
     }
 
     // 2. Build public URL
-    const portalUrl = `${deps.baseUrl}/p/${info.orgSlug}/${info.slug}?source=qr`
+    const portalUrl = `${deps.baseUrl}/p/${info.propertySlug}/${info.slug}?source=qr`
 
     return { portalUrl, slug: info.slug }
   }

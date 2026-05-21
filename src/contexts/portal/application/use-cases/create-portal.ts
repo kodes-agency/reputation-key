@@ -41,9 +41,15 @@ export const createPortal =
       throw portalError('property_not_found', 'property not found in this organization')
     }
 
-    // 3. Check uniqueness — slug must be unique per org
+    // 3. Check uniqueness — slug must be unique per org+property
     const candidateSlug = input.slug ?? normalizeSlug(input.name)
-    if (await deps.portalRepo.slugExists(ctx.organizationId, candidateSlug)) {
+    if (
+      await deps.portalRepo.slugExists(
+        ctx.organizationId,
+        input.propertyId,
+        candidateSlug,
+      )
+    ) {
       throw portalError('slug_taken', 'a portal with this slug already exists')
     }
 
