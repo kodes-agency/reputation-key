@@ -9,6 +9,8 @@ import { getDb } from '#/shared/db'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { organizationId, propertyId, portalId } from '#/shared/domain/ids'
 
+const MS_PER_DAY = 86_400_000
+
 const ORG_A = organizationId('org-aaaaaaaaaaaa')
 const ORG_B = organizationId('org-bbbbbbbbbbbb')
 // Property IDs must be valid UUIDs (Postgres uuid column)
@@ -50,8 +52,8 @@ async function seedReview(
   const propId = overrides.propId ?? PROP_A
   const rating = overrides.rating ?? 4
   const text = overrides.text ?? 'Review text'
-  const reviewedAt = new Date(Date.now() - (overrides.daysAgo ?? 0) * 86400000)
-  const expiresAt = new Date(reviewedAt.getTime() + 30 * 86400000)
+  const reviewedAt = new Date(Date.now() - (overrides.daysAgo ?? 0) * MS_PER_DAY)
+  const expiresAt = new Date(reviewedAt.getTime() + 30 * MS_PER_DAY)
 
   await pool.query(
     `INSERT INTO reviews (id, organization_id, property_id, platform, external_id, external_location_id, rating, text, reviewed_at, expires_at)
@@ -76,7 +78,7 @@ async function seedMetricReading(
   const id = crypto.randomUUID()
   const orgId = overrides.orgId ?? ORG_A
   const propId = overrides.propId ?? PROP_A
-  const recordedAt = new Date(Date.now() - (overrides.daysAgo ?? 0) * 86400000)
+  const recordedAt = new Date(Date.now() - (overrides.daysAgo ?? 0) * MS_PER_DAY)
 
   await pool.query(
     `INSERT INTO metric_readings (id, organization_id, property_id, portal_id, metric_key, value, recorded_at)
@@ -173,7 +175,7 @@ describe('dashboardRepository (integration)', () => {
       const result = await repo.getRatingDistribution({
         organizationId: ORG_A,
         propertyId: PROP_A,
-        startDate: new Date(Date.now() - 15 * 86400000),
+        startDate: new Date(Date.now() - 15 * MS_PER_DAY),
         endDate: new Date(),
       })
 
@@ -198,7 +200,7 @@ describe('dashboardRepository (integration)', () => {
       const result = await repo.getRatingDistribution({
         organizationId: ORG_A,
         propertyId: PROP_A,
-        startDate: new Date(Date.now() - 10 * 86400000),
+        startDate: new Date(Date.now() - 10 * MS_PER_DAY),
         endDate: new Date(),
       })
 
@@ -234,10 +236,10 @@ describe('dashboardRepository (integration)', () => {
         organizationId: ORG_A,
         propertyId: PROP_A,
         portalId: null,
-        startDate: new Date(now.getTime() - 7 * 86400000),
+        startDate: new Date(now.getTime() - 7 * MS_PER_DAY),
         endDate: now,
-        priorStartDate: new Date(now.getTime() - 14 * 86400000),
-        priorEndDate: new Date(now.getTime() - 7 * 86400000),
+        priorStartDate: new Date(now.getTime() - 14 * MS_PER_DAY),
+        priorEndDate: new Date(now.getTime() - 7 * MS_PER_DAY),
       })
 
       // Reviews: 2 current, 1 prior → +100%
@@ -277,10 +279,10 @@ describe('dashboardRepository (integration)', () => {
         organizationId: ORG_A,
         propertyId: PROP_A,
         portalId: null,
-        startDate: new Date(now.getTime() - 7 * 86400000),
+        startDate: new Date(now.getTime() - 7 * MS_PER_DAY),
         endDate: now,
-        priorStartDate: new Date(now.getTime() - 14 * 86400000),
-        priorEndDate: new Date(now.getTime() - 7 * 86400000),
+        priorStartDate: new Date(now.getTime() - 14 * MS_PER_DAY),
+        priorEndDate: new Date(now.getTime() - 7 * MS_PER_DAY),
       })
 
       expect(result.reviews.value).toBe(1)
@@ -308,7 +310,7 @@ describe('dashboardRepository (integration)', () => {
       await seedReview(pool, { rating: 3, daysAgo: 3 }) // no reply
 
       // Reply to r1: 6 hours after reviewedAt
-      const r1Reviewed = new Date(Date.now() - 1 * 86400000)
+      const r1Reviewed = new Date(Date.now() - 1 * MS_PER_DAY)
       await pool.query(
         `INSERT INTO replies (id, review_id, organization_id, text, status, source, published_at)
          VALUES ($1, $2, $3, 'Thanks', 'published', 'internal', $4)`,
@@ -316,7 +318,7 @@ describe('dashboardRepository (integration)', () => {
       )
 
       // Reply to r2: 48 hours after reviewedAt
-      const r2Reviewed = new Date(Date.now() - 2 * 86400000)
+      const r2Reviewed = new Date(Date.now() - 2 * MS_PER_DAY)
       await pool.query(
         `INSERT INTO replies (id, review_id, organization_id, text, status, source, published_at)
          VALUES ($1, $2, $3, 'Thanks', 'published', 'internal', $4)`,
@@ -328,7 +330,7 @@ describe('dashboardRepository (integration)', () => {
       const result = await repo.getReplyPerformance({
         organizationId: ORG_A,
         propertyId: PROP_A,
-        startDate: new Date(Date.now() - 7 * 86400000),
+        startDate: new Date(Date.now() - 7 * MS_PER_DAY),
         endDate: new Date(),
       })
 
@@ -349,7 +351,7 @@ describe('dashboardRepository (integration)', () => {
       const result = await repo.getReplyPerformance({
         organizationId: ORG_A,
         propertyId: PROP_A,
-        startDate: new Date(Date.now() - 7 * 86400000),
+        startDate: new Date(Date.now() - 7 * MS_PER_DAY),
         endDate: new Date(),
       })
 
@@ -376,7 +378,7 @@ describe('dashboardRepository (integration)', () => {
       const result = await repo.getRatingTrend({
         organizationId: ORG_A,
         propertyId: PROP_A,
-        startDate: new Date(Date.now() - 5 * 86400000),
+        startDate: new Date(Date.now() - 5 * MS_PER_DAY),
         endDate: new Date(),
       })
 
@@ -408,7 +410,7 @@ describe('dashboardRepository (integration)', () => {
       const result = await repo.getReviewVolume({
         organizationId: ORG_A,
         propertyId: PROP_A,
-        startDate: new Date(Date.now() - 5 * 86400000),
+        startDate: new Date(Date.now() - 5 * MS_PER_DAY),
         endDate: new Date(),
       })
 
@@ -451,7 +453,7 @@ describe('dashboardRepository (integration)', () => {
         organizationId: ORG_A,
         propertyId: PROP_A,
         portalId: PORTAL_A,
-        startDate: new Date(Date.now() - 7 * 86400000),
+        startDate: new Date(Date.now() - 7 * MS_PER_DAY),
         endDate: new Date(),
       })
 
@@ -502,10 +504,10 @@ describe('dashboardRepository (integration)', () => {
         organizationId: ORG_A,
         propertyId: PROP_A,
         portalId: null,
-        startDate: new Date(now.getTime() - 7 * 86400000),
+        startDate: new Date(now.getTime() - 7 * MS_PER_DAY),
         endDate: now,
-        priorStartDate: new Date(now.getTime() - 14 * 86400000),
-        priorEndDate: new Date(now.getTime() - 7 * 86400000),
+        priorStartDate: new Date(now.getTime() - 14 * MS_PER_DAY),
+        priorEndDate: new Date(now.getTime() - 7 * MS_PER_DAY),
       })
 
       // Only 1 scan from ORG_A
