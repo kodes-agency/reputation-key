@@ -33,6 +33,7 @@ Composition root: `src/composition.ts`. Bootstrap: `src/bootstrap.ts`.
 || Integration | Google connections, OAuth, tokens, GBP API adapter | GoogleConnection |
 || Review | External platform reviews (Google), sync, replies | Review |
 || Inbox | Unified triage surface for reviews + feedback | InboxItem, InboxNote |
+| Dashboard | Read-only aggregation of metrics, reviews, replies into property-scoped KPIs and charts | — |
 
 ## Glossary
 

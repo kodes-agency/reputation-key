@@ -67,6 +67,8 @@ export function createDashboardRepository(db: Database): DashboardRepository {
           `.as('reply_status'),
         })
         .from(reviews)
+        // Intentionally no date filter — "recent reviews" always means last N overall,
+        // not scoped to the dashboard's time range.
         .where(
           and(
             eq(reviews.organizationId, organizationId),
