@@ -15,6 +15,10 @@ import { createImportPropertyHandler } from '#/contexts/integration/infrastructu
 import { createSyncPropertyReviewsHandler } from '#/contexts/review/infrastructure/jobs/sync-property-reviews.job'
 import { createRefreshExpiringReviewsHandler } from '#/contexts/review/infrastructure/jobs/refresh-expiring-reviews.job'
 import { createPurgeExpiredReviewsHandler } from '#/contexts/review/infrastructure/jobs/purge-expired-reviews.job'
+import {
+  createRefreshMatViewHandler,
+  JOB_NAMES,
+} from '#/contexts/metric/infrastructure/jobs/refresh-materialized-view.job'
 
 export function bootstrap(container: Container): void {
   const logger = getLogger()
@@ -114,4 +118,16 @@ export function bootstrap(container: Container): void {
   // ── Register event handlers here as contexts are added ────────────
   // Example:
   //   container.eventBus.on('portal.created', (event) => { ... })
+
+  // ── Metric materialized view refresh jobs ──────────────────────────
+  const metricMatViewDeps = { db: container.db }
+  for (const [queryKey, jobName] of [
+    ['dailyMetrics', JOB_NAMES.refreshDailyMetrics],
+    ['weeklyMetrics', JOB_NAMES.refreshWeeklyMetrics],
+    ['dailyInboxMetrics', JOB_NAMES.refreshDailyInboxMetrics],
+  ] as const) {
+    const handler = createRefreshMatViewHandler(metricMatViewDeps, queryKey)
+    container.jobRegistry.register(jobName, handler)
+    logger.info({ job: jobName }, 'registered metric refresh job handler')
+  }
 }

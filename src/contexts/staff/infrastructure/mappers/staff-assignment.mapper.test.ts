@@ -21,6 +21,7 @@ const makeStaffRow = (overrides: Record<string, unknown> = {}) => ({
   userId: 'user-1',
   propertyId: 'prop-1',
   teamId: 'team-1',
+  portalId: null,
   createdAt: FIXED_TIME,
   updatedAt: FIXED_TIME,
   deletedAt: null,

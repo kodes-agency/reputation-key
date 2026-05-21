@@ -38,8 +38,8 @@ export const portals = pgTable(
     deletedAt: deletedAtColumn(),
   },
   (t) => ({
-    orgSlugUnique: uniqueIndex('portals_org_slug_unique')
-      .on(t.organizationId, t.slug)
+    orgPropertySlugUnique: uniqueIndex('portals_org_property_slug_unique')
+      .on(t.organizationId, t.propertyId, t.slug)
       .where(sql`deleted_at IS NULL`),
     orgPropertyIdx: index('portals_org_property_idx').on(t.organizationId, t.propertyId),
   }),

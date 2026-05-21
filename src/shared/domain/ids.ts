@@ -14,7 +14,6 @@ export type RatingId = Brand<string, 'RatingId'>
 export type FeedbackId = Brand<string, 'FeedbackId'>
 export type TeamId = Brand<string, 'TeamId'>
 export type StaffAssignmentId = Brand<string, 'StaffAssignmentId'>
-// MetricId, GoalId — deferred to Phase 10/11
 export type PortalLinkCategoryId = Brand<string, 'PortalLinkCategoryId'>
 export type PortalLinkId = Brand<string, 'PortalLinkId'>
 export type InboxItemId = Brand<string, 'InboxItemId'>

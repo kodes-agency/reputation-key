@@ -88,10 +88,18 @@ describe('portalRepository (integration)', () => {
 
       await repo.insert(ORG_A, portal)
 
-      const existsInA = await repo.slugExists(ORG_A, 'shared-slug')
+      const existsInA = await repo.slugExists(
+        ORG_A,
+        portal.propertyId as string,
+        'shared-slug',
+      )
       expect(existsInA).toBe(true)
 
-      const existsInB = await repo.slugExists(ORG_B, 'shared-slug')
+      const existsInB = await repo.slugExists(
+        ORG_B,
+        portal.propertyId as string,
+        'shared-slug',
+      )
       expect(existsInB).toBe(false)
     })
   })

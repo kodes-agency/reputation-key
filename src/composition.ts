@@ -38,6 +38,7 @@ import { buildPortalContext } from '#/contexts/portal/build'
 import { buildGuestContext } from '#/contexts/guest/build'
 import { buildReviewContext } from '#/contexts/review/build'
 import { buildInboxContext } from '#/contexts/inbox/build'
+import { buildMetricContext } from '#/contexts/metric/build'
 import { createStaffAssignmentRepository } from '#/contexts/staff/infrastructure/repositories/staff-assignment.repository'
 import { createGoogleReviewApiAdapter } from '#/contexts/integration/infrastructure/adapters/google-review-api.adapter'
 import {
@@ -210,6 +211,12 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     redis,
     clock,
     staffPublicApi: staff.publicApi,
+  })
+
+  buildMetricContext({
+    db,
+    events: eventBus,
+    clock,
   })
 
   // ── Wire invitation acceptance hook ────────────────────────────

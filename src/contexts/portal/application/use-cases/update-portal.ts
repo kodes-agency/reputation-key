@@ -69,7 +69,9 @@ async function buildPortalPatch(
 
   if (input.slug !== undefined && input.slug !== existing.slug) {
     patch.slug = unwrap(validateSlug(input.slug))
-    if (await repo.slugExists(orgId, patch.slug, existing.id)) {
+    if (
+      await repo.slugExists(orgId, existing.propertyId as string, patch.slug, existing.id)
+    ) {
       throw portalError('slug_taken', 'a portal with this slug already exists')
     }
   }
