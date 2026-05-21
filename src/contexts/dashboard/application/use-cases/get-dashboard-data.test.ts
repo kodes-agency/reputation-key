@@ -26,12 +26,12 @@ describe('getDashboardData (use case)', () => {
     })
 
     // All sections present
-    expect(result.kpis).toBeDefined()
-    expect(result.ratingDistribution).toBeDefined()
-    expect(result.ratingTrend).toBeDefined()
-    expect(result.reviewVolume).toBeDefined()
-    expect(result.replyPerformance).toBeDefined()
-    expect(result.recentReviews).toBeDefined()
+    expect(result.kpis.reviews.value).toBe(10)
+    expect(result.ratingDistribution).toHaveLength(5)
+    expect(result.ratingTrend).toHaveLength(2)
+    expect(result.reviewVolume).toHaveLength(2)
+    expect(result.replyPerformance.replyRate).toBe(66.67)
+    expect(result.recentReviews).toHaveLength(1)
 
     // No portal → no funnel
     expect(result.engagementFunnel).toBeNull()
