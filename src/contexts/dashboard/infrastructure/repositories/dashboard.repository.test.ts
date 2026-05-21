@@ -458,7 +458,7 @@ describe('dashboardRepository (integration)', () => {
       })
 
       expect(result.scans).toBe(3)
-      expect(result.ratings).toBe(2) // feedback_submitted
+      expect(result.ratings).toBe(2) // portal.feedback
       expect(result.reviewLinkClicks).toBe(1)
     })
   })
