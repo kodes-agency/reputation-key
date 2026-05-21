@@ -179,12 +179,9 @@ describe('property.update permission', () => {
 })
 
 describe('property.delete permission', () => {
-  it('allows AccountAdmin and PropertyManager', () => {
+  it('allows only AccountAdmin', () => {
     expect(can('AccountAdmin', 'property.delete')).toBe(true)
-    expect(can('PropertyManager', 'property.delete')).toBe(true)
-  })
-
-  it('rejects Staff', () => {
+    expect(can('PropertyManager', 'property.delete')).toBe(false)
     expect(can('Staff', 'property.delete')).toBe(false)
   })
 })

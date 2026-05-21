@@ -11,6 +11,17 @@ import { replyFromRow, replyToRow } from '../mappers/reply.mapper'
 import { trace } from '#/shared/observability/trace'
 
 export const createReplyRepository = (db: Database): ReplyRepository => ({
+  findById: async (id: ReplyId, organizationId: OrganizationId) => {
+    return trace('reply.findById', async () => {
+      const rows = await db
+        .select()
+        .from(replies)
+        .where(and(eq(replies.id, id), eq(replies.organizationId, organizationId)))
+        .limit(1)
+      return rows[0] ? replyFromRow(rows[0]) : null
+    })
+  },
+
   findByReviewId: async (reviewId: ReviewId, organizationId: OrganizationId) => {
     return trace('reply.findByReviewId', async () => {
       const rows = await db
@@ -20,6 +31,23 @@ export const createReplyRepository = (db: Database): ReplyRepository => ({
           and(eq(replies.reviewId, reviewId), eq(replies.organizationId, organizationId)),
         )
       return rows.map(replyFromRow)
+    })
+  },
+
+  findInternalByReviewId: async (reviewId: ReviewId, organizationId: OrganizationId) => {
+    return trace('reply.findInternalByReviewId', async () => {
+      const rows = await db
+        .select()
+        .from(replies)
+        .where(
+          and(
+            eq(replies.reviewId, reviewId),
+            eq(replies.organizationId, organizationId),
+            eq(replies.source, 'internal'),
+          ),
+        )
+        .limit(1)
+      return rows[0] ? replyFromRow(rows[0]) : null
     })
   },
 
@@ -55,6 +83,10 @@ export const createReplyRepository = (db: Database): ReplyRepository => ({
           set: {
             text: row.text,
             status: row.status,
+            approvedBy: row.approvedBy,
+            rejectedBy: row.rejectedBy,
+            rejectionReason: row.rejectionReason,
+            aiGenerated: row.aiGenerated,
             publishedAt: row.publishedAt,
             updatedAt,
           },

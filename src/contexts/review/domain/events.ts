@@ -1,7 +1,7 @@
 // Review context — domain events
 // Per architecture: "Events are facts, named in the past tense."
 
-import type { ReviewId, PropertyId, OrganizationId } from '#/shared/domain/ids'
+import type { ReviewId, ReplyId, PropertyId, OrganizationId } from '#/shared/domain/ids'
 import type { ReviewPlatform, StarRating } from './types'
 
 // fallow-ignore-next-line unused-type
@@ -41,6 +41,18 @@ export type ReviewExpired = Readonly<{
 
 export type ReviewEvent = ReviewCreated | ReviewUpdated | ReviewExpired
 
+// fallow-ignore-next-line unused-type
+export type ReplyPublished = Readonly<{
+  _tag: 'reply.published'
+  replyId: ReplyId
+  reviewId: ReviewId
+  propertyId: PropertyId
+  organizationId: OrganizationId
+  occurredAt: Date
+}>
+
+export type ReplyEvent = ReplyPublished
+
 // NOTE: No ReviewPurged event is emitted when the purge job hard-deletes expired reviews.
 // Purged reviews are already expired (review.expired event was emitted earlier) and are
 // removed from the DB after a 3-day grace period. If downstream systems need to react to
@@ -61,5 +73,10 @@ export const reviewUpdated = (args: Omit<ReviewUpdated, '_tag'>): ReviewUpdated 
 
 export const reviewExpired = (args: Omit<ReviewExpired, '_tag'>): ReviewExpired => ({
   _tag: 'review.expired',
+  ...args,
+})
+
+export const replyPublished = (args: Omit<ReplyPublished, '_tag'>): ReplyPublished => ({
+  _tag: 'reply.published',
   ...args,
 })

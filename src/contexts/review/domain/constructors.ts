@@ -1,10 +1,16 @@
 // Review context — entity constructors
 
 import type { Review, Reply, SentimentLabel } from './types'
-import type { ReviewId, ReplyId, OrganizationId, PropertyId, GoogleConnectionId } from '#/shared/domain/ids'
+import type {
+  ReviewId,
+  ReplyId,
+  OrganizationId,
+  PropertyId,
+  GoogleConnectionId,
+} from '#/shared/domain/ids'
 import { ok, err } from 'neverthrow'
 import { reviewError } from './errors'
-import { isValidRating, calculateExpiresAt } from './rules'
+import { isValidRating, calculateExpiresAt, MAX_REPLY_LENGTH } from './rules'
 
 type BuildReviewArgs = {
   id: ReviewId
@@ -59,8 +65,12 @@ type BuildReplyArgs = {
   organizationId: OrganizationId
   text: string
   source: 'google_sync' | 'internal'
-  status?: 'draft' | 'pending_approval' | 'approved' | 'published' | 'rejected'
+  status?: Reply['status']
   createdBy?: string | null
+  approvedBy?: string | null
+  rejectedBy?: string | null
+  rejectionReason?: string | null
+  aiGenerated?: boolean
   publishedAt?: Date | null
   now: Date
 }
@@ -68,6 +78,12 @@ type BuildReplyArgs = {
 export const buildReply = (args: BuildReplyArgs) => {
   if (!args.text.trim()) {
     return err(reviewError('invalid_reply', 'Reply text cannot be empty'))
+  }
+
+  if (args.text.length > MAX_REPLY_LENGTH) {
+    return err(
+      reviewError('invalid_reply', `Reply text exceeds ${MAX_REPLY_LENGTH} characters`),
+    )
   }
 
   return ok<Reply>({
@@ -78,6 +94,10 @@ export const buildReply = (args: BuildReplyArgs) => {
     status: args.status ?? 'draft',
     source: args.source,
     createdBy: args.createdBy ?? null,
+    approvedBy: args.approvedBy ?? null,
+    rejectedBy: args.rejectedBy ?? null,
+    rejectionReason: args.rejectionReason ?? null,
+    aiGenerated: args.aiGenerated ?? false,
     publishedAt: args.publishedAt ?? null,
     createdAt: args.now,
     updatedAt: args.now,

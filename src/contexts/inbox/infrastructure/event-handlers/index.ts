@@ -7,6 +7,7 @@ import type { InboxRepository } from '../../application/ports/inbox.repository'
 import { onReviewCreated } from './on-review-created'
 import { onFeedbackSubmitted } from './on-feedback-submitted'
 import { onReviewUpdated } from './on-review-updated'
+import { onReplyPublished } from './on-reply-published'
 
 export type RegisterInboxHandlersDeps = Readonly<{
   events: EventBus
@@ -24,4 +25,5 @@ export const registerInboxHandlers = (deps: RegisterInboxHandlersDeps): void => 
     onFeedbackSubmitted({ createInboxItem: deps.createInboxItem }),
   )
   deps.events.on('review.updated', onReviewUpdated(deps))
+  deps.events.on('reply.published', onReplyPublished({ repo: deps.repo }))
 }

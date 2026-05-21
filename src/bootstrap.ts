@@ -19,6 +19,8 @@ import {
   createRefreshMatViewHandler,
   JOB_NAMES,
 } from '#/contexts/metric/infrastructure/jobs/refresh-materialized-view.job'
+import { createPublishReplyHandler } from '#/contexts/review/infrastructure/jobs/publish-reply.job'
+import { replyId } from '#/shared/domain/ids'
 
 export function bootstrap(container: Container): void {
   const logger = getLogger()
@@ -114,6 +116,24 @@ export function bootstrap(container: Container): void {
     { job: 'purge-expired-reviews' },
     'registered purge-expired-reviews job handler',
   )
+
+  // ── Reply publish job ──────────────────────────────────────────────
+  const publishReplyHandler = createPublishReplyHandler({
+    replyRepo: container.replyRepo,
+    reviewRepo: container.reviewRepo,
+    googleReviewApi: container.googleReviewApi,
+    events: container.eventBus,
+    clock: () => new Date(),
+    idGen: () => replyId(crypto.randomUUID()),
+  })
+  container.jobRegistry.register('publish-reply', async (job) => {
+    await publishReplyHandler(
+      job as import('bullmq').Job<
+        import('#/contexts/review/application/ports/reply-queue.port').PublishReplyJobData
+      >,
+    )
+  })
+  logger.info({ job: 'publish-reply' }, 'registered publish-reply job handler')
 
   // ── Register event handlers here as contexts are added ────────────
   // Example:

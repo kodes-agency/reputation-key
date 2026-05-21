@@ -19,6 +19,17 @@ import { reviewFromRow, reviewToRow } from '../mappers/review.mapper'
 import { trace } from '#/shared/observability/trace'
 
 export const createReviewRepository = (db: Database): ReviewRepository => ({
+  findById: async (id: ReviewId, organizationId: OrganizationId) => {
+    return trace('review.findById', async () => {
+      const rows = await db
+        .select()
+        .from(reviews)
+        .where(and(eq(reviews.id, id), eq(reviews.organizationId, organizationId)))
+        .limit(1)
+      return rows[0] ? reviewFromRow(rows[0]) : null
+    })
+  },
+
   findByExternalId: async (
     platform: ReviewPlatform,
     externalId: string,

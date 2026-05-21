@@ -9,6 +9,7 @@ import {
   real,
   text,
   timestamp,
+  boolean,
   pgEnum,
   uniqueIndex,
   index,
@@ -24,6 +25,7 @@ export const replyStatusEnum = pgEnum('reply_status', [
   'approved',
   'published',
   'rejected',
+  'publish_failed',
 ])
 
 export const replySourceEnum = pgEnum('reply_source', ['google_sync', 'internal'])
@@ -78,13 +80,17 @@ export const replies = pgTable(
     status: replyStatusEnum('status').notNull(),
     source: replySourceEnum('source').notNull(),
     createdBy: varchar('created_by', { length: 255 }),
+    approvedBy: varchar('approved_by', { length: 255 }),
+    rejectedBy: varchar('rejected_by', { length: 255 }),
+    rejectionReason: text('rejection_reason'),
+    aiGenerated: boolean('ai_generated').notNull().default(false),
     publishedAt: timestamp('published_at', { withTimezone: true }),
     createdAt: createdAtColumn(),
     updatedAt: updatedAtColumn(),
   },
-  // TODO(Phase 12): Add partial unique index so only one published reply per review:
+  // NOTE: Partial unique index for one published reply per review must be created
+  // via raw SQL migration since Drizzle doesn't support partial unique indexes:
   //   CREATE UNIQUE INDEX replies_one_published_per_review ON replies (review_id) WHERE status = 'published'
-  //   Drizzle partial unique index support tracked in Phase 12.
   (t) => [
     uniqueIndex('replies_review_source_unique').on(
       t.reviewId,

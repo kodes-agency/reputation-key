@@ -14,39 +14,39 @@ Composition root: `src/composition.ts`. Bootstrap: `src/bootstrap.ts`.
 
 ## Layer guides
 
-| Working in | Read this |
-| ---------- | --------- |
-| Components, forms, hooks | `src/components/CONTEXT.md` |
-| Domain, use cases, repos, server functions | `src/contexts/CONTEXT.md` |
-| Shared infrastructure, auth, cache, observability | `src/shared/CONTEXT.md` |
-| Routes, loaders, mutations, auth guards | `src/routes/CONTEXT.md` |
+| Working in                                        | Read this                   |
+| ------------------------------------------------- | --------------------------- |
+| Components, forms, hooks                          | `src/components/CONTEXT.md` |
+| Domain, use cases, repos, server functions        | `src/contexts/CONTEXT.md`   |
+| Shared infrastructure, auth, cache, observability | `src/shared/CONTEXT.md`     |
+| Routes, loaders, mutations, auth guards           | `src/routes/CONTEXT.md`     |
 
 ## Bounded contexts
 
-|| Context     | Responsibility                                         | Key Entities                           |
+|| Context | Responsibility | Key Entities |
 || ----------- | ------------------------------------------------------ | -------------------------------------- |
-|| Identity    | Users, organizations, members, invitations             | User, Organization, Member, Invitation |
-|| Property    | Properties (hotels/restaurants) owned by organizations | Property                               |
-|| Portal      | Guest-facing portal pages with links, per property     | Portal, Link, LinkCategory             |
-|| Guest       | Public portal rendering, rating collection, feedback   | Rating, Feedback                       |
-|| Team        | Staff teams and shift management                       | Team, StaffAssignment                  |
-|| Integration | Google connections, OAuth, tokens, GBP API adapter     | GoogleConnection                       |
-|| Review      | External platform reviews (Google), sync, replies      | Review                                 |
-|| Inbox       | Unified triage surface for reviews + feedback          | InboxItem, InboxNote                   |
+|| Identity | Users, organizations, members, invitations | User, Organization, Member, Invitation |
+|| Property | Properties (hotels/restaurants) owned by organizations | Property |
+|| Portal | Guest-facing portal pages with links, per property | Portal, Link, LinkCategory |
+|| Guest | Public portal rendering, rating collection, feedback | Rating, Feedback |
+|| Team | Staff teams and shift management | Team, StaffAssignment |
+|| Integration | Google connections, OAuth, tokens, GBP API adapter | GoogleConnection |
+|| Review | External platform reviews (Google), sync, replies | Review |
+|| Inbox | Unified triage surface for reviews + feedback | InboxItem, InboxNote |
 
 ## Glossary
 
 ### Roles & Permissions
 
-| Term                       | Definition                                                                                                                             |
-| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| **Role**                   | A named set of permissions assigned to an organization member. Org-wide — not per-property.                                            |
-| **AccountAdmin**           | Organization owner. Full permissions including role management (`ac.*`). Created when the org is created.                              |
-| **PropertyManager**        | Can manage properties, portals, members, teams. Cannot delete resources or manage roles.                                               |
-| **Staff**                  | Read-only access. Can view reviews.                                                                                                    |
-| **Permission**             | A `resource.action` string (e.g. `portal.create`). The atomic unit of authorization.                                                   |
-| **Dynamic Access Control** | Better-auth feature that loads org-specific role overrides from the DB at permission-check time. Built-in roles are the fallback.      |
-| **Staff Assignment**       | Links a member to a specific property. Controls which properties a PropertyManager can manage.                                         |
+| Term                       | Definition                                                                                                                        |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| **Role**                   | A named set of permissions assigned to an organization member. Org-wide — not per-property.                                       |
+| **AccountAdmin**           | Organization owner. Full permissions including role management (`ac.*`). Created when the org is created.                         |
+| **PropertyManager**        | Can manage properties, portals, members, teams. Cannot delete resources or manage roles.                                          |
+| **Staff**                  | Read-only access. Can view reviews.                                                                                               |
+| **Permission**             | A `resource.action` string (e.g. `portal.create`). The atomic unit of authorization.                                              |
+| **Dynamic Access Control** | Better-auth feature that loads org-specific role overrides from the DB at permission-check time. Built-in roles are the fallback. |
+| **Staff Assignment**       | Links a member to a specific property. Controls which properties a PropertyManager can manage.                                    |
 
 ### Auth Architecture
 
@@ -66,20 +66,20 @@ Composition root: `src/composition.ts`. Bootstrap: `src/bootstrap.ts`.
 
 ### Reviews & Feedback
 
-| Term                    | Definition                                                                                                                              |
-| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| **Review**              | A public review from an external platform (Google, future TripAdvisor). Has `platform`, `externalId`, `rating`, `text`, `reviewerName`. Reply state lives in a separate `Reply` entity. Lives in the `review` context. |
-| **Rating**              | A private 1–5 star rating submitted by a portal visitor. Lives in the `guest` context.                                                  |
-| **Feedback**            | A private text comment submitted by a portal visitor. Lives in the `guest` context.                                                     |
-| **GoogleConnection**    | An OAuth connection to a Google account. Stores encrypted tokens, scopes, visibility. Lives in the `integration` context.               |
-| **ReviewPlatform**      | The external source of a review (`'google'`). Extensible for future platforms.                                                          |
-| **Review Sync**         | Process of fetching reviews from GBP. Triggered by Pub/Sub push notification (new/updated review) or manual "Sync Now" button. No periodic polling. |
-| **GBP Notification**    | GCP Pub/Sub push from Google when a review is created or updated. Subscribed per-account on first property import, unsubscribed on last property removal or disconnect. |
-| **Reply**               | A response to a review. Separate entity from Review. Phase 10: `status = 'published'`, `source = 'google_sync'` (reply detected from GBP). Phase 12 extends with draft/approve/reject workflow and `source = 'internal'`. |
-| **Inbox Item**          | A unified triage entry pointing to a Review or Feedback. Carries denormalized filter/sort fields and inbox state (status, assignment). Lives in the `inbox` context. |
-| **Inbox Status**        | The triage state of an inbox item: `new`, `read`, `addressed`, `escalated`, `archived`. Transitions follow a defined graph (see ADR 0004). |
-| **Addressed**           | Inbox item has been handled. For reviews: reply published or manually marked. For feedback: internally handled. |
-| **Internal Note**       | A text annotation on an inbox item. Multiple per item, tracks author and timestamp. Lives in `inbox` context. |
+| Term                 | Definition                                                                                                                                                                                                                                                                                                                                            |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Review**           | A public review from an external platform (Google, future TripAdvisor). Has `platform`, `externalId`, `rating`, `text`, `reviewerName`. Reply state lives in a separate `Reply` entity. Lives in the `review` context.                                                                                                                                |
+| **Rating**           | A private 1–5 star rating submitted by a portal visitor. Lives in the `guest` context.                                                                                                                                                                                                                                                                |
+| **Feedback**         | A private text comment submitted by a portal visitor. Lives in the `guest` context.                                                                                                                                                                                                                                                                   |
+| **GoogleConnection** | An OAuth connection to a Google account. Stores encrypted tokens, scopes, visibility. Lives in the `integration` context.                                                                                                                                                                                                                             |
+| **ReviewPlatform**   | The external source of a review (`'google'`). Extensible for future platforms.                                                                                                                                                                                                                                                                        |
+| **Review Sync**      | Process of fetching reviews from GBP. Triggered by Pub/Sub push notification (new/updated review) or manual "Sync Now" button. No periodic polling.                                                                                                                                                                                                   |
+| **GBP Notification** | GCP Pub/Sub push from Google when a review is created or updated. Subscribed per-account on first property import, unsubscribed on last property removal or disconnect.                                                                                                                                                                               |
+| **Reply**            | A response to a review. Separate entity from Review. Has `source`: `google_sync` (mirrored from GBP) or `internal` (staff-authored with draft/approve/reject lifecycle). Internal replies follow: `draft` → `pending_approval` → `approved` → `published` (or `publish_failed`). Only PM+ roles can manage replies; Staff cannot view or manage them. |
+| **Inbox Item**       | A unified triage entry pointing to a Review or Feedback. Carries denormalized filter/sort fields and inbox state (status, assignment). Lives in the `inbox` context.                                                                                                                                                                                  |
+| **Inbox Status**     | The triage state of an inbox item: `new`, `read`, `addressed`, `escalated`, `archived`. Transitions follow a defined graph (see ADR 0004).                                                                                                                                                                                                            |
+| **Addressed**        | Inbox item has been handled. For reviews: reply published or manually marked. For feedback: internally handled.                                                                                                                                                                                                                                       |
+| **Internal Note**    | A text annotation on an inbox item. Multiple per item, tracks author and timestamp. Lives in `inbox` context.                                                                                                                                                                                                                                         |
 
 ## Permission Patterns
 
@@ -101,27 +101,27 @@ Composition root: `src/composition.ts`. Bootstrap: `src/bootstrap.ts`.
 
 See `docs/adr/` for formal ADRs. Key ADRs:
 
-| ADR | Title | Context |
-|-----|-------|---------|
-| 0001 | Dynamic Access Control via Better-auth | Identity & Authorization |
-| 0002 | Section-Based Navigation | Navigation Architecture |
-| 0003 | Review as a Separate Bounded Context | Reviews, Google Integration |
-| 0004 | Inbox as a Separate Bounded Context | Unified Inbox, Reviews, Feedback |
+| ADR  | Title                                  | Context                          |
+| ---- | -------------------------------------- | -------------------------------- |
+| 0001 | Dynamic Access Control via Better-auth | Identity & Authorization         |
+| 0002 | Section-Based Navigation               | Navigation Architecture          |
+| 0003 | Review as a Separate Bounded Context   | Reviews, Google Integration      |
+| 0004 | Inbox as a Separate Bounded Context    | Unified Inbox, Reviews, Feedback |
 
 ## Key Files
 
-| Area                      | Path                                 |
-| ------------------------- | ------------------------------------ |
-| Permission definitions    | `src/shared/auth/permissions.ts`     |
-| Permission type + `can()` | `src/shared/domain/permissions.ts`   |
-| Role types + `hasRole()`  | `src/shared/domain/roles.ts`         |
-| Client permission hook    | `src/shared/hooks/usePermissions.ts` |
-| Auth context type         | `src/shared/domain/auth-context.ts`  |
-| Auth middleware            | `src/shared/auth/middleware.ts`      |
-| Better-auth config        | `src/shared/auth/auth.ts`            |
-| Better-auth client        | `src/shared/auth/auth-client.ts`     |
-| Authenticated route       | `src/routes/_authenticated.tsx`      |
-| Composition root          | `src/composition.ts`                 |
-| Bootstrap                 | `src/bootstrap.ts`                   |
+| Area                      | Path                                           |
+| ------------------------- | ---------------------------------------------- |
+| Permission definitions    | `src/shared/auth/permissions.ts`               |
+| Permission type + `can()` | `src/shared/domain/permissions.ts`             |
+| Role types + `hasRole()`  | `src/shared/domain/roles.ts`                   |
+| Client permission hook    | `src/shared/hooks/usePermissions.ts`           |
+| Auth context type         | `src/shared/domain/auth-context.ts`            |
+| Auth middleware           | `src/shared/auth/middleware.ts`                |
+| Better-auth config        | `src/shared/auth/auth.ts`                      |
+| Better-auth client        | `src/shared/auth/auth-client.ts`               |
+| Authenticated route       | `src/routes/_authenticated.tsx`                |
+| Composition root          | `src/composition.ts`                           |
+| Bootstrap                 | `src/bootstrap.ts`                             |
 | Request tracing           | `src/shared/observability/traced-server-fn.ts` |
-| Tenant cache              | `src/shared/auth/middleware.ts`      |
+| Tenant cache              | `src/shared/auth/middleware.ts`                |

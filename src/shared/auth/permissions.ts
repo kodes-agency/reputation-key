@@ -43,7 +43,7 @@ export const owner = ac.newRole(statement)
 export const admin = ac.newRole({
   member: ['create'],
   invitation: ['create', 'cancel', 'resend'],
-  property: ['create', 'update', 'delete'],
+  property: ['create', 'update'],
   team: ['create', 'update'],
   staff_assignment: ['create', 'delete'],
   portal: ['create', 'update'],
