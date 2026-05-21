@@ -209,15 +209,15 @@ export function createDashboardRepository(db: Database): DashboardRepository {
     async getReplyPerformance(input): Promise<ReplyPerformance> {
       const { organizationId, propertyId, startDate, endDate } = input
 
-      const [reviewCountRow, publishedReplies] = await Promise.all([
+      const [reviewCountRow, replyAgg] = await Promise.all([
         db
           .select({ count: count() })
           .from(reviews)
           .where(reviewWhere(organizationId, propertyId, startDate, endDate)),
         db
           .select({
-            reviewId: replies.reviewId,
-            avgHours: sql<number>`EXTRACT(EPOCH FROM (replies.published_at - reviews.reviewed_at)) / 3600`,
+            repliedCount: count(),
+            avgHours: avg(sql<number>`EXTRACT(EPOCH FROM (replies.published_at - reviews.reviewed_at)) / 3600`),
           })
           .from(replies)
           .innerJoin(reviews, eq(replies.reviewId, reviews.id))
@@ -234,12 +234,9 @@ export function createDashboardRepository(db: Database): DashboardRepository {
       ])
 
       const totalReviews = Number(reviewCountRow[0]?.count ?? 0)
-      const repliedCount = publishedReplies.length
+      const repliedCount = Number(replyAgg[0]?.repliedCount ?? 0)
       const replyRate = totalReviews > 0 ? (repliedCount / totalReviews) * 100 : 0
-      const avgReplyHours =
-        repliedCount > 0
-          ? Math.round(publishedReplies.reduce((sum, r) => sum + Number(r.avgHours), 0) / repliedCount)
-          : null
+      const avgReplyHours = repliedCount > 0 ? Math.round(Number(replyAgg[0]?.avgHours ?? 0)) : null
 
       return { replyRate: Math.round(replyRate * 100) / 100, avgReplyHours }
     },
