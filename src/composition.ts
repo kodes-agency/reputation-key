@@ -39,6 +39,7 @@ import { buildGuestContext } from '#/contexts/guest/build'
 import { buildReviewContext } from '#/contexts/review/build'
 import { buildInboxContext } from '#/contexts/inbox/build'
 import { buildMetricContext } from '#/contexts/metric/build'
+import { buildDashboardContext } from '#/contexts/dashboard/build'
 import { createStaffAssignmentRepository } from '#/contexts/staff/infrastructure/repositories/staff-assignment.repository'
 import { createGoogleReviewApiAdapter } from '#/contexts/integration/infrastructure/adapters/google-review-api.adapter'
 import {
@@ -219,6 +220,10 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     clock,
   })
 
+  const dashboard = buildDashboardContext({
+    db,
+  })
+
   // ── Wire invitation acceptance hook ────────────────────────────
   // The hook creates staff assignments when a member accepts an invite.
   // This is the only cross-context dependency: identity acceptance
@@ -270,6 +275,7 @@ export function createContainer(options?: { enableJobs?: boolean }) {
       getReply: review.getReply,
       retryPublish: review.retryPublish,
       ...inbox.useCases,
+      getDashboardData: dashboard.getDashboardData,
     },
     storage: portal.storage,
     portalRepo: portal.portalRepo,

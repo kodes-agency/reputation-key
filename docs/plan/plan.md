@@ -287,43 +287,74 @@ Now we have events flowing. Metrics captures them into structured data that the 
 
 ### Phase 14 — Dashboard
 
-**Goal.** Authenticated users see a dashboard with KPI cards, time-range filters, and scope selectors. Data is fast (from materialized views and cache).
+**Goal.** Managers see a property-scoped dashboard with KPI cards, charts, and actionable metrics. Data comes from raw metric readings and reviews table, cached via Redis.
 
 **Why now.** First user-visible moment of "this product shows me something valuable at a glance."
 
 **Scope (in).**
 
-- Dashboard layout with sidebar navigation (shell, nav, user menu)
-- KPI cards: total reviews, average rating, scan count, conversion rate
-- Time range selector: 7d, 30d, 90d, custom
-- Scope selector: organization, property, team, staff
+- New `contexts/dashboard/` bounded context (read-only aggregation layer, no domain rules/events/writes)
+- Replace current property index page (`/properties/$propertyId/index.tsx`) with real dashboard
+- 7 dashboard sections:
+  1. **KPI strip** — Reviews, Avg Rating, Scans, Feedback. Each with trend vs prior period.
+  2. **Rating distribution** — horizontal bar chart (1★–5★ counts)
+  3. **Google rating trend** — line chart, daily avg
+  4. **Review volume trend** — bar chart, reviews per day/week
+  5. **Reply performance** — reply rate (%) + avg reply time (hours from `reviewedAt`)
+  6. **Engagement funnel** — Scans → Ratings → Review Link Clicks (portal-scoped only; hint when no portal selected)
+  7. **Recent reviews** — last 5 with rating, snippet, date, reply status
+- Time range selector: 3 presets (7d / 30d / 90d), default 30d. No custom range.
+- Scope selector: property (from URL) + portal dropdown
 - Charts: Recharts, lazy-loaded (not in initial bundle)
-- Cache dashboard queries via Redis with 5-minute TTL
-- `getDashboardKPIs` use case in metric context
-- Role-scoped: Staff sees their own metrics, PropertyManager sees assigned properties, AccountAdmin sees org-wide
+- Cache: single Redis key per `(propertyId, timeRange, portalId)`, 5-minute TTL
+- Manager-only (Staff home deferred to Phase 15)
 - Tests: use case tests, integration test for cache behavior, E2E for dashboard loading
 
 **Scope (out).**
 
-- Comparison mode (add in analytics phase)
+- Staff home page (Phase 15)
+- Team/staff scope filter (Phase 15)
+- Org-level dashboard (Phase 21)
+- Custom date range (Phase 21)
+- Comparison mode (Phase 21)
+- Per-section caching (Phase 21)
 - Drill-down from KPIs (later)
 - Export dashboard (Arc 8)
 
 **Gate criteria.**
 
 - Dashboard loads in under 2 seconds with meaningful data
-- KPI cards show correct values from materialized views
-- Time range and scope selectors update KPIs correctly
+- KPI cards show correct values with accurate trend indicators
+- Time range and portal selectors update all sections correctly
 - Cache is hit for repeat queries within 5 minutes
-- Role-based data scoping is enforced (Staff can't see other staff's metrics)
-- E2E test: user logs in → dashboard renders → switches time range → KPIs update
+- Engagement funnel appears when portal is selected, hint when not
+- Recent reviews show real data with reply status
+- Reply performance shows accurate rate and avg time
++- All 7 sections render with real data from test fixtures
+- E2E test: manager logs in → dashboard renders → switches time range → KPIs update
 
-**Open questions to resolve during this phase.**
+**Resolved decisions.**
 
-- Which specific charts to show initially (start simple: rating over time, scan count over time — add more as product evolves)
-- Default time range (suggest 30d)
+- Dashboard is property-centric, lives at `/properties/$propertyId`. No org-level dashboard for now (deferred to Phase 21).
+- New `contexts/dashboard/` bounded context. Read-only aggregation layer — composes data from metric, review, inbox contexts. No domain rules, no events, no writes. Has use cases, repo ports, Drizzle repo impls, server functions. `domain/types.ts` for response shapes only.
+- Scope selector: property (from URL) + portal (dropdown). Team/staff attribution deferred to Phase 15 (Goals) where the attribution query design gets properly worked out.
+- Four KPI cards: Reviews (count), Average Rating (avg of Google stars), Scans (count), Feedback (count). No computed rates for MVP. Each card shows trend indicator vs previous equal-length period (e.g. "↑12% vs prior 30d").
+- Data source: raw `metric_readings` with SQL aggregation. Migration to materialized views deferred to Phase 22.
+- 7 dashboard sections (all in Phase 14 scope):
+  1. **KPI strip** — 4 cards with trend vs prior period
+  2. **Rating distribution** — horizontal bar chart (1★–5★ counts from reviews table)
+  3. **Google rating trend** — line chart, daily avg Google rating over time
+  4. **Review volume trend** — bar chart, reviews received per day/week
+  5. **Reply performance** — reply rate (% reviews with published reply) + avg reply time (hours)
+  6. **Engagement funnel** — Scans → Ratings → Review Link Clicks (conditional: only when portal selected in scope dropdown; when no portal selected, show inline hint "Select a portal to see the engagement funnel")
+  7. **Recent reviews** — last 5 reviews with rating, snippet, date, reply status
+- Reply time uses `reviews.reviewedAt` (customer's review date), not `reviews.createdAt` (import date). Reflects customer-facing reality.
+- Caching: single Redis key per `(propertyId, timeRange, portalId)`, 5-minute TTL. Per-section caching deferred to Phase 21.
+- Phase 14 builds the **manager** dashboard only. Staff home (`/home`) stays a placeholder until Phase 15 when team/staff attribution makes personal metrics possible.
 
-**Rough effort.** 5-7 days.
+**All open questions resolved.** No remaining unknowns.
+
+**Rough effort.** 6-8 days (expanded from original 5-7 due to 7-section scope).
 
 **Phase after this.** Goals + gamification, or AI first — discuss at the gate.
 
@@ -532,9 +563,9 @@ Now we fill in the gaps that make this a real product, not just a collection of 
 
 ### Phase 21 — Conversion analytics and account dashboard
 
-**Goal.** The analytics page from Phase 14's scope-out lands here. Conversion funnel, before/after comparison, rating distribution, top performers, exports.
+**Goal.** The analytics page from Phase 14's scope-out lands here. Conversion funnel, before/after comparison, rating distribution, top performers, exports. Org-level dashboard. Dashboard caching upgraded to per-section granularity.
 
-**Scope.** Analytics context (or fold into metrics), conversion funnel computation, before/after comparison logic, CSV/PDF export jobs.
+**Scope.** Analytics context (or fold into metrics), conversion funnel computation, before/after comparison logic, CSV/PDF export jobs, org-level dashboard page, per-section Redis caching (KPIs at 5 min, recent reviews at 1 min, charts at 5 min) replacing Phase 14's single-cache-key approach.
 
 **Rough effort.** 5-7 days.
 
@@ -546,6 +577,8 @@ Now we fill in the gaps that make this a real product, not just a collection of 
 
 **Scope.**
 
+- Migrate dashboard queries from raw `metric_readings` aggregation to pre-aggregated `mv_daily_metrics` / `mv_weekly_metrics` (repo impl swap, no use case change)
+- `CONCURRENTLY` refresh for materialized views (requires unique indexes)
 - Load test against Railway staging — 1000 concurrent guests hitting public portals, 100 managers in dashboard
 - Audit error handling: every try/catch, every thrown tagged error, verify graceful degradation
 - Security audit: rate limits on all public endpoints, CORS correct, session cookies correctly configured, no secrets leaked
