@@ -86,3 +86,10 @@ export const getGoalSchema = z.object({
 })
 
 export type GetGoalInput = z.infer<typeof getGoalSchema>
+
+// ── Re-exports for UI layer ─────────────────────────────────────────
+// Components can only import from application/, not domain/.
+// Re-export the types and helpers that components need.
+
+export type { Goal, GoalProgress, GoalType, GoalStatus } from '../../domain/types'
+export { deriveEntityScope } from '../../domain/types'
