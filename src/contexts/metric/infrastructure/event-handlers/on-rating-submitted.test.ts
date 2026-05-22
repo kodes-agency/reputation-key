@@ -2,7 +2,13 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { onRatingSubmitted, type OnRatingSubmittedDeps } from './on-rating-submitted'
 import type { MetricReading } from '../../domain/types'
 import type { RecordMetricInput } from '../../application/use-cases/record-metric'
-import { organizationId, portalId, propertyId, ratingId, metricReadingId } from '#/shared/domain/ids'
+import {
+  organizationId,
+  portalId,
+  propertyId,
+  ratingId,
+  metricReadingId,
+} from '#/shared/domain/ids'
 
 const FIXED_TIME = new Date('2026-05-20T12:00:00Z')
 
@@ -14,7 +20,11 @@ const createFakeDeps = (): OnRatingSubmittedDeps & {
     readings,
     recordMetric: async (input) => {
       readings.push({ ...input })
-      return { id: metricReadingId('metric-1'), ...input, recordedAt: FIXED_TIME } as MetricReading
+      return {
+        id: metricReadingId('metric-1'),
+        ...input,
+        recordedAt: FIXED_TIME,
+      } as MetricReading
     },
   }
 }
@@ -35,6 +45,7 @@ describe('onRatingSubmitted', () => {
       portalId: portalId('portal-1'),
       propertyId: propertyId('prop-1'),
       value: 4,
+      staffId: null,
       occurredAt: FIXED_TIME,
     })
 
@@ -64,6 +75,7 @@ describe('onRatingSubmitted', () => {
         portalId: portalId('portal-1'),
         propertyId: propertyId('prop-1'),
         value: 5,
+        staffId: null,
         occurredAt: FIXED_TIME,
       }),
     ).resolves.toBeUndefined()

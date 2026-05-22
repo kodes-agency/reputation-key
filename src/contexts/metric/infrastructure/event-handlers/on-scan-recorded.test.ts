@@ -2,7 +2,13 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { onScanRecorded, type OnScanRecordedDeps } from './on-scan-recorded'
 import type { MetricReading } from '../../domain/types'
 import type { RecordMetricInput } from '../../application/use-cases/record-metric'
-import { organizationId, portalId, propertyId, scanEventId, metricReadingId } from '#/shared/domain/ids'
+import {
+  organizationId,
+  portalId,
+  propertyId,
+  scanEventId,
+  metricReadingId,
+} from '#/shared/domain/ids'
 
 const FIXED_TIME = new Date('2026-05-20T12:00:00Z')
 
@@ -39,6 +45,7 @@ describe('onScanRecorded', () => {
       portalId: portalId('portal-1'),
       propertyId: propertyId('prop-1'),
       source: 'qr',
+      staffId: null,
       occurredAt: FIXED_TIME,
     })
 
@@ -68,6 +75,7 @@ describe('onScanRecorded', () => {
         portalId: portalId('portal-1'),
         propertyId: propertyId('prop-1'),
         source: 'qr',
+        staffId: null,
         occurredAt: FIXED_TIME,
       }),
     ).resolves.toBeUndefined()

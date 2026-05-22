@@ -44,12 +44,16 @@ export const recordScan =
           portalId: input.portalId,
           propertyId: input.propertyId,
           source: input.source,
+          staffId: null,
           occurredAt: scan.createdAt,
         }),
       )
     } catch (e) {
       // Silent failure per I10 — scan is analytics, not critical path
-      getLogger().warn({ err: e, propertyId: input.propertyId }, 'Scan recording failed — suppressed per I10')
+      getLogger().warn(
+        { err: e, propertyId: input.propertyId },
+        'Scan recording failed — suppressed per I10',
+      )
     }
   }
 

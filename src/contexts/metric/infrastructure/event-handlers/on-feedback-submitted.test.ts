@@ -24,7 +24,11 @@ const createFakeDeps = (): OnFeedbackSubmittedDeps & {
     readings,
     recordMetric: async (input) => {
       readings.push({ ...input })
-      return { id: metricReadingId('metric-1'), ...input, recordedAt: FIXED_TIME } as MetricReading
+      return {
+        id: metricReadingId('metric-1'),
+        ...input,
+        recordedAt: FIXED_TIME,
+      } as MetricReading
     },
   }
 }
@@ -45,6 +49,7 @@ describe('onFeedbackSubmitted', () => {
       portalId: portalId('portal-1'),
       propertyId: propertyId('prop-1'),
       ratingId: ratingId('rating-1'),
+      staffId: null,
       occurredAt: FIXED_TIME,
     })
 
@@ -74,6 +79,7 @@ describe('onFeedbackSubmitted', () => {
         portalId: portalId('portal-1'),
         propertyId: propertyId('prop-1'),
         ratingId: null,
+        staffId: null,
         occurredAt: FIXED_TIME,
       }),
     ).resolves.toBeUndefined()

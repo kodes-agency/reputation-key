@@ -54,6 +54,7 @@ export const submitFeedback =
         portalId: input.portalId,
         propertyId: input.propertyId,
         ratingId: feedback.ratingId,
+        staffId: null,
         occurredAt: feedback.createdAt,
       }),
     )

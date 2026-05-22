@@ -56,6 +56,7 @@ export const submitRating =
         portalId: input.portalId,
         propertyId: input.propertyId,
         value: rating.value,
+        staffId: null,
         occurredAt: rating.createdAt,
       }),
     )
