@@ -8,6 +8,7 @@ import type {
   PortalLinkId,
   StaffId,
 } from '#/shared/domain/ids'
+
 import type { ScanSource } from './types'
 
 export type ScanRecorded = Readonly<{
@@ -68,6 +69,7 @@ export type ReviewLinkClicked = Readonly<{
   organizationId: OrganizationId
   portalId: PortalId
   propertyId: PropertyId
+  staffId: StaffId | null
   occurredAt: Date
 }>
 

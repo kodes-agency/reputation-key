@@ -12,6 +12,7 @@ import {
   feedbackId,
   ratingId,
   metricReadingId,
+  staffId,
 } from '#/shared/domain/ids'
 
 const FIXED_TIME = new Date('2026-05-20T12:00:00Z')
@@ -84,5 +85,29 @@ describe('onFeedbackSubmitted', () => {
         occurredAt: FIXED_TIME,
       }),
     ).resolves.toBeUndefined()
+  })
+
+  it('propagates non-null staffId to the metric reading', async () => {
+    const handler = onFeedbackSubmitted(deps)
+    await handler({
+      _tag: 'feedback.submitted',
+      feedbackId: feedbackId('fb-2'),
+      organizationId: organizationId('org-1'),
+      portalId: portalId('portal-1'),
+      propertyId: propertyId('prop-1'),
+      ratingId: ratingId('rating-1'),
+      staffId: staffId('staff-1'),
+      occurredAt: FIXED_TIME,
+    })
+
+    expect(deps.readings).toHaveLength(1)
+    expect(deps.readings[0]).toEqual({
+      organizationId: organizationId('org-1'),
+      propertyId: propertyId('prop-1'),
+      portalId: portalId('portal-1'),
+      metricKey: 'portal.feedback',
+      value: 1,
+      staffId: staffId('staff-1'),
+    })
   })
 })

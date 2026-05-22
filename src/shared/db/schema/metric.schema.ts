@@ -52,5 +52,6 @@ export const metricReadings = pgTable(
       t.recordedAt,
     ),
     index('metric_readings_org_property_idx').on(t.organizationId, t.propertyId),
+    index('metric_readings_staff_idx').on(t.staffId),
   ],
 )

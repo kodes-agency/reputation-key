@@ -1,8 +1,13 @@
-import { and, eq } from 'drizzle-orm'
+import { and, eq, desc } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { scanEvents, ratings, feedback } from '#/shared/db/schema/guest.schema'
 import type { GuestInteractionRepository } from '../../application/ports/guest-interaction.repository'
-import { scanEventToRow, ratingToRow, feedbackToRow } from '../mappers/guest.mapper'
+import {
+  scanEventToRow,
+  ratingToRow,
+  feedbackToRow,
+  scanEventFromRow,
+} from '../mappers/guest.mapper'
 import { trace } from '#/shared/observability/trace'
 import { unbrand } from '#/shared/domain/ids'
 
@@ -41,6 +46,23 @@ export const createGuestInteractionRepository = (
         )
         .limit(1)
       return rows.length > 0
+    })
+  },
+
+  getLatestScanBySession: async (organizationId, sessionId) => {
+    return trace('guestInteraction.getLatestScanBySession', async () => {
+      const [row] = await db
+        .select()
+        .from(scanEvents)
+        .where(
+          and(
+            eq(scanEvents.organizationId, unbrand(organizationId)),
+            eq(scanEvents.sessionId, sessionId),
+          ),
+        )
+        .orderBy(desc(scanEvents.createdAt))
+        .limit(1)
+      return row ? scanEventFromRow(row) : null
     })
   },
 })

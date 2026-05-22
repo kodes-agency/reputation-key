@@ -7,6 +7,7 @@ import {
   propertyId,
   reviewId,
   metricReadingId,
+  staffId,
 } from '#/shared/domain/ids'
 
 const FIXED_TIME = new Date('2026-05-20T12:00:00Z')
@@ -46,6 +47,7 @@ describe('onReviewCreated', () => {
       externalId: 'ext-1',
       rating: 3,
       reviewText: 'Decent place',
+      staffId: null,
       occurredAt: FIXED_TIME,
     })
 
@@ -71,6 +73,7 @@ describe('onReviewCreated', () => {
       externalId: 'ext-2',
       rating: 5,
       reviewText: null,
+      staffId: null,
       occurredAt: FIXED_TIME,
     })
 
@@ -96,8 +99,35 @@ describe('onReviewCreated', () => {
         externalId: 'ext-1',
         rating: 1,
         reviewText: null,
+        staffId: null,
         occurredAt: FIXED_TIME,
       }),
     ).resolves.toBeUndefined()
+  })
+
+  it('propagates non-null staffId to the metric reading', async () => {
+    const handler = onReviewCreated(deps)
+    await handler({
+      _tag: 'review.created',
+      reviewId: reviewId('rev-3'),
+      propertyId: propertyId('prop-1'),
+      organizationId: organizationId('org-1'),
+      platform: 'google',
+      externalId: 'ext-3',
+      rating: 4,
+      reviewText: 'Great place',
+      staffId: staffId('staff-1'),
+      occurredAt: FIXED_TIME,
+    })
+
+    expect(deps.readings).toHaveLength(1)
+    expect(deps.readings[0]).toEqual({
+      organizationId: organizationId('org-1'),
+      propertyId: propertyId('prop-1'),
+      portalId: null,
+      metricKey: 'property.review',
+      value: 4,
+      staffId: staffId('staff-1'),
+    })
   })
 })

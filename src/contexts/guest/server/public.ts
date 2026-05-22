@@ -150,6 +150,10 @@ export const submitRatingFn = createServerFn({ method: 'POST' })
         })
 
         try {
+          const staffIdForSession = await useCases.getStaffIdForSession(
+            ctx.organizationId,
+            sessionId,
+          )
           const rating = await useCases.submitRating({
             organizationId: ctx.organizationId,
             portalId: portalId(data.portalId),
@@ -158,6 +162,7 @@ export const submitRatingFn = createServerFn({ method: 'POST' })
             value: data.value,
             source: data.source,
             ipHash,
+            staffId: staffIdForSession,
           })
           return { success: true, ratingId: rating.id }
         } catch (e) {
@@ -207,6 +212,10 @@ export const submitFeedbackFn = createServerFn({ method: 'POST' })
         })
 
         try {
+          const staffIdForSession = await useCases.getStaffIdForSession(
+            ctx.organizationId,
+            sessionId,
+          )
           const fb = await useCases.submitFeedback({
             organizationId: ctx.organizationId,
             portalId: portalId(data.portalId),
@@ -216,6 +225,7 @@ export const submitFeedbackFn = createServerFn({ method: 'POST' })
             source: data.source,
             ipHash,
             ratingId: data.ratingId ? ratingId(data.ratingId) : undefined,
+            staffId: staffIdForSession,
           })
           return { success: true, feedbackId: fb.id }
         } catch (e) {

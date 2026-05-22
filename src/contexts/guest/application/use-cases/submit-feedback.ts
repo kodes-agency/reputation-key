@@ -7,6 +7,7 @@ import type {
   PropertyId,
   FeedbackId,
   RatingId,
+  StaffId,
 } from '#/shared/domain/ids'
 import type { ScanSource } from '../../domain/types'
 import { buildFeedback } from '../../domain/constructors'
@@ -28,6 +29,7 @@ export type SubmitFeedbackInput = Readonly<{
   source: ScanSource
   ipHash: string
   ratingId?: RatingId
+  staffId: StaffId | null
 }>
 
 export const submitFeedback =
@@ -43,7 +45,7 @@ export const submitFeedback =
       source: input.source,
       ipHash: input.ipHash,
       ratingId: input.ratingId ?? null,
-      staffId: null,
+      staffId: input.staffId,
       now: deps.clock(),
     })
 
@@ -61,7 +63,7 @@ export const submitFeedback =
         portalId: input.portalId,
         propertyId: input.propertyId,
         ratingId: feedback.ratingId,
-        staffId: null,
+        staffId: input.staffId,
         occurredAt: feedback.createdAt,
       }),
     )

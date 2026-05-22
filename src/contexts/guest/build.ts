@@ -13,6 +13,7 @@ import { trackReviewLinkClick } from './application/use-cases/track-review-link-
 import { resolveLinkAndTrack } from './application/use-cases/resolve-link-and-track'
 import { resolvePortalContext } from './application/use-cases/resolve-portal-context'
 import { getPublicPortal } from './application/use-cases/get-public-portal'
+import { getStaffIdForSession } from './application/use-cases/get-staff-id-for-session'
 import { scanEventId, ratingId, feedbackId } from '#/shared/domain/ids'
 import { randomUUID } from 'crypto'
 
@@ -70,6 +71,7 @@ export const buildGuestContext = (deps: GuestContextDeps) => {
       portalContextResolver,
     }),
     getPublicPortal: getPublicPortal({ publicPortalLookup }),
+    getStaffIdForSession: getStaffIdForSession({ guestRepo }),
   } as const
 
   return { useCases, guestRepo, portalContextResolver, publicPortalLookup } as const

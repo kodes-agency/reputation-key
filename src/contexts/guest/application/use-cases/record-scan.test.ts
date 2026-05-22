@@ -13,6 +13,7 @@ function createInMemoryGuestRepo() {
     insertRating: async () => {},
     insertFeedback: async () => {},
     hasRated: async () => false,
+    getLatestScanBySession: async () => null,
   }
   return { ...repo, scans }
 }
@@ -53,6 +54,7 @@ describe('recordScan', () => {
       insertRating: async () => {},
       insertFeedback: async () => {},
       hasRated: async () => false,
+      getLatestScanBySession: async () => null,
     }
     const useCase = recordScan({
       guestRepo: failingRepo,

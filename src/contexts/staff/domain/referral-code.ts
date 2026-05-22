@@ -1,5 +1,7 @@
 import { randomBytes } from 'crypto'
 
+export type RandomBytesFn = (size: number) => Buffer
+
 /**
  * Generate a unique referral code from a staff member's name.
  * Format: `{name-slug}-{4-char-hash}` (e.g., `jane-d-a3f2`).
@@ -7,9 +9,12 @@ import { randomBytes } from 'crypto'
  * Slug: first name + last name, lowercased, non-alpha/hyphen stripped.
  * Hash: 4 hex chars from random bytes, ensuring uniqueness across collisions.
  */
-export const generateReferralCode = (fullName: string): string => {
+export const generateReferralCode = (
+  fullName: string,
+  randomBytesFn: RandomBytesFn = randomBytes,
+): string => {
   const slug = buildSlug(fullName)
-  const hash = randomBytes(2).toString('hex')
+  const hash = randomBytesFn(2).toString('hex')
   return `${slug}-${hash}`
 }
 

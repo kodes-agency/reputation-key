@@ -17,7 +17,7 @@ export const onReviewCreated =
         portalId: null,
         metricKey: 'property.review',
         value: event.rating,
-        staffId: null,
+        staffId: event.staffId ?? null,
       })
     } catch (err) {
       getLogger().error(

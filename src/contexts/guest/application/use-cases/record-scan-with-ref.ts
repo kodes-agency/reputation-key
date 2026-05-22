@@ -1,11 +1,22 @@
-import type { StaffAssignmentRepository } from '#/contexts/staff/application/ports/staff-assignment.repository'
-import type { StaffId } from '#/shared/domain/ids'
-import { staffId } from '#/shared/domain/ids'
+import type { StaffId, OrganizationId } from '#/shared/domain/ids'
 import type { RecordScanDeps, RecordScanInput } from './record-scan'
 import { recordScan } from './record-scan'
+import { staffId } from '#/shared/domain/ids'
+
+/**
+ * Local port for referral code resolution.
+ * Decouples guest context from staff context internals.
+ * The staff context's StaffAssignmentRepository satisfies this interface.
+ */
+export type ReferralCodeResolver = Readonly<{
+  findByReferralCode(
+    organizationId: OrganizationId,
+    referralCode: string,
+  ): Promise<{ userId: string } | null>
+}>
 
 export type RecordScanWithRefDeps = Readonly<{
-  staffRepo: StaffAssignmentRepository
+  staffRepo: ReferralCodeResolver
   guestRepo: RecordScanDeps['guestRepo']
   events: RecordScanDeps['events']
   idGen: RecordScanDeps['idGen']
@@ -29,7 +40,7 @@ export const recordScanWithRef =
         input.referralCode,
       )
       if (assignment) {
-        resolvedStaffId = staffId(assignment.userId as string)
+        resolvedStaffId = staffId(assignment.userId)
       }
     }
 

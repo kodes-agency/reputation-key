@@ -1,5 +1,27 @@
 import type { ScanEvent, Rating, Feedback } from '../../domain/types'
-import { unbrand } from '#/shared/domain/ids'
+import {
+  unbrand,
+  scanEventId,
+  organizationId,
+  portalId,
+  propertyId,
+  staffId,
+} from '#/shared/domain/ids'
+import type { scanEvents } from '#/shared/db/schema/guest.schema'
+
+type ScanEventRow = typeof scanEvents.$inferSelect
+
+export const scanEventFromRow = (row: ScanEventRow): ScanEvent => ({
+  id: scanEventId(row.id),
+  organizationId: organizationId(row.organizationId),
+  portalId: portalId(row.portalId),
+  propertyId: propertyId(row.propertyId),
+  source: row.source as ScanEvent['source'],
+  sessionId: row.sessionId,
+  ipHash: row.ipHash,
+  staffId: row.staffId ? staffId(row.staffId) : null,
+  createdAt: row.createdAt,
+})
 
 export const scanEventToRow = (scan: ScanEvent) => ({
   id: unbrand(scan.id),

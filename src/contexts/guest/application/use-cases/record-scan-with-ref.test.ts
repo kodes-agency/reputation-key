@@ -1,45 +1,15 @@
 import { describe, it, expect } from 'vitest'
-import type { StaffAssignmentRepository } from '#/contexts/staff/application/ports/staff-assignment.repository'
 import type { ScanEvent } from '#/contexts/guest/domain/types'
+import type { ReferralCodeResolver } from './record-scan-with-ref'
 import { recordScanWithRef } from './record-scan-with-ref'
-import {
-  organizationId,
-  portalId,
-  propertyId,
-  scanEventId,
-  userId,
-  staffAssignmentId,
-} from '#/shared/domain/ids'
-import { buildStaffAssignment } from '#/contexts/staff/domain/constructors'
+import { organizationId, portalId, propertyId, scanEventId } from '#/shared/domain/ids'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
 
-function makeAssignment(code: string, uid: string) {
-  const result = buildStaffAssignment({
-    id: staffAssignmentId('sa-1'),
-    organizationId: organizationId('org-1'),
-    propertyId: propertyId('prop-1'),
-    teamId: null,
-    userId: userId(uid),
-    referralCode: code,
-    now: new Date('2026-05-01T12:00:00Z'),
-  })
-  if (result.isErr()) throw result.error
-  return result.value
-}
-
-function makeFakeStaffRepo(assignment: ReturnType<typeof makeAssignment> | null) {
-  const repo: StaffAssignmentRepository = {
-    findById: async () => null,
-    listByUser: async () => [],
-    listByProperty: async () => [],
-    listByTeam: async () => [],
-    assignmentExists: async () => false,
-    insert: async () => {},
-    softDelete: async () => {},
-    getAccessiblePropertyIds: async () => [],
-    findByReferralCode: async () => assignment,
+function makeFakeStaffRepo(userId: string | null) {
+  const resolver: ReferralCodeResolver = {
+    findByReferralCode: async () => (userId ? { userId } : null),
   }
-  return repo
+  return resolver
 }
 
 function makeFakeGuestRepo() {
@@ -51,14 +21,14 @@ function makeFakeGuestRepo() {
     insertRating: async () => {},
     insertFeedback: async () => {},
     hasRated: async () => false,
+    getLatestScanBySession: async () => null,
     scans,
   }
 }
 
 describe('recordScanWithRef', () => {
   it('resolves referral code and passes staffId to recordScan', async () => {
-    const assignment = makeAssignment('j-doe-a3f2', 'user-1')
-    const staffRepo = makeFakeStaffRepo(assignment)
+    const staffRepo = makeFakeStaffRepo('user-1')
     const guestRepo = makeFakeGuestRepo()
     const bus = createCapturingEventBus()
 
