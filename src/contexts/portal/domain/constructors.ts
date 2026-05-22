@@ -14,6 +14,7 @@ import type {
 import type { PortalLinkCategoryId, PortalLinkId } from '#/shared/domain/ids'
 import type { PortalError } from './errors'
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
+import { propertyId, teamId, userId } from '#/shared/domain/ids'
 import {
   normalizeSlug,
   validateSlug,
@@ -58,7 +59,13 @@ export const buildPortal = (input: BuildPortalInput): Result<Portal, PortalError
       organizationId: input.organizationId,
       propertyId: input.propertyId,
       entityType: input.entityType ?? 'property',
-      entityId: input.entityId ?? input.propertyId,
+      entityId: input.entityId
+        ? (input.entityType === 'team'
+            ? teamId(input.entityId)
+            : input.entityType === 'staff'
+              ? userId(input.entityId)
+              : propertyId(input.entityId))
+        : input.propertyId,
       name: validName,
       slug: validSlug,
       description: validDesc,

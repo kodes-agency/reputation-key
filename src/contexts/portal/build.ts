@@ -25,8 +25,10 @@ import { reorderLinks } from './application/use-cases/reorder-links'
 import { requestUploadUrl } from './application/use-cases/request-upload-url'
 import { finalizeUpload } from './application/use-cases/finalize-upload'
 import { getPortalQrUrl } from './application/use-cases/get-portal-qr-url'
+import { listPortalLinks } from './application/use-cases/list-portal-links'
 import { portalId } from '#/shared/domain/ids'
 import { randomUUID } from 'crypto'
+import { getEnv } from '#/shared/config/env'
 
 type PortalContextDeps = Readonly<{
   db: Database
@@ -40,7 +42,13 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
   const portalRepo = createPortalRepository(deps.db)
   const portalLinkRepo = createPortalLinkRepository(deps.db)
   const linkResolver = createLinkResolverPort(deps.db)
-  const storage = createS3StorageAdapter()
+  const env = getEnv()
+  const storage = createS3StorageAdapter({
+    accessKey: env.AWS_S3_ACCESS_KEY,
+    secretKey: env.AWS_S3_SECRET_ACCESS_KEY,
+    bucketName: env.AWS_S3_BUCKET_NAME,
+    region: env.AWS_S3_REGION,
+  })
   const portalIdGen = () => portalId(randomUUID())
   const linkIdGen = () => randomUUID()
 
@@ -106,6 +114,9 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     getPortalQrUrl: getPortalQrUrl({
       portalRepo,
       baseUrl: deps.baseUrl,
+    }),
+    listPortalLinks: listPortalLinks({
+      portalLinkRepo,
     }),
   } as const
 

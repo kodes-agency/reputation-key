@@ -1,3 +1,6 @@
+// Server import exception: loads property list for filter dropdown client-side.
+// Parent route doesn't provide properties data; prop drilling would require
+// route loader changes in multiple parent routes for a single dropdown.
 /* eslint-disable max-lines */
 import {
   Select,

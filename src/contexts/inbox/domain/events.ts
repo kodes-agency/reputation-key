@@ -1,7 +1,7 @@
 // Inbox context — domain events
 // Per architecture: "Events are facts, named in the past tense."
 
-import type { InboxItemId, OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
+import type { InboxItemId, OrganizationId, PropertyId, UserId, ReviewId, FeedbackId } from '#/shared/domain/ids'
 import type { InboxStatus, SourceType } from './types'
 
 // fallow-ignore-next-line unused-type
@@ -11,7 +11,7 @@ export type InboxItemCreated = Readonly<{
   organizationId: OrganizationId
   propertyId: PropertyId
   sourceType: SourceType
-  sourceId: string
+  sourceId: ReviewId | FeedbackId
   occurredAt: Date
 }>
 

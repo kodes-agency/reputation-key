@@ -83,19 +83,9 @@ export function canInviteWithRole(
   return ok(true)
 }
 
-/** Normalize a string into a URL-friendly slug.
- * Pure string transformation, no Result needed (can't fail).
- * Matches the canonical pattern from docs/patterns.md. */
-export function normalizeSlug(input: string): string {
-  return input
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9\s-]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '')
-    .slice(0, 63)
-}
+// Re-export shared slug utility for backward compatibility.
+// Consumers in this context should migrate to importing from '#/shared/domain'.
+export { normalizeSlug } from '#/shared/domain/slug'
 
 /** Check if a user can change another user's role. */
 export function canChangeRole(

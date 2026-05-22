@@ -10,7 +10,7 @@ import { feedbackInputSchema } from '../application/dto/feedback.dto'
 import { isGuestError } from '../domain/errors'
 import type { GuestErrorCode } from '../domain/errors'
 export type { PublicPortalLoaderData } from '../application/dto/public-portal.dto'
-import { portalId, ratingId } from '#/shared/domain/ids'
+import { portalId, portalLinkId, ratingId } from '#/shared/domain/ids'
 import { getEnv } from '#/shared/config/env'
 import { createHash } from 'crypto'
 
@@ -194,7 +194,13 @@ export const resolveLinkAndTrack = createServerFn({ method: 'GET' })
     tracedHandler(
       async ({ data }) => {
         const { useCases } = getContainer()
-        return await useCases.resolveLinkAndTrack({ linkId: data.linkId })
+        try {
+          return await useCases.resolveLinkAndTrack({ linkId: portalLinkId(data.linkId) })
+        } catch (e) {
+          if (isGuestError(e))
+            throwContextError('GuestError', e, guestErrorStatus(e.code))
+          throw e
+        }
       },
       'GET',
       'guest.resolveLinkAndTrack',

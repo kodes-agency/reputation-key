@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { createInboxItemUseCase } from './create-inbox-item'
+import { createInboxItem as createInboxItemUseCase } from './create-inbox-item'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
 import { createInMemoryInboxRepo } from '#/shared/testing/in-memory-inbox-repo'
+import { createMockLogger } from '#/shared/testing/mock-logger'
 import { isInboxError } from '../../domain/errors'
 import { inboxItemId, organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import type { SourceType } from '../../domain/types'
@@ -31,6 +32,7 @@ const setup = () => {
     unreadCounter,
     idGen: () => FIXED_ID,
     clock: () => FIXED_TIME,
+    logger: createMockLogger(),
   }
   const useCase = createInboxItemUseCase(deps)
   return { useCase, repo, events, increments }

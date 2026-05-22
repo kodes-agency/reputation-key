@@ -6,6 +6,7 @@ import { ReplyEditor } from './reply-editor'
 import { formatDateTime } from './utils'
 import { getStatusActions, RatingStars } from './inbox-detail-helpers'
 import { updateInboxStatusFn } from '#/contexts/inbox/server/inbox'
+import { usePermissions } from '#/shared/hooks/usePermissions'
 import type {
   InboxItem,
   InboxItemDetail,
@@ -30,6 +31,8 @@ export function InboxDetailContent({
   notes,
   onNoteAdded,
 }: DetailContentProps) {
+  const { can } = usePermissions()
+  const canManageReplies = can('reply.manage')
   return (
     <div className="flex flex-col gap-6 p-4">
       {currentItem.sourceType === 'review' && detail && (
@@ -139,7 +142,7 @@ export function InboxDetailContent({
         </div>
       )}
 
-      {currentItem.sourceType === 'review' && (
+      {currentItem.sourceType === 'review' && canManageReplies && (
         <ReplyEditor reviewId={currentItem.sourceId} />
       )}
 

@@ -3,7 +3,7 @@
 // Events live in their owning context's domain/events.ts.
 
 import type { PortalId } from './types'
-import type { OrganizationId } from '#/shared/domain/ids'
+import type { OrganizationId, PortalLinkCategoryId, PortalLinkId } from '#/shared/domain/ids'
 
 // ── Portal events ──────────────────────────────────────────────────
 
@@ -41,7 +41,7 @@ export type PortalDeleted = Readonly<{
 export type PortalLinkCategoryCreated = Readonly<{
   _tag: 'portal_link_category.created'
   portalId: PortalId
-  categoryId: string
+  categoryId: PortalLinkCategoryId
   organizationId: OrganizationId
   occurredAt: Date
 }>
@@ -60,8 +60,8 @@ export type PortalLinkCategoryReordered = Readonly<{
 export type PortalLinkCreated = Readonly<{
   _tag: 'portal_link.created'
   portalId: PortalId
-  linkId: string
-  categoryId: string
+  linkId: PortalLinkId
+  categoryId: PortalLinkCategoryId
   organizationId: OrganizationId
   occurredAt: Date
 }>
@@ -70,7 +70,7 @@ export type PortalLinkCreated = Readonly<{
 export type PortalLinkReordered = Readonly<{
   _tag: 'portal_link.reordered'
   portalId: PortalId
-  categoryId: string
+  categoryId: PortalLinkCategoryId
   organizationId: OrganizationId
   occurredAt: Date
 }>

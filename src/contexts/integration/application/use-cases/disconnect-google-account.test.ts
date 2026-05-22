@@ -7,12 +7,13 @@ import { createInMemoryGoogleOAuthPort } from '#/shared/testing/in-memory-google
 import { createInMemoryTokenEncryption } from '#/shared/testing/in-memory-token-encryption'
 import { createInMemoryGbpCacheRepo } from '#/shared/testing/in-memory-gbp-cache-repo'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { createMockLogger } from '#/shared/testing/mock-logger'
 import {
   buildTestAuthContext,
   buildTestGoogleConnection,
 } from '#/shared/testing/fixtures'
 import { isIntegrationError } from '../../domain/errors'
-import { propertyId } from '#/shared/domain/ids'
+import { propertyId, gbpCacheEntryId } from '#/shared/domain/ids'
 
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
 
@@ -29,6 +30,7 @@ const setup = () => {
     cacheRepo,
     events,
     clock: () => FIXED_TIME,
+    logger: createMockLogger(),
   }
   const useCase = disconnectGoogleAccount(deps)
   return { useCase, connectionRepo, oauth, encryption, cacheRepo, events }
@@ -44,7 +46,7 @@ describe('disconnectGoogleAccount', () => {
     // Seed a cache entry tied to the connection
     const testPropertyId = propertyId('a0000000-0000-0000-0000-000000000001')
     const cacheEntry = {
-      id: 'cache-001',
+      id: gbpCacheEntryId('cache-001'),
       organizationId: ctx.organizationId,
       propertyId: testPropertyId,
       gbpPlaceId: 'ChIJ-test',
@@ -53,6 +55,7 @@ describe('disconnectGoogleAccount', () => {
       googleAttribution: null,
       fetchedAt: FIXED_TIME,
       expiresAt: new Date('2026-05-10T12:00:00Z'),
+      updatedAt: FIXED_TIME,
     }
     cacheRepo.seed([cacheEntry])
     cacheRepo.testSetConnectionForProperty(

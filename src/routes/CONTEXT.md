@@ -13,10 +13,14 @@ routes/
   _authenticated/
     home.tsx                          dashboard / landing after login
     dashboard.tsx
+    inbox/
+      index.tsx                       unified inbox (reviews + feedback)
     settings.tsx                      settings layout
     settings/index.tsx, profile.tsx, preferences.tsx, organization.tsx, security.tsx
     properties/
       index.tsx                       property list
+      import/                         GBP property import
+        index.tsx, $importId.tsx
       new.tsx                         create property
       $propertyId.tsx                 property layout (loads property data)
       $propertyId/
@@ -32,9 +36,17 @@ routes/
     team.tsx
     progress.tsx
   login.tsx                           unauthenticated
+  register.tsx                        registration
+  reset-password.tsx                  password reset
   join.tsx                            member invitation acceptance
   accept-invitation.tsx               invitation flow
   p/$propertySlug/$portalSlug.tsx     guest portal (public, no auth)
+  api/
+    auth/google/callback.ts           Google OAuth callback
+    health/index.ts                   health check
+    portals/$id/qr.ts                 QR code generation
+    public/click/$linkId.ts           public link click tracking
+    webhooks/gbp/notifications.ts     Google Pub/Sub webhook
 ```
 
 ## Authenticated layout (`_authenticated.tsx`)

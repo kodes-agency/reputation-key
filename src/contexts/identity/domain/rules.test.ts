@@ -171,8 +171,8 @@ describe('normalizeSlug', () => {
     expect(normalizeSlug('  My Org  ')).toBe('my-org')
   })
 
-  it('caps at 63 characters', () => {
-    expect(normalizeSlug('a'.repeat(100)).length).toBe(63)
+  it('caps at 64 characters', () => {
+    expect(normalizeSlug('a'.repeat(100)).length).toBe(64)
   })
 
   it('returns empty string for whitespace-only input', () => {

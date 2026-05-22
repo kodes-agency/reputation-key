@@ -11,6 +11,7 @@ import { getEnv } from '#/shared/config/env'
 import { getContainer } from '#/composition'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { getLogger } from '#/shared/observability/logger'
+import { trace } from '#/shared/observability/trace'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -108,54 +109,55 @@ const classifyError = (e: unknown): string => {
 export const Route = createFileRoute('/api/auth/google/callback')({
   server: {
     handlers: {
-      GET: async ({ request }) => {
-        const url = new URL(request.url)
-        const code = url.searchParams.get('code')
-        const state = url.searchParams.get('state')
-        const error = url.searchParams.get('error')
-        const env = getEnv()
+      GET: async ({ request }) =>
+        trace('auth.googleCallback', async () => {
+          const url = new URL(request.url)
+          const code = url.searchParams.get('code')
+          const state = url.searchParams.get('state')
+          const error = url.searchParams.get('error')
+          const env = getEnv()
 
-        // User denied consent or no code returned
-        if (error === 'access_denied' || !code) {
-          return redirectWithError(env, 'denied')
-        }
+          // User denied consent or no code returned
+          if (error === 'access_denied' || !code) {
+            return redirectWithError(env, 'denied')
+          }
 
-        // State parameter is required for CSRF protection
-        if (!state) {
-          getLogger().warn({ security: true }, 'OAuth callback missing state parameter')
-          return redirectWithError(env, 'invalid_state')
-        }
+          // State parameter is required for CSRF protection
+          if (!state) {
+            getLogger().warn({ security: true }, 'OAuth callback missing state parameter')
+            return redirectWithError(env, 'invalid_state')
+          }
 
-        // Validate state signature & contents
-        const stateResult = parseAndValidateState(state, env)
-        if (stateResult.isErr()) return stateResult.error
+          // Validate state signature & contents
+          const stateResult = parseAndValidateState(state, env)
+          if (stateResult.isErr()) return stateResult.error
 
-        const { visibility } = stateResult.value
+          const { visibility } = stateResult.value
 
-        // Exchange code → connection via use case
-        try {
-          const headers = new Headers()
-          const cookie = request.headers.get('cookie')
-          if (cookie) headers.set('cookie', cookie)
+          // Exchange code → connection via use case
+          try {
+            const headers = new Headers()
+            const cookie = request.headers.get('cookie')
+            if (cookie) headers.set('cookie', cookie)
 
-          const ctx = await resolveTenantContext(headers)
-          const { useCases } = getContainer()
-          const connection = await useCases.connectGoogleAccount(
-            { code, visibility },
-            ctx,
-          )
+            const ctx = await resolveTenantContext(headers)
+            const { useCases } = getContainer()
+            const connection = await useCases.connectGoogleAccount(
+              { code, visibility },
+              ctx,
+            )
 
-          const importUrl = new URL('/properties/import', env.BETTER_AUTH_URL)
-          importUrl.searchParams.set('connectionId', connection.id)
-          return new Response(null, {
-            status: 302,
-            headers: { Location: importUrl.toString() },
-          })
-        } catch (e) {
-          getLogger().error({ err: e }, 'Google OAuth connection failed')
-          return redirectWithError(env, classifyError(e))
-        }
-      },
+            const importUrl = new URL('/properties/import', env.BETTER_AUTH_URL)
+            importUrl.searchParams.set('connectionId', connection.id)
+            return new Response(null, {
+              status: 302,
+              headers: { Location: importUrl.toString() },
+            })
+          } catch (e) {
+            getLogger().error({ err: e }, 'Google OAuth connection failed')
+            return redirectWithError(env, classifyError(e))
+          }
+        }),
     },
   },
 })

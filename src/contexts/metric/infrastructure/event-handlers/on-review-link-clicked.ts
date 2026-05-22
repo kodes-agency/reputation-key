@@ -1,3 +1,4 @@
+// Metric context — records portal.review_link_click metric on review link click events
 import type { ReviewLinkClicked } from '#/contexts/guest/domain/events'
 import type { RecordMetricInput } from '../../application/use-cases/record-metric'
 import { getLogger } from '#/shared/observability/logger'

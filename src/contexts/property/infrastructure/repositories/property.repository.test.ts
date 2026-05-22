@@ -66,6 +66,7 @@ describe('propertyRepository (integration)', () => {
       const db = getDb()
       const repo = createPropertyRepository(db)
       const property = buildTestProperty({
+        id: 'prop-insert-test',
         organizationId: ORG_A,
         name: 'Grand Hotel',
         slug: 'grand-hotel',

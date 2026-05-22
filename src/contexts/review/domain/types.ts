@@ -7,6 +7,7 @@ import type {
   PropertyId,
   OrganizationId,
   GoogleConnectionId,
+  UserId,
 } from '#/shared/domain/ids'
 
 export type ReviewPlatform = 'google'
@@ -58,9 +59,9 @@ export type Reply = Readonly<{
   text: string
   status: ReplyStatus
   source: ReplySource
-  createdBy: string | null
-  approvedBy: string | null
-  rejectedBy: string | null
+  createdBy: UserId | null
+  approvedBy: UserId | null
+  rejectedBy: UserId | null
   rejectionReason: string | null
   aiGenerated: boolean
   publishedAt: Date | null

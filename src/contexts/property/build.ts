@@ -56,6 +56,15 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
       const p = await deps.repo.findById(orgId, pid)
       return p !== null
     },
+    findByGbpPlaceId: async (gbpPlaceId: string) => {
+      const p = await deps.repo.findByGbpPlaceId(gbpPlaceId)
+      if (!p) return null
+      return {
+        id: p.id,
+        organizationId: p.organizationId,
+        googleConnectionId: p.googleConnectionId,
+      }
+    },
   }
 
   return { useCases, publicApi } as const

@@ -15,6 +15,7 @@ export type RefreshGoogleTokenDeps = Readonly<{
   connectionRepo: GoogleConnectionRepository
   oauth: GoogleOAuthPort
   encryption: TokenEncryptionPort
+  clock: () => Date
 }>
 
 export const refreshGoogleToken =
@@ -37,7 +38,7 @@ export const refreshGoogleToken =
     }
 
     // 3. Check if token needs refresh (5 min buffer)
-    const now = Date.now()
+    const now = deps.clock().getTime()
     const expiresAt = connection.tokenExpiresAt.getTime()
 
     if (expiresAt > now + TOKEN_EXPIRY_BUFFER_MS) {

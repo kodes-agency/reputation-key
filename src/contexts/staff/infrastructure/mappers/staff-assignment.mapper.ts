@@ -3,6 +3,7 @@
 import type { staffAssignments } from '#/shared/db/schema/staff-assignment.schema'
 import type { StaffAssignment } from '../../domain/types'
 import {
+  unbrand,
   staffAssignmentId,
   organizationId,
   userId,
@@ -27,7 +28,7 @@ export const staffAssignmentFromRow = (row: StaffAssignmentRow): StaffAssignment
 export const staffAssignmentToRow = (
   assignment: StaffAssignment,
 ): StaffAssignmentInsertRow => ({
-  id: assignment.id as string,
+  id: unbrand(assignment.id),
   organizationId: assignment.organizationId as string,
   userId: assignment.userId as string,
   propertyId: assignment.propertyId as string,

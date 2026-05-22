@@ -10,6 +10,7 @@ import type {
 } from '#/contexts/identity/application/ports/identity.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Role } from '#/shared/domain/roles'
+import { invitationId, type InvitationId } from '#/shared/domain/ids'
 
 // fallow-ignore-next-line unused-type
 export type InMemoryIdentityPort = IdentityPort & {
@@ -60,8 +61,8 @@ export function createInMemoryIdentityPort(): InMemoryIdentityPort {
       email: string,
       role: string,
       _propertyIds?: ReadonlyArray<string>,
-    ): Promise<string> {
-      const id = `inv-${invitations.size + 1}`
+    ): Promise<InvitationId> {
+      const id = invitationId(`inv-${invitations.size + 1}`)
       invitations.set(id, {
         id,
         email,

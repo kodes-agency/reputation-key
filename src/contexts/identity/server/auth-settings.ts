@@ -6,7 +6,21 @@ import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { getAuth } from '#/shared/auth/auth'
 import { headersFromContext } from '#/shared/auth/headers'
 import { throwContextError } from '#/shared/auth/server-errors'
+import { getLogger } from '#/shared/observability/logger'
 import { z } from 'zod/v4'
+
+/** Common catch handler for better-auth calls: log original error, map to domain error. */
+const handleAuthError = (
+  error: unknown,
+  errorName: string,
+  code: string,
+  message: string,
+  status: number,
+): never => {
+  // Log the original error for diagnostics before mapping to domain error
+  getLogger().warn({ err: error }, `${errorName}: ${code}`)
+  throwContextError(errorName, { code, message }, status)
+}
 
 // ── Change password ────────────────────────────────────────────────
 
@@ -31,13 +45,12 @@ export const changePasswordFn = createServerFn({ method: 'POST' })
               newPassword: data.newPassword,
             },
           })
-        } catch {
-          throwContextError(
+        } catch (e) {
+          handleAuthError(
+            e,
             'AuthError',
-            {
-              code: 'password_change_failed',
-              message: 'Failed to change password. Please check your current password.',
-            },
+            'password_change_failed',
+            'Failed to change password. Please check your current password.',
             400,
           )
         }
@@ -69,13 +82,12 @@ export const updateProfileFn = createServerFn({ method: 'POST' })
             headers,
             body: { name: data.name },
           })
-        } catch {
-          throwContextError(
+        } catch (e) {
+          handleAuthError(
+            e,
             'AuthError',
-            {
-              code: 'profile_update_failed',
-              message: 'Failed to update profile.',
-            },
+            'profile_update_failed',
+            'Failed to update profile.',
             400,
           )
         }
@@ -104,13 +116,12 @@ export const updateUserImageFn = createServerFn({ method: 'POST' })
             headers,
             body: { image: data.imageUrl },
           })
-        } catch {
-          throwContextError(
+        } catch (e) {
+          handleAuthError(
+            e,
             'AuthError',
-            {
-              code: 'avatar_update_failed',
-              message: 'Failed to update avatar.',
-            },
+            'avatar_update_failed',
+            'Failed to update avatar.',
             400,
           )
         }
@@ -146,13 +157,12 @@ export const createOrganizationFn = createServerFn({ method: 'POST' })
               slug: data.slug,
             },
           })
-        } catch {
-          throwContextError(
+        } catch (e) {
+          handleAuthError(
+            e,
             'IdentityError',
-            {
-              code: 'org_setup_failed',
-              message: 'Failed to create organization.',
-            },
+            'org_setup_failed',
+            'Failed to create organization.',
             409,
           )
         }

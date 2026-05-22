@@ -19,7 +19,6 @@ import {
   reorderLinksInputSchema,
 } from '../application/dto/portal-link.dto'
 import { isPortalError } from '../domain/errors'
-import { portalId as toPortalId } from '#/shared/domain/ids'
 import { portalErrorStatus } from './portals'
 
 // Re-export domain rules for route-layer consumption (boundary compliance)
@@ -214,14 +213,15 @@ export const listPortalLinks = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const headers = headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        const { portalLinkRepo } = getContainer()
+        const { useCases } = getContainer()
 
-        const [categories, links] = await Promise.all([
-          portalLinkRepo.listCategories(ctx.organizationId, toPortalId(data.portalId)),
-          portalLinkRepo.listAllLinks(ctx.organizationId, toPortalId(data.portalId)),
-        ])
-
-        return { categories, links }
+        try {
+          return await useCases.listPortalLinks(data, ctx)
+        } catch (e) {
+          if (isPortalError(e))
+            throwContextError('PortalError', e, portalErrorStatus(e.code))
+          throw e
+        }
       },
       'GET',
       'portalLink.listPortalLinks',

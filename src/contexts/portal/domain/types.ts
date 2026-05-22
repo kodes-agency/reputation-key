@@ -3,7 +3,7 @@
 // Per architecture: types are data only — no methods, no classes.
 // readonly on every field. Branded IDs prevent accidental substitution.
 
-import type { OrganizationId, PortalId, PropertyId, PortalLinkCategoryId, PortalLinkId } from '#/shared/domain/ids'
+import type { OrganizationId, PortalId, PropertyId, PortalLinkCategoryId, PortalLinkId, TeamId, UserId } from '#/shared/domain/ids'
 
 // ── Theme ──────────────────────────────────────────────────────────
 
@@ -24,7 +24,7 @@ export type Portal = Readonly<{
   organizationId: OrganizationId
   propertyId: PropertyId
   entityType: EntityType
-  entityId: string
+  entityId: PropertyId | TeamId | UserId
   name: string
   slug: string
   description: string | null

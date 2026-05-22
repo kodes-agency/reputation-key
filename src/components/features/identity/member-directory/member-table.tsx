@@ -3,8 +3,7 @@
  * Displays org members with inline role select and remove action.
  */
 
-import type { Role } from '#/shared/domain/roles'
-import { can } from '#/shared/domain/permissions'
+import { usePermissions } from '#/shared/hooks/usePermissions'
 import { RoleBadge } from '#/components/features/identity/shared/role-badge'
 import {
   Table,
@@ -25,13 +24,12 @@ export interface MemberRow {
   userId: string
   name: string
   email: string
-  role: Role
+  role: import('#/shared/domain/roles').Role
 }
 
 type Props = Readonly<{
   members: ReadonlyArray<MemberRow>
   currentUserId: string
-  viewerRole: Role
   updateRoleAction: Action<{
     data: {
       memberId: string
@@ -44,12 +42,12 @@ type Props = Readonly<{
 export function MemberTable({
   members,
   currentUserId,
-  viewerRole,
   updateRoleAction,
   removeMemberAction,
 }: Props) {
-  const canChangeRoles = can(viewerRole, 'member.update')
-  const canRemove = can(viewerRole, 'member.delete')
+  const { can } = usePermissions()
+  const canChangeRoles = can('member.update')
+  const canRemove = can('member.delete')
   const canManageMembers = canChangeRoles || canRemove
 
   if (members.length === 0) {

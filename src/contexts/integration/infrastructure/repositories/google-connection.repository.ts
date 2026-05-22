@@ -5,17 +5,18 @@
 import { and, eq, or } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { googleConnections } from '#/shared/db/schema/google-connection.schema'
-import { properties } from '#/shared/db/schema/property.schema'
-import type { GoogleConnectionRepository } from '../../application/ports/google-connection.repository'
+import type { GoogleConnectionRepository, ConnectionVisibilityFilter } from '../../application/ports/google-connection.repository'
+import { uniqueViolationError } from '../../application/ports/google-connection.repository'
+import type { PropertyFkCleanupPort } from '../../application/ports/property-fk-cleanup.port'
 import {
   googleConnectionFromRow,
   googleConnectionToInsert,
 } from '../mappers/google-connection.mapper'
 import { trace } from '#/shared/observability/trace'
-import { hasRole } from '#/shared/domain/roles'
 
 export const createGoogleConnectionRepository = (
   db: Database,
+  propertyFkCleanup: PropertyFkCleanupPort,
 ): GoogleConnectionRepository => ({
   findById: async (orgId, id) => {
     return trace('googleConnection.findById', async () => {
@@ -46,19 +47,18 @@ export const createGoogleConnectionRepository = (
     })
   },
 
-  listByOrganization: async (orgId, userId, role) => {
+  listByOrganization: async (orgId, filter: ConnectionVisibilityFilter) => {
     return trace('googleConnection.listByOrganization', async () => {
-      const isAdminOrOwner = hasRole(role, 'AccountAdmin')
-
-      const whereClause = isAdminOrOwner
-        ? eq(googleConnections.organizationId, orgId)
-        : and(
-            eq(googleConnections.organizationId, orgId),
-            or(
-              eq(googleConnections.visibility, 'organization'),
-              eq(googleConnections.connectedBy, userId),
-            ),
-          )
+      const whereClause =
+        filter.showAll === true
+          ? eq(googleConnections.organizationId, orgId)
+          : and(
+              eq(googleConnections.organizationId, orgId),
+              or(
+                eq(googleConnections.visibility, 'organization'),
+                eq(googleConnections.connectedBy, filter.userId),
+              ),
+            )
 
       const rows = await db.select().from(googleConnections).where(whereClause)
       return rows.map(googleConnectionFromRow)
@@ -67,7 +67,18 @@ export const createGoogleConnectionRepository = (
 
   insert: async (conn) => {
     return trace('googleConnection.insert', async () => {
-      await db.insert(googleConnections).values(googleConnectionToInsert(conn))
+      try {
+        await db.insert(googleConnections).values(googleConnectionToInsert(conn))
+      } catch (err) {
+        const isPg23505 =
+          err instanceof Error && 'code' in err && (err as { code: string }).code === '23505'
+        if (isPg23505) {
+          throw uniqueViolationError(
+            `Duplicate google connection for accountId=${conn.googleAccountId}`,
+          )
+        }
+        throw err
+      }
     })
   },
 
@@ -166,16 +177,8 @@ export const createGoogleConnectionRepository = (
 
   delete: async (orgId, id) => {
     return trace('googleConnection.delete', async () => {
-      // Null out FK references before deleting the connection row
-      await db
-        .update(properties)
-        .set({ googleConnectionId: null, updatedAt: new Date() })
-        .where(
-          and(
-            eq(properties.organizationId, orgId),
-            eq(properties.googleConnectionId, id),
-          ),
-        )
+      // Null out FK references via port — Property table belongs to another context
+      await propertyFkCleanup.clearGoogleConnectionRef(orgId, id)
 
       await db
         .delete(googleConnections)

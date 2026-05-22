@@ -13,7 +13,8 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import { getAuth } from '#/shared/auth/auth'
 import { toDomainRole, toBetterAuthRole } from '#/shared/domain/roles'
 import { identityError } from '../../domain/errors'
-import { organizationId } from '#/shared/domain/ids'
+import { organizationId, invitationId } from '#/shared/domain/ids'
+import type { InvitationId } from '#/shared/domain/ids'
 import { getRequest } from '@tanstack/react-start/server'
 import {
   parseBetterAuthResponse,
@@ -59,10 +60,10 @@ function toMemberRecord(m: {
 }
 
 /** Create the better-auth implementation of IdentityPort. */
-export function createAuthIdentityAdapter(): IdentityPort {
+export function createBetterAuthIdentityAdapter(): IdentityPort {
+  const auth = getAuth()
   return {
     async signUp(name: string, email: string, password: string): Promise<string> {
-      const auth = getAuth()
       const result = await auth.api.signUpEmail({
         body: { name, email, password },
       })
@@ -79,7 +80,6 @@ export function createAuthIdentityAdapter(): IdentityPort {
     },
 
     async listMembers(_ctx: AuthContext): Promise<ReadonlyArray<MemberRecord>> {
-      const auth = getAuth()
       const headers = headersFromRequest()
       const result = await auth.api.listMembers({ headers })
 
@@ -93,7 +93,6 @@ export function createAuthIdentityAdapter(): IdentityPort {
     },
 
     async getMember(_ctx: AuthContext, memberId: string): Promise<MemberRecord | null> {
-      const auth = getAuth()
       const headers = headersFromRequest()
       const result = await auth.api.listMembers({ headers })
 
@@ -112,8 +111,7 @@ export function createAuthIdentityAdapter(): IdentityPort {
       email: string,
       role: string,
       propertyIds?: ReadonlyArray<string>,
-    ): Promise<string> {
-      const auth = getAuth()
+    ): Promise<InvitationId> {
       const headers = headersFromRequest()
       const result = await auth.api.createInvitation({
         headers,
@@ -132,21 +130,18 @@ export function createAuthIdentityAdapter(): IdentityPort {
         'org_setup_failed',
         'createInvitation response did not match expected schema',
       )
-      return invitation.id
+      return invitationId(invitation.id)
     },
 
-    async acceptInvitation(invitationId: string, headers: Headers): Promise<void> {
-      const auth = getAuth()
-      await auth.api.acceptInvitation({ headers, body: { invitationId } })
+    async acceptInvitation(id: InvitationId, headers: Headers): Promise<void> {
+      await auth.api.acceptInvitation({ headers, body: { invitationId: id } })
     },
 
-    async rejectInvitation(invitationId: string, headers: Headers): Promise<void> {
-      const auth = getAuth()
-      await auth.api.rejectInvitation({ headers, body: { invitationId } })
+    async rejectInvitation(id: InvitationId, headers: Headers): Promise<void> {
+      await auth.api.rejectInvitation({ headers, body: { invitationId: id } })
     },
 
     async listInvitations(_ctx: AuthContext): Promise<ReadonlyArray<InvitationRecord>> {
-      const auth = getAuth()
       const headers = headersFromRequest()
       const result = await auth.api.listInvitations({ headers })
 
@@ -171,7 +166,6 @@ export function createAuthIdentityAdapter(): IdentityPort {
     async listUserInvitations(
       headers: Headers,
     ): Promise<ReadonlyArray<InvitationRecord>> {
-      const auth = getAuth()
       const result = await auth.api.listUserInvitations({ headers })
 
       const invitations = parseBetterAuthResponse(
@@ -201,7 +195,6 @@ export function createAuthIdentityAdapter(): IdentityPort {
       memberId: string,
       role: string,
     ): Promise<void> {
-      const auth = getAuth()
       const headers = headersFromRequest()
       await auth.api.updateMemberRole({
         headers,
@@ -213,7 +206,6 @@ export function createAuthIdentityAdapter(): IdentityPort {
     },
 
     async removeMember(_ctx: AuthContext, memberId: string): Promise<void> {
-      const auth = getAuth()
       const headers = headersFromRequest()
       await auth.api.removeMember({
         headers,
@@ -224,7 +216,6 @@ export function createAuthIdentityAdapter(): IdentityPort {
     async listUserOrganizations(
       headers: Headers,
     ): Promise<ReadonlyArray<OrganizationRecord>> {
-      const auth = getAuth()
       const result = await auth.api.listOrganizations({ headers })
 
       const orgs = parseBetterAuthResponse(
@@ -245,7 +236,6 @@ export function createAuthIdentityAdapter(): IdentityPort {
     },
 
     async setActiveOrganization(headers: Headers, organizationId: string): Promise<void> {
-      const auth = getAuth()
       await auth.api.setActiveOrganization({ headers, body: { organizationId } })
     },
   }

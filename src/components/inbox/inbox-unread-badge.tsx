@@ -1,4 +1,7 @@
 // Inbox unread count badge — for sidebar and page header
+// Server import exception: standalone sidebar badge that fetches its own count.
+// No parent route provides unread count data; self-contained fetching is appropriate
+// for a widget that appears in the layout shell, not a specific route.
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useServerFn } from '@tanstack/react-start'
 import { useAction } from '#/components/hooks/use-action'

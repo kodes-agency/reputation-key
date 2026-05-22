@@ -10,24 +10,14 @@ import type { PortalTheme } from './types'
 
 // ── Slug validation ────────────────────────────────────────────────
 
-const SLUG_PATTERN = /^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$/
-
-/** Normalize a string into a URL-friendly slug (infallible). */
-export const normalizeSlug = (input: string): string =>
-  input
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9\s-]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '')
-    .slice(0, 64)
+// Re-export shared slug utility for backward compatibility.
+// Consumers in this context should migrate to importing from '#/shared/domain'.
+export { normalizeSlug } from '#/shared/domain/slug'
+import { validateSlug as sharedValidateSlug } from '#/shared/domain/slug'
 
 /** Validate a slug format. */
 export const validateSlug = (slug: string): Result<string, PortalError> =>
-  SLUG_PATTERN.test(slug)
-    ? ok(slug)
-    : err(portalError('invalid_slug', 'slug must be URL-friendly and 2-64 chars'))
+  sharedValidateSlug(slug, (msg) => portalError('invalid_slug', msg))
 
 // ── Name validation ────────────────────────────────────────────────
 

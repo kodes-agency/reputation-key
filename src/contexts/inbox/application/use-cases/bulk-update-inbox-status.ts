@@ -11,6 +11,7 @@ import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { validateTransition } from '../../domain/rules'
 import { inboxStatusChanged } from '../../domain/events'
 import { hasRole, ADMIN_ROLE } from '#/shared/domain/roles'
+import type { Logger } from 'pino'
 
 export type BulkUpdateInboxStatusInput = Readonly<{
   inboxItemIds: ReadonlyArray<InboxItemId>
@@ -27,6 +28,7 @@ export type BulkUpdateInboxStatusDeps = Readonly<{
   unreadCounter: UnreadCounterPort
   clock: () => Date
   staffPublicApi: StaffPublicApi
+  logger: Logger
 }>
 
 export const bulkUpdateInboxStatus =
@@ -52,8 +54,8 @@ export const bulkUpdateInboxStatus =
           input.userId,
           input.role,
         )
-      } catch {
-        // Access check failed — treat as no access
+      } catch (err) {
+        deps.logger.warn({ err, organizationId: input.organizationId }, 'Access check for property IDs failed, treating as no access')
         return { updated: 0 }
       }
     }
@@ -103,8 +105,8 @@ export const bulkUpdateInboxStatus =
       for (let i = 0; i < newCount; i++) {
         try {
           await deps.unreadCounter.decrement(input.organizationId)
-        } catch {
-          // Counter unavailable — non-critical, DB is source of truth
+        } catch (err) {
+          deps.logger.warn({ err, organizationId: input.organizationId }, 'Unread counter decrement failed, DB is source of truth')
           break
         }
       }

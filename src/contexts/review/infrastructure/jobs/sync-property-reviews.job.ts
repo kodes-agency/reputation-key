@@ -34,6 +34,7 @@ export const createSyncPropertyReviewsHandler = (deps: SyncHandlerDeps) => {
     clock: deps.clock,
     idGen: () => reviewId(crypto.randomUUID()),
     replyIdGen: () => replyId(crypto.randomUUID()),
+    logger: getLogger(),
   })
 
   return async (job: Job<SyncPropertyReviewsJobData>) => {

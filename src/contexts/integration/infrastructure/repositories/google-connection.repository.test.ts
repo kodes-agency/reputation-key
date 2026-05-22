@@ -8,6 +8,7 @@ import { getDb } from '#/shared/db'
 import { buildTestGoogleConnection } from '#/shared/testing/fixtures'
 import { organizationId, userId, googleConnectionId } from '#/shared/domain/ids'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
+import type { PropertyFkCleanupPort } from '../../application/ports/property-fk-cleanup.port'
 
 const ORG_A = organizationId('org-gc-aaaaaaaaaa')
 const ORG_B = organizationId('org-gc-bbbbbbbbbb')
@@ -18,11 +19,17 @@ setupIntegrationDb({
   tables: ['google_connections'],
 })
 
+/** No-op FK cleanup for integration tests — we don't test FK nulling here. */
+const noopFkCleanup: PropertyFkCleanupPort = {
+  clearGoogleConnectionRef: async () => {},
+}
+
+const makeRepo = () => createGoogleConnectionRepository(getDb(), noopFkCleanup)
+
 describe('googleConnectionRepository (integration)', () => {
   describe('insert and findById', () => {
     it('inserts and retrieves a connection', async () => {
-      const db = getDb()
-      const repo = createGoogleConnectionRepository(db)
+      const repo = makeRepo()
       const conn = buildTestGoogleConnection({
         id: crypto.randomUUID(),
         organizationId: ORG_A,
@@ -40,8 +47,7 @@ describe('googleConnectionRepository (integration)', () => {
     })
 
     it('returns null for non-existent id', async () => {
-      const db = getDb()
-      const repo = createGoogleConnectionRepository(db)
+      const repo = makeRepo()
       const fakeId = googleConnectionId(crypto.randomUUID())
       const found = await repo.findById(ORG_A, fakeId)
       expect(found).toBeNull()
@@ -50,8 +56,7 @@ describe('googleConnectionRepository (integration)', () => {
 
   describe('findByGoogleAccountId', () => {
     it('finds connection by google account id', async () => {
-      const db = getDb()
-      const repo = createGoogleConnectionRepository(db)
+      const repo = makeRepo()
       const gaId = crypto.randomUUID()
       const conn = buildTestGoogleConnection({
         id: crypto.randomUUID(),
@@ -67,9 +72,8 @@ describe('googleConnectionRepository (integration)', () => {
   })
 
   describe('listByOrganization', () => {
-    it('lists connections for AccountAdmin', async () => {
-      const db = getDb()
-      const repo = createGoogleConnectionRepository(db)
+    it('lists all connections when showAll filter is passed', async () => {
+      const repo = makeRepo()
       await repo.insert(
         buildTestGoogleConnection({
           id: crypto.randomUUID(),
@@ -87,17 +91,12 @@ describe('googleConnectionRepository (integration)', () => {
         }),
       )
 
-      const results = await repo.listByOrganization(
-        ORG_A,
-        userId('user-admin'),
-        'AccountAdmin',
-      )
+      const results = await repo.listByOrganization(ORG_A, { showAll: true })
       expect(results).toHaveLength(2)
     })
 
-    it('only shows visible + own connections for non-admin', async () => {
-      const db = getDb()
-      const repo = createGoogleConnectionRepository(db)
+    it('only shows visible + own connections when showAll is false', async () => {
+      const repo = makeRepo()
       const otherUser = userId('user-other')
 
       await repo.insert(
@@ -121,16 +120,15 @@ describe('googleConnectionRepository (integration)', () => {
         }),
       )
 
-      const results = await repo.listByOrganization(ORG_A, otherUser, 'Staff')
-      // Staff sees: organization-visible + own private
+      const results = await repo.listByOrganization(ORG_A, { showAll: false, userId: otherUser })
+      // Non-admin sees: organization-visible + own private
       expect(results.length).toBeGreaterThanOrEqual(1)
     })
   })
 
   describe('tenant isolation', () => {
     it('findById does not return connections from other orgs', async () => {
-      const db = getDb()
-      const repo = createGoogleConnectionRepository(db)
+      const repo = makeRepo()
       const conn = buildTestGoogleConnection({
         id: crypto.randomUUID(),
         organizationId: ORG_A,
@@ -146,8 +144,7 @@ describe('googleConnectionRepository (integration)', () => {
 
   describe('updateStatus', () => {
     it('updates the status of a connection', async () => {
-      const db = getDb()
-      const repo = createGoogleConnectionRepository(db)
+      const repo = makeRepo()
       const conn = buildTestGoogleConnection({
         id: crypto.randomUUID(),
         organizationId: ORG_A,
@@ -164,8 +161,7 @@ describe('googleConnectionRepository (integration)', () => {
 
   describe('updateVisibility', () => {
     it('updates visibility', async () => {
-      const db = getDb()
-      const repo = createGoogleConnectionRepository(db)
+      const repo = makeRepo()
       const conn = buildTestGoogleConnection({
         id: crypto.randomUUID(),
         organizationId: ORG_A,
@@ -182,8 +178,7 @@ describe('googleConnectionRepository (integration)', () => {
 
   describe('delete', () => {
     it('deletes a connection', async () => {
-      const db = getDb()
-      const repo = createGoogleConnectionRepository(db)
+      const repo = makeRepo()
       const conn = buildTestGoogleConnection({
         id: crypto.randomUUID(),
         organizationId: ORG_A,

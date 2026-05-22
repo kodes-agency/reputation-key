@@ -12,6 +12,9 @@ import { sql } from 'drizzle-orm'
 import { trace } from '#/shared/observability/trace'
 
 export const createPublicPortalLookup = (db: Database): PublicPortalLookup => ({
+  // PUBLIC API — no organizationId scoping by design.
+  // These resolvers serve unauthenticated guest requests where the
+  // link/portal ID acts as a capability token (unguessable UUID).
   findBySlug: async (propertySlug: string, portalSlug: string) => {
     return trace('publicPortal.findBySlug', async () => {
       // Look up property by slug using Drizzle query builder

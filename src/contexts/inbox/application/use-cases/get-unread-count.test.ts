@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { getUnreadCount } from './get-unread-count'
 import { createInMemoryInboxRepo } from '#/shared/testing/in-memory-inbox-repo'
+import { createMockLogger } from '#/shared/testing/mock-logger'
 import { organizationId, inboxItemId, propertyId, reviewId } from '#/shared/domain/ids'
 import type { InboxItem } from '../../domain/types'
 import type { UnreadCounterPort } from '../ports/unread-counter.port'
@@ -51,7 +52,7 @@ const setup = () => {
     invalidate: async () => {},
   }
 
-  const deps = { unreadCounter, repo }
+  const deps = { unreadCounter, repo, logger: createMockLogger() }
   const useCase = getUnreadCount(deps)
 
   return {

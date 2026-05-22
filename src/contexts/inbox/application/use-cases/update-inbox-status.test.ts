@@ -68,6 +68,7 @@ const setup = (staffApi: StaffPublicApi = staffApiAllAccess) => {
     unreadCounter,
     clock: () => FIXED_TIME,
     staffPublicApi: staffApi,
+    logger: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {}, trace: () => {}, fatal: () => {} } as never,
   }
   const useCase = updateInboxStatus(deps)
   return { useCase, repo, events, decrements }

@@ -73,8 +73,19 @@ export function inboxNoteId(id: string): InboxNoteId {
   return id as InboxNoteId
 }
 
+export type InvitationId = Brand<string, 'InvitationId'>
+export function invitationId(id: string): InvitationId {
+  return id as InvitationId
+}
+
+export type GbpCacheEntryId = Brand<string, 'GbpCacheEntryId'>
+export function gbpCacheEntryId(id: string): GbpCacheEntryId {
+  return id as GbpCacheEntryId
+}
+
 export type GoogleConnectionId = Brand<string, 'GoogleConnectionId'>
 export type GbpImportJobId = Brand<string, 'GbpImportJobId'>
+export type MetricReadingId = Brand<string, 'MetricReadingId'>
 
 export function googleConnectionId(id: string): GoogleConnectionId {
   return id as GoogleConnectionId
@@ -82,6 +93,10 @@ export function googleConnectionId(id: string): GoogleConnectionId {
 
 export function gbpImportJobId(id: string): GbpImportJobId {
   return id as GbpImportJobId
+}
+
+export function metricReadingId(id: string): MetricReadingId {
+  return id as MetricReadingId
 }
 
 /** Safely strip brand from a branded ID type for use at infrastructure boundaries. */

@@ -2,7 +2,7 @@
 // Per architecture: "Events are facts, named in the past tense."
 // Events live in their owning context's domain/events.ts.
 
-import type { OrganizationId, UserId } from '#/shared/domain/ids'
+import type { OrganizationId, UserId, InvitationId } from '#/shared/domain/ids'
 import type { Role } from '#/shared/domain/roles'
 
 export type IdentityEvent =
@@ -30,7 +30,7 @@ export type MemberInvited = Readonly<{
   email: string
   role: Role
   inviterId: UserId
-  invitationId: string
+  invitationId: InvitationId
   occurredAt: Date
 }>
 
@@ -40,7 +40,7 @@ export type InvitationAccepted = Readonly<{
   organizationId: OrganizationId
   userId: UserId
   role: Role
-  invitationId: string
+  invitationId: InvitationId
   occurredAt: Date
 }>
 
@@ -48,7 +48,7 @@ export type InvitationAccepted = Readonly<{
 export type InvitationRejected = Readonly<{
   _tag: 'invitation.rejected'
   organizationId: OrganizationId
-  invitationId: string
+  invitationId: InvitationId
   email: string
   occurredAt: Date
 }>

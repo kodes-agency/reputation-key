@@ -1,6 +1,10 @@
 // Review context — domain rules
 
-import type { StarRating, ReplyStatus } from './types'
+import type { StarRating, ReplyStatus, Reply } from './types'
+import { err, ok } from 'neverthrow'
+import type { Result } from 'neverthrow'
+import type { ReviewError } from './errors'
+import { reviewError } from './errors'
 
 const VALID_RATINGS = new Set([1, 2, 3, 4, 5] as const)
 
@@ -29,6 +33,32 @@ const REPLY_TRANSITIONS: Readonly<Record<ReplyStatus, ReadonlyArray<ReplyStatus>
 
 export const canTransitionReply = (current: ReplyStatus, next: ReplyStatus): boolean =>
   REPLY_TRANSITIONS[current]?.includes(next) ?? false
+
+/**
+ * Transition a reply to a new status.
+ * Validates the transition is allowed and produces a new Reply with updated status/timestamp.
+ */
+export const transitionReply = (
+  reply: Reply,
+  nextStatus: ReplyStatus,
+  now: Date,
+): Result<Reply, ReviewError> => {
+  if (!canTransitionReply(reply.status, nextStatus)) {
+    return err(
+      reviewError(
+        'invalid_transition',
+        `Cannot transition reply from '${reply.status}' to '${nextStatus}'`,
+      ),
+    )
+  }
+
+  return ok({
+    ...reply,
+    status: nextStatus,
+    updatedAt: now,
+    ...(nextStatus === 'published' ? { publishedAt: now } : {}),
+  })
+}
 
 /** Shared across domain, server functions, and UI. */
 export const MAX_REPLY_LENGTH = 4096

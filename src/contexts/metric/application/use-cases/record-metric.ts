@@ -4,6 +4,8 @@
 
 import type { MetricKey, MetricReading } from '../../domain/types'
 import type { MetricRepository } from '../ports/metric.repository'
+import type { OrganizationId, PropertyId, PortalId } from '#/shared/domain/ids'
+import { metricError } from '../../domain/errors'
 
 const BUILT_IN_METRIC_KEYS: Set<MetricKey> = new Set([
   'portal.scan',
@@ -14,9 +16,9 @@ const BUILT_IN_METRIC_KEYS: Set<MetricKey> = new Set([
 ])
 
 export type RecordMetricInput = Readonly<{
-  organizationId: string
-  propertyId: string
-  portalId: string | null
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  portalId: PortalId | null
   metricKey: MetricKey
   value: number
 }>
@@ -30,7 +32,7 @@ export const recordMetric =
   (deps: RecordMetricDeps) =>
   async (input: RecordMetricInput): Promise<MetricReading> => {
     if (!BUILT_IN_METRIC_KEYS.has(input.metricKey)) {
-      throw new Error(`Unknown metric key: ${input.metricKey}`)
+      throw metricError('unknown_metric_key', `Unknown metric key: ${input.metricKey}`)
     }
 
     return deps.metricRepo.insertReading({

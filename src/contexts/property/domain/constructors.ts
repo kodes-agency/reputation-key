@@ -6,7 +6,7 @@
 import { Result } from 'neverthrow'
 import type { Property, PropertyId } from './types'
 import type { PropertyError } from './errors'
-import type { OrganizationId } from '#/shared/domain/ids'
+import type { OrganizationId, GoogleConnectionId } from '#/shared/domain/ids'
 import {
   normalizeSlug,
   validateSlug,
@@ -22,7 +22,7 @@ export type BuildPropertyInput = Readonly<{
   providedSlug?: string
   timezone: string
   gbpPlaceId?: string | null
-  googleConnectionId?: string | null
+  googleConnectionId?: GoogleConnectionId | null
   now: Date
 }>
 

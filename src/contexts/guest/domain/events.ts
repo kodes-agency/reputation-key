@@ -5,6 +5,7 @@ import type {
   OrganizationId,
   PortalId,
   PropertyId,
+  PortalLinkId,
 } from '#/shared/domain/ids'
 import type { ScanSource } from './types'
 
@@ -59,7 +60,7 @@ export const feedbackSubmitted = (
 
 export type ReviewLinkClicked = Readonly<{
   _tag: 'review-link.clicked'
-  linkId: string
+  linkId: PortalLinkId
   organizationId: OrganizationId
   portalId: PortalId
   propertyId: PropertyId

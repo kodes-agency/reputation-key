@@ -13,7 +13,7 @@ import { can } from '#/shared/domain/permissions'
 import { googleConnectionId } from '#/shared/domain/ids'
 import { integrationError } from '../../domain/errors'
 import { googleAccountDisconnected } from '../../domain/events'
-import { getLogger } from '#/shared/observability/logger'
+import type { Logger } from 'pino'
 
 export type DisconnectGoogleAccountDeps = Readonly<{
   connectionRepo: GoogleConnectionRepository
@@ -22,6 +22,7 @@ export type DisconnectGoogleAccountDeps = Readonly<{
   cacheRepo: GbpCacheRepository
   events: EventBus
   clock: () => Date
+  logger: Logger
 }>
 
 export const disconnectGoogleAccount =
@@ -55,8 +56,7 @@ export const disconnectGoogleAccount =
       const refreshToken = deps.encryption.decrypt(connection.encryptedRefreshToken)
       await deps.oauth.revokeToken(refreshToken)
     } catch (e) {
-      const logger = getLogger()
-      logger.warn(
+      deps.logger.warn(
         { connectionId: input.connectionId, err: e },
         'Google token revocation failed — disconnecting locally anyway',
       )

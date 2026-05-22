@@ -11,6 +11,7 @@ import type { Database } from '#/shared/db'
 import { metricReadings } from '#/shared/db/schema/metric.schema'
 import type { MetricRepository } from '../../application/ports/metric.repository'
 import type { MetricKey, MetricReading } from '../../domain/types'
+import { metricReadingId, organizationId as orgIdCtor, propertyId as propIdCtor, portalId as portalIdCtor } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 
 const VALID_METRIC_KEYS: Set<string> = new Set([
@@ -26,10 +27,10 @@ function readingFromRow(row: typeof metricReadings.$inferSelect): MetricReading 
     throw new Error(`Invalid metric_key in DB row: ${row.metricKey}`)
   }
   return {
-    id: row.id,
-    organizationId: row.organizationId,
-    propertyId: row.propertyId,
-    portalId: row.portalId,
+    id: metricReadingId(row.id),
+    organizationId: orgIdCtor(row.organizationId),
+    propertyId: propIdCtor(row.propertyId),
+    portalId: row.portalId ? portalIdCtor(row.portalId) : null,
     metricKey: row.metricKey as MetricKey,
     value: row.value,
     recordedAt: row.recordedAt,

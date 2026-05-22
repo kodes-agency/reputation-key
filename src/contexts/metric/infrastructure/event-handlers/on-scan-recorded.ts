@@ -1,3 +1,4 @@
+// Metric context — records portal.scan metric on scan events
 import type { ScanRecorded } from '#/contexts/guest/domain/events'
 import type { RecordMetricInput } from '../../application/use-cases/record-metric'
 import { getLogger } from '#/shared/observability/logger'

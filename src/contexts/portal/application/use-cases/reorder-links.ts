@@ -6,7 +6,7 @@ import { portalLinkReordered } from '../../domain/events'
 import type { EventBus } from '#/shared/events/event-bus'
 import { can } from '#/shared/domain/permissions'
 import { portalError } from '../../domain/errors'
-import { portalId, portalLinkId } from '#/shared/domain/ids'
+import { portalId, portalLinkId, portalLinkCategoryId } from '#/shared/domain/ids'
 
 // fallow-ignore-next-line unused-type
 export type ReorderLinksDeps = Readonly<{
@@ -38,7 +38,7 @@ export const reorderLinks =
     await deps.events.emit(
       portalLinkReordered({
         portalId: portalId(input.portalId),
-        categoryId: input.categoryId,
+        categoryId: portalLinkCategoryId(input.categoryId),
         organizationId: ctx.organizationId,
         occurredAt: deps.clock(),
       }),

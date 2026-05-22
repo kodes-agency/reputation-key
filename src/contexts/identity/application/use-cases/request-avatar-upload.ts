@@ -1,7 +1,7 @@
 // Identity context — request user avatar upload URL use case.
 // Separate from org logo upload: uses user-scoped S3 keys and no org side effects.
 
-import type { StoragePort } from '#/contexts/portal/application/ports/storage.port'
+import type { StoragePort } from '#/contexts/portal/application/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { identityError } from '../../domain/errors'
 import { randomUUID } from 'crypto'

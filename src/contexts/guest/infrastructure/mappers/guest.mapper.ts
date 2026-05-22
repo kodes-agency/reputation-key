@@ -1,7 +1,8 @@
 import type { ScanEvent, Rating, Feedback } from '../../domain/types'
+import { unbrand } from '#/shared/domain/ids'
 
 export const scanEventToRow = (scan: ScanEvent) => ({
-  id: scan.id as string,
+  id: unbrand(scan.id),
   organizationId: scan.organizationId as string,
   portalId: scan.portalId as string,
   propertyId: scan.propertyId as string,
@@ -12,7 +13,7 @@ export const scanEventToRow = (scan: ScanEvent) => ({
 })
 
 export const ratingToRow = (rating: Rating) => ({
-  id: rating.id as string,
+  id: unbrand(rating.id),
   organizationId: rating.organizationId as string,
   portalId: rating.portalId as string,
   propertyId: rating.propertyId as string,
@@ -24,7 +25,7 @@ export const ratingToRow = (rating: Rating) => ({
 })
 
 export const feedbackToRow = (fb: Feedback) => ({
-  id: fb.id as string,
+  id: unbrand(fb.id),
   organizationId: fb.organizationId as string,
   portalId: fb.portalId as string,
   propertyId: fb.propertyId as string,

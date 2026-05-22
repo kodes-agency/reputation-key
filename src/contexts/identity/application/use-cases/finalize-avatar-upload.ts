@@ -2,7 +2,7 @@
 // Confirms the S3 upload and returns the URL. Does NOT persist to any entity
 // (the caller persists via authClient.updateUser on the client side).
 
-import type { StoragePort } from '#/contexts/portal/application/ports/storage.port'
+import type { StoragePort } from '#/contexts/portal/application/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { identityError } from '../../domain/errors'
 

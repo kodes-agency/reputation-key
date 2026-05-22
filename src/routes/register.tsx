@@ -6,7 +6,6 @@ import { AuthCard, AuthFooterLink } from '#/components/layout/auth-layout'
 import { RegisterForm } from '#/components/features/identity'
 import { registerUserAndOrg } from '#/contexts/identity/server/organizations'
 import { useAction, wrapAction } from '#/components/hooks/use-action'
-import { useState } from 'react'
 
 export const Route = createFileRoute('/register')({
   beforeLoad: async () => {
@@ -19,15 +18,13 @@ export const Route = createFileRoute('/register')({
 })
 
 function RegisterPage() {
-  const [success, setSuccess] = useState(false)
   const register = useAction(useServerFn(registerUserAndOrg))
 
   const mutation = wrapAction(register, async () => {
     await ensureActiveOrg()
-    setSuccess(true)
   })
 
-  if (success) {
+  if (mutation.isSuccess) {
     return (
       <AuthCard
         title="Account created!"

@@ -7,7 +7,7 @@
 import type { UnreadCounterPort } from '../ports/unread-counter.port'
 import type { InboxRepository } from '../ports/inbox.repository'
 import type { OrganizationId } from '#/shared/domain/ids'
-import { getLogger } from '#/shared/observability/logger'
+import type { Logger } from 'pino'
 
 export type GetUnreadCountInput = Readonly<{
   organizationId: OrganizationId
@@ -17,6 +17,7 @@ export type GetUnreadCountInput = Readonly<{
 export type GetUnreadCountDeps = Readonly<{
   unreadCounter: UnreadCounterPort
   repo: InboxRepository
+  logger: Logger
 }>
 
 export const getUnreadCount =
@@ -28,7 +29,7 @@ export const getUnreadCount =
       if (count > 0) return count
     } catch (e) {
       // Counter unavailable, fall through to repo
-      getLogger().warn(
+      deps.logger.warn(
         { err: e },
         'Unread counter unavailable, falling back to repo count',
       )
@@ -39,8 +40,8 @@ export const getUnreadCount =
     if (dbCount > 0) {
       try {
         await deps.unreadCounter.setCount(input.organizationId, dbCount)
-      } catch {
-        // Cache warm failed — non-critical, just serve the DB count
+      } catch (err) {
+        deps.logger.warn({ err, organizationId: input.organizationId }, 'Cache warm failed — non-critical, just serve the DB count')
       }
     }
     return dbCount

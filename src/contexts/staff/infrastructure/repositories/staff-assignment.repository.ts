@@ -10,7 +10,7 @@ import {
   staffAssignmentToRow,
 } from '../mappers/staff-assignment.mapper'
 import { staffError } from '../../domain/errors'
-import { propertyId } from '#/shared/domain/ids'
+import { unbrand, propertyId } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 
 export const createStaffAssignmentRepository = (
@@ -24,7 +24,7 @@ export const createStaffAssignmentRepository = (
         .where(
           and(
             ...baseWhere(staffAssignments, orgId),
-            eq(staffAssignments.id, id as string),
+            eq(staffAssignments.id, unbrand(id)),
           ),
         )
         .limit(1)
@@ -119,7 +119,7 @@ export const createStaffAssignmentRepository = (
         .where(
           and(
             ...baseWhere(staffAssignments, orgId),
-            eq(staffAssignments.id, id as string),
+            eq(staffAssignments.id, unbrand(id)),
           ),
         )
     })

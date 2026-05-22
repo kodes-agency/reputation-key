@@ -4,15 +4,12 @@ import { authClient } from '#/shared/auth/auth-client'
 import { AuthCard, AuthFooterLink } from '#/components/layout/auth-layout'
 import { ResetPasswordForm } from '#/components/features/identity'
 import { useAction } from '#/components/hooks/use-action'
-import { useState } from 'react'
 
 export const Route = createFileRoute('/reset-password')({
   component: ResetPasswordPage,
 })
 
 function ResetPasswordPage() {
-  const [sentToEmail, setSentToEmail] = useState<string | null>(null)
-
   const mutation = useAction(async (input: { email: string }) => {
     const result = await authClient.requestPasswordReset({
       email: input.email,
@@ -24,15 +21,14 @@ function ResetPasswordPage() {
         { _tag: 'AuthClientError' as const, code: 'reset_failed' as const },
       )
     }
-    setSentToEmail(input.email)
     return input.email
   })
 
-  if (sentToEmail) {
+  if (mutation.data) {
     return (
       <AuthCard
         title="Check your email"
-        description={`If an account exists for ${sentToEmail}, you'll receive a password reset link shortly.`}
+        description={`If an account exists for ${mutation.data}, you'll receive a password reset link shortly.`}
       >
         <div className="text-center">
           <Link

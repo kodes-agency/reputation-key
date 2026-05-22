@@ -5,6 +5,7 @@
 import type { StaffAssignmentRepository } from './application/ports/staff-assignment.repository'
 import type { StaffPublicApi } from './application/public-api'
 import type { OrganizationId, UserId } from '#/shared/domain/ids'
+import { hasRole } from '#/shared/domain/roles'
 import type { Role } from '#/shared/domain/roles'
 import type { EventBus } from '#/shared/events/event-bus'
 import { createStaffAssignment } from './application/use-cases/create-staff-assignment'
@@ -45,7 +46,7 @@ export const buildStaffContext = (deps: StaffContextDeps) => {
       userId: UserId,
       role: Role,
     ) => {
-      if (role === 'AccountAdmin') return null
+      if (hasRole(role, 'AccountAdmin')) return null
       return deps.repo.getAccessiblePropertyIds(orgId, userId)
     },
   }

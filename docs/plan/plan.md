@@ -601,8 +601,8 @@ Now we fill in the gaps that make this a real product, not just a collection of 
 | 4   | 10    | Review schema + GBP sync | Completed | 7-10 days    |
 | 4   | 11    | Unified inbox            | Completed | 5-7 days     |
 | 4   | 12    | Reply flow               | Completed | 5-6 days     |
-| 5   | 13    | Metrics foundation       | Next up   | 5-7 days     |
-| 5   | 14    | Dashboard                | Pending   | 5-7 days     |
+| 5   | 13    | Metrics foundation       | Completed | 5-7 days     |
+| 5   | 14    | Dashboard                | Completed | 5-7 days     |
 | 6   | 15    | Goals                    | Pending   | 5-7 days     |
 | 6   | 16    | Badges + leaderboards    | Pending   | 5-7 days     |
 | 7   | 17    | AI v1                    | Pending   | 7-10 days    |

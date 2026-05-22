@@ -4,9 +4,9 @@ import { describe, it, expect } from 'vitest'
 import { createGbpApiError } from './gbp-api-error'
 
 describe('createGbpApiError', () => {
-  it('creates an Error instance', () => {
+  it('returns a plain tagged object (not Error)', () => {
     const err = createGbpApiError('fetchAccounts', 403, 'Forbidden')
-    expect(err).toBeInstanceOf(Error)
+    expect(err).not.toBeInstanceOf(Error)
   })
 
   it('sets _tag to "GbpApiError"', () => {
@@ -24,12 +24,6 @@ describe('createGbpApiError', () => {
   it('formats message as "GBP API {operation} failed: {status} {body}"', () => {
     const err = createGbpApiError('fetchAccounts', 403, 'Forbidden')
     expect(err.message).toBe('GBP API fetchAccounts failed: 403 Forbidden')
-  })
-
-  it('includes a stack trace', () => {
-    const err = createGbpApiError('fetchAccounts', 500, 'Internal')
-    expect(err.stack).toBeDefined()
-    expect(typeof err.stack).toBe('string')
   })
 
   it('handles 500 status', () => {

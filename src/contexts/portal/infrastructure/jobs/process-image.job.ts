@@ -6,7 +6,7 @@ import type { Job } from 'bullmq'
 import { getLogger } from '#/shared/observability/logger'
 import type { StoragePort } from '../../application/ports/storage.port'
 import type { PortalRepository } from '../../application/ports/portal.repository'
-import { portalId } from '#/shared/domain/ids'
+import { organizationId, portalId } from '#/shared/domain/ids'
 
 export type ProcessImageJobData = Readonly<{
   key: string
@@ -17,14 +17,15 @@ export type ProcessImageJobData = Readonly<{
 type Deps = Readonly<{
   storage: StoragePort
   portalRepo: PortalRepository
+  clock: () => Date
 }>
 
 export function createProcessImageJob(deps: Deps) {
   return async function processImageJob(job: Job<ProcessImageJobData>): Promise<void> {
     const logger = getLogger()
-    const { key, portalId: pid, organizationId } = job.data
+    const { key, portalId: pid, organizationId: orgId } = job.data
 
-    logger.info({ key, portalId: pid, organizationId, jobId: job.id }, 'Processing portal hero image')
+    logger.info({ key, portalId: pid, organizationId: orgId, jobId: job.id }, 'Processing portal hero image')
 
     try {
       // Dynamically import sharp to avoid loading it in the web bundle
@@ -59,11 +60,11 @@ export function createProcessImageJob(deps: Deps) {
       // 4. Update portal.heroImageUrl with the hero variant URL
       const heroImageUrl = deps.storage.getPublicUrl(heroKey)
       await deps.portalRepo.update(
-        organizationId as unknown as import('#/shared/domain/ids').OrganizationId,
+        organizationId(orgId),
         portalId(pid),
         {
         heroImageUrl,
-        updatedAt: new Date(),
+        updatedAt: deps.clock(),
       })
 
       logger.info({ key, heroKey, thumbKey, portalId: pid }, 'Image processing completed')

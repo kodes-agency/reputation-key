@@ -3,7 +3,7 @@
 // Per architecture: types are data only — no methods, no classes.
 // readonly on every field. Branded IDs prevent accidental substitution.
 
-import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
+import type { OrganizationId, PropertyId, GoogleConnectionId } from '#/shared/domain/ids'
 
 /** Property entity — the organizational unit everything else lives under. */
 export type Property = Readonly<{
@@ -13,7 +13,7 @@ export type Property = Readonly<{
   slug: string
   timezone: string
   gbpPlaceId: string | null
-  googleConnectionId: string | null
+  googleConnectionId: GoogleConnectionId | null
   createdAt: Date
   updatedAt: Date
   deletedAt: Date | null

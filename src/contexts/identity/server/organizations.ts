@@ -12,6 +12,7 @@ import { headersFromContext } from '#/shared/auth/headers'
 import { requireAuth, resolveTenantContext } from '#/shared/auth/middleware'
 import { throwContextError } from '#/shared/auth/server-errors'
 import { toDomainRole } from '#/shared/domain/roles'
+import { can } from '#/shared/domain/permissions'
 import { getContainer } from '#/composition'
 import {
   inviteMemberInputSchema,
@@ -122,6 +123,9 @@ export const getActiveOrganization = createServerFn({ method: 'GET' }).handler(
     async () => {
       const headers = headersFromContext()
       const ctx = await resolveTenantContext(headers)
+      if (!can(ctx.role, 'dashboard.read')) {
+        throwContextError('AuthError', { code: 'forbidden', message: 'Insufficient permissions to read organization' }, 403)
+      }
       const auth = getAuth()
 
       const org = await auth.api.getFullOrganization({ headers })
@@ -154,6 +158,9 @@ export const listMembers = createServerFn({ method: 'GET' }).handler(
     async () => {
       const headers = headersFromContext()
       const ctx = await resolveTenantContext(headers)
+      if (!can(ctx.role, 'member.list')) {
+        throwContextError('AuthError', { code: 'forbidden', message: 'Insufficient permissions to list members' }, 403)
+      }
       const auth = getAuth()
 
       const result = await auth.api.listMembers({ headers })
@@ -232,7 +239,10 @@ export const cancelInvitation = createServerFn({ method: 'POST' })
     tracedHandler(
       async ({ data }) => {
         const headers = headersFromContext()
-        await resolveTenantContext(headers)
+        const ctx = await resolveTenantContext(headers)
+        if (!can(ctx.role, 'invitation.cancel')) {
+          throwContextError('AuthError', { code: 'forbidden', message: 'Insufficient permissions to cancel invitations' }, 403)
+        }
         const auth = getAuth()
 
         await auth.api.cancelInvitation({
@@ -344,26 +354,32 @@ export const removeMember = createServerFn({ method: 'POST' })
 export const listUserInvitations = createServerFn({ method: 'GET' }).handler(
   tracedHandler(
     async () => {
-      const headers = headersFromContext()
-      const auth = getAuth()
+      try {
+        const headers = headersFromContext()
+        await requireAuth(headers)
+        const auth = getAuth()
 
-      const result = await auth.api.listUserInvitations({ headers })
+        const result = await auth.api.listUserInvitations({ headers })
 
-      const rawInvitations = (
-        Array.isArray(result) ? result : []
-      ) as AuthInvitationResponse[]
-      const invitations = rawInvitations.map((inv) => ({
-        id: inv.id,
-        organizationId: inv.organizationId,
-        organizationName: inv.organization?.name ?? 'Unknown Organization',
-        email: inv.email,
-        role: toDomainRole(inv.role),
-        status: inv.status,
-        expiresAt: inv.expiresAt,
-        createdAt: inv.createdAt,
-      }))
+        const rawInvitations = (
+          Array.isArray(result) ? result : []
+        ) as AuthInvitationResponse[]
+        const invitations = rawInvitations.map((inv) => ({
+          id: inv.id,
+          organizationId: inv.organizationId,
+          organizationName: inv.organization?.name ?? 'Unknown Organization',
+          email: inv.email,
+          role: toDomainRole(inv.role),
+          status: inv.status,
+          expiresAt: inv.expiresAt,
+          createdAt: inv.createdAt,
+        }))
 
-      return { invitations }
+        return { invitations }
+      } catch (e) {
+        if (isIdentityError(e)) throwIdentityError(e)
+        throw e
+      }
     },
     'GET',
     'identity.listUserInvitations',
@@ -378,6 +394,7 @@ export const setActiveOrganization = createServerFn({ method: 'POST' })
     tracedHandler(
       async ({ data }) => {
         const headers = headersFromContext()
+        await requireAuth(headers)
         const auth = getAuth()
 
         await auth.api.setActiveOrganization({
@@ -396,12 +413,8 @@ export const listUserOrganizations = createServerFn({ method: 'GET' }).handler(
   tracedHandler(
     async () => {
       const headers = headersFromContext()
+      await requireAuth(headers)
       const auth = getAuth()
-
-      const session = await auth.api.getSession({ headers })
-      if (!session) {
-        return { organizations: [] }
-      }
 
       const result = await auth.api.listOrganizations({ headers })
 

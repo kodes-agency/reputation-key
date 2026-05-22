@@ -1,6 +1,6 @@
 # ADR 0002 — Section-Based Navigation with Role-Distinct Sidebars
 
-**Status:** Proposed
+**Status:** Implemented
 **Date:** 2026-05-03
 **Context:** Navigation Architecture, UI Layout
 

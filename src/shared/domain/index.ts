@@ -46,5 +46,8 @@ export type { Role } from './roles'
 export { hasRole, ROLE_HIERARCHY, toDomainRole, toBetterAuthRole } from './roles'
 export type { Permission } from './permissions'
 
+// ── Slug normalization ─────────────────────────────────────────────
+export { normalizeSlug } from './slug'
+
 // ── Timezones ─────────────────────────────────────────────────────
 export { VALID_TIMEZONES } from './timezones'

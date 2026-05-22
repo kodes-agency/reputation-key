@@ -1,8 +1,9 @@
 // Guest context — resolve a portal link by ID and track the click.
 // Replaces the direct DB access in the server function with proper use case + port pattern.
 
-import type { LinkResolverPort } from '#/contexts/portal/application/ports/link-resolver.port'
+import type { LinkResolverPort } from '#/contexts/portal/application/public-api'
 import type { TrackReviewLinkClick } from './track-review-link-click'
+import type { PortalLinkId } from '#/shared/domain/ids'
 
 export type ResolveLinkAndTrackDeps = Readonly<{
   linkResolver: LinkResolverPort
@@ -15,7 +16,7 @@ export type ResolveLinkAndTrackResult = Readonly<{
 
 export const resolveLinkAndTrack =
   (deps: ResolveLinkAndTrackDeps) =>
-  async (input: { linkId: string }): Promise<ResolveLinkAndTrackResult> => {
+  async (input: { linkId: PortalLinkId }): Promise<ResolveLinkAndTrackResult> => {
     const resolved = await deps.linkResolver.resolveLinkById(input.linkId)
     if (!resolved) {
       return null

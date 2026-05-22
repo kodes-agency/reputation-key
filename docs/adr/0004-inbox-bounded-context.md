@@ -1,6 +1,6 @@
 # ADR 0004 — Inbox as a Separate Bounded Context
 
-**Status:** Proposed
+**Status:** Implemented
 **Date:** 2026-05-18
 **Context:** Reviews, Feedback, Unified Inbox
 

@@ -51,6 +51,15 @@ export const createInMemoryPropertyRepo = (): InMemoryPropertyRepo => {
       store.delete(id)
     },
 
+    findByGbpPlaceId: async (gbpPlaceId) => {
+      for (const property of store.values()) {
+        if (property.gbpPlaceId === gbpPlaceId && property.deletedAt === null) {
+          return property
+        }
+      }
+      return null
+    },
+
     // ── Test-only helpers ───────────────────────────────────────────
 
     seed: (properties) => {

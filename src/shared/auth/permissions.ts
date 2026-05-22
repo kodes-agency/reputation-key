@@ -20,7 +20,8 @@ import type { Role } from '#/shared/domain/roles'
 
 export const statement = {
   organization: ['update', 'delete'],
-  member: ['create', 'update', 'delete'],
+  member: ['create', 'list', 'update', 'delete'],
+  dashboard: ['read'],
   invitation: ['create', 'cancel', 'resend'],
   property: ['create', 'update', 'delete'],
   team: ['create', 'update', 'delete'],
@@ -28,7 +29,9 @@ export const statement = {
   ac: ['create', 'read', 'update', 'delete'],
   portal: ['create', 'update', 'delete'],
   review: ['read', 'reply'],
+  reply: ['manage'],
   feedback: ['read', 'respond'],
+  inbox: ['read', 'update'],
   integration: ['manage'],
 } as const
 
@@ -41,19 +44,24 @@ export const ac = createAccessControl(statement)
 export const owner = ac.newRole(statement)
 
 export const admin = ac.newRole({
-  member: ['create'],
+  member: ['create', 'list'],
+  dashboard: ['read'],
   invitation: ['create', 'cancel', 'resend'],
   property: ['create', 'update'],
   team: ['create', 'update'],
   staff_assignment: ['create', 'delete'],
   portal: ['create', 'update'],
   review: ['read', 'reply'],
+  reply: ['manage'],
   feedback: ['read', 'respond'],
+  inbox: ['read', 'update'],
   organization: ['update'],
 })
 
 export const memberRole = ac.newRole({
   review: ['read'],
+  dashboard: ['read'],
+  inbox: ['read', 'update'],
 })
 
 // ── Build and inject the permission table ──────────────────────────

@@ -3,8 +3,7 @@
  * Displays pending invitations with resend/cancel actions.
  */
 
-import type { Role } from '#/shared/domain/roles'
-import { can } from '#/shared/domain/permissions'
+import { usePermissions } from '#/shared/hooks/usePermissions'
 import { RoleBadge } from '#/components/features/identity/shared/role-badge'
 import { Button } from '#/components/ui/button'
 import { Badge } from '#/components/ui/badge'
@@ -29,6 +28,7 @@ import {
 } from '#/components/ui/table'
 import { Shield } from 'lucide-react'
 import type { Action } from '#/components/hooks/use-action'
+import type { Role } from '#/shared/domain/roles'
 
 export interface InvitationRow {
   id: string
@@ -39,18 +39,17 @@ export interface InvitationRow {
 
 type Props = Readonly<{
   invitations: ReadonlyArray<InvitationRow>
-  viewerRole: Role
   resendAction: Action<{ data: { invitationId: string } }>
   cancelAction: Action<{ data: { invitationId: string } }>
 }>
 
 export function InvitationTable({
   invitations,
-  viewerRole,
   resendAction,
   cancelAction,
 }: Props) {
-  const canManage = can(viewerRole, 'invitation.cancel')
+  const { can } = usePermissions()
+  const canManage = can('invitation.cancel')
 
   return (
     <div className="flex flex-col gap-4">

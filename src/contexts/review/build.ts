@@ -5,6 +5,7 @@
 import type { Database } from '#/shared/db'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { Queue } from 'bullmq'
+import type { Logger } from 'pino'
 import type { GoogleReviewApiPort } from './application/ports/google-review-api.port'
 import type { ReviewRepository } from './application/ports/review.repository'
 import type { ReplyRepository } from './application/ports/reply.repository'
@@ -31,6 +32,7 @@ export type ReviewContextBuildInput = Readonly<{
   clock: () => Date
   googleReviewApi: GoogleReviewApiPort
   jobQueue: Queue | undefined
+  logger: Logger
 }>
 
 export type ReviewContextApi = Readonly<{
@@ -54,8 +56,9 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
 
   const queue: ReviewQueuePort = input.jobQueue
     ? {
-        addSyncJob: async (data) => {
+        addSyncJob: async (data, options) => {
           await input.jobQueue!.add('sync-property-reviews', data, {
+            jobId: options?.jobId,
             removeOnComplete: { count: 100 },
             removeOnFail: { count: 50 },
             attempts: 3,
@@ -108,6 +111,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
       clock: input.clock,
       idGen: () => reviewId(crypto.randomUUID()),
       replyIdGen: () => replyId(crypto.randomUUID()),
+      logger: input.logger,
     }),
     draftReply: draftReply(replyDeps),
     submitReply: submitReply(replyDeps),

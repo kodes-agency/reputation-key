@@ -9,9 +9,9 @@ import type {
 } from '#/shared/domain/ids'
 import { ok, err } from 'neverthrow'
 import { integrationError } from './errors'
-import { isValidVisibility } from './rules'
+import { isValidVisibility, isValidEmail } from './rules'
 
-type BuildConnectionArgs = {
+type BuildConnectionArgs = Readonly<{
   id: GoogleConnectionId
   organizationId: OrganizationId
   googleAccountId: string
@@ -23,10 +23,10 @@ type BuildConnectionArgs = {
   connectedBy: UserId
   visibility: 'private' | 'organization'
   now: Date
-}
+}>
 
 export const buildGoogleConnection = (args: BuildConnectionArgs) => {
-  if (!args.googleEmail.includes('@')) {
+  if (!isValidEmail(args.googleEmail)) {
     return err(integrationError('oauth_failed', 'Invalid Google email'))
   }
   if (!isValidVisibility(args.visibility)) {
@@ -52,13 +52,13 @@ export const buildGoogleConnection = (args: BuildConnectionArgs) => {
   })
 }
 
-type BuildImportJobArgs = {
+type BuildImportJobArgs = Readonly<{
   id: GbpImportJobId
   organizationId: OrganizationId
   initiatedBy: UserId
   totalCount: number
   now: Date
-}
+}>
 
 export const buildGbpImportJob = (args: BuildImportJobArgs) =>
   ok<GbpImportJob>({
