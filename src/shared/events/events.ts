@@ -126,6 +126,14 @@ export type {
   InboxItemAssigned,
 } from '#/contexts/inbox/domain/events'
 
+// Metric context events
+export type {
+  // fallow-ignore-next-line unused-type
+  MetricEvent,
+  // fallow-ignore-next-line unused-type
+  MetricRecorded,
+} from '#/contexts/metric/domain/events'
+
 // Master union — adding a new context's events requires extending this.
 // This ensures ts-pattern exhaustive checks catch new event types.
 import type { IdentityEvent } from '#/contexts/identity/domain/events'
@@ -138,6 +146,7 @@ import type { IntegrationEvent } from '#/contexts/integration/domain/events'
 import type { ReviewEvent } from '#/contexts/review/domain/events'
 import type { ReplyEvent } from '#/contexts/review/domain/events'
 import type { InboxEvent } from '#/contexts/inbox/domain/events'
+import type { MetricEvent } from '#/contexts/metric/domain/events'
 
 export type DomainEvent =
   | IdentityEvent
@@ -150,3 +159,4 @@ export type DomainEvent =
   | ReviewEvent
   | ReplyEvent
   | InboxEvent
+  | MetricEvent
