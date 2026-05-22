@@ -126,8 +126,9 @@ export function createContainer(options?: { enableJobs?: boolean }) {
   const identityPort = createBetterAuthIdentityAdapter()
 
   // ── Context builds (dependency order) ──────────────────────────────
+  const staffRepo = createStaffAssignmentRepository(db)
   const staff = buildStaffContext({
-    repo: createStaffAssignmentRepository(db),
+    repo: staffRepo,
     events: eventBus,
     clock,
   })
@@ -182,6 +183,7 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     events: eventBus,
     clock,
     linkResolver: portal.linkResolver,
+    staffRepo,
   })
 
   // ── Property lookup port for integration context (webhook) ────────
