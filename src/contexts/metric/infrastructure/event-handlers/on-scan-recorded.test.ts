@@ -56,6 +56,7 @@ describe('onScanRecorded', () => {
       portalId: portalId('portal-1'),
       metricKey: 'portal.scan',
       value: 1,
+      staffId: null,
     })
   })
 

@@ -17,6 +17,7 @@ export const onScanRecorded =
         portalId: event.portalId,
         metricKey: 'portal.scan',
         value: 1,
+        staffId: event.staffId,
       })
     } catch (err) {
       getLogger().error(

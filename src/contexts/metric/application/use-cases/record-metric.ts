@@ -4,7 +4,7 @@
 
 import type { MetricKey, MetricReading } from '../../domain/types'
 import type { MetricRepository } from '../ports/metric.repository'
-import type { OrganizationId, PropertyId, PortalId } from '#/shared/domain/ids'
+import type { OrganizationId, PropertyId, PortalId, StaffId } from '#/shared/domain/ids'
 import { metricError } from '../../domain/errors'
 
 const BUILT_IN_METRIC_KEYS: Set<MetricKey> = new Set([
@@ -21,6 +21,7 @@ export type RecordMetricInput = Readonly<{
   portalId: PortalId | null
   metricKey: MetricKey
   value: number
+  staffId: StaffId | null
 }>
 
 export type RecordMetricDeps = Readonly<{
@@ -41,6 +42,7 @@ export const recordMetric =
       portalId: input.portalId,
       metricKey: input.metricKey,
       value: input.value,
+      staffId: input.staffId,
       recordedAt: deps.clock(),
     })
   }

@@ -60,6 +60,7 @@ describe('onFeedbackSubmitted', () => {
       portalId: portalId('portal-1'),
       metricKey: 'portal.feedback',
       value: 1,
+      staffId: null,
     })
   })
 

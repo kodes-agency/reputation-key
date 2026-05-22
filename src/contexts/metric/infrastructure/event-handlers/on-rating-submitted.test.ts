@@ -56,6 +56,7 @@ describe('onRatingSubmitted', () => {
       portalId: portalId('portal-1'),
       metricKey: 'portal.rating',
       value: 4,
+      staffId: null,
     })
   })
 

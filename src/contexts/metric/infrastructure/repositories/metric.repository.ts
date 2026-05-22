@@ -11,7 +11,13 @@ import type { Database } from '#/shared/db'
 import { metricReadings } from '#/shared/db/schema/metric.schema'
 import type { MetricRepository } from '../../application/ports/metric.repository'
 import type { MetricKey, MetricReading } from '../../domain/types'
-import { metricReadingId, organizationId as orgIdCtor, propertyId as propIdCtor, portalId as portalIdCtor } from '#/shared/domain/ids'
+import {
+  metricReadingId,
+  organizationId as orgIdCtor,
+  propertyId as propIdCtor,
+  portalId as portalIdCtor,
+  staffId as staffIdCtor,
+} from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 
 const VALID_METRIC_KEYS: Set<string> = new Set([
@@ -33,6 +39,7 @@ function readingFromRow(row: typeof metricReadings.$inferSelect): MetricReading 
     portalId: row.portalId ? portalIdCtor(row.portalId) : null,
     metricKey: row.metricKey as MetricKey,
     value: row.value,
+    staffId: row.staffId ? staffIdCtor(row.staffId) : null,
     recordedAt: row.recordedAt,
   }
 }
@@ -48,6 +55,7 @@ export const createMetricRepository = (db: Database): MetricRepository => ({
           portalId: reading.portalId,
           metricKey: reading.metricKey,
           value: reading.value,
+          staffId: reading.staffId,
           recordedAt: reading.recordedAt,
         })
         .returning()

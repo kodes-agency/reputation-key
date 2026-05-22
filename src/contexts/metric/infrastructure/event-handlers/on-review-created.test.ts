@@ -2,7 +2,12 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { onReviewCreated, type OnReviewCreatedDeps } from './on-review-created'
 import type { MetricReading } from '../../domain/types'
 import type { RecordMetricInput } from '../../application/use-cases/record-metric'
-import { organizationId, propertyId, reviewId, metricReadingId } from '#/shared/domain/ids'
+import {
+  organizationId,
+  propertyId,
+  reviewId,
+  metricReadingId,
+} from '#/shared/domain/ids'
 
 const FIXED_TIME = new Date('2026-05-20T12:00:00Z')
 
@@ -14,7 +19,11 @@ const createFakeDeps = (): OnReviewCreatedDeps & {
     readings,
     recordMetric: async (input) => {
       readings.push({ ...input })
-      return { id: metricReadingId('metric-1'), ...input, recordedAt: FIXED_TIME } as MetricReading
+      return {
+        id: metricReadingId('metric-1'),
+        ...input,
+        recordedAt: FIXED_TIME,
+      } as MetricReading
     },
   }
 }
@@ -47,6 +56,7 @@ describe('onReviewCreated', () => {
       portalId: null,
       metricKey: 'property.review',
       value: 3,
+      staffId: null,
     })
   })
 

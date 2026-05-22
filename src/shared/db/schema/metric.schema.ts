@@ -41,6 +41,7 @@ export const metricReadings = pgTable(
     portalId: uuid('portal_id').references(() => portals.id, { onDelete: 'cascade' }),
     metricKey: varchar('metric_key', { length: 100 }).notNull(),
     value: real('value').notNull(),
+    staffId: varchar('staff_id', { length: 255 }),
     recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull(),
   },
   (t) => [
