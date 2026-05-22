@@ -5,6 +5,7 @@ import type {
   ScanEventId,
   RatingId,
   FeedbackId,
+  StaffId,
 } from '#/shared/domain/ids'
 
 export type ScanSource = 'qr' | 'nfc' | 'direct'
@@ -17,6 +18,7 @@ export type ScanEvent = Readonly<{
   source: ScanSource
   sessionId: string
   ipHash: string
+  staffId: StaffId | null
   createdAt: Date
 }>
 
@@ -29,6 +31,7 @@ export type Rating = Readonly<{
   value: number
   source: ScanSource
   ipHash: string
+  staffId: StaffId | null
   createdAt: Date
 }>
 
@@ -42,5 +45,6 @@ export type Feedback = Readonly<{
   comment: string
   source: ScanSource
   ipHash: string
+  staffId: StaffId | null
   createdAt: Date
 }>

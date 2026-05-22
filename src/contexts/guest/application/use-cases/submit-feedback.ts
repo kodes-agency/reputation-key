@@ -35,8 +35,15 @@ export const submitFeedback =
   async (input: SubmitFeedbackInput): Promise<Feedback> => {
     const feedbackResult = buildFeedback({
       id: deps.idGen(),
-      ...input,
+      organizationId: input.organizationId,
+      portalId: input.portalId,
+      propertyId: input.propertyId,
+      sessionId: input.sessionId,
+      comment: input.comment,
+      source: input.source,
+      ipHash: input.ipHash,
       ratingId: input.ratingId ?? null,
+      staffId: null,
       now: deps.clock(),
     })
 

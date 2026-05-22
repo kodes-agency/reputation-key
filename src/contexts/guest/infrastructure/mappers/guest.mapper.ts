@@ -9,6 +9,7 @@ export const scanEventToRow = (scan: ScanEvent) => ({
   source: scan.source,
   sessionId: scan.sessionId,
   ipHash: scan.ipHash,
+  staffId: scan.staffId as string | null,
   createdAt: scan.createdAt,
 })
 
@@ -21,6 +22,7 @@ export const ratingToRow = (rating: Rating) => ({
   value: rating.value,
   source: rating.source,
   ipHash: rating.ipHash,
+  staffId: rating.staffId as string | null,
   createdAt: rating.createdAt,
 })
 
@@ -34,5 +36,6 @@ export const feedbackToRow = (fb: Feedback) => ({
   comment: fb.comment,
   source: fb.source,
   ipHash: fb.ipHash,
+  staffId: fb.staffId as string | null,
   createdAt: fb.createdAt,
 })

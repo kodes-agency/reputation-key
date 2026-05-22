@@ -38,7 +38,14 @@ export const submitRating =
 
     const ratingResult = buildRating({
       id: deps.idGen(),
-      ...input,
+      organizationId: input.organizationId,
+      portalId: input.portalId,
+      propertyId: input.propertyId,
+      sessionId: input.sessionId,
+      value: input.value,
+      source: input.source,
+      ipHash: input.ipHash,
+      staffId: null,
       now: deps.clock(),
     })
 

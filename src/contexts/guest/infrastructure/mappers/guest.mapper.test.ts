@@ -26,6 +26,7 @@ function buildTestScanEvent(overrides?: Partial<ScanEvent>): ScanEvent {
     source: 'qr',
     sessionId: 'session-abc',
     ipHash: 'hash123',
+    staffId: null,
     createdAt: new Date('2026-05-01T12:00:00Z'),
     ...overrides,
   }
@@ -41,6 +42,7 @@ function buildTestRating(overrides?: Partial<Rating>): Rating {
     value: 5,
     source: 'qr',
     ipHash: 'hash456',
+    staffId: null,
     createdAt: new Date('2026-05-01T12:00:00Z'),
     ...overrides,
   }
@@ -57,6 +59,7 @@ function buildTestFeedback(overrides?: Partial<Feedback>): Feedback {
     comment: 'Great service!',
     source: 'nfc',
     ipHash: 'hash789',
+    staffId: null,
     createdAt: new Date('2026-05-01T12:00:00Z'),
     ...overrides,
   }
@@ -76,6 +79,7 @@ describe('scanEventToRow', () => {
     expect(row.source).toBe('qr')
     expect(row.sessionId).toBe('session-abc')
     expect(row.ipHash).toBe('hash123')
+    expect(row.staffId).toBeNull()
     expect(row.createdAt).toEqual(new Date('2026-05-01T12:00:00Z'))
   })
 
@@ -106,6 +110,7 @@ describe('ratingToRow', () => {
     expect(row.value).toBe(5)
     expect(row.source).toBe('qr')
     expect(row.ipHash).toBe('hash456')
+    expect(row.staffId).toBeNull()
     expect(row.createdAt).toEqual(new Date('2026-05-01T12:00:00Z'))
   })
 
@@ -138,6 +143,7 @@ describe('feedbackToRow', () => {
     expect(row.comment).toBe('Great service!')
     expect(row.source).toBe('nfc')
     expect(row.ipHash).toBe('hash789')
+    expect(row.staffId).toBeNull()
     expect(row.createdAt).toEqual(new Date('2026-05-01T12:00:00Z'))
   })
 
