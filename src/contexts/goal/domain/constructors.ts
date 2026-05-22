@@ -126,7 +126,10 @@ export function buildGoal(input: BuildGoalInput): Result<Goal, GoalConstructionE
     }
     case 'recurring': {
       if (!recurrenceRule) return err({ tag: 'recurrence_rule_required' })
-      if (periodStart || periodEnd)
+      // Template (no parentGoalId) cannot have period dates;
+      // Instances (parentGoalId set) must have period dates.
+      const parentGoalId = input.parentGoalId ?? null
+      if (!parentGoalId && (periodStart || periodEnd))
         return err({ tag: 'period_not_allowed', goalType: 'recurring' })
       if (rollingWindowDays !== null)
         return err({ tag: 'rolling_window_not_allowed', goalType: 'recurring' })
