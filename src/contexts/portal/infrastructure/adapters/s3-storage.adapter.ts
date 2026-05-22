@@ -10,19 +10,16 @@ import {
 } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import type { StoragePort } from '../../application/ports/storage.port'
-import { getEnv } from '#/shared/config/env'
 import { portalError } from '../../domain/errors'
 
-export const createS3StorageAdapter = (): StoragePort => {
-  const env = getEnv()
-
+export const createS3StorageAdapter = (config: {
+  accessKey?: string
+  secretKey?: string
+  bucketName?: string
+  region?: string
+}): StoragePort => {
   // If S3 is not configured, return a noop adapter
-  if (
-    !env.AWS_S3_ACCESS_KEY ||
-    !env.AWS_S3_SECRET_ACCESS_KEY ||
-    !env.AWS_S3_BUCKET_NAME ||
-    !env.AWS_S3_REGION
-  ) {
+  if (!config.accessKey || !config.secretKey || !config.bucketName || !config.region) {
     return {
       createPresignedUploadUrl: async () => {
         throw portalError('upload_failed', 'S3 storage is not configured')
@@ -41,15 +38,15 @@ export const createS3StorageAdapter = (): StoragePort => {
   }
 
   const client = new S3Client({
-    region: env.AWS_S3_REGION,
+    region: config.region,
     credentials: {
-      accessKeyId: env.AWS_S3_ACCESS_KEY,
-      secretAccessKey: env.AWS_S3_SECRET_ACCESS_KEY,
+      accessKeyId: config.accessKey,
+      secretAccessKey: config.secretKey,
     },
   })
 
-  const bucketName = env.AWS_S3_BUCKET_NAME
-  const region = env.AWS_S3_REGION
+  const bucketName = config.bucketName
+  const region = config.region
 
   return {
     createPresignedUploadUrl: async (key, contentType, _maxSizeBytes) => {

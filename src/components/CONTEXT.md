@@ -18,6 +18,8 @@ components/
     property/      property-detail/, property-form/
     staff/         (flat)
     team/          team-form/, team-members/
+    integration/   (flat — Google connection management)
+    settings/      (flat — preferences, profile, security, organization)
 ```
 
 **Also adjacent:** `src/hooks/` (lower-level utility hooks: `use-as-ref`, `use-isomorphic-layout-effect`, `use-lazy-ref`) and `src/lib/` (shared utilities: `utils.ts`, `compose-refs`, `lookups`). These are not component-specific.

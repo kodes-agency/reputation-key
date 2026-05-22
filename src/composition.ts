@@ -17,7 +17,7 @@ import type { RateLimiter } from '#/shared/rate-limit/middleware'
 import { createJobQueue } from '#/shared/jobs/queue'
 import { createJobRegistry } from '#/shared/jobs/registry'
 import type { JobRegistry } from '#/shared/jobs/registry'
-import { createAuthIdentityAdapter } from '#/contexts/identity/infrastructure/adapters/auth-identity.adapter'
+import { createBetterAuthIdentityAdapter } from '#/contexts/identity/infrastructure/adapters/auth-identity.adapter'
 import {
   betterAuthOrganizationSchema,
   parseBetterAuthResponse,
@@ -42,6 +42,8 @@ import { buildMetricContext } from '#/contexts/metric/build'
 import { buildDashboardContext } from '#/contexts/dashboard/build'
 import { createStaffAssignmentRepository } from '#/contexts/staff/infrastructure/repositories/staff-assignment.repository'
 import { createGoogleReviewApiAdapter } from '#/contexts/integration/infrastructure/adapters/google-review-api.adapter'
+import { handleGbpNotification } from '#/contexts/integration/application/use-cases'
+import type { PropertyLookupPort } from '#/contexts/integration/application/ports/property-lookup.port'
 import {
   propertyId,
   organizationId as toOrgId,
@@ -121,7 +123,7 @@ export function createContainer(options?: { enableJobs?: boolean }) {
   const infra = buildInfrastructure({ redis, enableJobs })
 
   // Identity port (adapter)
-  const identityPort = createAuthIdentityAdapter()
+  const identityPort = createBetterAuthIdentityAdapter()
 
   // ── Context builds (dependency order) ──────────────────────────────
   const staff = buildStaffContext({
@@ -182,11 +184,22 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     linkResolver: portal.linkResolver,
   })
 
+  // ── Property lookup port for integration context (webhook) ────────
+  // The GBP webhook needs to find properties by gbpPlaceId without an
+  // organizationId (push-based from Google).
+  // Per architecture fix (M4): delegates to Property context's public API
+  // instead of querying the properties table directly.
+  const propertyLookup: PropertyLookupPort = {
+    findByGbpPlaceId: property.publicApi.findByGbpPlaceId,
+  }
+
   const integration = buildIntegrationContext({
     db,
     events: eventBus,
     clock,
     jobQueue: infra.jobQueue,
+    propertyLookup,
+    logger: getLogger(),
   })
 
   // ── Review context (cross-context wiring) ──────────────────────────
@@ -204,6 +217,7 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     clock,
     googleReviewApi,
     jobQueue: infra.jobQueue,
+    logger: getLogger(),
   })
 
   const inbox = buildInboxContext({
@@ -212,6 +226,7 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     redis,
     clock,
     staffPublicApi: staff.publicApi,
+    logger: getLogger(),
   })
 
   buildMetricContext({
@@ -266,6 +281,11 @@ export function createContainer(options?: { enableJobs?: boolean }) {
       ...portal.useCases,
       ...guest.useCases,
       ...integration.useCases,
+      handleGbpNotification: handleGbpNotification({
+        propertyLookup,
+        reviewQueue: review.queue,
+        logger: getLogger(),
+      }),
       syncReviews: review.syncReviews,
       draftReply: review.draftReply,
       submitReply: review.submitReply,

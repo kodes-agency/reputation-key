@@ -10,14 +10,15 @@
 || Property    | Properties (hotels/restaurants) + GBP location import  | Property                               | Thick     |
 || Portal      | Guest-facing portal pages with links, per property     | Portal, Link, LinkCategory             | Thick     |
 || Guest       | Public portal rendering, rating collection, feedback   | Rating, Feedback                       | Thick     |
-|| Team        | Staff teams and shift management                       | Team, StaffAssignment                  | Thick     |
-|| Staff       | Staff assignments to properties                        | StaffAssignment                        | Standard  |
-|| Integration | Google connections, OAuth, tokens, GBP API adapter     | GoogleConnection                       | Standard  |
+| Team        | Staff teams and shift management                       | Team                                  | Thick     |
+| Staff       | Staff assignments to properties                        | StaffAssignment                        | Standard  |
+| Integration | Google connections, OAuth, tokens, GBP API adapter     | GoogleConnection                       | Standard  |
 | Review      | External platform reviews (Google), sync, replies      | Review                                 | Thick     |
 | Inbox       | Unified triage surface for reviews + feedback          | InboxItem, InboxNote                   | Thick     |
+| Metric      | Aggregation of raw counters (scans, ratings, clicks, reviews) | MetricReading               | Standard  |
 | Dashboard   | Read-only aggregation of metrics, reviews, replies     | —                                      | Thin (read model) |
 
-**Thin contexts** (like Identity) may have empty layer folders — no mappers, no jobs, sparse use cases. That's expected.
+**Thin contexts** (like Identity) may have empty layer folders — no mappers, no jobs, sparse use cases. That's expected. **Metric context** has no `server/` layer by design — it records readings via event handlers and background jobs, not via server functions called from routes.
 
 Contexts communicate via domain events. Cross-context type imports allowed for events only. For behavior, subscribe to events, define a port, or import from `application/public-api.ts`.
 

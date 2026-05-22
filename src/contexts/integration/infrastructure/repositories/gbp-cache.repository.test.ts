@@ -5,10 +5,13 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest'
 import { createGbpCacheRepository } from './gbp-cache.repository'
 import { getDb } from '#/shared/db'
-import { organizationId, propertyId } from '#/shared/domain/ids'
+import { organizationId, propertyId, gbpCacheEntryId } from '#/shared/domain/ids'
 import { Pool } from 'pg'
 import { getEnv } from '#/shared/config/env'
 import type { GbpCacheEntry, GbpCacheDataType } from '../../domain/types'
+import type { PropertyQueryPort } from '../../application/ports/property-query.port'
+import { properties } from '#/shared/db/schema/property.schema'
+import { and, eq } from 'drizzle-orm'
 
 const ORG_A = organizationId('org-cache-aaaaaa')
 const ORG_B = organizationId('org-cache-bbbbbb')
@@ -23,9 +26,33 @@ const CONNECTION_ID_B = crypto.randomUUID()
 
 let pool: Pool
 
+/** Test-only PropertyQueryPort that queries the DB directly. */
+const testPropertyQuery = (db: ReturnType<typeof getDb>): PropertyQueryPort => ({
+  belongsToOrg: async (propertyId, orgId) => {
+    const rows = await db
+      .select({ id: properties.id })
+      .from(properties)
+      .where(and(eq(properties.id, propertyId), eq(properties.organizationId, orgId)))
+      .limit(1)
+    return rows.length > 0
+  },
+  findIdsByGoogleConnection: async (connectionId, orgId) => {
+    const rows = await db
+      .select({ id: properties.id })
+      .from(properties)
+      .where(
+        and(
+          eq(properties.googleConnectionId, connectionId),
+          eq(properties.organizationId, orgId),
+        ),
+      )
+    return rows.map((r) => r.id)
+  },
+})
+
 function buildTestCacheEntry(overrides: Partial<GbpCacheEntry> = {}): GbpCacheEntry {
   return {
-    id: crypto.randomUUID(),
+    id: gbpCacheEntryId(crypto.randomUUID()),
     organizationId: ORG_A,
     propertyId: PROP_A,
     gbpPlaceId: 'ChIJ-test-place-id',
@@ -34,6 +61,7 @@ function buildTestCacheEntry(overrides: Partial<GbpCacheEntry> = {}): GbpCacheEn
     googleAttribution: 'Google',
     fetchedAt: new Date('2026-05-01T12:00:00Z'),
     expiresAt: new Date('2027-12-31T23:59:59Z'),
+    updatedAt: new Date('2026-05-01T12:00:00Z'),
     ...overrides,
   }
 }
@@ -114,7 +142,7 @@ describe('gbpCacheRepository (integration)', () => {
   describe('upsert and findByPropertyAndType', () => {
     it('inserts and retrieves a cache entry', async () => {
       const db = getDb()
-      const repo = createGbpCacheRepository(db)
+      const repo = createGbpCacheRepository(db, testPropertyQuery(db))
       const entry = buildTestCacheEntry()
 
       await repo.upsert(entry)
@@ -129,7 +157,7 @@ describe('gbpCacheRepository (integration)', () => {
 
     it('updates on conflict (same propertyId + dataType)', async () => {
       const db = getDb()
-      const repo = createGbpCacheRepository(db)
+      const repo = createGbpCacheRepository(db, testPropertyQuery(db))
       const entry = buildTestCacheEntry()
       await repo.upsert(entry)
 
@@ -146,7 +174,7 @@ describe('gbpCacheRepository (integration)', () => {
 
     it('returns null when no entry exists for given type', async () => {
       const db = getDb()
-      const repo = createGbpCacheRepository(db)
+      const repo = createGbpCacheRepository(db, testPropertyQuery(db))
       // 'location' is the only valid type now; no entry inserted in this scope
       expect(await repo.findByPropertyAndType(ORG_A, PROP_A, 'location')).toBeNull()
     })
@@ -155,7 +183,7 @@ describe('gbpCacheRepository (integration)', () => {
   describe('deleteByProperty', () => {
     it('deletes cache entries by property', async () => {
       const db = getDb()
-      const repo = createGbpCacheRepository(db)
+      const repo = createGbpCacheRepository(db, testPropertyQuery(db))
       await repo.upsert(buildTestCacheEntry({ dataType: 'location' }))
 
       await repo.deleteByProperty(PROP_A, ORG_A as string)
@@ -167,7 +195,7 @@ describe('gbpCacheRepository (integration)', () => {
   describe('deleteAllExpired', () => {
     it('deletes entries with past expiry', async () => {
       const db = getDb()
-      const repo = createGbpCacheRepository(db)
+      const repo = createGbpCacheRepository(db, testPropertyQuery(db))
       await repo.upsert(
         buildTestCacheEntry({
           dataType: 'location',
@@ -186,7 +214,7 @@ describe('gbpCacheRepository (integration)', () => {
   describe('tenant isolation', () => {
     it('findByPropertyAndType returns null for different org', async () => {
       const db = getDb()
-      const repo = createGbpCacheRepository(db)
+      const repo = createGbpCacheRepository(db, testPropertyQuery(db))
 
       // Upsert a cache entry for ORG_B's property
       await repo.upsert(
@@ -209,7 +237,7 @@ describe('gbpCacheRepository (integration)', () => {
 
     it('deleteByProperty does not delete other org cache entries', async () => {
       const db = getDb()
-      const repo = createGbpCacheRepository(db)
+      const repo = createGbpCacheRepository(db, testPropertyQuery(db))
 
       // Upsert cache entries for both orgs
       await repo.upsert(
@@ -241,7 +269,7 @@ describe('gbpCacheRepository (integration)', () => {
 
     it('deleteByConnectionId does not delete other org cache entries', async () => {
       const db = getDb()
-      const repo = createGbpCacheRepository(db)
+      const repo = createGbpCacheRepository(db, testPropertyQuery(db))
 
       // Upsert cache entries for both orgs
       await repo.upsert(
@@ -260,7 +288,7 @@ describe('gbpCacheRepository (integration)', () => {
       )
 
       // Delete ORG_A's cache by connection — should only affect ORG_A's properties
-      const deleted = await repo.deleteByConnectionId(CONNECTION_ID_A, ORG_A as string)
+      const deleted = await repo.deleteByConnectionId(CONNECTION_ID_A, ORG_A)
       expect(deleted).toBeGreaterThanOrEqual(1)
 
       // ORG_A's entry should be gone
@@ -274,7 +302,7 @@ describe('gbpCacheRepository (integration)', () => {
 
     it('upsert does not overwrite other org cache entry with same propertyId', async () => {
       const db = getDb()
-      const repo = createGbpCacheRepository(db)
+      const repo = createGbpCacheRepository(db, testPropertyQuery(db))
 
       // Upsert cache for ORG_A with PROP_A
       await repo.upsert(

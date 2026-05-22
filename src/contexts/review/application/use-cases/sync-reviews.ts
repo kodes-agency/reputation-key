@@ -25,7 +25,7 @@ import type {
 } from '#/shared/domain/ids'
 import type { Review, GoogleReview } from '../../domain/types'
 import type { ReviewError } from '../../domain/errors'
-import { getLogger } from '#/shared/observability/logger'
+import type { Logger } from 'pino'
 import { reviewCreated, reviewUpdated } from '../../domain/events'
 import { reviewError } from '../../domain/errors'
 import { calculateExpiresAt } from '../../domain/rules'
@@ -39,6 +39,7 @@ export type SyncReviewsDeps = Readonly<{
   clock: () => Date
   idGen: () => ReviewId
   replyIdGen: () => ReplyId
+  logger: Logger
 }>
 
 export type SyncReviewsInput = Readonly<{
@@ -149,7 +150,7 @@ export const syncReviews =
           await deps.events.emit(reviewUpdated(eventPayload))
         }
       } catch (syncErr) {
-        getLogger().warn(
+        deps.logger.warn(
           { err: syncErr, externalId: gr.externalId },
           'Failed to sync review, continuing',
         )

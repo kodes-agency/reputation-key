@@ -48,3 +48,23 @@ export {
   type GetImportStatusDeps,
   type GetImportStatus,
 } from './get-import-status'
+
+export {
+  handleGbpNotification,
+  type HandleGbpNotificationDeps,
+  type HandleGbpNotification,
+  type HandleGbpNotificationInput,
+  type HandleGbpNotificationResult,
+} from './handle-gbp-notification'
+
+export {
+  importProperty,
+  type ImportPropertyDeps,
+  type ImportProperty,
+  type ImportPropertyUseCase,
+  type ImportPropertyInput,
+  type ImportPropertyResult,
+  type CreatedProperty,
+} from './import-property'
+
+export { type PropertyImportRepo } from '../ports/property-import-repo.port'

@@ -44,6 +44,7 @@ export function bootstrap(container: Container): void {
   const processImageHandler = createProcessImageJob({
     storage: container.storage,
     portalRepo: container.portalRepo,
+    clock: () => new Date(),
   })
   container.jobRegistry.register('process-image', async (job) => {
     await processImageHandler(
@@ -56,7 +57,7 @@ export function bootstrap(container: Container): void {
 
   // ── GBP property import job ─────────────────────────────────────
   const importHandler = createImportPropertyHandler({
-    events: container.eventBus,
+    importPropertyUseCase: container.useCases.importProperty,
   })
   container.jobRegistry.register('import-property', async (job) => {
     await importHandler(

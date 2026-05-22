@@ -7,8 +7,21 @@ import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { getContainer } from '#/composition'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
+import { can } from '#/shared/domain/permissions'
+import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getDashboardDataDto, type TimeRangePreset } from '../application/dto/dashboard.dto'
 import { propertyId, portalId } from '#/shared/domain/ids'
+import { isDashboardError } from '../domain/errors'
+import type { DashboardErrorCode } from '../domain/errors'
+import { dashboardError } from '../domain/errors'
+import { match } from 'ts-pattern'
+
+const dashboardErrorStatus = (code: DashboardErrorCode): number =>
+  match(code)
+    .with('forbidden', () => 403)
+    .with('not_found', () => 404)
+    .with('invalid_input', () => 400)
+    .exhaustive()
 
 const MS_PER_DAY = 86_400_000
 
@@ -26,18 +39,27 @@ export const getDashboardDataFn = createServerFn({ method: 'GET' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const headers = headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-        const { useCases } = getContainer()
-        const { startDate, endDate } = timeRangeToDates(data.timeRange)
+        try {
+          const headers = headersFromContext()
+          const ctx = await resolveTenantContext(headers)
+          if (!can(ctx.role, 'dashboard.read')) {
+            throw dashboardError('forbidden', 'Insufficient permissions to view dashboard')
+          }
+          const { useCases } = getContainer()
+          const { startDate, endDate } = timeRangeToDates(data.timeRange)
 
-        return useCases.getDashboardData({
-          organizationId: ctx.organizationId,
-          propertyId: propertyId(data.propertyId),
-          portalId: data.portalId ? portalId(data.portalId) : null,
-          startDate,
-          endDate,
-        })
+          return await useCases.getDashboardData({
+            organizationId: ctx.organizationId,
+            propertyId: propertyId(data.propertyId),
+            portalId: data.portalId ? portalId(data.portalId) : null,
+            startDate,
+            endDate,
+          })
+        } catch (e) {
+          if (isDashboardError(e))
+            throwContextError('DashboardError', e, dashboardErrorStatus(e.code))
+          catchUntagged(e)
+        }
       },
       'GET',
       'dashboard.getDashboardData',

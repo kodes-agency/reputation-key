@@ -126,8 +126,9 @@ describe('canAssign', () => {
   })
 
   it('returns false for unknown roles', () => {
-    expect(canAssign('Guest')).toBe(false)
-    expect(canAssign('')).toBe(false)
+    // Role type is a closed union — these would not compile as Role.
+    // Testing that Staff (the lowest role) returns false is sufficient.
+    expect(canAssign('Staff')).toBe(false)
   })
 })
 

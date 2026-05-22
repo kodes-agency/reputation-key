@@ -14,5 +14,5 @@ export type GbpCacheRepository = Readonly<{
   upsert: (entry: GbpCacheEntry) => Promise<void>
   deleteByProperty: (propertyId: PropertyId, orgId: string) => Promise<void>
   deleteAllExpired: () => Promise<number>
-  deleteByConnectionId: (connectionId: string, orgId: string) => Promise<number>
+  deleteByConnectionId: (connectionId: string, orgId: OrganizationId) => Promise<number>
 }>

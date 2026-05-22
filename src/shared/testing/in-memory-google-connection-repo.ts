@@ -1,10 +1,9 @@
 // In-memory GoogleConnectionRepository fake — for use in use case tests.
 // Implements the same port interface so use cases can't tell the difference.
 
-import type { GoogleConnectionRepository } from '#/contexts/integration/application/ports/google-connection.repository'
+import type { GoogleConnectionRepository, ConnectionVisibilityFilter } from '#/contexts/integration/application/ports/google-connection.repository'
 import type { GoogleConnection } from '#/contexts/integration/domain/types'
 import type { OrganizationId } from '#/shared/domain/ids'
-import { hasRole } from '#/shared/domain/roles'
 
 // fallow-ignore-next-line unused-type
 export type InMemoryGoogleConnectionRepo = GoogleConnectionRepository &
@@ -34,11 +33,11 @@ export const createInMemoryGoogleConnectionRepo = (): InMemoryGoogleConnectionRe
       return null
     },
 
-    listByOrganization: async (orgId, userId, role) => {
+    listByOrganization: async (orgId, filter: ConnectionVisibilityFilter) => {
       const orgConnections = [...store.values()].filter(byOrg(orgId))
-      if (hasRole(role, 'AccountAdmin')) return orgConnections
+      if (filter.showAll === true) return orgConnections
       return orgConnections.filter(
-        (c) => c.visibility === 'organization' || c.connectedBy === userId,
+        (c) => c.visibility === 'organization' || c.connectedBy === filter.userId,
       )
     },
 

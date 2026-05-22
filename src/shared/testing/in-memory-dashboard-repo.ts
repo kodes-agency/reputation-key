@@ -4,6 +4,7 @@ import type {
   KPIs,
   EngagementFunnel,
 } from '#/contexts/dashboard/domain/types'
+import { reviewId } from '#/shared/domain/ids'
 
 export function createInMemoryDashboardRepository(): DashboardRepository & {
   calls: string[]
@@ -65,7 +66,7 @@ export function createInMemoryDashboardRepository(): DashboardRepository & {
     async getRecentReviews() {
       calls.push('getRecentReviews')
       return [
-        { id: 'r1', rating: 5, snippet: 'Great!', reviewedAt: new Date(), replyStatus: 'none' as const },
+        { id: reviewId('r1'), rating: 5, snippet: 'Great!', reviewedAt: new Date(), replyStatus: 'none' as const },
       ]
     },
   }

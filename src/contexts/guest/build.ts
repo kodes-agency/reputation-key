@@ -1,6 +1,6 @@
 import type { EventBus } from '#/shared/events/event-bus'
 import type { Database } from '#/shared/db'
-import type { LinkResolverPort } from '#/contexts/portal/application/ports/link-resolver.port'
+import type { LinkResolverPort } from '#/contexts/portal/application/public-api'
 import { createGuestInteractionRepository } from './infrastructure/repositories/guest-interaction.repository'
 import { createPortalContextResolver } from './infrastructure/resolvers/portal-context-resolver'
 import { createPublicPortalLookup } from './infrastructure/resolvers/public-portal-lookup'

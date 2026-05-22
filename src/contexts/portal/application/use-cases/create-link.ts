@@ -71,7 +71,7 @@ export const createLink =
       portalLinkCreated({
         portalId: portalId(input.portalId),
         linkId: result.value.id,
-        categoryId: input.categoryId,
+        categoryId: portalLinkCategoryId(input.categoryId),
         organizationId: ctx.organizationId,
         occurredAt: deps.clock(),
       }),

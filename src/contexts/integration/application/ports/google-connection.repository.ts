@@ -9,7 +9,28 @@ import type {
   GoogleConnectionStatus,
 } from '../../domain/types'
 import type { OrganizationId, UserId } from '#/shared/domain/ids'
-import type { Role } from '#/shared/domain/roles'
+
+/** Tagged error thrown when a unique-constraint violation occurs on insert. */
+export type UniqueViolationError = Readonly<{
+  _tag: 'UniqueViolationError'
+  code: 'unique_violation'
+  message: string
+}>
+
+export const uniqueViolationError = (message: string): UniqueViolationError => ({
+  _tag: 'UniqueViolationError',
+  code: 'unique_violation',
+  message,
+})
+
+export const isUniqueViolationError = (e: unknown): e is UniqueViolationError =>
+  typeof e === 'object' && e !== null && (e as UniqueViolationError)._tag === 'UniqueViolationError'
+
+/** Pre-computed visibility filter — the use case decides this, not the repo. */
+export type ConnectionVisibilityFilter = Readonly<
+  | { showAll: true }
+  | { showAll: false; userId: UserId }
+>
 
 export type GoogleConnectionRepository = Readonly<{
   findById: (
@@ -22,8 +43,7 @@ export type GoogleConnectionRepository = Readonly<{
   ) => Promise<GoogleConnection | null>
   listByOrganization: (
     orgId: OrganizationId,
-    userId: UserId,
-    role: Role,
+    filter: ConnectionVisibilityFilter,
   ) => Promise<ReadonlyArray<GoogleConnection>>
   insert: (connection: GoogleConnection) => Promise<void>
   updateStatus: (

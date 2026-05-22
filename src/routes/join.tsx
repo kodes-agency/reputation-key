@@ -8,7 +8,6 @@ import { AuthCard, AuthFooterLink } from '#/components/layout/auth-layout'
 import { RegisterForm } from '#/components/features/identity'
 import { registerMember } from '#/contexts/identity/server/organizations'
 import { useAction, wrapAction } from '#/components/hooks/use-action'
-import { useState } from 'react'
 
 export const Route = createFileRoute('/join')({
   beforeLoad: async () => {
@@ -23,19 +22,16 @@ export const Route = createFileRoute('/join')({
 function JoinPage() {
   const search = Route.useSearch() as { redirect?: string }
   const router = useRouter()
-  const [success, setSuccess] = useState(false)
   const register = useAction(useServerFn(registerMember))
 
   const mutation = wrapAction(register, async () => {
     await router.invalidate()
     if (search.redirect) {
       router.history.push(search.redirect)
-    } else {
-      setSuccess(true)
     }
   })
 
-  if (success) {
+  if (mutation.isSuccess && !search.redirect) {
     return (
       <AuthCard
         title="Account created!"

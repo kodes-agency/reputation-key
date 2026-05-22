@@ -6,6 +6,7 @@ import type {
   GbpAccount,
 } from '#/contexts/integration/application/ports/gbp-api.port'
 import type { GbpLocation } from '#/contexts/integration/domain/types'
+import type { GbpApiError } from '#/contexts/integration/domain/gbp-api-error'
 
 // fallow-ignore-next-line unused-type
 export type InMemoryGbpApiPort = GbpApiPort &
@@ -13,14 +14,14 @@ export type InMemoryGbpApiPort = GbpApiPort &
     setAccounts: (accounts: ReadonlyArray<GbpAccount>) => void
     setLocations: (accountName: string, locations: ReadonlyArray<GbpLocation>) => void
     setLocation: (locationName: string, location: GbpLocation) => void
-    setError: (operation: string, error: Error) => void
+    setError: (operation: string, error: Error | GbpApiError) => void
   }>
 
 export const createInMemoryGbpApiPort = (): InMemoryGbpApiPort => {
   let accounts: ReadonlyArray<GbpAccount> = []
   const locationsByAccount = new Map<string, ReadonlyArray<GbpLocation>>()
   const locationsByName = new Map<string, GbpLocation>()
-  const errors = new Map<string, Error>()
+  const errors = new Map<string, Error | GbpApiError>()
 
   return {
     listAccounts: async (_accessToken) => {

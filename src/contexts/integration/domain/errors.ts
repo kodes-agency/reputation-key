@@ -1,7 +1,6 @@
 // Integration context — domain errors
-// Hybrid tagged union grafted onto Error via Object.defineProperties.
-// Same pattern as GbpApiError — pino serializes Error instances properly (message + stack),
-// and the _tag field enables isIntegrationError() type guards.
+// Per architecture: tagged error shape with _tag, code, message.
+// Error codes form a closed union so ts-pattern .exhaustive() works at the server boundary.
 
 export type IntegrationErrorCode =
   | 'forbidden'
@@ -22,23 +21,21 @@ export type IntegrationError = Readonly<{
   code: IntegrationErrorCode
   message: string
   recoverable: boolean
+  context?: Readonly<Record<string, unknown>>
 }>
 
 export const integrationError = (
   code: IntegrationErrorCode,
   message: string,
   recoverable = false,
-): Error & IntegrationError => {
-  const error = new Error(message)
-  const tagged = error as Error & IntegrationError
-  Object.defineProperties(tagged, {
-    _tag: { value: 'IntegrationError', enumerable: true },
-    code: { value: code, enumerable: true },
-    message: { value: message, enumerable: true },
-    recoverable: { value: recoverable, enumerable: true },
-  })
-  return tagged
-}
+  context?: Readonly<Record<string, unknown>>,
+): IntegrationError => ({
+  _tag: 'IntegrationError',
+  code,
+  message,
+  recoverable,
+  ...(context ? { context } : {}),
+})
 
 export const isIntegrationError = (e: unknown): e is IntegrationError =>
   typeof e === 'object' &&

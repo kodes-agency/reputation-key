@@ -3,9 +3,13 @@ import type { Database } from '#/shared/db'
 import { portals } from '#/shared/db/schema/portal.schema'
 import type { PortalContextResolver } from '../../application/ports/portal-context-resolver.port'
 import type { OrganizationId, PropertyId, PortalId } from '#/shared/domain/ids'
+import { unbrand } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 
 export const createPortalContextResolver = (db: Database): PortalContextResolver => ({
+  // PUBLIC API — no organizationId scoping by design.
+  // These resolvers serve unauthenticated guest requests where the
+  // link/portal ID acts as a capability token (unguessable UUID).
   resolve: async (portalId: PortalId) => {
     return trace('portalContext.resolve', async () => {
       const row = await db
@@ -14,7 +18,7 @@ export const createPortalContextResolver = (db: Database): PortalContextResolver
           propertyId: portals.propertyId,
         })
         .from(portals)
-        .where(eq(portals.id, portalId as unknown as string))
+        .where(eq(portals.id, unbrand(portalId)))
         .limit(1)
 
       if (row.length === 0) return null

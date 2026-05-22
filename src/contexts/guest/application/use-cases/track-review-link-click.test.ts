@@ -1,6 +1,6 @@
 import { trackReviewLinkClick } from './track-review-link-click'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
-import { organizationId, portalId, propertyId } from '#/shared/domain/ids'
+import { organizationId, portalId, propertyId, portalLinkId } from '#/shared/domain/ids'
 
 describe('trackReviewLinkClick', () => {
   it('emits review-link.clicked event', async () => {
@@ -11,7 +11,7 @@ describe('trackReviewLinkClick', () => {
     })
 
     await useCase({
-      linkId: 'link-123',
+      linkId: portalLinkId('link-123'),
       organizationId: organizationId('org-1'),
       portalId: portalId('portal-1'),
       propertyId: propertyId('prop-1'),
@@ -37,7 +37,7 @@ describe('trackReviewLinkClick', () => {
 
     await expect(
       useCase({
-        linkId: 'link-123',
+        linkId: portalLinkId('link-123'),
         organizationId: organizationId('org-1'),
         portalId: portalId('portal-1'),
         propertyId: propertyId('prop-1'),

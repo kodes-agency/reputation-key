@@ -3,13 +3,13 @@
 
 import type { gbpCache } from '#/shared/db/schema/gbp-cache.schema'
 import type { GbpCacheEntry } from '../../domain/types'
-import { organizationId, propertyId } from '#/shared/domain/ids'
+import { organizationId, propertyId, gbpCacheEntryId } from '#/shared/domain/ids'
 
 type GbpCacheRow = typeof gbpCache.$inferSelect
 type GbpCacheUpsertRow = typeof gbpCache.$inferInsert
 
 export const gbpCacheFromRow = (row: GbpCacheRow): GbpCacheEntry => ({
-  id: row.id,
+  id: gbpCacheEntryId(row.id),
   organizationId: organizationId(row.organizationId),
   propertyId: propertyId(row.propertyId),
   gbpPlaceId: row.gbpPlaceId,

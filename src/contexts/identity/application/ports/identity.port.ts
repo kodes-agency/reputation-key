@@ -3,7 +3,7 @@
 // The implementation lives in infrastructure/. The use case depends only on the type."
 
 import type { Role } from '#/shared/domain/roles'
-import type { OrganizationId } from '#/shared/domain/ids'
+import type { OrganizationId, InvitationId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
 
 /** Organization member shape returned by the port. */
@@ -55,13 +55,13 @@ export type IdentityPort = Readonly<{
     email: string,
     role: Role,
     propertyIds?: ReadonlyArray<string>,
-  ) => Promise<string>
+  ) => Promise<InvitationId>
 
   /** Accept an invitation (may not require active org). */
-  acceptInvitation: (invitationId: string, headers: Headers) => Promise<void>
+  acceptInvitation: (invitationId: InvitationId, headers: Headers) => Promise<void>
 
   /** Reject an invitation. */
-  rejectInvitation: (invitationId: string, headers: Headers) => Promise<void>
+  rejectInvitation: (invitationId: InvitationId, headers: Headers) => Promise<void>
 
   /** List pending invitations for the active organization. */
   listInvitations: (ctx: AuthContext) => Promise<ReadonlyArray<InvitationRecord>>

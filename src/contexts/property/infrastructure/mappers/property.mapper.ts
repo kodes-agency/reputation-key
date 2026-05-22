@@ -3,7 +3,7 @@
 
 import type { properties } from '#/shared/db/schema/property.schema'
 import type { Property } from '../../domain/types'
-import { propertyId, organizationId } from '#/shared/domain/ids'
+import { propertyId, organizationId, googleConnectionId } from '#/shared/domain/ids'
 
 type PropertyRow = typeof properties.$inferSelect
 type PropertyInsertRow = typeof properties.$inferInsert
@@ -15,7 +15,7 @@ export const propertyFromRow = (row: PropertyRow): Property => ({
   slug: row.slug,
   timezone: row.timezone,
   gbpPlaceId: row.gbpPlaceId,
-  googleConnectionId: row.googleConnectionId ?? null,
+  googleConnectionId: row.googleConnectionId ? googleConnectionId(row.googleConnectionId) : null,
   createdAt: row.createdAt,
   updatedAt: row.updatedAt,
   deletedAt: row.deletedAt,

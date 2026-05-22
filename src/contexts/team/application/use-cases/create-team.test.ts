@@ -23,6 +23,7 @@ const setup = () => {
       const p = await propertyRepo.findById(orgId, pid)
       return p !== null
     },
+    findByGbpPlaceId: async () => null,
   }
 
   const deps = {

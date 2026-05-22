@@ -15,6 +15,8 @@ import { createGbpApiError } from '../../domain/gbp-api-error'
 
 const FIXED_NOW = new Date('2026-06-01T12:00:00Z')
 
+const withFixedNow = <T>(fn: () => Promise<T>): Promise<T> => fn()
+
 // --- Shared helpers ----------------------------------------------------------
 
 const setup = () => {
@@ -38,7 +40,9 @@ const setup = () => {
     connectionRepo,
     gbpApi,
     encryption,
+    clock: () => FIXED_NOW,
     refreshGoogleToken,
+    logger: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {}, trace: () => {}, fatal: () => {} } as never,
   }
   const useCase = listGbpLocations(deps)
 
@@ -83,14 +87,6 @@ const isGbpApiErrorWithStatus = (expectedStatus: number) => (e: unknown) =>
   (e as unknown as { _tag: string })._tag === 'GbpApiError' &&
   (e as unknown as { status: number }).status === expectedStatus
 
-const withFixedNow = <T>(fn: () => Promise<T>): Promise<T> => {
-  const originalNow = Date.now
-  Date.now = () => FIXED_NOW.getTime()
-  return fn().finally(() => {
-    Date.now = originalNow
-  })
-}
-
 // --- Tests -------------------------------------------------------------------
 
 describe('listGbpLocations', () => {
@@ -109,7 +105,7 @@ describe('listGbpLocations', () => {
     )
 
     expect(result).toHaveLength(2)
-    const placeIds = result.map((l) => l.gbpPlaceId)
+    const placeIds = result.map((l: { gbpPlaceId: string }) => l.gbpPlaceId)
     expect(placeIds).toContain('ChIJ-aaa')
     expect(placeIds).toContain('ChIJ-bbb')
   })
@@ -206,7 +202,7 @@ describe('listGbpLocations', () => {
     )
 
     expect(result).toHaveLength(2)
-    const placeIds = result.map((l) => l.gbpPlaceId)
+    const placeIds = result.map((l: { gbpPlaceId: string }) => l.gbpPlaceId)
     expect(placeIds).toContain('ChIJ-shared')
     expect(placeIds).toContain('ChIJ-acct1-only')
   })

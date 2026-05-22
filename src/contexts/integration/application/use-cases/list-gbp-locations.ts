@@ -12,15 +12,18 @@ import { googleConnectionId, type OrganizationId } from '#/shared/domain/ids'
 import { integrationError } from '../../domain/errors'
 import type { GbpApiError } from '../../domain/gbp-api-error'
 import { TOKEN_EXPIRY_BUFFER_MS } from '../constants'
+import type { Logger } from 'pino'
 
 export type ListGbpLocationsDeps = Readonly<{
   connectionRepo: GoogleConnectionRepository
   gbpApi: GbpApiPort
   encryption: TokenEncryptionPort
+  clock: () => Date
   refreshGoogleToken: (
     orgId: OrganizationId,
     connectionId: string,
   ) => Promise<GoogleConnection>
+  logger: Logger
 }>
 
 export const listGbpLocations =
@@ -55,7 +58,7 @@ export const listGbpLocations =
 
     // 4. Refresh token if expired
     let accessToken: string
-    const now = Date.now()
+    const now = deps.clock().getTime()
     const expiresAt = connection.tokenExpiresAt.getTime()
 
     if (expiresAt <= now + TOKEN_EXPIRY_BUFFER_MS) {
@@ -115,8 +118,8 @@ export const listGbpLocations =
 
       try {
         locations = await deps.gbpApi.listLocations(accessToken, '-')
-      } catch {
-        // Wildcard also failed — throw the original error so caller sees root cause
+      } catch (err) {
+        deps.logger.warn({ err, connectionId: input.connectionId, organizationId: ctx.organizationId }, 'Wildcard GBP location listing also failed')
         throw originalErr
       }
     }

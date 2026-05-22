@@ -1,11 +1,11 @@
 // Identity context — auth identity adapter tests
-// Tests that createAuthIdentityAdapter correctly wraps better-auth API calls
+// Tests that createBetterAuthIdentityAdapter correctly wraps better-auth API calls
 // and maps data between better-auth's format and our domain records.
 // Mocks getAuth() and getRequest() to control the better-auth surface.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import { organizationId, userId } from '#/shared/domain/ids'
+import { organizationId, userId, invitationId } from '#/shared/domain/ids'
 
 // Mock getAuth with controllable API surface
 const mockSignUpEmail = vi.fn()
@@ -43,7 +43,7 @@ vi.mock('@tanstack/react-start/server', () => ({
   getRequest: () => null,
 }))
 
-import { createAuthIdentityAdapter } from './auth-identity.adapter'
+import { createBetterAuthIdentityAdapter } from './auth-identity.adapter'
 
 const testCtx: AuthContext = {
   userId: userId('user-1'),
@@ -55,8 +55,8 @@ beforeEach(() => {
   vi.clearAllMocks()
 })
 
-describe('createAuthIdentityAdapter', () => {
-  const adapter = createAuthIdentityAdapter()
+describe('createBetterAuthIdentityAdapter', () => {
+  const adapter = createBetterAuthIdentityAdapter()
 
   describe('signUp', () => {
     it('returns user ID on successful sign-up', async () => {
@@ -315,12 +315,12 @@ describe('createAuthIdentityAdapter', () => {
       const headers = new Headers()
 
       // Act
-      await adapter.acceptInvitation('inv-1', headers)
+      await adapter.acceptInvitation(invitationId('inv-1'), headers)
 
       // Assert
       expect(mockAcceptInvitation).toHaveBeenCalledWith({
         headers,
-        body: { invitationId: 'inv-1' },
+        body: { invitationId: invitationId('inv-1') },
       })
     })
   })
@@ -332,12 +332,12 @@ describe('createAuthIdentityAdapter', () => {
       const headers = new Headers()
 
       // Act
-      await adapter.rejectInvitation('inv-1', headers)
+      await adapter.rejectInvitation(invitationId('inv-1'), headers)
 
       // Assert
       expect(mockRejectInvitation).toHaveBeenCalledWith({
         headers,
-        body: { invitationId: 'inv-1' },
+        body: { invitationId: invitationId('inv-1') },
       })
     })
   })

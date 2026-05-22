@@ -70,20 +70,22 @@ export const createPortalRepository = (db: Database): PortalRepository => ({
   },
 
   slugExists: async (orgId, propertyId, slug, excludeId) => {
-    const conditions = [
-      ...baseWhere(portals, orgId),
-      eq(portals.propertyId, propertyId),
-      eq(portals.slug, slug),
-    ]
-    if (excludeId) {
-      conditions.push(not(eq(portals.id, excludeId as unknown as string)))
-    }
-    const rows = await db
-      .select({ id: portals.id })
-      .from(portals)
-      .where(and(...conditions))
-      .limit(1)
-    return rows.length > 0
+    return trace('portal.slugExists', async () => {
+      const conditions = [
+        ...baseWhere(portals, orgId),
+        eq(portals.propertyId, propertyId),
+        eq(portals.slug, slug),
+      ]
+      if (excludeId) {
+        conditions.push(not(eq(portals.id, excludeId as unknown as string)))
+      }
+      const rows = await db
+        .select({ id: portals.id })
+        .from(portals)
+        .where(and(...conditions))
+        .limit(1)
+      return rows.length > 0
+    })
   },
 
   insert: async (orgId, portal) => {

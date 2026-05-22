@@ -8,6 +8,7 @@ import type { ReviewRepository } from '../ports/review.repository'
 import type { ReplyRepository } from '../ports/reply.repository'
 import type { GoogleReviewApiPort } from '../ports/google-review-api.port'
 import type { EventBus } from '#/shared/events/event-bus'
+import { createMockLogger } from '#/shared/testing/mock-logger'
 import type { Review, GoogleReview, Reply } from '../../domain/types'
 import {
   organizationId,
@@ -187,6 +188,7 @@ function createTestEnv(googleReviews: ReadonlyArray<GoogleReview> = []) {
     clock,
     idGen,
     replyIdGen,
+    logger: createMockLogger(),
   }
 
   return {

@@ -11,6 +11,10 @@ export type SyncPropertyReviewsJobData = Readonly<{
   locationName: string
 }>
 
+export type AddSyncJobOptions = Readonly<{
+  jobId?: string
+}>
+
 export type ReviewQueuePort = Readonly<{
-  addSyncJob: (data: SyncPropertyReviewsJobData) => Promise<void>
+  addSyncJob: (data: SyncPropertyReviewsJobData, options?: AddSyncJobOptions) => Promise<void>
 }>

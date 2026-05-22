@@ -1,12 +1,17 @@
 // Review context — entity constructors
 
-import type { Review, Reply, SentimentLabel } from './types'
+import type {
+  Review,
+  Reply,
+  SentimentLabel,
+} from './types'
 import type {
   ReviewId,
   ReplyId,
   OrganizationId,
   PropertyId,
   GoogleConnectionId,
+  UserId,
 } from '#/shared/domain/ids'
 import { ok, err } from 'neverthrow'
 import { reviewError } from './errors'
@@ -66,9 +71,9 @@ type BuildReplyArgs = {
   text: string
   source: 'google_sync' | 'internal'
   status?: Reply['status']
-  createdBy?: string | null
-  approvedBy?: string | null
-  rejectedBy?: string | null
+  createdBy?: UserId | null
+  approvedBy?: UserId | null
+  rejectedBy?: UserId | null
   rejectionReason?: string | null
   aiGenerated?: boolean
   publishedAt?: Date | null

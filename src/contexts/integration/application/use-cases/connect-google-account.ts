@@ -2,6 +2,7 @@
 // Full 7-step pattern: authorize → validate → check uniqueness → build → persist → emit → return
 
 import type { GoogleConnectionRepository } from '../ports/google-connection.repository'
+import { isUniqueViolationError } from '../ports/google-connection.repository'
 import type { GoogleOAuthPort } from '../ports/google-oauth.port'
 import type { TokenEncryptionPort } from '../ports/token-encryption.port'
 import type { EventBus } from '#/shared/events/event-bus'
@@ -112,12 +113,7 @@ export const connectGoogleAccount =
     try {
       await deps.connectionRepo.insert(connection)
     } catch (err) {
-      const isUniqueViolation =
-        err instanceof Error &&
-        'code' in err &&
-        (err as { code: string }).code === '23505'
-
-      if (!isUniqueViolation) throw err
+      if (!isUniqueViolationError(err)) throw err
 
       // Another request created the connection concurrently — fetch and return it
       const concurrentConnection = await deps.connectionRepo.findByGoogleAccountId(

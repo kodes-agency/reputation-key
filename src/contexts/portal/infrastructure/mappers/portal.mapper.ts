@@ -3,7 +3,8 @@
 
 import type { portals } from '#/shared/db/schema/portal.schema'
 import type { Portal, PortalTheme, EntityType } from '../../domain/types'
-import { portalId, organizationId, propertyId } from '#/shared/domain/ids'
+import type { PropertyId, TeamId, UserId } from '#/shared/domain/ids'
+import { portalId, organizationId, propertyId, teamId, userId, unbrand } from '#/shared/domain/ids'
 import { portalError } from '../../domain/errors'
 
 type PortalRow = typeof portals.$inferSelect
@@ -16,6 +17,17 @@ function parseEntityType(value: string): EntityType {
     throw portalError('portal_not_found', `[portal.mapper] invalid entityType: ${value}`)
   }
   return value as EntityType
+}
+
+function brandEntityId(value: string, entityType: EntityType): PropertyId | TeamId | UserId {
+  switch (entityType) {
+    case 'team':
+      return teamId(value)
+    case 'staff':
+      return userId(value)
+    default:
+      return propertyId(value)
+  }
 }
 
 function parseTheme(value: Record<string, unknown> | null): PortalTheme {
@@ -40,7 +52,7 @@ export const portalFromRow = (row: PortalRow): Portal => ({
   organizationId: organizationId(row.organizationId),
   propertyId: propertyId(row.propertyId),
   entityType: parseEntityType(row.entityType),
-  entityId: row.entityId,
+  entityId: brandEntityId(row.entityId, parseEntityType(row.entityType)),
   name: row.name,
   slug: row.slug,
   description: row.description,
@@ -55,11 +67,11 @@ export const portalFromRow = (row: PortalRow): Portal => ({
 })
 
 export const portalToRow = (portal: Portal): PortalInsertRow => ({
-  id: portal.id as unknown as string,
-  organizationId: portal.organizationId as unknown as string,
-  propertyId: portal.propertyId as unknown as string,
+  id: unbrand(portal.id),
+  organizationId: unbrand(portal.organizationId),
+  propertyId: unbrand(portal.propertyId),
   entityType: portal.entityType,
-  entityId: portal.entityId,
+  entityId: unbrand(portal.entityId),
   name: portal.name,
   slug: portal.slug,
   description: portal.description,

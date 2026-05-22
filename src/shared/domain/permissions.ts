@@ -37,9 +37,14 @@ export type Permission =
   | 'portal.delete'
   | 'review.read'
   | 'review.reply'
+  | 'reply.manage'
+  | 'inbox.read'
+  | 'inbox.update'
   | 'feedback.read'
   | 'feedback.respond'
   | 'integration.manage'
+  | 'member.list'
+  | 'dashboard.read'
 
 // ── Injected permission lookup ─────────────────────────────────────
 // The actual permission table lives in shared/auth/permissions.ts.

@@ -2,7 +2,7 @@
 // Per architecture: factory function returning Readonly<{ method }>.
 // Every query filters by organization_id AND deleted_at IS NULL via baseWhere().
 
-import { and, eq, not } from 'drizzle-orm'
+import { and, eq, isNull, not } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { baseWhere } from '#/shared/db/base-where'
 import { properties } from '#/shared/db/schema/property.schema'
@@ -91,6 +91,20 @@ export const createPropertyRepository = (db: Database): PropertyRepository => ({
       await db
         .delete(properties)
         .where(and(...baseWhere(properties, orgId), eq(properties.id, id)))
+    })
+  },
+
+  // Intentional cross-org lookup: GBP webhook identifies properties by placeId,
+  // not orgId. The webhook handler verifies Google Pub/Sub JWT before calling this.
+  // Caller is responsible for org-scoping the result.
+  findByGbpPlaceId: async (gbpPlaceId) => {
+    return trace('property.findByGbpPlaceId', async () => {
+      const rows = await db
+        .select()
+        .from(properties)
+        .where(and(eq(properties.gbpPlaceId, gbpPlaceId), isNull(properties.deletedAt)))
+        .limit(1)
+      return rows[0] ? propertyFromRow(rows[0]) : null
     })
   },
 })

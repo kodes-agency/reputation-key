@@ -8,17 +8,15 @@ import type { EventBus } from '#/shared/events/event-bus'
 import type { ReplyId, ReviewId, OrganizationId, UserId } from '#/shared/domain/ids'
 import type { Role } from '#/shared/domain/roles'
 import type { Reply } from '../../domain/types'
-import { hasRole } from '#/shared/domain/roles'
+import { can } from '#/shared/domain/permissions'
 import { canTransitionReply, MAX_REPLY_LENGTH } from '../../domain/rules'
 import { reviewError } from '../../domain/errors'
 import { replyPublished } from '../../domain/events'
 
 // ── Shared ────────────────────────────────────────────────────────────
 
-const MANAGER_ROLE: Role = 'PropertyManager'
-
 function requireManager(role: Role) {
-  if (!hasRole(role, MANAGER_ROLE)) {
+  if (!can(role, 'reply.manage')) {
     throw reviewError('unauthorized', 'Only managers and admins can manage replies')
   }
 }

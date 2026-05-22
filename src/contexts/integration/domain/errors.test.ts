@@ -46,10 +46,11 @@ describe('integrationError', () => {
     expect(err.recoverable).toBe(true)
   })
 
-  it('extends Error', () => {
+  it('returns a plain tagged object', () => {
     const err = integrationError('oauth_failed', 'Token exchange failed')
-    expect(err).toBeInstanceOf(Error)
-    expect(err.stack).toBeDefined()
+    expect(typeof err).toBe('object')
+    expect(err._tag).toBe('IntegrationError')
+    expect(err).not.toBeInstanceOf(Error)
   })
 })
 

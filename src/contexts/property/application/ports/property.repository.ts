@@ -20,4 +20,6 @@ export type PropertyRepository = Readonly<{
     patch: Readonly<Partial<Property>>,
   ) => Promise<void>
   hardDelete: (orgId: OrganizationId, id: PropertyId) => Promise<void>
+  /** Find a non-deleted property by its Google Business Profile place ID. */
+  findByGbpPlaceId: (gbpPlaceId: string) => Promise<Property | null>
 }>

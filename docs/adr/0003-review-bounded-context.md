@@ -1,6 +1,6 @@
 # ADR 0003 — Review as a Separate Bounded Context
 
-**Status:** Proposed
+**Status:** Implemented
 **Date:** 2026-05-16
 **Context:** Reviews, Google Integration Architecture
 

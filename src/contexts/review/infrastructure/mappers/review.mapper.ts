@@ -3,7 +3,7 @@
 
 import type { reviews } from '#/shared/db/schema/review.schema'
 import type { Review } from '../../domain/types'
-import { reviewId, organizationId, propertyId, googleConnectionId } from '#/shared/domain/ids'
+import { unbrand, reviewId, organizationId, propertyId, googleConnectionId } from '#/shared/domain/ids'
 
 type ReviewRow = typeof reviews.$inferSelect
 type ReviewInsertRow = typeof reviews.$inferInsert
@@ -30,7 +30,7 @@ export const reviewFromRow = (row: ReviewRow): Review => ({
 })
 
 export const reviewToRow = (review: Omit<Review, 'createdAt' | 'updatedAt'>): ReviewInsertRow => ({
-  id: review.id as string,
+  id: unbrand(review.id),
   organizationId: review.organizationId as string,
   propertyId: review.propertyId as string,
   platform: review.platform,

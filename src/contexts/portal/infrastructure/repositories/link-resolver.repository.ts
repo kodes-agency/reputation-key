@@ -9,6 +9,9 @@ import type { OrganizationId, PortalId, PropertyId } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 
 export const createLinkResolverPort = (db: Database): LinkResolverPort => ({
+  // PUBLIC API — no organizationId scoping by design.
+  // These resolvers serve unauthenticated guest requests where the
+  // link/portal ID acts as a capability token (unguessable UUID).
   resolveLinkById: async (linkId) => {
     return trace('portalLink.resolveLinkById', async () => {
       const result = await db

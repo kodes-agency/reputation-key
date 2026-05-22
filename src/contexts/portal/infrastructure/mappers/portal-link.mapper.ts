@@ -3,7 +3,7 @@
 
 import type { portalLinkCategories, portalLinks } from '#/shared/db/schema/portal.schema'
 import type { PortalLinkCategory, PortalLink } from '../../domain/types'
-import { organizationId, portalId, portalLinkCategoryId, portalLinkId } from '#/shared/domain/ids'
+import { organizationId, portalId, portalLinkCategoryId, portalLinkId, unbrand } from '#/shared/domain/ids'
 
 // ── Category mapper ────────────────────────────────────────────────
 
@@ -21,9 +21,9 @@ export const categoryFromRow = (row: CategoryRow): PortalLinkCategory => ({
 })
 
 export const categoryToRow = (cat: PortalLinkCategory): CategoryInsertRow => ({
-  id: cat.id as unknown as string,
-  portalId: cat.portalId as unknown as string,
-  organizationId: cat.organizationId as unknown as string,
+  id: unbrand(cat.id),
+  portalId: unbrand(cat.portalId),
+  organizationId: unbrand(cat.organizationId),
   title: cat.title,
   sortKey: cat.sortKey,
   createdAt: cat.createdAt,
@@ -49,10 +49,10 @@ export const linkFromRow = (row: LinkRow): PortalLink => ({
 })
 
 export const linkToRow = (link: PortalLink): LinkInsertRow => ({
-  id: link.id as unknown as string,
-  categoryId: link.categoryId as unknown as string,
-  portalId: link.portalId as unknown as string,
-  organizationId: link.organizationId as unknown as string,
+  id: unbrand(link.id),
+  categoryId: unbrand(link.categoryId),
+  portalId: unbrand(link.portalId),
+  organizationId: unbrand(link.organizationId),
   label: link.label,
   url: link.url,
   iconKey: link.iconKey,

@@ -3,11 +3,10 @@
 // Format: iv:authTag:ciphertext (base64 encoded parts)
 
 import { createCipheriv, createDecipheriv, randomBytes } from 'crypto'
-import { getEnv } from '#/shared/config/env'
 import type { TokenEncryptionPort } from '../../application/ports/token-encryption.port'
 
-export const createTokenEncryptionAdapter = (): TokenEncryptionPort => {
-  const key = Buffer.from(getEnv().ENCRYPTION_KEY, 'hex')
+export const createTokenEncryptionAdapter = (encryptionKey: string): TokenEncryptionPort => {
+  const key = Buffer.from(encryptionKey, 'hex')
   if (key.length !== 32) {
     throw new Error('ENCRYPTION_KEY must be 64 hex characters (32 bytes) for AES-256-GCM')
   }

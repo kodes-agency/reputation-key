@@ -3,7 +3,7 @@
 
 import type { teams } from '#/shared/db/schema/team.schema'
 import type { Team } from '../../domain/types'
-import { teamId, organizationId, propertyId, userId } from '#/shared/domain/ids'
+import { unbrand, teamId, organizationId, propertyId, userId } from '#/shared/domain/ids'
 
 type TeamRow = typeof teams.$inferSelect
 type TeamInsertRow = typeof teams.$inferInsert
@@ -21,7 +21,7 @@ export const teamFromRow = (row: TeamRow): Team => ({
 })
 
 export const teamToRow = (team: Team): TeamInsertRow => ({
-  id: team.id as string,
+  id: unbrand(team.id),
   organizationId: team.organizationId as string,
   propertyId: team.propertyId as string,
   name: team.name,

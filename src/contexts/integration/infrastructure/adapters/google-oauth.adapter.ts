@@ -4,15 +4,14 @@
 
 import type { GoogleOAuthPort } from '../../application/ports/google-oauth.port'
 import { integrationError } from '../../domain/errors'
-import { getEnv } from '#/shared/config/env'
 
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token'
 const GOOGLE_USERINFO_URL = 'https://www.googleapis.com/oauth2/v2/userinfo'
 const GOOGLE_REVOKE_URL = 'https://oauth2.googleapis.com/revoke'
 
-export const createGoogleOAuthAdapter = (): GoogleOAuthPort => {
-  const clientId = getEnv().GOOGLE_CLIENT_ID
-  const clientSecret = getEnv().GOOGLE_CLIENT_SECRET
+export const createGoogleOAuthAdapter = (config: { clientId: string; clientSecret: string }): GoogleOAuthPort => {
+  const clientId = config.clientId
+  const clientSecret = config.clientSecret
 
   const exchangeCode = async (
     code: string,

@@ -12,7 +12,6 @@ shared/
   auth/          better-auth config, client, headers, middleware, permissions, server session helpers, emails, server-errors
   jobs/          BullMQ queue, worker, registry
   cache/         Redis client, cache port + implementations (redis-cache, noop-cache)
-  rate-limit/    middleware
   observability/ logger (pino), traced-server-fn, request-context, trace (correlation IDs, timing)
   config/        env Zod schema
   testing/       in-memory port fakes, capturing-event-bus, fixtures, integration helpers
@@ -44,6 +43,7 @@ Shared code is **used by 2+ modules** across the codebase. If only one context u
 - **`result.ts`** — neverthrow `Result` re-exports
 - **`brand.ts`** — branded type helpers for nominal typing
 - **`timezones.ts`** — timezone list and utilities
+- **`slug.ts`** — slug validation and normalization utilities
 
 ## Observability (`shared/observability/`)
 
@@ -67,6 +67,9 @@ Shared code is **used by 2+ modules** across the codebase. If only one context u
 In-memory port fakes for unit testing use cases without a database:
 - `in-memory-identity-port.ts`, `in-memory-property-repo.ts`, `in-memory-team-repo.ts`, `in-memory-staff-assignment-repo.ts`
 - `in-memory-portal-repo.ts`, `in-memory-portal-link-repo.ts`
+- `in-memory-dashboard-repo.ts`, `in-memory-google-connection-repo.ts`, `in-memory-inbox-repo.ts`
+- `in-memory-gbp-api-port.ts`, `in-memory-gbp-cache-repo.ts`, `in-memory-gbp-import-repo.ts`, `in-memory-gbp-queue-port.ts`
+- `in-memory-google-oauth-port.ts`, `in-memory-token-encryption.ts`, `mock-logger.ts`
 - `capturing-event-bus.ts` — event bus that captures emitted events for assertions
 - `fixtures.ts` — test data builders
 - `integration-helpers.ts` — integration test utilities

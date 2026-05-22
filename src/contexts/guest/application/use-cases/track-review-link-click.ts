@@ -1,6 +1,7 @@
 import type { EventBus } from '#/shared/events/event-bus'
-import type { OrganizationId, PortalId, PropertyId } from '#/shared/domain/ids'
+import type { OrganizationId, PortalId, PropertyId, PortalLinkId } from '#/shared/domain/ids'
 import { reviewLinkClicked } from '../../domain/events'
+import { getLogger } from '#/shared/observability/logger'
 
 export type TrackReviewLinkClickDeps = Readonly<{
   events: EventBus
@@ -8,7 +9,7 @@ export type TrackReviewLinkClickDeps = Readonly<{
 }>
 
 export type TrackReviewLinkClickInput = Readonly<{
-  linkId: string
+  linkId: PortalLinkId
   organizationId: OrganizationId
   portalId: PortalId
   propertyId: PropertyId
@@ -28,8 +29,9 @@ export const trackReviewLinkClick =
           occurredAt: now,
         }),
       )
-    } catch {
+    } catch (e) {
       // Silent failure — click tracking is analytics
+      getLogger().warn({ err: e, linkId: input.linkId }, 'Review link click tracking failed — suppressed')
     }
   }
 

@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { recordMetric, type RecordMetricDeps } from './record-metric'
 import type { MetricKey, MetricReading } from '../../domain/types'
+import { organizationId, propertyId, portalId, metricReadingId } from '#/shared/domain/ids'
+import { isMetricError } from '../../domain/errors'
 
 const FIXED_TIME = new Date('2026-05-20T12:00:00Z')
 
@@ -13,7 +15,7 @@ const createFakeDeps = (): RecordMetricDeps & { readings: InsertInput[] } => {
     metricRepo: {
       insertReading: async (input) => {
         const reading: MetricReading = {
-          id: `metric-${readings.length + 1}`,
+          id: metricReadingId(`metric-${readings.length + 1}`),
           ...input,
         }
         readings.push(input)
@@ -36,18 +38,18 @@ describe('recordMetric', () => {
     const record = recordMetric(deps)
 
     await record({
-      organizationId: 'org-1',
-      propertyId: 'prop-1',
-      portalId: 'portal-1',
+      organizationId: organizationId('org-1'),
+      propertyId: propertyId('prop-1'),
+      portalId: portalId('portal-1'),
       metricKey: 'portal.scan',
       value: 1,
     })
 
     expect(deps.readings).toHaveLength(1)
     expect(deps.readings[0]).toEqual({
-      organizationId: 'org-1',
-      propertyId: 'prop-1',
-      portalId: 'portal-1',
+      organizationId: organizationId('org-1'),
+      propertyId: propertyId('prop-1'),
+      portalId: portalId('portal-1'),
       metricKey: 'portal.scan',
       value: 1,
       recordedAt: FIXED_TIME,
@@ -58,9 +60,9 @@ describe('recordMetric', () => {
     const record = recordMetric(deps)
 
     await record({
-      organizationId: 'org-1',
-      propertyId: 'prop-1',
-      portalId: 'portal-1',
+      organizationId: organizationId('org-1'),
+      propertyId: propertyId('prop-1'),
+      portalId: portalId('portal-1'),
       metricKey: 'portal.rating',
       value: 4,
     })
@@ -73,13 +75,15 @@ describe('recordMetric', () => {
 
     await expect(
       record({
-        organizationId: 'org-1',
-        propertyId: 'prop-1',
+        organizationId: organizationId('org-1'),
+        propertyId: propertyId('prop-1'),
         portalId: null,
         metricKey: 'unknown.metric' as MetricKey,
         value: 1,
       }),
-    ).rejects.toThrow('Unknown metric key: unknown.metric')
+    ).rejects.toSatisfy(
+      (e: unknown) => isMetricError(e) && e.code === 'unknown_metric_key',
+    )
 
     expect(deps.readings).toHaveLength(0)
   })
@@ -88,8 +92,8 @@ describe('recordMetric', () => {
     const record = recordMetric(deps)
 
     await record({
-      organizationId: 'org-1',
-      propertyId: 'prop-1',
+      organizationId: organizationId('org-1'),
+      propertyId: propertyId('prop-1'),
       portalId: null,
       metricKey: 'property.review',
       value: 3,

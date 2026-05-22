@@ -9,6 +9,7 @@ import { teams } from '#/shared/db/schema/team.schema'
 import type { TeamRepository } from '../../application/ports/team.repository'
 import { teamFromRow, teamToRow } from '../mappers/team.mapper'
 import { teamError } from '../../domain/errors'
+import { unbrand } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 
 type SetValues = {
@@ -25,7 +26,7 @@ export const createTeamRepository = (db: Database): TeamRepository => ({
       const rows = await db
         .select()
         .from(teams)
-        .where(and(...baseWhere(teams, orgId), eq(teams.id, id as string)))
+        .where(and(...baseWhere(teams, orgId), eq(teams.id, unbrand(id))))
         .limit(1)
       return rows[0] ? teamFromRow(rows[0]) : null
     })
@@ -84,7 +85,7 @@ export const createTeamRepository = (db: Database): TeamRepository => ({
       await db
         .update(teams)
         .set(setValues)
-        .where(and(...baseWhere(teams, orgId), eq(teams.id, id as string)))
+        .where(and(...baseWhere(teams, orgId), eq(teams.id, unbrand(id))))
     })
   },
 
@@ -94,7 +95,7 @@ export const createTeamRepository = (db: Database): TeamRepository => ({
       await db
         .update(teams)
         .set({ deletedAt: now, updatedAt: now })
-        .where(and(...baseWhere(teams, orgId), eq(teams.id, id as string)))
+        .where(and(...baseWhere(teams, orgId), eq(teams.id, unbrand(id))))
     })
   },
 })

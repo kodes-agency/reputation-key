@@ -4,7 +4,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { match } from 'ts-pattern'
-import { z } from 'zod'
+import { z } from 'zod/v4'
 import { getContainer } from '#/composition'
 import { throwContextError } from '#/shared/auth/server-errors'
 import { headersFromContext } from '#/shared/auth/headers'
@@ -13,8 +13,6 @@ import { isReviewError } from '../domain/errors'
 import type { ReviewErrorCode } from '../domain/errors'
 import { reviewId } from '#/shared/domain/ids'
 import { MAX_REPLY_LENGTH } from '../domain/rules'
-
-export { MAX_REPLY_LENGTH }
 
 // ── Error → HTTP status mapping ──────────────────────────────────────
 

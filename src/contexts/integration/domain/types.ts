@@ -7,6 +7,7 @@ import type {
   UserId,
   GoogleConnectionId,
   GbpImportJobId,
+  GbpCacheEntryId,
   PropertyId,
 } from '#/shared/domain/ids'
 
@@ -33,7 +34,7 @@ export type GoogleConnection = Readonly<{
 export type GbpCacheDataType = 'location'
 
 export type GbpCacheEntry = Readonly<{
-  id: string
+  id: GbpCacheEntryId
   organizationId: OrganizationId
   propertyId: PropertyId
   gbpPlaceId: string
@@ -42,7 +43,7 @@ export type GbpCacheEntry = Readonly<{
   googleAttribution: string | null
   fetchedAt: Date
   expiresAt: Date
-  updatedAt?: Date
+  updatedAt: Date
 }>
 
 export type GbpImportJobStatus =

@@ -11,6 +11,7 @@ import {
   propertyId,
   feedbackId,
   ratingId,
+  metricReadingId,
 } from '#/shared/domain/ids'
 
 const FIXED_TIME = new Date('2026-05-20T12:00:00Z')
@@ -23,7 +24,7 @@ const createFakeDeps = (): OnFeedbackSubmittedDeps & {
     readings,
     recordMetric: async (input) => {
       readings.push({ ...input })
-      return { id: 'metric-1', ...input, recordedAt: FIXED_TIME } as MetricReading
+      return { id: metricReadingId('metric-1'), ...input, recordedAt: FIXED_TIME } as MetricReading
     },
   }
 }
@@ -49,9 +50,9 @@ describe('onFeedbackSubmitted', () => {
 
     expect(deps.readings).toHaveLength(1)
     expect(deps.readings[0]).toEqual({
-      organizationId: 'org-1',
-      propertyId: 'prop-1',
-      portalId: 'portal-1',
+      organizationId: organizationId('org-1'),
+      propertyId: propertyId('prop-1'),
+      portalId: portalId('portal-1'),
       metricKey: 'portal.feedback',
       value: 1,
     })

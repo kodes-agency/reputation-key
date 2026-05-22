@@ -3,7 +3,7 @@
 
 import type { replies } from '#/shared/db/schema/review.schema'
 import type { Reply } from '../../domain/types'
-import { replyId, reviewId, organizationId } from '#/shared/domain/ids'
+import { unbrand, replyId, reviewId, organizationId, userId } from '#/shared/domain/ids'
 
 type ReplyRow = typeof replies.$inferSelect
 type ReplyInsertRow = typeof replies.$inferInsert
@@ -15,9 +15,9 @@ export const replyFromRow = (row: ReplyRow): Reply => ({
   text: row.text,
   status: row.status as Reply['status'],
   source: row.source as Reply['source'],
-  createdBy: row.createdBy,
-  approvedBy: row.approvedBy,
-  rejectedBy: row.rejectedBy,
+  createdBy: row.createdBy ? userId(row.createdBy) : null,
+  approvedBy: row.approvedBy ? userId(row.approvedBy) : null,
+  rejectedBy: row.rejectedBy ? userId(row.rejectedBy) : null,
   rejectionReason: row.rejectionReason,
   aiGenerated: row.aiGenerated,
   publishedAt: row.publishedAt,
@@ -28,15 +28,15 @@ export const replyFromRow = (row: ReplyRow): Reply => ({
 export const replyToRow = (
   reply: Omit<Reply, 'createdAt' | 'updatedAt'>,
 ): ReplyInsertRow => ({
-  id: reply.id as string,
+  id: unbrand(reply.id),
   reviewId: reply.reviewId as string,
   organizationId: reply.organizationId as string,
   text: reply.text,
   status: reply.status,
   source: reply.source,
-  createdBy: reply.createdBy,
-  approvedBy: reply.approvedBy,
-  rejectedBy: reply.rejectedBy,
+  createdBy: reply.createdBy as string | null,
+  approvedBy: reply.approvedBy as string | null,
+  rejectedBy: reply.rejectedBy as string | null,
   rejectionReason: reply.rejectionReason,
   aiGenerated: reply.aiGenerated,
   publishedAt: reply.publishedAt,

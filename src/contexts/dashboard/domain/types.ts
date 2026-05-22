@@ -1,6 +1,9 @@
 // Dashboard context — domain response shapes
 // Read-only aggregation surface. No domain rules, no events, no writes.
 
+import { ok, err, type Result } from 'neverthrow'
+import type { ReviewId } from '#/shared/domain/ids'
+
 // ─── KPI Strip ───
 
 export type KPIValue = Readonly<{
@@ -72,15 +75,15 @@ export type DashboardReplyStatus = 'none' | 'draft' | 'published'
 const DASHBOARD_REPLY_STATUSES = new Set<string>(['none', 'draft', 'published'])
 
 /** Validate that a SQL CASE result is a valid DashboardReplyStatus. */
-export function toDashboardReplyStatus(value: string): DashboardReplyStatus {
+export function toDashboardReplyStatus(value: string): Result<DashboardReplyStatus, string> {
   if (!DASHBOARD_REPLY_STATUSES.has(value)) {
-    throw new Error(`Invalid DashboardReplyStatus: "${value}"`)
+    return err(`Invalid DashboardReplyStatus: "${value}"`)
   }
-  return value as DashboardReplyStatus
+  return ok(value as DashboardReplyStatus)
 }
 
 export type RecentReview = Readonly<{
-  id: string
+  id: ReviewId
   rating: number
   snippet: string
   reviewedAt: Date

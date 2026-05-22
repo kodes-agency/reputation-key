@@ -1,3 +1,4 @@
+// Metric context — records portal.feedback metric on feedback submission events
 import type { FeedbackSubmitted } from '#/contexts/guest/domain/events'
 import type { RecordMetricInput } from '../../application/use-cases/record-metric'
 import { getLogger } from '#/shared/observability/logger'

@@ -3,7 +3,7 @@
 // Events live in their owning context's domain/events.ts.
 
 import type { PropertyId } from './types'
-import type { OrganizationId } from '#/shared/domain/ids'
+import type { OrganizationId, GoogleConnectionId } from '#/shared/domain/ids'
 
 // fallow-ignore-next-line unused-type
 export type PropertyCreated = Readonly<{
@@ -14,7 +14,7 @@ export type PropertyCreated = Readonly<{
   slug: string
   gbpPlaceId?: string
   gbpLocationName?: string
-  googleConnectionId?: string
+  googleConnectionId?: GoogleConnectionId
   occurredAt: Date
 }>
 

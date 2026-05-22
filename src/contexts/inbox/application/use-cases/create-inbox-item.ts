@@ -13,10 +13,10 @@ import type {
   UserId,
 } from '#/shared/domain/ids'
 import type { SourceType, InboxItem } from '../../domain/types'
-import { createInboxItem } from '../../domain/constructors'
+import { createInboxItem as buildInboxItem } from '../../domain/constructors'
 import { inboxItemCreated } from '../../domain/events'
 import { inboxError } from '../../domain/errors'
-import { getLogger } from '#/shared/observability/logger'
+import type { Logger } from 'pino'
 
 export type CreateInboxItemInput = Readonly<{
   organizationId: OrganizationId
@@ -36,9 +36,10 @@ export type CreateInboxItemDeps = Readonly<{
   unreadCounter: UnreadCounterPort
   idGen: () => InboxItemId
   clock: () => Date
+  logger: Logger
 }>
 
-export const createInboxItemUseCase =
+export const createInboxItem =
   (deps: CreateInboxItemDeps) =>
   async (input: CreateInboxItemInput): Promise<InboxItem> => {
     // 1. Check for duplicate source
@@ -56,7 +57,7 @@ export const createInboxItemUseCase =
 
     // 2. Build domain object
     const assignedTo: UserId | null = null
-    const result = createInboxItem({
+    const result = buildInboxItem({
       id: deps.idGen(),
       organizationId: input.organizationId,
       propertyId: input.propertyId,
@@ -82,10 +83,9 @@ export const createInboxItemUseCase =
     // 4. Increment unread counter (new item starts as 'new')
     try {
       await deps.unreadCounter.increment(item.organizationId)
-    } catch {
-      // Counter unavailable — non-critical, DB is source of truth
-      getLogger().warn(
-        { organizationId: item.organizationId },
+    } catch (err) {
+      deps.logger.warn(
+        { err, organizationId: item.organizationId },
         'Unread counter increment failed after inbox item creation',
       )
     }
@@ -97,7 +97,7 @@ export const createInboxItemUseCase =
         organizationId: item.organizationId,
         propertyId: item.propertyId,
         sourceType: item.sourceType,
-        sourceId: item.sourceId as string,
+        sourceId: item.sourceId,
         occurredAt: item.createdAt,
       }),
     )
@@ -107,4 +107,4 @@ export const createInboxItemUseCase =
   }
 
 // fallow-ignore-next-line unused-type
-export type CreateInboxItemUseCase = ReturnType<typeof createInboxItemUseCase>
+export type CreateInboxItemUseCase = ReturnType<typeof createInboxItem>

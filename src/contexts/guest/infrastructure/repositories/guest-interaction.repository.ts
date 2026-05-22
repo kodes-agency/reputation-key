@@ -4,6 +4,7 @@ import { scanEvents, ratings, feedback } from '#/shared/db/schema/guest.schema'
 import type { GuestInteractionRepository } from '../../application/ports/guest-interaction.repository'
 import { scanEventToRow, ratingToRow, feedbackToRow } from '../mappers/guest.mapper'
 import { trace } from '#/shared/observability/trace'
+import { unbrand } from '#/shared/domain/ids'
 
 export const createGuestInteractionRepository = (
   db: Database,
@@ -33,9 +34,9 @@ export const createGuestInteractionRepository = (
         .from(ratings)
         .where(
           and(
-            eq(ratings.organizationId, organizationId as unknown as string),
+            eq(ratings.organizationId, unbrand(organizationId)),
             eq(ratings.sessionId, sessionId),
-            eq(ratings.portalId, portalId as unknown as string),
+            eq(ratings.portalId, unbrand(portalId)),
           ),
         )
         .limit(1)
