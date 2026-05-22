@@ -13,11 +13,14 @@ export type ScanEventId = Brand<string, 'ScanEventId'>
 export type RatingId = Brand<string, 'RatingId'>
 export type FeedbackId = Brand<string, 'FeedbackId'>
 export type TeamId = Brand<string, 'TeamId'>
+export type StaffId = Brand<string, 'StaffId'>
 export type StaffAssignmentId = Brand<string, 'StaffAssignmentId'>
 export type PortalLinkCategoryId = Brand<string, 'PortalLinkCategoryId'>
 export type PortalLinkId = Brand<string, 'PortalLinkId'>
 export type InboxItemId = Brand<string, 'InboxItemId'>
 export type InboxNoteId = Brand<string, 'InboxNoteId'>
+export type GoalId = Brand<string, 'GoalId'>
+export type GoalProgressId = Brand<string, 'GoalProgressId'>
 
 // Convenience constructors — each wraps brandId with the correct tag.
 // These are the only acceptable `as` casts: branded ID parsing.
@@ -54,6 +57,9 @@ export function feedbackId(id: string): FeedbackId {
 
 export function teamId(id: string): TeamId {
   return id as TeamId
+}
+export function staffId(id: string): StaffId {
+  return id as StaffId
 }
 export function staffAssignmentId(id: string): StaffAssignmentId {
   return id as StaffAssignmentId
@@ -97,6 +103,13 @@ export function gbpImportJobId(id: string): GbpImportJobId {
 
 export function metricReadingId(id: string): MetricReadingId {
   return id as MetricReadingId
+}
+
+export function goalId(id: string): GoalId {
+  return id as GoalId
+}
+export function goalProgressId(id: string): GoalProgressId {
+  return id as GoalProgressId
 }
 
 /** Safely strip brand from a branded ID type for use at infrastructure boundaries. */
