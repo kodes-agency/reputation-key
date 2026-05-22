@@ -14,6 +14,55 @@ import { portalId, portalLinkId, ratingId } from '#/shared/domain/ids'
 import { getEnv } from '#/shared/config/env'
 import { createHash } from 'crypto'
 
+// ── recordScanWithRef ──────────────────────────────────────────────
+
+const recordScanSchema = z.object({
+  portalId: z.string().min(1),
+  source: z.enum(['qr', 'nfc', 'direct']),
+  referralCode: z.string().nullable().optional(),
+})
+
+export const recordScanFn = createServerFn({ method: 'POST' })
+  .inputValidator(recordScanSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const { useCases } = getContainer()
+        const headers = headersFromContext()
+
+        const cookieHeader = headers?.get('cookie') ?? ''
+        const sessionId =
+          cookieHeader.match(/guest_session=([^;]+)/)?.[1] ?? crypto.randomUUID()
+
+        const ip = headers?.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+        const ipHash = hashIp(ip)
+
+        const ctx = await useCases.resolvePortalContext({
+          portalId: portalId(data.portalId),
+        })
+
+        try {
+          await useCases.recordScanWithRef({
+            organizationId: ctx.organizationId,
+            portalId: portalId(data.portalId),
+            propertyId: ctx.propertyId,
+            source: data.source,
+            sessionId,
+            ipHash,
+            referralCode: data.referralCode ?? null,
+          })
+          return { success: true }
+        } catch (e) {
+          if (isGuestError(e))
+            throwContextError('GuestError', e, guestErrorStatus(e.code))
+          throw e
+        }
+      },
+      'POST',
+      'guest.recordScan',
+    ),
+  )
+
 // ── Error → HTTP status mapping (exhaustive) ──────────────────────
 
 const guestErrorStatus = (code: GuestErrorCode): number =>
