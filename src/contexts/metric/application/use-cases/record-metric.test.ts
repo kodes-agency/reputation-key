@@ -1,7 +1,12 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { recordMetric, type RecordMetricDeps } from './record-metric'
 import type { MetricKey, MetricReading } from '../../domain/types'
-import { organizationId, propertyId, portalId, metricReadingId } from '#/shared/domain/ids'
+import {
+  organizationId,
+  propertyId,
+  portalId,
+  metricReadingId,
+} from '#/shared/domain/ids'
 import { isMetricError } from '../../domain/errors'
 
 const FIXED_TIME = new Date('2026-05-20T12:00:00Z')
@@ -22,6 +27,7 @@ const createFakeDeps = (): RecordMetricDeps & { readings: InsertInput[] } => {
         return reading
       },
       findByOrganizationId: async () => [],
+      queryAggregate: async () => ({ sum: 0, count: 0, max: 0 }),
     },
     clock: () => FIXED_TIME,
   }
