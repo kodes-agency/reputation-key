@@ -6,12 +6,17 @@
 //   500 — findByOrganizationId: per-request page size. Matches typical query needs
 //         for dashboard charts. Paginate (cursor on recorded_at) if exceeded.
 
-import { eq, and, desc } from 'drizzle-orm'
+import { eq, and, desc, sql, gte, lte } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { metricReadings } from '#/shared/db/schema/metric.schema'
 import type { MetricRepository } from '../../application/ports/metric.repository'
 import type { MetricKey, MetricReading } from '../../domain/types'
-import { metricReadingId, organizationId as orgIdCtor, propertyId as propIdCtor, portalId as portalIdCtor } from '#/shared/domain/ids'
+import {
+  metricReadingId,
+  organizationId as orgIdCtor,
+  propertyId as propIdCtor,
+  portalId as portalIdCtor,
+} from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 
 const VALID_METRIC_KEYS: Set<string> = new Set([
@@ -77,6 +82,53 @@ export const createMetricRepository = (db: Database): MetricRepository => ({
         .limit(500)
 
       return rows.map(readingFromRow) satisfies ReadonlyArray<MetricReading>
+    })
+  },
+
+  queryAggregate: async (query) => {
+    return trace('metric.queryAggregate', async () => {
+      const conditions = [
+        eq(metricReadings.organizationId, query.organizationId),
+        eq(metricReadings.propertyId, query.propertyId),
+        eq(metricReadings.metricKey, query.metricKey),
+      ]
+
+      if (query.portalId) {
+        conditions.push(eq(metricReadings.portalId, query.portalId))
+      }
+      // TODO: staffId filter added in Phase 14.5 — uncomment after merge
+      // if (query.staffId) {
+      //   conditions.push(eq(metricReadings.staffId, query.staffId))
+      // }
+      if (query.periodStart) {
+        conditions.push(gte(metricReadings.recordedAt, query.periodStart))
+      }
+      if (query.periodEnd) {
+        conditions.push(lte(metricReadings.recordedAt, query.periodEnd))
+      }
+      if (query.rollingWindowDays) {
+        conditions.push(
+          gte(
+            metricReadings.recordedAt,
+            sql`NOW() - INTERVAL '1 day' * ${query.rollingWindowDays}`,
+          ),
+        )
+      }
+
+      const row = await db
+        .select({
+          sum: sql<number>`COALESCE(SUM(${metricReadings.value}), 0)`,
+          count: sql<number>`CAST(COUNT(*) AS INTEGER)`,
+          max: sql<number>`COALESCE(MAX(${metricReadings.value}), 0)`,
+        })
+        .from(metricReadings)
+        .where(and(...conditions))
+
+      return {
+        sum: Number(row[0]?.sum ?? 0),
+        count: Number(row[0]?.count ?? 0),
+        max: Number(row[0]?.max ?? 0),
+      }
     })
   },
 })
