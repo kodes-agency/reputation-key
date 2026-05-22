@@ -33,4 +33,9 @@ export type StaffAssignmentRepository = Readonly<{
     orgId: OrganizationId,
     userId: UserId,
   ) => Promise<ReadonlyArray<PropertyId>>
+  /** Find assignment by referral code within an org. */
+  findByReferralCode: (
+    orgId: OrganizationId,
+    referralCode: string,
+  ) => Promise<StaffAssignment | null>
 }>
