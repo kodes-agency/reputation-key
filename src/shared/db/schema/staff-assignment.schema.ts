@@ -19,9 +19,8 @@ export const staffAssignments = pgTable(
       .notNull()
       .references(() => properties.id, { onDelete: 'cascade' }),
     teamId: uuid('team_id').references(() => teams.id, { onDelete: 'cascade' }),
-    // portal-level assignment — column exists for future portal-scoped staff attribution.
-    // Domain types and mappers will be updated when the feature is implemented.
     portalId: uuid('portal_id').references(() => portals.id, { onDelete: 'cascade' }),
+    referralCode: varchar('referral_code', { length: 50 }).unique(),
     createdAt: createdAtColumn(),
     updatedAt: updatedAtColumn(),
     deletedAt: deletedAtColumn(),
