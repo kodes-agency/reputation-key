@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { recordMetric, type RecordMetricDeps } from './record-metric'
 import type { MetricKey, MetricReading } from '../../domain/types'
+import type { DomainEvent } from '#/shared/events/events'
 import {
   organizationId,
   propertyId,
@@ -13,10 +14,15 @@ const FIXED_TIME = new Date('2026-05-20T12:00:00Z')
 
 type InsertInput = Omit<MetricReading, 'id'>
 
-const createFakeDeps = (): RecordMetricDeps & { readings: InsertInput[] } => {
+const createFakeDeps = (): RecordMetricDeps & {
+  readings: InsertInput[]
+  emittedEvents: DomainEvent[]
+} => {
   const readings: InsertInput[] = []
+  const emittedEvents: DomainEvent[] = []
   return {
     readings,
+    emittedEvents,
     metricRepo: {
       insertReading: async (input) => {
         const reading: MetricReading = {
@@ -28,6 +34,13 @@ const createFakeDeps = (): RecordMetricDeps & { readings: InsertInput[] } => {
       },
       findByOrganizationId: async () => [],
       queryAggregate: async () => ({ sum: 0, count: 0, max: 0 }),
+    },
+    events: {
+      on: () => {},
+      emit: async (event: DomainEvent) => {
+        emittedEvents.push(event)
+      },
+      clear: () => {},
     },
     clock: () => FIXED_TIME,
   }
@@ -107,5 +120,20 @@ describe('recordMetric', () => {
 
     expect(deps.readings[0]!.portalId).toBeNull()
     expect(deps.readings[0]!.metricKey).toBe('property.review')
+  })
+
+  it('emits a MetricRecorded event after inserting a reading', async () => {
+    const record = recordMetric(deps)
+
+    await record({
+      organizationId: organizationId('org-1'),
+      propertyId: propertyId('prop-1'),
+      portalId: portalId('portal-1'),
+      metricKey: 'portal.scan',
+      value: 1,
+    })
+
+    expect(deps.emittedEvents).toHaveLength(1)
+    expect(deps.emittedEvents[0]!._tag).toBe('metric.recorded')
   })
 })

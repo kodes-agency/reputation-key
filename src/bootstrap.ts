@@ -22,7 +22,7 @@ import {
 import { createPublishReplyHandler } from '#/contexts/review/infrastructure/jobs/publish-reply.job'
 import { replyId } from '#/shared/domain/ids'
 
-export function bootstrap(container: Container): void {
+export async function bootstrap(container: Container): Promise<void> {
   const logger = getLogger()
 
   // ── Register background job handlers ─────────────────────────────
@@ -151,4 +151,47 @@ export function bootstrap(container: Container): void {
     container.jobRegistry.register(jobName, handler)
     logger.info({ job: jobName }, 'registered metric refresh job handler')
   }
+
+  // ── Goal event handlers ────────────────────────────────────────────
+  const { registerGoalEventHandlers } =
+    await import('#/contexts/goal/infrastructure/event-handlers')
+  registerGoalEventHandlers({
+    events: container.eventBus,
+    eventBus: container.eventBus,
+    goalRepo: container.goalRepo,
+    cancelGoalFn: container.useCases.cancelGoal,
+    clock: () => new Date(),
+    getLogger,
+  })
+  logger.info(
+    'registered goal event handlers (metric.recorded, staff.unassigned, portal.deleted, team.deleted)',
+  )
+
+  // ── Goal reconciliation job ────────────────────────────────────────
+  const { createReconcileGoalProgressHandler, JOB_NAME: RECONCILE_JOB_NAME } =
+    await import('#/contexts/goal/infrastructure/jobs/reconcile-goal-progress.job')
+  const reconcileHandler = createReconcileGoalProgressHandler({
+    goalRepo: container.goalRepo,
+    metricRepo: container.metricRepo,
+    events: container.eventBus,
+    clock: () => new Date(),
+  })
+  container.jobRegistry.register(RECONCILE_JOB_NAME, async (job): Promise<void> => {
+    await reconcileHandler(job)
+  })
+  logger.info({ job: RECONCILE_JOB_NAME }, 'registered goal reconciliation job handler')
+
+  // ── Goal recurring instance spawner job ────────────────────────────
+  const { createSpawnRecurringInstancesHandler, JOB_NAME: SPAWN_JOB_NAME } =
+    await import('#/contexts/goal/infrastructure/jobs/spawn-recurring-instances.job')
+  const spawnHandler = createSpawnRecurringInstancesHandler({
+    goalRepo: container.goalRepo,
+    events: container.eventBus,
+    clock: () => new Date(),
+    idGen: () => crypto.randomUUID(),
+  })
+  container.jobRegistry.register(SPAWN_JOB_NAME, async (job): Promise<void> => {
+    await spawnHandler(job)
+  })
+  logger.info({ job: SPAWN_JOB_NAME }, 'registered goal recurring spawner job handler')
 }

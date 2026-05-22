@@ -122,6 +122,25 @@ function main() {
           logger.warn({ err }, `Failed to schedule ${jobName} job`),
         )
     }
+
+    // ── Goal jobs ──────────────────────────────────────────────────
+    type GoalSchedule = Readonly<{ jobName: string; every: number; label: string }>
+    const goalSchedules: GoalSchedule[] = [
+      { jobName: 'reconcile-goal-progress', every: 60 * 60 * 1000, label: 'hourly' },
+      {
+        jobName: 'spawn-recurring-instances',
+        every: 24 * 60 * 60 * 1000,
+        label: 'daily',
+      },
+    ]
+    for (const { jobName, every, label } of goalSchedules) {
+      container.jobQueue
+        .add(jobName, {}, { repeat: { every }, jobId: `${jobName}-recurring` })
+        .then(() => logger.info(`${jobName} job scheduled (${label})`))
+        .catch((err: unknown) =>
+          logger.warn({ err }, `Failed to schedule ${jobName} job`),
+        )
+    }
   } else {
     logger.warn('No Redis available — worker running without job processing')
   }

@@ -3,6 +3,7 @@
 // Returns the public API surface of the goal context.
 
 import type { Database } from '#/shared/db'
+import type { EventBus } from '#/shared/events/event-bus'
 import type { MetricRepository } from '#/contexts/metric/application/ports/metric.repository'
 import type { GoalRepository } from './application/ports/goal.repository'
 import { createGoalRepository } from './infrastructure/repositories/goal.repository'
@@ -15,6 +16,7 @@ import { getGoal } from './application/use-cases/get-goal'
 export type GoalContextBuildInput = Readonly<{
   db: Database
   metricRepo: MetricRepository
+  events: EventBus
   clock: () => Date
   idGen: () => string
 }>
@@ -28,6 +30,7 @@ export type GoalContextApi = Readonly<{
     getGoal: ReturnType<typeof getGoal>
   }
   goalRepo: GoalRepository
+  events: EventBus
 }>
 
 export const buildGoalContext = (input: GoalContextBuildInput): GoalContextApi => {
@@ -67,5 +70,6 @@ export const buildGoalContext = (input: GoalContextBuildInput): GoalContextApi =
       getGoal: _getGoal,
     },
     goalRepo,
+    events: input.events,
   }
 }

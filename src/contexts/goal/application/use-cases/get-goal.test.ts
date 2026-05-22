@@ -93,6 +93,17 @@ const createFakeGoalRepo = (state: {
     return state.progress.get(gid as string) ?? null
   },
   updateProgress: async () => null,
+  findActiveGoalsByMetric: async () => [],
+  incrementProgress: async () => ({
+    currentValue: 0,
+    currentSum: null,
+    currentCount: null,
+  }),
+  markGoalCompleted: async () => {},
+  findAllActive: async () => [],
+  findActiveRecurringTemplates: async () => [],
+  findLatestInstance: async () => null,
+  createGoalAndProgress: async () => {},
 })
 
 // ── Setup helper ───────────────────────────────────────────────────────────

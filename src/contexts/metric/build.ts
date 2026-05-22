@@ -25,6 +25,7 @@ export const buildMetricContext = (input: MetricContextBuildInput): MetricContex
 
   const record = recordMetric({
     metricRepo,
+    events: input.events,
     clock: input.clock,
   })
 

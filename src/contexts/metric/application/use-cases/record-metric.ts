@@ -5,7 +5,9 @@
 import type { MetricKey, MetricReading } from '../../domain/types'
 import type { MetricRepository } from '../ports/metric.repository'
 import type { OrganizationId, PropertyId, PortalId } from '#/shared/domain/ids'
+import type { EventBus } from '#/shared/events/event-bus'
 import { metricError } from '../../domain/errors'
+import { metricRecorded } from '../../domain/events'
 
 const BUILT_IN_METRIC_KEYS: Set<MetricKey> = new Set([
   'portal.scan',
@@ -25,6 +27,7 @@ export type RecordMetricInput = Readonly<{
 
 export type RecordMetricDeps = Readonly<{
   metricRepo: MetricRepository
+  events: EventBus
   clock: () => Date
 }>
 
@@ -35,7 +38,7 @@ export const recordMetric =
       throw metricError('unknown_metric_key', `Unknown metric key: ${input.metricKey}`)
     }
 
-    return deps.metricRepo.insertReading({
+    const reading = await deps.metricRepo.insertReading({
       organizationId: input.organizationId,
       propertyId: input.propertyId,
       portalId: input.portalId,
@@ -43,4 +46,19 @@ export const recordMetric =
       value: input.value,
       recordedAt: deps.clock(),
     })
+
+    await deps.events.emit(
+      metricRecorded({
+        readingId: reading.id,
+        organizationId: reading.organizationId,
+        propertyId: reading.propertyId,
+        portalId: reading.portalId,
+        staffId: null,
+        metricKey: reading.metricKey,
+        value: reading.value,
+        recordedAt: reading.recordedAt,
+      }),
+    )
+
+    return reading
   }

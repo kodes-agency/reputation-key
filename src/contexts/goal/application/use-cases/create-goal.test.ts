@@ -81,6 +81,17 @@ function createFakeDeps() {
     },
     getProgress: async () => null,
     updateProgress: async () => null,
+    findActiveGoalsByMetric: async () => [],
+    incrementProgress: async () => ({
+      currentValue: 0,
+      currentSum: null,
+      currentCount: null,
+    }),
+    markGoalCompleted: async () => {},
+    findAllActive: async () => [],
+    findActiveRecurringTemplates: async () => [],
+    findLatestInstance: async () => null,
+    createGoalAndProgress: async () => {},
   }
 
   let aggregateResponse: MetricReadingsAggregate = { sum: 0, count: 0, max: 0 }
