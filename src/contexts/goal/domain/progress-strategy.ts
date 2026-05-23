@@ -4,6 +4,7 @@
 
 import type { AggregationFunction, MetricKey } from '#/shared/domain/metric-keys'
 import type { PropertyId, PortalId, TeamId, StaffId } from '#/shared/domain/ids'
+import { assertNever } from '#/shared/domain/assert'
 import type { Goal } from './types'
 import { err, ok, type Result } from 'neverthrow'
 
@@ -121,8 +122,7 @@ function resolveTimeFilter(goal: Goal): Result<TimeFilter, ProgressQueryError> {
     }
 
     default: {
-      const _exhaustive: never = goal.goalType
-      throw new Error(`Unhandled goal type: ${_exhaustive}`)
+      assertNever('goalType', goal.goalType)
     }
   }
 }
@@ -156,8 +156,7 @@ export function computeProgressValue(
       return sum / rows.length
     }
     default: {
-      const _exhaustive: never = agg
-      throw new Error(`Unhandled aggregation: ${_exhaustive}`)
+      assertNever('aggregation', agg)
     }
   }
 }

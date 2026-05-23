@@ -49,6 +49,9 @@ export type { Permission } from './permissions'
 // ── Slug normalization ─────────────────────────────────────────────
 export { normalizeSlug } from './slug'
 
+// ── Exhaustive-never assertion ───────────────────────────────────
+export { assertNever, UnreachableError } from './assert'
+
 // ── Logger port ──────────────────────────────────────────────────
 export type { LoggerPort } from './logger.port'
 

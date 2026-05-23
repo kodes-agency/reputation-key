@@ -15,6 +15,7 @@ import {
   isValidMetricKeyForScope,
   isValidAggregationForMetric,
 } from '#/shared/domain/metric-keys'
+import { assertNever } from '#/shared/domain/assert'
 import type { Goal, GoalType, RecurrenceRule } from './types'
 import { deriveEntityScope } from './types'
 import { ok, err, type Result } from 'neverthrow'
@@ -136,8 +137,7 @@ export function buildGoal(input: BuildGoalInput): Result<Goal, GoalConstructionE
       break
     }
     default: {
-      const _exhaustive: never = input.goalType
-      throw new Error(`Unhandled goal type: ${_exhaustive}`)
+      assertNever('goalType', input.goalType)
     }
   }
 
