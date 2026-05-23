@@ -36,7 +36,7 @@ const makeGoalError = (code: GoalErrorCode, message: string) => ({
   message,
 })
 
-const goalErrorStatus = (code: GoalErrorCode): number =>
+export const goalErrorStatus = (code: GoalErrorCode): number =>
   match(code)
     .with('forbidden', () => 403)
     .with('not_found', () => 404)

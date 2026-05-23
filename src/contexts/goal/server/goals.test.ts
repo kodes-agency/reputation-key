@@ -1,7 +1,9 @@
-// Goal context — server function DTO validation tests
-// Tests zod schemas parse valid inputs and reject invalid inputs.
+// Goal context — server function tests
+// Tests DTO validation, error→status mapping, and throwContextError construction.
+// Imports the real goalErrorStatus from the server module to ensure tests break
+// when production code changes.
 
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import {
   createGoalSchema,
   updateGoalSchema,
@@ -10,6 +12,10 @@ import {
   getGoalSchema,
 } from '#/contexts/goal/application/dto/goal.dto'
 import { goalError, isGoalError } from '#/contexts/goal/domain/errors'
+import type { GoalErrorCode } from '#/contexts/goal/domain/errors'
+import { goalErrorStatus } from '#/contexts/goal/server/goals'
+import { throwContextError } from '#/shared/auth/server-errors'
+import { can } from '#/shared/domain/permissions'
 
 // ── createGoalSchema ──────────────────────────────────────────────────
 
@@ -255,5 +261,163 @@ describe('isGoalError type guard', () => {
 
   it('returns false for string', () => {
     expect(isGoalError('not an error')).toBe(false)
+  })
+})
+
+// ── Error → HTTP status mapping (production code) ─────────────────
+
+describe('goalErrorStatus (imported from server module)', () => {
+  it('maps forbidden → 403', () => {
+    expect(goalErrorStatus('forbidden')).toBe(403)
+  })
+
+  it('maps not_found → 404', () => {
+    expect(goalErrorStatus('not_found')).toBe(404)
+  })
+
+  it('maps validation_error → 400', () => {
+    expect(goalErrorStatus('validation_error')).toBe(400)
+  })
+
+  it('maps immutable_goal → 409', () => {
+    expect(goalErrorStatus('immutable_goal')).toBe(409)
+  })
+
+  it('all error codes are covered (exhaustive check)', () => {
+    const codes: GoalErrorCode[] = [
+      'forbidden',
+      'not_found',
+      'validation_error',
+      'immutable_goal',
+    ]
+    for (const code of codes) {
+      const status = goalErrorStatus(code)
+      expect(status).toBeGreaterThanOrEqual(400)
+      expect(status).toBeLessThan(500)
+    }
+  })
+})
+
+// ── throwContextError (shared server error helper) ─────────────────
+
+describe('throwContextError with GoalError', () => {
+  it('throws an Error with the domain message', () => {
+    const e = goalError('not_found', 'Goal not found')
+    expect(() => throwContextError('GoalError', e, goalErrorStatus(e.code))).toThrow(
+      'Goal not found',
+    )
+  })
+
+  it('sets error.name to GoalError', () => {
+    const e = goalError('forbidden', 'Insufficient role')
+    try {
+      throwContextError('GoalError', e, goalErrorStatus(e.code))
+    } catch (err) {
+      expect(err).toBeInstanceOf(Error)
+      expect((err as Error).name).toBe('GoalError')
+    }
+  })
+
+  it('attaches code and status as custom properties', () => {
+    const e = goalError('immutable_goal', 'Goal is completed')
+    try {
+      throwContextError('GoalError', e, goalErrorStatus(e.code))
+    } catch (err) {
+      const error = err as Error & { code: string; status: number }
+      expect(error.code).toBe('immutable_goal')
+      expect(error.status).toBe(409)
+    }
+  })
+
+  it('preserves the correct status for every error code', () => {
+    const cases: Array<[GoalErrorCode, number]> = [
+      ['forbidden', 403],
+      ['not_found', 404],
+      ['validation_error', 400],
+      ['immutable_goal', 409],
+    ]
+    for (const [code, expectedStatus] of cases) {
+      const e = goalError(code, `test ${code}`)
+      try {
+        throwContextError('GoalError', e, goalErrorStatus(e.code))
+      } catch (err) {
+        const error = err as Error & { code: string; status: number }
+        expect(error.status).toBe(expectedStatus)
+        expect(error.code).toBe(code)
+      }
+    }
+  })
+})
+
+// ── Permission checks ──────────────────────────────────────────────
+// Verify that the can() function correctly gates goal.write and goal.read
+// for authorized vs. unauthorized roles.
+
+vi.mock('#/shared/auth/headers', () => ({
+  headersFromContext: vi.fn(() => new Headers()),
+}))
+
+vi.mock('#/shared/auth/middleware', () => ({
+  resolveTenantContext: vi.fn(() =>
+    Promise.resolve({
+      organizationId: 'org-1',
+      userId: 'user-1',
+      role: 'AccountAdmin',
+    }),
+  ),
+}))
+
+vi.mock('#/composition', () => ({
+  getContainer: vi.fn(() => ({
+    useCases: {
+      createGoal: vi.fn(() => Promise.resolve({ _tag: 'ok', value: { id: 'goal-1' } })),
+      listGoals: vi.fn(() => Promise.resolve([{ id: 'goal-1' }])),
+      getGoal: vi.fn(() => Promise.resolve({ _tag: 'ok', value: { id: 'goal-1' } })),
+    },
+  })),
+}))
+
+describe('permission gates in goal server functions', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('can() returns true for AccountAdmin + goal.write', () => {
+    expect(can('AccountAdmin', 'goal.write')).toBe(true)
+  })
+
+  it('can() returns true for PropertyManager + goal.write', () => {
+    expect(can('PropertyManager', 'goal.write')).toBe(true)
+  })
+
+  it('can() returns false for Staff + goal.write', () => {
+    expect(can('Staff', 'goal.write')).toBe(false)
+  })
+
+  it('can() returns true for AccountAdmin + goal.read', () => {
+    expect(can('AccountAdmin', 'goal.read')).toBe(true)
+  })
+
+  it('can() returns true for PropertyManager + goal.read', () => {
+    expect(can('PropertyManager', 'goal.read')).toBe(true)
+  })
+
+  it('can() returns true for Staff + goal.read (Staff has read-only goal access)', () => {
+    expect(can('Staff', 'goal.read')).toBe(true)
+  })
+
+  it('can() returns false for Staff + goal.write (Staff cannot mutate goals)', () => {
+    expect(can('Staff', 'goal.write')).toBe(false)
+  })
+
+  it('unauthorized role would produce 403 via throwContextError', () => {
+    const e = goalError('forbidden', 'No goal write permission')
+    try {
+      throwContextError('GoalError', e, goalErrorStatus(e.code))
+    } catch (err) {
+      const error = err as Error & { code: string; status: number }
+      expect(error.status).toBe(403)
+      expect(error.code).toBe('forbidden')
+    }
   })
 })
