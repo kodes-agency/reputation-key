@@ -184,7 +184,16 @@ async function handleRecurringGoal(
   const insertedInstance = await deps.goalRepo.insert(instance)
 
   // Compute progress for the instance
-  const progressQuery = buildProgressQueryForInstance(template, period.start, period.end)
+  const progressQueryResult = buildProgressQueryForInstance(
+    template,
+    period.start,
+    period.end,
+  )
+  if (progressQueryResult.isErr()) {
+    // Should not happen — we know this is a recurring template
+    throw new Error(`Unexpected progress query error: ${progressQueryResult.error.tag}`)
+  }
+  const progressQuery = progressQueryResult.value
   const metricQuery = progressQueryToMetricReadingsQuery(progressQuery, template)
   const aggregate = await deps.metricRepo.queryAggregate(metricQuery)
   const progressValue = computeValue(template.aggregationFunction, aggregate)
@@ -248,7 +257,12 @@ function computeCalendarPeriod(
 // ── Progress query helpers ──────────────────────────────────────────────
 
 function buildMetricQuery(goal: Goal): MetricReadingsQuery {
-  const pq = buildProgressQuery(goal)
+  const pqResult = buildProgressQuery(goal)
+  if (pqResult.isErr()) {
+    // Should not happen — goals with valid types always resolve
+    throw new Error(`Unexpected progress query error: ${pqResult.error.tag}`)
+  }
+  const pq = pqResult.value
   return progressQueryToMetricReadingsQuery(pq, goal)
 }
 

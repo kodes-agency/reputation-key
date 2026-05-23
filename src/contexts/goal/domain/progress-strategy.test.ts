@@ -83,12 +83,16 @@ describe('buildProgressQuery', () => {
 
   describe('time filter by goal type', () => {
     it('open goal → no time filter', () => {
-      const query = buildProgressQuery(OPEN_GOAL)
+      const result = buildProgressQuery(OPEN_GOAL)
+      expect(result.isOk()).toBe(true)
+      const query = result._unsafeUnwrap()
       expect(query.timeFilter).toEqual({ tag: 'none' })
     })
 
     it('one_shot goal → bounded period', () => {
-      const query = buildProgressQuery(ONE_SHOT_GOAL)
+      const result = buildProgressQuery(ONE_SHOT_GOAL)
+      expect(result.isOk()).toBe(true)
+      const query = result._unsafeUnwrap()
       expect(query.timeFilter).toEqual({
         tag: 'bounded',
         start: PERIOD_START,
@@ -97,12 +101,16 @@ describe('buildProgressQuery', () => {
     })
 
     it('rolling goal → sliding window', () => {
-      const query = buildProgressQuery(ROLLING_GOAL)
+      const result = buildProgressQuery(ROLLING_GOAL)
+      expect(result.isOk()).toBe(true)
+      const query = result._unsafeUnwrap()
       expect(query.timeFilter).toEqual({ tag: 'sliding_window', days: 30 })
     })
 
     it('recurring instance (with period) → bounded period', () => {
-      const query = buildProgressQuery(RECURRING_INSTANCE)
+      const result = buildProgressQuery(RECURRING_INSTANCE)
+      expect(result.isOk()).toBe(true)
+      const query = result._unsafeUnwrap()
       expect(query.timeFilter).toEqual({
         tag: 'bounded',
         start: INSTANCE_START,
@@ -110,10 +118,12 @@ describe('buildProgressQuery', () => {
       })
     })
 
-    it('recurring template (no period) → throws', () => {
-      expect(() => buildProgressQuery(RECURRING_TEMPLATE)).toThrow(
-        /recurring template without instance period/,
-      )
+    it('recurring template (no period) → returns error', () => {
+      const result = buildProgressQuery(RECURRING_TEMPLATE)
+      expect(result.isErr()).toBe(true)
+      expect(result._unsafeUnwrapErr()).toEqual({
+        tag: 'recurring_template_without_instance_period',
+      })
     })
   })
 
@@ -126,7 +136,9 @@ describe('buildProgressQuery', () => {
     for (const agg of aggregations) {
       it(`open + ${agg.toUpperCase()} → no time filter, ${agg} aggregate`, () => {
         const goal = makeGoal({ goalType: 'open', aggregationFunction: agg })
-        const query = buildProgressQuery(goal)
+        const result = buildProgressQuery(goal)
+        expect(result.isOk()).toBe(true)
+        const query = result._unsafeUnwrap()
         expect(query.timeFilter).toEqual({ tag: 'none' })
         expect(query.aggregateFunction).toBe(agg)
         expect(query.metricKey).toBe('portal.scan')
@@ -141,7 +153,9 @@ describe('buildProgressQuery', () => {
         periodStart: PERIOD_START,
         periodEnd: PERIOD_END,
       })
-      const query = buildProgressQuery(goal)
+      const result = buildProgressQuery(goal)
+      expect(result.isOk()).toBe(true)
+      const query = result._unsafeUnwrap()
       expect(query.timeFilter.tag).toBe('bounded')
       expect(query.aggregateFunction).toBe('sum')
     })
@@ -153,7 +167,9 @@ describe('buildProgressQuery', () => {
         periodStart: PERIOD_START,
         periodEnd: PERIOD_END,
       })
-      const query = buildProgressQuery(goal)
+      const result = buildProgressQuery(goal)
+      expect(result.isOk()).toBe(true)
+      const query = result._unsafeUnwrap()
       expect(query.timeFilter.tag).toBe('bounded')
       expect(query.aggregateFunction).toBe('count')
     })
@@ -166,7 +182,9 @@ describe('buildProgressQuery', () => {
         periodStart: PERIOD_START,
         periodEnd: PERIOD_END,
       })
-      const query = buildProgressQuery(goal)
+      const result = buildProgressQuery(goal)
+      expect(result.isOk()).toBe(true)
+      const query = result._unsafeUnwrap()
       expect(query.timeFilter.tag).toBe('bounded')
       expect(query.aggregateFunction).toBe('max')
     })
@@ -179,7 +197,9 @@ describe('buildProgressQuery', () => {
         periodStart: PERIOD_START,
         periodEnd: PERIOD_END,
       })
-      const query = buildProgressQuery(goal)
+      const result = buildProgressQuery(goal)
+      expect(result.isOk()).toBe(true)
+      const query = result._unsafeUnwrap()
       expect(query.timeFilter.tag).toBe('bounded')
       expect(query.aggregateFunction).toBe('avg')
     })
@@ -193,7 +213,9 @@ describe('buildProgressQuery', () => {
           rollingWindowDays: 14,
           metricKey: agg === 'max' || agg === 'avg' ? 'portal.rating' : 'portal.scan',
         })
-        const query = buildProgressQuery(goal)
+        const result = buildProgressQuery(goal)
+        expect(result.isOk()).toBe(true)
+        const query = result._unsafeUnwrap()
         expect(query.timeFilter).toEqual({ tag: 'sliding_window', days: 14 })
         expect(query.aggregateFunction).toBe(agg)
       })
@@ -201,7 +223,7 @@ describe('buildProgressQuery', () => {
 
     // Recurring instances — all 4 aggregations
     it('recurring instance + SUM → bounded, sum', () => {
-      const query = buildProgressQuery(
+      const result = buildProgressQuery(
         makeGoal({
           goalType: 'recurring',
           aggregationFunction: 'sum',
@@ -210,12 +232,14 @@ describe('buildProgressQuery', () => {
           periodEnd: INSTANCE_END,
         }),
       )
+      expect(result.isOk()).toBe(true)
+      const query = result._unsafeUnwrap()
       expect(query.timeFilter.tag).toBe('bounded')
       expect(query.aggregateFunction).toBe('sum')
     })
 
     it('recurring instance + COUNT → bounded, count', () => {
-      const query = buildProgressQuery(
+      const result = buildProgressQuery(
         makeGoal({
           goalType: 'recurring',
           aggregationFunction: 'count',
@@ -224,12 +248,14 @@ describe('buildProgressQuery', () => {
           periodEnd: INSTANCE_END,
         }),
       )
+      expect(result.isOk()).toBe(true)
+      const query = result._unsafeUnwrap()
       expect(query.timeFilter.tag).toBe('bounded')
       expect(query.aggregateFunction).toBe('count')
     })
 
     it('recurring instance + MAX → bounded, max', () => {
-      const query = buildProgressQuery(
+      const result = buildProgressQuery(
         makeGoal({
           goalType: 'recurring',
           aggregationFunction: 'max',
@@ -239,12 +265,14 @@ describe('buildProgressQuery', () => {
           periodEnd: INSTANCE_END,
         }),
       )
+      expect(result.isOk()).toBe(true)
+      const query = result._unsafeUnwrap()
       expect(query.timeFilter.tag).toBe('bounded')
       expect(query.aggregateFunction).toBe('max')
     })
 
     it('recurring instance + AVG → bounded, avg', () => {
-      const query = buildProgressQuery(
+      const result = buildProgressQuery(
         makeGoal({
           goalType: 'recurring',
           aggregationFunction: 'avg',
@@ -254,6 +282,8 @@ describe('buildProgressQuery', () => {
           periodEnd: INSTANCE_END,
         }),
       )
+      expect(result.isOk()).toBe(true)
+      const query = result._unsafeUnwrap()
       expect(query.timeFilter.tag).toBe('bounded')
       expect(query.aggregateFunction).toBe('avg')
     })
@@ -263,7 +293,9 @@ describe('buildProgressQuery', () => {
 
   describe('scopeFilter', () => {
     it('property scope — all FKs null except propertyId', () => {
-      const query = buildProgressQuery(OPEN_GOAL)
+      const result = buildProgressQuery(OPEN_GOAL)
+      expect(result.isOk()).toBe(true)
+      const query = result._unsafeUnwrap()
       expect(query.scopeFilter).toEqual({
         propertyId: propertyId('prop-1'),
         portalId: null,
@@ -277,7 +309,9 @@ describe('buildProgressQuery', () => {
         goalType: 'open',
         portalId: portalId('portal-1'),
       })
-      const query = buildProgressQuery(goal)
+      const result = buildProgressQuery(goal)
+      expect(result.isOk()).toBe(true)
+      const query = result._unsafeUnwrap()
       expect(query.scopeFilter.portalId).toEqual(portalId('portal-1'))
       expect(query.scopeFilter.teamId).toBeNull()
       expect(query.scopeFilter.staffId).toBeNull()
@@ -289,7 +323,9 @@ describe('buildProgressQuery', () => {
         teamId: teamId('team-1'),
         metricKey: 'portal.scan',
       })
-      const query = buildProgressQuery(goal)
+      const result = buildProgressQuery(goal)
+      expect(result.isOk()).toBe(true)
+      const query = result._unsafeUnwrap()
       expect(query.scopeFilter.teamId).toEqual(teamId('team-1'))
       expect(query.scopeFilter.portalId).toBeNull()
       expect(query.scopeFilter.staffId).toBeNull()
@@ -301,7 +337,9 @@ describe('buildProgressQuery', () => {
         staffId: staffId('staff-1'),
         metricKey: 'portal.scan',
       })
-      const query = buildProgressQuery(goal)
+      const result = buildProgressQuery(goal)
+      expect(result.isOk()).toBe(true)
+      const query = result._unsafeUnwrap()
       expect(query.scopeFilter.staffId).toEqual(staffId('staff-1'))
       expect(query.scopeFilter.portalId).toBeNull()
       expect(query.scopeFilter.teamId).toBeNull()
@@ -317,7 +355,9 @@ describe('buildProgressQuery', () => {
         metricKey: 'portal.feedback',
         aggregationFunction: 'sum',
       })
-      const query = buildProgressQuery(goal)
+      const result = buildProgressQuery(goal)
+      expect(result.isOk()).toBe(true)
+      const query = result._unsafeUnwrap()
       expect(query.metricKey).toBe('portal.feedback')
     })
   })
@@ -326,11 +366,13 @@ describe('buildProgressQuery', () => {
 
   describe('buildProgressQueryForInstance', () => {
     it('builds bounded query for a recurring instance', () => {
-      const query = buildProgressQueryForInstance(
+      const result = buildProgressQueryForInstance(
         RECURRING_TEMPLATE,
         INSTANCE_START,
         INSTANCE_END,
       )
+      expect(result.isOk()).toBe(true)
+      const query = result._unsafeUnwrap()
       expect(query.timeFilter).toEqual({
         tag: 'bounded',
         start: INSTANCE_START,
@@ -340,10 +382,14 @@ describe('buildProgressQuery', () => {
       expect(query.metricKey).toBe('portal.scan')
     })
 
-    it('throws if used on a non-recurring goal', () => {
-      expect(() =>
-        buildProgressQueryForInstance(OPEN_GOAL, INSTANCE_START, INSTANCE_END),
-      ).toThrow(/only applies to recurring/)
+    it('returns error if used on a non-recurring goal', () => {
+      const result = buildProgressQueryForInstance(
+        OPEN_GOAL,
+        INSTANCE_START,
+        INSTANCE_END,
+      )
+      expect(result.isErr()).toBe(true)
+      expect(result._unsafeUnwrapErr()).toEqual({ tag: 'non_recurring_goal' })
     })
 
     it('preserves all scope fields', () => {
@@ -355,7 +401,9 @@ describe('buildProgressQuery', () => {
         staffId: staffId('s-1'),
         metricKey: 'portal.scan',
       })
-      const query = buildProgressQueryForInstance(goal, INSTANCE_START, INSTANCE_END)
+      const result = buildProgressQueryForInstance(goal, INSTANCE_START, INSTANCE_END)
+      expect(result.isOk()).toBe(true)
+      const query = result._unsafeUnwrap()
       expect(query.scopeFilter).toEqual({
         propertyId: propertyId('prop-1'),
         portalId: portalId('p-1'),

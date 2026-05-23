@@ -5,6 +5,7 @@
 import type { AggregationFunction, MetricKey } from '#/shared/domain/metric-keys'
 import type { PropertyId, PortalId, TeamId, StaffId } from '#/shared/domain/ids'
 import type { Goal } from './types'
+import { err, ok, type Result } from 'neverthrow'
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -29,6 +30,7 @@ export type ProgressQuery = Readonly<{
 
 export type ProgressQueryError =
   | { tag: 'recurring_template_without_instance_period' }
+  | { tag: 'non_recurring_goal' }
   | { tag: 'rolling_window_missing' }
 
 // ── buildProgressQuery ───────────────────────────────────────────────────
@@ -41,12 +43,15 @@ export type ProgressQueryError =
  * scheduler. If you call this on a template, you must supply an instance
  * override — otherwise we return an error.
  */
-export function buildProgressQuery(goal: Goal): ProgressQuery {
-  const timeFilter = resolveTimeFilter(goal)
+export function buildProgressQuery(
+  goal: Goal,
+): Result<ProgressQuery, ProgressQueryError> {
+  const timeFilterResult = resolveTimeFilter(goal)
+  if (timeFilterResult.isErr()) return err(timeFilterResult.error)
 
-  return {
+  return ok({
     aggregateFunction: goal.aggregationFunction,
-    timeFilter,
+    timeFilter: timeFilterResult.value,
     metricKey: goal.metricKey,
     scopeFilter: {
       propertyId: goal.propertyId,
@@ -54,23 +59,23 @@ export function buildProgressQuery(goal: Goal): ProgressQuery {
       teamId: goal.teamId,
       staffId: goal.staffId,
     },
-  }
+  })
 }
 
 /**
  * Overload for recurring instances: pass the template Goal plus explicit
- * instance period dates. Throws if used on a non-recurring goal.
+ * instance period dates. Returns error if used on a non-recurring goal.
  */
 export function buildProgressQueryForInstance(
   goal: Goal,
   instancePeriodStart: Date,
   instancePeriodEnd: Date,
-): ProgressQuery {
+): Result<ProgressQuery, ProgressQueryError> {
   if (goal.goalType !== 'recurring') {
-    throw new Error('buildProgressQueryForInstance only applies to recurring goals')
+    return err({ tag: 'non_recurring_goal' })
   }
 
-  return {
+  return ok({
     aggregateFunction: goal.aggregationFunction,
     timeFilter: { tag: 'bounded', start: instancePeriodStart, end: instancePeriodEnd },
     metricKey: goal.metricKey,
@@ -80,42 +85,39 @@ export function buildProgressQueryForInstance(
       teamId: goal.teamId,
       staffId: goal.staffId,
     },
-  }
+  })
 }
 
 // ── Internal ─────────────────────────────────────────────────────────────
 
-function resolveTimeFilter(goal: Goal): TimeFilter {
+function resolveTimeFilter(goal: Goal): Result<TimeFilter, ProgressQueryError> {
   switch (goal.goalType) {
     case 'open':
-      return { tag: 'none' }
+      return ok({ tag: 'none' })
 
     case 'one_shot': {
       // Constructor guarantees periodStart/periodEnd for one_shot
-      return {
+      return ok({
         tag: 'bounded',
         start: goal.periodStart!,
         end: goal.periodEnd!,
-      }
+      })
     }
 
     case 'rolling': {
       // Constructor guarantees rollingWindowDays for rolling
-      return { tag: 'sliding_window', days: goal.rollingWindowDays! }
+      return ok({ tag: 'sliding_window', days: goal.rollingWindowDays! })
     }
 
     case 'recurring': {
       // Template has null periods — recurring instances get bounded from scheduler.
       // If periodStart/periodEnd happen to be set (instance), use them.
       if (goal.periodStart && goal.periodEnd) {
-        return { tag: 'bounded', start: goal.periodStart, end: goal.periodEnd }
+        return ok({ tag: 'bounded', start: goal.periodStart, end: goal.periodEnd })
       }
-      // Template without instance period — throw. Caller should use
+      // Template without instance period — return error. Caller should use
       // buildProgressQueryForInstance or pass an instance goal.
-      throw new Error(
-        'Cannot build progress query for recurring template without instance period. ' +
-          'Use buildProgressQueryForInstance() with explicit dates.',
-      )
+      return err({ tag: 'recurring_template_without_instance_period' })
     }
   }
 }

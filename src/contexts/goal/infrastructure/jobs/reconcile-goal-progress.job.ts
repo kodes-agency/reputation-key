@@ -48,7 +48,15 @@ export const createReconcileGoalProgressHandler =
       }
 
       // 1. Build progress query
-      const pq = buildProgressQuery(goal)
+      const pqResult = buildProgressQuery(goal)
+      if (pqResult.isErr()) {
+        logger.warn(
+          { goalId: goal.id, error: pqResult.error },
+          'Skipping goal — cannot build progress query',
+        )
+        continue
+      }
+      const pq = pqResult.value
 
       // 2. Translate to metric repo query
       const mrq = progressQueryToMetricReadingsQuery(pq, goal)
