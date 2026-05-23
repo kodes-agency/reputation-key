@@ -144,6 +144,7 @@ describe('listGoals', () => {
     const result = await useCase({
       organizationId: ORG_ID,
       propertyId: PROP_ID,
+      role: 'AccountAdmin',
     })
 
     expect(result).toHaveLength(2)
@@ -168,6 +169,7 @@ describe('listGoals', () => {
     const result = await useCase({
       organizationId: ORG_ID,
       propertyId: PROP_ID,
+      role: 'AccountAdmin',
       status: 'active',
     })
 
@@ -186,6 +188,7 @@ describe('listGoals', () => {
     const result = await useCase({
       organizationId: ORG_ID,
       propertyId: PROP_ID,
+      role: 'AccountAdmin',
       portalId: PORTAL_ID,
     })
 
@@ -220,6 +223,7 @@ describe('listGoals', () => {
     const result = await useCase({
       organizationId: ORG_ID,
       propertyId: PROP_ID,
+      role: 'AccountAdmin',
     })
 
     expect(result).toHaveLength(1)
@@ -252,6 +256,7 @@ describe('listGoals', () => {
     const result = await useCase({
       organizationId: ORG_ID,
       propertyId: PROP_ID,
+      role: 'AccountAdmin',
     })
 
     const statuses = result.map((r) => r.goal.status)
@@ -288,6 +293,7 @@ describe('listGoals', () => {
     const result = await useCase({
       organizationId: ORG_ID,
       propertyId: PROP_ID,
+      role: 'AccountAdmin',
     })
 
     const ids = result.map((r) => r.goal.id as string)
@@ -307,6 +313,7 @@ describe('listGoals', () => {
     const result = await useCase({
       organizationId: ORG_ID,
       propertyId: PROP_ID,
+      role: 'AccountAdmin',
     })
 
     expect(result).toEqual([])

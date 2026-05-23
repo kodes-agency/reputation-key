@@ -5,6 +5,8 @@
 import type { GoalRepository } from '../ports/goal.repository'
 import type { Goal } from '../../domain/types'
 import type { GoalId, OrganizationId } from '#/shared/domain/ids'
+import type { Role } from '#/shared/domain/roles'
+import { can } from '#/shared/domain/permissions'
 import { ok, err, type Result } from 'neverthrow'
 
 // ── Input type ──────────────────────────────────────────────────────────
@@ -12,11 +14,13 @@ import { ok, err, type Result } from 'neverthrow'
 export type CancelGoalInput = Readonly<{
   goalId: GoalId
   organizationId: OrganizationId
+  role: Role
 }>
 
 // ── Error types ─────────────────────────────────────────────────────────
 
 export type CancelGoalError =
+  | { tag: 'forbidden' }
   | { tag: 'goal_not_found' }
   | { tag: 'goal_not_active'; status: string }
 
@@ -32,6 +36,10 @@ export type CancelGoalDeps = Readonly<{
 export const cancelGoal =
   (deps: CancelGoalDeps) =>
   async (input: CancelGoalInput): Promise<Result<Goal, CancelGoalError>> => {
+    if (!can(input.role, 'goal.cancel')) {
+      return err({ tag: 'forbidden' })
+    }
+
     // 1. Load goal
     const goal = await deps.goalRepo.getById(input.goalId, input.organizationId)
     if (!goal) {

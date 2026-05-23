@@ -3,8 +3,7 @@ import { onTeamDeleted, type OnTeamDeletedDeps } from './on-team-deleted'
 import type { TeamDeleted } from '#/contexts/team/application/public-api'
 import type { GoalRepository } from '../../application/ports/goal.repository'
 import type { Goal } from '../../domain/types'
-import type { GoalId, OrganizationId } from '#/shared/domain/ids'
-import { ok, err, type Result } from 'neverthrow'
+import { ok, err } from 'neverthrow'
 import { organizationId, propertyId, userId, goalId, teamId } from '#/shared/domain/ids'
 
 const FIXED_TIME = new Date('2026-06-15T12:00:00Z')
@@ -48,11 +47,6 @@ function makeEvent(overrides: Partial<TeamDeleted> = {}): TeamDeleted {
   }
 }
 
-type CancelGoalFn = (input: {
-  goalId: GoalId
-  organizationId: OrganizationId
-}) => Promise<Result<Goal, unknown>>
-
 function makeFakeDeps(storedGoals: Goal[] = []) {
   const cancelledGoalIds: string[] = []
 
@@ -90,6 +84,8 @@ function makeFakeDeps(storedGoals: Goal[] = []) {
     findLatestInstance: async () => null,
     createGoalAndProgress: async () => {},
   }
+
+  type CancelGoalFn = OnTeamDeletedDeps['cancelGoalFn']
 
   const cancelGoalFn: CancelGoalFn = async (input) => {
     cancelledGoalIds.push(input.goalId as string)

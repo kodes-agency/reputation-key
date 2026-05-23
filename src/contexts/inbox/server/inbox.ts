@@ -101,7 +101,7 @@ export const updateInboxStatusFn = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'inbox.update')) {
+        if (!can(ctx.role, 'inbox.write')) {
           throwContextError(
             'AuthError',
             { code: 'forbidden', message: 'No inbox update permission' },
@@ -137,7 +137,7 @@ export const bulkUpdateInboxStatusFn = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'inbox.update')) {
+        if (!can(ctx.role, 'inbox.write')) {
           throwContextError(
             'AuthError',
             { code: 'forbidden', message: 'No inbox update permission' },
@@ -173,7 +173,7 @@ export const assignInboxItemFn = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'inbox.update')) {
+        if (!can(ctx.role, 'inbox.write')) {
           throwContextError(
             'AuthError',
             { code: 'forbidden', message: 'No inbox update permission' },
@@ -211,7 +211,7 @@ export const addInboxNoteFn = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'inbox.update')) {
+        if (!can(ctx.role, 'inbox.write')) {
           throwContextError(
             'AuthError',
             { code: 'forbidden', message: 'No inbox update permission' },

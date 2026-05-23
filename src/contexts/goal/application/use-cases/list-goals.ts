@@ -5,6 +5,9 @@
 
 import type { GoalRepository, GoalListFilter } from '../ports/goal.repository'
 import type { Goal, GoalProgress } from '../../domain/types'
+import type { Role } from '#/shared/domain/roles'
+import { can } from '#/shared/domain/permissions'
+import { goalError } from '../../domain/errors'
 
 // ── Return types ───────────────────────────────────────────────────────────
 
@@ -33,7 +36,13 @@ const STATUS_SORT_ORDER: Record<Goal['status'], number> = {
 
 export const listGoals =
   (deps: ListGoalsDeps) =>
-  async (input: GoalListFilter): Promise<ReadonlyArray<GoalWithProgress>> => {
+  async (
+    input: GoalListFilter & { role: Role },
+  ): Promise<ReadonlyArray<GoalWithProgress>> => {
+    if (!can(input.role, 'goal.read')) {
+      throw goalError('forbidden', 'Insufficient permissions')
+    }
+
     const goals = await deps.goalRepo.list(input)
 
     const results: GoalWithProgress[] = []

@@ -1,6 +1,6 @@
 // Goal context — staff-goals server function tests
 // Verifies the permission gate (can(ctx.role, 'goal.read')) fires before the stub handler.
-// Staff role has goal.read but NOT goal.write — this test documents that boundary.
+// Staff role has goal.read + goal.create but NOT goal.update/cancel — this test documents that boundary.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { can } from '#/shared/domain/permissions'
@@ -33,12 +33,16 @@ describe('listStaffGoals — permission gate', () => {
     expect(can('PropertyManager', 'goal.read')).toBe(true)
   })
 
-  it('allows Staff to read goals (Staff has read-only goal access)', () => {
+  it('allows Staff to read goals', () => {
     expect(can('Staff', 'goal.read')).toBe(true)
   })
 
-  it('Staff cannot write goals (read-only boundary)', () => {
-    expect(can('Staff', 'goal.write')).toBe(false)
+  it('Staff can create goals (read + create access)', () => {
+    expect(can('Staff', 'goal.create')).toBe(true)
+  })
+
+  it('Staff cannot update goals (boundary)', () => {
+    expect(can('Staff', 'goal.update')).toBe(false)
   })
 
   it('unauthorized role receives 403 via throwContextError', () => {

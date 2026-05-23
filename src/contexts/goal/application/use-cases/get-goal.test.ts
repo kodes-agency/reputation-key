@@ -134,6 +134,7 @@ describe('getGoal', () => {
     const result = await useCase({
       goalId: goal.id,
       organizationId: ORG_ID,
+      role: 'AccountAdmin',
     })
 
     expect(result.isOk()).toBe(true)
@@ -179,6 +180,7 @@ describe('getGoal', () => {
     const result = await useCase({
       goalId: template.id,
       organizationId: ORG_ID,
+      role: 'AccountAdmin',
     })
 
     expect(result.isOk()).toBe(true)
@@ -200,6 +202,7 @@ describe('getGoal', () => {
     const result = await useCase({
       goalId: goalId('nonexistent'),
       organizationId: ORG_ID,
+      role: 'AccountAdmin',
     })
 
     expect(result.isErr()).toBe(true)
@@ -214,6 +217,7 @@ describe('getGoal', () => {
     const result = await useCase({
       goalId: goal.id,
       organizationId: OTHER_ORG_ID,
+      role: 'AccountAdmin',
     })
 
     expect(result.isErr()).toBe(true)

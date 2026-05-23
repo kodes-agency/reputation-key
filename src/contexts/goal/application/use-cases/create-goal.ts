@@ -25,12 +25,14 @@ import type {
   UserId,
 } from '#/shared/domain/ids'
 import type { MetricKey, AggregationFunction } from '#/shared/domain/metric-keys'
+import type { Role } from '#/shared/domain/roles'
 import { buildGoal, type GoalConstructionError } from '../../domain/constructors'
 import {
   buildProgressQuery,
   buildProgressQueryForInstance,
   type ProgressQuery,
 } from '../../domain/progress-strategy'
+import { can } from '#/shared/domain/permissions'
 import { ok, err, type Result } from 'neverthrow'
 
 // ── Input type ──────────────────────────────────────────────────────────
@@ -52,11 +54,13 @@ export type CreateGoalInput = Readonly<{
   periodEnd?: Date | null
   recurrenceRule?: RecurrenceRule | null
   rollingWindowDays?: number | null
+  role: Role
 }>
 
 // ── Error types ─────────────────────────────────────────────────────────
 
 export type CreateGoalError =
+  | { tag: 'forbidden' }
   | { tag: 'construction_error'; error: GoalConstructionError }
   | { tag: 'instance_construction_error'; error: GoalConstructionError }
 
@@ -81,6 +85,10 @@ export type CreateGoalDeps = Readonly<{
 export const createGoal =
   (deps: CreateGoalDeps) =>
   async (input: CreateGoalInput): Promise<Result<CreateGoalOutput, CreateGoalError>> => {
+    if (!can(input.role, 'goal.create')) {
+      return err({ tag: 'forbidden' })
+    }
+
     const now = deps.clock()
     const goalId = deps.idGen() as GoalId
 

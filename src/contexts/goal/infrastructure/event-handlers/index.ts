@@ -6,6 +6,7 @@ import type { EventBus } from '#/shared/events/event-bus'
 import type { GoalRepository } from '../../application/ports/goal.repository'
 import type { Goal } from '../../domain/types'
 import type { GoalId, OrganizationId } from '#/shared/domain/ids'
+import type { Role } from '#/shared/domain/roles'
 import type { getLogger as getLoggerType } from '#/shared/observability/logger'
 import type { Result } from 'neverthrow'
 
@@ -17,7 +18,7 @@ import { onTeamDeleted } from './on-team-deleted'
 // ── Shared deps for entity removal handlers ───────────────────────────
 
 export type CancelGoalFn = (
-  input: Readonly<{ goalId: GoalId; organizationId: OrganizationId }>,
+  input: Readonly<{ goalId: GoalId; organizationId: OrganizationId; role: Role }>,
 ) => Promise<Result<Goal, unknown>>
 
 // ── Registration deps ─────────────────────────────────────────────────

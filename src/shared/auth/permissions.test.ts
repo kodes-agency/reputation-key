@@ -6,10 +6,6 @@ import { describe, it, expect } from 'vitest'
 import { statement, can, initPermissionTable } from './permissions'
 import type { Permission } from '#/shared/domain/permissions'
 
-// Re-import the permissions module to trigger setPermissionTable()
-// The module-level side effect already ran on first import, so we
-// test against the initialized table.
-
 describe('permissions statement', () => {
   it('defines all expected resources', () => {
     const resources = Object.keys(statement)
@@ -24,6 +20,7 @@ describe('permissions statement', () => {
     expect(resources).toContain('review')
     expect(resources).toContain('feedback')
     expect(resources).toContain('integration')
+    expect(resources).toContain('inbox')
     expect(resources).toContain('goal')
   })
 
@@ -49,8 +46,13 @@ describe('permissions statement', () => {
     expect(statement.feedback).toContain('read')
     expect(statement.feedback).toContain('respond')
     expect(statement.integration).toContain('manage')
+    expect(statement.inbox).toContain('read')
+    expect(statement.inbox).toContain('write')
+    expect(statement.inbox).toContain('manage')
     expect(statement.goal).toContain('read')
-    expect(statement.goal).toContain('write')
+    expect(statement.goal).toContain('create')
+    expect(statement.goal).toContain('update')
+    expect(statement.goal).toContain('cancel')
   })
 })
 
@@ -69,11 +71,14 @@ describe('owner role (AccountAdmin)', () => {
     'property.create',
     'property.update',
     'property.delete',
+    'property.read',
     'team.create',
     'team.update',
     'team.delete',
+    'team.read',
     'staff_assignment.create',
     'staff_assignment.delete',
+    'staff_assignment.read',
     'ac.create',
     'ac.read',
     'ac.update',
@@ -81,17 +86,21 @@ describe('owner role (AccountAdmin)', () => {
     'portal.create',
     'portal.update',
     'portal.delete',
+    'portal.read',
     'review.read',
     'review.reply',
     'reply.manage',
     'feedback.read',
     'feedback.respond',
     'inbox.read',
-    'inbox.update',
+    'inbox.write',
+    'inbox.manage',
     'integration.manage',
     'dashboard.read',
     'goal.read',
-    'goal.write',
+    'goal.create',
+    'goal.update',
+    'goal.cancel',
   ]
 
   it('has every permission defined in the statement', () => {
@@ -111,24 +120,31 @@ describe('admin role (PropertyManager)', () => {
     'invitation.resend',
     'property.create',
     'property.update',
+    'property.read',
     'team.create',
     'team.update',
+    'team.read',
     'staff_assignment.create',
     'staff_assignment.delete',
+    'staff_assignment.read',
     'portal.create',
     'portal.update',
+    'portal.read',
     'review.read',
     'review.reply',
     'reply.manage',
     'feedback.read',
     'feedback.respond',
     'inbox.read',
-    'inbox.update',
+    'inbox.write',
+    'inbox.manage',
     'organization.update',
     'integration.manage',
     'dashboard.read',
     'goal.read',
-    'goal.write',
+    'goal.create',
+    'goal.update',
+    'goal.cancel',
   ]
 
   const deniedPermissions: Permission[] = [
@@ -166,8 +182,16 @@ describe('memberRole (Staff)', () => {
     expect(can('Staff', 'goal.read')).toBe(true)
   })
 
-  it('cannot write goals', () => {
-    expect(can('Staff', 'goal.write')).toBe(false)
+  it('can create goals', () => {
+    expect(can('Staff', 'goal.create')).toBe(true)
+  })
+
+  it('cannot update goals', () => {
+    expect(can('Staff', 'goal.update')).toBe(false)
+  })
+
+  it('cannot cancel goals', () => {
+    expect(can('Staff', 'goal.cancel')).toBe(false)
   })
 
   it('cannot manage members', () => {
@@ -207,10 +231,7 @@ describe('memberRole (Staff)', () => {
 
 describe('initPermissionTable', () => {
   it('resets the permission table to the default configuration', () => {
-    // Arrange: re-init which restores the production permission table
     initPermissionTable()
-
-    // Act/Assert — owner should have all permissions again
     expect(can('AccountAdmin', 'member.create')).toBe(true)
     expect(can('Staff', 'review.read')).toBe(true)
   })
@@ -218,9 +239,6 @@ describe('initPermissionTable', () => {
 
 describe('re-initializing permission table restores defaults', () => {
   it('throws when permission table is null', () => {
-    // The table is already initialized by the module-level initPermissionTable()
-    // call. We cannot easily null it out from outside. Instead we verify that
-    // after a fresh initPermissionTable() the table works as expected.
     initPermissionTable()
     expect(can('AccountAdmin', 'member.create')).toBe(true)
   })

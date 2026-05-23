@@ -5,6 +5,8 @@
 import type { GoalRepository } from '../ports/goal.repository'
 import type { Goal, RecurrenceRule } from '../../domain/types'
 import type { GoalId, OrganizationId } from '#/shared/domain/ids'
+import type { Role } from '#/shared/domain/roles'
+import { can } from '#/shared/domain/permissions'
 import { ok, err, type Result } from 'neverthrow'
 
 // ── Input type ──────────────────────────────────────────────────────────
@@ -14,11 +16,13 @@ export type UpdateGoalInput = Readonly<{
   organizationId: OrganizationId
   targetValue?: number
   recurrenceRule?: RecurrenceRule | null
+  role: Role
 }>
 
 // ── Error types ─────────────────────────────────────────────────────────
 
 export type UpdateGoalError =
+  | { tag: 'forbidden' }
   | { tag: 'goal_not_found' }
   | { tag: 'goal_not_active'; status: string }
   | { tag: 'recurrence_rule_not_allowed' }
@@ -35,6 +39,10 @@ export type UpdateGoalDeps = Readonly<{
 export const updateGoal =
   (deps: UpdateGoalDeps) =>
   async (input: UpdateGoalInput): Promise<Result<Goal, UpdateGoalError>> => {
+    if (!can(input.role, 'goal.update')) {
+      return err({ tag: 'forbidden' })
+    }
+
     // 1. Load goal
     const goal = await deps.goalRepo.getById(input.goalId, input.organizationId)
     if (!goal) {

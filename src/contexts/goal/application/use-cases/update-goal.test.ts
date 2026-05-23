@@ -138,6 +138,7 @@ describe('updateGoal', () => {
     const result = await updateGoal(fakes.deps)({
       goalId: goalId('goal-1'),
       organizationId: organizationId('org-1'),
+      role: 'AccountAdmin',
       targetValue: 300,
     })
 
@@ -158,6 +159,7 @@ describe('updateGoal', () => {
     const result = await updateGoal(fakes.deps)({
       goalId: goalId('goal-1'),
       organizationId: organizationId('org-1'),
+      role: 'AccountAdmin',
       recurrenceRule: newRule,
     })
 
@@ -173,6 +175,7 @@ describe('updateGoal', () => {
     const result = await updateGoal(fakes.deps)({
       goalId: goalId('goal-1'),
       organizationId: organizationId('org-1'),
+      role: 'AccountAdmin',
       recurrenceRule: { frequency: 'monthly' },
     })
 
@@ -188,6 +191,7 @@ describe('updateGoal', () => {
     const result = await updateGoal(fakes.deps)({
       goalId: goalId('goal-1'),
       organizationId: organizationId('org-1'),
+      role: 'AccountAdmin',
       targetValue: 300,
     })
 
@@ -203,6 +207,7 @@ describe('updateGoal', () => {
     const result = await updateGoal(fakes.deps)({
       goalId: goalId('goal-1'),
       organizationId: organizationId('org-1'),
+      role: 'AccountAdmin',
       targetValue: 300,
     })
 
@@ -217,6 +222,7 @@ describe('updateGoal', () => {
     const result = await updateGoal(fakes.deps)({
       goalId: goalId('nonexistent'),
       organizationId: organizationId('org-1'),
+      role: 'AccountAdmin',
       targetValue: 300,
     })
 

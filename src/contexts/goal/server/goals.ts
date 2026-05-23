@@ -53,7 +53,7 @@ export const createGoal = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'goal.write')) {
+        if (!can(ctx.role, 'goal.create')) {
           throwContextError(
             'GoalError',
             makeGoalError(
@@ -83,6 +83,7 @@ export const createGoal = createServerFn({ method: 'POST' })
             periodEnd: data.periodEnd ? new Date(data.periodEnd) : null,
             recurrenceRule: data.recurrenceRule ?? null,
             rollingWindowDays: data.rollingWindowDays ?? null,
+            role: ctx.role,
           })
 
           if (result.isErr()) {
@@ -105,7 +106,7 @@ export const createGoal = createServerFn({ method: 'POST' })
             }
           }
 
-          return result.value
+          return result._unsafeUnwrap()
         } catch (e) {
           if (isGoalError(e)) throwContextError('GoalError', e, goalErrorStatus(e.code))
           throw e
@@ -125,7 +126,7 @@ export const updateGoal = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'goal.write')) {
+        if (!can(ctx.role, 'goal.update')) {
           throwContextError(
             'GoalError',
             makeGoalError(
@@ -143,6 +144,7 @@ export const updateGoal = createServerFn({ method: 'POST' })
             organizationId: ctx.organizationId,
             targetValue: data.targetValue,
             recurrenceRule: data.recurrenceRule ?? undefined,
+            role: ctx.role,
           })
 
           if (result.isErr()) {
@@ -175,7 +177,7 @@ export const updateGoal = createServerFn({ method: 'POST' })
             }
           }
 
-          return { goal: result.value }
+          return { goal: result._unsafeUnwrap() }
         } catch (e) {
           if (isGoalError(e)) throwContextError('GoalError', e, goalErrorStatus(e.code))
           throw e
@@ -195,7 +197,7 @@ export const cancelGoal = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'goal.write')) {
+        if (!can(ctx.role, 'goal.cancel')) {
           throwContextError(
             'GoalError',
             makeGoalError(
@@ -211,6 +213,7 @@ export const cancelGoal = createServerFn({ method: 'POST' })
           const result = await useCases.cancelGoal({
             goalId: toGoalId(data.goalId),
             organizationId: ctx.organizationId,
+            role: ctx.role,
           })
 
           if (result.isErr()) {
@@ -233,7 +236,7 @@ export const cancelGoal = createServerFn({ method: 'POST' })
             }
           }
 
-          return { goal: result.value }
+          return { goal: result._unsafeUnwrap() }
         } catch (e) {
           if (isGoalError(e)) throwContextError('GoalError', e, goalErrorStatus(e.code))
           throw e
@@ -271,6 +274,7 @@ export const listGoals = createServerFn({ method: 'GET' })
             staffId: data.staffId ? toStaffId(data.staffId) : undefined,
             status: data.status,
             goalType: data.goalType,
+            role: ctx.role,
           })
           return { goals }
         } catch (e) {
@@ -305,6 +309,7 @@ export const getGoal = createServerFn({ method: 'GET' })
           const result = await useCases.getGoal({
             goalId: toGoalId(data.goalId),
             organizationId: ctx.organizationId,
+            role: ctx.role,
           })
 
           if (result.isErr()) {

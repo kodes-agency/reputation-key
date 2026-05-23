@@ -139,6 +139,7 @@ describe('cancelGoal', () => {
     const result = await cancelGoal(fakes.deps)({
       goalId: goalId('goal-1'),
       organizationId: organizationId('org-1'),
+      role: 'AccountAdmin',
     })
 
     expect(result.isOk()).toBe(true)
@@ -156,6 +157,7 @@ describe('cancelGoal', () => {
     const result = await cancelGoal(fakes.deps)({
       goalId: goalId('goal-1'),
       organizationId: organizationId('org-1'),
+      role: 'AccountAdmin',
     })
 
     expect(result.isOk()).toBe(true)
@@ -172,6 +174,7 @@ describe('cancelGoal', () => {
     const result = await cancelGoal(fakes.deps)({
       goalId: goalId('goal-1'),
       organizationId: organizationId('org-1'),
+      role: 'AccountAdmin',
     })
 
     expect(result.isErr()).toBe(true)
@@ -186,6 +189,7 @@ describe('cancelGoal', () => {
     const result = await cancelGoal(fakes.deps)({
       goalId: goalId('goal-1'),
       organizationId: organizationId('org-1'),
+      role: 'AccountAdmin',
     })
 
     expect(result.isErr()).toBe(true)
@@ -199,6 +203,7 @@ describe('cancelGoal', () => {
     const result = await cancelGoal(fakes.deps)({
       goalId: goalId('nonexistent'),
       organizationId: organizationId('org-1'),
+      role: 'AccountAdmin',
     })
 
     expect(result.isErr()).toBe(true)

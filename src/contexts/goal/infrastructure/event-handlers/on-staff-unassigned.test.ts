@@ -3,8 +3,7 @@ import { onStaffUnassigned, type OnStaffUnassignedDeps } from './on-staff-unassi
 import type { StaffUnassigned } from '#/contexts/staff/application/public-api'
 import type { GoalRepository } from '../../application/ports/goal.repository'
 import type { Goal } from '../../domain/types'
-import type { GoalId, OrganizationId } from '#/shared/domain/ids'
-import { ok, err, type Result } from 'neverthrow'
+import { ok, err } from 'neverthrow'
 import {
   organizationId,
   propertyId,
@@ -57,11 +56,6 @@ function makeEvent(overrides: Partial<StaffUnassigned> = {}): StaffUnassigned {
   }
 }
 
-type CancelGoalFn = (input: {
-  goalId: GoalId
-  organizationId: OrganizationId
-}) => Promise<Result<Goal, unknown>>
-
 function makeFakeDeps(storedGoals: Goal[] = []) {
   const cancelledGoalIds: string[] = []
 
@@ -99,6 +93,8 @@ function makeFakeDeps(storedGoals: Goal[] = []) {
     findLatestInstance: async () => null,
     createGoalAndProgress: async () => {},
   }
+
+  type CancelGoalFn = OnStaffUnassignedDeps['cancelGoalFn']
 
   const cancelGoalFn: CancelGoalFn = async (input) => {
     cancelledGoalIds.push(input.goalId as string)

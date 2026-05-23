@@ -130,6 +130,7 @@ const BASE_INPUT = {
   metricKey: 'portal.scan' as MetricKey,
   aggregationFunction: 'sum' as AggregationFunction,
   targetValue: 200,
+  role: 'AccountAdmin' as const,
 }
 
 describe('createGoal', () => {

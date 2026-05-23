@@ -382,16 +382,16 @@ describe('permission gates in goal server functions', () => {
     vi.clearAllMocks()
   })
 
-  it('can() returns true for AccountAdmin + goal.write', () => {
-    expect(can('AccountAdmin', 'goal.write')).toBe(true)
+  it('can() returns true for AccountAdmin + goal.create', () => {
+    expect(can('AccountAdmin', 'goal.create')).toBe(true)
   })
 
-  it('can() returns true for PropertyManager + goal.write', () => {
-    expect(can('PropertyManager', 'goal.write')).toBe(true)
+  it('can() returns true for PropertyManager + goal.create', () => {
+    expect(can('PropertyManager', 'goal.create')).toBe(true)
   })
 
-  it('can() returns false for Staff + goal.write', () => {
-    expect(can('Staff', 'goal.write')).toBe(false)
+  it('can() returns true for Staff + goal.create', () => {
+    expect(can('Staff', 'goal.create')).toBe(true)
   })
 
   it('can() returns true for AccountAdmin + goal.read', () => {
@@ -402,12 +402,12 @@ describe('permission gates in goal server functions', () => {
     expect(can('PropertyManager', 'goal.read')).toBe(true)
   })
 
-  it('can() returns true for Staff + goal.read (Staff has read-only goal access)', () => {
+  it('can() returns true for Staff + goal.read (Staff has read + create access)', () => {
     expect(can('Staff', 'goal.read')).toBe(true)
   })
 
-  it('can() returns false for Staff + goal.write (Staff cannot mutate goals)', () => {
-    expect(can('Staff', 'goal.write')).toBe(false)
+  it('can() returns false for Staff + goal.update (Staff cannot update goals)', () => {
+    expect(can('Staff', 'goal.update')).toBe(false)
   })
 
   it('unauthorized role would produce 403 via throwContextError', () => {
