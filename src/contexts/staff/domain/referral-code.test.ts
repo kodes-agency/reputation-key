@@ -1,3 +1,4 @@
+import { randomBytes } from 'crypto'
 import { describe, it, expect } from 'vitest'
 import { generateReferralCode } from './referral-code'
 
@@ -13,7 +14,7 @@ describe('generateReferralCode', () => {
   it('generates different codes for same name (random hash)', () => {
     const codes = new Set<string>()
     for (let i = 0; i < 50; i++) {
-      codes.add(generateReferralCode('Jane Doe'))
+      codes.add(generateReferralCode('Jane Doe', randomBytes))
     }
     // With 4 hex chars (65536 space), 50 samples should produce >1 unique codes
     expect(codes.size).toBeGreaterThan(1)

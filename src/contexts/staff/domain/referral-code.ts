@@ -1,5 +1,3 @@
-import { randomBytes } from 'crypto'
-
 export type RandomBytesFn = (size: number) => Buffer
 
 /**
@@ -11,7 +9,7 @@ export type RandomBytesFn = (size: number) => Buffer
  */
 export const generateReferralCode = (
   fullName: string,
-  randomBytesFn: RandomBytesFn = randomBytes,
+  randomBytesFn: RandomBytesFn,
 ): string => {
   const slug = buildSlug(fullName)
   const hash = randomBytesFn(2).toString('hex')
