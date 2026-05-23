@@ -4,13 +4,13 @@ import type { PortalRepository } from '../ports/portal.repository'
 import type { StoragePort } from '../ports/storage.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { portalError } from '../../domain/errors'
-import { randomUUID } from 'crypto'
 import { can } from '#/shared/domain/permissions'
 
 // fallow-ignore-next-line unused-type
 export type RequestUploadUrlDeps = Readonly<{
   portalRepo: PortalRepository
   storage: StoragePort
+  idGen: () => string
 }>
 
 const ALLOWED_CONTENT_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
@@ -44,7 +44,7 @@ export const requestUploadUrl =
       throw portalError('upload_failed', 'file size exceeds 10 MB limit')
     }
 
-    const key = `portals/${portal.organizationId}/${portal.id}/hero/${randomUUID()}`
+    const key = `portals/${portal.organizationId}/${portal.id}/hero/${deps.idGen()}`
     const { uploadUrl } = await deps.storage.createPresignedUploadUrl(
       key,
       input.contentType,

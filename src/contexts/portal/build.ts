@@ -105,6 +105,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     requestUploadUrl: requestUploadUrl({
       portalRepo,
       storage,
+      idGen: () => randomUUID(),
     }),
     finalizeUpload: finalizeUpload({
       portalRepo,

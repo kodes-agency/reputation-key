@@ -33,6 +33,7 @@ import type { PropertyLookupPort } from './application/ports/property-lookup.por
 import type { PropertyFkCleanupPort } from './application/ports/property-fk-cleanup.port'
 import { gbpImportJobId, organizationId as toOrgId } from '#/shared/domain/ids'
 import { properties } from '#/shared/db/schema/property.schema'
+import { randomUUID, createHash } from 'crypto'
 // eslint-disable-next-line no-restricted-imports -- wiring layer implements cross-context ports with shared schema
 import { and, eq } from 'drizzle-orm'
 
@@ -135,6 +136,7 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       encryption: encryptionPort,
       events: deps.events,
       clock: deps.clock,
+      idGen: () => randomUUID(),
       callbackUrl: `${getEnv().BETTER_AUTH_URL}/api/auth/google/callback`,
     }),
 
@@ -188,6 +190,7 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       toJobId: gbpImportJobId,
       toOrgId,
       clock: deps.clock,
+      hashFn: (input: string) => createHash('sha256').update(input).digest('base64url'),
       logger: deps.logger,
     }),
   } as const

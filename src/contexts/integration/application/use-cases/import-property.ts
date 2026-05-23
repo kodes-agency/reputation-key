@@ -15,9 +15,12 @@ import type { PropertyImportRepo } from '../ports/property-import-repo.port'
 import { isDuplicateKeyError } from '../ports/property-import-repo.port'
 import type { GbpImportJobId, GbpImportJobStatus } from '../../domain/types'
 import type { OrganizationId } from '#/shared/domain/ids'
-import { propertyId as toPropertyId, organizationId as toOrgId, googleConnectionId as toConnectionId } from '#/shared/domain/ids'
+import {
+  propertyId as toPropertyId,
+  organizationId as toOrgId,
+  googleConnectionId as toConnectionId,
+} from '#/shared/domain/ids'
 import { normalizeSlug } from '#/shared/domain/slug'
-import { createHash } from 'crypto'
 import type { Logger } from 'pino'
 
 // ── Types ──────────────────────────────────────────────────────────
@@ -48,11 +51,7 @@ export type ImportPropertyInput = Readonly<{
 
 export type ImportPropertyResult = Readonly<{
   created: ReadonlyArray<CreatedProperty>
-  status:
-    | 'completed'
-    | 'completed_with_skips'
-    | 'completed_with_failures'
-    | 'failed'
+  status: 'completed' | 'completed_with_skips' | 'completed_with_failures' | 'failed'
 }>
 
 export type ImportPropertyDeps = Readonly<{
@@ -62,17 +61,19 @@ export type ImportPropertyDeps = Readonly<{
   toJobId: (id: string) => GbpImportJobId
   toOrgId: (id: string) => OrganizationId
   clock: () => Date
+  hashFn: (input: string) => string
   logger: Logger
 }>
 
 // ── Helpers ────────────────────────────────────────────────────────
 
-function generatePropertySlug(businessName: string, gbpPlaceId: string): string {
+function generatePropertySlug(
+  businessName: string,
+  gbpPlaceId: string,
+  hashFn: (input: string) => string,
+): string {
   const baseSlug = normalizeSlug(businessName)
-  const slugSuffix = createHash('sha256')
-    .update(gbpPlaceId)
-    .digest('base64url')
-    .slice(0, 8)
+  const slugSuffix = hashFn(gbpPlaceId).slice(0, 8)
   return `${baseSlug}-${slugSuffix}`
 }
 
@@ -106,7 +107,10 @@ export const importProperty =
       // 1. Resolve which GBP place IDs already exist as properties
       const gbpPlaceIds = input.locations.map((loc) => loc.gbpPlaceId)
       const existingGbpPlaceIds = new Set(
-        await deps.propertyRepo.findExistingGbpPlaceIds(input.organizationId, gbpPlaceIds),
+        await deps.propertyRepo.findExistingGbpPlaceIds(
+          input.organizationId,
+          gbpPlaceIds,
+        ),
       )
 
       // 2. Process each location
@@ -117,7 +121,11 @@ export const importProperty =
             continue
           }
 
-          const slug = generatePropertySlug(location.businessName, location.gbpPlaceId)
+          const slug = generatePropertySlug(
+            location.businessName,
+            location.gbpPlaceId,
+            deps.hashFn,
+          )
           const now = deps.clock()
 
           const inserted = await deps.propertyRepo.insertProperty({
@@ -177,7 +185,11 @@ export const importProperty =
       const jobRow = await deps.importRepo.findById(orgId, jobId)
 
       const finalStatus: GbpImportJobStatus = jobRow
-        ? determineTerminalStatus(jobRow.totalCount, jobRow.skippedCount, jobRow.failedCount)
+        ? determineTerminalStatus(
+            jobRow.totalCount,
+            jobRow.skippedCount,
+            jobRow.failedCount,
+          )
         : 'failed'
 
       await deps.importRepo.updateStatus(jobId, orgId, finalStatus)
@@ -218,4 +230,6 @@ export const importProperty =
 export type ImportProperty = ReturnType<typeof importProperty>
 
 // Alias used by the job handler for dependency injection
-export type ImportPropertyUseCase = (input: ImportPropertyInput) => Promise<ImportPropertyResult>
+export type ImportPropertyUseCase = (
+  input: ImportPropertyInput,
+) => Promise<ImportPropertyResult>

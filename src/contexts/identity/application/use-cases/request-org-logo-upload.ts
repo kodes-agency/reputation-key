@@ -3,12 +3,12 @@
 import type { StoragePort } from '#/contexts/portal/application/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { identityError } from '../../domain/errors'
-import { randomUUID } from 'crypto'
 import { can } from '#/shared/domain/permissions'
 
 // fallow-ignore-next-line unused-type
 export type RequestOrgLogoUploadDeps = Readonly<{
   storage: StoragePort
+  idGen: () => string
 }>
 
 const ALLOWED_CONTENT_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
@@ -38,7 +38,7 @@ export const requestOrgLogoUpload =
       throw identityError('validation_error', 'File size exceeds 5 MB limit')
     }
 
-    const key = `organizations/${ctx.organizationId}/logo/${randomUUID()}`
+    const key = `organizations/${ctx.organizationId}/logo/${deps.idGen()}`
     const { uploadUrl } = await deps.storage.createPresignedUploadUrl(
       key,
       input.contentType,
