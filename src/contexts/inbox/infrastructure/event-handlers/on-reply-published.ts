@@ -1,7 +1,7 @@
 // Inbox context — event handler for reply.published
 // Auto-transitions the corresponding inbox item to 'addressed'.
 
-import type { ReplyPublished } from '#/contexts/review/domain/events'
+import type { ReplyPublished } from '#/contexts/review/application/public-api'
 import type { InboxRepository } from '../../application/ports/inbox.repository'
 import { getLogger } from '#/shared/observability/logger'
 

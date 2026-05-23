@@ -1,7 +1,7 @@
 // Inbox context — event handler for review.updated
 // Syncs denormalized fields (rating) when a review is updated.
 
-import type { ReviewUpdated } from '#/contexts/review/domain/events'
+import type { ReviewUpdated } from '#/contexts/review/application/public-api'
 import type { InboxRepository } from '../../application/ports/inbox.repository'
 import { getLogger } from '#/shared/observability/logger'
 import { unbrand } from '#/shared/domain/ids'

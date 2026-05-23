@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { onTeamDeleted, type OnTeamDeletedDeps } from './on-team-deleted'
-import type { TeamDeleted } from '#/contexts/team/domain/events'
+import type { TeamDeleted } from '#/contexts/team/application/public-api'
 import type { GoalRepository } from '../../application/ports/goal.repository'
 import type { Goal } from '../../domain/types'
 import type { GoalId, OrganizationId } from '#/shared/domain/ids'

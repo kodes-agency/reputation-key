@@ -1,4 +1,4 @@
-import type { PropertyCreated } from '#/contexts/property/domain/events'
+import type { PropertyCreated } from '#/contexts/property/application/public-api'
 import type { ReviewQueuePort } from '../../application/ports/review-queue.port'
 import { getLogger } from '#/shared/observability/logger'
 

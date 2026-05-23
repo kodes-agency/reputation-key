@@ -1,7 +1,7 @@
 // Inbox context — event handler for feedback.submitted
 // Creates an inbox item when guest feedback is submitted.
 
-import type { FeedbackSubmitted } from '#/contexts/guest/domain/events'
+import type { FeedbackSubmitted } from '#/contexts/guest/application/public-api'
 import type { CreateInboxItemUseCase } from '../../application/use-cases/create-inbox-item'
 import { isInboxError } from '../../domain/errors'
 import { getLogger } from '#/shared/observability/logger'

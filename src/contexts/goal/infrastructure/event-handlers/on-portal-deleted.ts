@@ -2,7 +2,7 @@
 // Cancels active goals scoped to the deleted portal.
 // Per architecture: event handler subscribes via EventBus, drives use case.
 
-import type { PortalDeleted } from '#/contexts/portal/domain/events'
+import type { PortalDeleted } from '#/contexts/portal/application/public-api'
 import type { GoalRepository } from '../../application/ports/goal.repository'
 import type { Goal } from '../../domain/types'
 import type { GoalId, OrganizationId } from '#/shared/domain/ids'

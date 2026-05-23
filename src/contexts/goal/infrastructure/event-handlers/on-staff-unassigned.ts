@@ -2,7 +2,7 @@
 // Cancels active goals scoped to the unassigned staff member.
 // Per architecture: event handler subscribes via EventBus, drives use case.
 
-import type { StaffUnassigned } from '#/contexts/staff/domain/events'
+import type { StaffUnassigned } from '#/contexts/staff/application/public-api'
 import type { GoalRepository } from '../../application/ports/goal.repository'
 import type { Goal } from '../../domain/types'
 import type { GoalId, OrganizationId, StaffId } from '#/shared/domain/ids'

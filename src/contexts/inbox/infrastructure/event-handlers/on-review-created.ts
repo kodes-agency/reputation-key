@@ -1,7 +1,7 @@
 // Inbox context — event handler for review.created
 // Creates an inbox item when a new review is ingested.
 
-import type { ReviewCreated } from '#/contexts/review/domain/events'
+import type { ReviewCreated } from '#/contexts/review/application/public-api'
 import type { CreateInboxItemUseCase } from '../../application/use-cases/create-inbox-item'
 import { isInboxError } from '../../domain/errors'
 import { getLogger } from '#/shared/observability/logger'

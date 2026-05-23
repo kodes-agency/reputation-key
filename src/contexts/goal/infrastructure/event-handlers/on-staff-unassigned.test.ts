@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { onStaffUnassigned, type OnStaffUnassignedDeps } from './on-staff-unassigned'
-import type { StaffUnassigned } from '#/contexts/staff/domain/events'
+import type { StaffUnassigned } from '#/contexts/staff/application/public-api'
 import type { GoalRepository } from '../../application/ports/goal.repository'
 import type { Goal } from '../../domain/types'
 import type { GoalId, OrganizationId } from '#/shared/domain/ids'

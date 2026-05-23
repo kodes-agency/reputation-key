@@ -17,3 +17,7 @@ export type StaffPublicApi = Readonly<{
     role: Role,
   ) => Promise<ReadonlyArray<PropertyId> | null>
 }>
+
+// Event re-exports — cross-context consumers must import events from public-api, not domain/events
+export type { StaffUnassigned, StaffAssigned, StaffEvent } from '../domain/events'
+export { staffUnassigned, staffAssigned } from '../domain/events'
