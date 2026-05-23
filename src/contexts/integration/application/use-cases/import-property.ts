@@ -21,7 +21,7 @@ import {
   googleConnectionId as toConnectionId,
 } from '#/shared/domain/ids'
 import { normalizeSlug } from '#/shared/domain/slug'
-import type { Logger } from 'pino'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -62,7 +62,7 @@ export type ImportPropertyDeps = Readonly<{
   toOrgId: (id: string) => OrganizationId
   clock: () => Date
   hashFn: (input: string) => string
-  logger: Logger
+  logger: LoggerPort
 }>
 
 // ── Helpers ────────────────────────────────────────────────────────

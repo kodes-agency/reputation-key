@@ -49,5 +49,8 @@ export type { Permission } from './permissions'
 // ── Slug normalization ─────────────────────────────────────────────
 export { normalizeSlug } from './slug'
 
+// ── Logger port ──────────────────────────────────────────────────
+export type { LoggerPort } from './logger.port'
+
 // ── Timezones ─────────────────────────────────────────────────────
 export { VALID_TIMEZONES } from './timezones'

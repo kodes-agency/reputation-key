@@ -9,7 +9,7 @@ import type { InboxItemId, OrganizationId, UserId } from '#/shared/domain/ids'
 import type { InboxStatus, InboxItem } from '../../domain/types'
 import type { Role } from '#/shared/domain/roles'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
-import type { Logger } from 'pino'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import { hasRole, ADMIN_ROLE } from '#/shared/domain/roles'
 import { validateTransition } from '../../domain/rules'
 import { inboxStatusChanged } from '../../domain/events'
@@ -30,7 +30,7 @@ export type UpdateInboxStatusDeps = Readonly<{
   unreadCounter: UnreadCounterPort
   clock: () => Date
   staffPublicApi: StaffPublicApi
-  logger: Logger
+  logger: LoggerPort
 }>
 
 export const updateInboxStatus =
@@ -90,7 +90,10 @@ export const updateInboxStatus =
       try {
         await deps.unreadCounter.decrement(input.organizationId)
       } catch (err) {
-        deps.logger.warn({ err, organizationId: input.organizationId }, 'Unread counter decrement failed, DB is source of truth')
+        deps.logger.warn(
+          { err, organizationId: input.organizationId },
+          'Unread counter decrement failed, DB is source of truth',
+        )
       }
     }
 

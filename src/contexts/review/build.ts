@@ -5,7 +5,7 @@
 import type { Database } from '#/shared/db'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { Queue } from 'bullmq'
-import type { Logger } from 'pino'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { GoogleReviewApiPort } from './application/ports/google-review-api.port'
 import type { ReviewRepository } from './application/ports/review.repository'
 import type { ReplyRepository } from './application/ports/reply.repository'
@@ -32,7 +32,7 @@ export type ReviewContextBuildInput = Readonly<{
   clock: () => Date
   googleReviewApi: GoogleReviewApiPort
   jobQueue: Queue | undefined
-  logger: Logger
+  logger: LoggerPort
 }>
 
 export type ReviewContextApi = Readonly<{

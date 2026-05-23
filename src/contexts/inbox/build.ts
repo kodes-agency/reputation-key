@@ -5,7 +5,7 @@
 import type { Database } from '#/shared/db'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { Redis } from 'ioredis'
-import type { Logger } from 'pino'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { InboxRepository } from './application/ports/inbox.repository'
 import type { InboxNoteRepository } from './application/ports/inbox-note.repository'
@@ -31,7 +31,7 @@ export type InboxContextBuildInput = Readonly<{
   redis: Redis | undefined
   clock: () => Date
   staffPublicApi: StaffPublicApi
-  logger: Logger
+  logger: LoggerPort
 }>
 
 export type InboxContextApi = Readonly<{

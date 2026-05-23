@@ -16,7 +16,7 @@ import type { SourceType, InboxItem } from '../../domain/types'
 import { createInboxItem as buildInboxItem } from '../../domain/constructors'
 import { inboxItemCreated } from '../../domain/events'
 import { inboxError } from '../../domain/errors'
-import type { Logger } from 'pino'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 
 export type CreateInboxItemInput = Readonly<{
   organizationId: OrganizationId
@@ -36,7 +36,7 @@ export type CreateInboxItemDeps = Readonly<{
   unreadCounter: UnreadCounterPort
   idGen: () => InboxItemId
   clock: () => Date
-  logger: Logger
+  logger: LoggerPort
 }>
 
 export const createInboxItem =

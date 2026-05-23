@@ -12,7 +12,7 @@ import { googleConnectionId, type OrganizationId } from '#/shared/domain/ids'
 import { integrationError } from '../../domain/errors'
 import type { GbpApiError } from '../../domain/gbp-api-error'
 import { TOKEN_EXPIRY_BUFFER_MS } from '../constants'
-import type { Logger } from 'pino'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 
 export type ListGbpLocationsDeps = Readonly<{
   connectionRepo: GoogleConnectionRepository
@@ -23,7 +23,7 @@ export type ListGbpLocationsDeps = Readonly<{
     orgId: OrganizationId,
     connectionId: string,
   ) => Promise<GoogleConnection>
-  logger: Logger
+  logger: LoggerPort
 }>
 
 export const listGbpLocations =
@@ -119,7 +119,10 @@ export const listGbpLocations =
       try {
         locations = await deps.gbpApi.listLocations(accessToken, '-')
       } catch (err) {
-        deps.logger.warn({ err, connectionId: input.connectionId, organizationId: ctx.organizationId }, 'Wildcard GBP location listing also failed')
+        deps.logger.warn(
+          { err, connectionId: input.connectionId, organizationId: ctx.organizationId },
+          'Wildcard GBP location listing also failed',
+        )
         throw originalErr
       }
     }

@@ -13,7 +13,7 @@ import { can } from '#/shared/domain/permissions'
 import { googleConnectionId } from '#/shared/domain/ids'
 import { integrationError } from '../../domain/errors'
 import { googleAccountDisconnected } from '../../domain/events'
-import type { Logger } from 'pino'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 
 export type DisconnectGoogleAccountDeps = Readonly<{
   connectionRepo: GoogleConnectionRepository
@@ -22,7 +22,7 @@ export type DisconnectGoogleAccountDeps = Readonly<{
   cacheRepo: GbpCacheRepository
   events: EventBus
   clock: () => Date
-  logger: Logger
+  logger: LoggerPort
 }>
 
 export const disconnectGoogleAccount =

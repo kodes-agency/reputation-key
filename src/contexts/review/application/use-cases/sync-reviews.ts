@@ -25,7 +25,7 @@ import type {
 } from '#/shared/domain/ids'
 import type { Review, GoogleReview } from '../../domain/types'
 import type { ReviewError } from '../../domain/errors'
-import type { Logger } from 'pino'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import { reviewCreated, reviewUpdated } from '../../domain/events'
 import { reviewError } from '../../domain/errors'
 import { calculateExpiresAt } from '../../domain/rules'
@@ -39,7 +39,7 @@ export type SyncReviewsDeps = Readonly<{
   clock: () => Date
   idGen: () => ReviewId
   replyIdGen: () => ReplyId
-  logger: Logger
+  logger: LoggerPort
 }>
 
 export type SyncReviewsInput = Readonly<{

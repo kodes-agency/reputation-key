@@ -5,7 +5,7 @@
 import type { Database } from '#/shared/db'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { Queue } from 'bullmq'
-import type { Logger } from 'pino'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { GbpQueuePort } from './application/ports/gbp-queue.port'
 import type { ImportPropertyJobData } from './application/ports/gbp-queue.port'
 import type { PropertyQueryPort } from './application/ports/property-query.port'
@@ -43,7 +43,7 @@ type IntegrationContextDeps = Readonly<{
   clock: () => Date
   jobQueue: Queue | undefined
   propertyLookup: PropertyLookupPort
-  logger: Logger
+  logger: LoggerPort
 }>
 
 export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
