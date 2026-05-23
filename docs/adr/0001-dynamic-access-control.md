@@ -77,3 +77,5 @@ Enable `dynamicAccessControl: { enabled: true }` in the organization plugin. Bet
 - Double-mapping bug fixed — `beforeLoad` no longer calls `toDomainRole()` on already-mapped roles
 - All `canEdit`/`canCreate`/`canDelete` prop drilling replaced with `usePermissions()` or `can()`
 - Phase 4 (Admin UI for custom role management) deferred to future session
+- Phase 15C added `goal.read`, `goal.write` permissions for the Goal bounded context. `goal.write` granted to AccountAdmin and PropertyManager; `goal.read` granted to all three roles including Staff.
+- `invitation.list` added to the `invitation` resource actions for listing invitations (previously only `create`, `cancel`, `resend` were defined).

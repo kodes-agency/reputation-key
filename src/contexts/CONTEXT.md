@@ -4,19 +4,18 @@
 
 ## Bounded contexts
 
-|| Context     | Responsibility                                         | Key Entities                           | Thickness |
-|| ----------- | ------------------------------------------------------ | -------------------------------------- | --------- ||
-|| Identity    | Users, organizations, members, invitations             | User, Organization, Member, Invitation | Thin (wraps better-auth) |
-|| Property    | Properties (hotels/restaurants) + GBP location import  | Property                               | Thick     |
-|| Portal      | Guest-facing portal pages with links, per property     | Portal, Link, LinkCategory             | Thick     |
-|| Guest       | Public portal rendering, rating collection, feedback   | Rating, Feedback                       | Thick     |
-| Team        | Staff teams and shift management                       | Team                                  | Thick     |
-| Staff       | Staff assignments to properties                        | StaffAssignment                        | Standard  |
-| Integration | Google connections, OAuth, tokens, GBP API adapter     | GoogleConnection                       | Standard  |
-| Review      | External platform reviews (Google), sync, replies      | Review                                 | Thick     |
-| Inbox       | Unified triage surface for reviews + feedback          | InboxItem, InboxNote                   | Thick     |
-| Metric      | Aggregation of raw counters (scans, ratings, clicks, reviews) | MetricReading               | Standard  |
-| Dashboard   | Read-only aggregation of metrics, reviews, replies     | —                                      | Thin (read model) |
+|| Identity | Users, organizations, members, invitations | User, Organization, Member, Invitation | Thin (wraps better-auth) |
+|| Property | Properties (hotels/restaurants) + GBP location import | Property | Thick |
+|| Portal | Guest-facing portal pages with links, per property | Portal, Link, LinkCategory | Thick |
+|| Guest | Public portal rendering, rating collection, feedback | Rating, Feedback | Thick ||
+Team | Staff teams and shift management | Team | Thick ||
+Staff | Staff assignments to properties | StaffAssignment | Standard ||
+Integration | Google connections, OAuth, tokens, GBP API adapter | GoogleConnection | Standard ||
+Review | External platform reviews (Google), sync, replies | Review | Thick ||
+Inbox | Unified triage surface for reviews + feedback | InboxItem, InboxNote | Thick ||
+Metric | Aggregation of raw counters (scans, ratings, clicks, reviews) | MetricReading | Standard ||
+Goal | Property-scoped goals with progress tracking | Goal, GoalInstance | Thick ||
+Dashboard | Read-only aggregation of metrics, reviews, replies | — | Thin (read model) |
 
 **Thin contexts** (like Identity) may have empty layer folders — no mappers, no jobs, sparse use cases. That's expected. **Metric context** has no `server/` layer by design — it records readings via event handlers and background jobs, not via server functions called from routes.
 
@@ -40,12 +39,12 @@ contexts/<name>/
   server/              TanStack Start server functions
 ```
 
-| Layer             | Contains                                              | Forbidden                                          |
-| ----------------- | ----------------------------------------------------- | -------------------------------------------------- |
-| `domain/`         | Types, pure rules, constructors, events, errors       | `async`, I/O, framework imports, `throw`, mutation |
-| `application/`    | Use cases, port interfaces, DTOs                      | DB queries, HTTP code, React, domain rule dupes    |
-| `infrastructure/` | Repository impls, mappers, adapters, jobs, handlers   | Business rules, HTTP routing, React                |
-| `server/`         | TanStack Start server functions                       | Business logic, direct DB access, domain rules     |
+| Layer             | Contains                                            | Forbidden                                          |
+| ----------------- | --------------------------------------------------- | -------------------------------------------------- |
+| `domain/`         | Types, pure rules, constructors, events, errors     | `async`, I/O, framework imports, `throw`, mutation |
+| `application/`    | Use cases, port interfaces, DTOs                    | DB queries, HTTP code, React, domain rule dupes    |
+| `infrastructure/` | Repository impls, mappers, adapters, jobs, handlers | Business rules, HTTP routing, React                |
+| `server/`         | TanStack Start server functions                     | Business logic, direct DB access, domain rules     |
 
 Dependencies point inward: `server` → `application` → `domain`. Infrastructure implements application ports.
 
@@ -76,11 +75,11 @@ Anonymous/public use cases (registration, guest flows) omit `AuthContext` — th
 
 ### When to skip layers
 
-| Shape | Pattern |
-| ----- | ------- |
-| Pure third-party delegation, no auth | Server function calls port directly (sign-in, sign-out) |
-| Auth check + delegation, nothing else | Keep the use case (future logic lands here) |
-| Business rules, validation, events, state | Full use case pattern |
+| Shape                                     | Pattern                                                 |
+| ----------------------------------------- | ------------------------------------------------------- |
+| Pure third-party delegation, no auth      | Server function calls port directly (sign-in, sign-out) |
+| Auth check + delegation, nothing else     | Keep the use case (future logic lands here)             |
+| Business rules, validation, events, state | Full use case pattern                                   |
 
 **When in doubt, prefer the use case.**
 
@@ -91,18 +90,23 @@ Every server function wraps logic in `tracedHandler()`:
 ```typescript
 export const getPortal = createServerFn({ method: 'GET' })
   .validator(getPortalDto)
-  .handler(tracedHandler(async ({ data }) => {
-    const ctx = await resolveTenantContext(request.headers)
-    const result = await getPortalUseCase(deps)({ portalId: data.portalId }, ctx)
-    clearTenantCache() // evict expired tenant cache entries
-    return match(result)
-      .with({ _tag: 'Ok' }, ({ value }) => ({ portal: value }))
-      .with({ _tag: 'Err' }, ({ error }) => { throw mapError(error) })
-      .exhaustive()
-  }))
+  .handler(
+    tracedHandler(async ({ data }) => {
+      const ctx = await resolveTenantContext(request.headers)
+      const result = await getPortalUseCase(deps)({ portalId: data.portalId }, ctx)
+      clearTenantCache() // evict expired tenant cache entries
+      return match(result)
+        .with({ _tag: 'Ok' }, ({ value }) => ({ portal: value }))
+        .with({ _tag: 'Err' }, ({ error }) => {
+          throw mapError(error)
+        })
+        .exhaustive()
+    }),
+  )
 ```
 
 Key points:
+
 - **`tracedHandler`** — wraps handler with ALS request context, correlation ID, named span with timing. From `shared/observability/traced-server-fn`.
 - **`resolveTenantContext(headers)`** — resolves org from session, returns `AuthContext`. Has a 5s TTL cache keyed by cookie header to deduplicate concurrent calls during page loads.
 - **`clearTenantCache()`** — evict expired entries after each server function completes.
@@ -123,16 +127,16 @@ Key points:
 
 Tagged error shape: `{ _tag: 'XxxError', code: '<reason>', message: string, context?: Record<string, unknown> }`.
 
-| Layer | Behavior |
-| ----- | -------- |
-| Domain | Returns `Result<T, DomainError>`. Never throws. |
-| Application | Throws tagged errors on `Result.isErr()`. |
-| Infrastructure | Catches library errors, translates to tagged errors. |
-| Server | Pattern-matches `_tag`/`code`, throws `Error` with HTTP-appropriate status. |
+| Layer          | Behavior                                                                    |
+| -------------- | --------------------------------------------------------------------------- |
+| Domain         | Returns `Result<T, DomainError>`. Never throws.                             |
+| Application    | Throws tagged errors on `Result.isErr()`.                                   |
+| Infrastructure | Catches library errors, translates to tagged errors.                        |
+| Server         | Pattern-matches `_tag`/`code`, throws `Error` with HTTP-appropriate status. |
 
 ## Events
 
-- Past-tense: `portal.created`, `review.received`. Never commands.
+- Past-tense: `portal.created`, `review.created`. Never commands.
 - Live in emitting context's `domain/events.ts`. Master union in `shared/events/events.ts`.
 - Subscribers in **receiving** context's `infrastructure/event-handlers/`.
 - Handlers are idempotent, don't throw, log via shared logger.
@@ -141,11 +145,11 @@ Tagged error shape: `{ _tag: 'XxxError', code: '<reason>', message: string, cont
 
 ## Testing
 
-| Layer | Type | Required |
-| ----- | ---- | -------- |
-| Domain | Pure unit, no setup | Always, test-first |
-| Use cases | Unit with in-memory port fakes | Default test-first |
-| Repositories | Integration vs real Postgres | Test-after, always test |
-| Adapters | Integration with mocked external API | Test-after |
+| Layer        | Type                                 | Required                |
+| ------------ | ------------------------------------ | ----------------------- |
+| Domain       | Pure unit, no setup                  | Always, test-first      |
+| Use cases    | Unit with in-memory port fakes       | Default test-first      |
+| Repositories | Integration vs real Postgres         | Test-after, always test |
+| Adapters     | Integration with mocked external API | Test-after              |
 
 Required: 100% domain coverage. Every use case tested for happy + error paths. Every repo has tenant isolation test. Tests colocated: `rules.ts` next to `rules.test.ts`.

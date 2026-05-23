@@ -28,6 +28,8 @@ routes/
         metrics.tsx
         reviews.tsx
         people.tsx
+        goals/
+          index.tsx, new.tsx, $goalId.tsx
         portals/
           index.tsx, new.tsx, $portalId.tsx
         teams/
@@ -166,12 +168,14 @@ Login (`/login`), join (`/join`), accept-invitation — these are outside `_auth
 ### Webhook route exception
 
 Webhook routes (`routes/api/webhooks/`) are exempt from the standard API route rules. Allowed:
+
 - `getDb()` + Drizzle schema table imports + `drizzle-orm` helpers for resource resolution
 - `getContainer()` for queue access (to enqueue background jobs)
 - `shared/auth/` imports for token/JWT verification
 - Direct `Response` construction (no server fn wrapping needed)
 
 NOT allowed:
+
 - Importing use cases, repositories, or domain logic directly
 - Creating new Queue instances (use container's singleton)
 
