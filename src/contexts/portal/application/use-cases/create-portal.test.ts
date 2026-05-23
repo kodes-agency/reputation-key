@@ -25,6 +25,8 @@ const setup = () => {
       propertyExists: async (_orgId: OrganizationId, pid: PropertyId) =>
         pid === propertyId('a0000000-0000-0000-0000-000000000001'),
       findByGbpPlaceId: async () => null,
+      findIdsByGoogleConnection: async () => [],
+      clearGoogleConnectionRef: async () => {},
     },
     events,
     idGen: () => FIXED_ID,

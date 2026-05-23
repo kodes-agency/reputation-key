@@ -24,6 +24,8 @@ const setup = () => {
       return p !== null
     },
     findByGbpPlaceId: async () => null,
+    findIdsByGoogleConnection: async () => [],
+    clearGoogleConnectionRef: async () => {},
   }
 
   const deps = {

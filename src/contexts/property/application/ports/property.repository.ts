@@ -3,7 +3,7 @@
 // Every method takes organizationId as the first parameter (tenant isolation).
 
 import type { Property, PropertyId } from '../../domain/types'
-import type { OrganizationId } from '#/shared/domain/ids'
+import type { OrganizationId, GoogleConnectionId } from '#/shared/domain/ids'
 
 export type PropertyRepository = Readonly<{
   findById: (orgId: OrganizationId, id: PropertyId) => Promise<Property | null>
@@ -22,4 +22,14 @@ export type PropertyRepository = Readonly<{
   hardDelete: (orgId: OrganizationId, id: PropertyId) => Promise<void>
   /** Find a non-deleted property by its Google Business Profile place ID. */
   findByGbpPlaceId: (gbpPlaceId: string) => Promise<Property | null>
+  /** Find IDs of non-deleted properties linked to a Google connection within an org. */
+  findIdsByGoogleConnection: (
+    connectionId: GoogleConnectionId,
+    orgId: OrganizationId,
+  ) => Promise<ReadonlyArray<PropertyId>>
+  /** Null out googleConnectionId for properties matching the given connection within an org. */
+  clearGoogleConnectionRef: (
+    orgId: OrganizationId,
+    propertyIds: ReadonlyArray<PropertyId>,
+  ) => Promise<void>
 }>

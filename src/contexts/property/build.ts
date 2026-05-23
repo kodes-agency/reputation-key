@@ -5,7 +5,7 @@
 import type { PropertyRepository } from './application/ports/property.repository'
 import type { PropertyPublicApi } from './application/public-api'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
-import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
+import type { OrganizationId, PropertyId, GoogleConnectionId } from '#/shared/domain/ids'
 import type { EventBus } from '#/shared/events/event-bus'
 import { createProperty } from './application/use-cases/create-property'
 import { updateProperty } from './application/use-cases/update-property'
@@ -63,6 +63,21 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
         id: p.id,
         organizationId: p.organizationId,
         googleConnectionId: p.googleConnectionId,
+      }
+    },
+    findIdsByGoogleConnection: async (
+      connectionId: GoogleConnectionId,
+      orgId: OrganizationId,
+    ) => {
+      return deps.repo.findIdsByGoogleConnection(connectionId, orgId)
+    },
+    clearGoogleConnectionRef: async (
+      orgId: OrganizationId,
+      connectionId: GoogleConnectionId,
+    ) => {
+      const propertyIds = await deps.repo.findIdsByGoogleConnection(connectionId, orgId)
+      if (propertyIds.length > 0) {
+        await deps.repo.clearGoogleConnectionRef(orgId, propertyIds)
       }
     },
   }

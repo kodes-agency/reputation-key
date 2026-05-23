@@ -60,6 +60,20 @@ export const createInMemoryPropertyRepo = (): InMemoryPropertyRepo => {
       return null
     },
 
+    findIdsByGoogleConnection: async (connectionId, orgId) =>
+      [...store.values()]
+        .filter((p) => isAccessible(orgId, p) && p.googleConnectionId === connectionId)
+        .map((p) => p.id),
+
+    clearGoogleConnectionRef: async (orgId, propertyIds) => {
+      for (const id of propertyIds) {
+        const existing = store.get(id)
+        if (existing && isAccessible(orgId, existing)) {
+          store.set(id, { ...existing, googleConnectionId: null })
+        }
+      }
+    },
+
     // ── Test-only helpers ───────────────────────────────────────────
 
     seed: (properties) => {
