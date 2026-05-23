@@ -135,6 +135,10 @@ export function buildGoal(input: BuildGoalInput): Result<Goal, GoalConstructionE
         return err({ tag: 'rolling_window_not_allowed', goalType: 'recurring' })
       break
     }
+    default: {
+      const _exhaustive: never = input.goalType
+      throw new Error(`Unhandled goal type: ${_exhaustive}`)
+    }
   }
 
   return ok({

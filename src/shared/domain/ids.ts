@@ -116,3 +116,8 @@ export function goalProgressId(id: string): GoalProgressId {
 export function unbrand<T extends string>(branded: T): string {
   return String(branded)
 }
+
+/** Strip brand from an array of branded IDs. Useful for Drizzle `inArray()` calls. */
+export function unbrandAll<T extends string>(ids: readonly T[]): string[] {
+  return ids.map((id) => String(id))
+}

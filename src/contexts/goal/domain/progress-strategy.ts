@@ -119,6 +119,11 @@ function resolveTimeFilter(goal: Goal): Result<TimeFilter, ProgressQueryError> {
       // buildProgressQueryForInstance or pass an instance goal.
       return err({ tag: 'recurring_template_without_instance_period' })
     }
+
+    default: {
+      const _exhaustive: never = goal.goalType
+      throw new Error(`Unhandled goal type: ${_exhaustive}`)
+    }
   }
 }
 
@@ -149,6 +154,10 @@ export function computeProgressValue(
     case 'avg': {
       const sum = rows.reduce((acc, r) => acc + r.value, 0)
       return sum / rows.length
+    }
+    default: {
+      const _exhaustive: never = agg
+      throw new Error(`Unhandled aggregation: ${_exhaustive}`)
     }
   }
 }

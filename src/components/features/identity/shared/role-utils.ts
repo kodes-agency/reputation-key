@@ -14,6 +14,10 @@ export function roleLabel(role: Role, style: 'short' | 'full' = 'short'): string
         return 'Property Manager'
       case 'Staff':
         return 'Staff'
+      default: {
+        const _exhaustive: never = role
+        return String(_exhaustive)
+      }
     }
   }
 
@@ -24,5 +28,9 @@ export function roleLabel(role: Role, style: 'short' | 'full' = 'short'): string
       return 'Manager'
     case 'Staff':
       return 'Staff'
+    default: {
+      const _exhaustive: never = role
+      return String(_exhaustive)
+    }
   }
 }

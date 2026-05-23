@@ -5,7 +5,7 @@ import { eq } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { portalLinks, portals } from '#/shared/db/schema/portal.schema'
 import type { LinkResolverPort } from '../../application/ports/link-resolver.port'
-import type { OrganizationId, PortalId, PropertyId } from '#/shared/domain/ids'
+import { organizationId, portalId, propertyId } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 
 export const createLinkResolverPort = (db: Database): LinkResolverPort => ({
@@ -35,9 +35,9 @@ export const createLinkResolverPort = (db: Database): LinkResolverPort => ({
       return {
         id: row.id,
         url: row.url,
-        organizationId: row.organizationId as OrganizationId,
-        portalId: row.portalId as unknown as PortalId,
-        propertyId: row.propertyId as unknown as PropertyId,
+        organizationId: organizationId(row.organizationId),
+        portalId: portalId(row.portalId),
+        propertyId: propertyId(row.propertyId),
       }
     })
   },

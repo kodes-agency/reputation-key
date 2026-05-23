@@ -1,13 +1,25 @@
 // Goal context — Zod input schemas for server functions
 
 import { z } from 'zod/v4'
-import { METRIC_KEYS, AGGREGATION_FUNCTIONS } from '#/shared/domain/metric-keys'
+import {
+  METRIC_KEYS,
+  AGGREGATION_FUNCTIONS,
+  type MetricKey,
+  type AggregationFunction,
+} from '#/shared/domain/metric-keys'
 
 // ── Enums ────────────────────────────────────────────────────────────────
 
 const goalTypeSchema = z.enum(['open', 'one_shot', 'rolling', 'recurring'])
 const goalStatusSchema = z.enum(['active', 'completed', 'expired', 'cancelled'])
 const recurrenceFrequencySchema = z.enum(['weekly', 'monthly', 'quarterly'])
+
+// z.enum() requires [string, ...string[]] — spread from const arrays satisfies this.
+const aggregationFunctionValues = [...AGGREGATION_FUNCTIONS] as [
+  AggregationFunction,
+  ...AggregationFunction[],
+]
+const metricKeyValues = [...METRIC_KEYS] as [MetricKey, ...MetricKey[]]
 
 // ── createGoal ───────────────────────────────────────────────────────────
 
@@ -25,8 +37,8 @@ export const createGoalSchema = z.object({
     .max(1000, 'Description must be at most 1000 characters')
     .optional(),
   goalType: goalTypeSchema,
-  aggregationFunction: z.enum(AGGREGATION_FUNCTIONS as unknown as [string, ...string[]]),
-  metricKey: z.enum(METRIC_KEYS as unknown as [string, ...string[]]),
+  aggregationFunction: z.enum(aggregationFunctionValues),
+  metricKey: z.enum(metricKeyValues),
   targetValue: z.number().positive('Target value must be positive'),
   periodStart: z.string().datetime({ local: true }).optional(),
   periodEnd: z.string().datetime({ local: true }).optional(),

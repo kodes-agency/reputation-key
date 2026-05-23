@@ -10,6 +10,7 @@ import { properties } from '#/shared/db/schema/property.schema'
 import type { PortalRepository } from '../../application/ports/portal.repository'
 import { portalFromRow, portalToRow } from '../mappers/portal.mapper'
 import { portalError } from '../../domain/errors'
+import { unbrand } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 
 /** Mutable set-values type for Drizzle .set() — strips readonly from Portal fields. */
@@ -32,7 +33,7 @@ export const createPortalRepository = (db: Database): PortalRepository => ({
       const rows = await db
         .select()
         .from(portals)
-        .where(and(...baseWhere(portals, orgId), eq(portals.id, id as unknown as string)))
+        .where(and(...baseWhere(portals, orgId), eq(portals.id, unbrand(id))))
         .limit(1)
       return rows[0] ? portalFromRow(rows[0]) : null
     })
@@ -77,7 +78,7 @@ export const createPortalRepository = (db: Database): PortalRepository => ({
         eq(portals.slug, slug),
       ]
       if (excludeId) {
-        conditions.push(not(eq(portals.id, excludeId as unknown as string)))
+        conditions.push(not(eq(portals.id, unbrand(excludeId))))
       }
       const rows = await db
         .select({ id: portals.id })
@@ -116,7 +117,7 @@ export const createPortalRepository = (db: Database): PortalRepository => ({
       await db
         .update(portals)
         .set(setValues)
-        .where(and(...baseWhere(portals, orgId), eq(portals.id, id as unknown as string)))
+        .where(and(...baseWhere(portals, orgId), eq(portals.id, unbrand(id))))
     })
   },
 
@@ -126,7 +127,7 @@ export const createPortalRepository = (db: Database): PortalRepository => ({
       await db
         .update(portals)
         .set({ deletedAt: now, updatedAt: now })
-        .where(and(...baseWhere(portals, orgId), eq(portals.id, id as unknown as string)))
+        .where(and(...baseWhere(portals, orgId), eq(portals.id, unbrand(id))))
     })
   },
 
@@ -136,12 +137,15 @@ export const createPortalRepository = (db: Database): PortalRepository => ({
         SELECT p.slug AS portal_slug, pr.slug AS property_slug
         FROM portals p
         JOIN ${properties} pr ON pr.id = p.property_id
-        WHERE p.id = ${id as unknown as string}
-          AND p.organization_id = ${orgId as unknown as string}
+        WHERE p.id = ${unbrand(id)}
+          AND p.organization_id = ${unbrand(orgId)}
           AND p.deleted_at IS NULL
         LIMIT 1
       `)
 
+      // Raw SQL result — row shape asserted by the SELECT clause above.
+      // Using `as unknown as` because Drizzle's `execute()` returns `Record<string, unknown>[]`
+      // which doesn't structurally overlap with the expected shape.
       const rows = result.rows as unknown as ReadonlyArray<{
         portal_slug: string
         property_slug: string

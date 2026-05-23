@@ -3,8 +3,9 @@
 import type { PortalRepository } from '../ports/portal.repository'
 import type { StoragePort } from '../ports/storage.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import { portalError } from '../../domain/errors'
+import { portalId } from '#/shared/domain/ids'
 import { can } from '#/shared/domain/permissions'
+import { portalError } from '../../domain/errors'
 
 // fallow-ignore-next-line unused-type
 export type RequestUploadUrlDeps = Readonly<{
@@ -27,7 +28,7 @@ export const requestUploadUrl =
     }
     const portal = await deps.portalRepo.findById(
       ctx.organizationId,
-      input.portalId as unknown as import('#/shared/domain/ids').PortalId,
+      portalId(input.portalId),
     )
     if (!portal) {
       throw portalError('portal_not_found', 'portal not found in this organization')

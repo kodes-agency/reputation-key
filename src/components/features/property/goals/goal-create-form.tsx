@@ -100,7 +100,7 @@ export function GoalCreateForm({ propertyId, mutation }: Props) {
       name: s.name.trim(),
       goalType: s.goalType,
       aggregationFunction: s.aggregation,
-      metricKey: s.metricKey as string & {},
+      metricKey: s.metricKey as MetricKey,
       targetValue: Number(s.targetValue),
     }
     if (s.entityScope === 'portal') input.portalId = s.entityId || undefined

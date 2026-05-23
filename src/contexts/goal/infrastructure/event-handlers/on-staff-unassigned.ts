@@ -5,7 +5,8 @@
 import type { StaffUnassigned } from '#/contexts/staff/application/public-api'
 import type { GoalRepository } from '../../application/ports/goal.repository'
 import type { Goal } from '../../domain/types'
-import type { GoalId, OrganizationId, StaffId } from '#/shared/domain/ids'
+import type { GoalId, OrganizationId } from '#/shared/domain/ids'
+import { staffId } from '#/shared/domain/ids'
 import type { Result } from 'neverthrow'
 import type { getLogger as getLoggerType } from '#/shared/observability/logger'
 
@@ -24,10 +25,12 @@ export type OnStaffUnassignedDeps = Readonly<{
 export const onStaffUnassigned =
   (deps: OnStaffUnassignedDeps) =>
   async (event: StaffUnassigned): Promise<void> => {
-    // StaffUnassigned.assignmentId is StaffAssignmentId which is the staffId used in goal scoping
+    // StaffUnassigned.assignmentId is StaffAssignmentId.
+    // In the goal context, staff-scoped goals use the assignment ID as the staff key.
+    // Map via staffId() constructor to preserve brand safety at the boundary.
     const goals = await deps.goalRepo.list({
       organizationId: event.organizationId,
-      staffId: event.assignmentId as unknown as StaffId,
+      staffId: staffId(event.assignmentId),
       status: 'active',
     })
 
