@@ -22,25 +22,27 @@ const makeStaffRow = (overrides: Record<string, unknown> = {}) => ({
   propertyId: 'prop-1',
   teamId: 'team-1',
   portalId: null,
+  referralCode: null,
   createdAt: FIXED_TIME,
   updatedAt: FIXED_TIME,
   deletedAt: null,
   ...overrides,
 })
 
-const makeStaffAssignment = (
-  overrides: Partial<StaffAssignment> = {},
-): StaffAssignment => ({
-  id: staffAssignmentId('assign-1'),
-  organizationId: organizationId('org-1'),
-  userId: userId('user-1'),
-  propertyId: propertyId('prop-1'),
-  teamId: teamId('team-1'),
-  createdAt: FIXED_TIME,
-  updatedAt: FIXED_TIME,
-  deletedAt: null,
-  ...overrides,
-})
+const makeStaffAssignment = (overrides: Partial<StaffAssignment> = {}): StaffAssignment =>
+  ({
+    id: staffAssignmentId('assign-1'),
+    organizationId: organizationId('org-1'),
+    userId: userId('user-1'),
+    propertyId: propertyId('prop-1'),
+    teamId: teamId('team-1'),
+    portalId: null,
+    referralCode: null,
+    createdAt: FIXED_TIME,
+    updatedAt: FIXED_TIME,
+    deletedAt: null,
+    ...overrides,
+  }) as StaffAssignment
 
 describe('staffAssignmentFromRow', () => {
   it('maps all fields from row to domain', () => {

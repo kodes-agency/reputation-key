@@ -1,0 +1,208 @@
+import { describe, it, expect } from 'vitest'
+import { cancelGoal, type CancelGoalDeps } from './cancel-goal'
+import type { Goal } from '../../domain/types'
+import type { GoalRepository } from '../ports/goal.repository'
+import {
+  organizationId,
+  propertyId,
+  goalId,
+  goalProgressId,
+  userId,
+} from '#/shared/domain/ids'
+
+const FIXED_TIME = new Date('2026-06-15T12:00:00Z')
+
+// ── Fake repo ───────────────────────────────────────────────────────────
+
+function createFakeDeps(overrides?: { storedGoals?: Goal[] }) {
+  const stored: Map<string, Goal> = new Map()
+  let cancelledByParentCount = 0
+  let idCounter = 0
+
+  const nextId = () => {
+    idCounter++
+    return `id-${idCounter}`
+  }
+
+  if (overrides?.storedGoals) {
+    for (const g of overrides.storedGoals) {
+      stored.set(g.id as string, g)
+    }
+  }
+
+  const goalRepo: GoalRepository = {
+    insert: async (data) => {
+      const goal: Goal = {
+        id: goalId(nextId()),
+        organizationId: data.organizationId,
+        propertyId: data.propertyId,
+        portalId: data.portalId,
+        teamId: data.teamId,
+        staffId: data.staffId,
+        name: data.name,
+        description: data.description,
+        createdBy: data.createdBy,
+        goalType: data.goalType,
+        aggregationFunction: data.aggregationFunction,
+        metricKey: data.metricKey,
+        targetValue: data.targetValue,
+        status: data.status,
+        periodStart: data.periodStart,
+        periodEnd: data.periodEnd,
+        recurrenceRule: data.recurrenceRule,
+        rollingWindowDays: data.rollingWindowDays,
+        parentGoalId: data.parentGoalId,
+        completedAt: data.completedAt,
+        createdAt: FIXED_TIME,
+        updatedAt: FIXED_TIME,
+      }
+      stored.set(goal.id as string, goal)
+      return goal
+    },
+    getById: async (id, _orgId) => stored.get(id as string) ?? null,
+    update: async (id, _orgId, data) => {
+      const existing = stored.get(id as string)
+      if (!existing) return null
+      const updated: Goal = { ...existing, ...data }
+      stored.set(id as string, updated)
+      return updated
+    },
+    list: async () => [],
+    listInstances: async () => [],
+    cancelByParent: async (_parentId, _orgId, _now) => {
+      cancelledByParentCount++
+      return 2 // simulate 2 instances cancelled
+    },
+    insertProgress: async (data) => ({
+      id: goalProgressId('p-1'),
+      goalId: data.goalId,
+      currentValue: data.currentValue,
+      currentSum: data.currentSum,
+      currentCount: data.currentCount,
+      lastComputedAt: data.lastComputedAt,
+      computedSource: data.computedSource,
+    }),
+    getProgress: async () => null,
+    updateProgress: async () => null,
+    findActiveGoalsByMetric: async () => [],
+    incrementProgress: async () => ({
+      currentValue: 0,
+      currentSum: null,
+      currentCount: null,
+    }),
+    markGoalCompleted: async () => {},
+    findAllActive: async () => [],
+    findActiveRecurringTemplates: async () => [],
+    findLatestInstance: async () => null,
+    createGoalAndProgress: async () => {},
+  }
+
+  const deps: CancelGoalDeps = {
+    goalRepo,
+    clock: () => FIXED_TIME,
+  }
+
+  return { deps, stored, cancelledByParentCount: () => cancelledByParentCount }
+}
+
+const makeGoal = (overrides: Partial<Goal> = {}): Goal => ({
+  id: goalId('goal-1'),
+  organizationId: organizationId('org-1'),
+  propertyId: propertyId('prop-1'),
+  portalId: null,
+  teamId: null,
+  staffId: null,
+  name: 'Get 200 scans',
+  description: null,
+  createdBy: userId('user-1'),
+  goalType: 'open',
+  aggregationFunction: 'sum',
+  metricKey: 'portal.scan',
+  targetValue: 200,
+  status: 'active',
+  periodStart: null,
+  periodEnd: null,
+  recurrenceRule: null,
+  rollingWindowDays: null,
+  parentGoalId: null,
+  completedAt: null,
+  createdAt: FIXED_TIME,
+  updatedAt: FIXED_TIME,
+  ...overrides,
+})
+
+describe('cancelGoal', () => {
+  it('cancels an active goal', async () => {
+    const goal = makeGoal()
+    const fakes = createFakeDeps({ storedGoals: [goal] })
+
+    const result = await cancelGoal(fakes.deps)({
+      goalId: goalId('goal-1'),
+      organizationId: organizationId('org-1'),
+    })
+
+    expect(result.isOk()).toBe(true)
+    const cancelled = result._unsafeUnwrap()
+    expect(cancelled.status).toBe('cancelled')
+  })
+
+  it('cancels a recurring template and cascades to instances', async () => {
+    const goal = makeGoal({
+      goalType: 'recurring',
+      recurrenceRule: { frequency: 'monthly' },
+    })
+    const fakes = createFakeDeps({ storedGoals: [goal] })
+
+    const result = await cancelGoal(fakes.deps)({
+      goalId: goalId('goal-1'),
+      organizationId: organizationId('org-1'),
+    })
+
+    expect(result.isOk()).toBe(true)
+    const cancelled = result._unsafeUnwrap()
+    expect(cancelled.status).toBe('cancelled')
+    // cancelByParent was called
+    expect(fakes.cancelledByParentCount()).toBe(1)
+  })
+
+  it('returns err when cancelling an already cancelled goal', async () => {
+    const goal = makeGoal({ status: 'cancelled' })
+    const fakes = createFakeDeps({ storedGoals: [goal] })
+
+    const result = await cancelGoal(fakes.deps)({
+      goalId: goalId('goal-1'),
+      organizationId: organizationId('org-1'),
+    })
+
+    expect(result.isErr()).toBe(true)
+    const error = result._unsafeUnwrapErr()
+    expect(error.tag).toBe('goal_not_active')
+  })
+
+  it('returns err when cancelling a completed goal', async () => {
+    const goal = makeGoal({ status: 'completed' })
+    const fakes = createFakeDeps({ storedGoals: [goal] })
+
+    const result = await cancelGoal(fakes.deps)({
+      goalId: goalId('goal-1'),
+      organizationId: organizationId('org-1'),
+    })
+
+    expect(result.isErr()).toBe(true)
+    const error = result._unsafeUnwrapErr()
+    expect(error.tag).toBe('goal_not_active')
+  })
+
+  it('returns err when goal is not found', async () => {
+    const fakes = createFakeDeps()
+
+    const result = await cancelGoal(fakes.deps)({
+      goalId: goalId('nonexistent'),
+      organizationId: organizationId('org-1'),
+    })
+
+    expect(result.isErr()).toBe(true)
+    const error = result._unsafeUnwrapErr()
+    expect(error.tag).toBe('goal_not_found')
+  })
+})

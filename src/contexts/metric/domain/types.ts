@@ -1,6 +1,12 @@
 // Metric context — domain types
 
-import type { OrganizationId, PropertyId, PortalId, MetricReadingId } from '#/shared/domain/ids'
+import type {
+  OrganizationId,
+  PropertyId,
+  PortalId,
+  MetricReadingId,
+  StaffId,
+} from '#/shared/domain/ids'
 
 export type MetricKey =
   | 'portal.scan'
@@ -16,5 +22,6 @@ export type MetricReading = Readonly<{
   portalId: PortalId | null
   metricKey: MetricKey
   value: number
+  staffId: StaffId | null
   recordedAt: Date
 }>

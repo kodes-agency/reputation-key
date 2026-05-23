@@ -1,106 +1,10 @@
 // Property dashboard — extracted from route for testability and separation of concerns
 import { Link } from '@tanstack/react-router'
-import {
-  MessageSquare,
-  Star,
-  ScanLine,
-  MessageCircle,
-  ArrowUpRight,
-  ArrowDownRight,
-  Minus,
-} from 'lucide-react'
+import { MessageSquare, Star, ScanLine, MessageCircle } from 'lucide-react'
 import { Button } from '#/components/ui/button'
-import { Badge } from '#/components/ui/badge'
-import type { KPIValue, RecentReview, DashboardReplyStatus, DashboardData } from '#/contexts/dashboard/application/public-api'
-
-// ── Helpers ──────────────────────────────────────────────────────
-
-function formatTrend(trend: number | null): string {
-  if (trend === null) return '—'
-  const abs = Math.abs(trend)
-  return `${abs}%`
-}
-
-function TrendIndicator({ trend }: { trend: number | null }) {
-  if (trend === null) return <Minus className="size-3 text-muted-foreground" />
-  if (trend > 0) return <ArrowUpRight className="size-3 text-emerald-500" />
-  if (trend < 0) return <ArrowDownRight className="size-3 text-red-500" />
-  return <Minus className="size-3 text-muted-foreground" />
-}
-
-function Stars({ rating }: { rating: number }) {
-  return (
-    <span className="inline-flex gap-0.5">
-      {Array.from({ length: 5 }, (_, i) => (
-        <Star
-          key={i}
-          className={`size-3 ${i < Math.round(rating) ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground/30'}`}
-        />
-      ))}
-    </span>
-  )
-}
-
-function ReplyStatusBadge({ status }: { status: DashboardReplyStatus }) {
-  const variant = status === 'published' ? 'default' : status === 'draft' ? 'secondary' : 'outline'
-  const label = status === 'none' ? 'No reply' : status === 'draft' ? 'Draft' : 'Published'
-  return <Badge variant={variant}>{label}</Badge>
-}
-
-// ── KPI Card ─────────────────────────────────────────────────────
-
-function KPICard({
-  label,
-  kpi,
-  icon: Icon,
-  formatValue,
-}: {
-  label: string
-  kpi: KPIValue
-  icon: React.ComponentType<{ className?: string }>
-  formatValue?: (v: number) => string
-}) {
-  const trendPct = kpi.trend
-  const display = formatValue ? formatValue(kpi.value) : String(kpi.value)
-
-  return (
-    <div className="rounded-lg border p-4">
-      <div className="flex items-center gap-2 text-muted-foreground">
-        <Icon className="size-4" />
-        <span className="text-xs font-medium uppercase tracking-wide">{label}</span>
-      </div>
-      <div className="mt-2 flex items-baseline gap-2">
-        <p className="text-2xl font-semibold tabular-nums">{display}</p>
-        <span className="flex items-center gap-0.5 text-xs tabular-nums text-muted-foreground">
-          <TrendIndicator trend={trendPct} />
-          {formatTrend(trendPct)}
-        </span>
-      </div>
-    </div>
-  )
-}
-
-// ── Review Row ───────────────────────────────────────────────────
-
-function ReviewRow({ review }: { review: RecentReview }) {
-  return (
-    <div className="flex items-center gap-4 rounded-lg border p-3">
-      <div className="flex flex-col items-center gap-1">
-        <span className="text-lg font-semibold">{review.rating}</span>
-        <Stars rating={review.rating} />
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm">{review.snippet}</p>
-        <p className="mt-1 text-xs text-muted-foreground">
-          {review.reviewedAt.toLocaleDateString()}
-        </p>
-      </div>
-      <ReplyStatusBadge status={review.replyStatus} />
-    </div>
-  )
-}
-
-// ── Main Component ───────────────────────────────────────────────
+import type { DashboardData } from '#/contexts/dashboard/application/public-api'
+import { KPICard } from './property-dashboard-helpers'
+import { ReviewRow } from './property-dashboard-review-row'
 
 interface Property {
   id: string
@@ -113,10 +17,15 @@ export interface PropertyDashboardProps {
   propertyId: string
 }
 
-export function PropertyDashboard({ property, dashboard, propertyId }: PropertyDashboardProps) {
+export function PropertyDashboard({
+  property,
+  dashboard,
+  propertyId,
+}: PropertyDashboardProps) {
   if (!property) return null
 
-  const { kpis, recentReviews, ratingDistribution, replyPerformance, engagementFunnel } = dashboard
+  const { kpis, recentReviews, ratingDistribution, replyPerformance, engagementFunnel } =
+    dashboard
 
   return (
     <div className="space-y-8">
@@ -125,7 +34,6 @@ export function PropertyDashboard({ property, dashboard, propertyId }: PropertyD
         <p className="mt-1 text-sm text-muted-foreground">{property.name}</p>
       </div>
 
-      {/* KPI strip */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <KPICard label="Reviews" kpi={kpis.reviews} icon={MessageSquare} />
         <KPICard
@@ -138,7 +46,6 @@ export function PropertyDashboard({ property, dashboard, propertyId }: PropertyD
         <KPICard label="Feedback" kpi={kpis.feedback} icon={MessageCircle} />
       </div>
 
-      {/* Engagement funnel */}
       {engagementFunnel && (
         <div>
           <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
@@ -146,22 +53,27 @@ export function PropertyDashboard({ property, dashboard, propertyId }: PropertyD
           </h2>
           <div className="mt-3 grid grid-cols-3 gap-4">
             <div className="rounded-lg border p-4 text-center">
-              <p className="text-2xl font-semibold tabular-nums">{engagementFunnel.scans}</p>
+              <p className="text-2xl font-semibold tabular-nums">
+                {engagementFunnel.scans}
+              </p>
               <p className="mt-1 text-xs text-muted-foreground">Scans</p>
             </div>
             <div className="rounded-lg border p-4 text-center">
-              <p className="text-2xl font-semibold tabular-nums">{engagementFunnel.ratings}</p>
+              <p className="text-2xl font-semibold tabular-nums">
+                {engagementFunnel.ratings}
+              </p>
               <p className="mt-1 text-xs text-muted-foreground">Ratings</p>
             </div>
             <div className="rounded-lg border p-4 text-center">
-              <p className="text-2xl font-semibold tabular-nums">{engagementFunnel.reviewLinkClicks}</p>
+              <p className="text-2xl font-semibold tabular-nums">
+                {engagementFunnel.reviewLinkClicks}
+              </p>
               <p className="mt-1 text-xs text-muted-foreground">Review Clicks</p>
             </div>
           </div>
         </div>
       )}
 
-      {/* Rating distribution */}
       <div>
         <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
           Rating Distribution
@@ -186,14 +98,15 @@ export function PropertyDashboard({ property, dashboard, propertyId }: PropertyD
         </div>
       </div>
 
-      {/* Reply performance */}
       <div>
         <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
           Reply Performance
         </h2>
         <div className="mt-3 grid grid-cols-2 gap-4">
           <div className="rounded-lg border p-4 text-center">
-            <p className="text-2xl font-semibold tabular-nums">{replyPerformance.replyRate}%</p>
+            <p className="text-2xl font-semibold tabular-nums">
+              {replyPerformance.replyRate}%
+            </p>
             <p className="mt-1 text-xs text-muted-foreground">Reply Rate</p>
           </div>
           <div className="rounded-lg border p-4 text-center">
@@ -207,17 +120,13 @@ export function PropertyDashboard({ property, dashboard, propertyId }: PropertyD
         </div>
       </div>
 
-      {/* Recent reviews */}
       <div>
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
             Recent Reviews
           </h2>
           <Button variant="ghost" size="sm" asChild>
-            <Link
-              to="/inbox"
-              search={{ propertyId }}
-            >
+            <Link to="/inbox" search={{ propertyId }}>
               View all
             </Link>
           </Button>

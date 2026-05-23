@@ -17,6 +17,7 @@ export const onFeedbackSubmitted =
         portalId: event.portalId,
         metricKey: 'portal.feedback',
         value: 1,
+        staffId: event.staffId,
       })
     } catch (err) {
       getLogger().error(

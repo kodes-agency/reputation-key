@@ -1,10 +1,18 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { listStaffGoals } from '#/contexts/goal/server/staff-goals'
+import { StaffGoalsSection } from '#/components/features/property/goals/staff-goals-section'
 
 export const Route = createFileRoute('/_authenticated/home')({
+  loader: async () => {
+    const { goals } = await listStaffGoals()
+    return { goals }
+  },
   component: StaffHomePage,
 })
 
 function StaffHomePage() {
+  const { goals } = Route.useLoaderData()
+
   return (
     <div className="mx-auto max-w-2xl space-y-8">
       <div>
@@ -13,9 +21,7 @@ function StaffHomePage() {
           Your performance at a glance.
         </p>
       </div>
-      <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-        Your stats, badges, and goal progress will appear here.
-      </div>
+      <StaffGoalsSection goals={goals} />
     </div>
   )
 }

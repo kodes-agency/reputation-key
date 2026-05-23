@@ -4,6 +4,7 @@
 
 import type {
   OrganizationId,
+  PortalId,
   PropertyId,
   StaffAssignmentId,
   TeamId,
@@ -17,6 +18,8 @@ export type StaffAssignment = Readonly<{
   userId: UserId
   propertyId: PropertyId
   teamId: TeamId | null
+  portalId: PortalId | null
+  referralCode: string | null
   createdAt: Date
   updatedAt: Date
   deletedAt: Date | null

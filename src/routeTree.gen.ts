@@ -43,10 +43,13 @@ import { Route as AuthenticatedPropertiesImportImportIdRouteImport } from './rou
 import { Route as AuthenticatedPropertiesPropertyIdReviewsRouteImport } from './routes/_authenticated/properties/$propertyId/reviews'
 import { Route as AuthenticatedPropertiesPropertyIdPeopleRouteImport } from './routes/_authenticated/properties/$propertyId/people'
 import { Route as AuthenticatedPropertiesPropertyIdMetricsRouteImport } from './routes/_authenticated/properties/$propertyId/metrics'
+import { Route as AuthenticatedPropertiesPropertyIdGoalsRouteImport } from './routes/_authenticated/properties/$propertyId/goals'
 import { Route as AuthenticatedPropertiesPropertyIdPortalsIndexRouteImport } from './routes/_authenticated/properties/$propertyId/portals/index'
 import { Route as AuthenticatedPropertiesPropertyIdTeamsTeamIdRouteImport } from './routes/_authenticated/properties/$propertyId/teams/$teamId'
 import { Route as AuthenticatedPropertiesPropertyIdPortalsNewRouteImport } from './routes/_authenticated/properties/$propertyId/portals/new'
 import { Route as AuthenticatedPropertiesPropertyIdPortalsPortalIdRouteImport } from './routes/_authenticated/properties/$propertyId/portals/$portalId'
+import { Route as AuthenticatedPropertiesPropertyIdGoalsNewRouteImport } from './routes/_authenticated/properties/$propertyId/goals/new'
+import { Route as AuthenticatedPropertiesPropertyIdGoalsGoalIdRouteImport } from './routes/_authenticated/properties/$propertyId/goals/$goalId'
 import { Route as AuthenticatedPropertiesPropertyIdTeamsTeamIdIndexRouteImport } from './routes/_authenticated/properties/$propertyId/teams/$teamId/index'
 import { Route as AuthenticatedPropertiesPropertyIdTeamsTeamIdMembersRouteImport } from './routes/_authenticated/properties/$propertyId/teams/$teamId/members'
 
@@ -229,6 +232,12 @@ const AuthenticatedPropertiesPropertyIdMetricsRoute =
     path: '/metrics',
     getParentRoute: () => AuthenticatedPropertiesPropertyIdRoute,
   } as any)
+const AuthenticatedPropertiesPropertyIdGoalsRoute =
+  AuthenticatedPropertiesPropertyIdGoalsRouteImport.update({
+    id: '/goals',
+    path: '/goals',
+    getParentRoute: () => AuthenticatedPropertiesPropertyIdRoute,
+  } as any)
 const AuthenticatedPropertiesPropertyIdPortalsIndexRoute =
   AuthenticatedPropertiesPropertyIdPortalsIndexRouteImport.update({
     id: '/portals/',
@@ -252,6 +261,18 @@ const AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute =
     id: '/portals/$portalId',
     path: '/portals/$portalId',
     getParentRoute: () => AuthenticatedPropertiesPropertyIdRoute,
+  } as any)
+const AuthenticatedPropertiesPropertyIdGoalsNewRoute =
+  AuthenticatedPropertiesPropertyIdGoalsNewRouteImport.update({
+    id: '/new',
+    path: '/new',
+    getParentRoute: () => AuthenticatedPropertiesPropertyIdGoalsRoute,
+  } as any)
+const AuthenticatedPropertiesPropertyIdGoalsGoalIdRoute =
+  AuthenticatedPropertiesPropertyIdGoalsGoalIdRouteImport.update({
+    id: '/$goalId',
+    path: '/$goalId',
+    getParentRoute: () => AuthenticatedPropertiesPropertyIdGoalsRoute,
   } as any)
 const AuthenticatedPropertiesPropertyIdTeamsTeamIdIndexRoute =
   AuthenticatedPropertiesPropertyIdTeamsTeamIdIndexRouteImport.update({
@@ -290,6 +311,7 @@ export interface FileRoutesByFullPath {
   '/properties/': typeof AuthenticatedPropertiesIndexRoute
   '/settings/': typeof AuthenticatedSettingsIndexRoute
   '/api/health/': typeof ApiHealthIndexRoute
+  '/properties/$propertyId/goals': typeof AuthenticatedPropertiesPropertyIdGoalsRouteWithChildren
   '/properties/$propertyId/metrics': typeof AuthenticatedPropertiesPropertyIdMetricsRoute
   '/properties/$propertyId/people': typeof AuthenticatedPropertiesPropertyIdPeopleRoute
   '/properties/$propertyId/reviews': typeof AuthenticatedPropertiesPropertyIdReviewsRoute
@@ -300,6 +322,8 @@ export interface FileRoutesByFullPath {
   '/api/webhooks/gbp/notifications': typeof ApiWebhooksGbpNotificationsRoute
   '/properties/$propertyId/': typeof AuthenticatedPropertiesPropertyIdIndexRoute
   '/properties/import/': typeof AuthenticatedPropertiesImportIndexRoute
+  '/properties/$propertyId/goals/$goalId': typeof AuthenticatedPropertiesPropertyIdGoalsGoalIdRoute
+  '/properties/$propertyId/goals/new': typeof AuthenticatedPropertiesPropertyIdGoalsNewRoute
   '/properties/$propertyId/portals/$portalId': typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute
   '/properties/$propertyId/portals/new': typeof AuthenticatedPropertiesPropertyIdPortalsNewRoute
   '/properties/$propertyId/teams/$teamId': typeof AuthenticatedPropertiesPropertyIdTeamsTeamIdRouteWithChildren
@@ -329,6 +353,7 @@ export interface FileRoutesByTo {
   '/properties': typeof AuthenticatedPropertiesIndexRoute
   '/settings': typeof AuthenticatedSettingsIndexRoute
   '/api/health': typeof ApiHealthIndexRoute
+  '/properties/$propertyId/goals': typeof AuthenticatedPropertiesPropertyIdGoalsRouteWithChildren
   '/properties/$propertyId/metrics': typeof AuthenticatedPropertiesPropertyIdMetricsRoute
   '/properties/$propertyId/people': typeof AuthenticatedPropertiesPropertyIdPeopleRoute
   '/properties/$propertyId/reviews': typeof AuthenticatedPropertiesPropertyIdReviewsRoute
@@ -339,6 +364,8 @@ export interface FileRoutesByTo {
   '/api/webhooks/gbp/notifications': typeof ApiWebhooksGbpNotificationsRoute
   '/properties/$propertyId': typeof AuthenticatedPropertiesPropertyIdIndexRoute
   '/properties/import': typeof AuthenticatedPropertiesImportIndexRoute
+  '/properties/$propertyId/goals/$goalId': typeof AuthenticatedPropertiesPropertyIdGoalsGoalIdRoute
+  '/properties/$propertyId/goals/new': typeof AuthenticatedPropertiesPropertyIdGoalsNewRoute
   '/properties/$propertyId/portals/$portalId': typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute
   '/properties/$propertyId/portals/new': typeof AuthenticatedPropertiesPropertyIdPortalsNewRoute
   '/properties/$propertyId/portals': typeof AuthenticatedPropertiesPropertyIdPortalsIndexRoute
@@ -371,6 +398,7 @@ export interface FileRoutesById {
   '/_authenticated/properties/': typeof AuthenticatedPropertiesIndexRoute
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
   '/api/health/': typeof ApiHealthIndexRoute
+  '/_authenticated/properties/$propertyId/goals': typeof AuthenticatedPropertiesPropertyIdGoalsRouteWithChildren
   '/_authenticated/properties/$propertyId/metrics': typeof AuthenticatedPropertiesPropertyIdMetricsRoute
   '/_authenticated/properties/$propertyId/people': typeof AuthenticatedPropertiesPropertyIdPeopleRoute
   '/_authenticated/properties/$propertyId/reviews': typeof AuthenticatedPropertiesPropertyIdReviewsRoute
@@ -381,6 +409,8 @@ export interface FileRoutesById {
   '/api/webhooks/gbp/notifications': typeof ApiWebhooksGbpNotificationsRoute
   '/_authenticated/properties/$propertyId/': typeof AuthenticatedPropertiesPropertyIdIndexRoute
   '/_authenticated/properties/import/': typeof AuthenticatedPropertiesImportIndexRoute
+  '/_authenticated/properties/$propertyId/goals/$goalId': typeof AuthenticatedPropertiesPropertyIdGoalsGoalIdRoute
+  '/_authenticated/properties/$propertyId/goals/new': typeof AuthenticatedPropertiesPropertyIdGoalsNewRoute
   '/_authenticated/properties/$propertyId/portals/$portalId': typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute
   '/_authenticated/properties/$propertyId/portals/new': typeof AuthenticatedPropertiesPropertyIdPortalsNewRoute
   '/_authenticated/properties/$propertyId/teams/$teamId': typeof AuthenticatedPropertiesPropertyIdTeamsTeamIdRouteWithChildren
@@ -414,6 +444,7 @@ export interface FileRouteTypes {
     | '/properties/'
     | '/settings/'
     | '/api/health/'
+    | '/properties/$propertyId/goals'
     | '/properties/$propertyId/metrics'
     | '/properties/$propertyId/people'
     | '/properties/$propertyId/reviews'
@@ -424,6 +455,8 @@ export interface FileRouteTypes {
     | '/api/webhooks/gbp/notifications'
     | '/properties/$propertyId/'
     | '/properties/import/'
+    | '/properties/$propertyId/goals/$goalId'
+    | '/properties/$propertyId/goals/new'
     | '/properties/$propertyId/portals/$portalId'
     | '/properties/$propertyId/portals/new'
     | '/properties/$propertyId/teams/$teamId'
@@ -453,6 +486,7 @@ export interface FileRouteTypes {
     | '/properties'
     | '/settings'
     | '/api/health'
+    | '/properties/$propertyId/goals'
     | '/properties/$propertyId/metrics'
     | '/properties/$propertyId/people'
     | '/properties/$propertyId/reviews'
@@ -463,6 +497,8 @@ export interface FileRouteTypes {
     | '/api/webhooks/gbp/notifications'
     | '/properties/$propertyId'
     | '/properties/import'
+    | '/properties/$propertyId/goals/$goalId'
+    | '/properties/$propertyId/goals/new'
     | '/properties/$propertyId/portals/$portalId'
     | '/properties/$propertyId/portals/new'
     | '/properties/$propertyId/portals'
@@ -494,6 +530,7 @@ export interface FileRouteTypes {
     | '/_authenticated/properties/'
     | '/_authenticated/settings/'
     | '/api/health/'
+    | '/_authenticated/properties/$propertyId/goals'
     | '/_authenticated/properties/$propertyId/metrics'
     | '/_authenticated/properties/$propertyId/people'
     | '/_authenticated/properties/$propertyId/reviews'
@@ -504,6 +541,8 @@ export interface FileRouteTypes {
     | '/api/webhooks/gbp/notifications'
     | '/_authenticated/properties/$propertyId/'
     | '/_authenticated/properties/import/'
+    | '/_authenticated/properties/$propertyId/goals/$goalId'
+    | '/_authenticated/properties/$propertyId/goals/new'
     | '/_authenticated/properties/$propertyId/portals/$portalId'
     | '/_authenticated/properties/$propertyId/portals/new'
     | '/_authenticated/properties/$propertyId/teams/$teamId'
@@ -769,6 +808,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdMetricsRouteImport
       parentRoute: typeof AuthenticatedPropertiesPropertyIdRoute
     }
+    '/_authenticated/properties/$propertyId/goals': {
+      id: '/_authenticated/properties/$propertyId/goals'
+      path: '/goals'
+      fullPath: '/properties/$propertyId/goals'
+      preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdGoalsRouteImport
+      parentRoute: typeof AuthenticatedPropertiesPropertyIdRoute
+    }
     '/_authenticated/properties/$propertyId/portals/': {
       id: '/_authenticated/properties/$propertyId/portals/'
       path: '/portals'
@@ -796,6 +842,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/properties/$propertyId/portals/$portalId'
       preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdRouteImport
       parentRoute: typeof AuthenticatedPropertiesPropertyIdRoute
+    }
+    '/_authenticated/properties/$propertyId/goals/new': {
+      id: '/_authenticated/properties/$propertyId/goals/new'
+      path: '/new'
+      fullPath: '/properties/$propertyId/goals/new'
+      preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdGoalsNewRouteImport
+      parentRoute: typeof AuthenticatedPropertiesPropertyIdGoalsRoute
+    }
+    '/_authenticated/properties/$propertyId/goals/$goalId': {
+      id: '/_authenticated/properties/$propertyId/goals/$goalId'
+      path: '/$goalId'
+      fullPath: '/properties/$propertyId/goals/$goalId'
+      preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdGoalsGoalIdRouteImport
+      parentRoute: typeof AuthenticatedPropertiesPropertyIdGoalsRoute
     }
     '/_authenticated/properties/$propertyId/teams/$teamId/': {
       id: '/_authenticated/properties/$propertyId/teams/$teamId/'
@@ -833,6 +893,24 @@ const AuthenticatedSettingsRouteChildren: AuthenticatedSettingsRouteChildren = {
 const AuthenticatedSettingsRouteWithChildren =
   AuthenticatedSettingsRoute._addFileChildren(AuthenticatedSettingsRouteChildren)
 
+interface AuthenticatedPropertiesPropertyIdGoalsRouteChildren {
+  AuthenticatedPropertiesPropertyIdGoalsGoalIdRoute: typeof AuthenticatedPropertiesPropertyIdGoalsGoalIdRoute
+  AuthenticatedPropertiesPropertyIdGoalsNewRoute: typeof AuthenticatedPropertiesPropertyIdGoalsNewRoute
+}
+
+const AuthenticatedPropertiesPropertyIdGoalsRouteChildren: AuthenticatedPropertiesPropertyIdGoalsRouteChildren =
+  {
+    AuthenticatedPropertiesPropertyIdGoalsGoalIdRoute:
+      AuthenticatedPropertiesPropertyIdGoalsGoalIdRoute,
+    AuthenticatedPropertiesPropertyIdGoalsNewRoute:
+      AuthenticatedPropertiesPropertyIdGoalsNewRoute,
+  }
+
+const AuthenticatedPropertiesPropertyIdGoalsRouteWithChildren =
+  AuthenticatedPropertiesPropertyIdGoalsRoute._addFileChildren(
+    AuthenticatedPropertiesPropertyIdGoalsRouteChildren,
+  )
+
 interface AuthenticatedPropertiesPropertyIdTeamsTeamIdRouteChildren {
   AuthenticatedPropertiesPropertyIdTeamsTeamIdMembersRoute: typeof AuthenticatedPropertiesPropertyIdTeamsTeamIdMembersRoute
   AuthenticatedPropertiesPropertyIdTeamsTeamIdIndexRoute: typeof AuthenticatedPropertiesPropertyIdTeamsTeamIdIndexRoute
@@ -852,6 +930,7 @@ const AuthenticatedPropertiesPropertyIdTeamsTeamIdRouteWithChildren =
   )
 
 interface AuthenticatedPropertiesPropertyIdRouteChildren {
+  AuthenticatedPropertiesPropertyIdGoalsRoute: typeof AuthenticatedPropertiesPropertyIdGoalsRouteWithChildren
   AuthenticatedPropertiesPropertyIdMetricsRoute: typeof AuthenticatedPropertiesPropertyIdMetricsRoute
   AuthenticatedPropertiesPropertyIdPeopleRoute: typeof AuthenticatedPropertiesPropertyIdPeopleRoute
   AuthenticatedPropertiesPropertyIdReviewsRoute: typeof AuthenticatedPropertiesPropertyIdReviewsRoute
@@ -864,6 +943,8 @@ interface AuthenticatedPropertiesPropertyIdRouteChildren {
 
 const AuthenticatedPropertiesPropertyIdRouteChildren: AuthenticatedPropertiesPropertyIdRouteChildren =
   {
+    AuthenticatedPropertiesPropertyIdGoalsRoute:
+      AuthenticatedPropertiesPropertyIdGoalsRouteWithChildren,
     AuthenticatedPropertiesPropertyIdMetricsRoute:
       AuthenticatedPropertiesPropertyIdMetricsRoute,
     AuthenticatedPropertiesPropertyIdPeopleRoute:
@@ -939,13 +1020,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

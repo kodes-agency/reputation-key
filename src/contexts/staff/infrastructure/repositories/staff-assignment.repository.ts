@@ -139,4 +139,20 @@ export const createStaffAssignmentRepository = (
       return rows.map((r) => propertyId(r.propertyId))
     })
   },
+
+  findByReferralCode: async (orgId, referralCode) => {
+    return trace('staffAssignment.findByReferralCode', async () => {
+      const [row] = await db
+        .select()
+        .from(staffAssignments)
+        .where(
+          and(
+            ...baseWhere(staffAssignments, orgId),
+            eq(staffAssignments.referralCode, referralCode),
+          ),
+        )
+        .limit(1)
+      return row ? staffAssignmentFromRow(row) : null
+    })
+  },
 })

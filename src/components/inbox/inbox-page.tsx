@@ -1,29 +1,13 @@
-// Server import exception: cursor-based pagination requires client-side data management.
-// Route doesn't use a loader; useServerFn + state management is the correct pattern
-// for infinite-scroll inbox with filter-driven reloading.
 // Inbox page — email split layout with unified list + detail panel
 import { z } from 'zod/v4'
-import { useServerFn } from '@tanstack/react-start'
-import { useAction } from '#/components/hooks/use-action'
-import type { AuthRouteContext } from '#/routes/_authenticated'
-import { getInboxItemsFn } from '#/contexts/inbox/server/inbox'
-import { Badge } from '#/components/ui/badge'
-import { Button } from '#/components/ui/button'
-import { EmptyState } from '#/components/ui/empty-state'
-import { Skeleton } from '#/components/ui/skeleton'
-import { InboxList } from '#/components/inbox/inbox-list'
-import { InboxFilters } from '#/components/inbox/inbox-filters'
-import type { InboxFilterValues } from '#/components/inbox/inbox-filters'
-import { InboxBulkActions } from '#/components/inbox/inbox-bulk-actions'
+import type { InboxCtx } from './inbox-types'
+import { InboxListPanel } from '#/components/inbox/inbox-list-panel'
 import { InboxDetailSheet } from '#/components/inbox/inbox-detail-sheet'
-import { InboxDetailContent } from '#/components/inbox/inbox-detail-content'
+import { InboxDetailPanel } from '#/components/inbox/inbox-detail-panel'
 import { useInboxDetail } from '#/components/inbox/use-inbox-detail'
-import { getStatusActions } from '#/components/inbox/inbox-detail-helpers'
-import { InboxStatusBadge } from '#/components/inbox/inbox-status-badge'
-import { X, MessageSquare, Loader2, Inbox } from 'lucide-react'
-import { useState, useEffect, useCallback, useRef } from 'react'
-import type { InboxItem } from '#/contexts/inbox/application/public-api'
-import type { Cursor } from '#/contexts/inbox/application/public-api'
+import { useInboxState } from '#/components/inbox/use-inbox-state'
+import type { InboxFilterValues } from '#/components/inbox/inbox-filters'
+import { useState, useEffect, useCallback } from 'react'
 
 export const INBOX_PAGE_SIZE = 50
 
@@ -43,203 +27,64 @@ export const inboxSearchSchema = z.object({
 export type InboxSearchParams = z.infer<typeof inboxSearchSchema>
 
 interface InboxPageProps {
-  ctx: AuthRouteContext
+  ctx: InboxCtx
   search: InboxSearchParams
-  onNavigate: (opts: { to: '.'; search: (prev: InboxSearchParams) => Partial<InboxSearchParams> }) => void
+  onNavigate: (opts: {
+    to: '.'
+    search: (prev: InboxSearchParams) => Partial<InboxSearchParams>
+  }) => void
 }
 
 export function InboxPage({ ctx, search, onNavigate }: InboxPageProps) {
   const orgId = ctx.activeOrganization?.id
-
-  // Derive filters from URL search params
-  const filters: InboxFilterValues = {
-    propertyId: search.propertyId,
-    status: search.status,
-    sourceType: search.sourceType,
-    platform: search.platform,
-    ratingMin: search.ratingMin,
-    ratingMax: search.ratingMax,
-  }
-
+  const { itemId: _, ...rest } = search
+  const filters = rest as InboxFilterValues
   const setFilters = useCallback(
-    (next: InboxFilterValues) => {
-      onNavigate({
-        to: '.',
-        search: (prev: InboxSearchParams) => ({
-          ...prev,
-          propertyId: next.propertyId,
-          status: next.status,
-          sourceType: next.sourceType,
-          platform: next.platform,
-          ratingMin: next.ratingMin,
-          ratingMax: next.ratingMax,
-        }),
-      })
-    },
+    (next: InboxFilterValues) =>
+      onNavigate({ to: '.', search: (prev) => ({ ...prev, ...next }) }),
     [onNavigate],
   )
 
-  // Selected item from URL
-  const selectedId = search.itemId
-  const [items, setItems] = useState<ReadonlyArray<InboxItem>>([])
-  const [nextCursor, setNextCursor] = useState<Cursor | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [selectedIds, setSelectedIds] = useState<ReadonlyArray<string>>([])
+  const {
+    items,
+    setItems,
+    nextCursor,
+    isLoading,
+    selectedIds,
+    setSelectedIds,
+    loadAction,
+    loadItems,
+    handleRowClick,
+    closeDetail,
+    handleBulkDone,
+  } = useInboxState(orgId, filters, search.itemId, onNavigate)
 
-  const loadAction = useAction(useServerFn(getInboxItemsFn))
-  const abortRef = useRef(false)
-
-  // Keep loadAction ref current
-  const loadActionRef = useRef(loadAction)
-  loadActionRef.current = loadAction
-
-  const selectedItem = selectedId
-    ? (items.find((i) => i.id === selectedId) ?? null)
+  const selectedItem = search.itemId
+    ? (items.find((i) => i.id === search.itemId) ?? null)
     : null
 
-  // Mobile detection for sheet rendering
   const [isMobile, setIsMobile] = useState(false)
   useEffect(() => {
     const mql = window.matchMedia('(max-width: 767px)')
     setIsMobile(mql.matches)
-    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches)
-    mql.addEventListener('change', handler)
-    return () => mql.removeEventListener('change', handler)
+    const h = (e: MediaQueryListEvent) => setIsMobile(e.matches)
+    mql.addEventListener('change', h)
+    return () => mql.removeEventListener('change', h)
   }, [])
 
-  // Load items
-  const loadItems = useCallback(
-    async (cursor?: Cursor) => {
-      if (!orgId) return
-      abortRef.current = false
-      if (!cursor) setIsLoading(true)
-      try {
-        const result = await loadActionRef.current({
-          data: {
-            propertyId: filters.propertyId,
-            status: filters.status,
-            sourceType: filters.sourceType,
-            platform: filters.platform,
-            ratingMin: filters.ratingMin,
-            ratingMax: filters.ratingMax,
-            cursor: cursor ? btoa(JSON.stringify(cursor)) : undefined,
-            limit: INBOX_PAGE_SIZE,
-          },
-        })
-        if (!abortRef.current) {
-          const newItems = result.items ?? []
-          if (cursor) {
-            setItems((prev) => [...prev, ...newItems])
-          } else {
-            setItems(newItems)
-          }
-          setNextCursor(result.nextCursor ?? null)
-        }
-      } catch {
-        // Error is stored on loadAction.error
-      } finally {
-        if (!abortRef.current) setIsLoading(false)
-      }
-    },
-    [
-      orgId,
-      filters.propertyId,
-      filters.status,
-      filters.sourceType,
-      filters.platform,
-      filters.ratingMin,
-      filters.ratingMax,
-    ],
-  )
-
-  // Reload on filter change
-  useEffect(() => {
-    loadItems()
-    return () => {
-      abortRef.current = true
-    }
-  }, [loadItems])
-
-  // Clear selection when filters change
-  useEffect(() => {
-    setSelectedIds([])
-  }, [
-    filters.status,
-    filters.sourceType,
-    filters.platform,
-    filters.ratingMin,
-    filters.ratingMax,
-    filters.propertyId,
-  ])
-
-  // Close detail if selected item no longer in filtered results (after load completes)
-  useEffect(() => {
-    if (
-      selectedId &&
-      !isLoading &&
-      items.length > 0 &&
-      !items.some((i) => i.id === selectedId)
-    ) {
-      onNavigate({
-        to: '.',
-        search: (prev: InboxSearchParams) => ({ ...prev, itemId: undefined }),
-      })
-    }
-  }, [selectedId, items, isLoading, onNavigate])
-
-  // Row click — set selected item in URL
-  const handleRowClick = useCallback(
-    (item: InboxItem) => {
-      onNavigate({
-        to: '.',
-        search: (prev: InboxSearchParams) => ({ ...prev, itemId: item.id }),
-      })
-    },
-    [onNavigate],
-  )
-
-  // Close detail panel
-  const closeDetail = useCallback(() => {
-    onNavigate({
-      to: '.',
-      search: (prev: InboxSearchParams) => ({ ...prev, itemId: undefined }),
-    })
-  }, [onNavigate])
-
-  const handleToggleSelect = (id: string) => {
-    setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
-    )
-  }
-
-  const handleSelectAll = () => setSelectedIds(items.map((i) => i.id))
-  const handleDeselectAll = () => setSelectedIds([])
-
-  const handleBulkDone = () => {
-    setSelectedIds([])
-    void loadItems()
-    if (selectedId) closeDetail()
-  }
-
-  const newCount = items.filter((i) => i.status === 'new').length
-
-  // Single detail hook instance — shared by desktop panel and mobile sheet
   const detailState = useInboxDetail(selectedItem, !!selectedItem, { autoMarkRead: true })
-
-  // Optimistic update for auto-mark-read
   useEffect(() => {
-    if (detailState.lastMarkedId) {
-      setItems((prev) =>
-        prev.map((i) =>
+    if (detailState.lastMarkedId)
+      setItems((p) =>
+        p.map((i) =>
           i.id === detailState.lastMarkedId
             ? { ...i, status: 'read' as const, readAt: new Date() }
             : i,
         ),
       )
-    }
   }, [detailState.lastMarkedId])
 
-  if (!orgId) {
+  if (!orgId)
     return (
       <div className="mx-auto max-w-4xl space-y-8">
         <div>
@@ -250,142 +95,43 @@ export function InboxPage({ ctx, search, onNavigate }: InboxPageProps) {
         </div>
       </div>
     )
-  }
-
-  const currentItem = detailState.currentItem ?? selectedItem
-  const statusActions = currentItem ? getStatusActions(currentItem.status) : []
 
   return (
     <div className="flex h-[calc(100vh-4rem)]">
-      {/* List panel */}
       <div
-        className={`flex-1 overflow-y-auto border-r ${
-          selectedItem ? 'hidden md:flex md:flex-col' : 'flex flex-col'
-        }`}
+        className={`flex-1 overflow-y-auto border-r ${selectedItem ? 'hidden md:flex md:flex-col' : 'flex flex-col'}`}
       >
-        <div className="space-y-4 p-6">
-          {/* Header */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <h1 className="text-xl font-semibold tracking-tight">Inbox</h1>
-              {newCount > 0 && (
-                <Badge variant="destructive" className="text-xs">
-                  {newCount} new
-                </Badge>
-              )}
-            </div>
-          </div>
-
-          {/* Filters */}
-          <InboxFilters value={filters} onChange={setFilters} />
-
-          {/* Bulk actions */}
-          <InboxBulkActions selectedIds={selectedIds} onDone={handleBulkDone} />
-
-          {/* Content */}
-          {isLoading ? (
-            <div className="space-y-3">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <Skeleton key={i} className="h-12 w-full" />
-              ))}
-            </div>
-          ) : items.length === 0 ? (
-            <EmptyState icon={Inbox} title="No inbox items">
-              <p className="text-sm text-muted-foreground">
-                {filters.status || filters.sourceType || filters.platform
-                  ? 'Try adjusting your filters to see more results.'
-                  : 'New reviews and feedback will appear here as they come in.'}
-              </p>
-            </EmptyState>
-          ) : (
-            <>
-              <InboxList
-                items={items}
-                selectedIds={selectedIds}
-                onToggleSelect={handleToggleSelect}
-                onSelectAll={handleSelectAll}
-                onDeselectAll={handleDeselectAll}
-                onRowClick={handleRowClick}
-              />
-              {nextCursor && (
-                <div className="flex justify-center py-4">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={loadAction.isPending}
-                    onClick={() => loadItems(nextCursor)}
-                  >
-                    {loadAction.isPending && (
-                      <Loader2 className="mr-2 size-4 animate-spin" />
-                    )}
-                    Load more
-                  </Button>
-                </div>
-              )}
-            </>
-          )}
-        </div>
+        <InboxListPanel
+          filters={filters}
+          items={items}
+          selectedIds={selectedIds}
+          isLoading={isLoading}
+          isPending={loadAction.isPending}
+          nextCursor={nextCursor}
+          onFiltersChange={setFilters}
+          onToggleSelect={(id) =>
+            setSelectedIds((p) =>
+              p.includes(id) ? p.filter((i) => i !== id) : [...p, id],
+            )
+          }
+          onSelectAll={() => setSelectedIds(items.map((i) => i.id))}
+          onDeselectAll={() => setSelectedIds([])}
+          onRowClick={handleRowClick}
+          onLoadMore={loadItems}
+          onBulkDone={handleBulkDone}
+        />
       </div>
-
-      {/* Detail panel (desktop) */}
       {selectedItem && (
-        <div className="hidden md:flex w-[480px] shrink-0 flex-col border-l">
-          {/* Detail header */}
-          <div className="flex items-center justify-between border-b px-4 py-3">
-            <div className="flex items-center gap-2">
-              <MessageSquare className="size-4 text-muted-foreground" />
-              <span className="text-base font-medium">
-                {currentItem?.sourceType === 'review' ? 'Review' : 'Feedback'} Detail
-              </span>
-              {currentItem && <InboxStatusBadge status={currentItem.status} />}
-            </div>
-            <Button variant="ghost" size="icon" className="size-8" onClick={closeDetail}>
-              <X className="size-4" />
-            </Button>
-          </div>
-
-          {/* Detail content */}
-          <div className="flex-1 overflow-y-auto">
-            {detailState.error ? (
-              <div className="space-y-4 p-4">
-                <p className="text-sm text-destructive">{detailState.error}</p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    void detailState.refresh()
-                  }}
-                >
-                  Retry
-                </Button>
-              </div>
-            ) : detailState.isLoading || !currentItem ? (
-              <div className="space-y-4 p-4">
-                <Skeleton className="h-6 w-3/4" />
-                <Skeleton className="h-20 w-full" />
-                <Skeleton className="h-4 w-1/2" />
-              </div>
-            ) : (
-              <InboxDetailContent
-                currentItem={currentItem}
-                detail={detailState.detail}
-                statusActions={statusActions}
-                updateStatus={detailState.updateStatus}
-                notes={detailState.notes}
-                onNoteAdded={() => {
-                  void detailState.refresh()
-                }}
-              />
-            )}
-          </div>
-        </div>
+        <InboxDetailPanel
+          selectedItem={selectedItem}
+          detailState={detailState}
+          onClose={closeDetail}
+        />
       )}
-
-      {/* Detail sheet (mobile only) */}
       <InboxDetailSheet
         open={isMobile && !!selectedItem}
-        onOpenChange={(open) => {
-          if (!open) closeDetail()
+        onOpenChange={(o) => {
+          if (!o) closeDetail()
         }}
         item={selectedItem}
         detailState={detailState}

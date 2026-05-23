@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Textarea } from '#/components/ui/textarea'
 import { Button } from '#/components/ui/button'
 import { Badge } from '#/components/ui/badge'
-import { MAX_REPLY_LENGTH } from '#/contexts/review/domain/rules'
+const MAX_REPLY_LENGTH = 4096
 
 export type ReplyComposeProps = Readonly<{
   initialText: string

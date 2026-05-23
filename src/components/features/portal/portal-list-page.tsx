@@ -1,6 +1,5 @@
 // Portal list page — extracted from route for testability and separation of concerns
 import { Link } from '@tanstack/react-router'
-import { deletePortal } from '#/contexts/portal/server/portals'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { Button } from '#/components/ui/button'
 import { Badge } from '#/components/ui/badge'
@@ -13,20 +12,9 @@ import {
   TableHeader,
   TableRow,
 } from '#/components/ui/table'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '#/components/ui/alert-dialog'
-import { Plus, Globe, Trash2, Eye } from 'lucide-react'
-import { useMutationAction } from '#/components/hooks/use-mutation-action'
+import { Plus, Globe, Eye } from 'lucide-react'
 import { CopyButton } from '#/components/ui/copy-button'
+import { PortalDeleteButton } from './portal-delete-button'
 
 interface Portal {
   id: string
@@ -42,13 +30,12 @@ export interface PortalListPageProps {
   propertySlug: string
 }
 
-export function PortalListPage({ portals, propertyId, propertySlug }: PortalListPageProps) {
+export function PortalListPage({
+  portals,
+  propertyId,
+  propertySlug,
+}: PortalListPageProps) {
   const { can } = usePermissions()
-
-  const deleteMutation = useMutationAction(deletePortal, {
-    successMessage: 'Portal deleted',
-    invalidateRoutes: ['/_authenticated/properties/$propertyId/portals/'],
-  })
 
   return (
     <div className="mx-auto max-w-4xl space-y-8">
@@ -141,38 +128,7 @@ export function PortalListPage({ portals, propertyId, propertySlug }: PortalList
                       </Link>
                     </Button>
                     {can('portal.delete') && (
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="text-destructive hover:text-destructive"
-                            disabled={deleteMutation.isPending}
-                          >
-                            <Trash2 className="size-3.5" />
-                            Delete
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Delete {p.name}?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              This portal and all its links will be permanently removed.
-                              This action cannot be undone.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() => deleteMutation({ data: { portalId: p.id } })}
-                              disabled={deleteMutation.isPending}
-                              className="bg-destructive text-white hover:bg-destructive/90"
-                            >
-                              {deleteMutation.isPending ? 'Deleting...' : 'Delete portal'}
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
+                      <PortalDeleteButton portalId={p.id} portalName={p.name} />
                     )}
                   </div>
                 </TableCell>

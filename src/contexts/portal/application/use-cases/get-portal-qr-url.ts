@@ -14,7 +14,7 @@ export type GetPortalQrUrlDeps = Readonly<{
 export const getPortalQrUrl =
   (deps: GetPortalQrUrlDeps) =>
   async (
-    input: { portalId: string },
+    input: { portalId: string; referralCode?: string },
     ctx: AuthContext,
   ): Promise<{ portalUrl: string; slug: string }> => {
     // 1. Load portal QR info (tenant-isolated)
@@ -27,7 +27,10 @@ export const getPortalQrUrl =
     }
 
     // 2. Build public URL
-    const portalUrl = `${deps.baseUrl}/p/${info.propertySlug}/${info.slug}?source=qr`
+    let portalUrl = `${deps.baseUrl}/p/${info.propertySlug}/${info.slug}?source=qr`
+    if (input.referralCode) {
+      portalUrl += `&ref=${encodeURIComponent(input.referralCode)}`
+    }
 
     return { portalUrl, slug: info.slug }
   }

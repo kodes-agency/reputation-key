@@ -4,7 +4,12 @@
 // Verifies all fields are preserved correctly.
 
 import { describe, it, expect } from 'vitest'
-import { scanEventToRow, ratingToRow, feedbackToRow } from './guest.mapper'
+import {
+  scanEventToRow,
+  scanEventFromRow,
+  ratingToRow,
+  feedbackToRow,
+} from './guest.mapper'
 import {
   scanEventId,
   ratingId,
@@ -12,6 +17,7 @@ import {
   organizationId,
   portalId,
   propertyId,
+  staffId,
 } from '#/shared/domain/ids'
 import type { ScanEvent, Rating, Feedback } from '../../domain/types'
 
@@ -26,6 +32,7 @@ function buildTestScanEvent(overrides?: Partial<ScanEvent>): ScanEvent {
     source: 'qr',
     sessionId: 'session-abc',
     ipHash: 'hash123',
+    staffId: null,
     createdAt: new Date('2026-05-01T12:00:00Z'),
     ...overrides,
   }
@@ -41,6 +48,7 @@ function buildTestRating(overrides?: Partial<Rating>): Rating {
     value: 5,
     source: 'qr',
     ipHash: 'hash456',
+    staffId: null,
     createdAt: new Date('2026-05-01T12:00:00Z'),
     ...overrides,
   }
@@ -57,6 +65,7 @@ function buildTestFeedback(overrides?: Partial<Feedback>): Feedback {
     comment: 'Great service!',
     source: 'nfc',
     ipHash: 'hash789',
+    staffId: null,
     createdAt: new Date('2026-05-01T12:00:00Z'),
     ...overrides,
   }
@@ -76,6 +85,7 @@ describe('scanEventToRow', () => {
     expect(row.source).toBe('qr')
     expect(row.sessionId).toBe('session-abc')
     expect(row.ipHash).toBe('hash123')
+    expect(row.staffId).toBeNull()
     expect(row.createdAt).toEqual(new Date('2026-05-01T12:00:00Z'))
   })
 
@@ -88,6 +98,86 @@ describe('scanEventToRow', () => {
 
     expect(row.source).toBe('nfc')
     expect(row.sessionId).toBe('different-session')
+  })
+})
+
+// ── scanEventFromRow ──────────────────────────────────────────────
+
+describe('scanEventFromRow', () => {
+  it('maps a DB row to a ScanEvent domain object', () => {
+    const row = {
+      id: 'scan-001',
+      organizationId: 'org-001',
+      portalId: '20000000-0000-0000-0000-000000000001',
+      propertyId: '30000000-0000-0000-0000-000000000001',
+      source: 'qr',
+      sessionId: 'session-abc',
+      ipHash: 'hash123',
+      staffId: null,
+      createdAt: new Date('2026-05-01T12:00:00Z'),
+    }
+
+    const result = scanEventFromRow(row)
+
+    expect(result).toEqual({
+      id: scanEventId('scan-001'),
+      organizationId: organizationId('org-001'),
+      portalId: portalId('20000000-0000-0000-0000-000000000001'),
+      propertyId: propertyId('30000000-0000-0000-0000-000000000001'),
+      source: 'qr',
+      sessionId: 'session-abc',
+      ipHash: 'hash123',
+      staffId: null,
+      createdAt: new Date('2026-05-01T12:00:00Z'),
+    })
+  })
+
+  it('converts a non-null staffId string into a branded StaffId', () => {
+    const row = {
+      id: 'scan-002',
+      organizationId: 'org-001',
+      portalId: '20000000-0000-0000-0000-000000000001',
+      propertyId: '30000000-0000-0000-0000-000000000001',
+      source: 'nfc',
+      sessionId: 'session-def',
+      ipHash: 'hash456',
+      staffId: 'staff-999',
+      createdAt: new Date('2026-05-02T08:30:00Z'),
+    }
+
+    const result = scanEventFromRow(row)
+
+    expect(result.staffId).not.toBeNull()
+    expect(result.staffId).toEqual(staffId('staff-999'))
+  })
+})
+
+// ── scanEvent round-trip with non-null staffId ───────────────────
+
+describe('scanEvent round-trip (scanEventToRow → scanEventFromRow)', () => {
+  it('preserves non-null staffId through toRow then fromRow', () => {
+    const original = buildTestScanEvent({
+      staffId: staffId('staff-42'),
+    })
+
+    const row = scanEventToRow(original)
+    expect(row.staffId).toBe('staff-42')
+
+    const restored = scanEventFromRow(row)
+    expect(restored.staffId).toEqual(staffId('staff-42'))
+    expect(restored).toEqual(original)
+  })
+
+  it('preserves null staffId through toRow then fromRow', () => {
+    const original = buildTestScanEvent()
+    expect(original.staffId).toBeNull()
+
+    const row = scanEventToRow(original)
+    expect(row.staffId).toBeNull()
+
+    const restored = scanEventFromRow(row)
+    expect(restored.staffId).toBeNull()
+    expect(restored).toEqual(original)
   })
 })
 
@@ -106,6 +196,7 @@ describe('ratingToRow', () => {
     expect(row.value).toBe(5)
     expect(row.source).toBe('qr')
     expect(row.ipHash).toBe('hash456')
+    expect(row.staffId).toBeNull()
     expect(row.createdAt).toEqual(new Date('2026-05-01T12:00:00Z'))
   })
 
@@ -119,6 +210,12 @@ describe('ratingToRow', () => {
     const rating = buildTestRating({ source: 'direct' })
     const row = ratingToRow(rating)
     expect(row.source).toBe('direct')
+  })
+
+  it('preserves non-null staffId', () => {
+    const rating = buildTestRating({ staffId: staffId('staff-100') })
+    const row = ratingToRow(rating)
+    expect(row.staffId).toBe('staff-100')
   })
 })
 
@@ -138,6 +235,7 @@ describe('feedbackToRow', () => {
     expect(row.comment).toBe('Great service!')
     expect(row.source).toBe('nfc')
     expect(row.ipHash).toBe('hash789')
+    expect(row.staffId).toBeNull()
     expect(row.createdAt).toEqual(new Date('2026-05-01T12:00:00Z'))
   })
 
@@ -155,5 +253,11 @@ describe('feedbackToRow', () => {
     const fb = buildTestFeedback({ comment: 'Could be better' })
     const row = feedbackToRow(fb)
     expect(row.comment).toBe('Could be better')
+  })
+
+  it('preserves non-null staffId', () => {
+    const fb = buildTestFeedback({ staffId: staffId('staff-200') })
+    const row = feedbackToRow(fb)
+    expect(row.staffId).toBe('staff-200')
   })
 })

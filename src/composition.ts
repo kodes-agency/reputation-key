@@ -40,6 +40,7 @@ import { buildReviewContext } from '#/contexts/review/build'
 import { buildInboxContext } from '#/contexts/inbox/build'
 import { buildMetricContext } from '#/contexts/metric/build'
 import { buildDashboardContext } from '#/contexts/dashboard/build'
+import { buildGoalContext } from '#/contexts/goal/build'
 import { createStaffAssignmentRepository } from '#/contexts/staff/infrastructure/repositories/staff-assignment.repository'
 import { createGoogleReviewApiAdapter } from '#/contexts/integration/infrastructure/adapters/google-review-api.adapter'
 import { handleGbpNotification } from '#/contexts/integration/application/use-cases'
@@ -126,8 +127,9 @@ export function createContainer(options?: { enableJobs?: boolean }) {
   const identityPort = createBetterAuthIdentityAdapter()
 
   // ── Context builds (dependency order) ──────────────────────────────
+  const staffRepo = createStaffAssignmentRepository(db)
   const staff = buildStaffContext({
-    repo: createStaffAssignmentRepository(db),
+    repo: staffRepo,
     events: eventBus,
     clock,
   })
@@ -182,6 +184,7 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     events: eventBus,
     clock,
     linkResolver: portal.linkResolver,
+    staffRepo,
   })
 
   // ── Property lookup port for integration context (webhook) ────────
@@ -229,10 +232,18 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     logger: getLogger(),
   })
 
-  buildMetricContext({
+  const metricApi = buildMetricContext({
     db,
     events: eventBus,
     clock,
+  })
+
+  const goal = buildGoalContext({
+    db,
+    metricRepo: metricApi.metricRepo,
+    events: eventBus,
+    clock,
+    idGen: () => crypto.randomUUID(),
   })
 
   const dashboard = buildDashboardContext({
@@ -296,6 +307,7 @@ export function createContainer(options?: { enableJobs?: boolean }) {
       retryPublish: review.retryPublish,
       ...inbox.useCases,
       getDashboardData: dashboard.getDashboardData,
+      ...goal.useCases,
     },
     storage: portal.storage,
     portalRepo: portal.portalRepo,
@@ -308,6 +320,8 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     inboxRepo: inbox.inboxRepo,
     inboxNoteRepo: inbox.inboxNoteRepo,
     unreadCounter: inbox.unreadCounter,
+    goalRepo: goal.goalRepo,
+    metricRepo: metricApi.metricRepo,
   } as const
 }
 

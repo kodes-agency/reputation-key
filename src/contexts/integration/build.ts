@@ -33,6 +33,7 @@ import type { PropertyLookupPort } from './application/ports/property-lookup.por
 import type { PropertyFkCleanupPort } from './application/ports/property-fk-cleanup.port'
 import { gbpImportJobId, organizationId as toOrgId } from '#/shared/domain/ids'
 import { properties } from '#/shared/db/schema/property.schema'
+// eslint-disable-next-line no-restricted-imports -- wiring layer implements cross-context ports with shared schema
 import { and, eq } from 'drizzle-orm'
 
 type IntegrationContextDeps = Readonly<{
@@ -93,7 +94,10 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
   const importRepo = createGbpImportRepository(deps.db)
 
   // ── Adapters ──────────────────────────────────────────────────────
-  const oauthPort = createGoogleOAuthAdapter({ clientId: getEnv().GOOGLE_CLIENT_ID, clientSecret: getEnv().GOOGLE_CLIENT_SECRET })
+  const oauthPort = createGoogleOAuthAdapter({
+    clientId: getEnv().GOOGLE_CLIENT_ID,
+    clientSecret: getEnv().GOOGLE_CLIENT_SECRET,
+  })
   const encryptionPort = createTokenEncryptionAdapter(getEnv().ENCRYPTION_KEY)
   const gbpApiPort = createGbpApiAdapter()
   const propertyImportRepo = createPropertyImportRepository(deps.db)
@@ -188,5 +192,11 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
     }),
   } as const
 
-  return { useCases, connectionRepo, encryptionPort, oauthPort, refreshGoogleTokenUseCase } as const
+  return {
+    useCases,
+    connectionRepo,
+    encryptionPort,
+    oauthPort,
+    refreshGoogleTokenUseCase,
+  } as const
 }
