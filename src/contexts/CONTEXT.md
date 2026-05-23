@@ -143,6 +143,12 @@ Tagged error shape: `{ _tag: 'XxxError', code: '<reason>', message: string, cont
 - Durable work → enqueue BullMQ job, don't do inline.
 - Event bus wired in `composition.ts`, passed to use cases via deps.
 
+## Permission check pattern
+
+- **Use cases** check `can(role, permission)` as the **primary authorization gate**. Every use case that receives `AuthContext` must perform this check as its first step.
+- **Server functions** may optionally add a defense-in-depth `can()` check for routes that don't delegate to a use case (e.g., thin wrappers around third-party APIs). This is not a replacement for the use-case gate.
+- **All new use cases** must define a permission. If no existing permission fits, add one to `shared/domain/permissions.ts` and document it in the context's `CONTEXT.md`.
+
 ## Testing
 
 | Layer        | Type                                 | Required                |

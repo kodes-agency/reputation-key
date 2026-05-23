@@ -2,6 +2,8 @@
 // Retries up to 3 times with exponential backoff. On final failure, marks reply as publish_failed.
 
 import type { Job } from 'bullmq'
+
+export const JOB_NAME = 'publish-reply' as const
 import type { PublishReplyJobData } from '../../application/ports/reply-queue.port'
 import type { ReplyRepository } from '../../application/ports/reply.repository'
 import type { ReviewRepository } from '../../application/ports/review.repository'

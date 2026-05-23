@@ -2,6 +2,8 @@
 // Per architecture: job handlers live in context/infrastructure/jobs/.
 
 import type { Job } from 'bullmq'
+
+export const JOB_NAME = 'sync-property-reviews' as const
 import type { SyncPropertyReviewsJobData } from '../../application/ports/review-queue.port'
 import type { ReviewRepository } from '../../application/ports/review.repository'
 import type { ReplyRepository } from '../../application/ports/reply.repository'

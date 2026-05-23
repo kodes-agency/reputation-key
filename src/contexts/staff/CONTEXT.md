@@ -38,9 +38,13 @@ None. Staff context does not subscribe to events from other contexts.
 
 ## Public API
 
-- `src/contexts/staff/application/public-api.ts` — `StaffPublicApi` type
+Exported from `application/public-api.ts`:
+
+- Types: `StaffPublicApi` interface
   - `getAccessiblePropertyIds(orgId, userId, role)` — Returns property IDs accessible to a user based on role and assignments. Returns `null` for AccountAdmin (all properties).
   - `findByReferralCode(orgId, referralCode)` — Resolves a referral code to the assigned staff member's user ID.
+- Event types: `StaffAssigned`, `StaffUnassigned`, `StaffEvent`
+- Event constructors: `staffAssigned`, `staffUnassigned`
 
 ## Architecture layers
 
@@ -52,10 +56,12 @@ staff/
     dto/               staff-assignment.dto.ts (Zod schemas)
     use-cases/         create-staff-assignment.ts, remove-staff-assignment.ts,
                        list-staff-assignments.ts, resolve-referral-code.ts
+    public-api.ts      re-exports StaffPublicApi, event types/constructors
   infrastructure/
     repositories/      staff-assignment.repository.ts (Drizzle)
     mappers/           staff-assignment.mapper.ts
   server/              staff-assignments.ts
+  build.ts             composition root
 ```
 
 ## Dependencies

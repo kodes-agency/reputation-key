@@ -3,7 +3,7 @@
 // This is the business logic extracted from the webhook route.
 
 import type { PropertyLookupPort } from '../ports/property-lookup.port'
-import type { ReviewQueuePort } from '#/contexts/review/application/public-api'
+import type { ReviewQueuePort } from '#/contexts/review/application/internal-ports'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 
 export type HandleGbpNotificationInput = Readonly<{

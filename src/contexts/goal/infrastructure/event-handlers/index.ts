@@ -27,7 +27,7 @@ export type RegisterGoalHandlersDeps = Readonly<{
   events: EventBus
   goalRepo: GoalRepository
   cancelGoalFn: CancelGoalFn
-  eventBus: import('./on-metric-recorded').EventBus
+  eventBus: EventBus
   clock: () => Date
   getLogger: typeof getLoggerType
 }>

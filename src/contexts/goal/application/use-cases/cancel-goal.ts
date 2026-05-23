@@ -11,7 +11,7 @@ import { ok, err, type Result } from 'neverthrow'
 
 // ── Input type ──────────────────────────────────────────────────────────
 
-export type CancelGoalInput = Readonly<{
+type CancelGoalInput = Readonly<{
   goalId: GoalId
   organizationId: OrganizationId
   role: Role

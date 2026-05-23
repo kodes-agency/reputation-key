@@ -129,6 +129,8 @@ function makeFakeDeps() {
     emit: async (event: EmittedEvent) => {
       emittedEvents.push(event)
     },
+    on: vi.fn(),
+    clear: vi.fn(),
   }
 
   const deps: OnMetricRecordedDeps = {

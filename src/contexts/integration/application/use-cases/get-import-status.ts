@@ -16,6 +16,7 @@ export type GetImportStatusDeps = Readonly<{
 export const getImportStatus =
   (deps: GetImportStatusDeps) =>
   async (input: ImportStatusInput, ctx: AuthContext): Promise<GbpImportJob> => {
+    // Uses property.create because import creates property resources
     if (!can(ctx.role, 'property.create')) {
       throw integrationError(
         'forbidden',

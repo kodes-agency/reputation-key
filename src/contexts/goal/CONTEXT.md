@@ -80,6 +80,10 @@ goal/
   build.ts             composition root
 ```
 
+## Intentional deviations
+
+- **`ui/helpers.ts`**: Contains pure data transformation functions shared between server responses and UI components. This is an intentional deviation from the strict four-layer architecture — these helpers translate domain/DTO shapes into UI-friendly formats without importing React or framework code. Keeping them in `ui/` colocates them with the components that consume them.
+
 ## Use cases
 
 | Use case     | Input                                                                                                                                                                                                      | Output   | Permission    |

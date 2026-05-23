@@ -11,7 +11,7 @@ import { can } from '#/shared/domain/permissions'
 import type { Goal, GoalProgress } from '../domain/types'
 
 // fallow-ignore-file unused-export
-export type GoalWithProgress = {
+export type StaffGoalEntry = {
   goal: Goal
   progress: GoalProgress | null
 }
@@ -32,7 +32,7 @@ export const listStaffGoals = createServerFn({ method: 'GET' }).handler(
       // Stub: resolve user's staff assignments, then query goals for each.
       // For Phase 15C, return empty — will be wired when data flow is ready.
 
-      return { goals: [] as GoalWithProgress[] }
+      return { goals: [] as StaffGoalEntry[] }
     },
     'GET',
     'goal.listStaffGoals',

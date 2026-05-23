@@ -11,7 +11,7 @@ import { ok, err, type Result } from 'neverthrow'
 
 // ── Input type ──────────────────────────────────────────────────────────
 
-export type UpdateGoalInput = Readonly<{
+type UpdateGoalInput = Readonly<{
   goalId: GoalId
   organizationId: OrganizationId
   targetValue?: number

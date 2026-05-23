@@ -3,6 +3,8 @@
 // Downloads from R2, resizes via sharp, uploads variants back.
 
 import type { Job } from 'bullmq'
+
+export const JOB_NAME = 'process-image' as const
 import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
 import type { StoragePort } from '../../application/ports/storage.port'

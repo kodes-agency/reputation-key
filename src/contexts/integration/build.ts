@@ -84,21 +84,18 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
   const propertyEventPort = createPropertyEventAdapter(deps.events)
 
   // ── Queue Port ───────────────────────────────────────────────────
-  const queuePort: GbpQueuePort = deps.jobQueue
-    ? {
-        addBulkImportJob: async (data: ImportPropertyJobData) => {
-          await deps.jobQueue!.add('import-property', data, {
-            jobId: data.jobId,
-            removeOnComplete: { count: 100 },
-            removeOnFail: { count: 50 },
-          })
-        },
-      }
-    : {
-        addBulkImportJob: async () => {
-          throw new Error('Job queue not available — Redis not configured')
-        },
-      }
+  if (!deps.jobQueue) throw new Error('jobQueue required')
+  const jobQueue = deps.jobQueue
+
+  const queuePort: GbpQueuePort = {
+    addBulkImportJob: async (data: ImportPropertyJobData) => {
+      await jobQueue.add('import-property', data, {
+        jobId: data.jobId,
+        removeOnComplete: { count: 100 },
+        removeOnFail: { count: 50 },
+      })
+    },
+  }
 
   // ── Use Cases ────────────────────────────────────────────────────
   const refreshGoogleTokenUseCase = refreshGoogleToken({

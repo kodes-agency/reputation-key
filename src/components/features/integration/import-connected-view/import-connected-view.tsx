@@ -4,13 +4,13 @@ import {
   GoogleAccountSelector,
   ConnectGoogleButton,
 } from '#/components/features/integration'
-import type { GoogleConnection } from '#/contexts/integration/application/public-api'
+import type { GoogleConnectionDto } from '#/contexts/integration/application/public-api'
 import { ImportLocationsSection } from './import-locations-section'
 import { useGbpLocations } from './use-gbp-locations'
 import type { Action } from '#/components/hooks/use-action'
 
 type Props = Readonly<{
-  connections: ReadonlyArray<GoogleConnection>
+  connections: ReadonlyArray<GoogleConnectionDto>
   initialConnectionId?: string
   getAuthUrl: (opts: {
     data: { visibility: 'private' | 'organization' }

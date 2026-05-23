@@ -32,6 +32,7 @@ export const listGbpLocations =
     input: ListLocationsInput,
     ctx: AuthContext,
   ): Promise<ReadonlyArray<GbpLocation>> => {
+    // Uses property.create because import creates property resources
     // 1. Authorize
     if (!can(ctx.role, 'property.create')) {
       throw integrationError(

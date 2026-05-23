@@ -5,14 +5,8 @@
 import type { GoalRepository } from '../../application/ports/goal.repository'
 import type { Goal } from '../../domain/types'
 import type { MetricRecorded } from '#/contexts/metric/application/public-api'
-import type { GoalCompleted, GoalProgressUpdated } from '../../domain/events'
+import type { EventBus } from '#/shared/events/event-bus'
 import { trace } from '#/shared/observability/trace'
-
-// ── EventBus port (minimal, for this handler only) ─────────────────────
-
-export type EventBus = Readonly<{
-  emit(event: GoalCompleted | GoalProgressUpdated): Promise<void>
-}>
 
 // ── Dependencies ──────────────────────────────────────────────────────
 

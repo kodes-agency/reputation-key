@@ -75,6 +75,7 @@ identity/
 
 - **No `types.ts` or `constructors.ts`**: Identity is a wrapper around better-auth. Core entity types come from better-auth's schema and API responses. See `domain/ARCHITECTURE.md` for full rationale.
 - **Port-driven design**: All better-auth calls go through `IdentityPort`. Use cases never import better-auth directly.
+- **Use-case-only permission pattern**: Identity context enforces permissions exclusively at the use-case layer. Server functions do not add redundant `can()` checks for routes that delegate to use cases. For routes that bypass use cases (e.g., thin auth delegation), the server function performs the permission check directly.
 
 ## Dependencies
 

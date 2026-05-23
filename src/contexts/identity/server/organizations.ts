@@ -124,6 +124,7 @@ export const getActiveOrganization = createServerFn({ method: 'GET' }).handler(
     async () => {
       const headers = headersFromContext()
       const ctx = await resolveTenantContext(headers)
+      // Uses dashboard.read as proxy — all authenticated users need org access
       if (!can(ctx.role, 'dashboard.read')) {
         throwContextError(
           'AuthError',

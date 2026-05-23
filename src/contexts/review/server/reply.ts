@@ -56,10 +56,10 @@ export const getReplyFn = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const headers = headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'review.read')) {
+        if (!can(ctx.role, 'reply.manage')) {
           throwContextError(
             'AuthError',
-            { code: 'unauthorized', message: 'No review read permission' },
+            { code: 'unauthorized', message: 'No reply manage permission' },
             403,
           )
         }

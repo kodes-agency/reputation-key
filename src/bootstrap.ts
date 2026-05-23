@@ -10,16 +10,34 @@ import { createHealthCheckHandler, JOB_NAME } from '#/shared/jobs/health-check.j
 import { isDbHealthy } from '#/shared/db'
 import { isRedisHealthy } from '#/shared/cache/redis'
 import { getLogger } from '#/shared/observability/logger'
-import { createProcessImageJob } from '#/contexts/portal/infrastructure/jobs/process-image.job'
-import { createImportPropertyHandler } from '#/contexts/integration/infrastructure/jobs/import-property.job'
-import { createSyncPropertyReviewsHandler } from '#/contexts/review/infrastructure/jobs/sync-property-reviews.job'
-import { createRefreshExpiringReviewsHandler } from '#/contexts/review/infrastructure/jobs/refresh-expiring-reviews.job'
-import { createPurgeExpiredReviewsHandler } from '#/contexts/review/infrastructure/jobs/purge-expired-reviews.job'
+import {
+  createProcessImageJob,
+  JOB_NAME as PROCESS_IMAGE_JOB_NAME,
+} from '#/contexts/portal/infrastructure/jobs/process-image.job'
+import {
+  createImportPropertyHandler,
+  JOB_NAME as IMPORT_PROPERTY_JOB_NAME,
+} from '#/contexts/integration/infrastructure/jobs/import-property.job'
+import {
+  createSyncPropertyReviewsHandler,
+  JOB_NAME as SYNC_REVIEWS_JOB_NAME,
+} from '#/contexts/review/infrastructure/jobs/sync-property-reviews.job'
+import {
+  createRefreshExpiringReviewsHandler,
+  JOB_NAME as REFRESH_EXPIRING_JOB_NAME,
+} from '#/contexts/review/infrastructure/jobs/refresh-expiring-reviews.job'
+import {
+  createPurgeExpiredReviewsHandler,
+  JOB_NAME as PURGE_EXPIRED_JOB_NAME,
+} from '#/contexts/review/infrastructure/jobs/purge-expired-reviews.job'
 import {
   createRefreshMatViewHandler,
   JOB_NAMES,
 } from '#/contexts/metric/infrastructure/jobs/refresh-materialized-view.job'
-import { createPublishReplyHandler } from '#/contexts/review/infrastructure/jobs/publish-reply.job'
+import {
+  createPublishReplyHandler,
+  JOB_NAME as PUBLISH_REPLY_JOB_NAME,
+} from '#/contexts/review/infrastructure/jobs/publish-reply.job'
 import { replyId } from '#/shared/domain/ids'
 
 export async function bootstrap(container: Container): Promise<void> {
@@ -46,27 +64,27 @@ export async function bootstrap(container: Container): Promise<void> {
     portalRepo: container.portalRepo,
     clock: () => new Date(),
   })
-  container.jobRegistry.register('process-image', async (job) => {
+  container.jobRegistry.register(PROCESS_IMAGE_JOB_NAME, async (job) => {
     await processImageHandler(
       job as import('bullmq').Job<
         import('#/contexts/portal/infrastructure/jobs/process-image.job').ProcessImageJobData
       >,
     )
   })
-  logger.info({ job: 'process-image' }, 'registered process-image job handler')
+  logger.info({ job: PROCESS_IMAGE_JOB_NAME }, 'registered process-image job handler')
 
   // ── GBP property import job ─────────────────────────────────────
   const importHandler = createImportPropertyHandler({
     importPropertyUseCase: container.useCases.importProperty,
   })
-  container.jobRegistry.register('import-property', async (job) => {
+  container.jobRegistry.register(IMPORT_PROPERTY_JOB_NAME, async (job) => {
     await importHandler(
       job as import('bullmq').Job<
         import('#/contexts/integration/infrastructure/jobs/import-property.job').ImportPropertyJobData
       >,
     )
   })
-  logger.info({ job: 'import-property' }, 'registered import-property job handler')
+  logger.info({ job: IMPORT_PROPERTY_JOB_NAME }, 'registered import-property job handler')
 
   // ── Review sync jobs ─────────────────────────────────────────────
   // Reuse the single GoogleReviewApiAdapter from the composition root (S15 fix).
@@ -79,7 +97,7 @@ export async function bootstrap(container: Container): Promise<void> {
     events: container.eventBus,
     clock: () => new Date(),
   })
-  container.jobRegistry.register('sync-property-reviews', async (job) => {
+  container.jobRegistry.register(SYNC_REVIEWS_JOB_NAME, async (job) => {
     await syncReviewsHandler(
       job as import('bullmq').Job<
         import('#/contexts/review/application/ports/review-queue.port').SyncPropertyReviewsJobData
@@ -87,7 +105,7 @@ export async function bootstrap(container: Container): Promise<void> {
     )
   })
   logger.info(
-    { job: 'sync-property-reviews' },
+    { job: SYNC_REVIEWS_JOB_NAME },
     'registered sync-property-reviews job handler',
   )
 
@@ -97,11 +115,11 @@ export async function bootstrap(container: Container): Promise<void> {
     queue: container.reviewQueue,
     clock: () => new Date(),
   })
-  container.jobRegistry.register('refresh-expiring-reviews', async (job) => {
+  container.jobRegistry.register(REFRESH_EXPIRING_JOB_NAME, async (job) => {
     await refreshHandler(job)
   })
   logger.info(
-    { job: 'refresh-expiring-reviews' },
+    { job: REFRESH_EXPIRING_JOB_NAME },
     'registered refresh-expiring-reviews job handler',
   )
 
@@ -110,11 +128,11 @@ export async function bootstrap(container: Container): Promise<void> {
     events: container.eventBus,
     clock: () => new Date(),
   })
-  container.jobRegistry.register('purge-expired-reviews', async (job) => {
+  container.jobRegistry.register(PURGE_EXPIRED_JOB_NAME, async (job) => {
     await purgeHandler(job)
   })
   logger.info(
-    { job: 'purge-expired-reviews' },
+    { job: PURGE_EXPIRED_JOB_NAME },
     'registered purge-expired-reviews job handler',
   )
 
@@ -127,14 +145,14 @@ export async function bootstrap(container: Container): Promise<void> {
     clock: () => new Date(),
     idGen: () => replyId(crypto.randomUUID()),
   })
-  container.jobRegistry.register('publish-reply', async (job) => {
+  container.jobRegistry.register(PUBLISH_REPLY_JOB_NAME, async (job) => {
     await publishReplyHandler(
       job as import('bullmq').Job<
         import('#/contexts/review/application/ports/reply-queue.port').PublishReplyJobData
       >,
     )
   })
-  logger.info({ job: 'publish-reply' }, 'registered publish-reply job handler')
+  logger.info({ job: PUBLISH_REPLY_JOB_NAME }, 'registered publish-reply job handler')
 
   // ── Register event handlers here as contexts are added ────────────
   // Example:
@@ -168,7 +186,7 @@ export async function bootstrap(container: Container): Promise<void> {
   )
 
   // ── Goal reconciliation job ────────────────────────────────────────
-  const { createReconcileGoalProgressHandler, JOB_NAME: RECONCILE_JOB_NAME } =
+  const { createReconcileGoalProgressHandler, RECONCILE_GOAL_JOB_NAME } =
     await import('#/contexts/goal/infrastructure/jobs/reconcile-goal-progress.job')
   const reconcileHandler = createReconcileGoalProgressHandler({
     goalRepo: container.goalRepo,
@@ -176,13 +194,16 @@ export async function bootstrap(container: Container): Promise<void> {
     events: container.eventBus,
     clock: () => new Date(),
   })
-  container.jobRegistry.register(RECONCILE_JOB_NAME, async (job): Promise<void> => {
+  container.jobRegistry.register(RECONCILE_GOAL_JOB_NAME, async (job): Promise<void> => {
     await reconcileHandler(job)
   })
-  logger.info({ job: RECONCILE_JOB_NAME }, 'registered goal reconciliation job handler')
+  logger.info(
+    { job: RECONCILE_GOAL_JOB_NAME },
+    'registered goal reconciliation job handler',
+  )
 
   // ── Goal recurring instance spawner job ────────────────────────────
-  const { createSpawnRecurringInstancesHandler, JOB_NAME: SPAWN_JOB_NAME } =
+  const { createSpawnRecurringInstancesHandler, SPAWN_RECURRING_JOB_NAME } =
     await import('#/contexts/goal/infrastructure/jobs/spawn-recurring-instances.job')
   const spawnHandler = createSpawnRecurringInstancesHandler({
     goalRepo: container.goalRepo,
@@ -190,8 +211,11 @@ export async function bootstrap(container: Container): Promise<void> {
     clock: () => new Date(),
     idGen: () => crypto.randomUUID(),
   })
-  container.jobRegistry.register(SPAWN_JOB_NAME, async (job): Promise<void> => {
+  container.jobRegistry.register(SPAWN_RECURRING_JOB_NAME, async (job): Promise<void> => {
     await spawnHandler(job)
   })
-  logger.info({ job: SPAWN_JOB_NAME }, 'registered goal recurring spawner job handler')
+  logger.info(
+    { job: SPAWN_RECURRING_JOB_NAME },
+    'registered goal recurring spawner job handler',
+  )
 }

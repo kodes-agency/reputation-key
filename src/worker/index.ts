@@ -8,6 +8,11 @@ import { createContainer } from '#/composition'
 import { bootstrap } from '#/bootstrap'
 import { createJobWorker } from '#/shared/jobs/worker'
 import { JOB_NAMES } from '#/contexts/metric/infrastructure/jobs/refresh-materialized-view.job'
+import { JOB_NAME as HEALTH_CHECK_JOB_NAME } from '#/shared/jobs/health-check.job'
+import { JOB_NAME as REFRESH_EXPIRING_JOB_NAME } from '#/contexts/review/infrastructure/jobs/refresh-expiring-reviews.job'
+import { JOB_NAME as PURGE_EXPIRED_JOB_NAME } from '#/contexts/review/infrastructure/jobs/purge-expired-reviews.job'
+import { RECONCILE_GOAL_JOB_NAME as RECONCILE_JOB_NAME } from '#/contexts/goal/infrastructure/jobs/reconcile-goal-progress.job'
+import { SPAWN_RECURRING_JOB_NAME as SPAWN_RECURRING_JOB_NAME } from '#/contexts/goal/infrastructure/jobs/spawn-recurring-instances.job'
 import type { Worker } from 'bullmq'
 
 function main() {
@@ -48,7 +53,7 @@ function main() {
     // Schedule health-check job every 5 minutes
     container.jobQueue
       .add(
-        'health-check',
+        HEALTH_CHECK_JOB_NAME,
         {},
         {
           repeat: { every: 5 * 60 * 1000 },
@@ -65,7 +70,7 @@ function main() {
     // Schedule review retention jobs
     container.jobQueue
       .add(
-        'refresh-expiring-reviews',
+        REFRESH_EXPIRING_JOB_NAME,
         {},
         {
           repeat: { every: 24 * 60 * 60 * 1000 },
@@ -81,7 +86,7 @@ function main() {
 
     container.jobQueue
       .add(
-        'purge-expired-reviews',
+        PURGE_EXPIRED_JOB_NAME,
         {},
         {
           repeat: { every: 24 * 60 * 60 * 1000, offset: 2 * 60 * 60 * 1000 },
@@ -124,9 +129,9 @@ function main() {
     // ── Goal jobs ──────────────────────────────────────────────────
     type GoalSchedule = Readonly<{ jobName: string; every: number; label: string }>
     const goalSchedules: GoalSchedule[] = [
-      { jobName: 'reconcile-goal-progress', every: 60 * 60 * 1000, label: 'hourly' },
+      { jobName: RECONCILE_JOB_NAME, every: 60 * 60 * 1000, label: 'hourly' },
       {
-        jobName: 'spawn-recurring-instances',
+        jobName: SPAWN_RECURRING_JOB_NAME,
         every: 24 * 60 * 60 * 1000,
         label: 'daily',
       },

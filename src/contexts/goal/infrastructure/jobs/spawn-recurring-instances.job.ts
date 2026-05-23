@@ -13,7 +13,7 @@ import { trace } from '#/shared/observability/trace'
 
 // ── Job name ──────────────────────────────────────────────────────────────
 
-export const JOB_NAME = 'spawn-recurring-instances' as const
+export const SPAWN_RECURRING_JOB_NAME = 'spawn-recurring-instances' as const
 
 // ── Deps ──────────────────────────────────────────────────────────────────
 

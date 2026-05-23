@@ -2,6 +2,8 @@
 // Finds reviews expiring within 5 days, enqueues sync jobs to re-fetch them.
 
 import type { Job } from 'bullmq'
+
+export const JOB_NAME = 'refresh-expiring-reviews' as const
 import type { ReviewRepository } from '../../application/ports/review.repository'
 import type { ReviewQueuePort } from '../../application/ports/review-queue.port'
 import { getLogger } from '#/shared/observability/logger'

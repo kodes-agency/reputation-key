@@ -18,7 +18,7 @@ import { trace } from '#/shared/observability/trace'
 
 // ── Job name ──────────────────────────────────────────────────────────────
 
-export const JOB_NAME = 'reconcile-goal-progress' as const
+export const RECONCILE_GOAL_JOB_NAME = 'reconcile-goal-progress' as const
 
 // ── Deps ──────────────────────────────────────────────────────────────────
 

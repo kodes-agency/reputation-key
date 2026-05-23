@@ -15,6 +15,7 @@ import { connectGoogleInputSchema } from '../application/dto/connect-google.dto'
 import { disconnectGoogleInputSchema } from '../application/dto/disconnect-google.dto'
 import { updateConnectionVisibilityInputSchema } from '../application/dto/update-connection-visibility.dto'
 import { isIntegrationError } from '../domain/errors'
+import { toGoogleConnectionDto } from '../application/dto/google-connection.dto'
 import { integrationErrorStatus } from './shared'
 import { getEnv } from '#/shared/config/env'
 
@@ -106,7 +107,7 @@ export const connectGoogle = createServerFn({ method: 'POST' })
         try {
           const { useCases } = getContainer()
           const connection = await useCases.connectGoogleAccount(data, ctx)
-          return { connection }
+          return { connection: toGoogleConnectionDto(connection) }
         } catch (e) {
           if (isIntegrationError(e))
             throwContextError('IntegrationError', e, integrationErrorStatus(e.code))
@@ -129,7 +130,7 @@ export const listGoogleConnections = createServerFn({ method: 'GET' }).handler(
       try {
         const { useCases } = getContainer()
         const connections = await useCases.listGoogleConnections(ctx)
-        return { connections }
+        return { connections: connections.map(toGoogleConnectionDto) }
       } catch (e) {
         if (isIntegrationError(e))
           throwContextError('IntegrationError', e, integrationErrorStatus(e.code))
@@ -154,7 +155,7 @@ export const disconnectGoogle = createServerFn({ method: 'POST' })
         try {
           const { useCases } = getContainer()
           const connection = await useCases.disconnectGoogleAccount(data, ctx)
-          return { connection }
+          return { connection: toGoogleConnectionDto(connection) }
         } catch (e) {
           if (isIntegrationError(e))
             throwContextError('IntegrationError', e, integrationErrorStatus(e.code))
@@ -179,7 +180,7 @@ export const updateConnectionVisibility = createServerFn({ method: 'POST' })
         try {
           const { useCases } = getContainer()
           const connection = await useCases.updateConnectionVisibility(data, ctx)
-          return { connection }
+          return { connection: toGoogleConnectionDto(connection) }
         } catch (e) {
           if (isIntegrationError(e))
             throwContextError('IntegrationError', e, integrationErrorStatus(e.code))

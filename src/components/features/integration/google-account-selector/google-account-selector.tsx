@@ -1,4 +1,4 @@
-import type { GoogleConnection } from '#/contexts/integration/application/public-api'
+import type { GoogleConnectionDto } from '#/contexts/integration/application/public-api'
 import {
   Select,
   SelectContent,
@@ -8,13 +8,13 @@ import {
 } from '#/components/ui/select'
 
 type Props = Readonly<{
-  connections: readonly GoogleConnection[]
+  connections: readonly GoogleConnectionDto[]
   value: string | undefined
   onValueChange: (value: string) => void
 }>
 
 export function GoogleAccountSelector({ connections, value, onValueChange }: Props) {
-  const getDisplayName = (connection: GoogleConnection): string => {
+  const getDisplayName = (connection: GoogleConnectionDto): string => {
     const visibilityLabel = connection.visibility === 'private' ? '(you)' : '(shared)'
     return `${connection.googleEmail} ${visibilityLabel}`
   }

@@ -7,6 +7,8 @@ import { trace } from '#/shared/observability/trace'
 
 export type { ImportPropertyJobData }
 
+export const JOB_NAME = 'import-property' as const
+
 type ImportPropertyHandlerDeps = Readonly<{
   importPropertyUseCase: ImportPropertyUseCase
 }>

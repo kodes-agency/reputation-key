@@ -2,6 +2,8 @@
 // Deletes reviews that expired more than 3 days ago (grace period for failed syncs).
 
 import type { Job } from 'bullmq'
+
+export const JOB_NAME = 'purge-expired-reviews' as const
 import type { ReviewRepository } from '../../application/ports/review.repository'
 import type { EventBus } from '#/shared/events/event-bus'
 import { reviewExpired } from '../../domain/events'
