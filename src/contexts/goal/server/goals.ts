@@ -15,7 +15,7 @@ import {
   listGoalsSchema,
   getGoalSchema,
 } from '../application/dto/goal.dto'
-import { goalError, isGoalError } from '../domain/errors'
+import { isGoalError } from '../domain/errors'
 import type { GoalErrorCode } from '../domain/errors'
 import {
   propertyId as toPropertyId,
@@ -29,13 +29,20 @@ import type { MetricKey, AggregationFunction } from '#/shared/domain/metric-keys
 
 // ── Helpers ───────────────────────────────────────────────────────────
 
+/** Local error constructor — server must not import domain error constructors. */
+const makeGoalError = (code: GoalErrorCode, message: string) => ({
+  _tag: 'GoalError' as const,
+  code,
+  message,
+})
+
 const WRITE_ROLES: ReadonlySet<Role> = new Set(['AccountAdmin', 'PropertyManager'])
 
 function requireWriteAccess(role: Role): void {
   if (!WRITE_ROLES.has(role)) {
     throwContextError(
       'GoalError',
-      goalError(
+      makeGoalError(
         'forbidden',
         'Only AccountAdmin or PropertyManager can perform this action',
       ),
@@ -87,7 +94,7 @@ export const createGoal = createServerFn({ method: 'POST' })
           if (result.isErr()) {
             throwContextError(
               'GoalError',
-              goalError('validation_error', String(result.error)),
+              makeGoalError('validation_error', String(result.error)),
               400,
             )
           }
@@ -129,21 +136,21 @@ export const updateGoal = createServerFn({ method: 'POST' })
               case 'goal_not_found':
                 throwContextError(
                   'GoalError',
-                  goalError('not_found', 'Goal not found'),
+                  makeGoalError('not_found', 'Goal not found'),
                   404,
                 )
                 break
               case 'goal_not_active':
                 throwContextError(
                   'GoalError',
-                  goalError('immutable_goal', `Goal is ${error.status}`),
+                  makeGoalError('immutable_goal', `Goal is ${error.status}`),
                   409,
                 )
                 break
               case 'recurrence_rule_not_allowed':
                 throwContextError(
                   'GoalError',
-                  goalError(
+                  makeGoalError(
                     'validation_error',
                     'Recurrence rule can only be updated on recurring goals',
                   ),
@@ -188,14 +195,14 @@ export const cancelGoal = createServerFn({ method: 'POST' })
               case 'goal_not_found':
                 throwContextError(
                   'GoalError',
-                  goalError('not_found', 'Goal not found'),
+                  makeGoalError('not_found', 'Goal not found'),
                   404,
                 )
                 break
               case 'goal_not_active':
                 throwContextError(
                   'GoalError',
-                  goalError('immutable_goal', `Goal is ${error.status}`),
+                  makeGoalError('immutable_goal', `Goal is ${error.status}`),
                   409,
                 )
                 break
@@ -263,7 +270,11 @@ export const getGoal = createServerFn({ method: 'GET' })
           })
 
           if (result.isErr()) {
-            throwContextError('GoalError', goalError('not_found', 'Goal not found'), 404)
+            throwContextError(
+              'GoalError',
+              makeGoalError('not_found', 'Goal not found'),
+              404,
+            )
           }
 
           return result.value
