@@ -46,7 +46,11 @@ export const getInboxItemsFn = createServerFn({ method: 'GET' })
         const headers = headersFromContext()
         const ctx = await resolveTenantContext(headers)
         if (!can(ctx.role, 'inbox.read')) {
-          throwContextError('AuthError', { code: 'forbidden', message: 'No inbox read permission' }, 403)
+          throwContextError(
+            'AuthError',
+            { code: 'forbidden', message: 'No inbox read permission' },
+            403,
+          )
         }
         const { useCases } = getContainer()
         try {
@@ -98,7 +102,11 @@ export const updateInboxStatusFn = createServerFn({ method: 'POST' })
         const headers = headersFromContext()
         const ctx = await resolveTenantContext(headers)
         if (!can(ctx.role, 'inbox.update')) {
-          throwContextError('AuthError', { code: 'forbidden', message: 'No inbox update permission' }, 403)
+          throwContextError(
+            'AuthError',
+            { code: 'forbidden', message: 'No inbox update permission' },
+            403,
+          )
         }
         const { useCases } = getContainer()
         try {
@@ -130,7 +138,11 @@ export const bulkUpdateInboxStatusFn = createServerFn({ method: 'POST' })
         const headers = headersFromContext()
         const ctx = await resolveTenantContext(headers)
         if (!can(ctx.role, 'inbox.update')) {
-          throwContextError('AuthError', { code: 'forbidden', message: 'No inbox update permission' }, 403)
+          throwContextError(
+            'AuthError',
+            { code: 'forbidden', message: 'No inbox update permission' },
+            403,
+          )
         }
         const { useCases } = getContainer()
         try {
@@ -162,7 +174,11 @@ export const assignInboxItemFn = createServerFn({ method: 'POST' })
         const headers = headersFromContext()
         const ctx = await resolveTenantContext(headers)
         if (!can(ctx.role, 'inbox.update')) {
-          throwContextError('AuthError', { code: 'forbidden', message: 'No inbox update permission' }, 403)
+          throwContextError(
+            'AuthError',
+            { code: 'forbidden', message: 'No inbox update permission' },
+            403,
+          )
         }
         const { useCases } = getContainer()
         try {
@@ -196,7 +212,11 @@ export const addInboxNoteFn = createServerFn({ method: 'POST' })
         const headers = headersFromContext()
         const ctx = await resolveTenantContext(headers)
         if (!can(ctx.role, 'inbox.update')) {
-          throwContextError('AuthError', { code: 'forbidden', message: 'No inbox update permission' }, 403)
+          throwContextError(
+            'AuthError',
+            { code: 'forbidden', message: 'No inbox update permission' },
+            403,
+          )
         }
         const { useCases } = getContainer()
         try {
@@ -227,6 +247,13 @@ export const getUnreadCountFn = createServerFn({ method: 'GET' })
       async ({ data: _data }) => {
         const headers = headersFromContext()
         const ctx = await resolveTenantContext(headers)
+        if (!can(ctx.role, 'inbox.read')) {
+          throwContextError(
+            'AuthError',
+            { code: 'forbidden', message: 'No inbox read permission' },
+            403,
+          )
+        }
         const { useCases } = getContainer()
         try {
           return await useCases.getUnreadCount({
@@ -252,6 +279,13 @@ export const getInboxItemDetailFn = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const headers = headersFromContext()
         const ctx = await resolveTenantContext(headers)
+        if (!can(ctx.role, 'inbox.read')) {
+          throwContextError(
+            'AuthError',
+            { code: 'forbidden', message: 'No inbox read permission' },
+            403,
+          )
+        }
         const { useCases } = getContainer()
         try {
           return await useCases.getInboxItemDetail({
@@ -280,6 +314,13 @@ export const getInboxNotesFn = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const headers = headersFromContext()
         const ctx = await resolveTenantContext(headers)
+        if (!can(ctx.role, 'inbox.read')) {
+          throwContextError(
+            'AuthError',
+            { code: 'forbidden', message: 'No inbox read permission' },
+            403,
+          )
+        }
         const { useCases } = getContainer()
         try {
           return await useCases.getInboxNotes({

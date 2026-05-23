@@ -17,7 +17,9 @@ export type Permission =
   | 'member.create'
   | 'member.update'
   | 'member.delete'
+  | 'member.list'
   | 'invitation.create'
+  | 'invitation.list'
   | 'invitation.cancel'
   | 'invitation.resend'
   | 'property.create'
@@ -43,8 +45,9 @@ export type Permission =
   | 'feedback.read'
   | 'feedback.respond'
   | 'integration.manage'
-  | 'member.list'
   | 'dashboard.read'
+  | 'goal.read'
+  | 'goal.write'
 
 // ── Injected permission lookup ─────────────────────────────────────
 // The actual permission table lives in shared/auth/permissions.ts.

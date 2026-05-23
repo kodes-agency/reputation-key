@@ -7,6 +7,7 @@ import { match } from 'ts-pattern'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { throwContextError } from '#/shared/auth/server-errors'
+import { can } from '#/shared/domain/permissions'
 import { getContainer } from '#/composition'
 import {
   createGoalSchema,
@@ -24,7 +25,6 @@ import {
   staffId as toStaffId,
   goalId as toGoalId,
 } from '#/shared/domain/ids'
-import type { Role } from '#/shared/domain/roles'
 import type { MetricKey, AggregationFunction } from '#/shared/domain/metric-keys'
 
 // ── Helpers ───────────────────────────────────────────────────────────
@@ -35,21 +35,6 @@ const makeGoalError = (code: GoalErrorCode, message: string) => ({
   code,
   message,
 })
-
-const WRITE_ROLES: ReadonlySet<Role> = new Set(['AccountAdmin', 'PropertyManager'])
-
-function requireWriteAccess(role: Role): void {
-  if (!WRITE_ROLES.has(role)) {
-    throwContextError(
-      'GoalError',
-      makeGoalError(
-        'forbidden',
-        'Only AccountAdmin or PropertyManager can perform this action',
-      ),
-      403,
-    )
-  }
-}
 
 const goalErrorStatus = (code: GoalErrorCode): number =>
   match(code)
@@ -68,7 +53,16 @@ export const createGoal = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        requireWriteAccess(ctx.role)
+        if (!can(ctx.role, 'goal.write')) {
+          throwContextError(
+            'GoalError',
+            makeGoalError(
+              'forbidden',
+              'Only AccountAdmin or PropertyManager can create goals',
+            ),
+            403,
+          )
+        }
 
         try {
           const { useCases } = getContainer()
@@ -92,11 +86,23 @@ export const createGoal = createServerFn({ method: 'POST' })
           })
 
           if (result.isErr()) {
-            throwContextError(
-              'GoalError',
-              makeGoalError('validation_error', String(result.error)),
-              400,
-            )
+            const error = result.error
+            switch (error.tag) {
+              case 'construction_error':
+                throwContextError(
+                  'GoalError',
+                  makeGoalError('validation_error', error.error.tag),
+                  400,
+                )
+                break
+              case 'instance_construction_error':
+                throwContextError(
+                  'GoalError',
+                  makeGoalError('validation_error', error.error.tag),
+                  400,
+                )
+                break
+            }
           }
 
           return result.value
@@ -119,7 +125,16 @@ export const updateGoal = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        requireWriteAccess(ctx.role)
+        if (!can(ctx.role, 'goal.write')) {
+          throwContextError(
+            'GoalError',
+            makeGoalError(
+              'forbidden',
+              'Only AccountAdmin or PropertyManager can update goals',
+            ),
+            403,
+          )
+        }
 
         try {
           const { useCases } = getContainer()
@@ -180,7 +195,16 @@ export const cancelGoal = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        requireWriteAccess(ctx.role)
+        if (!can(ctx.role, 'goal.write')) {
+          throwContextError(
+            'GoalError',
+            makeGoalError(
+              'forbidden',
+              'Only AccountAdmin or PropertyManager can cancel goals',
+            ),
+            403,
+          )
+        }
 
         try {
           const { useCases } = getContainer()
@@ -229,6 +253,13 @@ export const listGoals = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const headers = headersFromContext()
         const ctx = await resolveTenantContext(headers)
+        if (!can(ctx.role, 'goal.read')) {
+          throwContextError(
+            'GoalError',
+            makeGoalError('forbidden', 'No goal read permission'),
+            403,
+          )
+        }
 
         try {
           const { useCases } = getContainer()
@@ -261,6 +292,13 @@ export const getGoal = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const headers = headersFromContext()
         const ctx = await resolveTenantContext(headers)
+        if (!can(ctx.role, 'goal.read')) {
+          throwContextError(
+            'GoalError',
+            makeGoalError('forbidden', 'No goal read permission'),
+            403,
+          )
+        }
 
         try {
           const { useCases } = getContainer()

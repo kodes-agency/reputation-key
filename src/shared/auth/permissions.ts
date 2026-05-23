@@ -22,7 +22,7 @@ export const statement = {
   organization: ['update', 'delete'],
   member: ['create', 'list', 'update', 'delete'],
   dashboard: ['read'],
-  invitation: ['create', 'cancel', 'resend'],
+  invitation: ['create', 'list', 'cancel', 'resend'],
   property: ['create', 'update', 'delete'],
   team: ['create', 'update', 'delete'],
   staff_assignment: ['create', 'delete'],
@@ -33,6 +33,7 @@ export const statement = {
   feedback: ['read', 'respond'],
   inbox: ['read', 'update'],
   integration: ['manage'],
+  goal: ['read', 'write'],
 } as const
 
 export const ac = createAccessControl(statement)
@@ -46,7 +47,7 @@ export const owner = ac.newRole(statement)
 export const admin = ac.newRole({
   member: ['create', 'list'],
   dashboard: ['read'],
-  invitation: ['create', 'cancel', 'resend'],
+  invitation: ['create', 'list', 'cancel', 'resend'],
   property: ['create', 'update'],
   team: ['create', 'update'],
   staff_assignment: ['create', 'delete'],
@@ -56,12 +57,15 @@ export const admin = ac.newRole({
   feedback: ['read', 'respond'],
   inbox: ['read', 'update'],
   organization: ['update'],
+  goal: ['read', 'write'],
+  integration: ['manage'],
 })
 
 export const memberRole = ac.newRole({
   review: ['read'],
   dashboard: ['read'],
   inbox: ['read', 'update'],
+  goal: ['read'],
 })
 
 // ── Build and inject the permission table ──────────────────────────

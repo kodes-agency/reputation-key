@@ -24,6 +24,7 @@ describe('permissions statement', () => {
     expect(resources).toContain('review')
     expect(resources).toContain('feedback')
     expect(resources).toContain('integration')
+    expect(resources).toContain('goal')
   })
 
   it('defines expected actions for each resource', () => {
@@ -33,6 +34,7 @@ describe('permissions statement', () => {
     expect(statement.member).toContain('update')
     expect(statement.member).toContain('delete')
     expect(statement.invitation).toContain('create')
+    expect(statement.invitation).toContain('list')
     expect(statement.invitation).toContain('cancel')
     expect(statement.property).toContain('create')
     expect(statement.property).toContain('update')
@@ -47,6 +49,8 @@ describe('permissions statement', () => {
     expect(statement.feedback).toContain('read')
     expect(statement.feedback).toContain('respond')
     expect(statement.integration).toContain('manage')
+    expect(statement.goal).toContain('read')
+    expect(statement.goal).toContain('write')
   })
 })
 
@@ -55,10 +59,13 @@ describe('owner role (AccountAdmin)', () => {
     'organization.update',
     'organization.delete',
     'member.create',
+    'member.list',
     'member.update',
     'member.delete',
     'invitation.create',
+    'invitation.list',
     'invitation.cancel',
+    'invitation.resend',
     'property.create',
     'property.update',
     'property.delete',
@@ -76,9 +83,15 @@ describe('owner role (AccountAdmin)', () => {
     'portal.delete',
     'review.read',
     'review.reply',
+    'reply.manage',
     'feedback.read',
     'feedback.respond',
+    'inbox.read',
+    'inbox.update',
     'integration.manage',
+    'dashboard.read',
+    'goal.read',
+    'goal.write',
   ]
 
   it('has every permission defined in the statement', () => {
@@ -91,8 +104,11 @@ describe('owner role (AccountAdmin)', () => {
 describe('admin role (PropertyManager)', () => {
   const allowedPermissions: Permission[] = [
     'member.create',
+    'member.list',
     'invitation.create',
+    'invitation.list',
     'invitation.cancel',
+    'invitation.resend',
     'property.create',
     'property.update',
     'team.create',
@@ -103,9 +119,16 @@ describe('admin role (PropertyManager)', () => {
     'portal.update',
     'review.read',
     'review.reply',
+    'reply.manage',
     'feedback.read',
     'feedback.respond',
+    'inbox.read',
+    'inbox.update',
     'organization.update',
+    'integration.manage',
+    'dashboard.read',
+    'goal.read',
+    'goal.write',
   ]
 
   const deniedPermissions: Permission[] = [
@@ -119,7 +142,6 @@ describe('admin role (PropertyManager)', () => {
     'ac.update',
     'ac.delete',
     'portal.delete',
-    'integration.manage',
   ]
 
   it('has all expected permissions', () => {
@@ -138,6 +160,14 @@ describe('admin role (PropertyManager)', () => {
 describe('memberRole (Staff)', () => {
   it('can only read reviews', () => {
     expect(can('Staff', 'review.read')).toBe(true)
+  })
+
+  it('can read goals', () => {
+    expect(can('Staff', 'goal.read')).toBe(true)
+  })
+
+  it('cannot write goals', () => {
+    expect(can('Staff', 'goal.write')).toBe(false)
   })
 
   it('cannot manage members', () => {
@@ -170,6 +200,7 @@ describe('memberRole (Staff)', () => {
 
   it('cannot manage invitations', () => {
     expect(can('Staff', 'invitation.create')).toBe(false)
+    expect(can('Staff', 'invitation.list')).toBe(false)
     expect(can('Staff', 'invitation.cancel')).toBe(false)
   })
 })
