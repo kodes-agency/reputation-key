@@ -13,17 +13,20 @@ import {
 } from '#/shared/domain/ids'
 import type { StaffAssignment } from './domain/types'
 
-const seedAssignment = (overrides: Partial<StaffAssignment> = {}): StaffAssignment => ({
-  id: staffAssignmentId('staff-1'),
-  organizationId: organizationId('org-1'),
-  userId: userId('user-1'),
-  propertyId: propertyId('prop-1'),
-  teamId: null,
-  createdAt: new Date('2025-01-01'),
-  updatedAt: new Date('2025-01-01'),
-  deletedAt: null,
-  ...overrides,
-})
+const seedAssignment = (overrides: Partial<StaffAssignment> = {}): StaffAssignment =>
+  ({
+    id: staffAssignmentId('staff-1'),
+    organizationId: organizationId('org-1'),
+    userId: userId('user-1'),
+    propertyId: propertyId('prop-1'),
+    teamId: null,
+    portalId: null,
+    referralCode: null,
+    createdAt: new Date('2025-01-01'),
+    updatedAt: new Date('2025-01-01'),
+    deletedAt: null,
+    ...overrides,
+  }) as StaffAssignment
 
 describe('StaffPublicApi', () => {
   it('returns null for AccountAdmin (all properties accessible)', async () => {

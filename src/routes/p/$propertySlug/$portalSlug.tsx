@@ -4,6 +4,7 @@ import {
   getPublicPortal,
   submitFeedbackFn,
   submitRatingFn,
+  recordScanFn,
 } from '#/contexts/guest/server/public'
 import { PortalUnavailable } from '#/components/features/guest'
 import { PublicPortalContent } from '#/components/features/guest'
@@ -22,6 +23,7 @@ function parseSource(raw: string | null): ScanSource {
 export const Route = createFileRoute('/p/$propertySlug/$portalSlug')({
   validateSearch: (search: Record<string, string>) => ({
     source: search.source,
+    ref: search.ref,
   }),
   staleTime: 5 * 60 * 1000,
   loader: async ({ params }): Promise<PublicPortalLoaderData> => {
@@ -63,13 +65,23 @@ function PublicPortalPage() {
 
   const submitFeedback = useAction(useServerFn(submitFeedbackFn))
   const submitRating = useAction(useServerFn(submitRatingFn))
+  const recordScan = useAction(useServerFn(recordScanFn))
 
-  // Ensure guest session cookie exists for rating/feedback
+  // Ensure guest session cookie exists and record scan on first load
   useEffect(() => {
     if (!document.cookie.includes('guest_session')) {
       const sessionId = crypto.randomUUID()
       document.cookie = `guest_session=${sessionId}; path=/p/; max-age=86400; SameSite=Lax`
     }
+
+    // Record the scan (with referral code if present)
+    recordScan({
+      data: {
+        portalId: portal.id,
+        source,
+        referralCode: search.ref ?? null,
+      },
+    })
   }, [])
 
   const { portal, categories, links } = data

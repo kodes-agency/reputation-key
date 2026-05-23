@@ -6,7 +6,9 @@ import type {
   PortalId,
   PropertyId,
   PortalLinkId,
+  StaffId,
 } from '#/shared/domain/ids'
+
 import type { ScanSource } from './types'
 
 export type ScanRecorded = Readonly<{
@@ -16,6 +18,7 @@ export type ScanRecorded = Readonly<{
   portalId: PortalId
   propertyId: PropertyId
   source: ScanSource
+  staffId: StaffId | null
   occurredAt: Date
 }>
 
@@ -31,6 +34,7 @@ export type RatingSubmitted = Readonly<{
   portalId: PortalId
   propertyId: PropertyId
   value: number
+  staffId: StaffId | null
   occurredAt: Date
 }>
 
@@ -48,6 +52,7 @@ export type FeedbackSubmitted = Readonly<{
   portalId: PortalId
   propertyId: PropertyId
   ratingId: RatingId | null
+  staffId: StaffId | null
   occurredAt: Date
 }>
 
@@ -64,6 +69,7 @@ export type ReviewLinkClicked = Readonly<{
   organizationId: OrganizationId
   portalId: PortalId
   propertyId: PropertyId
+  staffId: StaffId | null
   occurredAt: Date
 }>
 

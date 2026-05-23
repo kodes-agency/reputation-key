@@ -16,6 +16,7 @@ import {
   organizationId as orgIdCtor,
   propertyId as propIdCtor,
   portalId as portalIdCtor,
+  staffId as staffIdCtor,
 } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 
@@ -38,6 +39,7 @@ function readingFromRow(row: typeof metricReadings.$inferSelect): MetricReading 
     portalId: row.portalId ? portalIdCtor(row.portalId) : null,
     metricKey: row.metricKey as MetricKey,
     value: row.value,
+    staffId: row.staffId ? staffIdCtor(row.staffId) : null,
     recordedAt: row.recordedAt,
   }
 }
@@ -53,6 +55,7 @@ export const createMetricRepository = (db: Database): MetricRepository => ({
           portalId: reading.portalId,
           metricKey: reading.metricKey,
           value: reading.value,
+          staffId: reading.staffId,
           recordedAt: reading.recordedAt,
         })
         .returning()

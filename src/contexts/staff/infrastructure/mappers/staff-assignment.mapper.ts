@@ -9,6 +9,7 @@ import {
   userId,
   propertyId,
   teamId,
+  portalId,
 } from '#/shared/domain/ids'
 
 type StaffAssignmentRow = typeof staffAssignments.$inferSelect
@@ -20,6 +21,8 @@ export const staffAssignmentFromRow = (row: StaffAssignmentRow): StaffAssignment
   userId: userId(row.userId),
   propertyId: propertyId(row.propertyId),
   teamId: row.teamId != null ? teamId(row.teamId) : null,
+  portalId: row.portalId != null ? portalId(row.portalId) : null,
+  referralCode: row.referralCode ?? null,
   createdAt: row.createdAt,
   updatedAt: row.updatedAt,
   deletedAt: row.deletedAt,
@@ -33,6 +36,8 @@ export const staffAssignmentToRow = (
   userId: assignment.userId as string,
   propertyId: assignment.propertyId as string,
   teamId: assignment.teamId as string | null,
+  portalId: assignment.portalId as string | null,
+  referralCode: assignment.referralCode,
   createdAt: assignment.createdAt,
   updatedAt: assignment.updatedAt,
   deletedAt: assignment.deletedAt,

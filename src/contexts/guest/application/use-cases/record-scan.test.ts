@@ -13,6 +13,7 @@ function createInMemoryGuestRepo() {
     insertRating: async () => {},
     insertFeedback: async () => {},
     hasRated: async () => false,
+    getLatestScanBySession: async () => null,
   }
   return { ...repo, scans }
 }
@@ -35,6 +36,7 @@ describe('recordScan', () => {
       source: 'qr',
       sessionId: 'session-abc',
       ipHash: 'hash123',
+      staffId: null,
     })
 
     expect(repo.scans.length).toBe(1)
@@ -52,6 +54,7 @@ describe('recordScan', () => {
       insertRating: async () => {},
       insertFeedback: async () => {},
       hasRated: async () => false,
+      getLatestScanBySession: async () => null,
     }
     const useCase = recordScan({
       guestRepo: failingRepo,
@@ -68,6 +71,7 @@ describe('recordScan', () => {
         source: 'qr',
         sessionId: 'session-abc',
         ipHash: 'hash123',
+        staffId: null,
       }),
     ).resolves.toBeUndefined()
 

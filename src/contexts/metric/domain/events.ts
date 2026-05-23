@@ -1,5 +1,4 @@
 // Metric context — domain events
-
 import type {
   MetricReadingId,
   OrganizationId,

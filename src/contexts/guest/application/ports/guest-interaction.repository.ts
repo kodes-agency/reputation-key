@@ -15,4 +15,8 @@ export type GuestInteractionRepository = Readonly<{
     sessionId: string,
     portalId: PortalId,
   ): Promise<boolean>
+  getLatestScanBySession(
+    organizationId: OrganizationId,
+    sessionId: string,
+  ): Promise<ScanEvent | null>
 }>

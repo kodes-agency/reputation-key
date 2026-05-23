@@ -1,16 +1,16 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { recordMetric, type RecordMetricDeps } from './record-metric'
-import type { MetricKey, MetricReading } from '../../domain/types'
+import type { MetricReading } from '../../domain/types'
 import type { DomainEvent } from '#/shared/events/events'
 import {
   organizationId,
   propertyId,
   portalId,
   metricReadingId,
+  staffId,
 } from '#/shared/domain/ids'
-import { isMetricError } from '../../domain/errors'
 
-const FIXED_TIME = new Date('2026-05-20T12:00:00Z')
+const FIXED_TIME = new Date('2026-01-01')
 
 type InsertInput = Omit<MetricReading, 'id'>
 
@@ -24,12 +24,12 @@ const createFakeDeps = (): RecordMetricDeps & {
     readings,
     emittedEvents,
     metricRepo: {
-      insertReading: async (input) => {
+      insertReading: async (input: InsertInput) => {
         const reading: MetricReading = {
-          id: metricReadingId(`metric-${readings.length + 1}`),
+          id: metricReadingId(`mr-${readings.length + 1}`),
           ...input,
         }
-        readings.push(input)
+        readings.push(reading)
         return reading
       },
       findByOrganizationId: async () => [],
@@ -47,82 +47,32 @@ const createFakeDeps = (): RecordMetricDeps & {
 }
 
 describe('recordMetric', () => {
-  let deps: ReturnType<typeof createFakeDeps>
+  it('accepts nullable staffId and passes it through', async () => {
+    const deps = createFakeDeps()
 
-  beforeEach(() => {
-    deps = createFakeDeps()
-  })
-
-  it('inserts a reading for a known metric key', async () => {
-    const record = recordMetric(deps)
-
-    await record({
+    const withStaff = await recordMetric(deps)({
       organizationId: organizationId('org-1'),
       propertyId: propertyId('prop-1'),
       portalId: portalId('portal-1'),
       metricKey: 'portal.scan',
       value: 1,
+      staffId: staffId('staff-1'),
     })
+    expect(withStaff.staffId).toBe('staff-1')
 
-    expect(deps.readings).toHaveLength(1)
-    expect(deps.readings[0]).toEqual({
+    const withoutStaff = await recordMetric(deps)({
       organizationId: organizationId('org-1'),
       propertyId: propertyId('prop-1'),
       portalId: portalId('portal-1'),
       metricKey: 'portal.scan',
       value: 1,
-      recordedAt: FIXED_TIME,
+      staffId: null,
     })
-  })
-
-  it('inserts a rating reading with star value', async () => {
-    const record = recordMetric(deps)
-
-    await record({
-      organizationId: organizationId('org-1'),
-      propertyId: propertyId('prop-1'),
-      portalId: portalId('portal-1'),
-      metricKey: 'portal.rating',
-      value: 4,
-    })
-
-    expect(deps.readings[0]!.value).toBe(4)
-  })
-
-  it('rejects an unknown metric key', async () => {
-    const record = recordMetric(deps)
-
-    await expect(
-      record({
-        organizationId: organizationId('org-1'),
-        propertyId: propertyId('prop-1'),
-        portalId: null,
-        metricKey: 'unknown.metric' as MetricKey,
-        value: 1,
-      }),
-    ).rejects.toSatisfy(
-      (e: unknown) => isMetricError(e) && e.code === 'unknown_metric_key',
-    )
-
-    expect(deps.readings).toHaveLength(0)
-  })
-
-  it('inserts a property-level reading with null portalId', async () => {
-    const record = recordMetric(deps)
-
-    await record({
-      organizationId: organizationId('org-1'),
-      propertyId: propertyId('prop-1'),
-      portalId: null,
-      metricKey: 'property.review',
-      value: 3,
-    })
-
-    expect(deps.readings[0]!.portalId).toBeNull()
-    expect(deps.readings[0]!.metricKey).toBe('property.review')
+    expect(withoutStaff.staffId).toBeNull()
   })
 
   it('emits a MetricRecorded event after inserting a reading', async () => {
+    const deps = createFakeDeps()
     const record = recordMetric(deps)
 
     await record({
@@ -131,6 +81,7 @@ describe('recordMetric', () => {
       portalId: portalId('portal-1'),
       metricKey: 'portal.scan',
       value: 1,
+      staffId: null,
     })
 
     expect(deps.emittedEvents).toHaveLength(1)

@@ -6,6 +6,7 @@ import type {
   OrganizationId,
   PortalId,
   PropertyId,
+  StaffId,
 } from '#/shared/domain/ids'
 import type { GuestError } from './errors'
 import { validateRating, validateFeedback, validateSource } from './rules'
@@ -19,6 +20,7 @@ export type BuildRatingInput = Readonly<{
   value: number
   source: ScanSource
   ipHash: string
+  staffId: StaffId | null
   now: Date
 }>
 
@@ -36,6 +38,7 @@ export const buildRating = (input: BuildRatingInput): Result<Rating, GuestError>
       value: validValue,
       source: input.source,
       ipHash: input.ipHash,
+      staffId: input.staffId,
       createdAt: input.now,
     }),
   )
@@ -51,6 +54,7 @@ export type BuildFeedbackInput = Readonly<{
   comment: string
   source: ScanSource
   ipHash: string
+  staffId: StaffId | null
   now: Date
 }>
 
@@ -71,6 +75,7 @@ export const buildFeedback = (
       comment: validComment,
       source: input.source,
       ipHash: input.ipHash,
+      staffId: input.staffId,
       createdAt: input.now,
     }),
   )

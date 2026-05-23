@@ -6,7 +6,13 @@
 import { ok, Result } from 'neverthrow'
 import type { StaffAssignment, StaffAssignmentId } from './types'
 import type { StaffError } from './errors'
-import type { OrganizationId, PropertyId, TeamId, UserId } from '#/shared/domain/ids'
+import type {
+  OrganizationId,
+  PortalId,
+  PropertyId,
+  TeamId,
+  UserId,
+} from '#/shared/domain/ids'
 
 // fallow-ignore-next-line unused-type
 export type BuildStaffAssignmentInput = Readonly<{
@@ -15,6 +21,8 @@ export type BuildStaffAssignmentInput = Readonly<{
   userId: UserId
   propertyId: PropertyId
   teamId?: TeamId | null
+  portalId?: PortalId | null
+  referralCode?: string | null
   now: Date
 }>
 
@@ -27,6 +35,8 @@ export const buildStaffAssignment = (
     userId: input.userId,
     propertyId: input.propertyId,
     teamId: input.teamId ?? null,
+    portalId: input.portalId ?? null,
+    referralCode: input.referralCode ?? null,
     createdAt: input.now,
     updatedAt: input.now,
     deletedAt: null,

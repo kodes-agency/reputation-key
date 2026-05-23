@@ -68,6 +68,14 @@ export const createInMemoryStaffAssignmentRepo = (): InMemoryStaffAssignmentRepo
       return [...ids]
     },
 
+    findByReferralCode: async (orgId, referralCode) => {
+      return (
+        [...store.values()].find(
+          (a) => isAccessible(orgId, a) && a.referralCode === referralCode,
+        ) ?? null
+      )
+    },
+
     seed: (assignments) => {
       for (const a of assignments) store.set(String(a.id), a)
     },

@@ -20,6 +20,7 @@ function createInMemoryGuestRepo() {
       feedback.push(fb)
     },
     hasRated: async () => false,
+    getLatestScanBySession: async () => null,
   }
   return { ...repo, feedback }
 }
@@ -42,7 +43,8 @@ describe('submitFeedback', () => {
       sessionId: 'session-abc',
       comment: 'Great service!',
       source: 'qr',
-      ipHash: 'hash123',
+      ipHash: 'hash',
+      staffId: null,
     })
 
     expect(result.comment).toBe('Great service!')
@@ -69,7 +71,8 @@ describe('submitFeedback', () => {
         sessionId: 'session-abc',
         comment: '',
         source: 'qr',
-        ipHash: 'hash123',
+        ipHash: 'hash',
+        staffId: null,
       }),
     ).rejects.toSatisfy((e: unknown) => {
       return isGuestError(e) && e.code === 'feedback_empty'
@@ -93,10 +96,12 @@ describe('submitFeedback', () => {
       sessionId: 'session-abc',
       comment: 'Linked feedback',
       source: 'qr',
-      ipHash: 'hash123',
+      ipHash: 'hash',
       ratingId: ratingId('rating-1'),
+      staffId: null,
     })
 
     expect(result.ratingId).toBe(ratingId('rating-1'))
+    expect(repo.feedback.length).toBe(1)
   })
 })

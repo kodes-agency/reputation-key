@@ -5,16 +5,34 @@ import type { EventBus } from '#/shared/events/event-bus'
 import type { StaffAssignment, StaffAssignmentId } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { CreateStaffAssignmentInput } from '../dto/staff-assignment.dto'
+import type { RandomBytesFn } from '../../domain/referral-code'
 import { can } from '#/shared/domain/permissions'
 import { hasRole } from '#/shared/domain/roles'
 import { buildStaffAssignment } from '../../domain/constructors'
 import { staffError } from '../../domain/errors'
 import { staffAssigned } from '../../domain/events'
+import { generateReferralCode } from '../../domain/referral-code'
 import {
   userId as toUserId,
   propertyId as toPropertyId,
   teamId as toTeamId,
 } from '#/shared/domain/ids'
+
+/** PostgreSQL error code for unique constraint violation */
+const PG_UNIQUE_VIOLATION = '23505'
+
+const MAX_REFERRAL_CODE_ATTEMPTS = 3
+
+/** Check if an error is a PostgreSQL unique_violation (error code 23505) */
+const isUniqueViolation = (e: unknown): boolean => {
+  if (typeof e === 'object' && e !== null) {
+    const err = e as { code?: string; driverError?: { code?: string } }
+    return (
+      err.code === PG_UNIQUE_VIOLATION || err.driverError?.code === PG_UNIQUE_VIOLATION
+    )
+  }
+  return false
+}
 
 // fallow-ignore-next-line unused-type
 export type CreateStaffAssignmentDeps = Readonly<{
@@ -22,6 +40,7 @@ export type CreateStaffAssignmentDeps = Readonly<{
   events: EventBus
   idGen: () => StaffAssignmentId
   clock: () => Date
+  randomBytesFn: RandomBytesFn
 }>
 
 export const createStaffAssignment =
@@ -59,7 +78,7 @@ export const createStaffAssignment =
       )
     }
 
-    // 4. Build domain object
+    // 4. Build domain object (initially without referral code)
     const buildResult = buildStaffAssignment({
       id: deps.idGen(),
       organizationId: ctx.organizationId,
@@ -73,25 +92,45 @@ export const createStaffAssignment =
       throw staffError(buildResult.error.code, buildResult.error.message)
     }
 
-    const assignment = buildResult.value
+    const baseAssignment = buildResult.value
 
-    // 5. Persist
-    await deps.assignmentRepo.insert(ctx.organizationId, assignment)
+    // 5. Generate referral code with collision retry
+    let lastError: unknown
+    for (let attempt = 0; attempt < MAX_REFERRAL_CODE_ATTEMPTS; attempt++) {
+      const referralCode = generateReferralCode(userId, deps.randomBytesFn)
+      const assignment: StaffAssignment = { ...baseAssignment, referralCode }
 
-    // 6. Emit event
-    await deps.events.emit(
-      staffAssigned({
-        assignmentId: assignment.id,
-        organizationId: assignment.organizationId,
-        userId: assignment.userId,
-        propertyId: assignment.propertyId,
-        teamId: assignment.teamId,
-        occurredAt: assignment.createdAt,
-      }),
+      try {
+        await deps.assignmentRepo.insert(ctx.organizationId, assignment)
+
+        // 6. Emit event
+        await deps.events.emit(
+          staffAssigned({
+            assignmentId: assignment.id,
+            organizationId: assignment.organizationId,
+            userId: assignment.userId,
+            propertyId: assignment.propertyId,
+            teamId: assignment.teamId,
+            occurredAt: assignment.createdAt,
+          }),
+        )
+
+        // 7. Return
+        return assignment
+      } catch (e) {
+        if (isUniqueViolation(e)) {
+          lastError = e
+          continue
+        }
+        throw e
+      }
+    }
+
+    throw staffError(
+      'referral_code_collision',
+      `failed to generate a unique referral code after ${MAX_REFERRAL_CODE_ATTEMPTS} attempts`,
+      { cause: lastError },
     )
-
-    // 7. Return
-    return assignment
   }
 
 // fallow-ignore-next-line unused-type

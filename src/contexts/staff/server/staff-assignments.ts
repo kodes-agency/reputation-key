@@ -25,7 +25,7 @@ const staffErrorStatus = (code: StaffErrorCode): number =>
   match(code)
     .with('forbidden', () => 403)
     .with('assignment_not_found', 'property_not_found', 'team_not_found', () => 404)
-    .with('already_assigned', () => 409)
+    .with('already_assigned', 'referral_code_collision', () => 409)
     .with('invalid_input', () => 400)
     .exhaustive()
 
