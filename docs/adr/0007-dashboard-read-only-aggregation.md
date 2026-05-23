@@ -42,6 +42,30 @@ Domain events from other contexts populate a materialized dashboard view/table. 
 - **Pros:** Eventually consistent, decoupled, fast reads. Scales to complex aggregations.
 - **Cons:** Significant infrastructure overhead (event bus, projection handlers, state store) for what is currently simple aggregation. Premature for current requirements. Eventual consistency adds UI staleness.
 
+## Implemented Facade Ports
+
+The following facade ports are currently implemented:
+
+### ReviewStatsPort (`application/ports/review-stats.port.ts`)
+
+Aggregation queries against review/reply data. Implemented by `infrastructure/adapters/review-stats.adapter.ts`.
+
+- `getPeriodStats(orgId, propertyId, startDate, endDate)` — Count + average rating for a period
+- `getRatingDistribution(orgId, propertyId, startDate, endDate)` — Star-rating distribution buckets
+- `getRatingTrend(orgId, propertyId, startDate, endDate)` — Daily average rating for trend chart
+- `getReviewVolume(orgId, propertyId, startDate, endDate)` — Daily review count for volume chart
+- `getReplyPerformance(orgId, propertyId, startDate, endDate)` — Reply rate + average reply hours
+- `getRecentReviews(orgId, propertyId, limit)` — Last N reviews with reply status
+
+### MetricStatsPort (`application/ports/metric-stats.port.ts`)
+
+Aggregation queries against metric_readings data. Implemented by `infrastructure/adapters/metric-stats.adapter.ts`.
+
+- `getSumsByPeriod(orgId, propertyId, startDate, endDate)` — Summed metric values by metricKey for a property
+- `getSumsByPortal(orgId, propertyId, portalId, startDate, endDate)` — Summed metric values by metricKey for a portal
+
+Both ports follow the facade pattern: dashboard's application layer depends only on the port interface, never on other contexts' database tables. Adapters in the infrastructure layer encapsulate the SQL queries.
+
 ## Consequences
 
 ### Positive
@@ -51,6 +75,7 @@ Domain events from other contexts populate a materialized dashboard view/table. 
 - No domain events, no writes, no state — simplest possible context
 - Other contexts evolve independently; adapters absorb schema changes
 - Composition layer wires ports once; adding new data sources is additive
+- Facade ports are query-focused: `ReviewStatsPort` for review aggregations, `MetricStatsPort` for metric aggregations
 
 ### Negative
 
