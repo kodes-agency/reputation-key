@@ -40,11 +40,16 @@ import { buildReviewContext } from '#/contexts/review/build'
 import { buildInboxContext } from '#/contexts/inbox/build'
 import { buildMetricContext } from '#/contexts/metric/build'
 import { buildDashboardContext } from '#/contexts/dashboard/build'
+import { createReviewStatsAdapter } from '#/contexts/dashboard/infrastructure/adapters/review-stats.adapter'
+import { createMetricStatsAdapter } from '#/contexts/dashboard/infrastructure/adapters/metric-stats.adapter'
 import { buildGoalContext } from '#/contexts/goal/build'
 import { createStaffAssignmentRepository } from '#/contexts/staff/infrastructure/repositories/staff-assignment.repository'
 import { createGoogleReviewApiAdapter } from '#/contexts/integration/infrastructure/adapters/google-review-api.adapter'
 import { handleGbpNotification } from '#/contexts/integration/application/use-cases'
 import type { PropertyLookupPort } from '#/contexts/integration/application/ports/property-lookup.port'
+import type { ReviewLookupPort } from '#/contexts/inbox/application/ports/review-lookup.port'
+import type { FeedbackLookupPort } from '#/contexts/inbox/application/ports/feedback-lookup.port'
+import type { PropertyLookupPort as InboxPropertyLookupPort } from '#/contexts/inbox/application/ports/property-lookup.port'
 import {
   propertyId,
   organizationId as toOrgId,
@@ -185,6 +190,7 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     clock,
     linkResolver: portal.linkResolver,
     staffApi: staff.publicApi,
+    portalApi: portal.publicApi,
   })
 
   // ── Property lookup port for integration context (webhook) ────────
@@ -224,12 +230,47 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     logger: getLogger(),
   })
 
+  // ── Inbox lookup ports (cross-context wiring) ─────────────────────
+  // Per architecture: inbox context defines ports, composition root wires
+  // them by calling review/guest/property public APIs.
+  const reviewLookup: ReviewLookupPort = {
+    getReviewSnippetById: async (id, orgId) => {
+      const r = await review.reviewRepo.findById(id, orgId)
+      if (!r) return null
+      return {
+        reviewerName: r.reviewerName,
+        text: r.text,
+        reviewerProfilePhotoUrl: r.reviewerProfilePhotoUrl,
+      }
+    },
+  }
+
+  const feedbackLookup: FeedbackLookupPort = {
+    getFeedbackSnippetById: async (id, orgId) => {
+      const fb = await guest.guestRepo.findFeedbackById(id, orgId)
+      if (!fb) return null
+      let ratingValue: number | null = null
+      if (fb.ratingId) {
+        const ratingRow = await guest.guestRepo.findRatingById(fb.ratingId, orgId)
+        ratingValue = ratingRow?.value ?? null
+      }
+      return { comment: fb.comment, ratingValue }
+    },
+  }
+
+  const inboxPropertyLookup: InboxPropertyLookupPort = {
+    getPropertyNameById: (pid, orgId) => property.publicApi.getPropertyName(orgId, pid),
+  }
+
   const inbox = buildInboxContext({
     db,
     events: eventBus,
     redis,
     clock,
     staffPublicApi: staff.publicApi,
+    reviewLookup,
+    feedbackLookup,
+    propertyLookup: inboxPropertyLookup,
     logger: getLogger(),
   })
 
@@ -247,8 +288,15 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     idGen: () => crypto.randomUUID(),
   })
 
+  // ── Dashboard context (facade ports per ADR-0007) ────────────────
+  // Dashboard never queries review/reply/metric tables directly.
+  // Adapters encapsulate SQL; dashboard repo only composes.
+  const reviewStats = createReviewStatsAdapter(db)
+  const metricStats = createMetricStatsAdapter(db)
+
   const dashboard = buildDashboardContext({
-    db,
+    reviewStats,
+    metricStats,
   })
 
   // ── Wire invitation acceptance hook ────────────────────────────
