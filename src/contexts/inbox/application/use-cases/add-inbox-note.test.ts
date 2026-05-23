@@ -59,6 +59,7 @@ const seedItem = (): InboxItem => ({
 
 const defaultStaffApi: StaffPublicApi = {
   getAccessiblePropertyIds: async () => null,
+    findByReferralCode: async () => null,
 }
 
 const setup = (staffApi: StaffPublicApi = defaultStaffApi) => {
@@ -126,6 +127,7 @@ describe('addInboxNote', () => {
   it('throws forbidden when non-admin adds note for inaccessible property', async () => {
     const staffApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [propertyId('prop-other')],
+    findByReferralCode: async () => null,
     }
     const { useCase, repo } = setup(staffApi)
     repo.items.push(seedItem())
@@ -144,6 +146,7 @@ describe('addInboxNote', () => {
   it('allows note when user has access to the property', async () => {
     const staffApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [propertyId('prop-1')],
+    findByReferralCode: async () => null,
     }
     const { useCase, repo, noteRepo } = setup(staffApi)
     repo.items.push(seedItem())

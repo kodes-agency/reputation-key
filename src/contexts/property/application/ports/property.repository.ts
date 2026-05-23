@@ -32,4 +32,20 @@ export type PropertyRepository = Readonly<{
     orgId: OrganizationId,
     propertyIds: ReadonlyArray<PropertyId>,
   ) => Promise<void>
+
+  /**
+   * Insert a property and return the full inserted row.
+   * Used by importProperty on the public API for GBP bulk import.
+   * Throws on unique-constraint violations — the caller maps them to PropertyImportConflict.
+   */
+  insertAndReturn: (orgId: OrganizationId, property: Property) => Promise<Property>
+
+  /** Find existing non-deleted property gbpPlaceIds for the given organization. */
+  findExistingGbpPlaceIds: (
+    orgId: OrganizationId,
+    gbpPlaceIds: ReadonlyArray<string>,
+  ) => Promise<ReadonlyArray<string>>
+
+  /** Check if a non-deleted property with this gbpPlaceId exists in the org. */
+  existsByGbpPlaceId: (orgId: OrganizationId, gbpPlaceId: string) => Promise<boolean>
 }>

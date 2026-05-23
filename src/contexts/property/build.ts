@@ -4,6 +4,7 @@
 
 import type { PropertyRepository } from './application/ports/property.repository'
 import type { PropertyPublicApi } from './application/public-api'
+import { propertyImportConflict, isPropertyImportConflict } from './application/public-api'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { OrganizationId, PropertyId, GoogleConnectionId } from '#/shared/domain/ids'
 import type { EventBus } from '#/shared/events/event-bus'
@@ -79,6 +80,48 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
       if (propertyIds.length > 0) {
         await deps.repo.clearGoogleConnectionRef(orgId, propertyIds)
       }
+    },
+    importProperty: async (input) => {
+      try {
+        const id = idGen()
+        const now = deps.clock()
+        const property: import('../../domain/types').Property = {
+          id,
+          organizationId: input.orgId,
+          name: input.name,
+          slug: input.slug,
+          timezone: 'UTC',
+          gbpPlaceId: input.gbpPlaceId,
+          googleConnectionId: input.googleConnectionId,
+          createdAt: now,
+          updatedAt: now,
+          deletedAt: null,
+        }
+        const inserted = await deps.repo.insertAndReturn(input.orgId, property)
+        return {
+          id: inserted.id,
+          organizationId: inserted.organizationId,
+          name: inserted.name,
+          slug: inserted.slug,
+          gbpPlaceId: inserted.gbpPlaceId,
+          createdAt: inserted.createdAt,
+        }
+      } catch (err) {
+        const isPg23505 =
+          err instanceof Error && 'code' in err && (err as { code: string }).code === '23505'
+        if (isPg23505) {
+          throw propertyImportConflict(
+            `Duplicate property for gbpPlaceId=${input.gbpPlaceId}`,
+          )
+        }
+        throw err
+      }
+    },
+    findExistingGbpPlaceIds: async (orgId, gbpPlaceIds) => {
+      return deps.repo.findExistingGbpPlaceIds(orgId, gbpPlaceIds)
+    },
+    existsByGbpPlaceId: async (orgId, gbpPlaceId) => {
+      return deps.repo.existsByGbpPlaceId(orgId, gbpPlaceId)
     },
   }
 

@@ -46,6 +46,7 @@ const seedItem = (): InboxItem => ({
 
 const defaultStaffApi: StaffPublicApi = {
   getAccessiblePropertyIds: async () => null,
+    findByReferralCode: async () => null,
 }
 
 const setup = (staffApi: StaffPublicApi = defaultStaffApi) => {
@@ -153,6 +154,7 @@ describe('assignInboxItem', () => {
   it('throws forbidden when non-admin assigns item for inaccessible property', async () => {
     const staffApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [PROP_OTHER],
+    findByReferralCode: async () => null,
     }
     const { useCase, repo } = setup(staffApi)
     repo.items.push(seedItem())
@@ -171,6 +173,7 @@ describe('assignInboxItem', () => {
   it('allows assignment when user has access to the property', async () => {
     const staffApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [PROP_1],
+    findByReferralCode: async () => null,
     }
     const { useCase, repo } = setup(staffApi)
     repo.items.push(seedItem())

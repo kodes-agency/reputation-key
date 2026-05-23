@@ -138,4 +138,54 @@ export const createPropertyRepository = (db: Database): PropertyRepository => ({
         )
     })
   },
+
+  insertAndReturn: async (orgId, property) => {
+    return trace('property.insertAndReturn', async () => {
+      if (property.organizationId !== orgId) {
+        throw propertyError('forbidden', 'Tenant mismatch on property insert')
+      }
+      const [inserted] = await db
+        .insert(properties)
+        .values(propertyToRow(property))
+        .returning()
+      if (!inserted) {
+        throw propertyError('property_not_found', 'Failed to retrieve inserted property')
+      }
+      return propertyFromRow(inserted)
+    })
+  },
+
+  findExistingGbpPlaceIds: async (orgId, gbpPlaceIds) => {
+    return trace('property.findExistingGbpPlaceIds', async () => {
+      if (gbpPlaceIds.length === 0) return []
+      const rows = await db
+        .select({ gbpPlaceId: properties.gbpPlaceId })
+        .from(properties)
+        .where(
+          and(
+            ...baseWhere(properties, orgId),
+            inArray(properties.gbpPlaceId, gbpPlaceIds as [string, ...string[]]),
+          ),
+        )
+      return rows
+        .map((r) => r.gbpPlaceId)
+        .filter((id): id is string => id !== null)
+    })
+  },
+
+  existsByGbpPlaceId: async (orgId, gbpPlaceId) => {
+    return trace('property.existsByGbpPlaceId', async () => {
+      const rows = await db
+        .select({ id: properties.id })
+        .from(properties)
+        .where(
+          and(
+            ...baseWhere(properties, orgId),
+            eq(properties.gbpPlaceId, gbpPlaceId),
+          ),
+        )
+        .limit(1)
+      return rows.length > 0
+    })
+  },
 })

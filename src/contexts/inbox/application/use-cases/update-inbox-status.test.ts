@@ -47,6 +47,7 @@ function seedNew(overrides?: Partial<InboxItem>): InboxItem {
 
 const staffApiAllAccess: StaffPublicApi = {
   getAccessiblePropertyIds: async () => null,
+    findByReferralCode: async () => null,
 }
 
 const setup = (staffApi: StaffPublicApi = staffApiAllAccess) => {
@@ -173,6 +174,7 @@ describe('updateInboxStatus', () => {
   it('allows update when user has access to the property', async () => {
     const staffApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [propertyId('prop-1')],
+    findByReferralCode: async () => null,
     }
     const { useCase, repo } = setup(staffApi)
     repo.items.push(seedNew())
@@ -191,6 +193,7 @@ describe('updateInboxStatus', () => {
   it('throws forbidden when non-admin user cannot access the property', async () => {
     const staffApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [propertyId('prop-other')],
+    findByReferralCode: async () => null,
     }
     const { useCase, repo } = setup(staffApi)
     repo.items.push(seedNew())
@@ -211,6 +214,7 @@ describe('updateInboxStatus', () => {
       getAccessiblePropertyIds: async () => {
         throw new Error('Should not be called')
       },
+      findByReferralCode: async () => null,
     }
     const { useCase, repo } = setup(staffApi)
     repo.items.push(seedNew())

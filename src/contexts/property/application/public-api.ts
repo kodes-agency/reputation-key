@@ -11,6 +11,30 @@ export type PropertyLookupResult = Readonly<{
   googleConnectionId: string | null
 }>
 
+/** Result of a property import (GBP bulk import). */
+export type PropertyImportResult = Readonly<{
+  id: string
+  organizationId: string
+  name: string
+  slug: string
+  gbpPlaceId: string | null
+  createdAt: Date | null
+}>
+
+/** Thrown by importProperty when a unique-constraint violation occurs (e.g. duplicate gbpPlaceId). */
+export type PropertyImportConflict = Readonly<{
+  _tag: 'PropertyImportConflict'
+  message: string
+}>
+
+export const propertyImportConflict = (message: string): PropertyImportConflict => ({
+  _tag: 'PropertyImportConflict',
+  message,
+})
+
+export const isPropertyImportConflict = (e: unknown): e is PropertyImportConflict =>
+  typeof e === 'object' && e !== null && (e as PropertyImportConflict)._tag === 'PropertyImportConflict'
+
 export { propertyCreated } from '../domain/events'
 export type { PropertyCreated } from '../domain/events'
 
@@ -44,4 +68,31 @@ export type PropertyPublicApi = Readonly<{
     orgId: OrganizationId,
     connectionId: GoogleConnectionId,
   ) => Promise<void>
+
+  /**
+   * Import a property during GBP bulk import. Creates a new property row.
+   * Throws PropertyImportConflict on unique-constraint violations (e.g. duplicate gbpPlaceId).
+   */
+  importProperty: (input: {
+    orgId: OrganizationId
+    name: string
+    slug: string
+    gbpPlaceId: string
+    googleConnectionId: GoogleConnectionId
+  }) => Promise<PropertyImportResult>
+
+  /**
+   * Find existing non-deleted property gbpPlaceIds for the given organization.
+   * Used by integration context to skip already-imported GBP locations.
+   */
+  findExistingGbpPlaceIds: (
+    orgId: OrganizationId,
+    gbpPlaceIds: ReadonlyArray<string>,
+  ) => Promise<ReadonlyArray<string>>
+
+  /**
+   * Check if a property with this gbpPlaceId exists (for race-condition recovery).
+   * Used by integration context during GBP import error handling.
+   */
+  existsByGbpPlaceId: (orgId: OrganizationId, gbpPlaceId: string) => Promise<boolean>
 }>

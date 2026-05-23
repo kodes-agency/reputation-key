@@ -51,6 +51,10 @@ export const buildStaffContext = (deps: StaffContextDeps) => {
       if (hasRole(role, 'AccountAdmin')) return null
       return deps.repo.getAccessiblePropertyIds(orgId, userId)
     },
+    findByReferralCode: async (orgId, referralCode) => {
+      const assignment = await deps.repo.findByReferralCode(orgId, referralCode)
+      return assignment ? { userId: assignment.userId } : null
+    },
   }
 
   return { useCases, publicApi } as const

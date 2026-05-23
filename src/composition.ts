@@ -184,7 +184,7 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     events: eventBus,
     clock,
     linkResolver: portal.linkResolver,
-    staffRepo,
+    staffApi: staff.publicApi,
   })
 
   // ── Property lookup port for integration context (webhook) ────────

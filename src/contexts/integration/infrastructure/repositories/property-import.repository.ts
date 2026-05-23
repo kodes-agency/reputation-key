@@ -1,48 +1,41 @@
 // Integration context — property repository adapter for import use case
 // Implements the PropertyImportRepo port defined in the application layer.
-// Direct DB access via Drizzle for property creation during GBP import.
+// Delegates all property data access through PropertyPublicApi,
+// keeping the integration context free of direct Property schema imports.
+// Per ADR-0001: cross-context data goes through PublicApi, not direct DB.
 
 import type { PropertyImportRepo } from '../../application/ports/property-import-repo.port'
 import { duplicateKeyError } from '../../application/ports/property-import-repo.port'
-import type { Database } from '#/shared/db'
-import { properties } from '#/shared/db/schema'
-import { and, eq, inArray, isNull } from 'drizzle-orm'
+import type { PropertyPublicApi } from '#/contexts/property/application/public-api'
+import { isPropertyImportConflict } from '#/contexts/property/application/public-api'
+import type { OrganizationId, GoogleConnectionId } from '#/shared/domain/ids'
+import { organizationId as toOrgId, googleConnectionId as toConnId } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 
-export const createPropertyImportRepository = (db: Database): PropertyImportRepo => ({
+export const createPropertyImportRepository = (
+  propertyApi: PropertyPublicApi,
+): PropertyImportRepo => ({
   insertProperty: async (input) => {
     return trace('propertyImport.insertProperty', async () => {
-      const now = new Date()
       try {
-        const [inserted] = await db
-          .insert(properties)
-          .values({
-            organizationId: input.organizationId,
-            name: input.name,
-            slug: input.slug,
-            timezone: 'UTC',
-            gbpPlaceId: input.gbpPlaceId,
-            googleConnectionId: input.googleConnectionId,
-            createdAt: now,
-            updatedAt: now,
-          })
-          .returning()
-
+        const result = await propertyApi.importProperty({
+          orgId: toOrgId(input.organizationId),
+          name: input.name,
+          slug: input.slug,
+          gbpPlaceId: input.gbpPlaceId,
+          googleConnectionId: toConnId(input.googleConnectionId),
+        })
         return {
-          id: inserted.id,
-          organizationId: inserted.organizationId,
-          name: inserted.name,
-          slug: inserted.slug,
-          gbpPlaceId: inserted.gbpPlaceId,
-          createdAt: inserted.createdAt,
+          id: result.id,
+          organizationId: result.organizationId,
+          name: result.name,
+          slug: result.slug,
+          gbpPlaceId: result.gbpPlaceId,
+          createdAt: result.createdAt,
         }
       } catch (err) {
-        const isPg23505 =
-          err instanceof Error && 'code' in err && (err as { code: string }).code === '23505'
-        if (isPg23505) {
-          throw duplicateKeyError(
-            `Duplicate property for gbpPlaceId=${input.gbpPlaceId}`,
-          )
+        if (isPropertyImportConflict(err)) {
+          throw duplicateKeyError(err.message)
         }
         throw err
       }
@@ -51,40 +44,19 @@ export const createPropertyImportRepository = (db: Database): PropertyImportRepo
 
   findExistingGbpPlaceIds: async (organizationId, gbpPlaceIds) => {
     return trace('propertyImport.findExistingGbpPlaceIds', async () => {
-      if (gbpPlaceIds.length === 0) return []
-
-      const rows = await db
-        .select({ gbpPlaceId: properties.gbpPlaceId })
-        .from(properties)
-        .where(
-          and(
-            eq(properties.organizationId, organizationId),
-            isNull(properties.deletedAt),
-            inArray(properties.gbpPlaceId, gbpPlaceIds as [string, ...string[]]),
-          ),
-        )
-
-      return rows
-        .map((r) => r.gbpPlaceId)
-        .filter((id): id is string => id !== null)
+      return propertyApi.findExistingGbpPlaceIds(
+        toOrgId(organizationId),
+        gbpPlaceIds,
+      )
     })
   },
 
   existsByGbpPlaceId: async (organizationId, gbpPlaceId) => {
     return trace('propertyImport.existsByGbpPlaceId', async () => {
-      const rows = await db
-        .select({ id: properties.id })
-        .from(properties)
-        .where(
-          and(
-            eq(properties.organizationId, organizationId),
-            eq(properties.gbpPlaceId, gbpPlaceId),
-            isNull(properties.deletedAt),
-          ),
-        )
-        .limit(1)
-
-      return rows.length > 0
+      return propertyApi.existsByGbpPlaceId(
+        toOrgId(organizationId),
+        gbpPlaceId,
+      )
     })
   },
 })
