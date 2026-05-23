@@ -12,6 +12,23 @@ export const Route = createFileRoute('/_authenticated/inbox/')({
   component: InboxRoute,
 })
 
+function toInboxPrev(prev: Record<string, unknown>): InboxSearchParams {
+  const status = prev.status as string | undefined
+  const validStatuses = new Set(['new', 'read', 'addressed', 'escalated', 'archived'])
+  return {
+    itemId: prev.itemId as string | undefined,
+    propertyId: prev.propertyId as string | undefined,
+    status:
+      status && validStatuses.has(status)
+        ? (status as InboxSearchParams['status'])
+        : undefined,
+    sourceType: prev.sourceType as InboxSearchParams['sourceType'],
+    platform: prev.platform as string | undefined,
+    ratingMin: prev.ratingMin as number | undefined,
+    ratingMax: prev.ratingMax as number | undefined,
+  }
+}
+
 function InboxRoute() {
   const ctx = authRoute.useRouteContext() as AuthRouteContext
   const search = Route.useSearch()
@@ -21,7 +38,12 @@ function InboxRoute() {
     <InboxPage
       ctx={ctx}
       search={search}
-      onNavigate={(opts) => navigate({ to: opts.to, search: opts.search as (prev: InboxSearchParams) => InboxSearchParams })}
+      onNavigate={(opts) =>
+        navigate({
+          to: opts.to,
+          search: (prev) => opts.search(toInboxPrev(prev)),
+        })
+      }
     />
   )
 }
