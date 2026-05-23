@@ -510,7 +510,8 @@ export const signInUser = createServerFn({ method: 'POST' })
           })
         } catch (e) {
           const { getLogger } = await import('#/shared/observability/logger')
-          getLogger().warn({ email: data.email, err: e }, 'Sign-in failed')
+          const { maskEmail } = await import('#/shared/observability/pii')
+          getLogger().warn({ email: maskEmail(data.email), err: e }, 'Sign-in failed')
           throwContextError(
             'AuthError',
             { code: 'invalid_credentials', message: 'Invalid email or password' },

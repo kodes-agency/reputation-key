@@ -1,5 +1,9 @@
 // Guest context — resolve a portal link by ID and track the click.
 // Replaces the direct DB access in the server function with proper use case + port pattern.
+//
+// SECURITY: Link lookup is by PortalLinkId (UUID-based, unguessable identifier).
+// No additional orgId scoping is needed because the UUID itself provides sufficient
+// entropy to prevent enumeration attacks. This is a public (unauthenticated) flow.
 
 import type { LinkResolverPort } from '#/contexts/portal/application/public-api'
 import type { TrackReviewLinkClick } from './track-review-link-click'
