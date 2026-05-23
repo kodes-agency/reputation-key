@@ -72,6 +72,7 @@ describe('integrationErrorStatus (imported from server module)', () => {
       'import_not_found',
       'invalid_visibility',
       'encryption_error',
+      'invalid_cache_entry',
     ]
     for (const code of codes) {
       const status = integrationErrorStatus(code)
@@ -123,6 +124,7 @@ describe('throwContextError with IntegrationError', () => {
       ['gbp_api_error', 400],
       ['invalid_visibility', 400],
       ['encryption_error', 400],
+      ['invalid_cache_entry', 400],
       ['gbp_api_rate_limited', 429],
       ['connection_disconnected', 409],
     ]

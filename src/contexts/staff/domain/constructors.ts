@@ -3,7 +3,7 @@
 // returning a Result."
 // Pure — ID and time are inputs, no side effects.
 
-import { ok, Result } from 'neverthrow'
+import { ok, err, type Result } from 'neverthrow'
 import type { StaffAssignment, StaffAssignmentId } from './types'
 import type { StaffError } from './errors'
 import type {
@@ -13,6 +13,7 @@ import type {
   TeamId,
   UserId,
 } from '#/shared/domain/ids'
+import { validateNotSelfAssignment } from './rules'
 
 // fallow-ignore-next-line unused-type
 export type BuildStaffAssignmentInput = Readonly<{
@@ -23,12 +24,21 @@ export type BuildStaffAssignmentInput = Readonly<{
   teamId?: TeamId | null
   portalId?: PortalId | null
   referralCode?: string | null
+  actingUserId?: UserId
   now: Date
 }>
 
 export const buildStaffAssignment = (
   input: BuildStaffAssignmentInput,
 ): Result<StaffAssignment, StaffError> => {
+  // Self-assignment guard — enforced by domain constructor
+  if (input.actingUserId) {
+    const guard = validateNotSelfAssignment(input.userId, input.actingUserId)
+    if (guard.isErr()) {
+      return err(guard.error)
+    }
+  }
+
   return ok({
     id: input.id,
     organizationId: input.organizationId,

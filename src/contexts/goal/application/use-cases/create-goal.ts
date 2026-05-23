@@ -6,7 +6,7 @@ import type { GoalRepository } from '../ports/goal.repository'
 import type {
   MetricReadingsQuery,
   MetricReadingsAggregate,
-} from '../../../metric/application/ports/metric.repository'
+} from '../../../metric/application/public-api'
 import type {
   Goal,
   GoalProgress,

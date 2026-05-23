@@ -58,10 +58,11 @@ export const createStaffAssignment =
     const propertyId = toPropertyId(input.propertyId)
     const teamId = input.teamId != null ? toTeamId(input.teamId) : null
 
-    // 2. Self-assignment guard — only Staff role is blocked
-    if (userId === ctx.userId && !hasRole(ctx.role, 'PropertyManager')) {
-      throw staffError('invalid_input', 'Cannot assign yourself to a property')
-    }
+    // 2. Self-assignment guard delegated to constructor
+    // PropertyManagers are allowed to self-assign, so skip constructor guard for them
+    const isSelfAssignment = userId === ctx.userId
+    const actingUserId =
+      isSelfAssignment && hasRole(ctx.role, 'PropertyManager') ? undefined : ctx.userId
 
     // 3. Check uniqueness — prevent duplicate assignments
     if (
@@ -85,6 +86,7 @@ export const createStaffAssignment =
       userId,
       propertyId,
       teamId,
+      actingUserId,
       now: deps.clock(),
     })
 
