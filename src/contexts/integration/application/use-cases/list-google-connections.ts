@@ -1,5 +1,5 @@
 // Integration context — list Google connections use case
-// Authorization: hasRole check lives here (use-case layer), not in the repo.
+// Authorization: can() check lives here (use-case layer), not in the repo.
 
 import type {
   GoogleConnectionRepository,
@@ -8,7 +8,6 @@ import type {
 import type { GoogleConnection } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { can } from '#/shared/domain/permissions'
-import { hasRole } from '#/shared/domain/roles'
 import { integrationError } from '../../domain/errors'
 
 export type ListGoogleConnectionsDeps = Readonly<{
@@ -25,7 +24,7 @@ export const listGoogleConnections =
       )
     }
 
-    const filter: ConnectionVisibilityFilter = hasRole(ctx.role, 'AccountAdmin')
+    const filter: ConnectionVisibilityFilter = can(ctx.role, 'integration.manage')
       ? { showAll: true }
       : { showAll: false, userId: ctx.userId }
 

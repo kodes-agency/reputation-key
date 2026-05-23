@@ -19,6 +19,13 @@ import { toGoogleConnectionDto } from '../application/dto/google-connection.dto'
 import { integrationErrorStatus } from './shared'
 import { getEnv } from '#/shared/config/env'
 
+/** OAuth scopes required for Google Business Profile API + user identity. */
+const GBP_OAUTH_SCOPES = [
+  'https://www.googleapis.com/auth/business.manage',
+  'https://www.googleapis.com/auth/userinfo.email',
+  'https://www.googleapis.com/auth/userinfo.profile',
+]
+
 /** HMAC key for OAuth state signing — dedicated, separate from token encryption. */
 function stateHmacKey(): string {
   return getEnv().OAUTH_STATE_SECRET
@@ -67,18 +74,11 @@ export const getGoogleAuthUrl = createServerFn({ method: 'GET' })
           'base64',
         )
 
-        // Google OAuth scopes for Business Profile API + user identity
-        const scopes = [
-          'https://www.googleapis.com/auth/business.manage',
-          'https://www.googleapis.com/auth/userinfo.email',
-          'https://www.googleapis.com/auth/userinfo.profile',
-        ]
-
         // Build OAuth URL
         const params = new URLSearchParams({
           client_id: getEnv().GOOGLE_CLIENT_ID,
           redirect_uri: callbackUrl,
-          scope: scopes.join(' '),
+          scope: GBP_OAUTH_SCOPES.join(' '),
           response_type: 'code',
           state,
           access_type: 'offline',

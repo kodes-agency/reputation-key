@@ -10,7 +10,7 @@ import type { InboxStatus, InboxItem } from '../../domain/types'
 import type { Role } from '#/shared/domain/roles'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import { hasRole, ADMIN_ROLE } from '#/shared/domain/roles'
+import { can } from '#/shared/domain/permissions'
 import { validateTransition } from '../../domain/rules'
 import { inboxStatusChanged } from '../../domain/events'
 import { inboxError } from '../../domain/errors'
@@ -44,7 +44,7 @@ export const updateInboxStatus =
       })
     }
 
-    if (!hasRole(input.role, ADMIN_ROLE)) {
+    if (!can(input.role, 'inbox.write')) {
       const accessible = await deps.staffPublicApi.getAccessiblePropertyIds(
         input.organizationId,
         input.userId,

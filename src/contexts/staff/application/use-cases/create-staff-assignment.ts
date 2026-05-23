@@ -7,7 +7,6 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import type { CreateStaffAssignmentInput } from '../dto/staff-assignment.dto'
 import type { RandomBytesFn } from '../../domain/referral-code'
 import { can } from '#/shared/domain/permissions'
-import { hasRole } from '#/shared/domain/roles'
 import { buildStaffAssignment } from '../../domain/constructors'
 import { staffError } from '../../domain/errors'
 import { staffAssigned } from '../../domain/events'
@@ -62,7 +61,9 @@ export const createStaffAssignment =
     // PropertyManagers are allowed to self-assign, so skip constructor guard for them
     const isSelfAssignment = userId === ctx.userId
     const actingUserId =
-      isSelfAssignment && hasRole(ctx.role, 'PropertyManager') ? undefined : ctx.userId
+      isSelfAssignment && can(ctx.role, 'staff_assignment.create')
+        ? undefined
+        : ctx.userId
 
     // 3. Check uniqueness — prevent duplicate assignments
     if (

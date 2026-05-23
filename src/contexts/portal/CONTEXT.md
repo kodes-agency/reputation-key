@@ -45,9 +45,10 @@ None. Portal context does not subscribe to events from other contexts.
 
 ```
 portal/
-  domain/              types.ts, constructors.ts, events.ts, errors.ts
+  domain/              types.ts, constructors.ts, events.ts, errors.ts, rules.ts
   application/
-    ports/             portal.repository.ts, storage.port.ts, link-resolver.port.ts
+    ports/             portal.repository.ts, portal-link.repository.ts, storage.port.ts,
+                       link-resolver.port.ts
     dto/               create-portal.dto.ts, update-portal.dto.ts,
                        portal-link.dto.ts, portal-link-category.dto.ts
     use-cases/         create-portal.ts, update-portal.ts, get-portal.ts, list-portals.ts,
@@ -57,9 +58,10 @@ portal/
                        finalize-upload.ts, get-portal-qr-url.ts, list-portal-links.ts
     public-api.ts      re-exports port types, PortalPublicApi, event types/constructors
   infrastructure/
-    repositories/      portal.repository.ts, portal-link.repository.ts (Drizzle)
+    repositories/      portal.repository.ts, portal-link.repository.ts,
+                       link-resolver.repository.ts (Drizzle)
     adapters/          s3-storage.adapter.ts
-    mappers/           (inline in repositories)
+    mappers/           portal.mapper.ts, portal-link.mapper.ts
     jobs/              process-image.job.ts
   server/              portals.ts, portal-links.ts
   build.ts             composition root
@@ -91,6 +93,13 @@ Exported from `application/public-api.ts`:
 
 - **`portals.ts`** — CRUD server functions for portals.
 - **`portal-links.ts`** — CRUD server functions for portal links and link categories.
+
+## Permissions
+
+- `portal.read` — View portals and portal links.
+- `portal.update` — Update portal settings, links, and link categories.
+- `portal.create` — Create new portals.
+- `portal.delete` — Soft-delete portals.
 
 ## Background jobs
 

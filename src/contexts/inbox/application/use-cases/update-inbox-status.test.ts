@@ -47,7 +47,7 @@ function seedNew(overrides?: Partial<InboxItem>): InboxItem {
 
 const staffApiAllAccess: StaffPublicApi = {
   getAccessiblePropertyIds: async () => null,
-    findByReferralCode: async () => null,
+  findByReferralCode: async () => null,
 }
 
 const setup = (staffApi: StaffPublicApi = staffApiAllAccess) => {
@@ -69,7 +69,14 @@ const setup = (staffApi: StaffPublicApi = staffApiAllAccess) => {
     unreadCounter,
     clock: () => FIXED_TIME,
     staffPublicApi: staffApi,
-    logger: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {}, trace: () => {}, fatal: () => {} } as never,
+    logger: {
+      info: () => {},
+      warn: () => {},
+      error: () => {},
+      debug: () => {},
+      trace: () => {},
+      fatal: () => {},
+    } as never,
   }
   const useCase = updateInboxStatus(deps)
   return { useCase, repo, events, decrements }
@@ -174,7 +181,7 @@ describe('updateInboxStatus', () => {
   it('allows update when user has access to the property', async () => {
     const staffApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [propertyId('prop-1')],
-    findByReferralCode: async () => null,
+      findByReferralCode: async () => null,
     }
     const { useCase, repo } = setup(staffApi)
     repo.items.push(seedNew())
@@ -190,23 +197,24 @@ describe('updateInboxStatus', () => {
     ).resolves.toBeDefined()
   })
 
-  it('throws forbidden when non-admin user cannot access the property', async () => {
+  it('allows PropertyManager to update status for any property (inbox.write bypasses property check)', async () => {
+    // PropertyManager has inbox.write, so can() passes and the property access check is skipped
     const staffApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [propertyId('prop-other')],
-    findByReferralCode: async () => null,
+      findByReferralCode: async () => null,
     }
     const { useCase, repo } = setup(staffApi)
     repo.items.push(seedNew())
 
-    await expect(
-      useCase({
-        inboxItemId: ITEM_ID,
-        organizationId: ORG_ID,
-        newStatus: 'read',
-        userId: USER_ID,
-        role: 'PropertyManager' as Role,
-      }),
-    ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'forbidden')
+    const updated = await useCase({
+      inboxItemId: ITEM_ID,
+      organizationId: ORG_ID,
+      newStatus: 'read',
+      userId: USER_ID,
+      role: 'PropertyManager' as Role,
+    })
+
+    expect(updated.status).toBe('read')
   })
 
   it('skips property check for AccountAdmin role', async () => {

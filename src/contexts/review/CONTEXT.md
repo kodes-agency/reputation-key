@@ -79,6 +79,11 @@ Exported from `application/public-api.ts`:
 
 - **`reply.ts`** — Server functions for reply CRUD operations (draft, submit, approve, reject, delete, retry). All require PM+ role.
 
+## Permissions
+
+- `review.read` — View reviews and review details.
+- `reply.manage` — Draft, submit, approve, reject, and delete replies.
+
 ## Background jobs
 
 - **sync-property-reviews** — Fetches reviews from Google for a specific property/location. Triggered by `property.created` event or `refresh-expiring-reviews` job.

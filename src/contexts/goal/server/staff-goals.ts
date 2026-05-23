@@ -8,7 +8,7 @@ import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { throwContextError } from '#/shared/auth/server-errors'
 import { can } from '#/shared/domain/permissions'
-import type { Goal, GoalProgress } from '../domain/types'
+import type { Goal, GoalProgress } from '../application/public-api'
 
 // fallow-ignore-file unused-export
 export type StaffGoalEntry = {

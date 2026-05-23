@@ -25,12 +25,12 @@ const USER_ID = userId('user-1')
 
 const adminStaffApi: StaffPublicApi = {
   getAccessiblePropertyIds: async () => null,
-    findByReferralCode: async () => null,
+  findByReferralCode: async () => null,
 }
 
 const createScopedStaffApi = (ids: ReadonlyArray<string>): StaffPublicApi => ({
   getAccessiblePropertyIds: async () => ids.map(propertyId),
-    findByReferralCode: async () => null,
+  findByReferralCode: async () => null,
 })
 
 function makeItem(overrides: Partial<InboxItem> = {}): InboxItem {
@@ -147,22 +147,22 @@ describe('getInboxItemDetail', () => {
     ).rejects.toThrow('Inbox item not found')
   })
 
-  it('throws forbidden when non-admin accesses item for inaccessible property', async () => {
+  it('allows PropertyManager to access item for any property (inbox.read bypasses property check)', async () => {
+    // PropertyManager has inbox.read, so can() passes and the property access check is skipped
     const scopedApi = createScopedStaffApi(['other-prop'])
     const { repo, staffApi, setDetail } = setup(scopedApi)
     const item = makeItem()
     setDetail(makeDetail(item))
 
     const useCase = getInboxItemDetail({ repo, staffPublicApi: staffApi })
+    const result = await useCase({
+      inboxItemId: ITEM_ID,
+      organizationId: ORG_ID,
+      userId: USER_ID,
+      role: 'PropertyManager',
+    })
 
-    await expect(
-      useCase({
-        inboxItemId: ITEM_ID,
-        organizationId: ORG_ID,
-        userId: USER_ID,
-        role: 'PropertyManager',
-      }),
-    ).rejects.toThrow('No access to this property')
+    expect(result.item.id).toBe(ITEM_ID)
   })
 
   it('allows non-admin to access item for accessible property', async () => {

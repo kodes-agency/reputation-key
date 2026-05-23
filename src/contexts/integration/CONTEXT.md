@@ -119,6 +119,11 @@ Exported from `application/public-api.ts`:
 - **`google-connections.ts`** — Server functions for Google connection CRUD (connect, disconnect, list, update visibility, list locations, start import, get import status, handle webhook).
 - **`gbp-import.ts`** — Server functions for GBP import operations.
 
+## Permissions
+
+- `integration.manage` — Connect, disconnect, and manage Google connections.
+- `property.create` — Start property imports from GBP locations (cross-context permission from property).
+
 ## Background jobs
 
 - **import-property** — Processes a single GBP location into a property. Created by `startPropertyImport` use case.

@@ -63,6 +63,7 @@ export type CreateGoalError =
   | { tag: 'forbidden' }
   | { tag: 'construction_error'; error: GoalConstructionError }
   | { tag: 'instance_construction_error'; error: GoalConstructionError }
+  | { tag: 'progress_query_error'; errorTag: string }
 
 // ── Output type ─────────────────────────────────────────────────────────
 
@@ -129,7 +130,11 @@ export const createGoal =
     }
 
     // 4. Compute initial progress
-    const progressQuery = buildMetricQuery(goal)
+    const metricQueryResult = buildMetricQuery(goal)
+    if (metricQueryResult.isErr()) {
+      return err(metricQueryResult.error)
+    }
+    const progressQuery = metricQueryResult.value
     const aggregate = await deps.metricRepo.queryAggregate(progressQuery)
     const progressValue = computeValue(goal.aggregationFunction, aggregate)
 
@@ -197,8 +202,7 @@ async function handleRecurringGoal(
     period.end,
   )
   if (progressQueryResult.isErr()) {
-    // Should not happen — we know this is a recurring template
-    throw new Error(`Unexpected progress query error: ${progressQueryResult.error.tag}`)
+    return err({ tag: 'progress_query_error', errorTag: progressQueryResult.error.tag })
   }
   const progressQuery = progressQueryResult.value
   const metricQuery = progressQueryToMetricReadingsQuery(progressQuery, template)
@@ -263,14 +267,13 @@ function computeCalendarPeriod(
 
 // ── Progress query helpers ──────────────────────────────────────────────
 
-function buildMetricQuery(goal: Goal): MetricReadingsQuery {
+function buildMetricQuery(goal: Goal): Result<MetricReadingsQuery, CreateGoalError> {
   const pqResult = buildProgressQuery(goal)
   if (pqResult.isErr()) {
-    // Should not happen — goals with valid types always resolve
-    throw new Error(`Unexpected progress query error: ${pqResult.error.tag}`)
+    return err({ tag: 'progress_query_error', errorTag: pqResult.error.tag })
   }
   const pq = pqResult.value
-  return progressQueryToMetricReadingsQuery(pq, goal)
+  return ok(progressQueryToMetricReadingsQuery(pq, goal))
 }
 
 function progressQueryToMetricReadingsQuery(

@@ -10,7 +10,7 @@ import type { Role } from '#/shared/domain/roles'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { validateTransition } from '../../domain/rules'
 import { inboxStatusChanged } from '../../domain/events'
-import { hasRole, ADMIN_ROLE } from '#/shared/domain/roles'
+import { can } from '#/shared/domain/permissions'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 
 export type BulkUpdateInboxStatusInput = Readonly<{
@@ -47,7 +47,7 @@ export const bulkUpdateInboxStatus =
     let accessiblePropertyIds: Awaited<
       ReturnType<StaffPublicApi['getAccessiblePropertyIds']>
     > | null = null
-    if (!hasRole(input.role, ADMIN_ROLE)) {
+    if (!can(input.role, 'inbox.manage')) {
       try {
         accessiblePropertyIds = await deps.staffPublicApi.getAccessiblePropertyIds(
           input.organizationId,

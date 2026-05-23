@@ -8,7 +8,7 @@ import type { InboxItemId, OrganizationId, UserId } from '#/shared/domain/ids'
 import type { InboxNote } from '../../domain/types'
 import type { Role } from '#/shared/domain/roles'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
-import { hasRole, ADMIN_ROLE } from '#/shared/domain/roles'
+import { can } from '#/shared/domain/permissions'
 import { inboxError } from '../../domain/errors'
 
 export type GetInboxNotesInput = Readonly<{
@@ -35,7 +35,7 @@ export const getInboxNotes =
       })
     }
 
-    if (!hasRole(input.role, ADMIN_ROLE)) {
+    if (!can(input.role, 'inbox.read')) {
       const accessible = await deps.staffPublicApi.getAccessiblePropertyIds(
         input.organizationId,
         input.userId,

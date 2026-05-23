@@ -44,7 +44,7 @@ function seedItem(id: string, status: InboxStatus, propId: string = 'prop-1'): I
 
 const defaultStaffApi: StaffPublicApi = {
   getAccessiblePropertyIds: async () => null,
-    findByReferralCode: async () => null,
+  findByReferralCode: async () => null,
 }
 
 const setup = (staffApi: StaffPublicApi = defaultStaffApi) => {
@@ -66,7 +66,14 @@ const setup = (staffApi: StaffPublicApi = defaultStaffApi) => {
     unreadCounter,
     clock: () => FIXED_TIME,
     staffPublicApi: staffApi,
-    logger: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {}, trace: () => {}, fatal: () => {} } as never,
+    logger: {
+      info: () => {},
+      warn: () => {},
+      error: () => {},
+      debug: () => {},
+      trace: () => {},
+      fatal: () => {},
+    } as never,
   }
   const useCase = bulkUpdateInboxStatus(deps)
   return { useCase, repo, events, decrements }
@@ -158,10 +165,11 @@ describe('bulkUpdateInboxStatus', () => {
     expect(decrements).toHaveLength(2)
   })
 
-  it('filters out items from inaccessible properties for non-admin', async () => {
+  it('filters out items from inaccessible properties for Staff (no inbox.manage)', async () => {
+    // Staff does NOT have inbox.manage, so the property access check fires
     const staffApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [propertyId('prop-1')],
-    findByReferralCode: async () => null,
+      findByReferralCode: async () => null,
     }
     const { useCase, repo } = setup(staffApi)
     repo.items.push(seedItem('ii-1', 'new', 'prop-1'))
@@ -172,7 +180,7 @@ describe('bulkUpdateInboxStatus', () => {
       organizationId: ORG_ID,
       newStatus: 'read',
       userId: USER_ID,
-      role: 'PropertyManager' as Role,
+      role: 'Staff' as Role,
     })
 
     expect(result.updated).toBe(1)

@@ -64,6 +64,16 @@ staff/
   build.ts             composition root
 ```
 
+## Server functions
+
+- **`staff-assignments.ts`** — Server functions for staff assignment CRUD (create, remove, list).
+
+## Permissions
+
+- `staff_assignment.create` — Assign staff to properties/teams.
+- `staff_assignment.delete` — Remove staff assignments.
+- `staff_assignment.read` — List and view staff assignments.
+
 ## Dependencies
 
 - **Identity context** — Staff assignments reference `userId` from identity. No direct import; user existence validated via shared auth context.

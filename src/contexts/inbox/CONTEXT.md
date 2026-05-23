@@ -129,6 +129,10 @@ Exported from `application/public-api.ts`:
 | `inbox.write`  | ✓            | ✓               | ✓     |
 | `inbox.manage` | ✓            | ✓               | —     |
 
+## Intentional deviations
+
+- Domain rules (domain/rules.ts) use hasRole() directly for role-based business logic — this is intentional per ADR-0001.
+
 ## Flagged ambiguities
 
 - Whether bulk actions are atomic (all-or-nothing) or best-effort. Implementation decision.

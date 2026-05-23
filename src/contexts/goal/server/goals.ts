@@ -109,6 +109,16 @@ export const createGoal = createServerFn({ method: 'POST' })
                   400,
                 ),
               )
+              .with({ tag: 'progress_query_error' }, (e) =>
+                throwContextError(
+                  'GoalError',
+                  makeGoalError(
+                    'validation_error',
+                    `Unexpected progress query error: ${e.errorTag}`,
+                  ),
+                  500,
+                ),
+              )
               .exhaustive()
           }
 
