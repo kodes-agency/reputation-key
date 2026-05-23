@@ -124,6 +124,26 @@ describe('addInboxNote', () => {
     ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'not_found')
   })
 
+  it('denies access without inbox.write permission for inaccessible property', async () => {
+    // Use a role not in the permission table to simulate lacking inbox.write
+    const staffApi: StaffPublicApi = {
+      getAccessiblePropertyIds: async () => [],
+      findByReferralCode: async () => null,
+    }
+    const { useCase, repo } = setup(staffApi)
+    repo.items.push(seedItem())
+
+    await expect(
+      useCase({
+        inboxItemId: ITEM_ID,
+        organizationId: ORG_ID,
+        authorUserId: USER_ID,
+        text: 'test note',
+        role: 'Guest' as unknown as Role,
+      }),
+    ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'forbidden')
+  })
+
   it('allows Staff to add note for any property (inbox.write bypasses property check)', async () => {
     // Staff has inbox.write, so can() passes and the property access check is skipped
     const staffApi: StaffPublicApi = {

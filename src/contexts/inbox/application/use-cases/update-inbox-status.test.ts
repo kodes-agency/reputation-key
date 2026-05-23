@@ -178,6 +178,26 @@ describe('updateInboxStatus', () => {
     expect(emitted[0]._tag).toBe('inbox.status.changed')
   })
 
+  it('denies access without inbox.write permission for inaccessible property', async () => {
+    // Use a role not in the permission table to simulate lacking inbox.write
+    const staffApi: StaffPublicApi = {
+      getAccessiblePropertyIds: async () => [],
+      findByReferralCode: async () => null,
+    }
+    const { useCase, repo } = setup(staffApi)
+    repo.items.push(seedNew())
+
+    await expect(
+      useCase({
+        inboxItemId: ITEM_ID,
+        organizationId: ORG_ID,
+        newStatus: 'read',
+        userId: USER_ID,
+        role: 'Guest' as unknown as Role,
+      }),
+    ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'forbidden')
+  })
+
   it('allows update when user has access to the property', async () => {
     const staffApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [propertyId('prop-1')],

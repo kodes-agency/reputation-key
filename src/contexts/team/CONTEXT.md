@@ -75,3 +75,12 @@ Exported from `application/public-api.ts`:
 
 - **Property context** — `PropertyPublicApi` used to validate property existence on team creation.
 - **Staff context** — `StaffPublicApi` used for accessible property filtering and team member lookups.
+
+## Permissions
+
+Team context uses the following permissions from `shared/domain/permissions.ts`:
+
+- `team.read` — List/view teams (reserved for future use — currently gated at use-case level)
+- `team.create` — Create a new team within a property (AccountAdmin, PropertyManager)
+- `team.update` — Update team settings (AccountAdmin, PropertyManager)
+- `team.delete` — Soft-delete a team (AccountAdmin only)

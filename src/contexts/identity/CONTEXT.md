@@ -82,3 +82,19 @@ identity/
 
 - **Shared** — Uses shared domain ids (`OrganizationId`, `UserId`, `InvitationId`), roles, auth context, and slug utilities.
 - No direct dependencies on other bounded contexts (identity is a foundational context).
+
+## Permissions
+
+Identity context uses the following permissions from `shared/domain/permissions.ts`:
+
+- `organization.update` — Update organization settings (name, slug, billing info)
+- `member.update` — Change member roles
+- `member.delete` — Remove members from organization
+- `member.list` — List organization members
+- `invitation.create` — Send invitations to new members
+- `invitation.list` — View pending invitations
+- `invitation.cancel` — Cancel pending invitations
+- `invitation.resend` — Resend invitation emails
+- `identity.avatar_upload` — Upload user avatar
+- `identity.logo_upload` — Upload organization logo
+- `dashboard.read` — Access dashboard data

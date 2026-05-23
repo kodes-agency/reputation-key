@@ -11,6 +11,8 @@ import {
 } from '#/shared/domain/ids'
 import type { InboxItem, InboxStatus, SourceType } from '../../domain/types'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { Role } from '#/shared/domain/roles'
+import { isInboxError } from '../../domain/errors'
 
 const FIXED_TIME = new Date('2026-04-15T12:00:00Z')
 const ORG_ID = organizationId('org-1')
@@ -224,6 +226,23 @@ describe('getInboxItems', () => {
     })
 
     expect(result.items).toHaveLength(1)
+  })
+
+  it('denies access without inbox.read permission when filtering by inaccessible property', async () => {
+    // Use a role not in the permission table to simulate lacking inbox.read
+    // Give one accessible property (different from filter) so the empty-check doesn't short-circuit
+    const scopedApi = createScopedStaffApi(['other-prop'])
+    const { useCase, repo } = setup(scopedApi)
+    repo.items.push(seedItem({ id: 'ii-1' }))
+
+    await expect(
+      useCase({
+        organizationId: ORG_ID,
+        userId: USER_ID,
+        role: 'Guest' as unknown as Role,
+        filters: { propertyId: PROP_ID },
+      }),
+    ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'forbidden')
   })
 
   it('returns filtered items for PropertyManager requesting any property filter (inbox.read bypasses check)', async () => {

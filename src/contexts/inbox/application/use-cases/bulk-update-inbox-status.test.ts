@@ -165,6 +165,31 @@ describe('bulkUpdateInboxStatus', () => {
     expect(decrements).toHaveLength(2)
   })
 
+  it('denies access to all items without inbox.manage when Staff has no property assignments', async () => {
+    // Staff does NOT have inbox.manage, so the property access check fires
+    // When accessible properties are empty, all items are skipped (returns 0 updated)
+    const staffApi: StaffPublicApi = {
+      getAccessiblePropertyIds: async () => [],
+      findByReferralCode: async () => null,
+    }
+    const { useCase, repo } = setup(staffApi)
+    repo.items.push(seedItem('ii-1', 'new', 'prop-1'))
+    repo.items.push(seedItem('ii-2', 'new', 'prop-2'))
+
+    const result = await useCase({
+      inboxItemIds: [inboxItemId('ii-1'), inboxItemId('ii-2')],
+      organizationId: ORG_ID,
+      newStatus: 'read',
+      userId: USER_ID,
+      role: 'Staff' as Role,
+    })
+
+    // All items filtered out because Staff has no accessible properties
+    expect(result.updated).toBe(0)
+    expect(repo.items[0].status).toBe('new')
+    expect(repo.items[1].status).toBe('new')
+  })
+
   it('filters out items from inaccessible properties for Staff (no inbox.manage)', async () => {
     // Staff does NOT have inbox.manage, so the property access check fires
     const staffApi: StaffPublicApi = {

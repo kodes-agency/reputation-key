@@ -15,6 +15,8 @@ import type {
 } from '../../domain/types'
 import type { InboxRepository } from '../ports/inbox.repository'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { Role } from '#/shared/domain/roles'
+import { isInboxError } from '../../domain/errors'
 
 const FIXED_TIME = new Date('2026-04-15T12:00:00Z')
 const ORG_ID = organizationId('org-1')
@@ -145,6 +147,24 @@ describe('getInboxItemDetail', () => {
     await expect(
       useCase({ inboxItemId: ITEM_ID, organizationId: ORG_ID, ...adminInput }),
     ).rejects.toThrow('Inbox item not found')
+  })
+
+  it('denies access without inbox.read permission for inaccessible property', async () => {
+    // Use a role not in the permission table to simulate lacking inbox.read
+    const scopedApi = createScopedStaffApi([])
+    const { repo, staffApi, setDetail } = setup(scopedApi)
+    const item = makeItem()
+    setDetail(makeDetail(item))
+
+    const useCase = getInboxItemDetail({ repo, staffPublicApi: staffApi })
+    await expect(
+      useCase({
+        inboxItemId: ITEM_ID,
+        organizationId: ORG_ID,
+        userId: USER_ID,
+        role: 'Guest' as unknown as Role,
+      }),
+    ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'forbidden')
   })
 
   it('allows PropertyManager to access item for any property (inbox.read bypasses property check)', async () => {

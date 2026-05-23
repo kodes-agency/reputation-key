@@ -11,6 +11,8 @@ import {
 } from '#/shared/domain/ids'
 import type { InboxNote, InboxItem, InboxStatus, SourceType } from '../../domain/types'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { Role } from '#/shared/domain/roles'
+import { isInboxError } from '../../domain/errors'
 
 const ORG_ID = organizationId('org-1')
 const OTHER_ORG_ID = organizationId('org-2')
@@ -130,6 +132,24 @@ describe('getInboxNotes', () => {
     })
 
     expect(result).toHaveLength(0)
+  })
+
+  it('denies access without inbox.read permission for inaccessible property', async () => {
+    // Use a role not in the permission table to simulate lacking inbox.read
+    const noteRepo = createInMemoryNoteRepo()
+    const scopedApi = createScopedStaffApi([])
+    const repo = createInMemoryInboxRepo()
+    repo.items.push(makeItem())
+
+    const useCase = getInboxNotes({ noteRepo, repo, staffPublicApi: scopedApi })
+    await expect(
+      useCase({
+        inboxItemId: ITEM_ID,
+        organizationId: ORG_ID,
+        userId: USER_ID,
+        role: 'Guest' as unknown as Role,
+      }),
+    ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'forbidden')
   })
 
   it('allows PropertyManager to access notes for any property (inbox.read bypasses property check)', async () => {

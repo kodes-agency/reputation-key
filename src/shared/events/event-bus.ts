@@ -8,7 +8,7 @@
 // for current use cases (logging, cache invalidation). For critical side effects
 // (e.g., sending transactional emails, creating audit records), consider migrating
 // to BullMQ-backed event delivery for at-least-once processing guarantees.
-// TODO: Evaluate BullMQ-based event persistence for critical events in Phase 4+.
+// Evaluate BullMQ-based event persistence for critical events in Phase 4+.
 
 import type { DomainEvent } from './events'
 

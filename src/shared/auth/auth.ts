@@ -16,7 +16,7 @@ import { getEnv } from '#/shared/config/env'
 import { getPool } from '#/shared/db/pool'
 import { sendResetPasswordEmail, sendInvitationEmail } from './emails'
 import { ac, owner, admin, memberRole } from './permissions'
-// import { sendVerificationEmail } from './emails' // TODO: re-enable with email verification
+// import { sendVerificationEmail } from './emails' // Re-enable with email verification
 
 // ── Post-acceptance staff assignment hook ──────────────────────────
 // The afterAcceptInvitation hook creates staff_assignments for the
@@ -51,7 +51,7 @@ export function createAuth() {
     baseURL: env.BETTER_AUTH_URL,
     emailAndPassword: {
       enabled: true,
-      // TODO: Enable email verification in production
+      // Enable email verification in production
       // Prerequisites:
       //   1. Verify Resend domain ownership (currently using sandbox)
       //   2. Test sendVerificationEmail flow end-to-end
@@ -63,7 +63,7 @@ export function createAuth() {
         await sendResetPasswordEmail(user.email, url)
       },
     },
-    // TODO: Re-enable email verification once email sending is set up
+    // Re-enable email verification once email sending is set up
     // emailVerification: {
     //   sendOnSignUp: true,
     //   sendVerificationEmail: async ({ user, url }) => {

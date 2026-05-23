@@ -3,7 +3,8 @@
  * Re-exports domain types. Per boundary rules: external code may import
  * from `application/public-api` but NOT from `domain/`.
  *
- * Only DTOs and events are exported here. Raw port types live in
+ * DTOs, events, and select port types used by cross-context consumers
+ * are exported here. Remaining port types live in
  * `application/internal-ports.ts` for internal/adapter use only.
  */
 export type { GoogleReview, StarRating } from '../domain/types'
@@ -17,3 +18,10 @@ export type {
   ReplyEvent,
 } from '../domain/events'
 export { reviewCreated, reviewUpdated, replyPublished } from '../domain/events'
+
+// Port types needed by cross-context consumers (e.g., integration context)
+export type {
+  ReviewQueuePort,
+  SyncPropertyReviewsJobData,
+  AddSyncJobOptions,
+} from './ports/review-queue.port'
