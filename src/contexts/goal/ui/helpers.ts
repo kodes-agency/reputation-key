@@ -3,7 +3,7 @@
  * No side effects, no DOM, safe for server and client.
  */
 
-import type { Goal, GoalStatus } from '#/contexts/goal/domain/types'
+import type { Goal, GoalStatus } from '#/contexts/goal/application/dto/goal.dto'
 import type {
   MetricKey,
   AggregationFunction,

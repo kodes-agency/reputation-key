@@ -3,66 +3,15 @@
 // Per architecture: event handler subscribes via EventBus, drives repo + emits domain events.
 
 import type { GoalRepository } from '../../application/ports/goal.repository'
-import type { Goal, GoalType } from '../../domain/types'
-import type {
-  GoalId,
-  OrganizationId,
-  PropertyId,
-  PortalId,
-  StaffId,
-  TeamId,
-  UserId,
-} from '#/shared/domain/ids'
-import type { MetricKey, AggregationFunction } from '#/shared/domain/metric-keys'
+import type { Goal } from '../../domain/types'
+import type { MetricRecorded } from '#/contexts/metric/application/public-api'
+import type { GoalCompleted, GoalProgressUpdated } from '../../domain/events'
 import { trace } from '#/shared/observability/trace'
-
-// ── Inline event types (created by another task) ──────────────────────
-
-export type MetricRecordedEvent = Readonly<{
-  _tag: 'metric.recorded'
-  readingId: string
-  organizationId: OrganizationId
-  propertyId: PropertyId
-  portalId: PortalId | null
-  staffId: StaffId | null
-  metricKey: MetricKey
-  value: number
-  recordedAt: Date
-}>
-
-export type GoalCompletedEvent = Readonly<{
-  _tag: 'goal.completed'
-  goalId: GoalId
-  organizationId: OrganizationId
-  propertyId: PropertyId
-  portalId: PortalId | null
-  teamId: TeamId | null
-  staffId: StaffId | null
-  goalType: GoalType
-  aggregationFunction: AggregationFunction
-  metricKey: MetricKey
-  targetValue: number
-  completedValue: number
-  completedAt: Date
-  parentGoalId: GoalId | null
-  createdBy: UserId
-}>
-
-export type GoalProgressUpdatedEvent = Readonly<{
-  _tag: 'goal.progress_updated'
-  goalId: GoalId
-  organizationId: OrganizationId
-  metricKey: MetricKey
-  previousValue: number
-  currentValue: number
-  computedSource: 'event_increment'
-  occurredAt: Date
-}>
 
 // ── EventBus port (minimal, for this handler only) ─────────────────────
 
 export type EventBus = Readonly<{
-  emit(event: GoalCompletedEvent | GoalProgressUpdatedEvent): Promise<void>
+  emit(event: GoalCompleted | GoalProgressUpdated): Promise<void>
 }>
 
 // ── Dependencies ──────────────────────────────────────────────────────
@@ -93,7 +42,7 @@ function shouldEmitCompleted(goal: Goal): boolean {
 // ── Handler factory ───────────────────────────────────────────────────
 
 export function onMetricRecorded(deps: OnMetricRecordedDeps) {
-  return async (event: MetricRecordedEvent): Promise<void> => {
+  return async (event: MetricRecorded): Promise<void> => {
     return trace('event.onMetricRecorded', async () => {
       const { goalRepo, eventBus, clock } = deps
 

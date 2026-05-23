@@ -1,21 +1,24 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import type { GoalProgressId } from '#/shared/domain/ids'
-import {
-  onMetricRecorded,
-  type OnMetricRecordedDeps,
-  type MetricRecordedEvent,
-  type GoalCompletedEvent,
-  type GoalProgressUpdatedEvent,
-} from './on-metric-recorded'
+import { onMetricRecorded, type OnMetricRecordedDeps } from './on-metric-recorded'
+import type { MetricRecorded } from '#/contexts/metric/application/public-api'
+import type { GoalCompleted, GoalProgressUpdated } from '../../domain/events'
 import type { GoalRepository } from '../../application/ports/goal.repository'
 import type { Goal, GoalProgress } from '../../domain/types'
-import { organizationId, propertyId, portalId, userId, goalId } from '#/shared/domain/ids'
+import {
+  organizationId,
+  propertyId,
+  portalId,
+  userId,
+  goalId,
+  metricReadingId,
+} from '#/shared/domain/ids'
 
 const FIXED_TIME = new Date('2026-06-15T12:00:00Z')
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
-type EmittedEvent = GoalCompletedEvent | GoalProgressUpdatedEvent
+type EmittedEvent = GoalCompleted | GoalProgressUpdated
 
 function makeGoal(overrides: Partial<Goal> & { id: Goal['id'] }): Goal {
   return {
@@ -159,10 +162,10 @@ function makeFakeDeps() {
   return { deps, emittedEvents, goals, progresses, addGoalWithProgress }
 }
 
-function makeEvent(overrides: Partial<MetricRecordedEvent> = {}): MetricRecordedEvent {
+function makeEvent(overrides: Partial<MetricRecorded> = {}): MetricRecorded {
   return {
     _tag: 'metric.recorded',
-    readingId: 'reading-1',
+    readingId: metricReadingId('reading-1'),
     organizationId: organizationId('org-1'),
     propertyId: propertyId('prop-1'),
     portalId: null,
@@ -217,7 +220,7 @@ describe('onMetricRecorded', () => {
         (e) => e._tag === 'goal.progress_updated',
       )
       expect(progressEvents).toHaveLength(1)
-      const evt = progressEvents[0] as GoalProgressUpdatedEvent
+      const evt = progressEvents[0] as GoalProgressUpdated
       expect(evt.previousValue).toBe(50)
       expect(evt.currentValue).toBe(60)
       expect(evt.computedSource).toBe('event_increment')
@@ -238,7 +241,7 @@ describe('onMetricRecorded', () => {
         (e) => e._tag === 'goal.completed',
       )
       expect(completedEvents).toHaveLength(1)
-      const evt = completedEvents[0] as GoalCompletedEvent
+      const evt = completedEvents[0] as GoalCompleted
       expect(evt.completedValue).toBe(105)
       expect(evt.targetValue).toBe(100)
     })

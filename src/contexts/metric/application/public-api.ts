@@ -13,6 +13,10 @@ export type { MetricReadingsQuery, MetricReadingsAggregate }
  * Application-level API for the Metric context.
  * Cross-context consumers use this interface — never the repository directly.
  */
+// ── Event re-exports — cross-context consumers must import events from public-api, not domain/events
+export type { MetricRecorded, MetricEvent } from '../domain/events'
+export { metricRecorded } from '../domain/events'
+
 export type MetricPublicApi = Readonly<{
   /**
    * Query aggregated metric readings (sum, count, max).
