@@ -240,7 +240,7 @@ export function createContainer(options?: { enableJobs?: boolean }) {
 
   const goal = buildGoalContext({
     db,
-    metricRepo: metricApi.metricRepo,
+    metricApi: metricApi.publicApi,
     events: eventBus,
     clock,
     idGen: () => crypto.randomUUID(),
@@ -321,7 +321,7 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     inboxNoteRepo: inbox.inboxNoteRepo,
     unreadCounter: inbox.unreadCounter,
     goalRepo: goal.goalRepo,
-    metricRepo: metricApi.metricRepo,
+    metricPublicApi: metricApi.publicApi,
   } as const
 }
 

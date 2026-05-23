@@ -6,6 +6,7 @@ import type { GoalRepository } from '../ports/goal.repository'
 import type {
   MetricReadingsQuery,
   MetricReadingsAggregate,
+  MetricPublicApi,
 } from '../../../metric/application/public-api'
 import type {
   Goal,
@@ -70,9 +71,7 @@ export type CreateGoalOutput = Readonly<{
 
 export type CreateGoalDeps = Readonly<{
   goalRepo: GoalRepository
-  metricRepo: {
-    queryAggregate(query: MetricReadingsQuery): Promise<MetricReadingsAggregate>
-  }
+  metricRepo: MetricPublicApi
   idGen: () => string
   clock: () => Date
 }>

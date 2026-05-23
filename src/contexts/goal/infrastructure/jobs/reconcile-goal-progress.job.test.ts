@@ -154,7 +154,7 @@ function createFakeDeps() {
 
   const deps: ReconcileGoalProgressDeps = {
     goalRepo,
-    metricRepo,
+    metricApi: metricRepo,
     events,
     clock: () => NOW,
   }

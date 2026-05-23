@@ -172,7 +172,7 @@ export async function bootstrap(container: Container): Promise<void> {
     await import('#/contexts/goal/infrastructure/jobs/reconcile-goal-progress.job')
   const reconcileHandler = createReconcileGoalProgressHandler({
     goalRepo: container.goalRepo,
-    metricRepo: container.metricRepo,
+    metricApi: container.metricPublicApi,
     events: container.eventBus,
     clock: () => new Date(),
   })

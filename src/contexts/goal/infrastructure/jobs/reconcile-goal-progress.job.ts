@@ -7,8 +7,8 @@ import type { GoalRepository } from '../../application/ports/goal.repository'
 import type {
   MetricReadingsQuery,
   MetricReadingsAggregate,
-  MetricRepository,
-} from '#/contexts/metric/application/ports/metric.repository'
+} from '#/contexts/metric/application/public-api'
+import type { MetricPublicApi } from '#/contexts/metric/application/public-api'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { AggregationFunction } from '#/shared/domain/metric-keys'
 import { buildProgressQuery, type ProgressQuery } from '../../domain/progress-strategy'
@@ -23,7 +23,7 @@ export const JOB_NAME = 'reconcile-goal-progress' as const
 
 export type ReconcileGoalProgressDeps = Readonly<{
   goalRepo: GoalRepository
-  metricRepo: MetricRepository
+  metricApi: MetricPublicApi
   events: EventBus
   clock: () => Date
 }>
@@ -62,7 +62,7 @@ export const createReconcileGoalProgressHandler =
       const mrq = progressQueryToMetricReadingsQuery(pq, goal)
 
       // 3. Query metric aggregate
-      const aggregate = await deps.metricRepo.queryAggregate(mrq)
+      const aggregate = await deps.metricApi.queryAggregate(mrq)
 
       // 4. Compute value from aggregate
       const value = computeValue(goal.aggregationFunction, aggregate)
