@@ -14,6 +14,7 @@ import type {
   UserId,
 } from '#/shared/domain/ids'
 import type { MetricKey, AggregationFunction } from '#/shared/domain/metric-keys'
+import { trace } from '#/shared/observability/trace'
 
 // ── Inline event types (created by another task) ──────────────────────
 
@@ -93,66 +94,68 @@ function shouldEmitCompleted(goal: Goal): boolean {
 
 export function onMetricRecorded(deps: OnMetricRecordedDeps) {
   return async (event: MetricRecordedEvent): Promise<void> => {
-    const { goalRepo, eventBus, clock } = deps
+    return trace('event.onMetricRecorded', async () => {
+      const { goalRepo, eventBus, clock } = deps
 
-    const affectedGoals = await goalRepo.findActiveGoalsByMetric(
-      event.metricKey,
-      event.organizationId,
-      event.propertyId,
-      event.portalId,
-    )
-
-    // No matching goals — nothing to do
-    if (affectedGoals.length === 0) return
-
-    for (const goal of affectedGoals) {
-      // Get previous progress value for GoalProgressUpdated
-      const prevProgress = await goalRepo.getProgress(goal.id)
-      const previousValue = prevProgress?.currentValue ?? 0
-
-      // Increment progress
-      const result = await goalRepo.incrementProgress(
-        goal.id,
-        goal.aggregationFunction,
-        event.value,
+      const affectedGoals = await goalRepo.findActiveGoalsByMetric(
+        event.metricKey,
+        event.organizationId,
+        event.propertyId,
+        event.portalId,
       )
 
-      const now = clock()
+      // No matching goals — nothing to do
+      if (affectedGoals.length === 0) return
 
-      // Emit GoalProgressUpdated
-      await eventBus.emit({
-        _tag: 'goal.progress_updated',
-        goalId: goal.id,
-        organizationId: goal.organizationId,
-        metricKey: goal.metricKey,
-        previousValue,
-        currentValue: result.currentValue,
-        computedSource: 'event_increment',
-        occurredAt: now,
-      })
+      for (const goal of affectedGoals) {
+        // Get previous progress value for GoalProgressUpdated
+        const prevProgress = await goalRepo.getProgress(goal.id)
+        const previousValue = prevProgress?.currentValue ?? 0
 
-      // Check completion
-      if (result.currentValue >= goal.targetValue && shouldEmitCompleted(goal)) {
-        await goalRepo.markGoalCompleted(goal.id, now)
+        // Increment progress
+        const result = await goalRepo.incrementProgress(
+          goal.id,
+          goal.aggregationFunction,
+          event.value,
+        )
 
+        const now = clock()
+
+        // Emit GoalProgressUpdated
         await eventBus.emit({
-          _tag: 'goal.completed',
+          _tag: 'goal.progress_updated',
           goalId: goal.id,
           organizationId: goal.organizationId,
-          propertyId: goal.propertyId,
-          portalId: goal.portalId,
-          teamId: goal.teamId,
-          staffId: goal.staffId,
-          goalType: goal.goalType,
-          aggregationFunction: goal.aggregationFunction,
           metricKey: goal.metricKey,
-          targetValue: goal.targetValue,
-          completedValue: result.currentValue,
-          completedAt: now,
-          parentGoalId: goal.parentGoalId,
-          createdBy: goal.createdBy,
+          previousValue,
+          currentValue: result.currentValue,
+          computedSource: 'event_increment',
+          occurredAt: now,
         })
+
+        // Check completion
+        if (result.currentValue >= goal.targetValue && shouldEmitCompleted(goal)) {
+          await goalRepo.markGoalCompleted(goal.id, now)
+
+          await eventBus.emit({
+            _tag: 'goal.completed',
+            goalId: goal.id,
+            organizationId: goal.organizationId,
+            propertyId: goal.propertyId,
+            portalId: goal.portalId,
+            teamId: goal.teamId,
+            staffId: goal.staffId,
+            goalType: goal.goalType,
+            aggregationFunction: goal.aggregationFunction,
+            metricKey: goal.metricKey,
+            targetValue: goal.targetValue,
+            completedValue: result.currentValue,
+            completedAt: now,
+            parentGoalId: goal.parentGoalId,
+            createdBy: goal.createdBy,
+          })
+        }
       }
-    }
+    })
   }
 }

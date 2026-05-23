@@ -117,10 +117,8 @@ function main() {
     for (const { jobName, every, label } of metricSchedules) {
       container.jobQueue
         .add(jobName, {}, { repeat: { every }, jobId: `${jobName}-recurring` })
-        .then(() => logger.info(`${jobName} job scheduled (${label})`))
-        .catch((err: unknown) =>
-          logger.warn({ err }, `Failed to schedule ${jobName} job`),
-        )
+        .then(() => logger.info({ jobName, label }, 'Job scheduled'))
+        .catch((err: unknown) => logger.warn({ err, jobName }, 'Failed to schedule job'))
     }
 
     // ── Goal jobs ──────────────────────────────────────────────────
@@ -136,10 +134,8 @@ function main() {
     for (const { jobName, every, label } of goalSchedules) {
       container.jobQueue
         .add(jobName, {}, { repeat: { every }, jobId: `${jobName}-recurring` })
-        .then(() => logger.info(`${jobName} job scheduled (${label})`))
-        .catch((err: unknown) =>
-          logger.warn({ err }, `Failed to schedule ${jobName} job`),
-        )
+        .then(() => logger.info({ jobName, label }, 'Job scheduled'))
+        .catch((err: unknown) => logger.warn({ err, jobName }, 'Failed to schedule job'))
     }
   } else {
     logger.warn('No Redis available — worker running without job processing')

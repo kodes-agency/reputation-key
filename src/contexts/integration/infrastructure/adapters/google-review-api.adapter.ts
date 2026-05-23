@@ -2,12 +2,17 @@
 // Standalone adapter — does NOT share code with gbp-api.adapter.ts (GbpApiPort).
 // Uses RefreshGoogleToken use case for token management. Pagination handled internally.
 
-import type { GoogleReviewApiPort, GoogleReview, StarRating } from '#/contexts/review/application/public-api'
+import type {
+  GoogleReviewApiPort,
+  GoogleReview,
+  StarRating,
+} from '#/contexts/review/application/public-api'
 import type { OrganizationId, GoogleConnectionId } from '#/shared/domain/ids'
 import type { GoogleConnectionRepository } from '../../application/ports/google-connection.repository'
 import type { TokenEncryptionPort } from '../../application/ports/token-encryption.port'
 import type { RefreshGoogleToken } from '../../application/use-cases/refresh-google-token'
 import { getLogger } from '#/shared/observability/logger'
+import { trace } from '#/shared/observability/trace'
 import { integrationError } from '../../domain/errors'
 
 const REVIEWS_API_BASE = 'https://mybusiness.googleapis.com/v4'
@@ -118,10 +123,12 @@ export const createGoogleReviewApiAdapter = (
       const { signal, clear } = withTimeout(30_000)
       let response: Response
       try {
-        response = await fetch(url, {
-          headers: { Authorization: `Bearer ${accessToken}` },
-          signal,
-        })
+        response = await trace('googleReviewApi.fetchReviews', () =>
+          fetch(url, {
+            headers: { Authorization: `Bearer ${accessToken}` },
+            signal,
+          }),
+        )
       } finally {
         clear()
       }
@@ -157,15 +164,17 @@ export const createGoogleReviewApiAdapter = (
     const { signal, clear } = withTimeout(30_000)
     let response: Response
     try {
-      response = await fetch(`${REVIEWS_API_BASE}/${reviewName}/reply`, {
-        method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ comment: text }),
-        signal,
-      })
+      response = await trace('googleReviewApi.replyToReview', () =>
+        fetch(`${REVIEWS_API_BASE}/${reviewName}/reply`, {
+          method: 'PUT',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ comment: text }),
+          signal,
+        }),
+      )
     } finally {
       clear()
     }

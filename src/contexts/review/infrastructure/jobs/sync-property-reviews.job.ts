@@ -16,6 +16,7 @@ import {
   replyId,
 } from '#/shared/domain/ids'
 import { getLogger } from '#/shared/observability/logger'
+import { trace } from '#/shared/observability/trace'
 
 type SyncHandlerDeps = Readonly<{
   reviewRepo: ReviewRepository
@@ -38,69 +39,71 @@ export const createSyncPropertyReviewsHandler = (deps: SyncHandlerDeps) => {
   })
 
   return async (job: Job<SyncPropertyReviewsJobData>) => {
-    const logger = getLogger()
-    logger.info(
-      { jobId: job.id, propertyId: job.data.propertyId },
-      'Syncing property reviews',
-    )
-
-    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    for (const id of [job.data.propertyId, job.data.connectionId]) {
-      if (!UUID_RE.test(id)) {
-        logger.error({ jobData: job.data }, 'Invalid UUID in job data, skipping')
-        return
-      }
-    }
-
-    try {
-      const result = await sync({
-        propertyId: propertyId(job.data.propertyId),
-        organizationId: organizationId(job.data.organizationId),
-        connectionId: googleConnectionId(job.data.connectionId),
-        locationName: job.data.locationName,
-      })
-
-      if (result.isErr()) {
-        const e = result.error
-        logger.error(
-          { err: e, jobId: job.id, propertyId: job.data.propertyId },
-          'Property reviews sync failed',
-        )
-        throw e // Re-throw so BullMQ retries
-      }
-
-      const syncResult = result.value
-      if (syncResult.partialFailure) {
-        logger.warn(
-          {
-            jobId: job.id,
-            propertyId: job.data.propertyId,
-            fetched: syncResult.fetched,
-            created: syncResult.created,
-            updated: syncResult.updated,
-            failed: syncResult.failed,
-          },
-          'Property reviews sync completed with partial failures',
-        )
-      } else {
-        logger.info(
-          {
-            jobId: job.id,
-            propertyId: job.data.propertyId,
-            fetched: syncResult.fetched,
-            created: syncResult.created,
-            updated: syncResult.updated,
-            repliesMirrored: syncResult.repliesMirrored,
-          },
-          'Property reviews synced',
-        )
-      }
-    } catch (err) {
-      logger.error(
-        { err, jobId: job.id, propertyId: job.data.propertyId },
-        'Failed to sync property reviews',
+    return trace('job.syncPropertyReviews', async () => {
+      const logger = getLogger()
+      logger.info(
+        { jobId: job.id, propertyId: job.data.propertyId },
+        'Syncing property reviews',
       )
-      throw err
-    }
+
+      const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+      for (const id of [job.data.propertyId, job.data.connectionId]) {
+        if (!UUID_RE.test(id)) {
+          logger.error({ jobData: job.data }, 'Invalid UUID in job data, skipping')
+          return
+        }
+      }
+
+      try {
+        const result = await sync({
+          propertyId: propertyId(job.data.propertyId),
+          organizationId: organizationId(job.data.organizationId),
+          connectionId: googleConnectionId(job.data.connectionId),
+          locationName: job.data.locationName,
+        })
+
+        if (result.isErr()) {
+          const e = result.error
+          logger.error(
+            { err: e, jobId: job.id, propertyId: job.data.propertyId },
+            'Property reviews sync failed',
+          )
+          throw e // Re-throw so BullMQ retries
+        }
+
+        const syncResult = result.value
+        if (syncResult.partialFailure) {
+          logger.warn(
+            {
+              jobId: job.id,
+              propertyId: job.data.propertyId,
+              fetched: syncResult.fetched,
+              created: syncResult.created,
+              updated: syncResult.updated,
+              failed: syncResult.failed,
+            },
+            'Property reviews sync completed with partial failures',
+          )
+        } else {
+          logger.info(
+            {
+              jobId: job.id,
+              propertyId: job.data.propertyId,
+              fetched: syncResult.fetched,
+              created: syncResult.created,
+              updated: syncResult.updated,
+              repliesMirrored: syncResult.repliesMirrored,
+            },
+            'Property reviews synced',
+          )
+        }
+      } catch (err) {
+        logger.error(
+          { err, jobId: job.id, propertyId: job.data.propertyId },
+          'Failed to sync property reviews',
+        )
+        throw err
+      }
+    })
   }
 }

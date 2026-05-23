@@ -5,6 +5,7 @@
 import type { GbpApiPort, GbpAccount } from '../../application/ports/gbp-api.port'
 import type { GbpLocation } from '../../domain/types'
 import { createGbpApiError } from '../../domain/gbp-api-error'
+import { trace } from '#/shared/observability/trace'
 
 const GBP_API_BASE = 'https://mybusinessbusinessinformation.googleapis.com/v1'
 
@@ -20,11 +21,13 @@ export const createGbpApiAdapter = (): GbpApiPort => {
       if (nextPageToken) params.set('pageToken', nextPageToken)
 
       const url = `${GBP_API_BASE}/accounts?${params.toString()}`
-      const response = await fetch(url, {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      })
+      const response = await trace('gbpApi.listAccounts', () =>
+        fetch(url, {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }),
+      )
 
       if (!response.ok) {
         const errorText = await response.text()
@@ -55,11 +58,13 @@ export const createGbpApiAdapter = (): GbpApiPort => {
       if (nextPageToken) params.set('pageToken', nextPageToken)
 
       const url = `${GBP_API_BASE}/accounts/${accountName}/locations?${params.toString()}`
-      const response = await fetch(url, {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      })
+      const response = await trace('gbpApi.listLocations', () =>
+        fetch(url, {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }),
+      )
 
       if (!response.ok) {
         const errorText = await response.text()
@@ -80,11 +85,13 @@ export const createGbpApiAdapter = (): GbpApiPort => {
     locationName: string,
   ): Promise<GbpLocation> => {
     const url = `${GBP_API_BASE}/${locationName}`
-    const response = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    })
+    const response = await trace('gbpApi.getLocation', () =>
+      fetch(url, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      }),
+    )
 
     if (!response.ok) {
       const errorText = await response.text()
@@ -101,17 +108,19 @@ export const createGbpApiAdapter = (): GbpApiPort => {
     locationNames: ReadonlyArray<string>,
   ): Promise<ReadonlyArray<{ locationName: string; reviews: unknown }>> => {
     const url = `${GBP_API_BASE}/accounts/${accountName}/locations:batchGetReviews`
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        locationNames,
-        pageSize: 100,
+    const response = await trace('gbpApi.batchGetReviews', () =>
+      fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          locationNames,
+          pageSize: 100,
+        }),
       }),
-    })
+    )
 
     if (!response.ok) {
       const errorText = await response.text()

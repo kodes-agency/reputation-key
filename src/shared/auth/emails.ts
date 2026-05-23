@@ -42,6 +42,12 @@ type SendEmailParams = Readonly<{
   html: string
 }>
 
+function maskEmail(email: string): string {
+  const [local, domain] = email.split('@')
+  if (!local || !domain) return '***'
+  return `${local.slice(0, 1)}***@${domain}`
+}
+
 async function sendEmail({ to, subject, html }: SendEmailParams): Promise<void> {
   const logger = getLogger()
   const resend = getResend()
@@ -54,14 +60,17 @@ async function sendEmail({ to, subject, html }: SendEmailParams): Promise<void> 
   })
 
   if (error) {
-    logger.error({ error, to }, `Failed to send email: ${subject}`)
+    logger.error(
+      { error, toPrefix: maskEmail(to), subject },
+      `Failed to send email: ${subject}`,
+    )
     throw emailError('send_failed', `Failed to send email: ${error.message}`, {
       to,
       subject,
     })
   }
 
-  logger.info({ to, subject }, 'Email sent')
+  logger.info({ toPrefix: maskEmail(to), subject }, 'Email sent')
 }
 
 /** Send password reset link */

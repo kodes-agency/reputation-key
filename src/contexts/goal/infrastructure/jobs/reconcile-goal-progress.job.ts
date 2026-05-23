@@ -14,6 +14,7 @@ import type { AggregationFunction } from '#/shared/domain/metric-keys'
 import { buildProgressQuery, type ProgressQuery } from '../../domain/progress-strategy'
 import type { Goal } from '../../domain/types'
 import { getLogger } from '#/shared/observability/logger'
+import { trace } from '#/shared/observability/trace'
 
 // ── Job name ──────────────────────────────────────────────────────────────
 
@@ -33,89 +34,91 @@ export type ReconcileGoalProgressDeps = Readonly<{
 export const createReconcileGoalProgressHandler =
   (deps: ReconcileGoalProgressDeps) =>
   async (_job: Job): Promise<ReconcileSummary> => {
-    const logger = getLogger()
-    const now = deps.clock()
+    return trace('job.reconcileGoalProgress', async () => {
+      const logger = getLogger()
+      const now = deps.clock()
 
-    const goals = await deps.goalRepo.findAllActive()
-    let updated = 0
-    let expired = 0
-    let completed = 0
+      const goals = await deps.goalRepo.findAllActive()
+      let updated = 0
+      let expired = 0
+      let completed = 0
 
-    for (const goal of goals) {
-      // Skip recurring templates — they have no period, progress lives on instances
-      if (goal.goalType === 'recurring' && !goal.periodStart && !goal.periodEnd) {
-        continue
-      }
+      for (const goal of goals) {
+        // Skip recurring templates — they have no period, progress lives on instances
+        if (goal.goalType === 'recurring' && !goal.periodStart && !goal.periodEnd) {
+          continue
+        }
 
-      // 1. Build progress query
-      const pqResult = buildProgressQuery(goal)
-      if (pqResult.isErr()) {
-        logger.warn(
-          { goalId: goal.id, error: pqResult.error },
-          'Skipping goal — cannot build progress query',
-        )
-        continue
-      }
-      const pq = pqResult.value
+        // 1. Build progress query
+        const pqResult = buildProgressQuery(goal)
+        if (pqResult.isErr()) {
+          logger.warn(
+            { goalId: goal.id, error: pqResult.error },
+            'Skipping goal — cannot build progress query',
+          )
+          continue
+        }
+        const pq = pqResult.value
 
-      // 2. Translate to metric repo query
-      const mrq = progressQueryToMetricReadingsQuery(pq, goal)
+        // 2. Translate to metric repo query
+        const mrq = progressQueryToMetricReadingsQuery(pq, goal)
 
-      // 3. Query metric aggregate
-      const aggregate = await deps.metricApi.queryAggregate(mrq)
+        // 3. Query metric aggregate
+        const aggregate = await deps.metricApi.queryAggregate(mrq)
 
-      // 4. Compute value from aggregate
-      const value = computeValue(goal.aggregationFunction, aggregate)
+        // 4. Compute value from aggregate
+        const value = computeValue(goal.aggregationFunction, aggregate)
 
-      // 5. Compare with stored progress and update if different
-      const progress = await deps.goalRepo.getProgress(goal.id)
-      if (progress && progress.currentValue !== value) {
-        await deps.goalRepo.updateProgress(goal.id, {
-          currentValue: value,
-          currentSum: goal.aggregationFunction === 'avg' ? aggregate.sum : null,
-          currentCount: goal.aggregationFunction === 'avg' ? aggregate.count : null,
-          lastComputedAt: now,
-          computedSource: 'reconciliation',
-        })
-        updated++
-      }
-
-      // 6. Expiry / completion for one-shot and recurring instances
-      if (
-        (goal.goalType === 'one_shot' ||
-          (goal.goalType === 'recurring' && goal.parentGoalId !== null)) &&
-        goal.periodEnd &&
-        goal.periodEnd < now &&
-        goal.status === 'active'
-      ) {
-        if (goal.aggregationFunction === 'avg' && value >= goal.targetValue) {
-          // AVG goal that met its target before period ended → completed
-          await deps.goalRepo.update(goal.id, goal.organizationId, {
-            status: 'completed',
-            completedAt: now,
-            updatedAt: now,
+        // 5. Compare with stored progress and update if different
+        const progress = await deps.goalRepo.getProgress(goal.id)
+        if (progress && progress.currentValue !== value) {
+          await deps.goalRepo.updateProgress(goal.id, {
+            currentValue: value,
+            currentSum: goal.aggregationFunction === 'avg' ? aggregate.sum : null,
+            currentCount: goal.aggregationFunction === 'avg' ? aggregate.count : null,
+            lastComputedAt: now,
+            computedSource: 'reconciliation',
           })
-          completed++
-        } else {
-          // Period ended without meeting target → expired
-          await deps.goalRepo.update(goal.id, goal.organizationId, {
-            status: 'expired',
-            updatedAt: now,
-          })
-          expired++
+          updated++
+        }
+
+        // 6. Expiry / completion for one-shot and recurring instances
+        if (
+          (goal.goalType === 'one_shot' ||
+            (goal.goalType === 'recurring' && goal.parentGoalId !== null)) &&
+          goal.periodEnd &&
+          goal.periodEnd < now &&
+          goal.status === 'active'
+        ) {
+          if (goal.aggregationFunction === 'avg' && value >= goal.targetValue) {
+            // AVG goal that met its target before period ended → completed
+            await deps.goalRepo.update(goal.id, goal.organizationId, {
+              status: 'completed',
+              completedAt: now,
+              updatedAt: now,
+            })
+            completed++
+          } else {
+            // Period ended without meeting target → expired
+            await deps.goalRepo.update(goal.id, goal.organizationId, {
+              status: 'expired',
+              updatedAt: now,
+            })
+            expired++
+          }
         }
       }
-    }
 
-    const summary: ReconcileSummary = {
-      goalsReconciled: goals.length,
-      updated,
-      expired,
-      completed,
-    }
+      const summary: ReconcileSummary = {
+        goalsReconciled: goals.length,
+        updated,
+        expired,
+        completed,
+      }
 
-    logger.info(summary, 'Reconciled goal progress')
-    return summary
+      logger.info(summary, 'Reconciled goal progress')
+      return summary
+    })
   }
 
 // ── Summary type ──────────────────────────────────────────────────────────

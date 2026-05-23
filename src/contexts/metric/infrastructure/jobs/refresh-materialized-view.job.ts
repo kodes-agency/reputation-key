@@ -7,6 +7,7 @@ import type { Job } from 'bullmq'
 import { sql, type SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { getLogger } from '#/shared/observability/logger'
+import { trace } from '#/shared/observability/trace'
 
 export type RefreshMatViewDeps = Readonly<{
   db: Database
@@ -30,8 +31,10 @@ export const createRefreshMatViewHandler = (
 ) => {
   const query = REFRESH_QUERIES[queryKey]
   return async (_job: Job) => {
-    const logger = getLogger()
-    await deps.db.execute(query)
-    logger.info({ queryKey }, 'Refreshed materialized view')
+    return trace(`job.refreshMatView.${queryKey}`, async () => {
+      const logger = getLogger()
+      await deps.db.execute(query)
+      logger.info({ queryKey }, 'Refreshed materialized view')
+    })
   }
 }

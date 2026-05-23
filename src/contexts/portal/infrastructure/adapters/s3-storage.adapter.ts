@@ -11,6 +11,7 @@ import {
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import type { StoragePort } from '../../application/ports/storage.port'
 import { portalError } from '../../domain/errors'
+import { trace } from '#/shared/observability/trace'
 
 export const createS3StorageAdapter = (config: {
   accessKey?: string
@@ -56,20 +57,26 @@ export const createS3StorageAdapter = (config: {
         ContentType: contentType,
       })
 
-      const uploadUrl = await getSignedUrl(client, command, {
-        expiresIn: 3600, // 1 hour
-      })
+      const uploadUrl = await trace('s3.createPresignedUploadUrl', () =>
+        getSignedUrl(client, command, {
+          expiresIn: 3600, // 1 hour
+        }),
+      )
 
       return { uploadUrl, key }
     },
 
     confirmUpload: async (key) => {
-      await client.send(new HeadObjectCommand({ Bucket: bucketName, Key: key }))
+      await trace('s3.confirmUpload', () =>
+        client.send(new HeadObjectCommand({ Bucket: bucketName, Key: key })),
+      )
       return `https://${bucketName}.s3.${region}.amazonaws.com/${key}`
     },
 
     deleteObject: async (key) => {
-      await client.send(new DeleteObjectCommand({ Bucket: bucketName, Key: key }))
+      await trace('s3.deleteObject', () =>
+        client.send(new DeleteObjectCommand({ Bucket: bucketName, Key: key })),
+      )
     },
 
     getPublicUrl: (key) => {
@@ -77,13 +84,15 @@ export const createS3StorageAdapter = (config: {
     },
 
     putObject: async (key, body, contentType) => {
-      await client.send(
-        new PutObjectCommand({
-          Bucket: bucketName,
-          Key: key,
-          Body: body,
-          ContentType: contentType,
-        }),
+      await trace('s3.putObject', () =>
+        client.send(
+          new PutObjectCommand({
+            Bucket: bucketName,
+            Key: key,
+            Body: body,
+            ContentType: contentType,
+          }),
+        ),
       )
     },
   }
