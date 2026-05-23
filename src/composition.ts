@@ -47,9 +47,9 @@ import { createStaffAssignmentRepository } from '#/contexts/staff/infrastructure
 import { createGoogleReviewApiAdapter } from '#/contexts/integration/infrastructure/adapters/google-review-api.adapter'
 import { handleGbpNotification } from '#/contexts/integration/application/use-cases'
 import type { PropertyLookupPort } from '#/contexts/integration/application/ports/property-lookup.port'
-import type { ReviewLookupPort } from '#/contexts/inbox/application/ports/review-lookup.port'
-import type { FeedbackLookupPort } from '#/contexts/inbox/application/ports/feedback-lookup.port'
-import type { PropertyLookupPort as InboxPropertyLookupPort } from '#/contexts/inbox/application/ports/property-lookup.port'
+import { createReviewLookupAdapter } from '#/contexts/inbox/infrastructure/adapters/review-lookup.adapter'
+import { createFeedbackLookupAdapter } from '#/contexts/inbox/infrastructure/adapters/feedback-lookup.adapter'
+import { createPropertyLookupAdapter } from '#/contexts/inbox/infrastructure/adapters/property-lookup.adapter'
 import {
   propertyId,
   organizationId as toOrgId,
@@ -232,35 +232,21 @@ export function createContainer(options?: { enableJobs?: boolean }) {
 
   // ── Inbox lookup ports (cross-context wiring) ─────────────────────
   // Per architecture: inbox context defines ports, composition root wires
-  // them by calling review/guest/property public APIs.
-  const reviewLookup: ReviewLookupPort = {
-    getReviewSnippetById: async (id, orgId) => {
-      const r = await review.reviewRepo.findById(id, orgId)
-      if (!r) return null
-      return {
-        reviewerName: r.reviewerName,
-        text: r.text,
-        reviewerProfilePhotoUrl: r.reviewerProfilePhotoUrl,
-      }
-    },
-  }
+  // them by delegating to review/guest/property context APIs via adapters.
+  // Adapters live in inbox/infrastructure/adapters/ — cross-context SQL is
+  // encapsulated there, not in the composition root or inbox repository.
+  const reviewLookup = createReviewLookupAdapter({
+    findReviewById: (id, orgId) => review.reviewRepo.findById(id, orgId),
+  })
 
-  const feedbackLookup: FeedbackLookupPort = {
-    getFeedbackSnippetById: async (id, orgId) => {
-      const fb = await guest.guestRepo.findFeedbackById(id, orgId)
-      if (!fb) return null
-      let ratingValue: number | null = null
-      if (fb.ratingId) {
-        const ratingRow = await guest.guestRepo.findRatingById(fb.ratingId, orgId)
-        ratingValue = ratingRow?.value ?? null
-      }
-      return { comment: fb.comment, ratingValue }
-    },
-  }
+  const feedbackLookup = createFeedbackLookupAdapter({
+    findFeedbackById: (id, orgId) => guest.guestRepo.findFeedbackById(id, orgId),
+    findRatingById: (id, orgId) => guest.guestRepo.findRatingById(id, orgId),
+  })
 
-  const inboxPropertyLookup: InboxPropertyLookupPort = {
-    getPropertyNameById: (pid, orgId) => property.publicApi.getPropertyName(orgId, pid),
-  }
+  const inboxPropertyLookup = createPropertyLookupAdapter({
+    getPropertyName: (orgId, pid) => property.publicApi.getPropertyName(orgId, pid),
+  })
 
   const inbox = buildInboxContext({
     db,
