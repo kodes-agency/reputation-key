@@ -4,7 +4,7 @@
 // hasRated takes sessionId + portalId + organizationId for tenant isolation.
 
 import type { ScanEvent, Rating, Feedback } from '../../domain/types'
-import type { OrganizationId, PortalId } from '#/shared/domain/ids'
+import type { FeedbackId, OrganizationId, PortalId, RatingId } from '#/shared/domain/ids'
 
 export type GuestInteractionRepository = Readonly<{
   recordScan(scan: ScanEvent): Promise<void>
@@ -19,4 +19,8 @@ export type GuestInteractionRepository = Readonly<{
     organizationId: OrganizationId,
     sessionId: string,
   ): Promise<ScanEvent | null>
+  /** Lookup feedback by ID — used by cross-context lookup ports. */
+  findFeedbackById(id: FeedbackId, orgId: OrganizationId): Promise<Feedback | null>
+  /** Lookup rating by ID — used by cross-context lookup ports. */
+  findRatingById(id: RatingId, orgId: OrganizationId): Promise<Rating | null>
 }>

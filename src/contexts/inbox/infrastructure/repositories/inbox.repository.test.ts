@@ -112,7 +112,12 @@ function createInMemoryInboxRepo(): InboxRepository {
 describe('createInboxRepository', () => {
   it('returns an object satisfying InboxRepository', () => {
     const db = createMockDb()
-    const repo = createInboxRepository(db)
+    const noopPorts = {
+      reviewLookup: { getReviewSnippetById: async () => null },
+      feedbackLookup: { getFeedbackSnippetById: async () => null },
+      propertyLookup: { getPropertyNameById: async () => null },
+    }
+    const repo = createInboxRepository(db, noopPorts)
 
     // Verify all port methods exist
     expect(typeof repo.findById).toBe('function')
@@ -129,7 +134,12 @@ describe('createInboxRepository', () => {
 
   it('factory return type satisfies InboxRepository (compile-time check)', () => {
     const db = createMockDb()
-    const repo: InboxRepository = createInboxRepository(db)
+    const noopPorts = {
+      reviewLookup: { getReviewSnippetById: async () => null },
+      feedbackLookup: { getFeedbackSnippetById: async () => null },
+      propertyLookup: { getPropertyNameById: async () => null },
+    }
+    const repo: InboxRepository = createInboxRepository(db, noopPorts)
     // If this compiles, the factory output matches the port interface
     expect(repo).toBeDefined()
   })

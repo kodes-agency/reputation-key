@@ -1,6 +1,7 @@
 import type { EventBus } from '#/shared/events/event-bus'
 import type { Database } from '#/shared/db'
 import type { LinkResolverPort } from '#/contexts/portal/application/public-api'
+import type { PortalPublicApi } from '#/contexts/portal/application/public-api'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { createGuestInteractionRepository } from './infrastructure/repositories/guest-interaction.repository'
 import { createPortalContextResolver } from './infrastructure/resolvers/portal-context-resolver'
@@ -23,12 +24,13 @@ type GuestContextDeps = Readonly<{
   clock: () => Date
   linkResolver: LinkResolverPort
   staffApi: StaffPublicApi
+  portalApi: PortalPublicApi
 }>
 
 export const buildGuestContext = (deps: GuestContextDeps) => {
   const guestRepo = createGuestInteractionRepository(deps.db)
-  const portalContextResolver = createPortalContextResolver(deps.db)
-  const publicPortalLookup = createPublicPortalLookup(deps.db)
+  const portalContextResolver = createPortalContextResolver(deps.portalApi)
+  const publicPortalLookup = createPublicPortalLookup(deps.portalApi)
 
   const useCases = {
     recordScan: recordScan({

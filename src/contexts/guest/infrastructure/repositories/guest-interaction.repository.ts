@@ -7,9 +7,12 @@ import {
   ratingToRow,
   feedbackToRow,
   scanEventFromRow,
+  feedbackFromRow,
+  ratingFromRow,
 } from '../mappers/guest.mapper'
 import { trace } from '#/shared/observability/trace'
 import { unbrand } from '#/shared/domain/ids'
+import type { FeedbackId, OrganizationId, RatingId } from '#/shared/domain/ids'
 
 export const createGuestInteractionRepository = (
   db: Database,
@@ -63,6 +66,32 @@ export const createGuestInteractionRepository = (
         .orderBy(desc(scanEvents.createdAt))
         .limit(1)
       return row ? scanEventFromRow(row) : null
+    })
+  },
+
+  findFeedbackById: async (id: FeedbackId, orgId: OrganizationId) => {
+    return trace('guestInteraction.findFeedbackById', async () => {
+      const [row] = await db
+        .select()
+        .from(feedback)
+        .where(
+          and(eq(feedback.id, unbrand(id)), eq(feedback.organizationId, unbrand(orgId))),
+        )
+        .limit(1)
+      return row ? feedbackFromRow(row) : null
+    })
+  },
+
+  findRatingById: async (id: RatingId, orgId: OrganizationId) => {
+    return trace('guestInteraction.findRatingById', async () => {
+      const [row] = await db
+        .select()
+        .from(ratings)
+        .where(
+          and(eq(ratings.id, unbrand(id)), eq(ratings.organizationId, unbrand(orgId))),
+        )
+        .limit(1)
+      return row ? ratingFromRow(row) : null
     })
   },
 })

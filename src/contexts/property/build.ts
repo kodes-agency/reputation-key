@@ -58,6 +58,10 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
       const p = await deps.repo.findById(orgId, pid)
       return p !== null
     },
+    getPropertyName: async (orgId: OrganizationId, pid: PropertyId) => {
+      const p = await deps.repo.findById(orgId, pid)
+      return p?.name ?? null
+    },
     findByGbpPlaceId: async (gbpPlaceId: string) => {
       const p = await deps.repo.findByGbpPlaceId(gbpPlaceId)
       if (!p) return null
@@ -65,6 +69,14 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
         id: p.id,
         organizationId: p.organizationId,
         googleConnectionId: p.googleConnectionId,
+      }
+    },
+    findBySlug: async (slug: string) => {
+      const p = await deps.repo.findBySlug(slug)
+      if (!p) return null
+      return {
+        id: p.id,
+        organizationId: p.organizationId,
       }
     },
     findIdsByGoogleConnection: async (

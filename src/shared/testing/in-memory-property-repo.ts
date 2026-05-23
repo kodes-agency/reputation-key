@@ -60,6 +60,15 @@ export const createInMemoryPropertyRepo = (): InMemoryPropertyRepo => {
       return null
     },
 
+    findBySlug: async (slug) => {
+      for (const property of store.values()) {
+        if (property.slug === slug && property.deletedAt === null) {
+          return property
+        }
+      }
+      return null
+    },
+
     findIdsByGoogleConnection: async (connectionId, orgId) =>
       [...store.values()]
         .filter((p) => isAccessible(orgId, p) && p.googleConnectionId === connectionId)

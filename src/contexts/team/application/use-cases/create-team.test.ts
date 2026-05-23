@@ -23,7 +23,9 @@ const setup = () => {
       const p = await propertyRepo.findById(orgId, pid)
       return p !== null
     },
+    getPropertyName: async () => null,
     findByGbpPlaceId: async () => null,
+    findBySlug: async () => null,
     findIdsByGoogleConnection: async () => [],
     clearGoogleConnectionRef: async () => {},
     importProperty: async () => {

@@ -4,6 +4,12 @@
 
 import type { OrganizationId, PropertyId, GoogleConnectionId } from '#/shared/domain/ids'
 
+/** Minimal property info returned for cross-context slug lookups (e.g., guest portal resolution). */
+export type PropertySlugLookupResult = Readonly<{
+  id: string
+  organizationId: string
+}>
+
 /** Minimal property info returned for cross-context lookups (e.g., webhook resolution). */
 export type PropertyLookupResult = Readonly<{
   id: string
@@ -33,7 +39,9 @@ export const propertyImportConflict = (message: string): PropertyImportConflict 
 })
 
 export const isPropertyImportConflict = (e: unknown): e is PropertyImportConflict =>
-  typeof e === 'object' && e !== null && (e as PropertyImportConflict)._tag === 'PropertyImportConflict'
+  typeof e === 'object' &&
+  e !== null &&
+  (e as PropertyImportConflict)._tag === 'PropertyImportConflict'
 
 export { propertyCreated } from '../domain/events'
 export type { PropertyCreated } from '../domain/events'
@@ -45,11 +53,26 @@ export type PropertyPublicApi = Readonly<{
   propertyExists: (orgId: OrganizationId, propertyId: PropertyId) => Promise<boolean>
 
   /**
+   * Get a property's display name by ID. Returns null if not found or deleted.
+   * Used by cross-context lookup ports (e.g., inbox enrichment).
+   */
+  getPropertyName: (
+    orgId: OrganizationId,
+    propertyId: PropertyId,
+  ) => Promise<string | null>
+
+  /**
    * Find a non-deleted property by its Google Business Profile place ID.
    * Used by the integration context for GBP webhook handling (push-based,
    * no organizationId available at call time).
    */
   findByGbpPlaceId: (gbpPlaceId: string) => Promise<PropertyLookupResult | null>
+
+  /**
+   * Find a non-deleted property by its slug.
+   * No organizationId — the slug is public-facing, used for guest portal resolution.
+   */
+  findBySlug: (slug: string) => Promise<PropertySlugLookupResult | null>
 
   /**
    * Find all non-deleted property IDs linked to a Google connection within an org.

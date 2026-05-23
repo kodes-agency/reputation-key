@@ -12,12 +12,12 @@ export type PublicPortalLoaderData = {
     smartRoutingThreshold: number
     organizationName: string
   }
-  categories: Array<{ id: string; title: string; sortKey: string }>
-  links: Array<{
+  categories: ReadonlyArray<{ id: string; title: string; sortKey: string }>
+  links: ReadonlyArray<{
     id: string
     label: string
     url: string
-    categoryId: string
+    categoryId: string | null
     sortKey: string
   }>
   organizationId: string

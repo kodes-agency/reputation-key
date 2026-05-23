@@ -71,6 +71,9 @@ export const createInMemoryPortalRepo = (): InMemoryPortalRepo => {
       return { slug: portal.slug, propertySlug: 'test-property' }
     },
 
+    resolvePortalContext: async (_portalIdParam) => null,
+    findPublicPortalBySlug: async (_propertySlug, _portalSlug) => null,
+
     // ── Test-only helpers ───────────────────────────────────────────
 
     seed: (portals) => {

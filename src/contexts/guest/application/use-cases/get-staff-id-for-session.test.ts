@@ -34,6 +34,8 @@ describe('getStaffIdForSession', () => {
       insertFeedback: async () => {},
       hasRated: async () => false,
       getLatestScanBySession: async () => makeScan('staff-1'),
+      findFeedbackById: async () => null,
+      findRatingById: async () => null,
     }
 
     const fn = getStaffIdForSession({ guestRepo: repo })
@@ -48,6 +50,8 @@ describe('getStaffIdForSession', () => {
       insertFeedback: async () => {},
       hasRated: async () => false,
       getLatestScanBySession: async () => null,
+      findFeedbackById: async () => null,
+      findRatingById: async () => null,
     }
 
     const fn = getStaffIdForSession({ guestRepo: repo })
@@ -62,6 +66,8 @@ describe('getStaffIdForSession', () => {
       insertFeedback: async () => {},
       hasRated: async () => false,
       getLatestScanBySession: async () => makeScan(null),
+      findFeedbackById: async () => null,
+      findRatingById: async () => null,
     }
 
     const fn = getStaffIdForSession({ guestRepo: repo })

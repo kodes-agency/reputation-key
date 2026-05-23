@@ -5,12 +5,20 @@
 import { and, eq, not, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { baseWhere } from '#/shared/db/base-where'
-import { portals } from '#/shared/db/schema/portal.schema'
+import {
+  portals,
+  portalLinkCategories,
+  portalLinks,
+} from '#/shared/db/schema/portal.schema'
 import { properties } from '#/shared/db/schema/property.schema'
-import type { PortalRepository } from '../../application/ports/portal.repository'
+import type {
+  PortalRepository,
+  PublicPortalResult,
+  ResolvePortalContextResult,
+} from '../../application/ports/portal.repository'
 import { portalFromRow, portalToRow } from '../mappers/portal.mapper'
 import { portalError } from '../../domain/errors'
-import { unbrand } from '#/shared/domain/ids'
+import { unbrand, type OrganizationId, type PropertyId } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 
 /** Mutable set-values type for Drizzle .set() — strips readonly from Portal fields. */
@@ -153,6 +161,105 @@ export const createPortalRepository = (db: Database): PortalRepository => ({
       if (rows.length === 0) return null
 
       return { slug: rows[0].portal_slug, propertySlug: rows[0].property_slug }
+    })
+  },
+
+  resolvePortalContext: async (portalIdParam) => {
+    return trace('portal.resolvePortalContext', async () => {
+      const rows = await db
+        .select({
+          organizationId: portals.organizationId,
+          propertyId: portals.propertyId,
+        })
+        .from(portals)
+        .where(eq(portals.id, unbrand(portalIdParam)))
+        .limit(1)
+
+      if (rows.length === 0) return null
+
+      return {
+        organizationId: rows[0].organizationId as OrganizationId,
+        propertyId: rows[0].propertyId as PropertyId,
+      } satisfies ResolvePortalContextResult
+    })
+  },
+
+  findPublicPortalBySlug: async (propertySlug, portalSlug) => {
+    return trace('portal.findPublicPortalBySlug', async () => {
+      // 1. Find property by slug
+      const propRows = await db
+        .select({ id: properties.id })
+        .from(properties)
+        .where(
+          and(eq(properties.slug, propertySlug), sql`${properties.deletedAt} IS NULL`),
+        )
+        .limit(1)
+      if (propRows.length === 0) return null
+
+      // 2. Find portal by propertyId + slug
+      const portalRows = await db
+        .select()
+        .from(portals)
+        .where(and(eq(portals.propertyId, propRows[0].id), eq(portals.slug, portalSlug)))
+        .limit(1)
+      if (portalRows.length === 0) return null
+
+      const portal = portalRows[0]
+
+      // 3. Check active
+      if (!portal.isActive) {
+        throw Object.assign(new Error('Portal is inactive'), {
+          _tag: 'portal_inactive' as const,
+        })
+      }
+
+      // 4. Load organization name
+      const orgResult = await db.execute(
+        sql`SELECT id, name FROM "organization" WHERE id = ${portal.organizationId} LIMIT 1`,
+      )
+      const org = orgResult.rows[0] as { id: string; name: string } | undefined
+      if (!org) return null
+
+      // 5. Load categories and links
+      const categories = await db
+        .select()
+        .from(portalLinkCategories)
+        .where(eq(portalLinkCategories.portalId, portal.id))
+        .orderBy(portalLinkCategories.sortKey)
+
+      const links = await db
+        .select()
+        .from(portalLinks)
+        .where(eq(portalLinks.portalId, portal.id))
+        .orderBy(portalLinks.sortKey)
+
+      return {
+        portal: {
+          id: portal.id,
+          name: portal.name,
+          slug: portal.slug,
+          description: portal.description,
+          heroImageUrl: portal.heroImageUrl,
+          theme: portal.theme as Record<string, string | number | boolean | null> | null,
+          smartRoutingEnabled: portal.smartRoutingEnabled,
+          smartRoutingThreshold: portal.smartRoutingThreshold,
+          organizationName: org.name,
+        },
+        categories: categories.map((c) => ({
+          id: c.id,
+          title: c.title,
+          sortKey: c.sortKey,
+        })),
+        links: links.map((l) => ({
+          id: l.id,
+          label: l.label,
+          url: l.url,
+          categoryId: l.categoryId,
+          sortKey: l.sortKey,
+        })),
+        organizationId: org.id,
+        propertyId: portal.propertyId,
+      } satisfies PublicPortalResult
     })
   },
 })

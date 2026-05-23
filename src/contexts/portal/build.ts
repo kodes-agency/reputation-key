@@ -3,6 +3,7 @@
 // Per ADR-0001: the composition root calls this and passes publicApis from upstream contexts.
 
 import type { PropertyPublicApi } from '#/contexts/property/application/public-api'
+import type { PortalPublicApi } from './application/public-api'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { Database } from '#/shared/db'
 import { createPortalRepository } from './infrastructure/repositories/portal.repository'
@@ -27,8 +28,8 @@ import { finalizeUpload } from './application/use-cases/finalize-upload'
 import { getPortalQrUrl } from './application/use-cases/get-portal-qr-url'
 import { listPortalLinks } from './application/use-cases/list-portal-links'
 import { portalId } from '#/shared/domain/ids'
-import { randomUUID } from 'crypto'
 import { getEnv } from '#/shared/config/env'
+import { randomUUID } from 'crypto'
 
 type PortalContextDeps = Readonly<{
   db: Database
@@ -121,5 +122,21 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     }),
   } as const
 
-  return { useCases, storage, portalRepo, portalLinkRepo, linkResolver } as const
+  // ── Public API — consumed by guest context and other cross-context callers ──
+
+  const publicApi: PortalPublicApi = {
+    resolvePortalContext: (portalIdParam) =>
+      portalRepo.resolvePortalContext(portalIdParam),
+    findPublicPortalBySlug: (propertySlug, portalSlug) =>
+      portalRepo.findPublicPortalBySlug(propertySlug, portalSlug),
+  }
+
+  return {
+    useCases,
+    storage,
+    portalRepo,
+    portalLinkRepo,
+    linkResolver,
+    publicApi,
+  } as const
 }

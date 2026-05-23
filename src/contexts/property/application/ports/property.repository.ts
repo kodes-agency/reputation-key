@@ -22,6 +22,9 @@ export type PropertyRepository = Readonly<{
   hardDelete: (orgId: OrganizationId, id: PropertyId) => Promise<void>
   /** Find a non-deleted property by its Google Business Profile place ID. */
   findByGbpPlaceId: (gbpPlaceId: string) => Promise<Property | null>
+
+  /** Find a non-deleted property by its slug (public-facing, no orgId). */
+  findBySlug: (slug: string) => Promise<Property | null>
   /** Find IDs of non-deleted properties linked to a Google connection within an org. */
   findIdsByGoogleConnection: (
     connectionId: GoogleConnectionId,

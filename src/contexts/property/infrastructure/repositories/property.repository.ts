@@ -109,6 +109,19 @@ export const createPropertyRepository = (db: Database): PropertyRepository => ({
     })
   },
 
+  // Public slug lookup — no orgId scoping. Slugs are unique per property
+  // and used for public-facing URLs (guest portal resolution).
+  findBySlug: async (slug) => {
+    return trace('property.findBySlug', async () => {
+      const rows = await db
+        .select()
+        .from(properties)
+        .where(and(eq(properties.slug, slug), isNull(properties.deletedAt)))
+        .limit(1)
+      return rows[0] ? propertyFromRow(rows[0]) : null
+    })
+  },
+
   findIdsByGoogleConnection: async (connectionId: GoogleConnectionId, orgId) => {
     return trace('property.findIdsByGoogleConnection', async () => {
       const rows = await db
@@ -167,9 +180,7 @@ export const createPropertyRepository = (db: Database): PropertyRepository => ({
             inArray(properties.gbpPlaceId, gbpPlaceIds as [string, ...string[]]),
           ),
         )
-      return rows
-        .map((r) => r.gbpPlaceId)
-        .filter((id): id is string => id !== null)
+      return rows.map((r) => r.gbpPlaceId).filter((id): id is string => id !== null)
     })
   },
 
@@ -179,10 +190,7 @@ export const createPropertyRepository = (db: Database): PropertyRepository => ({
         .select({ id: properties.id })
         .from(properties)
         .where(
-          and(
-            ...baseWhere(properties, orgId),
-            eq(properties.gbpPlaceId, gbpPlaceId),
-          ),
+          and(...baseWhere(properties, orgId), eq(properties.gbpPlaceId, gbpPlaceId)),
         )
         .limit(1)
       return rows.length > 0

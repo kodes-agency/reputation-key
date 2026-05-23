@@ -22,6 +22,8 @@ function makeFakeGuestRepo() {
     insertFeedback: async () => {},
     hasRated: async () => false,
     getLatestScanBySession: async () => null,
+    findFeedbackById: async () => null,
+    findRatingById: async () => null,
     scans,
   }
 }

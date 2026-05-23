@@ -54,6 +54,8 @@ function makeFakeGuestRepo() {
       const sessionScans = scans.filter((s) => s.sessionId === sessionId)
       return sessionScans.length > 0 ? sessionScans[sessionScans.length - 1] : null
     },
+    findFeedbackById: async () => null,
+    findRatingById: async () => null,
     scans,
     ratings,
   }
