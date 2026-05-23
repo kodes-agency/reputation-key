@@ -8,6 +8,7 @@ import { createHmac } from 'crypto'
 import { z } from 'zod/v4'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
+import { can } from '#/shared/domain/permissions'
 import { throwContextError } from '#/shared/auth/server-errors'
 import { getContainer } from '#/composition'
 import { connectGoogleInputSchema } from '../application/dto/connect-google.dto'
@@ -44,7 +45,15 @@ export const getGoogleAuthUrl = createServerFn({ method: 'GET' })
       async ({ data }) => {
         // Require authentication — only logged-in users can generate OAuth URLs
         const headers = headersFromContext()
-        await resolveTenantContext(headers)
+        const ctx = await resolveTenantContext(headers)
+
+        if (!can(ctx.role, 'integration.manage')) {
+          throwContextError(
+            'Forbidden',
+            { code: 'FORBIDDEN', message: 'Insufficient permissions' },
+            403,
+          )
+        }
 
         const { visibility } = data
         const callbackUrl = `${getEnv().BETTER_AUTH_URL}/api/auth/google/callback`

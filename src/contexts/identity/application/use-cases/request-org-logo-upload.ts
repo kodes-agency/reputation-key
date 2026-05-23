@@ -20,7 +20,7 @@ export const requestOrgLogoUpload =
     input: { contentType: string; fileSize: number },
     ctx: AuthContext,
   ): Promise<{ uploadUrl: string; key: string }> => {
-    if (!can(ctx.role, 'organization.update')) {
+    if (!can(ctx.role, 'identity.logo_upload')) {
       throw identityError(
         'forbidden',
         'Insufficient permissions to upload organization logo',

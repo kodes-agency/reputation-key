@@ -13,7 +13,7 @@ export type FinalizeOrgLogoUploadDeps = Readonly<{
 export const finalizeOrgLogoUpload =
   (deps: FinalizeOrgLogoUploadDeps) =>
   async (input: { key: string }, ctx: AuthContext): Promise<{ logoUrl: string }> => {
-    if (!can(ctx.role, 'organization.update')) {
+    if (!can(ctx.role, 'identity.logo_upload')) {
       throw identityError(
         'forbidden',
         'Insufficient permissions to finalize organization logo upload',

@@ -33,6 +33,7 @@ export const statement = {
   feedback: ['read', 'respond'],
   inbox: ['read', 'update'],
   integration: ['manage'],
+  identity: ['avatar_upload', 'logo_upload', 'leave_org'],
   goal: ['read', 'write'],
 } as const
 
@@ -59,6 +60,7 @@ export const admin = ac.newRole({
   organization: ['update'],
   goal: ['read', 'write'],
   integration: ['manage'],
+  identity: ['avatar_upload', 'logo_upload', 'leave_org'],
 })
 
 export const memberRole = ac.newRole({
@@ -66,6 +68,7 @@ export const memberRole = ac.newRole({
   dashboard: ['read'],
   inbox: ['read', 'update'],
   goal: ['read'],
+  identity: ['avatar_upload', 'leave_org'],
 })
 
 // ── Build and inject the permission table ──────────────────────────

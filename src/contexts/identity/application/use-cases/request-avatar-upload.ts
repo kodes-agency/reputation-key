@@ -3,6 +3,7 @@
 
 import type { StoragePort } from '#/contexts/portal/application/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
+import { can } from '#/shared/domain/permissions'
 import { identityError } from '../../domain/errors'
 
 // fallow-ignore-next-line unused-type
@@ -20,6 +21,10 @@ export const requestAvatarUpload =
     input: { contentType: string; fileSize: number },
     ctx: AuthContext,
   ): Promise<{ uploadUrl: string; key: string }> => {
+    if (!can(ctx.role, 'identity.avatar_upload')) {
+      throw identityError('forbidden', 'Insufficient permissions to upload avatar')
+    }
+
     if (!ALLOWED_CONTENT_TYPES.includes(input.contentType)) {
       throw identityError(
         'validation_error',
