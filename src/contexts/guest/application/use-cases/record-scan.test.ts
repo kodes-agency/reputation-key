@@ -1,5 +1,6 @@
 import { recordScan } from './record-scan'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { createMockLogger } from '#/shared/testing/mock-logger'
 import { scanEventId, organizationId, portalId, propertyId } from '#/shared/domain/ids'
 import type { ScanEvent } from '../../domain/types'
 import type { GuestInteractionRepository } from '../ports/guest-interaction.repository'
@@ -29,6 +30,7 @@ describe('recordScan', () => {
       events: bus,
       idGen: () => scanEventId('scan-1'),
       clock: () => new Date('2026-05-01T12:00:00Z'),
+      logger: createMockLogger(),
     })
 
     await useCase({
@@ -65,6 +67,7 @@ describe('recordScan', () => {
       events: bus,
       idGen: () => scanEventId('scan-1'),
       clock: () => new Date('2026-05-01T12:00:00Z'),
+      logger: createMockLogger(),
     })
 
     await expect(

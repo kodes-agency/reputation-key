@@ -3,6 +3,7 @@ import type { Database } from '#/shared/db'
 import type { LinkResolverPort } from '#/contexts/portal/application/public-api'
 import type { PortalPublicApi } from '#/contexts/portal/application/public-api'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import { createGuestInteractionRepository } from './infrastructure/repositories/guest-interaction.repository'
 import { createPortalContextResolver } from './infrastructure/resolvers/portal-context-resolver'
 import { createPublicPortalLookup } from './infrastructure/resolvers/public-portal-lookup'
@@ -25,6 +26,7 @@ type GuestContextDeps = Readonly<{
   linkResolver: LinkResolverPort
   staffApi: StaffPublicApi
   portalApi: PortalPublicApi
+  logger: LoggerPort
 }>
 
 export const buildGuestContext = (deps: GuestContextDeps) => {
@@ -38,6 +40,7 @@ export const buildGuestContext = (deps: GuestContextDeps) => {
       events: deps.events,
       idGen: () => scanEventId(randomUUID()),
       clock: deps.clock,
+      logger: deps.logger,
     }),
     recordScanWithRef: recordScanWithRef({
       staffRepo: deps.staffApi,
@@ -45,6 +48,7 @@ export const buildGuestContext = (deps: GuestContextDeps) => {
       events: deps.events,
       idGen: () => scanEventId(randomUUID()),
       clock: deps.clock,
+      logger: deps.logger,
     }),
     submitRating: submitRating({
       guestRepo,
@@ -61,12 +65,14 @@ export const buildGuestContext = (deps: GuestContextDeps) => {
     trackReviewLinkClick: trackReviewLinkClick({
       events: deps.events,
       clock: deps.clock,
+      logger: deps.logger,
     }),
     resolveLinkAndTrack: resolveLinkAndTrack({
       linkResolver: deps.linkResolver,
       trackClick: trackReviewLinkClick({
         events: deps.events,
         clock: deps.clock,
+        logger: deps.logger,
       }),
     }),
     resolvePortalContext: resolvePortalContext({

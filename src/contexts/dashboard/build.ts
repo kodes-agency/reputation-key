@@ -14,6 +14,9 @@ export type DashboardContextBuildInput = Readonly<{
 
 export type DashboardContextApi = Readonly<{
   getDashboardData: ReturnType<typeof getDashboardData>
+  publicApi: Readonly<{
+    getDashboardData: ReturnType<typeof getDashboardData>
+  }>
 }>
 
 export const buildDashboardContext = (
@@ -27,5 +30,8 @@ export const buildDashboardContext = (
 
   return {
     getDashboardData: getDashboard,
+    publicApi: {
+      getDashboardData: getDashboard,
+    },
   }
 }

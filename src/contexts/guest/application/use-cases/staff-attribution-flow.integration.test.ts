@@ -6,6 +6,7 @@ import { recordScanWithRef } from './record-scan-with-ref'
 import { getStaffIdForSession } from './get-staff-id-for-session'
 import { submitRating } from './submit-rating'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { createMockLogger } from '#/shared/testing/mock-logger'
 import {
   organizationId,
   portalId,
@@ -89,6 +90,7 @@ describe('Staff attribution flow (integration)', () => {
         events: bus,
         idGen: () => scanEventId('scan-1'),
         clock: () => fixedDate,
+        logger: createMockLogger(),
       })
 
       await record({
@@ -118,6 +120,7 @@ describe('Staff attribution flow (integration)', () => {
         events: bus,
         idGen: () => scanEventId('scan-1'),
         clock: () => fixedDate,
+        logger: createMockLogger(),
       })
 
       await record({
@@ -148,6 +151,7 @@ describe('Staff attribution flow (integration)', () => {
         events: bus,
         idGen: () => scanEventId('scan-1'),
         clock: () => fixedDate,
+        logger: createMockLogger(),
       })
 
       const sessionId = 'session-with-ref'
@@ -205,6 +209,7 @@ describe('Staff attribution flow (integration)', () => {
         events: bus,
         idGen: () => scanEventId('scan-e2e'),
         clock: () => fixedDate,
+        logger: createMockLogger(),
       })
 
       await record({
@@ -268,6 +273,7 @@ describe('Staff attribution flow (integration)', () => {
         events: bus,
         idGen: () => scanEventId('scan-2'),
         clock: () => fixedDate,
+        logger: createMockLogger(),
       })
 
       await record({
@@ -295,6 +301,7 @@ describe('Staff attribution flow (integration)', () => {
         events: bus,
         idGen: () => scanEventId('scan-2'),
         clock: () => fixedDate,
+        logger: createMockLogger(),
       })
 
       const sessionId = 'session-no-ref'
@@ -328,6 +335,7 @@ describe('Staff attribution flow (integration)', () => {
         events: bus,
         idGen: () => scanEventId('scan-2'),
         clock: () => fixedDate,
+        logger: createMockLogger(),
       })
 
       await record({

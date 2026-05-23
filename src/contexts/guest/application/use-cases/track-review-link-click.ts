@@ -5,12 +5,13 @@ import type {
   PropertyId,
   PortalLinkId,
 } from '#/shared/domain/ids'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import { reviewLinkClicked } from '../../domain/events'
-import { getLogger } from '#/shared/observability/logger'
 
 export type TrackReviewLinkClickDeps = Readonly<{
   events: EventBus
   clock: () => Date
+  logger: LoggerPort
 }>
 
 export type TrackReviewLinkClickInput = Readonly<{
@@ -37,7 +38,7 @@ export const trackReviewLinkClick =
       )
     } catch (e) {
       // Silent failure — click tracking is analytics
-      getLogger().warn(
+      deps.logger.warn(
         { err: e, linkId: input.linkId },
         'Review link click tracking failed — suppressed',
       )

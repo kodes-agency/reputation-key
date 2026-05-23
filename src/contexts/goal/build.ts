@@ -31,6 +31,13 @@ export type GoalContextApi = Readonly<{
   }
   goalRepo: GoalRepository
   events: EventBus
+  publicApi: Readonly<{
+    createGoal: ReturnType<typeof createGoal>
+    updateGoal: ReturnType<typeof updateGoal>
+    cancelGoal: ReturnType<typeof cancelGoal>
+    listGoals: ReturnType<typeof listGoals>
+    getGoal: ReturnType<typeof getGoal>
+  }>
 }>
 
 export const buildGoalContext = (input: GoalContextBuildInput): GoalContextApi => {
@@ -71,5 +78,12 @@ export const buildGoalContext = (input: GoalContextBuildInput): GoalContextApi =
     },
     goalRepo,
     events: input.events,
+    publicApi: {
+      createGoal: _createGoal,
+      updateGoal: _updateGoal,
+      cancelGoal: _cancelGoal,
+      listGoals: _listGoals,
+      getGoal: _getGoal,
+    },
   }
 }

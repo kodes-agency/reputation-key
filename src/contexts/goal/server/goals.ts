@@ -87,23 +87,29 @@ export const createGoal = createServerFn({ method: 'POST' })
           })
 
           if (result.isErr()) {
-            const error = result.error
-            switch (error.tag) {
-              case 'construction_error':
+            match(result.error)
+              .with({ tag: 'forbidden' }, () =>
                 throwContextError(
                   'GoalError',
-                  makeGoalError('validation_error', error.error.tag),
-                  400,
-                )
-                break
-              case 'instance_construction_error':
+                  makeGoalError('forbidden', 'Forbidden'),
+                  403,
+                ),
+              )
+              .with({ tag: 'construction_error' }, (e) =>
                 throwContextError(
                   'GoalError',
-                  makeGoalError('validation_error', error.error.tag),
+                  makeGoalError('validation_error', e.error.tag),
                   400,
-                )
-                break
-            }
+                ),
+              )
+              .with({ tag: 'instance_construction_error' }, (e) =>
+                throwContextError(
+                  'GoalError',
+                  makeGoalError('validation_error', e.error.tag),
+                  400,
+                ),
+              )
+              .exhaustive()
           }
 
           return result._unsafeUnwrap()
@@ -148,23 +154,29 @@ export const updateGoal = createServerFn({ method: 'POST' })
           })
 
           if (result.isErr()) {
-            const error = result.error
-            switch (error.tag) {
-              case 'goal_not_found':
+            match(result.error)
+              .with({ tag: 'forbidden' }, () =>
+                throwContextError(
+                  'GoalError',
+                  makeGoalError('forbidden', 'Forbidden'),
+                  403,
+                ),
+              )
+              .with({ tag: 'goal_not_found' }, () =>
                 throwContextError(
                   'GoalError',
                   makeGoalError('not_found', 'Goal not found'),
                   404,
-                )
-                break
-              case 'goal_not_active':
+                ),
+              )
+              .with({ tag: 'goal_not_active' }, (e) =>
                 throwContextError(
                   'GoalError',
-                  makeGoalError('immutable_goal', `Goal is ${error.status}`),
+                  makeGoalError('immutable_goal', `Goal is ${e.status}`),
                   409,
-                )
-                break
-              case 'recurrence_rule_not_allowed':
+                ),
+              )
+              .with({ tag: 'recurrence_rule_not_allowed' }, () =>
                 throwContextError(
                   'GoalError',
                   makeGoalError(
@@ -172,9 +184,9 @@ export const updateGoal = createServerFn({ method: 'POST' })
                     'Recurrence rule can only be updated on recurring goals',
                   ),
                   400,
-                )
-                break
-            }
+                ),
+              )
+              .exhaustive()
           }
 
           return { goal: result._unsafeUnwrap() }
@@ -217,23 +229,29 @@ export const cancelGoal = createServerFn({ method: 'POST' })
           })
 
           if (result.isErr()) {
-            const error = result.error
-            switch (error.tag) {
-              case 'goal_not_found':
+            match(result.error)
+              .with({ tag: 'forbidden' }, () =>
+                throwContextError(
+                  'GoalError',
+                  makeGoalError('forbidden', 'Forbidden'),
+                  403,
+                ),
+              )
+              .with({ tag: 'goal_not_found' }, () =>
                 throwContextError(
                   'GoalError',
                   makeGoalError('not_found', 'Goal not found'),
                   404,
-                )
-                break
-              case 'goal_not_active':
+                ),
+              )
+              .with({ tag: 'goal_not_active' }, (e) =>
                 throwContextError(
                   'GoalError',
-                  makeGoalError('immutable_goal', `Goal is ${error.status}`),
+                  makeGoalError('immutable_goal', `Goal is ${e.status}`),
                   409,
-                )
-                break
-            }
+                ),
+              )
+              .exhaustive()
           }
 
           return { goal: result._unsafeUnwrap() }
@@ -313,14 +331,25 @@ export const getGoal = createServerFn({ method: 'GET' })
           })
 
           if (result.isErr()) {
-            throwContextError(
-              'GoalError',
-              makeGoalError('not_found', 'Goal not found'),
-              404,
-            )
+            match(result.error)
+              .with({ tag: 'forbidden' }, () =>
+                throwContextError(
+                  'GoalError',
+                  makeGoalError('forbidden', 'Forbidden'),
+                  403,
+                ),
+              )
+              .with({ tag: 'goal_not_found' }, () =>
+                throwContextError(
+                  'GoalError',
+                  makeGoalError('not_found', 'Goal not found'),
+                  404,
+                ),
+              )
+              .exhaustive()
           }
 
-          return result.value
+          return result._unsafeUnwrap()
         } catch (e) {
           if (isGoalError(e)) throwContextError('GoalError', e, goalErrorStatus(e.code))
           throw e

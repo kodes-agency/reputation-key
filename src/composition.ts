@@ -191,6 +191,7 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     linkResolver: portal.linkResolver,
     staffApi: staff.publicApi,
     portalApi: portal.publicApi,
+    logger,
   })
 
   // ── Property lookup port for integration context (webhook) ────────

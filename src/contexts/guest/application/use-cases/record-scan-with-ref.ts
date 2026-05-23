@@ -21,6 +21,7 @@ export type RecordScanWithRefDeps = Readonly<{
   events: RecordScanDeps['events']
   idGen: RecordScanDeps['idGen']
   clock: RecordScanDeps['clock']
+  logger: RecordScanDeps['logger']
 }>
 
 export type RecordScanWithRefInput = Readonly<
@@ -49,6 +50,7 @@ export const recordScanWithRef =
       events: deps.events,
       idGen: deps.idGen,
       clock: deps.clock,
+      logger: deps.logger,
     })
 
     return innerScan({

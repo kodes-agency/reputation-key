@@ -9,17 +9,57 @@ import { throwContextError } from '#/shared/auth/server-errors'
 import { getLogger } from '#/shared/observability/logger'
 import { z } from 'zod/v4'
 
-/** Common catch handler for better-auth calls: log original error, map to domain error. */
+/** Map better-auth APIError status codes to appropriate HTTP status + domain code. */
 const handleAuthError = (
   error: unknown,
   errorName: string,
   code: string,
-  message: string,
-  status: number,
+  fallbackMessage: string,
 ): never => {
-  // Log the original error for diagnostics before mapping to domain error
+  // Distinguish error types for proper HTTP status mapping
+  if (typeof error === 'object' && error !== null && 'statusCode' in error) {
+    const apiError = error as { statusCode: number; message?: string }
+    const status = apiError.statusCode
+    const message = apiError.message ?? fallbackMessage
+
+    getLogger().warn({ err: error, statusCode: status }, `${errorName}: ${code}`)
+
+    if (status === 401) {
+      throwContextError(
+        errorName,
+        { code: 'unauthorized', message: 'Authentication required' },
+        401,
+      )
+    }
+    if (status === 403) {
+      throwContextError(
+        errorName,
+        { code: 'forbidden', message: 'Insufficient permissions' },
+        403,
+      )
+    }
+    if (status === 404) {
+      throwContextError(errorName, { code: 'not_found', message }, 404)
+    }
+    if (status === 409) {
+      throwContextError(errorName, { code: 'conflict', message }, 409)
+    }
+    if (status === 429) {
+      throwContextError(
+        errorName,
+        { code: 'rate_limited', message: 'Too many requests' },
+        429,
+      )
+    }
+    // Client errors (4xx) — forward with original status
+    if (status >= 400 && status < 500) {
+      throwContextError(errorName, { code, message }, status)
+    }
+  }
+
+  // Fallback for non-APIError errors
   getLogger().warn({ err: error }, `${errorName}: ${code}`)
-  throwContextError(errorName, { code, message }, status)
+  throwContextError(errorName, { code, message: fallbackMessage }, 400)
 }
 
 // ── Change password ────────────────────────────────────────────────
@@ -51,7 +91,6 @@ export const changePasswordFn = createServerFn({ method: 'POST' })
             'AuthError',
             'password_change_failed',
             'Failed to change password. Please check your current password.',
-            400,
           )
         }
       },
@@ -88,7 +127,6 @@ export const updateProfileFn = createServerFn({ method: 'POST' })
             'AuthError',
             'profile_update_failed',
             'Failed to update profile.',
-            400,
           )
         }
       },
@@ -122,7 +160,6 @@ export const updateUserImageFn = createServerFn({ method: 'POST' })
             'AuthError',
             'avatar_update_failed',
             'Failed to update avatar.',
-            400,
           )
         }
       },
@@ -163,7 +200,6 @@ export const createOrganizationFn = createServerFn({ method: 'POST' })
             'IdentityError',
             'org_setup_failed',
             'Failed to create organization.',
-            409,
           )
         }
       },

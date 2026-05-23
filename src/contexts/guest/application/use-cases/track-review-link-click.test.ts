@@ -1,5 +1,6 @@
 import { trackReviewLinkClick } from './track-review-link-click'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { createMockLogger } from '#/shared/testing/mock-logger'
 import { organizationId, portalId, propertyId, portalLinkId } from '#/shared/domain/ids'
 
 describe('trackReviewLinkClick', () => {
@@ -8,6 +9,7 @@ describe('trackReviewLinkClick', () => {
     const useCase = trackReviewLinkClick({
       events: bus,
       clock: () => new Date('2026-05-01T12:00:00Z'),
+      logger: createMockLogger(),
     })
 
     await useCase({
@@ -33,6 +35,7 @@ describe('trackReviewLinkClick', () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       events: throwingBus as any,
       clock: () => new Date('2026-05-01T12:00:00Z'),
+      logger: createMockLogger(),
     })
 
     await expect(
