@@ -186,4 +186,36 @@ describe('onPortalDeleted', () => {
       'goal: failed to cancel on portal deleted',
     )
   })
+
+  it('continues cancelling remaining goals when one cancel fails', async () => {
+    const g1 = makeGoal({
+      id: goalId('g-fail'),
+      portalId: portalId('portal-1'),
+      status: 'active',
+    })
+    const g2 = makeGoal({
+      id: goalId('g-ok'),
+      portalId: portalId('portal-1'),
+      status: 'active',
+    })
+
+    const fakes = makeFakeDeps([g1, g2])
+    // First call fails, second succeeds
+    fakes.cancelGoalFn.mockResolvedValueOnce(
+      err({ tag: 'goal_not_active', status: 'completed' }),
+    )
+
+    const handler = onPortalDeleted(fakes.deps)
+    await handler(makeEvent())
+
+    // Both goals were attempted
+    expect(fakes.cancelGoalFn).toHaveBeenCalledTimes(2)
+    // Error was logged for the failed one
+    expect(fakes.logger.error).toHaveBeenCalledWith(
+      expect.objectContaining({ goalId: g1.id }),
+      'goal: failed to cancel on portal deleted',
+    )
+    // Second goal was still cancelled
+    expect(fakes.cancelledGoalIds).toContain('g-ok')
+  })
 })

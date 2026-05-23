@@ -22,6 +22,9 @@ import type { InboxItemId, OrganizationId, UserId } from '#/shared/domain/ids'
 import { reviewId, feedbackId } from '#/shared/domain/ids'
 import { inboxItemFromRow, inboxItemToInsertRow } from '../mappers/inbox.mapper'
 import { trace } from '#/shared/observability/trace'
+import { getLogger } from '#/shared/observability/logger'
+
+const log = getLogger().child({ component: 'inbox-repo' })
 
 type InboxItemRow = Parameters<typeof inboxItemFromRow>[0]
 
@@ -43,11 +46,17 @@ export const createInboxRepository = (
 ): InboxRepository => ({
   findById: async (id: InboxItemId, orgId: OrganizationId) => {
     return trace('inbox.findById', async () => {
+      const start = Date.now()
+      log.debug({ id: id as string, orgId: orgId as string }, 'querying inbox findById')
       const rows = await db
         .select()
         .from(inboxItems)
         .where(and(eq(inboxItems.id, id), eq(inboxItems.organizationId, orgId)))
         .limit(1)
+      log.debug(
+        { id: id as string, orgId: orgId as string, duration: Date.now() - start },
+        'inbox findById complete',
+      )
       return rows[0] ? withDefaults(rows[0]) : null
     })
   },
@@ -96,6 +105,8 @@ export const createInboxRepository = (
     limit: number = 50,
   ) => {
     return trace('inbox.findFilteredPaginated', async () => {
+      const start = Date.now()
+      log.debug({ orgId: orgId as string, limit }, 'querying inbox findFilteredPaginated')
       const conditions = [eq(inboxItems.organizationId, orgId)]
 
       if (filters.propertyId) {
@@ -173,6 +184,16 @@ export const createInboxRepository = (
 
       const nextCursor: Cursor | null =
         hasNext && lastItem ? { sourceDate: lastItem.sourceDate, id: lastItem.id } : null
+
+      log.debug(
+        {
+          orgId: orgId as string,
+          itemCount: items.length,
+          hasNext,
+          duration: Date.now() - start,
+        },
+        'inbox findFilteredPaginated complete',
+      )
 
       return { items, nextCursor } as PaginatedResult
     })
@@ -291,6 +312,11 @@ export const createInboxRepository = (
 
   findDetailById: async (id: InboxItemId, orgId: OrganizationId) => {
     return trace('inbox.findDetailById', async () => {
+      const start = Date.now()
+      log.debug(
+        { id: id as string, orgId: orgId as string },
+        'querying inbox findDetailById',
+      )
       const rows = await db
         .select()
         .from(inboxItems)
@@ -307,6 +333,15 @@ export const createInboxRepository = (
           reviewId(item.sourceId),
           orgId,
         )
+        log.debug(
+          {
+            id: id as string,
+            orgId: orgId as string,
+            sourceType: 'review',
+            duration: Date.now() - start,
+          },
+          'inbox findDetailById complete',
+        )
         return {
           item,
           reviewerName: snippet?.reviewerName ?? null,
@@ -321,6 +356,10 @@ export const createInboxRepository = (
       const snippet = await ports.feedbackLookup.getFeedbackSnippetById(
         feedbackId(item.sourceId),
         orgId,
+      )
+      log.debug(
+        { id: id as string, orgId: orgId as string, duration: Date.now() - start },
+        'inbox findDetailById complete',
       )
       return {
         item,

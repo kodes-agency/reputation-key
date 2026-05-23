@@ -104,10 +104,9 @@ export const createMetricRepository = (db: Database): MetricRepository => ({
       if (query.portalId) {
         conditions.push(eq(metricReadings.portalId, query.portalId))
       }
-      // TODO: staffId filter added in Phase 14.5 — uncomment after merge
-      // if (query.staffId) {
-      //   conditions.push(eq(metricReadings.staffId, query.staffId))
-      // }
+      if (query.staffId) {
+        conditions.push(eq(metricReadings.staffId, query.staffId))
+      }
       if (query.periodStart) {
         conditions.push(gte(metricReadings.recordedAt, query.periodStart))
       }

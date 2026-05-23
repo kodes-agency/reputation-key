@@ -339,6 +339,46 @@ describe('createGoal', () => {
     })
   })
 
+  // ── Permission guard ─────────────────────────────────────────────────
+  describe('permission guard', () => {
+    it('allows Staff to create a goal', async () => {
+      fakes.metricRepo._setAggregate({ sum: 0, count: 0, max: 0 })
+
+      const result = await createGoal(fakes.deps)({
+        ...BASE_INPUT,
+        goalType: 'open',
+        role: 'Staff',
+      })
+
+      expect(result.isOk()).toBe(true)
+      expect(fakes.goals).toHaveLength(1)
+    })
+
+    it('allows AccountAdmin to create a goal', async () => {
+      fakes.metricRepo._setAggregate({ sum: 0, count: 0, max: 0 })
+
+      const result = await createGoal(fakes.deps)({
+        ...BASE_INPUT,
+        goalType: 'open',
+        role: 'AccountAdmin',
+      })
+
+      expect(result.isOk()).toBe(true)
+    })
+
+    it('allows PropertyManager to create a goal', async () => {
+      fakes.metricRepo._setAggregate({ sum: 0, count: 0, max: 0 })
+
+      const result = await createGoal(fakes.deps)({
+        ...BASE_INPUT,
+        goalType: 'open',
+        role: 'PropertyManager',
+      })
+
+      expect(result.isOk()).toBe(true)
+    })
+  })
+
   // ── Error cases ──────────────────────────────────────────────────────
   describe('validation errors', () => {
     it('returns err for invalid metric/scope combination', async () => {

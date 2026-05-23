@@ -64,16 +64,6 @@ export type GoalProgress = Readonly<{
   computedSource: ComputedSource
 }>
 
-// ── Entity Scope Input ───────────────────────────────────────────────────
-// Used in create goal input to specify which entity the goal targets.
-
-export type GoalScopeInput = Readonly<{
-  propertyId: PropertyId
-  portalId: PortalId | null
-  teamId: TeamId | null
-  staffId: StaffId | null
-}>
-
 // ── Helpers ──────────────────────────────────────────────────────────────
 
 /**

@@ -46,10 +46,10 @@ Property-scoped goals with progress tracking driven by metric events.
 
 ## Events produced
 
-| Tag                     | Payload                                             | When                    |
-| ----------------------- | --------------------------------------------------- | ----------------------- |
-| `goal.completed`        | goalId, orgId, propertyId, scope IDs, target, value | Progress reaches target |
-| `goal.progress_updated` | goalId, orgId, metricKey, previous/current value    | Progress recomputed     |
+| Tag                     | Payload                                                                                                                                           | When                    |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
+| `goal.completed`        | goalId, orgId, propertyId, scope IDs, goalType, metricKey, aggregationFunction, targetValue, completedValue, completedAt, parentGoalId, createdBy | Progress reaches target |
+| `goal.progress_updated` | goalId, orgId, metricKey, previousValue, currentValue, computedSource, occurredAt                                                                 | Progress recomputed     |
 
 ## Events consumed
 
@@ -69,6 +69,7 @@ goal/
     ports/             goal.repository.ts
     dto/               goal.dto.ts (Zod schemas)
     use-cases/         create-goal.ts, update-goal.ts, cancel-goal.ts, list-goals.ts, get-goal.ts
+    public-api.ts      re-exports DTO types, port types, event types/constructors
   infrastructure/
     repositories/      goal.repository.ts (Drizzle)
     mappers/           goal.mapper.ts
@@ -76,14 +77,48 @@ goal/
     jobs/              spawn-recurring-instances.job.ts, reconcile-goal-progress.job.ts
   server/              goals.ts, staff-goals.ts
   ui/                  helpers.ts (pure UI helper functions)
+  build.ts             composition root
 ```
+
+## Use cases
+
+| Use case     | Input                                                                                                                                                                                                      | Output   | Permission    |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------------- |
+| `createGoal` | orgId, propertyId, portalId?, teamId?, staffId?, name, description?, goalType, aggregationFunction, metricKey, targetValue, periodStart?, periodEnd?, recurrenceRule?, rollingWindowDays?, createdBy, role | `Goal`   | `goal.create` |
+| `updateGoal` | goalId, orgId, targetValue?, recurrenceRule?, role                                                                                                                                                         | `Goal`   | `goal.update` |
+| `cancelGoal` | goalId, orgId, role                                                                                                                                                                                        | `Goal`   | `goal.cancel` |
+| `listGoals`  | orgId, propertyId, portalId?, teamId?, staffId?, status?, goalType?, role                                                                                                                                  | `Goal[]` | `goal.read`   |
+| `getGoal`    | goalId, orgId, role                                                                                                                                                                                        | `Goal`   | `goal.read`   |
+
+## Public API
+
+Exported from `application/public-api.ts`:
+
+- Types: `CreateGoalInput`, `UpdateGoalInput`, `CancelGoalInput`, `ListGoalsInput`, `GetGoalInput`, `Goal`, `GoalProgress`, `GoalType`, `GoalStatus`
+- Functions: `deriveEntityScope`
+- Port types: `GoalRepository`, `GoalListFilter`
+- Event types: `GoalCompleted`, `GoalProgressUpdated`, `GoalEvent`
+- Event constructors: `goalCompleted`, `goalProgressUpdated`
+
+## Server functions
+
+| Function         | Method | Permission    | Route                                     |
+| ---------------- | ------ | ------------- | ----------------------------------------- |
+| `createGoal`     | POST   | `goal.create` | Create a new goal                         |
+| `updateGoal`     | POST   | `goal.update` | Update an active goal                     |
+| `cancelGoal`     | POST   | `goal.cancel` | Cancel an active goal                     |
+| `listGoals`      | GET    | `goal.read`   | List goals with filters                   |
+| `getGoal`        | GET    | `goal.read`   | Get single goal detail                    |
+| `listStaffGoals` | GET    | `goal.read`   | List goals for authenticated staff (stub) |
 
 ## Permissions
 
-| Permission   | Roles                                | Use                                      |
-| ------------ | ------------------------------------ | ---------------------------------------- |
-| `goal.read`  | AccountAdmin, PropertyManager, Staff | List goals, get goal detail, staff goals |
-| `goal.write` | AccountAdmin, PropertyManager        | Create, update, cancel goals             |
+| Permission    | AccountAdmin | PropertyManager | Staff |
+| ------------- | ------------ | --------------- | ----- |
+| `goal.read`   | ✓            | ✓               | ✓     |
+| `goal.create` | ✓            | ✓               | ✓     |
+| `goal.update` | ✓            | ✓               | —     |
+| `goal.cancel` | ✓            | ✓               | —     |
 
 ## Background jobs
 

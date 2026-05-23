@@ -16,17 +16,26 @@ import {
   goalProgressToInsertRow,
 } from '../mappers/goal.mapper'
 import { trace } from '#/shared/observability/trace'
+import { getLogger } from '#/shared/observability/logger'
+
+const log = getLogger().child({ component: 'goal-repo' })
 
 export const createGoalRepository = (db: Database): GoalRepository => ({
   // ── Goal CRUD ──────────────────────────────────────────────────────────
 
   insert: async (goal) => {
     return trace('goal.insert', async () => {
+      const start = Date.now()
+      log.debug({ organizationId: goal.organizationId as string }, 'goal insert start')
       const row = goalToInsertRow(goal)
       const result = await db.insert(goals).values(row).returning()
       if (!result[0]) {
         throw new Error('Goal insert failed — no row returned')
       }
+      log.debug(
+        { goalId: result[0].id, duration: Date.now() - start },
+        'goal insert complete',
+      )
       return goalFromRow(result[0])
     })
   },
@@ -55,6 +64,8 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
 
   list: async (filter: GoalListFilter) => {
     return trace('goal.list', async () => {
+      const start = Date.now()
+      log.debug({ organizationId: filter.organizationId as string }, 'goal list start')
       const conditions = [eq(goals.organizationId, filter.organizationId)]
       if (filter.propertyId)
         conditions.push(eq(goals.propertyId, filter.propertyId as string))
@@ -68,6 +79,10 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
         .select()
         .from(goals)
         .where(and(...conditions))
+      log.debug(
+        { count: rows.length, duration: Date.now() - start },
+        'goal list complete',
+      )
       return rows.map(goalFromRow)
     })
   },
@@ -187,6 +202,11 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
 
   findActiveGoalsByMetric: async (metricKey, organizationId, propertyId, portalId) => {
     return trace('goal.findActiveGoalsByMetric', async () => {
+      const start = Date.now()
+      log.debug(
+        { metricKey, organizationId: organizationId as string },
+        'goal findActiveGoalsByMetric start',
+      )
       const conditions = [
         eq(goals.status, 'active'),
         eq(goals.metricKey, metricKey),
@@ -207,6 +227,10 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
         .select()
         .from(goals)
         .where(and(...conditions))
+      log.debug(
+        { metricKey, count: rows.length, duration: Date.now() - start },
+        'goal findActiveGoalsByMetric complete',
+      )
       return rows.map(goalFromRow)
     })
   },
