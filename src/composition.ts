@@ -202,6 +202,7 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     clock,
     jobQueue: infra.jobQueue,
     propertyLookup,
+    propertyApi: property.publicApi,
     logger: getLogger(),
   })
 

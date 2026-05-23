@@ -74,6 +74,33 @@ export const createInMemoryPropertyRepo = (): InMemoryPropertyRepo => {
       }
     },
 
+    insertAndReturn: async (orgId, property) => {
+      if (property.organizationId !== orgId) {
+        throw new Error('Tenant mismatch on property insert')
+      }
+      store.set(property.id, property)
+      return property
+    },
+
+    findExistingGbpPlaceIds: async (orgId, gbpPlaceIds) => {
+      if (gbpPlaceIds.length === 0) return []
+      const set = new Set(gbpPlaceIds)
+      return [...store.values()]
+        .filter(
+          (p) => isAccessible(orgId, p) && p.gbpPlaceId !== null && set.has(p.gbpPlaceId),
+        )
+        .map((p) => p.gbpPlaceId as string)
+    },
+
+    existsByGbpPlaceId: async (orgId, gbpPlaceId) => {
+      for (const property of store.values()) {
+        if (isAccessible(orgId, property) && property.gbpPlaceId === gbpPlaceId) {
+          return true
+        }
+      }
+      return false
+    },
+
     // ── Test-only helpers ───────────────────────────────────────────
 
     seed: (properties) => {

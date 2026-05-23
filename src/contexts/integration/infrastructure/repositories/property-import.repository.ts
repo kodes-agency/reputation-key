@@ -8,8 +8,10 @@ import type { PropertyImportRepo } from '../../application/ports/property-import
 import { duplicateKeyError } from '../../application/ports/property-import-repo.port'
 import type { PropertyPublicApi } from '#/contexts/property/application/public-api'
 import { isPropertyImportConflict } from '#/contexts/property/application/public-api'
-import type { OrganizationId, GoogleConnectionId } from '#/shared/domain/ids'
-import { organizationId as toOrgId, googleConnectionId as toConnId } from '#/shared/domain/ids'
+import {
+  organizationId as toOrgId,
+  googleConnectionId as toConnId,
+} from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 
 export const createPropertyImportRepository = (
@@ -44,19 +46,13 @@ export const createPropertyImportRepository = (
 
   findExistingGbpPlaceIds: async (organizationId, gbpPlaceIds) => {
     return trace('propertyImport.findExistingGbpPlaceIds', async () => {
-      return propertyApi.findExistingGbpPlaceIds(
-        toOrgId(organizationId),
-        gbpPlaceIds,
-      )
+      return propertyApi.findExistingGbpPlaceIds(toOrgId(organizationId), gbpPlaceIds)
     })
   },
 
   existsByGbpPlaceId: async (organizationId, gbpPlaceId) => {
     return trace('propertyImport.existsByGbpPlaceId', async () => {
-      return propertyApi.existsByGbpPlaceId(
-        toOrgId(organizationId),
-        gbpPlaceId,
-      )
+      return propertyApi.existsByGbpPlaceId(toOrgId(organizationId), gbpPlaceId)
     })
   },
 })

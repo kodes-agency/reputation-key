@@ -32,7 +32,12 @@ import { createGbpApiAdapter } from './infrastructure/adapters/gbp-api.adapter'
 import { createPropertyEventAdapter } from './infrastructure/adapters/property-event.adapter'
 import { getEnv } from '#/shared/config/env'
 import type { PropertyLookupPort } from './application/ports/property-lookup.port'
-import { gbpImportJobId, organizationId as toOrgId } from '#/shared/domain/ids'
+import {
+  gbpImportJobId,
+  organizationId as toOrgId,
+  propertyId as toPropertyId,
+  googleConnectionId as toConnectionId,
+} from '#/shared/domain/ids'
 import { randomUUID, createHash } from 'crypto'
 
 type IntegrationContextDeps = Readonly<{
@@ -54,8 +59,13 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
   }
 
   const propertyQuery: PropertyQueryPort = {
-    belongsToOrg: deps.propertyApi.propertyExists,
-    findIdsByGoogleConnection: deps.propertyApi.findIdsByGoogleConnection,
+    belongsToOrg: async (propertyId, orgId) =>
+      deps.propertyApi.propertyExists(toOrgId(orgId), toPropertyId(propertyId)),
+    findIdsByGoogleConnection: async (connectionId, orgId) =>
+      deps.propertyApi.findIdsByGoogleConnection(
+        toConnectionId(connectionId),
+        toOrgId(orgId),
+      ),
   }
 
   // ── Repositories ─────────────────────────────────────────────────

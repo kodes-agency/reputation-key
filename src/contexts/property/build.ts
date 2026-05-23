@@ -4,7 +4,8 @@
 
 import type { PropertyRepository } from './application/ports/property.repository'
 import type { PropertyPublicApi } from './application/public-api'
-import { propertyImportConflict, isPropertyImportConflict } from './application/public-api'
+import { propertyImportConflict } from './application/public-api'
+import type { Property } from './domain/types'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { OrganizationId, PropertyId, GoogleConnectionId } from '#/shared/domain/ids'
 import type { EventBus } from '#/shared/events/event-bus'
@@ -85,7 +86,7 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
       try {
         const id = idGen()
         const now = deps.clock()
-        const property: import('../../domain/types').Property = {
+        const property: Property = {
           id,
           organizationId: input.orgId,
           name: input.name,
@@ -108,7 +109,9 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
         }
       } catch (err) {
         const isPg23505 =
-          err instanceof Error && 'code' in err && (err as { code: string }).code === '23505'
+          err instanceof Error &&
+          'code' in err &&
+          (err as { code: string }).code === '23505'
         if (isPg23505) {
           throw propertyImportConflict(
             `Duplicate property for gbpPlaceId=${input.gbpPlaceId}`,

@@ -27,6 +27,11 @@ const setup = () => {
       findByGbpPlaceId: async () => null,
       findIdsByGoogleConnection: async () => [],
       clearGoogleConnectionRef: async () => {},
+      importProperty: async () => {
+        throw new Error('not implemented')
+      },
+      findExistingGbpPlaceIds: async () => [],
+      existsByGbpPlaceId: async () => false,
     },
     events,
     idGen: () => FIXED_ID,
