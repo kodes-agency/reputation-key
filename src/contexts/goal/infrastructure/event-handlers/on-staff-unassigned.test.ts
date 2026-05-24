@@ -227,4 +227,38 @@ describe('onStaffUnassigned', () => {
     // Second goal was still cancelled
     expect(fakes.cancelledGoalIds).toContain('g-ok')
   })
+
+  it('logs error and returns when repository throws', async () => {
+    const throwingRepo = {
+      ...makeFakeDeps().deps.goalRepo,
+      list: async () => {
+        throw new Error('DB down')
+      },
+    }
+    const handler = onStaffUnassigned({
+      ...makeFakeDeps().deps,
+      goalRepo: throwingRepo,
+    })
+
+    // Should NOT throw
+    await expect(handler(makeEvent())).resolves.toBeUndefined()
+  })
+
+  it('logs error when cancelGoalFn throws (not returns Err)', async () => {
+    const throwingCancel = async () => {
+      throw new Error('cancel exploded')
+    }
+    const g1 = makeGoal({
+      id: goalId('g-1'),
+      staffId: staffId('assignment-1'),
+      status: 'active',
+    })
+
+    const fakes = makeFakeDeps([g1])
+    const handler = onStaffUnassigned({ ...fakes.deps, cancelGoalFn: throwingCancel })
+
+    // Should NOT throw
+    await expect(handler(makeEvent())).resolves.toBeUndefined()
+    expect(fakes.logger.error).toHaveBeenCalled()
+  })
 })

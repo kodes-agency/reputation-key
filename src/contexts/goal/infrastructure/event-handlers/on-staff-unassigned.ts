@@ -26,28 +26,37 @@ export type OnStaffUnassignedDeps = Readonly<{
 export const onStaffUnassigned =
   (deps: OnStaffUnassignedDeps) =>
   async (event: StaffUnassigned): Promise<void> => {
-    // StaffUnassigned.assignmentId is StaffAssignmentId.
-    // In the goal context, staff-scoped goals use the assignment ID as the staff key.
-    // Map via staffId() constructor to preserve brand safety at the boundary.
-    const goals = await deps.goalRepo.list({
-      organizationId: event.organizationId,
-      staffId: staffId(event.assignmentId),
-      status: 'active',
-    })
-
-    for (const goal of goals) {
-      const result = await deps.cancelGoalFn({
-        goalId: goal.id,
+    try {
+      // StaffUnassigned.assignmentId is StaffAssignmentId.
+      // In the goal context, staff-scoped goals use the assignment ID as the staff key.
+      // Map via staffId() constructor to preserve brand safety at the boundary.
+      const goals = await deps.goalRepo.list({
         organizationId: event.organizationId,
-        role: 'AccountAdmin',
+        staffId: staffId(event.assignmentId),
+        status: 'active',
       })
-      if (result.isErr()) {
-        deps
-          .getLogger()
-          .error(
-            { err: result.error, goalId: goal.id },
-            'goal: failed to cancel on staff unassigned',
-          )
+
+      for (const goal of goals) {
+        const result = await deps.cancelGoalFn({
+          goalId: goal.id,
+          organizationId: event.organizationId,
+          role: 'AccountAdmin',
+        })
+        if (result.isErr()) {
+          deps
+            .getLogger()
+            .error(
+              { err: result.error, goalId: goal.id },
+              'goal: failed to cancel on staff unassigned',
+            )
+        }
       }
+    } catch (err) {
+      deps
+        .getLogger()
+        .error(
+          { err, assignmentId: event.assignmentId },
+          'goal: fatal error in onStaffUnassigned',
+        )
     }
   }

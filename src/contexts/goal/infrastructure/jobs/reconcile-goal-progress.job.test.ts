@@ -8,8 +8,8 @@ import type { Goal, GoalProgress, GoalStatus } from '../../domain/types'
 import type { GoalRepository } from '../../application/ports/goal.repository'
 import type {
   MetricReadingsAggregate,
-  MetricRepository,
-} from '#/contexts/metric/application/ports/metric.repository'
+  MetricPublicApi,
+} from '#/contexts/metric/application/public-api'
 import type { EventBus } from '#/shared/events/event-bus'
 import {
   organizationId,
@@ -134,12 +134,8 @@ function createFakeDeps() {
     },
   }
 
-  const metricRepo: MetricRepository = {
+  const metricApi: MetricPublicApi = {
     queryAggregate: async () => aggregateResponse,
-    insertReading: async () => {
-      throw new Error('not used')
-    },
-    findByOrganizationId: async () => [],
   }
 
   const events: EventBus = {
@@ -154,7 +150,7 @@ function createFakeDeps() {
 
   const deps: ReconcileGoalProgressDeps = {
     goalRepo,
-    metricApi: metricRepo,
+    metricApi: metricApi,
     events,
     clock: () => NOW,
   }

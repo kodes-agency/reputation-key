@@ -24,6 +24,10 @@ export type SpawnRecurringInstancesDeps = Readonly<{
   idGen: () => string
 }>
 
+// ── Constants ─────────────────────────────────────────────────────────────
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000
+
 // ── Handler factory ───────────────────────────────────────────────────────
 
 export const createSpawnRecurringInstancesHandler =
@@ -39,75 +43,112 @@ export const createSpawnRecurringInstancesHandler =
       )
 
       let spawned = 0
+      let failed = 0
 
       for (const template of recurringTemplates) {
-        const rule = template.recurrenceRule
-        if (!rule) continue
+        try {
+          const rule = template.recurrenceRule
+          if (!rule) continue
 
-        // Find latest instance for this template
-        const latest = await deps.goalRepo.findLatestInstance(template.id)
-        if (!latest?.periodEnd) continue
-
-        // Compute next period start based on calendar anchoring
-        const nextStart = computeNextPeriodStart(latest.periodEnd, rule.frequency)
-        const nextEnd = computePeriodEnd(nextStart, rule.frequency)
-
-        // Only spawn if next start is within 1 day of NOW()
-        const MS_PER_DAY = 24 * 60 * 60 * 1000
-        if (Math.abs(nextStart.getTime() - now.getTime()) > MS_PER_DAY) {
-          continue
-        }
-
-        // Build the instance via domain constructor
-        const instanceResult = buildGoal({
-          id: goalId(deps.idGen()),
-          organizationId: template.organizationId,
-          propertyId: template.propertyId,
-          portalId: template.portalId,
-          teamId: template.teamId,
-          staffId: template.staffId,
-          name: template.name,
-          description: template.description,
-          createdBy: template.createdBy,
-          goalType: 'recurring',
-          aggregationFunction: template.aggregationFunction,
-          metricKey: template.metricKey,
-          targetValue: template.targetValue,
-          periodStart: nextStart,
-          periodEnd: nextEnd,
-          recurrenceRule: template.recurrenceRule,
-          parentGoalId: template.id,
-          now,
-        })
-
-        if (instanceResult.isErr()) {
-          logger.warn(
-            { templateId: template.id as string, error: instanceResult.error },
-            'Failed to build recurring instance — skipping',
+          // Find latest instance for this template
+          const latest = await deps.goalRepo.findLatestInstance(
+            template.id,
+            template.organizationId,
           )
+
+          let nextStart: Date
+          if (latest?.periodEnd) {
+            nextStart = computeNextPeriodStart(latest.periodEnd, rule.frequency)
+          } else {
+            // New template — first instance starts from template creation date
+            nextStart = computeNextPeriodStart(template.createdAt, rule.frequency)
+          }
+
+          const nextEnd = computePeriodEnd(nextStart, rule.frequency)
+
+          // Only spawn if next start is within 1 day of NOW()
+          if (Math.abs(nextStart.getTime() - now.getTime()) > MS_PER_DAY) {
+            continue
+          }
+
+          // Build the instance via domain constructor
+          const instanceResult = buildGoal({
+            id: goalId(deps.idGen()),
+            organizationId: template.organizationId,
+            propertyId: template.propertyId,
+            portalId: template.portalId,
+            teamId: template.teamId,
+            staffId: template.staffId,
+            name: template.name,
+            description: template.description,
+            createdBy: template.createdBy,
+            goalType: 'recurring',
+            aggregationFunction: template.aggregationFunction,
+            metricKey: template.metricKey,
+            targetValue: template.targetValue,
+            periodStart: nextStart,
+            periodEnd: nextEnd,
+            recurrenceRule: template.recurrenceRule,
+            parentGoalId: template.id,
+            now,
+          })
+
+          if (instanceResult.isErr()) {
+            logger.warn(
+              { templateId: template.id as string, error: instanceResult.error },
+              'Failed to build recurring instance — skipping',
+            )
+            continue
+          }
+
+          const instance = instanceResult.value
+
+          // Guard against race condition: check if instance already exists for this period
+          // TODO: Replace with a unique DB constraint on (parentGoalId, periodStart) for correctness
+          const instances = await deps.goalRepo.listInstances(
+            template.id,
+            template.organizationId,
+          )
+          const duplicate = instances.some(
+            (inst) =>
+              inst.periodStart &&
+              Math.abs(inst.periodStart.getTime() - nextStart.getTime()) < 1000,
+          )
+          if (duplicate) {
+            logger.info(
+              { templateId: template.id },
+              'Instance already exists for this period — skipping',
+            )
+            continue
+          }
+
+          // Create initial progress
+          const progress: GoalProgress = {
+            id: goalProgressId(deps.idGen()),
+            goalId: instance.id,
+            currentValue: 0,
+            currentSum: null,
+            currentCount: null,
+            lastComputedAt: now,
+            computedSource: 'event_increment',
+          }
+
+          await deps.goalRepo.createGoalAndProgress(instance, progress)
+          spawned++
+        } catch (err) {
+          logger.error(
+            { err, templateId: template.id },
+            'goal: error spawning recurring instance — skipping',
+          )
+          failed++
           continue
         }
-
-        const instance = instanceResult.value
-
-        // Create initial progress
-        const progress: GoalProgress = {
-          id: goalProgressId(deps.idGen()),
-          goalId: instance.id,
-          currentValue: 0,
-          currentSum: null,
-          currentCount: null,
-          lastComputedAt: now,
-          computedSource: 'reconciliation',
-        }
-
-        await deps.goalRepo.createGoalAndProgress(instance, progress)
-        spawned++
       }
 
       const summary: SpawnSummary = {
         templatesChecked: recurringTemplates.length,
         spawned,
+        failed,
       }
 
       logger.info(summary, 'Spawned recurring instances')
@@ -120,6 +161,7 @@ export const createSpawnRecurringInstancesHandler =
 export type SpawnSummary = Readonly<{
   templatesChecked: number
   spawned: number
+  failed: number
 }>
 
 // ── Calendar period helpers ───────────────────────────────────────────────

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import type { GoalProgressId } from '#/shared/domain/ids'
 import { onMetricRecorded, type OnMetricRecordedDeps } from './on-metric-recorded'
 import type { MetricRecorded } from '#/contexts/metric/application/public-api'
@@ -112,7 +112,7 @@ function makeFakeDeps() {
       }
     },
 
-    markGoalCompleted: async (goalId, completedAt) => {
+    markGoalCompleted: async (goalId, _orgId, completedAt) => {
       const idx = goals.findIndex((g) => g.id === goalId)
       if (idx >= 0) {
         const g = goals[idx]!
@@ -121,7 +121,7 @@ function makeFakeDeps() {
     },
     findAllActive: async () => [],
     findActiveRecurringTemplates: async () => [],
-    findLatestInstance: async () => null,
+    findLatestInstance: async (_parentId, _orgId) => null,
     createGoalAndProgress: async () => {},
   }
 
@@ -133,23 +133,27 @@ function makeFakeDeps() {
     clear: vi.fn(),
   }
 
+  const logger = {
+    info: vi.fn(),
+    error: vi.fn(),
+    warn: vi.fn(),
+    debug: vi.fn(),
+    child: vi.fn(() => ({
+      info: vi.fn(),
+      error: vi.fn(),
+      warn: vi.fn(),
+      debug: vi.fn(),
+    })),
+  }
+
   const deps: OnMetricRecordedDeps = {
     goalRepo,
     eventBus,
     clock: () => FIXED_TIME,
     getLogger: () =>
-      ({
-        info: vi.fn(),
-        error: vi.fn(),
-        warn: vi.fn(),
-        debug: vi.fn(),
-        child: vi.fn(() => ({
-          info: vi.fn(),
-          error: vi.fn(),
-          warn: vi.fn(),
-          debug: vi.fn(),
-        })),
-      }) as OnMetricRecordedDeps,
+      logger as unknown as OnMetricRecordedDeps['getLogger'] extends () => infer R
+        ? R
+        : never,
   }
 
   function addGoalWithProgress(
@@ -174,7 +178,7 @@ function makeFakeDeps() {
     return { goal, progress }
   }
 
-  return { deps, emittedEvents, goals, progresses, addGoalWithProgress }
+  return { deps, emittedEvents, goals, progresses, addGoalWithProgress, logger }
 }
 
 function makeEvent(overrides: Partial<MetricRecorded> = {}): MetricRecorded {
@@ -574,6 +578,41 @@ describe('onMetricRecorded', () => {
       await handler(makeEvent({ portalId: null, metricKey: 'portal.scan' }))
 
       expect(fakes.emittedEvents).toHaveLength(0)
+    })
+  })
+
+  // ── Outer query error ──────────────────────────────────────────────
+
+  describe('outer query error handling', () => {
+    it('logs error and returns when findActiveGoalsByMetric throws', async () => {
+      const throwingRepo = {
+        ...fakes.deps.goalRepo,
+        findActiveGoalsByMetric: async () => {
+          throw new Error('DB down')
+        },
+      }
+      const logger = {
+        error: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        debug: vi.fn(),
+      }
+      const handlerWithThrowingRepo = onMetricRecorded({
+        ...fakes.deps,
+        goalRepo: throwingRepo,
+        getLogger: () =>
+          logger as unknown as OnMetricRecordedDeps['getLogger'] extends () => infer R
+            ? R
+            : never,
+      })
+
+      // Should NOT throw
+      await expect(handlerWithThrowingRepo(makeEvent())).resolves.toBeUndefined()
+
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.objectContaining({ err: expect.any(Error) }),
+        expect.stringContaining('fatal error querying goals'),
+      )
     })
   })
 })

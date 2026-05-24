@@ -25,25 +25,31 @@ export type OnTeamDeletedDeps = Readonly<{
 export const onTeamDeleted =
   (deps: OnTeamDeletedDeps) =>
   async (event: TeamDeleted): Promise<void> => {
-    const goals = await deps.goalRepo.list({
-      organizationId: event.organizationId,
-      teamId: event.teamId,
-      status: 'active',
-    })
-
-    for (const goal of goals) {
-      const result = await deps.cancelGoalFn({
-        goalId: goal.id,
+    try {
+      const goals = await deps.goalRepo.list({
         organizationId: event.organizationId,
-        role: 'AccountAdmin',
+        teamId: event.teamId,
+        status: 'active',
       })
-      if (result.isErr()) {
-        deps
-          .getLogger()
-          .error(
-            { err: result.error, goalId: goal.id },
-            'goal: failed to cancel on team deleted',
-          )
+
+      for (const goal of goals) {
+        const result = await deps.cancelGoalFn({
+          goalId: goal.id,
+          organizationId: event.organizationId,
+          role: 'AccountAdmin',
+        })
+        if (result.isErr()) {
+          deps
+            .getLogger()
+            .error(
+              { err: result.error, goalId: goal.id },
+              'goal: failed to cancel on team deleted',
+            )
+        }
       }
+    } catch (err) {
+      deps
+        .getLogger()
+        .error({ err, teamId: event.teamId }, 'goal: fatal error in onTeamDeleted')
     }
   }

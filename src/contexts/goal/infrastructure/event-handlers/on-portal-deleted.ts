@@ -25,25 +25,31 @@ export type OnPortalDeletedDeps = Readonly<{
 export const onPortalDeleted =
   (deps: OnPortalDeletedDeps) =>
   async (event: PortalDeleted): Promise<void> => {
-    const goals = await deps.goalRepo.list({
-      organizationId: event.organizationId,
-      portalId: event.portalId,
-      status: 'active',
-    })
-
-    for (const goal of goals) {
-      const result = await deps.cancelGoalFn({
-        goalId: goal.id,
+    try {
+      const goals = await deps.goalRepo.list({
         organizationId: event.organizationId,
-        role: 'AccountAdmin',
+        portalId: event.portalId,
+        status: 'active',
       })
-      if (result.isErr()) {
-        deps
-          .getLogger()
-          .error(
-            { err: result.error, goalId: goal.id },
-            'goal: failed to cancel on portal deleted',
-          )
+
+      for (const goal of goals) {
+        const result = await deps.cancelGoalFn({
+          goalId: goal.id,
+          organizationId: event.organizationId,
+          role: 'AccountAdmin',
+        })
+        if (result.isErr()) {
+          deps
+            .getLogger()
+            .error(
+              { err: result.error, goalId: goal.id },
+              'goal: failed to cancel on portal deleted',
+            )
+        }
       }
+    } catch (err) {
+      deps
+        .getLogger()
+        .error({ err, portalId: event.portalId }, 'goal: fatal error in onPortalDeleted')
     }
   }

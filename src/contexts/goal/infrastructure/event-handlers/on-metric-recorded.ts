@@ -25,12 +25,23 @@ export function onMetricRecorded(deps: OnMetricRecordedDeps) {
     return trace('event.onMetricRecorded', async () => {
       const { goalRepo, eventBus, clock } = deps
 
-      const affectedGoals = await goalRepo.findActiveGoalsByMetric(
-        event.metricKey,
-        event.organizationId,
-        event.propertyId,
-        event.portalId,
-      )
+      let affectedGoals
+      try {
+        affectedGoals = await goalRepo.findActiveGoalsByMetric(
+          event.metricKey,
+          event.organizationId,
+          event.propertyId,
+          event.portalId,
+        )
+      } catch (err) {
+        deps
+          .getLogger()
+          .error(
+            { err, metricKey: event.metricKey },
+            'goal: fatal error querying goals in onMetricRecorded',
+          )
+        return
+      }
 
       // No matching goals — nothing to do
       if (affectedGoals.length === 0) return
@@ -64,7 +75,7 @@ export function onMetricRecorded(deps: OnMetricRecordedDeps) {
 
           // Check completion
           if (result.currentValue >= goal.targetValue && shouldEmitCompleted(goal)) {
-            await goalRepo.markGoalCompleted(goal.id, now)
+            await goalRepo.markGoalCompleted(goal.id, goal.organizationId, now)
 
             await eventBus.emit({
               _tag: 'goal.completed',

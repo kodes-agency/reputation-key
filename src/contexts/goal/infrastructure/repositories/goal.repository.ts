@@ -127,6 +127,7 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
     })
   },
 
+  // Safe: goalId is a globally unique UUID — no cross-tenant risk
   getProgress: async (goalId) => {
     return trace('goal.getProgress', async () => {
       const rows = await db
@@ -138,6 +139,7 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
     })
   },
 
+  // Safe: goalId is a globally unique UUID — no cross-tenant risk
   updateProgress: async (goalId, data) => {
     return trace('goal.updateProgress', async () => {
       const result = await db
@@ -175,12 +177,12 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
     })
   },
 
-  findLatestInstance: async (parentGoalId) => {
+  findLatestInstance: async (parentGoalId, orgId) => {
     return trace('goal.findLatestInstance', async () => {
       const rows = await db
         .select()
         .from(goals)
-        .where(eq(goals.parentGoalId, parentGoalId))
+        .where(and(eq(goals.parentGoalId, parentGoalId), eq(goals.organizationId, orgId)))
         .orderBy(desc(goals.periodEnd))
         .limit(1)
       return rows[0] ? goalFromRow(rows[0]) : null
@@ -288,9 +290,9 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
         const result = await db
           .update(goalProgress)
           .set({
-            currentSum: sql`${goalProgress.currentSum} + ${delta}`,
-            currentCount: sql`${goalProgress.currentCount} + 1`,
-            currentValue: sql`(${goalProgress.currentSum} + ${delta}) / (${goalProgress.currentCount} + 1)`,
+            currentSum: sql`COALESCE(${goalProgress.currentSum}, 0) + ${delta}`,
+            currentCount: sql`COALESCE(${goalProgress.currentCount}, 0) + 1`,
+            currentValue: sql`(COALESCE(${goalProgress.currentSum}, 0) + ${delta}) / (COALESCE(${goalProgress.currentCount}, 0) + 1)`,
           })
           .where(eq(goalProgress.goalId, goalId))
           .returning({
@@ -312,12 +314,12 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
     })
   },
 
-  markGoalCompleted: async (goalId, completedAt) => {
+  markGoalCompleted: async (goalId, orgId, completedAt) => {
     return trace('goal.markGoalCompleted', async () => {
       await db
         .update(goals)
         .set({ status: 'completed', completedAt, updatedAt: completedAt })
-        .where(eq(goals.id, goalId))
+        .where(and(eq(goals.id, goalId), eq(goals.organizationId, orgId)))
     })
   },
 })
