@@ -5,10 +5,14 @@ import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import { listGoals } from '#/contexts/goal/server/goals'
 import { GoalsListPage } from '#/components/features/property/goals/goals-list-page'
+import {
+  goalStatusSchema,
+  goalTypeSchema,
+} from '#/contexts/goal/application/dto/goal.dto'
 
 const goalsSearchSchema = z.object({
-  status: z.enum(['active', 'completed', 'expired', 'cancelled']).optional(),
-  goalType: z.enum(['open', 'one_shot', 'rolling', 'recurring']).optional(),
+  status: goalStatusSchema.optional(),
+  goalType: goalTypeSchema.optional(),
 })
 
 type GoalSearchParams = z.infer<typeof goalsSearchSchema>

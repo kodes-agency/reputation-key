@@ -46,7 +46,8 @@ export const listGoals =
       return err({ tag: 'forbidden' })
     }
 
-    const goals = await deps.goalRepo.list(input)
+    const { role: _role, ...filter } = input
+    const goals = await deps.goalRepo.list(filter)
 
     const results: GoalWithProgress[] = []
 

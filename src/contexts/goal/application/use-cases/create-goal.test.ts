@@ -91,7 +91,10 @@ function createFakeDeps() {
     findAllActive: async () => [],
     findActiveRecurringTemplates: async () => [],
     findLatestInstance: async () => null,
-    createGoalAndProgress: async () => {},
+    createGoalAndProgress: async (goal, progress) => {
+      goals.push(goal)
+      progresses.push(progress)
+    },
   }
 
   let aggregateResponse: MetricReadingsAggregate = { sum: 0, count: 0, max: 0 }

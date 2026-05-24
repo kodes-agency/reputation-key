@@ -4,7 +4,8 @@ import { describe, it, expect } from 'vitest'
 // Since the module only re-exports types and a few runtime values,
 // we verify the runtime exports are callable/exist at import time.
 
-import { goalCompleted, goalProgressUpdated, deriveEntityScope } from './public-api'
+import { goalCompleted, goalProgressUpdated } from '../domain/events'
+import { deriveEntityScope } from './public-api'
 import { goalId, organizationId, propertyId, userId } from '#/shared/domain/ids'
 
 describe('GoalPublicApi', () => {

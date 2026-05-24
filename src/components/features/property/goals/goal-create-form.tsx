@@ -88,15 +88,35 @@ export function GoalCreateForm({ propertyId, mutation }: Props) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    const errs: Record<string, string> = {}
-    const parsed = createGoalSchema.safeParse({
+
+    const input = {
       propertyId,
       name: s.name.trim(),
+      description: s.description.trim() || undefined,
       goalType: s.goalType,
       aggregationFunction: s.aggregation,
       metricKey: s.metricKey || undefined,
       targetValue: s.targetValue ? Number(s.targetValue) : undefined,
-    })
+      periodStart: s.periodStart || undefined,
+      periodEnd: s.periodEnd || undefined,
+      recurrenceRule:
+        s.goalType === 'recurring' ? { frequency: s.recurrenceFrequency } : undefined,
+      rollingWindowDays: s.rollingWindowDays ? Number(s.rollingWindowDays) : undefined,
+      ...(s.entityScope === 'portal' ? { portalId: s.entityId || undefined } : {}),
+      ...(s.entityScope === 'team'
+        ? { portalId: s.entityId || undefined, teamId: s.entityId || undefined }
+        : {}),
+      ...(s.entityScope === 'staff'
+        ? {
+            portalId: s.entityId || undefined,
+            teamId: s.entityId || undefined,
+            staffId: s.entityId || undefined,
+          }
+        : {}),
+    }
+
+    const errs: Record<string, string> = {}
+    const parsed = createGoalSchema.safeParse(input)
     if (!parsed.success) {
       for (const issue of parsed.error.issues) {
         const key = String(issue.path[0] ?? 'form')
@@ -107,29 +127,8 @@ export function GoalCreateForm({ propertyId, mutation }: Props) {
     }
     setS((prev) => ({ ...prev, errors: {} }))
 
-    const input: CreateGoalInput = {
-      propertyId,
-      name: s.name.trim(),
-      goalType: s.goalType,
-      aggregationFunction: s.aggregation,
-      metricKey: s.metricKey as MetricKey,
-      targetValue: Number(s.targetValue),
-    }
-    if (s.entityScope === 'portal') input.portalId = s.entityId || undefined
-    else if (s.entityScope === 'team') input.teamId = s.entityId || undefined
-    else if (s.entityScope === 'staff') input.staffId = s.entityId || undefined
-    if (s.description.trim()) input.description = s.description.trim()
-    if ((s.goalType === 'one_shot' || s.goalType === 'recurring') && s.periodStart)
-      input.periodStart = s.periodStart
-    if ((s.goalType === 'one_shot' || s.goalType === 'recurring') && s.periodEnd)
-      input.periodEnd = s.periodEnd
-    if (s.goalType === 'rolling' && s.rollingWindowDays)
-      input.rollingWindowDays = Number(s.rollingWindowDays)
-    if (s.goalType === 'recurring')
-      input.recurrenceRule = { frequency: s.recurrenceFrequency }
-
     try {
-      await mutation({ data: input })
+      await mutation({ data: parsed.data })
       setS(initial)
     } catch {
       // mutation hook handles error display

@@ -10,8 +10,8 @@ import {
 
 // ── Enums ────────────────────────────────────────────────────────────────
 
-const goalTypeSchema = z.enum(['open', 'one_shot', 'rolling', 'recurring'])
-const goalStatusSchema = z.enum(['active', 'completed', 'expired', 'cancelled'])
+export const goalTypeSchema = z.enum(['open', 'one_shot', 'rolling', 'recurring'])
+export const goalStatusSchema = z.enum(['active', 'completed', 'expired', 'cancelled'])
 const recurrenceFrequencySchema = z.enum(['weekly', 'monthly', 'quarterly'])
 
 // z.enum() requires [string, ...string[]] — spread from const arrays satisfies this.
@@ -39,7 +39,10 @@ export const createGoalSchema = z.object({
   goalType: goalTypeSchema,
   aggregationFunction: z.enum(aggregationFunctionValues),
   metricKey: z.enum(metricKeyValues),
-  targetValue: z.number().positive('Target value must be positive'),
+  targetValue: z
+    .number()
+    .positive('Target value must be positive')
+    .refine((v) => Number.isFinite(v), { message: 'Target value must be finite' }),
   periodStart: z.string().datetime({ local: true }).optional(),
   periodEnd: z.string().datetime({ local: true }).optional(),
   recurrenceRule: z
@@ -58,15 +61,23 @@ export type CreateGoalInput = z.infer<typeof createGoalSchema>
 
 // ── updateGoal ───────────────────────────────────────────────────────────
 
-export const updateGoalSchema = z.object({
-  goalId: z.string().min(1, 'Goal ID is required'),
-  targetValue: z.number().positive('Target value must be positive').optional(),
-  recurrenceRule: z
-    .object({
-      frequency: recurrenceFrequencySchema,
-    })
-    .optional(),
-})
+export const updateGoalSchema = z
+  .object({
+    goalId: z.string().min(1, 'Goal ID is required'),
+    targetValue: z
+      .number()
+      .positive('Target value must be positive')
+      .refine((v) => Number.isFinite(v), { message: 'Target value must be finite' })
+      .optional(),
+    recurrenceRule: z
+      .object({
+        frequency: recurrenceFrequencySchema,
+      })
+      .optional(),
+  })
+  .refine((d) => d.targetValue !== undefined || d.recurrenceRule !== undefined, {
+    message: 'At least one of targetValue or recurrenceRule is required',
+  })
 
 export type UpdateGoalInput = z.infer<typeof updateGoalSchema>
 

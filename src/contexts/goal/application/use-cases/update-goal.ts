@@ -56,13 +56,20 @@ export const updateGoal =
     }
 
     // 3. Validate targetValue if provided
-    if (input.targetValue !== undefined && input.targetValue <= 0) {
+    if (
+      input.targetValue !== undefined &&
+      (!Number.isFinite(input.targetValue) || input.targetValue <= 0)
+    ) {
       return err({ tag: 'invalid_target_value' })
     }
 
     // 4. Build update data
     const now = deps.clock()
-    const updates: Record<string, unknown> = {
+    const updates: {
+      updatedAt: Date
+      targetValue?: number
+      recurrenceRule?: RecurrenceRule | null
+    } = {
       updatedAt: now,
     }
 
@@ -71,8 +78,8 @@ export const updateGoal =
     }
 
     if (input.recurrenceRule !== undefined) {
-      // Only recurring templates can have recurrenceRule updated
-      if (goal.goalType !== 'recurring') {
+      // Only recurring templates (not instances) can have recurrenceRule updated
+      if (goal.goalType !== 'recurring' || goal.parentGoalId !== null) {
         return err({ tag: 'recurrence_rule_not_allowed' })
       }
       updates.recurrenceRule = input.recurrenceRule
@@ -82,7 +89,7 @@ export const updateGoal =
     const updated = await deps.goalRepo.update(
       input.goalId,
       input.organizationId,
-      updates as Parameters<typeof deps.goalRepo.update>[2],
+      updates,
     )
 
     // Repo returns null if not found (shouldn't happen since we just checked)

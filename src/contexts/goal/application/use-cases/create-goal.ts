@@ -23,6 +23,7 @@ import type {
   StaffId,
   GoalId,
   UserId,
+  GoalProgressId,
 } from '#/shared/domain/ids'
 import type { MetricKey, AggregationFunction } from '#/shared/domain/metric-keys'
 import type { Role } from '#/shared/domain/roles'
@@ -121,15 +122,12 @@ export const createGoal =
 
     const goal = buildResult.value
 
-    // 2. Persist the goal
-    const inserted = await deps.goalRepo.insert(goal)
-
-    // 3. For recurring goals, also create the first instance
+    // 2. Persist the goal + initial progress atomically
     if (goal.goalType === 'recurring') {
-      return handleRecurringGoal(deps, inserted, now)
+      return handleRecurringGoal(deps, goal, now)
     }
 
-    // 4. Compute initial progress
+    // 3. Compute initial progress
     const metricQueryResult = buildMetricQuery(goal)
     if (metricQueryResult.isErr()) {
       return err(metricQueryResult.error)
@@ -138,16 +136,19 @@ export const createGoal =
     const aggregate = await deps.metricRepo.queryAggregate(progressQuery)
     const progressValue = computeValue(goal.aggregationFunction, aggregate)
 
-    const progress = await deps.goalRepo.insertProgress({
-      goalId: inserted.id,
+    const progress: GoalProgress = {
+      id: deps.idGen() as unknown as GoalProgressId,
+      goalId: goal.id,
       currentValue: progressValue,
       currentSum: goal.aggregationFunction === 'avg' ? aggregate.sum : null,
       currentCount: goal.aggregationFunction === 'avg' ? aggregate.count : null,
       lastComputedAt: now,
       computedSource: 'reconciliation' as ComputedSource,
-    })
+    }
 
-    return ok({ goal: inserted, progress })
+    await deps.goalRepo.createGoalAndProgress(goal, progress)
+
+    return ok({ goal, progress })
   }
 
 // ── Recurring helper ────────────────────────────────────────────────────
@@ -157,6 +158,9 @@ async function handleRecurringGoal(
   template: Goal,
   now: Date,
 ): Promise<Result<CreateGoalOutput, CreateGoalError>> {
+  // Persist the template first (instance references it via parentGoalId)
+  await deps.goalRepo.insert(template)
+
   const rule = template.recurrenceRule!
   const period = computeCalendarPeriod(now, rule.frequency)
   const instanceId = deps.idGen() as GoalId
@@ -192,10 +196,7 @@ async function handleRecurringGoal(
 
   const instance = instanceResult.value
 
-  // Persist the instance
-  const insertedInstance = await deps.goalRepo.insert(instance)
-
-  // Compute progress for the instance
+  // Persist the instance + progress atomically
   const progressQueryResult = buildProgressQueryForInstance(
     template,
     period.start,
@@ -209,14 +210,21 @@ async function handleRecurringGoal(
   const aggregate = await deps.metricRepo.queryAggregate(metricQuery)
   const progressValue = computeValue(template.aggregationFunction, aggregate)
 
-  const progress = await deps.goalRepo.insertProgress({
-    goalId: insertedInstance.id,
+  const progress: GoalProgress = {
+    id: deps.idGen() as unknown as GoalProgressId,
+    goalId: instance.id,
     currentValue: progressValue,
     currentSum: template.aggregationFunction === 'avg' ? aggregate.sum : null,
     currentCount: template.aggregationFunction === 'avg' ? aggregate.count : null,
     lastComputedAt: now,
     computedSource: 'reconciliation' as ComputedSource,
-  })
+  }
+
+  await deps.goalRepo.createGoalAndProgress(instance, progress)
+
+  // TODO: The template goal itself also needs to be persisted atomically with
+  // the instance. Currently the template is inserted separately in the caller.
+  // A transactional wrapper or a combined port method would be needed.
 
   return ok({ goal: template, progress })
 }

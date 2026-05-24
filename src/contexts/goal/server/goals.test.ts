@@ -122,9 +122,9 @@ describe('createGoalSchema', () => {
 // ── updateGoalSchema ──────────────────────────────────────────────────
 
 describe('updateGoalSchema', () => {
-  it('parses valid input with goalId only', () => {
+  it('rejects input with goalId only (no fields to update)', () => {
     const result = updateGoalSchema.safeParse({ goalId: 'goal-1' })
-    expect(result.success).toBe(true)
+    expect(result.success).toBe(false)
   })
 
   it('parses valid input with targetValue', () => {
