@@ -4,18 +4,23 @@
 
 import type { ReviewStatsPort } from './application/ports/review-stats.port'
 import type { MetricStatsPort } from './application/ports/metric-stats.port'
+import type { PortalMetricsPort } from './application/ports/portal-metrics.port'
 import { createDashboardRepository } from './infrastructure/repositories/dashboard.repository'
 import { getDashboardData } from './application/use-cases/get-dashboard-data'
+import { getPortalAnalytics } from './application/use-cases/get-portal-analytics'
 
 export type DashboardContextBuildInput = Readonly<{
   reviewStats: ReviewStatsPort
   metricStats: MetricStatsPort
+  portalMetrics: PortalMetricsPort
 }>
 
 export type DashboardContextApi = Readonly<{
   getDashboardData: ReturnType<typeof getDashboardData>
+  getPortalAnalytics: ReturnType<typeof getPortalAnalytics>
   publicApi: Readonly<{
     getDashboardData: ReturnType<typeof getDashboardData>
+    getPortalAnalytics: ReturnType<typeof getPortalAnalytics>
   }>
 }>
 
@@ -28,10 +33,17 @@ export const buildDashboardContext = (
     repo: dashboardRepo,
   })
 
+  const getPortal = getPortalAnalytics({
+    repo: dashboardRepo,
+    portalMetrics: input.portalMetrics,
+  })
+
   return {
     getDashboardData: getDashboard,
+    getPortalAnalytics: getPortal,
     publicApi: {
       getDashboardData: getDashboard,
+      getPortalAnalytics: getPortal,
     },
   }
 }

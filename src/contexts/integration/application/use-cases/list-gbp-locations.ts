@@ -7,6 +7,7 @@ import type { TokenEncryptionPort } from '../ports/token-encryption.port'
 import type { GoogleConnection, GbpLocation } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { ListLocationsInput } from '../dto/list-locations.dto'
+import type { PropertyPublicApi } from '#/contexts/property/application/public-api'
 import { can } from '#/shared/domain/permissions'
 import { googleConnectionId, type OrganizationId } from '#/shared/domain/ids'
 import { integrationError } from '../../domain/errors'
@@ -24,6 +25,7 @@ export type ListGbpLocationsDeps = Readonly<{
     connectionId: string,
   ) => Promise<GoogleConnection>
   logger: LoggerPort
+  propertyApi: PropertyPublicApi
 }>
 
 export const listGbpLocations =
@@ -128,7 +130,14 @@ export const listGbpLocations =
       }
     }
 
-    return locations
+    // 6. Filter out already-imported locations
+    const gbpPlaceIds = locations.map((l) => l.gbpPlaceId)
+    const existingIds = new Set(
+      await deps.propertyApi.findExistingGbpPlaceIds(ctx.organizationId, gbpPlaceIds),
+    )
+    const unimported = locations.filter((l) => !existingIds.has(l.gbpPlaceId))
+
+    return unimported
   }
 
 export type ListGbpLocations = ReturnType<typeof listGbpLocations>

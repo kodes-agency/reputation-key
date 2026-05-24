@@ -36,5 +36,7 @@ export default defineConfig({
     'inbox_notes',
     'metric_definitions',
     'metric_readings',
+    'goals',
+    'goal_progress',
   ],
 })

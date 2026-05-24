@@ -12,6 +12,7 @@ import {
   jsonb,
   timestamp,
   index,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core'
 import { createdAtColumn, updatedAtColumn } from '../columns'
 import { properties } from './property.schema'
@@ -71,5 +72,5 @@ export const goalProgress = pgTable(
     lastComputedAt: timestamp('last_computed_at', { withTimezone: true }).notNull(),
     computedSource: varchar('computed_source', { length: 20 }).notNull(),
   },
-  (t) => [index('goal_progress_goal_idx').on(t.goalId)],
+  (t) => [uniqueIndex('goal_progress_goal_uniq').on(t.goalId)],
 )

@@ -44,6 +44,11 @@ type Props = Readonly<{
 
 export function CreatePortalForm({ propertyId, mutation, onPreviewChange }: Props) {
   const previousNameRef = useRef<string>('')
+  const previousPreviewRef = useRef<PreviewState>({
+    name: '',
+    description: '',
+    primaryColor: '#6366f1',
+  })
 
   const form = useForm({
     defaultValues: {
@@ -70,23 +75,37 @@ export function CreatePortalForm({ propertyId, mutation, onPreviewChange }: Prop
   return (
     <>
       {/*
-        Subscribe to form values reactively.
-        Replaces the old dep-less useEffect that ran every render.
-        Uses TanStack Form's Subscribe component with selector.
+        Renderless subscribe: reads form values and fires side effects
+        (preview update, slug auto-generation) only when values actually change.
+        Returns null — no DOM output.
       */}
       <form.Subscribe
         selector={(state) => ({
           name: state.values.name,
           description: state.values.description,
           primaryColor: state.values.primaryColor,
+          slug: state.values.slug,
         })}
         children={(values) => {
-          onPreviewChange?.(values)
+          // Only call onPreviewChange when preview values actually changed
+          const prev = previousPreviewRef.current
+          if (
+            values.name !== prev.name ||
+            values.description !== prev.description ||
+            values.primaryColor !== prev.primaryColor
+          ) {
+            const next = {
+              name: values.name,
+              description: values.description,
+              primaryColor: values.primaryColor,
+            }
+            previousPreviewRef.current = next
+            onPreviewChange?.(next)
+          }
 
           // Auto-generate slug from name when name changes
           if (values.name && values.name !== previousNameRef.current) {
-            const currentSlug = form.getFieldValue('slug') as string
-            if (!currentSlug) {
+            if (!values.slug) {
               const generated = values.name
                 .toLowerCase()
                 .replace(/[^a-z0-9]+/g, '-')

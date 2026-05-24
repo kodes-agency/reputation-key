@@ -36,6 +36,7 @@ function useActiveSection(): string {
       if (m[1] === 'portals') return 'portals'
       if (m[1] === 'reviews') return 'reviews'
       if (m[1] === 'people') return 'people'
+      if (m[1] === 'goals') return 'goals'
       return 'dashboard'
     },
   })

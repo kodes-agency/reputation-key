@@ -4,6 +4,8 @@ import { usePermissions } from '#/shared/hooks/usePermissions'
 import { Button } from '#/components/ui/button'
 import { Badge } from '#/components/ui/badge'
 import { EmptyState } from '#/components/ui/empty-state'
+import { CopyButton } from '#/components/ui/copy-button'
+import { PageShell } from '#/components/layout/page-shell'
 import {
   Table,
   TableBody,
@@ -13,7 +15,6 @@ import {
   TableRow,
 } from '#/components/ui/table'
 import { Plus, Globe, Eye } from 'lucide-react'
-import { CopyButton } from '#/components/ui/copy-button'
 import { PortalDeleteButton } from './portal-delete-button'
 
 interface Portal {
@@ -38,7 +39,7 @@ export function PortalListPage({
   const { can } = usePermissions()
 
   return (
-    <div className="mx-auto max-w-4xl space-y-8">
+    <PageShell>
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Portals</h1>
@@ -137,6 +138,6 @@ export function PortalListPage({
           </TableBody>
         </Table>
       )}
-    </div>
+    </PageShell>
   )
 }

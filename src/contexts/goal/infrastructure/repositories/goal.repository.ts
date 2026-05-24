@@ -337,6 +337,111 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
     })
   },
 
+  upsertProgress: async (goalId, aggregation, delta) => {
+    return trace('goal.upsertProgress', async () => {
+      if (aggregation === 'sum' || aggregation === 'count') {
+        const incDelta = aggregation === 'count' ? 1 : delta
+        const result = await db
+          .insert(goalProgress)
+          .values({
+            goalId,
+            currentValue: incDelta,
+            currentSum: null,
+            currentCount: null,
+            lastComputedAt: new Date(),
+            computedSource: 'event_increment',
+          })
+          .onConflictDoUpdate({
+            target: goalProgress.goalId,
+            set: {
+              currentValue: sql`${goalProgress.currentValue} + ${incDelta}`,
+            },
+          })
+          .returning({
+            currentValue: goalProgress.currentValue,
+            currentSum: goalProgress.currentSum,
+            currentCount: goalProgress.currentCount,
+          })
+        if (!result[0]) {
+          throw new Error(`upsertProgress: failed for goal ${goalId}`)
+        }
+        return {
+          currentValue: result[0].currentValue,
+          currentSum: result[0].currentSum,
+          currentCount: result[0].currentCount,
+        }
+      }
+
+      if (aggregation === 'max') {
+        const result = await db
+          .insert(goalProgress)
+          .values({
+            goalId,
+            currentValue: delta,
+            currentSum: null,
+            currentCount: null,
+            lastComputedAt: new Date(),
+            computedSource: 'event_increment',
+          })
+          .onConflictDoUpdate({
+            target: goalProgress.goalId,
+            set: {
+              currentValue: sql`GREATEST(${goalProgress.currentValue}, ${delta})`,
+            },
+          })
+          .returning({
+            currentValue: goalProgress.currentValue,
+            currentSum: goalProgress.currentSum,
+            currentCount: goalProgress.currentCount,
+          })
+        if (!result[0]) {
+          throw new Error(`upsertProgress: failed for goal ${goalId}`)
+        }
+        return {
+          currentValue: result[0].currentValue,
+          currentSum: result[0].currentSum,
+          currentCount: result[0].currentCount,
+        }
+      }
+
+      if (aggregation === 'avg') {
+        const result = await db
+          .insert(goalProgress)
+          .values({
+            goalId,
+            currentValue: delta,
+            currentSum: delta,
+            currentCount: 1,
+            lastComputedAt: new Date(),
+            computedSource: 'event_increment',
+          })
+          .onConflictDoUpdate({
+            target: goalProgress.goalId,
+            set: {
+              currentSum: sql`COALESCE(${goalProgress.currentSum}, 0) + ${delta}`,
+              currentCount: sql`COALESCE(${goalProgress.currentCount}, 0) + 1`,
+              currentValue: sql`(COALESCE(${goalProgress.currentSum}, 0) + ${delta}) / (COALESCE(${goalProgress.currentCount}, 0) + 1)`,
+            },
+          })
+          .returning({
+            currentValue: goalProgress.currentValue,
+            currentSum: goalProgress.currentSum,
+            currentCount: goalProgress.currentCount,
+          })
+        if (!result[0]) {
+          throw new Error(`upsertProgress: failed for goal ${goalId}`)
+        }
+        return {
+          currentValue: result[0].currentValue,
+          currentSum: result[0].currentSum,
+          currentCount: result[0].currentCount,
+        }
+      }
+
+      throw new Error(`upsertProgress: unsupported aggregation ${aggregation}`)
+    })
+  },
+
   markGoalCompleted: async (goalId, orgId, completedAt) => {
     return trace('goal.markGoalCompleted', async () => {
       await db

@@ -24,6 +24,7 @@ describe('getDashboardData (use case)', () => {
       portalId: null,
       startDate,
       endDate: now,
+      timeRange: '30d',
     })
 
     // All sections present
@@ -59,6 +60,7 @@ describe('getDashboardData (use case)', () => {
       portalId: PORTAL_A,
       startDate,
       endDate: now,
+      timeRange: '30d',
     })
 
     expect(result.engagementFunnel).not.toBeNull()

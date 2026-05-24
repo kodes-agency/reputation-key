@@ -171,18 +171,9 @@ export async function bootstrap(container: Container): Promise<void> {
   }
 
   // ── Goal event handlers ────────────────────────────────────────────
-  const { registerGoalEventHandlers } =
-    await import('#/contexts/goal/infrastructure/event-handlers')
-  registerGoalEventHandlers({
-    eventBus: container.eventBus,
-    goalRepo: container.goalRepo,
-    cancelGoalFn: container.useCases.cancelGoal,
-    clock: () => new Date(),
-    getLogger,
-  })
-  logger.info(
-    'registered goal event handlers (metric.recorded, staff.unassigned, portal.deleted, team.deleted)',
-  )
+  // NOTE: Goal event handlers are now registered inside buildGoalContext
+  // (composition.ts) so they're available in both web server and worker.
+  // No separate registration needed here.
 
   // ── Goal reconciliation job ────────────────────────────────────────
   const { createReconcileGoalProgressHandler, RECONCILE_GOAL_JOB_NAME } =

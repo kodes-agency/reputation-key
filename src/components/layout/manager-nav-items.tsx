@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import { LayoutDashboard, MessageSquare, Users, Globe, Inbox } from 'lucide-react'
+import { LayoutDashboard, MessageSquare, Users, Globe, Inbox, Target } from 'lucide-react'
 import {
   SidebarMenu,
   SidebarMenuButton,
@@ -42,6 +42,12 @@ const navItems: ReadonlyArray<{
     label: 'Portals',
     icon: Globe,
     to: '/properties/$propertyId/portals',
+  },
+  {
+    key: 'goals',
+    label: 'Goals',
+    icon: Target,
+    to: '/properties/$propertyId/goals',
   },
 ]
 

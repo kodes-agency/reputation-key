@@ -18,6 +18,7 @@ import { toMemberOptions, toTeamOptions } from '#/lib/lookups'
 import { StaffTab } from '#/components/features/property/people/staff-tab'
 import { TeamsTab } from '#/components/features/property/people/teams-tab'
 import { DirectoryTab } from '#/components/features/property/people/directory-tab'
+import { PageShell } from '#/components/layout/page-shell'
 
 export const peopleSearchSchema = z.object({
   tab: z.string().optional(),
@@ -66,7 +67,7 @@ export function PeoplePage({ propertyId, assignments, members, teams, tab }: Peo
   })
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
+    <PageShell>
       <div>
         <h1 className="text-xl font-semibold tracking-tight">People</h1>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -107,6 +108,6 @@ export function PeoplePage({ propertyId, assignments, members, teams, tab }: Peo
         />
         <DirectoryTab members={members} />
       </Tabs>
-    </div>
+    </PageShell>
   )
 }

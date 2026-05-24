@@ -16,7 +16,7 @@ function LogoLink() {
   return (
     <Button variant="outline" size="sm" className="rounded-full gap-2" asChild>
       <Link to="/">
-        <span className="size-2 rounded-full bg-[linear-gradient(90deg,oklch(0.78_0.14_75),oklch(0.82_0.15_75))]" />
+        <span className="size-2 rounded-full bg-[linear-gradient(90deg,oklch(0.42_0.18_290),oklch(0.52_0.19_290))]" />
         Reputation Key
       </Link>
     </Button>

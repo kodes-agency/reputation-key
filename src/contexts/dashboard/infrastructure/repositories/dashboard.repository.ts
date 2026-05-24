@@ -16,6 +16,7 @@ import type {
   RecentReview,
 } from '../../domain/types'
 import { toDashboardReplyStatus } from '../../domain/types'
+import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import { reviewId } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 
@@ -78,14 +79,16 @@ export function createDashboardRepository(
         const priorAvgRating = priorReviews.avgRating
 
         // Metric sums for current and prior periods (parallel)
+        // When portalId is set, use portal-scoped queries for scans/feedback
+        const metricQuery = input.portalId
+          ? (orgId: OrganizationId, propId: PropertyId, start: Date, end: Date) =>
+              metricStats.getSumsByPortal(orgId, propId, input.portalId!, start, end)
+          : (orgId: OrganizationId, propId: PropertyId, start: Date, end: Date) =>
+              metricStats.getSumsByPeriod(orgId, propId, start, end)
+
         const [currentMetrics, priorMetrics] = await Promise.all([
-          metricStats.getSumsByPeriod(organizationId, propertyId, startDate, endDate),
-          metricStats.getSumsByPeriod(
-            organizationId,
-            propertyId,
-            priorStartDate,
-            priorEndDate,
-          ),
+          metricQuery(organizationId, propertyId, startDate, endDate),
+          metricQuery(organizationId, propertyId, priorStartDate, priorEndDate),
         ])
 
         const toMap = (rows: readonly { metricKey: string; total: number }[]) =>
@@ -186,7 +189,9 @@ export function createDashboardRepository(
       return trace('dashboard.getEngagementFunnel', async () => {
         const { organizationId, propertyId, portalId, startDate, endDate } = input
 
-        const rows = await metricStats.getSumsByPortal(
+        // Use COUNT for all funnel steps (not SUM) — portal.rating values are 1-5,
+        // summing them gives total stars, not number of ratings.
+        const rows = await metricStats.getCountsByPortal(
           organizationId,
           propertyId,
           portalId,
@@ -194,11 +199,11 @@ export function createDashboardRepository(
           endDate,
         )
 
-        const metricMap = new Map(rows.map((r) => [r.metricKey, r.total]))
+        const metricMap = new Map(rows.map((r) => [r.metricKey, r.count]))
 
         return {
           scans: metricMap.get('portal.scan') ?? 0,
-          ratings: metricMap.get('portal.feedback') ?? 0,
+          ratings: metricMap.get('portal.rating') ?? 0,
           reviewLinkClicks: metricMap.get('portal.review_link_click') ?? 0,
         }
       })

@@ -75,6 +75,19 @@ export type GoalRepository = Readonly<{
     currentCount: number | null
   }>
 
+  // Upsert progress — inserts if no row exists, increments otherwise.
+  // Used by event-driven handler (onMetricRecorded) where initial row
+  // may not exist yet for newly created goals.
+  upsertProgress(
+    goalId: GoalId,
+    aggregation: AggregationFunction,
+    delta: number,
+  ): Promise<{
+    currentValue: number
+    currentSum: number | null
+    currentCount: number | null
+  }>
+
   markGoalCompleted(
     goalId: GoalId,
     organizationId: OrganizationId,

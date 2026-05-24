@@ -44,7 +44,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
         <HeadContent />
       </head>
-      <body className="font-sans antialiased [overflow-wrap:anywhere] selection:bg-[oklch(0.78_0.14_75/0.25)]">
+      <body className="font-sans antialiased [overflow-wrap:anywhere] selection:bg-[oklch(0.42_0.18_290/0.25)]">
         {showChrome ? (
           <>
             <Header onSignOut={() => authClient.signOut()} />

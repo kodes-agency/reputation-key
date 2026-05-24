@@ -558,13 +558,13 @@ describe('dashboardRepository (integration)', () => {
       })
       await seedMetricReading(pool, {
         portalId: PORTAL_A,
-        metricKey: 'portal.feedback',
+        metricKey: 'portal.rating',
         value: 1,
         daysAgo: 1,
       })
       await seedMetricReading(pool, {
         portalId: PORTAL_A,
-        metricKey: 'portal.feedback',
+        metricKey: 'portal.rating',
         value: 1,
         daysAgo: 2,
       })
@@ -589,7 +589,7 @@ describe('dashboardRepository (integration)', () => {
       })
 
       expect(result.scans).toBe(3)
-      expect(result.ratings).toBe(2) // portal.feedback
+      expect(result.ratings).toBe(2) // portal.rating
       expect(result.reviewLinkClicks).toBe(1)
     })
   })

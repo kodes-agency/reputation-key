@@ -12,6 +12,7 @@ import {
 import { useMutationActionSilent } from '#/components/hooks/use-mutation-action'
 import { useAction } from '#/components/hooks/use-action'
 import { ImportPageHeader } from './-import-page-header'
+import { PageShell } from '#/components/layout/page-shell'
 
 export const Route = createFileRoute('/_authenticated/properties/import/')({
   staleTime: 60_000,
@@ -32,7 +33,7 @@ function ImportPage() {
   })
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
+    <PageShell>
       <ImportPageHeader showSubtitle />
 
       {search.error && (
@@ -60,6 +61,6 @@ function ImportPage() {
           importAction={importAction}
         />
       )}
-    </div>
+    </PageShell>
   )
 }

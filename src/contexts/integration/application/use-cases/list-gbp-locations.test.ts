@@ -12,6 +12,7 @@ import {
 } from '#/shared/testing/fixtures'
 import { isIntegrationError } from '../../domain/errors'
 import { createGbpApiError } from '../../domain/gbp-api-error'
+import type { PropertyPublicApi } from '#/contexts/property/application/public-api'
 
 const FIXED_NOW = new Date('2026-06-01T12:00:00Z')
 
@@ -36,6 +37,11 @@ const setup = () => {
     }
   }
 
+  const propertyApi = {
+    findExistingGbpPlaceIds: async (_orgId: string, _ids: ReadonlyArray<string>) =>
+      [] as string[],
+  } as unknown as PropertyPublicApi
+
   const deps = {
     connectionRepo,
     gbpApi,
@@ -43,6 +49,7 @@ const setup = () => {
     clock: () => FIXED_NOW,
     refreshGoogleToken,
     logger: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {}, trace: () => {}, fatal: () => {} } as never,
+    propertyApi,
   }
   const useCase = listGbpLocations(deps)
 
@@ -292,5 +299,43 @@ describe('listGbpLocations', () => {
 
     expect(result).toHaveLength(1)
     expect(result[0].gbpPlaceId).toBe('ChIJ-wildcard-no-accts')
+  })
+
+  it('filters out already-imported locations', async () => {
+    const connectionRepo = createInMemoryGoogleConnectionRepo()
+    const gbpApi = createInMemoryGbpApiPort()
+    const encryption = createInMemoryTokenEncryption()
+
+    const existingIds: string[] = ['ChIJ-already-imported']
+    const propertyApi = {
+      findExistingGbpPlaceIds: async (_orgId: string, _ids: ReadonlyArray<string>) =>
+        existingIds,
+    } as unknown as PropertyPublicApi
+
+    const deps = {
+      connectionRepo,
+      gbpApi,
+      encryption,
+      clock: () => FIXED_NOW,
+      refreshGoogleToken: async () => { throw new Error('not used') },
+      logger: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {}, trace: () => {}, fatal: () => {} } as never,
+      propertyApi,
+    }
+    const useCase = listGbpLocations(deps)
+
+    const { ctx, conn } = seedActiveConnection({ connectionRepo })
+
+    const imported = buildTestGbpLocation({ gbpPlaceId: 'ChIJ-already-imported', businessName: 'Imported Biz' })
+    const fresh = buildTestGbpLocation({ gbpPlaceId: 'ChIJ-fresh', businessName: 'Fresh Biz' })
+
+    gbpApi.setAccounts([])
+    gbpApi.setLocations('-', [imported, fresh])
+
+    const result = await withFixedNow(() =>
+      useCase({ connectionId: conn.id as string }, ctx),
+    )
+
+    expect(result).toHaveLength(1)
+    expect(result[0].gbpPlaceId).toBe('ChIJ-fresh')
   })
 })

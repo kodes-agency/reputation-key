@@ -11,15 +11,26 @@ import { AlertCircle } from 'lucide-react'
 export const Route = createFileRoute('/_authenticated/properties/$propertyId')({
   staleTime: 60_000,
   loader: async ({ params: { propertyId } }) => {
-    const [propertyRes, staffRes, teamsRes] = await Promise.all([
+    // Use allSettled so a transient DB error in staff/teams doesn't crash the page.
+    // Property data is critical; staff/teams are sidebar metadata.
+    const [propertyRes, staffRes, teamsRes] = await Promise.allSettled([
       getProperty({ data: { propertyId } }),
       listStaffAssignments({ data: { propertyId } }),
       listTeams({ data: { propertyId } }),
     ])
+
+    if (propertyRes.status === 'rejected') {
+      throw propertyRes.reason
+    }
+
     return {
-      property: propertyRes.property,
-      staffCount: staffRes.assignments.length,
-      teamCount: teamsRes.teams.length,
+      property: propertyRes.value.property,
+      staffCount:
+        staffRes.status === 'fulfilled'
+          ? staffRes.value.assignments.length
+          : 0,
+      teamCount:
+        teamsRes.status === 'fulfilled' ? teamsRes.value.teams.length : 0,
     }
   },
   component: PropertyLayout,
@@ -45,7 +56,7 @@ function PropertyLayout() {
   }
 
   return (
-    <div className="p-6">
+    <div className="min-w-0 p-6">
       <Outlet />
     </div>
   )

@@ -5,6 +5,7 @@ import { Button } from '#/components/ui/button'
 import { Badge } from '#/components/ui/badge'
 import { Plus, ChevronRight } from 'lucide-react'
 import { DeletePropertyDialog } from './delete-property-dialog'
+import { PageShell } from '#/components/layout/page-shell'
 
 interface Property {
   id: string
@@ -22,7 +23,7 @@ export function PropertyListPage({ properties }: PropertyListPageProps) {
   const navigate = useNavigate()
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <PageShell>
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Properties</h1>
@@ -78,6 +79,6 @@ export function PropertyListPage({ properties }: PropertyListPageProps) {
           ))}
         </div>
       )}
-    </div>
+    </PageShell>
   )
 }

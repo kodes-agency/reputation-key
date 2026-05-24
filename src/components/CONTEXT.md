@@ -14,7 +14,7 @@ components/
     guest/         public-portal/
     identity/      login/, registration/, reset-password/, member-directory/, shared/
     organization/  (flat — too few files for sub-folders)
-    portal/        link-tree/, portal-detail/, portal-form/, portal-preview/, portal-settings/, portal-share/
+    portal/        link-tree/, portal-analytics/, portal-detail/, portal-form/, portal-preview/, portal-settings/, portal-share/
     property/      property-detail/, property-form/
     staff/         (flat)
     team/          team-form/, team-members/
@@ -70,6 +70,50 @@ All forms use **TanStack Form + Zod v4 + shadcn/ui**. No React Hook Form, Formik
 | `use-mutation-action` | Combines `useServerFn` + router invalidation + toast in one call. Supports `invalidateRoutes` for targeted invalidation instead of full `router.invalidate()`. Also available as `useMutationActionSilent` (no toast). |
 | `use-property-id` | Extracts `propertyId` from route params. Use in any property-scoped component. |
 | `use-mobile` | Responsive breakpoint hook |
+
+## Charts
+
+All charts use **shadcn charts** (`src/components/ui/chart.tsx`), built on Recharts. Import from `#/components/ui/chart`.
+
+### Components
+
+| Component | Purpose |
+|-----------|---------|
+| `ChartContainer` | Wraps chart + provides config context + CSS variable theming |
+| `ChartTooltip` | Recharts Tooltip — use with `content={<ChartTooltipContent />}` |
+| `ChartTooltipContent` | Styled tooltip with label, indicators |
+| `ChartLegend` | Recharts Legend — use with `content={<ChartLegendContent />}` |
+| `ChartLegendContent` | Styled legend with color dots |
+
+### Pattern
+
+1. Define a `ChartConfig` (maps data keys → labels + colors)
+2. Wrap the Recharts chart in `<ChartContainer config={config}>`
+3. Use `var(--color-{key})` for `fill`/`stroke` (auto-generated from config)
+4. Use `var(--chart-1)` through `var(--chart-5)` for chart colors (oklch values, NOT `hsl(var(--chart-N))`)
+
+### Chart types by data shape
+
+| Data shape | Chart type | Recharts component |
+|------------|-----------|-------------------|
+| Distribution (buckets) | Vertical bar chart | `BarChart` + `Bar` |
+| Funnel (stages) | Horizontal bar chart | `BarChart` layout="vertical" + `Bar` |
+| Time series | Area chart | `AreaChart` + `Area` |
+| Proportions | Pie chart | `PieChart` + `Pie` |
+
+### Example
+
+```tsx
+const config = { count: { label: 'Count', color: 'var(--chart-1)' } } satisfies ChartConfig
+
+<ChartContainer config={config} className="min-h-[200px] w-full">
+  <BarChart data={data}>
+    <XAxis dataKey="label" />
+    <ChartTooltip content={<ChartTooltipContent />} />
+    <Bar dataKey="count" fill="var(--color-count)" radius={[4, 4, 0, 0]} />
+  </BarChart>
+</ChartContainer>
+```
 
 ## Anti-patterns
 
