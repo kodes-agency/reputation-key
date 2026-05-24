@@ -9,7 +9,11 @@ import { isPortalError } from '../../domain/errors'
 const setup = () => {
   const portalRepo = createInMemoryPortalRepo()
   const storage = {
-    createPresignedUploadUrl: async (_key: string, _contentType: string, _maxSize: number) => ({
+    createPresignedUploadUrl: async (
+      _key: string,
+      _contentType: string,
+      _maxSize: number,
+    ) => ({
       uploadUrl: 'https://r2.example.com/presigned',
       key: 'portals/org-1/portal-1/hero/test-key',
     }),
@@ -18,7 +22,7 @@ const setup = () => {
     getPublicUrl: (_key: string) => `https://cdn.example.com/${_key}`,
     putObject: async (_key: string, _body: Buffer, _contentType: string) => {},
   }
-  const deps = { portalRepo, storage }
+  const deps = { portalRepo, storage, idGen: () => 'test-uuid' }
   const useCase = requestUploadUrl(deps)
   return { useCase, portalRepo }
 }
@@ -46,7 +50,8 @@ describe('requestUploadUrl', () => {
     await expect(
       useCase({ portalId: 'nonexistent', contentType: 'image/png', fileSize: 1024 }, ctx),
     ).rejects.toSatisfy(
-      (e: unknown) => isPortalError(e) && (e as { code: string }).code === 'portal_not_found',
+      (e: unknown) =>
+        isPortalError(e) && (e as { code: string }).code === 'portal_not_found',
     )
   })
 
@@ -57,9 +62,13 @@ describe('requestUploadUrl', () => {
     portalRepo.seed([portal])
 
     await expect(
-      useCase({ portalId: portal.id, contentType: 'application/pdf', fileSize: 1024 }, ctx),
+      useCase(
+        { portalId: portal.id, contentType: 'application/pdf', fileSize: 1024 },
+        ctx,
+      ),
     ).rejects.toSatisfy(
-      (e: unknown) => isPortalError(e) && (e as { code: string }).code === 'upload_failed',
+      (e: unknown) =>
+        isPortalError(e) && (e as { code: string }).code === 'upload_failed',
     )
   })
 
@@ -70,9 +79,13 @@ describe('requestUploadUrl', () => {
     portalRepo.seed([portal])
 
     await expect(
-      useCase({ portalId: portal.id, contentType: 'image/png', fileSize: 11 * 1024 * 1024 }, ctx),
+      useCase(
+        { portalId: portal.id, contentType: 'image/png', fileSize: 11 * 1024 * 1024 },
+        ctx,
+      ),
     ).rejects.toSatisfy(
-      (e: unknown) => isPortalError(e) && (e as { code: string }).code === 'upload_failed',
+      (e: unknown) =>
+        isPortalError(e) && (e as { code: string }).code === 'upload_failed',
     )
   })
 })

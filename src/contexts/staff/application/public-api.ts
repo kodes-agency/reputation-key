@@ -16,4 +16,17 @@ export type StaffPublicApi = Readonly<{
     userId: UserId,
     role: Role,
   ) => Promise<ReadonlyArray<PropertyId> | null>
+
+  /**
+   * Resolve a referral code to the assigned staff member's user ID.
+   * Returns null when no assignment matches the code in the given org.
+   */
+  findByReferralCode: (
+    orgId: OrganizationId,
+    referralCode: string,
+  ) => Promise<{ userId: string } | null>
 }>
+
+// Event re-exports — cross-context consumers must import events from public-api, not domain/events
+export type { StaffUnassigned, StaffAssigned, StaffEvent } from '../domain/events'
+export { staffUnassigned, staffAssigned } from '../domain/events'

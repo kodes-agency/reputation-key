@@ -15,7 +15,7 @@ export type GetPortalDeps = Readonly<{
 export const getPortal =
   (deps: GetPortalDeps) =>
   async (input: { portalId: string }, ctx: AuthContext): Promise<Portal> => {
-    if (!can(ctx.role, 'portal.update')) {
+    if (!can(ctx.role, 'portal.read')) {
       throw portalError('forbidden', 'Insufficient permissions to view portal')
     }
     const pid = portalId(input.portalId)

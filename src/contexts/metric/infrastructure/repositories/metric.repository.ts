@@ -18,6 +18,7 @@ import {
   portalId as portalIdCtor,
   staffId as staffIdCtor,
 } from '#/shared/domain/ids'
+import { createMetricReading } from '../../domain/constructors'
 import { trace } from '#/shared/observability/trace'
 
 const VALID_METRIC_KEYS: Set<string> = new Set([
@@ -28,11 +29,11 @@ const VALID_METRIC_KEYS: Set<string> = new Set([
   'property.review',
 ])
 
-function readingFromRow(row: typeof metricReadings.$inferSelect): MetricReading {
+function readingFromRow(row: typeof metricReadings.$inferSelect) {
   if (!VALID_METRIC_KEYS.has(row.metricKey)) {
     throw new Error(`Invalid metric_key in DB row: ${row.metricKey}`)
   }
-  return {
+  const result = createMetricReading({
     id: metricReadingId(row.id),
     organizationId: orgIdCtor(row.organizationId),
     propertyId: propIdCtor(row.propertyId),
@@ -41,7 +42,11 @@ function readingFromRow(row: typeof metricReadings.$inferSelect): MetricReading 
     value: row.value,
     staffId: row.staffId ? staffIdCtor(row.staffId) : null,
     recordedAt: row.recordedAt,
+  })
+  if (result.isErr()) {
+    throw new Error(`Invalid metric reading from DB: ${result.error.message}`)
   }
+  return result.value
 }
 
 export const createMetricRepository = (db: Database): MetricRepository => ({
@@ -99,10 +104,9 @@ export const createMetricRepository = (db: Database): MetricRepository => ({
       if (query.portalId) {
         conditions.push(eq(metricReadings.portalId, query.portalId))
       }
-      // TODO: staffId filter added in Phase 14.5 — uncomment after merge
-      // if (query.staffId) {
-      //   conditions.push(eq(metricReadings.staffId, query.staffId))
-      // }
+      if (query.staffId) {
+        conditions.push(eq(metricReadings.staffId, query.staffId))
+      }
       if (query.periodStart) {
         conditions.push(gte(metricReadings.recordedAt, query.periodStart))
       }

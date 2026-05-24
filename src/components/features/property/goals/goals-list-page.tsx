@@ -11,46 +11,19 @@ import {
   scopeLabel,
   goalTypeLabel,
   formatPeriodDates,
+  STATUS_ORDER,
+  type GoalWithProgress,
 } from '#/contexts/goal/ui/helpers'
-import { deriveEntityScope } from '#/contexts/goal/application/dto/goal.dto'
-import type {
-  Goal,
-  GoalProgress,
-  GoalType,
-  GoalStatus,
-} from '#/contexts/goal/application/dto/goal.dto'
+import { deriveEntityScope } from '#/contexts/goal/application/public-api'
 
-// fallow-ignore-file unused-export
-export type GoalWithProgress = {
-  goal: Goal
-  progress: GoalProgress | null
-}
-
-type GoalsListPageProps = {
+type GoalsListPageProps = Readonly<{
   goals: readonly GoalWithProgress[]
   propertyId: string
-  filters: { status?: GoalStatus; goalType?: GoalType }
-}
+}>
 
-const STATUS_ORDER: Record<GoalStatus, number> = {
-  active: 0,
-  completed: 1,
-  expired: 2,
-  cancelled: 3,
-}
-
-export function GoalsListPage({ goals, propertyId, filters }: GoalsListPageProps) {
-  // Filter
-  let filtered = [...goals]
-  if (filters.status) {
-    filtered = filtered.filter((g) => g.goal.status === filters.status)
-  }
-  if (filters.goalType) {
-    filtered = filtered.filter((g) => g.goal.goalType === filters.goalType)
-  }
-
+export function GoalsListPage({ goals, propertyId }: GoalsListPageProps) {
   // Sort by status bucket then createdAt desc
-  const sorted = [...filtered].sort((a, b) => {
+  const sorted = [...goals].sort((a, b) => {
     const statusDiff = STATUS_ORDER[a.goal.status] - STATUS_ORDER[b.goal.status]
     if (statusDiff !== 0) return statusDiff
     return b.goal.createdAt.getTime() - a.goal.createdAt.getTime()

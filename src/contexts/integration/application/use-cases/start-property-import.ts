@@ -24,6 +24,7 @@ export type StartPropertyImportDeps = Readonly<{
 export const startPropertyImport =
   (deps: StartPropertyImportDeps) =>
   async (input: ImportPropertiesInput, ctx: AuthContext): Promise<GbpImportJob> => {
+    // Uses property.create because import creates property resources
     // 1. Authorize
     if (!can(ctx.role, 'property.create')) {
       throw integrationError(

@@ -9,12 +9,21 @@ import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { can } from '#/shared/domain/permissions'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
-import { getDashboardDataDto, type TimeRangePreset } from '../application/dto/dashboard.dto'
+import {
+  getDashboardDataDto,
+  type TimeRangePreset,
+} from '../application/dto/dashboard.dto'
 import { propertyId, portalId } from '#/shared/domain/ids'
 import { isDashboardError } from '../domain/errors'
 import type { DashboardErrorCode } from '../domain/errors'
-import { dashboardError } from '../domain/errors'
 import { match } from 'ts-pattern'
+
+/** Local error constructor — server must not import domain error constructors. */
+const makeDashboardError = (code: DashboardErrorCode, message: string) => ({
+  _tag: 'DashboardError' as const,
+  code,
+  message,
+})
 
 const dashboardErrorStatus = (code: DashboardErrorCode): number =>
   match(code)
@@ -43,7 +52,10 @@ export const getDashboardDataFn = createServerFn({ method: 'GET' })
           const headers = headersFromContext()
           const ctx = await resolveTenantContext(headers)
           if (!can(ctx.role, 'dashboard.read')) {
-            throw dashboardError('forbidden', 'Insufficient permissions to view dashboard')
+            throw makeDashboardError(
+              'forbidden',
+              'Insufficient permissions to view dashboard',
+            )
           }
           const { useCases } = getContainer()
           const { startDate, endDate } = timeRangeToDates(data.timeRange)

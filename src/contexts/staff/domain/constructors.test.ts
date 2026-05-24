@@ -54,4 +54,32 @@ describe('buildStaffAssignment', () => {
     expect(a.organizationId).toBe(organizationId('org-1'))
     expect(a.userId).toBe(userId('user-1'))
   })
+
+  it('rejects self-assignment when actingUserId equals userId', () => {
+    const result = buildStaffAssignment({
+      ...base,
+      actingUserId: userId('user-1'),
+    })
+
+    expect(result.isErr()).toBe(true)
+    if (result.isErr()) {
+      expect(result.error.code).toBe('invalid_input')
+      expect(result.error.message).toContain('Cannot assign yourself')
+    }
+  })
+
+  it('allows assignment when actingUserId differs from userId', () => {
+    const result = buildStaffAssignment({
+      ...base,
+      actingUserId: userId('user-2'),
+    })
+
+    expect(result.isOk()).toBe(true)
+  })
+
+  it('allows assignment when actingUserId is not provided', () => {
+    const result = buildStaffAssignment(base)
+
+    expect(result.isOk()).toBe(true)
+  })
 })

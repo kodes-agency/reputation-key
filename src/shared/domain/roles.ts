@@ -48,5 +48,9 @@ export function toBetterAuthRole(role: Role): BetterAuthRole {
       return 'admin'
     case 'Staff':
       return 'member'
+    default: {
+      const _exhaustive: never = role
+      throw new Error(`Unknown role: ${_exhaustive}`)
+    }
   }
 }

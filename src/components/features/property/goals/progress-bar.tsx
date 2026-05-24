@@ -8,13 +8,13 @@ import {
 import type { AggregationFunction } from '#/shared/domain/metric-keys'
 import type { GoalStatus } from '#/contexts/goal/application/dto/goal.dto'
 
-type ProgressBarProps = {
+type ProgressBarProps = Readonly<{
   currentValue: number
   targetValue: number
   aggregation: AggregationFunction
   status: GoalStatus
   className?: string
-}
+}>
 
 export function ProgressBar({
   currentValue,
@@ -34,6 +34,11 @@ export function ProgressBar({
         <div
           className={cn('h-2 rounded-full transition-all', colorClass)}
           style={{ width: `${width}%` }}
+          role="progressbar"
+          aria-valuenow={currentValue}
+          aria-valuemin={0}
+          aria-valuemax={targetValue}
+          aria-label={`Progress: ${label}`}
         />
       </div>
       <p className="text-xs text-muted-foreground">{label}</p>

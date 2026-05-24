@@ -6,6 +6,8 @@ import type { GoalRepository } from '../ports/goal.repository'
 import type { Goal, GoalProgress } from '../../domain/types'
 import type { GoalId, OrganizationId } from '#/shared/domain/ids'
 import type { GoalWithProgress } from './list-goals'
+import type { Role } from '#/shared/domain/roles'
+import { can } from '#/shared/domain/permissions'
 import { ok, err, type Result } from 'neverthrow'
 
 // ── Return types ───────────────────────────────────────────────────────────
@@ -18,7 +20,7 @@ export type GoalDetail = Readonly<{
 
 // ── Error types ────────────────────────────────────────────────────────────
 
-export type GetGoalError = { tag: 'goal_not_found' }
+export type GetGoalError = { tag: 'forbidden' } | { tag: 'goal_not_found' }
 
 // ── Dependencies ───────────────────────────────────────────────────────────
 
@@ -34,13 +36,19 @@ export const getGoal =
   async (input: {
     goalId: GoalId
     organizationId: OrganizationId
+    role: Role
   }): Promise<Result<GoalDetail, GetGoalError>> => {
+    if (!can(input.role, 'goal.read')) {
+      return err({ tag: 'forbidden' })
+    }
+
     const goal = await deps.goalRepo.getById(input.goalId, input.organizationId)
     if (!goal) {
       return err({ tag: 'goal_not_found' })
     }
 
-    const progress = await deps.goalRepo.getProgress(goal.id)
+    const [progressMap] = await Promise.all([deps.goalRepo.getProgressBatch([goal.id])])
+    const progress = progressMap.get(goal.id) ?? null
 
     // For recurring templates, load all instances with their progress
     if (goal.goalType === 'recurring') {
@@ -53,9 +61,16 @@ export const getGoal =
         return bTime - aTime
       })
 
+      // Batch fetch progress for all instances
+      const instanceIds = sorted.map((i) => i.id)
+      const instanceProgressMap =
+        instanceIds.length > 0
+          ? await deps.goalRepo.getProgressBatch(instanceIds)
+          : new Map<GoalId, GoalProgress | null>()
+
       const instancesWithProgress: GoalWithProgress[] = []
       for (const instance of sorted) {
-        const instanceProgress = await deps.goalRepo.getProgress(instance.id)
+        const instanceProgress = instanceProgressMap.get(instance.id) ?? null
         instancesWithProgress.push({ goal: instance, progress: instanceProgress })
       }
 

@@ -5,10 +5,12 @@
 import type { Database } from '#/shared/db'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { Queue } from 'bullmq'
-import type { Logger } from 'pino'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { GbpQueuePort } from './application/ports/gbp-queue.port'
 import type { ImportPropertyJobData } from './application/ports/gbp-queue.port'
 import type { PropertyQueryPort } from './application/ports/property-query.port'
+import type { PropertyFkCleanupPort } from './application/ports/property-fk-cleanup.port'
+import type { PropertyPublicApi } from '#/contexts/property/application/public-api'
 import {
   connectGoogleAccount,
   disconnectGoogleAccount,
@@ -30,11 +32,13 @@ import { createGbpApiAdapter } from './infrastructure/adapters/gbp-api.adapter'
 import { createPropertyEventAdapter } from './infrastructure/adapters/property-event.adapter'
 import { getEnv } from '#/shared/config/env'
 import type { PropertyLookupPort } from './application/ports/property-lookup.port'
-import type { PropertyFkCleanupPort } from './application/ports/property-fk-cleanup.port'
-import { gbpImportJobId, organizationId as toOrgId } from '#/shared/domain/ids'
-import { properties } from '#/shared/db/schema/property.schema'
-// eslint-disable-next-line no-restricted-imports -- wiring layer implements cross-context ports with shared schema
-import { and, eq } from 'drizzle-orm'
+import {
+  gbpImportJobId,
+  organizationId as toOrgId,
+  propertyId as toPropertyId,
+  googleConnectionId as toConnectionId,
+} from '#/shared/domain/ids'
+import { randomUUID, createHash } from 'crypto'
 
 type IntegrationContextDeps = Readonly<{
   db: Database
@@ -42,50 +46,26 @@ type IntegrationContextDeps = Readonly<{
   clock: () => Date
   jobQueue: Queue | undefined
   propertyLookup: PropertyLookupPort
-  logger: Logger
+  propertyApi: PropertyPublicApi
+  logger: LoggerPort
 }>
 
 export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
   // ── Cross-context port implementations (wiring layer) ──────────
-  // These implementations query the Property context's tables directly.
-  // This is the wiring layer — it has access to the shared DB schema.
-  // The application layer only sees the port interfaces.
+  // Delegated through PropertyPublicApi — no direct schema imports.
 
   const propertyFkCleanup: PropertyFkCleanupPort = {
-    clearGoogleConnectionRef: async (orgId, connectionId) => {
-      await deps.db
-        .update(properties)
-        .set({ googleConnectionId: null, updatedAt: new Date() })
-        .where(
-          and(
-            eq(properties.organizationId, orgId),
-            eq(properties.googleConnectionId, connectionId),
-          ),
-        )
-    },
+    clearGoogleConnectionRef: deps.propertyApi.clearGoogleConnectionRef,
   }
 
   const propertyQuery: PropertyQueryPort = {
-    belongsToOrg: async (propertyId, orgId) => {
-      const rows = await deps.db
-        .select({ id: properties.id })
-        .from(properties)
-        .where(and(eq(properties.id, propertyId), eq(properties.organizationId, orgId)))
-        .limit(1)
-      return rows.length > 0
-    },
-    findIdsByGoogleConnection: async (connectionId, orgId) => {
-      const rows = await deps.db
-        .select({ id: properties.id })
-        .from(properties)
-        .where(
-          and(
-            eq(properties.googleConnectionId, connectionId),
-            eq(properties.organizationId, orgId),
-          ),
-        )
-      return rows.map((r) => r.id)
-    },
+    belongsToOrg: async (propertyId, orgId) =>
+      deps.propertyApi.propertyExists(toOrgId(orgId), toPropertyId(propertyId)),
+    findIdsByGoogleConnection: async (connectionId, orgId) =>
+      deps.propertyApi.findIdsByGoogleConnection(
+        toConnectionId(connectionId),
+        toOrgId(orgId),
+      ),
   }
 
   // ── Repositories ─────────────────────────────────────────────────
@@ -100,25 +80,22 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
   })
   const encryptionPort = createTokenEncryptionAdapter(getEnv().ENCRYPTION_KEY)
   const gbpApiPort = createGbpApiAdapter()
-  const propertyImportRepo = createPropertyImportRepository(deps.db)
+  const propertyImportRepo = createPropertyImportRepository(deps.propertyApi)
   const propertyEventPort = createPropertyEventAdapter(deps.events)
 
   // ── Queue Port ───────────────────────────────────────────────────
-  const queuePort: GbpQueuePort = deps.jobQueue
-    ? {
-        addBulkImportJob: async (data: ImportPropertyJobData) => {
-          await deps.jobQueue!.add('import-property', data, {
-            jobId: data.jobId,
-            removeOnComplete: { count: 100 },
-            removeOnFail: { count: 50 },
-          })
-        },
-      }
-    : {
-        addBulkImportJob: async () => {
-          throw new Error('Job queue not available — Redis not configured')
-        },
-      }
+  if (!deps.jobQueue) throw new Error('jobQueue required')
+  const jobQueue = deps.jobQueue
+
+  const queuePort: GbpQueuePort = {
+    addBulkImportJob: async (data: ImportPropertyJobData) => {
+      await jobQueue.add('import-property', data, {
+        jobId: data.jobId,
+        removeOnComplete: { count: 100 },
+        removeOnFail: { count: 50 },
+      })
+    },
+  }
 
   // ── Use Cases ────────────────────────────────────────────────────
   const refreshGoogleTokenUseCase = refreshGoogleToken({
@@ -135,6 +112,7 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       encryption: encryptionPort,
       events: deps.events,
       clock: deps.clock,
+      idGen: () => randomUUID(),
       callbackUrl: `${getEnv().BETTER_AUTH_URL}/api/auth/google/callback`,
     }),
 
@@ -188,6 +166,7 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       toJobId: gbpImportJobId,
       toOrgId,
       clock: deps.clock,
+      hashFn: (input: string) => createHash('sha256').update(input).digest('base64url'),
       logger: deps.logger,
     }),
   } as const

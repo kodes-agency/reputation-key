@@ -4,17 +4,23 @@ import { describe, it, expect } from 'vitest'
 import { handleGbpNotification } from './handle-gbp-notification'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import type { PropertyLookup } from '../ports/property-lookup.port'
-import type { SyncPropertyReviewsJobData, AddSyncJobOptions } from '#/contexts/review/application/public-api'
+import type {
+  SyncPropertyReviewsJobData,
+  AddSyncJobOptions,
+} from '#/contexts/review/application/internal-ports'
 
 // ── In-memory fakes ──────────────────────────────────────────────
 
-const createFakePropertyLookup = (lookup: Record<string, PropertyLookup | null> = {}) => ({
+const createFakePropertyLookup = (
+  lookup: Record<string, PropertyLookup | null> = {},
+) => ({
   findByGbpPlaceId: async (gbpPlaceId: string): Promise<PropertyLookup | null> =>
     lookup[gbpPlaceId] ?? null,
 })
 
 const createFakeReviewQueue = () => {
-  const jobs: Array<{ data: SyncPropertyReviewsJobData; options?: AddSyncJobOptions }> = []
+  const jobs: Array<{ data: SyncPropertyReviewsJobData; options?: AddSyncJobOptions }> =
+    []
   return {
     addSyncJob: async (data: SyncPropertyReviewsJobData, options?: AddSyncJobOptions) => {
       jobs.push({ data, options })
@@ -27,7 +33,11 @@ const createFakeReviewQueue = () => {
 
 const setup = () => {
   const reviewQueue = createFakeReviewQueue()
-  const deps = { propertyLookup: createFakePropertyLookup(), reviewQueue, logger: createMockLogger() }
+  const deps = {
+    propertyLookup: createFakePropertyLookup(),
+    reviewQueue,
+    logger: createMockLogger(),
+  }
   const useCase = handleGbpNotification(deps)
   return { useCase, reviewQueue }
 }

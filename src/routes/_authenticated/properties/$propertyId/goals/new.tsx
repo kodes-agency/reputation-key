@@ -1,10 +1,18 @@
 // Create goal route — renders form with mutation
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, useNavigate, redirect } from '@tanstack/react-router'
+import type { AuthRouteContext } from '#/routes/_authenticated'
+import { can } from '#/shared/domain/permissions'
 import { createGoal } from '#/contexts/goal/server/goals'
 import { useMutationAction } from '#/components/hooks/use-mutation-action'
 import { GoalCreateForm } from '#/components/features/property/goals/goal-create-form'
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/goals/new')({
+  beforeLoad: ({ context }) => {
+    const role = (context as AuthRouteContext).role
+    if (!can(role, 'goal.create')) {
+      throw redirect({ to: '/properties' })
+    }
+  },
   component: CreateGoalPage,
 })
 

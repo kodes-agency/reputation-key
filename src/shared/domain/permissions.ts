@@ -13,21 +13,27 @@ import type { Role } from './roles'
 
 export type Permission =
   | 'organization.update'
-  | 'organization.delete'
+  | 'organization.delete' // Reserved for future use — org deletion flow not yet implemented
   | 'member.create'
   | 'member.update'
   | 'member.delete'
+  | 'member.list'
   | 'invitation.create'
+  | 'invitation.list'
   | 'invitation.cancel'
   | 'invitation.resend'
   | 'property.create'
   | 'property.update'
   | 'property.delete'
+  | 'property.read'
   | 'team.create'
   | 'team.update'
   | 'team.delete'
+  | 'team.read' // Reserved for future use — team listing gated at use-case level
   | 'staff_assignment.create'
   | 'staff_assignment.delete'
+  | 'staff_assignment.read'
+  // Reserved for future use — access control context (not yet implemented)
   | 'ac.create'
   | 'ac.read'
   | 'ac.update'
@@ -35,16 +41,24 @@ export type Permission =
   | 'portal.create'
   | 'portal.update'
   | 'portal.delete'
+  | 'portal.read'
   | 'review.read'
-  | 'review.reply'
+  | 'review.reply' // Reserved for future use — reply operations use reply.manage instead
   | 'reply.manage'
   | 'inbox.read'
-  | 'inbox.update'
-  | 'feedback.read'
-  | 'feedback.respond'
+  | 'inbox.write'
+  | 'inbox.manage'
+  | 'feedback.read' // Reserved for future use — guest/feedback context not yet gated
+  | 'feedback.respond' // Reserved for future use — guest/feedback context not yet gated
   | 'integration.manage'
-  | 'member.list'
+  | 'identity.avatar_upload'
+  | 'identity.logo_upload'
+  | 'identity.leave_org' // Reserved for future use — leave-org flow not yet permission-gated
   | 'dashboard.read'
+  | 'goal.read'
+  | 'goal.create'
+  | 'goal.update'
+  | 'goal.cancel'
 
 // ── Injected permission lookup ─────────────────────────────────────
 // The actual permission table lives in shared/auth/permissions.ts.

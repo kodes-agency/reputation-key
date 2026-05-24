@@ -15,6 +15,7 @@ import {
   isValidMetricKeyForScope,
   isValidAggregationForMetric,
 } from '#/shared/domain/metric-keys'
+import { assertNever } from '#/shared/domain/assert'
 import type { Goal, GoalType, RecurrenceRule } from './types'
 import { deriveEntityScope } from './types'
 import { ok, err, type Result } from 'neverthrow'
@@ -22,6 +23,7 @@ import { ok, err, type Result } from 'neverthrow'
 // ── Error types ──────────────────────────────────────────────────────────
 
 export type GoalConstructionError =
+  | { tag: 'ambiguous_scope' }
   | { tag: 'invalid_metric_for_scope'; metricKey: MetricKey; scope: string }
   | {
       tag: 'invalid_aggregation_for_metric'
@@ -36,6 +38,8 @@ export type GoalConstructionError =
   | { tag: 'recurrence_rule_required' }
   | { tag: 'recurrence_rule_not_allowed'; goalType: GoalType }
   | { tag: 'empty_name' }
+  | { tag: 'name_too_long' }
+  | { tag: 'description_too_long' }
   | { tag: 'invalid_target_value' }
 
 // ── Input type ───────────────────────────────────────────────────────────
@@ -67,9 +71,19 @@ export type BuildGoalInput = Readonly<{
 export function buildGoal(input: BuildGoalInput): Result<Goal, GoalConstructionError> {
   const scope = deriveEntityScope(input)
 
+  // Exactly-one FK validation
+  const fkCount = [input.portalId, input.teamId, input.staffId].filter(Boolean).length
+  if (fkCount > 1) {
+    return err({ tag: 'ambiguous_scope' })
+  }
+
   // Field validations
   if (!input.name.trim()) return err({ tag: 'empty_name' })
-  if (input.targetValue <= 0) return err({ tag: 'invalid_target_value' })
+  if (input.name.length > 200) return err({ tag: 'name_too_long' })
+  if (input.description !== null && input.description.length > 1000)
+    return err({ tag: 'description_too_long' })
+  if (!Number.isFinite(input.targetValue) || input.targetValue <= 0)
+    return err({ tag: 'invalid_target_value' })
 
   // Scope → metric key
   if (!isValidMetricKeyForScope(scope, input.metricKey)) {
@@ -131,9 +145,21 @@ export function buildGoal(input: BuildGoalInput): Result<Goal, GoalConstructionE
       const parentGoalId = input.parentGoalId ?? null
       if (!parentGoalId && (periodStart || periodEnd))
         return err({ tag: 'period_not_allowed', goalType: 'recurring' })
+      if (parentGoalId) {
+        if (!periodStart || !periodEnd)
+          return err({ tag: 'period_required', goalType: 'recurring' })
+        if (periodEnd <= periodStart)
+          return err({
+            tag: 'invalid_period',
+            detail: 'periodEnd must be after periodStart',
+          })
+      }
       if (rollingWindowDays !== null)
         return err({ tag: 'rolling_window_not_allowed', goalType: 'recurring' })
       break
+    }
+    default: {
+      assertNever('goalType', input.goalType)
     }
   }
 

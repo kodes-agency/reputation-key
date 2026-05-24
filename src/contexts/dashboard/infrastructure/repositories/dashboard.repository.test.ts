@@ -5,6 +5,8 @@
 import { describe, it, expect } from 'vitest'
 import { Pool } from 'pg'
 import { createDashboardRepository } from '../../infrastructure/repositories/dashboard.repository'
+import { createReviewStatsAdapter } from '../../infrastructure/adapters/review-stats.adapter'
+import { createMetricStatsAdapter } from '../../infrastructure/adapters/metric-stats.adapter'
 import { getDb } from '#/shared/db'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { organizationId, propertyId, portalId } from '#/shared/domain/ids'
@@ -83,7 +85,15 @@ async function seedMetricReading(
   await pool.query(
     `INSERT INTO metric_readings (id, organization_id, property_id, portal_id, metric_key, value, recorded_at)
      VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-    [id, orgId, propId, overrides.portalId ?? null, overrides.metricKey, overrides.value, recordedAt],
+    [
+      id,
+      orgId,
+      propId,
+      overrides.portalId ?? null,
+      overrides.metricKey,
+      overrides.value,
+      recordedAt,
+    ],
   )
   return id
 }
@@ -94,12 +104,30 @@ describe('dashboardRepository (integration)', () => {
       const pool = getPool()
       await seedProperty(pool, PROP_A, ORG_A)
 
-      await seedReview(pool, { id: crypto.randomUUID(), rating: 5, text: 'Excellent!', daysAgo: 1 })
-      await seedReview(pool, { id: crypto.randomUUID(), rating: 3, text: 'Okay', daysAgo: 3 })
-      await seedReview(pool, { id: crypto.randomUUID(), rating: 1, text: 'Terrible', daysAgo: 7 })
+      await seedReview(pool, {
+        id: crypto.randomUUID(),
+        rating: 5,
+        text: 'Excellent!',
+        daysAgo: 1,
+      })
+      await seedReview(pool, {
+        id: crypto.randomUUID(),
+        rating: 3,
+        text: 'Okay',
+        daysAgo: 3,
+      })
+      await seedReview(pool, {
+        id: crypto.randomUUID(),
+        rating: 1,
+        text: 'Terrible',
+        daysAgo: 7,
+      })
 
       const db = getDb()
-      const repo = createDashboardRepository(db)
+      const repo = createDashboardRepository(
+        createReviewStatsAdapter(db),
+        createMetricStatsAdapter(db),
+      )
       const result = await repo.getRecentReviews({
         organizationId: ORG_A,
         propertyId: PROP_A,
@@ -122,7 +150,10 @@ describe('dashboardRepository (integration)', () => {
       }
 
       const db = getDb()
-      const repo = createDashboardRepository(db)
+      const repo = createDashboardRepository(
+        createReviewStatsAdapter(db),
+        createMetricStatsAdapter(db),
+      )
       const result = await repo.getRecentReviews({
         organizationId: ORG_A,
         propertyId: PROP_A,
@@ -146,7 +177,10 @@ describe('dashboardRepository (integration)', () => {
       )
 
       const db = getDb()
-      const repo = createDashboardRepository(db)
+      const repo = createDashboardRepository(
+        createReviewStatsAdapter(db),
+        createMetricStatsAdapter(db),
+      )
       const result = await repo.getRecentReviews({
         organizationId: ORG_A,
         propertyId: PROP_A,
@@ -169,7 +203,10 @@ describe('dashboardRepository (integration)', () => {
       )
 
       const db = getDb()
-      const repo = createDashboardRepository(db)
+      const repo = createDashboardRepository(
+        createReviewStatsAdapter(db),
+        createMetricStatsAdapter(db),
+      )
       const result = await repo.getRecentReviews({
         organizationId: ORG_A,
         propertyId: PROP_A,
@@ -194,7 +231,10 @@ describe('dashboardRepository (integration)', () => {
       await seedReview(pool, { rating: 1, daysAgo: 10 })
 
       const db = getDb()
-      const repo = createDashboardRepository(db)
+      const repo = createDashboardRepository(
+        createReviewStatsAdapter(db),
+        createMetricStatsAdapter(db),
+      )
       const result = await repo.getRatingDistribution({
         organizationId: ORG_A,
         propertyId: PROP_A,
@@ -219,7 +259,10 @@ describe('dashboardRepository (integration)', () => {
       await seedReview(pool, { rating: 1, daysAgo: 20 }) // outside
 
       const db = getDb()
-      const repo = createDashboardRepository(db)
+      const repo = createDashboardRepository(
+        createReviewStatsAdapter(db),
+        createMetricStatsAdapter(db),
+      )
       const result = await repo.getRatingDistribution({
         organizationId: ORG_A,
         propertyId: PROP_A,
@@ -243,17 +286,32 @@ describe('dashboardRepository (integration)', () => {
       await seedMetricReading(pool, { metricKey: 'portal.scan', value: 1, daysAgo: 1 })
       await seedMetricReading(pool, { metricKey: 'portal.scan', value: 1, daysAgo: 2 })
       await seedMetricReading(pool, { metricKey: 'portal.scan', value: 1, daysAgo: 5 })
-      await seedMetricReading(pool, { metricKey: 'portal.feedback', value: 1, daysAgo: 2 })
-      await seedMetricReading(pool, { metricKey: 'portal.feedback', value: 1, daysAgo: 4 })
+      await seedMetricReading(pool, {
+        metricKey: 'portal.feedback',
+        value: 1,
+        daysAgo: 2,
+      })
+      await seedMetricReading(pool, {
+        metricKey: 'portal.feedback',
+        value: 1,
+        daysAgo: 4,
+      })
 
       // Prior period (7–14 days ago)
       await seedReview(pool, { rating: 4, daysAgo: 10 })
       await seedMetricReading(pool, { metricKey: 'portal.scan', value: 1, daysAgo: 8 })
       await seedMetricReading(pool, { metricKey: 'portal.scan', value: 1, daysAgo: 12 })
-      await seedMetricReading(pool, { metricKey: 'portal.feedback', value: 1, daysAgo: 9 })
+      await seedMetricReading(pool, {
+        metricKey: 'portal.feedback',
+        value: 1,
+        daysAgo: 9,
+      })
 
       const db = getDb()
-      const repo = createDashboardRepository(db)
+      const repo = createDashboardRepository(
+        createReviewStatsAdapter(db),
+        createMetricStatsAdapter(db),
+      )
       const now = new Date()
       const result = await repo.getKPIs({
         organizationId: ORG_A,
@@ -292,10 +350,17 @@ describe('dashboardRepository (integration)', () => {
       // Only current period data
       await seedReview(pool, { rating: 5, daysAgo: 1 })
       await seedMetricReading(pool, { metricKey: 'portal.scan', value: 1, daysAgo: 1 })
-      await seedMetricReading(pool, { metricKey: 'portal.feedback', value: 1, daysAgo: 1 })
+      await seedMetricReading(pool, {
+        metricKey: 'portal.feedback',
+        value: 1,
+        daysAgo: 1,
+      })
 
       const db = getDb()
-      const repo = createDashboardRepository(db)
+      const repo = createDashboardRepository(
+        createReviewStatsAdapter(db),
+        createMetricStatsAdapter(db),
+      )
       const now = new Date()
       const result = await repo.getKPIs({
         organizationId: ORG_A,
@@ -347,7 +412,10 @@ describe('dashboardRepository (integration)', () => {
       )
 
       const db = getDb()
-      const repo = createDashboardRepository(db)
+      const repo = createDashboardRepository(
+        createReviewStatsAdapter(db),
+        createMetricStatsAdapter(db),
+      )
       const result = await repo.getReplyPerformance({
         organizationId: ORG_A,
         propertyId: PROP_A,
@@ -368,7 +436,10 @@ describe('dashboardRepository (integration)', () => {
       await seedReview(pool, { rating: 5, daysAgo: 1 })
 
       const db = getDb()
-      const repo = createDashboardRepository(db)
+      const repo = createDashboardRepository(
+        createReviewStatsAdapter(db),
+        createMetricStatsAdapter(db),
+      )
       const result = await repo.getReplyPerformance({
         organizationId: ORG_A,
         propertyId: PROP_A,
@@ -395,7 +466,10 @@ describe('dashboardRepository (integration)', () => {
       await seedReview(pool, { rating: 5, daysAgo: 0 })
 
       const db = getDb()
-      const repo = createDashboardRepository(db)
+      const repo = createDashboardRepository(
+        createReviewStatsAdapter(db),
+        createMetricStatsAdapter(db),
+      )
       const result = await repo.getRatingTrend({
         organizationId: ORG_A,
         propertyId: PROP_A,
@@ -427,7 +501,10 @@ describe('dashboardRepository (integration)', () => {
       await seedReview(pool, { rating: 5, daysAgo: 0 })
 
       const db = getDb()
-      const repo = createDashboardRepository(db)
+      const repo = createDashboardRepository(
+        createReviewStatsAdapter(db),
+        createMetricStatsAdapter(db),
+      )
       const result = await repo.getReviewVolume({
         organizationId: ORG_A,
         propertyId: PROP_A,
@@ -461,15 +538,48 @@ describe('dashboardRepository (integration)', () => {
       )
 
       // Seed metric readings for the portal
-      await seedMetricReading(pool, { portalId: PORTAL_A, metricKey: 'portal.scan', value: 1, daysAgo: 1 })
-      await seedMetricReading(pool, { portalId: PORTAL_A, metricKey: 'portal.scan', value: 1, daysAgo: 2 })
-      await seedMetricReading(pool, { portalId: PORTAL_A, metricKey: 'portal.scan', value: 1, daysAgo: 3 })
-      await seedMetricReading(pool, { portalId: PORTAL_A, metricKey: 'portal.feedback', value: 1, daysAgo: 1 })
-      await seedMetricReading(pool, { portalId: PORTAL_A, metricKey: 'portal.feedback', value: 1, daysAgo: 2 })
-      await seedMetricReading(pool, { portalId: PORTAL_A, metricKey: 'portal.review_link_click', value: 1, daysAgo: 1 })
+      await seedMetricReading(pool, {
+        portalId: PORTAL_A,
+        metricKey: 'portal.scan',
+        value: 1,
+        daysAgo: 1,
+      })
+      await seedMetricReading(pool, {
+        portalId: PORTAL_A,
+        metricKey: 'portal.scan',
+        value: 1,
+        daysAgo: 2,
+      })
+      await seedMetricReading(pool, {
+        portalId: PORTAL_A,
+        metricKey: 'portal.scan',
+        value: 1,
+        daysAgo: 3,
+      })
+      await seedMetricReading(pool, {
+        portalId: PORTAL_A,
+        metricKey: 'portal.feedback',
+        value: 1,
+        daysAgo: 1,
+      })
+      await seedMetricReading(pool, {
+        portalId: PORTAL_A,
+        metricKey: 'portal.feedback',
+        value: 1,
+        daysAgo: 2,
+      })
+      await seedMetricReading(pool, {
+        portalId: PORTAL_A,
+        metricKey: 'portal.review_link_click',
+        value: 1,
+        daysAgo: 1,
+      })
 
       const db = getDb()
-      const repo = createDashboardRepository(db)
+      const repo = createDashboardRepository(
+        createReviewStatsAdapter(db),
+        createMetricStatsAdapter(db),
+      )
       const result = await repo.getEngagementFunnel({
         organizationId: ORG_A,
         propertyId: PROP_A,
@@ -498,7 +608,10 @@ describe('dashboardRepository (integration)', () => {
       await seedReview(pool, { propId: PROP_B, orgId: ORG_B, rating: 1, daysAgo: 1 })
 
       const db = getDb()
-      const repo = createDashboardRepository(db)
+      const repo = createDashboardRepository(
+        createReviewStatsAdapter(db),
+        createMetricStatsAdapter(db),
+      )
       const result = await repo.getRecentReviews({
         organizationId: ORG_A,
         propertyId: PROP_A,
@@ -515,11 +628,26 @@ describe('dashboardRepository (integration)', () => {
       await seedProperty(pool, PROP_A, ORG_A)
       await seedProperty(pool, PROP_B, ORG_B)
 
-      await seedMetricReading(pool, { orgId: ORG_A, propId: PROP_A, metricKey: 'portal.scan', value: 1, daysAgo: 1 })
-      await seedMetricReading(pool, { orgId: ORG_B, propId: PROP_B, metricKey: 'portal.scan', value: 1, daysAgo: 1 })
+      await seedMetricReading(pool, {
+        orgId: ORG_A,
+        propId: PROP_A,
+        metricKey: 'portal.scan',
+        value: 1,
+        daysAgo: 1,
+      })
+      await seedMetricReading(pool, {
+        orgId: ORG_B,
+        propId: PROP_B,
+        metricKey: 'portal.scan',
+        value: 1,
+        daysAgo: 1,
+      })
 
       const db = getDb()
-      const repo = createDashboardRepository(db)
+      const repo = createDashboardRepository(
+        createReviewStatsAdapter(db),
+        createMetricStatsAdapter(db),
+      )
       const now = new Date()
       const result = await repo.getKPIs({
         organizationId: ORG_A,

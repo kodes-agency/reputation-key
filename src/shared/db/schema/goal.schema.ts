@@ -28,6 +28,8 @@ export const goals = pgTable(
       .references(() => properties.id, { onDelete: 'cascade' }),
     portalId: uuid('portal_id').references(() => portals.id, { onDelete: 'cascade' }),
     teamId: uuid('team_id').references(() => teams.id, { onDelete: 'cascade' }),
+    // staffId intentionally has no FK — stores cross-context staff assignment IDs
+    // from the staff bounded context. FK would create an unwanted cross-context schema dependency.
     staffId: varchar('staff_id', { length: 255 }),
     name: varchar('name', { length: 200 }).notNull(),
     description: text('description'),

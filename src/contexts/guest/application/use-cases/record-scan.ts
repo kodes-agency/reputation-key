@@ -8,14 +8,15 @@ import type {
   StaffId,
 } from '#/shared/domain/ids'
 import type { ScanSource } from '../../domain/types'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import { scanRecorded } from '../../domain/events'
-import { getLogger } from '#/shared/observability/logger'
 
 export type RecordScanDeps = Readonly<{
   guestRepo: GuestInteractionRepository
   events: EventBus
   idGen: () => ScanEventId
   clock: () => Date
+  logger: LoggerPort
 }>
 
 export type RecordScanInput = Readonly<{
@@ -52,7 +53,7 @@ export const recordScan =
       )
     } catch (e) {
       // Silent failure per I10 — scan is analytics, not critical path
-      getLogger().warn(
+      deps.logger.warn(
         { err: e, propertyId: input.propertyId },
         'Scan recording failed — suppressed per I10',
       )

@@ -9,6 +9,7 @@ import {
   goalId,
   userId,
 } from '#/shared/domain/ids'
+import type { GoalType } from './types'
 
 const BASE = {
   id: goalId('goal-1'),
@@ -55,6 +56,24 @@ describe('buildGoal', () => {
       expect(result.isOk()).toBe(true)
     })
 
+    it('creates an open goal at team scope', () => {
+      const result = buildGoal({
+        ...BASE,
+        goalType: 'open',
+        teamId: teamId('team-1'),
+      })
+      expect(result.isOk()).toBe(true)
+    })
+
+    it('creates an open goal at staff scope', () => {
+      const result = buildGoal({
+        ...BASE,
+        goalType: 'open',
+        staffId: staffId('staff-1'),
+      })
+      expect(result.isOk()).toBe(true)
+    })
+
     it('rejects open goal with period dates', () => {
       const result = buildGoal({
         ...BASE,
@@ -63,6 +82,7 @@ describe('buildGoal', () => {
         periodEnd: new Date('2026-06-30'),
       })
       expect(result.isErr()).toBe(true)
+      expect(result._unsafeUnwrapErr().tag).toBe('period_not_allowed')
     })
 
     it('rejects open goal with rollingWindowDays', () => {
@@ -72,6 +92,7 @@ describe('buildGoal', () => {
         rollingWindowDays: 30,
       })
       expect(result.isErr()).toBe(true)
+      expect(result._unsafeUnwrapErr().tag).toBe('rolling_window_not_allowed')
     })
 
     it('rejects open goal with recurrenceRule', () => {
@@ -81,6 +102,7 @@ describe('buildGoal', () => {
         recurrenceRule: { frequency: 'monthly' },
       })
       expect(result.isErr()).toBe(true)
+      expect(result._unsafeUnwrapErr().tag).toBe('recurrence_rule_not_allowed')
     })
   })
 
@@ -105,6 +127,7 @@ describe('buildGoal', () => {
         goalType: 'one_shot',
       })
       expect(result.isErr()).toBe(true)
+      expect(result._unsafeUnwrapErr().tag).toBe('period_required')
     })
 
     it('rejects one-shot goal with periodEnd before periodStart', () => {
@@ -115,6 +138,31 @@ describe('buildGoal', () => {
         periodEnd: new Date('2026-06-01'),
       })
       expect(result.isErr()).toBe(true)
+      expect(result._unsafeUnwrapErr().tag).toBe('invalid_period')
+    })
+
+    it('rejects one-shot goal with rollingWindowDays', () => {
+      const result = buildGoal({
+        ...BASE,
+        goalType: 'one_shot',
+        periodStart: new Date('2026-06-01'),
+        periodEnd: new Date('2026-06-30'),
+        rollingWindowDays: 30,
+      })
+      expect(result.isErr()).toBe(true)
+      expect(result._unsafeUnwrapErr().tag).toBe('rolling_window_not_allowed')
+    })
+
+    it('rejects one-shot goal with recurrenceRule', () => {
+      const result = buildGoal({
+        ...BASE,
+        goalType: 'one_shot',
+        periodStart: new Date('2026-06-01'),
+        periodEnd: new Date('2026-06-30'),
+        recurrenceRule: { frequency: 'monthly' },
+      })
+      expect(result.isErr()).toBe(true)
+      expect(result._unsafeUnwrapErr().tag).toBe('recurrence_rule_not_allowed')
     })
   })
 
@@ -138,6 +186,7 @@ describe('buildGoal', () => {
         goalType: 'rolling',
       })
       expect(result.isErr()).toBe(true)
+      expect(result._unsafeUnwrapErr().tag).toBe('rolling_window_required')
     })
 
     it('rejects rolling goal with period dates', () => {
@@ -149,6 +198,38 @@ describe('buildGoal', () => {
         periodEnd: new Date('2026-06-30'),
       })
       expect(result.isErr()).toBe(true)
+      expect(result._unsafeUnwrapErr().tag).toBe('period_not_allowed')
+    })
+
+    it('rejects rolling goal with recurrenceRule', () => {
+      const result = buildGoal({
+        ...BASE,
+        goalType: 'rolling',
+        rollingWindowDays: 30,
+        recurrenceRule: { frequency: 'monthly' },
+      })
+      expect(result.isErr()).toBe(true)
+      expect(result._unsafeUnwrapErr().tag).toBe('recurrence_rule_not_allowed')
+    })
+
+    it('rejects rolling goal with rollingWindowDays = 0', () => {
+      const result = buildGoal({
+        ...BASE,
+        goalType: 'rolling',
+        rollingWindowDays: 0,
+      })
+      expect(result.isErr()).toBe(true)
+      expect(result._unsafeUnwrapErr().tag).toBe('rolling_window_required')
+    })
+
+    it('rejects rolling goal with negative rollingWindowDays', () => {
+      const result = buildGoal({
+        ...BASE,
+        goalType: 'rolling',
+        rollingWindowDays: -5,
+      })
+      expect(result.isErr()).toBe(true)
+      expect(result._unsafeUnwrapErr().tag).toBe('rolling_window_required')
     })
   })
 
@@ -173,6 +254,7 @@ describe('buildGoal', () => {
         goalType: 'recurring',
       })
       expect(result.isErr()).toBe(true)
+      expect(result._unsafeUnwrapErr().tag).toBe('recurrence_rule_required')
     })
 
     it('rejects recurring with period dates (template cannot have dates)', () => {
@@ -184,6 +266,73 @@ describe('buildGoal', () => {
         periodEnd: new Date('2026-06-30'),
       })
       expect(result.isErr()).toBe(true)
+      expect(result._unsafeUnwrapErr().tag).toBe('period_not_allowed')
+    })
+
+    it('rejects recurring with rollingWindowDays', () => {
+      const result = buildGoal({
+        ...BASE,
+        goalType: 'recurring',
+        recurrenceRule: { frequency: 'monthly' },
+        rollingWindowDays: 30,
+      })
+      expect(result.isErr()).toBe(true)
+      expect(result._unsafeUnwrapErr().tag).toBe('rolling_window_not_allowed')
+    })
+
+    it('allows recurring instance (parentGoalId set) with period dates', () => {
+      const result = buildGoal({
+        ...BASE,
+        goalType: 'recurring',
+        recurrenceRule: { frequency: 'monthly' },
+        parentGoalId: goalId('parent-1'),
+        periodStart: new Date('2026-06-01'),
+        periodEnd: new Date('2026-06-30'),
+      })
+      expect(result.isOk()).toBe(true)
+      const goal = result._unsafeUnwrap()
+      expect(goal.parentGoalId).not.toBeNull()
+    })
+
+    it('rejects recurring instance with periodEnd before periodStart', () => {
+      const result = buildGoal({
+        ...BASE,
+        goalType: 'recurring',
+        recurrenceRule: { frequency: 'monthly' },
+        parentGoalId: goalId('parent-1'),
+        periodStart: new Date('2026-06-30'),
+        periodEnd: new Date('2026-06-01'),
+      })
+      expect(result.isErr()).toBe(true)
+      expect(result._unsafeUnwrapErr().tag).toBe('invalid_period')
+    })
+  })
+
+  // ── Exhaustive goalType coverage ─────────────────────────────────────
+  describe('exhaustive goalType switch', () => {
+    const goalTypes: GoalType[] = ['open', 'one_shot', 'rolling', 'recurring']
+
+    it('handles all four goal types without throwing', () => {
+      for (const goalType of goalTypes) {
+        const input: Parameters<typeof buildGoal>[0] = {
+          ...BASE,
+          goalType,
+          // Provide required fields for each type
+          ...(goalType === 'one_shot'
+            ? {
+                periodStart: new Date('2026-06-01'),
+                periodEnd: new Date('2026-06-30'),
+              }
+            : {}),
+          ...(goalType === 'rolling' ? { rollingWindowDays: 30 } : {}),
+          ...(goalType === 'recurring'
+            ? { recurrenceRule: { frequency: 'monthly' } }
+            : {}),
+        }
+        const result = buildGoal(input)
+        expect(result.isOk()).toBe(true)
+        expect(result._unsafeUnwrap().goalType).toBe(goalType)
+      }
     })
   })
 
@@ -197,6 +346,7 @@ describe('buildGoal', () => {
         metricKey: 'property.review',
       })
       expect(result.isErr()).toBe(true)
+      expect(result._unsafeUnwrapErr().tag).toBe('invalid_metric_for_scope')
     })
 
     it('rejects team scope with property.review metric', () => {
@@ -207,6 +357,7 @@ describe('buildGoal', () => {
         metricKey: 'property.review',
       })
       expect(result.isErr()).toBe(true)
+      expect(result._unsafeUnwrapErr().tag).toBe('invalid_metric_for_scope')
     })
 
     it('allows staff scope with portal.scan metric', () => {
@@ -217,6 +368,17 @@ describe('buildGoal', () => {
         metricKey: 'portal.scan',
       })
       expect(result.isOk()).toBe(true)
+    })
+
+    it('rejects when multiple scope FKs are set (ambiguous scope)', () => {
+      const result = buildGoal({
+        ...BASE,
+        goalType: 'open',
+        portalId: portalId('portal-1'),
+        teamId: teamId('team-1'),
+      })
+      expect(result.isErr()).toBe(true)
+      expect(result._unsafeUnwrapErr().tag).toBe('ambiguous_scope')
     })
   })
 
@@ -230,6 +392,7 @@ describe('buildGoal', () => {
         aggregationFunction: 'avg',
       })
       expect(result.isErr()).toBe(true)
+      expect(result._unsafeUnwrapErr().tag).toBe('invalid_aggregation_for_metric')
     })
 
     it('allows AVG on portal.rating', () => {
@@ -250,6 +413,7 @@ describe('buildGoal', () => {
         aggregationFunction: 'sum',
       })
       expect(result.isErr()).toBe(true)
+      expect(result._unsafeUnwrapErr().tag).toBe('invalid_aggregation_for_metric')
     })
   })
 
@@ -262,6 +426,17 @@ describe('buildGoal', () => {
         name: '',
       })
       expect(result.isErr()).toBe(true)
+      expect(result._unsafeUnwrapErr().tag).toBe('empty_name')
+    })
+
+    it('rejects whitespace-only name', () => {
+      const result = buildGoal({
+        ...BASE,
+        goalType: 'open',
+        name: '   ',
+      })
+      expect(result.isErr()).toBe(true)
+      expect(result._unsafeUnwrapErr().tag).toBe('empty_name')
     })
 
     it('rejects zero targetValue', () => {
@@ -271,6 +446,7 @@ describe('buildGoal', () => {
         targetValue: 0,
       })
       expect(result.isErr()).toBe(true)
+      expect(result._unsafeUnwrapErr().tag).toBe('invalid_target_value')
     })
 
     it('rejects negative targetValue', () => {
@@ -280,6 +456,101 @@ describe('buildGoal', () => {
         targetValue: -5,
       })
       expect(result.isErr()).toBe(true)
+      expect(result._unsafeUnwrapErr().tag).toBe('invalid_target_value')
+    })
+
+    it('rejects NaN targetValue', () => {
+      const result = buildGoal({
+        ...BASE,
+        goalType: 'open',
+        targetValue: NaN,
+      })
+      expect(result.isErr()).toBe(true)
+      expect(result._unsafeUnwrapErr().tag).toBe('invalid_target_value')
+    })
+
+    it('rejects Infinity targetValue', () => {
+      const result = buildGoal({
+        ...BASE,
+        goalType: 'open',
+        targetValue: Infinity,
+      })
+      expect(result.isErr()).toBe(true)
+      expect(result._unsafeUnwrapErr().tag).toBe('invalid_target_value')
+    })
+
+    it('accepts name at exactly 200 characters', () => {
+      const result = buildGoal({
+        ...BASE,
+        goalType: 'open',
+        name: 'A'.repeat(200),
+      })
+      expect(result.isOk()).toBe(true)
+    })
+
+    it('rejects name at 201 characters', () => {
+      const result = buildGoal({
+        ...BASE,
+        goalType: 'open',
+        name: 'A'.repeat(201),
+      })
+      expect(result.isErr()).toBe(true)
+      expect(result._unsafeUnwrapErr().tag).toBe('name_too_long')
+    })
+
+    it('accepts description at exactly 1000 characters', () => {
+      const result = buildGoal({
+        ...BASE,
+        goalType: 'open',
+        description: 'D'.repeat(1000),
+      })
+      expect(result.isOk()).toBe(true)
+      expect(result._unsafeUnwrap().description).toBe('D'.repeat(1000))
+    })
+
+    it('rejects description over 1000 characters', () => {
+      const result = buildGoal({
+        ...BASE,
+        goalType: 'open',
+        description: 'D'.repeat(1001),
+      })
+      expect(result.isErr()).toBe(true)
+      expect(result._unsafeUnwrapErr().tag).toBe('description_too_long')
+    })
+  })
+
+  // ── Returned goal shape ──────────────────────────────────────────────
+  describe('returned goal shape', () => {
+    it('sets status to active by default', () => {
+      const result = buildGoal({ ...BASE, goalType: 'open' })
+      expect(result._unsafeUnwrap().status).toBe('active')
+    })
+
+    it('sets completedAt to null', () => {
+      const result = buildGoal({ ...BASE, goalType: 'open' })
+      expect(result._unsafeUnwrap().completedAt).toBeNull()
+    })
+
+    it('sets parentGoalId to null when not provided', () => {
+      const result = buildGoal({ ...BASE, goalType: 'open' })
+      expect(result._unsafeUnwrap().parentGoalId).toBeNull()
+    })
+
+    it('preserves description', () => {
+      const result = buildGoal({
+        ...BASE,
+        goalType: 'open',
+        description: 'A test goal',
+      })
+      expect(result._unsafeUnwrap().description).toBe('A test goal')
+    })
+
+    it('uses input.now for createdAt and updatedAt', () => {
+      const now = new Date('2026-01-15T10:30:00Z')
+      const result = buildGoal({ ...BASE, goalType: 'open', now })
+      const goal = result._unsafeUnwrap()
+      expect(goal.createdAt).toBe(now)
+      expect(goal.updatedAt).toBe(now)
     })
   })
 })

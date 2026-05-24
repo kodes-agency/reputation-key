@@ -4,7 +4,7 @@
 
 import type { PropertyLookupPort } from '../ports/property-lookup.port'
 import type { ReviewQueuePort } from '#/contexts/review/application/public-api'
-import type { Logger } from 'pino'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 
 export type HandleGbpNotificationInput = Readonly<{
   locationId: string
@@ -21,7 +21,7 @@ export type HandleGbpNotificationResult = Readonly<{
 export type HandleGbpNotificationDeps = Readonly<{
   propertyLookup: PropertyLookupPort
   reviewQueue: ReviewQueuePort
-  logger: Logger
+  logger: LoggerPort
 }>
 
 export const handleGbpNotification =

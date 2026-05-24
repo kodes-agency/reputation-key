@@ -21,6 +21,7 @@ export type ConnectGoogleAccountDeps = Readonly<{
   encryption: TokenEncryptionPort
   events: EventBus
   clock: () => Date
+  idGen: () => string
   callbackUrl: string
 }>
 
@@ -86,7 +87,7 @@ export const connectGoogleAccount =
     }
 
     // 5. Build new connection
-    const connectionId = googleConnectionId(crypto.randomUUID())
+    const connectionId = googleConnectionId(deps.idGen())
 
     const buildResult = buildGoogleConnection({
       id: connectionId,

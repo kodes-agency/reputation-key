@@ -1,21 +1,24 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import type { GoalProgressId } from '#/shared/domain/ids'
-import {
-  onMetricRecorded,
-  type OnMetricRecordedDeps,
-  type MetricRecordedEvent,
-  type GoalCompletedEvent,
-  type GoalProgressUpdatedEvent,
-} from './on-metric-recorded'
+import { onMetricRecorded, type OnMetricRecordedDeps } from './on-metric-recorded'
+import type { MetricRecorded } from '#/contexts/metric/application/public-api'
+import type { GoalCompleted, GoalProgressUpdated } from '../../domain/events'
 import type { GoalRepository } from '../../application/ports/goal.repository'
 import type { Goal, GoalProgress } from '../../domain/types'
-import { organizationId, propertyId, portalId, userId, goalId } from '#/shared/domain/ids'
+import {
+  organizationId,
+  propertyId,
+  portalId,
+  userId,
+  goalId,
+  metricReadingId,
+} from '#/shared/domain/ids'
 
 const FIXED_TIME = new Date('2026-06-15T12:00:00Z')
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
-type EmittedEvent = GoalCompletedEvent | GoalProgressUpdatedEvent
+type EmittedEvent = GoalCompleted | GoalProgressUpdated
 
 function makeGoal(overrides: Partial<Goal> & { id: Goal['id'] }): Goal {
   return {
@@ -72,6 +75,21 @@ function makeFakeDeps() {
       const p = progresses.get(goalId as string)
       return p ? { ...p } : null
     },
+    getProgressBatch: async (ids) => {
+      const map = new Map()
+      for (const id of ids) {
+        const p = progresses.get(id as string)
+        map.set(id, p ? { ...p } : null)
+      }
+      return map
+    },
+    listInstancesBatch: async (parentIds) => {
+      const map = new Map()
+      for (const pid of parentIds) {
+        map.set(pid, [])
+      }
+      return map
+    },
     updateProgress: async () => null,
 
     findActiveGoalsByMetric: async (metricKey, organizationId, propertyId, portalId) => {
@@ -109,7 +127,7 @@ function makeFakeDeps() {
       }
     },
 
-    markGoalCompleted: async (goalId, completedAt) => {
+    markGoalCompleted: async (goalId, _orgId, completedAt) => {
       const idx = goals.findIndex((g) => g.id === goalId)
       if (idx >= 0) {
         const g = goals[idx]!
@@ -118,7 +136,7 @@ function makeFakeDeps() {
     },
     findAllActive: async () => [],
     findActiveRecurringTemplates: async () => [],
-    findLatestInstance: async () => null,
+    findLatestInstance: async (_parentId, _orgId) => null,
     createGoalAndProgress: async () => {},
   }
 
@@ -126,12 +144,31 @@ function makeFakeDeps() {
     emit: async (event: EmittedEvent) => {
       emittedEvents.push(event)
     },
+    on: vi.fn(),
+    clear: vi.fn(),
+  }
+
+  const logger = {
+    info: vi.fn(),
+    error: vi.fn(),
+    warn: vi.fn(),
+    debug: vi.fn(),
+    child: vi.fn(() => ({
+      info: vi.fn(),
+      error: vi.fn(),
+      warn: vi.fn(),
+      debug: vi.fn(),
+    })),
   }
 
   const deps: OnMetricRecordedDeps = {
     goalRepo,
     eventBus,
     clock: () => FIXED_TIME,
+    getLogger: () =>
+      logger as unknown as OnMetricRecordedDeps['getLogger'] extends () => infer R
+        ? R
+        : never,
   }
 
   function addGoalWithProgress(
@@ -156,13 +193,13 @@ function makeFakeDeps() {
     return { goal, progress }
   }
 
-  return { deps, emittedEvents, goals, progresses, addGoalWithProgress }
+  return { deps, emittedEvents, goals, progresses, addGoalWithProgress, logger }
 }
 
-function makeEvent(overrides: Partial<MetricRecordedEvent> = {}): MetricRecordedEvent {
+function makeEvent(overrides: Partial<MetricRecorded> = {}): MetricRecorded {
   return {
     _tag: 'metric.recorded',
-    readingId: 'reading-1',
+    readingId: metricReadingId('reading-1'),
     organizationId: organizationId('org-1'),
     propertyId: propertyId('prop-1'),
     portalId: null,
@@ -217,7 +254,7 @@ describe('onMetricRecorded', () => {
         (e) => e._tag === 'goal.progress_updated',
       )
       expect(progressEvents).toHaveLength(1)
-      const evt = progressEvents[0] as GoalProgressUpdatedEvent
+      const evt = progressEvents[0] as GoalProgressUpdated
       expect(evt.previousValue).toBe(50)
       expect(evt.currentValue).toBe(60)
       expect(evt.computedSource).toBe('event_increment')
@@ -238,7 +275,7 @@ describe('onMetricRecorded', () => {
         (e) => e._tag === 'goal.completed',
       )
       expect(completedEvents).toHaveLength(1)
-      const evt = completedEvents[0] as GoalCompletedEvent
+      const evt = completedEvents[0] as GoalCompleted
       expect(evt.completedValue).toBe(105)
       expect(evt.targetValue).toBe(100)
     })
@@ -556,6 +593,41 @@ describe('onMetricRecorded', () => {
       await handler(makeEvent({ portalId: null, metricKey: 'portal.scan' }))
 
       expect(fakes.emittedEvents).toHaveLength(0)
+    })
+  })
+
+  // ── Outer query error ──────────────────────────────────────────────
+
+  describe('outer query error handling', () => {
+    it('logs error and returns when findActiveGoalsByMetric throws', async () => {
+      const throwingRepo = {
+        ...fakes.deps.goalRepo,
+        findActiveGoalsByMetric: async () => {
+          throw new Error('DB down')
+        },
+      }
+      const logger = {
+        error: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        debug: vi.fn(),
+      }
+      const handlerWithThrowingRepo = onMetricRecorded({
+        ...fakes.deps,
+        goalRepo: throwingRepo,
+        getLogger: () =>
+          logger as unknown as OnMetricRecordedDeps['getLogger'] extends () => infer R
+            ? R
+            : never,
+      })
+
+      // Should NOT throw
+      await expect(handlerWithThrowingRepo(makeEvent())).resolves.toBeUndefined()
+
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.objectContaining({ err: expect.any(Error) }),
+        expect.stringContaining('fatal error querying goals'),
+      )
     })
   })
 })

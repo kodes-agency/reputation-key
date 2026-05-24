@@ -15,6 +15,7 @@ export const integrationErrorStatus = (code: IntegrationErrorCode): number =>
       'gbp_api_error',
       'invalid_visibility',
       'encryption_error',
+      'invalid_cache_entry',
       () => 400,
     )
     .with('gbp_api_rate_limited', () => 429)

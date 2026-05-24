@@ -49,6 +49,65 @@ _Avoid_: Review gating, filtering, moderation
 - All guest interactions are tied to a **Session Cookie** (no PII)
 - **Smart Routing** affects the visual emphasis of the **Feedback** form based on the **Rating** value
 - **Anti-Gating** compliance ensures review links are always visible and identically positioned regardless of **Rating**
+- Guest context **depends on** `PortalPublicApi` for portal resolution and public portal data.
+- Guest context **depends on** `StaffPublicApi` for referral code resolution (scan attribution).
+
+## Events produced
+
+- **`scan.recorded`** — scanId, organizationId, portalId, propertyId, source, staffId, occurredAt.
+- **`rating.submitted`** — ratingId, organizationId, portalId, propertyId, value, staffId, occurredAt.
+- **`feedback.submitted`** — feedbackId, organizationId, portalId, propertyId, ratingId, staffId, occurredAt.
+- **`review-link.clicked`** — linkId, organizationId, portalId, propertyId, staffId, occurredAt.
+
+## Events consumed
+
+None. Guest context does not subscribe to events from other contexts.
+
+## Architecture layers
+
+```
+guest/
+  domain/              types.ts, constructors.ts, events.ts, errors.ts, rules.ts
+  application/
+    ports/             guest-interaction.repository.ts, portal-context-resolver.port.ts,
+                       public-portal-lookup.port.ts
+    dto/               rating.dto.ts, feedback.dto.ts, public-portal.dto.ts
+    use-cases/         record-scan.ts, record-scan-with-ref.ts, submit-rating.ts,
+                       submit-feedback.ts, track-review-link-click.ts,
+                       resolve-link-and-track.ts, resolve-portal-context.ts,
+                       get-public-portal.ts, get-staff-id-for-session.ts
+    public-api.ts      re-exports domain types, event types/constructors
+  infrastructure/
+    repositories/      guest-interaction.repository.ts
+    mappers/           guest.mapper.ts
+    resolvers/         portal-context-resolver.ts, public-portal-lookup.ts
+  server/              public.ts
+  build.ts             composition root
+```
+
+## Use cases
+
+- **`recordScan`** — Record a scan event (no referral attribution).
+- **`recordScanWithRef`** — Record a scan event with referral code resolution via StaffPublicApi.
+- **`submitRating`** — Submit a 1–5 star rating, emit `rating.submitted`.
+- **`submitFeedback`** — Submit free-text feedback after rating, emit `feedback.submitted`.
+- **`trackReviewLinkClick`** — Track a review link click, emit `review-link.clicked`.
+- **`resolveLinkAndTrack`** — Resolve a portal link URL and track the click in one operation.
+- **`resolvePortalContext`** — Resolve org + property from portal ID.
+- **`getPublicPortal`** — Fetch full public portal data for guest-facing rendering.
+- **`getStaffIdForSession`** — Resolve staff ID from session cookie for attribution.
+
+## Public API
+
+Exported from `application/public-api.ts`:
+
+- Types: `ScanEvent`, `Rating`, `Feedback`, `ScanSource`
+- Event types: `ScanRecorded`, `RatingSubmitted`, `FeedbackSubmitted`, `ReviewLinkClicked`, `GuestEvent`
+- Event constructors: `scanRecorded`, `ratingSubmitted`, `feedbackSubmitted`, `reviewLinkClicked`
+
+## Server functions
+
+- **`public.ts`** — Guest-facing server functions (record scan, submit rating, submit feedback, track review link click, get public portal data). No authentication required — guest endpoints.
 
 ## Example dialogue
 

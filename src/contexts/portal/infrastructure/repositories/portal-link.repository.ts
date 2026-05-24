@@ -11,6 +11,7 @@ import type {
   PortalLinkCategoryId,
   PortalLinkId,
 } from '#/shared/domain/ids'
+import { unbrand } from '#/shared/domain/ids'
 import {
   categoryFromRow,
   categoryToRow,
@@ -23,22 +24,21 @@ import { trace } from '#/shared/observability/trace'
 // ── Tenant-filter helpers ─────────────────────────────────────────
 
 const catOrg = (orgId: OrganizationId): SQL<unknown> =>
-  eq(portalLinkCategories.organizationId, orgId as unknown as string)
+  eq(portalLinkCategories.organizationId, unbrand(orgId))
 
 const catIdEq = (id: PortalLinkCategoryId): SQL<unknown> =>
-  eq(portalLinkCategories.id, id as unknown as string)
+  eq(portalLinkCategories.id, unbrand(id))
 
 const catPortal = (portalId: string): SQL<unknown> =>
   eq(portalLinkCategories.portalId, portalId)
 
 const linkOrg = (orgId: OrganizationId): SQL<unknown> =>
-  eq(portalLinks.organizationId, orgId as unknown as string)
+  eq(portalLinks.organizationId, unbrand(orgId))
 
-const linkIdEq = (id: PortalLinkId): SQL<unknown> =>
-  eq(portalLinks.id, id as unknown as string)
+const linkIdEq = (id: PortalLinkId): SQL<unknown> => eq(portalLinks.id, unbrand(id))
 
 const linkCat = (categoryId: PortalLinkCategoryId): SQL<unknown> =>
-  eq(portalLinks.categoryId, categoryId as unknown as string)
+  eq(portalLinks.categoryId, unbrand(categoryId))
 
 const linkPortal = (portalId: string): SQL<unknown> => eq(portalLinks.portalId, portalId)
 
@@ -89,8 +89,7 @@ export const createPortalLinkRepository = (db: Database): PortalLinkRepository =
     return trace('portalLink.updateCategory', async () => {
       const setValues: Record<string, unknown> = {}
       if (patch.title !== undefined) setValues.title = patch.title
-      if (patch.sortKey !== undefined)
-        setValues.sort_key = patch.sortKey as unknown as string
+      if (patch.sortKey !== undefined) setValues.sort_key = patch.sortKey
       if (patch.updatedAt !== undefined) setValues.updated_at = patch.updatedAt
 
       await db
@@ -132,8 +131,7 @@ export const createPortalLinkRepository = (db: Database): PortalLinkRepository =
       if (patch.label !== undefined) setValues.label = patch.label
       if (patch.url !== undefined) setValues.url = patch.url
       if (patch.iconKey !== undefined) setValues.icon_key = patch.iconKey
-      if (patch.sortKey !== undefined)
-        setValues.sort_key = patch.sortKey as unknown as string
+      if (patch.sortKey !== undefined) setValues.sort_key = patch.sortKey
       if (patch.updatedAt !== undefined) setValues.updated_at = patch.updatedAt
 
       await db

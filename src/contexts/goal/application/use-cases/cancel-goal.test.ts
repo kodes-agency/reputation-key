@@ -83,6 +83,20 @@ function createFakeDeps(overrides?: { storedGoals?: Goal[] }) {
       computedSource: data.computedSource,
     }),
     getProgress: async () => null,
+    getProgressBatch: async (ids) => {
+      const map = new Map()
+      for (const id of ids) {
+        map.set(id, null)
+      }
+      return map
+    },
+    listInstancesBatch: async (parentIds) => {
+      const map = new Map()
+      for (const pid of parentIds) {
+        map.set(pid, [])
+      }
+      return map
+    },
     updateProgress: async () => null,
     findActiveGoalsByMetric: async () => [],
     incrementProgress: async () => ({
@@ -132,6 +146,55 @@ const makeGoal = (overrides: Partial<Goal> = {}): Goal => ({
 })
 
 describe('cancelGoal', () => {
+  // ── Permission guard ─────────────────────────────────────────────────
+  describe('permission guard', () => {
+    it('returns forbidden when Staff tries to cancel a goal', async () => {
+      const goal = makeGoal()
+      const fakes = createFakeDeps({ storedGoals: [goal] })
+
+      const result = await cancelGoal(fakes.deps)({
+        goalId: goalId('goal-1'),
+        organizationId: organizationId('org-1'),
+        role: 'Staff',
+      })
+
+      expect(result.isErr()).toBe(true)
+      const error = result._unsafeUnwrapErr()
+      expect(error.tag).toBe('forbidden')
+      // Goal should remain active — repo was never called
+      const stored = fakes.stored.get('goal-1')
+      expect(stored?.status).toBe('active')
+    })
+
+    it('allows AccountAdmin to cancel a goal', async () => {
+      const goal = makeGoal()
+      const fakes = createFakeDeps({ storedGoals: [goal] })
+
+      const result = await cancelGoal(fakes.deps)({
+        goalId: goalId('goal-1'),
+        organizationId: organizationId('org-1'),
+        role: 'AccountAdmin',
+      })
+
+      expect(result.isOk()).toBe(true)
+      expect(result._unsafeUnwrap().status).toBe('cancelled')
+    })
+
+    it('allows PropertyManager to cancel a goal', async () => {
+      const goal = makeGoal()
+      const fakes = createFakeDeps({ storedGoals: [goal] })
+
+      const result = await cancelGoal(fakes.deps)({
+        goalId: goalId('goal-1'),
+        organizationId: organizationId('org-1'),
+        role: 'PropertyManager',
+      })
+
+      expect(result.isOk()).toBe(true)
+      expect(result._unsafeUnwrap().status).toBe('cancelled')
+    })
+  })
+
   it('cancels an active goal', async () => {
     const goal = makeGoal()
     const fakes = createFakeDeps({ storedGoals: [goal] })
@@ -139,6 +202,7 @@ describe('cancelGoal', () => {
     const result = await cancelGoal(fakes.deps)({
       goalId: goalId('goal-1'),
       organizationId: organizationId('org-1'),
+      role: 'AccountAdmin',
     })
 
     expect(result.isOk()).toBe(true)
@@ -156,6 +220,7 @@ describe('cancelGoal', () => {
     const result = await cancelGoal(fakes.deps)({
       goalId: goalId('goal-1'),
       organizationId: organizationId('org-1'),
+      role: 'AccountAdmin',
     })
 
     expect(result.isOk()).toBe(true)
@@ -172,6 +237,7 @@ describe('cancelGoal', () => {
     const result = await cancelGoal(fakes.deps)({
       goalId: goalId('goal-1'),
       organizationId: organizationId('org-1'),
+      role: 'AccountAdmin',
     })
 
     expect(result.isErr()).toBe(true)
@@ -186,6 +252,7 @@ describe('cancelGoal', () => {
     const result = await cancelGoal(fakes.deps)({
       goalId: goalId('goal-1'),
       organizationId: organizationId('org-1'),
+      role: 'AccountAdmin',
     })
 
     expect(result.isErr()).toBe(true)
@@ -199,6 +266,7 @@ describe('cancelGoal', () => {
     const result = await cancelGoal(fakes.deps)({
       goalId: goalId('nonexistent'),
       organizationId: organizationId('org-1'),
+      role: 'AccountAdmin',
     })
 
     expect(result.isErr()).toBe(true)

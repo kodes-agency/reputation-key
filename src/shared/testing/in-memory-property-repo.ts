@@ -60,6 +60,56 @@ export const createInMemoryPropertyRepo = (): InMemoryPropertyRepo => {
       return null
     },
 
+    findBySlug: async (slug) => {
+      for (const property of store.values()) {
+        if (property.slug === slug && property.deletedAt === null) {
+          return property
+        }
+      }
+      return null
+    },
+
+    findIdsByGoogleConnection: async (connectionId, orgId) =>
+      [...store.values()]
+        .filter((p) => isAccessible(orgId, p) && p.googleConnectionId === connectionId)
+        .map((p) => p.id),
+
+    clearGoogleConnectionRef: async (orgId, propertyIds) => {
+      for (const id of propertyIds) {
+        const existing = store.get(id)
+        if (existing && isAccessible(orgId, existing)) {
+          store.set(id, { ...existing, googleConnectionId: null })
+        }
+      }
+    },
+
+    insertAndReturn: async (orgId, property) => {
+      if (property.organizationId !== orgId) {
+        throw new Error('Tenant mismatch on property insert')
+      }
+      store.set(property.id, property)
+      return property
+    },
+
+    findExistingGbpPlaceIds: async (orgId, gbpPlaceIds) => {
+      if (gbpPlaceIds.length === 0) return []
+      const set = new Set(gbpPlaceIds)
+      return [...store.values()]
+        .filter(
+          (p) => isAccessible(orgId, p) && p.gbpPlaceId !== null && set.has(p.gbpPlaceId),
+        )
+        .map((p) => p.gbpPlaceId as string)
+    },
+
+    existsByGbpPlaceId: async (orgId, gbpPlaceId) => {
+      for (const property of store.values()) {
+        if (isAccessible(orgId, property) && property.gbpPlaceId === gbpPlaceId) {
+          return true
+        }
+      }
+      return false
+    },
+
     // ── Test-only helpers ───────────────────────────────────────────
 
     seed: (properties) => {

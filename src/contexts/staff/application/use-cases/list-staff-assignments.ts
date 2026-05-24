@@ -4,6 +4,8 @@ import type { StaffAssignmentRepository } from '../ports/staff-assignment.reposi
 import type { StaffAssignment } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { PropertyId, TeamId, UserId } from '#/shared/domain/ids'
+import { staffError } from '../../domain/errors'
+import { can } from '#/shared/domain/permissions'
 
 // fallow-ignore-next-line unused-type
 export type ListStaffAssignmentsDeps = Readonly<{
@@ -16,6 +18,9 @@ export const listStaffAssignments =
     input: { propertyId?: PropertyId; userId?: UserId; teamId?: TeamId },
     ctx: AuthContext,
   ): Promise<ReadonlyArray<StaffAssignment>> => {
+    if (!can(ctx.role, 'staff_assignment.read')) {
+      throw staffError('forbidden', 'No staff assignment read permission')
+    }
     if (input.teamId) {
       return deps.assignmentRepo.listByTeam(ctx.organizationId, input.teamId)
     }

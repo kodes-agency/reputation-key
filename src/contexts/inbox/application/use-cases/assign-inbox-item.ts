@@ -10,7 +10,7 @@ import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { validateAssignment } from '../../domain/rules'
 import { inboxItemAssigned } from '../../domain/events'
 import { inboxError } from '../../domain/errors'
-import { hasRole, ADMIN_ROLE } from '#/shared/domain/roles'
+import { can } from '#/shared/domain/permissions'
 
 export type AssignInboxItemInput = Readonly<{
   inboxItemId: InboxItemId
@@ -46,7 +46,7 @@ export const assignInboxItem =
     }
 
     // Enforce role-scoped property access
-    if (!hasRole(input.role, ADMIN_ROLE)) {
+    if (!can(input.role, 'inbox.manage')) {
       const accessible = await deps.staffPublicApi.getAccessiblePropertyIds(
         input.organizationId,
         input.userId,

@@ -26,7 +26,7 @@ export const listInvitations =
   (deps: Deps) =>
   async (_input: void, ctx: AuthContext): Promise<ListInvitationsOutput> => {
     // 1. Authorize
-    if (!can(ctx.role, 'invitation.create')) {
+    if (!can(ctx.role, 'invitation.list')) {
       throw identityError('forbidden', 'Insufficient role to view invitations')
     }
 

@@ -4,6 +4,7 @@
 
 import type { StoragePort } from '#/contexts/portal/application/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
+import { can } from '#/shared/domain/permissions'
 import { identityError } from '../../domain/errors'
 
 // fallow-ignore-next-line unused-type
@@ -14,6 +15,10 @@ export type FinalizeAvatarUploadDeps = Readonly<{
 export const finalizeAvatarUpload =
   (deps: FinalizeAvatarUploadDeps) =>
   async (input: { key: string }, ctx: AuthContext): Promise<{ avatarUrl: string }> => {
+    if (!can(ctx.role, 'identity.avatar_upload')) {
+      throw identityError('forbidden', 'Insufficient permissions to upload avatar')
+    }
+
     const expectedPrefix = `avatars/${ctx.userId}/`
     if (!input.key.startsWith(expectedPrefix)) {
       throw identityError('forbidden', 'Upload key is not scoped to this user')

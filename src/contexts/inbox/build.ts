@@ -5,11 +5,14 @@
 import type { Database } from '#/shared/db'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { Redis } from 'ioredis'
-import type { Logger } from 'pino'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { InboxRepository } from './application/ports/inbox.repository'
 import type { InboxNoteRepository } from './application/ports/inbox-note.repository'
 import type { UnreadCounterPort } from './application/ports/unread-counter.port'
+import type { ReviewLookupPort } from './application/ports/review-lookup.port'
+import type { FeedbackLookupPort } from './application/ports/feedback-lookup.port'
+import type { PropertyLookupPort } from './application/ports/property-lookup.port'
 import { createInboxRepository } from './infrastructure/repositories/inbox.repository'
 import { createInboxNoteRepository } from './infrastructure/repositories/inbox-note.repository'
 import { createRedisUnreadCounter } from './infrastructure/adapters/redis-unread-counter'
@@ -31,7 +34,10 @@ export type InboxContextBuildInput = Readonly<{
   redis: Redis | undefined
   clock: () => Date
   staffPublicApi: StaffPublicApi
-  logger: Logger
+  reviewLookup: ReviewLookupPort
+  feedbackLookup: FeedbackLookupPort
+  propertyLookup: PropertyLookupPort
+  logger: LoggerPort
 }>
 
 export type InboxContextApi = Readonly<{
@@ -53,7 +59,11 @@ export type InboxContextApi = Readonly<{
 }>
 
 export const buildInboxContext = (input: InboxContextBuildInput): InboxContextApi => {
-  const inboxRepo = createInboxRepository(input.db)
+  const inboxRepo = createInboxRepository(input.db, {
+    reviewLookup: input.reviewLookup,
+    feedbackLookup: input.feedbackLookup,
+    propertyLookup: input.propertyLookup,
+  })
   const inboxNoteRepo = createInboxNoteRepository(input.db)
   const unreadCounter: UnreadCounterPort = input.redis
     ? createRedisUnreadCounter(input.redis)

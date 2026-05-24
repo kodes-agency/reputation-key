@@ -12,9 +12,13 @@ import type {
 } from '#/shared/domain/metric-keys'
 import type { Action } from '#/components/hooks/use-action'
 import type { CreateGoalInput } from '#/contexts/goal/application/dto/goal.dto'
+import { createGoalSchema } from '#/contexts/goal/application/dto/goal.dto'
 import { GoalCreateFields } from './goal-create-fields'
 
-type Props = { propertyId: string; mutation: Action<{ data: CreateGoalInput }, unknown> }
+type Props = Readonly<{
+  propertyId: string
+  mutation: Action<{ data: CreateGoalInput }, unknown>
+}>
 
 type FormState = {
   name: string
@@ -84,45 +88,51 @@ export function GoalCreateForm({ propertyId, mutation }: Props) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+
+    const input = {
+      propertyId,
+      name: s.name.trim(),
+      description: s.description.trim() || undefined,
+      goalType: s.goalType,
+      aggregationFunction: s.aggregation,
+      metricKey: s.metricKey || undefined,
+      targetValue: s.targetValue ? Number(s.targetValue) : undefined,
+      periodStart: s.periodStart || undefined,
+      periodEnd: s.periodEnd || undefined,
+      recurrenceRule:
+        s.goalType === 'recurring' ? { frequency: s.recurrenceFrequency } : undefined,
+      rollingWindowDays: s.rollingWindowDays ? Number(s.rollingWindowDays) : undefined,
+      ...(s.entityScope === 'portal' ? { portalId: s.entityId || undefined } : {}),
+      ...(s.entityScope === 'team'
+        ? { portalId: s.entityId || undefined, teamId: s.entityId || undefined }
+        : {}),
+      ...(s.entityScope === 'staff'
+        ? {
+            portalId: s.entityId || undefined,
+            teamId: s.entityId || undefined,
+            staffId: s.entityId || undefined,
+          }
+        : {}),
+    }
+
     const errs: Record<string, string> = {}
-    if (!s.name.trim()) errs.name = 'Name is required'
-    if (!s.metricKey) errs.metricKey = 'Metric key is required'
-    if (!s.targetValue || Number(s.targetValue) <= 0)
-      errs.targetValue = 'Target value must be positive'
-    if (Object.keys(errs).length > 0) {
+    const parsed = createGoalSchema.safeParse(input)
+    if (!parsed.success) {
+      for (const issue of parsed.error.issues) {
+        const key = String(issue.path[0] ?? 'form')
+        if (!errs[key]) errs[key] = issue.message
+      }
       setS((prev) => ({ ...prev, errors: errs }))
       return
     }
     setS((prev) => ({ ...prev, errors: {} }))
 
-    const input: CreateGoalInput = {
-      propertyId,
-      name: s.name.trim(),
-      goalType: s.goalType,
-      aggregationFunction: s.aggregation,
-      metricKey: s.metricKey as string & {},
-      targetValue: Number(s.targetValue),
+    try {
+      await mutation({ data: parsed.data })
+      setS(initial)
+    } catch {
+      // mutation hook handles error display
     }
-    if (s.entityScope === 'portal') input.portalId = s.entityId || undefined
-    else if (s.entityScope === 'team') input.teamId = s.entityId || undefined
-    else if (s.entityScope === 'staff') input.staffId = s.entityId || undefined
-    if (s.description.trim()) input.description = s.description.trim()
-    if ((s.goalType === 'one_shot' || s.goalType === 'recurring') && s.periodStart)
-      input.periodStart = s.periodStart
-    if ((s.goalType === 'one_shot' || s.goalType === 'recurring') && s.periodEnd)
-      input.periodEnd = s.periodEnd
-    if (s.goalType === 'rolling' && s.rollingWindowDays)
-      input.rollingWindowDays = Number(s.rollingWindowDays)
-    if (s.goalType === 'recurring')
-      input.recurrenceRule = { frequency: s.recurrenceFrequency }
-
-    const result = await mutation({ data: input })
-    const goalId = (result as { goal?: { id: string } } | undefined)?.goal?.id
-    if (goalId)
-      await navigate({
-        to: '/properties/$propertyId/goals/$goalId',
-        params: { propertyId, goalId },
-      })
   }
 
   return (

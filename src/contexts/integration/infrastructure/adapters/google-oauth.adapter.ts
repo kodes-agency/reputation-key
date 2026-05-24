@@ -4,12 +4,16 @@
 
 import type { GoogleOAuthPort } from '../../application/ports/google-oauth.port'
 import { integrationError } from '../../domain/errors'
+import { trace } from '#/shared/observability/trace'
 
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token'
 const GOOGLE_USERINFO_URL = 'https://www.googleapis.com/oauth2/v2/userinfo'
 const GOOGLE_REVOKE_URL = 'https://oauth2.googleapis.com/revoke'
 
-export const createGoogleOAuthAdapter = (config: { clientId: string; clientSecret: string }): GoogleOAuthPort => {
+export const createGoogleOAuthAdapter = (config: {
+  clientId: string
+  clientSecret: string
+}): GoogleOAuthPort => {
   const clientId = config.clientId
   const clientSecret = config.clientSecret
 
@@ -24,19 +28,21 @@ export const createGoogleOAuthAdapter = (config: { clientId: string; clientSecre
     expiresIn: number
     scopes: readonly string[]
   }> => {
-    const response = await fetch(GOOGLE_TOKEN_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams({
-        code,
-        client_id: clientId,
-        client_secret: clientSecret,
-        redirect_uri: redirectUriParam,
-        grant_type: 'authorization_code',
+    const response = await trace('googleOAuth.exchangeCode', () =>
+      fetch(GOOGLE_TOKEN_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          code,
+          client_id: clientId,
+          client_secret: clientSecret,
+          redirect_uri: redirectUriParam,
+          grant_type: 'authorization_code',
+        }),
       }),
-    })
+    )
 
     if (!response.ok) {
       const errorBody = await response.text().catch(() => 'unable to read response body')
@@ -61,11 +67,13 @@ export const createGoogleOAuthAdapter = (config: { clientId: string; clientSecre
     }
 
     // Fetch user info
-    const userInfoResponse = await fetch(GOOGLE_USERINFO_URL, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    })
+    const userInfoResponse = await trace('googleOAuth.fetchUserInfo', () =>
+      fetch(GOOGLE_USERINFO_URL, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      }),
+    )
 
     if (!userInfoResponse.ok) {
       const errorBody = await userInfoResponse
@@ -92,18 +100,20 @@ export const createGoogleOAuthAdapter = (config: { clientId: string; clientSecre
   const refreshAccessToken = async (
     refreshToken: string,
   ): Promise<{ accessToken: string; expiresIn: number }> => {
-    const response = await fetch(GOOGLE_TOKEN_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams({
-        refresh_token: refreshToken,
-        client_id: clientId,
-        client_secret: clientSecret,
-        grant_type: 'refresh_token',
+    const response = await trace('googleOAuth.refreshToken', () =>
+      fetch(GOOGLE_TOKEN_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          refresh_token: refreshToken,
+          client_id: clientId,
+          client_secret: clientSecret,
+          grant_type: 'refresh_token',
+        }),
       }),
-    })
+    )
 
     if (!response.ok) {
       const errorBody = await response.text().catch(() => 'unable to read response body')
@@ -124,15 +134,17 @@ export const createGoogleOAuthAdapter = (config: { clientId: string; clientSecre
   }
 
   const revokeToken = async (token: string): Promise<void> => {
-    const response = await fetch(GOOGLE_REVOKE_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams({
-        token,
+    const response = await trace('googleOAuth.revokeToken', () =>
+      fetch(GOOGLE_REVOKE_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          token,
+        }),
       }),
-    })
+    )
 
     if (!response.ok) {
       const errorBody = await response.text().catch(() => 'unable to read response body')

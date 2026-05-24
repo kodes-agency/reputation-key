@@ -2,14 +2,19 @@
 // Per architecture: "Pure unit, no setup, no mocks. Run in milliseconds."
 
 import { describe, it, expect } from 'vitest'
-import { buildGoogleConnection, buildGbpImportJob } from './constructors'
+import {
+  buildGoogleConnection,
+  buildGbpImportJob,
+  createGbpCacheEntry,
+} from './constructors'
 import {
   googleConnectionId,
   gbpImportJobId,
+  gbpCacheEntryId,
   organizationId,
+  propertyId,
   userId,
 } from '#/shared/domain/ids'
-
 const now = new Date('2025-06-01T00:00:00Z')
 
 // ── buildGoogleConnection ──────────────────────────────────────────
@@ -177,6 +182,81 @@ describe('buildGbpImportJob', () => {
     if (result.isOk()) {
       expect(result.value.createdAt).toBe(now)
       expect(result.value.updatedAt).toBe(now)
+    }
+  })
+})
+
+// ── createGbpCacheEntry ──────────────────────────────────────────────
+
+describe('createGbpCacheEntry', () => {
+  const fetchedAt = new Date('2025-06-01T12:00:00Z')
+  const expiresAt = new Date('2025-06-02T12:00:00Z')
+
+  const base = {
+    id: gbpCacheEntryId('cache-1'),
+    organizationId: organizationId('org-1'),
+    propertyId: propertyId('prop-1'),
+    gbpPlaceId: 'ChIJN1t_tDeuEmsRUsoyG83frY4',
+    dataType: 'location' as const,
+    payload: { name: 'Test Business' },
+    googleAttribution: 'Attributed to Google',
+    fetchedAt,
+    expiresAt,
+    updatedAt: fetchedAt,
+  }
+
+  it('creates a valid cache entry', () => {
+    const result = createGbpCacheEntry(base)
+    expect(result.isOk()).toBe(true)
+    if (result.isOk()) {
+      expect(result.value.id).toBe(base.id)
+      expect(result.value.organizationId).toBe(base.organizationId)
+      expect(result.value.propertyId).toBe(base.propertyId)
+      expect(result.value.gbpPlaceId).toBe(base.gbpPlaceId)
+      expect(result.value.dataType).toBe('location')
+      expect(result.value.payload).toEqual({ name: 'Test Business' })
+      expect(result.value.googleAttribution).toBe('Attributed to Google')
+      expect(result.value.fetchedAt).toBe(fetchedAt)
+      expect(result.value.expiresAt).toBe(expiresAt)
+    }
+  })
+
+  it('accepts null googleAttribution', () => {
+    const result = createGbpCacheEntry({ ...base, googleAttribution: null })
+    expect(result.isOk()).toBe(true)
+    if (result.isOk()) {
+      expect(result.value.googleAttribution).toBeNull()
+    }
+  })
+
+  it('rejects when expiresAt is before fetchedAt', () => {
+    const result = createGbpCacheEntry({
+      ...base,
+      expiresAt: new Date('2025-05-30T12:00:00Z'),
+    })
+    expect(result.isErr()).toBe(true)
+    if (result.isErr()) {
+      expect(result.error.code).toBe('invalid_cache_entry')
+      expect(result.error.message).toContain('expiresAt must be after fetchedAt')
+    }
+  })
+
+  it('rejects when expiresAt equals fetchedAt', () => {
+    const result = createGbpCacheEntry({
+      ...base,
+      expiresAt: fetchedAt,
+    })
+    expect(result.isErr()).toBe(true)
+    if (result.isErr()) {
+      expect(result.error.code).toBe('invalid_cache_entry')
+    }
+  })
+
+  it('rejects when gbpPlaceId is empty', () => {
+    const result = createGbpCacheEntry({ ...base, gbpPlaceId: '' })
+    expect(result.isErr()).toBe(true)
+    if (result.isErr()) {
+      expect(result.error.code).toBe('invalid_cache_entry')
     }
   })
 })

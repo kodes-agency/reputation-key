@@ -11,7 +11,7 @@ export type PortalLinkItem = {
   id: string
   label: string
   url: string
-  categoryId: string
+  categoryId: string | null
 }
 
 export type PublicPortalContentProps = Readonly<{

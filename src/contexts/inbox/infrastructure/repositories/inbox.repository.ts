@@ -1,25 +1,38 @@
 // Inbox context — Drizzle inbox repository implementation
-// Per architecture: factory function returning Readonly<{ method }>.
+// Per architecture: factory function returning Readonly<{ method }>).
 // Wrapped in trace() for observability.
+//
+// Cross-context data (review/feedback/property) is fetched via lookup ports
+// defined in application/ports/ — never via direct table JOINs.
 
 import { and, eq, desc, inArray, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { inboxItems } from '#/shared/db/schema/inbox.schema'
-import { reviews } from '#/shared/db/schema/review.schema'
-import { feedback, ratings } from '#/shared/db/schema/guest.schema'
-import { properties } from '#/shared/db/schema/property.schema'
 import type {
   InboxRepository,
   InboxFilters,
   Cursor,
   PaginatedResult,
 } from '../../application/ports/inbox.repository'
+import type { ReviewLookupPort } from '../../application/ports/review-lookup.port'
+import type { FeedbackLookupPort } from '../../application/ports/feedback-lookup.port'
+import type { PropertyLookupPort } from '../../application/ports/property-lookup.port'
 import type { InboxItem, InboxStatus, SourceType } from '../../domain/types'
 import type { InboxItemId, OrganizationId, UserId } from '#/shared/domain/ids'
+import { reviewId, feedbackId } from '#/shared/domain/ids'
 import { inboxItemFromRow, inboxItemToInsertRow } from '../mappers/inbox.mapper'
 import { trace } from '#/shared/observability/trace'
+import { getLogger } from '#/shared/observability/logger'
+
+const log = getLogger().child({ component: 'inbox-repo' })
 
 type InboxItemRow = Parameters<typeof inboxItemFromRow>[0]
+
+type LookupPorts = Readonly<{
+  reviewLookup: ReviewLookupPort
+  feedbackLookup: FeedbackLookupPort
+  propertyLookup: PropertyLookupPort
+}>
 
 const withDefaults = (row: InboxItemRow): InboxItem => ({
   ...inboxItemFromRow(row),
@@ -27,14 +40,23 @@ const withDefaults = (row: InboxItemRow): InboxItem => ({
   propertyName: null,
 })
 
-export const createInboxRepository = (db: Database): InboxRepository => ({
+export const createInboxRepository = (
+  db: Database,
+  ports: LookupPorts,
+): InboxRepository => ({
   findById: async (id: InboxItemId, orgId: OrganizationId) => {
     return trace('inbox.findById', async () => {
+      const start = Date.now()
+      log.debug({ id: id as string, orgId: orgId as string }, 'querying inbox findById')
       const rows = await db
         .select()
         .from(inboxItems)
         .where(and(eq(inboxItems.id, id), eq(inboxItems.organizationId, orgId)))
         .limit(1)
+      log.debug(
+        { id: id as string, orgId: orgId as string, duration: Date.now() - start },
+        'inbox findById complete',
+      )
       return rows[0] ? withDefaults(rows[0]) : null
     })
   },
@@ -83,6 +105,8 @@ export const createInboxRepository = (db: Database): InboxRepository => ({
     limit: number = 50,
   ) => {
     return trace('inbox.findFilteredPaginated', async () => {
+      const start = Date.now()
+      log.debug({ orgId: orgId as string, limit }, 'querying inbox findFilteredPaginated')
       const conditions = [eq(inboxItems.organizationId, orgId)]
 
       if (filters.propertyId) {
@@ -124,32 +148,52 @@ export const createInboxRepository = (db: Database): InboxRepository => ({
         )
       }
 
+      // Fetch inbox_items only — no cross-context JOINs
       const rows = await db
-        .select({
-          inboxItems,
-          reviewerName: reviews.reviewerName,
-          propertyName: properties.name,
-        })
+        .select()
         .from(inboxItems)
-        .leftJoin(
-          reviews,
-          and(eq(inboxItems.sourceType, 'review'), eq(inboxItems.sourceId, reviews.id)),
-        )
-        .leftJoin(properties, sql`${inboxItems.propertyId}::uuid = ${properties.id}`)
         .where(and(...conditions))
         .orderBy(desc(inboxItems.sourceDate), desc(inboxItems.id))
         .limit(limit + 1)
 
-      const items = rows.slice(0, limit).map((row) => ({
-        ...inboxItemFromRow(row.inboxItems),
-        reviewerName: row.reviewerName ?? null,
-        propertyName: row.propertyName ?? null,
+      const sliced = rows.slice(0, limit)
+
+      // Enrich with review/property names via lookup ports (batch)
+      const reviewIdsToFetch = sliced
+        .filter((r) => r.sourceType === 'review')
+        .map((r) => r.sourceId)
+
+      const propertyIdsToFetch = [...new Set(sliced.map((r) => r.propertyId))]
+
+      const [reviewSnippets, propertyNames] = await Promise.all([
+        batchReviewNames(ports, reviewIdsToFetch, orgId),
+        batchPropertyNames(ports, propertyIdsToFetch, orgId),
+      ])
+
+      const items = sliced.map((row) => ({
+        ...inboxItemFromRow(row),
+        reviewerName:
+          row.sourceType === 'review'
+            ? (reviewSnippets.get(row.sourceId)?.reviewerName ?? null)
+            : null,
+        propertyName: propertyNames.get(row.propertyId) ?? null,
       }))
+
       const hasNext = rows.length > limit
       const lastItem = items[items.length - 1]
 
       const nextCursor: Cursor | null =
         hasNext && lastItem ? { sourceDate: lastItem.sourceDate, id: lastItem.id } : null
+
+      log.debug(
+        {
+          orgId: orgId as string,
+          itemCount: items.length,
+          hasNext,
+          duration: Date.now() - start,
+        },
+        'inbox findFilteredPaginated complete',
+      )
 
       return { items, nextCursor } as PaginatedResult
     })
@@ -268,6 +312,11 @@ export const createInboxRepository = (db: Database): InboxRepository => ({
 
   findDetailById: async (id: InboxItemId, orgId: OrganizationId) => {
     return trace('inbox.findDetailById', async () => {
+      const start = Date.now()
+      log.debug(
+        { id: id as string, orgId: orgId as string },
+        'querying inbox findDetailById',
+      )
       const rows = await db
         .select()
         .from(inboxItems)
@@ -278,58 +327,85 @@ export const createInboxRepository = (db: Database): InboxRepository => ({
 
       const item = withDefaults(rows[0])
 
-      // JOIN with source table based on sourceType
+      // Enrich via lookup ports instead of cross-context JOINs
       if (item.sourceType === 'review') {
-        const reviewRows = await db
-          .select({
-            reviewerName: reviews.reviewerName,
-            reviewText: reviews.text,
-            reviewerProfilePhotoUrl: reviews.reviewerProfilePhotoUrl,
-          })
-          .from(reviews)
-          .where(and(eq(reviews.id, item.sourceId), eq(reviews.organizationId, orgId)))
-          .limit(1)
-
-        const review = reviewRows[0]
+        const snippet = await ports.reviewLookup.getReviewSnippetById(
+          reviewId(item.sourceId),
+          orgId,
+        )
+        log.debug(
+          {
+            id: id as string,
+            orgId: orgId as string,
+            sourceType: 'review',
+            duration: Date.now() - start,
+          },
+          'inbox findDetailById complete',
+        )
         return {
           item,
-          reviewerName: review?.reviewerName ?? null,
-          reviewText: review?.reviewText ?? null,
-          reviewerProfilePhotoUrl: review?.reviewerProfilePhotoUrl ?? null,
+          reviewerName: snippet?.reviewerName ?? null,
+          reviewText: snippet?.text ?? null,
+          reviewerProfilePhotoUrl: snippet?.reviewerProfilePhotoUrl ?? null,
           feedbackComment: null,
           feedbackRatingValue: null,
         }
       }
 
       // sourceType === 'feedback'
-      const feedbackRows = await db
-        .select({
-          comment: feedback.comment,
-          ratingId: feedback.ratingId,
-        })
-        .from(feedback)
-        .where(and(eq(feedback.id, item.sourceId), eq(feedback.organizationId, orgId)))
-        .limit(1)
-
-      const fb = feedbackRows[0]
-      let ratingValue: number | null = null
-      if (fb?.ratingId) {
-        const ratingRows = await db
-          .select({ value: ratings.value })
-          .from(ratings)
-          .where(and(eq(ratings.id, fb.ratingId), eq(ratings.organizationId, orgId)))
-          .limit(1)
-        ratingValue = ratingRows[0]?.value ?? null
-      }
-
+      const snippet = await ports.feedbackLookup.getFeedbackSnippetById(
+        feedbackId(item.sourceId),
+        orgId,
+      )
+      log.debug(
+        { id: id as string, orgId: orgId as string, duration: Date.now() - start },
+        'inbox findDetailById complete',
+      )
       return {
         item,
         reviewerName: null,
         reviewText: null,
         reviewerProfilePhotoUrl: null,
-        feedbackComment: fb?.comment ?? null,
-        feedbackRatingValue: ratingValue,
+        feedbackComment: snippet?.comment ?? null,
+        feedbackRatingValue: snippet?.ratingValue ?? null,
       }
     })
   },
 })
+
+// ── Batch helpers ──────────────────────────────────────────────────
+
+async function batchReviewNames(
+  ports: LookupPorts,
+  sourceIds: string[],
+  orgId: OrganizationId,
+): Promise<Map<string, { reviewerName: string | null }>> {
+  const map = new Map<string, { reviewerName: string | null }>()
+  if (sourceIds.length === 0) return map
+  await Promise.all(
+    sourceIds.map(async (sid) => {
+      const snippet = await ports.reviewLookup.getReviewSnippetById(reviewId(sid), orgId)
+      if (snippet) {
+        map.set(sid, { reviewerName: snippet.reviewerName })
+      }
+    }),
+  )
+  return map
+}
+
+async function batchPropertyNames(
+  ports: LookupPorts,
+  propertyIds: string[],
+  orgId: OrganizationId,
+): Promise<Map<string, string | null>> {
+  const map = new Map<string, string | null>()
+  if (propertyIds.length === 0) return map
+  const { propertyId } = await import('#/shared/domain/ids')
+  await Promise.all(
+    propertyIds.map(async (pid) => {
+      const name = await ports.propertyLookup.getPropertyNameById(propertyId(pid), orgId)
+      map.set(pid, name)
+    }),
+  )
+  return map
+}

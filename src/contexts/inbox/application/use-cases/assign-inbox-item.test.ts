@@ -46,6 +46,7 @@ const seedItem = (): InboxItem => ({
 
 const defaultStaffApi: StaffPublicApi = {
   getAccessiblePropertyIds: async () => null,
+  findByReferralCode: async () => null,
 }
 
 const setup = (staffApi: StaffPublicApi = defaultStaffApi) => {
@@ -150,9 +151,31 @@ describe('assignInboxItem', () => {
     expect(events.capturedEvents).toHaveLength(0)
   })
 
-  it('throws forbidden when non-admin assigns item for inaccessible property', async () => {
+  it('allows PropertyManager to assign item for any property (inbox.manage bypasses property check)', async () => {
+    // PropertyManager has inbox.manage, so can() passes and the property access check is skipped
     const staffApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [PROP_OTHER],
+      findByReferralCode: async () => null,
+    }
+    const { useCase, repo } = setup(staffApi)
+    repo.items.push(seedItem())
+
+    const updated = await useCase({
+      inboxItemId: ITEM_ID,
+      organizationId: ORG_ID,
+      assignedToUserId: ASSIGNEE_ID,
+      role: 'PropertyManager' as Role,
+      userId: USER_ID,
+    })
+
+    expect(updated.assignedTo).toBe(ASSIGNEE_ID)
+  })
+
+  it('denies access for unknown role without inbox.manage (assignment_not_allowed)', async () => {
+    // Unknown roles fail validateAssignment before reaching can() check
+    const staffApi: StaffPublicApi = {
+      getAccessiblePropertyIds: async () => [],
+      findByReferralCode: async () => null,
     }
     const { useCase, repo } = setup(staffApi)
     repo.items.push(seedItem())
@@ -162,15 +185,18 @@ describe('assignInboxItem', () => {
         inboxItemId: ITEM_ID,
         organizationId: ORG_ID,
         assignedToUserId: ASSIGNEE_ID,
-        role: 'PropertyManager' as Role,
+        role: 'Guest' as unknown as Role,
         userId: USER_ID,
       }),
-    ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'forbidden')
+    ).rejects.toSatisfy(
+      (e: unknown) => isInboxError(e) && e.code === 'assignment_not_allowed',
+    )
   })
 
   it('allows assignment when user has access to the property', async () => {
     const staffApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [PROP_1],
+      findByReferralCode: async () => null,
     }
     const { useCase, repo } = setup(staffApi)
     repo.items.push(seedItem())

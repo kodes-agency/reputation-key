@@ -5,6 +5,8 @@
 
 import type { PortalLinkRepository } from '../ports/portal-link.repository'
 import type { AuthContext } from '#/shared/domain/auth-context'
+import { portalError } from '../../domain/errors'
+import { can } from '#/shared/domain/permissions'
 import { portalId } from '#/shared/domain/ids'
 
 // fallow-ignore-next-line unused-type
@@ -21,6 +23,9 @@ export const listPortalLinks =
     categories: Awaited<ReturnType<PortalLinkRepository['listCategories']>>
     links: Awaited<ReturnType<PortalLinkRepository['listAllLinks']>>
   }> => {
+    if (!can(ctx.role, 'portal.read')) {
+      throw portalError('forbidden', 'No portal read permission')
+    }
     const pid = portalId(input.portalId)
     const [categories, links] = await Promise.all([
       deps.portalLinkRepo.listCategories(ctx.organizationId, pid),

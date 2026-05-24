@@ -6,7 +6,8 @@ import type { GoalRepository } from '../ports/goal.repository'
 import type {
   MetricReadingsQuery,
   MetricReadingsAggregate,
-} from '../../../metric/application/ports/metric.repository'
+  MetricPublicApi,
+} from '../../../metric/application/public-api'
 import type {
   Goal,
   GoalProgress,
@@ -22,19 +23,22 @@ import type {
   StaffId,
   GoalId,
   UserId,
+  GoalProgressId,
 } from '#/shared/domain/ids'
 import type { MetricKey, AggregationFunction } from '#/shared/domain/metric-keys'
+import type { Role } from '#/shared/domain/roles'
 import { buildGoal, type GoalConstructionError } from '../../domain/constructors'
 import {
   buildProgressQuery,
   buildProgressQueryForInstance,
   type ProgressQuery,
 } from '../../domain/progress-strategy'
+import { can } from '#/shared/domain/permissions'
 import { ok, err, type Result } from 'neverthrow'
 
 // ── Input type ──────────────────────────────────────────────────────────
 
-export type CreateGoalInput = Readonly<{
+type CreateGoalInput = Readonly<{
   organizationId: OrganizationId
   propertyId: PropertyId
   portalId: PortalId | null
@@ -51,13 +55,16 @@ export type CreateGoalInput = Readonly<{
   periodEnd?: Date | null
   recurrenceRule?: RecurrenceRule | null
   rollingWindowDays?: number | null
+  role: Role
 }>
 
 // ── Error types ─────────────────────────────────────────────────────────
 
 export type CreateGoalError =
+  | { tag: 'forbidden' }
   | { tag: 'construction_error'; error: GoalConstructionError }
   | { tag: 'instance_construction_error'; error: GoalConstructionError }
+  | { tag: 'progress_query_error'; errorTag: string }
 
 // ── Output type ─────────────────────────────────────────────────────────
 
@@ -70,9 +77,7 @@ export type CreateGoalOutput = Readonly<{
 
 export type CreateGoalDeps = Readonly<{
   goalRepo: GoalRepository
-  metricRepo: {
-    queryAggregate(query: MetricReadingsQuery): Promise<MetricReadingsAggregate>
-  }
+  metricRepo: MetricPublicApi
   idGen: () => string
   clock: () => Date
 }>
@@ -82,6 +87,10 @@ export type CreateGoalDeps = Readonly<{
 export const createGoal =
   (deps: CreateGoalDeps) =>
   async (input: CreateGoalInput): Promise<Result<CreateGoalOutput, CreateGoalError>> => {
+    if (!can(input.role, 'goal.create')) {
+      return err({ tag: 'forbidden' })
+    }
+
     const now = deps.clock()
     const goalId = deps.idGen() as GoalId
 
@@ -113,29 +122,33 @@ export const createGoal =
 
     const goal = buildResult.value
 
-    // 2. Persist the goal
-    const inserted = await deps.goalRepo.insert(goal)
-
-    // 3. For recurring goals, also create the first instance
+    // 2. Persist the goal + initial progress atomically
     if (goal.goalType === 'recurring') {
-      return handleRecurringGoal(deps, inserted, now)
+      return handleRecurringGoal(deps, goal, now)
     }
 
-    // 4. Compute initial progress
-    const progressQuery = buildMetricQuery(goal)
+    // 3. Compute initial progress
+    const metricQueryResult = buildMetricQuery(goal)
+    if (metricQueryResult.isErr()) {
+      return err(metricQueryResult.error)
+    }
+    const progressQuery = metricQueryResult.value
     const aggregate = await deps.metricRepo.queryAggregate(progressQuery)
     const progressValue = computeValue(goal.aggregationFunction, aggregate)
 
-    const progress = await deps.goalRepo.insertProgress({
-      goalId: inserted.id,
+    const progress: GoalProgress = {
+      id: deps.idGen() as unknown as GoalProgressId,
+      goalId: goal.id,
       currentValue: progressValue,
       currentSum: goal.aggregationFunction === 'avg' ? aggregate.sum : null,
       currentCount: goal.aggregationFunction === 'avg' ? aggregate.count : null,
       lastComputedAt: now,
       computedSource: 'reconciliation' as ComputedSource,
-    })
+    }
 
-    return ok({ goal: inserted, progress })
+    await deps.goalRepo.createGoalAndProgress(goal, progress)
+
+    return ok({ goal, progress })
   }
 
 // ── Recurring helper ────────────────────────────────────────────────────
@@ -145,6 +158,9 @@ async function handleRecurringGoal(
   template: Goal,
   now: Date,
 ): Promise<Result<CreateGoalOutput, CreateGoalError>> {
+  // Persist the template first (instance references it via parentGoalId)
+  await deps.goalRepo.insert(template)
+
   const rule = template.recurrenceRule!
   const period = computeCalendarPeriod(now, rule.frequency)
   const instanceId = deps.idGen() as GoalId
@@ -180,23 +196,35 @@ async function handleRecurringGoal(
 
   const instance = instanceResult.value
 
-  // Persist the instance
-  const insertedInstance = await deps.goalRepo.insert(instance)
-
-  // Compute progress for the instance
-  const progressQuery = buildProgressQueryForInstance(template, period.start, period.end)
+  // Persist the instance + progress atomically
+  const progressQueryResult = buildProgressQueryForInstance(
+    template,
+    period.start,
+    period.end,
+  )
+  if (progressQueryResult.isErr()) {
+    return err({ tag: 'progress_query_error', errorTag: progressQueryResult.error.tag })
+  }
+  const progressQuery = progressQueryResult.value
   const metricQuery = progressQueryToMetricReadingsQuery(progressQuery, template)
   const aggregate = await deps.metricRepo.queryAggregate(metricQuery)
   const progressValue = computeValue(template.aggregationFunction, aggregate)
 
-  const progress = await deps.goalRepo.insertProgress({
-    goalId: insertedInstance.id,
+  const progress: GoalProgress = {
+    id: deps.idGen() as unknown as GoalProgressId,
+    goalId: instance.id,
     currentValue: progressValue,
     currentSum: template.aggregationFunction === 'avg' ? aggregate.sum : null,
     currentCount: template.aggregationFunction === 'avg' ? aggregate.count : null,
     lastComputedAt: now,
     computedSource: 'reconciliation' as ComputedSource,
-  })
+  }
+
+  await deps.goalRepo.createGoalAndProgress(instance, progress)
+
+  // TODO: The template goal itself also needs to be persisted atomically with
+  // the instance. Currently the template is inserted separately in the caller.
+  // A transactional wrapper or a combined port method would be needed.
 
   return ok({ goal: template, progress })
 }
@@ -247,9 +275,13 @@ function computeCalendarPeriod(
 
 // ── Progress query helpers ──────────────────────────────────────────────
 
-function buildMetricQuery(goal: Goal): MetricReadingsQuery {
-  const pq = buildProgressQuery(goal)
-  return progressQueryToMetricReadingsQuery(pq, goal)
+function buildMetricQuery(goal: Goal): Result<MetricReadingsQuery, CreateGoalError> {
+  const pqResult = buildProgressQuery(goal)
+  if (pqResult.isErr()) {
+    return err({ tag: 'progress_query_error', errorTag: pqResult.error.tag })
+  }
+  const pq = pqResult.value
+  return ok(progressQueryToMetricReadingsQuery(pq, goal))
 }
 
 function progressQueryToMetricReadingsQuery(

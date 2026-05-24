@@ -4,6 +4,8 @@
 
 export type MetricErrorCode =
   | 'unknown_metric_key'
+  | 'invalid_value'
+  | 'missing_required_field'
 
 export type MetricError = Readonly<{
   _tag: 'MetricError'

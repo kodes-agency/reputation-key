@@ -4,8 +4,10 @@
 
 import type { PropertyRepository } from './application/ports/property.repository'
 import type { PropertyPublicApi } from './application/public-api'
+import { propertyImportConflict } from './application/public-api'
+import type { Property } from './domain/types'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
-import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
+import type { OrganizationId, PropertyId, GoogleConnectionId } from '#/shared/domain/ids'
 import type { EventBus } from '#/shared/events/event-bus'
 import { createProperty } from './application/use-cases/create-property'
 import { updateProperty } from './application/use-cases/update-property'
@@ -56,6 +58,10 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
       const p = await deps.repo.findById(orgId, pid)
       return p !== null
     },
+    getPropertyName: async (orgId: OrganizationId, pid: PropertyId) => {
+      const p = await deps.repo.findById(orgId, pid)
+      return p?.name ?? null
+    },
     findByGbpPlaceId: async (gbpPlaceId: string) => {
       const p = await deps.repo.findByGbpPlaceId(gbpPlaceId)
       if (!p) return null
@@ -64,6 +70,73 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
         organizationId: p.organizationId,
         googleConnectionId: p.googleConnectionId,
       }
+    },
+    findBySlug: async (slug: string) => {
+      const p = await deps.repo.findBySlug(slug)
+      if (!p) return null
+      return {
+        id: p.id,
+        organizationId: p.organizationId,
+      }
+    },
+    findIdsByGoogleConnection: async (
+      connectionId: GoogleConnectionId,
+      orgId: OrganizationId,
+    ) => {
+      return deps.repo.findIdsByGoogleConnection(connectionId, orgId)
+    },
+    clearGoogleConnectionRef: async (
+      orgId: OrganizationId,
+      connectionId: GoogleConnectionId,
+    ) => {
+      const propertyIds = await deps.repo.findIdsByGoogleConnection(connectionId, orgId)
+      if (propertyIds.length > 0) {
+        await deps.repo.clearGoogleConnectionRef(orgId, propertyIds)
+      }
+    },
+    importProperty: async (input) => {
+      try {
+        const id = idGen()
+        const now = deps.clock()
+        const property: Property = {
+          id,
+          organizationId: input.orgId,
+          name: input.name,
+          slug: input.slug,
+          timezone: 'UTC',
+          gbpPlaceId: input.gbpPlaceId,
+          googleConnectionId: input.googleConnectionId,
+          createdAt: now,
+          updatedAt: now,
+          deletedAt: null,
+        }
+        const inserted = await deps.repo.insertAndReturn(input.orgId, property)
+        return {
+          id: inserted.id,
+          organizationId: inserted.organizationId,
+          name: inserted.name,
+          slug: inserted.slug,
+          gbpPlaceId: inserted.gbpPlaceId,
+          createdAt: inserted.createdAt,
+        }
+      } catch (err) {
+        const isPg23505 =
+          err instanceof Error &&
+          'code' in err &&
+          (err as { code: string }).code === '23505'
+        if (isPg23505) {
+          throw propertyImportConflict(
+            `Duplicate property for gbpPlaceId=${input.gbpPlaceId}`,
+          )
+        }
+        throw err
+      }
+    },
+    findExistingGbpPlaceIds: async (orgId, gbpPlaceIds) => {
+      return deps.repo.findExistingGbpPlaceIds(orgId, gbpPlaceIds)
+    },
+    existsByGbpPlaceId: async (orgId, gbpPlaceId) => {
+      return deps.repo.existsByGbpPlaceId(orgId, gbpPlaceId)
     },
   }
 

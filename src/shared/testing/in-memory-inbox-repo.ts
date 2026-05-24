@@ -1,6 +1,7 @@
 // Shared testing utility — in-memory inbox repository for unit tests
 import type { InboxRepository } from '#/contexts/inbox/application/ports/inbox.repository'
 import type { InboxItem } from '#/contexts/inbox/domain/types'
+import { unbrandAll } from '#/shared/domain/ids'
 
 export function createInMemoryInboxRepo(): InboxRepository & { items: InboxItem[] } {
   const items: InboxItem[] = []
@@ -9,9 +10,7 @@ export function createInMemoryInboxRepo(): InboxRepository & { items: InboxItem[
       items.find((i) => i.id === id && i.organizationId === orgId) ?? null,
     findByIds: async (ids, orgId) =>
       items.filter(
-        (i) =>
-          (ids as unknown as string[]).includes(i.id as string) &&
-          i.organizationId === orgId,
+        (i) => unbrandAll(ids).includes(i.id as string) && i.organizationId === orgId,
       ),
     findBySource: async (sourceType, sourceId, orgId) =>
       items.find(

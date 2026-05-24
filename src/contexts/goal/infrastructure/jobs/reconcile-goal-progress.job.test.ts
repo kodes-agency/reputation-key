@@ -8,8 +8,8 @@ import type { Goal, GoalProgress, GoalStatus } from '../../domain/types'
 import type { GoalRepository } from '../../application/ports/goal.repository'
 import type {
   MetricReadingsAggregate,
-  MetricRepository,
-} from '#/contexts/metric/application/ports/metric.repository'
+  MetricPublicApi,
+} from '#/contexts/metric/application/public-api'
 import type { EventBus } from '#/shared/events/event-bus'
 import {
   organizationId,
@@ -125,6 +125,20 @@ function createFakeDeps() {
       return p
     },
     getProgress: async (goalId) => progresses.get(goalId as string) ?? null,
+    getProgressBatch: async (ids) => {
+      const map = new Map()
+      for (const id of ids) {
+        map.set(id, progresses.get(id as string) ?? null)
+      }
+      return map
+    },
+    listInstancesBatch: async (parentIds) => {
+      const map = new Map()
+      for (const pid of parentIds) {
+        map.set(pid, [])
+      }
+      return map
+    },
     updateProgress: async (goalId, data) => {
       const existing = progresses.get(goalId as string)
       if (!existing) return null
@@ -134,12 +148,8 @@ function createFakeDeps() {
     },
   }
 
-  const metricRepo: MetricRepository = {
+  const metricApi: MetricPublicApi = {
     queryAggregate: async () => aggregateResponse,
-    insertReading: async () => {
-      throw new Error('not used')
-    },
-    findByOrganizationId: async () => [],
   }
 
   const events: EventBus = {
@@ -154,7 +164,7 @@ function createFakeDeps() {
 
   const deps: ReconcileGoalProgressDeps = {
     goalRepo,
-    metricRepo,
+    metricApi: metricApi,
     events,
     clock: () => NOW,
   }

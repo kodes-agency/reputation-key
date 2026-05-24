@@ -16,19 +16,18 @@ import {
   formatDate,
   daysRemaining,
 } from '#/contexts/goal/ui/helpers'
-import { deriveEntityScope } from '#/contexts/goal/application/dto/goal.dto'
-import type { Goal, GoalProgress } from '#/contexts/goal/application/dto/goal.dto'
+import { deriveEntityScope } from '#/contexts/goal/application/public-api'
+import type { Goal, GoalProgress } from '#/contexts/goal/application/public-api'
+import { type GoalWithProgress } from '#/contexts/goal/ui/helpers'
 
-export type GoalWithProgress = { goal: Goal; progress: GoalProgress | null }
-
-type Props = {
+type Props = Readonly<{
   goal: Goal
   progress: GoalProgress | null
   instances: readonly GoalWithProgress[]
   propertyId: string
   onCancel: () => void
   isCancelling: boolean
-}
+}>
 
 export function GoalDetailPage({
   goal,
@@ -134,7 +133,7 @@ export function GoalDetailPage({
   )
 }
 
-function Detail({ label, value }: { label: string; value: React.ReactNode }) {
+function Detail({ label, value }: Readonly<{ label: string; value: React.ReactNode }>) {
   return (
     <div className="space-y-1">
       <p className="text-xs text-muted-foreground">{label}</p>

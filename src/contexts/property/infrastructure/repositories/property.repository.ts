@@ -2,7 +2,7 @@
 // Per architecture: factory function returning Readonly<{ method }>.
 // Every query filters by organization_id AND deleted_at IS NULL via baseWhere().
 
-import { and, eq, isNull, not } from 'drizzle-orm'
+import { and, eq, inArray, isNull, not } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { baseWhere } from '#/shared/db/base-where'
 import { properties } from '#/shared/db/schema/property.schema'
@@ -10,6 +10,7 @@ import type { PropertyRepository } from '../../application/ports/property.reposi
 import { propertyFromRow, propertyToRow } from '../mappers/property.mapper'
 import { propertyError } from '../../domain/errors'
 import { trace } from '#/shared/observability/trace'
+import type { GoogleConnectionId, PropertyId } from '#/shared/domain/ids'
 
 /** Mutable set-values type for Drizzle .set() — strips readonly from Property fields. */
 type SetValues = {
@@ -105,6 +106,94 @@ export const createPropertyRepository = (db: Database): PropertyRepository => ({
         .where(and(eq(properties.gbpPlaceId, gbpPlaceId), isNull(properties.deletedAt)))
         .limit(1)
       return rows[0] ? propertyFromRow(rows[0]) : null
+    })
+  },
+
+  // Public slug lookup — no orgId scoping. Slugs are unique per property
+  // and used for public-facing URLs (guest portal resolution).
+  findBySlug: async (slug) => {
+    return trace('property.findBySlug', async () => {
+      const rows = await db
+        .select()
+        .from(properties)
+        .where(and(eq(properties.slug, slug), isNull(properties.deletedAt)))
+        .limit(1)
+      return rows[0] ? propertyFromRow(rows[0]) : null
+    })
+  },
+
+  findIdsByGoogleConnection: async (connectionId: GoogleConnectionId, orgId) => {
+    return trace('property.findIdsByGoogleConnection', async () => {
+      const rows = await db
+        .select({ id: properties.id })
+        .from(properties)
+        .where(
+          and(
+            ...baseWhere(properties, orgId),
+            eq(properties.googleConnectionId, connectionId as string),
+          ),
+        )
+      return rows.map((r) => r.id as PropertyId)
+    })
+  },
+
+  clearGoogleConnectionRef: async (orgId, propertyIds) => {
+    return trace('property.clearGoogleConnectionRef', async () => {
+      if (propertyIds.length === 0) return
+      await db
+        .update(properties)
+        .set({ googleConnectionId: null })
+        .where(
+          and(
+            ...baseWhere(properties, orgId),
+            inArray(properties.id, propertyIds as readonly string[]),
+          ),
+        )
+    })
+  },
+
+  insertAndReturn: async (orgId, property) => {
+    return trace('property.insertAndReturn', async () => {
+      if (property.organizationId !== orgId) {
+        throw propertyError('forbidden', 'Tenant mismatch on property insert')
+      }
+      const [inserted] = await db
+        .insert(properties)
+        .values(propertyToRow(property))
+        .returning()
+      if (!inserted) {
+        throw propertyError('property_not_found', 'Failed to retrieve inserted property')
+      }
+      return propertyFromRow(inserted)
+    })
+  },
+
+  findExistingGbpPlaceIds: async (orgId, gbpPlaceIds) => {
+    return trace('property.findExistingGbpPlaceIds', async () => {
+      if (gbpPlaceIds.length === 0) return []
+      const rows = await db
+        .select({ gbpPlaceId: properties.gbpPlaceId })
+        .from(properties)
+        .where(
+          and(
+            ...baseWhere(properties, orgId),
+            inArray(properties.gbpPlaceId, gbpPlaceIds as [string, ...string[]]),
+          ),
+        )
+      return rows.map((r) => r.gbpPlaceId).filter((id): id is string => id !== null)
+    })
+  },
+
+  existsByGbpPlaceId: async (orgId, gbpPlaceId) => {
+    return trace('property.existsByGbpPlaceId', async () => {
+      const rows = await db
+        .select({ id: properties.id })
+        .from(properties)
+        .where(
+          and(...baseWhere(properties, orgId), eq(properties.gbpPlaceId, gbpPlaceId)),
+        )
+        .limit(1)
+      return rows.length > 0
     })
   },
 })

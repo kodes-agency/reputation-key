@@ -5,6 +5,7 @@ import type { Property } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { propertyError } from '../../domain/errors'
 import { propertyId } from '#/shared/domain/ids'
+import { can } from '#/shared/domain/permissions'
 
 // fallow-ignore-next-line unused-type
 export type GetPropertyDeps = Readonly<{
@@ -19,9 +20,9 @@ export type GetPropertyInput = Readonly<{
 export const getProperty =
   (deps: GetPropertyDeps) =>
   async (input: GetPropertyInput, ctx: AuthContext): Promise<Property> => {
-    // Note: no role-based authorization check (step 1) — all authenticated
-    // users within an organization can view properties. Tenant isolation is
-    // enforced by the repository filtering by ctx.organizationId.
+    if (!can(ctx.role, 'property.read')) {
+      throw propertyError('forbidden', 'No property read permission')
+    }
     const property = await deps.propertyRepo.findById(
       ctx.organizationId,
       propertyId(input.propertyId),

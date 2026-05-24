@@ -2,7 +2,7 @@
 
 ## Architecture
 
-Layered hexagonal (clean architecture). Eleven bounded contexts in `src/contexts/`, shared infrastructure in `src/shared/`, React frontend in `src/components/` and `src/routes/`.
+Layered hexagonal (clean architecture). Twelve bounded contexts in `src/contexts/`, shared infrastructure in `src/shared/`, React frontend in `src/components/` and `src/routes/`.
 
 ```
 routes/ → contexts/<ctx>/server/ → contexts/<ctx>/application/ → contexts/<ctx>/domain/
@@ -23,19 +23,20 @@ Composition root: `src/composition.ts`. Bootstrap: `src/bootstrap.ts`.
 
 ## Bounded contexts
 
-|| Context | Responsibility | Key Entities |
-| ----------- | ------------------------------------------------------ | -------------------------------------- |
-| Identity | Users, organizations, members, invitations | User, Organization, Member, Invitation |
-| Property | Properties (hotels/restaurants) owned by organizations | Property |
-| Portal | Guest-facing portal pages with links, per property | Portal, Link, LinkCategory |
-| Guest | Public portal rendering, rating collection, feedback | Rating, Feedback |
-| Team | Staff teams and shift management | Team |
-| Staff | Staff assignments to properties | StaffAssignment |
-| Integration | Google connections, OAuth, tokens, GBP API adapter | GoogleConnection |
-| Review | External platform reviews (Google), sync, replies | Review |
-| Inbox | Unified triage surface for reviews + feedback | InboxItem, InboxNote |
-| Metric | Aggregation of raw counters (scans, ratings, clicks, reviews) | MetricReading |
-| Dashboard | Read-only aggregation of metrics, reviews, replies into property-scoped KPIs and charts | — |
+|     | Context     | Responsibility                                                                          | Key Entities                           |
+| --- | ----------- | --------------------------------------------------------------------------------------- | -------------------------------------- |
+|     | Identity    | Users, organizations, members, invitations                                              | User, Organization, Member, Invitation |
+|     | Property    | Properties (hotels/restaurants) owned by organizations                                  | Property                               |
+|     | Portal      | Guest-facing portal pages with links, per property                                      | Portal, Link, LinkCategory             |
+|     | Guest       | Public portal rendering, rating collection, feedback                                    | Rating, Feedback                       |
+|     | Team        | Staff teams and shift management                                                        | Team                                   |
+|     | Staff       | Staff assignments to properties                                                         | StaffAssignment                        |
+|     | Integration | Google connections, OAuth, tokens, GBP API adapter                                      | GoogleConnection                       |
+|     | Review      | External platform reviews (Google), sync, replies                                       | Review                                 |
+|     | Inbox       | Unified triage surface for reviews + feedback                                           | InboxItem, InboxNote                   |
+|     | Metric      | Aggregation of raw counters (scans, ratings, clicks, reviews)                           | MetricReading                          |
+|     | Goal        | Property-scoped goals with progress tracking                                            | Goal, GoalInstance                     |
+|     | Dashboard   | Read-only aggregation of metrics, reviews, replies into property-scoped KPIs and charts | —                                      |
 
 ## Glossary
 
@@ -104,13 +105,15 @@ Composition root: `src/composition.ts`. Bootstrap: `src/bootstrap.ts`.
 
 See `docs/adr/` for formal ADRs. Key ADRs:
 
-|| ADR  | Title                                  | Context                          |
-| ---- | -------------------------------------- | -------------------------------- |
-| 0001 | Dynamic Access Control via Better-auth | Identity & Authorization         |
-| 0002 | Section-Based Navigation               | Navigation Architecture          |
-| 0003 | Review as a Separate Bounded Context   | Reviews, Google Integration      |
-| 0004 | Inbox as a Separate Bounded Context    | Unified Inbox, Reviews, Feedback |
-| 0005 | GBP Review API Path and Error Model Fix | Google Integration, Error Model |
+|| ADR | Title | Context |
+|| ---- | -------------------------------------- | -------------------------------- |
+|| 0001 | Dynamic Access Control via Better-auth | Identity & Authorization |
+|| 0002 | Section-Based Navigation | Navigation Architecture |
+|| 0003 | Review as a Separate Bounded Context | Reviews, Google Integration |
+|| 0004 | Inbox as a Separate Bounded Context | Unified Inbox, Reviews, Feedback |
+|| 0005 | GBP Review API Path and Error Model Fix | Google Integration, Error Model |
+|| 0006 | Staff as a Separate Bounded Context | Identity, Staff Management |
+|| 0007 | Dashboard as a Read-Only Aggregation | Dashboard, Read Models |
 
 ## Key Files
 

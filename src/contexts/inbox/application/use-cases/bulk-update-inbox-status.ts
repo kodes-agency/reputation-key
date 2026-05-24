@@ -10,8 +10,8 @@ import type { Role } from '#/shared/domain/roles'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { validateTransition } from '../../domain/rules'
 import { inboxStatusChanged } from '../../domain/events'
-import { hasRole, ADMIN_ROLE } from '#/shared/domain/roles'
-import type { Logger } from 'pino'
+import { can } from '#/shared/domain/permissions'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 
 export type BulkUpdateInboxStatusInput = Readonly<{
   inboxItemIds: ReadonlyArray<InboxItemId>
@@ -28,7 +28,7 @@ export type BulkUpdateInboxStatusDeps = Readonly<{
   unreadCounter: UnreadCounterPort
   clock: () => Date
   staffPublicApi: StaffPublicApi
-  logger: Logger
+  logger: LoggerPort
 }>
 
 export const bulkUpdateInboxStatus =
@@ -47,7 +47,7 @@ export const bulkUpdateInboxStatus =
     let accessiblePropertyIds: Awaited<
       ReturnType<StaffPublicApi['getAccessiblePropertyIds']>
     > | null = null
-    if (!hasRole(input.role, ADMIN_ROLE)) {
+    if (!can(input.role, 'inbox.manage')) {
       try {
         accessiblePropertyIds = await deps.staffPublicApi.getAccessiblePropertyIds(
           input.organizationId,
@@ -55,7 +55,10 @@ export const bulkUpdateInboxStatus =
           input.role,
         )
       } catch (err) {
-        deps.logger.warn({ err, organizationId: input.organizationId }, 'Access check for property IDs failed, treating as no access')
+        deps.logger.warn(
+          { err, organizationId: input.organizationId },
+          'Access check for property IDs failed, treating as no access',
+        )
         return { updated: 0 }
       }
     }
@@ -106,7 +109,10 @@ export const bulkUpdateInboxStatus =
         try {
           await deps.unreadCounter.decrement(input.organizationId)
         } catch (err) {
-          deps.logger.warn({ err, organizationId: input.organizationId }, 'Unread counter decrement failed, DB is source of truth')
+          deps.logger.warn(
+            { err, organizationId: input.organizationId },
+            'Unread counter decrement failed, DB is source of truth',
+          )
           break
         }
       }

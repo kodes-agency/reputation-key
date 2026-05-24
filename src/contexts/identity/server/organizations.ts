@@ -14,6 +14,7 @@ import { throwContextError } from '#/shared/auth/server-errors'
 import { toDomainRole } from '#/shared/domain/roles'
 import { can } from '#/shared/domain/permissions'
 import { getContainer } from '#/composition'
+import { randomUUID } from 'crypto'
 import {
   inviteMemberInputSchema,
   acceptInvitationInputSchema,
@@ -123,8 +124,13 @@ export const getActiveOrganization = createServerFn({ method: 'GET' }).handler(
     async () => {
       const headers = headersFromContext()
       const ctx = await resolveTenantContext(headers)
+      // Uses dashboard.read as proxy — all authenticated users need org access
       if (!can(ctx.role, 'dashboard.read')) {
-        throwContextError('AuthError', { code: 'forbidden', message: 'Insufficient permissions to read organization' }, 403)
+        throwContextError(
+          'AuthError',
+          { code: 'forbidden', message: 'Insufficient permissions to read organization' },
+          403,
+        )
       }
       const auth = getAuth()
 
@@ -159,7 +165,11 @@ export const listMembers = createServerFn({ method: 'GET' }).handler(
       const headers = headersFromContext()
       const ctx = await resolveTenantContext(headers)
       if (!can(ctx.role, 'member.list')) {
-        throwContextError('AuthError', { code: 'forbidden', message: 'Insufficient permissions to list members' }, 403)
+        throwContextError(
+          'AuthError',
+          { code: 'forbidden', message: 'Insufficient permissions to list members' },
+          403,
+        )
       }
       const auth = getAuth()
 
@@ -241,7 +251,14 @@ export const cancelInvitation = createServerFn({ method: 'POST' })
         const headers = headersFromContext()
         const ctx = await resolveTenantContext(headers)
         if (!can(ctx.role, 'invitation.cancel')) {
-          throwContextError('AuthError', { code: 'forbidden', message: 'Insufficient permissions to cancel invitations' }, 403)
+          throwContextError(
+            'AuthError',
+            {
+              code: 'forbidden',
+              message: 'Insufficient permissions to cancel invitations',
+            },
+            403,
+          )
         }
         const auth = getAuth()
 
@@ -494,7 +511,8 @@ export const signInUser = createServerFn({ method: 'POST' })
           })
         } catch (e) {
           const { getLogger } = await import('#/shared/observability/logger')
-          getLogger().warn({ email: data.email, err: e }, 'Sign-in failed')
+          const { maskEmail } = await import('#/shared/observability/pii')
+          getLogger().warn({ email: maskEmail(data.email), err: e }, 'Sign-in failed')
           throwContextError(
             'AuthError',
             { code: 'invalid_credentials', message: 'Invalid email or password' },
@@ -572,7 +590,10 @@ export const requestOrgLogoUpload = createServerFn({ method: 'POST' })
         const headers = headersFromContext()
         const ctx = await resolveTenantContext(headers)
         const { storage } = getContainer()
-        const useCase = requestOrgLogoUploadUseCase({ storage })
+        const useCase = requestOrgLogoUploadUseCase({
+          storage,
+          idGen: () => randomUUID(),
+        })
         try {
           return await useCase(data, ctx)
         } catch (e) {
@@ -639,7 +660,7 @@ export const requestAvatarUpload = createServerFn({ method: 'POST' })
         const headers = headersFromContext()
         const ctx = await resolveTenantContext(headers)
         const { storage } = getContainer()
-        const useCase = requestAvatarUploadUseCase({ storage })
+        const useCase = requestAvatarUploadUseCase({ storage, idGen: () => randomUUID() })
         try {
           return await useCase(data, ctx)
         } catch (e) {

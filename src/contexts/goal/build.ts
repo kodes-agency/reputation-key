@@ -4,7 +4,7 @@
 
 import type { Database } from '#/shared/db'
 import type { EventBus } from '#/shared/events/event-bus'
-import type { MetricRepository } from '#/contexts/metric/application/ports/metric.repository'
+import type { MetricPublicApi } from '#/contexts/metric/application/public-api'
 import type { GoalRepository } from './application/ports/goal.repository'
 import { createGoalRepository } from './infrastructure/repositories/goal.repository'
 import { createGoal } from './application/use-cases/create-goal'
@@ -15,7 +15,7 @@ import { getGoal } from './application/use-cases/get-goal'
 
 export type GoalContextBuildInput = Readonly<{
   db: Database
-  metricRepo: MetricRepository
+  metricApi: MetricPublicApi
   events: EventBus
   clock: () => Date
   idGen: () => string
@@ -31,6 +31,13 @@ export type GoalContextApi = Readonly<{
   }
   goalRepo: GoalRepository
   events: EventBus
+  publicApi: Readonly<{
+    createGoal: ReturnType<typeof createGoal>
+    updateGoal: ReturnType<typeof updateGoal>
+    cancelGoal: ReturnType<typeof cancelGoal>
+    listGoals: ReturnType<typeof listGoals>
+    getGoal: ReturnType<typeof getGoal>
+  }>
 }>
 
 export const buildGoalContext = (input: GoalContextBuildInput): GoalContextApi => {
@@ -38,7 +45,7 @@ export const buildGoalContext = (input: GoalContextBuildInput): GoalContextApi =
 
   const _createGoal = createGoal({
     goalRepo,
-    metricRepo: input.metricRepo,
+    metricRepo: input.metricApi,
     idGen: input.idGen,
     clock: input.clock,
   })
@@ -71,5 +78,12 @@ export const buildGoalContext = (input: GoalContextBuildInput): GoalContextApi =
     },
     goalRepo,
     events: input.events,
+    publicApi: {
+      createGoal: _createGoal,
+      updateGoal: _updateGoal,
+      cancelGoal: _cancelGoal,
+      listGoals: _listGoals,
+      getGoal: _getGoal,
+    },
   }
 }

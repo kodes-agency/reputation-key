@@ -1,10 +1,9 @@
 import { describe, it, expect, vi } from 'vitest'
 import { onStaffUnassigned, type OnStaffUnassignedDeps } from './on-staff-unassigned'
-import type { StaffUnassigned } from '#/contexts/staff/domain/events'
+import type { StaffUnassigned } from '#/contexts/staff/application/public-api'
 import type { GoalRepository } from '../../application/ports/goal.repository'
 import type { Goal } from '../../domain/types'
-import type { GoalId, OrganizationId } from '#/shared/domain/ids'
-import { ok, err, type Result } from 'neverthrow'
+import { ok, err } from 'neverthrow'
 import {
   organizationId,
   propertyId,
@@ -57,11 +56,6 @@ function makeEvent(overrides: Partial<StaffUnassigned> = {}): StaffUnassigned {
   }
 }
 
-type CancelGoalFn = (input: {
-  goalId: GoalId
-  organizationId: OrganizationId
-}) => Promise<Result<Goal, unknown>>
-
 function makeFakeDeps(storedGoals: Goal[] = []) {
   const cancelledGoalIds: string[] = []
 
@@ -86,6 +80,20 @@ function makeFakeDeps(storedGoals: Goal[] = []) {
       throw new Error('not used')
     },
     getProgress: async () => null,
+    getProgressBatch: async (ids) => {
+      const map = new Map()
+      for (const id of ids) {
+        map.set(id, null)
+      }
+      return map
+    },
+    listInstancesBatch: async (parentIds) => {
+      const map = new Map()
+      for (const pid of parentIds) {
+        map.set(pid, [])
+      }
+      return map
+    },
     updateProgress: async () => null,
     findActiveGoalsByMetric: async () => [],
     incrementProgress: async () => ({
@@ -99,6 +107,8 @@ function makeFakeDeps(storedGoals: Goal[] = []) {
     findLatestInstance: async () => null,
     createGoalAndProgress: async () => {},
   }
+
+  type CancelGoalFn = OnStaffUnassignedDeps['cancelGoalFn']
 
   const cancelGoalFn: CancelGoalFn = async (input) => {
     cancelledGoalIds.push(input.goalId as string)
@@ -198,5 +208,71 @@ describe('onStaffUnassigned', () => {
       expect.objectContaining({ goalId: g1.id }),
       'goal: failed to cancel on staff unassigned',
     )
+  })
+
+  it('continues cancelling remaining goals when one cancel fails', async () => {
+    const g1 = makeGoal({
+      id: goalId('g-fail'),
+      staffId: staffId('assignment-1'),
+      status: 'active',
+    })
+    const g2 = makeGoal({
+      id: goalId('g-ok'),
+      staffId: staffId('assignment-1'),
+      status: 'active',
+    })
+
+    const fakes = makeFakeDeps([g1, g2])
+    // First call fails, second succeeds
+    fakes.cancelGoalFn.mockResolvedValueOnce(
+      err({ tag: 'goal_not_active', status: 'completed' }),
+    )
+
+    const handler = onStaffUnassigned(fakes.deps)
+    await handler(makeEvent())
+
+    // Both goals were attempted
+    expect(fakes.cancelGoalFn).toHaveBeenCalledTimes(2)
+    // Error was logged for the failed one
+    expect(fakes.logger.error).toHaveBeenCalledWith(
+      expect.objectContaining({ goalId: g1.id }),
+      'goal: failed to cancel on staff unassigned',
+    )
+    // Second goal was still cancelled
+    expect(fakes.cancelledGoalIds).toContain('g-ok')
+  })
+
+  it('logs error and returns when repository throws', async () => {
+    const throwingRepo = {
+      ...makeFakeDeps().deps.goalRepo,
+      list: async () => {
+        throw new Error('DB down')
+      },
+    }
+    const handler = onStaffUnassigned({
+      ...makeFakeDeps().deps,
+      goalRepo: throwingRepo,
+    })
+
+    // Should NOT throw
+    await expect(handler(makeEvent())).resolves.toBeUndefined()
+  })
+
+  it('logs error when cancelGoalFn throws (not returns Err)', async () => {
+    const throwingCancel = async () => {
+      throw new Error('cancel exploded')
+    }
+    const g1 = makeGoal({
+      id: goalId('g-1'),
+      staffId: staffId('assignment-1'),
+      status: 'active',
+    })
+
+    const fakes = makeFakeDeps([g1])
+    const handler = onStaffUnassigned({ ...fakes.deps, cancelGoalFn: throwingCancel })
+
+    // Should NOT throw
+    await expect(handler(makeEvent())).resolves.toBeUndefined()
+    expect(fakes.logger.error).toHaveBeenCalled()
   })
 })

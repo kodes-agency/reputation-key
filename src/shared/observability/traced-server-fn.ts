@@ -17,6 +17,7 @@ import { generateRequestId, runWithContext } from '#/shared/observability/reques
 import { startRequestSpan } from '#/shared/observability/trace'
 import { ServerFunctionError, catchUntagged } from '#/shared/auth/server-errors'
 import { clearTenantCache } from '#/shared/auth/middleware'
+import { getLogger } from '#/shared/observability/logger'
 
 /**
  * Wraps a server function handler with tracing and error safety net.
@@ -30,10 +31,17 @@ export function tracedHandler<TInput, TOutput>(
   return (ctx: { data: TInput }) => {
     const requestId = generateRequestId()
     const span = startRequestSpan(requestId, method, name ?? 'serverFn')
+    const log = getLogger().child({
+      component: 'server-fn',
+      fn: name ?? 'serverFn',
+      method,
+    })
+    const start = Date.now()
 
     return runWithContext(requestId, async () => {
       try {
         const result = await fn(ctx)
+        log.info({ duration: Date.now() - start }, 'request complete')
         span.end()
         clearTenantCache()
         return result

@@ -71,7 +71,8 @@ describe('listGoogleConnections', () => {
     expect(result).toHaveLength(2)
   })
 
-  it('returns only own private + organization-visible for non-admin role', async () => {
+  it('returns all connections for PropertyManager (integration.manage grants admin-level access)', async () => {
+    // PropertyManager has integration.manage, so can() passes and filter is { showAll: true }
     const { useCase, connectionRepo } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
     const ownPrivateConn = buildTestGoogleConnection({
@@ -95,11 +96,7 @@ describe('listGoogleConnections', () => {
 
     const result = await useCase(ctx)
 
-    // Admin would see all 3, but PropertyManager only sees own private + org-visible
-    expect(result).toHaveLength(2)
-    const ids = result.map((c) => c.id)
-    expect(ids).toContain(ownPrivateConn.id)
-    expect(ids).toContain(orgVisibleConn.id)
-    expect(ids).not.toContain(someoneElsesPrivateConn.id)
+    // PropertyManager has integration.manage — sees all 3 (same as AccountAdmin)
+    expect(result).toHaveLength(3)
   })
 })

@@ -40,11 +40,16 @@ import { buildReviewContext } from '#/contexts/review/build'
 import { buildInboxContext } from '#/contexts/inbox/build'
 import { buildMetricContext } from '#/contexts/metric/build'
 import { buildDashboardContext } from '#/contexts/dashboard/build'
+import { createReviewStatsAdapter } from '#/contexts/dashboard/infrastructure/adapters/review-stats.adapter'
+import { createMetricStatsAdapter } from '#/contexts/dashboard/infrastructure/adapters/metric-stats.adapter'
 import { buildGoalContext } from '#/contexts/goal/build'
 import { createStaffAssignmentRepository } from '#/contexts/staff/infrastructure/repositories/staff-assignment.repository'
 import { createGoogleReviewApiAdapter } from '#/contexts/integration/infrastructure/adapters/google-review-api.adapter'
 import { handleGbpNotification } from '#/contexts/integration/application/use-cases'
 import type { PropertyLookupPort } from '#/contexts/integration/application/ports/property-lookup.port'
+import { createReviewLookupAdapter } from '#/contexts/inbox/infrastructure/adapters/review-lookup.adapter'
+import { createFeedbackLookupAdapter } from '#/contexts/inbox/infrastructure/adapters/feedback-lookup.adapter'
+import { createPropertyLookupAdapter } from '#/contexts/inbox/infrastructure/adapters/property-lookup.adapter'
 import {
   propertyId,
   organizationId as toOrgId,
@@ -184,7 +189,9 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     events: eventBus,
     clock,
     linkResolver: portal.linkResolver,
-    staffRepo,
+    staffApi: staff.publicApi,
+    portalApi: portal.publicApi,
+    logger,
   })
 
   // ── Property lookup port for integration context (webhook) ────────
@@ -202,6 +209,7 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     clock,
     jobQueue: infra.jobQueue,
     propertyLookup,
+    propertyApi: property.publicApi,
     logger: getLogger(),
   })
 
@@ -223,12 +231,33 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     logger: getLogger(),
   })
 
+  // ── Inbox lookup ports (cross-context wiring) ─────────────────────
+  // Per architecture: inbox context defines ports, composition root wires
+  // them by delegating to review/guest/property context APIs via adapters.
+  // Adapters live in inbox/infrastructure/adapters/ — cross-context SQL is
+  // encapsulated there, not in the composition root or inbox repository.
+  const reviewLookup = createReviewLookupAdapter({
+    findReviewById: (id, orgId) => review.reviewRepo.findById(id, orgId),
+  })
+
+  const feedbackLookup = createFeedbackLookupAdapter({
+    findFeedbackById: (id, orgId) => guest.guestRepo.findFeedbackById(id, orgId),
+    findRatingById: (id, orgId) => guest.guestRepo.findRatingById(id, orgId),
+  })
+
+  const inboxPropertyLookup = createPropertyLookupAdapter({
+    getPropertyName: (orgId, pid) => property.publicApi.getPropertyName(orgId, pid),
+  })
+
   const inbox = buildInboxContext({
     db,
     events: eventBus,
     redis,
     clock,
     staffPublicApi: staff.publicApi,
+    reviewLookup,
+    feedbackLookup,
+    propertyLookup: inboxPropertyLookup,
     logger: getLogger(),
   })
 
@@ -240,14 +269,21 @@ export function createContainer(options?: { enableJobs?: boolean }) {
 
   const goal = buildGoalContext({
     db,
-    metricRepo: metricApi.metricRepo,
+    metricApi: metricApi.publicApi,
     events: eventBus,
     clock,
     idGen: () => crypto.randomUUID(),
   })
 
+  // ── Dashboard context (facade ports per ADR-0007) ────────────────
+  // Dashboard never queries review/reply/metric tables directly.
+  // Adapters encapsulate SQL; dashboard repo only composes.
+  const reviewStats = createReviewStatsAdapter(db)
+  const metricStats = createMetricStatsAdapter(db)
+
   const dashboard = buildDashboardContext({
-    db,
+    reviewStats,
+    metricStats,
   })
 
   // ── Wire invitation acceptance hook ────────────────────────────
@@ -321,7 +357,7 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     inboxNoteRepo: inbox.inboxNoteRepo,
     unreadCounter: inbox.unreadCounter,
     goalRepo: goal.goalRepo,
-    metricRepo: metricApi.metricRepo,
+    metricPublicApi: metricApi.publicApi,
   } as const
 }
 

@@ -1,10 +1,9 @@
 import { describe, it, expect, vi } from 'vitest'
 import { onTeamDeleted, type OnTeamDeletedDeps } from './on-team-deleted'
-import type { TeamDeleted } from '#/contexts/team/domain/events'
+import type { TeamDeleted } from '#/contexts/team/application/public-api'
 import type { GoalRepository } from '../../application/ports/goal.repository'
 import type { Goal } from '../../domain/types'
-import type { GoalId, OrganizationId } from '#/shared/domain/ids'
-import { ok, err, type Result } from 'neverthrow'
+import { ok, err } from 'neverthrow'
 import { organizationId, propertyId, userId, goalId, teamId } from '#/shared/domain/ids'
 
 const FIXED_TIME = new Date('2026-06-15T12:00:00Z')
@@ -48,11 +47,6 @@ function makeEvent(overrides: Partial<TeamDeleted> = {}): TeamDeleted {
   }
 }
 
-type CancelGoalFn = (input: {
-  goalId: GoalId
-  organizationId: OrganizationId
-}) => Promise<Result<Goal, unknown>>
-
 function makeFakeDeps(storedGoals: Goal[] = []) {
   const cancelledGoalIds: string[] = []
 
@@ -77,6 +71,20 @@ function makeFakeDeps(storedGoals: Goal[] = []) {
       throw new Error('not used')
     },
     getProgress: async () => null,
+    getProgressBatch: async (ids) => {
+      const map = new Map()
+      for (const id of ids) {
+        map.set(id, null)
+      }
+      return map
+    },
+    listInstancesBatch: async (parentIds) => {
+      const map = new Map()
+      for (const pid of parentIds) {
+        map.set(pid, [])
+      }
+      return map
+    },
     updateProgress: async () => null,
     findActiveGoalsByMetric: async () => [],
     incrementProgress: async () => ({
@@ -90,6 +98,8 @@ function makeFakeDeps(storedGoals: Goal[] = []) {
     findLatestInstance: async () => null,
     createGoalAndProgress: async () => {},
   }
+
+  type CancelGoalFn = OnTeamDeletedDeps['cancelGoalFn']
 
   const cancelGoalFn: CancelGoalFn = async (input) => {
     cancelledGoalIds.push(input.goalId as string)
@@ -189,5 +199,71 @@ describe('onTeamDeleted', () => {
       expect.objectContaining({ goalId: g1.id }),
       'goal: failed to cancel on team deleted',
     )
+  })
+
+  it('continues cancelling remaining goals when one cancel fails', async () => {
+    const g1 = makeGoal({
+      id: goalId('g-fail'),
+      teamId: teamId('team-1'),
+      status: 'active',
+    })
+    const g2 = makeGoal({
+      id: goalId('g-ok'),
+      teamId: teamId('team-1'),
+      status: 'active',
+    })
+
+    const fakes = makeFakeDeps([g1, g2])
+    // First call fails, second succeeds
+    fakes.cancelGoalFn.mockResolvedValueOnce(
+      err({ tag: 'goal_not_active', status: 'completed' }),
+    )
+
+    const handler = onTeamDeleted(fakes.deps)
+    await handler(makeEvent())
+
+    // Both goals were attempted
+    expect(fakes.cancelGoalFn).toHaveBeenCalledTimes(2)
+    // Error was logged for the failed one
+    expect(fakes.logger.error).toHaveBeenCalledWith(
+      expect.objectContaining({ goalId: g1.id }),
+      'goal: failed to cancel on team deleted',
+    )
+    // Second goal was still cancelled
+    expect(fakes.cancelledGoalIds).toContain('g-ok')
+  })
+
+  it('logs error and returns when repository throws', async () => {
+    const throwingRepo = {
+      ...makeFakeDeps().deps.goalRepo,
+      list: async () => {
+        throw new Error('DB down')
+      },
+    }
+    const handler = onTeamDeleted({
+      ...makeFakeDeps().deps,
+      goalRepo: throwingRepo,
+    })
+
+    // Should NOT throw
+    await expect(handler(makeEvent())).resolves.toBeUndefined()
+  })
+
+  it('logs error when cancelGoalFn throws (not returns Err)', async () => {
+    const throwingCancel = async () => {
+      throw new Error('cancel exploded')
+    }
+    const g1 = makeGoal({
+      id: goalId('g-1'),
+      teamId: teamId('team-1'),
+      status: 'active',
+    })
+
+    const fakes = makeFakeDeps([g1])
+    const handler = onTeamDeleted({ ...fakes.deps, cancelGoalFn: throwingCancel })
+
+    // Should NOT throw
+    await expect(handler(makeEvent())).resolves.toBeUndefined()
+    expect(fakes.logger.error).toHaveBeenCalled()
   })
 })

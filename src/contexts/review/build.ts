@@ -5,7 +5,7 @@
 import type { Database } from '#/shared/db'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { Queue } from 'bullmq'
-import type { Logger } from 'pino'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { GoogleReviewApiPort } from './application/ports/google-review-api.port'
 import type { ReviewRepository } from './application/ports/review.repository'
 import type { ReplyRepository } from './application/ports/reply.repository'
@@ -32,7 +32,7 @@ export type ReviewContextBuildInput = Readonly<{
   clock: () => Date
   googleReviewApi: GoogleReviewApiPort
   jobQueue: Queue | undefined
-  logger: Logger
+  logger: LoggerPort
 }>
 
 export type ReviewContextApi = Readonly<{
@@ -54,39 +54,30 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
   const reviewRepo = createReviewRepository(input.db)
   const replyRepo = createReplyRepository(input.db)
 
-  const queue: ReviewQueuePort = input.jobQueue
-    ? {
-        addSyncJob: async (data, options) => {
-          await input.jobQueue!.add('sync-property-reviews', data, {
-            jobId: options?.jobId,
-            removeOnComplete: { count: 100 },
-            removeOnFail: { count: 50 },
-            attempts: 3,
-          })
-        },
-      }
-    : {
-        addSyncJob: async () => {
-          throw new Error('Job queue not available — Redis not configured')
-        },
-      }
+  if (!input.jobQueue) throw new Error('jobQueue required')
+  const jobQueue = input.jobQueue
 
-  const replyQueue: ReplyQueuePort = input.jobQueue
-    ? {
-        addPublishJob: async (data) => {
-          await input.jobQueue!.add('publish-reply', data, {
-            removeOnComplete: { count: 100 },
-            removeOnFail: { count: 50 },
-            attempts: 3,
-            backoff: { type: 'exponential', delay: 5000 },
-          })
-        },
-      }
-    : {
-        addPublishJob: async () => {
-          throw new Error('Job queue not available — Redis not configured')
-        },
-      }
+  const queue: ReviewQueuePort = {
+    addSyncJob: async (data, options) => {
+      await jobQueue.add('sync-property-reviews', data, {
+        jobId: options?.jobId,
+        removeOnComplete: { count: 100 },
+        removeOnFail: { count: 50 },
+        attempts: 3,
+      })
+    },
+  }
+
+  const replyQueue: ReplyQueuePort = {
+    addPublishJob: async (data) => {
+      await jobQueue.add('publish-reply', data, {
+        removeOnComplete: { count: 100 },
+        removeOnFail: { count: 50 },
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 5000 },
+      })
+    },
+  }
 
   const replyDeps = {
     replyRepo,

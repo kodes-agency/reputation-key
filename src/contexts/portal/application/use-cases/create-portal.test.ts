@@ -24,7 +24,16 @@ const setup = () => {
     propertyApi: {
       propertyExists: async (_orgId: OrganizationId, pid: PropertyId) =>
         pid === propertyId('a0000000-0000-0000-0000-000000000001'),
+      getPropertyName: async () => null,
       findByGbpPlaceId: async () => null,
+      findBySlug: async () => null,
+      findIdsByGoogleConnection: async () => [],
+      clearGoogleConnectionRef: async () => {},
+      importProperty: async () => {
+        throw new Error('not implemented')
+      },
+      findExistingGbpPlaceIds: async () => [],
+      existsByGbpPlaceId: async () => false,
     },
     events,
     idGen: () => FIXED_ID,

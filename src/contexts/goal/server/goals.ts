@@ -7,6 +7,7 @@ import { match } from 'ts-pattern'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { throwContextError } from '#/shared/auth/server-errors'
+import { can } from '#/shared/domain/permissions'
 import { getContainer } from '#/composition'
 import {
   createGoalSchema,
@@ -15,7 +16,7 @@ import {
   listGoalsSchema,
   getGoalSchema,
 } from '../application/dto/goal.dto'
-import { goalError, isGoalError } from '../domain/errors'
+import { isGoalError } from '../domain/errors'
 import type { GoalErrorCode } from '../domain/errors'
 import {
   propertyId as toPropertyId,
@@ -24,27 +25,18 @@ import {
   staffId as toStaffId,
   goalId as toGoalId,
 } from '#/shared/domain/ids'
-import type { Role } from '#/shared/domain/roles'
 import type { MetricKey, AggregationFunction } from '#/shared/domain/metric-keys'
 
 // ── Helpers ───────────────────────────────────────────────────────────
 
-const WRITE_ROLES: ReadonlySet<Role> = new Set(['AccountAdmin', 'PropertyManager'])
+/** Local error constructor — server must not import domain error constructors. */
+const makeGoalError = (code: GoalErrorCode, message: string) => ({
+  _tag: 'GoalError' as const,
+  code,
+  message,
+})
 
-function requireWriteAccess(role: Role): void {
-  if (!WRITE_ROLES.has(role)) {
-    throwContextError(
-      'GoalError',
-      goalError(
-        'forbidden',
-        'Only AccountAdmin or PropertyManager can perform this action',
-      ),
-      403,
-    )
-  }
-}
-
-const goalErrorStatus = (code: GoalErrorCode): number =>
+export const goalErrorStatus = (code: GoalErrorCode): number =>
   match(code)
     .with('forbidden', () => 403)
     .with('not_found', () => 404)
@@ -61,7 +53,16 @@ export const createGoal = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        requireWriteAccess(ctx.role)
+        if (!can(ctx.role, 'goal.create')) {
+          throwContextError(
+            'GoalError',
+            makeGoalError(
+              'forbidden',
+              'Only AccountAdmin or PropertyManager can create goals',
+            ),
+            403,
+          )
+        }
 
         try {
           const { useCases } = getContainer()
@@ -82,17 +83,46 @@ export const createGoal = createServerFn({ method: 'POST' })
             periodEnd: data.periodEnd ? new Date(data.periodEnd) : null,
             recurrenceRule: data.recurrenceRule ?? null,
             rollingWindowDays: data.rollingWindowDays ?? null,
+            role: ctx.role,
           })
 
           if (result.isErr()) {
-            throwContextError(
-              'GoalError',
-              goalError('validation_error', String(result.error)),
-              400,
-            )
+            match(result.error)
+              .with({ tag: 'forbidden' }, () =>
+                throwContextError(
+                  'GoalError',
+                  makeGoalError('forbidden', 'Forbidden'),
+                  403,
+                ),
+              )
+              .with({ tag: 'construction_error' }, (e) =>
+                throwContextError(
+                  'GoalError',
+                  makeGoalError('validation_error', e.error.tag),
+                  400,
+                ),
+              )
+              .with({ tag: 'instance_construction_error' }, (e) =>
+                throwContextError(
+                  'GoalError',
+                  makeGoalError('validation_error', e.error.tag),
+                  400,
+                ),
+              )
+              .with({ tag: 'progress_query_error' }, (e) =>
+                throwContextError(
+                  'GoalError',
+                  makeGoalError(
+                    'validation_error',
+                    `Unexpected progress query error: ${e.errorTag}`,
+                  ),
+                  500,
+                ),
+              )
+              .exhaustive()
           }
 
-          return result.value
+          return result._unsafeUnwrap()
         } catch (e) {
           if (isGoalError(e)) throwContextError('GoalError', e, goalErrorStatus(e.code))
           throw e
@@ -112,7 +142,16 @@ export const updateGoal = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        requireWriteAccess(ctx.role)
+        if (!can(ctx.role, 'goal.update')) {
+          throwContextError(
+            'GoalError',
+            makeGoalError(
+              'forbidden',
+              'Only AccountAdmin or PropertyManager can update goals',
+            ),
+            403,
+          )
+        }
 
         try {
           const { useCases } = getContainer()
@@ -121,39 +160,53 @@ export const updateGoal = createServerFn({ method: 'POST' })
             organizationId: ctx.organizationId,
             targetValue: data.targetValue,
             recurrenceRule: data.recurrenceRule ?? undefined,
+            role: ctx.role,
           })
 
           if (result.isErr()) {
-            const error = result.error
-            switch (error.tag) {
-              case 'goal_not_found':
+            match(result.error)
+              .with({ tag: 'forbidden' }, () =>
                 throwContextError(
                   'GoalError',
-                  goalError('not_found', 'Goal not found'),
+                  makeGoalError('forbidden', 'Forbidden'),
+                  403,
+                ),
+              )
+              .with({ tag: 'goal_not_found' }, () =>
+                throwContextError(
+                  'GoalError',
+                  makeGoalError('not_found', 'Goal not found'),
                   404,
-                )
-                break
-              case 'goal_not_active':
+                ),
+              )
+              .with({ tag: 'goal_not_active' }, (e) =>
                 throwContextError(
                   'GoalError',
-                  goalError('immutable_goal', `Goal is ${error.status}`),
+                  makeGoalError('immutable_goal', `Goal is ${e.status}`),
                   409,
-                )
-                break
-              case 'recurrence_rule_not_allowed':
+                ),
+              )
+              .with({ tag: 'recurrence_rule_not_allowed' }, () =>
                 throwContextError(
                   'GoalError',
-                  goalError(
+                  makeGoalError(
                     'validation_error',
                     'Recurrence rule can only be updated on recurring goals',
                   ),
                   400,
-                )
-                break
-            }
+                ),
+              )
+              .with({ tag: 'invalid_target_value' }, () =>
+                throwContextError(
+                  'GoalError',
+                  makeGoalError('validation_error', 'Target value must be positive'),
+                  400,
+                ),
+              )
+              .exhaustive()
           }
 
-          return { goal: result.value }
+          return { goal: result._unsafeUnwrap() }
         } catch (e) {
           if (isGoalError(e)) throwContextError('GoalError', e, goalErrorStatus(e.code))
           throw e
@@ -173,36 +226,52 @@ export const cancelGoal = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        requireWriteAccess(ctx.role)
+        if (!can(ctx.role, 'goal.cancel')) {
+          throwContextError(
+            'GoalError',
+            makeGoalError(
+              'forbidden',
+              'Only AccountAdmin or PropertyManager can cancel goals',
+            ),
+            403,
+          )
+        }
 
         try {
           const { useCases } = getContainer()
           const result = await useCases.cancelGoal({
             goalId: toGoalId(data.goalId),
             organizationId: ctx.organizationId,
+            role: ctx.role,
           })
 
           if (result.isErr()) {
-            const error = result.error
-            switch (error.tag) {
-              case 'goal_not_found':
+            match(result.error)
+              .with({ tag: 'forbidden' }, () =>
                 throwContextError(
                   'GoalError',
-                  goalError('not_found', 'Goal not found'),
+                  makeGoalError('forbidden', 'Forbidden'),
+                  403,
+                ),
+              )
+              .with({ tag: 'goal_not_found' }, () =>
+                throwContextError(
+                  'GoalError',
+                  makeGoalError('not_found', 'Goal not found'),
                   404,
-                )
-                break
-              case 'goal_not_active':
+                ),
+              )
+              .with({ tag: 'goal_not_active' }, (e) =>
                 throwContextError(
                   'GoalError',
-                  goalError('immutable_goal', `Goal is ${error.status}`),
+                  makeGoalError('immutable_goal', `Goal is ${e.status}`),
                   409,
-                )
-                break
-            }
+                ),
+              )
+              .exhaustive()
           }
 
-          return { goal: result.value }
+          return { goal: result._unsafeUnwrap() }
         } catch (e) {
           if (isGoalError(e)) throwContextError('GoalError', e, goalErrorStatus(e.code))
           throw e
@@ -222,10 +291,17 @@ export const listGoals = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const headers = headersFromContext()
         const ctx = await resolveTenantContext(headers)
+        if (!can(ctx.role, 'goal.read')) {
+          throwContextError(
+            'GoalError',
+            makeGoalError('forbidden', 'No goal read permission'),
+            403,
+          )
+        }
 
         try {
           const { useCases } = getContainer()
-          const goals = await useCases.listGoals({
+          const result = await useCases.listGoals({
             organizationId: ctx.organizationId,
             propertyId: toPropertyId(data.propertyId),
             portalId: data.portalId ? toPortalId(data.portalId) : undefined,
@@ -233,8 +309,22 @@ export const listGoals = createServerFn({ method: 'GET' })
             staffId: data.staffId ? toStaffId(data.staffId) : undefined,
             status: data.status,
             goalType: data.goalType,
+            role: ctx.role,
           })
-          return { goals }
+
+          if (result.isErr()) {
+            match(result.error)
+              .with({ tag: 'forbidden' }, () =>
+                throwContextError(
+                  'GoalError',
+                  makeGoalError('forbidden', 'Forbidden'),
+                  403,
+                ),
+              )
+              .exhaustive()
+          }
+
+          return { goals: result._unsafeUnwrap() }
         } catch (e) {
           if (isGoalError(e)) throwContextError('GoalError', e, goalErrorStatus(e.code))
           throw e
@@ -254,19 +344,42 @@ export const getGoal = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const headers = headersFromContext()
         const ctx = await resolveTenantContext(headers)
+        if (!can(ctx.role, 'goal.read')) {
+          throwContextError(
+            'GoalError',
+            makeGoalError('forbidden', 'No goal read permission'),
+            403,
+          )
+        }
 
         try {
           const { useCases } = getContainer()
           const result = await useCases.getGoal({
             goalId: toGoalId(data.goalId),
             organizationId: ctx.organizationId,
+            role: ctx.role,
           })
 
           if (result.isErr()) {
-            throwContextError('GoalError', goalError('not_found', 'Goal not found'), 404)
+            match(result.error)
+              .with({ tag: 'forbidden' }, () =>
+                throwContextError(
+                  'GoalError',
+                  makeGoalError('forbidden', 'Forbidden'),
+                  403,
+                ),
+              )
+              .with({ tag: 'goal_not_found' }, () =>
+                throwContextError(
+                  'GoalError',
+                  makeGoalError('not_found', 'Goal not found'),
+                  404,
+                ),
+              )
+              .exhaustive()
           }
 
-          return result.value
+          return result._unsafeUnwrap()
         } catch (e) {
           if (isGoalError(e)) throwContextError('GoalError', e, goalErrorStatus(e.code))
           throw e

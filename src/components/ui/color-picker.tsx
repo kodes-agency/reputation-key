@@ -1075,8 +1075,8 @@ function ColorPickerEyeDropper(props: React.ComponentProps<typeof Button>) {
         store.setColor(newColor)
         store.setHsv(newHsv)
       }
-    } catch (error) {
-      console.warn('EyeDropper error:', error)
+    } catch {
+      // EyeDropper not supported or user cancelled — silent fail
     }
   }, [color, store])
 

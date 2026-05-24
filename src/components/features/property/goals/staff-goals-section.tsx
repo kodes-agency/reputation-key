@@ -8,19 +8,13 @@ import {
   statusBadgeVariant,
   statusLabel,
   goalTypeLabel,
+  type GoalWithProgress,
 } from '#/contexts/goal/ui/helpers'
-import type { Goal, GoalProgress } from '#/contexts/goal/application/dto/goal.dto'
 
-// fallow-ignore-file unused-export
-export type GoalWithProgress = {
-  goal: Goal
-  progress: GoalProgress | null
-}
-
-type StaffGoalsSectionProps = {
+type StaffGoalsSectionProps = Readonly<{
   goals: readonly GoalWithProgress[]
   propertyId?: string
-}
+}>
 
 export function StaffGoalsSection({ goals, propertyId }: StaffGoalsSectionProps) {
   if (goals.length === 0) {

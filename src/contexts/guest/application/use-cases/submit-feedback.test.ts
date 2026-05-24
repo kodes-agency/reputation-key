@@ -21,6 +21,8 @@ function createInMemoryGuestRepo() {
     },
     hasRated: async () => false,
     getLatestScanBySession: async () => null,
+    findFeedbackById: async () => null,
+    findRatingById: async () => null,
   }
   return { ...repo, feedback }
 }

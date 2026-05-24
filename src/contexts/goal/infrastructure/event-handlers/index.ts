@@ -6,6 +6,7 @@ import type { EventBus } from '#/shared/events/event-bus'
 import type { GoalRepository } from '../../application/ports/goal.repository'
 import type { Goal } from '../../domain/types'
 import type { GoalId, OrganizationId } from '#/shared/domain/ids'
+import type { Role } from '#/shared/domain/roles'
 import type { getLogger as getLoggerType } from '#/shared/observability/logger'
 import type { Result } from 'neverthrow'
 
@@ -17,16 +18,15 @@ import { onTeamDeleted } from './on-team-deleted'
 // ── Shared deps for entity removal handlers ───────────────────────────
 
 export type CancelGoalFn = (
-  input: Readonly<{ goalId: GoalId; organizationId: OrganizationId }>,
+  input: Readonly<{ goalId: GoalId; organizationId: OrganizationId; role: Role }>,
 ) => Promise<Result<Goal, unknown>>
 
 // ── Registration deps ─────────────────────────────────────────────────
 
 export type RegisterGoalHandlersDeps = Readonly<{
-  events: EventBus
   goalRepo: GoalRepository
   cancelGoalFn: CancelGoalFn
-  eventBus: import('./on-metric-recorded').EventBus
+  eventBus: EventBus
   clock: () => Date
   getLogger: typeof getLoggerType
 }>
@@ -34,8 +34,8 @@ export type RegisterGoalHandlersDeps = Readonly<{
 // ── Registration ──────────────────────────────────────────────────────
 
 export const registerGoalEventHandlers = (deps: RegisterGoalHandlersDeps): void => {
-  deps.events.on('metric.recorded', onMetricRecorded(deps))
-  deps.events.on('staff.unassigned', onStaffUnassigned(deps))
-  deps.events.on('portal.deleted', onPortalDeleted(deps))
-  deps.events.on('team.deleted', onTeamDeleted(deps))
+  deps.eventBus.on('metric.recorded', onMetricRecorded(deps))
+  deps.eventBus.on('staff.unassigned', onStaffUnassigned(deps))
+  deps.eventBus.on('portal.deleted', onPortalDeleted(deps))
+  deps.eventBus.on('team.deleted', onTeamDeleted(deps))
 }

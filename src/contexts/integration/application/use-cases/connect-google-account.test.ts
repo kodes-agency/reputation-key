@@ -25,6 +25,7 @@ const setup = () => {
     encryption,
     events,
     clock: () => FIXED_TIME,
+    idGen: () => 'test-connection-id',
     callbackUrl: 'http://localhost:3000/api/auth/google/callback',
   }
   const useCase = connectGoogleAccount(deps)

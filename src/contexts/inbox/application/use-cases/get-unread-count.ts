@@ -7,7 +7,7 @@
 import type { UnreadCounterPort } from '../ports/unread-counter.port'
 import type { InboxRepository } from '../ports/inbox.repository'
 import type { OrganizationId } from '#/shared/domain/ids'
-import type { Logger } from 'pino'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 
 export type GetUnreadCountInput = Readonly<{
   organizationId: OrganizationId
@@ -17,7 +17,7 @@ export type GetUnreadCountInput = Readonly<{
 export type GetUnreadCountDeps = Readonly<{
   unreadCounter: UnreadCounterPort
   repo: InboxRepository
-  logger: Logger
+  logger: LoggerPort
 }>
 
 export const getUnreadCount =
@@ -41,7 +41,10 @@ export const getUnreadCount =
       try {
         await deps.unreadCounter.setCount(input.organizationId, dbCount)
       } catch (err) {
-        deps.logger.warn({ err, organizationId: input.organizationId }, 'Cache warm failed — non-critical, just serve the DB count')
+        deps.logger.warn(
+          { err, organizationId: input.organizationId },
+          'Cache warm failed — non-critical, just serve the DB count',
+        )
       }
     }
     return dbCount

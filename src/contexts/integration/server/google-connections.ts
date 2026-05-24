@@ -8,14 +8,23 @@ import { createHmac } from 'crypto'
 import { z } from 'zod/v4'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
+import { can } from '#/shared/domain/permissions'
 import { throwContextError } from '#/shared/auth/server-errors'
 import { getContainer } from '#/composition'
 import { connectGoogleInputSchema } from '../application/dto/connect-google.dto'
 import { disconnectGoogleInputSchema } from '../application/dto/disconnect-google.dto'
 import { updateConnectionVisibilityInputSchema } from '../application/dto/update-connection-visibility.dto'
 import { isIntegrationError } from '../domain/errors'
+import { toGoogleConnectionDto } from '../application/dto/google-connection.dto'
 import { integrationErrorStatus } from './shared'
 import { getEnv } from '#/shared/config/env'
+
+/** OAuth scopes required for Google Business Profile API + user identity. */
+const GBP_OAUTH_SCOPES = [
+  'https://www.googleapis.com/auth/business.manage',
+  'https://www.googleapis.com/auth/userinfo.email',
+  'https://www.googleapis.com/auth/userinfo.profile',
+]
 
 /** HMAC key for OAuth state signing — dedicated, separate from token encryption. */
 function stateHmacKey(): string {
@@ -44,7 +53,15 @@ export const getGoogleAuthUrl = createServerFn({ method: 'GET' })
       async ({ data }) => {
         // Require authentication — only logged-in users can generate OAuth URLs
         const headers = headersFromContext()
-        await resolveTenantContext(headers)
+        const ctx = await resolveTenantContext(headers)
+
+        if (!can(ctx.role, 'integration.manage')) {
+          throwContextError(
+            'Forbidden',
+            { code: 'FORBIDDEN', message: 'Insufficient permissions' },
+            403,
+          )
+        }
 
         const { visibility } = data
         const callbackUrl = `${getEnv().BETTER_AUTH_URL}/api/auth/google/callback`
@@ -57,18 +74,11 @@ export const getGoogleAuthUrl = createServerFn({ method: 'GET' })
           'base64',
         )
 
-        // Google OAuth scopes for Business Profile API + user identity
-        const scopes = [
-          'https://www.googleapis.com/auth/business.manage',
-          'https://www.googleapis.com/auth/userinfo.email',
-          'https://www.googleapis.com/auth/userinfo.profile',
-        ]
-
         // Build OAuth URL
         const params = new URLSearchParams({
           client_id: getEnv().GOOGLE_CLIENT_ID,
           redirect_uri: callbackUrl,
-          scope: scopes.join(' '),
+          scope: GBP_OAUTH_SCOPES.join(' '),
           response_type: 'code',
           state,
           access_type: 'offline',
@@ -97,7 +107,7 @@ export const connectGoogle = createServerFn({ method: 'POST' })
         try {
           const { useCases } = getContainer()
           const connection = await useCases.connectGoogleAccount(data, ctx)
-          return { connection }
+          return { connection: toGoogleConnectionDto(connection) }
         } catch (e) {
           if (isIntegrationError(e))
             throwContextError('IntegrationError', e, integrationErrorStatus(e.code))
@@ -120,7 +130,7 @@ export const listGoogleConnections = createServerFn({ method: 'GET' }).handler(
       try {
         const { useCases } = getContainer()
         const connections = await useCases.listGoogleConnections(ctx)
-        return { connections }
+        return { connections: connections.map(toGoogleConnectionDto) }
       } catch (e) {
         if (isIntegrationError(e))
           throwContextError('IntegrationError', e, integrationErrorStatus(e.code))
@@ -145,7 +155,7 @@ export const disconnectGoogle = createServerFn({ method: 'POST' })
         try {
           const { useCases } = getContainer()
           const connection = await useCases.disconnectGoogleAccount(data, ctx)
-          return { connection }
+          return { connection: toGoogleConnectionDto(connection) }
         } catch (e) {
           if (isIntegrationError(e))
             throwContextError('IntegrationError', e, integrationErrorStatus(e.code))
@@ -170,7 +180,7 @@ export const updateConnectionVisibility = createServerFn({ method: 'POST' })
         try {
           const { useCases } = getContainer()
           const connection = await useCases.updateConnectionVisibility(data, ctx)
-          return { connection }
+          return { connection: toGoogleConnectionDto(connection) }
         } catch (e) {
           if (isIntegrationError(e))
             throwContextError('IntegrationError', e, integrationErrorStatus(e.code))

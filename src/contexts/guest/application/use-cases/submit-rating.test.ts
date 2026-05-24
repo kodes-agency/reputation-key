@@ -16,6 +16,8 @@ function createInMemoryGuestRepo() {
     hasRated: async (_orgId, sessionId, _portalId) =>
       ratings.some((r) => r.sessionId === sessionId),
     getLatestScanBySession: async () => null,
+    findFeedbackById: async () => null,
+    findRatingById: async () => null,
   }
   return { ...repo, ratings }
 }

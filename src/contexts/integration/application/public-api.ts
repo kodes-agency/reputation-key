@@ -4,11 +4,9 @@
  * Re-exports domain types that components need.
  * Per boundary rules: components may import from `application/` but NOT from `domain/`.
  */
-export type {
-  GoogleConnection,
-  GoogleConnectionStatus,
-  GoogleConnectionVisibility,
-} from '../domain/types'
+export type { GoogleConnectionDto } from './dto/google-connection.dto'
+
+export type { GoogleConnectionStatus, GoogleConnectionVisibility } from '../domain/types'
 
 export type { GbpLocation } from '../domain/types'
 

@@ -82,6 +82,20 @@ function createFakeDeps(overrides?: { storedGoals?: Goal[] }) {
       computedSource: data.computedSource,
     }),
     getProgress: async () => null,
+    getProgressBatch: async (ids) => {
+      const map = new Map()
+      for (const id of ids) {
+        map.set(id, null)
+      }
+      return map
+    },
+    listInstancesBatch: async (parentIds) => {
+      const map = new Map()
+      for (const pid of parentIds) {
+        map.set(pid, [])
+      }
+      return map
+    },
     updateProgress: async () => null,
     findActiveGoalsByMetric: async () => [],
     incrementProgress: async () => ({
@@ -131,6 +145,54 @@ const makeGoal = (overrides: Partial<Goal> = {}): Goal => ({
 })
 
 describe('updateGoal', () => {
+  // ── Permission guard ─────────────────────────────────────────────────
+  describe('permission guard', () => {
+    it('returns forbidden when Staff tries to update a goal', async () => {
+      const goal = makeGoal()
+      const fakes = createFakeDeps({ storedGoals: [goal] })
+
+      const result = await updateGoal(fakes.deps)({
+        goalId: goalId('goal-1'),
+        organizationId: organizationId('org-1'),
+        role: 'Staff',
+        targetValue: 300,
+      })
+
+      expect(result.isErr()).toBe(true)
+      const error = result._unsafeUnwrapErr()
+      expect(error.tag).toBe('forbidden')
+      expect(fakes.updatedEntries).toHaveLength(0)
+    })
+
+    it('allows AccountAdmin to update a goal', async () => {
+      const goal = makeGoal()
+      const fakes = createFakeDeps({ storedGoals: [goal] })
+
+      const result = await updateGoal(fakes.deps)({
+        goalId: goalId('goal-1'),
+        organizationId: organizationId('org-1'),
+        role: 'AccountAdmin',
+        targetValue: 300,
+      })
+
+      expect(result.isOk()).toBe(true)
+    })
+
+    it('allows PropertyManager to update a goal', async () => {
+      const goal = makeGoal()
+      const fakes = createFakeDeps({ storedGoals: [goal] })
+
+      const result = await updateGoal(fakes.deps)({
+        goalId: goalId('goal-1'),
+        organizationId: organizationId('org-1'),
+        role: 'PropertyManager',
+        targetValue: 300,
+      })
+
+      expect(result.isOk()).toBe(true)
+    })
+  })
+
   it('updates targetValue on an active goal', async () => {
     const goal = makeGoal()
     const fakes = createFakeDeps({ storedGoals: [goal] })
@@ -138,6 +200,7 @@ describe('updateGoal', () => {
     const result = await updateGoal(fakes.deps)({
       goalId: goalId('goal-1'),
       organizationId: organizationId('org-1'),
+      role: 'AccountAdmin',
       targetValue: 300,
     })
 
@@ -158,6 +221,7 @@ describe('updateGoal', () => {
     const result = await updateGoal(fakes.deps)({
       goalId: goalId('goal-1'),
       organizationId: organizationId('org-1'),
+      role: 'AccountAdmin',
       recurrenceRule: newRule,
     })
 
@@ -173,6 +237,7 @@ describe('updateGoal', () => {
     const result = await updateGoal(fakes.deps)({
       goalId: goalId('goal-1'),
       organizationId: organizationId('org-1'),
+      role: 'AccountAdmin',
       recurrenceRule: { frequency: 'monthly' },
     })
 
@@ -188,6 +253,7 @@ describe('updateGoal', () => {
     const result = await updateGoal(fakes.deps)({
       goalId: goalId('goal-1'),
       organizationId: organizationId('org-1'),
+      role: 'AccountAdmin',
       targetValue: 300,
     })
 
@@ -203,6 +269,7 @@ describe('updateGoal', () => {
     const result = await updateGoal(fakes.deps)({
       goalId: goalId('goal-1'),
       organizationId: organizationId('org-1'),
+      role: 'AccountAdmin',
       targetValue: 300,
     })
 
@@ -217,6 +284,7 @@ describe('updateGoal', () => {
     const result = await updateGoal(fakes.deps)({
       goalId: goalId('nonexistent'),
       organizationId: organizationId('org-1'),
+      role: 'AccountAdmin',
       targetValue: 300,
     })
 

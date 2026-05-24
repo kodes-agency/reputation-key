@@ -4,6 +4,7 @@ import type { ReferralCodeResolver } from './record-scan-with-ref'
 import { recordScanWithRef } from './record-scan-with-ref'
 import { organizationId, portalId, propertyId, scanEventId } from '#/shared/domain/ids'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { createMockLogger } from '#/shared/testing/mock-logger'
 
 function makeFakeStaffRepo(userId: string | null) {
   const resolver: ReferralCodeResolver = {
@@ -22,6 +23,8 @@ function makeFakeGuestRepo() {
     insertFeedback: async () => {},
     hasRated: async () => false,
     getLatestScanBySession: async () => null,
+    findFeedbackById: async () => null,
+    findRatingById: async () => null,
     scans,
   }
 }
@@ -38,6 +41,7 @@ describe('recordScanWithRef', () => {
       events: bus,
       idGen: () => scanEventId('scan-1'),
       clock: () => new Date('2026-05-01T12:00:00Z'),
+      logger: createMockLogger(),
     })
 
     await record({
@@ -65,6 +69,7 @@ describe('recordScanWithRef', () => {
       events: bus,
       idGen: () => scanEventId('scan-1'),
       clock: () => new Date('2026-05-01T12:00:00Z'),
+      logger: createMockLogger(),
     })
 
     await record({
@@ -92,6 +97,7 @@ describe('recordScanWithRef', () => {
       events: bus,
       idGen: () => scanEventId('scan-1'),
       clock: () => new Date('2026-05-01T12:00:00Z'),
+      logger: createMockLogger(),
     })
 
     await record({

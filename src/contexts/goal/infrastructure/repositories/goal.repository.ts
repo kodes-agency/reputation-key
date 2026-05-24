@@ -2,13 +2,15 @@
 // Per architecture: factory function returning Readonly<{ method }>.
 // Wrapped in trace() for observability.
 
-import { and, eq, sql, or, desc, isNull } from 'drizzle-orm'
+import { and, eq, sql, or, desc, isNull, inArray } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { goals, goalProgress } from '#/shared/db/schema/goal.schema'
 import type {
   GoalRepository,
   GoalListFilter,
 } from '../../application/ports/goal.repository'
+import type { Goal, GoalProgress } from '../../domain/types'
+import type { GoalId } from '#/shared/domain/ids'
 import {
   goalFromRow,
   goalProgressFromRow,
@@ -16,17 +18,26 @@ import {
   goalProgressToInsertRow,
 } from '../mappers/goal.mapper'
 import { trace } from '#/shared/observability/trace'
+import { getLogger } from '#/shared/observability/logger'
+
+const log = getLogger().child({ component: 'goal-repo' })
 
 export const createGoalRepository = (db: Database): GoalRepository => ({
   // ── Goal CRUD ──────────────────────────────────────────────────────────
 
   insert: async (goal) => {
     return trace('goal.insert', async () => {
+      const start = Date.now()
+      log.debug({ organizationId: goal.organizationId as string }, 'goal insert start')
       const row = goalToInsertRow(goal)
       const result = await db.insert(goals).values(row).returning()
       if (!result[0]) {
         throw new Error('Goal insert failed — no row returned')
       }
+      log.debug(
+        { goalId: result[0].id, duration: Date.now() - start },
+        'goal insert complete',
+      )
       return goalFromRow(result[0])
     })
   },
@@ -55,6 +66,8 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
 
   list: async (filter: GoalListFilter) => {
     return trace('goal.list', async () => {
+      const start = Date.now()
+      log.debug({ organizationId: filter.organizationId as string }, 'goal list start')
       const conditions = [eq(goals.organizationId, filter.organizationId)]
       if (filter.propertyId)
         conditions.push(eq(goals.propertyId, filter.propertyId as string))
@@ -68,6 +81,10 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
         .select()
         .from(goals)
         .where(and(...conditions))
+      log.debug(
+        { count: rows.length, duration: Date.now() - start },
+        'goal list complete',
+      )
       return rows.map(goalFromRow)
     })
   },
@@ -112,6 +129,7 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
     })
   },
 
+  // Safe: goalId is a globally unique UUID — no cross-tenant risk
   getProgress: async (goalId) => {
     return trace('goal.getProgress', async () => {
       const rows = await db
@@ -123,6 +141,28 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
     })
   },
 
+  // Batch: fetches progress for multiple goals in a single query
+  getProgressBatch: async (goalIds) => {
+    return trace('goal.getProgressBatch', async () => {
+      const map = new Map<GoalId, GoalProgress | null>()
+      if (goalIds.length === 0) return map
+      // Initialize all keys to null
+      for (const id of goalIds) {
+        map.set(id, null)
+      }
+      const rows = await db
+        .select()
+        .from(goalProgress)
+        .where(inArray(goalProgress.goalId, [...goalIds] as string[]))
+      for (const row of rows) {
+        const progress = goalProgressFromRow(row)
+        map.set(progress.goalId, progress)
+      }
+      return map
+    })
+  },
+
+  // Safe: goalId is a globally unique UUID — no cross-tenant risk
   updateProgress: async (goalId, data) => {
     return trace('goal.updateProgress', async () => {
       const result = await db
@@ -160,12 +200,12 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
     })
   },
 
-  findLatestInstance: async (parentGoalId) => {
+  findLatestInstance: async (parentGoalId, orgId) => {
     return trace('goal.findLatestInstance', async () => {
       const rows = await db
         .select()
         .from(goals)
-        .where(eq(goals.parentGoalId, parentGoalId))
+        .where(and(eq(goals.parentGoalId, parentGoalId), eq(goals.organizationId, orgId)))
         .orderBy(desc(goals.periodEnd))
         .limit(1)
       return rows[0] ? goalFromRow(rows[0]) : null
@@ -174,19 +214,26 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
 
   createGoalAndProgress: async (goal, progress) => {
     return trace('goal.createGoalAndProgress', async () => {
-      await db.insert(goals).values({
-        ...goalToInsertRow(goal),
-        id: goal.id as string,
-      })
-      await db.insert(goalProgress).values({
-        ...goalProgressToInsertRow(progress),
-        id: progress.id as string,
+      await db.transaction(async (tx) => {
+        await tx.insert(goals).values({
+          ...goalToInsertRow(goal),
+          id: goal.id as string,
+        })
+        await tx.insert(goalProgress).values({
+          ...goalProgressToInsertRow(progress),
+          id: progress.id as string,
+        })
       })
     })
   },
 
   findActiveGoalsByMetric: async (metricKey, organizationId, propertyId, portalId) => {
     return trace('goal.findActiveGoalsByMetric', async () => {
+      const start = Date.now()
+      log.debug(
+        { metricKey, organizationId: organizationId as string },
+        'goal findActiveGoalsByMetric start',
+      )
       const conditions = [
         eq(goals.status, 'active'),
         eq(goals.metricKey, metricKey),
@@ -207,6 +254,10 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
         .select()
         .from(goals)
         .where(and(...conditions))
+      log.debug(
+        { metricKey, count: rows.length, duration: Date.now() - start },
+        'goal findActiveGoalsByMetric complete',
+      )
       return rows.map(goalFromRow)
     })
   },
@@ -259,12 +310,12 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
       }
 
       if (aggregation === 'avg') {
-        // Increment sum and count, then recompute currentValue
         const result = await db
           .update(goalProgress)
           .set({
-            currentSum: sql`${goalProgress.currentSum} + ${delta}`,
-            currentCount: sql`${goalProgress.currentCount} + 1`,
+            currentSum: sql`COALESCE(${goalProgress.currentSum}, 0) + ${delta}`,
+            currentCount: sql`COALESCE(${goalProgress.currentCount}, 0) + 1`,
+            currentValue: sql`(COALESCE(${goalProgress.currentSum}, 0) + ${delta}) / (COALESCE(${goalProgress.currentCount}, 0) + 1)`,
           })
           .where(eq(goalProgress.goalId, goalId))
           .returning({
@@ -275,21 +326,10 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
         if (!result[0]) {
           throw new Error(`incrementProgress: no progress row for goal ${goalId}`)
         }
-
-        const newSum = result[0].currentSum!
-        const newCount = result[0].currentCount!
-        const newAvg = newCount > 0 ? newSum / newCount : 0
-
-        // Update currentValue with recomputed average
-        await db
-          .update(goalProgress)
-          .set({ currentValue: newAvg })
-          .where(eq(goalProgress.goalId, goalId))
-
         return {
-          currentValue: newAvg,
-          currentSum: newSum,
-          currentCount: newCount,
+          currentValue: result[0].currentValue,
+          currentSum: result[0].currentSum,
+          currentCount: result[0].currentCount,
         }
       }
 
@@ -297,12 +337,42 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
     })
   },
 
-  markGoalCompleted: async (goalId, completedAt) => {
+  markGoalCompleted: async (goalId, orgId, completedAt) => {
     return trace('goal.markGoalCompleted', async () => {
       await db
         .update(goals)
         .set({ status: 'completed', completedAt, updatedAt: completedAt })
-        .where(eq(goals.id, goalId))
+        .where(and(eq(goals.id, goalId), eq(goals.organizationId, orgId)))
+    })
+  },
+
+  // ── Batch lookups (N+1 elimination) ──────────────────────────────────
+
+  listInstancesBatch: async (parentGoalIds, orgId) => {
+    return trace('goal.listInstancesBatch', async () => {
+      const map = new Map<GoalId, Goal[]>()
+      if (parentGoalIds.length === 0) return map
+      // Initialize all keys to empty array
+      for (const id of parentGoalIds) {
+        map.set(id, [])
+      }
+      const rows = await db
+        .select()
+        .from(goals)
+        .where(
+          and(
+            inArray(goals.parentGoalId, [...parentGoalIds] as string[]),
+            eq(goals.organizationId, orgId),
+          ),
+        )
+      for (const row of rows) {
+        const goal = goalFromRow(row)
+        const parentId = goal.parentGoalId!
+        const existing = map.get(parentId) ?? []
+        existing.push(goal)
+        map.set(parentId, existing)
+      }
+      return map
     })
   },
 })

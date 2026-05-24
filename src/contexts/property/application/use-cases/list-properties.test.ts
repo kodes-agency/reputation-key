@@ -20,6 +20,7 @@ const createTestStaffApi = (
     if (role === 'AccountAdmin') return null // all accessible
     return assignments.get(userId as string) ?? []
   },
+  findByReferralCode: async () => null,
 })
 
 const setup = () => {

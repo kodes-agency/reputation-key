@@ -3,7 +3,7 @@
  * No side effects, no DOM, safe for server and client.
  */
 
-import type { Goal, GoalStatus } from '#/contexts/goal/domain/types'
+import type { Goal, GoalStatus } from '#/contexts/goal/application/public-api'
 import type {
   MetricKey,
   AggregationFunction,
@@ -46,7 +46,7 @@ export function formatProgressLabel(
 // ── 2. progressBarWidth ────────────────────────────────────────────────
 
 export function progressBarWidth(currentValue: number, targetValue: number): number {
-  if (targetValue === 0) return 0
+  if (targetValue <= 0) return 0
   return Math.min(100, Math.floor((currentValue / targetValue) * 100))
 }
 
@@ -65,7 +65,7 @@ export function progressBarColor(
 
 // ── 4. sortGoalsByStatus ───────────────────────────────────────────────
 
-const STATUS_ORDER: Record<GoalStatus, number> = {
+export const STATUS_ORDER: Record<GoalStatus, number> = {
   active: 0,
   completed: 1,
   expired: 2,
@@ -255,3 +255,7 @@ export function formatDate(d: Date): string {
     day: 'numeric',
   })
 }
+
+// ── 15. Re-exported shared types ────────────────────────────────────
+
+export type { GoalWithProgress } from '#/contexts/goal/application/use-cases/list-goals'

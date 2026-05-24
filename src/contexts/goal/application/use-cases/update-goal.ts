@@ -5,23 +5,28 @@
 import type { GoalRepository } from '../ports/goal.repository'
 import type { Goal, RecurrenceRule } from '../../domain/types'
 import type { GoalId, OrganizationId } from '#/shared/domain/ids'
+import type { Role } from '#/shared/domain/roles'
+import { can } from '#/shared/domain/permissions'
 import { ok, err, type Result } from 'neverthrow'
 
 // ── Input type ──────────────────────────────────────────────────────────
 
-export type UpdateGoalInput = Readonly<{
+type UpdateGoalInput = Readonly<{
   goalId: GoalId
   organizationId: OrganizationId
   targetValue?: number
   recurrenceRule?: RecurrenceRule | null
+  role: Role
 }>
 
 // ── Error types ─────────────────────────────────────────────────────────
 
 export type UpdateGoalError =
+  | { tag: 'forbidden' }
   | { tag: 'goal_not_found' }
   | { tag: 'goal_not_active'; status: string }
   | { tag: 'recurrence_rule_not_allowed' }
+  | { tag: 'invalid_target_value' }
 
 // ── Deps ────────────────────────────────────────────────────────────────
 
@@ -35,6 +40,10 @@ export type UpdateGoalDeps = Readonly<{
 export const updateGoal =
   (deps: UpdateGoalDeps) =>
   async (input: UpdateGoalInput): Promise<Result<Goal, UpdateGoalError>> => {
+    if (!can(input.role, 'goal.update')) {
+      return err({ tag: 'forbidden' })
+    }
+
     // 1. Load goal
     const goal = await deps.goalRepo.getById(input.goalId, input.organizationId)
     if (!goal) {
@@ -46,9 +55,21 @@ export const updateGoal =
       return err({ tag: 'goal_not_active', status: goal.status })
     }
 
-    // 3. Build update data
+    // 3. Validate targetValue if provided
+    if (
+      input.targetValue !== undefined &&
+      (!Number.isFinite(input.targetValue) || input.targetValue <= 0)
+    ) {
+      return err({ tag: 'invalid_target_value' })
+    }
+
+    // 4. Build update data
     const now = deps.clock()
-    const updates: Record<string, unknown> = {
+    const updates: {
+      updatedAt: Date
+      targetValue?: number
+      recurrenceRule?: RecurrenceRule | null
+    } = {
       updatedAt: now,
     }
 
@@ -57,18 +78,18 @@ export const updateGoal =
     }
 
     if (input.recurrenceRule !== undefined) {
-      // Only recurring templates can have recurrenceRule updated
-      if (goal.goalType !== 'recurring') {
+      // Only recurring templates (not instances) can have recurrenceRule updated
+      if (goal.goalType !== 'recurring' || goal.parentGoalId !== null) {
         return err({ tag: 'recurrence_rule_not_allowed' })
       }
       updates.recurrenceRule = input.recurrenceRule
     }
 
-    // 4. Persist
+    // 5. Persist
     const updated = await deps.goalRepo.update(
       input.goalId,
       input.organizationId,
-      updates as Parameters<typeof deps.goalRepo.update>[2],
+      updates,
     )
 
     // Repo returns null if not found (shouldn't happen since we just checked)

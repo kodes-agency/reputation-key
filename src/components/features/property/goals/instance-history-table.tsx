@@ -20,9 +20,9 @@ type InstanceWithProgress = { goal: Goal; progress: GoalProgress | null }
 
 export function InstanceHistoryTable({
   instances,
-}: {
+}: Readonly<{
   instances: readonly InstanceWithProgress[]
-}) {
+}>) {
   if (instances.length === 0) return null
   return (
     <Card>

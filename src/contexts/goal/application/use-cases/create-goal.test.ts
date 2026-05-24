@@ -4,7 +4,7 @@ import type { Goal, GoalProgress } from '../../domain/types'
 import type {
   MetricReadingsQuery,
   MetricReadingsAggregate,
-} from '../../../metric/application/ports/metric.repository'
+} from '../../../metric/application/public-api'
 import type { GoalRepository } from '../ports/goal.repository'
 import {
   organizationId,
@@ -80,6 +80,20 @@ function createFakeDeps() {
       return progress
     },
     getProgress: async () => null,
+    getProgressBatch: async (ids) => {
+      const map = new Map()
+      for (const id of ids) {
+        map.set(id, null)
+      }
+      return map
+    },
+    listInstancesBatch: async (parentIds) => {
+      const map = new Map()
+      for (const pid of parentIds) {
+        map.set(pid, [])
+      }
+      return map
+    },
     updateProgress: async () => null,
     findActiveGoalsByMetric: async () => [],
     incrementProgress: async () => ({
@@ -91,7 +105,10 @@ function createFakeDeps() {
     findAllActive: async () => [],
     findActiveRecurringTemplates: async () => [],
     findLatestInstance: async () => null,
-    createGoalAndProgress: async () => {},
+    createGoalAndProgress: async (goal, progress) => {
+      goals.push(goal)
+      progresses.push(progress)
+    },
   }
 
   let aggregateResponse: MetricReadingsAggregate = { sum: 0, count: 0, max: 0 }
@@ -130,6 +147,7 @@ const BASE_INPUT = {
   metricKey: 'portal.scan' as MetricKey,
   aggregationFunction: 'sum' as AggregationFunction,
   targetValue: 200,
+  role: 'AccountAdmin' as const,
 }
 
 describe('createGoal', () => {
@@ -335,6 +353,46 @@ describe('createGoal', () => {
       expect(progress.currentValue).toBe(4) // 24 / 6 = 4
       expect(progress.currentSum).toBe(24)
       expect(progress.currentCount).toBe(6)
+    })
+  })
+
+  // ── Permission guard ─────────────────────────────────────────────────
+  describe('permission guard', () => {
+    it('allows Staff to create a goal', async () => {
+      fakes.metricRepo._setAggregate({ sum: 0, count: 0, max: 0 })
+
+      const result = await createGoal(fakes.deps)({
+        ...BASE_INPUT,
+        goalType: 'open',
+        role: 'Staff',
+      })
+
+      expect(result.isOk()).toBe(true)
+      expect(fakes.goals).toHaveLength(1)
+    })
+
+    it('allows AccountAdmin to create a goal', async () => {
+      fakes.metricRepo._setAggregate({ sum: 0, count: 0, max: 0 })
+
+      const result = await createGoal(fakes.deps)({
+        ...BASE_INPUT,
+        goalType: 'open',
+        role: 'AccountAdmin',
+      })
+
+      expect(result.isOk()).toBe(true)
+    })
+
+    it('allows PropertyManager to create a goal', async () => {
+      fakes.metricRepo._setAggregate({ sum: 0, count: 0, max: 0 })
+
+      const result = await createGoal(fakes.deps)({
+        ...BASE_INPUT,
+        goalType: 'open',
+        role: 'PropertyManager',
+      })
+
+      expect(result.isOk()).toBe(true)
     })
   })
 

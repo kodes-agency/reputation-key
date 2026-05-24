@@ -6,6 +6,7 @@ import { createInMemoryGbpImportRepo } from '#/shared/testing/in-memory-gbp-impo
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { buildTestGbpImportJob } from '#/shared/testing/fixtures'
 import { gbpImportJobId, organizationId } from '#/shared/domain/ids'
+import { createHash } from 'crypto'
 import { duplicateKeyError } from '../ports/property-import-repo.port'
 import type { GbpImportJob } from '../../domain/types'
 import type { PropertyImportRepo } from '../ports/property-import-repo.port'
@@ -13,7 +14,10 @@ import type { PropertyEventPort } from '../ports/property-event.port'
 
 // ── Helpers ──────────────────────────────────────────────────────
 
-function makePropertyImportRepo(options?: { throwDuplicate?: boolean; existingIds?: string[] }) {
+function makePropertyImportRepo(options?: {
+  throwDuplicate?: boolean
+  existingIds?: string[]
+}) {
   const existing = new Set<string>(options?.existingIds ?? [])
   let autoCounter = 1
 
@@ -47,23 +51,31 @@ function makePropertyImportRepo(options?: { throwDuplicate?: boolean; existingId
 
 function makeFailingPropertyImportRepo(error: Error): PropertyImportRepo {
   return {
-    findExistingGbpPlaceIds: async () => { throw error },
+    findExistingGbpPlaceIds: async () => {
+      throw error
+    },
     existsByGbpPlaceId: async () => false,
-    insertProperty: async () => { throw error },
+    insertProperty: async () => {
+      throw error
+    },
   }
 }
 
 function makeEventPort() {
   const events: unknown[] = []
   return {
-    emitPropertyCreated: async (event: unknown) => { events.push(event) },
+    emitPropertyCreated: async (event: unknown) => {
+      events.push(event)
+    },
     getEvents: () => events,
   }
 }
 
 function makeFailingEventPort(): PropertyEventPort {
   return {
-    emitPropertyCreated: async () => { throw new Error('Event bus unavailable') },
+    emitPropertyCreated: async () => {
+      throw new Error('Event bus unavailable')
+    },
   }
 }
 
@@ -87,6 +99,7 @@ const setup = () => {
     toJobId: (id: string) => gbpImportJobId(id),
     toOrgId: (id: string) => organizationId(id),
     clock: () => FIXED_TIME,
+    hashFn: (input: string) => createHash('sha256').update(input).digest('base64url'),
     logger: createMockLogger(),
   }
   const useCase = importProperty(deps)
@@ -106,7 +119,10 @@ const setup = () => {
     return job
   }
 
-  const buildUseCase = (propertyRepoOverride: PropertyImportRepo, eventOverride?: PropertyEventPort) =>
+  const buildUseCase = (
+    propertyRepoOverride: PropertyImportRepo,
+    eventOverride?: PropertyEventPort,
+  ) =>
     importProperty({
       importRepo,
       propertyRepo: propertyRepoOverride,
@@ -114,6 +130,7 @@ const setup = () => {
       toJobId: (id: string) => gbpImportJobId(id),
       toOrgId: (id: string) => organizationId(id),
       clock: () => FIXED_TIME,
+      hashFn: (input: string) => createHash('sha256').update(input).digest('base64url'),
       logger: createMockLogger(),
     })
 
@@ -132,8 +149,16 @@ describe('importProperty', () => {
       organizationId: ORG_ID,
       connectionId: CONNECTION_ID,
       locations: [
-        { gbpPlaceId: 'ChIJ-1', businessName: 'Biz One', gbpLocationName: 'accounts/1/locations/1' },
-        { gbpPlaceId: 'ChIJ-2', businessName: 'Biz Two', gbpLocationName: 'accounts/1/locations/2' },
+        {
+          gbpPlaceId: 'ChIJ-1',
+          businessName: 'Biz One',
+          gbpLocationName: 'accounts/1/locations/1',
+        },
+        {
+          gbpPlaceId: 'ChIJ-2',
+          businessName: 'Biz Two',
+          gbpLocationName: 'accounts/1/locations/2',
+        },
       ],
     })
 
@@ -166,8 +191,16 @@ describe('importProperty', () => {
       organizationId: ORG_ID,
       connectionId: CONNECTION_ID,
       locations: [
-        { gbpPlaceId: 'ChIJ-skip', businessName: 'Skip Biz', gbpLocationName: 'accounts/1/locations/s' },
-        { gbpPlaceId: 'ChIJ-new', businessName: 'New Biz', gbpLocationName: 'accounts/1/locations/n' },
+        {
+          gbpPlaceId: 'ChIJ-skip',
+          businessName: 'Skip Biz',
+          gbpLocationName: 'accounts/1/locations/s',
+        },
+        {
+          gbpPlaceId: 'ChIJ-new',
+          businessName: 'New Biz',
+          gbpLocationName: 'accounts/1/locations/n',
+        },
       ],
     })
 
@@ -189,7 +222,9 @@ describe('importProperty', () => {
     const dupRepo = {
       findExistingGbpPlaceIds: async () => [] as string[],
       existsByGbpPlaceId: async (_orgId: string, id: string) => id === 'ChIJ-race',
-      insertProperty: async () => { throw duplicateKeyError('duplicate key') },
+      insertProperty: async () => {
+        throw duplicateKeyError('duplicate key')
+      },
     } satisfies PropertyImportRepo
 
     const useCase = buildUseCase(dupRepo)
@@ -199,7 +234,11 @@ describe('importProperty', () => {
       organizationId: ORG_ID,
       connectionId: CONNECTION_ID,
       locations: [
-        { gbpPlaceId: 'ChIJ-race', businessName: 'Race Biz', gbpLocationName: 'accounts/1/locations/r' },
+        {
+          gbpPlaceId: 'ChIJ-race',
+          businessName: 'Race Biz',
+          gbpLocationName: 'accounts/1/locations/r',
+        },
       ],
     })
 
@@ -219,7 +258,9 @@ describe('importProperty', () => {
     const dupFailRepo = {
       findExistingGbpPlaceIds: async () => [] as string[],
       existsByGbpPlaceId: async () => false,
-      insertProperty: async () => { throw duplicateKeyError('duplicate key') },
+      insertProperty: async () => {
+        throw duplicateKeyError('duplicate key')
+      },
     } satisfies PropertyImportRepo
 
     const useCase = buildUseCase(dupFailRepo)
@@ -229,7 +270,11 @@ describe('importProperty', () => {
       organizationId: ORG_ID,
       connectionId: CONNECTION_ID,
       locations: [
-        { gbpPlaceId: 'ChIJ-dupfail', businessName: 'Dup Fail Biz', gbpLocationName: 'accounts/1/locations/df' },
+        {
+          gbpPlaceId: 'ChIJ-dupfail',
+          businessName: 'Dup Fail Biz',
+          gbpLocationName: 'accounts/1/locations/df',
+        },
       ],
     })
 
@@ -247,7 +292,9 @@ describe('importProperty', () => {
     const errorRepo = {
       findExistingGbpPlaceIds: async () => [] as string[],
       existsByGbpPlaceId: async () => false,
-      insertProperty: async () => { throw new Error('DB connection lost') },
+      insertProperty: async () => {
+        throw new Error('DB connection lost')
+      },
     } satisfies PropertyImportRepo
 
     const useCase = buildUseCase(errorRepo)
@@ -257,7 +304,11 @@ describe('importProperty', () => {
       organizationId: ORG_ID,
       connectionId: CONNECTION_ID,
       locations: [
-        { gbpPlaceId: 'ChIJ-fail', businessName: 'Fail Biz', gbpLocationName: 'accounts/1/locations/f' },
+        {
+          gbpPlaceId: 'ChIJ-fail',
+          businessName: 'Fail Biz',
+          gbpLocationName: 'accounts/1/locations/f',
+        },
       ],
     })
 
@@ -295,7 +346,11 @@ describe('importProperty', () => {
       organizationId: ORG_ID,
       connectionId: CONNECTION_ID,
       locations: [
-        { gbpPlaceId: 'ChIJ-crash', businessName: 'Crash Biz', gbpLocationName: 'accounts/1/locations/c' },
+        {
+          gbpPlaceId: 'ChIJ-crash',
+          businessName: 'Crash Biz',
+          gbpLocationName: 'accounts/1/locations/c',
+        },
       ],
     })
 
@@ -318,7 +373,11 @@ describe('importProperty', () => {
       organizationId: ORG_ID,
       connectionId: CONNECTION_ID,
       locations: [
-        { gbpPlaceId: 'ChIJ-evfail', businessName: 'Event Fail Biz', gbpLocationName: 'accounts/1/locations/ef' },
+        {
+          gbpPlaceId: 'ChIJ-evfail',
+          businessName: 'Event Fail Biz',
+          gbpLocationName: 'accounts/1/locations/ef',
+        },
       ],
     })
 
@@ -336,8 +395,16 @@ describe('importProperty', () => {
       organizationId: ORG_ID,
       connectionId: CONNECTION_ID,
       locations: [
-        { gbpPlaceId: 'ChIJ-slug-a', businessName: 'My Business', gbpLocationName: 'accounts/1/locations/a' },
-        { gbpPlaceId: 'ChIJ-slug-b', businessName: 'My Business', gbpLocationName: 'accounts/1/locations/b' },
+        {
+          gbpPlaceId: 'ChIJ-slug-a',
+          businessName: 'My Business',
+          gbpLocationName: 'accounts/1/locations/a',
+        },
+        {
+          gbpPlaceId: 'ChIJ-slug-b',
+          businessName: 'My Business',
+          gbpLocationName: 'accounts/1/locations/b',
+        },
       ],
     })
 

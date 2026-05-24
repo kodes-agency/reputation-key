@@ -13,7 +13,7 @@ import type { EntityScope, AggregationFunction } from '#/shared/domain/metric-ke
 import { GoalMetricFields } from './goal-create-metric-fields'
 import { GoalCreateExtraFields } from './goal-create-extra-fields'
 
-type F = {
+type F = Readonly<{
   state: {
     name: string
     entityScope: EntityScope
@@ -38,7 +38,7 @@ type F = {
   showRecurrenceRule: boolean
   isPending: boolean
   onCancel: () => void
-}
+}>
 
 export function GoalCreateFields({
   state: s,

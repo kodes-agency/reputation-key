@@ -7,4 +7,9 @@ export type { Team, TeamId } from '../domain/types'
 export { teamCreated, teamUpdated, teamDeleted } from '../domain/events'
 export type { TeamCreated, TeamUpdated, TeamDeleted, TeamEvent } from '../domain/events'
 
-export type { TeamRepository } from './ports/team.repository'
+/**
+ * Team public API — consumed by contexts that need team data lookups.
+ * Currently minimal; expand as cross-context needs emerge.
+ */
+
+export type TeamPublicApi = Readonly<Record<string, never>>

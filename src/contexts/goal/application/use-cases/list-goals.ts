@@ -5,6 +5,10 @@
 
 import type { GoalRepository, GoalListFilter } from '../ports/goal.repository'
 import type { Goal, GoalProgress } from '../../domain/types'
+import type { GoalId } from '#/shared/domain/ids'
+import type { Role } from '#/shared/domain/roles'
+import { can } from '#/shared/domain/permissions'
+import { err, ok, type Result } from 'neverthrow'
 
 // ── Return types ───────────────────────────────────────────────────────────
 
@@ -13,9 +17,12 @@ export type GoalWithProgress = Readonly<{
   progress: GoalProgress | null
 }>
 
+// ── Error types ────────────────────────────────────────────────────────────
+
+export type ListGoalsError = { tag: 'forbidden' }
+
 // ── Dependencies ───────────────────────────────────────────────────────────
 
-// fallow-ignore-next-line unused-type
 export type ListGoalsDeps = Readonly<{
   goalRepo: GoalRepository
 }>
@@ -33,20 +40,57 @@ const STATUS_SORT_ORDER: Record<Goal['status'], number> = {
 
 export const listGoals =
   (deps: ListGoalsDeps) =>
-  async (input: GoalListFilter): Promise<ReadonlyArray<GoalWithProgress>> => {
-    const goals = await deps.goalRepo.list(input)
+  async (
+    input: GoalListFilter & { role: Role },
+  ): Promise<Result<ReadonlyArray<GoalWithProgress>, ListGoalsError>> => {
+    if (!can(input.role, 'goal.read')) {
+      return err({ tag: 'forbidden' })
+    }
+
+    const { role: _role, ...filter } = input
+    const goals = await deps.goalRepo.list(filter)
+
+    if (goals.length === 0) {
+      return ok([])
+    }
+
+    // Batch 1: fetch progress for all goals in one query
+    const allGoalIds = goals.map((g) => g.id)
+    const progressMap = await deps.goalRepo.getProgressBatch(allGoalIds)
+
+    // Batch 2: for recurring templates, fetch instances in one query
+    const recurringParents = goals.filter((g) => g.goalType === 'recurring')
+    const instanceMap =
+      recurringParents.length > 0
+        ? await deps.goalRepo.listInstancesBatch(
+            recurringParents.map((g) => g.id),
+            filter.organizationId,
+          )
+        : new Map<GoalId, Goal[]>()
+
+    // Batch 3: collect all instance IDs and fetch their progress
+    const allInstanceIds: GoalId[] = []
+    for (const instances of instanceMap.values()) {
+      for (const inst of instances) {
+        allInstanceIds.push(inst.id)
+      }
+    }
+    const instanceProgressMap =
+      allInstanceIds.length > 0
+        ? await deps.goalRepo.getProgressBatch(allInstanceIds)
+        : new Map<GoalId, GoalProgress | null>()
 
     const results: GoalWithProgress[] = []
 
     for (const goal of goals) {
-      let progress: GoalProgress | null = await deps.goalRepo.getProgress(goal.id)
+      let progress: GoalProgress | null = progressMap.get(goal.id) ?? null
 
       // For recurring templates, find the current active instance and use its progress
       if (goal.goalType === 'recurring') {
-        const instances = await deps.goalRepo.listInstances(goal.id, goal.organizationId)
+        const instances = instanceMap.get(goal.id) ?? []
         const activeInstance = instances.find((i) => i.status === 'active')
         if (activeInstance) {
-          const instanceProgress = await deps.goalRepo.getProgress(activeInstance.id)
+          const instanceProgress = instanceProgressMap.get(activeInstance.id) ?? null
           if (instanceProgress) {
             progress = instanceProgress
           }
@@ -64,8 +108,7 @@ export const listGoals =
       return b.goal.createdAt.getTime() - a.goal.createdAt.getTime()
     })
 
-    return results
+    return ok(results)
   }
 
-// fallow-ignore-next-line unused-type
 export type ListGoals = ReturnType<typeof listGoals>

@@ -49,11 +49,12 @@ export type GoalRepository = Readonly<{
   cancelByParent(parentGoalId: GoalId, orgId: OrganizationId, now: Date): Promise<number>
 
   // ── Goal queries (reconciliation & spawner) ───────────────────────────
+  // Safe: findAllActive is a background job that legitimately processes all orgs
   findAllActive(): Promise<ReadonlyArray<Goal>>
   findActiveRecurringTemplates(
     organizationId: OrganizationId,
   ): Promise<ReadonlyArray<Goal>>
-  findLatestInstance(parentGoalId: GoalId): Promise<Goal | null>
+  findLatestInstance(parentGoalId: GoalId, orgId: OrganizationId): Promise<Goal | null>
   createGoalAndProgress(goal: Goal, progress: GoalProgress): Promise<void>
 
   // ── Event-driven increment ───────────────────────────────────────────
@@ -74,11 +75,21 @@ export type GoalRepository = Readonly<{
     currentCount: number | null
   }>
 
-  markGoalCompleted(goalId: GoalId, completedAt: Date): Promise<void>
+  markGoalCompleted(
+    goalId: GoalId,
+    organizationId: OrganizationId,
+    completedAt: Date,
+  ): Promise<void>
 
   // ── Goal Progress ──────────────────────────────────────────────────────
   insertProgress(progress: Omit<GoalProgress, 'id'>): Promise<GoalProgress>
+  // Safe: goalId is a globally unique UUID — no cross-tenant risk
   getProgress(goalId: GoalId): Promise<GoalProgress | null>
+  // Batch: fetches progress for multiple goals in a single query
+  getProgressBatch(
+    goalIds: readonly GoalId[],
+  ): Promise<ReadonlyMap<GoalId, GoalProgress | null>>
+  // Safe: goalId is a globally unique UUID — no cross-tenant risk
   updateProgress(
     goalId: GoalId,
     data: Readonly<{
@@ -89,4 +100,10 @@ export type GoalRepository = Readonly<{
       computedSource: ComputedSource
     }>,
   ): Promise<GoalProgress | null>
+
+  // ── Batch lookups (N+1 elimination) ──────────────────────────────────
+  listInstancesBatch(
+    parentGoalIds: readonly GoalId[],
+    orgId: OrganizationId,
+  ): Promise<ReadonlyMap<GoalId, Goal[]>>
 }>

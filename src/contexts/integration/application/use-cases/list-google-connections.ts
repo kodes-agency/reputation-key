@@ -1,10 +1,14 @@
 // Integration context — list Google connections use case
-// Authorization: hasRole check lives here (use-case layer), not in the repo.
+// Authorization: can() check lives here (use-case layer), not in the repo.
 
-import type { GoogleConnectionRepository, ConnectionVisibilityFilter } from '../ports/google-connection.repository'
+import type {
+  GoogleConnectionRepository,
+  ConnectionVisibilityFilter,
+} from '../ports/google-connection.repository'
 import type { GoogleConnection } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import { hasRole } from '#/shared/domain/roles'
+import { can } from '#/shared/domain/permissions'
+import { integrationError } from '../../domain/errors'
 
 export type ListGoogleConnectionsDeps = Readonly<{
   connectionRepo: GoogleConnectionRepository
@@ -13,7 +17,14 @@ export type ListGoogleConnectionsDeps = Readonly<{
 export const listGoogleConnections =
   (deps: ListGoogleConnectionsDeps) =>
   async (ctx: AuthContext): Promise<ReadonlyArray<GoogleConnection>> => {
-    const filter: ConnectionVisibilityFilter = hasRole(ctx.role, 'AccountAdmin')
+    if (!can(ctx.role, 'integration.manage')) {
+      throw integrationError(
+        'forbidden',
+        'Insufficient permissions to manage integrations',
+      )
+    }
+
+    const filter: ConnectionVisibilityFilter = can(ctx.role, 'integration.manage')
       ? { showAll: true }
       : { showAll: false, userId: ctx.userId }
 

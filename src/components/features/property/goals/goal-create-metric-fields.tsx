@@ -11,7 +11,7 @@ import { Input } from '#/components/ui/input'
 import { scopeLabel, aggregationLabel } from '#/contexts/goal/ui/helpers'
 import type { AggregationFunction, EntityScope } from '#/shared/domain/metric-keys'
 
-interface MetricFieldsProps {
+type MetricFieldsProps = Readonly<{
   showEntityPicker: boolean
   entityScope: EntityScope
   entityId: string
@@ -21,7 +21,7 @@ interface MetricFieldsProps {
   setters: Record<string, (v: string) => void>
   availableMetrics: readonly string[]
   availableAggregations: readonly string[]
-}
+}>
 
 export function GoalMetricFields({
   showEntityPicker,

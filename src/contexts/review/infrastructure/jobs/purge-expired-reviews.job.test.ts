@@ -12,6 +12,7 @@ vi.mock('#/shared/observability/logger', () => ({
     warn: vi.fn(),
     info: vi.fn(),
     error: vi.fn(),
+    debug: vi.fn(),
   })),
 }))
 
@@ -77,8 +78,8 @@ describe('createPurgeExpiredReviewsHandler', () => {
 
     // For each review: emit comes before delete
     for (const id of ['rev-1', 'rev-2', 'rev-3']) {
-      const emitIdx = tracker.log.findIndex(e => e.action === 'emit' && e.id === id)
-      const deleteIdx = tracker.log.findIndex(e => e.action === 'delete' && e.id === id)
+      const emitIdx = tracker.log.findIndex((e) => e.action === 'emit' && e.id === id)
+      const deleteIdx = tracker.log.findIndex((e) => e.action === 'delete' && e.id === id)
       expect(emitIdx).toBeGreaterThan(-1)
       expect(deleteIdx).toBeGreaterThan(-1)
       expect(emitIdx).toBeLessThan(deleteIdx)
@@ -122,7 +123,10 @@ describe('createPurgeExpiredReviewsHandler', () => {
     const findAllExpiredBefore = vi.fn().mockResolvedValue([])
 
     const handler = createPurgeExpiredReviewsHandler({
-      reviewRepo: { findAllExpiredBefore, deleteById: vi.fn() } as unknown as ReviewRepository,
+      reviewRepo: {
+        findAllExpiredBefore,
+        deleteById: vi.fn(),
+      } as unknown as ReviewRepository,
       events: { emit: vi.fn() } as unknown as EventBus,
       clock: vi.fn(() => now),
     })
@@ -141,7 +145,10 @@ describe('createPurgeExpiredReviewsHandler', () => {
     const findAllExpiredBefore = vi.fn().mockResolvedValue([makeReview()])
 
     const handler = createPurgeExpiredReviewsHandler({
-      reviewRepo: { findAllExpiredBefore, deleteById: vi.fn() } as unknown as ReviewRepository,
+      reviewRepo: {
+        findAllExpiredBefore,
+        deleteById: vi.fn(),
+      } as unknown as ReviewRepository,
       events: { emit } as unknown as EventBus,
       clock,
     })
@@ -184,7 +191,7 @@ describe('createPurgeExpiredReviewsHandler', () => {
     // All 3 deleteById attempted
     expect(tracker.deleteById).toHaveBeenCalledTimes(3)
     // But only 2 actually deleted (rev-fail threw)
-    const deleteActions = tracker.log.filter(e => e.action === 'delete')
+    const deleteActions = tracker.log.filter((e) => e.action === 'delete')
     expect(deleteActions).toHaveLength(2)
   })
 

@@ -6,10 +6,14 @@ import {
   portalId,
   propertyId,
   staffId,
+  ratingId,
+  feedbackId,
 } from '#/shared/domain/ids'
-import type { scanEvents } from '#/shared/db/schema/guest.schema'
+import type { scanEvents, ratings, feedback } from '#/shared/db/schema/guest.schema'
 
 type ScanEventRow = typeof scanEvents.$inferSelect
+type RatingRow = typeof ratings.$inferSelect
+type FeedbackRow = typeof feedback.$inferSelect
 
 export const scanEventFromRow = (row: ScanEventRow): ScanEvent => ({
   id: scanEventId(row.id),
@@ -18,6 +22,33 @@ export const scanEventFromRow = (row: ScanEventRow): ScanEvent => ({
   propertyId: propertyId(row.propertyId),
   source: row.source as ScanEvent['source'],
   sessionId: row.sessionId,
+  ipHash: row.ipHash,
+  staffId: row.staffId ? staffId(row.staffId) : null,
+  createdAt: row.createdAt,
+})
+
+export const ratingFromRow = (row: RatingRow): Rating => ({
+  id: ratingId(row.id),
+  organizationId: organizationId(row.organizationId),
+  portalId: portalId(row.portalId),
+  propertyId: propertyId(row.propertyId),
+  sessionId: row.sessionId,
+  value: row.value,
+  source: row.source as Rating['source'],
+  ipHash: row.ipHash,
+  staffId: row.staffId ? staffId(row.staffId) : null,
+  createdAt: row.createdAt,
+})
+
+export const feedbackFromRow = (row: FeedbackRow): Feedback => ({
+  id: feedbackId(row.id),
+  organizationId: organizationId(row.organizationId),
+  portalId: portalId(row.portalId),
+  propertyId: propertyId(row.propertyId),
+  sessionId: row.sessionId,
+  ratingId: row.ratingId ? ratingId(row.ratingId) : null,
+  comment: row.comment,
+  source: row.source as Feedback['source'],
   ipHash: row.ipHash,
   staffId: row.staffId ? staffId(row.staffId) : null,
   createdAt: row.createdAt,

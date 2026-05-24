@@ -4,22 +4,29 @@
 import type { gbpCache } from '#/shared/db/schema/gbp-cache.schema'
 import type { GbpCacheEntry } from '../../domain/types'
 import { organizationId, propertyId, gbpCacheEntryId } from '#/shared/domain/ids'
+import { createGbpCacheEntry } from '../../domain/constructors'
 
 type GbpCacheRow = typeof gbpCache.$inferSelect
 type GbpCacheUpsertRow = typeof gbpCache.$inferInsert
 
-export const gbpCacheFromRow = (row: GbpCacheRow): GbpCacheEntry => ({
-  id: gbpCacheEntryId(row.id),
-  organizationId: organizationId(row.organizationId),
-  propertyId: propertyId(row.propertyId),
-  gbpPlaceId: row.gbpPlaceId,
-  dataType: row.dataType,
-  payload: row.payload,
-  googleAttribution: row.googleAttribution,
-  fetchedAt: row.fetchedAt,
-  expiresAt: row.expiresAt,
-  updatedAt: row.updatedAt,
-})
+export const gbpCacheFromRow = (row: GbpCacheRow): GbpCacheEntry => {
+  const result = createGbpCacheEntry({
+    id: gbpCacheEntryId(row.id),
+    organizationId: organizationId(row.organizationId),
+    propertyId: propertyId(row.propertyId),
+    gbpPlaceId: row.gbpPlaceId,
+    dataType: row.dataType,
+    payload: row.payload,
+    googleAttribution: row.googleAttribution,
+    fetchedAt: row.fetchedAt,
+    expiresAt: row.expiresAt,
+    updatedAt: row.updatedAt,
+  })
+  if (result.isErr()) {
+    throw new Error(`Invalid GBP cache entry from DB: ${result.error.message}`)
+  }
+  return result.value
+}
 
 export const gbpCacheToUpsert = (entry: GbpCacheEntry): GbpCacheUpsertRow => ({
   id: entry.id,

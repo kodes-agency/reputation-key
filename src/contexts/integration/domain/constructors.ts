@@ -1,10 +1,17 @@
 // Integration context — entity constructors
 
-import type { GoogleConnection, GbpImportJob } from './types'
+import type {
+  GoogleConnection,
+  GbpCacheEntry,
+  GbpImportJob,
+  GbpCacheDataType,
+} from './types'
 import type {
   GoogleConnectionId,
   GbpImportJobId,
+  GbpCacheEntryId,
   OrganizationId,
+  PropertyId,
   UserId,
 } from '#/shared/domain/ids'
 import { ok, err } from 'neverthrow'
@@ -73,3 +80,52 @@ export const buildGbpImportJob = (args: BuildImportJobArgs) =>
     createdAt: args.now,
     updatedAt: args.now,
   })
+
+type CreateGbpCacheEntryInput = Readonly<{
+  id: GbpCacheEntryId
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  gbpPlaceId: string
+  dataType: GbpCacheDataType
+  payload: unknown
+  googleAttribution: string | null
+  fetchedAt: Date
+  expiresAt: Date
+  updatedAt: Date
+}>
+
+export const createGbpCacheEntry = (input: CreateGbpCacheEntryInput) => {
+  // expiresAt > fetchedAt
+  if (input.expiresAt <= input.fetchedAt) {
+    return err(
+      integrationError('invalid_cache_entry', 'expiresAt must be after fetchedAt'),
+    )
+  }
+
+  // Required fields present
+  if (!input.id) {
+    return err(integrationError('invalid_cache_entry', 'id is required'))
+  }
+  if (!input.organizationId) {
+    return err(integrationError('invalid_cache_entry', 'organizationId is required'))
+  }
+  if (!input.propertyId) {
+    return err(integrationError('invalid_cache_entry', 'propertyId is required'))
+  }
+  if (!input.gbpPlaceId) {
+    return err(integrationError('invalid_cache_entry', 'gbpPlaceId is required'))
+  }
+
+  return ok<GbpCacheEntry>({
+    id: input.id,
+    organizationId: input.organizationId,
+    propertyId: input.propertyId,
+    gbpPlaceId: input.gbpPlaceId,
+    dataType: input.dataType,
+    payload: input.payload,
+    googleAttribution: input.googleAttribution,
+    fetchedAt: input.fetchedAt,
+    expiresAt: input.expiresAt,
+    updatedAt: input.updatedAt,
+  })
+}

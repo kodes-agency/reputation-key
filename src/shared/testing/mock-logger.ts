@@ -1,19 +1,15 @@
-import type { Logger } from 'pino'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 
 /**
- * Creates a mock Logger suitable for use in tests.
+ * Creates a mock LoggerPort suitable for use in tests.
  * All methods are no-op functions.
  */
-export function createMockLogger(): Logger {
+export function createMockLogger(): LoggerPort {
   return {
     info: () => {},
     warn: () => {},
     error: () => {},
     debug: () => {},
-    fatal: () => {},
-    trace: () => {},
-    silent: () => {},
-    level: 'silent',
-    msgPrefix: undefined,
-  } as unknown as Logger
+    child: () => createMockLogger(),
+  }
 }

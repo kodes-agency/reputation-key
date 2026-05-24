@@ -1,5 +1,5 @@
 // Metric context — records property.review metric on review creation events
-import type { ReviewCreated } from '#/contexts/review/domain/events'
+import type { ReviewCreated } from '#/contexts/review/application/public-api'
 import type { RecordMetricInput } from '../../application/use-cases/record-metric'
 import { getLogger } from '#/shared/observability/logger'
 

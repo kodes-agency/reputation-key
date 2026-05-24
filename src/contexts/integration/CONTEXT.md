@@ -49,6 +49,85 @@ _Avoid_: Permission, access level, sharing
 - Disconnecting a connection deletes all associated cache entries
 - Import jobs track three terminal statuses: `completed`, `completed_with_skips` (some skipped or failed), and `failed` (all failed)
 
+## Events produced
+
+- **`google_account.connected`** — connectionId, organizationId, googleEmail, occurredAt. Emitted when a Google account is connected.
+- **`google_account.disconnected`** — connectionId, organizationId, occurredAt. Emitted when a Google account is disconnected.
+- **`property_import.completed`** — importJobId, organizationId, totalCount, importedCount, skippedCount, failedCount, occurredAt. Emitted when an import job finishes.
+- **`google_connection.visibility_changed`** — connectionId, organizationId, visibility, occurredAt. Emitted when connection visibility is updated.
+
+## Events consumed
+
+None. Integration context does not subscribe to events from other contexts.
+
+## Architecture layers
+
+```
+integration/
+  domain/              types.ts, constructors.ts, events.ts, errors.ts, rules.ts, gbp-api-error.ts
+  application/
+    ports/             google-connection.repository.ts, gbp-cache.repository.ts,
+                       gbp-import.repository.ts, gbp-api.port.ts, gbp-queue.port.ts,
+                       google-oauth.port.ts, token-encryption.port.ts,
+                       property-lookup.port.ts, property-query.port.ts,
+                       property-fk-cleanup.port.ts, property-import-repo.port.ts,
+                       property-event.port.ts
+    dto/               connect-google.dto.ts, disconnect-google.dto.ts,
+                       google-connection.dto.ts, import-properties.dto.ts,
+                       import-status.dto.ts, list-locations.dto.ts,
+                       update-connection-visibility.dto.ts
+    use-cases/         connect-google-account.ts, disconnect-google-account.ts,
+                       list-google-connections.ts, update-connection-visibility.ts,
+                       refresh-google-token.ts, list-gbp-locations.ts,
+                       start-property-import.ts, get-import-status.ts,
+                       import-property.ts, handle-gbp-notification.ts
+    public-api.ts      re-exports DTO types, domain types
+  infrastructure/
+    repositories/      google-connection.repository.ts, gbp-cache.repository.ts,
+                       gbp-import.repository.ts, property-import.repository.ts
+    adapters/          google-oauth.adapter.ts, token-encryption.adapter.ts,
+                       gbp-api.adapter.ts, google-review-api.adapter.ts,
+                       property-event.adapter.ts
+    mappers/           google-connection.mapper.ts, gbp-cache.mapper.ts, gbp-import.mapper.ts
+    handlers/          gbp-notification-handler.ts
+    jobs/              import-property.job.ts
+  server/              google-connections.ts, gbp-import.ts, shared.ts
+  build.ts             composition root
+```
+
+## Use cases
+
+- **`connectGoogleAccount`** — OAuth code exchange, encrypt tokens, store connection. Emits `google_account.connected`.
+- **`disconnectGoogleAccount`** — Revoke tokens, clear caches, null out property FKs. Emits `google_account.disconnected`.
+- **`listGoogleConnections`** — List connections for an org.
+- **`updateConnectionVisibility`** — Toggle private/organization visibility. Emits `google_connection.visibility_changed`.
+- **`refreshGoogleToken`** — Auto-refresh expired tokens with 5-minute buffer.
+- **`listGbpLocations`** — Fetch GBP locations for a connection (with token refresh).
+- **`startPropertyImport`** — Create import job, enqueue bulk import tasks. Emits `property_import.completed`.
+- **`getImportStatus`** — Query import job progress (imported/skipped/failed counts).
+- **`importProperty`** — Process single GBP location into a property. Handles duplicate conflicts.
+- **`handleGbpNotification`** — Process Google Pub/Sub push notifications for real-time review updates.
+
+## Public API
+
+Exported from `application/public-api.ts`:
+
+- Types: `GoogleConnectionDto`, `GoogleConnectionStatus`, `GoogleConnectionVisibility`, `GbpLocation`, `GbpImportJob`, `GbpImportJobStatus`
+
+## Server functions
+
+- **`google-connections.ts`** — Server functions for Google connection CRUD (connect, disconnect, list, update visibility, list locations, start import, get import status, handle webhook).
+- **`gbp-import.ts`** — Server functions for GBP import operations.
+
+## Permissions
+
+- `integration.manage` — Connect, disconnect, and manage Google connections.
+- `property.create` — Start property imports from GBP locations (cross-context permission from property).
+
+## Background jobs
+
+- **import-property** — Processes a single GBP location into a property. Created by `startPropertyImport` use case.
+
 ## Example dialogue
 
 > **Dev:** "What happens when a user connects their Google account?"

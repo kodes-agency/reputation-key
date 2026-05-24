@@ -4,7 +4,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { onReplyPublished } from './on-reply-published'
 import type { InboxRepository } from '../../application/ports/inbox.repository'
 import type { InboxItem } from '../../application/public-api'
-import type { ReplyPublished } from '#/contexts/review/domain/events'
+import type { ReplyPublished } from '#/contexts/review/application/public-api'
 import {
   inboxItemId,
   organizationId,

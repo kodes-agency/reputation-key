@@ -15,6 +15,7 @@ export type IntegrationErrorCode =
   | 'import_not_found'
   | 'invalid_visibility'
   | 'encryption_error'
+  | 'invalid_cache_entry'
 
 export type IntegrationError = Readonly<{
   _tag: 'IntegrationError'
