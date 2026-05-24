@@ -80,6 +80,7 @@ export type GoalRepository = Readonly<{
   // may not exist yet for newly created goals.
   upsertProgress(
     goalId: GoalId,
+    organizationId: OrganizationId,
     aggregation: AggregationFunction,
     delta: number,
   ): Promise<{
