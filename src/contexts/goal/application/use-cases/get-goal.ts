@@ -47,7 +47,8 @@ export const getGoal =
       return err({ tag: 'goal_not_found' })
     }
 
-    const progress = await deps.goalRepo.getProgress(goal.id)
+    const [progressMap] = await Promise.all([deps.goalRepo.getProgressBatch([goal.id])])
+    const progress = progressMap.get(goal.id) ?? null
 
     // For recurring templates, load all instances with their progress
     if (goal.goalType === 'recurring') {
@@ -60,9 +61,16 @@ export const getGoal =
         return bTime - aTime
       })
 
+      // Batch fetch progress for all instances
+      const instanceIds = sorted.map((i) => i.id)
+      const instanceProgressMap =
+        instanceIds.length > 0
+          ? await deps.goalRepo.getProgressBatch(instanceIds)
+          : new Map<GoalId, GoalProgress | null>()
+
       const instancesWithProgress: GoalWithProgress[] = []
       for (const instance of sorted) {
-        const instanceProgress = await deps.goalRepo.getProgress(instance.id)
+        const instanceProgress = instanceProgressMap.get(instance.id) ?? null
         instancesWithProgress.push({ goal: instance, progress: instanceProgress })
       }
 

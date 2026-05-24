@@ -75,6 +75,21 @@ function makeFakeDeps() {
       const p = progresses.get(goalId as string)
       return p ? { ...p } : null
     },
+    getProgressBatch: async (ids) => {
+      const map = new Map()
+      for (const id of ids) {
+        const p = progresses.get(id as string)
+        map.set(id, p ? { ...p } : null)
+      }
+      return map
+    },
+    listInstancesBatch: async (parentIds) => {
+      const map = new Map()
+      for (const pid of parentIds) {
+        map.set(pid, [])
+      }
+      return map
+    },
     updateProgress: async () => null,
 
     findActiveGoalsByMetric: async (metricKey, organizationId, propertyId, portalId) => {

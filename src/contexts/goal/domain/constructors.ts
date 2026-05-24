@@ -39,6 +39,7 @@ export type GoalConstructionError =
   | { tag: 'recurrence_rule_not_allowed'; goalType: GoalType }
   | { tag: 'empty_name' }
   | { tag: 'name_too_long' }
+  | { tag: 'description_too_long' }
   | { tag: 'invalid_target_value' }
 
 // ── Input type ───────────────────────────────────────────────────────────
@@ -79,6 +80,8 @@ export function buildGoal(input: BuildGoalInput): Result<Goal, GoalConstructionE
   // Field validations
   if (!input.name.trim()) return err({ tag: 'empty_name' })
   if (input.name.length > 200) return err({ tag: 'name_too_long' })
+  if (input.description !== null && input.description.length > 1000)
+    return err({ tag: 'description_too_long' })
   if (!Number.isFinite(input.targetValue) || input.targetValue <= 0)
     return err({ tag: 'invalid_target_value' })
 

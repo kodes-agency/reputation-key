@@ -100,6 +100,20 @@ const createFakeGoalRepo = (state: {
   getProgress: async (gid) => {
     return state.progress.get(gid as string) ?? null
   },
+  getProgressBatch: async (ids) => {
+    const map = new Map()
+    for (const id of ids) {
+      map.set(id, state.progress.get(id as string) ?? null)
+    }
+    return map
+  },
+  listInstancesBatch: async (parentIds, _orgId) => {
+    const map = new Map()
+    for (const pid of parentIds) {
+      map.set(pid, state.instances.get(pid as string) ?? [])
+    }
+    return map
+  },
   updateProgress: async () => null,
   findActiveGoalsByMetric: async () => [],
   incrementProgress: async () => ({
@@ -323,5 +337,20 @@ describe('listGoals', () => {
     })
 
     expect(result._unsafeUnwrap()).toEqual([])
+  })
+
+  it('returns forbidden for role without goal.read permission', async () => {
+    const { state, useCase } = setup()
+    state.goals = [makeGoal({ id: 'g-1' })]
+
+    const result = await useCase({
+      organizationId: ORG_ID,
+      propertyId: PROP_ID,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- intentionally invalid role to test permission guard
+      role: 'Guest' as any,
+    })
+
+    expect(result.isErr()).toBe(true)
+    expect(result._unsafeUnwrapErr()).toEqual({ tag: 'forbidden' })
   })
 })

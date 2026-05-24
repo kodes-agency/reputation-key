@@ -14,7 +14,7 @@ import {
   STATUS_ORDER,
   type GoalWithProgress,
 } from '#/contexts/goal/ui/helpers'
-import { deriveEntityScope } from '#/contexts/goal/application/dto/goal.dto'
+import { deriveEntityScope } from '#/contexts/goal/application/public-api'
 
 type GoalsListPageProps = Readonly<{
   goals: readonly GoalWithProgress[]

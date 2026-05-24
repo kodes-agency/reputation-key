@@ -211,6 +211,26 @@ describe('buildGoal', () => {
       expect(result.isErr()).toBe(true)
       expect(result._unsafeUnwrapErr().tag).toBe('recurrence_rule_not_allowed')
     })
+
+    it('rejects rolling goal with rollingWindowDays = 0', () => {
+      const result = buildGoal({
+        ...BASE,
+        goalType: 'rolling',
+        rollingWindowDays: 0,
+      })
+      expect(result.isErr()).toBe(true)
+      expect(result._unsafeUnwrapErr().tag).toBe('rolling_window_required')
+    })
+
+    it('rejects rolling goal with negative rollingWindowDays', () => {
+      const result = buildGoal({
+        ...BASE,
+        goalType: 'rolling',
+        rollingWindowDays: -5,
+      })
+      expect(result.isErr()).toBe(true)
+      expect(result._unsafeUnwrapErr().tag).toBe('rolling_window_required')
+    })
   })
 
   // ── Recurring goal (template) ────────────────────────────────────────
@@ -272,6 +292,19 @@ describe('buildGoal', () => {
       expect(result.isOk()).toBe(true)
       const goal = result._unsafeUnwrap()
       expect(goal.parentGoalId).not.toBeNull()
+    })
+
+    it('rejects recurring instance with periodEnd before periodStart', () => {
+      const result = buildGoal({
+        ...BASE,
+        goalType: 'recurring',
+        recurrenceRule: { frequency: 'monthly' },
+        parentGoalId: goalId('parent-1'),
+        periodStart: new Date('2026-06-30'),
+        periodEnd: new Date('2026-06-01'),
+      })
+      expect(result.isErr()).toBe(true)
+      expect(result._unsafeUnwrapErr().tag).toBe('invalid_period')
     })
   })
 
@@ -335,6 +368,17 @@ describe('buildGoal', () => {
         metricKey: 'portal.scan',
       })
       expect(result.isOk()).toBe(true)
+    })
+
+    it('rejects when multiple scope FKs are set (ambiguous scope)', () => {
+      const result = buildGoal({
+        ...BASE,
+        goalType: 'open',
+        portalId: portalId('portal-1'),
+        teamId: teamId('team-1'),
+      })
+      expect(result.isErr()).toBe(true)
+      expect(result._unsafeUnwrapErr().tag).toBe('ambiguous_scope')
     })
   })
 
@@ -413,6 +457,65 @@ describe('buildGoal', () => {
       })
       expect(result.isErr()).toBe(true)
       expect(result._unsafeUnwrapErr().tag).toBe('invalid_target_value')
+    })
+
+    it('rejects NaN targetValue', () => {
+      const result = buildGoal({
+        ...BASE,
+        goalType: 'open',
+        targetValue: NaN,
+      })
+      expect(result.isErr()).toBe(true)
+      expect(result._unsafeUnwrapErr().tag).toBe('invalid_target_value')
+    })
+
+    it('rejects Infinity targetValue', () => {
+      const result = buildGoal({
+        ...BASE,
+        goalType: 'open',
+        targetValue: Infinity,
+      })
+      expect(result.isErr()).toBe(true)
+      expect(result._unsafeUnwrapErr().tag).toBe('invalid_target_value')
+    })
+
+    it('accepts name at exactly 200 characters', () => {
+      const result = buildGoal({
+        ...BASE,
+        goalType: 'open',
+        name: 'A'.repeat(200),
+      })
+      expect(result.isOk()).toBe(true)
+    })
+
+    it('rejects name at 201 characters', () => {
+      const result = buildGoal({
+        ...BASE,
+        goalType: 'open',
+        name: 'A'.repeat(201),
+      })
+      expect(result.isErr()).toBe(true)
+      expect(result._unsafeUnwrapErr().tag).toBe('name_too_long')
+    })
+
+    it('accepts description at exactly 1000 characters', () => {
+      const result = buildGoal({
+        ...BASE,
+        goalType: 'open',
+        description: 'D'.repeat(1000),
+      })
+      expect(result.isOk()).toBe(true)
+      expect(result._unsafeUnwrap().description).toBe('D'.repeat(1000))
+    })
+
+    it('rejects description over 1000 characters', () => {
+      const result = buildGoal({
+        ...BASE,
+        goalType: 'open',
+        description: 'D'.repeat(1001),
+      })
+      expect(result.isErr()).toBe(true)
+      expect(result._unsafeUnwrapErr().tag).toBe('description_too_long')
     })
   })
 

@@ -20,5 +20,8 @@ export { deriveEntityScope } from './dto/goal.dto'
 // ── Port types ────────────────────────────────────────────────────────
 export type { GoalRepository, GoalListFilter } from './ports/goal.repository'
 
+// ── Use-case types ────────────────────────────────────────────────────
+export type { GoalWithProgress } from './use-cases/list-goals'
+
 // ── Event re-exports — cross-context consumers must import event types from public-api, not domain/events
 export type { GoalCompleted, GoalProgressUpdated, GoalEvent } from '../domain/events'

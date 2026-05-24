@@ -85,6 +85,10 @@ export type GoalRepository = Readonly<{
   insertProgress(progress: Omit<GoalProgress, 'id'>): Promise<GoalProgress>
   // Safe: goalId is a globally unique UUID — no cross-tenant risk
   getProgress(goalId: GoalId): Promise<GoalProgress | null>
+  // Batch: fetches progress for multiple goals in a single query
+  getProgressBatch(
+    goalIds: readonly GoalId[],
+  ): Promise<ReadonlyMap<GoalId, GoalProgress | null>>
   // Safe: goalId is a globally unique UUID — no cross-tenant risk
   updateProgress(
     goalId: GoalId,
@@ -96,4 +100,10 @@ export type GoalRepository = Readonly<{
       computedSource: ComputedSource
     }>,
   ): Promise<GoalProgress | null>
+
+  // ── Batch lookups (N+1 elimination) ──────────────────────────────────
+  listInstancesBatch(
+    parentGoalIds: readonly GoalId[],
+    orgId: OrganizationId,
+  ): Promise<ReadonlyMap<GoalId, Goal[]>>
 }>

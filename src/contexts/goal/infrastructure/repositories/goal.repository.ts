@@ -2,13 +2,15 @@
 // Per architecture: factory function returning Readonly<{ method }>.
 // Wrapped in trace() for observability.
 
-import { and, eq, sql, or, desc, isNull } from 'drizzle-orm'
+import { and, eq, sql, or, desc, isNull, inArray } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { goals, goalProgress } from '#/shared/db/schema/goal.schema'
 import type {
   GoalRepository,
   GoalListFilter,
 } from '../../application/ports/goal.repository'
+import type { Goal, GoalProgress } from '../../domain/types'
+import type { GoalId } from '#/shared/domain/ids'
 import {
   goalFromRow,
   goalProgressFromRow,
@@ -136,6 +138,27 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
         .where(eq(goalProgress.goalId, goalId))
         .limit(1)
       return rows[0] ? goalProgressFromRow(rows[0]) : null
+    })
+  },
+
+  // Batch: fetches progress for multiple goals in a single query
+  getProgressBatch: async (goalIds) => {
+    return trace('goal.getProgressBatch', async () => {
+      const map = new Map<GoalId, GoalProgress | null>()
+      if (goalIds.length === 0) return map
+      // Initialize all keys to null
+      for (const id of goalIds) {
+        map.set(id, null)
+      }
+      const rows = await db
+        .select()
+        .from(goalProgress)
+        .where(inArray(goalProgress.goalId, [...goalIds] as string[]))
+      for (const row of rows) {
+        const progress = goalProgressFromRow(row)
+        map.set(progress.goalId, progress)
+      }
+      return map
     })
   },
 
@@ -320,6 +343,36 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
         .update(goals)
         .set({ status: 'completed', completedAt, updatedAt: completedAt })
         .where(and(eq(goals.id, goalId), eq(goals.organizationId, orgId)))
+    })
+  },
+
+  // ── Batch lookups (N+1 elimination) ──────────────────────────────────
+
+  listInstancesBatch: async (parentGoalIds, orgId) => {
+    return trace('goal.listInstancesBatch', async () => {
+      const map = new Map<GoalId, Goal[]>()
+      if (parentGoalIds.length === 0) return map
+      // Initialize all keys to empty array
+      for (const id of parentGoalIds) {
+        map.set(id, [])
+      }
+      const rows = await db
+        .select()
+        .from(goals)
+        .where(
+          and(
+            inArray(goals.parentGoalId, [...parentGoalIds] as string[]),
+            eq(goals.organizationId, orgId),
+          ),
+        )
+      for (const row of rows) {
+        const goal = goalFromRow(row)
+        const parentId = goal.parentGoalId!
+        const existing = map.get(parentId) ?? []
+        existing.push(goal)
+        map.set(parentId, existing)
+      }
+      return map
     })
   },
 })

@@ -16,8 +16,8 @@ import {
   formatDate,
   daysRemaining,
 } from '#/contexts/goal/ui/helpers'
-import { deriveEntityScope } from '#/contexts/goal/application/dto/goal.dto'
-import type { Goal, GoalProgress } from '#/contexts/goal/application/dto/goal.dto'
+import { deriveEntityScope } from '#/contexts/goal/application/public-api'
+import type { Goal, GoalProgress } from '#/contexts/goal/application/public-api'
 import { type GoalWithProgress } from '#/contexts/goal/ui/helpers'
 
 type Props = Readonly<{

@@ -125,6 +125,20 @@ function createFakeDeps() {
       return p
     },
     getProgress: async (goalId) => progresses.get(goalId as string) ?? null,
+    getProgressBatch: async (ids) => {
+      const map = new Map()
+      for (const id of ids) {
+        map.set(id, progresses.get(id as string) ?? null)
+      }
+      return map
+    },
+    listInstancesBatch: async (parentIds) => {
+      const map = new Map()
+      for (const pid of parentIds) {
+        map.set(pid, [])
+      }
+      return map
+    },
     updateProgress: async (goalId, data) => {
       const existing = progresses.get(goalId as string)
       if (!existing) return null
