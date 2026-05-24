@@ -34,6 +34,11 @@ export function ProgressBar({
         <div
           className={cn('h-2 rounded-full transition-all', colorClass)}
           style={{ width: `${width}%` }}
+          role="progressbar"
+          aria-valuenow={currentValue}
+          aria-valuemin={0}
+          aria-valuemax={targetValue}
+          aria-label={`Progress: ${label}`}
         />
       </div>
       <p className="text-xs text-muted-foreground">{label}</p>

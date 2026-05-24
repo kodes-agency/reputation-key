@@ -22,8 +22,13 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/goa
   },
   validateSearch: (search) => goalsSearchSchema.parse(search),
   staleTime: 30_000,
-  loader: async ({ params: { propertyId } }) => {
-    const { goals } = await listGoals({ data: { propertyId } })
+  loaderDeps: ({ search }) => {
+    const s = search as GoalSearchParams
+    return { status: s.status, goalType: s.goalType }
+  },
+  loader: async ({ params: { propertyId }, deps }) => {
+    const { status, goalType } = deps as GoalSearchParams
+    const { goals } = await listGoals({ data: { propertyId, status, goalType } })
     return { goals }
   },
   component: GoalsRoute,
@@ -32,15 +37,10 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/goa
 function GoalsRoute() {
   const { propertyId } = Route.useParams()
   const { goals } = Route.useLoaderData()
-  const { status, goalType } = Route.useSearch() as GoalSearchParams
 
   return (
     <div className="mx-auto max-w-3xl">
-      <GoalsListPage
-        goals={goals}
-        propertyId={propertyId}
-        filters={{ status, goalType }}
-      />
+      <GoalsListPage goals={goals} propertyId={propertyId} />
     </div>
   )
 }

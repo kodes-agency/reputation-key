@@ -128,13 +128,12 @@ export function GoalCreateForm({ propertyId, mutation }: Props) {
     if (s.goalType === 'recurring')
       input.recurrenceRule = { frequency: s.recurrenceFrequency }
 
-    const result = await mutation({ data: input })
-    const goalId = (result as { goal?: { id: string } } | undefined)?.goal?.id
-    if (goalId)
-      await navigate({
-        to: '/properties/$propertyId/goals/$goalId',
-        params: { propertyId, goalId },
-      })
+    try {
+      await mutation({ data: input })
+      setS(initial)
+    } catch {
+      // mutation hook handles error display
+    }
   }
 
   return (

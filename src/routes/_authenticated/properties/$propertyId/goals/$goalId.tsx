@@ -30,7 +30,10 @@ function GoalDetailRoute() {
 
   const cancelMutation = useMutationAction(cancelGoal, {
     successMessage: 'Goal cancelled',
-    invalidateRoutes: ['/_authenticated/properties/$propertyId/goals'],
+    invalidateRoutes: [
+      '/_authenticated/properties/$propertyId/goals',
+      '/_authenticated/properties/$propertyId/goals/$goalId',
+    ],
   })
 
   return (

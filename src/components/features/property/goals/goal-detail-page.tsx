@@ -18,8 +18,7 @@ import {
 } from '#/contexts/goal/ui/helpers'
 import { deriveEntityScope } from '#/contexts/goal/application/dto/goal.dto'
 import type { Goal, GoalProgress } from '#/contexts/goal/application/dto/goal.dto'
-
-export type GoalWithProgress = { goal: Goal; progress: GoalProgress | null }
+import { type GoalWithProgress } from '#/contexts/goal/ui/helpers'
 
 type Props = Readonly<{
   goal: Goal
@@ -134,7 +133,7 @@ export function GoalDetailPage({
   )
 }
 
-function Detail({ label, value }: { label: string; value: React.ReactNode }) {
+function Detail({ label, value }: Readonly<{ label: string; value: React.ReactNode }>) {
   return (
     <div className="space-y-1">
       <p className="text-xs text-muted-foreground">{label}</p>
