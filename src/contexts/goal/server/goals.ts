@@ -196,6 +196,13 @@ export const updateGoal = createServerFn({ method: 'POST' })
                   400,
                 ),
               )
+              .with({ tag: 'invalid_target_value' }, () =>
+                throwContextError(
+                  'GoalError',
+                  makeGoalError('validation_error', 'Target value must be positive'),
+                  400,
+                ),
+              )
               .exhaustive()
           }
 
@@ -294,7 +301,7 @@ export const listGoals = createServerFn({ method: 'GET' })
 
         try {
           const { useCases } = getContainer()
-          const goals = await useCases.listGoals({
+          const result = await useCases.listGoals({
             organizationId: ctx.organizationId,
             propertyId: toPropertyId(data.propertyId),
             portalId: data.portalId ? toPortalId(data.portalId) : undefined,
@@ -304,7 +311,20 @@ export const listGoals = createServerFn({ method: 'GET' })
             goalType: data.goalType,
             role: ctx.role,
           })
-          return { goals }
+
+          if (result.isErr()) {
+            match(result.error)
+              .with({ tag: 'forbidden' }, () =>
+                throwContextError(
+                  'GoalError',
+                  makeGoalError('forbidden', 'Forbidden'),
+                  403,
+                ),
+              )
+              .exhaustive()
+          }
+
+          return { goals: result._unsafeUnwrap() }
         } catch (e) {
           if (isGoalError(e)) throwContextError('GoalError', e, goalErrorStatus(e.code))
           throw e

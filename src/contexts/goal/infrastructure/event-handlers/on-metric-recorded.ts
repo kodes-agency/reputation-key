@@ -3,10 +3,11 @@
 // Per architecture: event handler subscribes via EventBus, drives repo + emits domain events.
 
 import type { GoalRepository } from '../../application/ports/goal.repository'
-import type { Goal } from '../../domain/types'
 import type { MetricRecorded } from '#/contexts/metric/application/public-api'
 import type { EventBus } from '#/shared/events/event-bus'
+import type { getLogger as getLoggerType } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
+import { shouldEmitCompleted } from '../../domain/progress-strategy'
 
 // ── Dependencies ──────────────────────────────────────────────────────
 
@@ -14,24 +15,8 @@ export type OnMetricRecordedDeps = Readonly<{
   goalRepo: GoalRepository
   eventBus: EventBus
   clock: () => Date
+  getLogger: typeof getLoggerType
 }>
-
-// ── Completion rules ──────────────────────────────────────────────────
-//
-// AVG one-shot / recurring instance: skip immediate completion;
-// reconciliation handles this at period end.
-// All other combinations: emit GoalCompleted immediately when target met.
-
-function shouldEmitCompleted(goal: Goal): boolean {
-  if (goal.aggregationFunction === 'avg') {
-    // AVG open + rolling: complete immediately
-    // AVG one_shot + recurring (instance): defer to reconciliation
-    if (goal.goalType === 'one_shot' || goal.goalType === 'recurring') {
-      return false
-    }
-  }
-  return true
-}
 
 // ── Handler factory ───────────────────────────────────────────────────
 
@@ -51,52 +36,62 @@ export function onMetricRecorded(deps: OnMetricRecordedDeps) {
       if (affectedGoals.length === 0) return
 
       for (const goal of affectedGoals) {
-        // Get previous progress value for GoalProgressUpdated
-        const prevProgress = await goalRepo.getProgress(goal.id)
-        const previousValue = prevProgress?.currentValue ?? 0
+        try {
+          // Get previous progress value for GoalProgressUpdated
+          const prevProgress = await goalRepo.getProgress(goal.id)
+          const previousValue = prevProgress?.currentValue ?? 0
 
-        // Increment progress
-        const result = await goalRepo.incrementProgress(
-          goal.id,
-          goal.aggregationFunction,
-          event.value,
-        )
+          // Increment progress
+          const result = await goalRepo.incrementProgress(
+            goal.id,
+            goal.aggregationFunction,
+            event.value,
+          )
 
-        const now = clock()
+          const now = clock()
 
-        // Emit GoalProgressUpdated
-        await eventBus.emit({
-          _tag: 'goal.progress_updated',
-          goalId: goal.id,
-          organizationId: goal.organizationId,
-          metricKey: goal.metricKey,
-          previousValue,
-          currentValue: result.currentValue,
-          computedSource: 'event_increment',
-          occurredAt: now,
-        })
-
-        // Check completion
-        if (result.currentValue >= goal.targetValue && shouldEmitCompleted(goal)) {
-          await goalRepo.markGoalCompleted(goal.id, now)
-
+          // Emit GoalProgressUpdated
           await eventBus.emit({
-            _tag: 'goal.completed',
+            _tag: 'goal.progress_updated',
             goalId: goal.id,
             organizationId: goal.organizationId,
-            propertyId: goal.propertyId,
-            portalId: goal.portalId,
-            teamId: goal.teamId,
-            staffId: goal.staffId,
-            goalType: goal.goalType,
-            aggregationFunction: goal.aggregationFunction,
             metricKey: goal.metricKey,
-            targetValue: goal.targetValue,
-            completedValue: result.currentValue,
-            completedAt: now,
-            parentGoalId: goal.parentGoalId,
-            createdBy: goal.createdBy,
+            previousValue,
+            currentValue: result.currentValue,
+            computedSource: 'event_increment',
+            occurredAt: now,
           })
+
+          // Check completion
+          if (result.currentValue >= goal.targetValue && shouldEmitCompleted(goal)) {
+            await goalRepo.markGoalCompleted(goal.id, now)
+
+            await eventBus.emit({
+              _tag: 'goal.completed',
+              goalId: goal.id,
+              organizationId: goal.organizationId,
+              propertyId: goal.propertyId,
+              portalId: goal.portalId,
+              teamId: goal.teamId,
+              staffId: goal.staffId,
+              goalType: goal.goalType,
+              aggregationFunction: goal.aggregationFunction,
+              metricKey: goal.metricKey,
+              targetValue: goal.targetValue,
+              completedValue: result.currentValue,
+              completedAt: now,
+              parentGoalId: goal.parentGoalId,
+              createdBy: goal.createdBy,
+            })
+          }
+        } catch (err) {
+          deps
+            .getLogger()
+            .error(
+              { err, goalId: goal.id, metricKey: event.metricKey },
+              'goal: error processing metric.recorded for goal',
+            )
+          // continue processing other goals
         }
       }
     })

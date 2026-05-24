@@ -160,3 +160,20 @@ export function computeProgressValue(
     }
   }
 }
+
+// ── Completion rules ─────────────────────────────────────────────────
+//
+// AVG one-shot / recurring instance: skip immediate completion;
+// reconciliation handles this at period end.
+// All other combinations: emit GoalCompleted immediately when target met.
+
+export function shouldEmitCompleted(goal: Goal): boolean {
+  if (goal.aggregationFunction === 'avg') {
+    // AVG open + rolling: complete immediately
+    // AVG one_shot + recurring (instance): defer to reconciliation
+    if (goal.goalType === 'one_shot' || goal.goalType === 'recurring') {
+      return false
+    }
+  }
+  return true
+}

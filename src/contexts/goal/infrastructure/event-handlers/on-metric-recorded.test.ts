@@ -137,6 +137,19 @@ function makeFakeDeps() {
     goalRepo,
     eventBus,
     clock: () => FIXED_TIME,
+    getLogger: () =>
+      ({
+        info: vi.fn(),
+        error: vi.fn(),
+        warn: vi.fn(),
+        debug: vi.fn(),
+        child: vi.fn(() => ({
+          info: vi.fn(),
+          error: vi.fn(),
+          warn: vi.fn(),
+          debug: vi.fn(),
+        })),
+      }) as OnMetricRecordedDeps,
   }
 
   function addGoalWithProgress(

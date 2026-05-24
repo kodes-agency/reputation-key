@@ -7,7 +7,7 @@ import type { GoalRepository, GoalListFilter } from '../ports/goal.repository'
 import type { Goal, GoalProgress } from '../../domain/types'
 import type { Role } from '#/shared/domain/roles'
 import { can } from '#/shared/domain/permissions'
-import { goalError } from '../../domain/errors'
+import { err, ok, type Result } from 'neverthrow'
 
 // ── Return types ───────────────────────────────────────────────────────────
 
@@ -16,9 +16,12 @@ export type GoalWithProgress = Readonly<{
   progress: GoalProgress | null
 }>
 
+// ── Error types ────────────────────────────────────────────────────────────
+
+export type ListGoalsError = { tag: 'forbidden' }
+
 // ── Dependencies ───────────────────────────────────────────────────────────
 
-// fallow-ignore-next-line unused-type
 export type ListGoalsDeps = Readonly<{
   goalRepo: GoalRepository
 }>
@@ -38,9 +41,9 @@ export const listGoals =
   (deps: ListGoalsDeps) =>
   async (
     input: GoalListFilter & { role: Role },
-  ): Promise<ReadonlyArray<GoalWithProgress>> => {
+  ): Promise<Result<ReadonlyArray<GoalWithProgress>, ListGoalsError>> => {
     if (!can(input.role, 'goal.read')) {
-      throw goalError('forbidden', 'Insufficient permissions')
+      return err({ tag: 'forbidden' })
     }
 
     const goals = await deps.goalRepo.list(input)
@@ -73,8 +76,7 @@ export const listGoals =
       return b.goal.createdAt.getTime() - a.goal.createdAt.getTime()
     })
 
-    return results
+    return ok(results)
   }
 
-// fallow-ignore-next-line unused-type
 export type ListGoals = ReturnType<typeof listGoals>

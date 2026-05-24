@@ -11,7 +11,7 @@ import {
 } from '#/components/ui/select'
 import { Textarea } from '#/components/ui/textarea'
 
-interface GoalCreateExtraFieldsProps {
+type GoalCreateExtraFieldsProps = Readonly<{
   showPeriodDates: boolean
   showRollingWindow: boolean
   showRecurrenceRule: boolean
@@ -25,7 +25,7 @@ interface GoalCreateExtraFieldsProps {
   setters: Record<string, (v: string) => void>
   isPending: boolean
   onCancel: () => void
-}
+}>
 
 export function GoalCreateExtraFields({
   showPeriodDates,

@@ -26,6 +26,7 @@ export type UpdateGoalError =
   | { tag: 'goal_not_found' }
   | { tag: 'goal_not_active'; status: string }
   | { tag: 'recurrence_rule_not_allowed' }
+  | { tag: 'invalid_target_value' }
 
 // ── Deps ────────────────────────────────────────────────────────────────
 
@@ -54,7 +55,12 @@ export const updateGoal =
       return err({ tag: 'goal_not_active', status: goal.status })
     }
 
-    // 3. Build update data
+    // 3. Validate targetValue if provided
+    if (input.targetValue !== undefined && input.targetValue <= 0) {
+      return err({ tag: 'invalid_target_value' })
+    }
+
+    // 4. Build update data
     const now = deps.clock()
     const updates: Record<string, unknown> = {
       updatedAt: now,
@@ -72,7 +78,7 @@ export const updateGoal =
       updates.recurrenceRule = input.recurrenceRule
     }
 
-    // 4. Persist
+    // 5. Persist
     const updated = await deps.goalRepo.update(
       input.goalId,
       input.organizationId,

@@ -189,13 +189,15 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
 
   createGoalAndProgress: async (goal, progress) => {
     return trace('goal.createGoalAndProgress', async () => {
-      await db.insert(goals).values({
-        ...goalToInsertRow(goal),
-        id: goal.id as string,
-      })
-      await db.insert(goalProgress).values({
-        ...goalProgressToInsertRow(progress),
-        id: progress.id as string,
+      await db.transaction(async (tx) => {
+        await tx.insert(goals).values({
+          ...goalToInsertRow(goal),
+          id: goal.id as string,
+        })
+        await tx.insert(goalProgress).values({
+          ...goalProgressToInsertRow(progress),
+          id: progress.id as string,
+        })
       })
     })
   },
@@ -283,12 +285,12 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
       }
 
       if (aggregation === 'avg') {
-        // Increment sum and count, then recompute currentValue
         const result = await db
           .update(goalProgress)
           .set({
             currentSum: sql`${goalProgress.currentSum} + ${delta}`,
             currentCount: sql`${goalProgress.currentCount} + 1`,
+            currentValue: sql`(${goalProgress.currentSum} + ${delta}) / (${goalProgress.currentCount} + 1)`,
           })
           .where(eq(goalProgress.goalId, goalId))
           .returning({
@@ -299,21 +301,10 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
         if (!result[0]) {
           throw new Error(`incrementProgress: no progress row for goal ${goalId}`)
         }
-
-        const newSum = result[0].currentSum!
-        const newCount = result[0].currentCount!
-        const newAvg = newCount > 0 ? newSum / newCount : 0
-
-        // Update currentValue with recomputed average
-        await db
-          .update(goalProgress)
-          .set({ currentValue: newAvg })
-          .where(eq(goalProgress.goalId, goalId))
-
         return {
-          currentValue: newAvg,
-          currentSum: newSum,
-          currentCount: newCount,
+          currentValue: result[0].currentValue,
+          currentSum: result[0].currentSum,
+          currentCount: result[0].currentCount,
         }
       }
 

@@ -147,14 +147,15 @@ describe('listGoals', () => {
       role: 'AccountAdmin',
     })
 
-    expect(result).toHaveLength(2)
-    const ids = result.map((r) => r.goal.id as string)
+    const goals = result._unsafeUnwrap()
+    expect(goals).toHaveLength(2)
+    const ids = goals.map((r) => r.goal.id as string)
     expect(ids).toContain('g-1')
     expect(ids).toContain('g-2')
 
-    const r1 = result.find((r) => (r.goal.id as string) === 'g-1')!
+    const r1 = goals.find((r) => (r.goal.id as string) === 'g-1')!
     expect(r1.progress!.currentValue).toBe(3)
-    const r2 = result.find((r) => (r.goal.id as string) === 'g-2')!
+    const r2 = goals.find((r) => (r.goal.id as string) === 'g-2')!
     expect(r2.progress!.currentValue).toBe(7)
   })
 
@@ -173,8 +174,9 @@ describe('listGoals', () => {
       status: 'active',
     })
 
-    expect(result).toHaveLength(1)
-    expect(result[0].goal.id as string).toBe('g-active')
+    const goals = result._unsafeUnwrap()
+    expect(goals).toHaveLength(1)
+    expect(goals[0].goal.id as string).toBe('g-active')
   })
 
   it('filters by portalId', async () => {
@@ -192,8 +194,9 @@ describe('listGoals', () => {
       portalId: PORTAL_ID,
     })
 
-    expect(result).toHaveLength(1)
-    expect(result[0].goal.id as string).toBe('g-portal')
+    const goals = result._unsafeUnwrap()
+    expect(goals).toHaveLength(1)
+    expect(goals[0].goal.id as string).toBe('g-portal')
   })
 
   it('includes current instance progress for recurring templates', async () => {
@@ -226,10 +229,11 @@ describe('listGoals', () => {
       role: 'AccountAdmin',
     })
 
-    expect(result).toHaveLength(1)
+    const goals = result._unsafeUnwrap()
+    expect(goals).toHaveLength(1)
     // The recurring template should use the active instance's progress
-    expect(result[0].progress!.currentValue).toBe(42)
-    expect(result[0].goal.id as string).toBe('g-template')
+    expect(goals[0].progress!.currentValue).toBe(42)
+    expect(goals[0].goal.id as string).toBe('g-template')
   })
 
   it('sorts: active before completed before cancelled', async () => {
@@ -259,7 +263,8 @@ describe('listGoals', () => {
       role: 'AccountAdmin',
     })
 
-    const statuses = result.map((r) => r.goal.status)
+    const goals = result._unsafeUnwrap()
+    const statuses = goals.map((r) => r.goal.status)
     // active first, then completed, then cancelled
     expect(statuses).toEqual(['active', 'completed', 'cancelled'])
   })
@@ -296,7 +301,8 @@ describe('listGoals', () => {
       role: 'AccountAdmin',
     })
 
-    const ids = result.map((r) => r.goal.id as string)
+    const goals = result._unsafeUnwrap()
+    const ids = goals.map((r) => r.goal.id as string)
     // active newer first, then completed newer first
     expect(ids).toEqual([
       'g-active-new',
@@ -316,6 +322,6 @@ describe('listGoals', () => {
       role: 'AccountAdmin',
     })
 
-    expect(result).toEqual([])
+    expect(result._unsafeUnwrap()).toEqual([])
   })
 })

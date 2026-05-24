@@ -8,13 +8,13 @@ import {
 import type { AggregationFunction } from '#/shared/domain/metric-keys'
 import type { GoalStatus } from '#/contexts/goal/application/dto/goal.dto'
 
-type ProgressBarProps = {
+type ProgressBarProps = Readonly<{
   currentValue: number
   targetValue: number
   aggregation: AggregationFunction
   status: GoalStatus
   className?: string
-}
+}>
 
 export function ProgressBar({
   currentValue,

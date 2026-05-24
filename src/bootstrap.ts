@@ -174,7 +174,6 @@ export async function bootstrap(container: Container): Promise<void> {
   const { registerGoalEventHandlers } =
     await import('#/contexts/goal/infrastructure/event-handlers')
   registerGoalEventHandlers({
-    events: container.eventBus,
     eventBus: container.eventBus,
     goalRepo: container.goalRepo,
     cancelGoalFn: container.useCases.cancelGoal,

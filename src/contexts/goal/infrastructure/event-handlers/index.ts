@@ -24,7 +24,6 @@ export type CancelGoalFn = (
 // ── Registration deps ─────────────────────────────────────────────────
 
 export type RegisterGoalHandlersDeps = Readonly<{
-  events: EventBus
   goalRepo: GoalRepository
   cancelGoalFn: CancelGoalFn
   eventBus: EventBus
@@ -35,8 +34,8 @@ export type RegisterGoalHandlersDeps = Readonly<{
 // ── Registration ──────────────────────────────────────────────────────
 
 export const registerGoalEventHandlers = (deps: RegisterGoalHandlersDeps): void => {
-  deps.events.on('metric.recorded', onMetricRecorded(deps))
-  deps.events.on('staff.unassigned', onStaffUnassigned(deps))
-  deps.events.on('portal.deleted', onPortalDeleted(deps))
-  deps.events.on('team.deleted', onTeamDeleted(deps))
+  deps.eventBus.on('metric.recorded', onMetricRecorded(deps))
+  deps.eventBus.on('staff.unassigned', onStaffUnassigned(deps))
+  deps.eventBus.on('portal.deleted', onPortalDeleted(deps))
+  deps.eventBus.on('team.deleted', onTeamDeleted(deps))
 }

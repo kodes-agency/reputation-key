@@ -17,10 +17,10 @@ export type GoalWithProgress = {
   progress: GoalProgress | null
 }
 
-type StaffGoalsSectionProps = {
+type StaffGoalsSectionProps = Readonly<{
   goals: readonly GoalWithProgress[]
   propertyId?: string
-}
+}>
 
 export function StaffGoalsSection({ goals, propertyId }: StaffGoalsSectionProps) {
   if (goals.length === 0) {

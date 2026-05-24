@@ -12,9 +12,13 @@ import type {
 } from '#/shared/domain/metric-keys'
 import type { Action } from '#/components/hooks/use-action'
 import type { CreateGoalInput } from '#/contexts/goal/application/dto/goal.dto'
+import { createGoalSchema } from '#/contexts/goal/application/dto/goal.dto'
 import { GoalCreateFields } from './goal-create-fields'
 
-type Props = { propertyId: string; mutation: Action<{ data: CreateGoalInput }, unknown> }
+type Props = Readonly<{
+  propertyId: string
+  mutation: Action<{ data: CreateGoalInput }, unknown>
+}>
 
 type FormState = {
   name: string
@@ -85,11 +89,19 @@ export function GoalCreateForm({ propertyId, mutation }: Props) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     const errs: Record<string, string> = {}
-    if (!s.name.trim()) errs.name = 'Name is required'
-    if (!s.metricKey) errs.metricKey = 'Metric key is required'
-    if (!s.targetValue || Number(s.targetValue) <= 0)
-      errs.targetValue = 'Target value must be positive'
-    if (Object.keys(errs).length > 0) {
+    const parsed = createGoalSchema.safeParse({
+      propertyId,
+      name: s.name.trim(),
+      goalType: s.goalType,
+      aggregationFunction: s.aggregation,
+      metricKey: s.metricKey || undefined,
+      targetValue: s.targetValue ? Number(s.targetValue) : undefined,
+    })
+    if (!parsed.success) {
+      for (const issue of parsed.error.issues) {
+        const key = String(issue.path[0] ?? 'form')
+        if (!errs[key]) errs[key] = issue.message
+      }
       setS((prev) => ({ ...prev, errors: errs }))
       return
     }

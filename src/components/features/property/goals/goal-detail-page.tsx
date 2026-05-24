@@ -21,14 +21,14 @@ import type { Goal, GoalProgress } from '#/contexts/goal/application/dto/goal.dt
 
 export type GoalWithProgress = { goal: Goal; progress: GoalProgress | null }
 
-type Props = {
+type Props = Readonly<{
   goal: Goal
   progress: GoalProgress | null
   instances: readonly GoalWithProgress[]
   propertyId: string
   onCancel: () => void
   isCancelling: boolean
-}
+}>
 
 export function GoalDetailPage({
   goal,

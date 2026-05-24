@@ -26,11 +26,11 @@ export type GoalWithProgress = {
   progress: GoalProgress | null
 }
 
-type GoalsListPageProps = {
+type GoalsListPageProps = Readonly<{
   goals: readonly GoalWithProgress[]
   propertyId: string
   filters: { status?: GoalStatus; goalType?: GoalType }
-}
+}>
 
 const STATUS_ORDER: Record<GoalStatus, number> = {
   active: 0,
