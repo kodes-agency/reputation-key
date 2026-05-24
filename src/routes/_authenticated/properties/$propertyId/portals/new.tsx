@@ -5,6 +5,7 @@ import { PortalCreationWithPreview } from '#/components/features/portal'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import { useMutationAction } from '#/components/hooks/use-mutation-action'
+import { PageShell } from '#/components/layout/page-shell'
 
 export const Route = createFileRoute(
   '/_authenticated/properties/$propertyId/portals/new',
@@ -34,8 +35,8 @@ function CreatePortalPage() {
   })
 
   return (
-    <div className="mx-auto max-w-2xl">
+    <PageShell>
       <PortalCreationWithPreview propertyId={propertyId} mutation={mutation} />
-    </div>
+    </PageShell>
   )
 }

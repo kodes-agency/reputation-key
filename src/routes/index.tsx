@@ -14,8 +14,8 @@ function HomePage() {
   return (
     <div className="page-wrap px-4 pb-8 pt-14">
       <section className="relative overflow-hidden rounded-[2rem] bg-surface border border-border px-6 py-10 sm:px-10 sm:py-14">
-        <div className="pointer-events-none absolute -left-20 -top-24 size-56 rounded-full bg-[radial-gradient(circle,oklch(0.78_0.14_75/0.20),transparent_66%)]" />
-        <div className="pointer-events-none absolute -bottom-20 -right-20 size-56 rounded-full bg-[radial-gradient(circle,oklch(0.78_0.14_75/0.12),transparent_66%)]" />
+        <div className="pointer-events-none absolute -left-20 -top-24 size-56 rounded-full bg-[radial-gradient(circle,oklch(0.42_0.18_290/0.20),transparent_66%)]" />
+        <div className="pointer-events-none absolute -bottom-20 -right-20 size-56 rounded-full bg-[radial-gradient(circle,oklch(0.42_0.18_290/0.12),transparent_66%)]" />
         <Badge variant="secondary" className="mb-3">
           Reputation Key
         </Badge>

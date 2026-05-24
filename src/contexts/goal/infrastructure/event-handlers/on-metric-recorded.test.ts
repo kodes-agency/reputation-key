@@ -68,8 +68,54 @@ function makeFakeDeps() {
     list: async () => [],
     listInstances: async () => [],
     cancelByParent: async () => 0,
-    insertProgress: async () => {
-      throw new Error('not used')
+    upsertProgress: async (goalId, aggregation, delta) => {
+      let p = progresses.get(goalId as string)
+      if (!p) {
+        // Auto-create progress row for newly created goals
+        p = {
+          id: `progress-${++progressCounter}` as any,
+          goalId: goalId,
+          currentValue: 0,
+          currentSum: null,
+          currentCount: null,
+          lastComputedAt: new Date(),
+          computedSource: 'event_increment',
+        }
+        progresses.set(goalId as string, p)
+      }
+
+      if (aggregation === 'sum' || aggregation === 'count') {
+        const inc = aggregation === 'count' ? 1 : delta
+        p.currentValue += inc
+      } else if (aggregation === 'max') {
+        p.currentValue = Math.max(p.currentValue, delta)
+      } else if (aggregation === 'avg') {
+        p.currentSum = (p.currentSum ?? 0) + delta
+        p.currentCount = (p.currentCount ?? 0) + 1
+        p.currentValue = p.currentCount > 0 ? p.currentSum! / p.currentCount! : 0
+      }
+
+      return {
+        currentValue: p.currentValue,
+        currentSum: p.currentSum,
+        currentCount: p.currentCount,
+      }
+    },
+    incrementProgress: async () => {
+      throw new Error('not used — use upsertProgress instead')
+    },
+    insertProgress: async (data) => {
+      const p: MutableProgress = {
+        id: `progress-${++progressCounter}` as any,
+        goalId: data.goalId,
+        currentValue: data.currentValue,
+        currentSum: data.currentSum,
+        currentCount: data.currentCount,
+        lastComputedAt: data.lastComputedAt,
+        computedSource: data.computedSource,
+      }
+      progresses.set(data.goalId as string, p)
+      return p as any
     },
     getProgress: async (goalId) => {
       const p = progresses.get(goalId as string)
@@ -103,28 +149,6 @@ function makeFakeDeps() {
         }
         return g.portalId === null
       })
-    },
-
-    incrementProgress: async (goalId, aggregation, delta) => {
-      const p = progresses.get(goalId as string)
-      if (!p) throw new Error(`No progress for goal ${goalId}`)
-
-      if (aggregation === 'sum' || aggregation === 'count') {
-        const inc = aggregation === 'count' ? 1 : delta
-        p.currentValue += inc
-      } else if (aggregation === 'max') {
-        p.currentValue = Math.max(p.currentValue, delta)
-      } else if (aggregation === 'avg') {
-        p.currentSum = (p.currentSum ?? 0) + delta
-        p.currentCount = (p.currentCount ?? 0) + 1
-        p.currentValue = p.currentCount > 0 ? p.currentSum! / p.currentCount! : 0
-      }
-
-      return {
-        currentValue: p.currentValue,
-        currentSum: p.currentSum,
-        currentCount: p.currentCount,
-      }
     },
 
     markGoalCompleted: async (goalId, _orgId, completedAt) => {

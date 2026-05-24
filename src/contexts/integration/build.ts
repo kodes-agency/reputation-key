@@ -145,6 +145,7 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       clock: deps.clock,
       refreshGoogleToken: refreshGoogleTokenUseCase,
       logger: deps.logger,
+      propertyApi: deps.propertyApi,
     }),
 
     startPropertyImport: startPropertyImport({

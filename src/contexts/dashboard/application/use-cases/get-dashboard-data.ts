@@ -5,6 +5,7 @@
 import type { DashboardRepository } from '../ports/dashboard.repository'
 import type { OrganizationId, PropertyId, PortalId } from '#/shared/domain/ids'
 import type { DashboardData } from '../../domain/types'
+import type { TimeRangePreset } from '../dto/dashboard.dto'
 
 export type GetDashboardDataInput = Readonly<{
   organizationId: OrganizationId
@@ -12,26 +13,21 @@ export type GetDashboardDataInput = Readonly<{
   portalId: PortalId | null
   startDate: Date
   endDate: Date
+  timeRange: TimeRangePreset
 }>
 
 export type GetDashboardDataDeps = Readonly<{
   repo: DashboardRepository
 }>
 
-/** Compute prior period dates (same length as current, immediately before). */
-function priorPeriod(start: Date, end: Date): { priorStartDate: Date; priorEndDate: Date } {
-  const duration = end.getTime() - start.getTime()
-  return {
-    priorStartDate: new Date(start.getTime() - duration),
-    priorEndDate: new Date(start.getTime() - 1), // exclusive boundary — no overlap
-  }
-}
-
 export const getDashboardData =
   (deps: GetDashboardDataDeps) =>
   async (input: GetDashboardDataInput): Promise<DashboardData> => {
-    const { organizationId, propertyId, portalId, startDate, endDate } = input
-    const { priorStartDate, priorEndDate } = priorPeriod(startDate, endDate)
+    const { organizationId, propertyId, portalId, startDate, endDate, timeRange } = input
+
+    // For 'all' time range, no meaningful prior period — skip trend comparison
+    const priorStartDate = timeRange === 'all' ? startDate : new Date(startDate.getTime() - (endDate.getTime() - startDate.getTime()))
+    const priorEndDate = timeRange === 'all' ? endDate : new Date(startDate.getTime() - 1)
 
     const { repo } = deps
 
@@ -41,6 +37,7 @@ export const getDashboardData =
         repo.getKPIs({
           organizationId,
           propertyId,
+          portalId: portalId ?? undefined,
           startDate,
           endDate,
           priorStartDate,

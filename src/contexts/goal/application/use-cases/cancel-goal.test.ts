@@ -99,6 +99,11 @@ function createFakeDeps(overrides?: { storedGoals?: Goal[] }) {
     },
     updateProgress: async () => null,
     findActiveGoalsByMetric: async () => [],
+    upsertProgress: async () => ({
+      currentValue: 0,
+      currentSum: null,
+      currentCount: null,
+    }),
     incrementProgress: async () => ({
       currentValue: 0,
       currentSum: null,

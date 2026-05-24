@@ -52,8 +52,8 @@ export function onMetricRecorded(deps: OnMetricRecordedDeps) {
           const prevProgress = await goalRepo.getProgress(goal.id)
           const previousValue = prevProgress?.currentValue ?? 0
 
-          // Increment progress
-          const result = await goalRepo.incrementProgress(
+          // Increment progress (insert initial row if none exists)
+          const result = await goalRepo.upsertProgress(
             goal.id,
             goal.aggregationFunction,
             event.value,

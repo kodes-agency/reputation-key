@@ -3,6 +3,7 @@
 
 import { ok, err, type Result } from 'neverthrow'
 import type { ReviewId } from '#/shared/domain/ids'
+import type { PortalRatingTrendPoint } from '../application/ports/portal-metrics.port'
 
 // ─── KPI Strip ───
 
@@ -100,4 +101,20 @@ export type DashboardData = Readonly<{
   replyPerformance: ReplyPerformance
   engagementFunnel: EngagementFunnel | null
   recentReviews: RecentReview[]
+}>
+
+// ─── Portal Analytics ───
+
+export type PortalKPIs = Readonly<{
+  scans: KPIValue
+  avgRating: KPIValue
+  feedback: KPIValue
+  reviewLinkClicks: KPIValue
+}>
+
+export type PortalAnalyticsData = Readonly<{
+  kpis: PortalKPIs
+  engagementFunnel: EngagementFunnel
+  ratingDistribution: RatingDistribution
+  ratingTrend: PortalRatingTrendPoint[]
 }>

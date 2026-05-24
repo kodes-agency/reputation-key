@@ -2,7 +2,10 @@
 import { Link } from '@tanstack/react-router'
 import { MessageSquare, Star, ScanLine, MessageCircle } from 'lucide-react'
 import { Button } from '#/components/ui/button'
+import { Tabs, TabsList, TabsTrigger } from '#/components/ui/tabs'
 import type { DashboardData } from '#/contexts/dashboard/application/public-api'
+import type { TimeRangePreset } from '#/contexts/dashboard/application/dto/dashboard.dto'
+import { TIME_RANGE_OPTIONS } from '#/contexts/dashboard/application/dto/dashboard.dto'
 import { KPICard } from './property-dashboard-helpers'
 import { ReviewRow } from './property-dashboard-review-row'
 
@@ -15,12 +18,16 @@ export interface PropertyDashboardProps {
   property: Property | null | undefined
   dashboard: DashboardData
   propertyId: string
+  timeRange: TimeRangePreset
+  onTimeRangeChange: (value: TimeRangePreset) => void
 }
 
 export function PropertyDashboard({
   property,
   dashboard,
   propertyId,
+  timeRange,
+  onTimeRangeChange,
 }: PropertyDashboardProps) {
   if (!property) return null
 
@@ -28,10 +35,25 @@ export function PropertyDashboard({
     dashboard
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">Dashboard</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{property.name}</p>
+    <div className="min-w-0 space-y-8">
+      <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight">Dashboard</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{property.name}</p>
+        </div>
+        <Tabs
+          value={timeRange}
+          onValueChange={(v) => onTimeRangeChange(v as TimeRangePreset)}
+          className="min-w-0 shrink-0"
+        >
+          <TabsList className="flex-wrap">
+            {TIME_RANGE_OPTIONS.map((opt) => (
+              <TabsTrigger key={opt.value} value={opt.value} className="text-xs">
+                {opt.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
       </div>
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">

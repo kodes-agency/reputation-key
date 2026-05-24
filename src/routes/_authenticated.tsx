@@ -161,9 +161,9 @@ function AuthenticatedLayout() {
           hasTeam={false}
         />
       )}
-      <SidebarInset>
+      <SidebarInset className="min-w-0">
         <AppTopBar user={ctx.user} />
-        <main className="flex-1 overflow-auto">
+        <main className="min-w-0 flex-1 overflow-auto py-5 md:py-8">
           <Outlet />
         </main>
       </SidebarInset>

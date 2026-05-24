@@ -1,4 +1,4 @@
-// Dashboard context — server functions
+// Dashboard context — portal analytics server function
 // Per architecture: "Server functions are the HTTP entry points into a context."
 // Resolves tenant context from authenticated session, NOT from client payload.
 
@@ -10,7 +10,7 @@ import { resolveTenantContext } from '#/shared/auth/middleware'
 import { can } from '#/shared/domain/permissions'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import {
-  getDashboardDataDto,
+  getPortalAnalyticsDto,
   type TimeRangePreset,
 } from '../application/dto/dashboard.dto'
 import { propertyId, portalId } from '#/shared/domain/ids'
@@ -47,8 +47,8 @@ function timeRangeToDates(preset: TimeRangePreset) {
   }
 }
 
-export const getDashboardDataFn = createServerFn({ method: 'GET' })
-  .inputValidator(getDashboardDataDto)
+export const getPortalAnalyticsFn = createServerFn({ method: 'GET' })
+  .inputValidator(getPortalAnalyticsDto)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -64,10 +64,10 @@ export const getDashboardDataFn = createServerFn({ method: 'GET' })
           const { useCases } = getContainer()
           const { startDate, endDate } = timeRangeToDates(data.timeRange)
 
-          return await useCases.getDashboardData({
+          return await useCases.getPortalAnalytics({
             organizationId: ctx.organizationId,
             propertyId: propertyId(data.propertyId),
-            portalId: data.portalId ? portalId(data.portalId) : null,
+            portalId: portalId(data.portalId),
             startDate,
             endDate,
             timeRange: data.timeRange,
@@ -79,6 +79,6 @@ export const getDashboardDataFn = createServerFn({ method: 'GET' })
         }
       },
       'GET',
-      'dashboard.getDashboardData',
+      'dashboard.getPortalAnalytics',
     ),
   )

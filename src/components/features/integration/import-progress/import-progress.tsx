@@ -2,7 +2,7 @@ import type { GbpImportJob } from '#/contexts/integration/application/public-api
 import { Card } from '#/components/ui/card'
 import { ImportStatusBadge } from './import-status-badge'
 import { Button } from '#/components/ui/button'
-import { Link } from '@tanstack/react-router'
+import { useNavigate, useRouter } from '@tanstack/react-router'
 import { CheckCircle2, XCircle, AlertCircle } from 'lucide-react'
 
 type Props = Readonly<{
@@ -10,6 +10,9 @@ type Props = Readonly<{
 }>
 
 export function ImportProgress({ job }: Props) {
+  const navigate = useNavigate()
+  const router = useRouter()
+
   const isComplete =
     job.status === 'completed' ||
     job.status === 'completed_with_skips' ||
@@ -69,8 +72,13 @@ export function ImportProgress({ job }: Props) {
 
       {isFinal && (
         <div className="flex items-center gap-3">
-          <Button asChild>
-            <Link to="/properties">Go to Properties</Link>
+          <Button
+            onClick={async () => {
+              await router.invalidate()
+              navigate({ to: '/properties' })
+            }}
+          >
+            Go to Properties
           </Button>
         </div>
       )}

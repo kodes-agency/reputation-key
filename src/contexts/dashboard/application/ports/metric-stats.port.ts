@@ -10,6 +10,11 @@ export type MetricSumRow = Readonly<{
   total: number
 }>
 
+export type MetricCountRow = Readonly<{
+  metricKey: string
+  count: number
+}>
+
 export type MetricStatsPort = Readonly<{
   /** Summed metric values grouped by metricKey for a property+period. */
   getSumsByPeriod(
@@ -27,4 +32,13 @@ export type MetricStatsPort = Readonly<{
     startDate: Date,
     endDate: Date,
   ): Promise<readonly MetricSumRow[]>
+
+  /** Count of readings grouped by metricKey for a portal+period. */
+  getCountsByPortal(
+    organizationId: OrganizationId,
+    propertyId: PropertyId,
+    portalId: PortalId,
+    startDate: Date,
+    endDate: Date,
+  ): Promise<readonly MetricCountRow[]>
 }>

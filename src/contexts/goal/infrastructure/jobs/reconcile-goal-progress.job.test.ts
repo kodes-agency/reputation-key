@@ -105,6 +105,11 @@ function createFakeDeps() {
     findLatestInstance: async () => null,
     createGoalAndProgress: async () => {},
     findActiveGoalsByMetric: async () => [],
+    upsertProgress: async () => ({
+      currentValue: 0,
+      currentSum: null,
+      currentCount: null,
+    }),
     incrementProgress: async () => ({
       currentValue: 0,
       currentSum: null,

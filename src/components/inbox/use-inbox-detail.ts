@@ -29,6 +29,9 @@ export type InboxDetailState = Readonly<{
   refresh: () => void
   error: string | null
   lastMarkedId: string | null
+  /** Bumped every time a status update completes and detail reloads.
+   *  Parent can watch this + currentItem to sync the list. */
+  statusVersion: number
 }>
 
 export function useInboxDetail(
@@ -40,6 +43,7 @@ export function useInboxDetail(
   const [notes, setNotes] = useState<ReadonlyArray<InboxNote>>([])
   const [isLoadingDetail, setIsLoadingDetail] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [statusVersion, setStatusVersion] = useState(0)
   const abortRef = useRef(false)
 
   const detailAction = useAction(useServerFn(getInboxItemDetailFn))
@@ -110,7 +114,9 @@ export function useInboxDetail(
   const updateStatus = useMutationAction(updateInboxStatusFn, {
     successMessage: 'Status updated',
     onSuccess: () => {
-      void loadDetailRef.current()
+      void loadDetailRef.current().then(() => {
+        setStatusVersion((v) => v + 1)
+      })
     },
   })
 
@@ -123,5 +129,6 @@ export function useInboxDetail(
     refresh: loadDetail,
     error,
     lastMarkedId: lastMarkedRef.current,
+    statusVersion,
   }
 }

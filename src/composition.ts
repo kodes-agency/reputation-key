@@ -42,7 +42,10 @@ import { buildMetricContext } from '#/contexts/metric/build'
 import { buildDashboardContext } from '#/contexts/dashboard/build'
 import { createReviewStatsAdapter } from '#/contexts/dashboard/infrastructure/adapters/review-stats.adapter'
 import { createMetricStatsAdapter } from '#/contexts/dashboard/infrastructure/adapters/metric-stats.adapter'
+import { createPortalMetricsAdapter } from '#/contexts/dashboard/infrastructure/adapters/portal-metrics.adapter'
 import { buildGoalContext } from '#/contexts/goal/build'
+import { createGoalRepository as _createGoalRepo } from '#/contexts/goal/infrastructure/repositories/goal.repository'
+import { cancelGoal as _cancelGoalFn } from '#/contexts/goal/application/use-cases/cancel-goal'
 import { createStaffAssignmentRepository } from '#/contexts/staff/infrastructure/repositories/staff-assignment.repository'
 import { createGoogleReviewApiAdapter } from '#/contexts/integration/infrastructure/adapters/google-review-api.adapter'
 import { handleGbpNotification } from '#/contexts/integration/application/use-cases'
@@ -267,12 +270,20 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     clock,
   })
 
+  // Goal context needs a cancelGoalFn for event handlers.
+  // Create the goal repo early so we can wire cancelGoal independently
+  // (avoids circular ref with buildGoalContext's return value).
+  const goalRepoEarly = _createGoalRepo(db)
+  const goalCancelFn = _cancelGoalFn({ goalRepo: goalRepoEarly, clock })
+
   const goal = buildGoalContext({
     db,
     metricApi: metricApi.publicApi,
     events: eventBus,
     clock,
     idGen: () => crypto.randomUUID(),
+    cancelGoalFn: goalCancelFn,
+    getLogger,
   })
 
   // ── Dashboard context (facade ports per ADR-0007) ────────────────
@@ -280,10 +291,12 @@ export function createContainer(options?: { enableJobs?: boolean }) {
   // Adapters encapsulate SQL; dashboard repo only composes.
   const reviewStats = createReviewStatsAdapter(db)
   const metricStats = createMetricStatsAdapter(db)
+  const portalMetrics = createPortalMetricsAdapter(db)
 
   const dashboard = buildDashboardContext({
     reviewStats,
     metricStats,
+    portalMetrics,
   })
 
   // ── Wire invitation acceptance hook ────────────────────────────
@@ -343,6 +356,7 @@ export function createContainer(options?: { enableJobs?: boolean }) {
       retryPublish: review.retryPublish,
       ...inbox.useCases,
       getDashboardData: dashboard.getDashboardData,
+      getPortalAnalytics: dashboard.getPortalAnalytics,
       ...goal.useCases,
     },
     storage: portal.storage,

@@ -5,6 +5,7 @@ import { Button } from '#/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '#/components/ui/card'
 import { EmptyState } from '#/components/ui/empty-state'
 import { ProgressBar } from './progress-bar'
+import { PageShell } from '#/components/layout/page-shell'
 import {
   statusBadgeVariant,
   statusLabel,
@@ -30,7 +31,7 @@ export function GoalsListPage({ goals, propertyId }: GoalsListPageProps) {
   })
 
   return (
-    <div className="space-y-6">
+    <PageShell>
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -107,6 +108,6 @@ export function GoalsListPage({ goals, propertyId }: GoalsListPageProps) {
           })}
         </div>
       )}
-    </div>
+    </PageShell>
   )
 }

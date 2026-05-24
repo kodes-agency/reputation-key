@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { listStaffGoals } from '#/contexts/goal/server/staff-goals'
 import { StaffGoalsSection } from '#/components/features/property/goals/staff-goals-section'
+import { PageShell } from '#/components/layout/page-shell'
 
 export const Route = createFileRoute('/_authenticated/home')({
   loader: async () => {
@@ -14,7 +15,7 @@ function StaffHomePage() {
   const { goals } = Route.useLoaderData()
 
   return (
-    <div className="mx-auto max-w-2xl space-y-8">
+    <PageShell>
       <div>
         <h1 className="text-xl font-semibold tracking-tight">Home</h1>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -22,6 +23,6 @@ function StaffHomePage() {
         </p>
       </div>
       <StaffGoalsSection goals={goals} />
-    </div>
+    </PageShell>
   )
 }

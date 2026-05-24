@@ -116,7 +116,12 @@ const createFakeGoalRepo = (state: {
   },
   updateProgress: async () => null,
   findActiveGoalsByMetric: async () => [],
-  incrementProgress: async () => ({
+  upsertProgress: async () => ({
+      currentValue: 0,
+      currentSum: null,
+      currentCount: null,
+    }),
+    incrementProgress: async () => ({
     currentValue: 0,
     currentSum: null,
     currentCount: null,

@@ -107,7 +107,14 @@ export const listStaffAssignments = createServerFn({ method: 'GET' })
         } catch (e) {
           if (isStaffError(e))
             throwContextError('StaffError', e, staffErrorStatus(e.code))
-          throw e
+          // Transient DB errors (stale connection, cold start) should not crash the page.
+          // Log and return empty — callers degrade gracefully.
+          const logger = (await import('#/shared/observability/logger')).getLogger()
+          logger.error(
+            { error: e instanceof Error ? e.message : String(e), path: 'staff.listStaffAssignments' },
+            'staff.listStaffAssignments — returning empty due to unexpected error',
+          )
+          return { assignments: [] }
         }
       },
       'GET',

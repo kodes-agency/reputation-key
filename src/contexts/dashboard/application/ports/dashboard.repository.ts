@@ -23,6 +23,7 @@ export type DashboardPeriodQuery = Readonly<{
 export type DashboardKPIQuery = Readonly<{
   organizationId: OrganizationId
   propertyId: PropertyId
+  portalId?: PortalId
   startDate: Date
   endDate: Date
   priorStartDate: Date

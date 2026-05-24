@@ -14,10 +14,16 @@ import type { Action } from '#/components/hooks/use-action'
 import type { CreateGoalInput } from '#/contexts/goal/application/dto/goal.dto'
 import { createGoalSchema } from '#/contexts/goal/application/dto/goal.dto'
 import { GoalCreateFields } from './goal-create-fields'
+import type { Portal } from '#/contexts/portal/domain/types'
+import type { Team } from '#/contexts/team/domain/types'
+import type { StaffAssignment } from '#/contexts/staff/domain/types'
 
 type Props = Readonly<{
   propertyId: string
   mutation: Action<{ data: CreateGoalInput }, unknown>
+  portals: readonly Portal[]
+  teams: readonly Team[]
+  staffAssignments: readonly StaffAssignment[]
 }>
 
 type FormState = {
@@ -52,7 +58,13 @@ const initial: FormState = {
   errors: {},
 }
 
-export function GoalCreateForm({ propertyId, mutation }: Props) {
+export function GoalCreateForm({
+  propertyId,
+  mutation,
+  portals,
+  teams,
+  staffAssignments,
+}: Props) {
   const navigate = useNavigate()
   const [s, setS] = useState<FormState>(initial)
 
@@ -150,6 +162,10 @@ export function GoalCreateForm({ propertyId, mutation }: Props) {
         onCancel={() =>
           navigate({ to: '/properties/$propertyId/goals', params: { propertyId } })
         }
+        portals={portals}
+        teams={teams}
+        staffAssignments={staffAssignments}
+        propertyId={propertyId}
       />
       {mutation.error != null && (
         <p className="text-sm text-destructive">

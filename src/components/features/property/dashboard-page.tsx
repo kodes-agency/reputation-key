@@ -6,6 +6,7 @@ import { Plus, ChevronRight } from 'lucide-react'
 import { useEffect } from 'react'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { DeletePropertyDialog } from './delete-property-dialog'
+import { PageShell } from '#/components/layout/page-shell'
 
 interface Property {
   id: string
@@ -56,7 +57,7 @@ export function DashboardPage({ properties }: DashboardPageProps) {
   const { can } = usePermissions()
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <PageShell>
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Properties</h1>
@@ -100,6 +101,6 @@ export function DashboardPage({ properties }: DashboardPageProps) {
           </div>
         ))}
       </div>
-    </div>
+    </PageShell>
   )
 }

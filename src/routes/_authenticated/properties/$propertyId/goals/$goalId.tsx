@@ -6,6 +6,7 @@ import { getGoal } from '#/contexts/goal/server/goals'
 import { useMutationAction } from '#/components/hooks/use-mutation-action'
 import { cancelGoal } from '#/contexts/goal/server/goals'
 import { GoalDetailPage } from '#/components/features/property/goals/goal-detail-page'
+import { PageShell } from '#/components/layout/page-shell'
 
 export const Route = createFileRoute(
   '/_authenticated/properties/$propertyId/goals/$goalId',
@@ -37,7 +38,7 @@ function GoalDetailRoute() {
   })
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <PageShell>
       <GoalDetailPage
         goal={goal}
         progress={progress ?? null}
@@ -46,6 +47,6 @@ function GoalDetailRoute() {
         onCancel={() => cancelMutation({ data: { goalId } })}
         isCancelling={cancelMutation.isPending}
       />
-    </div>
+    </PageShell>
   )
 }

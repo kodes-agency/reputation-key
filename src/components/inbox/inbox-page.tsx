@@ -8,6 +8,7 @@ import { useInboxDetail } from '#/components/inbox/use-inbox-detail'
 import { useInboxState } from '#/components/inbox/use-inbox-state'
 import type { InboxFilterValues } from '#/components/inbox/inbox-filters'
 import { useState, useEffect, useCallback } from 'react'
+import { PageShell } from '#/components/layout/page-shell'
 
 export const INBOX_PAGE_SIZE = 50
 
@@ -84,16 +85,30 @@ export function InboxPage({ ctx, search, onNavigate }: InboxPageProps) {
       )
   }, [detailState.lastMarkedId])
 
+  // Sync list item status when user changes status in detail panel
+  useEffect(() => {
+    if (detailState.statusVersion > 0 && detailState.currentItem) {
+      const updated = detailState.currentItem
+      setItems((p) =>
+        p.map((i) =>
+          i.id === updated.id
+            ? { ...i, status: updated.status, updatedAt: updated.updatedAt }
+            : i,
+        ),
+      )
+    }
+  }, [detailState.statusVersion, detailState.currentItem])
+
   if (!orgId)
     return (
-      <div className="mx-auto max-w-4xl space-y-8">
+      <PageShell>
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Inbox</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Select an organization to view your inbox.
           </p>
         </div>
-      </div>
+      </PageShell>
     )
 
   return (

@@ -9,6 +9,7 @@ import { listPortalLinks } from '#/contexts/portal/server/portal-links'
 import { PortalDetailPage } from '#/components/features/portal'
 import { useMutationAction } from '#/components/hooks/use-mutation-action'
 import { useServerFn } from '@tanstack/react-start'
+import { PageShell } from '#/components/layout/page-shell'
 
 export const Route = createFileRoute(
   '/_authenticated/properties/$propertyId/portals/$portalId',
@@ -50,7 +51,7 @@ function PortalDetailRoute() {
   const propertySlug = properties?.find((p) => p.id === propertyId)?.slug ?? ''
 
   return (
-    <div className="mx-auto max-w-2xl">
+    <PageShell>
       <PortalDetailPage
         portal={portal}
         propertyId={propertyId}
@@ -62,6 +63,6 @@ function PortalDetailRoute() {
         requestUploadUrl={requestUploadUrlFn}
         finalizeUpload={finalizeUploadFn}
       />
-    </div>
+    </PageShell>
   )
 }
