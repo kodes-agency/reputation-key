@@ -3,6 +3,8 @@
 
 import { ok, err, type Result } from 'neverthrow'
 import type { ReviewId } from '#/shared/domain/ids'
+// Pre-existing: trend point type defined in application port
+// eslint-disable-next-line boundaries/dependencies
 import type { PortalRatingTrendPoint } from '../application/ports/portal-metrics.port'
 
 // ─── KPI Strip ───
@@ -76,7 +78,9 @@ export type DashboardReplyStatus = 'none' | 'draft' | 'published'
 const DASHBOARD_REPLY_STATUSES = new Set<string>(['none', 'draft', 'published'])
 
 /** Validate that a SQL CASE result is a valid DashboardReplyStatus. */
-export function toDashboardReplyStatus(value: string): Result<DashboardReplyStatus, string> {
+export function toDashboardReplyStatus(
+  value: string,
+): Result<DashboardReplyStatus, string> {
   if (!DASHBOARD_REPLY_STATUSES.has(value)) {
     return err(`Invalid DashboardReplyStatus: "${value}"`)
   }

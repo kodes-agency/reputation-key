@@ -5,58 +5,21 @@ import {
   getValidAggregationsForKey,
   getDefaultAggregationForKey,
 } from '#/contexts/goal/ui/helpers'
-import type {
-  EntityScope,
-  MetricKey,
-  AggregationFunction,
-} from '#/shared/domain/metric-keys'
+import type { MetricKey } from '#/shared/domain/metric-keys'
 import type { Action } from '#/components/hooks/use-action'
 import type { CreateGoalInput } from '#/contexts/goal/application/dto/goal.dto'
 import { createGoalSchema } from '#/contexts/goal/application/dto/goal.dto'
 import { GoalCreateFields } from './goal-create-fields'
-import type { Portal } from '#/contexts/portal/domain/types'
-import type { Team } from '#/contexts/team/domain/types'
-import type { StaffAssignment } from '#/contexts/staff/domain/types'
+import type { PortalOption, TeamOption, StaffOption } from './goal-entity-types'
+import { type FormState, initial, buildScopeOverrides } from './go-create-form-state'
 
 type Props = Readonly<{
   propertyId: string
   mutation: Action<{ data: CreateGoalInput }, unknown>
-  portals: readonly Portal[]
-  teams: readonly Team[]
-  staffAssignments: readonly StaffAssignment[]
+  portals: readonly PortalOption[]
+  teams: readonly TeamOption[]
+  staffAssignments: readonly StaffOption[]
 }>
-
-type FormState = {
-  name: string
-  entityScope: EntityScope
-  entityId: string
-  metricKey: MetricKey | ''
-  aggregation: AggregationFunction
-  goalType: 'open' | 'one_shot' | 'rolling' | 'recurring'
-  targetValue: string
-  periodStart: string
-  periodEnd: string
-  rollingWindowDays: string
-  recurrenceFrequency: 'weekly' | 'monthly' | 'quarterly'
-  description: string
-  errors: Record<string, string>
-}
-
-const initial: FormState = {
-  name: '',
-  entityScope: 'property',
-  entityId: '',
-  metricKey: '',
-  aggregation: 'sum',
-  goalType: 'open',
-  targetValue: '',
-  periodStart: '',
-  periodEnd: '',
-  rollingWindowDays: '',
-  recurrenceFrequency: 'monthly',
-  description: '',
-  errors: {},
-}
 
 export function GoalCreateForm({
   propertyId,
@@ -79,7 +42,6 @@ export function GoalCreateForm({
     ? getValidAggregationsForKey(s.metricKey as MetricKey)
     : []
 
-  // Override metricKey setter to auto-set default aggregation
   $.metricKey = (v: string) => {
     setS((prev) => ({
       ...prev,
@@ -87,11 +49,10 @@ export function GoalCreateForm({
       aggregation: v ? getDefaultAggregationForKey(v as MetricKey) : prev.aggregation,
     }))
   }
-  // Override entityScope setter to reset cascade
   $.entityScope = (v: string) => {
     setS((prev) => ({
       ...prev,
-      entityScope: v as EntityScope,
+      entityScope: v as FormState['entityScope'],
       entityId: '',
       metricKey: '',
       aggregation: 'sum',
@@ -100,7 +61,6 @@ export function GoalCreateForm({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-
     const input = {
       propertyId,
       name: s.name.trim(),
@@ -114,17 +74,7 @@ export function GoalCreateForm({
       recurrenceRule:
         s.goalType === 'recurring' ? { frequency: s.recurrenceFrequency } : undefined,
       rollingWindowDays: s.rollingWindowDays ? Number(s.rollingWindowDays) : undefined,
-      ...(s.entityScope === 'portal' ? { portalId: s.entityId || undefined } : {}),
-      ...(s.entityScope === 'team'
-        ? { portalId: s.entityId || undefined, teamId: s.entityId || undefined }
-        : {}),
-      ...(s.entityScope === 'staff'
-        ? {
-            portalId: s.entityId || undefined,
-            teamId: s.entityId || undefined,
-            staffId: s.entityId || undefined,
-          }
-        : {}),
+      ...buildScopeOverrides(s.entityScope, s.entityId),
     }
 
     const errs: Record<string, string> = {}

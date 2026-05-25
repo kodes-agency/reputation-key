@@ -12,9 +12,7 @@ import { scopeLabel, goalTypeLabel } from '#/contexts/goal/ui/helpers'
 import type { EntityScope, AggregationFunction } from '#/shared/domain/metric-keys'
 import { GoalMetricFields } from './goal-create-metric-fields'
 import { GoalCreateExtraFields } from './goal-create-extra-fields'
-import type { Portal } from '#/contexts/portal/domain/types'
-import type { Team } from '#/contexts/team/domain/types'
-import type { StaffAssignment } from '#/contexts/staff/domain/types'
+import type { PortalOption, TeamOption, StaffOption } from './goal-entity-types'
 
 type F = Readonly<{
   state: {
@@ -41,9 +39,9 @@ type F = Readonly<{
   showRecurrenceRule: boolean
   isPending: boolean
   onCancel: () => void
-  portals: readonly Portal[]
-  teams: readonly Team[]
-  staffAssignments: readonly StaffAssignment[]
+  portals: readonly PortalOption[]
+  teams: readonly TeamOption[]
+  staffAssignments: readonly StaffOption[]
   propertyId: string
 }>
 
