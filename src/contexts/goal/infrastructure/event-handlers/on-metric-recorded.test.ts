@@ -68,12 +68,12 @@ function makeFakeDeps() {
     list: async () => [],
     listInstances: async () => [],
     cancelByParent: async () => 0,
-    upsertProgress: async (goalId, aggregation, delta) => {
+    upsertProgress: async (goalId, _orgId, aggregation, delta) => {
       let p = progresses.get(goalId as string)
       if (!p) {
         // Auto-create progress row for newly created goals
         p = {
-          id: `progress-${++progressCounter}` as any,
+          id: `progress-${++progressCounter}` as unknown as GoalProgressId,
           goalId: goalId,
           currentValue: 0,
           currentSum: null,
@@ -106,7 +106,7 @@ function makeFakeDeps() {
     },
     insertProgress: async (data) => {
       const p: MutableProgress = {
-        id: `progress-${++progressCounter}` as any,
+        id: `progress-${++progressCounter}` as unknown as GoalProgressId,
         goalId: data.goalId,
         currentValue: data.currentValue,
         currentSum: data.currentSum,
@@ -115,7 +115,7 @@ function makeFakeDeps() {
         computedSource: data.computedSource,
       }
       progresses.set(data.goalId as string, p)
-      return p as any
+      return p as unknown as GoalProgress
     },
     getProgress: async (goalId) => {
       const p = progresses.get(goalId as string)

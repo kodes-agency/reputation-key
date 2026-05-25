@@ -13,6 +13,7 @@ import {
   getPortalAnalyticsDto,
   type TimeRangePreset,
 } from '../application/dto/dashboard.dto'
+export type { PortalAnalyticsData } from '../domain/types'
 import { propertyId, portalId } from '#/shared/domain/ids'
 import { isDashboardError } from '../domain/errors'
 import type { DashboardErrorCode } from '../domain/errors'

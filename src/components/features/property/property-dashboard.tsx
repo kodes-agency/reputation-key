@@ -9,13 +9,8 @@ import { TIME_RANGE_OPTIONS } from '#/contexts/dashboard/application/dto/dashboa
 import { KPICard } from './property-dashboard-helpers'
 import { ReviewRow } from './property-dashboard-review-row'
 
-interface Property {
-  id: string
-  name: string
-}
-
 export interface PropertyDashboardProps {
-  property: Property | null | undefined
+  property: Readonly<{ id: string; name: string }> | null | undefined
   dashboard: DashboardData
   propertyId: string
   timeRange: TimeRangePreset
@@ -74,24 +69,16 @@ export function PropertyDashboard({
             Engagement Funnel
           </h2>
           <div className="mt-3 grid grid-cols-3 gap-4">
-            <div className="rounded-lg border p-4 text-center">
-              <p className="text-2xl font-semibold tabular-nums">
-                {engagementFunnel.scans}
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">Scans</p>
-            </div>
-            <div className="rounded-lg border p-4 text-center">
-              <p className="text-2xl font-semibold tabular-nums">
-                {engagementFunnel.ratings}
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">Ratings</p>
-            </div>
-            <div className="rounded-lg border p-4 text-center">
-              <p className="text-2xl font-semibold tabular-nums">
-                {engagementFunnel.reviewLinkClicks}
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">Review Clicks</p>
-            </div>
+            {[
+              { value: engagementFunnel.scans, label: 'Scans' },
+              { value: engagementFunnel.ratings, label: 'Ratings' },
+              { value: engagementFunnel.reviewLinkClicks, label: 'Review Clicks' },
+            ].map((item) => (
+              <div key={item.label} className="rounded-lg border p-4 text-center">
+                <p className="text-2xl font-semibold tabular-nums">{item.value}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{item.label}</p>
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -125,20 +112,21 @@ export function PropertyDashboard({
           Reply Performance
         </h2>
         <div className="mt-3 grid grid-cols-2 gap-4">
-          <div className="rounded-lg border p-4 text-center">
-            <p className="text-2xl font-semibold tabular-nums">
-              {replyPerformance.replyRate}%
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">Reply Rate</p>
-          </div>
-          <div className="rounded-lg border p-4 text-center">
-            <p className="text-2xl font-semibold tabular-nums">
-              {replyPerformance.avgReplyHours === null
-                ? '—'
-                : `${Math.round(replyPerformance.avgReplyHours)}h`}
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">Avg Reply Time</p>
-          </div>
+          {[
+            { value: `${replyPerformance.replyRate}%`, label: 'Reply Rate' },
+            {
+              value:
+                replyPerformance.avgReplyHours === null
+                  ? '—'
+                  : `${Math.round(replyPerformance.avgReplyHours)}h`,
+              label: 'Avg Reply Time',
+            },
+          ].map((item) => (
+            <div key={item.label} className="rounded-lg border p-4 text-center">
+              <p className="text-2xl font-semibold tabular-nums">{item.value}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{item.label}</p>
+            </div>
+          ))}
         </div>
       </div>
 

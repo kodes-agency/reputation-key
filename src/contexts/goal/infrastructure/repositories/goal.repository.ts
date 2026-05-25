@@ -337,8 +337,19 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
     })
   },
 
-  upsertProgress: async (goalId, aggregation, delta) => {
+  upsertProgress: async (goalId, organizationId, aggregation, delta) => {
     return trace('goal.upsertProgress', async () => {
+      // Verify the goal belongs to this organization before upserting
+      const [row] = await db
+        .select({ organizationId: goals.organizationId })
+        .from(goals)
+        .where(eq(goals.id, goalId))
+        .limit(1)
+
+      if (!row || row.organizationId !== organizationId) {
+        throw new Error(`upsertProgress: goal ${goalId} not found or tenant mismatch`)
+      }
+
       if (aggregation === 'sum' || aggregation === 'count') {
         const incDelta = aggregation === 'count' ? 1 : delta
         const result = await db

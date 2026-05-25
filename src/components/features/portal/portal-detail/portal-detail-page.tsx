@@ -1,6 +1,5 @@
 // Portal detail page — tabbed layout: Settings, Links, Share, Analytics
 // Tab state via search params (?tab=settings|links|share|analytics)
-// Preview panel shown only on Settings + Links tabs
 
 import { useState, useRef } from 'react'
 import { Link, useRouter } from '@tanstack/react-router'
@@ -11,10 +10,9 @@ import { PortalSettings } from '../portal-settings/portal-settings'
 import { LinkTree } from '../link-tree/link-tree'
 import { PortalShare } from '../portal-share/portal-share'
 import { PortalAnalyticsTab } from '../portal-analytics/portal-analytics-tab'
-import { PortalPreviewPanel } from '../portal-preview/portal-preview-panel'
 import { usePreviewToggle } from '../portal-preview/use-preview-toggle'
+import { PortalDetailPreview } from './portal-detail-preview'
 import type { Action } from '#/components/hooks/use-action'
-import type { PortalCategory, PortalLinkItem } from '#/components/features/guest'
 import type { LinkTreeCategory, LinkTreeLink } from '../link-tree/link-tree-types'
 import type { FormLike, UpdatePortalVariables } from '../shared/types'
 
@@ -51,7 +49,6 @@ type Props = Readonly<{
 export function PortalDetailPage({
   portal,
   organizationName,
-  propertySlug,
   propertyId,
   categories,
   links,
@@ -70,11 +67,10 @@ export function PortalDetailPage({
     portal.smartRoutingThreshold,
   )
 
-  // Tab state from search params (untyped — route doesn't define search schema)
   const router = useRouter()
   const currentTab: TabName = (() => {
     const params = new URLSearchParams(
-      typeof window !== 'undefined' ? window.location.search : ''
+      typeof window !== 'undefined' ? window.location.search : '',
     )
     const t = params.get('tab')
     return VALID_TABS.includes(t as TabName) ? (t as TabName) : 'settings'
@@ -88,25 +84,6 @@ export function PortalDetailPage({
 
   const showPreview = currentTab === 'settings' || currentTab === 'links'
 
-  const previewPortal = {
-    id: portal.id,
-    name: portal.name,
-    description: portal.description,
-    organizationName,
-    heroImageUrl: portal.heroImageUrl,
-    theme: { primaryColor },
-  }
-  const previewCategories: PortalCategory[] = categories.map((c) => ({
-    id: c.id,
-    title: c.title,
-  }))
-  const previewLinks: PortalLinkItem[] = links.map((l) => ({
-    id: l.id,
-    label: l.label,
-    url: l.url,
-    categoryId: l.categoryId,
-  }))
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -116,7 +93,11 @@ export function PortalDetailPage({
           </Link>
         </Button>
         {showPreview && (
-          <Button variant="outline" size="sm" onClick={() => setPreviewOpen(!previewOpen)}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setPreviewOpen(!previewOpen)}
+          >
             <Eye className="size-3.5 mr-1" /> {previewOpen ? 'Hide Preview' : 'Preview'}
           </Button>
         )}
@@ -162,22 +143,23 @@ export function PortalDetailPage({
       )}
 
       {currentTab === 'share' && (
-        <PortalShare portalSlug={portal.slug} propertySlug={propertySlug} />
+        <PortalShare portalSlug={portal.slug} propertySlug={portal.slug} />
       )}
 
       {currentTab === 'analytics' && (
         <PortalAnalyticsTab portalId={portal.id} propertyId={propertyId} />
       )}
 
-      {showPreview && (
-        <PortalPreviewPanel
-          open={previewOpen}
-          onOpenChange={setPreviewOpen}
-          portal={previewPortal}
-          categories={previewCategories}
-          links={previewLinks}
-        />
-      )}
+      <PortalDetailPreview
+        show={showPreview}
+        open={previewOpen}
+        onOpenChange={setPreviewOpen}
+        portal={portal}
+        organizationName={organizationName}
+        primaryColor={primaryColor}
+        categories={categories}
+        links={links}
+      />
     </div>
   )
 }
