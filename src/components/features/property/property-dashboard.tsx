@@ -9,13 +9,8 @@ import { TIME_RANGE_OPTIONS } from '#/contexts/dashboard/application/dto/dashboa
 import { KPICard } from './property-dashboard-helpers'
 import { ReviewRow } from './property-dashboard-review-row'
 
-interface Property {
-  id: string
-  name: string
-}
-
 export interface PropertyDashboardProps {
-  property: Property | null | undefined
+  property: Readonly<{ id: string; name: string }> | null | undefined
   dashboard: DashboardData
   propertyId: string
   timeRange: TimeRangePreset
