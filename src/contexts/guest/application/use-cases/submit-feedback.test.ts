@@ -46,7 +46,6 @@ describe('submitFeedback', () => {
       comment: 'Great service!',
       source: 'qr',
       ipHash: 'hash',
-      staffId: null,
     })
 
     expect(result.comment).toBe('Great service!')

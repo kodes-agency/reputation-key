@@ -18,7 +18,7 @@ export function EntityPicker({
   errors,
   portals,
   teams,
-  staffAssignments,
+  _staffAssignments,
   propertyId,
 }: {
   entityScope: EntityScope
@@ -96,44 +96,6 @@ export function EntityPicker({
             {teams.map((t) => (
               <SelectItem key={t.id} value={t.id}>
                 {t.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {errors.entityId && (
-          <span className="text-sm text-destructive">{errors.entityId}</span>
-        )}
-      </Field>
-    )
-  }
-
-  if (entityScope === 'portal') {
-    return staffAssignments.length === 0 ? (
-      <Field>
-        <FieldLabel>Staff Member</FieldLabel>
-        <p className="text-sm text-muted-foreground">
-          No staff assigned yet. Assign staff on the{' '}
-          <Link
-            to="/properties/$propertyId/people"
-            params={{ propertyId }}
-            className="text-sm font-medium text-primary underline-offset-4 hover:underline"
-          >
-            People
-          </Link>{' '}
-          page to set staff-scoped goals.
-        </p>
-      </Field>
-    ) : (
-      <Field>
-        <FieldLabel>Staff Member</FieldLabel>
-        <Select value={entityId} onValueChange={(v) => setters.entityId(v)}>
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="Select a staff member" />
-          </SelectTrigger>
-          <SelectContent>
-            {staffAssignments.map((a) => (
-              <SelectItem key={a.id} value={a.userId}>
-                {a.userId}
               </SelectItem>
             ))}
           </SelectContent>
