@@ -5,7 +5,6 @@ import {
   organizationId,
   portalId,
   propertyId,
-  staffId,
   ratingId,
   feedbackId,
 } from '#/shared/domain/ids'
@@ -18,61 +17,36 @@ const base = {
 }
 
 describe('ScanRecorded event', () => {
-  it('accepts nullable staffId', () => {
-    const withStaff = scanRecorded({
+  it('creates event with valid payload', () => {
+    const event = scanRecorded({
       ...base,
       scanId: scanEventId('scan-1'),
       source: 'qr',
-      staffId: staffId('staff-1'),
     })
-    expect(withStaff.staffId).toBe('staff-1')
-
-    const withoutStaff = scanRecorded({
-      ...base,
-      scanId: scanEventId('scan-2'),
-      source: 'qr',
-      staffId: null,
-    })
-    expect(withoutStaff.staffId).toBeNull()
+    expect(event.scanId).toBe('scan-1')
+    expect(event.source).toBe('qr')
   })
 })
 
 describe('RatingSubmitted event', () => {
-  it('accepts nullable staffId', () => {
-    const withStaff = ratingSubmitted({
+  it('creates event with valid payload', () => {
+    const event = ratingSubmitted({
       ...base,
       ratingId: ratingId('rating-1'),
       value: 5,
-      staffId: staffId('staff-1'),
     })
-    expect(withStaff.staffId).toBe('staff-1')
-
-    const withoutStaff = ratingSubmitted({
-      ...base,
-      ratingId: ratingId('rating-2'),
-      value: 4,
-      staffId: null,
-    })
-    expect(withoutStaff.staffId).toBeNull()
+    expect(event.ratingId).toBe('rating-1')
+    expect(event.value).toBe(5)
   })
 })
 
 describe('FeedbackSubmitted event', () => {
-  it('accepts nullable staffId', () => {
-    const withStaff = feedbackSubmitted({
+  it('creates event with valid payload', () => {
+    const event = feedbackSubmitted({
       ...base,
       feedbackId: feedbackId('fb-1'),
       ratingId: null,
-      staffId: staffId('staff-1'),
     })
-    expect(withStaff.staffId).toBe('staff-1')
-
-    const withoutStaff = feedbackSubmitted({
-      ...base,
-      feedbackId: feedbackId('fb-2'),
-      ratingId: null,
-      staffId: null,
-    })
-    expect(withoutStaff.staffId).toBeNull()
+    expect(event.feedbackId).toBe('fb-1')
   })
 })

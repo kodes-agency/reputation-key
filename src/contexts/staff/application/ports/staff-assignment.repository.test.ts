@@ -16,50 +16,28 @@ function buildAssignment() {
     propertyId: propertyId('prop-1'),
     teamId: teamId('team-1'),
     userId: userId('user-1'),
-    referralCode: 'j-doe-a3f2',
     now: new Date('2026-05-01T12:00:00Z'),
   })
   if (result.isErr()) throw result.error
   return result.value
 }
 
-describe('StaffAssignmentRepository.findByReferralCode', () => {
-  it('finds assignment by referral code', async () => {
+describe('StaffAssignmentRepository', () => {
+  it('can satisfy the port interface', async () => {
     const assignment = buildAssignment()
     const repo: StaffAssignmentRepository = {
-      findById: async () => null,
-      listByUser: async () => [],
-      listByProperty: async () => [],
-      listByTeam: async () => [],
-      assignmentExists: async () => false,
+      findById: async () => assignment,
+      listByUser: async () => [assignment],
+      listByProperty: async () => [assignment],
+      listByTeam: async () => [assignment],
+      assignmentExists: async () => true,
       insert: async () => {},
       softDelete: async () => {},
-      getAccessiblePropertyIds: async () => [],
-      findByReferralCode: async (_orgId, code) => {
-        if (code === 'j-doe-a3f2') return assignment
-        return null
-      },
+      getAccessiblePropertyIds: async () => [propertyId('prop-1')],
     }
 
-    const result = await repo.findByReferralCode!(organizationId('org-1'), 'j-doe-a3f2')
-    expect(result).not.toBeNull()
-    expect(result!.referralCode).toBe('j-doe-a3f2')
-  })
-
-  it('returns null for unknown referral code', async () => {
-    const repo: StaffAssignmentRepository = {
-      findById: async () => null,
-      listByUser: async () => [],
-      listByProperty: async () => [],
-      listByTeam: async () => [],
-      assignmentExists: async () => false,
-      insert: async () => {},
-      softDelete: async () => {},
-      getAccessiblePropertyIds: async () => [],
-      findByReferralCode: async () => null,
-    }
-
-    const result = await repo.findByReferralCode!(organizationId('org-1'), 'unknown-code')
-    expect(result).toBeNull()
+    const found = await repo.findById(organizationId('org-1'), staffAssignmentId('sa-1'))
+    expect(found).not.toBeNull()
+    expect(found!.id).toBe('sa-1')
   })
 })

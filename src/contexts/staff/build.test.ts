@@ -21,7 +21,6 @@ const seedAssignment = (overrides: Partial<StaffAssignment> = {}): StaffAssignme
     propertyId: propertyId('prop-1'),
     teamId: null,
     portalId: null,
-    referralCode: null,
     createdAt: new Date('2025-01-01'),
     updatedAt: new Date('2025-01-01'),
     deletedAt: null,

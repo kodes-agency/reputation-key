@@ -32,8 +32,7 @@ const makeGoal = (
   organizationId: ORG_ID,
   propertyId: PROP_ID,
   portalId: null,
-  teamId: null,
-  staffId: null,
+  groupId: null,
   name: `Goal ${overrides.id}`,
   description: null,
   createdBy: USER_ID,
@@ -117,11 +116,11 @@ const createFakeGoalRepo = (state: {
   updateProgress: async () => null,
   findActiveGoalsByMetric: async () => [],
   upsertProgress: async () => ({
-      currentValue: 0,
-      currentSum: null,
-      currentCount: null,
-    }),
-    incrementProgress: async () => ({
+    currentValue: 0,
+    currentSum: null,
+    currentCount: null,
+  }),
+  incrementProgress: async () => ({
     currentValue: 0,
     currentSum: null,
     currentCount: null,

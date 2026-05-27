@@ -5,7 +5,6 @@ import {
   organizationId,
   portalId,
   propertyId,
-  staffId,
   ratingId,
   feedbackId,
 } from '#/shared/domain/ids'
@@ -23,7 +22,6 @@ export const scanEventFromRow = (row: ScanEventRow): ScanEvent => ({
   source: row.source as ScanEvent['source'],
   sessionId: row.sessionId,
   ipHash: row.ipHash,
-  staffId: row.staffId ? staffId(row.staffId) : null,
   createdAt: row.createdAt,
 })
 
@@ -36,7 +34,6 @@ export const ratingFromRow = (row: RatingRow): Rating => ({
   value: row.value,
   source: row.source as Rating['source'],
   ipHash: row.ipHash,
-  staffId: row.staffId ? staffId(row.staffId) : null,
   createdAt: row.createdAt,
 })
 
@@ -50,7 +47,6 @@ export const feedbackFromRow = (row: FeedbackRow): Feedback => ({
   comment: row.comment,
   source: row.source as Feedback['source'],
   ipHash: row.ipHash,
-  staffId: row.staffId ? staffId(row.staffId) : null,
   createdAt: row.createdAt,
 })
 
@@ -62,7 +58,6 @@ export const scanEventToRow = (scan: ScanEvent) => ({
   source: scan.source,
   sessionId: scan.sessionId,
   ipHash: scan.ipHash,
-  staffId: scan.staffId as string | null,
   createdAt: scan.createdAt,
 })
 
@@ -75,7 +70,6 @@ export const ratingToRow = (rating: Rating) => ({
   value: rating.value,
   source: rating.source,
   ipHash: rating.ipHash,
-  staffId: rating.staffId as string | null,
   createdAt: rating.createdAt,
 })
 
@@ -89,6 +83,5 @@ export const feedbackToRow = (fb: Feedback) => ({
   comment: fb.comment,
   source: fb.source,
   ipHash: fb.ipHash,
-  staffId: fb.staffId as string | null,
   createdAt: fb.createdAt,
 })

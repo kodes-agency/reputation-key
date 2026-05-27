@@ -192,7 +192,6 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     events: eventBus,
     clock,
     linkResolver: portal.linkResolver,
-    staffApi: staff.publicApi,
     portalApi: portal.publicApi,
     logger,
   })

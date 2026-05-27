@@ -24,9 +24,10 @@ export const portalErrorStatus = (code: PortalErrorCode): number =>
       'property_not_found',
       'category_not_found',
       'link_not_found',
+      'group_not_found',
       () => 404,
     )
-    .with('slug_taken', () => 409)
+    .with('slug_taken', 'group_name_taken', () => 409)
     .with('upload_failed', () => 422)
     .with(
       'invalid_slug',
@@ -208,7 +209,11 @@ export const requestUploadUrl = createServerFn({ method: 'POST' })
             throwContextError('PortalError', e, portalErrorStatus(e.code))
           const { getLogger } = await import('#/shared/observability/logger')
           getLogger().error({ err: e }, 'Upload request failed')
-          throwContextError('PortalError', { code: 'upload_failed', message: 'Upload request failed' }, 422)
+          throwContextError(
+            'PortalError',
+            { code: 'upload_failed', message: 'Upload request failed' },
+            422,
+          )
         }
       },
       'POST',
@@ -235,7 +240,11 @@ export const finalizeUpload = createServerFn({ method: 'POST' })
             throwContextError('PortalError', e, portalErrorStatus(e.code))
           const { getLogger } = await import('#/shared/observability/logger')
           getLogger().error({ err: e }, 'Upload finalization failed')
-          throwContextError('PortalError', { code: 'upload_failed', message: 'Upload finalization failed' }, 422)
+          throwContextError(
+            'PortalError',
+            { code: 'upload_failed', message: 'Upload finalization failed' },
+            422,
+          )
         }
       },
       'POST',

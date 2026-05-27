@@ -12,8 +12,7 @@ import { createStaffAssignment } from './application/use-cases/create-staff-assi
 import { removeStaffAssignment } from './application/use-cases/remove-staff-assignment'
 import { listStaffAssignments } from './application/use-cases/list-staff-assignments'
 import { staffAssignmentId } from '#/shared/domain/ids'
-import { randomUUID, randomBytes } from 'crypto'
-import type { RandomBytesFn } from './domain/referral-code'
+import { randomUUID } from 'crypto'
 
 type StaffContextDeps = Readonly<{
   repo: StaffAssignmentRepository
@@ -30,7 +29,6 @@ export const buildStaffContext = (deps: StaffContextDeps) => {
       events: deps.events,
       idGen,
       clock: deps.clock,
-      randomBytesFn: randomBytes as RandomBytesFn,
     }),
     removeStaffAssignment: removeStaffAssignment({
       assignmentRepo: deps.repo,
@@ -50,10 +48,6 @@ export const buildStaffContext = (deps: StaffContextDeps) => {
     ) => {
       if (hasRole(role, 'AccountAdmin')) return null
       return deps.repo.getAccessiblePropertyIds(orgId, userId)
-    },
-    findByReferralCode: async (orgId, referralCode) => {
-      const assignment = await deps.repo.findByReferralCode(orgId, referralCode)
-      return assignment ? { userId: assignment.userId } : null
     },
   }
 

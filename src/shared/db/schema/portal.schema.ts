@@ -14,6 +14,7 @@ import {
   index,
   uniqueIndex,
 } from 'drizzle-orm/pg-core'
+import { portalGroups } from './portal-group.schema'
 
 // ── portals ────────────────────────────────────────────────────────
 
@@ -33,6 +34,7 @@ export const portals = pgTable(
     smartRoutingEnabled: boolean('smart_routing_enabled').notNull().default(false),
     smartRoutingThreshold: smallint('smart_routing_threshold').notNull().default(4),
     isActive: boolean('is_active').notNull().default(true),
+    groupId: uuid('group_id').references(() => portalGroups.id, { onDelete: 'set null' }),
     createdAt: createdAtColumn(),
     updatedAt: updatedAtColumn(),
     deletedAt: deletedAtColumn(),

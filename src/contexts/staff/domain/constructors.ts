@@ -23,7 +23,6 @@ export type BuildStaffAssignmentInput = Readonly<{
   propertyId: PropertyId
   teamId?: TeamId | null
   portalId?: PortalId | null
-  referralCode?: string | null
   actingUserId?: UserId
   now: Date
 }>
@@ -46,7 +45,6 @@ export const buildStaffAssignment = (
     propertyId: input.propertyId,
     teamId: input.teamId ?? null,
     portalId: input.portalId ?? null,
-    referralCode: input.referralCode ?? null,
     createdAt: input.now,
     updatedAt: input.now,
     deletedAt: null,

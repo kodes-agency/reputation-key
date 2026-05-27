@@ -11,8 +11,7 @@ import {
   organizationId,
   propertyId,
   portalId,
-  teamId,
-  staffId,
+  portalGroupId,
   goalId,
   userId,
 } from '#/shared/domain/ids'
@@ -31,8 +30,7 @@ function makeGoal(overrides: Partial<Goal> & { goalType: Goal['goalType'] }): Go
     organizationId: organizationId('org-1'),
     propertyId: propertyId('prop-1'),
     portalId: null,
-    teamId: null,
-    staffId: null,
+    groupId: null,
     name: 'Test goal',
     description: null,
     createdBy: userId('user-1'),
@@ -314,8 +312,7 @@ describe('buildProgressQuery', () => {
       expect(query.scopeFilter).toEqual({
         propertyId: propertyId('prop-1'),
         portalId: null,
-        teamId: null,
-        staffId: null,
+        groupId: null,
       })
     })
 
@@ -328,36 +325,20 @@ describe('buildProgressQuery', () => {
       expect(result.isOk()).toBe(true)
       const query = result._unsafeUnwrap()
       expect(query.scopeFilter.portalId).toEqual(portalId('portal-1'))
-      expect(query.scopeFilter.teamId).toBeNull()
-      expect(query.scopeFilter.staffId).toBeNull()
+      expect(query.scopeFilter.groupId).toBeNull()
     })
 
-    it('team scope', () => {
+    it('group scope', () => {
       const goal = makeGoal({
         goalType: 'open',
-        teamId: teamId('team-1'),
+        groupId: portalGroupId('group-1'),
         metricKey: 'portal.scan',
       })
       const result = buildProgressQuery(goal)
       expect(result.isOk()).toBe(true)
       const query = result._unsafeUnwrap()
-      expect(query.scopeFilter.teamId).toEqual(teamId('team-1'))
+      expect(query.scopeFilter.groupId).toEqual(portalGroupId('group-1'))
       expect(query.scopeFilter.portalId).toBeNull()
-      expect(query.scopeFilter.staffId).toBeNull()
-    })
-
-    it('staff scope', () => {
-      const goal = makeGoal({
-        goalType: 'open',
-        staffId: staffId('staff-1'),
-        metricKey: 'portal.scan',
-      })
-      const result = buildProgressQuery(goal)
-      expect(result.isOk()).toBe(true)
-      const query = result._unsafeUnwrap()
-      expect(query.scopeFilter.staffId).toEqual(staffId('staff-1'))
-      expect(query.scopeFilter.portalId).toBeNull()
-      expect(query.scopeFilter.teamId).toBeNull()
     })
   })
 
@@ -412,8 +393,7 @@ describe('buildProgressQuery', () => {
         goalType: 'recurring',
         recurrenceRule: { frequency: 'monthly' },
         portalId: portalId('p-1'),
-        teamId: teamId('t-1'),
-        staffId: staffId('s-1'),
+        groupId: portalGroupId('g-1'),
         metricKey: 'portal.scan',
       })
       const result = buildProgressQueryForInstance(goal, INSTANCE_START, INSTANCE_END)
@@ -422,8 +402,7 @@ describe('buildProgressQuery', () => {
       expect(query.scopeFilter).toEqual({
         propertyId: propertyId('prop-1'),
         portalId: portalId('p-1'),
-        teamId: teamId('t-1'),
-        staffId: staffId('s-1'),
+        groupId: portalGroupId('g-1'),
       })
     })
   })

@@ -10,8 +10,7 @@ import {
   organizationId,
   propertyId,
   portalId,
-  teamId,
-  staffId,
+  portalGroupId,
   goalId,
   goalProgressId,
   userId,
@@ -39,8 +38,7 @@ function createFakeDeps() {
         organizationId: data.organizationId,
         propertyId: data.propertyId,
         portalId: data.portalId,
-        teamId: data.teamId,
-        staffId: data.staffId,
+        groupId: data.groupId,
         name: data.name,
         description: data.description,
         createdBy: data.createdBy,
@@ -144,8 +142,7 @@ const BASE_INPUT = {
   organizationId: organizationId('org-1'),
   propertyId: propertyId('prop-1'),
   portalId: null as ReturnType<typeof portalId> | null,
-  teamId: null as ReturnType<typeof teamId> | null,
-  staffId: null as ReturnType<typeof staffId> | null,
+  groupId: null as ReturnType<typeof portalGroupId> | null,
   name: 'Get 200 scans',
   description: null as string | null,
   createdBy: userId('user-1'),
@@ -407,7 +404,7 @@ describe('createGoal', () => {
       const result = await createGoal(fakes.deps)({
         ...BASE_INPUT,
         goalType: 'open',
-        staffId: staffId('staff-1'),
+        groupId: portalGroupId('group-1'),
         metricKey: 'property.review',
       })
 

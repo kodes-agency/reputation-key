@@ -16,7 +16,7 @@ import {
   organizationId as orgIdCtor,
   propertyId as propIdCtor,
   portalId as portalIdCtor,
-  staffId as staffIdCtor,
+  portalGroupId as groupIdCtor,
 } from '#/shared/domain/ids'
 import { createMetricReading } from '../../domain/constructors'
 import { trace } from '#/shared/observability/trace'
@@ -40,7 +40,7 @@ function readingFromRow(row: typeof metricReadings.$inferSelect) {
     portalId: row.portalId ? portalIdCtor(row.portalId) : null,
     metricKey: row.metricKey as MetricKey,
     value: row.value,
-    staffId: row.staffId ? staffIdCtor(row.staffId) : null,
+    groupId: row.groupId ? groupIdCtor(row.groupId) : null,
     recordedAt: row.recordedAt,
   })
   if (result.isErr()) {
@@ -60,7 +60,7 @@ export const createMetricRepository = (db: Database): MetricRepository => ({
           portalId: reading.portalId,
           metricKey: reading.metricKey,
           value: reading.value,
-          staffId: reading.staffId,
+          groupId: reading.groupId,
           recordedAt: reading.recordedAt,
         })
         .returning()
@@ -104,8 +104,8 @@ export const createMetricRepository = (db: Database): MetricRepository => ({
       if (query.portalId) {
         conditions.push(eq(metricReadings.portalId, query.portalId))
       }
-      if (query.staffId) {
-        conditions.push(eq(metricReadings.staffId, query.staffId))
+      if (query.groupId) {
+        conditions.push(eq(metricReadings.groupId, query.groupId))
       }
       if (query.periodStart) {
         conditions.push(gte(metricReadings.recordedAt, query.periodStart))

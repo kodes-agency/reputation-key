@@ -54,10 +54,10 @@ _Avoid_: Review gating, filtering, moderation
 
 ## Events produced
 
-- **`scan.recorded`** — scanId, organizationId, portalId, propertyId, source, staffId, occurredAt.
-- **`rating.submitted`** — ratingId, organizationId, portalId, propertyId, value, staffId, occurredAt.
-- **`feedback.submitted`** — feedbackId, organizationId, portalId, propertyId, ratingId, staffId, occurredAt.
-- **`review-link.clicked`** — linkId, organizationId, portalId, propertyId, staffId, occurredAt.
+- **`scan.recorded`** — scanId, organizationId, portalId, propertyId, source, occurredAt.
+- **`rating.submitted`** — ratingId, organizationId, portalId, propertyId, value, occurredAt.
+- **`feedback.submitted`** — feedbackId, organizationId, portalId, propertyId, ratingId, occurredAt.
+- **`review-link.clicked`** — linkId, organizationId, portalId, propertyId, occurredAt.
 
 ## Events consumed
 
@@ -72,10 +72,10 @@ guest/
     ports/             guest-interaction.repository.ts, portal-context-resolver.port.ts,
                        public-portal-lookup.port.ts
     dto/               rating.dto.ts, feedback.dto.ts, public-portal.dto.ts
-    use-cases/         record-scan.ts, record-scan-with-ref.ts, submit-rating.ts,
+    use-cases/         record-scan.ts, submit-rating.ts,
                        submit-feedback.ts, track-review-link-click.ts,
                        resolve-link-and-track.ts, resolve-portal-context.ts,
-                       get-public-portal.ts, get-staff-id-for-session.ts
+                       get-public-portal.ts
     public-api.ts      re-exports domain types, event types/constructors
   infrastructure/
     repositories/      guest-interaction.repository.ts

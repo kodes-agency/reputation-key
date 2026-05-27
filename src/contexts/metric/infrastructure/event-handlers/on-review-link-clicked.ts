@@ -17,7 +17,7 @@ export const onReviewLinkClicked =
         portalId: event.portalId,
         metricKey: 'portal.review_link_click',
         value: 1,
-        staffId: event.staffId ?? null,
+        groupId: null,
       })
     } catch (err) {
       getLogger().error(

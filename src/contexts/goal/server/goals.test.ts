@@ -38,8 +38,7 @@ describe('createGoalSchema', () => {
     const input = {
       ...validInput,
       portalId: 'portal-1',
-      teamId: 'team-1',
-      staffId: 'staff-1',
+      groupId: 'group-1',
       description: 'Increase scans',
       periodStart: '2026-01-01T00:00:00',
       periodEnd: '2026-12-31T23:59:59',
@@ -195,8 +194,7 @@ describe('listGoalsSchema', () => {
     const input = {
       propertyId: 'prop-1',
       portalId: 'portal-1',
-      teamId: 'team-1',
-      staffId: 'staff-1',
+      groupId: 'group-1',
       status: 'active' as const,
       goalType: 'rolling' as const,
     }

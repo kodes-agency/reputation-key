@@ -44,7 +44,6 @@ function seedItem(id: string, status: InboxStatus, propId: string = 'prop-1'): I
 
 const defaultStaffApi: StaffPublicApi = {
   getAccessiblePropertyIds: async () => null,
-  findByReferralCode: async () => null,
 }
 
 const setup = (staffApi: StaffPublicApi = defaultStaffApi) => {
@@ -170,7 +169,6 @@ describe('bulkUpdateInboxStatus', () => {
     // When accessible properties are empty, all items are skipped (returns 0 updated)
     const staffApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [],
-      findByReferralCode: async () => null,
     }
     const { useCase, repo } = setup(staffApi)
     repo.items.push(seedItem('ii-1', 'new', 'prop-1'))
@@ -194,7 +192,6 @@ describe('bulkUpdateInboxStatus', () => {
     // Staff does NOT have inbox.manage, so the property access check fires
     const staffApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [propertyId('prop-1')],
-      findByReferralCode: async () => null,
     }
     const { useCase, repo } = setup(staffApi)
     repo.items.push(seedItem('ii-1', 'new', 'prop-1'))
@@ -218,7 +215,6 @@ describe('bulkUpdateInboxStatus', () => {
       getAccessiblePropertyIds: async () => {
         throw new Error('Should not be called for AccountAdmin')
       },
-      findByReferralCode: async () => null,
     }
     const { useCase, repo } = setup(staffApi)
     repo.items.push(seedItem('ii-1', 'new', 'prop-1'))

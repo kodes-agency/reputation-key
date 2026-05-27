@@ -5,34 +5,34 @@ import {
   organizationId,
   propertyId,
   portalId,
-  staffId,
+  portalGroupId,
 } from '#/shared/domain/ids'
 
 describe('metricRecorded event', () => {
-  it('accepts nullable staffId', () => {
-    const withStaff = metricRecorded({
+  it('accepts nullable groupId', () => {
+    const withGroup = metricRecorded({
       readingId: metricReadingId('mr-1'),
       organizationId: organizationId('org-1'),
       propertyId: propertyId('prop-1'),
       portalId: portalId('portal-1'),
       metricKey: 'portal.scan',
       value: 1,
-      staffId: staffId('staff-1'),
+      groupId: portalGroupId('group-1'),
       recordedAt: new Date('2026-01-01'),
     })
-    expect(withStaff._tag).toBe('metric.recorded')
-    expect(withStaff.staffId).toBe('staff-1')
+    expect(withGroup._tag).toBe('metric.recorded')
+    expect(withGroup.groupId).toBe('group-1')
 
-    const withoutStaff = metricRecorded({
+    const withoutGroup = metricRecorded({
       readingId: metricReadingId('mr-2'),
       organizationId: organizationId('org-1'),
       propertyId: propertyId('prop-1'),
       portalId: null,
       metricKey: 'portal.scan',
       value: 1,
-      staffId: null,
+      groupId: null,
       recordedAt: new Date('2026-01-01'),
     })
-    expect(withoutStaff.staffId).toBeNull()
+    expect(withoutGroup.groupId).toBeNull()
   })
 })

@@ -19,7 +19,6 @@ export type StaffAssignment = Readonly<{
   propertyId: PropertyId
   teamId: TeamId | null
   portalId: PortalId | null
-  referralCode: string | null
   createdAt: Date
   updatedAt: Date
   deletedAt: Date | null

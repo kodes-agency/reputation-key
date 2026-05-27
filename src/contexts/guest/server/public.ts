@@ -14,12 +14,11 @@ import { portalId, portalLinkId, ratingId } from '#/shared/domain/ids'
 import { getEnv } from '#/shared/config/env'
 import { createHash } from 'crypto'
 
-// ── recordScanWithRef ──────────────────────────────────────────────
+// ── recordScan ────────────────────────────────────────────────────
 
 const recordScanSchema = z.object({
   portalId: z.string().min(1),
   source: z.enum(['qr', 'nfc', 'direct']),
-  referralCode: z.string().nullable().optional(),
 })
 
 export const recordScanFn = createServerFn({ method: 'POST' })
@@ -42,14 +41,13 @@ export const recordScanFn = createServerFn({ method: 'POST' })
         })
 
         try {
-          await useCases.recordScanWithRef({
+          await useCases.recordScan({
             organizationId: ctx.organizationId,
             portalId: portalId(data.portalId),
             propertyId: ctx.propertyId,
             source: data.source,
             sessionId,
             ipHash,
-            referralCode: data.referralCode ?? null,
           })
           return { success: true }
         } catch (e) {

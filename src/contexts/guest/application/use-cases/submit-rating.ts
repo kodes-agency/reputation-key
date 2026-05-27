@@ -1,13 +1,7 @@
 import type { Rating } from '../../domain/types'
 import type { GuestInteractionRepository } from '../ports/guest-interaction.repository'
 import type { EventBus } from '#/shared/events/event-bus'
-import type {
-  OrganizationId,
-  PortalId,
-  PropertyId,
-  RatingId,
-  StaffId,
-} from '#/shared/domain/ids'
+import type { OrganizationId, PortalId, PropertyId, RatingId } from '#/shared/domain/ids'
 import type { ScanSource } from '../../domain/types'
 import { buildRating } from '../../domain/constructors'
 import { guestError } from '../../domain/errors'
@@ -28,7 +22,6 @@ export type SubmitRatingInput = Readonly<{
   value: number
   source: ScanSource
   ipHash: string
-  staffId: StaffId | null
 }>
 
 export const submitRating =
@@ -52,7 +45,6 @@ export const submitRating =
       value: input.value,
       source: input.source,
       ipHash: input.ipHash,
-      staffId: input.staffId,
       now: deps.clock(),
     })
 
@@ -70,7 +62,6 @@ export const submitRating =
         portalId: input.portalId,
         propertyId: input.propertyId,
         value: rating.value,
-        staffId: input.staffId,
         occurredAt: rating.createdAt,
       }),
     )

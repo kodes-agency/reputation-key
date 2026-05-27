@@ -32,6 +32,7 @@ export function onMetricRecorded(deps: OnMetricRecordedDeps) {
           event.organizationId,
           event.propertyId,
           event.portalId,
+          event.groupId ?? null,
         )
       } catch (err) {
         deps
@@ -84,8 +85,7 @@ export function onMetricRecorded(deps: OnMetricRecordedDeps) {
               organizationId: goal.organizationId,
               propertyId: goal.propertyId,
               portalId: goal.portalId,
-              teamId: goal.teamId,
-              staffId: goal.staffId,
+              groupId: goal.groupId,
               goalType: goal.goalType,
               aggregationFunction: goal.aggregationFunction,
               metricKey: goal.metricKey,

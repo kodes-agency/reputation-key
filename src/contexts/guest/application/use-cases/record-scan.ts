@@ -5,7 +5,6 @@ import type {
   PortalId,
   PropertyId,
   ScanEventId,
-  StaffId,
 } from '#/shared/domain/ids'
 import type { ScanSource } from '../../domain/types'
 import type { LoggerPort } from '#/shared/domain/logger.port'
@@ -26,7 +25,6 @@ export type RecordScanInput = Readonly<{
   source: ScanSource
   sessionId: string
   ipHash: string
-  staffId: StaffId | null
 }>
 
 export const recordScan =
@@ -47,7 +45,6 @@ export const recordScan =
           portalId: input.portalId,
           propertyId: input.propertyId,
           source: input.source,
-          staffId: input.staffId,
           occurredAt: scan.createdAt,
         }),
       )

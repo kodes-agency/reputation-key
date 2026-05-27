@@ -81,23 +81,16 @@ export function sortGoalsByStatus(goals: Goal[]): Goal[] {
   })
 }
 
-// ── 5. filterGoalsForStaffView ─────────────────────────────────────────
+// ── 5. filterGoalsForGroupView ─────────────────────────────────────────
 
 const VISIBLE_STATUSES: ReadonlySet<GoalStatus> = new Set(['active', 'completed'])
 
-export function filterGoalsForStaffView(
-  goals: Goal[],
-  staffIds: string[],
-  teamIds: string[],
-): Goal[] {
-  const staffSet = new Set(staffIds)
-  const teamSet = new Set(teamIds)
+export function filterGoalsForGroupView(goals: Goal[], groupIds: string[]): Goal[] {
+  const groupSet = new Set(groupIds)
 
   return goals.filter((g) => {
     if (!VISIBLE_STATUSES.has(g.status)) return false
-    const matchesStaff = g.staffId != null && staffSet.has(g.staffId)
-    const matchesTeam = g.teamId != null && teamSet.has(g.teamId)
-    return matchesStaff || matchesTeam
+    return g.groupId != null && groupSet.has(g.groupId)
   })
 }
 
@@ -197,10 +190,8 @@ export function scopeLabel(scope: EntityScope): string {
       return 'Property'
     case 'portal':
       return 'Portal'
-    case 'team':
-      return 'Team'
-    case 'staff':
-      return 'Staff'
+    case 'portal_group':
+      return 'Portal Group'
   }
 }
 

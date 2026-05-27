@@ -16,7 +16,6 @@ const baseRatingInput = {
   value: 5,
   source: 'qr' as const,
   ipHash: 'hash123',
-  staffId: null,
   now: new Date('2026-05-01T12:00:00Z'),
 }
 
@@ -51,7 +50,6 @@ describe('buildFeedback', () => {
     comment: 'Great service!',
     source: 'qr' as const,
     ipHash: 'hash123',
-    staffId: null,
     now: new Date('2026-05-01T12:00:00Z'),
   }
 

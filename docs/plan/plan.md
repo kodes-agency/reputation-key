@@ -183,17 +183,11 @@ Now we have events flowing. Metrics captures them into structured data that the 
 
 ### Phase 13 — Metrics foundation
 
-**Goal.** Guest and review events are captured as raw metric readings. Aggregations are pre-computed via materialized views. Portal-level staff/team attribution is enabled. The metrics pipeline is tenant-isolated and testable.
+**Goal.** Guest and review events are captured as raw metric readings. Aggregations are pre-computed via materialized views. The metrics pipeline is tenant-isolated and testable.
 
 **Why now.** The dashboard depends on metrics. Goals and gamification depend on metrics. Conversion analytics depends on metrics.
 
 **Scope (in).**
-
-- **Prerequisite: portal-level staff/team assignment**
-  - Migration: add nullable `portalId` to `staff_assignments` and `teams` tables
-  - `portalId = null` means "covers all portals on that property"
-  - `portalId = set` means "covers only that specific portal"
-  - Enables per-staff, per-team metric attribution via joins
 
 - **Metric context: `contexts/metric/`** with standard layer structure
   - `domain/types.ts` — `MetricKey`, `EntityLevel`, `ValueType` types
@@ -206,7 +200,7 @@ Now we have events flowing. Metrics captures them into structured data that the 
 
 - **Schema: `shared/db/schema/metric.schema.ts`**
   - `metric_definitions` table: `id, metric_key (unique), display_name, entity_level ('portal'|'property'), value_type ('count'|'rating'), description`
-  - `metric_readings` table: `id, organizationId, propertyId, portalId (nullable), metric_key, value (real), recorded_at (timestamptz)`
+  - `metric_readings` table: `id, organizationId, propertyId, portalId (nullable), groupId (nullable), metric_key, value (real), recorded_at (timestamptz)`
   - Index on `(organization_id, metric_key, recorded_at)` for dashboard queries
   - No partitioning at MVP scale (deferred to Phase 22)
 
@@ -275,11 +269,10 @@ Now we have events flowing. Metrics captures them into structured data that the 
 - Materialized views refresh on schedule and produce correct aggregates
 - Inbox materialized view produces correct counts and response times from `inbox_items`
 - Tenant isolation: no cross-org contamination in readings or views
-- `portalId` nullable FK on `staff_assignments` and `teams` enables per-staff/portal attribution
 - All unit and integration tests pass
-- Build order: migration (portalId FK) → schema → seed → handlers → views → jobs → wiring → tests
+- Build order: migration → schema → seed → handlers → views → jobs → wiring → tests
 
-**Rough effort.** 5-7 days. Materialized view SQL and event handler wiring are straightforward. Portal-level assignment migration is small.
+**Rough effort.** 5-7 days. Materialized view SQL and event handler wiring are straightforward.
 
 **Phase after this.** Dashboard.
 
@@ -304,7 +297,7 @@ Now we have events flowing. Metrics captures them into structured data that the 
   6. **Engagement funnel** — Scans → Ratings → Review Link Clicks (portal-scoped only; hint when no portal selected)
   7. **Recent reviews** — last 5 with rating, snippet, date, reply status
 - Time range selector: 3 presets (7d / 30d / 90d), default 30d. No custom range.
-- Scope selector: property (from URL) + portal dropdown
+- Scope selector: property (from URL) + portal group + portal (cascading dropdowns)
 - Charts: Recharts, lazy-loaded (not in initial bundle)
 - Cache: single Redis key per `(propertyId, timeRange, portalId)`, 5-minute TTL
 - Manager-only (Staff home deferred to Phase 15)
@@ -330,14 +323,14 @@ Now we have events flowing. Metrics captures them into structured data that the 
 - Engagement funnel appears when portal is selected, hint when not
 - Recent reviews show real data with reply status
 - Reply performance shows accurate rate and avg time
-+- All 7 sections render with real data from test fixtures
+  +- All 7 sections render with real data from test fixtures
 - E2E test: manager logs in → dashboard renders → switches time range → KPIs update
 
 **Resolved decisions.**
 
 - Dashboard is property-centric, lives at `/properties/$propertyId`. No org-level dashboard for now (deferred to Phase 21).
 - New `contexts/dashboard/` bounded context. Read-only aggregation layer — composes data from metric, review, inbox contexts. No domain rules, no events, no writes. Has use cases, repo ports, Drizzle repo impls, server functions. `domain/types.ts` for response shapes only.
-- Scope selector: property (from URL) + portal (dropdown). Team/staff attribution deferred to Phase 15 (Goals) where the attribution query design gets properly worked out.
+- Scope selector: property (from URL) + portal group + portal (cascading dropdowns).
 - Four KPI cards: Reviews (count), Average Rating (avg of Google stars), Scans (count), Feedback (count). No computed rates for MVP. Each card shows trend indicator vs previous equal-length period (e.g. "↑12% vs prior 30d").
 - Data source: raw `metric_readings` with SQL aggregation. Migration to materialized views deferred to Phase 22.
 - 7 dashboard sections (all in Phase 14 scope):
@@ -350,7 +343,7 @@ Now we have events flowing. Metrics captures them into structured data that the 
   7. **Recent reviews** — last 5 reviews with rating, snippet, date, reply status
 - Reply time uses `reviews.reviewedAt` (customer's review date), not `reviews.createdAt` (import date). Reflects customer-facing reality.
 - Caching: single Redis key per `(propertyId, timeRange, portalId)`, 5-minute TTL. Per-section caching deferred to Phase 21.
-- Phase 14 builds the **manager** dashboard only. Staff home (`/home`) stays a placeholder until Phase 15 when team/staff attribution makes personal metrics possible.
+- Phase 14 builds the **manager** dashboard only. Staff home (`/home`) stays a placeholder until Phase 14.5 when portal access control makes staff-viewable metrics possible.
 
 **All open questions resolved.** No remaining unknowns.
 
@@ -360,50 +353,164 @@ Now we have events flowing. Metrics captures them into structured data that the 
 
 ---
 
-## Arc 6 — Gamification (Phases 15-16)
+## Arc 6 — Gamification (Phases 14.5-16)
 
-Goals and badges motivate teams. Leaderboards create healthy competition.
+Goals, portal groups, and badges motivate teams. Leaderboards create healthy competition.
 
-### Phase 15 — Goals
+### Phase 14.5 — Portal Access Control
 
-**Goal.** Managers can set performance goals at org, property, team, or individual level. Goals cascade (child ≤ parent). Progress is computed automatically from metrics.
+**Goal.** Staff members can be assigned to portals for access control. Assigned staff can view the portal's metrics and goals via the staff home page. No referral codes, no `?ref=`, no per-staff metric attribution.
 
-**Why now.** Goals give meaning to metrics. Without them, metrics are just numbers.
+**Why now.** Portal access control is the foundation for staff-facing dashboards. Without it, staff have no personalized view.
 
 **Scope (in).**
 
-- `contexts/gamification/` (or split into `goal` and `badge` contexts — decide during phase)
-- `goals` and `goal_progress` tables
-- Goal domain: cascade validation, period alignment, circular reference prevention
-- Use cases: create, update, delete, list, get progress
-- Event-driven progress updates: `metric.recorded` event handler checks affected goals, updates progress
-- Periodic reconciliation job (hourly): recompute all active goals from raw metric data
-- Milestone notifications at 25%, 50%, 75%, 100% (requires notifications, which we're building in Arc 8 — defer the notification part or build minimal in-app for now)
-- UI: goals list with progress bars, create form, cascade visualization
-- Tests: cascade validation, progress computation, event-driven updates
+- `staff_assignments.portalId` FK — already exists in schema, repurposed for access control only
+- People page UI: portal selector dropdown on staff assignment create/edit form
+- Staff home (`/home`) shows metrics for assigned portals
 
 **Scope (out).**
 
-- Email/push milestone notifications (Arc 8)
-- Goal templates (later)
+- Column drops (`referralCode`, `staffId` on readings, `teams.portalId`) — deferred to Phase 15.5
+- Referral code generation/resolution
+- `?ref=` query param handling
+- Guest session staff attribution
+- Per-staff QR codes
 
 **Gate criteria.**
 
-- Goal can be created at any entity level
-- Child goal target cannot exceed parent (validation enforced)
-- Period alignment validated (quarterly parent requires quarterly or monthly children)
+- Staff member can be assigned to one or more portals via People page
+- Staff home shows metrics scoped to assigned portals
+- All existing tests pass
+
+**Rough effort.** 2-3 days. Primarily UI work (portal selector) + staff home wiring.
+
+**Phase after this.** Goals.
+
+---
+
+### Phase 15 — Goals
+
+**Goal.** Managers can set performance goals at property, portal, team, or staff level. Goal scope hierarchy: `property → portal → team → staff`. Progress computed automatically from metrics.
+
+**Why now.** Goals give meaning to metrics. Without them, metrics are just numbers.
+
+> **Status:** This phase is **already implemented** (15A Goal Core, 15B Goal Engine, 15C Goal UI). The schema currently has `staffId`/`teamId` columns that will be cleaned up in Phase 15.5.
+
+**Scope (in).**
+
+- `contexts/goal/` with full hexagonal structure
+- `goals` and `goal_progress` tables (includes `staffId`, `teamId`, `portalId` scope columns)
+- Goal domain: scope validation (at most one FK), metric×aggregation pair validation, scope→metric constraints
+- Goal types: `open`, `one_shot`, `rolling`, `recurring`
+- Use cases: create, update, cancel, list, get progress
+- Progress strategy functions per (goalType × aggregationFunction)
+- Event-driven progress updates: `MetricRecorded` handler increments matching active goals
+- Periodic reconciliation job (hourly): recompute all active goals from raw metric data
+- Recurring instance spawner job (daily)
+- Entity removal handlers: staff-unassigned, team-deleted, portal-deleted → cancel goals
+- UI: goals list with progress bars, create form, detail view
+- Tests: domain, use cases, repository, event handlers, server functions, UI
+
+**Scope (out).**
+
+- Portal groups (deferred to Phase 15.5)
+- `groupId` scope (deferred to Phase 15.5)
+- Email/push milestone notifications (Arc 8)
+- Goal templates (later)
+
+**Gate criteria.** (from original Phase 15A/B/C implementation)
+
+- Goal can be created at any entity level (property, portal, team, staff)
 - Progress updates in near-real-time when metric events fire
 - Hourly reconciliation job runs and matches live-computed progress
-- Tests pass, cascade validation is comprehensive
+- Entity removal cascades to cancel affected goals
+- Tests pass for domain, use cases, event handlers, reconciliation
 
-**Open questions to resolve during this phase.**
+**Rough effort.** Already completed (original: 5-7 days across 15A/15B/15C).
 
-- Exact period types (start with: weekly, monthly, quarterly)
-- What happens when a goal's parent is deleted (suggest: orphan the child, mark it as "orphaned" status)
+**Phase after this.** Portal groups + goal model reconfiguration.
 
-**Rough effort.** 5-7 days.
+---
 
-**Phase after this.** Badges and leaderboards.
+### Phase 15.5 — Portal Groups + Model Reconfiguration
+
+**Goal.** Introduce portal groups for department-level aggregation. Reconfigure the goal model to the new scope hierarchy (`property → portal_group → portal`). Drop all vestigial columns (`staffId`, `teamId`, `referralCode`) and clean up dead code paths. Update the metric pipeline to carry `groupId`.
+
+**Why now.** The Phase 15 implementation carries vestigial staff/team scope columns that don't match the portal-centric model. Portal groups unlock department-level goals (e.g., "Reception: 1000 scans/month across 3 portals").
+
+**Scope (in).**
+
+- **New entity — PortalGroup:**
+  - `portal_groups` table: `id, organizationId, propertyId, name (required), createdAt, updatedAt`
+  - `portals.groupId` nullable FK — a portal belongs to at most one group
+  - PortalGroup CRUD (server functions + UI in portal management)
+  - Lives in Portal context (not a separate bounded context)
+
+- **Schema migrations:**
+  - `goals`: drop `staffId`, drop `teamId`, add `groupId` (nullable FK to `portal_groups`)
+  - `metric_readings`: drop `staffId`, add nullable `groupId` (resolved from `portals.groupId`)
+  - `staff_assignments`: drop `referralCode`
+  - `teams`: drop `portalId`
+
+- **Goal scope rework:**
+  - Three scope levels: property (both null), portal_group (groupId set), portal (portalId set)
+  - Goal constructors: validate at most one scope FK, validate metric×aggregation pairs, scope→metric constraints
+  - Remove staff/team validation from constructors
+
+- **Metric pipeline update:**
+  - `MetricRecorded` event gains `groupId` field (resolved from `portals.groupId` at recording time)
+  - Metric event handlers resolve `portalId → groupId` and include `groupId` in the event
+
+- **Goal engine update:**
+  - `findActiveGoalsByMetric` signature: `(metricKey, orgId, propertyId, portalId, groupId)`
+  - Match logic: group-scoped goals match on `groupId`, portal-scoped on `portalId`, property-scoped when both null
+  - Reconciliation job handles group aggregation
+
+- **Entity removal handlers:**
+  - Remove `on-staff-unassigned` (no staff-scoped goals)
+  - Remove `on-team-deleted` (no team-scoped goals)
+  - Add `on-group-deleted` handler → cancel group-scoped goals
+
+- **Dead code cleanup:**
+  - Remove `resolveReferralCode` use case
+  - Remove referral code domain module (`src/contexts/staff/domain/referral-code.ts`)
+  - Remove `getStaffIdForSession` use case
+  - Remove `?ref=` extraction from portal route
+  - Remove `staffId` from guest event constructors (always null → drop the field)
+
+- **Server functions:**
+  - Update goal create/update input schemas: remove `staffId`/`teamId`, add `groupId`
+  - Update goal list filter to include `groupId`, remove `staffId`/`teamId`
+
+- **Tests:**
+  - Fix all constructor, use case, repository, event handler, and server function tests
+  - Add tests for portal-group-scoped goals + group aggregation
+  - Add tests for `on-group-deleted` handler
+
+- **UI:**
+  - Portal group CRUD in portal management page
+  - Update goal create form scope selector: property / portal group / portal (cascading)
+  - Remove staff/team options from goal scope selector
+  - Staff home: show portal + group goals (not property-wide goals)
+
+**Scope (out).**
+
+- No new goal types or period models
+- No badge/leaderboard changes
+
+**Gate criteria.**
+
+- Portal groups can be created and portals can be assigned to groups
+- `findActiveGoalsByMetric` correctly matches property, portal, and group-scoped goals
+- `MetricRecorded` events carry `groupId`
+- Group-scoped goals aggregate across all member portals
+- No `staffId`, `teamId`, or `referralCode` references remain in goal/metric/staff contexts
+- No broken imports or dead code paths
+- All existing tests pass; new tests cover group scope
+- Staff home shows portal + group goals only
+
+**Rough effort.** 5-7 days. PortalGroup CRUD (1-2d) + schema migrations (0.5d) + goal rework (2d) + dead code cleanup + test fixes (2d).
 
 ---
 
@@ -595,24 +702,26 @@ Now we fill in the gaps that make this a real product, not just a collection of 
 
 ## Summary: remaining phases
 
-| Arc | Phase | Name                     | Status    | Rough effort |
-| --- | ----- | ------------------------ | --------- | ------------ |
-| 1–3 | 1–9   | Foundation through Guest | Completed | ~40 days     |
-| 4   | 10    | Review schema + GBP sync | Completed | 7-10 days    |
-| 4   | 11    | Unified inbox            | Completed | 5-7 days     |
-| 4   | 12    | Reply flow               | Completed | 5-6 days     |
-| 5   | 13    | Metrics foundation       | Completed | 5-7 days     |
-| 5   | 14    | Dashboard                | Completed | 5-7 days     |
-| 6   | 15    | Goals                    | Pending   | 5-7 days     |
-| 6   | 16    | Badges + leaderboards    | Pending   | 5-7 days     |
-| 7   | 17    | AI v1                    | Pending   | 7-10 days    |
-| 7   | 18    | AI v2                    | Pending   | 5-7 days     |
-| 8   | 19    | Notifications            | Pending   | 5-7 days     |
-| 8   | 20    | Compliance + audit       | Pending   | 5-7 days     |
-| 8   | 21    | Analytics                | Pending   | 5-7 days     |
-| 8   | 22    | Production hardening     | Pending   | 5-7 days     |
+| Arc | Phase | Name                     | Status                 | Rough effort |
+| --- | ----- | ------------------------ | ---------------------- | ------------ |
+| 1–3 | 1–9   | Foundation through Guest | Completed              | ~40 days     |
+| 4   | 10    | Review schema + GBP sync | Completed              | 7-10 days    |
+| 4   | 11    | Unified inbox            | Completed              | 5-7 days     |
+| 4   | 12    | Reply flow               | Completed              | 5-6 days     |
+| 5   | 13    | Metrics foundation       | Completed              | 5-7 days     |
+| 5   | 14    | Dashboard                | Completed              | 5-7 days     |
+| 6   | 14.5  | Portal Access Control    | Pending                | 2-3 days     |
+| 6   | 15    | Goals                    | Completed (needs 15.5) | 5-7 days     |
+| 6   | 15.5  | Portal Groups + Reconfig | Pending                | 5-7 days     |
+| 6   | 16    | Badges + leaderboards    | Pending                | 5-7 days     |
+| 7   | 17    | AI v1                    | Pending                | 7-10 days    |
+| 7   | 18    | AI v2                    | Pending                | 5-7 days     |
+| 8   | 19    | Notifications            | Pending                | 5-7 days     |
+| 8   | 20    | Compliance + audit       | Pending                | 5-7 days     |
+| 8   | 21    | Analytics                | Pending                | 5-7 days     |
+| 8   | 22    | Production hardening     | Pending                | 5-7 days     |
 
-**Remaining: 13 phases, roughly 80-120 working days.**
+**Remaining: 9 phases, roughly 45-65 working days.**
 
 ---
 

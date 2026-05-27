@@ -8,7 +8,6 @@ import {
   propertyId,
   ratingId,
   metricReadingId,
-  staffId,
 } from '#/shared/domain/ids'
 
 const FIXED_TIME = new Date('2026-05-20T12:00:00Z')
@@ -46,7 +45,6 @@ describe('onRatingSubmitted', () => {
       portalId: portalId('portal-1'),
       propertyId: propertyId('prop-1'),
       value: 4,
-      staffId: null,
       occurredAt: FIXED_TIME,
     })
 
@@ -57,7 +55,7 @@ describe('onRatingSubmitted', () => {
       portalId: portalId('portal-1'),
       metricKey: 'portal.rating',
       value: 4,
-      staffId: null,
+      groupId: null,
     })
   })
 
@@ -77,13 +75,12 @@ describe('onRatingSubmitted', () => {
         portalId: portalId('portal-1'),
         propertyId: propertyId('prop-1'),
         value: 5,
-        staffId: null,
         occurredAt: FIXED_TIME,
       }),
     ).resolves.toBeUndefined()
   })
 
-  it('propagates non-null staffId to the metric reading', async () => {
+  it('sets groupId to null', async () => {
     const handler = onRatingSubmitted(deps)
     await handler({
       _tag: 'rating.submitted',
@@ -92,7 +89,6 @@ describe('onRatingSubmitted', () => {
       portalId: portalId('portal-1'),
       propertyId: propertyId('prop-1'),
       value: 4,
-      staffId: staffId('staff-1'),
       occurredAt: FIXED_TIME,
     })
 
@@ -103,7 +99,7 @@ describe('onRatingSubmitted', () => {
       portalId: portalId('portal-1'),
       metricKey: 'portal.rating',
       value: 4,
-      staffId: staffId('staff-1'),
+      groupId: null,
     })
   })
 })

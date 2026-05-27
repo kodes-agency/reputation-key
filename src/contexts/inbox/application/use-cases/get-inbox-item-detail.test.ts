@@ -27,12 +27,10 @@ const USER_ID = userId('user-1')
 
 const adminStaffApi: StaffPublicApi = {
   getAccessiblePropertyIds: async () => null,
-  findByReferralCode: async () => null,
 }
 
 const createScopedStaffApi = (ids: ReadonlyArray<string>): StaffPublicApi => ({
   getAccessiblePropertyIds: async () => ids.map(propertyId),
-  findByReferralCode: async () => null,
 })
 
 function makeItem(overrides: Partial<InboxItem> = {}): InboxItem {

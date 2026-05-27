@@ -17,7 +17,7 @@ export const onRatingSubmitted =
         portalId: event.portalId,
         metricKey: 'portal.rating',
         value: event.value,
-        staffId: event.staffId,
+        groupId: null,
       })
     } catch (err) {
       getLogger().error(

@@ -19,8 +19,6 @@ const staffErrorStatus = (code: StaffErrorCode): number => {
       return 404
     case 'already_assigned':
       return 409
-    case 'referral_code_collision':
-      return 409
     case 'invalid_input':
       return 400
   }

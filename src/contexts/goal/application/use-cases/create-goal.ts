@@ -19,8 +19,7 @@ import type {
   OrganizationId,
   PropertyId,
   PortalId,
-  TeamId,
-  StaffId,
+  PortalGroupId,
   GoalId,
   UserId,
   GoalProgressId,
@@ -42,8 +41,7 @@ type CreateGoalInput = Readonly<{
   organizationId: OrganizationId
   propertyId: PropertyId
   portalId: PortalId | null
-  teamId: TeamId | null
-  staffId: StaffId | null
+  groupId: PortalGroupId | null
   name: string
   description: string | null
   createdBy: UserId
@@ -100,8 +98,7 @@ export const createGoal =
       organizationId: input.organizationId,
       propertyId: input.propertyId,
       portalId: input.portalId,
-      teamId: input.teamId,
-      staffId: input.staffId,
+      groupId: input.groupId,
       name: input.name,
       description: input.description,
       createdBy: input.createdBy,
@@ -171,8 +168,7 @@ async function handleRecurringGoal(
     organizationId: template.organizationId,
     propertyId: template.propertyId,
     portalId: template.portalId,
-    teamId: template.teamId,
-    staffId: template.staffId,
+    groupId: template.groupId,
     name: template.name,
     description: template.description,
     createdBy: template.createdBy,
@@ -292,7 +288,7 @@ function progressQueryToMetricReadingsQuery(
     organizationId: goal.organizationId,
     propertyId: pq.scopeFilter.propertyId,
     portalId: pq.scopeFilter.portalId,
-    staffId: pq.scopeFilter.staffId,
+    groupId: pq.scopeFilter.groupId,
     metricKey: pq.metricKey,
   }
 

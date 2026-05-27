@@ -32,7 +32,6 @@ export const trackReviewLinkClick =
           organizationId: input.organizationId,
           portalId: input.portalId,
           propertyId: input.propertyId,
-          staffId: null,
           occurredAt: now,
         }),
       )

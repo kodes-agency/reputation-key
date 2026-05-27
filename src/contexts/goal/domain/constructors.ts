@@ -5,8 +5,7 @@ import type {
   OrganizationId,
   PropertyId,
   PortalId,
-  TeamId,
-  StaffId,
+  PortalGroupId,
   UserId,
   GoalId,
 } from '#/shared/domain/ids'
@@ -49,8 +48,7 @@ export type BuildGoalInput = Readonly<{
   organizationId: OrganizationId
   propertyId: PropertyId
   portalId: PortalId | null
-  teamId: TeamId | null
-  staffId: StaffId | null
+  groupId: PortalGroupId | null
   name: string
   description: string | null
   createdBy: UserId
@@ -72,7 +70,7 @@ export function buildGoal(input: BuildGoalInput): Result<Goal, GoalConstructionE
   const scope = deriveEntityScope(input)
 
   // Exactly-one FK validation
-  const fkCount = [input.portalId, input.teamId, input.staffId].filter(Boolean).length
+  const fkCount = [input.portalId, input.groupId].filter(Boolean).length
   if (fkCount > 1) {
     return err({ tag: 'ambiguous_scope' })
   }
@@ -168,8 +166,7 @@ export function buildGoal(input: BuildGoalInput): Result<Goal, GoalConstructionE
     organizationId: input.organizationId,
     propertyId: input.propertyId,
     portalId: input.portalId,
-    teamId: input.teamId,
-    staffId: input.staffId,
+    groupId: input.groupId,
     name: input.name,
     description: input.description,
     createdBy: input.createdBy,

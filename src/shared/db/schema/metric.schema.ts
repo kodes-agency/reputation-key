@@ -39,9 +39,9 @@ export const metricReadings = pgTable(
       .notNull()
       .references(() => properties.id, { onDelete: 'cascade' }),
     portalId: uuid('portal_id').references(() => portals.id, { onDelete: 'cascade' }),
+    groupId: uuid('group_id'),
     metricKey: varchar('metric_key', { length: 100 }).notNull(),
     value: real('value').notNull(),
-    staffId: varchar('staff_id', { length: 255 }),
     recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull(),
   },
   (t) => [
@@ -52,6 +52,5 @@ export const metricReadings = pgTable(
       t.recordedAt,
     ),
     index('metric_readings_org_property_idx').on(t.organizationId, t.propertyId),
-    index('metric_readings_staff_idx').on(t.staffId),
   ],
 )

@@ -33,7 +33,6 @@ describe('staffError', () => {
       'already_assigned',
       'property_not_found',
       'team_not_found',
-      'referral_code_collision',
     ] as const
     for (const code of codes) {
       const err = staffError(code, `test ${code}`)

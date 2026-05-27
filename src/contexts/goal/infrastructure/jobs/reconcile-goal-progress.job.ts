@@ -163,7 +163,7 @@ function progressQueryToMetricReadingsQuery(
     organizationId: goal.organizationId,
     propertyId: pq.scopeFilter.propertyId,
     portalId: pq.scopeFilter.portalId,
-    staffId: pq.scopeFilter.staffId,
+    groupId: pq.scopeFilter.groupId,
     metricKey: pq.metricKey,
   }
 

@@ -18,26 +18,23 @@ describe('buildStaffAssignment', () => {
     now: new Date('2025-01-01'),
   }
 
-  it('accepts portalId and referralCode', () => {
+  it('accepts portalId', () => {
     const result = buildStaffAssignment({
       ...base,
       portalId: portalId('portal-1'),
-      referralCode: 'jane-d-a3f2',
     })
 
     expect(result.isOk()).toBe(true)
     const assignment = result._unsafeUnwrap()
     expect(assignment.portalId).toBe(portalId('portal-1'))
-    expect(assignment.referralCode).toBe('jane-d-a3f2')
   })
 
-  it('defaults portalId and referralCode to null when omitted', () => {
+  it('defaults portalId to null when omitted', () => {
     const result = buildStaffAssignment(base)
 
     expect(result.isOk()).toBe(true)
     const assignment = result._unsafeUnwrap()
     expect(assignment.portalId).toBeNull()
-    expect(assignment.referralCode).toBeNull()
   })
 
   it('preserves existing fields', () => {
@@ -45,7 +42,6 @@ describe('buildStaffAssignment', () => {
       ...base,
       teamId: teamId('team-1'),
       portalId: portalId('p-1'),
-      referralCode: 'john-s-b2c4',
     })
 
     expect(result.isOk()).toBe(true)
