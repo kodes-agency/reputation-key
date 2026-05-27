@@ -141,7 +141,6 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     deletePortalGroup: deletePortalGroup({
       groupRepo: portalGroupRepo,
       events: deps.events,
-      clock: deps.clock,
     }),
     listPortalGroups: listPortalGroups({
       groupRepo: portalGroupRepo,
