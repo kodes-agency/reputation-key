@@ -73,7 +73,6 @@ describe('submitFeedback', () => {
         comment: '',
         source: 'qr',
         ipHash: 'hash',
-        staffId: null,
       }),
     ).rejects.toSatisfy((e: unknown) => {
       return isGuestError(e) && e.code === 'feedback_empty'
@@ -99,7 +98,6 @@ describe('submitFeedback', () => {
       source: 'qr',
       ipHash: 'hash',
       ratingId: ratingId('rating-1'),
-      staffId: null,
     })
 
     expect(result.ratingId).toBe(ratingId('rating-1'))

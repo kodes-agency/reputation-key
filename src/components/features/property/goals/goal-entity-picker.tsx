@@ -9,7 +9,7 @@ import {
   SelectValue,
 } from '#/components/ui/select'
 import type { EntityScope } from '#/shared/domain/metric-keys'
-import type { PortalOption, TeamOption, StaffOption } from './goal-entity-types'
+import type { PortalOption, TeamOption } from './goal-entity-types'
 
 export function EntityPicker({
   entityScope,
@@ -18,7 +18,6 @@ export function EntityPicker({
   errors,
   portals,
   teams,
-  _staffAssignments,
   propertyId,
 }: {
   entityScope: EntityScope
@@ -27,7 +26,6 @@ export function EntityPicker({
   errors: Record<string, string>
   portals: readonly PortalOption[]
   teams: readonly TeamOption[]
-  staffAssignments: readonly StaffOption[]
   propertyId: string
 }) {
   if (entityScope === 'portal') {

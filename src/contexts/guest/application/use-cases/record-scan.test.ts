@@ -77,7 +77,6 @@ describe('recordScan', () => {
         source: 'qr',
         sessionId: 'session-abc',
         ipHash: 'hash123',
-        groupId: null,
       }),
     ).resolves.toBeUndefined()
 

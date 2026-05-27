@@ -95,7 +95,6 @@ describe('submitRating', () => {
         value: 0,
         source: 'qr',
         ipHash: 'hash123',
-        staffId: null,
       }),
     ).rejects.toSatisfy((e: unknown) => {
       return isGuestError(e) && e.code === 'invalid_rating'
