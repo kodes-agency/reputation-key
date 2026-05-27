@@ -11,7 +11,8 @@ import {
   deletePortalGroupSchema,
   listPortalGroupsSchema,
 } from '../application/dto/portal-group.dto'
-import { isPortalError, portalErrorStatus } from '../domain/errors'
+import { isPortalError } from '../domain/errors'
+import { portalErrorStatus } from './portals'
 
 // ── createPortalGroup ───────────────────────────────────────────────
 

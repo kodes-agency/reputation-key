@@ -185,8 +185,8 @@ describe('staffAssignmentRepository (integration)', () => {
 
       await repo.insert(ORG_A, assignment)
 
-      expect(await repo.assignmentExists(ORG_A, USER_1, PROP_A1, null)).toBe(true)
-      expect(await repo.assignmentExists(ORG_A, USER_2, PROP_A1, null)).toBe(false)
+      expect(await repo.assignmentExists(ORG_A, USER_1, PROP_A1, null, null)).toBe(true)
+      expect(await repo.assignmentExists(ORG_A, USER_2, PROP_A1, null, null)).toBe(false)
     })
 
     it('distinguishes between direct and team assignments', async () => {
@@ -213,9 +213,11 @@ describe('staffAssignmentRepository (integration)', () => {
       await repo.insert(ORG_A, direct)
 
       // Direct assignment should NOT match a team-based check
-      expect(await repo.assignmentExists(ORG_A, USER_1, PROP_A1, TEST_TEAM)).toBe(false)
+      expect(await repo.assignmentExists(ORG_A, USER_1, PROP_A1, TEST_TEAM, null)).toBe(
+        false,
+      )
       // Direct assignment SHOULD match a null-team check
-      expect(await repo.assignmentExists(ORG_A, USER_1, PROP_A1, null)).toBe(true)
+      expect(await repo.assignmentExists(ORG_A, USER_1, PROP_A1, null, null)).toBe(true)
     })
   })
 
