@@ -128,23 +128,23 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       portalLinkRepo,
     }),
     createPortalGroup: createPortalGroup({
-      portalGroupRepo,
+      groupRepo: portalGroupRepo,
       events: deps.events,
       idGen: portalGroupIdGen,
       clock: deps.clock,
     }),
     updatePortalGroup: updatePortalGroup({
-      portalGroupRepo,
+      groupRepo: portalGroupRepo,
       events: deps.events,
       clock: deps.clock,
     }),
     deletePortalGroup: deletePortalGroup({
-      portalGroupRepo,
+      groupRepo: portalGroupRepo,
       events: deps.events,
       clock: deps.clock,
     }),
     listPortalGroups: listPortalGroups({
-      portalGroupRepo,
+      groupRepo: portalGroupRepo,
     }),
   } as const
 

@@ -18,7 +18,7 @@ export type UpdatePortalGroupDeps = Readonly<{
 export const updatePortalGroup =
   (deps: UpdatePortalGroupDeps) =>
   async (input: UpdatePortalGroupInput, ctx: AuthContext): Promise<PortalGroup> => {
-    if (!can(ctx.role, 'portal.manage')) {
+    if (!can(ctx.role, 'portal.update')) {
       throw portalError('forbidden', 'Only managers can update portal groups')
     }
 

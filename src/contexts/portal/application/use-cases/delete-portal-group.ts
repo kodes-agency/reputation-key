@@ -16,7 +16,7 @@ export type DeletePortalGroupDeps = Readonly<{
 export const deletePortalGroup =
   (deps: DeletePortalGroupDeps) =>
   async (input: DeletePortalGroupInput, ctx: AuthContext): Promise<void> => {
-    if (!can(ctx.role, 'portal.manage')) {
+    if (!can(ctx.role, 'portal.delete')) {
       throw portalError('forbidden', 'Only managers can delete portal groups')
     }
 

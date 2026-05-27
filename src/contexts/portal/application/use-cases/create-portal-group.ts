@@ -20,7 +20,7 @@ export type CreatePortalGroupDeps = Readonly<{
 export const createPortalGroup =
   (deps: CreatePortalGroupDeps) =>
   async (input: CreatePortalGroupInput, ctx: AuthContext): Promise<PortalGroup> => {
-    if (!can(ctx.role, 'portal.manage')) {
+    if (!can(ctx.role, 'portal.create')) {
       throw portalError('forbidden', 'Only managers can create portal groups')
     }
 

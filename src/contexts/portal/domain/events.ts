@@ -8,6 +8,11 @@ import type {
   PortalLinkCategoryId,
   PortalLinkId,
 } from '#/shared/domain/ids'
+import type {
+  PortalGroupCreated,
+  PortalGroupUpdated,
+  PortalGroupDeleted,
+} from './portal-group-events'
 
 // ── Portal events ──────────────────────────────────────────────────
 
@@ -127,13 +132,7 @@ export const portalLinkReordered = (
 ): PortalLinkReordered => ({ _tag: 'portal_link.reordered', ...args })
 
 // ── PortalGroup event types ───────────────────────────────────────
-// Re-exported from portal-group-events.ts for convenience
-
-export type {
-  PortalGroupCreated,
-  PortalGroupUpdated,
-  PortalGroupDeleted,
-} from './portal-group-events'
+// Imported above from portal-group-events.ts; re-exported for convenience
 
 export {
   portalGroupCreated,
