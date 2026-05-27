@@ -69,7 +69,7 @@ export function EntityPicker({
     )
   }
 
-  if (entityScope === 'team') {
+  if (entityScope === 'portal_group') {
     return teams.length === 0 ? (
       <Field>
         <FieldLabel>Team</FieldLabel>
@@ -107,7 +107,7 @@ export function EntityPicker({
     )
   }
 
-  if (entityScope === 'staff') {
+  if (entityScope === 'portal') {
     return staffAssignments.length === 0 ? (
       <Field>
         <FieldLabel>Staff Member</FieldLabel>

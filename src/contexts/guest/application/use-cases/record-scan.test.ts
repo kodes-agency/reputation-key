@@ -40,7 +40,7 @@ describe('recordScan', () => {
       source: 'qr',
       sessionId: 'session-abc',
       ipHash: 'hash123',
-      staffId: null,
+      groupId: null,
     })
 
     expect(repo.scans.length).toBe(1)
@@ -78,7 +78,7 @@ describe('recordScan', () => {
         source: 'qr',
         sessionId: 'session-abc',
         ipHash: 'hash123',
-        staffId: null,
+        groupId: null,
       }),
     ).resolves.toBeUndefined()
 
