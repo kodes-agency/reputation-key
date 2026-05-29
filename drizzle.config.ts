@@ -22,6 +22,7 @@ export default defineConfig({
     'staff_assignments',
     'audit_logs',
     'portals',
+    'portal_groups',
     'portal_link_categories',
     'portal_links',
     'feedback',

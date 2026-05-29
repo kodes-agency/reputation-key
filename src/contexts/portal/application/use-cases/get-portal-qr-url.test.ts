@@ -27,16 +27,4 @@ describe('getPortalQrUrl', () => {
     const result = await fn({ portalId: 'portal-1' }, ctx)
     expect(result.portalUrl).toBe('https://example.com/p/my-hotel/feedback?source=qr')
   })
-
-  it('appends referralCode when provided', async () => {
-    const fn = getPortalQrUrl({
-      portalRepo: fakePortalRepo,
-      baseUrl: 'https://example.com',
-    })
-
-    const result = await fn({ portalId: 'portal-1', referralCode: 'j-doe-a3f2' }, ctx)
-    expect(result.portalUrl).toBe(
-      'https://example.com/p/my-hotel/feedback?source=qr&ref=j-doe-a3f2',
-    )
-  })
 })

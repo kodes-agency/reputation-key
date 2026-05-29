@@ -11,7 +11,6 @@ import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 
 const createStubStaffApi = (): StaffPublicApi => ({
   getAccessiblePropertyIds: async () => null,
-    findByReferralCode: async () => null,
 })
 
 describe('PropertyPublicApi', () => {

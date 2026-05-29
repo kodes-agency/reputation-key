@@ -11,7 +11,6 @@ import {
   propertyId,
   metricReadingId,
   portalLinkId,
-  staffId,
 } from '#/shared/domain/ids'
 
 const FIXED_TIME = new Date('2026-05-20T12:00:00Z')
@@ -48,7 +47,6 @@ describe('onReviewLinkClicked', () => {
       organizationId: organizationId('org-1'),
       portalId: portalId('portal-1'),
       propertyId: propertyId('prop-1'),
-      staffId: null,
       occurredAt: FIXED_TIME,
     })
 
@@ -59,7 +57,7 @@ describe('onReviewLinkClicked', () => {
       portalId: portalId('portal-1'),
       metricKey: 'portal.review_link_click',
       value: 1,
-      staffId: null,
+      groupId: null,
     })
   })
 
@@ -78,13 +76,12 @@ describe('onReviewLinkClicked', () => {
         organizationId: organizationId('org-1'),
         portalId: portalId('portal-1'),
         propertyId: propertyId('prop-1'),
-        staffId: null,
         occurredAt: FIXED_TIME,
       }),
     ).resolves.toBeUndefined()
   })
 
-  it('propagates non-null staffId to the metric reading', async () => {
+  it('sets groupId to null', async () => {
     const handler = onReviewLinkClicked(deps)
     await handler({
       _tag: 'review-link.clicked',
@@ -92,7 +89,6 @@ describe('onReviewLinkClicked', () => {
       organizationId: organizationId('org-1'),
       portalId: portalId('portal-1'),
       propertyId: propertyId('prop-1'),
-      staffId: staffId('staff-1'),
       occurredAt: FIXED_TIME,
     })
 
@@ -103,7 +99,7 @@ describe('onReviewLinkClicked', () => {
       portalId: portalId('portal-1'),
       metricKey: 'portal.review_link_click',
       value: 1,
-      staffId: staffId('staff-1'),
+      groupId: null,
     })
   })
 })

@@ -21,6 +21,7 @@ export type InboxItemId = Brand<string, 'InboxItemId'>
 export type InboxNoteId = Brand<string, 'InboxNoteId'>
 export type GoalId = Brand<string, 'GoalId'>
 export type GoalProgressId = Brand<string, 'GoalProgressId'>
+export type PortalGroupId = Brand<string, 'PortalGroupId'>
 
 // Convenience constructors — each wraps brandId with the correct tag.
 // These are the only acceptable `as` casts: branded ID parsing.
@@ -110,6 +111,10 @@ export function goalId(id: string): GoalId {
 }
 export function goalProgressId(id: string): GoalProgressId {
   return id as GoalProgressId
+}
+
+export function portalGroupId(id: string): PortalGroupId {
+  return id as PortalGroupId
 }
 
 /** Safely strip brand from a branded ID type for use at infrastructure boundaries. */

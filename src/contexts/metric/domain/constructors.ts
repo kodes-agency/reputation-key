@@ -8,7 +8,7 @@ import type {
   OrganizationId,
   PropertyId,
   PortalId,
-  StaffId,
+  PortalGroupId,
 } from '#/shared/domain/ids'
 import { ok, err, type Result } from 'neverthrow'
 import { metricError, type MetricError } from './errors'
@@ -20,7 +20,7 @@ type CreateMetricReadingInput = Readonly<{
   portalId: PortalId | null
   metricKey: MetricKey
   value: number
-  staffId: StaffId | null
+  groupId: PortalGroupId | null
   recordedAt: Date
 }>
 
@@ -52,7 +52,7 @@ export const createMetricReading = (
     portalId: input.portalId,
     metricKey: input.metricKey,
     value: input.value,
-    staffId: input.staffId,
+    groupId: input.groupId,
     recordedAt: input.recordedAt,
   })
 }

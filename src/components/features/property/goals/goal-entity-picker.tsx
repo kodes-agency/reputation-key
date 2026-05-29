@@ -9,7 +9,7 @@ import {
   SelectValue,
 } from '#/components/ui/select'
 import type { EntityScope } from '#/shared/domain/metric-keys'
-import type { PortalOption, TeamOption, StaffOption } from './goal-entity-types'
+import type { PortalOption, TeamOption } from './goal-entity-types'
 
 export function EntityPicker({
   entityScope,
@@ -18,7 +18,6 @@ export function EntityPicker({
   errors,
   portals,
   teams,
-  staffAssignments,
   propertyId,
 }: {
   entityScope: EntityScope
@@ -27,7 +26,6 @@ export function EntityPicker({
   errors: Record<string, string>
   portals: readonly PortalOption[]
   teams: readonly TeamOption[]
-  staffAssignments: readonly StaffOption[]
   propertyId: string
 }) {
   if (entityScope === 'portal') {
@@ -69,7 +67,7 @@ export function EntityPicker({
     )
   }
 
-  if (entityScope === 'team') {
+  if (entityScope === 'portal_group') {
     return teams.length === 0 ? (
       <Field>
         <FieldLabel>Team</FieldLabel>
@@ -96,44 +94,6 @@ export function EntityPicker({
             {teams.map((t) => (
               <SelectItem key={t.id} value={t.id}>
                 {t.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {errors.entityId && (
-          <span className="text-sm text-destructive">{errors.entityId}</span>
-        )}
-      </Field>
-    )
-  }
-
-  if (entityScope === 'staff') {
-    return staffAssignments.length === 0 ? (
-      <Field>
-        <FieldLabel>Staff Member</FieldLabel>
-        <p className="text-sm text-muted-foreground">
-          No staff assigned yet. Assign staff on the{' '}
-          <Link
-            to="/properties/$propertyId/people"
-            params={{ propertyId }}
-            className="text-sm font-medium text-primary underline-offset-4 hover:underline"
-          >
-            People
-          </Link>{' '}
-          page to set staff-scoped goals.
-        </p>
-      </Field>
-    ) : (
-      <Field>
-        <FieldLabel>Staff Member</FieldLabel>
-        <Select value={entityId} onValueChange={(v) => setters.entityId(v)}>
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="Select a staff member" />
-          </SelectTrigger>
-          <SelectContent>
-            {staffAssignments.map((a) => (
-              <SelectItem key={a.id} value={a.userId}>
-                {a.userId}
               </SelectItem>
             ))}
           </SelectContent>

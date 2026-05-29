@@ -12,10 +12,9 @@ import type {
 import type {
   GoalId,
   OrganizationId,
+  PortalGroupId,
   PropertyId,
   PortalId,
-  TeamId,
-  StaffId,
 } from '#/shared/domain/ids'
 import type { MetricKey, AggregationFunction } from '#/shared/domain/metric-keys'
 
@@ -23,8 +22,7 @@ export type GoalListFilter = Readonly<{
   organizationId: OrganizationId
   propertyId?: PropertyId
   portalId?: PortalId
-  teamId?: TeamId
-  staffId?: StaffId
+  groupId?: PortalGroupId
   status?: GoalStatus
   goalType?: GoalType
 }>
@@ -63,6 +61,7 @@ export type GoalRepository = Readonly<{
     organizationId: OrganizationId,
     propertyId: PropertyId,
     portalId: PortalId | null,
+    groupId: PortalGroupId | null,
   ): Promise<ReadonlyArray<Goal>>
 
   incrementProgress(

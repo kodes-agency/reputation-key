@@ -11,7 +11,6 @@ import type { PropertyId } from '#/shared/domain/ids'
 
 const createStaffApi = (accessibleIds: PropertyId[] | null): StaffPublicApi => ({
   getAccessiblePropertyIds: async () => accessibleIds,
-    findByReferralCode: async () => null,
 })
 
 const setup = (staffApi?: StaffPublicApi) => {

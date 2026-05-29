@@ -1,13 +1,7 @@
 // Review context — domain events
 // Per architecture: "Events are facts, named in the past tense."
 
-import type {
-  ReviewId,
-  ReplyId,
-  PropertyId,
-  OrganizationId,
-  StaffId,
-} from '#/shared/domain/ids'
+import type { ReviewId, ReplyId, PropertyId, OrganizationId } from '#/shared/domain/ids'
 import type { ReviewPlatform, StarRating } from './types'
 
 // fallow-ignore-next-line unused-type
@@ -20,7 +14,6 @@ export type ReviewCreated = Readonly<{
   externalId: string
   rating: StarRating
   reviewText: string | null
-  staffId: StaffId | null
   occurredAt: Date
 }>
 

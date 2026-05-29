@@ -22,6 +22,7 @@ const sampleRow: PortalRow = {
   smartRoutingEnabled: false,
   smartRoutingThreshold: 4,
   isActive: true,
+  groupId: null,
   createdAt: now,
   updatedAt: now,
   deletedAt: null,

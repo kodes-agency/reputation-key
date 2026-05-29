@@ -8,7 +8,6 @@ import {
   propertyId,
   scanEventId,
   metricReadingId,
-  staffId,
 } from '#/shared/domain/ids'
 
 const FIXED_TIME = new Date('2026-05-20T12:00:00Z')
@@ -46,7 +45,6 @@ describe('onScanRecorded', () => {
       portalId: portalId('portal-1'),
       propertyId: propertyId('prop-1'),
       source: 'qr',
-      staffId: null,
       occurredAt: FIXED_TIME,
     })
 
@@ -57,7 +55,7 @@ describe('onScanRecorded', () => {
       portalId: portalId('portal-1'),
       metricKey: 'portal.scan',
       value: 1,
-      staffId: null,
+      groupId: null,
     })
   })
 
@@ -77,13 +75,12 @@ describe('onScanRecorded', () => {
         portalId: portalId('portal-1'),
         propertyId: propertyId('prop-1'),
         source: 'qr',
-        staffId: null,
         occurredAt: FIXED_TIME,
       }),
     ).resolves.toBeUndefined()
   })
 
-  it('propagates non-null staffId to the metric reading', async () => {
+  it('sets groupId to null', async () => {
     const handler = onScanRecorded(deps)
     await handler({
       _tag: 'scan.recorded',
@@ -92,7 +89,6 @@ describe('onScanRecorded', () => {
       portalId: portalId('portal-1'),
       propertyId: propertyId('prop-1'),
       source: 'qr',
-      staffId: staffId('staff-1'),
       occurredAt: FIXED_TIME,
     })
 
@@ -103,7 +99,7 @@ describe('onScanRecorded', () => {
       portalId: portalId('portal-1'),
       metricKey: 'portal.scan',
       value: 1,
-      staffId: staffId('staff-1'),
+      groupId: null,
     })
   })
 })

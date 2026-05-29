@@ -23,12 +23,10 @@ const FIXED_TIME = new Date('2026-04-15T12:00:00Z')
 
 const adminStaffApi: StaffPublicApi = {
   getAccessiblePropertyIds: async () => null,
-  findByReferralCode: async () => null,
 }
 
 const createScopedStaffApi = (ids: ReadonlyArray<string>): StaffPublicApi => ({
   getAccessiblePropertyIds: async () => ids.map(propertyId),
-  findByReferralCode: async () => null,
 })
 
 const makeItem = (): InboxItem => ({

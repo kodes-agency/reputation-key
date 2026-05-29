@@ -14,12 +14,11 @@ import { portalId, portalLinkId, ratingId } from '#/shared/domain/ids'
 import { getEnv } from '#/shared/config/env'
 import { createHash } from 'crypto'
 
-// ── recordScanWithRef ──────────────────────────────────────────────
+// ── recordScan ────────────────────────────────────────────────────
 
 const recordScanSchema = z.object({
   portalId: z.string().min(1),
   source: z.enum(['qr', 'nfc', 'direct']),
-  referralCode: z.string().nullable().optional(),
 })
 
 export const recordScanFn = createServerFn({ method: 'POST' })
@@ -42,14 +41,13 @@ export const recordScanFn = createServerFn({ method: 'POST' })
         })
 
         try {
-          await useCases.recordScanWithRef({
+          await useCases.recordScan({
             organizationId: ctx.organizationId,
             portalId: portalId(data.portalId),
             propertyId: ctx.propertyId,
             source: data.source,
             sessionId,
             ipHash,
-            referralCode: data.referralCode ?? null,
           })
           return { success: true }
         } catch (e) {
@@ -150,10 +148,6 @@ export const submitRatingFn = createServerFn({ method: 'POST' })
         })
 
         try {
-          const staffIdForSession = await useCases.getStaffIdForSession(
-            ctx.organizationId,
-            sessionId,
-          )
           const rating = await useCases.submitRating({
             organizationId: ctx.organizationId,
             portalId: portalId(data.portalId),
@@ -162,7 +156,6 @@ export const submitRatingFn = createServerFn({ method: 'POST' })
             value: data.value,
             source: data.source,
             ipHash,
-            staffId: staffIdForSession,
           })
           return { success: true, ratingId: rating.id }
         } catch (e) {
@@ -212,10 +205,6 @@ export const submitFeedbackFn = createServerFn({ method: 'POST' })
         })
 
         try {
-          const staffIdForSession = await useCases.getStaffIdForSession(
-            ctx.organizationId,
-            sessionId,
-          )
           const fb = await useCases.submitFeedback({
             organizationId: ctx.organizationId,
             portalId: portalId(data.portalId),
@@ -225,7 +214,6 @@ export const submitFeedbackFn = createServerFn({ method: 'POST' })
             source: data.source,
             ipHash,
             ratingId: data.ratingId ? ratingId(data.ratingId) : undefined,
-            staffId: staffIdForSession,
           })
           return { success: true, feedbackId: fb.id }
         } catch (e) {

@@ -1,8 +1,6 @@
-// Goal context — TeamDeleted event handler
-// Cancels active goals scoped to the deleted team.
-// Per architecture: event handler subscribes via EventBus, drives use case.
-
-import type { TeamDeleted } from '#/contexts/team/application/public-api'
+// Goal context — PortalGroupDeleted event handler
+// Cancels active goals scoped to the deleted portal group.
+import type { PortalGroupDeleted } from '#/contexts/portal/domain/portal-group-events'
 import type { GoalRepository } from '../../application/ports/goal.repository'
 import type { Goal } from '../../domain/types'
 import type { GoalId, OrganizationId } from '#/shared/domain/ids'
@@ -10,9 +8,7 @@ import type { Role } from '#/shared/domain/roles'
 import type { Result } from 'neverthrow'
 import type { getLogger as getLoggerType } from '#/shared/observability/logger'
 
-// ── Dependencies ──────────────────────────────────────────────────────
-
-export type OnTeamDeletedDeps = Readonly<{
+export type OnGroupDeletedDeps = Readonly<{
   goalRepo: GoalRepository
   cancelGoalFn: (
     input: Readonly<{ goalId: GoalId; organizationId: OrganizationId; role: Role }>,
@@ -20,15 +16,14 @@ export type OnTeamDeletedDeps = Readonly<{
   getLogger: typeof getLoggerType
 }>
 
-// ── Handler factory ───────────────────────────────────────────────────
-
-export const onTeamDeleted =
-  (deps: OnTeamDeletedDeps) =>
-  async (event: TeamDeleted): Promise<void> => {
+export const onGroupDeleted =
+  (deps: OnGroupDeletedDeps) =>
+  async (event: PortalGroupDeleted): Promise<void> => {
     try {
       const goals = await deps.goalRepo.list({
         organizationId: event.organizationId,
-        teamId: event.teamId,
+        propertyId: event.propertyId,
+        groupId: event.groupId,
         status: 'active',
       })
 
@@ -43,13 +38,13 @@ export const onTeamDeleted =
             .getLogger()
             .error(
               { err: result.error, goalId: goal.id },
-              'goal: failed to cancel on team deleted',
+              'goal: failed to cancel on group deleted',
             )
         }
       }
     } catch (err) {
       deps
         .getLogger()
-        .error({ err, teamId: event.teamId }, 'goal: fatal error in onTeamDeleted')
+        .error({ err, groupId: event.groupId }, 'goal: fatal error in onGroupDeleted')
     }
   }

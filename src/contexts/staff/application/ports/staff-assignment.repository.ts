@@ -1,7 +1,13 @@
 // Staff context — repository port
 
 import type { StaffAssignment, StaffAssignmentId } from '../../domain/types'
-import type { OrganizationId, PropertyId, TeamId, UserId } from '#/shared/domain/ids'
+import type {
+  OrganizationId,
+  PortalId,
+  PropertyId,
+  TeamId,
+  UserId,
+} from '#/shared/domain/ids'
 
 export type StaffAssignmentRepository = Readonly<{
   findById: (
@@ -25,6 +31,7 @@ export type StaffAssignmentRepository = Readonly<{
     userId: UserId,
     propertyId: PropertyId,
     teamId: TeamId | null,
+    portalId: PortalId | null,
   ) => Promise<boolean>
   insert: (orgId: OrganizationId, assignment: StaffAssignment) => Promise<void>
   softDelete: (orgId: OrganizationId, id: StaffAssignmentId) => Promise<void>
@@ -33,9 +40,4 @@ export type StaffAssignmentRepository = Readonly<{
     orgId: OrganizationId,
     userId: UserId,
   ) => Promise<ReadonlyArray<PropertyId>>
-  /** Find assignment by referral code within an org. */
-  findByReferralCode: (
-    orgId: OrganizationId,
-    referralCode: string,
-  ) => Promise<StaffAssignment | null>
 }>

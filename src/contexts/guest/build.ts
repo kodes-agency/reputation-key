@@ -2,20 +2,17 @@ import type { EventBus } from '#/shared/events/event-bus'
 import type { Database } from '#/shared/db'
 import type { LinkResolverPort } from '#/contexts/portal/application/public-api'
 import type { PortalPublicApi } from '#/contexts/portal/application/public-api'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { createGuestInteractionRepository } from './infrastructure/repositories/guest-interaction.repository'
 import { createPortalContextResolver } from './infrastructure/resolvers/portal-context-resolver'
 import { createPublicPortalLookup } from './infrastructure/resolvers/public-portal-lookup'
 import { recordScan } from './application/use-cases/record-scan'
-import { recordScanWithRef } from './application/use-cases/record-scan-with-ref'
 import { submitRating } from './application/use-cases/submit-rating'
 import { submitFeedback } from './application/use-cases/submit-feedback'
 import { trackReviewLinkClick } from './application/use-cases/track-review-link-click'
 import { resolveLinkAndTrack } from './application/use-cases/resolve-link-and-track'
 import { resolvePortalContext } from './application/use-cases/resolve-portal-context'
 import { getPublicPortal } from './application/use-cases/get-public-portal'
-import { getStaffIdForSession } from './application/use-cases/get-staff-id-for-session'
 import { scanEventId, ratingId, feedbackId } from '#/shared/domain/ids'
 import { randomUUID } from 'crypto'
 
@@ -24,7 +21,6 @@ type GuestContextDeps = Readonly<{
   events: EventBus
   clock: () => Date
   linkResolver: LinkResolverPort
-  staffApi: StaffPublicApi
   portalApi: PortalPublicApi
   logger: LoggerPort
 }>
@@ -36,14 +32,6 @@ export const buildGuestContext = (deps: GuestContextDeps) => {
 
   const useCases = {
     recordScan: recordScan({
-      guestRepo,
-      events: deps.events,
-      idGen: () => scanEventId(randomUUID()),
-      clock: deps.clock,
-      logger: deps.logger,
-    }),
-    recordScanWithRef: recordScanWithRef({
-      staffRepo: deps.staffApi,
       guestRepo,
       events: deps.events,
       idGen: () => scanEventId(randomUUID()),
@@ -79,7 +67,6 @@ export const buildGuestContext = (deps: GuestContextDeps) => {
       portalContextResolver,
     }),
     getPublicPortal: getPublicPortal({ publicPortalLookup }),
-    getStaffIdForSession: getStaffIdForSession({ guestRepo }),
   } as const
 
   return { useCases, guestRepo, portalContextResolver, publicPortalLookup } as const

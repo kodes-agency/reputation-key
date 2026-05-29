@@ -77,7 +77,7 @@ export const createStaffAssignmentRepository = (
     })
   },
 
-  assignmentExists: async (orgId, userId, propertyId, teamId) => {
+  assignmentExists: async (orgId, userId, propertyId, teamId, portalId) => {
     return trace('staffAssignment.assignmentExists', async () => {
       const conditions = [
         ...baseWhere(staffAssignments, orgId),
@@ -85,11 +85,16 @@ export const createStaffAssignmentRepository = (
         eq(staffAssignments.propertyId, propertyId as string),
       ]
       // Must distinguish NULL teamId (direct assignment) from non-null (team assignment).
-      // Without this filter, a direct-property check would match team-based assignments.
       if (teamId) {
         conditions.push(eq(staffAssignments.teamId, teamId as string))
       } else {
         conditions.push(isNull(staffAssignments.teamId))
+      }
+      // Must distinguish NULL portalId from non-null
+      if (portalId) {
+        conditions.push(eq(staffAssignments.portalId, portalId as string))
+      } else {
+        conditions.push(isNull(staffAssignments.portalId))
       }
 
       const rows = await db
@@ -137,22 +142,6 @@ export const createStaffAssignmentRepository = (
           ),
         )
       return rows.map((r) => propertyId(r.propertyId))
-    })
-  },
-
-  findByReferralCode: async (orgId, referralCode) => {
-    return trace('staffAssignment.findByReferralCode', async () => {
-      const [row] = await db
-        .select()
-        .from(staffAssignments)
-        .where(
-          and(
-            ...baseWhere(staffAssignments, orgId),
-            eq(staffAssignments.referralCode, referralCode),
-          ),
-        )
-        .limit(1)
-      return row ? staffAssignmentFromRow(row) : null
     })
   },
 })

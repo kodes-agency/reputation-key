@@ -26,7 +26,7 @@ External platform reviews — sync, storage, reply mirroring, and 30-day retenti
 
 ## Events produced
 
-- **`review.created`** — reviewId, propertyId, organizationId, platform, externalId, rating, reviewText, staffId, occurredAt. Emitted when a new review is synced from Google.
+- **`review.created`** — reviewId, propertyId, organizationId, platform, externalId, rating, reviewText, occurredAt. Emitted when a new review is synced from Google.
 - **`review.updated`** — reviewId, propertyId, organizationId, platform, externalId, rating, reviewText, occurredAt. Emitted when an existing review is re-synced with new data.
 - **`review.expired`** — reviewId, propertyId, organizationId, occurredAt. Emitted when the purge job hard-deletes expired reviews.
 - **`reply.published`** — replyId, reviewId, propertyId, organizationId, occurredAt. Emitted when a reply reaches published status.

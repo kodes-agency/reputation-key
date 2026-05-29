@@ -4,7 +4,12 @@
 
 import type { MetricKey, MetricReading } from '../../domain/types'
 import type { MetricRepository } from '../ports/metric.repository'
-import type { OrganizationId, PropertyId, PortalId, StaffId } from '#/shared/domain/ids'
+import type {
+  OrganizationId,
+  PropertyId,
+  PortalId,
+  PortalGroupId,
+} from '#/shared/domain/ids'
 import type { EventBus } from '#/shared/events/event-bus'
 import { metricError } from '../../domain/errors'
 import { metricRecorded } from '../../domain/events'
@@ -23,7 +28,7 @@ export type RecordMetricInput = Readonly<{
   portalId: PortalId | null
   metricKey: MetricKey
   value: number
-  staffId: StaffId | null
+  groupId: PortalGroupId | null
 }>
 
 export type RecordMetricDeps = Readonly<{
@@ -45,7 +50,7 @@ export const recordMetric =
       portalId: input.portalId,
       metricKey: input.metricKey,
       value: input.value,
-      staffId: input.staffId,
+      groupId: input.groupId,
       recordedAt: deps.clock(),
     })
 
@@ -55,7 +60,7 @@ export const recordMetric =
         organizationId: reading.organizationId,
         propertyId: reading.propertyId,
         portalId: reading.portalId,
-        staffId: null,
+        groupId: reading.groupId,
         metricKey: reading.metricKey,
         value: reading.value,
         recordedAt: reading.recordedAt,

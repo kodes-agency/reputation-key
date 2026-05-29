@@ -3,7 +3,7 @@
 // and computes the final numeric progress value from raw metric readings.
 
 import type { AggregationFunction, MetricKey } from '#/shared/domain/metric-keys'
-import type { PropertyId, PortalId, TeamId, StaffId } from '#/shared/domain/ids'
+import type { PropertyId, PortalId, PortalGroupId } from '#/shared/domain/ids'
 import { assertNever } from '#/shared/domain/assert'
 import type { Goal } from './types'
 import { err, ok, type Result } from 'neverthrow'
@@ -22,8 +22,7 @@ export type ProgressQuery = Readonly<{
   scopeFilter: {
     propertyId: PropertyId
     portalId: PortalId | null
-    teamId: TeamId | null
-    staffId: StaffId | null
+    groupId: PortalGroupId | null
   }
 }>
 
@@ -57,8 +56,7 @@ export function buildProgressQuery(
     scopeFilter: {
       propertyId: goal.propertyId,
       portalId: goal.portalId,
-      teamId: goal.teamId,
-      staffId: goal.staffId,
+      groupId: goal.groupId,
     },
   })
 }
@@ -83,8 +81,7 @@ export function buildProgressQueryForInstance(
     scopeFilter: {
       propertyId: goal.propertyId,
       portalId: goal.portalId,
-      teamId: goal.teamId,
-      staffId: goal.staffId,
+      groupId: goal.groupId,
     },
   })
 }

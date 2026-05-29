@@ -6,6 +6,7 @@ export const createStaffAssignmentInputSchema = z.object({
   userId: z.string().min(1, 'User ID is required'),
   propertyId: z.string().min(1, 'Property ID is required'),
   teamId: z.string().min(1, 'This field is required').optional(),
+  portalId: z.string().min(1, 'This field is required').optional(),
 })
 
 export type CreateStaffAssignmentInput = z.infer<typeof createStaffAssignmentInputSchema>

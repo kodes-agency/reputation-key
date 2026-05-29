@@ -23,7 +23,6 @@ function parseSource(raw: string | null): ScanSource {
 export const Route = createFileRoute('/p/$propertySlug/$portalSlug')({
   validateSearch: (search: Record<string, string>) => ({
     source: search.source,
-    ref: search.ref,
   }),
   staleTime: 5 * 60 * 1000,
   loader: async ({ params }): Promise<PublicPortalLoaderData> => {
@@ -74,12 +73,11 @@ function PublicPortalPage() {
       document.cookie = `guest_session=${sessionId}; path=/p/; max-age=86400; SameSite=Lax`
     }
 
-    // Record the scan (with referral code if present)
+    // Record the scan
     recordScan({
       data: {
         portalId: portal.id,
         source,
-        referralCode: search.ref ?? null,
       },
     })
   }, [])

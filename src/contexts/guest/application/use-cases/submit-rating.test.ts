@@ -41,7 +41,6 @@ describe('submitRating', () => {
       value: 5,
       source: 'qr',
       ipHash: 'hash123',
-      staffId: null,
     })
 
     expect(result.value).toBe(5)
@@ -68,7 +67,6 @@ describe('submitRating', () => {
       value: 4,
       source: 'qr' as const,
       ipHash: 'hash123',
-      staffId: null,
     }
 
     await useCase(input)
@@ -97,7 +95,6 @@ describe('submitRating', () => {
         value: 0,
         source: 'qr',
         ipHash: 'hash123',
-        staffId: null,
       }),
     ).rejects.toSatisfy((e: unknown) => {
       return isGuestError(e) && e.code === 'invalid_rating'

@@ -206,7 +206,6 @@ export function buildTestScanEvent(overrides: Partial<ScanEvent> = {}): ScanEven
     source: 'qr',
     sessionId: 'session-test-001',
     ipHash: 'hash-test',
-    staffId: null,
     createdAt: new Date('2026-05-01T12:00:00Z'),
     ...overrides,
   }
@@ -222,7 +221,6 @@ export function buildTestRating(overrides: Partial<Rating> = {}): Rating {
     value: 4,
     source: 'qr',
     ipHash: 'hash-test',
-    staffId: null,
     createdAt: new Date('2026-05-01T12:00:00Z'),
     ...overrides,
   }
@@ -239,7 +237,6 @@ export function buildTestFeedback(overrides: Partial<Feedback> = {}): Feedback {
     comment: 'Test feedback',
     source: 'qr',
     ipHash: 'hash-test',
-    staffId: null,
     createdAt: new Date('2026-05-01T12:00:00Z'),
     ...overrides,
   }

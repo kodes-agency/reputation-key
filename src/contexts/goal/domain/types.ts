@@ -5,8 +5,7 @@ import type {
   OrganizationId,
   PropertyId,
   PortalId,
-  TeamId,
-  StaffId,
+  PortalGroupId,
   UserId,
   GoalId,
   GoalProgressId,
@@ -32,8 +31,7 @@ export type Goal = Readonly<{
   organizationId: OrganizationId
   propertyId: PropertyId
   portalId: PortalId | null
-  teamId: TeamId | null
-  staffId: StaffId | null
+  groupId: PortalGroupId | null
   name: string
   description: string | null
   createdBy: UserId
@@ -68,16 +66,14 @@ export type GoalProgress = Readonly<{
 
 /**
  * Derive the EntityScope from a Goal's filled nullable FKs.
- * Exactly one of [portalId, teamId, staffId] determines the scope.
+ * Exactly one of [portalId, groupId] determines the scope.
  * If all are null, scope is 'property'.
  */
 export function deriveEntityScope(goal: {
   portalId: PortalId | null
-  teamId: TeamId | null
-  staffId: StaffId | null
+  groupId: PortalGroupId | null
 }): EntityScope {
-  if (goal.staffId) return 'staff'
-  if (goal.teamId) return 'team'
+  if (goal.groupId) return 'portal_group'
   if (goal.portalId) return 'portal'
   return 'property'
 }

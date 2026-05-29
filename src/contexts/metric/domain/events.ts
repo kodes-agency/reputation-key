@@ -4,7 +4,7 @@ import type {
   OrganizationId,
   PropertyId,
   PortalId,
-  StaffId,
+  PortalGroupId,
 } from '#/shared/domain/ids'
 import type { MetricKey } from './types'
 
@@ -15,7 +15,7 @@ export type MetricRecorded = Readonly<{
   organizationId: OrganizationId
   propertyId: PropertyId
   portalId: PortalId | null
-  staffId: StaffId | null
+  groupId: PortalGroupId | null
   metricKey: MetricKey
   value: number
   recordedAt: Date

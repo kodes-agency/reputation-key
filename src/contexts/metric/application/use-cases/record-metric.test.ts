@@ -7,7 +7,7 @@ import {
   propertyId,
   portalId,
   metricReadingId,
-  staffId,
+  portalGroupId,
 } from '#/shared/domain/ids'
 
 const FIXED_TIME = new Date('2026-01-01')
@@ -47,28 +47,28 @@ const createFakeDeps = (): RecordMetricDeps & {
 }
 
 describe('recordMetric', () => {
-  it('accepts nullable staffId and passes it through', async () => {
+  it('accepts nullable groupId and passes it through', async () => {
     const deps = createFakeDeps()
 
-    const withStaff = await recordMetric(deps)({
+    const withGroup = await recordMetric(deps)({
       organizationId: organizationId('org-1'),
       propertyId: propertyId('prop-1'),
       portalId: portalId('portal-1'),
       metricKey: 'portal.scan',
       value: 1,
-      staffId: staffId('staff-1'),
+      groupId: portalGroupId('group-1'),
     })
-    expect(withStaff.staffId).toBe('staff-1')
+    expect(withGroup.groupId).toBe('group-1')
 
-    const withoutStaff = await recordMetric(deps)({
+    const withoutGroup = await recordMetric(deps)({
       organizationId: organizationId('org-1'),
       propertyId: propertyId('prop-1'),
       portalId: portalId('portal-1'),
       metricKey: 'portal.scan',
       value: 1,
-      staffId: null,
+      groupId: null,
     })
-    expect(withoutStaff.staffId).toBeNull()
+    expect(withoutGroup.groupId).toBeNull()
   })
 
   it('emits a MetricRecorded event after inserting a reading', async () => {
@@ -81,7 +81,7 @@ describe('recordMetric', () => {
       portalId: portalId('portal-1'),
       metricKey: 'portal.scan',
       value: 1,
-      staffId: null,
+      groupId: null,
     })
 
     expect(deps.emittedEvents).toHaveLength(1)

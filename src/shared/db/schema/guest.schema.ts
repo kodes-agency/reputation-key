@@ -26,12 +26,10 @@ export const scanEvents = pgTable(
     source: varchar('source', { length: 10 }).notNull(),
     sessionId: varchar('session_id', { length: 255 }).notNull(),
     ipHash: text('ip_hash').notNull(),
-    staffId: varchar('staff_id', { length: 255 }),
     createdAt: createdAtColumn(),
   },
   (t) => ({
     sessionIdx: index('scan_events_session_idx').on(t.sessionId),
-    staffIdx: index('scan_events_staff_idx').on(t.staffId),
   }),
 )
 
@@ -48,7 +46,6 @@ export const ratings = pgTable(
     value: integer('value').notNull(),
     source: varchar('source', { length: 10 }).notNull(),
     ipHash: text('ip_hash').notNull(),
-    staffId: varchar('staff_id', { length: 255 }),
     createdAt: createdAtColumn(),
   },
   (t) => ({
@@ -56,7 +53,6 @@ export const ratings = pgTable(
       t.sessionId,
       t.portalId,
     ),
-    staffIdx: index('ratings_staff_idx').on(t.staffId),
   }),
 )
 
@@ -74,10 +70,7 @@ export const feedback = pgTable(
     comment: text('comment').notNull(),
     source: varchar('source', { length: 10 }).notNull(),
     ipHash: text('ip_hash').notNull(),
-    staffId: varchar('staff_id', { length: 255 }),
     createdAt: createdAtColumn(),
   },
-  (t) => ({
-    staffIdx: index('feedback_staff_idx').on(t.staffId),
-  }),
+  () => ({}),
 )

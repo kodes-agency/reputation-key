@@ -25,7 +25,7 @@ const staffErrorStatus = (code: StaffErrorCode): number =>
   match(code)
     .with('forbidden', () => 403)
     .with('assignment_not_found', 'property_not_found', 'team_not_found', () => 404)
-    .with('already_assigned', 'referral_code_collision', () => 409)
+    .with('already_assigned', () => 409)
     .with('invalid_input', () => 400)
     .exhaustive()
 
@@ -111,7 +111,10 @@ export const listStaffAssignments = createServerFn({ method: 'GET' })
           // Log and return empty — callers degrade gracefully.
           const logger = (await import('#/shared/observability/logger')).getLogger()
           logger.error(
-            { error: e instanceof Error ? e.message : String(e), path: 'staff.listStaffAssignments' },
+            {
+              error: e instanceof Error ? e.message : String(e),
+              path: 'staff.listStaffAssignments',
+            },
             'staff.listStaffAssignments — returning empty due to unexpected error',
           )
           return { assignments: [] }

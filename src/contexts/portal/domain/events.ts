@@ -3,7 +3,16 @@
 // Events live in their owning context's domain/events.ts.
 
 import type { PortalId } from './types'
-import type { OrganizationId, PortalLinkCategoryId, PortalLinkId } from '#/shared/domain/ids'
+import type {
+  OrganizationId,
+  PortalLinkCategoryId,
+  PortalLinkId,
+} from '#/shared/domain/ids'
+import type {
+  PortalGroupCreated,
+  PortalGroupUpdated,
+  PortalGroupDeleted,
+} from './portal-group-events'
 
 // ── Portal events ──────────────────────────────────────────────────
 
@@ -85,6 +94,9 @@ export type PortalEvent =
   | PortalLinkCategoryReordered
   | PortalLinkCreated
   | PortalLinkReordered
+  | PortalGroupCreated
+  | PortalGroupUpdated
+  | PortalGroupDeleted
 
 // ── Event constructors ─────────────────────────────────────────────
 
@@ -118,3 +130,12 @@ export const portalLinkCreated = (
 export const portalLinkReordered = (
   args: Omit<PortalLinkReordered, '_tag'>,
 ): PortalLinkReordered => ({ _tag: 'portal_link.reordered', ...args })
+
+// ── PortalGroup event types ───────────────────────────────────────
+// Imported above from portal-group-events.ts; re-exported for convenience
+
+export {
+  portalGroupCreated,
+  portalGroupUpdated,
+  portalGroupDeleted,
+} from './portal-group-events'

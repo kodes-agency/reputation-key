@@ -1,166 +1,190 @@
-# GIGA REVIEW — Master Report
+# Code Review: Phase 15 Portal Groups Refactor
 
-**Branch:** `feat/phase-15c-goal-ui` (PR #62, #63, #65)
-**Scope:** Goal Domain + Application + Infrastructure + Server + Frontend + Cross-cutting
-**Reviewers:** 3 independent angry subagents (domain/infra/frontend)
-**Files reviewed:** 104 total
-**Date:** 2026-05-24
+**Verdict: FIX REQUIRED** (3 BLOCKER, 3 MAJOR, 3 MINOR, 2 NIT)
+**Test Suite:** 177 files, 1684 tests — all green ✓
 
 ---
 
-## Executive Summary
+## 🔴 BLOCKER (P0)
 
-| Split                               | Verdict            | P0    | P1     | P2     | P3     |
-| ----------------------------------- | ------------------ | ----- | ------ | ------ | ------ |
-| 01 — Domain + Application           | PASS WITH WARNINGS | 0     | 7      | 7      | 10     |
-| 02 — Infrastructure + Server + Jobs | **FAIL**           | 4     | 7      | 6      | 6      |
-| 03 — Frontend + Cross-cutting       | **FAIL**           | 3     | 4      | 6      | 6      |
-| **TOTAL**                           | **FAIL**           | **7** | **18** | **19** | **22** |
+### P0-1: Zero tests for new portal-group CRUD (4 use cases + domain + repo + server + event handlers)
 
-**Bottom line:** The domain model is architecturally sound with excellent purity and test coverage. Infrastructure has real data-integrity risks (non-transactional writes, non-idempotent handler). Frontend form completely ignores established form conventions. These must be fixed before merge.
+New files without ANY test coverage:
 
----
+- `src/contexts/portal/application/use-cases/create-portal-group.ts` — no test
+- `src/contexts/portal/application/use-cases/list-portal-groups.ts` — no test
+- `src/contexts/portal/application/use-cases/update-portal-group.ts` — no test
+- `src/contexts/portal/application/use-cases/delete-portal-group.ts` — no test
+- `src/contexts/portal/domain/portal-group-constructors.ts` — no `portal-group-constructors.test.ts`
+- `src/contexts/portal/infrastructure/repositories/portal-group.repository.ts` — no integration test
+- `src/contexts/portal/infrastructure/mappers/portal-group.mapper.ts` — no mapper test
+- `src/contexts/portal/server/portal-groups.ts` — no server test
+- `src/contexts/goal/infrastructure/event-handlers/on-group-deleted.ts` — no handler test
 
-## Critical Issues (P0) — MUST FIX
+Violates CONTEXT.md: "Domain: 100% coverage, test-first" and "Every use case tested for happy + error paths."
+**Fix:** Add tests for all new code. Minimum: domain constructors test, 4 use case tests (happy + error), mapper test, on-group-deleted handler test.
 
-### DATA INTEGRITY
+### P0-2: `metric.schema.ts:42` — `groupId` column has no FK reference
 
-- **P0-1** `goal.repository.ts:190-201` — `createGoalAndProgress` does TWO independent INSERTs without a transaction. Partial failure = orphaned goal with no progress row. Every recurring instance spawn is one network hiccup away from corruption. **Wrap in `db.transaction()`.**
+```typescript
+// Line 42: no .references() — orphaned groupIds allowed
+groupId: uuid('group_id'),
+```
 
-- **P0-2** `goal.repository.ts:285-317` — AVG `incrementProgress` does two non-transactional UPDATEs with a race condition. Concurrent calls compute wrong averages. **Merge into a single atomic SQL UPDATE.**
+Compare with `portalId` on line 41: `.references(() => portals.id, { onDelete: 'cascade' })`.
+**Fix:** Add `.references(() => portalGroups.id, { onDelete: 'set null' })` — or `cascade` depending on desired behavior when a group is deleted.
 
-### EVENT HANDLER SAFETY
+### P0-3: `portal-group.schema.ts:20` — `deletedAt` column is dead weight
 
-- **P0-3** `on-metric-recorded.ts:39-103` — Handler has NO try/catch and CAN throw (`incrementProgress` throws on missing progress row). Violates "handlers don't throw" convention. **Wrap in try/catch with shared logger.**
+Schema includes `deletedAt: deletedAtColumn()` but:
 
-- **P0-4** `on-metric-recorded.ts` — NOT idempotent. Duplicate `metric.recorded` events double-increment progress. No dedup guard. **Add event ID tracking or conditional increment.**
+- Domain type `PortalGroup` has no `deletedAt` field
+- Mapper `portalGroupFromRow` doesn't map `deletedAt`
+- Repo `delete()` does hard-delete via `db.delete()`
+- No soft-delete logic anywhere
 
-### DOMAIN RULE LEAKS
-
-- **P0-5** `on-metric-recorded.ts:25-34` — `shouldEmitCompleted()` is a business rule (should this goal type emit completion?) sitting in infrastructure. **Move to `domain/progress-strategy.ts`.**
-
-### USE CASE SIGNATURE VIOLATION
-
-- **P0-6** `all use cases` — Every goal use case jams `role: Role` into `input` instead of separate `ctx: AuthContext` parameter. Convention explicitly says `(deps) => async (input, ctx) => Promise<T>`. This blends auth with business data. **Refactor to `(input, ctx)` signature.**
-
-- **P0-7** `list-goals.ts:43` — THROWS on forbidden while every other use case returns `Result`. Inconsistent and a runtime crash if caller doesn't catch. **Return `err()` like every other use case.**
-
-### FRONTEND FORM VIOLATION
-
-- **P0-8** `goal-create-form.tsx:51-126` — Uses plain `useState` + manual validation instead of TanStack Form + Zod v4. CONTEXT.md explicitly forbids this. **Rewrite with `useForm` + `createGoalSchema`.**
-
-- **P0-9** `goal-create-form.tsx:87-95` — Duplicates validation logic that already exists in `createGoalSchema`. **Use the schema for validation.**
+**Fix:** Remove `deletedAtColumn()` from the schema. If soft-delete is planned for later, add it holistically (domain + mapper + repo + use case) at that time.
 
 ---
 
-## Major Issues (P1) — SHOULD FIX
+## ⚠️ MAJOR (P1)
 
-### Validation Gaps
+### P1-1: Portal group server functions missing `clearTenantCache()`
 
-- `update-goal.ts:63-64` — No validation on updated `targetValue`. Can set 0 or negative. Domain invariant "targetValue must be > 0" violated.
-- `update-goal.ts:67-73` — No validation on updated `recurrenceRule` for recurring templates.
-- `goal.schema.ts:31` — `staffId` has no FK constraint or cascade delete (unlike `portalId` and `teamId`).
+`src/contexts/portal/server/portal-groups.ts` — All 4 functions (create, update, delete, list) omit the required `clearTenantCache()` call. Every other server function calls it. Pattern documented in `src/contexts/CONTEXT.md` line 97.
 
-### Server Function Convention Violations
+**Fix:** Add `import { clearTenantCache } from '#/shared/auth/middleware'` and call `clearTenantCache()` after each handler completes (before return, after try/catch).
 
-- `goals.ts`, `staff-goals.ts` — ALL 6 server functions missing `clearTenantCache()`.
-- `goals.ts`, `staff-goals.ts` — ALL 6 server functions missing `catchUntagged`. Raw try/catch loses error context.
+### P1-2: `portal-group.repository.ts` — `as string` casts bypassing `unbrand()`
 
-### Non-atomicity
+- Line 31: `propertyId as string` — should be `unbrand(propertyId)`
+- Line 42: `propertyId as string` — same
+- Line 63: `group.organizationId as string` — should be `unbrand(group.organizationId)`
+- Line 64: `group.propertyId as string` — should be `unbrand(group.propertyId)`
 
-- `create-goal.ts:125-150` — Recurring goal creation: template inserted, then instance built, then instance inserted. If instance build fails, orphaned template. No transaction wrapping.
+`unbrand()` is the canonical way to extract raw values from branded types. `as string` casts bypass type safety.
 
-### Type Safety
+**Fix:** Import `unbrand` and use it consistently.
 
-- `create-goal.ts:94` — Unsafe `as GoalId` cast instead of using branded `goalId()` constructor.
-- `update-goal.ts:59` — Mutable `Record<string, unknown>` for updates — completely untyped.
-- `goal.repository.ts` — `insert()` takes `Omit<Goal, 'id'>` but use case passes Goal WITH id. Repo silently discards it.
+### P1-3: Portal group server functions don't wrap non-PortalError exceptions
 
-### Infrastructure
+`src/contexts/portal/server/portal-groups.ts` — All 4 handlers do `throw e` for non-PortalError exceptions. Should use `catchUntagged` pattern:
 
-- `index.ts:26-33` — Duplicate `events` + `eventBus` props (same object, two names) in handler registration deps.
+```typescript
+} catch (e) {
+  if (isPortalError(e))
+    throwContextError('PortalError', e, portalErrorStatus(e.code))
+  throw catchUntagged(e)  // ← missing
+}
+```
 
-### Missing Tests
+DB errors, network errors, and unexpected exceptions are re-thrown raw without observability wrapping.
 
-- `goal.repository.ts` — ZERO tests. Convention requires tenant isolation tests for every repo.
-- `goal.mapper.test.ts` — No round-trip test (domain → row → domain).
-
-### Frontend
-
-- `goal-create-form.tsx` — 151 lines, exceeds 150-line limit.
-- 3 files define identical `GoalWithProgress` type instead of sharing.
-- All 3 goal routes missing `beforeLoad` authorization guards.
-- ALL 9 components missing `Readonly<>` on Props types. Convention explicitly requires it.
+**Fix:** Import `catchUntagged` from `#/shared/auth/server-errors` and wrap non-PortalError throws.
 
 ---
 
-## Minor Issues (P2) — NICE TO FIX
+## 💡 MINOR (P2)
 
-- `domain/types.ts:20` — Comment says "Enums" but convention says NO enum. Misleading.
-- `domain/types.ts:69-83` — `deriveEntityScope` has runtime logic in `types.ts`.
-- `goal.mapper.ts:36-42` — Hardcoded `VALID_METRIC_KEYS` duplicates `shared/domain/metric-keys.ts`.
-- `helpers.ts:128-129` — `daysRemaining` uses `new Date()` instead of injected clock.
-- `helpers.ts:150` — `formatDatePart` uses local timezone instead of UTC.
-- `helpers.ts:207-220` — `goalTypeLabel` takes `string` instead of `GoalType`.
-- `goal.schema.ts:54` — `goals_staff_idx` missing `organizationId` in composite index.
-- `goals.ts:125` — Inconsistent return shapes (some bare, some `{ goal: ... }`).
-- `domain/constructors.ts:26-40` — Internal errors use `tag` not `_tag`.
-- `dto/goal.dto.ts:106-107` — Re-exports from domain in DTO file (already in public-api).
-- `list-goals.ts:48` — Mutable array pattern instead of `map`.
-- `get-goal.ts:63` — Mutable array pattern instead of `map`.
-- `goal-create-extra-fields.tsx:14` — Props uses `interface` not `type`.
-- `goal-create-fields.tsx:16` — Props aliased as single-letter `F`.
-- `goal-create-metric-fields.tsx:14` — Props named `MetricFieldsProps` not `Props`.
-- Various hardcoded values in components (scope lists, goal type lists, frequency options).
-- `goals-list-page.tsx:35-40` — `STATUS_ORDER` duplicated from `ui/helpers.ts`.
+### P2-1: Delete portal group uses `new Date()` instead of `deps.clock()`
+
+`src/contexts/portal/application/use-cases/delete-portal-group.ts:37` — `occurredAt: new Date()`. Create and update use `deps.clock()`. Delete doesn't accept clock dep.
+
+**Fix:** Add `clock: () => Date` to `DeletePortalGroupDeps`, pass it from `build.ts`, use `deps.clock()` instead of `new Date()`.
+
+### P2-2: Update portal group bypasses `buildPortalGroup` constructor
+
+`src/contexts/portal/application/use-cases/update-portal-group.ts:42-46` — Constructs updated `PortalGroup` inline instead of calling `buildPortalGroup`. The DTO validates the name, but domain constructor is the canonical validation point.
+
+**Fix:** Pass the update through `buildPortalGroup` and use `existing.*` for fields not being changed.
+
+### P2-3: `goal.list` method comment out of date
+
+`src/contexts/goal/application/ports/goal.repository.ts:32` — The `insert` method signature says `Omit<Goal, 'id' | 'createdAt' | 'updatedAt'>` but the file now contains full CRUD — this is a port, not an insert-only concern. (Pre-existing, not new.)
 
 ---
 
-## Nits (P3) — COSMETIC
+## 🔧 NIT (P3)
 
-- `vi.fn()` used without explicit import (fragile if globals disabled)
-- `makeGoal` helper copy-pasted across 7+ test files (extract to shared factory)
-- `goal.schema.ts:42` — `recurrenceRule` typed as `{ frequency: string }` not narrowed
-- `reconcile-goal-progress.job.test.ts:137` — Fake typed as `MetricRepository` not `MetricPublicApi`
-- `spawn-recurring-instances.job.ts:36-39` — Filters in JS instead of using targeted DB query
-- `new.tsx:18-23` — Double navigation logic (route `onSuccess` + form `navigate`)
-- `goal-create-form.tsx:120` — Unsafe `(result as { goal?: ... })` type assertion
-- Various `// fallow-ignore` comments that need documentation or removal
-- `domain/events.ts:15-16` — Repetitive `fallow-ignore-next-line` comments
+### P3-1: `computedSource: 'event_increment'` vs `'reconciliation'` hardcoded
+
+`src/contexts/goal/infrastructure/repositories/goal.repository.ts` — `upsertProgress` always uses `computedSource: 'event_increment'` regardless of call path. If reconciliation job also calls this method, the source tag would be wrong. (Pre-existing — verify the reconciliation job uses `incrementProgress` not `upsertProgress`.)
+
+### P3-2: `portal-group.repository.ts` — `throw new Error()` without tagged error
+
+Lines 70, 82 — `throw new Error('PortalGroup insert failed')` and `throw new Error('PortalGroup update failed')`. This is the conventional pattern used in this codebase (other repos do the same for "should never happen" cases). Consistent, but fragile — if Drizzle ever returns empty array on success, this becomes a misleading error. Consider a shared `assertRow` helper.
 
 ---
 
-## Positive Findings (grudging respect)
+## ✅ Positive
 
-- **Domain purity is textbook.** Pure functions, `Result<T,E>`, no async, no I/O, no mutation. Exactly right.
-- **Constructor validation is thorough.** Every CONTEXT.md invariant checked. Goal type rules complete.
-- **Test coverage is comprehensive.** 4×4 matrix on progress strategy, happy+error on every use case, proper sorting tests.
-- **Permission checks are first and consistent.** Every use case checks `can(role, 'goal.xxx')` as step 1.
-- **Event types match CONTEXT.md exactly.** Past-tense naming, proper payload, `Readonly<>`.
-- **No cross-context boundary violations in any component.** All imports through public-api or dto.
-- **All 16 CONTEXT.md files are accurate.** Glossary, relationships, invariants, events — all match code.
-- **All 12 public-api.ts files re-export correctly.** No stale exports.
-- **Tenant isolation on CRUD queries is solid.** Every user-facing query filters by `organizationId`.
-- **Entity removal handlers** (portal, team, staff) are properly idempotent with error handling.
-- **Bootstrap registration** correctly handles BullMQ contravariance.
-- **Auth hardening is correct.** Permission definitions match CONTEXT.md, role assignments consistent.
+- **Complete dead code removal** — 12 deleted files (on-staff-unassigned, on-team-deleted, get-staff-id-for-session, record-scan-with-ref, resolve-referral-code, referral-code, staff-attribution-flow). All deleted files properly removed.
+- **Event handler follows per-item try/catch pattern** — `onGroupDeleted` catches per-goal errors and continues (P0-compliant).
+- **Metric event handler uses outer try/catch for initial query** — `onMetricRecorded` wraps `findActiveGoalsByMetric` in try/catch.
+- **`findActiveGoalsByMetric` with groupId matching logic** — The OR condition `groupId IS NULL` correctly captures property-scoped + group-scoped goals for readings with groupId set.
+- **Repos consistently use `baseWhere` for org isolation** — Portal group repo, goal repo, metric repo all use org-scoped queries.
+- **Exactly-one FK validation in `buildGoal`** — Count check on `[portalId, groupId].filter(Boolean).length > 1` is correct.
+- **`Number.isFinite` guard on `targetValue`** in `buildGoal` — P0-compliant NaN/Infinity prevention.
+- **Test suite clean** — 177 files, 1684 tests, zero regressions.
 
 ---
 
-## Recommended Fix Order
+## Files Reviewed
 
-1. **P0-1, P0-2** — Transaction wrapping (data integrity)
-2. **P0-3, P0-4** — Handler safety + idempotency
-3. **P0-5** — Move `shouldEmitCompleted` to domain
-4. **P0-8, P0-9** — Rewrite form with TanStack Form + Zod
-5. **P0-6, P0-7** — Use case signature refactor
-6. **P1** — Missing clearTenantCache/catchUntagged, validation gaps, missing tests, Readonly<>, route guards
-7. **P2** — Type safety improvements, deduplication, timezone consistency
+### New files (portal-group CRUD):
 
----
+- `src/contexts/portal/domain/portal-group-types.ts`
+- `src/contexts/portal/domain/portal-group-constructors.ts`
+- `src/contexts/portal/domain/portal-group-events.ts`
+- `src/contexts/portal/domain/errors.ts`
+- `src/contexts/portal/application/dto/portal-group.dto.ts`
+- `src/contexts/portal/application/ports/portal-group.repository.ts`
+- `src/contexts/portal/application/use-cases/create-portal-group.ts`
+- `src/contexts/portal/application/use-cases/list-portal-groups.ts`
+- `src/contexts/portal/application/use-cases/update-portal-group.ts`
+- `src/contexts/portal/application/use-cases/delete-portal-group.ts`
+- `src/contexts/portal/infrastructure/repositories/portal-group.repository.ts`
+- `src/contexts/portal/infrastructure/mappers/portal-group.mapper.ts`
+- `src/contexts/portal/server/portal-groups.ts`
 
-## Detailed Reports
+### Modified files (schema, goal, metric, guest, staff, etc.):
 
-- [01 — Goal Domain + Application](./01-goal-domain-application.md)
-- [02 — Goal Infrastructure + Server + Jobs](./02-goal-infra-server-jobs.md)
-- [03 — Goal Frontend + Cross-cutting](./03-frontend-crosscutting.md)
+- `src/shared/db/schema/portal-group.schema.ts`
+- `src/shared/db/schema/goal.schema.ts`
+- `src/shared/db/schema/metric.schema.ts`
+- `src/shared/db/schema/guest.schema.ts`
+- `src/shared/db/schema/staff-assignment.schema.ts`
+- `src/shared/db/schema/business.ts`
+- `src/shared/db/schema/team.schema.ts`
+- `src/shared/db/schema/portal.schema.ts`
+- `src/shared/domain/ids.ts`
+- `src/shared/domain/metric-keys.ts`, `.test.ts`
+- `src/composition.ts`
+- `src/contexts/portal/build.ts`
+- `src/contexts/goal/domain/types.ts`, `constructors.ts`, `events.ts`
+- `src/contexts/goal/domain/progress-strategy.ts`, `.test.ts`
+- `src/contexts/goal/infrastructure/repositories/goal.repository.ts`
+- `src/contexts/goal/infrastructure/mappers/goal.mapper.ts`, `.test.ts`
+- `src/contexts/goal/infrastructure/event-handlers/on-group-deleted.ts`
+- `src/contexts/goal/infrastructure/event-handlers/on-metric-recorded.ts`, `.test.ts`
+- `src/contexts/goal/server/goals.ts`, `.test.ts`
+- `src/contexts/goal/application/use-cases/*.ts`, `*.test.ts`
+- `src/contexts/goal/application/ports/goal.repository.ts`
+- `src/contexts/goal/application/dto/goal.dto.ts`
+- `src/contexts/metric/domain/types.ts`, `constructors.ts`, `events.ts`
+- `src/contexts/metric/application/use-cases/record-metric.ts`, `.test.ts`
+- `src/contexts/metric/application/ports/metric.repository.ts`
+- `src/contexts/metric/infrastructure/repositories/metric.repository.ts`, `.test.ts`
+- `src/contexts/metric/infrastructure/event-handlers/on-*.ts`, `*.test.ts`
+- `src/contexts/guest/domain/**` (removed staffId)
+- `src/contexts/guest/application/use-cases/*.ts` (removed staff attribution)
+- `src/contexts/guest/infrastructure/mappers/**` (removed staffId)
+- `src/contexts/guest/server/public.ts`
+- `src/contexts/staff/**` (removed referral codes, added portalId)
+- `src/contexts/inbox/application/use-cases/*.test.ts` (removed staffId)
+- `src/contexts/review/domain/events.ts`
+- `src/contexts/property/**` (minor)
+- `src/contexts/team/**` (minor)
+- `src/components/**` (goal entity picker, form)
+- `src/routes/**` (goal creation route)
+- `docs/plan/plan.md`, `CONTEXT.md`

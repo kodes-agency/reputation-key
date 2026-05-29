@@ -2,13 +2,18 @@
 // Per architecture: "Repository ports for all data access."
 
 import type { MetricKey, MetricReading } from '../../domain/types'
-import type { OrganizationId, PropertyId, PortalId, StaffId } from '#/shared/domain/ids'
+import type {
+  OrganizationId,
+  PropertyId,
+  PortalId,
+  PortalGroupId,
+} from '#/shared/domain/ids'
 
 export type MetricReadingsQuery = Readonly<{
   organizationId: OrganizationId
   propertyId: PropertyId
   portalId: PortalId | null
-  staffId: StaffId | null
+  groupId: PortalGroupId | null
   metricKey: MetricKey
   periodStart?: Date
   periodEnd?: Date

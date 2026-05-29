@@ -15,9 +15,6 @@ const FIXED_TIME = new Date('2026-04-15T12:00:00Z')
 const FIXED_USER = userId('user-00000000-0000-0000-0000-000000000002')
 const FIXED_PROPERTY = propertyId('a0000000-0000-0000-0000-000000000001')
 
-/** Deterministic stub: always returns 2 bytes of 0xab → hash "abab" */
-const stubRandomBytes = (size: number) => Buffer.alloc(size, 0xab)
-
 const setup = () => {
   const assignmentRepo = createInMemoryStaffAssignmentRepo()
   const events = createCapturingEventBus()
@@ -27,7 +24,6 @@ const setup = () => {
     events,
     idGen: () => FIXED_ID,
     clock: () => FIXED_TIME,
-    randomBytesFn: stubRandomBytes,
   }
 
   const useCase = createStaffAssignment(deps)
@@ -121,169 +117,32 @@ describe('createStaffAssignment', () => {
     expect(assignmentRepo.all()).toHaveLength(1)
   })
 
-  it('generates a referral code for the assignment', async () => {
-    const { useCase } = setup()
+  it('re-throws non-unique-constraint errors immediately', async () => {
+    const assignmentRepo = createInMemoryStaffAssignmentRepo()
+    const events = createCapturingEventBus()
+
+    const spiedRepo = {
+      ...assignmentRepo,
+      insert: async () => {
+        throw new Error('connection refused')
+      },
+    }
+
+    const deps = {
+      assignmentRepo: spiedRepo,
+      events,
+      idGen: () => FIXED_ID,
+      clock: () => FIXED_TIME,
+    }
+
+    const useCase = createStaffAssignment(deps)
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
 
-    const assignment = await useCase(
-      { userId: FIXED_USER as string, propertyId: FIXED_PROPERTY as string },
-      ctx,
-    )
-
-    expect(assignment.referralCode).toBeTruthy()
-    expect(typeof assignment.referralCode).toBe('string')
-  })
-
-  describe('referral code collision retry', () => {
-    it('retries on unique constraint violation and succeeds on second attempt', async () => {
-      const assignmentRepo = createInMemoryStaffAssignmentRepo()
-      const events = createCapturingEventBus()
-
-      let insertCallCount = 0
-      const originalInsert = assignmentRepo.insert.bind(assignmentRepo)
-      // Override insert to throw unique violation on first call, succeed on second
-      const spiedRepo = {
-        ...assignmentRepo,
-        insert: async (orgId: unknown, assignment: unknown) => {
-          insertCallCount++
-          if (insertCallCount === 1) {
-            const error = new Error('unique violation') as Error & {
-              code: string
-            }
-            error.code = '23505'
-            throw error
-          }
-          return originalInsert(orgId as never, assignment as never)
-        },
-      }
-
-      const deps = {
-        assignmentRepo: spiedRepo,
-        events,
-        idGen: () => FIXED_ID,
-        clock: () => FIXED_TIME,
-        randomBytesFn: stubRandomBytes,
-      }
-
-      const useCase = createStaffAssignment(deps)
-      const ctx = buildTestAuthContext({ role: 'PropertyManager' })
-
-      const assignment = await useCase(
+    await expect(
+      useCase(
         { userId: FIXED_USER as string, propertyId: FIXED_PROPERTY as string },
         ctx,
-      )
-
-      expect(assignment.referralCode).toBeTruthy()
-      expect(insertCallCount).toBe(2)
-    })
-
-    it('retries on driverError.code unique violation', async () => {
-      const assignmentRepo = createInMemoryStaffAssignmentRepo()
-      const events = createCapturingEventBus()
-
-      let insertCallCount = 0
-      const originalInsert = assignmentRepo.insert.bind(assignmentRepo)
-      const spiedRepo = {
-        ...assignmentRepo,
-        insert: async (orgId: unknown, assignment: unknown) => {
-          insertCallCount++
-          if (insertCallCount === 1) {
-            const error = new Error('unique violation') as Error & {
-              driverError: { code: string }
-            }
-            error.driverError = { code: '23505' }
-            throw error
-          }
-          return originalInsert(orgId as never, assignment as never)
-        },
-      }
-
-      const deps = {
-        assignmentRepo: spiedRepo,
-        events,
-        idGen: () => FIXED_ID,
-        clock: () => FIXED_TIME,
-        randomBytesFn: stubRandomBytes,
-      }
-
-      const useCase = createStaffAssignment(deps)
-      const ctx = buildTestAuthContext({ role: 'PropertyManager' })
-
-      const assignment = await useCase(
-        { userId: FIXED_USER as string, propertyId: FIXED_PROPERTY as string },
-        ctx,
-      )
-
-      expect(assignment.referralCode).toBeTruthy()
-      expect(insertCallCount).toBe(2)
-    })
-
-    it('throws referral_code_collision after 3 failed attempts', async () => {
-      const assignmentRepo = createInMemoryStaffAssignmentRepo()
-      const events = createCapturingEventBus()
-
-      let insertCallCount = 0
-      const spiedRepo = {
-        ...assignmentRepo,
-        insert: async () => {
-          insertCallCount++
-          const error = new Error('unique violation') as Error & {
-            code: string
-          }
-          error.code = '23505'
-          throw error
-        },
-      }
-
-      const deps = {
-        assignmentRepo: spiedRepo,
-        events,
-        idGen: () => FIXED_ID,
-        clock: () => FIXED_TIME,
-        randomBytesFn: stubRandomBytes,
-      }
-
-      const useCase = createStaffAssignment(deps)
-      const ctx = buildTestAuthContext({ role: 'PropertyManager' })
-
-      await expect(
-        useCase(
-          { userId: FIXED_USER as string, propertyId: FIXED_PROPERTY as string },
-          ctx,
-        ),
-      ).rejects.toSatisfy((e) => isStaffError(e) && e.code === 'referral_code_collision')
-
-      expect(insertCallCount).toBe(3)
-    })
-
-    it('re-throws non-unique-constraint errors immediately', async () => {
-      const assignmentRepo = createInMemoryStaffAssignmentRepo()
-      const events = createCapturingEventBus()
-
-      const spiedRepo = {
-        ...assignmentRepo,
-        insert: async () => {
-          throw new Error('connection refused')
-        },
-      }
-
-      const deps = {
-        assignmentRepo: spiedRepo,
-        events,
-        idGen: () => FIXED_ID,
-        clock: () => FIXED_TIME,
-        randomBytesFn: stubRandomBytes,
-      }
-
-      const useCase = createStaffAssignment(deps)
-      const ctx = buildTestAuthContext({ role: 'PropertyManager' })
-
-      await expect(
-        useCase(
-          { userId: FIXED_USER as string, propertyId: FIXED_PROPERTY as string },
-          ctx,
-        ),
-      ).rejects.toThrow('connection refused')
-    })
+      ),
+    ).rejects.toThrow('connection refused')
   })
 })

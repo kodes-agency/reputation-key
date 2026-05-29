@@ -5,7 +5,7 @@ import {
   progressBarWidth,
   progressBarColor,
   sortGoalsByStatus,
-  filterGoalsForStaffView,
+  filterGoalsForGroupView,
   getMetricKeysForScope,
   getDefaultAggregationForKey,
   getValidAggregationsForKey,
@@ -20,8 +20,7 @@ function makeGoal(overrides: Partial<Goal> & { id: Goal['id'] }): Goal {
     organizationId: 'org1' as Goal['organizationId'],
     propertyId: 'prop1' as Goal['propertyId'],
     portalId: null,
-    teamId: null,
-    staffId: null,
+    groupId: null,
     name: 'Test Goal',
     description: null,
     createdBy: 'user1' as Goal['createdBy'],
@@ -214,82 +213,68 @@ describe('sortGoalsByStatus', () => {
   })
 })
 
-// ── 5. filterGoalsForStaffView ─────────────────────────────────────────
+// ── 5. filterGoalsForGroupView ─────────────────────────────────────────
 
-describe('filterGoalsForStaffView', () => {
-  const staffGoal = makeGoal({
+describe('filterGoalsForGroupView', () => {
+  const groupGoal = makeGoal({
     id: 'g1' as Goal['id'],
-    staffId: 'staff-A' as Goal['staffId'],
-    teamId: null,
+    groupId: 'group-A' as Goal['groupId'],
     status: 'active',
   })
-  const teamGoal = makeGoal({
+  const propertyGoal = makeGoal({
     id: 'g2' as Goal['id'],
-    staffId: null,
-    teamId: 'team-X' as Goal['teamId'],
+    groupId: null,
     status: 'completed',
   })
-  const otherGoal = makeGoal({
+  const otherGroupGoal = makeGoal({
     id: 'g3' as Goal['id'],
-    staffId: 'staff-B' as Goal['staffId'],
-    teamId: 'team-Y' as Goal['teamId'],
+    groupId: 'group-B' as Goal['groupId'],
     status: 'active',
   })
   const expiredGoal = makeGoal({
     id: 'g4' as Goal['id'],
-    staffId: 'staff-A' as Goal['staffId'],
+    groupId: 'group-A' as Goal['groupId'],
     status: 'expired',
   })
   const cancelledGoal = makeGoal({
     id: 'g5' as Goal['id'],
-    teamId: 'team-X' as Goal['teamId'],
+    groupId: 'group-B' as Goal['groupId'],
     status: 'cancelled',
   })
 
-  it('returns goals matching staffIds', () => {
-    const result = filterGoalsForStaffView(
-      [staffGoal, teamGoal, otherGoal],
-      ['staff-A'],
-      [],
+  it('returns goals matching groupIds', () => {
+    const result = filterGoalsForGroupView(
+      [groupGoal, propertyGoal, otherGroupGoal],
+      ['group-A'],
     )
     expect(result.map((g) => g.id)).toEqual(['g1'])
   })
 
-  it('returns goals matching teamIds', () => {
-    const result = filterGoalsForStaffView(
-      [staffGoal, teamGoal, otherGoal],
-      [],
-      ['team-X'],
-    )
-    expect(result.map((g) => g.id)).toEqual(['g2'])
-  })
-
-  it('returns goals matching either staffIds OR teamIds', () => {
-    const result = filterGoalsForStaffView(
-      [staffGoal, teamGoal, otherGoal],
-      ['staff-A'],
-      ['team-X'],
-    )
-    expect(result.map((g) => g.id)).toEqual(['g1', 'g2'])
-  })
-
-  it('excludes expired goals even if staffId matches', () => {
-    const result = filterGoalsForStaffView([expiredGoal], ['staff-A'], [])
+  it('returns empty for no matching groupIds', () => {
+    const result = filterGoalsForGroupView([groupGoal, propertyGoal], ['group-Z'])
     expect(result).toEqual([])
   })
 
-  it('excludes cancelled goals even if teamId matches', () => {
-    const result = filterGoalsForStaffView([cancelledGoal], [], ['team-X'])
+  it('returns goals matching multiple groupIds', () => {
+    const result = filterGoalsForGroupView(
+      [groupGoal, propertyGoal, otherGroupGoal],
+      ['group-A', 'group-B'],
+    )
+    expect(result.map((g) => g.id)).toEqual(['g1', 'g3'])
+  })
+
+  it('excludes expired goals even if groupId matches', () => {
+    const result = filterGoalsForGroupView([expiredGoal], ['group-A'])
     expect(result).toEqual([])
   })
 
-  it('returns empty for no matching staff or team', () => {
-    const result = filterGoalsForStaffView([staffGoal], ['staff-Z'], ['team-Z'])
+  it('excludes cancelled goals even if groupId matches', () => {
+    const result = filterGoalsForGroupView([cancelledGoal], ['group-B'])
     expect(result).toEqual([])
   })
 
   it('returns empty for empty goals array', () => {
-    expect(filterGoalsForStaffView([], ['staff-A'], ['team-X'])).toEqual([])
+    expect(filterGoalsForGroupView([], ['group-A'])).toEqual([])
   })
 })
 
@@ -307,14 +292,14 @@ describe('getMetricKeysForScope', () => {
     ])
   })
 
-  it('returns portal-only keys for team scope', () => {
-    const keys = getMetricKeysForScope('team')
+  it('returns portal-only keys for portal_group scope', () => {
+    const keys = getMetricKeysForScope('portal_group')
     expect(keys).not.toContain('property.review')
     expect(keys).toContain('portal.scan')
   })
 
-  it('returns portal-only keys for staff scope', () => {
-    const keys = getMetricKeysForScope('staff')
+  it('returns portal-only keys for portal scope', () => {
+    const keys = getMetricKeysForScope('portal')
     expect(keys).not.toContain('property.review')
     expect(keys.length).toBe(4)
   })

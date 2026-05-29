@@ -57,7 +57,7 @@ describe('MetricRepository', () => {
       portalId: portalIdCtor('portal-1'),
       metricKey: 'portal.scan',
       value: 1,
-      staffId: null,
+      groupId: null,
       recordedAt: FIXED_TIME,
     })
 
@@ -76,7 +76,7 @@ describe('MetricRepository', () => {
       portalId: null,
       metricKey: 'property.review',
       value: 4,
-      staffId: null,
+      groupId: null,
       recordedAt: FIXED_TIME,
     })
 
@@ -94,7 +94,7 @@ describe('MetricRepository', () => {
       portalId: portalIdCtor('portal-1'),
       metricKey: 'portal.scan',
       value: 1,
-      staffId: null,
+      groupId: null,
       recordedAt: FIXED_TIME,
     })
     await fake.repo.insertReading({
@@ -103,7 +103,7 @@ describe('MetricRepository', () => {
       portalId: portalIdCtor('portal-1'),
       metricKey: 'portal.rating',
       value: 5,
-      staffId: null,
+      groupId: null,
       recordedAt: FIXED_TIME,
     })
 
@@ -119,7 +119,7 @@ describe('MetricRepository', () => {
       portalId: portalIdCtor('portal-1'),
       metricKey: 'portal.scan',
       value: 1,
-      staffId: null,
+      groupId: null,
       recordedAt: FIXED_TIME,
     })
     await fake.repo.insertReading({
@@ -128,7 +128,7 @@ describe('MetricRepository', () => {
       portalId: portalIdCtor('portal-2'),
       metricKey: 'portal.scan',
       value: 1,
-      staffId: null,
+      groupId: null,
       recordedAt: FIXED_TIME,
     })
 
