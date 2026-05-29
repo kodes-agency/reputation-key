@@ -11,6 +11,7 @@ import { portalGroupId } from '#/shared/domain/ids'
 export type DeletePortalGroupDeps = Readonly<{
   groupRepo: PortalGroupRepository
   events: EventBus
+  clock: () => Date
 }>
 
 export const deletePortalGroup =
@@ -34,7 +35,7 @@ export const deletePortalGroup =
         groupId,
         organizationId: existing.organizationId,
         propertyId: existing.propertyId,
-        occurredAt: new Date(),
+        occurredAt: deps.clock(),
       }),
     )
   }

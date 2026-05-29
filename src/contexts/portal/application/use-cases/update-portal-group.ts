@@ -5,6 +5,7 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import type { PortalGroup } from '../../domain/portal-group-types'
 import type { UpdatePortalGroupInput } from '../dto/portal-group.dto'
 import { can } from '#/shared/domain/permissions'
+import { buildPortalGroup } from '../../domain/portal-group-constructors'
 import { portalError } from '../../domain/errors'
 import { portalGroupUpdated } from '../../domain/portal-group-events'
 import { portalGroupId } from '#/shared/domain/ids'
@@ -39,10 +40,21 @@ export const updatePortalGroup =
       throw portalError('group_name_taken', 'A group with this name already exists')
     }
 
+    const buildResult = buildPortalGroup({
+      id: existing.id,
+      organizationId: existing.organizationId,
+      propertyId: existing.propertyId,
+      name: input.name,
+      now: deps.clock(),
+    })
+
+    if (buildResult.isErr()) {
+      throw buildResult.error
+    }
+
     const updated: PortalGroup = {
-      ...existing,
-      name: input.name.trim(),
-      updatedAt: deps.clock(),
+      ...buildResult.value,
+      createdAt: existing.createdAt,
     }
 
     const result = await deps.groupRepo.update(updated)

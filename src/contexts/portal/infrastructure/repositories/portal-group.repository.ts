@@ -28,7 +28,7 @@ export const createPortalGroupRepository = (db: Database): PortalGroupRepository
         .where(
           and(
             ...baseWhere(portalGroups, orgId),
-            eq(portalGroups.propertyId, propertyId as string),
+            eq(portalGroups.propertyId, unbrand(propertyId)),
           ),
         )
       return rows.map(portalGroupFromRow)
@@ -39,7 +39,7 @@ export const createPortalGroupRepository = (db: Database): PortalGroupRepository
     return trace('portalGroup.findByNameDuplicate', async () => {
       const conditions = [
         ...baseWhere(portalGroups, orgId),
-        eq(portalGroups.propertyId, propertyId as string),
+        eq(portalGroups.propertyId, unbrand(propertyId)),
         eq(portalGroups.name, name),
       ]
       if (excludeId) {
@@ -60,8 +60,8 @@ export const createPortalGroupRepository = (db: Database): PortalGroupRepository
         .insert(portalGroups)
         .values({
           id: unbrand(group.id),
-          organizationId: group.organizationId as string,
-          propertyId: group.propertyId as string,
+          organizationId: unbrand(group.organizationId),
+          propertyId: unbrand(group.propertyId),
           name: group.name,
           createdAt: group.createdAt,
           updatedAt: group.updatedAt,

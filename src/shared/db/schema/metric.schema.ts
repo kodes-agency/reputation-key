@@ -15,6 +15,7 @@ import {
 import { createdAtColumn } from '../columns'
 import { properties } from './property.schema'
 import { portals } from './portal.schema'
+import { portalGroups } from './portal-group.schema'
 
 export const metricDefinitions = pgTable(
   'metric_definitions',
@@ -39,7 +40,7 @@ export const metricReadings = pgTable(
       .notNull()
       .references(() => properties.id, { onDelete: 'cascade' }),
     portalId: uuid('portal_id').references(() => portals.id, { onDelete: 'cascade' }),
-    groupId: uuid('group_id'),
+    groupId: uuid('group_id').references(() => portalGroups.id, { onDelete: 'set null' }),
     metricKey: varchar('metric_key', { length: 100 }).notNull(),
     value: real('value').notNull(),
     recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull(),

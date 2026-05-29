@@ -2,8 +2,8 @@
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { headersFromContext } from '#/shared/auth/headers'
-import { resolveTenantContext } from '#/shared/auth/middleware'
-import { throwContextError } from '#/shared/auth/server-errors'
+import { resolveTenantContext, clearTenantCache } from '#/shared/auth/middleware'
+import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getContainer } from '#/composition'
 import {
   createPortalGroupSchema,
@@ -30,7 +30,9 @@ export const createPortalGroup = createServerFn({ method: 'POST' })
         } catch (e) {
           if (isPortalError(e))
             throwContextError('PortalError', e, portalErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
+        } finally {
+          clearTenantCache()
         }
       },
       'POST',
@@ -54,7 +56,9 @@ export const updatePortalGroup = createServerFn({ method: 'POST' })
         } catch (e) {
           if (isPortalError(e))
             throwContextError('PortalError', e, portalErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
+        } finally {
+          clearTenantCache()
         }
       },
       'POST',
@@ -78,7 +82,9 @@ export const deletePortalGroup = createServerFn({ method: 'POST' })
         } catch (e) {
           if (isPortalError(e))
             throwContextError('PortalError', e, portalErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
+        } finally {
+          clearTenantCache()
         }
       },
       'POST',
@@ -102,7 +108,9 @@ export const listPortalGroups = createServerFn({ method: 'GET' })
         } catch (e) {
           if (isPortalError(e))
             throwContextError('PortalError', e, portalErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
+        } finally {
+          clearTenantCache()
         }
       },
       'GET',

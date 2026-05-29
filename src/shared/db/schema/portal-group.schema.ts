@@ -4,7 +4,7 @@
 
 import { pgTable, uuid, varchar, uniqueIndex } from 'drizzle-orm/pg-core'
 import { properties } from './property.schema'
-import { createdAtColumn, updatedAtColumn, deletedAtColumn } from '../columns'
+import { createdAtColumn, updatedAtColumn } from '../columns'
 
 export const portalGroups = pgTable(
   'portal_groups',
@@ -17,7 +17,6 @@ export const portalGroups = pgTable(
     name: varchar('name', { length: 100 }).notNull(),
     createdAt: createdAtColumn(),
     updatedAt: updatedAtColumn(),
-    deletedAt: deletedAtColumn(),
   },
   (t) => ({
     orgPropertyNameUnique: uniqueIndex('portal_groups_org_property_name_unique').on(
