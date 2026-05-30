@@ -2,12 +2,12 @@
 import type { PortalGroupRepository } from '../ports/portal-group.repository'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import type { PortalGroup } from '../../domain/portal-group-types'
+import type { PortalGroup } from '../../domain/types'
 import type { CreatePortalGroupInput } from '../dto/portal-group.dto'
 import { can } from '#/shared/domain/permissions'
-import { buildPortalGroup } from '../../domain/portal-group-constructors'
+import { buildPortalGroup } from '../../domain/constructors'
 import { portalError } from '../../domain/errors'
-import { portalGroupCreated } from '../../domain/portal-group-events'
+import { portalGroupCreated } from '../../domain/events'
 import { portalGroupId, propertyId as toPropertyId } from '#/shared/domain/ids'
 
 export type CreatePortalGroupDeps = Readonly<{

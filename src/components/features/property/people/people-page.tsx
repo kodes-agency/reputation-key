@@ -1,4 +1,10 @@
 // People page component — staff, teams, and directory management
+//
+// NOTE: This component imports 7 server functions across 3 contexts
+// (staff, team, identity). This exceeds the 5-mutation threshold in
+// src/components/CONTEXT.md — deliberate exception. Prop-drilling
+// 7 action hooks through the route would create excessive boilerplate.
+
 import { useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { z } from 'zod'

@@ -3,6 +3,7 @@
 
 import type { PortalRepository } from '../ports/portal.repository'
 import type { AuthContext } from '#/shared/domain/auth-context'
+import { can } from '#/shared/domain/permissions'
 import { portalId } from '#/shared/domain/ids'
 import { portalError } from '../../domain/errors'
 
@@ -17,6 +18,10 @@ export const getPortalQrUrl =
     input: { portalId: string },
     ctx: AuthContext,
   ): Promise<{ portalUrl: string; slug: string }> => {
+    if (!can(ctx.role, 'portal.read')) {
+      throw portalError('forbidden', 'Insufficient permissions to view portal QR URL')
+    }
+
     // 1. Load portal QR info (tenant-isolated)
     const info = await deps.portalRepo.getPortalQrInfo(
       ctx.organizationId,

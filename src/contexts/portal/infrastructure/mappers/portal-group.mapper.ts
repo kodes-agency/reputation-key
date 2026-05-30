@@ -1,6 +1,6 @@
 // Portal context — PortalGroup row ↔ domain mapper
 import type { portalGroups } from '#/shared/db/schema/portal-group.schema'
-import type { PortalGroup } from '../../domain/portal-group-types'
+import type { PortalGroup } from '../../domain/types'
 import { portalGroupId, organizationId, propertyId } from '#/shared/domain/ids'
 
 type PortalGroupRow = typeof portalGroups.$inferSelect

@@ -74,4 +74,17 @@ describe('createLinkCategory', () => {
     expect(emitted).toHaveLength(1)
     expect(emitted[0].categoryId).toBe('c0000000-0000-0000-0000-000000000001')
   })
+
+  it('rejects when role lacks portal.update permission', async () => {
+    const { useCase, portalRepo } = setup()
+    const ctx = buildTestAuthContext({ role: 'Staff' })
+    const portal = buildTestPortal({})
+    portalRepo.seed([portal])
+
+    await expect(
+      useCase({ portalId: portal.id, title: 'Links' }, ctx),
+    ).rejects.toSatisfy(
+      (e: unknown) => isPortalError(e) && (e as { code: string }).code === 'forbidden',
+    )
+  })
 })

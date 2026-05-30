@@ -6,6 +6,7 @@ import { InboxList } from '#/components/inbox/inbox-list'
 import { InboxFilters } from '#/components/inbox/inbox-filters'
 import type { InboxFilterValues } from '#/components/inbox/inbox-filters'
 import { InboxBulkActions } from '#/components/inbox/inbox-bulk-actions'
+import { bulkUpdateInboxStatusFn } from '#/contexts/inbox/server/inbox'
 import { Badge } from '#/components/ui/badge'
 import type { InboxItem, Cursor } from '#/contexts/inbox/application/public-api'
 
@@ -23,6 +24,7 @@ interface InboxListPanelProps {
   onRowClick: (item: InboxItem) => void
   onLoadMore: (cursor: Cursor) => void
   onBulkDone: () => void
+  bulkUpdateFn: typeof bulkUpdateInboxStatusFn
 }
 
 export function InboxListPanel({
@@ -39,6 +41,7 @@ export function InboxListPanel({
   onRowClick,
   onLoadMore,
   onBulkDone,
+  bulkUpdateFn,
 }: InboxListPanelProps) {
   const newCount = items.filter((i) => i.status === 'new').length
 
@@ -55,7 +58,7 @@ export function InboxListPanel({
         </div>
       </div>
       <InboxFilters value={filters} onChange={onFiltersChange} />
-      <InboxBulkActions selectedIds={selectedIds} onDone={onBulkDone} />
+      <InboxBulkActions selectedIds={selectedIds} onDone={onBulkDone} bulkUpdateFn={bulkUpdateFn} />
       {isLoading ? (
         <div className="space-y-3">
           {Array.from({ length: 5 }).map((_, i) => (

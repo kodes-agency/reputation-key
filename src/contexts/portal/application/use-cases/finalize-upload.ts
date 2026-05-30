@@ -3,6 +3,7 @@
 import type { PortalRepository } from '../ports/portal.repository'
 import type { StoragePort } from '../ports/storage.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
+import { can } from '#/shared/domain/permissions'
 import { portalId } from '#/shared/domain/ids'
 import { portalError } from '../../domain/errors'
 
@@ -19,6 +20,10 @@ export const finalizeUpload =
     input: { portalId: string; key: string },
     ctx: AuthContext,
   ): Promise<{ heroImageUrl: string }> => {
+    if (!can(ctx.role, 'portal.update')) {
+      throw portalError('forbidden', 'Insufficient permissions to finalize portal uploads')
+    }
+
     const portal = await deps.portalRepo.findById(
       ctx.organizationId,
       portalId(input.portalId),

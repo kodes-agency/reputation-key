@@ -1,6 +1,6 @@
 // Portal context — PortalGroup domain constructors tests
 import { describe, it, expect } from 'vitest'
-import { buildPortalGroup } from './portal-group-constructors'
+import { buildPortalGroup } from './constructors'
 import { portalGroupId, organizationId, propertyId } from '#/shared/domain/ids'
 
 describe('buildPortalGroup', () => {

@@ -6,6 +6,7 @@ import { describe, it, expect } from 'vitest'
 import { listTeams } from './list-teams'
 import { createInMemoryTeamRepo } from '#/shared/testing/in-memory-team-repo'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
+import { isTeamError } from '../../domain/errors'
 import { organizationId, propertyId, teamId } from '#/shared/domain/ids'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
@@ -202,5 +203,18 @@ describe('listTeams', () => {
     // Assert
     expect(result).toHaveLength(1)
     expect(result[0].id as string).toBe('t-own')
+  })
+
+  it('rejects when role lacks team.read permission', async () => {
+    const { useCase, teamRepo } = setup()
+    teamRepo.seed([makeTeam({ id: 't-1', propertyId: 'prop-1' })])
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- intentionally invalid role to test permission guard
+    const ctx = buildTestAuthContext({ role: 'Guest' as any })
+
+    await expect(
+      useCase({ propertyId: propertyId('prop-1') }, ctx),
+    ).rejects.toSatisfy(
+      (e: unknown) => isTeamError(e) && (e as { code: string }).code === 'forbidden',
+    )
   })
 })

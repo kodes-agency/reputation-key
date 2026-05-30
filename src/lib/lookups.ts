@@ -48,21 +48,6 @@ export function buildTeamLookup(
 	return map;
 }
 
-/** Group assignment IDs by teamId. Only includes assignments WITH a teamId. */
-export function groupAssignmentsByTeam(
-	assignments: ReadonlyArray<AssignmentLike>,
-): Map<string, string[]> {
-	const map = new Map<string, string[]>();
-	for (const a of assignments) {
-		if (a.teamId) {
-			const existing = map.get(a.teamId) ?? [];
-			existing.push(a.id);
-			map.set(a.teamId, existing);
-		}
-	}
-	return map;
-}
-
 export function toMemberOptions(
 	members: ReadonlyArray<{ userId: string; name: string; email: string }>,
 ): MemberLike[] {

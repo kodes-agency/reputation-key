@@ -1,9 +1,15 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
+import type { AuthRouteContext } from "#/routes/_authenticated";
+import { can } from "#/shared/domain/permissions";
 import { BarChart3 } from "lucide-react";
 
 export const Route = createFileRoute(
 	"/_authenticated/properties/$propertyId/metrics",
 )({
+	beforeLoad: ({ context }) => {
+		const { role } = context as AuthRouteContext;
+		if (!can(role, "dashboard.read")) throw redirect({ to: "/properties" });
+	},
 	component: MetricsPage,
 });
 

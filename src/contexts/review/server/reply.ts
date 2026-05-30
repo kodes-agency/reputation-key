@@ -4,9 +4,10 @@
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { match } from 'ts-pattern'
+import { HTTP_STATUS } from '#/shared/auth/error-status'
 import { z } from 'zod/v4'
 import { getContainer } from '#/composition'
-import { throwContextError } from '#/shared/auth/server-errors'
+import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { isReviewError } from '../domain/errors'
@@ -19,10 +20,10 @@ import { MAX_REPLY_LENGTH } from '../domain/rules'
 
 const reviewErrorStatus = (code: ReviewErrorCode): number =>
   match(code)
-    .with('invalid_reply', 'invalid_rating', 'invalid_transition', () => 400)
-    .with('unauthorized', () => 403)
-    .with('review_not_found', 'reply_not_found', () => 404)
-    .with('reply_already_exists', () => 409)
+    .with('invalid_reply', 'invalid_rating', 'invalid_transition', () => HTTP_STATUS.BAD_REQUEST)
+    .with('unauthorized', () => HTTP_STATUS.FORBIDDEN)
+    .with('review_not_found', 'reply_not_found', () => HTTP_STATUS.NOT_FOUND)
+    .with('reply_already_exists', () => HTTP_STATUS.CONFLICT)
     .with(
       'property_not_found',
       'connection_not_found',
@@ -74,7 +75,7 @@ export const getReplyFn = createServerFn({ method: 'GET' })
         } catch (e) {
           if (isReviewError(e))
             throwContextError('ReviewError', e, reviewErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'GET',
@@ -103,7 +104,7 @@ export const draftReplyFn = createServerFn({ method: 'POST' })
         } catch (e) {
           if (isReviewError(e))
             throwContextError('ReviewError', e, reviewErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'POST',
@@ -131,7 +132,7 @@ export const submitReplyFn = createServerFn({ method: 'POST' })
         } catch (e) {
           if (isReviewError(e))
             throwContextError('ReviewError', e, reviewErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'POST',
@@ -159,7 +160,7 @@ export const approveReplyFn = createServerFn({ method: 'POST' })
         } catch (e) {
           if (isReviewError(e))
             throwContextError('ReviewError', e, reviewErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'POST',
@@ -188,7 +189,7 @@ export const rejectReplyFn = createServerFn({ method: 'POST' })
         } catch (e) {
           if (isReviewError(e))
             throwContextError('ReviewError', e, reviewErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'POST',
@@ -217,7 +218,7 @@ export const deleteReplyFn = createServerFn({ method: 'POST' })
         } catch (e) {
           if (isReviewError(e))
             throwContextError('ReviewError', e, reviewErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'POST',
@@ -245,7 +246,7 @@ export const retryPublishFn = createServerFn({ method: 'POST' })
         } catch (e) {
           if (isReviewError(e))
             throwContextError('ReviewError', e, reviewErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'POST',

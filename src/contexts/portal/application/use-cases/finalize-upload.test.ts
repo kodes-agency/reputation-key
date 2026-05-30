@@ -50,4 +50,17 @@ describe('finalizeUpload', () => {
       (e: unknown) => isPortalError(e) && (e as { code: string }).code === 'portal_not_found',
     )
   })
+
+  it('rejects when role lacks portal.update permission', async () => {
+    const { useCase, portalRepo } = setup()
+    const ctx = buildTestAuthContext({ role: 'Staff' })
+    const portal = buildTestPortal({})
+    portalRepo.seed([portal])
+
+    await expect(
+      useCase({ portalId: portal.id, key: 'uploads/test.jpg' }, ctx),
+    ).rejects.toSatisfy(
+      (e: unknown) => isPortalError(e) && (e as { code: string }).code === 'forbidden',
+    )
+  })
 })

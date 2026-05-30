@@ -54,7 +54,7 @@ export const cancelGoal =
     const now = deps.clock()
 
     // 3. Cascade to instances for recurring templates
-    // TODO: Wrap cancelByParent + update in a transaction.
+    // TODO(review/G0-11): Wrap cancelByParent + update in a transaction.
     // Current implementation could leave instances cancelled but parent active on partial failure.
     if (goal.goalType === 'recurring' && goal.parentGoalId === null) {
       await deps.goalRepo.cancelByParent(goal.id, input.organizationId, now)

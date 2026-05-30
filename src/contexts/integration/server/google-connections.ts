@@ -9,14 +9,14 @@ import { z } from 'zod/v4'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { can } from '#/shared/domain/permissions'
-import { throwContextError } from '#/shared/auth/server-errors'
+import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getContainer } from '#/composition'
 import { connectGoogleInputSchema } from '../application/dto/connect-google.dto'
 import { disconnectGoogleInputSchema } from '../application/dto/disconnect-google.dto'
 import { updateConnectionVisibilityInputSchema } from '../application/dto/update-connection-visibility.dto'
 import { isIntegrationError } from '../domain/errors'
 import { toGoogleConnectionDto } from '../application/dto/google-connection.dto'
-import { integrationErrorStatus } from './shared'
+import { integrationErrorStatus } from './error-helpers'
 import { getEnv } from '#/shared/config/env'
 
 /** OAuth scopes required for Google Business Profile API + user identity. */
@@ -111,7 +111,7 @@ export const connectGoogle = createServerFn({ method: 'POST' })
         } catch (e) {
           if (isIntegrationError(e))
             throwContextError('IntegrationError', e, integrationErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'POST',
@@ -134,7 +134,7 @@ export const listGoogleConnections = createServerFn({ method: 'GET' }).handler(
       } catch (e) {
         if (isIntegrationError(e))
           throwContextError('IntegrationError', e, integrationErrorStatus(e.code))
-        throw e
+        throw catchUntagged(e)
       }
     },
     'GET',
@@ -159,7 +159,7 @@ export const disconnectGoogle = createServerFn({ method: 'POST' })
         } catch (e) {
           if (isIntegrationError(e))
             throwContextError('IntegrationError', e, integrationErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'POST',
@@ -184,7 +184,7 @@ export const updateConnectionVisibility = createServerFn({ method: 'POST' })
         } catch (e) {
           if (isIntegrationError(e))
             throwContextError('IntegrationError', e, integrationErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'POST',

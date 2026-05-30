@@ -124,4 +124,25 @@ describe('createLink', () => {
     expect(emitted).toHaveLength(1)
     expect(emitted[0].linkId).toBe('10000000-0000-0000-0000-000000000001')
   })
+
+  it('rejects when role lacks portal.update permission', async () => {
+    const { useCase, portalLinkRepo } = setup()
+    const ctx = buildTestAuthContext({ role: 'Staff' })
+    const category = buildTestPortalLinkCategory({})
+    portalLinkRepo.seedCategories([category])
+
+    await expect(
+      useCase(
+        {
+          categoryId: category.id,
+          portalId: category.portalId,
+          label: 'Test',
+          url: 'https://example.com',
+        },
+        ctx,
+      ),
+    ).rejects.toSatisfy(
+      (e: unknown) => isPortalError(e) && (e as { code: string }).code === 'forbidden',
+    )
+  })
 })

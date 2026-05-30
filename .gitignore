@@ -29,3 +29,4 @@ coverage/
 .a5c/
 CLAUDE.md
 .pi/reviews/
+package-lock.json

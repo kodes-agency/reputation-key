@@ -1,12 +1,18 @@
 // Inbox route — thin wrapper around InboxPage component
-import { createFileRoute, getRouteApi, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, getRouteApi, redirect, useNavigate } from '@tanstack/react-router'
 import type { AuthRouteContext } from '#/routes/_authenticated'
+import { can } from '#/shared/domain/permissions'
 import { InboxPage, inboxSearchSchema } from '#/components/inbox/inbox-page'
 import type { InboxSearchParams } from '#/components/inbox/inbox-page'
+import { bulkUpdateInboxStatusFn } from '#/contexts/inbox/server/inbox'
 
 const authRoute = getRouteApi('/_authenticated')
 
 export const Route = createFileRoute('/_authenticated/inbox/')({
+  beforeLoad: ({ context }) => {
+    const { role } = context as AuthRouteContext
+    if (!can(role, 'inbox.read')) throw redirect({ to: '/properties' })
+  },
   validateSearch: (search) => inboxSearchSchema.parse(search),
   staleTime: 30_000,
   component: InboxRoute,
@@ -38,6 +44,7 @@ function InboxRoute() {
     <InboxPage
       ctx={ctx}
       search={search}
+      bulkUpdateFn={bulkUpdateInboxStatusFn}
       onNavigate={(opts) =>
         navigate({
           to: opts.to,

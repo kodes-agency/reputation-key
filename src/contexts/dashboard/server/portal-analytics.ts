@@ -17,7 +17,7 @@ export type { PortalAnalyticsData } from '../domain/types'
 import { propertyId, portalId } from '#/shared/domain/ids'
 import { isDashboardError } from '../domain/errors'
 import type { DashboardErrorCode } from '../domain/errors'
-import { match } from 'ts-pattern'
+import { standardErrorStatus } from '#/shared/auth/error-status'
 
 /** Local error constructor — server must not import domain error constructors. */
 const makeDashboardError = (code: DashboardErrorCode, message: string) => ({
@@ -26,12 +26,7 @@ const makeDashboardError = (code: DashboardErrorCode, message: string) => ({
   message,
 })
 
-const dashboardErrorStatus = (code: DashboardErrorCode): number =>
-  match(code)
-    .with('forbidden', () => 403)
-    .with('not_found', () => 404)
-    .with('invalid_input', () => 400)
-    .exhaustive()
+const dashboardErrorStatus = standardErrorStatus
 
 const MS_PER_DAY = 86_400_000
 

@@ -3,6 +3,7 @@
 import type { PortalLinkRepository } from '../ports/portal-link.repository'
 import type { PortalLink } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
+import { can } from '#/shared/domain/permissions'
 import { portalError } from '../../domain/errors'
 import { buildPortalLink } from '../../domain/constructors'
 import { generateKeyBetween } from 'fractional-indexing'
@@ -32,6 +33,10 @@ export const createLink =
     },
     ctx: AuthContext,
   ): Promise<PortalLink> => {
+    if (!can(ctx.role, 'portal.update')) {
+      throw portalError('forbidden', 'Insufficient permissions to create portal links')
+    }
+
     const category = await deps.portalLinkRepo.findCategoryById(
       ctx.organizationId,
       portalLinkCategoryId(input.categoryId),

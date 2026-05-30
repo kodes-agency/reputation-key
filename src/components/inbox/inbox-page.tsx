@@ -7,6 +7,7 @@ import { InboxDetailPanel } from '#/components/inbox/inbox-detail-panel'
 import { useInboxDetail } from '#/components/inbox/use-inbox-detail'
 import { useInboxState } from '#/components/inbox/use-inbox-state'
 import type { InboxFilterValues } from '#/components/inbox/inbox-filters'
+import { bulkUpdateInboxStatusFn } from '#/contexts/inbox/server/inbox'
 import { useState, useEffect, useCallback } from 'react'
 import { PageShell } from '#/components/layout/page-shell'
 
@@ -34,9 +35,10 @@ interface InboxPageProps {
     to: '.'
     search: (prev: InboxSearchParams) => Partial<InboxSearchParams>
   }) => void
+  bulkUpdateFn: typeof bulkUpdateInboxStatusFn
 }
 
-export function InboxPage({ ctx, search, onNavigate }: InboxPageProps) {
+export function InboxPage({ ctx, search, onNavigate, bulkUpdateFn }: InboxPageProps) {
   const orgId = ctx.activeOrganization?.id
   const { itemId: _, ...rest } = search
   const filters = rest as InboxFilterValues
@@ -134,6 +136,7 @@ export function InboxPage({ ctx, search, onNavigate }: InboxPageProps) {
           onRowClick={handleRowClick}
           onLoadMore={loadItems}
           onBulkDone={handleBulkDone}
+          bulkUpdateFn={bulkUpdateFn}
         />
       </div>
       {selectedItem && (

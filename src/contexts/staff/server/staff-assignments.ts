@@ -3,9 +3,10 @@
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { match } from 'ts-pattern'
+import { HTTP_STATUS } from '#/shared/auth/error-status'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
-import { throwContextError } from '#/shared/auth/server-errors'
+import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getContainer } from '#/composition'
 import {
   createStaffAssignmentInputSchema,
@@ -23,10 +24,10 @@ import {
 
 const staffErrorStatus = (code: StaffErrorCode): number =>
   match(code)
-    .with('forbidden', () => 403)
-    .with('assignment_not_found', 'property_not_found', 'team_not_found', () => 404)
-    .with('already_assigned', () => 409)
-    .with('invalid_input', () => 400)
+    .with('forbidden', () => HTTP_STATUS.FORBIDDEN)
+    .with('assignment_not_found', 'property_not_found', 'team_not_found', () => HTTP_STATUS.NOT_FOUND)
+    .with('already_assigned', () => HTTP_STATUS.CONFLICT)
+    .with('invalid_input', () => HTTP_STATUS.BAD_REQUEST)
     .exhaustive()
 
 // ── createStaffAssignment ──────────────────────────────────────────
@@ -46,7 +47,7 @@ export const createStaffAssignment = createServerFn({ method: 'POST' })
         } catch (e) {
           if (isStaffError(e))
             throwContextError('StaffError', e, staffErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'POST',
@@ -74,7 +75,7 @@ export const removeStaffAssignment = createServerFn({ method: 'POST' })
         } catch (e) {
           if (isStaffError(e))
             throwContextError('StaffError', e, staffErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'POST',

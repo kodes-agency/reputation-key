@@ -8,6 +8,8 @@ export type { LinkResolverPort } from './ports/link-resolver.port'
 // Event re-exports — cross-context consumers must import events from public-api, not domain/events
 export type { PortalDeleted, PortalEvent } from '../domain/events'
 export { portalDeleted } from '../domain/events'
+export type { PortalGroupDeleted } from '../domain/events'
+export { portalGroupDeleted } from '../domain/events'
 
 import type { OrganizationId, PropertyId, PortalId } from '#/shared/domain/ids'
 

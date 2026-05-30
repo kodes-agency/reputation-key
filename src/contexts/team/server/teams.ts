@@ -4,10 +4,11 @@
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { match } from 'ts-pattern'
+import { HTTP_STATUS } from '#/shared/auth/error-status'
 import { z } from 'zod/v4'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
-import { throwContextError } from '#/shared/auth/server-errors'
+import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getContainer } from '#/composition'
 import { createTeamInputSchema } from '../application/dto/create-team.dto'
 import { updateTeamInputSchema } from '../application/dto/update-team.dto'
@@ -17,10 +18,10 @@ import { propertyId as toPropertyId, teamId as toTeamId } from '#/shared/domain/
 
 const teamErrorStatus = (code: TeamErrorCode): number =>
   match(code)
-    .with('forbidden', () => 403)
-    .with('team_not_found', 'property_not_found', () => 404)
-    .with('name_taken', () => 409)
-    .with('invalid_name', () => 400)
+    .with('forbidden', () => HTTP_STATUS.FORBIDDEN)
+    .with('team_not_found', 'property_not_found', () => HTTP_STATUS.NOT_FOUND)
+    .with('name_taken', () => HTTP_STATUS.CONFLICT)
+    .with('invalid_name', () => HTTP_STATUS.BAD_REQUEST)
     .exhaustive()
 
 const teamIdSchema = z.object({
@@ -47,7 +48,7 @@ export const createTeam = createServerFn({ method: 'POST' })
           return { team }
         } catch (e) {
           if (isTeamError(e)) throwContextError('TeamError', e, teamErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'POST',
@@ -71,7 +72,7 @@ export const updateTeam = createServerFn({ method: 'POST' })
           return { team }
         } catch (e) {
           if (isTeamError(e)) throwContextError('TeamError', e, teamErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'POST',
@@ -98,7 +99,7 @@ export const listTeams = createServerFn({ method: 'GET' })
           return { teams: teams_list }
         } catch (e) {
           if (isTeamError(e)) throwContextError('TeamError', e, teamErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'GET',
@@ -122,7 +123,7 @@ export const deleteTeam = createServerFn({ method: 'POST' })
           return { deleted: true, teamId: data.teamId }
         } catch (e) {
           if (isTeamError(e)) throwContextError('TeamError', e, teamErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'POST',

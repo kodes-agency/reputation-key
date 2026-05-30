@@ -712,7 +712,7 @@ Now we fill in the gaps that make this a real product, not just a collection of 
 | 5   | 14    | Dashboard                | Completed              | 5-7 days     |
 | 6   | 14.5  | Portal Access Control    | Pending                | 2-3 days     |
 | 6   | 15    | Goals                    | Completed (needs 15.5) | 5-7 days     |
-| 6   | 15.5  | Portal Groups + Reconfig | Pending                | 5-7 days     |
+| 6   | 15.5  | Portal Groups + Reconfig | Completed              | 5-7 days     |
 | 6   | 16    | Badges + leaderboards    | Pending                | 5-7 days     |
 | 7   | 17    | AI v1                    | Pending                | 7-10 days    |
 | 7   | 18    | AI v2                    | Pending                | 5-7 days     |

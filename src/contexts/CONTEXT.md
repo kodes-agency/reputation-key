@@ -109,13 +109,14 @@ Key points:
 
 - **`tracedHandler`** — wraps handler with ALS request context, correlation ID, named span with timing. From `shared/observability/traced-server-fn`.
 - **`resolveTenantContext(headers)`** — resolves org from session, returns `AuthContext`. Has a 5s TTL cache keyed by cookie header to deduplicate concurrent calls during page loads.
-- **`clearTenantCache()`** — evict expired entries after each server function completes.
+- **`clearTenantCache()`** — evict expired entries after each server function completes. Optional safety measure — the cache self-manages via 5s TTL and max-size (100 entries) eviction, so calling this is recommended but not strictly required.
 - **Error mapping** — pattern-match `_tag` and `code`, throw `Error` with `.name`, `.message`, `.code`, `.status`. Never return `{ success: false }`.
 - **`catchUntagged`** — wrap untagged errors (DB, network) that would otherwise be swallowed raw.
 
 ## Functional style
 
 - No `class`, no `this`, no `enum`. Factory functions returning records of functions.
+- **Exception:** `class ... extends Error` for runtime `instanceof` checks and seroval-compatible error serialization. See `shared/auth/server-errors.ts` (`ServerFunctionError`) and `shared/domain/assert.ts` (`UnreachableError`).
 - `readonly` on all domain fields. `ReadonlyArray<T>` in domain.
 - Discriminated unions tagged with `_tag`.
 - `Result<T, E>` from neverthrow in domain. Throw tagged errors at boundaries.

@@ -7,7 +7,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { z } from 'zod/v4'
-import { integrationErrorStatus } from './shared'
+import { integrationErrorStatus } from './error-helpers'
 import { integrationError } from '../domain/errors'
 import type { IntegrationErrorCode } from '../domain/errors'
 import { throwContextError } from '#/shared/auth/server-errors'

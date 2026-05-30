@@ -72,4 +72,18 @@ describe('getTeam', () => {
       ),
     ).rejects.toSatisfy((e) => isTeamError(e) && e.code === 'team_not_found')
   })
+
+  it('rejects when role lacks team.read permission', async () => {
+    const { useCase, teamRepo } = setup()
+    const team = buildTestTeam({ id: 't-1' })
+    teamRepo.seed([team])
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- intentionally invalid role to test permission guard
+    const ctx = buildTestAuthContext({ role: 'Guest' as any })
+
+    await expect(
+      useCase({ teamId: team.id }, ctx),
+    ).rejects.toSatisfy(
+      (e: unknown) => isTeamError(e) && (e as { code: string }).code === 'forbidden',
+    )
+  })
 })

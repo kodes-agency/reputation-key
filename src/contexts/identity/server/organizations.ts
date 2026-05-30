@@ -6,11 +6,12 @@
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { match } from 'ts-pattern'
+import { HTTP_STATUS } from '#/shared/auth/error-status'
 import { z } from 'zod/v4'
 import { getAuth } from '#/shared/auth/auth'
 import { headersFromContext } from '#/shared/auth/headers'
 import { requireAuth, resolveTenantContext } from '#/shared/auth/middleware'
-import { throwContextError } from '#/shared/auth/server-errors'
+import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { toDomainRole } from '#/shared/domain/roles'
 import { can } from '#/shared/domain/permissions'
 import { getContainer } from '#/composition'
@@ -38,11 +39,11 @@ import { finalizeAvatarUpload as finalizeAvatarUploadUseCase } from '../applicat
 
 export const identityErrorStatus = (code: IdentityErrorCode): number =>
   match(code)
-    .with('forbidden', () => 403)
-    .with('invalid_slug', 'invalid_name', 'validation_error', () => 400)
-    .with('registration_failed', () => 400)
-    .with('org_setup_failed', () => 409)
-    .with('member_not_found', 'invitation_not_found', () => 404)
+    .with('forbidden', () => HTTP_STATUS.FORBIDDEN)
+    .with('invalid_slug', 'invalid_name', 'validation_error', () => HTTP_STATUS.BAD_REQUEST)
+    .with('registration_failed', () => HTTP_STATUS.BAD_REQUEST)
+    .with('org_setup_failed', () => HTTP_STATUS.CONFLICT)
+    .with('member_not_found', 'invitation_not_found', () => HTTP_STATUS.NOT_FOUND)
     .exhaustive()
 
 /** Throw a tagged IdentityError as an Error object (not Response).
@@ -209,7 +210,7 @@ export const inviteMember = createServerFn({ method: 'POST' })
           await useCases.inviteMember(data, ctx)
         } catch (e) {
           if (isIdentityError(e)) throwIdentityError(e)
-          throw e
+          throw catchUntagged(e)
         }
       },
       'POST',
@@ -288,7 +289,7 @@ export const resendInvitation = createServerFn({ method: 'POST' })
           await useCases.resendInvitation(data, ctx)
         } catch (e) {
           if (isIdentityError(e)) throwIdentityError(e)
-          throw e
+          throw catchUntagged(e)
         }
       },
       'POST',
@@ -310,7 +311,7 @@ export const listInvitations = createServerFn({ method: 'GET' }).handler(
         return await useCases.listInvitations(undefined, ctx)
       } catch (e) {
         if (isIdentityError(e)) throwIdentityError(e)
-        throw e
+        catchUntagged(e)
       }
     },
     'GET',
@@ -334,7 +335,7 @@ export const updateMemberRole = createServerFn({ method: 'POST' })
           await useCases.updateMemberRole(data, ctx)
         } catch (e) {
           if (isIdentityError(e)) throwIdentityError(e)
-          throw e
+          throw catchUntagged(e)
         }
       },
       'POST',
@@ -358,7 +359,7 @@ export const removeMember = createServerFn({ method: 'POST' })
           await useCases.removeMember(data, ctx)
         } catch (e) {
           if (isIdentityError(e)) throwIdentityError(e)
-          throw e
+          throw catchUntagged(e)
         }
       },
       'POST',
@@ -395,7 +396,7 @@ export const listUserInvitations = createServerFn({ method: 'GET' }).handler(
         return { invitations }
       } catch (e) {
         if (isIdentityError(e)) throwIdentityError(e)
-        throw e
+        catchUntagged(e)
       }
     },
     'GET',
@@ -466,7 +467,7 @@ export const registerMember = createServerFn({ method: 'POST' })
           await useCases.registerUser(data)
         } catch (e) {
           if (isIdentityError(e)) throwIdentityError(e)
-          throw e
+          throw catchUntagged(e)
         }
       },
       'POST',
@@ -487,7 +488,7 @@ export const registerUserAndOrg = createServerFn({ method: 'POST' })
           await useCases.registerUserAndOrg(data)
         } catch (e) {
           if (isIdentityError(e)) throwIdentityError(e)
-          throw e
+          throw catchUntagged(e)
         }
       },
       'POST',
@@ -564,7 +565,7 @@ export const updateOrganization = createServerFn({ method: 'POST' })
           await useCase(data, ctx)
         } catch (e) {
           if (isIdentityError(e)) throwIdentityError(e)
-          throw e
+          throw catchUntagged(e)
         }
       },
       'POST',
@@ -598,7 +599,7 @@ export const requestOrgLogoUpload = createServerFn({ method: 'POST' })
           return await useCase(data, ctx)
         } catch (e) {
           if (isIdentityError(e)) throwIdentityError(e)
-          throw e
+          throw catchUntagged(e)
         }
       },
       'POST',
@@ -632,7 +633,7 @@ export const finalizeOrgLogoUpload = createServerFn({ method: 'POST' })
           return result
         } catch (e) {
           if (isIdentityError(e)) throwIdentityError(e)
-          throw e
+          throw catchUntagged(e)
         }
       },
       'POST',
@@ -665,7 +666,7 @@ export const requestAvatarUpload = createServerFn({ method: 'POST' })
           return await useCase(data, ctx)
         } catch (e) {
           if (isIdentityError(e)) throwIdentityError(e)
-          throw e
+          throw catchUntagged(e)
         }
       },
       'POST',
@@ -690,7 +691,7 @@ export const finalizeAvatarUpload = createServerFn({ method: 'POST' })
           return await useCase(data, ctx)
         } catch (e) {
           if (isIdentityError(e)) throwIdentityError(e)
-          throw e
+          throw catchUntagged(e)
         }
       },
       'POST',

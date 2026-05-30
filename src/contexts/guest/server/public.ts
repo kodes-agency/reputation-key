@@ -2,9 +2,10 @@ import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { z } from 'zod/v4'
 import { match } from 'ts-pattern'
+import { HTTP_STATUS } from '#/shared/auth/error-status'
 import { getContainer } from '#/composition'
 import { headersFromContext } from '#/shared/auth/headers'
-import { throwContextError } from '#/shared/auth/server-errors'
+import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { ratingInputSchema } from '../application/dto/rating.dto'
 import { feedbackInputSchema } from '../application/dto/feedback.dto'
 import { isGuestError } from '../domain/errors'
@@ -53,7 +54,7 @@ export const recordScanFn = createServerFn({ method: 'POST' })
         } catch (e) {
           if (isGuestError(e))
             throwContextError('GuestError', e, guestErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'POST',
@@ -75,7 +76,7 @@ const guestErrorStatus = (code: GuestErrorCode): number =>
       'invalid_session',
       () => 400,
     )
-    .with('portal_not_found', () => 404)
+    .with('portal_not_found', () => HTTP_STATUS.NOT_FOUND)
     .with('portal_inactive', () => 410)
     .exhaustive()
 
@@ -109,7 +110,7 @@ export const getPublicPortal = createServerFn({ method: 'GET' })
         } catch (e) {
           if (isGuestError(e))
             throwContextError('GuestError', e, guestErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'GET',
@@ -161,7 +162,7 @@ export const submitRatingFn = createServerFn({ method: 'POST' })
         } catch (e) {
           if (isGuestError(e))
             throwContextError('GuestError', e, guestErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'POST',
@@ -219,7 +220,7 @@ export const submitFeedbackFn = createServerFn({ method: 'POST' })
         } catch (e) {
           if (isGuestError(e))
             throwContextError('GuestError', e, guestErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'POST',
@@ -246,7 +247,7 @@ export const resolveLinkAndTrack = createServerFn({ method: 'GET' })
         } catch (e) {
           if (isGuestError(e))
             throwContextError('GuestError', e, guestErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'GET',

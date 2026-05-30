@@ -55,8 +55,7 @@ export function resetTenantCache(): void {
 
 // ── Tagged errors ──────────────────────────────────────────────────
 
-// fallow-ignore-next-line unused-type
-export type AuthError = Readonly<{
+type AuthError = Readonly<{
   _tag: 'AuthError'
   code: 'unauthorized' | 'session_expired' | 'forbidden' | 'no_active_org'
   message: string

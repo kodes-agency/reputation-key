@@ -5,6 +5,7 @@ import { Button } from '#/components/ui/button'
 import { Badge } from '#/components/ui/badge'
 import { Plus, ChevronRight } from 'lucide-react'
 import { DeletePropertyDialog } from './delete-property-dialog'
+import { deleteProperty } from '#/contexts/property/server/properties'
 import { PageShell } from '#/components/layout/page-shell'
 
 interface Property {
@@ -16,9 +17,10 @@ interface Property {
 
 export interface PropertyListPageProps {
   properties: ReadonlyArray<Property>
+  deletePropertyFn: typeof deleteProperty
 }
 
-export function PropertyListPage({ properties }: PropertyListPageProps) {
+export function PropertyListPage({ properties, deletePropertyFn }: PropertyListPageProps) {
   const { can } = usePermissions()
   const navigate = useNavigate()
 
@@ -72,7 +74,7 @@ export function PropertyListPage({ properties }: PropertyListPageProps) {
                 className="flex items-center gap-1"
                 onClick={(e) => e.stopPropagation()}
               >
-                <DeletePropertyDialog propertyId={p.id} propertyName={p.name} />
+                <DeletePropertyDialog propertyId={p.id} propertyName={p.name} deletePropertyFn={deletePropertyFn} />
                 <ChevronRight className="size-4 text-muted-foreground" />
               </div>
             </div>

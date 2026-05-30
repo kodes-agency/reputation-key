@@ -16,7 +16,6 @@ import { getEnv } from '#/shared/config/env'
 import { getPool } from '#/shared/db/pool'
 import { sendResetPasswordEmail, sendInvitationEmail } from './emails'
 import { ac, owner, admin, memberRole } from './permissions'
-// import { sendVerificationEmail } from './emails' // Re-enable with email verification
 
 // ── Post-acceptance staff assignment hook ──────────────────────────
 // The afterAcceptInvitation hook creates staff_assignments for the
