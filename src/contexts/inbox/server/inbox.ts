@@ -5,9 +5,10 @@
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { match } from 'ts-pattern'
+import { HTTP_STATUS } from '#/shared/auth/error-status'
 import { getContainer } from '#/composition'
 import { can } from '#/shared/domain/permissions'
-import { throwContextError } from '#/shared/auth/server-errors'
+import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import {
@@ -29,11 +30,11 @@ import { userId as toUserId } from '#/shared/domain/ids'
 
 const inboxErrorStatus = (code: InboxErrorCode): number =>
   match(code)
-    .with('invalid_transition', 'invalid_input', 'assignment_not_allowed', () => 400)
-    .with('not_found', () => 404)
-    .with('forbidden', () => 403)
-    .with('already_exists', () => 409)
-    .with('bulk_partial_failure', () => 207)
+    .with('invalid_transition', 'invalid_input', 'assignment_not_allowed', () => HTTP_STATUS.BAD_REQUEST)
+    .with('not_found', () => HTTP_STATUS.NOT_FOUND)
+    .with('forbidden', () => HTTP_STATUS.FORBIDDEN)
+    .with('already_exists', () => HTTP_STATUS.CONFLICT)
+    .with('bulk_partial_failure', () => HTTP_STATUS.MULTI_STATUS)
     .exhaustive()
 
 // ── getInboxItems ──────────────────────────────────────────────────
@@ -84,7 +85,7 @@ export const getInboxItemsFn = createServerFn({ method: 'GET' })
         } catch (e) {
           if (isInboxError(e))
             throwContextError('InboxError', e, inboxErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'GET',
@@ -120,7 +121,7 @@ export const updateInboxStatusFn = createServerFn({ method: 'POST' })
         } catch (e) {
           if (isInboxError(e))
             throwContextError('InboxError', e, inboxErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'POST',
@@ -156,7 +157,7 @@ export const bulkUpdateInboxStatusFn = createServerFn({ method: 'POST' })
         } catch (e) {
           if (isInboxError(e))
             throwContextError('InboxError', e, inboxErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'POST',
@@ -194,7 +195,7 @@ export const assignInboxItemFn = createServerFn({ method: 'POST' })
         } catch (e) {
           if (isInboxError(e))
             throwContextError('InboxError', e, inboxErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'POST',
@@ -230,7 +231,7 @@ export const addInboxNoteFn = createServerFn({ method: 'POST' })
         } catch (e) {
           if (isInboxError(e))
             throwContextError('InboxError', e, inboxErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'POST',
@@ -262,7 +263,7 @@ export const getUnreadCountFn = createServerFn({ method: 'GET' })
         } catch (e) {
           if (isInboxError(e))
             throwContextError('InboxError', e, inboxErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'GET',
@@ -297,7 +298,7 @@ export const getInboxItemDetailFn = createServerFn({ method: 'GET' })
         } catch (e) {
           if (isInboxError(e))
             throwContextError('InboxError', e, inboxErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'GET',
@@ -332,7 +333,7 @@ export const getInboxNotesFn = createServerFn({ method: 'GET' })
         } catch (e) {
           if (isInboxError(e))
             throwContextError('InboxError', e, inboxErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'GET',

@@ -1,4 +1,7 @@
-// Server import exception: 5+ mutations (updateOrg, requestUpload, finalizeUpload, switchOrg, removeLogo)
+// NOTE: This component imports 4 server functions from identity/server/organizations
+// (updateOrganization, requestOrgLogoUpload, finalizeOrgLogoUpload, setActiveOrganization).
+// With the upload flow (request + finalize + setActive) this exceeds the 5-mutation
+// threshold in src/components/CONTEXT.md — deliberate documented exception.
 import { useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'

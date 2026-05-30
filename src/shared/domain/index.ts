@@ -38,7 +38,6 @@ export { ok, err } from './result'
 export type { TaggedError } from './errors'
 export { createErrorFactory } from './errors'
 
-export type { Clock } from './clock'
 export type { AuthContext } from './auth-context'
 
 // ── Roles & permissions ───────────────────────────────────────────

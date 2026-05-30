@@ -1,4 +1,8 @@
 // Inbox detail content — extracted for max-lines compliance
+//
+// NOTE: updateInboxStatusFn imported below for type-only use (typeof in props).
+// The actual mutation is wrapped by the use-inbox-detail hook, not called here.
+
 import { Badge } from '#/components/ui/badge'
 import { Button } from '#/components/ui/button'
 import { InboxNotesThread } from './inbox-notes-thread'
@@ -151,7 +155,6 @@ export function InboxDetailContent({
           notes={notes}
           inboxItemId={currentItem.id}
           onNoteAdded={onNoteAdded}
-          // TODO(Phase 12): Pass currentUserId from auth context for "You" label
         />
       </div>
     </div>

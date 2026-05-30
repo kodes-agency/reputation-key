@@ -5,7 +5,7 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import type { DeletePortalGroupInput } from '../dto/portal-group.dto'
 import { can } from '#/shared/domain/permissions'
 import { portalError } from '../../domain/errors'
-import { portalGroupDeleted } from '../../domain/portal-group-events'
+import { portalGroupDeleted } from '../../domain/events'
 import { portalGroupId } from '#/shared/domain/ids'
 
 export type DeletePortalGroupDeps = Readonly<{

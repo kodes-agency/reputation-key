@@ -42,7 +42,6 @@ describe('permissions statement', () => {
     expect(statement.staff_assignment).toContain('create')
     expect(statement.staff_assignment).toContain('delete')
     expect(statement.review).toContain('read')
-    expect(statement.review).toContain('reply')
     expect(statement.feedback).toContain('read')
     expect(statement.feedback).toContain('respond')
     expect(statement.integration).toContain('manage')
@@ -88,7 +87,6 @@ describe('owner role (AccountAdmin)', () => {
     'portal.delete',
     'portal.read',
     'review.read',
-    'review.reply',
     'reply.manage',
     'feedback.read',
     'feedback.respond',
@@ -131,7 +129,6 @@ describe('admin role (PropertyManager)', () => {
     'portal.update',
     'portal.read',
     'review.read',
-    'review.reply',
     'reply.manage',
     'feedback.read',
     'feedback.respond',

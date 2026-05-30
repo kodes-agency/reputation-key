@@ -7,12 +7,9 @@ import type {
   OrganizationId,
   PortalLinkCategoryId,
   PortalLinkId,
+  PortalGroupId,
+  PropertyId,
 } from '#/shared/domain/ids'
-import type {
-  PortalGroupCreated,
-  PortalGroupUpdated,
-  PortalGroupDeleted,
-} from './portal-group-events'
 
 // ── Portal events ──────────────────────────────────────────────────
 
@@ -84,6 +81,39 @@ export type PortalLinkReordered = Readonly<{
   occurredAt: Date
 }>
 
+// ── PortalGroup events ─────────────────────────────────────────────
+
+export type PortalGroupCreated = Readonly<{
+  _tag: 'portal_group.created'
+  groupId: PortalGroupId
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  name: string
+  occurredAt: Date
+}>
+
+export type PortalGroupUpdated = Readonly<{
+  _tag: 'portal_group.updated'
+  groupId: PortalGroupId
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  name: string
+  occurredAt: Date
+}>
+
+export type PortalGroupDeleted = Readonly<{
+  _tag: 'portal_group.deleted'
+  groupId: PortalGroupId
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  occurredAt: Date
+}>
+
+export type PortalGroupEvent =
+  | PortalGroupCreated
+  | PortalGroupUpdated
+  | PortalGroupDeleted
+
 // ── Event union ────────────────────────────────────────────────────
 
 export type PortalEvent =
@@ -131,11 +161,14 @@ export const portalLinkReordered = (
   args: Omit<PortalLinkReordered, '_tag'>,
 ): PortalLinkReordered => ({ _tag: 'portal_link.reordered', ...args })
 
-// ── PortalGroup event types ───────────────────────────────────────
-// Imported above from portal-group-events.ts; re-exported for convenience
+export const portalGroupCreated = (
+  args: Omit<PortalGroupCreated, '_tag'>,
+): PortalGroupCreated => ({ _tag: 'portal_group.created', ...args })
 
-export {
-  portalGroupCreated,
-  portalGroupUpdated,
-  portalGroupDeleted,
-} from './portal-group-events'
+export const portalGroupUpdated = (
+  args: Omit<PortalGroupUpdated, '_tag'>,
+): PortalGroupUpdated => ({ _tag: 'portal_group.updated', ...args })
+
+export const portalGroupDeleted = (
+  args: Omit<PortalGroupDeleted, '_tag'>,
+): PortalGroupDeleted => ({ _tag: 'portal_group.deleted', ...args })

@@ -1,4 +1,10 @@
 // Inbox detail — reply editor component
+//
+// NOTE: This component imports 7 server functions from review/server/reply.
+// This exceeds the 5-mutation threshold in src/components/CONTEXT.md,
+// making it a deliberate exception to the "no server imports in components" rule.
+// Refactoring to prop-drill 7 action hooks through the inbox component tree
+// would create excessive prop drilling with minimal benefit.
 
 import { useState, useEffect } from 'react'
 import {

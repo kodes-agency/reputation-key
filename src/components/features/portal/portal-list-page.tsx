@@ -16,6 +16,7 @@ import {
 } from '#/components/ui/table'
 import { Plus, Globe, Eye } from 'lucide-react'
 import { PortalDeleteButton } from './portal-delete-button'
+import { deletePortal } from '#/contexts/portal/server/portals'
 
 interface Portal {
   id: string
@@ -29,12 +30,14 @@ export interface PortalListPageProps {
   portals: readonly Portal[]
   propertyId: string
   propertySlug: string
+  deletePortalFn: typeof deletePortal
 }
 
 export function PortalListPage({
   portals,
   propertyId,
   propertySlug,
+  deletePortalFn,
 }: PortalListPageProps) {
   const { can } = usePermissions()
 
@@ -129,7 +132,7 @@ export function PortalListPage({
                       </Link>
                     </Button>
                     {can('portal.delete') && (
-                      <PortalDeleteButton portalId={p.id} portalName={p.name} />
+                      <PortalDeleteButton portalId={p.id} portalName={p.name} deletePortalFn={deletePortalFn} />
                     )}
                   </div>
                 </TableCell>

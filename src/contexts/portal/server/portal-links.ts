@@ -6,7 +6,7 @@ import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { z } from 'zod/v4'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
-import { throwContextError } from '#/shared/auth/server-errors'
+import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getContainer } from '#/composition'
 import {
   createLinkCategoryInputSchema,
@@ -40,7 +40,7 @@ export const createLinkCategory = createServerFn({ method: 'POST' })
         } catch (e) {
           if (isPortalError(e))
             throwContextError('PortalError', e, portalErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'POST',
@@ -62,7 +62,7 @@ export const updateLinkCategory = createServerFn({ method: 'POST' })
         } catch (e) {
           if (isPortalError(e))
             throwContextError('PortalError', e, portalErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'POST',
@@ -84,7 +84,7 @@ export const deleteLinkCategory = createServerFn({ method: 'POST' })
         } catch (e) {
           if (isPortalError(e))
             throwContextError('PortalError', e, portalErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'POST',
@@ -106,7 +106,7 @@ export const reorderCategories = createServerFn({ method: 'POST' })
         } catch (e) {
           if (isPortalError(e))
             throwContextError('PortalError', e, portalErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'POST',
@@ -130,7 +130,7 @@ export const createLink = createServerFn({ method: 'POST' })
         } catch (e) {
           if (isPortalError(e))
             throwContextError('PortalError', e, portalErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'POST',
@@ -152,7 +152,7 @@ export const updateLink = createServerFn({ method: 'POST' })
         } catch (e) {
           if (isPortalError(e))
             throwContextError('PortalError', e, portalErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'POST',
@@ -174,7 +174,7 @@ export const deleteLink = createServerFn({ method: 'POST' })
         } catch (e) {
           if (isPortalError(e))
             throwContextError('PortalError', e, portalErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'POST',
@@ -196,7 +196,7 @@ export const reorderLinks = createServerFn({ method: 'POST' })
         } catch (e) {
           if (isPortalError(e))
             throwContextError('PortalError', e, portalErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'POST',
@@ -220,7 +220,7 @@ export const listPortalLinks = createServerFn({ method: 'GET' })
         } catch (e) {
           if (isPortalError(e))
             throwContextError('PortalError', e, portalErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'GET',

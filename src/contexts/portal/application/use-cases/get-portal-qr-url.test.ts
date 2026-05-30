@@ -27,4 +27,20 @@ describe('getPortalQrUrl', () => {
     const result = await fn({ portalId: 'portal-1' }, ctx)
     expect(result.portalUrl).toBe('https://example.com/p/my-hotel/feedback?source=qr')
   })
+
+  it('rejects when role lacks portal.read permission', async () => {
+    const useCase = getPortalQrUrl({ portalRepo: fakePortalRepo, baseUrl: 'https://example.com' })
+    const ctx: AuthContext = {
+      userId: userId('u-1'),
+      organizationId: organizationId('org-1'),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- intentionally invalid role to test permission guard
+      role: 'Guest' as any,
+    }
+
+    await expect(
+      useCase({ portalId: 'p-1' }, ctx),
+    ).rejects.toSatisfy(
+      (e: unknown) => (e as { code?: string }).code === 'forbidden',
+    )
+  })
 })

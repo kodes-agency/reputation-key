@@ -1,5 +1,5 @@
 // Portal context — PortalGroup repository port
-import type { PortalGroup } from '../../domain/portal-group-types'
+import type { PortalGroup } from '../../domain/types'
 import type { OrganizationId, PortalGroupId, PropertyId } from '#/shared/domain/ids'
 
 export type PortalGroupRepository = Readonly<{

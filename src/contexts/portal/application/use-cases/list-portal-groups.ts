@@ -1,7 +1,7 @@
 // Portal context — list portal groups use case
 import type { PortalGroupRepository } from '../ports/portal-group.repository'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import type { PortalGroup } from '../../domain/portal-group-types'
+import type { PortalGroup } from '../../domain/types'
 import type { ListPortalGroupsInput } from '../dto/portal-group.dto'
 import { can } from '#/shared/domain/permissions'
 import { portalError } from '../../domain/errors'

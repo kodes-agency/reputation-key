@@ -6,13 +6,13 @@ import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
-import { throwContextError } from '#/shared/auth/server-errors'
+import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getContainer } from '#/composition'
 import { listLocationsInputSchema } from '../application/dto/list-locations.dto'
 import { importPropertiesInputSchema } from '../application/dto/import-properties.dto'
 import { importStatusInputSchema } from '../application/dto/import-status.dto'
 import { isIntegrationError } from '../domain/errors'
-import { integrationErrorStatus } from './shared'
+import { integrationErrorStatus } from './error-helpers'
 
 // ── listGbpLocations ───────────────────────────────────────────────
 
@@ -31,7 +31,7 @@ export const listGbpLocations = createServerFn({ method: 'POST' })
         } catch (e) {
           if (isIntegrationError(e))
             throwContextError('IntegrationError', e, integrationErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'POST',
@@ -56,7 +56,7 @@ export const startPropertyImport = createServerFn({ method: 'POST' })
         } catch (e) {
           if (isIntegrationError(e))
             throwContextError('IntegrationError', e, integrationErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'POST',
@@ -81,7 +81,7 @@ export const getImportStatus = createServerFn({ method: 'POST' })
         } catch (e) {
           if (isIntegrationError(e))
             throwContextError('IntegrationError', e, integrationErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'POST',

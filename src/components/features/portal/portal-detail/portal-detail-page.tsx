@@ -4,20 +4,20 @@
 import { useState, useRef } from 'react'
 import { Link, useRouter } from '@tanstack/react-router'
 import { Button } from '#/components/ui/button'
-import { Tabs, TabsList, TabsTrigger } from '#/components/ui/tabs'
-import { ArrowLeft, Eye, Settings, Link2, Share2, BarChart3 } from 'lucide-react'
+import { ArrowLeft, Eye } from 'lucide-react'
 import { PortalSettings } from '../portal-settings/portal-settings'
 import { LinkTree } from '../link-tree/link-tree'
 import { PortalShare } from '../portal-share/portal-share'
 import { PortalAnalyticsTab } from '../portal-analytics/portal-analytics-tab'
+import { getPortalAnalyticsFn } from '#/contexts/dashboard/server/portal-analytics'
 import { usePreviewToggle } from '../portal-preview/use-preview-toggle'
 import { PortalDetailPreview } from './portal-detail-preview'
+import { PortalDetailTabBar, type TabName } from './portal-detail-tab-bar'
 import type { Action } from '#/components/hooks/use-action'
 import type { LinkTreeCategory, LinkTreeLink } from '../link-tree/link-tree-types'
 import type { FormLike, UpdatePortalVariables } from '../shared/types'
 
 const VALID_TABS = ['settings', 'links', 'share', 'analytics'] as const
-type TabName = (typeof VALID_TABS)[number]
 
 type Props = Readonly<{
   portal: Readonly<{
@@ -103,22 +103,7 @@ export function PortalDetailPage({
         )}
       </div>
 
-      <Tabs value={currentTab} onValueChange={handleTabChange}>
-        <TabsList>
-          <TabsTrigger value="settings" className="gap-1.5">
-            <Settings className="size-3.5" /> Settings
-          </TabsTrigger>
-          <TabsTrigger value="links" className="gap-1.5">
-            <Link2 className="size-3.5" /> Links
-          </TabsTrigger>
-          <TabsTrigger value="share" className="gap-1.5">
-            <Share2 className="size-3.5" /> Share
-          </TabsTrigger>
-          <TabsTrigger value="analytics" className="gap-1.5">
-            <BarChart3 className="size-3.5" /> Analytics
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
+      <PortalDetailTabBar currentTab={currentTab} onChange={handleTabChange} />
 
       {currentTab === 'settings' && (
         <PortalSettings
@@ -147,7 +132,7 @@ export function PortalDetailPage({
       )}
 
       {currentTab === 'analytics' && (
-        <PortalAnalyticsTab portalId={portal.id} propertyId={propertyId} />
+        <PortalAnalyticsTab portalId={portal.id} propertyId={propertyId} getPortalAnalyticsFn={getPortalAnalyticsFn} />
       )}
 
       <PortalDetailPreview

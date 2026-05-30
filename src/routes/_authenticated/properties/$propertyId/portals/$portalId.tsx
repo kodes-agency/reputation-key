@@ -1,4 +1,6 @@
-import { createFileRoute, getRouteApi, notFound } from '@tanstack/react-router'
+import { createFileRoute, getRouteApi, notFound, redirect } from '@tanstack/react-router'
+import type { AuthRouteContext } from '#/routes/_authenticated'
+import { can } from '#/shared/domain/permissions'
 import { getPortal } from '#/contexts/portal/server/portals'
 import {
   requestUploadUrl,
@@ -14,6 +16,10 @@ import { PageShell } from '#/components/layout/page-shell'
 export const Route = createFileRoute(
   '/_authenticated/properties/$propertyId/portals/$portalId',
 )({
+  beforeLoad: ({ context }) => {
+    const { role } = context as AuthRouteContext
+    if (!can(role, 'portal.read')) throw redirect({ to: '/properties' })
+  },
   staleTime: 30_000,
   loader: async ({ params }) => {
     const [{ portal }, { categories, links }] = await Promise.all([

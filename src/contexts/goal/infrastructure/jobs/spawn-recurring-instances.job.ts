@@ -103,7 +103,7 @@ export const createSpawnRecurringInstancesHandler =
           const instance = instanceResult.value
 
           // Guard against race condition: check if instance already exists for this period
-          // TODO: Replace with a unique DB constraint on (parentGoalId, periodStart) for correctness
+          // TODO(review/G0-11): Replace with a unique DB constraint on (parentGoalId, periodStart) for correctness
           const instances = await deps.goalRepo.listInstances(
             template.id,
             template.organizationId,

@@ -1,6 +1,6 @@
 // Delete property confirmation dialog — irreversible action with AlertDialog pattern
-import { deleteProperty } from '#/contexts/property/server/properties'
-import { useMutationAction } from '#/components/hooks/use-mutation-action'
+// Receives deleteProperty server fn as prop per src/components/CONTEXT.md.
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -14,14 +14,21 @@ import {
 } from '#/components/ui/alert-dialog'
 import { Button } from '#/components/ui/button'
 import { Trash2 } from 'lucide-react'
+import { useMutationAction } from '#/components/hooks/use-mutation-action'
+import type { deleteProperty } from '#/contexts/property/server/properties'
 
 type Props = Readonly<{
   propertyId: string
   propertyName: string
+  deletePropertyFn: typeof deleteProperty
 }>
 
-export function DeletePropertyDialog({ propertyId, propertyName }: Props) {
-  const deleteAction = useMutationAction(deleteProperty, {
+export function DeletePropertyDialog({
+  propertyId,
+  propertyName,
+  deletePropertyFn,
+}: Props) {
+  const deleteAction = useMutationAction(deletePropertyFn, {
     successMessage: `"${propertyName}" deleted`,
     invalidateRoutes: ['/_authenticated'],
   })

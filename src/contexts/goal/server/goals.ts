@@ -4,9 +4,10 @@
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { match } from 'ts-pattern'
+import { HTTP_STATUS } from '#/shared/auth/error-status'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
-import { throwContextError } from '#/shared/auth/server-errors'
+import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { can } from '#/shared/domain/permissions'
 import { getContainer } from '#/composition'
 import {
@@ -37,10 +38,10 @@ const makeGoalError = (code: GoalErrorCode, message: string) => ({
 
 export const goalErrorStatus = (code: GoalErrorCode): number =>
   match(code)
-    .with('forbidden', () => 403)
-    .with('not_found', () => 404)
-    .with('validation_error', () => 400)
-    .with('immutable_goal', () => 409)
+    .with('forbidden', () => HTTP_STATUS.FORBIDDEN)
+    .with('not_found', () => HTTP_STATUS.NOT_FOUND)
+    .with('validation_error', () => HTTP_STATUS.BAD_REQUEST)
+    .with('immutable_goal', () => HTTP_STATUS.CONFLICT)
     .exhaustive()
 
 // ── createGoal ────────────────────────────────────────────────────────
@@ -123,7 +124,7 @@ export const createGoal = createServerFn({ method: 'POST' })
           return result._unsafeUnwrap()
         } catch (e) {
           if (isGoalError(e)) throwContextError('GoalError', e, goalErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'POST',
@@ -207,7 +208,7 @@ export const updateGoal = createServerFn({ method: 'POST' })
           return { goal: result._unsafeUnwrap() }
         } catch (e) {
           if (isGoalError(e)) throwContextError('GoalError', e, goalErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'POST',
@@ -272,7 +273,7 @@ export const cancelGoal = createServerFn({ method: 'POST' })
           return { goal: result._unsafeUnwrap() }
         } catch (e) {
           if (isGoalError(e)) throwContextError('GoalError', e, goalErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'POST',
@@ -324,7 +325,7 @@ export const listGoals = createServerFn({ method: 'GET' })
           return { goals: result._unsafeUnwrap() }
         } catch (e) {
           if (isGoalError(e)) throwContextError('GoalError', e, goalErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'GET',
@@ -379,7 +380,7 @@ export const getGoal = createServerFn({ method: 'GET' })
           return result._unsafeUnwrap()
         } catch (e) {
           if (isGoalError(e)) throwContextError('GoalError', e, goalErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'GET',

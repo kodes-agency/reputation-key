@@ -29,7 +29,7 @@ export type Permission =
   | 'team.create'
   | 'team.update'
   | 'team.delete'
-  | 'team.read' // Reserved for future use — team listing gated at use-case level
+  | 'team.read'
   | 'staff_assignment.create'
   | 'staff_assignment.delete'
   | 'staff_assignment.read'
@@ -43,7 +43,6 @@ export type Permission =
   | 'portal.delete'
   | 'portal.read'
   | 'review.read'
-  | 'review.reply' // Reserved for future use — reply operations use reply.manage instead
   | 'reply.manage'
   | 'inbox.read'
   | 'inbox.write'

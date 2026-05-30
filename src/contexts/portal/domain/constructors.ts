@@ -3,17 +3,18 @@
 // returning a Result."
 // Pure — ID and time are inputs, no side effects.
 
-import { Result } from 'neverthrow'
+import { Result, err, ok } from 'neverthrow'
 import type {
   Portal,
   PortalId,
   PortalLinkCategory,
   PortalLink,
   PortalTheme,
+  PortalGroup,
 } from './types'
 import type { PortalLinkCategoryId, PortalLinkId } from '#/shared/domain/ids'
 import type { PortalError } from './errors'
-import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
+import type { OrganizationId, PropertyId, PortalGroupId } from '#/shared/domain/ids'
 import { propertyId, teamId, userId } from '#/shared/domain/ids'
 import {
   normalizeSlug,
@@ -144,4 +145,42 @@ export const buildPortalLink = (
       updatedAt: input.now,
     }),
   )
+}
+
+// ── PortalGroup constructor ─────────────────────────────────────────
+
+export type BuildPortalGroupInput = Readonly<{
+  id: PortalGroupId
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  name: string
+  now: Date
+}>
+
+export const buildPortalGroup = (
+  input: BuildPortalGroupInput,
+): Result<PortalGroup, PortalError> => {
+  if (!input.name.trim()) {
+    return err({
+      _tag: 'PortalError',
+      code: 'invalid_name',
+      message: 'Group name is required',
+    } as PortalError)
+  }
+  if (input.name.length > 100) {
+    return err({
+      _tag: 'PortalError',
+      code: 'invalid_name',
+      message: 'Group name must be at most 100 characters',
+    } as PortalError)
+  }
+
+  return ok({
+    id: input.id,
+    organizationId: input.organizationId,
+    propertyId: input.propertyId,
+    name: input.name.trim(),
+    createdAt: input.now,
+    updatedAt: input.now,
+  } as PortalGroup)
 }

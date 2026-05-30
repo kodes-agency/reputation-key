@@ -218,7 +218,7 @@ async function handleRecurringGoal(
 
   await deps.goalRepo.createGoalAndProgress(instance, progress)
 
-  // TODO: The template goal itself also needs to be persisted atomically with
+  // TODO(review/G0-11): The template goal itself also needs to be persisted atomically with
   // the instance. Currently the template is inserted separately in the caller.
   // A transactional wrapper or a combined port method would be needed.
 

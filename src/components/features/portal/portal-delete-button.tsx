@@ -1,3 +1,6 @@
+// Portal delete button with confirmation dialog
+// Receives deletePortal server fn as prop per src/components/CONTEXT.md.
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -12,15 +15,20 @@ import {
 import { Button } from '#/components/ui/button'
 import { Trash2 } from 'lucide-react'
 import { useMutationAction } from '#/components/hooks/use-mutation-action'
-import { deletePortal } from '#/contexts/portal/server/portals'
+import type { deletePortal } from '#/contexts/portal/server/portals'
 
 interface PortalDeleteButtonProps {
   portalId: string
   portalName: string
+  deletePortalFn: typeof deletePortal
 }
 
-export function PortalDeleteButton({ portalId, portalName }: PortalDeleteButtonProps) {
-  const deleteMutation = useMutationAction(deletePortal, {
+export function PortalDeleteButton({
+  portalId,
+  portalName,
+  deletePortalFn,
+}: PortalDeleteButtonProps) {
+  const deleteMutation = useMutationAction(deletePortalFn, {
     successMessage: 'Portal deleted',
     invalidateRoutes: ['/_authenticated/properties/$propertyId/portals/'],
   })

@@ -1,11 +1,20 @@
 // People route — thin wrapper around PeoplePage component
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, redirect } from '@tanstack/react-router'
+import type { AuthRouteContext } from '#/routes/_authenticated'
+import { can } from '#/shared/domain/permissions'
 import { listStaffAssignments } from '#/contexts/staff/server/staff-assignments'
 import { listTeams } from '#/contexts/team/server/teams'
 import { listMembers } from '#/contexts/identity/server/organizations'
-import { PeoplePage, peopleSearchSchema } from '#/components/features/property/people/people-page'
+import {
+  PeoplePage,
+  peopleSearchSchema,
+} from '#/components/features/property/people/people-page'
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/people')({
+  beforeLoad: ({ context }) => {
+    const { role } = context as AuthRouteContext
+    if (!can(role, 'staff_assignment.read')) throw redirect({ to: '/properties' })
+  },
   validateSearch: (search) => peopleSearchSchema.parse(search),
   staleTime: 30_000,
   loader: async ({ params: { propertyId } }) => {
@@ -22,7 +31,8 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/peo
 function PeopleRoute() {
   const { propertyId } = Route.useParams()
   const { assignments, members, teams } = Route.useLoaderData()
-  const { tab } = Route.useSearch()
+  const search = Route.useSearch() as { tab?: string }
+  const navigate = Route.useNavigate()
 
   return (
     <PeoplePage
@@ -30,7 +40,8 @@ function PeopleRoute() {
       assignments={assignments}
       members={members}
       teams={teams}
-      tab={tab}
+      tab={search.tab}
+      onTabChange={(t) => navigate({ search: { tab: t } })}
     />
   )
 }

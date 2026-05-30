@@ -6,7 +6,7 @@
 // validate input → call use case → translate errors → return.
 
 import { describe, it, expect } from 'vitest'
-import { integrationErrorStatus } from './shared'
+import { integrationErrorStatus } from './error-helpers'
 import { listLocationsInputSchema } from '../application/dto/list-locations.dto'
 import { importPropertiesInputSchema } from '../application/dto/import-properties.dto'
 import { importStatusInputSchema } from '../application/dto/import-status.dto'

@@ -1,6 +1,6 @@
 // Goal context — PortalGroupDeleted event handler
 // Cancels active goals scoped to the deleted portal group.
-import type { PortalGroupDeleted } from '#/contexts/portal/domain/portal-group-events'
+import type { PortalGroupDeleted } from '#/contexts/portal/application/public-api'
 import type { GoalRepository } from '../../application/ports/goal.repository'
 import type { Goal } from '../../domain/types'
 import type { GoalId, OrganizationId } from '#/shared/domain/ids'

@@ -9,10 +9,11 @@
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { match } from 'ts-pattern'
+import { HTTP_STATUS } from '#/shared/auth/error-status'
 import { z } from 'zod/v4'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
-import { throwContextError } from '#/shared/auth/server-errors'
+import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getContainer } from '#/composition'
 import { createPropertyInputSchema } from '../application/dto/create-property.dto'
 import { updatePropertyInputSchema } from '../application/dto/update-property.dto'
@@ -23,10 +24,10 @@ import type { PropertyErrorCode } from '../domain/errors'
 
 export const propertyErrorStatus = (code: PropertyErrorCode): number =>
   match(code)
-    .with('forbidden', () => 403)
-    .with('property_not_found', () => 404)
-    .with('slug_taken', () => 409)
-    .with('invalid_slug', 'invalid_name', 'invalid_timezone', () => 400)
+    .with('forbidden', () => HTTP_STATUS.FORBIDDEN)
+    .with('property_not_found', () => HTTP_STATUS.NOT_FOUND)
+    .with('slug_taken', () => HTTP_STATUS.CONFLICT)
+    .with('invalid_slug', 'invalid_name', 'invalid_timezone', () => HTTP_STATUS.BAD_REQUEST)
     .exhaustive()
 
 // ── Shared Zod validators ──────────────────────────────────────────
@@ -52,7 +53,7 @@ export const createProperty = createServerFn({ method: 'POST' })
         } catch (e) {
           if (isPropertyError(e))
             throwContextError('PropertyError', e, propertyErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'POST',
@@ -77,7 +78,7 @@ export const updateProperty = createServerFn({ method: 'POST' })
         } catch (e) {
           if (isPropertyError(e))
             throwContextError('PropertyError', e, propertyErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'POST',
@@ -101,7 +102,7 @@ export const listProperties = createServerFn({ method: 'GET' }).handler(
       } catch (e) {
         if (isPropertyError(e))
           throwContextError('PropertyError', e, propertyErrorStatus(e.code))
-        throw e
+        catchUntagged(e)
       }
     },
     'GET',
@@ -126,7 +127,7 @@ export const getProperty = createServerFn({ method: 'GET' })
         } catch (e) {
           if (isPropertyError(e))
             throwContextError('PropertyError', e, propertyErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'GET',
@@ -151,7 +152,7 @@ export const deleteProperty = createServerFn({ method: 'POST' })
         } catch (e) {
           if (isPropertyError(e))
             throwContextError('PropertyError', e, propertyErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'POST',

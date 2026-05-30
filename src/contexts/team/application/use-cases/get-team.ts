@@ -6,6 +6,7 @@ import type { Team } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { TeamId } from '#/shared/domain/ids'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import { can } from '#/shared/domain/permissions'
 import { teamError } from '../../domain/errors'
 
 // fallow-ignore-next-line unused-type
@@ -17,6 +18,10 @@ export type GetTeamDeps = Readonly<{
 export const getTeam =
   (deps: GetTeamDeps) =>
   async (input: { teamId: TeamId }, ctx: AuthContext): Promise<Team> => {
+    if (!can(ctx.role, 'team.read')) {
+      throw teamError('forbidden', 'Insufficient permissions to view teams')
+    }
+
     const team = await deps.teamRepo.findById(ctx.organizationId, input.teamId)
     if (!team) {
       throw teamError('team_not_found', 'team not found')

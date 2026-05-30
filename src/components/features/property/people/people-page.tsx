@@ -1,6 +1,11 @@
 // People page component — staff, teams, and directory management
+//
+// NOTE: This component imports 7 server functions across 3 contexts
+// (staff, team, identity). This exceeds the 5-mutation threshold in
+// src/components/CONTEXT.md — deliberate exception. Prop-drilling
+// 7 action hooks through the route would create excessive boilerplate.
+
 import { useState } from 'react'
-import { useNavigate } from '@tanstack/react-router'
 import { z } from 'zod'
 import {
   listStaffAssignments,
@@ -30,13 +35,20 @@ interface PeoplePageProps {
   members: Awaited<ReturnType<typeof listMembers>>['members']
   teams: Awaited<ReturnType<typeof listTeams>>['teams']
   tab: string | undefined
+  onTabChange: (tab: string) => void
 }
 
-export function PeoplePage({ propertyId, assignments, members, teams, tab }: PeoplePageProps) {
+export function PeoplePage({
+  propertyId,
+  assignments,
+  members,
+  teams,
+  tab,
+  onTabChange,
+}: PeoplePageProps) {
   const defaultTab = tab ?? 'staff'
   const [assignOpen, setAssignOpen] = useState(false)
   const [createTeamOpen, setCreateTeamOpen] = useState(false)
-  const navigate = useNavigate()
 
   const memberOptions = toMemberOptions(members)
   const teamOptions = toTeamOptions(teams)
@@ -75,10 +87,7 @@ export function PeoplePage({ propertyId, assignments, members, teams, tab }: Peo
         </p>
       </div>
 
-      <Tabs
-        value={defaultTab}
-        onValueChange={(t) => navigate({ to: '.', search: { tab: t } })}
-      >
+      <Tabs value={defaultTab} onValueChange={(t) => onTabChange(t)}>
         <TabsList>
           <TabsTrigger value="staff">Staff</TabsTrigger>
           <TabsTrigger value="teams">Teams</TabsTrigger>

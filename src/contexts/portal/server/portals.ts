@@ -4,10 +4,11 @@
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { match } from 'ts-pattern'
+import { HTTP_STATUS } from '#/shared/auth/error-status'
 import { z } from 'zod/v4'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
-import { throwContextError } from '#/shared/auth/server-errors'
+import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getContainer } from '#/composition'
 import { createPortalInputSchema } from '../application/dto/create-portal.dto'
 import { updatePortalInputSchema } from '../application/dto/update-portal.dto'
@@ -18,7 +19,7 @@ import type { PortalErrorCode } from '../domain/errors'
 
 export const portalErrorStatus = (code: PortalErrorCode): number =>
   match(code)
-    .with('forbidden', () => 403)
+    .with('forbidden', () => HTTP_STATUS.FORBIDDEN)
     .with(
       'portal_not_found',
       'property_not_found',
@@ -27,8 +28,8 @@ export const portalErrorStatus = (code: PortalErrorCode): number =>
       'group_not_found',
       () => 404,
     )
-    .with('slug_taken', 'group_name_taken', () => 409)
-    .with('upload_failed', () => 422)
+    .with('slug_taken', 'group_name_taken', () => HTTP_STATUS.CONFLICT)
+    .with('upload_failed', () => HTTP_STATUS.UNPROCESSABLE)
     .with(
       'invalid_slug',
       'invalid_name',
@@ -69,7 +70,7 @@ export const createPortal = createServerFn({ method: 'POST' })
         } catch (e) {
           if (isPortalError(e))
             throwContextError('PortalError', e, portalErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'POST',
@@ -94,7 +95,7 @@ export const updatePortal = createServerFn({ method: 'POST' })
         } catch (e) {
           if (isPortalError(e))
             throwContextError('PortalError', e, portalErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'POST',
@@ -119,7 +120,7 @@ export const listPortals = createServerFn({ method: 'GET' })
         } catch (e) {
           if (isPortalError(e))
             throwContextError('PortalError', e, portalErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'GET',
@@ -144,7 +145,7 @@ export const getPortal = createServerFn({ method: 'GET' })
         } catch (e) {
           if (isPortalError(e))
             throwContextError('PortalError', e, portalErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'GET',
@@ -169,7 +170,7 @@ export const deletePortal = createServerFn({ method: 'POST' })
         } catch (e) {
           if (isPortalError(e))
             throwContextError('PortalError', e, portalErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'POST',
@@ -270,7 +271,7 @@ export const getPortalForQR = createServerFn({ method: 'GET' })
         } catch (e) {
           if (isPortalError(e))
             throwContextError('PortalError', e, portalErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'GET',
