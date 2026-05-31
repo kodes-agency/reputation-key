@@ -34,7 +34,7 @@ export function createJobWorker<T>(
   })
 
   const worker = new Worker<T>(name, handler, {
-    connection,
+    connection: connection as unknown as import('bullmq').ConnectionOptions,
     settings: {
       backoffStrategy: (attemptsMade: number) => {
         // Exponential backoff: 1s, 2s, 4s, 8s...
