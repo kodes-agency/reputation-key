@@ -1,5 +1,5 @@
 // Inbox notes thread — displays notes and add-note form within the detail panel
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useMutationAction } from '#/components/hooks/use-mutation-action'
 // exception: server fn used directly — component is 3 levels deep (route → sheet → content → notes),
 // prop drilling >2 levels is worse than direct server fn import here
@@ -64,9 +64,13 @@ export function InboxNotesThread({
     })
   }
 
-  // Sort notes newest first
-  const sortedNotes = [...notes].sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  // Sort notes newest first — FE-4 FIX: wrap in useMemo
+  const sortedNotes = useMemo(
+    () =>
+      [...notes].sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      ),
+    [notes],
   )
 
   return (

@@ -2,7 +2,7 @@
 // Ingests a new review/feedback into the inbox.
 
 import type { InboxRepository } from '../ports/inbox.repository'
-import type { UnreadCounterPort } from '../ports/unread-counter.port'
+import type { NewCounterPort } from '../ports/new-counter.port'
 import type { EventBus } from '#/shared/events/event-bus'
 import type {
   InboxItemId,
@@ -33,7 +33,7 @@ export type CreateInboxItemInput = Readonly<{
 export type CreateInboxItemDeps = Readonly<{
   repo: InboxRepository
   events: EventBus
-  unreadCounter: UnreadCounterPort
+  newCounter: NewCounterPort
   idGen: () => InboxItemId
   clock: () => Date
   logger: LoggerPort
@@ -80,13 +80,13 @@ export const createInboxItem =
     // 3. Persist
     await deps.repo.create(item)
 
-    // 4. Increment unread counter (new item starts as 'new')
+    // 4. Increment new counter (new item starts as 'new')
     try {
-      await deps.unreadCounter.increment(item.organizationId)
+      await deps.newCounter.increment(item.organizationId)
     } catch (err) {
       deps.logger.warn(
         { err, organizationId: item.organizationId },
-        'Unread counter increment failed after inbox item creation',
+        'New counter increment failed after inbox item creation',
       )
     }
 

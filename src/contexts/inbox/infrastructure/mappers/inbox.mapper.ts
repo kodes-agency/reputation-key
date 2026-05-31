@@ -3,7 +3,15 @@
 
 import type { inboxItems } from '#/shared/db/schema/inbox.schema'
 import type { InboxItem } from '../../domain/types'
-import { inboxItemId, organizationId, propertyId, userId } from '#/shared/domain/ids'
+import {
+  inboxItemId,
+  organizationId,
+  propertyId,
+  userId,
+  reviewId,
+  feedbackId,
+  unbrand,
+} from '#/shared/domain/ids'
 
 type InboxItemRow = typeof inboxItems.$inferSelect
 type InboxItemInsertRow = typeof inboxItems.$inferInsert
@@ -15,7 +23,8 @@ export const inboxItemFromRow = (
   organizationId: organizationId(row.organizationId),
   propertyId: propertyId(row.propertyId),
   sourceType: row.sourceType,
-  sourceId: row.sourceId as InboxItem['sourceId'],
+  sourceId:
+    row.sourceType === 'review' ? reviewId(row.sourceId) : feedbackId(row.sourceId),
   status: row.status,
   rating: row.rating,
   sourceDate: row.sourceDate,
@@ -33,17 +42,17 @@ export const inboxItemFromRow = (
 export const inboxItemToInsertRow = (
   item: Omit<InboxItem, 'createdAt' | 'updatedAt'>,
 ): InboxItemInsertRow => ({
-  id: item.id as string,
-  organizationId: item.organizationId as string,
-  propertyId: item.propertyId as string,
+  id: unbrand(item.id),
+  organizationId: unbrand(item.organizationId),
+  propertyId: unbrand(item.propertyId),
   sourceType: item.sourceType,
-  sourceId: item.sourceId as string,
+  sourceId: unbrand(item.sourceId),
   status: item.status,
   rating: item.rating,
   sourceDate: item.sourceDate,
   platform: item.platform,
   snippet: item.snippet,
-  assignedTo: item.assignedTo as string | null,
+  assignedTo: item.assignedTo ? unbrand(item.assignedTo) : null,
   readAt: item.readAt,
   escalatedAt: item.escalatedAt,
   addressedAt: item.addressedAt,

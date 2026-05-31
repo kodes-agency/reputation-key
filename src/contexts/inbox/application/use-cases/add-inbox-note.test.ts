@@ -142,24 +142,23 @@ describe('addInboxNote', () => {
     ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'forbidden')
   })
 
-  it('allows Staff to add note for any property (inbox.write bypasses property check)', async () => {
-    // Staff has inbox.write, so can() passes and the property access check is skipped
+  it('denies Staff note for inaccessible property (inbox.manage required for bypass)', async () => {
+    // Staff has inbox.write but NOT inbox.manage, so property access is enforced
     const staffApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [propertyId('prop-other')],
     }
-    const { useCase, repo, noteRepo } = setup(staffApi)
+    const { useCase, repo } = setup(staffApi)
     repo.items.push(seedItem())
 
-    const note = await useCase({
-      inboxItemId: ITEM_ID,
-      organizationId: ORG_ID,
-      authorUserId: USER_ID,
-      text: 'test note',
-      role: 'Staff' as Role,
-    })
-
-    expect(note.text).toBe('test note')
-    expect(noteRepo.notes).toHaveLength(1)
+    await expect(
+      useCase({
+        inboxItemId: ITEM_ID,
+        organizationId: ORG_ID,
+        authorUserId: USER_ID,
+        text: 'test note',
+        role: 'Staff' as Role,
+      }),
+    ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'forbidden')
   })
 
   it('allows note when user has access to the property', async () => {

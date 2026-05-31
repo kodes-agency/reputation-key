@@ -30,6 +30,34 @@ export type CreateInboxItemInput = Readonly<{
 export const createInboxItem = (
   input: CreateInboxItemInput,
 ): Result<InboxItem, InboxError> => {
+  // Validate strings
+  if (input.snippet !== null) {
+    const trimmed = input.snippet.trim()
+    if (trimmed.length > 10000) {
+      return err(
+        inboxError('invalid_input', 'Snippet exceeds 10000 characters', {
+          snippet: input.snippet,
+        }),
+      )
+    }
+  }
+  if (input.platform !== null) {
+    if (input.platform.length > 50) {
+      return err(
+        inboxError('invalid_input', 'Platform exceeds 50 characters', {
+          platform: input.platform,
+        }),
+      )
+    }
+  }
+  if (input.rating !== null && (input.rating < 1 || input.rating > 5)) {
+    return err(
+      inboxError('invalid_input', 'Rating must be between 1 and 5', {
+        rating: input.rating,
+      }),
+    )
+  }
+
   const now = input.clock()
   return ok({
     id: input.id,

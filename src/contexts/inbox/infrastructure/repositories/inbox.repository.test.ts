@@ -89,8 +89,7 @@ function createInMemoryInboxRepo(): InboxRepository {
       if (!item) return null
       if (item.sourceType === 'review') {
         return {
-          item,
-          reviewerName: 'Test Reviewer',
+          item: { ...item, reviewerName: 'Test Reviewer' },
           reviewText: 'Test review text',
           reviewerProfilePhotoUrl: null,
           feedbackComment: null,
@@ -99,7 +98,6 @@ function createInMemoryInboxRepo(): InboxRepository {
       }
       return {
         item,
-        reviewerName: null,
         reviewText: null,
         reviewerProfilePhotoUrl: null,
         feedbackComment: 'Test feedback comment',
@@ -177,7 +175,7 @@ describe('in-memory inbox repository', () => {
     )
 
     expect(result).not.toBeNull()
-    expect(result?.reviewerName).toBe('Test Reviewer')
+    expect(result?.item.reviewerName).toBe('Test Reviewer')
     expect(result?.reviewText).toBe('Test review text')
     expect(result?.feedbackComment).toBeNull()
   })
@@ -214,7 +212,7 @@ describe('in-memory inbox repository', () => {
 
     expect(result).not.toBeNull()
     expect(result?.feedbackComment).toBe('Test feedback comment')
-    expect(result?.reviewerName).toBeNull()
+    expect(result?.item.reviewerName).toBeNull()
     expect(result?.reviewText).toBeNull()
   })
 

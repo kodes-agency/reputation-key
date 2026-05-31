@@ -3,7 +3,7 @@
 // Enforces role-scoped property access.
 
 import type { InboxRepository } from '../ports/inbox.repository'
-import type { UnreadCounterPort } from '../ports/unread-counter.port'
+import type { NewCounterPort } from '../ports/new-counter.port'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { InboxItemId, OrganizationId, UserId } from '#/shared/domain/ids'
 import type { InboxStatus, InboxItem } from '../../domain/types'
@@ -27,7 +27,7 @@ export type UpdateInboxStatusInput = Readonly<{
 export type UpdateInboxStatusDeps = Readonly<{
   repo: InboxRepository
   events: EventBus
-  unreadCounter: UnreadCounterPort
+  newCounter: NewCounterPort
   clock: () => Date
   staffPublicApi: StaffPublicApi
   logger: LoggerPort
@@ -44,7 +44,7 @@ export const updateInboxStatus =
       })
     }
 
-    if (!can(input.role, 'inbox.write')) {
+    if (!can(input.role, 'inbox.manage')) {
       const accessible = await deps.staffPublicApi.getAccessiblePropertyIds(
         input.organizationId,
         input.userId,
@@ -85,14 +85,14 @@ export const updateInboxStatus =
       now,
     )
 
-    // 5. Decrement unread counter if transitioning away from 'new'
+    // 5. Decrement new counter if transitioning away from 'new'
     if (item.status === 'new' && input.newStatus !== 'new') {
       try {
-        await deps.unreadCounter.decrement(input.organizationId)
+        await deps.newCounter.decrement(input.organizationId)
       } catch (err) {
         deps.logger.warn(
           { err, organizationId: input.organizationId },
-          'Unread counter decrement failed, DB is source of truth',
+          'New counter decrement failed, DB is source of truth',
         )
       }
     }

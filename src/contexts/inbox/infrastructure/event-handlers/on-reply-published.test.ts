@@ -3,8 +3,10 @@
 import { describe, it, expect, vi } from 'vitest'
 import { onReplyPublished } from './on-reply-published'
 import type { InboxRepository } from '../../application/ports/inbox.repository'
+import type { NewCounterPort } from '../../application/ports/new-counter.port'
 import type { InboxItem } from '../../application/public-api'
 import type { ReplyPublished } from '#/contexts/review/application/public-api'
+import type { EventBus } from '#/shared/events/event-bus'
 import {
   inboxItemId,
   organizationId,
@@ -54,70 +56,112 @@ const mockEvent: ReplyPublished = {
   occurredAt: NOW,
 }
 
+function makeDeps(overrides: { repo: Partial<InboxRepository> }) {
+  return {
+    repo: {
+      findBySource: vi.fn(async () => null),
+      updateStatus: vi.fn(async () => {}),
+      ...overrides.repo,
+    } as unknown as InboxRepository,
+    events: {
+      on: vi.fn(),
+      emit: vi.fn(async () => {}),
+      clear: vi.fn(),
+    } as unknown as EventBus,
+    newCounter: {
+      getCount: vi.fn(async () => 0),
+      setCount: vi.fn(async () => {}),
+      increment: vi.fn(async () => {}),
+      decrement: vi.fn(async () => {}),
+      invalidate: vi.fn(async () => {}),
+    } as unknown as NewCounterPort,
+  }
+}
+
 describe('onReplyPublished', () => {
   it('transitions inbox item to addressed', async () => {
     const item = makeInboxItem({ status: 'new' })
-    const repo = {
-      findBySource: vi.fn(async () => item),
-      updateStatus: vi.fn(async () => {}),
-    } as unknown as InboxRepository
+    const deps = makeDeps({ repo: { findBySource: vi.fn(async () => item) } })
 
-    await onReplyPublished({ repo })(mockEvent)
+    await onReplyPublished(deps)(mockEvent)
 
-    expect(repo.updateStatus).toHaveBeenCalledWith(
+    expect(deps.repo.updateStatus).toHaveBeenCalledWith(
       INBOX_ID,
       ORG_ID,
       'addressed',
-      {
-        addressedAt: NOW,
-      },
+      { addressedAt: NOW },
       NOW,
     )
   })
 
+  it('decrements new counter when item was new', async () => {
+    const item = makeInboxItem({ status: 'new' })
+    const deps = makeDeps({ repo: { findBySource: vi.fn(async () => item) } })
+
+    await onReplyPublished(deps)(mockEvent)
+
+    expect(deps.newCounter.decrement).toHaveBeenCalledWith(ORG_ID)
+  })
+
+  it('does not decrement counter when item was read', async () => {
+    const item = makeInboxItem({ status: 'read' })
+    const deps = makeDeps({ repo: { findBySource: vi.fn(async () => item) } })
+
+    await onReplyPublished(deps)(mockEvent)
+
+    expect(deps.newCounter.decrement).not.toHaveBeenCalled()
+  })
+
+  it('emits inbox.status.changed event', async () => {
+    const item = makeInboxItem({ status: 'new' })
+    const deps = makeDeps({ repo: { findBySource: vi.fn(async () => item) } })
+
+    await onReplyPublished(deps)(mockEvent)
+
+    expect(deps.events.emit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        _tag: 'inbox.status.changed',
+        oldStatus: 'new',
+        newStatus: 'addressed',
+      }),
+    )
+  })
+
   it('skips if no inbox item found', async () => {
-    const repo = {
-      findBySource: vi.fn(async () => null),
-      updateStatus: vi.fn(async () => {}),
-    } as unknown as InboxRepository
+    const deps = makeDeps({ repo: { findBySource: vi.fn(async () => null) } })
 
-    await onReplyPublished({ repo })(mockEvent)
+    await onReplyPublished(deps)(mockEvent)
 
-    expect(repo.updateStatus).not.toHaveBeenCalled()
+    expect(deps.repo.updateStatus).not.toHaveBeenCalled()
   })
 
   it('skips if inbox item already addressed', async () => {
     const item = makeInboxItem({ status: 'addressed' })
-    const repo = {
-      findBySource: vi.fn(async () => item),
-      updateStatus: vi.fn(async () => {}),
-    } as unknown as InboxRepository
+    const deps = makeDeps({ repo: { findBySource: vi.fn(async () => item) } })
 
-    await onReplyPublished({ repo })(mockEvent)
+    await onReplyPublished(deps)(mockEvent)
 
-    expect(repo.updateStatus).not.toHaveBeenCalled()
+    expect(deps.repo.updateStatus).not.toHaveBeenCalled()
   })
 
   it('skips if inbox item is archived', async () => {
     const item = makeInboxItem({ status: 'archived' })
-    const repo = {
-      findBySource: vi.fn(async () => item),
-      updateStatus: vi.fn(async () => {}),
-    } as unknown as InboxRepository
+    const deps = makeDeps({ repo: { findBySource: vi.fn(async () => item) } })
 
-    await onReplyPublished({ repo })(mockEvent)
+    await onReplyPublished(deps)(mockEvent)
 
-    expect(repo.updateStatus).not.toHaveBeenCalled()
+    expect(deps.repo.updateStatus).not.toHaveBeenCalled()
   })
 
   it('does not throw on repo error', async () => {
-    const repo = {
-      findBySource: vi.fn(async () => {
-        throw new Error('DB down')
-      }),
-      updateStatus: vi.fn(async () => {}),
-    } as unknown as InboxRepository
+    const deps = makeDeps({
+      repo: {
+        findBySource: vi.fn(async () => {
+          throw new Error('DB down')
+        }),
+      },
+    })
 
-    await expect(onReplyPublished({ repo })(mockEvent)).resolves.toBeUndefined()
+    await expect(onReplyPublished(deps)(mockEvent)).resolves.toBeUndefined()
   })
 })

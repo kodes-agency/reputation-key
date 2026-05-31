@@ -6,7 +6,7 @@ import {
   SidebarMenuItem,
   SidebarMenuBadge,
 } from '#/components/ui/sidebar'
-import { InboxUnreadBadge } from '#/components/inbox/inbox-unread-badge'
+import { InboxNewBadge } from '#/components/inbox/inbox-new-badge'
 
 type Props = Readonly<{
   propertyId: string | undefined
@@ -64,7 +64,7 @@ export function ManagerNavItems({ propertyId, activeSection }: Props) {
             </Link>
           </SidebarMenuButton>
           <SidebarMenuBadge>
-            <InboxUnreadBadge />
+            <InboxNewBadge />
           </SidebarMenuBadge>
         </SidebarMenuItem>
       )}

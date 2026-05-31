@@ -74,6 +74,94 @@ describe('createInboxItem', () => {
       expect(item.assignedTo).toBe(USER_ID)
     }
   })
+
+  it('returns Err for rating below 1', () => {
+    const result = createInboxItem({
+      id: inboxItemId('item-3'),
+      organizationId: ORG_ID,
+      propertyId: PROP_ID,
+      sourceType: 'review',
+      sourceId: REVIEW_ID,
+      rating: 0,
+      sourceDate: NOW,
+      platform: null,
+      snippet: null,
+      assignedTo: null,
+      clock,
+    })
+
+    expect(result.isErr()).toBe(true)
+    if (result.isErr()) {
+      expect(result.error.code).toBe('invalid_input')
+      expect(result.error.context).toEqual({ rating: 0 })
+    }
+  })
+
+  it('returns Err for rating above 5', () => {
+    const result = createInboxItem({
+      id: inboxItemId('item-4'),
+      organizationId: ORG_ID,
+      propertyId: PROP_ID,
+      sourceType: 'review',
+      sourceId: REVIEW_ID,
+      rating: 6,
+      sourceDate: NOW,
+      platform: null,
+      snippet: null,
+      assignedTo: null,
+      clock,
+    })
+
+    expect(result.isErr()).toBe(true)
+    if (result.isErr()) {
+      expect(result.error.code).toBe('invalid_input')
+      expect(result.error.context).toEqual({ rating: 6 })
+    }
+  })
+
+  it('returns Err for platform exceeding 50 characters', () => {
+    const result = createInboxItem({
+      id: inboxItemId('item-5'),
+      organizationId: ORG_ID,
+      propertyId: PROP_ID,
+      sourceType: 'review',
+      sourceId: REVIEW_ID,
+      rating: null,
+      sourceDate: NOW,
+      platform: 'a'.repeat(51),
+      snippet: null,
+      assignedTo: null,
+      clock,
+    })
+
+    expect(result.isErr()).toBe(true)
+    if (result.isErr()) {
+      expect(result.error.code).toBe('invalid_input')
+      expect(result.error.message).toContain('Platform')
+    }
+  })
+
+  it('returns Err for snippet exceeding 10000 characters', () => {
+    const result = createInboxItem({
+      id: inboxItemId('item-6'),
+      organizationId: ORG_ID,
+      propertyId: PROP_ID,
+      sourceType: 'review',
+      sourceId: REVIEW_ID,
+      rating: null,
+      sourceDate: NOW,
+      platform: null,
+      snippet: 'a'.repeat(10001),
+      assignedTo: null,
+      clock,
+    })
+
+    expect(result.isErr()).toBe(true)
+    if (result.isErr()) {
+      expect(result.error.code).toBe('invalid_input')
+      expect(result.error.message).toContain('Snippet')
+    }
+  })
 })
 
 describe('createInboxNote', () => {

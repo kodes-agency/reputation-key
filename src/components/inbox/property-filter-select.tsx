@@ -1,4 +1,6 @@
-// Property filter dropdown — self-loading, role-scoped by the server.
+// Property filter dropdown — role-scoped property list.
+// When `properties` prop is provided (from route loader), uses it directly.
+// Falls back to self-loading via listProperties server fn for standalone usage.
 import {
   Select,
   SelectContent,
@@ -14,12 +16,18 @@ import { listProperties } from '#/contexts/property/server/properties'
 type Props = Readonly<{
   value: string | undefined
   onChange: (propertyId: string | undefined) => void
+  className?: string
+  /** Pre-loaded property list from route loader. When provided, skips self-loading. */
+  properties?: ReadonlyArray<{ id: string; name: string }>
 }>
 
-export function PropertyFilterSelect({ value, onChange }: Props) {
-  const [properties, setProperties] = useState<
-    ReadonlyArray<{ id: string; name: string }>
-  >([])
+export function PropertyFilterSelect({
+  value,
+  onChange,
+  className,
+  properties: externalProperties,
+}: Props) {
+  const [loaded, setLoaded] = useState<ReadonlyArray<{ id: string; name: string }>>([])
   const [error, setError] = useState(false)
   const propertyAction = useAction(useServerFn(listProperties))
   const abortRef = useRef(false)
@@ -31,7 +39,7 @@ export function PropertyFilterSelect({ value, onChange }: Props) {
     try {
       const result = await actionRef.current({ data: undefined })
       if (!abortRef.current && result?.properties) {
-        setProperties(
+        setLoaded(
           result.properties.map((p: { id: string; name: string }) => ({
             id: p.id,
             name: p.name,
@@ -44,16 +52,19 @@ export function PropertyFilterSelect({ value, onChange }: Props) {
   }, [])
 
   useEffect(() => {
-    loadProperties()
+    if (!externalProperties) {
+      loadProperties()
+    }
     return () => {
       abortRef.current = true
     }
-  }, [loadProperties])
+  }, [loadProperties, externalProperties])
 
-  if (error) {
-    return (
-      <span className="text-xs text-muted-foreground">Properties unavailable</span>
-    )
+  // Use external properties when provided, otherwise fall back to self-loaded
+  const properties = externalProperties ?? loaded
+
+  if (error && !externalProperties) {
+    return <span className="text-xs text-muted-foreground">Properties unavailable</span>
   }
 
   if (properties.length <= 1) return null
@@ -63,7 +74,7 @@ export function PropertyFilterSelect({ value, onChange }: Props) {
       value={value ?? 'all'}
       onValueChange={(v) => onChange(v === 'all' ? undefined : v)}
     >
-      <SelectTrigger size="sm" className="w-[150px]">
+      <SelectTrigger size="sm" className={className ?? 'w-[150px]'}>
         <SelectValue placeholder="All properties" />
       </SelectTrigger>
       <SelectContent>
