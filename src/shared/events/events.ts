@@ -132,6 +132,8 @@ export type {
   InboxItemAssigned,
   // fallow-ignore-next-line unused-type
   InboxItemUnassigned,
+  // fallow-ignore-next-line unused-type
+  InboxNoteAdded,
 } from '#/contexts/inbox/domain/events'
 
 // Goal context events

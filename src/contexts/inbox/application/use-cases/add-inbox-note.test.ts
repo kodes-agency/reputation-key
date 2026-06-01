@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { addInboxNote } from './add-inbox-note'
 import { createInMemoryInboxRepo } from '#/shared/testing/in-memory-inbox-repo'
+import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
 import {
   inboxItemId,
   inboxNoteId,
@@ -70,9 +71,10 @@ const setup = (staffApi: StaffPublicApi = defaultStaffApi) => {
     idGen: () => FIXED_ID,
     clock: () => FIXED_TIME,
     staffPublicApi: staffApi,
+    events: createCapturingEventBus(),
   }
   const useCase = addInboxNote(deps)
-  return { useCase, repo, noteRepo }
+  return { useCase, repo, noteRepo, deps }
 }
 
 describe('addInboxNote', () => {
