@@ -181,4 +181,19 @@ describe('addInboxNote', () => {
     expect(note.text).toBe('test note')
     expect(noteRepo.notes).toHaveLength(1)
   })
+
+  it('emits inbox.note.added event', async () => {
+    const { useCase, repo, deps } = setup()
+    repo.items.push(seedItem())
+
+    await useCase({
+      inboxItemId: ITEM_ID,
+      organizationId: ORG_ID,
+      authorUserId: USER_ID,
+      text: 'hello',
+      role: 'AccountAdmin' as Role,
+    })
+
+    expect(deps.events.capturedEvents[0]._tag).toBe('inbox.note.added')
+  })
 })
