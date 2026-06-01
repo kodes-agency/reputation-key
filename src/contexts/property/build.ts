@@ -62,6 +62,13 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
       const p = await deps.repo.findById(orgId, pid)
       return p?.name ?? null
     },
+    getPropertyNames: async (
+      orgId: OrganizationId,
+      propertyIds: ReadonlyArray<PropertyId>,
+    ) => {
+      const properties = await deps.repo.findByIds(orgId, propertyIds)
+      return properties.map((p) => ({ id: p.id as string, name: p.name }))
+    },
     findByGbpPlaceId: async (gbpPlaceId: string) => {
       const p = await deps.repo.findByGbpPlaceId(gbpPlaceId)
       if (!p) return null

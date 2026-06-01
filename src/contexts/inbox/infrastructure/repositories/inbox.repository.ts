@@ -406,14 +406,13 @@ async function batchReviewNames(
 ): Promise<Map<string, { reviewerName: string | null }>> {
   const map = new Map<string, { reviewerName: string | null }>()
   if (sourceIds.length === 0) return map
-  await Promise.all(
-    sourceIds.map(async (sid) => {
-      const snippet = await ports.reviewLookup.getReviewSnippetById(reviewId(sid), orgId)
-      if (snippet) {
-        map.set(sid, { reviewerName: snippet.reviewerName })
-      }
-    }),
+  const snippets = await ports.reviewLookup.getReviewSnippetsByIds(
+    sourceIds.map(reviewId),
+    orgId,
   )
+  for (const [id, snippet] of snippets) {
+    map.set(id, { reviewerName: snippet.reviewerName })
+  }
   return map
 }
 
@@ -424,11 +423,12 @@ async function batchPropertyNames(
 ): Promise<Map<string, string | null>> {
   const map = new Map<string, string | null>()
   if (propertyIds.length === 0) return map
-  await Promise.all(
-    propertyIds.map(async (pid) => {
-      const name = await ports.propertyLookup.getPropertyNameById(propertyId(pid), orgId)
-      map.set(pid, name)
-    }),
+  const names = await ports.propertyLookup.getPropertyNamesByIds(
+    propertyIds.map(propertyId),
+    orgId,
   )
+  for (const [id, name] of names) {
+    map.set(id, name)
+  }
   return map
 }

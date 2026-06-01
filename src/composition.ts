@@ -240,6 +240,7 @@ export function createContainer(options?: { enableJobs?: boolean }) {
   // encapsulated there, not in the composition root or inbox repository.
   const reviewLookup = createReviewLookupAdapter({
     findReviewById: (id, orgId) => review.reviewRepo.findById(id, orgId),
+    findReviewsByIds: (ids, orgId) => review.reviewRepo.findByIds(ids, orgId),
   })
 
   const feedbackLookup = createFeedbackLookupAdapter({
@@ -249,6 +250,7 @@ export function createContainer(options?: { enableJobs?: boolean }) {
 
   const inboxPropertyLookup = createPropertyLookupAdapter({
     getPropertyName: (orgId, pid) => property.publicApi.getPropertyName(orgId, pid),
+    getPropertyNames: (orgId, pids) => property.publicApi.getPropertyNames(orgId, pids),
   })
 
   const inbox = buildInboxContext({

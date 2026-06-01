@@ -8,7 +8,7 @@ import type { InboxItem } from '../../domain/types'
 import type { Role } from '#/shared/domain/roles'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { validateAssignment } from '../../domain/rules'
-import { inboxItemAssigned } from '../../domain/events'
+import { inboxItemAssigned, inboxItemUnassigned } from '../../domain/events'
 import { inboxError } from '../../domain/errors'
 import { can } from '#/shared/domain/permissions'
 
@@ -76,13 +76,22 @@ export const assignInboxItem =
       input.assignedToUserId,
     )
 
-    // 4. Emit event if assigned to a user
+    // 4. Emit event if assigned to a user, or unassigned
     if (input.assignedToUserId) {
       await deps.events.emit(
         inboxItemAssigned({
           inboxItemId: updated.id,
           organizationId: updated.organizationId,
           assignedTo: input.assignedToUserId,
+          occurredAt: deps.clock(),
+        }),
+      )
+    } else if (item.assignedTo) {
+      await deps.events.emit(
+        inboxItemUnassigned({
+          inboxItemId: updated.id,
+          organizationId: updated.organizationId,
+          previousAssignee: item.assignedTo,
           occurredAt: deps.clock(),
         }),
       )

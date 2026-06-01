@@ -125,6 +125,7 @@ function createTestEnv(googleReviews: ReadonlyArray<GoogleReview> = []) {
 
   const reviewRepo: ReviewRepository = {
     findById: vi.fn(async () => null),
+    findByIds: vi.fn(async () => []),
     findByExternalId: vi.fn(
       async (_p, externalId, orgId) => reviewStore.get(`${orgId}:${externalId}`) ?? null,
     ),

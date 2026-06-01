@@ -9,7 +9,7 @@
 //          scheduled jobs. No tenant filter — designed to scan all orgs in one pass.
 //          If total reviews exceed ~5K, these jobs need cursor-based pagination.
 
-import { and, eq, lte, lt } from 'drizzle-orm'
+import { and, eq, lte, lt, inArray } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { reviews } from '#/shared/db/schema/review.schema'
 import type { ReviewRepository } from '../../application/ports/review.repository'
@@ -27,6 +27,19 @@ export const createReviewRepository = (db: Database): ReviewRepository => ({
         .where(and(eq(reviews.id, id), eq(reviews.organizationId, organizationId)))
         .limit(1)
       return rows[0] ? reviewFromRow(rows[0]) : null
+    })
+  },
+
+  findByIds: async (ids: ReadonlyArray<ReviewId>, organizationId: OrganizationId) => {
+    return trace('review.findByIds', async () => {
+      if (ids.length === 0) return []
+      const rows = await db
+        .select()
+        .from(reviews)
+        .where(
+          and(inArray(reviews.id, [...ids]), eq(reviews.organizationId, organizationId)),
+        )
+      return rows.map((r) => reviewFromRow(r))
     })
   },
 

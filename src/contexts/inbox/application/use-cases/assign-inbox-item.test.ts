@@ -135,9 +135,9 @@ describe('assignInboxItem', () => {
     expect(emitted[0]._tag).toBe('inbox.item.assigned')
   })
 
-  it('does not emit event when unassigning (assignedToUserId is null)', async () => {
+  it('emits inbox.item.unassigned event when unassigning (assignedToUserId is null)', async () => {
     const { useCase, repo, events } = setup()
-    repo.items.push(seedItem())
+    repo.items.push({ ...seedItem(), assignedTo: ASSIGNEE_ID })
 
     await useCase({
       inboxItemId: ITEM_ID,
@@ -147,7 +147,9 @@ describe('assignInboxItem', () => {
       userId: USER_ID,
     })
 
-    expect(events.capturedEvents).toHaveLength(0)
+    const emitted = events.capturedEvents
+    expect(emitted).toHaveLength(1)
+    expect(emitted[0]._tag).toBe('inbox.item.unassigned')
   })
 
   it('allows PropertyManager to assign item for any property (inbox.manage bypasses property check)', async () => {

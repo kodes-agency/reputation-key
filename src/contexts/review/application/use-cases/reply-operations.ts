@@ -11,7 +11,12 @@ import type { Reply } from '../../domain/types'
 import { can } from '#/shared/domain/permissions'
 import { canTransitionReply, MAX_REPLY_LENGTH } from '../../domain/rules'
 import { reviewError } from '../../domain/errors'
-import { replyPublished } from '../../domain/events'
+import {
+  replyPublished,
+  replySubmitted,
+  replyApproved,
+  replyRejected,
+} from '../../domain/events'
 
 // ── Shared ────────────────────────────────────────────────────────────
 
@@ -130,7 +135,26 @@ export const submitReply =
     }
 
     const now = deps.clock()
-    return deps.replyRepo.upsert({ ...reply, status: 'pending_approval' }, now)
+    const submitted = await deps.replyRepo.upsert(
+      { ...reply, status: 'pending_approval' },
+      now,
+    )
+
+    const review = await deps.reviewRepo.findById(input.reviewId, input.organizationId)
+    if (review) {
+      await deps.events.emit(
+        replySubmitted({
+          replyId: submitted.id,
+          reviewId: submitted.reviewId,
+          propertyId: review.propertyId,
+          organizationId: submitted.organizationId,
+          userId: input.userId,
+          occurredAt: now,
+        }),
+      )
+    }
+
+    return submitted
   }
 
 // ── Approve reply ─────────────────────────────────────────────────────
@@ -173,6 +197,20 @@ export const approveReply =
       organizationId: approved.organizationId,
     })
 
+    const review = await deps.reviewRepo.findById(input.reviewId, input.organizationId)
+    if (review) {
+      await deps.events.emit(
+        replyApproved({
+          replyId: approved.id,
+          reviewId: approved.reviewId,
+          propertyId: review.propertyId,
+          organizationId: approved.organizationId,
+          userId: input.userId,
+          occurredAt: now,
+        }),
+      )
+    }
+
     return approved
   }
 
@@ -207,7 +245,7 @@ export const rejectReply =
     }
 
     const now = deps.clock()
-    return deps.replyRepo.upsert(
+    const updated = await deps.replyRepo.upsert(
       {
         ...reply,
         status: 'rejected',
@@ -216,6 +254,23 @@ export const rejectReply =
       },
       now,
     )
+
+    const review = await deps.reviewRepo.findById(input.reviewId, input.organizationId)
+    if (review) {
+      await deps.events.emit(
+        replyRejected({
+          replyId: updated.id,
+          reviewId: updated.reviewId,
+          propertyId: review.propertyId,
+          organizationId: updated.organizationId,
+          userId: input.userId,
+          reason: input.reason ?? null,
+          occurredAt: now,
+        }),
+      )
+    }
+
+    return updated
   }
 
 // ── Delete draft ──────────────────────────────────────────────────────

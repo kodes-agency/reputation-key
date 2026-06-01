@@ -62,6 +62,15 @@ export type PropertyPublicApi = Readonly<{
   ) => Promise<string | null>
 
   /**
+   * Get display names for multiple properties by IDs. Returns array of { id, name }.
+   * Used by cross-context batch lookup ports (e.g., inbox enrichment N+1 fix).
+   */
+  getPropertyNames: (
+    orgId: OrganizationId,
+    propertyIds: ReadonlyArray<PropertyId>,
+  ) => Promise<ReadonlyArray<{ id: string; name: string | null }>>
+
+  /**
    * Find a non-deleted property by its Google Business Profile place ID.
    * Used by the integration context for GBP webhook handling (push-based,
    * no organizationId available at call time).

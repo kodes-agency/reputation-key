@@ -1,7 +1,13 @@
 // Review context — domain events
 // Per architecture: "Events are facts, named in the past tense."
 
-import type { ReviewId, ReplyId, PropertyId, OrganizationId } from '#/shared/domain/ids'
+import type {
+  ReviewId,
+  ReplyId,
+  PropertyId,
+  OrganizationId,
+  UserId,
+} from '#/shared/domain/ids'
 import type { ReviewPlatform, StarRating } from './types'
 
 // fallow-ignore-next-line unused-type
@@ -51,7 +57,41 @@ export type ReplyPublished = Readonly<{
   occurredAt: Date
 }>
 
-export type ReplyEvent = ReplyPublished
+// fallow-ignore-next-line unused-type
+export type ReplySubmitted = Readonly<{
+  _tag: 'reply.submitted'
+  replyId: ReplyId
+  reviewId: ReviewId
+  propertyId: PropertyId
+  organizationId: OrganizationId
+  userId: UserId
+  occurredAt: Date
+}>
+
+// fallow-ignore-next-line unused-type
+export type ReplyApproved = Readonly<{
+  _tag: 'reply.approved'
+  replyId: ReplyId
+  reviewId: ReviewId
+  propertyId: PropertyId
+  organizationId: OrganizationId
+  userId: UserId
+  occurredAt: Date
+}>
+
+// fallow-ignore-next-line unused-type
+export type ReplyRejected = Readonly<{
+  _tag: 'reply.rejected'
+  replyId: ReplyId
+  reviewId: ReviewId
+  propertyId: PropertyId
+  organizationId: OrganizationId
+  userId: UserId
+  reason: string | null
+  occurredAt: Date
+}>
+
+export type ReplyEvent = ReplyPublished | ReplySubmitted | ReplyApproved | ReplyRejected
 
 // NOTE: No ReviewPurged event is emitted when the purge job hard-deletes expired reviews.
 // Purged reviews are already expired (review.expired event was emitted earlier) and are
@@ -78,5 +118,20 @@ export const reviewExpired = (args: Omit<ReviewExpired, '_tag'>): ReviewExpired 
 
 export const replyPublished = (args: Omit<ReplyPublished, '_tag'>): ReplyPublished => ({
   _tag: 'reply.published',
+  ...args,
+})
+
+export const replySubmitted = (args: Omit<ReplySubmitted, '_tag'>): ReplySubmitted => ({
+  _tag: 'reply.submitted',
+  ...args,
+})
+
+export const replyApproved = (args: Omit<ReplyApproved, '_tag'>): ReplyApproved => ({
+  _tag: 'reply.approved',
+  ...args,
+})
+
+export const replyRejected = (args: Omit<ReplyRejected, '_tag'>): ReplyRejected => ({
+  _tag: 'reply.rejected',
   ...args,
 })

@@ -112,6 +112,12 @@ export type {
   ReplyEvent,
   // fallow-ignore-next-line unused-type
   ReplyPublished,
+  // fallow-ignore-next-line unused-type
+  ReplySubmitted,
+  // fallow-ignore-next-line unused-type
+  ReplyApproved,
+  // fallow-ignore-next-line unused-type
+  ReplyRejected,
 } from '#/contexts/review/domain/events'
 
 // Inbox context events
@@ -124,6 +130,8 @@ export type {
   InboxStatusChanged,
   // fallow-ignore-next-line unused-type
   InboxItemAssigned,
+  // fallow-ignore-next-line unused-type
+  InboxItemUnassigned,
 } from '#/contexts/inbox/domain/events'
 
 // Goal context events

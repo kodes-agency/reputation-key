@@ -6,6 +6,10 @@ import type { OrganizationId, PropertyId, ReviewId } from '#/shared/domain/ids'
 
 export type ReviewRepository = Readonly<{
   findById(id: ReviewId, organizationId: OrganizationId): Promise<Review | null>
+  findByIds(
+    ids: ReadonlyArray<ReviewId>,
+    organizationId: OrganizationId,
+  ): Promise<ReadonlyArray<Review>>
   findByExternalId(
     platform: ReviewPlatform,
     externalId: string,
