@@ -571,7 +571,7 @@ describe('syncReviews', () => {
         platform: 'google',
         organizationId: ORG_ID,
         propertyId: PROP_ID,
-        occurredAt: NOW,
+        occurredAt: daysAgo(5),
       })
       expect(event.reviewId).toBeDefined()
     })

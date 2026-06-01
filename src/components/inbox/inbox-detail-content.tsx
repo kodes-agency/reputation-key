@@ -42,6 +42,10 @@ export function InboxDetailContent({
       <InboxDetailSourceContent currentItem={currentItem} detail={detail} />
 
       <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
+        <span>
+          {currentItem.sourceType === 'review' ? 'Reviewed' : 'Submitted'}:{' '}
+          {formatDateTime(currentItem.sourceDate)}
+        </span>
         {currentItem.readAt && <span>Opened: {formatDateTime(currentItem.readAt)}</span>}
         {currentItem.escalatedAt && (
           <span>Escalated: {formatDateTime(currentItem.escalatedAt)}</span>
