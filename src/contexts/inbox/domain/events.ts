@@ -62,12 +62,34 @@ export type InboxItemUnassigned = Readonly<{
   occurredAt: Date
 }>
 
+// fallow-ignore-next-line unused-type
+export type InboxBulkStatusChanged = Readonly<{
+  _tag: 'inbox.bulk.status.changed'
+  inboxItemId: InboxItemId
+  organizationId: OrganizationId
+  oldStatus: InboxStatus
+  newStatus: InboxStatus
+  bulkId: string
+  occurredAt: Date
+}>
+
+// fallow-ignore-next-line unused-type
+export type InboxItemEscalated = Readonly<{
+  _tag: 'inbox.item.escalated'
+  inboxItemId: InboxItemId
+  organizationId: OrganizationId
+  oldStatus: InboxStatus
+  occurredAt: Date
+}>
+
 export type InboxEvent =
   | InboxItemCreated
   | InboxStatusChanged
+  | InboxItemEscalated
   | InboxItemAssigned
   | InboxItemUnassigned
   | InboxNoteAdded
+  | InboxBulkStatusChanged
 
 // ── Event constructors ──────────────────────────────────────────────
 
@@ -99,7 +121,21 @@ export const inboxItemUnassigned = (
   ...args,
 })
 
+export const inboxItemEscalated = (
+  args: Omit<InboxItemEscalated, '_tag'>,
+): InboxItemEscalated => ({
+  _tag: 'inbox.item.escalated',
+  ...args,
+})
+
 export const inboxNoteAdded = (args: Omit<InboxNoteAdded, '_tag'>): InboxNoteAdded => ({
   _tag: 'inbox.note.added',
+  ...args,
+})
+
+export const inboxBulkStatusChanged = (
+  args: Omit<InboxBulkStatusChanged, '_tag'>,
+): InboxBulkStatusChanged => ({
+  _tag: 'inbox.bulk.status.changed',
   ...args,
 })

@@ -1,6 +1,7 @@
 // Inbox context — bulk update inbox status use case
 // Batch status change for multiple inbox items.
 
+import { randomUUID } from 'node:crypto'
 import type { InboxRepository } from '../ports/inbox.repository'
 import type { NewCounterPort } from '../ports/new-counter.port'
 import type { EventBus } from '#/shared/events/event-bus'
@@ -9,7 +10,7 @@ import type { InboxStatus } from '../../domain/types'
 import type { Role } from '#/shared/domain/roles'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { validateTransition } from '../../domain/rules'
-import { inboxStatusChanged } from '../../domain/events'
+import { inboxBulkStatusChanged } from '../../domain/events'
 import { can } from '#/shared/domain/permissions'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 
@@ -35,6 +36,7 @@ export const bulkUpdateInboxStatus =
   (deps: BulkUpdateInboxStatusDeps) =>
   async (input: BulkUpdateInboxStatusInput): Promise<{ updated: number }> => {
     const now = deps.clock()
+    const bulkId = randomUUID()
 
     // Compute timestamp fields
     const timestampFields: Partial<Record<string, Date>> = {}
@@ -121,14 +123,15 @@ export const bulkUpdateInboxStatus =
       }
     }
 
-    // Emit events for each updated item
+    // Emit bulk status changed events for each updated item
     for (const id of validIds) {
       await deps.events.emit(
-        inboxStatusChanged({
+        inboxBulkStatusChanged({
           inboxItemId: id,
           organizationId: input.organizationId,
           oldStatus: oldStatuses.get(id)!,
           newStatus: input.newStatus,
+          bulkId,
           occurredAt: now,
         }),
       )

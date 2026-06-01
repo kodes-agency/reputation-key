@@ -253,4 +253,22 @@ describe('updateInboxStatus', () => {
       }),
     ).resolves.toBeDefined()
   })
+
+  it('emits inbox.item.escalated event alongside inbox.status.changed when escalating', async () => {
+    const { useCase, repo, events } = setup()
+    repo.items.push(seedNew())
+
+    await useCase({
+      inboxItemId: ITEM_ID,
+      organizationId: ORG_ID,
+      newStatus: 'escalated',
+      userId: USER_ID,
+      role: 'AccountAdmin' as Role,
+    })
+
+    const emitted = events.capturedEvents
+    expect(emitted).toHaveLength(2)
+    expect(emitted[0]._tag).toBe('inbox.status.changed')
+    expect(emitted[1]._tag).toBe('inbox.item.escalated')
+  })
 })

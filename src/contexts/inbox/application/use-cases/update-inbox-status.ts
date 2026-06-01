@@ -12,7 +12,7 @@ import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { can } from '#/shared/domain/permissions'
 import { validateTransition } from '../../domain/rules'
-import { inboxStatusChanged } from '../../domain/events'
+import { inboxStatusChanged, inboxItemEscalated } from '../../domain/events'
 import { inboxError } from '../../domain/errors'
 
 export type UpdateInboxStatusInput = Readonly<{
@@ -107,6 +107,17 @@ export const updateInboxStatus =
         occurredAt: now,
       }),
     )
+
+    if (input.newStatus === 'escalated') {
+      await deps.events.emit(
+        inboxItemEscalated({
+          inboxItemId: updated.id,
+          organizationId: updated.organizationId,
+          oldStatus: item.status,
+          occurredAt: now,
+        }),
+      )
+    }
 
     // 7. Return
     return updated

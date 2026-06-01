@@ -133,6 +133,8 @@ export type {
   // fallow-ignore-next-line unused-type
   InboxItemUnassigned,
   // fallow-ignore-next-line unused-type
+  InboxItemEscalated,
+  // fallow-ignore-next-line unused-type
   InboxNoteAdded,
 } from '#/contexts/inbox/domain/events'
 
