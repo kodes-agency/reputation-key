@@ -84,6 +84,8 @@ export const replies = pgTable(
     rejectedBy: varchar('rejected_by', { length: 255 }),
     rejectionReason: text('rejection_reason'),
     aiGenerated: boolean('ai_generated').notNull().default(false),
+    submittedAt: timestamp('submitted_at', { withTimezone: true }),
+    approvedAt: timestamp('approved_at', { withTimezone: true }),
     publishedAt: timestamp('published_at', { withTimezone: true }),
     createdAt: createdAtColumn(),
     updatedAt: updatedAtColumn(),

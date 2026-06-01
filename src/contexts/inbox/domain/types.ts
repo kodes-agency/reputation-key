@@ -32,6 +32,8 @@ export type InboxItem = Readonly<{
   escalatedAt: Date | null
   addressedAt: Date | null
   archivedAt: Date | null
+  firstReplySubmittedAt: Date | null
+  firstReplyPublishedAt: Date | null
   createdAt: Date
   updatedAt: Date
 }>

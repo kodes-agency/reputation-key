@@ -70,6 +70,8 @@ function makeReply(overrides: Partial<Reply> = {}): Reply {
     rejectedBy: null,
     rejectionReason: null,
     aiGenerated: false,
+    submittedAt: null,
+    approvedAt: null,
     publishedAt: null,
     createdAt: NOW,
     updatedAt: NOW,
@@ -225,6 +227,18 @@ describe('submitReply', () => {
     expect(result.status).toBe('pending_approval')
   })
 
+  it('sets submittedAt when submitting', async () => {
+    const draft = makeReply({ status: 'draft' })
+    const deps = makeDeps({
+      replyRepo: {
+        ...makeDeps().replyRepo,
+        findInternalByReviewId: vi.fn(async () => draft),
+      } as unknown as ReplyRepository,
+    })
+    const result = await submitReply(deps)({ ...MANAGER_CTX, reviewId: REVIEW_ID })
+    expect(result.submittedAt).toBe(NOW)
+  })
+
   it('rejects if no reply exists', async () => {
     const deps = makeDeps()
     await expect(
@@ -291,6 +305,21 @@ describe('approveReply', () => {
       replyId: REPLY_ID,
       organizationId: ORG_ID,
     })
+  })
+
+  it('sets approvedAt when approving', async () => {
+    const pending = makeReply({ status: 'pending_approval' })
+    const deps = makeDeps({
+      replyRepo: {
+        ...makeDeps().replyRepo,
+        findInternalByReviewId: vi.fn(async () => pending),
+      } as unknown as ReplyRepository,
+    })
+    const result = await approveReply(deps)({
+      ...MANAGER_CTX,
+      reviewId: REVIEW_ID,
+    })
+    expect(result.approvedAt).toBe(NOW)
   })
 
   it('rejects approve from draft status', async () => {

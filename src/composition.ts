@@ -39,6 +39,7 @@ import { buildGuestContext } from '#/contexts/guest/build'
 import { buildReviewContext } from '#/contexts/review/build'
 import { buildInboxContext } from '#/contexts/inbox/build'
 import { buildMetricContext } from '#/contexts/metric/build'
+import { buildActivityContext } from '#/contexts/activity/build'
 import { buildDashboardContext } from '#/contexts/dashboard/build'
 import { createReviewStatsAdapter } from '#/contexts/dashboard/infrastructure/adapters/review-stats.adapter'
 import { createMetricStatsAdapter } from '#/contexts/dashboard/infrastructure/adapters/metric-stats.adapter'
@@ -271,6 +272,13 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     clock,
   })
 
+  const activity = buildActivityContext({
+    db,
+    events: eventBus,
+    clock,
+    logger: getLogger(),
+  })
+
   // Goal context needs a cancelGoalFn for event handlers.
   // Create the goal repo early so we can wire cancelGoal independently
   // (avoids circular ref with buildGoalContext's return value).
@@ -372,6 +380,7 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     inboxNoteRepo: inbox.inboxNoteRepo,
     newCounter: inbox.newCounter,
     goalRepo: goal.goalRepo,
+    activityPublicApi: activity.publicApi,
     metricPublicApi: metricApi.publicApi,
   } as const
 }

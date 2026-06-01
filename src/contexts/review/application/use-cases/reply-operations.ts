@@ -99,6 +99,8 @@ export const draftReply =
         rejectedBy: null,
         rejectionReason: null,
         aiGenerated: false,
+        submittedAt: null,
+        approvedAt: null,
         publishedAt: null,
       },
       now,
@@ -136,7 +138,7 @@ export const submitReply =
 
     const now = deps.clock()
     const submitted = await deps.replyRepo.upsert(
-      { ...reply, status: 'pending_approval' },
+      { ...reply, status: 'pending_approval', submittedAt: now },
       now,
     )
 
@@ -188,7 +190,7 @@ export const approveReply =
 
     const now = deps.clock()
     const approved = await deps.replyRepo.upsert(
-      { ...reply, status: 'approved', approvedBy: input.userId },
+      { ...reply, status: 'approved', approvedBy: input.userId, approvedAt: now },
       now,
     )
 

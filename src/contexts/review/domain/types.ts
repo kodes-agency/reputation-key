@@ -64,6 +64,8 @@ export type Reply = Readonly<{
   rejectedBy: UserId | null
   rejectionReason: string | null
   aiGenerated: boolean
+  submittedAt: Date | null
+  approvedAt: Date | null
   publishedAt: Date | null
   createdAt: Date
   updatedAt: Date

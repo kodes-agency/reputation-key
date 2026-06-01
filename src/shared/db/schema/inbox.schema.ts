@@ -41,6 +41,8 @@ export const inboxItems = pgTable(
     escalatedAt: timestamp('escalated_at', { withTimezone: true }),
     addressedAt: timestamp('addressed_at', { withTimezone: true }),
     archivedAt: timestamp('archived_at', { withTimezone: true }),
+    firstReplySubmittedAt: timestamp('first_reply_submitted_at', { withTimezone: true }),
+    firstReplyPublishedAt: timestamp('first_reply_published_at', { withTimezone: true }),
     createdAt: createdAtColumn(),
     updatedAt: updatedAtColumn(),
   },
