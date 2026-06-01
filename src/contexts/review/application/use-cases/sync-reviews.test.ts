@@ -97,6 +97,8 @@ function makeReply(overrides: Partial<Reply> = {}): Reply {
     rejectedBy: null,
     rejectionReason: null,
     aiGenerated: false,
+    submittedAt: null,
+    approvedAt: null,
     publishedAt: daysAgo(4),
     createdAt: daysAgo(4),
     updatedAt: daysAgo(4),

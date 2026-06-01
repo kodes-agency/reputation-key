@@ -32,6 +32,8 @@ function makeInboxItem(overrides: Partial<InboxItem> = {}): InboxItem {
     escalatedAt: null,
     addressedAt: null,
     archivedAt: null,
+    firstReplySubmittedAt: null,
+    firstReplyPublishedAt: null,
     createdAt: NOW,
     updatedAt: NOW,
     ...overrides,

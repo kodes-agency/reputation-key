@@ -37,11 +37,18 @@ export const onReplyPublished =
 
         const oldStatus = inboxItem.status
 
+        const extraFields: Partial<Record<string, Date>> = {
+          addressedAt: event.occurredAt,
+        }
+        if (!inboxItem.firstReplyPublishedAt) {
+          extraFields.firstReplyPublishedAt = event.occurredAt
+        }
+
         await deps.repo.updateStatus(
           inboxItem.id,
           inboxItem.organizationId,
           'addressed',
-          { addressedAt: event.occurredAt },
+          extraFields,
           event.occurredAt,
         )
 

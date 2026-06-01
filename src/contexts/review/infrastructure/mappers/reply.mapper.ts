@@ -20,6 +20,8 @@ export const replyFromRow = (row: ReplyRow): Reply => ({
   rejectedBy: row.rejectedBy ? userId(row.rejectedBy) : null,
   rejectionReason: row.rejectionReason,
   aiGenerated: row.aiGenerated,
+  submittedAt: row.submittedAt,
+  approvedAt: row.approvedAt,
   publishedAt: row.publishedAt,
   createdAt: row.createdAt,
   updatedAt: row.updatedAt,
@@ -39,5 +41,7 @@ export const replyToRow = (
   rejectedBy: reply.rejectedBy as string | null,
   rejectionReason: reply.rejectionReason,
   aiGenerated: reply.aiGenerated,
+  submittedAt: reply.submittedAt,
+  approvedAt: reply.approvedAt,
   publishedAt: reply.publishedAt,
 })

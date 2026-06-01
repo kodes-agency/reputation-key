@@ -77,6 +77,8 @@ export const createInboxItem = (
     escalatedAt: null,
     addressedAt: null,
     archivedAt: null,
+    firstReplySubmittedAt: null,
+    firstReplyPublishedAt: null,
     createdAt: now,
     updatedAt: now,
   })

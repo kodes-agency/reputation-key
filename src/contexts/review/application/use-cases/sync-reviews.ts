@@ -221,6 +221,8 @@ async function mirrorReply(
           rejectedBy: null,
           rejectionReason: null,
           aiGenerated: false,
+          submittedAt: null,
+          approvedAt: null,
           publishedAt: gr.replyUpdatedAt ?? now,
         },
         now,

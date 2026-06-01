@@ -14,10 +14,16 @@ export type {
   ReviewCreated,
   ReviewUpdated,
   ReplyPublished,
+  ReplySubmitted,
   ReviewEvent,
   ReplyEvent,
 } from '../domain/events'
-export { reviewCreated, reviewUpdated, replyPublished } from '../domain/events'
+export {
+  reviewCreated,
+  reviewUpdated,
+  replyPublished,
+  replySubmitted,
+} from '../domain/events'
 
 // Port types needed by cross-context consumers (e.g., integration context)
 export type {

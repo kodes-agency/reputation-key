@@ -87,6 +87,8 @@ export const createReplyRepository = (db: Database): ReplyRepository => ({
             rejectedBy: row.rejectedBy,
             rejectionReason: row.rejectionReason,
             aiGenerated: row.aiGenerated,
+            submittedAt: row.submittedAt,
+            approvedAt: row.approvedAt,
             publishedAt: row.publishedAt,
             updatedAt,
           },

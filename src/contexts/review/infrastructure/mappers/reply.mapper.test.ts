@@ -21,6 +21,8 @@ const sampleRow: ReplyRow = {
   rejectedBy: null,
   rejectionReason: null,
   aiGenerated: false,
+  submittedAt: null,
+  approvedAt: null,
   publishedAt,
   createdAt: now,
   updatedAt: now,
@@ -44,6 +46,8 @@ describe('replyFromRow', () => {
     expect(reply.rejectedBy).toBeNull()
     expect(reply.rejectionReason).toBeNull()
     expect(reply.aiGenerated).toBe(false)
+    expect(reply.submittedAt).toBeNull()
+    expect(reply.approvedAt).toBeNull()
     expect(reply.publishedAt).toBe(publishedAt)
     expect(reply.createdAt).toBe(now)
     expect(reply.updatedAt).toBe(now)
@@ -81,6 +85,8 @@ describe('replyToRow', () => {
     expect(row.rejectedBy).toBe(sampleRow.rejectedBy)
     expect(row.rejectionReason).toBe(sampleRow.rejectionReason)
     expect(row.aiGenerated).toBe(sampleRow.aiGenerated)
+    expect(row.submittedAt).toBe(sampleRow.submittedAt)
+    expect(row.approvedAt).toBe(sampleRow.approvedAt)
     expect(row.publishedAt).toBe(sampleRow.publishedAt)
   })
 

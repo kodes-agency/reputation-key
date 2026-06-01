@@ -176,6 +176,8 @@ describe('in-memory inbox repository', () => {
       escalatedAt: null,
       addressedAt: null,
       archivedAt: null,
+      firstReplySubmittedAt: null,
+      firstReplyPublishedAt: null,
       createdAt: new Date(),
       updatedAt: new Date(),
     }
@@ -212,6 +214,8 @@ describe('in-memory inbox repository', () => {
       escalatedAt: null,
       addressedAt: null,
       archivedAt: null,
+      firstReplySubmittedAt: null,
+      firstReplyPublishedAt: null,
       createdAt: new Date(),
       updatedAt: new Date(),
     }

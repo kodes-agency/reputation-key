@@ -40,6 +40,8 @@ const seedItem = (): InboxItem => ({
   escalatedAt: null,
   addressedAt: null,
   archivedAt: null,
+  firstReplySubmittedAt: null,
+  firstReplyPublishedAt: null,
   createdAt: FIXED_TIME,
   updatedAt: FIXED_TIME,
 })
