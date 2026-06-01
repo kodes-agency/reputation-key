@@ -11,7 +11,7 @@ import {
   userId,
 } from '#/shared/domain/ids'
 import type { InboxItem, InboxStatus, SourceType } from '../../domain/types'
-import type { UnreadCounterPort } from '../ports/unread-counter.port'
+import type { NewCounterPort } from '../ports/new-counter.port'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { Role } from '#/shared/domain/roles'
 
@@ -53,7 +53,7 @@ const setup = (staffApi: StaffPublicApi = staffApiAllAccess) => {
   const repo = createInMemoryInboxRepo()
   const events = createCapturingEventBus()
   const decrements: Array<{ orgId: string }> = []
-  const unreadCounter: UnreadCounterPort = {
+  const newCounter: NewCounterPort = {
     getCount: async () => 0,
     setCount: async () => {},
     increment: async () => {},
@@ -65,7 +65,7 @@ const setup = (staffApi: StaffPublicApi = staffApiAllAccess) => {
   const deps = {
     repo,
     events,
-    unreadCounter,
+    newCounter,
     clock: () => FIXED_TIME,
     staffPublicApi: staffApi,
     logger: {
@@ -100,13 +100,14 @@ describe('updateInboxStatus', () => {
 
   it('throws invalid_transition for invalid transition', async () => {
     const { useCase, repo } = setup()
-    repo.items.push(seedNew({ status: 'archived' }))
+    // Same-status is always invalid
+    repo.items.push(seedNew({ status: 'new' }))
 
     await expect(
       useCase({
         inboxItemId: ITEM_ID,
         organizationId: ORG_ID,
-        newStatus: 'escalated',
+        newStatus: 'new',
         userId: USER_ID,
         role: 'AccountAdmin' as Role,
       }),
@@ -129,7 +130,7 @@ describe('updateInboxStatus', () => {
     ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'not_found')
   })
 
-  it('decrements unread counter when transitioning new → read', async () => {
+  it('decrements new counter when transitioning new → read', async () => {
     const { useCase, repo, decrements } = setup()
     repo.items.push(seedNew())
 
@@ -145,7 +146,7 @@ describe('updateInboxStatus', () => {
     expect(decrements[0].orgId).toBe(ORG_ID as string)
   })
 
-  it('decrements unread counter for all new → * transitions', async () => {
+  it('decrements new counter for all new → * transitions', async () => {
     const { useCase, repo, decrements } = setup()
     repo.items.push(seedNew())
 

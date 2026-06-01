@@ -9,24 +9,25 @@ import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { InboxRepository } from './application/ports/inbox.repository'
 import type { InboxNoteRepository } from './application/ports/inbox-note.repository'
-import type { UnreadCounterPort } from './application/ports/unread-counter.port'
+import type { NewCounterPort } from './application/ports/new-counter.port'
 import type { ReviewLookupPort } from './application/ports/review-lookup.port'
 import type { FeedbackLookupPort } from './application/ports/feedback-lookup.port'
 import type { PropertyLookupPort } from './application/ports/property-lookup.port'
+import type { createInboxItem as createInboxItemFn } from './application/use-cases/create-inbox-item'
+import type { updateInboxStatus as updateInboxStatusFn } from './application/use-cases/update-inbox-status'
+import type { bulkUpdateInboxStatus as bulkUpdateFn } from './application/use-cases/bulk-update-inbox-status'
+import type { assignInboxItem as assignInboxItemFn } from './application/use-cases/assign-inbox-item'
+import type { getInboxItems as getInboxItemsFn } from './application/use-cases/get-inbox-items'
+import type { addInboxNote as addInboxNoteFn } from './application/use-cases/add-inbox-note'
+import type { getNewCount as getNewCountFn } from './application/use-cases/get-new-count'
+import type { getInboxItemDetail as getInboxItemDetailFn } from './application/use-cases/get-inbox-item-detail'
+import type { getInboxNotes as getInboxNotesFn } from './application/use-cases/get-inbox-notes'
+import type { getInboxFolderCounts as getInboxFolderCountsFn } from './application/use-cases/get-folder-counts'
 import { createInboxRepository } from './infrastructure/repositories/inbox.repository'
 import { createInboxNoteRepository } from './infrastructure/repositories/inbox-note.repository'
-import { createRedisUnreadCounter } from './infrastructure/adapters/redis-unread-counter'
-import { createInboxItem as createInboxItemUseCase } from './application/use-cases/create-inbox-item'
-import { updateInboxStatus } from './application/use-cases/update-inbox-status'
-import { bulkUpdateInboxStatus } from './application/use-cases/bulk-update-inbox-status'
-import { assignInboxItem } from './application/use-cases/assign-inbox-item'
-import { getInboxItems } from './application/use-cases/get-inbox-items'
-import { addInboxNote } from './application/use-cases/add-inbox-note'
-import { getUnreadCount } from './application/use-cases/get-unread-count'
-import { getInboxItemDetail } from './application/use-cases/get-inbox-item-detail'
-import { getInboxNotes } from './application/use-cases/get-inbox-notes'
+import { createRedisNewCounter } from './infrastructure/adapters/redis-new-counter'
 import { registerInboxHandlers } from './infrastructure/event-handlers'
-import { inboxItemId, inboxNoteId } from '#/shared/domain/ids'
+import { wireUseCases } from './build-use-cases'
 
 export type InboxContextBuildInput = Readonly<{
   db: Database
@@ -42,19 +43,20 @@ export type InboxContextBuildInput = Readonly<{
 
 export type InboxContextApi = Readonly<{
   useCases: Readonly<{
-    createInboxItem: ReturnType<typeof createInboxItemUseCase>
-    updateInboxStatus: ReturnType<typeof updateInboxStatus>
-    bulkUpdateInboxStatus: ReturnType<typeof bulkUpdateInboxStatus>
-    assignInboxItem: ReturnType<typeof assignInboxItem>
-    getInboxItems: ReturnType<typeof getInboxItems>
-    addInboxNote: ReturnType<typeof addInboxNote>
-    getUnreadCount: ReturnType<typeof getUnreadCount>
-    getInboxItemDetail: ReturnType<typeof getInboxItemDetail>
-    getInboxNotes: ReturnType<typeof getInboxNotes>
+    createInboxItem: ReturnType<typeof createInboxItemFn>
+    updateInboxStatus: ReturnType<typeof updateInboxStatusFn>
+    bulkUpdateInboxStatus: ReturnType<typeof bulkUpdateFn>
+    assignInboxItem: ReturnType<typeof assignInboxItemFn>
+    getInboxItems: ReturnType<typeof getInboxItemsFn>
+    addInboxNote: ReturnType<typeof addInboxNoteFn>
+    getNewCount: ReturnType<typeof getNewCountFn>
+    getInboxItemDetail: ReturnType<typeof getInboxItemDetailFn>
+    getInboxNotes: ReturnType<typeof getInboxNotesFn>
+    getInboxFolderCounts: ReturnType<typeof getInboxFolderCountsFn>
   }>
   inboxRepo: InboxRepository
   inboxNoteRepo: InboxNoteRepository
-  unreadCounter: UnreadCounterPort
+  newCounter: NewCounterPort
   staffPublicApi: StaffPublicApi
 }>
 
@@ -65,8 +67,8 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
     propertyLookup: input.propertyLookup,
   })
   const inboxNoteRepo = createInboxNoteRepository(input.db)
-  const unreadCounter: UnreadCounterPort = input.redis
-    ? createRedisUnreadCounter(input.redis)
+  const newCounter: NewCounterPort = input.redis
+    ? createRedisNewCounter(input.redis)
     : {
         getCount: async () => 0,
         setCount: async () => {},
@@ -75,76 +77,29 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
         invalidate: async () => {},
       }
 
-  const useCases = {
-    createInboxItem: createInboxItemUseCase({
-      repo: inboxRepo,
-      events: input.events,
-      unreadCounter,
-      idGen: () => inboxItemId(crypto.randomUUID()),
-      clock: input.clock,
-      logger: input.logger,
-    }),
-    updateInboxStatus: updateInboxStatus({
-      repo: inboxRepo,
-      events: input.events,
-      unreadCounter,
-      clock: input.clock,
-      staffPublicApi: input.staffPublicApi,
-      logger: input.logger,
-    }),
-    bulkUpdateInboxStatus: bulkUpdateInboxStatus({
-      repo: inboxRepo,
-      events: input.events,
-      unreadCounter,
-      clock: input.clock,
-      staffPublicApi: input.staffPublicApi,
-      logger: input.logger,
-    }),
-    assignInboxItem: assignInboxItem({
-      repo: inboxRepo,
-      events: input.events,
-      clock: input.clock,
-      staffPublicApi: input.staffPublicApi,
-    }),
-    getInboxItems: getInboxItems({
-      repo: inboxRepo,
-      staffPublicApi: input.staffPublicApi,
-    }),
-    addInboxNote: addInboxNote({
-      repo: inboxRepo,
-      noteRepo: inboxNoteRepo,
-      idGen: () => inboxNoteId(crypto.randomUUID()),
-      clock: input.clock,
-      staffPublicApi: input.staffPublicApi,
-    }),
-    getUnreadCount: getUnreadCount({
-      unreadCounter,
-      repo: inboxRepo,
-      logger: input.logger,
-    }),
-    getInboxItemDetail: getInboxItemDetail({
-      repo: inboxRepo,
-      staffPublicApi: input.staffPublicApi,
-    }),
-    getInboxNotes: getInboxNotes({
-      noteRepo: inboxNoteRepo,
-      repo: inboxRepo,
-      staffPublicApi: input.staffPublicApi,
-    }),
-  }
+  const useCases = wireUseCases({
+    inboxRepo,
+    inboxNoteRepo,
+    newCounter,
+    events: input.events,
+    staffPublicApi: input.staffPublicApi,
+    logger: input.logger,
+    clock: input.clock,
+  })
 
   // Register cross-context event handlers
   registerInboxHandlers({
     events: input.events,
     createInboxItem: useCases.createInboxItem,
     repo: inboxRepo,
+    newCounter,
   })
 
   return {
     useCases,
     inboxRepo,
     inboxNoteRepo,
-    unreadCounter,
+    newCounter,
     staffPublicApi: input.staffPublicApi,
   }
 }

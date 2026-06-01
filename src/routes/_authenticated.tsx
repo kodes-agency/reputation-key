@@ -145,10 +145,11 @@ function AuthenticatedLayout() {
   })
   const pathname = useRouterState({ select: (s) => s.location.pathname })
   const isSettings = pathname.startsWith('/settings')
+  const isInbox = pathname.startsWith('/inbox')
 
-  return (
+  const content = (
     <SidebarProvider>
-      {isSettings ? (
+      {isInbox ? null : isSettings ? (
         <SettingsSidebar />
       ) : hasRole(ctx.role, 'PropertyManager') ? (
         <ManagerSidebar properties={properties} />
@@ -160,12 +161,25 @@ function AuthenticatedLayout() {
           hasTeam={false}
         />
       )}
-      <SidebarInset className="min-w-0">
+      <SidebarInset className={`min-w-0 ${isInbox ? 'overflow-hidden' : ''}`}>
         <AppTopBar user={ctx.user} />
-        <main className="min-w-0 flex-1 overflow-auto py-5 md:py-8">
+        <main
+          className={`min-w-0 flex-1 ${
+            isInbox ? 'overflow-hidden' : 'overflow-auto py-5 md:py-8'
+          }`}
+        >
           <Outlet />
         </main>
       </SidebarInset>
     </SidebarProvider>
+  )
+
+  return isInbox ? (
+    <div className="h-screen overflow-hidden flex flex-col">
+      <style>{`[data-slot="sidebar-wrapper"]{flex:1 1 0%;overflow:hidden}`}</style>
+      {content}
+    </div>
+  ) : (
+    content
   )
 }

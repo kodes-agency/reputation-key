@@ -1,6 +1,11 @@
 // Shared hook for inbox item detail data fetching
 // Used by the inbox page for both the desktop inline panel and the mobile sheet.
 
+// Inbox detail hook — data fetching for the inbox detail panel.
+//
+// NOTE: Imports getInboxItemDetailFn, getInboxNotesFn, updateInboxStatusFn
+// from server/ per the CONTEXT.md exception for inbox-scoped
+// data-fetching hooks. The hook is only used by the inbox page.
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useServerFn } from '@tanstack/react-start'
 import { useAction } from '#/components/hooks/use-action'
@@ -93,7 +98,18 @@ export function useInboxDetail(
 
   // Auto-mark as read (debounced 500ms)
   const markReadMutation = useMutationAction(updateInboxStatusFn, {
-    onSuccess: () => {},
+    onSuccess: () => {
+      // Update local state directly — no re-fetch needed.
+      // Avoids triggering isLoadingDetail (skeleton flash).
+      setDetail((prev) => {
+        if (!prev?.item) return prev
+        return {
+          ...prev,
+          item: { ...prev.item, status: 'read' as const, updatedAt: new Date() },
+        }
+      })
+      setStatusVersion((v) => v + 1)
+    },
   })
   const markReadRef = useRef(markReadMutation)
   markReadRef.current = markReadMutation

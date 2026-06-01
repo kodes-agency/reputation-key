@@ -2,7 +2,7 @@
 // Batch status change for multiple inbox items.
 
 import type { InboxRepository } from '../ports/inbox.repository'
-import type { UnreadCounterPort } from '../ports/unread-counter.port'
+import type { NewCounterPort } from '../ports/new-counter.port'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { InboxItemId, OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
 import type { InboxStatus } from '../../domain/types'
@@ -25,7 +25,7 @@ export type BulkUpdateInboxStatusInput = Readonly<{
 export type BulkUpdateInboxStatusDeps = Readonly<{
   repo: InboxRepository
   events: EventBus
-  unreadCounter: UnreadCounterPort
+  newCounter: NewCounterPort
   clock: () => Date
   staffPublicApi: StaffPublicApi
   logger: LoggerPort
@@ -75,6 +75,9 @@ export const bulkUpdateInboxStatus =
       const item = itemMap.get(id as string)
       if (!item) continue
 
+      // Defense-in-depth: skip reviews for bulk 'addressed' (reviews auto-transition via reply.published)
+      if (input.newStatus === 'addressed' && item.sourceType === 'review') continue
+
       // Enforce role-scoped property access (using pre-computed list)
       if (accessiblePropertyIds !== null) {
         if (!accessiblePropertyIds.includes(item.propertyId as PropertyId)) {
@@ -102,16 +105,16 @@ export const bulkUpdateInboxStatus =
       now,
     )
 
-    // Decrement unread counter for items transitioning away from 'new'
+    // Decrement new counter for items transitioning away from 'new'
     if (input.newStatus !== 'new') {
       const newCount = validIds.filter((id) => oldStatuses.get(id) === 'new').length
       for (let i = 0; i < newCount; i++) {
         try {
-          await deps.unreadCounter.decrement(input.organizationId)
+          await deps.newCounter.decrement(input.organizationId)
         } catch (err) {
           deps.logger.warn(
             { err, organizationId: input.organizationId },
-            'Unread counter decrement failed, DB is source of truth',
+            'New counter decrement failed, DB is source of truth',
           )
           break
         }

@@ -19,7 +19,7 @@ import type { FeedbackLookupPort } from '../../application/ports/feedback-lookup
 import type { PropertyLookupPort } from '../../application/ports/property-lookup.port'
 import type { InboxItem, InboxStatus, SourceType } from '../../domain/types'
 import type { InboxItemId, OrganizationId, UserId } from '#/shared/domain/ids'
-import { reviewId, feedbackId } from '#/shared/domain/ids'
+import { reviewId, feedbackId, propertyId } from '#/shared/domain/ids'
 import { inboxItemFromRow, inboxItemToInsertRow } from '../mappers/inbox.mapper'
 import { trace } from '#/shared/observability/trace'
 import { getLogger } from '#/shared/observability/logger'
@@ -120,7 +120,12 @@ export const createInboxRepository = (
         )
       }
       if (filters.status) {
-        conditions.push(eq(inboxItems.status, filters.status))
+        const status = filters.status
+        if (typeof status === 'string') {
+          conditions.push(eq(inboxItems.status, status))
+        } else {
+          conditions.push(inArray(inboxItems.status, [...status] as InboxStatus[]))
+        }
       }
       if (filters.sourceType) {
         conditions.push(eq(inboxItems.sourceType, filters.sourceType))
@@ -140,8 +145,14 @@ export const createInboxRepository = (
       if (filters.sourceDateTo) {
         conditions.push(sql`${inboxItems.sourceDate} <= ${filters.sourceDateTo}`)
       }
+      if (filters.q) {
+        const escaped = filters.q.replace(/%/g, '\\%').replace(/_/g, '\\_')
+        conditions.push(sql`${inboxItems.snippet} ilike ${'%' + escaped + '%'}`)
+      }
 
       // Cursor-based pagination: sourceDate DESC, id DESC
+      // Keyset pagination: ORDER BY sourceDate DESC, id DESC means
+      // "next page" = rows with (sourceDate, id) < cursor value
       if (cursor) {
         conditions.push(
           sql`(${inboxItems.sourceDate}, ${inboxItems.id}) < (${cursor.sourceDate}, ${cursor.id})`,
@@ -303,10 +314,18 @@ export const createInboxRepository = (
     now?: Date,
   ) => {
     return trace('inbox.syncDenormalizedFields', async () => {
-      await db
+      const result = await db
         .update(inboxItems)
         .set({ ...fields, updatedAt: now ?? new Date() })
         .where(and(eq(inboxItems.id, id), eq(inboxItems.organizationId, orgId)))
+        .returning()
+
+      if (!result[0]) {
+        log.warn(
+          { id: id as string, orgId: orgId as string },
+          'syncDenormalizedFields matched no rows — fire-and-forget',
+        )
+      }
     })
   },
 
@@ -327,24 +346,30 @@ export const createInboxRepository = (
 
       const item = withDefaults(rows[0])
 
+      // Enrich with property name via lookup port
+      const propertyName = await ports.propertyLookup.getPropertyNameById(
+        propertyId(item.propertyId),
+        orgId,
+      )
+
       // Enrich via lookup ports instead of cross-context JOINs
+      let reviewerName: string | null = null
       if (item.sourceType === 'review') {
         const snippet = await ports.reviewLookup.getReviewSnippetById(
           reviewId(item.sourceId),
           orgId,
         )
+        reviewerName = snippet?.reviewerName ?? null
         log.debug(
           {
             id: id as string,
             orgId: orgId as string,
-            sourceType: 'review',
             duration: Date.now() - start,
           },
-          'inbox findDetailById complete',
+          'inbox findDetailById review enrichment',
         )
         return {
-          item,
-          reviewerName: snippet?.reviewerName ?? null,
+          item: { ...item, propertyName, reviewerName },
           reviewText: snippet?.text ?? null,
           reviewerProfilePhotoUrl: snippet?.reviewerProfilePhotoUrl ?? null,
           feedbackComment: null,
@@ -362,8 +387,7 @@ export const createInboxRepository = (
         'inbox findDetailById complete',
       )
       return {
-        item,
-        reviewerName: null,
+        item: { ...item, propertyName, reviewerName },
         reviewText: null,
         reviewerProfilePhotoUrl: null,
         feedbackComment: snippet?.comment ?? null,
@@ -400,7 +424,6 @@ async function batchPropertyNames(
 ): Promise<Map<string, string | null>> {
   const map = new Map<string, string | null>()
   if (propertyIds.length === 0) return map
-  const { propertyId } = await import('#/shared/domain/ids')
   await Promise.all(
     propertyIds.map(async (pid) => {
       const name = await ports.propertyLookup.getPropertyNameById(propertyId(pid), orgId)

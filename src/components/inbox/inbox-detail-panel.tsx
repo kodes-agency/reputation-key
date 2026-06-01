@@ -21,24 +21,33 @@ export function InboxDetailPanel({
   onClose,
 }: InboxDetailPanelProps) {
   const currentItem = detailState.currentItem ?? selectedItem
-  const statusActions = currentItem ? getStatusActions(currentItem.status) : []
+  const statusActions = currentItem
+    ? getStatusActions(currentItem.status, currentItem.sourceType)
+    : []
 
   return (
-    <div className="hidden md:flex w-[480px] shrink-0 flex-col border-l">
-      <div className="flex items-center justify-between border-b px-4 py-3">
-        <div className="flex items-center gap-2">
-          <MessageSquare className="size-4 text-muted-foreground" />
-          <span className="text-base font-medium">
-            {currentItem?.sourceType === 'review' ? 'Review' : 'Feedback'} Detail
-          </span>
+    <div className="hidden md:flex h-full min-w-0 flex-col border-l overflow-hidden">
+      <div className="flex items-center justify-between border-b px-5 py-3.5">
+        <div className="flex items-center gap-3 min-w-0">
+          <MessageSquare className="size-4 shrink-0 text-muted-foreground" />
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-sm font-semibold truncate">
+              {currentItem?.propertyName ?? '<PropertyName>'}
+            </span>
+            {currentItem?.platform && (
+              <span className="text-xs text-muted-foreground shrink-0">
+                · {currentItem.platform}
+              </span>
+            )}
+          </div>
           {currentItem && <InboxStatusBadge status={currentItem.status} />}
         </div>
-        <Button variant="ghost" size="icon" className="size-8" onClick={onClose}>
+        <Button variant="ghost" size="icon" className="size-8 shrink-0" onClick={onClose}>
           <X className="size-4" />
         </Button>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto min-h-0">
         {detailState.error ? (
           <div className="space-y-4 p-4">
             <p className="text-sm text-destructive">{detailState.error}</p>

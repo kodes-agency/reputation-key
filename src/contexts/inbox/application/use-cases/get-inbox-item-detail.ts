@@ -33,7 +33,7 @@ export const getInboxItemDetail =
       })
     }
 
-    if (!can(input.role, 'inbox.read')) {
+    if (!can(input.role, 'inbox.manage')) {
       const accessible = await deps.staffPublicApi.getAccessiblePropertyIds(
         input.organizationId,
         input.userId,

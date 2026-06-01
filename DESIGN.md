@@ -1,207 +1,290 @@
-# Design
+---
+name: Reputation Key
+description: Reputation management platform — close the loop between service quality and feedback.
+colors:
+  spectral-violet: '#9660D8'
+  spectral-violet-hover: '#AB72E8'
+  spectral-violet-muted: '#272040'
+  spectral-violet-foreground: '#E8E8F0'
+  spectral-violet-light: '#6438C8'
+  spectral-violet-light-hover: '#5328B8'
+  spectral-violet-light-muted: '#E8E0F8'
+  spectral-violet-light-foreground: '#FDFDFE'
+  graphite-obsidian: '#1A1A24'
+  graphite-surface: '#24242F'
+  graphite-elevated: '#2D2D3A'
+  graphite-border: '#3A3A4A'
+  graphite-border-strong: '#515166'
+  ink-primary: '#E8E8F0'
+  ink-secondary: '#A6A6B4'
+  ink-tertiary: '#737385'
+  ink-primary-light: '#232232'
+  ink-secondary-light: '#737385'
+  ink-tertiary-light: '#A6A6B4'
+  signal-red: '#D45346'
+  signal-red-muted: '#351A18'
+  signal-green: '#3DB878'
+  signal-green-muted: '#1A3328'
+typography:
+  body:
+    fontFamily: 'Satoshi, Inter, system-ui, -apple-system, sans-serif'
+    fontSize: '0.9375rem'
+    fontWeight: 400
+    lineHeight: 1.55
+  label:
+    fontFamily: 'Satoshi, Inter, system-ui, -apple-system, sans-serif'
+    fontSize: '0.8125rem'
+    fontWeight: 500
+    lineHeight: 1.4
+    letterSpacing: '0.01em'
+  title:
+    fontFamily: 'Satoshi, Inter, system-ui, -apple-system, sans-serif'
+    fontSize: '1.125rem'
+    fontWeight: 600
+    lineHeight: 1.25
+  headline:
+    fontFamily: 'Satoshi, Inter, system-ui, -apple-system, sans-serif'
+    fontSize: 'clamp(1.25rem, 1.1rem + 0.75vw, 1.5rem)'
+    fontWeight: 600
+    lineHeight: 1.2
+  display:
+    fontFamily: 'Plus Jakarta Sans, Satoshi, system-ui, sans-serif'
+    fontSize: 'clamp(1.5rem, 1.2rem + 1.5vw, 2.25rem)'
+    fontWeight: 700
+    lineHeight: 1.15
+    letterSpacing: '-0.01em'
+  mono:
+    fontFamily: 'JetBrains Mono, Fira Code, ui-monospace, monospace'
+    fontSize: '0.875rem'
+    fontWeight: 500
+    lineHeight: 1.4
+rounded:
+  sm: '2px'
+  md: '6px'
+  lg: '8px'
+  xl: '12px'
+  full: '9999px'
+spacing:
+  xs: '4px'
+  sm: '8px'
+  md: '16px'
+  lg: '24px'
+  xl: '32px'
+  2xl: '40px'
+  3xl: '48px'
+  4xl: '64px'
+components:
+  button-primary:
+    backgroundColor: '{colors.spectral-violet}'
+    textColor: '{colors.spectral-violet-foreground}'
+    rounded: '{rounded.md}'
+    padding: '8px 16px'
+  button-primary-hover:
+    backgroundColor: '{colors.spectral-violet-hover}'
+  button-ghost:
+    backgroundColor: 'transparent'
+    textColor: '{colors.ink-secondary}'
+    rounded: '{rounded.md}'
+    padding: '8px 16px'
+  button-ghost-hover:
+    backgroundColor: '{colors.graphite-surface}'
+    textColor: '{colors.ink-primary}'
+  card:
+    backgroundColor: '{colors.graphite-surface}'
+    rounded: '{rounded.xl}'
+    padding: '24px'
+  input:
+    backgroundColor: 'transparent'
+    textColor: '{colors.ink-primary}'
+    rounded: '{rounded.md}'
+    padding: '8px 12px'
+  badge:
+    backgroundColor: '{colors.spectral-violet-muted}'
+    textColor: '{colors.spectral-violet-foreground}'
+    rounded: '{rounded.full}'
+    padding: '2px 8px'
+---
 
-## Theme
+# Design System: Reputation Key
 
-Dark-first product surface. Warm charcoal bases with a single amber/gold accent used sparingly. Flat surfaces with precise borders. No glass, no gradients, no decorative textures. Hierarchy through type scale, weight contrast, and spacing rhythm alone.
+## 1. Overview
 
-Light mode inverts cleanly — warm off-whites with the same amber accent, charcoal text, identical structure.
+**Creative North Star: "The Precision Instrument"**
 
-## Color Palette
+Reputation Key's interface is built like a well-made tool — every element earns its place, every surface is purposeful. The dark-first palette uses tinted violet-graphite neutrals with a single Spectral Violet accent, eliminating visual noise so users focus on the task. No glass, no gradients, no decorative textures. Hierarchy is communicated through type scale, weight contrast, and spacing rhythm alone.
 
-### Strategy: Restrained with one accent
+The system is designed for three distinct contexts: property managers working in focused evening sessions on desktop, staff checking progress on mobile between tasks, and clients leaving reviews in brief mobile visits. Each context gets the same level of craft — responsive is not a fallback, it's the design.
 
-Amber/gold accent at <10% of surface area. Everything else is warm neutrals with deliberate contrast steps.
+This system explicitly rejects: SaaS dashboard clichés (hero metric cards, gradient accents, glassmorphism), Linear's specific cool-black-and-blue identity, over-designed admin tools with decorative motion, and the warm-cream AI default. What remains is a tool that disappears into the task.
 
-### Dark (default)
+**Key Characteristics:**
 
-| Token                 | OKLCH                  | Hex fallback | Role                                  |
-| --------------------- | ---------------------- | ------------ | ------------------------------------- |
-| `--background`        | `oklch(0.13 0.005 70)` | `#1c1a17`    | Page background                       |
-| `--surface`           | `oklch(0.18 0.006 70)` | `#262420`    | Cards, panels, modals                 |
-| `--surface-elevated`  | `oklch(0.22 0.007 70)` | `#312e29`    | Hovered cards, dropdowns              |
-| `--border`            | `oklch(0.28 0.008 70)` | `#3d3a34`    | Subtle borders                        |
-| `--border-strong`     | `oklch(0.38 0.010 70)` | `#56534b`    | Focused borders, dividers             |
-| `--text-primary`      | `oklch(0.93 0.005 70)` | `#edebe7`    | Body text, headings                   |
-| `--text-secondary`    | `oklch(0.70 0.010 70)` | `#a9a59c`    | Labels, captions, muted               |
-| `--text-tertiary`     | `oklch(0.50 0.010 70)` | `#716e66`    | Placeholders, disabled                |
-| `--accent`            | `oklch(0.78 0.14 75)`  | `#dba440`    | Primary actions, links, active states |
-| `--accent-hover`      | `oklch(0.82 0.15 75)`  | `#e5b85a`    | Hover on accent elements              |
-| `--accent-muted`      | `oklch(0.22 0.03 75)`  | `#33291a`    | Accent backgrounds (badges, chips)    |
-| `--accent-foreground` | `oklch(0.13 0.005 70)` | `#1c1a17`    | Text on accent backgrounds            |
-| `--destructive`       | `oklch(0.65 0.22 25)`  | `#c4463a`    | Errors, delete actions                |
-| `--destructive-muted` | `oklch(0.22 0.04 25)`  | `#351a18`    | Error backgrounds                     |
-| `--success`           | `oklch(0.72 0.15 155)` | `#3da06e`    | Confirmations, positive metrics       |
-| `--success-muted`     | `oklch(0.22 0.03 155)` | `#1a3328`    | Success backgrounds                   |
+- Dark-first with clean light mode inversion
+- Single Spectral Violet accent used at ≤10% of surface area
+- Tonal elevation through background lightness steps, not shadows
+- Fixed rem type scale for product UI consistency
+- shadcn/ui component vocabulary with purposeful customization
+- No decorative animation — motion conveys state, not spectacle
+- Linear-inspired sidebar with two-tone treatment
 
-### Light
+## 2. Colors
 
-| Token                 | OKLCH                  | Hex fallback | Role                                    |
-| --------------------- | ---------------------- | ------------ | --------------------------------------- |
-| `--background`        | `oklch(0.98 0.003 70)` | `#f8f7f4`    | Page background                         |
-| `--surface`           | `oklch(1.0 0.003 70)`  | `#fefdfb`    | Cards, panels                           |
-| `--surface-elevated`  | `oklch(1.0 0.004 70)`  | `#fffdf9`    | Hovered cards                           |
-| `--border`            | `oklch(0.90 0.005 70)` | `#e2dfd9`    | Subtle borders                          |
-| `--border-strong`     | `oklch(0.78 0.006 70)` | `#c4c0b8`    | Focused borders                         |
-| `--text-primary`      | `oklch(0.18 0.006 70)` | `#232019`    | Body text, headings                     |
-| `--text-secondary`    | `oklch(0.48 0.010 70)` | `#716e66`    | Labels, captions                        |
-| `--text-tertiary`     | `oklch(0.70 0.010 70)` | `#a9a59c`    | Placeholders                            |
-| `--accent`            | `oklch(0.68 0.14 75)`  | `#b88a28`    | Primary actions (darkened for light bg) |
-| `--accent-hover`      | `oklch(0.62 0.15 75)`  | `#9d7520`    | Hover on accent                         |
-| `--accent-muted`      | `oklch(0.94 0.03 75)`  | `#f3e8ce`    | Accent backgrounds                      |
-| `--accent-foreground` | `oklch(0.22 0.06 75)`  | `#3d3012`    | Text on accent backgrounds              |
-| `--destructive`       | `oklch(0.58 0.22 25)`  | `#a93a30`    | Errors                                  |
-| `--destructive-muted` | `oklch(0.95 0.03 25)`  | `#f5e0de`    | Error backgrounds                       |
-| `--success`           | `oklch(0.55 0.15 155)` | `#2d7d54`    | Confirmations                           |
-| `--success-muted`     | `oklch(0.95 0.03 155)` | `#dbf0e4`    | Success backgrounds                     |
+A restrained palette built on tinted violet-graphite neutrals with one deliberate Spectral Violet accent. Dark and light themes share the same structure, inverted cleanly.
 
-### Chart palette
+### Primary
 
-Five colors for data visualization, ordered by priority:
+- **Spectral Violet** (#9660D8 / oklch(62% 0.18 290)): The system's sole accent. Used on primary buttons, active navigation states, links, focus rings, and selection highlights. Its deliberate scarcity is the point — it signals action, not decoration.
+- **Spectral Violet Hover** (#AB72E8 / oklch(68% 0.19 290)): Hover state on accent elements. Brighter but same hue; the shift communicates interactivity without breaking the palette.
+- **Spectral Violet Muted** (#272040 / oklch(20% 0.04 290)): Background for accent contexts — sidebar active items, badge backgrounds, selected rows. Dark enough to recede, saturated enough to read as purple.
+- **Spectral Violet Foreground** (#E8E8F0 / oklch(93% 0.008 270)): Text on accent backgrounds in dark mode. Near-white with a whisper of violet.
 
-| Token       | OKLCH                  | Role                   |
-| ----------- | ---------------------- | ---------------------- |
-| `--chart-1` | `oklch(0.72 0.14 75)`  | Amber (primary metric) |
-| `--chart-2` | `oklch(0.65 0.12 200)` | Cool slate-blue        |
-| `--chart-3` | `oklch(0.60 0.10 330)` | Muted rose             |
-| `--chart-4` | `oklch(0.68 0.10 155)` | Sage green             |
-| `--chart-5` | `oklch(0.62 0.08 280)` | Mauve                  |
+**Light mode primaries** are the same hue family, darkened for contrast against white backgrounds:
 
-## Typography
+- **Spectral Violet Light** (#6438C8 / oklch(42% 0.18 290)): Primary accent on light backgrounds.
+- **Spectral Violet Light Muted** (#E8E0F8 / oklch(93% 0.04 290)): Accent backgrounds in light mode.
 
-### Font stack
+### Neutral
 
-- **Primary**: `'Satoshi', 'Inter', system-ui, -apple-system, sans-serif` — clean geometric sans with character at display sizes, excellent legibility at body sizes
-- **Display (optional)**: `'Plus Jakarta Sans'` for hero headings when more personality is needed
-- **Mono**: `'JetBrains Mono', 'Fira Code', ui-monospace, monospace` — for metrics, codes, table data
+- **Graphite Obsidian** (#1A1A24 / oklch(13% 0.008 270)): Page background. Deep, nearly black, with a violet tint that prevents the flatness of pure black.
+- **Graphite Surface** (#24242F / oklch(18% 0.010 270)): Cards, panels, input backgrounds. One step lighter than the page.
+- **Graphite Elevated** (#2D2D3A / oklch(22% 0.012 270)): Hovered cards, dropdowns, popovers. The third step in the tonal stack.
+- **Graphite Border** (#3A3A4A / oklch(28% 0.012 270)): Subtle borders between surfaces.
+- **Graphite Border Strong** (#515166 / oklch(38% 0.014 270)): Focused borders, active separators.
 
-### Type scale
+### Ink
 
-Fluid, based on viewport. Ratios ensure hierarchy through scale + weight contrast.
+- **Ink Primary** (#E8E8F0): Body text, headings. High contrast against the dark background.
+- **Ink Secondary** (#A6A6B4): Labels, captions, muted content.
+- **Ink Tertiary** (#737385): Placeholders, disabled text.
+- Light mode inverts: Ink Primary becomes near-black (#232232), secondary/tertiary lighten proportionally.
 
-| Role       | Size (fluid)                              | Weight | Tracking         |
-| ---------- | ----------------------------------------- | ------ | ---------------- |
-| Display    | `clamp(2rem, 1.5rem + 2.5vw, 3.5rem)`     | 700    | -0.02em          |
-| H1         | `clamp(1.5rem, 1.2rem + 1.5vw, 2.25rem)`  | 700    | -0.01em          |
-| H2         | `clamp(1.25rem, 1.1rem + 0.75vw, 1.5rem)` | 600    | 0                |
-| H3         | `1.125rem`                                | 600    | 0                |
-| Body       | `0.9375rem` (15px)                        | 400    | 0                |
-| Body large | `1.0625rem` (17px)                        | 400    | 0                |
-| Caption    | `0.8125rem` (13px)                        | 500    | 0.01em           |
-| Overline   | `0.75rem` (12px)                          | 600    | 0.06em uppercase |
-| Mono/data  | `0.875rem` (14px)                         | 500    | 0                |
+### Semantic
 
-### Line height
+- **Signal Red** (#D45346 / oklch(65% 0.22 25)): Destructive actions, error states, deletion confirmations.
+- **Signal Red Muted** (#351A18 / oklch(22% 0.04 25)): Error backgrounds, destructive badges.
+- **Signal Green** (#3DB878 / oklch(72% 0.15 155)): Confirmation states, positive metrics, success indicators.
+- **Signal Green Muted** (#1A3328 / oklch(22% 0.03 155)): Success backgrounds.
 
-- Headings: 1.15-1.25
-- Body: 1.55
-- Data/mono: 1.4
+### Named Rules
 
-### Max line length
+**The One Accent Rule.** Spectral Violet is used on ≤10% of any given screen. Its rarity is what gives it power. If a screen feels drab, the answer is better typography and spacing, not more accent.
 
-65-75ch for all body text.
+**The Tonal Stack Rule.** Depth is communicated through lightness steps (Obsidian → Surface → Elevated), never through drop shadows. A surface that needs shadow to read as elevated is a surface that needs a lighter tone.
 
-## Spacing
+## 3. Typography
 
-Base unit: 4px. Spacing scale uses multiples that create rhythm, not uniformity.
+**Display Font:** Plus Jakarta Sans (with Satoshi fallback)
+**Body Font:** Satoshi (with Inter, system-ui fallback)
+**Mono Font:** JetBrains Mono (with Fira Code, ui-monospace fallback)
 
-| Token        | Value | Use                                 |
-| ------------ | ----- | ----------------------------------- |
-| `--space-1`  | 4px   | Tight gaps (icon + label)           |
-| `--space-2`  | 8px   | Inline padding, compact lists       |
-| `--space-3`  | 12px  | Form field gaps, small card padding |
-| `--space-4`  | 16px  | Standard padding, list item spacing |
-| `--space-5`  | 20px  | Section sub-spacing                 |
-| `--space-6`  | 24px  | Card padding, medium gaps           |
-| `--space-8`  | 32px  | Section padding                     |
-| `--space-10` | 40px  | Between sections                    |
-| `--space-12` | 48px  | Major section breaks                |
-| `--space-16` | 64px  | Page-level breathing room           |
+**Character:** Satoshi carries the system — geometric but warm, highly legible at body sizes, with enough character at larger weights to serve headings. Plus Jakarta Sans steps in for display moments where more personality is warranted. The pairing is subtle: both are geometric sans families, separated by weight and proportion, not category. JetBrains Mono anchors data with precision.
 
-## Radius
+### Hierarchy
 
-Single radius scale. Small and consistent.
+- **Display** (700, clamp(1.5rem, 1.2rem + 1.5vw, 2.25rem), 1.15): Page titles, hero sections. Plus Jakarta Sans. Tracking at -0.01em for tightness at scale. Ceiling at 2.25rem — this is a tool, not a billboard.
+- **Headline** (600, clamp(1.25rem, 1.1rem + 0.75vw, 1.5rem), 1.2): Section headings, card titles. Satoshi. The workhorse heading.
+- **Title** (600, 1.125rem, 1.25): Panel headings, dialog titles, sidebar sections. Satoshi. Fixed size — consistent across viewports.
+- **Body** (400, 0.9375rem / 15px, 1.55): All body copy. Max line length 65-75ch where prose is present. Satoshi. The 15px base size optimizes for data-dense interfaces without sacrificing readability.
+- **Label** (500, 0.8125rem / 13px, 1.4, 0.01em tracking): Captions, metadata, timestamps. Satoshi in medium weight for legibility at small sizes.
+- **Mono** (500, 0.875rem / 14px, 1.4): Metrics, codes, table data. JetBrains Mono. Slightly smaller than body for tabular density.
 
-| Token           | Value  |
-| --------------- | ------ |
-| `--radius-sm`   | 4px    |
-| `--radius-md`   | 6px    |
-| `--radius-lg`   | 8px    |
-| `--radius-xl`   | 12px   |
-| `--radius-full` | 9999px |
+### Named Rules
 
-## Elevation
+**The Fixed Scale Rule.** Product UI uses fixed rem sizes, not fluid clamps. Headings that shrink in sidebars or data panels look broken, not responsive. The only exceptions are Display and Headline, which use conservative clamps for page-level hierarchy.
 
-No drop shadows. Elevation through background lightness steps:
+**The Three-Family Cap.** Satoshi, Plus Jakarta Sans, JetBrains Mono. No fourth font. One well-tuned sans with weight contrast carries more authority than three competing faces.
 
-1. `background` — page level
-2. `surface` — cards, panels
-3. `surface-elevated` — hover, dropdowns, popovers
+## 4. Elevation
 
-Border opacity provides additional separation where needed.
+This system is flat at rest. Depth is communicated through tonal layering — three background lightness steps (Obsidian → Surface → Elevated) that create spatial hierarchy without shadows. There is no box-shadow vocabulary; the Tailwind `shadow-sm` and `shadow-xs` utilities inherited from shadcn/ui are applied sparingly to inputs and cards as subtle ambient indicators, not structural depth cues.
 
-## Components
+In light mode, the same tonal stack inverts: near-white backgrounds step from page (98% lightness) through surface (100%) to elevated (100% with a whisper of violet chroma). The effect is the same — surfaces lift through brightness, not shadow.
 
-### Surfaces
+### Named Rules
 
-Cards use `--surface` background with `--border` border (1px). No box-shadow. Hover transitions to `--surface-elevated` with `--border-strong` border. Transition: `150ms ease-out` on background-color and border-color only.
+**The Flat-By-Default Rule.** Surfaces are flat at rest. Shadows, when they appear at all, are ambient hints (≤8px blur) applied to inputs and focus rings, not structural elements. If a surface needs a 16px+ blur shadow to read as elevated, it needs a lighter background instead.
+
+**The Ghost Border Fallback.** When two flat surfaces of the same tone need separation, a 1px border at `--border` provides the division. The border disappears when the surfaces differ in tone.
+
+## 5. Components
 
 ### Buttons
 
-- **Primary**: `--accent` background, `--accent-foreground` text. Hover: `--accent-hover`.
-- **Secondary**: `--surface` background, `--text-primary` text, `--border` border. Hover: `--border-strong`.
-- **Ghost**: Transparent background, `--text-secondary` text. Hover: `--surface` background.
-- **Destructive**: `--destructive` background, white text.
-- All buttons: `--radius-md`, `font-weight: 500`, `transition: 150ms ease-out`.
+- **Shape:** Rounded at 6px (`--radius-md`). Tight enough to read as precise, open enough to not feel sharp.
+- **Primary:** Spectral Violet background, near-white text. Hover lightens to Spectral Violet Hover. Transition: 150ms ease-out on background-color only.
+- **Ghost:** Transparent background, Ink Secondary text. Hover fills with Graphite Surface and switches to Ink Primary.
+- **Outline:** Transparent background, Graphite Border ring, Ink Primary text. Hover fills with accent-muted background. Used for secondary actions that need more presence than ghost.
+- **Destructive:** Signal Red background, white text. Hover darkens slightly.
+- **All buttons:** `font-weight: 500`, `font-size: 0.875rem` (14px). Focus-visible ring at Spectral Violet with 3px offset. Disabled state at 50% opacity. Sizes: default (h-9), sm (h-8), lg (h-10), xs (h-6), plus icon-only sizes at matching heights.
+
+### Cards
+
+- **Shape:** Rounded at 12px (`--radius-xl`). The only component with a larger radius, justified by its role as a visual container.
+- **Background:** Graphite Surface. No shadow (the tonal step from Obsidian provides separation). 1px border at Graphite Border.
+- **Internal padding:** 24px (`px-6 py-6`). Header, content, and footer sections each get horizontal padding; the card itself carries vertical.
+- **Hover:** Transitions to Graphite Elevated with Graphite Border Strong border. 150ms ease-out.
 
 ### Inputs
 
-`--surface` background, `--border` border. Focus: `--border-strong` with `--ring` outline (2px offset 2px). Text: `--text-primary`. Placeholder: `--text-tertiary`.
+- **Shape:** Rounded at 6px, 36px height. Transparent background lets the parent surface color show through; in dark mode, a 30% opacity Graphite Border backing provides subtle fill (Tailwind `bg-input/30`).
+- **Border:** 1px Graphite Border. Focus shifts to Spectral Violet ring (3px, 50% opacity).
+- **Placeholder:** Ink Tertiary, matching the 4.5:1 contrast requirement.
+- **Error:** Border shifts to Signal Red with a matching red ring.
+- **Disabled:** 50% opacity, `cursor: not-allowed`.
 
-### Badges/chips
+### Badges
 
-`--accent-muted` background, `--accent-foreground` text, `--radius-full`. Destructive and success variants use their respective muted/foreground pairs.
+- **Shape:** Fully rounded (9999px), 2px horizontal padding, 2px vertical. Font size 12px, medium weight.
+- **Default:** Spectral Violet Muted background, Spectral Violet Foreground text. The purple reads as a category tag, not a button.
+- **Secondary:** Graphite Surface background, Ink Secondary text. For neutral metadata.
+- **Destructive:** Signal Red Muted background, white text.
+- **Outline:** Transparent background, Graphite Border border, Ink Primary text.
 
-### Sidebar
+### Navigation (Sidebar)
 
-`--background` base (same as page, no distinction). Active item: `--accent-muted` background with `--accent` text and `font-weight: 600`. Inactive: `--text-secondary`. Hover: subtle `--surface` background.
+- **Width:** 256px expanded, 48px collapsed. Collapses to sheet drawer below 1024px (lg breakpoint).
+- **Background:** Same as page (Graphite Obsidian). No distinction between sidebar and content area — they share the same foundation.
+- **Active item:** Spectral Violet Muted background with Spectral Violet text, font-weight 600. The muted purple fills the row, creating the Linear-style indent signal.
+- **Inactive item:** Ink Secondary text, no background. Hovered: subtle Graphite Surface background.
+- **Icons:** Spectral Violet color in both themes. Lucide icon set, 16px, 1.5px stroke width. The consistent purple icon treatment anchors the navigation hierarchy.
+- **Section groups:** Separated by 1px Graphite Border lines. Group labels use the overline style (12px, 600 weight, uppercase, wide tracking).
 
 ### Tables
 
-Header row: `--surface` background, `overline` typography style (`0.75rem 600 uppercase tracking-wide`). Body: `--text-primary`, `--border` row separators. Zebra striping via `--surface` on alternating rows.
+- **Header:** Graphite Surface background, overline typography (12px, 600 weight, uppercase, letter-spacing 0.06em).
+- **Body:** Ink Primary text, Graphite Border row separators. No zebra striping in dark mode (the subtle border is enough).
+- **Density:** Compact row height for data scanning. Monospace font for numeric columns.
 
-### Empty states
+### Empty States
 
-Centered. `--text-secondary` illustration or icon, single line of body text, one primary action button. Generous vertical padding (`--space-12`+).
+- **Layout:** Centered, generous vertical padding (48px+). Ink Secondary icon or illustration.
+- **Copy:** One line of body text, one clear primary action. No apologetic language.
+- **Button:** Single primary button using the verb+object pattern ("Create property", "Add integration").
 
-## Motion
+## 6. Do's and Don'ts
 
-- **Duration**: 150ms for micro-interactions (hover, focus, toggle), 200ms for layout transitions (expand, collapse)
-- **Easing**: `cubic-bezier(0.16, 1, 0.3, 1)` (ease-out-expo) for all transitions
-- **No decorative animations** — motion only for state changes and spatial relationships
-- **Respects `prefers-reduced-motion`** — all transitions become instant (0ms)
+### Do:
 
-## Icons
+- **Do** use Spectral Violet for primary actions, active states, and focus indicators only. Its power comes from scarcity.
+- **Do** communicate depth through tonal layering (Obsidian → Surface → Elevated). A lighter surface reads as elevation.
+- **Do** use the 6px radius for buttons and inputs, 12px for cards. Consistency in shape vocabulary builds trust.
+- **Do** keep body text at 15px with 1.55 line-height. The slight increase over 14px matters for readability in data-dense screens.
+- **Do** use Satoshi at 500-600 weight for labels and headings. The medium weights carry enough presence without bold's aggression.
+- **Do** respect the three-font cap: Satoshi, Plus Jakarta Sans, JetBrains Mono. No fourth family.
+- **Do** keep animations to 150ms ease-out for micro-interactions, 200ms for layout transitions. Motion is state feedback, not decoration.
+- **Do** respect `prefers-reduced-motion` — all transitions become instant.
 
-Lucide icon set (already in use). Default size: 16px. Stroke width: 1.5px. Color inherits from text. No filled icon variants.
+### Don't:
 
-## Responsive breakpoints
-
-| Breakpoint | Width  | Target                 |
-| ---------- | ------ | ---------------------- |
-| `sm`       | 640px  | Large phones landscape |
-| `md`       | 768px  | Tablets                |
-| `lg`       | 1024px | Small laptops          |
-| `xl`       | 1280px | Desktop                |
-| `2xl`      | 1536px | Wide desktop           |
-
-Sidebar collapses to sheet below `lg`. Content max-width: 1280px, centered.
-
-## What to remove from current codebase
-
-- All nature-themed variables (`--sea-ink`, `--lagoon`, `--palm`, `--sand`, `--foam`, `--hero-a`, `--hero-b`, etc.)
-- `.island-shell` class and its glass/gradient treatment
-- `.feature-card` hover transforms
-- Body `::before` / `::after` decorative gradient and grid textures
-- `.rise-in` entrance animation
-- `.display-title` Fraunces reference
-- `.nav-link` underline gradient animation
+- **Don't** use drop shadows for elevation. Tonal layering is the system. If a surface needs a shadow to read as elevated, its tone is wrong.
+- **Don't** use `border-left` or `border-right` greater than 1px as a colored accent. The side-stripe border is never intentional.
+- **Don't** use gradient text (`background-clip: text`). Emphasis comes from weight and size, never a gradient.
+- **Don't** use glassmorphism or backdrop-filter blur for decorative surfaces. This is a tool, not a showcase.
+- **Don't** ship hero-metric cards (big number + small label + gradient accent). Data deserves better than SaaS clichés.
+- **Don't** use identical card grids of icon + heading + text repeated endlessly. Card grids earn their place when the content varies; otherwise, a list or table is the right affordance.
+- **Don't** add tiny uppercase tracked eyebrows above every section. One deliberate eyebrow as brand voice is fine; an eyebrow on every section is AI grammar.
+- **Don't** use numbered section markers (01 / 02 / 03) as default scaffolding. Numbers earn their place only when the section is a real sequence.
+- **Don't** use display fonts in UI labels, buttons, or data. Plus Jakarta Sans is for page titles only.
+- **Don't** imitate Linear's exact color palette (blue-purple on cool blacks). We want their focus and simplicity, not their specific visual identity.
+- **Don't** use warm cream/sand/beige backgrounds in light mode. The neutrals are tinted toward Spectral Violet (hue 270), not toward warmth (hue 40-100).
+- **Don't** over-round elements. Cards top out at 12px; buttons and inputs at 6px. The 32px+ radius on cards is a tell.

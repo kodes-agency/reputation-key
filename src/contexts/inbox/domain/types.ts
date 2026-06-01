@@ -49,7 +49,6 @@ export type InboxNote = Readonly<{
 export type InboxItemDetail = Readonly<{
   item: InboxItem
   // Review-specific (null for feedback)
-  reviewerName: string | null
   reviewText: string | null
   reviewerProfilePhotoUrl: string | null
   // Feedback-specific (null for reviews)

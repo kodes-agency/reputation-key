@@ -18,9 +18,9 @@ Reputation management platform that closes the loop between service quality and 
 
 ## Brand Personality
 
-Precise, warm, confident.
+Precise, minimal, focused.
 
-The interface feels like a well-made tool: every element has a reason, every surface is considered. Warm tones prevent it from feeling cold or clinical. Confidence comes from restraint, not decoration. Data is presented with editorial care — the right weight, the right size, no shouting. The amber accent signals attention without urgency.
+The interface feels like a precision instrument: every element earns its place, every surface is purposeful. The tool disappears into the task. Purple carries enough character to feel distinctive without demanding attention. Confidence comes from restraint — nothing is decorative, nothing competes. Data is presented with editorial clarity: the right weight, the right size, the right space. No shouting, no chrome, no filler.
 
 ## Anti-references
 
@@ -29,13 +29,14 @@ The interface feels like a well-made tool: every element has a reason, every sur
 - **ReviewTrackers** — data dump aesthetic, no craft in layout or spacing
 - **Generic analytics dashboards** — navy backgrounds, blue chart palettes, metric hero banners with gradients
 - **SaaS clichés** — big number + small label hero cards, side-stripe accent borders, glassmorphism for its own sake
-- **Dark-mode Linear clones** — blue-purple accents on cool blacks, indistinguishable from every dev tool
+- **Linear's exact color palette** — we want Linear's focus and simplicity, not its specific blue-purple-on-cool-black identity
 - **Trust-by-numbers** — teal/green palettes that signal "reputation" through color alone
+- **Over-designed admin tools** — decorative motion, display fonts in UI, custom scrollbars, invented affordances for standard tasks
 
 ## Design Principles
 
-1. **Warm precision** — Every surface is intentional. Warm darks prevent clinical coldness. Precision in spacing and type scale signals craft, not decoration.
-2. **Surface for the task** — Every screen answers one primary question well. Supporting information is available but never competes.
+1. **Tool-like precision** — Every surface is intentional. Spacing, type scale, and alignment signal craft without decoration. The interface reads as a well-made tool, not a styled page.
+2. **Surface for the task** — Every screen answers one primary question well. Supporting information is available but never competes. Density matches the user's need in that moment.
 3. **Breathe between sections** — Generous spacing is structural, not decorative. Information density comes from thoughtful grouping, not tighter gaps.
 4. **Mobile-native for staff and clients** — Responsive is not a fallback. Staff checking badges on their phone deserves the same craft as a manager on desktop.
 5. **Transparent motivation** — Progress, badges, and leaderboards feel earned and honest, not gamified or manipulative.

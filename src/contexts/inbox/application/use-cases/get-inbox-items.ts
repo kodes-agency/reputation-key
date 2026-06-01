@@ -29,9 +29,16 @@ export type GetInboxItemsDeps = Readonly<{
 export const getInboxItems =
   (deps: GetInboxItemsDeps) =>
   async (input: GetInboxItemsInput): Promise<PaginatedResult> => {
+    // 0. Auth gate
+    if (!can(input.role, 'inbox.read')) {
+      throw inboxError('forbidden', 'No inbox read permission')
+    }
+
     let propertyIds: ReadonlyArray<ReturnType<typeof toPropertyId>> | undefined
 
-    if (!can(input.role, 'inbox.read')) {
+    // Property scoping: users with inbox.manage see all properties;
+    // others are scoped to their accessible properties
+    if (!can(input.role, 'inbox.manage')) {
       const accessible = await deps.staffPublicApi.getAccessiblePropertyIds(
         input.organizationId,
         input.userId,

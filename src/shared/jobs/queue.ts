@@ -34,7 +34,7 @@ export function createJobQueue(name: string): Queue | undefined {
   })
 
   return new Queue(name, {
-    connection,
+    connection: connection as unknown as import('bullmq').ConnectionOptions,
     defaultJobOptions: {
       removeOnComplete: { count: 100 },
       removeOnFail: { count: 50 },

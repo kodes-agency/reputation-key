@@ -368,7 +368,7 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     googleReviewApi,
     inboxRepo: inbox.inboxRepo,
     inboxNoteRepo: inbox.inboxNoteRepo,
-    unreadCounter: inbox.unreadCounter,
+    newCounter: inbox.newCounter,
     goalRepo: goal.goalRepo,
     metricPublicApi: metricApi.publicApi,
   } as const

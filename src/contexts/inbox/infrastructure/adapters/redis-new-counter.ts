@@ -1,0 +1,64 @@
+// Inbox context — Redis-backed new counter adapter
+// Per architecture: factory function implementing NewCounterPort.
+//
+// Counter is scoped per orgId only (see port for design rationale).
+
+import type { NewCounterPort } from '../../application/ports/new-counter.port'
+import type { OrganizationId } from '#/shared/domain/ids'
+import type { Redis } from 'ioredis'
+
+const key = (orgId: OrganizationId) => `inbox:new:${orgId as string}`
+
+// Lua script: decrement but floor at 0 to prevent negative counts
+const DECREMENT_FLOOR_SCRIPT = `
+  local current = tonumber(redis.call('GET', KEYS[1]) or '0')
+  if current > 0 then
+    return redis.call('DECR', KEYS[1])
+  end
+  return current
+`
+
+export const createRedisNewCounter = (redis: Redis): NewCounterPort => ({
+  getCount: async (orgId) => {
+    try {
+      const val = await redis.get(key(orgId))
+      if (!val) return 0
+      const n = parseInt(val, 10)
+      return Number.isNaN(n) ? 0 : n // INF-011 NaN guard
+    } catch {
+      return 0 // Redis down — serve 0, don't crash
+    }
+  },
+
+  setCount: async (orgId, count) => {
+    try {
+      await redis.set(key(orgId), count.toString(), 'EX', 86400) // INF-009: 24h TTL
+    } catch {
+      // Non-critical — log would go here if logger was available
+    }
+  },
+
+  increment: async (orgId) => {
+    try {
+      await redis.incr(key(orgId))
+    } catch {
+      // Non-critical
+    }
+  },
+
+  decrement: async (orgId) => {
+    try {
+      await redis.eval(DECREMENT_FLOOR_SCRIPT, 1, key(orgId))
+    } catch {
+      // Non-critical
+    }
+  },
+
+  invalidate: async (orgId) => {
+    try {
+      await redis.del(key(orgId))
+    } catch {
+      // Best-effort
+    }
+  },
+})

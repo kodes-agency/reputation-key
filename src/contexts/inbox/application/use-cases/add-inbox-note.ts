@@ -45,7 +45,7 @@ export const addInboxNote =
     }
 
     // Enforce role-scoped property access
-    if (!can(input.role, 'inbox.write')) {
+    if (!can(input.role, 'inbox.manage')) {
       const accessible = await deps.staffPublicApi.getAccessiblePropertyIds(
         input.organizationId,
         input.authorUserId,

@@ -1,11 +1,20 @@
+// Inbox state hook — data fetching for the inbox list.
+//
+// NOTE: Imports getInboxItemsFn from server/ per the CONTEXT.md exception
+// for inbox-scoped data-fetching hooks. The hook is only used by the
+// inbox page and its self-contained sub-tree.
 import { useServerFn } from '@tanstack/react-start'
 import { useAction } from '#/components/hooks/use-action'
 import { getInboxItemsFn } from '#/contexts/inbox/server/inbox'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import type { InboxFilterValues } from '#/components/inbox/inbox-filters'
-import type { InboxSearchParams } from '#/components/inbox/inbox-page'
-import type { InboxItem, Cursor } from '#/contexts/inbox/application/public-api'
-import { INBOX_PAGE_SIZE } from '#/components/inbox/inbox-page'
+import type { InboxSearchParams } from '#/components/inbox/inbox-search-schema'
+import type {
+  InboxItem,
+  InboxStatus,
+  Cursor,
+} from '#/contexts/inbox/application/public-api'
+import { INBOX_PAGE_SIZE } from '#/components/inbox/inbox-search-schema'
 
 export function useInboxState(
   orgId: string | undefined,
@@ -35,6 +44,10 @@ export function useInboxState(
         const r = await loadActionRef.current({
           data: {
             ...filters,
+            status:
+              filters.status && typeof filters.status !== 'string'
+                ? ([...filters.status] as InboxStatus[])
+                : filters.status,
             cursor: cursor ? btoa(JSON.stringify(cursor)) : undefined,
             limit: INBOX_PAGE_SIZE,
           },
@@ -45,8 +58,8 @@ export function useInboxState(
           else setItems(ni)
           setNextCursor(r.nextCursor ?? null)
         }
-      } catch {
-        /* */
+      } catch (e) {
+        console.error('[useInboxState] loadItems failed:', e)
       } finally {
         if (!abortRef.current) setIsLoading(false)
       }
@@ -59,6 +72,7 @@ export function useInboxState(
       filters.platform,
       filters.ratingMin,
       filters.ratingMax,
+      filters.q,
     ],
   )
 
@@ -77,6 +91,7 @@ export function useInboxState(
     filters.ratingMin,
     filters.ratingMax,
     filters.propertyId,
+    filters.q,
   ])
 
   useEffect(() => {
@@ -98,11 +113,13 @@ export function useInboxState(
     () => onNavigate({ to: '.', search: (prev) => ({ ...prev, itemId: undefined }) }),
     [onNavigate],
   )
-  const handleBulkDone = () => {
+
+  // FE-4 FIX: wrap handleBulkDone in useCallback
+  const handleBulkDone = useCallback(() => {
     setSelectedIds([])
     void loadItems()
     if (selectedId) closeDetail()
-  }
+  }, [selectedId, loadItems, closeDetail])
 
   return {
     items,

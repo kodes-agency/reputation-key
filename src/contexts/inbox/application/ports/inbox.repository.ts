@@ -17,13 +17,14 @@ export type Cursor = Readonly<{
 export type InboxFilters = Readonly<{
   propertyId?: PropertyId
   propertyIds?: ReadonlyArray<PropertyId>
-  status?: InboxStatus
+  status?: InboxStatus | ReadonlyArray<InboxStatus>
   sourceType?: SourceType
   platform?: string
   ratingMin?: number
   ratingMax?: number
   sourceDateFrom?: Date
   sourceDateTo?: Date
+  q?: string
 }>
 
 export type PaginatedResult = Readonly<{

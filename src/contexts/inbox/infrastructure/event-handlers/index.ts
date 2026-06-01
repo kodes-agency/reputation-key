@@ -4,6 +4,7 @@
 import type { EventBus } from '#/shared/events/event-bus'
 import type { CreateInboxItemUseCase } from '../../application/use-cases/create-inbox-item'
 import type { InboxRepository } from '../../application/ports/inbox.repository'
+import type { NewCounterPort } from '../../application/ports/new-counter.port'
 import { onReviewCreated } from './on-review-created'
 import { onFeedbackSubmitted } from './on-feedback-submitted'
 import { onReviewUpdated } from './on-review-updated'
@@ -13,6 +14,7 @@ export type RegisterInboxHandlersDeps = Readonly<{
   events: EventBus
   createInboxItem: CreateInboxItemUseCase
   repo: InboxRepository
+  newCounter: NewCounterPort
 }>
 
 export const registerInboxHandlers = (deps: RegisterInboxHandlersDeps): void => {
@@ -25,5 +27,12 @@ export const registerInboxHandlers = (deps: RegisterInboxHandlersDeps): void => 
     onFeedbackSubmitted({ createInboxItem: deps.createInboxItem }),
   )
   deps.events.on('review.updated', onReviewUpdated(deps))
-  deps.events.on('reply.published', onReplyPublished({ repo: deps.repo }))
+  deps.events.on(
+    'reply.published',
+    onReplyPublished({
+      repo: deps.repo,
+      events: deps.events,
+      newCounter: deps.newCounter,
+    }),
+  )
 }

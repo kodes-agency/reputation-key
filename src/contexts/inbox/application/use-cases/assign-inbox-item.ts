@@ -31,7 +31,12 @@ export type AssignInboxItemDeps = Readonly<{
 export const assignInboxItem =
   (deps: AssignInboxItemDeps) =>
   async (input: AssignInboxItemInput): Promise<InboxItem> => {
-    // 1. Validate assignment eligibility
+    // 0. Auth gate
+    if (!can(input.role, 'inbox.write')) {
+      throw inboxError('forbidden', 'No inbox write permission')
+    }
+
+    // 1. Validate assignment eligibility (PM+ only)
     const assignmentResult = validateAssignment(input.role)
     if (assignmentResult.isErr()) {
       throw assignmentResult.error

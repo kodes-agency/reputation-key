@@ -169,8 +169,8 @@ describe('assignInboxItem', () => {
     expect(updated.assignedTo).toBe(ASSIGNEE_ID)
   })
 
-  it('denies access for unknown role without inbox.manage (assignment_not_allowed)', async () => {
-    // Unknown roles fail validateAssignment before reaching can() check
+  it('denies access for role without inbox.write permission', async () => {
+    // Roles without inbox.write hit the auth gate before validateAssignment
     const staffApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [],
     }
@@ -185,9 +185,7 @@ describe('assignInboxItem', () => {
         role: 'Guest' as unknown as Role,
         userId: USER_ID,
       }),
-    ).rejects.toSatisfy(
-      (e: unknown) => isInboxError(e) && e.code === 'assignment_not_allowed',
-    )
+    ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'forbidden')
   })
 
   it('allows assignment when user has access to the property', async () => {

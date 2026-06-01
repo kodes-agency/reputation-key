@@ -16,7 +16,7 @@ const setup = () => {
   const repo = createInMemoryInboxRepo()
   const events = createCapturingEventBus()
   const increments = { count: 0, keys: [] as string[] }
-  const unreadCounter = {
+  const newCounter = {
     getCount: async () => 0,
     setCount: async () => {},
     increment: async (key: string) => {
@@ -29,7 +29,7 @@ const setup = () => {
   const deps = {
     repo,
     events,
-    unreadCounter,
+    newCounter,
     idGen: () => FIXED_ID,
     clock: () => FIXED_TIME,
     logger: createMockLogger(),
@@ -101,7 +101,7 @@ describe('createInboxItem', () => {
     )
   })
 
-  it('increments unread counter on creation', async () => {
+  it('increments new counter on creation', async () => {
     const { useCase, increments } = setup()
 
     await useCase({

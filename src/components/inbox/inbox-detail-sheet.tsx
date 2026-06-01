@@ -26,7 +26,7 @@ export function InboxDetailSheet({ open, onOpenChange, item, detailState }: Prop
   if (!item) return null
 
   const currentItem = detailState.currentItem ?? item
-  const statusActions = getStatusActions(currentItem.status)
+  const statusActions = getStatusActions(currentItem.status, currentItem.sourceType)
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>

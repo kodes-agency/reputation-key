@@ -20,13 +20,17 @@ describe('canTransition', () => {
   describe('valid transitions', () => {
     const validCases: Array<[InboxStatus, InboxStatus]> = [
       ['new', 'read'],
+      ['new', 'addressed'],
       ['new', 'archived'],
       ['new', 'escalated'],
       ['read', 'addressed'],
       ['read', 'escalated'],
+      ['read', 'archived'],
       ['escalated', 'addressed'],
       ['escalated', 'archived'],
       ['addressed', 'archived'],
+      ['addressed', 'escalated'],
+      ['archived', 'escalated'],
     ]
 
     it.each(validCases)('allows %s → %s', (from, to) => {
@@ -47,27 +51,23 @@ describe('canTransition', () => {
   // All impossible combos
   describe('invalid transitions', () => {
     const invalidCases: Array<[InboxStatus, InboxStatus]> = [
-      // new cannot go to new, addressed
+      // new cannot go to new
       ['new', 'new'],
-      ['new', 'addressed'],
-      // read cannot go to new, read, archived
+      // read cannot go to new, read
       ['read', 'new'],
       ['read', 'read'],
-      ['read', 'archived'],
       // escalated cannot go to new, read, escalated
       ['escalated', 'new'],
       ['escalated', 'read'],
       ['escalated', 'escalated'],
-      // addressed cannot go to new, read, escalated, addressed
+      // addressed cannot go to new, read, addressed
       ['addressed', 'new'],
       ['addressed', 'read'],
-      ['addressed', 'escalated'],
       ['addressed', 'addressed'],
-      // archived cannot go to anything — terminal state
+      // archived cannot go to anything except escalated — handled above as valid
       ['archived', 'new'],
       ['archived', 'read'],
       ['archived', 'archived'],
-      ['archived', 'escalated'],
       ['archived', 'addressed'],
     ]
 
@@ -86,14 +86,26 @@ describe('validateTransition', () => {
     expect(result._unsafeUnwrap()).toBe('read')
   })
 
-  it('returns err with invalid_transition code for an invalid transition', () => {
+  it('returns ok for new → addressed transition', () => {
     const result = validateTransition('new', 'addressed')
+    expect(result.isOk()).toBe(true)
+    expect(result._unsafeUnwrap()).toBe('addressed')
+  })
+
+  it('returns ok for read → archived transition', () => {
+    const result = validateTransition('read', 'archived')
+    expect(result.isOk()).toBe(true)
+    expect(result._unsafeUnwrap()).toBe('archived')
+  })
+
+  it('returns err with invalid_transition code for an invalid transition', () => {
+    const result = validateTransition('archived', 'new')
     expect(result.isErr()).toBe(true)
     const error = result._unsafeUnwrapErr()
     expect(error.code).toBe('invalid_transition')
+    expect(error.message).toContain('archived')
     expect(error.message).toContain('new')
-    expect(error.message).toContain('addressed')
-    expect(error.context).toEqual({ from: 'new', to: 'addressed' })
+    expect(error.context).toEqual({ from: 'archived', to: 'new' })
   })
 
   it('returns err for same-status transition', () => {

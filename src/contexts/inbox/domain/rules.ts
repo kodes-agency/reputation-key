@@ -9,11 +9,11 @@ import type { InboxError } from './errors'
 import { inboxError } from './errors'
 
 const VALID_TRANSITIONS: Readonly<Record<InboxStatus, readonly InboxStatus[]>> = {
-  new: ['read', 'archived', 'escalated'],
-  read: ['addressed', 'escalated'],
+  new: ['read', 'addressed', 'archived', 'escalated'],
+  read: ['addressed', 'escalated', 'archived'],
   escalated: ['addressed', 'archived'],
-  addressed: ['archived'],
-  archived: [],
+  addressed: ['archived', 'escalated'],
+  archived: ['escalated'],
 }
 
 /** Returns true when `from → to` is a legal status transition. Same-status is NOT valid. */

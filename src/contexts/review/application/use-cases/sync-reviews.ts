@@ -141,7 +141,7 @@ export const syncReviews =
           externalId: gr.externalId,
           rating: gr.rating,
           reviewText: gr.text,
-          occurredAt: now,
+          occurredAt: gr.reviewedAt,
         }
 
         if (isNew) {

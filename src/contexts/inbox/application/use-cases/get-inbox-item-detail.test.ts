@@ -60,8 +60,7 @@ function makeItem(overrides: Partial<InboxItem> = {}): InboxItem {
 
 function makeDetail(item: InboxItem): InboxItemDetail {
   return {
-    item,
-    reviewerName: 'Test Reviewer',
+    item: { ...item, reviewerName: 'Test Reviewer' },
     reviewText: 'Test review',
     reviewerProfilePhotoUrl: null,
     feedbackComment: null,
@@ -118,7 +117,7 @@ describe('getInboxItemDetail', () => {
     })
 
     expect(result.item.id).toBe(ITEM_ID)
-    expect(result.reviewerName).toBe('Test Reviewer')
+    expect(result.item.reviewerName).toBe('Test Reviewer')
     expect(result.reviewText).toBe('Test review')
   })
 

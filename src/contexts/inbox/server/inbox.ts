@@ -17,9 +17,10 @@ import {
   bulkUpdateStatusDto,
   assignInboxItemDto,
   addInboxNoteDto,
-  getUnreadCountDto,
+  getNewCountDto,
   getInboxItemDetailDto,
   getInboxNotesDto,
+  getInboxFolderCountsDto,
 } from '../application/dto/inbox.dto'
 import { isInboxError } from '../domain/errors'
 import type { InboxErrorCode } from '../domain/errors'
@@ -30,7 +31,12 @@ import { userId as toUserId } from '#/shared/domain/ids'
 
 const inboxErrorStatus = (code: InboxErrorCode): number =>
   match(code)
-    .with('invalid_transition', 'invalid_input', 'assignment_not_allowed', () => HTTP_STATUS.BAD_REQUEST)
+    .with(
+      'invalid_transition',
+      'invalid_input',
+      'assignment_not_allowed',
+      () => HTTP_STATUS.BAD_REQUEST,
+    )
     .with('not_found', () => HTTP_STATUS.NOT_FOUND)
     .with('forbidden', () => HTTP_STATUS.FORBIDDEN)
     .with('already_exists', () => HTTP_STATUS.CONFLICT)
@@ -68,6 +74,7 @@ export const getInboxItemsFn = createServerFn({ method: 'GET' })
               ratingMax: data.ratingMax,
               sourceDateFrom: data.sourceDateFrom,
               sourceDateTo: data.sourceDateTo,
+              q: data.q,
             },
             cursor: data.cursor
               ? (() => {
@@ -239,10 +246,10 @@ export const addInboxNoteFn = createServerFn({ method: 'POST' })
     ),
   )
 
-// ── getUnreadCount ─────────────────────────────────────────────────
+// ── getNewCount ────────────────────────────────────────────────────
 
-export const getUnreadCountFn = createServerFn({ method: 'GET' })
-  .inputValidator(getUnreadCountDto)
+export const getNewCountFn = createServerFn({ method: 'GET' })
+  .inputValidator(getNewCountDto)
   .handler(
     tracedHandler(
       async ({ data: _data }) => {
@@ -257,8 +264,10 @@ export const getUnreadCountFn = createServerFn({ method: 'GET' })
         }
         const { useCases } = getContainer()
         try {
-          return await useCases.getUnreadCount({
+          return await useCases.getNewCount({
             organizationId: ctx.organizationId,
+            userId: ctx.userId,
+            role: ctx.role,
           })
         } catch (e) {
           if (isInboxError(e))
@@ -267,7 +276,7 @@ export const getUnreadCountFn = createServerFn({ method: 'GET' })
         }
       },
       'GET',
-      'inbox.getUnreadCount',
+      'inbox.getNewCount',
     ),
   )
 
@@ -338,5 +347,40 @@ export const getInboxNotesFn = createServerFn({ method: 'GET' })
       },
       'GET',
       'inbox.getInboxNotes',
+    ),
+  )
+
+// ── getInboxFolderCounts ──────────────────────────────────────────
+
+export const getInboxFolderCountsFn = createServerFn({ method: 'GET' })
+  .inputValidator(getInboxFolderCountsDto)
+  .handler(
+    tracedHandler(
+      async ({ data: _data }) => {
+        void _data
+        const headers = headersFromContext()
+        const ctx = await resolveTenantContext(headers)
+        if (!can(ctx.role, 'inbox.read')) {
+          throwContextError(
+            'AuthError',
+            { code: 'forbidden', message: 'No inbox read permission' },
+            403,
+          )
+        }
+        const { useCases } = getContainer()
+        try {
+          return await useCases.getInboxFolderCounts({
+            organizationId: ctx.organizationId,
+            userId: ctx.userId,
+            role: ctx.role,
+          })
+        } catch (e) {
+          if (isInboxError(e))
+            throwContextError('InboxError', e, inboxErrorStatus(e.code))
+          throw catchUntagged(e)
+        }
+      },
+      'GET',
+      'inbox.getInboxFolderCounts',
     ),
   )

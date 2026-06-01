@@ -12,14 +12,16 @@ import { Input } from '#/components/ui/input'
 import { Filter } from 'lucide-react'
 import { PropertyFilterSelect } from './property-filter-select'
 import type { InboxStatus, SourceType } from '#/contexts/inbox/application/public-api'
+import { useCallback } from 'react'
 
 export type InboxFilterValues = Readonly<{
   propertyId: string | undefined
-  status: InboxStatus | undefined
+  status: InboxStatus | ReadonlyArray<InboxStatus> | undefined
   sourceType: SourceType | undefined
   platform: string | undefined
   ratingMin: number | undefined
   ratingMax: number | undefined
+  q: string | undefined
 }>
 
 type Props = Readonly<{
@@ -29,7 +31,7 @@ type Props = Readonly<{
 
 const statuses: Array<{ value: InboxStatus; label: string }> = [
   { value: 'new', label: 'New' },
-  { value: 'read', label: 'Read' },
+  { value: 'read', label: 'Opened' },
   { value: 'addressed', label: 'Addressed' },
   { value: 'escalated', label: 'Escalated' },
   { value: 'archived', label: 'Archived' },
@@ -43,9 +45,12 @@ const sourceTypes: Array<{ value: SourceType; label: string }> = [
 const platforms = [{ value: 'google', label: 'Google' }]
 
 export function InboxFilters({ value, onChange }: Props) {
-  const update = (patch: Partial<InboxFilterValues>) => {
-    onChange({ ...value, ...patch })
-  }
+  const update = useCallback(
+    (patch: Partial<InboxFilterValues>) => {
+      onChange({ ...value, ...patch })
+    },
+    [onChange, value],
+  )
 
   return (
     <div className="flex flex-wrap items-center gap-3">
@@ -57,7 +62,7 @@ export function InboxFilters({ value, onChange }: Props) {
       />
 
       <Select
-        value={value.status ?? 'all'}
+        value={typeof value.status === 'string' ? value.status : 'all'}
         onValueChange={(v) =>
           update({ status: v === 'all' ? undefined : (v as InboxStatus) })
         }

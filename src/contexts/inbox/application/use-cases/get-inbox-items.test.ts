@@ -11,7 +11,6 @@ import {
 } from '#/shared/domain/ids'
 import type { InboxItem, InboxStatus, SourceType } from '../../domain/types'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
-import type { Role } from '#/shared/domain/roles'
 import { isInboxError } from '../../domain/errors'
 
 const FIXED_TIME = new Date('2026-04-15T12:00:00Z')
@@ -26,7 +25,12 @@ const adminStaffApi: StaffPublicApi = {
   getAccessiblePropertyIds: async () => null,
 }
 
-// Mock: PropertyManager gets specific property IDs
+// Mock: PropertyManager gets null (all access — PM has inbox.manage)
+const pmStaffApi: StaffPublicApi = {
+  getAccessiblePropertyIds: async () => null,
+}
+
+// Mock: Staff gets specific property IDs (scoped)
 const createScopedStaffApi = (ids: ReadonlyArray<string>): StaffPublicApi => ({
   getAccessiblePropertyIds: async () => ids.map(propertyId),
 })
@@ -67,6 +71,16 @@ const setup = (staffApi: StaffPublicApi = adminStaffApi) => {
 const adminInput = {
   userId: USER_ID,
   role: 'AccountAdmin' as const,
+}
+
+const pmInput = {
+  userId: USER_ID,
+  role: 'PropertyManager' as const,
+}
+
+const staffInput = {
+  userId: USER_ID,
+  role: 'Staff' as const,
 }
 
 describe('getInboxItems', () => {
@@ -195,67 +209,92 @@ describe('getInboxItems', () => {
     expect(page2.items[0].id).not.toBe(page1.items[0].id)
   })
 
-  it('returns all items for PropertyManager (inbox.read bypasses property check)', async () => {
-    // PropertyManager has inbox.read, so can() passes and property scoping is skipped
-    const { useCase, repo } = setup(createScopedStaffApi(['prop-1']))
+  // ── Property scoping tests (F-14 fix) ──────────────────────────────
+
+  it('AccountAdmin sees all properties (has inbox.manage)', async () => {
+    const { useCase, repo } = setup(adminStaffApi)
     repo.items.push(seedItem({ id: 'ii-1', propertyId: PROP_ID }))
     repo.items.push(seedItem({ id: 'ii-2', propertyId: OTHER_PROP_ID }))
 
     const result = await useCase({
       organizationId: ORG_ID,
-      userId: USER_ID,
-      role: 'PropertyManager',
+      ...adminInput,
       filters: {},
     })
 
     expect(result.items).toHaveLength(2)
   })
 
-  it('returns all items for PropertyManager even with empty property assignments', async () => {
-    // PropertyManager has inbox.read, so can() passes and property scoping is skipped
-    const { useCase, repo } = setup(createScopedStaffApi([]))
-    repo.items.push(seedItem({ id: 'ii-1' }))
+  it('PropertyManager sees all properties (has inbox.manage)', async () => {
+    const { useCase, repo } = setup(pmStaffApi)
+    repo.items.push(seedItem({ id: 'ii-1', propertyId: PROP_ID }))
+    repo.items.push(seedItem({ id: 'ii-2', propertyId: OTHER_PROP_ID }))
 
     const result = await useCase({
       organizationId: ORG_ID,
-      userId: USER_ID,
-      role: 'PropertyManager',
+      ...pmInput,
+      filters: {},
+    })
+
+    expect(result.items).toHaveLength(2)
+  })
+
+  it('Staff is property-scoped to accessible properties only', async () => {
+    const scopedApi = createScopedStaffApi(['prop-1'])
+    const { useCase, repo } = setup(scopedApi)
+    repo.items.push(seedItem({ id: 'ii-1', propertyId: PROP_ID }))
+    repo.items.push(seedItem({ id: 'ii-2', propertyId: OTHER_PROP_ID }))
+
+    const result = await useCase({
+      organizationId: ORG_ID,
+      ...staffInput,
       filters: {},
     })
 
     expect(result.items).toHaveLength(1)
+    expect(result.items[0].propertyId).toBe(PROP_ID)
   })
 
-  it('denies access without inbox.read permission when filtering by inaccessible property', async () => {
-    // Use a role not in the permission table to simulate lacking inbox.read
-    // Give one accessible property (different from filter) so the empty-check doesn't short-circuit
-    const scopedApi = createScopedStaffApi(['other-prop'])
+  it('Staff with no accessible properties sees nothing', async () => {
+    const scopedApi = createScopedStaffApi([])
+    const { useCase, repo } = setup(scopedApi)
+    repo.items.push(seedItem({ id: 'ii-1' }))
+
+    const result = await useCase({
+      organizationId: ORG_ID,
+      ...staffInput,
+      filters: {},
+    })
+
+    expect(result.items).toHaveLength(0)
+  })
+
+  it('Staff denied when filtering by inaccessible property', async () => {
+    const scopedApi = createScopedStaffApi(['prop-1'])
     const { useCase, repo } = setup(scopedApi)
     repo.items.push(seedItem({ id: 'ii-1' }))
 
     await expect(
       useCase({
         organizationId: ORG_ID,
-        userId: USER_ID,
-        role: 'Guest' as unknown as Role,
-        filters: { propertyId: PROP_ID },
+        ...staffInput,
+        filters: { propertyId: OTHER_PROP_ID },
       }),
     ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'forbidden')
   })
 
-  it('returns filtered items for PropertyManager requesting any property filter (inbox.read bypasses check)', async () => {
-    // PropertyManager has inbox.read, so the "No access to this property" check is skipped
-    const { useCase, repo } = setup(createScopedStaffApi(['prop-1']))
-    repo.items.push(seedItem({ id: 'ii-1', propertyId: OTHER_PROP_ID }))
+  it('Staff can filter by accessible property', async () => {
+    const scopedApi = createScopedStaffApi(['prop-1'])
+    const { useCase, repo } = setup(scopedApi)
+    repo.items.push(seedItem({ id: 'ii-1', propertyId: PROP_ID }))
 
     const result = await useCase({
       organizationId: ORG_ID,
-      userId: USER_ID,
-      role: 'PropertyManager',
-      filters: { propertyId: OTHER_PROP_ID },
+      ...staffInput,
+      filters: { propertyId: PROP_ID },
     })
 
     expect(result.items).toHaveLength(1)
-    expect(result.items[0].propertyId).toBe(OTHER_PROP_ID)
+    expect(result.items[0].propertyId).toBe(PROP_ID)
   })
 })

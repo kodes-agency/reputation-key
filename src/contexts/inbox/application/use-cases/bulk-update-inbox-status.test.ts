@@ -7,10 +7,11 @@ import {
   organizationId,
   propertyId,
   reviewId,
+  feedbackId,
   userId,
 } from '#/shared/domain/ids'
 import type { InboxItem, InboxStatus, SourceType } from '../../domain/types'
-import type { UnreadCounterPort } from '../ports/unread-counter.port'
+import type { NewCounterPort } from '../ports/new-counter.port'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { Role } from '#/shared/domain/roles'
 
@@ -18,13 +19,18 @@ const FIXED_TIME = new Date('2026-04-15T12:00:00Z')
 const ORG_ID = organizationId('org-1')
 const USER_ID = userId('user-1')
 
-function seedItem(id: string, status: InboxStatus, propId: string = 'prop-1'): InboxItem {
+function seedItem(
+  id: string,
+  status: InboxStatus,
+  propId: string = 'prop-1',
+  sourceType: SourceType = 'review',
+): InboxItem {
   return {
     id: inboxItemId(id),
     organizationId: ORG_ID,
     propertyId: propertyId(propId),
-    sourceType: 'review' as SourceType,
-    sourceId: reviewId(`rev-${id}`),
+    sourceType,
+    sourceId: sourceType === 'review' ? reviewId(`rev-${id}`) : feedbackId(`fb-${id}`),
     status,
     rating: 4,
     sourceDate: new Date('2026-04-10'),
@@ -50,7 +56,7 @@ const setup = (staffApi: StaffPublicApi = defaultStaffApi) => {
   const repo = createInMemoryInboxRepo()
   const events = createCapturingEventBus()
   const decrements: Array<string> = []
-  const unreadCounter: UnreadCounterPort = {
+  const newCounter: NewCounterPort = {
     getCount: async () => 0,
     setCount: async () => {},
     increment: async () => {},
@@ -62,7 +68,7 @@ const setup = (staffApi: StaffPublicApi = defaultStaffApi) => {
   const deps = {
     repo,
     events,
-    unreadCounter,
+    newCounter,
     clock: () => FIXED_TIME,
     staffPublicApi: staffApi,
     logger: {
@@ -148,7 +154,7 @@ describe('bulkUpdateInboxStatus', () => {
     expect(emitted).toHaveLength(2)
   })
 
-  it('decrements unread counter for new→read transitions', async () => {
+  it('decrements new counter for new→read transitions', async () => {
     const { useCase, repo, decrements } = setup()
     repo.items.push(seedItem('ii-1', 'new'))
     repo.items.push(seedItem('ii-2', 'new'))
@@ -162,6 +168,25 @@ describe('bulkUpdateInboxStatus', () => {
     })
 
     expect(decrements).toHaveLength(2)
+  })
+
+  it('skips reviews when bulk marking as addressed (review guard)', async () => {
+    const { useCase, repo } = setup()
+    repo.items.push(seedItem('ii-1', 'new', 'prop-1', 'review'))
+    repo.items.push(seedItem('ii-2', 'new', 'prop-1', 'feedback'))
+
+    const result = await useCase({
+      inboxItemIds: [inboxItemId('ii-1'), inboxItemId('ii-2')],
+      organizationId: ORG_ID,
+      newStatus: 'addressed',
+      userId: USER_ID,
+      role: 'AccountAdmin' as Role,
+    })
+
+    // ii-1 (review) skipped by guard, ii-2 (feedback) updated
+    expect(result.updated).toBe(1)
+    expect(repo.items[0].status).toBe('new')
+    expect(repo.items[1].status).toBe('addressed')
   })
 
   it('denies access to all items without inbox.manage when Staff has no property assignments', async () => {
