@@ -69,6 +69,7 @@ export function wireUseCases(input: WireInput): InboxContextApi['useCases'] {
     addInboxNote: addInboxNote({
       repo: input.inboxRepo,
       noteRepo: input.inboxNoteRepo,
+      events: input.events,
       idGen: () => inboxNoteId(crypto.randomUUID()),
       clock: input.clock,
       staffPublicApi: input.staffPublicApi,
