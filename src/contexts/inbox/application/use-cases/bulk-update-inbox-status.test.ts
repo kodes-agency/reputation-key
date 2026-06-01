@@ -137,7 +137,7 @@ describe('bulkUpdateInboxStatus', () => {
     expect(result.updated).toBe(0)
   })
 
-  it('emits events for each updated item', async () => {
+  it('emits bulk status changed events for each updated item with shared bulkId', async () => {
     const { useCase, repo, events } = setup()
     repo.items.push(seedItem('ii-1', 'new'))
     repo.items.push(seedItem('ii-2', 'new'))
@@ -150,8 +150,11 @@ describe('bulkUpdateInboxStatus', () => {
       role: 'AccountAdmin' as Role,
     })
 
-    const emitted = events.capturedByTag('inbox.status.changed')
+    const emitted = events.capturedByTag('inbox.bulk.status.changed')
     expect(emitted).toHaveLength(2)
+    const bulkIds = emitted.map((e) => e.bulkId)
+    expect(bulkIds[0]).toBeTruthy()
+    expect(new Set(bulkIds).size).toBe(1) // all events share the same bulkId
   })
 
   it('decrements new counter for new→read transitions', async () => {

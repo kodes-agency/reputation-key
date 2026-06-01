@@ -136,6 +136,8 @@ export type {
   InboxItemEscalated,
   // fallow-ignore-next-line unused-type
   InboxNoteAdded,
+  // fallow-ignore-next-line unused-type
+  InboxBulkStatusChanged,
 } from '#/contexts/inbox/domain/events'
 
 // Goal context events
