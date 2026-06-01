@@ -69,9 +69,13 @@ export function useInboxPage(
     handleBulkDone,
   } = useInboxState(orgId, filters, search.itemId, onNavigate)
 
+  // Stable reference — only recomputes when a different item is selected,
+  // NOT when the same item's status/fields update (detail panel uses detailState.currentItem).
+  const selectedItemId = search.itemId
+  const foundItemId = items.find((i) => i.id === selectedItemId)?.id
   const selectedItem = useMemo(
-    () => (search.itemId ? (items.find((i) => i.id === search.itemId) ?? null) : null),
-    [search.itemId, items],
+    () => (selectedItemId ? (items.find((i) => i.id === selectedItemId) ?? null) : null),
+    [selectedItemId, foundItemId],
   )
   const detailState = useInboxDetail(selectedItem, !!selectedItem, { autoMarkRead: true })
 
