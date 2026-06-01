@@ -99,9 +99,16 @@ export function useInboxDetail(
   // Auto-mark as read (debounced 500ms)
   const markReadMutation = useMutationAction(updateInboxStatusFn, {
     onSuccess: () => {
-      void loadDetailRef.current().then(() => {
-        setStatusVersion((v) => v + 1)
+      // Update local state directly — no re-fetch needed.
+      // Avoids triggering isLoadingDetail (skeleton flash).
+      setDetail((prev) => {
+        if (!prev?.item) return prev
+        return {
+          ...prev,
+          item: { ...prev.item, status: 'read' as const, updatedAt: new Date() },
+        }
       })
+      setStatusVersion((v) => v + 1)
     },
   })
   const markReadRef = useRef(markReadMutation)
