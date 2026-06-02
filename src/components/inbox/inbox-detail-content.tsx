@@ -9,6 +9,7 @@ import { ReplyEditor } from './reply-editor'
 import { formatDateTime } from './utils'
 import { getStatusActions } from './inbox-detail-helpers'
 import { InboxDetailSourceContent } from './inbox-detail-source-content'
+import { InboxActivityTimeline } from './inbox-activity-timeline'
 import { updateInboxStatusFn } from '#/contexts/inbox/server/inbox'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import type {
@@ -86,6 +87,8 @@ export function InboxDetailContent({
       {currentItem.sourceType === 'review' && canManageReplies && (
         <ReplyEditor reviewId={currentItem.sourceId} />
       )}
+
+      <InboxActivityTimeline inboxItemId={currentItem.id} />
 
       <div className="border-t pt-4">
         <InboxNotesThread
