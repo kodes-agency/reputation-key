@@ -39,5 +39,6 @@ export default defineConfig({
     'metric_readings',
     'goals',
     'goal_progress',
+    'activity_log',
   ],
 })
