@@ -1,3 +1,7 @@
+// Activity context — event handler registration
+// Subscribes to domain events from other contexts and records them in the activity log.
+// Per architecture: "Handlers are idempotent, don't throw, log via shared logger."
+
 import type { EventBus } from '#/shared/events/event-bus'
 import type { ActivityRepository } from '../../ports/activity-repository.port'
 import type { UserLookupPort } from '../../ports/user-lookup.port'
@@ -26,6 +30,12 @@ const handleActivityEvent =
     const mapped = eventToActivity(event)
     if (!mapped) return
 
+    // Idempotency check: skip if an identical entry already exists.
+    // Activity log is append-only with at-least-once event delivery, so
+    // event replay must not produce duplicates.
+    const duplicate = await deps.repo.findDuplicate(mapped)
+    if (duplicate) return
+
     // Best-effort user lookup — don't block if lookup fails
     let userInfo: { name: string; avatarUrl: string | null; role: Role } = {
       name: 'System',
@@ -33,16 +43,15 @@ const handleActivityEvent =
       role: 'Staff',
     }
     try {
-      // Extract userId from event if available
       const userId = extractUserId(event)
       if (userId) {
         userInfo = await deps.userLookup.lookup(userId, mapped.organizationId)
       }
     } catch {
-      // Use default
+      // Fall through to default
     }
 
-    const entry = createActivityLog(
+    const result = createActivityLog(
       {
         actorId: extractUserId(event) ?? 'system',
         actorName: userInfo.name,
@@ -59,6 +68,15 @@ const handleActivityEvent =
       deps.clock,
     )
 
+    if (result.isErr()) {
+      deps.logger.warn(
+        { err: result.error, event: event._tag },
+        'Activity log constructor rejected event',
+      )
+      return
+    }
+
+    const entry = result.value
     await deps.repo.insert(entry)
   }
 

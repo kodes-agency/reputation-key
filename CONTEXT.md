@@ -35,8 +35,9 @@ Composition root: `src/composition.ts`. Bootstrap: `src/bootstrap.ts`.
 | | Review | External platform reviews (Google), sync, replies | Review |
 | | Inbox | Unified triage surface for reviews + feedback | InboxItem, InboxNote |
 | | Metric | Aggregation of raw counters (scans, ratings, clicks, reviews) | MetricReading |
-|| | Goal | Property-scoped goals with progress tracking; scope levels: property, portal, portal_group | Goal, GoalInstance |
-| | Dashboard | Read-only aggregation of metrics, reviews, replies into property-scoped KPIs and charts | — |
+|| Goal | Property-scoped goals with progress tracking; scope levels: property, portal, portal_group | Goal, GoalInstance |
+|| Dashboard | Read-only aggregation of metrics, reviews, replies into property-scoped KPIs and charts | — |
+|| Activity | Immutable audit log of user actions across all contexts. Pure subscriber (no commands, no use cases). | ActivityLog |
 
 ## Glossary
 

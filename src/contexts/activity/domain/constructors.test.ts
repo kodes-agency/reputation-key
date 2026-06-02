@@ -25,8 +25,11 @@ describe('createActivityLog', () => {
   }
 
   it('constructs a valid activity log entry', () => {
-    const entry = createActivityLog(validInput, clock)
-    expect(entry.id).toBe('') // populated by DB
+    const result = createActivityLog(validInput, clock)
+    expect(result.isOk()).toBe(true)
+    if (!result.isOk()) throw new Error('unreachable')
+    const entry = result.value
+    expect(entry.id).toBe('')
     expect(entry.actorId).toBe('user-1')
     expect(entry.actorName).toBe('Bozhidar')
     expect(entry.action).toBe('created')
@@ -39,10 +42,14 @@ describe('createActivityLog', () => {
     expect(entry.createdAt).toEqual(clock())
   })
 
-  it('throws for invalid action', () => {
-    expect(() =>
-      createActivityLog({ ...validInput, action: 'invalid' as ActivityAction }, clock),
-    ).toThrow('Invalid action')
+  it('returns error for invalid action', () => {
+    const result = createActivityLog(
+      { ...validInput, action: 'invalid' as ActivityAction },
+      clock,
+    )
+    expect(result.isErr()).toBe(true)
+    if (!result.isErr()) throw new Error('unreachable')
+    expect(result.error.code).toBe('invalid_action')
   })
 
   it('accepts all valid actions', () => {
@@ -60,20 +67,25 @@ describe('createActivityLog', () => {
       'escalated',
     ]
     for (const action of actions) {
-      expect(() => createActivityLog({ ...validInput, action }, clock)).not.toThrow()
+      const result = createActivityLog({ ...validInput, action }, clock)
+      expect(result.isOk()).toBe(true)
     }
   })
 
   it('sets actorAvatarUrl to null when provided as null', () => {
-    const entry = createActivityLog({ ...validInput, actorAvatarUrl: null }, clock)
-    expect(entry.actorAvatarUrl).toBeNull()
+    const result = createActivityLog({ ...validInput, actorAvatarUrl: null }, clock)
+    expect(result.isOk()).toBe(true)
+    if (!result.isOk()) throw new Error('unreachable')
+    expect(result.value.actorAvatarUrl).toBeNull()
   })
 
   it('preserves actorAvatarUrl when provided', () => {
-    const entry = createActivityLog(
+    const result = createActivityLog(
       { ...validInput, actorAvatarUrl: 'https://example.com/avatar.jpg' },
       clock,
     )
-    expect(entry.actorAvatarUrl).toBe('https://example.com/avatar.jpg')
+    expect(result.isOk()).toBe(true)
+    if (!result.isOk()) throw new Error('unreachable')
+    expect(result.value.actorAvatarUrl).toBe('https://example.com/avatar.jpg')
   })
 })

@@ -26,10 +26,9 @@ function makeEntry(overrides: Partial<ActivityLog> = {}): ActivityLog {
 
 function createInMemoryActivityRepo(entries: ActivityLog[] = []): ActivityRepository {
   return {
-    insert: async (entry) => {
-      entries.push(entry as ActivityLog)
-    },
-    findByResource: async (_resourceType, _resourceId, limit) => entries.slice(0, limit),
+    insert: async (_entry) => {},
+    findDuplicate: async () => false,
+    findByResource: async (_rt, _rid, limit) => entries.slice(0, limit),
     findByOrganization: async (_orgId, _filter, _pagination) => entries,
   }
 }
@@ -68,14 +67,10 @@ describe('getActivityTimeline', () => {
     const repo = createInMemoryActivityRepo([
       makeEntry({ id: 'al-1', propertyId: 'prop-1' }),
       makeEntry({ id: 'al-2', propertyId: 'prop-2' }),
-      makeEntry({ id: 'al-3', propertyId: null }), // system-level
+      makeEntry({ id: 'al-3', propertyId: null }),
     ])
-    const deps = {
-      repo,
-      staffPublicApi: staffApiLimited(['prop-1']),
-    }
+    const deps = { repo, staffPublicApi: staffApiLimited(['prop-1']) }
     const result = await getActivityTimeline(deps)(baseInput)
-    // Should include prop-1 (accessible) and null (system-level), but NOT prop-2
     expect(result.map((e) => e.id).sort()).toEqual(['al-1', 'al-3'])
   })
 

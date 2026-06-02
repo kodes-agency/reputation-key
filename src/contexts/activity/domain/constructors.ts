@@ -1,7 +1,9 @@
 // Activity context — entity constructors
+// Per architecture: "Domain Returns Result<T, DomainError>. Never throws."
 
+import { ok, err, type Result } from 'neverthrow'
 import type { ActivityLog, ActivityAction } from './types'
-import { activityError } from './errors'
+import { activityError, type ActivityError } from './errors'
 
 export type CreateActivityLogInput = Readonly<{
   actorId: string
@@ -17,6 +19,8 @@ export type CreateActivityLogInput = Readonly<{
   source: ActivityLog['source']
 }>
 
+// Validators sync with the ActivityAction type union — if you add to the type,
+// add to this set. There's a test enforcing this invariant.
 const ALLOWED_ACTIONS: ReadonlySet<ActivityAction> = new Set([
   'created',
   'changed',
@@ -34,14 +38,16 @@ const ALLOWED_ACTIONS: ReadonlySet<ActivityAction> = new Set([
 export const createActivityLog = (
   input: CreateActivityLogInput,
   clock: () => Date,
-): ActivityLog => {
+): Result<ActivityLog, ActivityError> => {
   if (!ALLOWED_ACTIONS.has(input.action)) {
-    throw activityError('invalid_action', `Invalid action: ${input.action}`, {
-      action: input.action,
-    })
+    return err(
+      activityError('invalid_action', `Invalid action: ${input.action}`, {
+        action: input.action,
+      }),
+    )
   }
 
-  return {
+  return ok({
     id: '', // populated by the database with uuid defaultRandom()
     actorId: input.actorId,
     actorName: input.actorName,
@@ -55,5 +61,5 @@ export const createActivityLog = (
     payload: input.payload,
     source: input.source,
     createdAt: clock(),
-  }
+  })
 }

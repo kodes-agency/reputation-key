@@ -14,8 +14,9 @@ Integration | Google connections, OAuth, tokens, GBP API adapter | GoogleConnect
 Review | External platform reviews (Google), sync, replies | Review | Thick ||
 Inbox | Unified triage surface for reviews + feedback | InboxItem, InboxNote | Thick ||
 Metric | Aggregation of raw counters (scans, ratings, clicks, reviews) | MetricReading | Standard ||
-Goal | Property-scoped goals with progress tracking | Goal, GoalInstance | Thick ||
-Dashboard | Read-only aggregation of metrics, reviews, replies | — | Thin (read model) |
+| Goal | Property-scoped goals with progress tracking | Goal, GoalInstance | Thick |
+| Dashboard | Read-only aggregation of metrics, reviews, replies | — | Thin (read model) |
+| Activity | Immutable audit log, event-driven writes, query-driven reads | ActivityLog | Thin (subscriber) |
 
 **Thin contexts** (like Identity) may have empty layer folders — no mappers, no jobs, sparse use cases. That's expected. **Metric context** has no `server/` layer by design — it records readings via event handlers and background jobs, not via server functions called from routes.
 

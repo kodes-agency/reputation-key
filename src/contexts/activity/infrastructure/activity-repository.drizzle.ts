@@ -12,6 +12,22 @@ export const createActivityRepository = (db: Database): ActivityRepository => ({
     await db.insert(activityLog).values(entry as typeof activityLog.$inferInsert)
   },
 
+  findDuplicate: async (mapped) => {
+    const rows = await db
+      .select({ id: activityLog.id })
+      .from(activityLog)
+      .where(
+        and(
+          eq(activityLog.resourceType, mapped.resourceType),
+          eq(activityLog.resourceId, mapped.resourceId),
+          eq(activityLog.action, mapped.action),
+          eq(activityLog.organizationId, mapped.organizationId),
+        ),
+      )
+      .limit(1)
+    return rows.length > 0
+  },
+
   findByResource: async (resourceType, resourceId, limit) => {
     const rows = await db
       .select()
