@@ -277,6 +277,8 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     events: eventBus,
     clock,
     logger: getLogger(),
+    staffPublicApi: staff.publicApi,
+    identityPort,
   })
 
   // Goal context needs a cancelGoalFn for event handlers.
