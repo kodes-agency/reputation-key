@@ -82,7 +82,10 @@ export const assignInboxItem =
         inboxItemAssigned({
           inboxItemId: updated.id,
           organizationId: updated.organizationId,
+          propertyId: item.propertyId,
+          userId: input.userId,
           assignedTo: input.assignedToUserId,
+          source: 'web',
           occurredAt: deps.clock(),
         }),
       )
@@ -91,7 +94,10 @@ export const assignInboxItem =
         inboxItemUnassigned({
           inboxItemId: updated.id,
           organizationId: updated.organizationId,
+          propertyId: item.propertyId,
+          userId: input.userId,
           previousAssignee: item.assignedTo,
+          source: 'web',
           occurredAt: deps.clock(),
         }),
       )

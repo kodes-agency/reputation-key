@@ -46,7 +46,7 @@ describe('submitRating', () => {
     expect(result.value).toBe(5)
     expect(repo.ratings.length).toBe(1)
     expect(bus.capturedEvents).toHaveLength(1)
-    expect(bus.capturedEvents[0]._tag).toBe('rating.submitted')
+    expect(bus.capturedEvents[0]._tag).toBe('guest.rating.submitted')
   })
 
   it('throws on duplicate rating', async () => {

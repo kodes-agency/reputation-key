@@ -6,7 +6,7 @@ import type {
   PortalLinkId,
 } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import { reviewLinkClicked } from '../../domain/events'
+import { guestReviewLinkClicked } from '../../domain/events'
 
 export type TrackReviewLinkClickDeps = Readonly<{
   events: EventBus
@@ -27,7 +27,7 @@ export const trackReviewLinkClick =
     try {
       const now = deps.clock()
       await deps.events.emit(
-        reviewLinkClicked({
+        guestReviewLinkClicked({
           linkId: input.linkId,
           organizationId: input.organizationId,
           portalId: input.portalId,

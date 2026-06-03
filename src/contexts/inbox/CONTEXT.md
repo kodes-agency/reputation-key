@@ -1,5 +1,9 @@
 # Inbox Context
 
+## Bounded context
+
+TODO: One sentence describing what this context does.
+
 Unified triage surface for reviews and feedback — status tracking, assignment, notes, and new-item counts.
 
 ## Glossary
@@ -38,11 +42,17 @@ Unified triage surface for reviews and feedback — status tracking, assignment,
 
 ## Events produced
 
-| Tag                    | Payload                                                          | When                                       |
-| ---------------------- | ---------------------------------------------------------------- | ------------------------------------------ |
-| `inbox.item.created`   | inboxItemId, orgId, propertyId, sourceType, sourceId, occurredAt | New review or feedback triggers inbox item |
-| `inbox.status.changed` | inboxItemId, orgId, oldStatus, newStatus, occurredAt             | Status transition                          |
-| `inbox.item.assigned`  | inboxItemId, orgId, assignedTo, occurredAt                       | Item assigned to user                      |
+| Tag                         | Payload                                                                          | When                                       |
+| --------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------ |
+| `inbox.item.created`        | inboxItemId, orgId, propertyId, sourceType, sourceId, occurredAt                 | New review or feedback triggers inbox item |
+| `inbox.status.changed`      | inboxItemId, orgId, propertyId, userId, oldStatus, newStatus, occurredAt         | Status transition                          |
+| `inbox.item.assigned`       | inboxItemId, orgId, propertyId, userId, assignedTo, occurredAt                   | Item assigned to user                      |
+| `inbox.item.unassigned`     | inboxItemId, orgId, propertyId, userId, previousAssignee, occurredAt             | Item unassigned from user                  |
+| `inbox.item.escalated`      | inboxItemId, orgId, propertyId, userId, oldStatus, occurredAt                    | Item escalated alongside status.changed    |
+| `inbox.note.added`          | inboxItemId, orgId, propertyId, userId, noteId, text, occurredAt                 | Internal note added to item                |
+| `inbox.bulk.status.changed` | inboxItemId, orgId, propertyId, userId, oldStatus, newStatus, bulkId, occurredAt | Item status changed in bulk operation      |
+
+Note: `inbox.item.created` has no `userId` — it's emitted by sync pipeline event handlers, not user actions. Activity log attributes it to `'system'`.
 
 ## Events consumed
 
@@ -130,9 +140,13 @@ Exported from `application/public-api.ts`:
 | `inbox.write`  | ✓            | ✓               | ✓     |
 | `inbox.manage` | ✓            | ✓               | —     |
 
+> **DEPRECATED per docs/standards.md §4.3**
+
 ## Intentional deviations
 
 - Domain rules (domain/rules.ts) use hasRole() directly for role-based business logic — this is intentional per ADR-0001.
+
+> **DEPRECATED per docs/standards.md §4.3**
 
 ## Flagged ambiguities
 

@@ -5,7 +5,7 @@ import type { OrganizationId, PortalId, PropertyId, RatingId } from '#/shared/do
 import type { ScanSource } from '../../domain/types'
 import { buildRating } from '../../domain/constructors'
 import { guestError } from '../../domain/errors'
-import { ratingSubmitted } from '../../domain/events'
+import { guestRatingSubmitted } from '../../domain/events'
 
 export type SubmitRatingDeps = Readonly<{
   guestRepo: GuestInteractionRepository
@@ -56,7 +56,7 @@ export const submitRating =
     await deps.guestRepo.insertRating(rating)
 
     await deps.events.emit(
-      ratingSubmitted({
+      guestRatingSubmitted({
         ratingId: rating.id,
         organizationId: input.organizationId,
         portalId: input.portalId,

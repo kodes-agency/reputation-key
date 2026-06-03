@@ -1,4 +1,6 @@
 // Metric context — domain events
+// Standards: docs/standards.md §1
+
 import type {
   MetricReadingId,
   OrganizationId,
@@ -8,9 +10,9 @@ import type {
 } from '#/shared/domain/ids'
 import type { MetricKey } from './types'
 
-// fallow-ignore-next-line unused-type
 export type MetricRecorded = Readonly<{
   _tag: 'metric.recorded'
+  eventId: string
   readingId: MetricReadingId
   organizationId: OrganizationId
   propertyId: PropertyId
@@ -18,12 +20,19 @@ export type MetricRecorded = Readonly<{
   groupId: PortalGroupId | null
   metricKey: MetricKey
   value: number
-  recordedAt: Date
+  occurredAt: Date
+  correlationId: string | null
 }>
+export const metricRecorded = (
+  args: Omit<MetricRecorded, '_tag' | 'eventId' | 'correlationId'>,
+): MetricRecorded => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  return {
+    _tag: 'metric.recorded',
+    eventId: crypto.randomUUID(),
+    correlationId: null,
+    ...args,
+  }
+}
 
 export type MetricEvent = MetricRecorded
-
-export const metricRecorded = (args: Omit<MetricRecorded, '_tag'>): MetricRecorded => ({
-  _tag: 'metric.recorded',
-  ...args,
-})

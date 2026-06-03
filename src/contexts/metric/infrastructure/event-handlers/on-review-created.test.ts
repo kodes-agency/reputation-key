@@ -22,7 +22,7 @@ const createFakeDeps = (): OnReviewCreatedDeps & {
       return {
         id: metricReadingId('metric-1'),
         ...input,
-        recordedAt: FIXED_TIME,
+        occurredAt: FIXED_TIME,
       } as MetricReading
     },
   }
@@ -39,6 +39,8 @@ describe('onReviewCreated', () => {
     const handler = onReviewCreated(deps)
     await handler({
       _tag: 'review.created',
+      eventId: 'test-event-id',
+      correlationId: null,
       reviewId: reviewId('rev-1'),
       propertyId: propertyId('prop-1'),
       organizationId: organizationId('org-1'),
@@ -64,6 +66,8 @@ describe('onReviewCreated', () => {
     const handler = onReviewCreated(deps)
     await handler({
       _tag: 'review.created',
+      eventId: 'test-event-id',
+      correlationId: null,
       reviewId: reviewId('rev-2'),
       propertyId: propertyId('prop-1'),
       organizationId: organizationId('org-1'),
@@ -89,6 +93,8 @@ describe('onReviewCreated', () => {
     await expect(
       handler({
         _tag: 'review.created',
+        eventId: 'test-event-id',
+        correlationId: null,
         reviewId: reviewId('rev-1'),
         propertyId: propertyId('prop-1'),
         organizationId: organizationId('org-1'),

@@ -9,11 +9,12 @@ import type { EventBus } from '#/shared/events/event-bus'
 import { can } from '#/shared/domain/permissions'
 import { canInviteWithRole } from '../../domain/rules'
 import { identityError } from '../../domain/errors'
-import { memberInvited } from '../../domain/events'
+import { identityMemberInvited } from '../../domain/events'
 import type { InviteMemberInput } from '../dto/invitation.dto'
 
 // fallow-ignore-next-line unused-type
 export type { InviteMemberInput }
+export type InviteMember = ReturnType<typeof inviteMember>
 
 type Deps = Readonly<{
   identity: IdentityPort
@@ -55,11 +56,11 @@ export const inviteMember =
 
     // 5. Emit event
     await deps.events.emit(
-      memberInvited({
+      identityMemberInvited({
         organizationId: ctx.organizationId,
         email: input.email,
         role: input.role,
-        inviterId: ctx.userId,
+        userId: ctx.userId,
         invitationId,
         occurredAt: deps.clock(),
       }),

@@ -1,94 +1,152 @@
 // Identity context — domain events
-// Per architecture: "Events are facts, named in the past tense."
-// Events live in their owning context's domain/events.ts.
+// Standards: docs/standards.md §1
 
 import type { OrganizationId, UserId, InvitationId } from '#/shared/domain/ids'
 import type { Role } from '#/shared/domain/roles'
 
-export type IdentityEvent =
-  | OrganizationCreated
-  | MemberInvited
-  | InvitationAccepted
-  | InvitationRejected
-  | MemberRemoved
-  | MemberRoleChanged
-
-// fallow-ignore-next-line unused-type
-export type OrganizationCreated = Readonly<{
-  _tag: 'organization.created'
+export type IdentityOrganizationCreated = Readonly<{
+  _tag: 'identity.organization.created'
+  eventId: string
   organizationId: OrganizationId
   organizationName: string
   slug: string
   ownerId: UserId
   occurredAt: Date
+  correlationId: string | null
 }>
+export const identityOrganizationCreated = (
+  args: Omit<IdentityOrganizationCreated, '_tag' | 'eventId' | 'correlationId'>,
+): IdentityOrganizationCreated => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  assert(args.organizationName.length > 0, 'organizationName required')
+  return {
+    _tag: 'identity.organization.created',
+    eventId: crypto.randomUUID(),
+    correlationId: null,
+    ...args,
+  }
+}
 
-// fallow-ignore-next-line unused-type
-export type MemberInvited = Readonly<{
-  _tag: 'member.invited'
+export type IdentityMemberInvited = Readonly<{
+  _tag: 'identity.member.invited'
+  eventId: string
   organizationId: OrganizationId
   email: string
   role: Role
-  inviterId: UserId
+  userId: UserId
   invitationId: InvitationId
   occurredAt: Date
+  correlationId: string | null
 }>
+export const identityMemberInvited = (
+  args: Omit<IdentityMemberInvited, '_tag' | 'eventId' | 'correlationId'>,
+): IdentityMemberInvited => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  assert(args.userId !== '', 'userId required')
+  return {
+    _tag: 'identity.member.invited',
+    eventId: crypto.randomUUID(),
+    correlationId: null,
+    ...args,
+  }
+}
 
-// fallow-ignore-next-line unused-type
-export type InvitationAccepted = Readonly<{
-  _tag: 'invitation.accepted'
+export type IdentityInvitationAccepted = Readonly<{
+  _tag: 'identity.invitation.accepted'
+  eventId: string
   organizationId: OrganizationId
   userId: UserId
   role: Role
   invitationId: InvitationId
   occurredAt: Date
+  correlationId: string | null
 }>
+export const identityInvitationAccepted = (
+  args: Omit<IdentityInvitationAccepted, '_tag' | 'eventId' | 'correlationId'>,
+): IdentityInvitationAccepted => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  return {
+    _tag: 'identity.invitation.accepted',
+    eventId: crypto.randomUUID(),
+    correlationId: null,
+    ...args,
+  }
+}
 
-// fallow-ignore-next-line unused-type
-export type InvitationRejected = Readonly<{
-  _tag: 'invitation.rejected'
+export type IdentityInvitationRejected = Readonly<{
+  _tag: 'identity.invitation.rejected'
+  eventId: string
   organizationId: OrganizationId
   invitationId: InvitationId
   email: string
   occurredAt: Date
+  correlationId: string | null
 }>
+export const identityInvitationRejected = (
+  args: Omit<IdentityInvitationRejected, '_tag' | 'eventId' | 'correlationId'>,
+): IdentityInvitationRejected => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  return {
+    _tag: 'identity.invitation.rejected',
+    eventId: crypto.randomUUID(),
+    correlationId: null,
+    ...args,
+  }
+}
 
-// fallow-ignore-next-line unused-type
-export type MemberRemoved = Readonly<{
-  _tag: 'member.removed'
+export type IdentityMemberRemoved = Readonly<{
+  _tag: 'identity.member.removed'
+  eventId: string
   organizationId: OrganizationId
   userId: UserId
   removedBy: UserId
   occurredAt: Date
+  correlationId: string | null
 }>
+export const identityMemberRemoved = (
+  args: Omit<IdentityMemberRemoved, '_tag' | 'eventId' | 'correlationId'>,
+): IdentityMemberRemoved => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  assert(args.userId !== '', 'userId required')
+  return {
+    _tag: 'identity.member.removed',
+    eventId: crypto.randomUUID(),
+    correlationId: null,
+    ...args,
+  }
+}
 
-// fallow-ignore-next-line unused-type
-export type MemberRoleChanged = Readonly<{
-  _tag: 'member.role-changed'
+export type IdentityMemberRoleChanged = Readonly<{
+  _tag: 'identity.member.role_changed'
+  eventId: string
   organizationId: OrganizationId
   userId: UserId
   previousRole: Role
   newRole: Role
   changedBy: UserId
   occurredAt: Date
+  correlationId: string | null
 }>
+export const identityMemberRoleChanged = (
+  args: Omit<IdentityMemberRoleChanged, '_tag' | 'eventId' | 'correlationId'>,
+): IdentityMemberRoleChanged => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  assert(
+    args.previousRole !== args.newRole,
+    'Role change must transition to different role',
+  )
+  return {
+    _tag: 'identity.member.role_changed',
+    eventId: crypto.randomUUID(),
+    correlationId: null,
+    ...args,
+  }
+}
 
-// ── Event constructors ──────────────────────────────────────────────
-
-export const organizationCreated = (
-  args: Omit<OrganizationCreated, '_tag'>,
-): OrganizationCreated => ({ _tag: 'organization.created', ...args })
-
-export const memberInvited = (args: Omit<MemberInvited, '_tag'>): MemberInvited => ({
-  _tag: 'member.invited',
-  ...args,
-})
-
-export const memberRemoved = (args: Omit<MemberRemoved, '_tag'>): MemberRemoved => ({
-  _tag: 'member.removed',
-  ...args,
-})
-
-export const memberRoleChanged = (
-  args: Omit<MemberRoleChanged, '_tag'>,
-): MemberRoleChanged => ({ _tag: 'member.role-changed', ...args })
+export type IdentityEvent =
+  | IdentityOrganizationCreated
+  | IdentityMemberInvited
+  | IdentityInvitationAccepted
+  | IdentityInvitationRejected
+  | IdentityMemberRemoved
+  | IdentityMemberRoleChanged

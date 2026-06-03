@@ -259,7 +259,7 @@ describe('submitReply', () => {
     ).rejects.toThrow()
   })
 
-  it('emits replySubmitted event with correct data', async () => {
+  it('emits reviewReplySubmitted event with correct data', async () => {
     const draft = makeReply({ status: 'draft' })
     const review = makeReview()
     const deps = makeDeps({
@@ -274,7 +274,7 @@ describe('submitReply', () => {
     await submitReply(deps)({ ...MANAGER_CTX, reviewId: REVIEW_ID })
     expect(deps.events.emit).toHaveBeenCalledTimes(1)
     const emittedEvent = (deps.events.emit as ReturnType<typeof vi.fn>).mock.calls[0][0]
-    expect(emittedEvent._tag).toBe('reply.submitted')
+    expect(emittedEvent._tag).toBe('review.reply.submitted')
     expect(emittedEvent.replyId).toBe(REPLY_ID)
     expect(emittedEvent.reviewId).toBe(REVIEW_ID)
     expect(emittedEvent.propertyId).toBe(PROP_ID)
@@ -335,7 +335,7 @@ describe('approveReply', () => {
     ).rejects.toThrow()
   })
 
-  it('emits replyApproved event with correct data', async () => {
+  it('emits reviewReplyApproved event with correct data', async () => {
     const pending = makeReply({ status: 'pending_approval' })
     const review = makeReview()
     const deps = makeDeps({
@@ -350,7 +350,7 @@ describe('approveReply', () => {
     await approveReply(deps)({ ...MANAGER_CTX, reviewId: REVIEW_ID })
     expect(deps.events.emit).toHaveBeenCalledTimes(1)
     const emittedEvent = (deps.events.emit as ReturnType<typeof vi.fn>).mock.calls[0][0]
-    expect(emittedEvent._tag).toBe('reply.approved')
+    expect(emittedEvent._tag).toBe('review.reply.approved')
     expect(emittedEvent.replyId).toBe(REPLY_ID)
     expect(emittedEvent.reviewId).toBe(REVIEW_ID)
     expect(emittedEvent.propertyId).toBe(PROP_ID)
@@ -396,7 +396,7 @@ describe('rejectReply', () => {
     expect(result.rejectionReason).toBeNull()
   })
 
-  it('emits replyRejected event with correct data', async () => {
+  it('emits reviewReplyRejected event with correct data', async () => {
     const pending = makeReply({ status: 'pending_approval' })
     const review = makeReview()
     const deps = makeDeps({
@@ -415,7 +415,7 @@ describe('rejectReply', () => {
     })
     expect(deps.events.emit).toHaveBeenCalledTimes(1)
     const emittedEvent = (deps.events.emit as ReturnType<typeof vi.fn>).mock.calls[0][0]
-    expect(emittedEvent._tag).toBe('reply.rejected')
+    expect(emittedEvent._tag).toBe('review.reply.rejected')
     expect(emittedEvent.replyId).toBe(REPLY_ID)
     expect(emittedEvent.reviewId).toBe(REVIEW_ID)
     expect(emittedEvent.propertyId).toBe(PROP_ID)

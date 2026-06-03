@@ -192,7 +192,7 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     db,
     events: eventBus,
     clock,
-    linkResolver: portal.linkResolver,
+    linkResolver: portal.internal.repos.linkResolver,
     portalApi: portal.publicApi,
     logger,
   })
@@ -220,9 +220,9 @@ export function createContainer(options?: { enableJobs?: boolean }) {
   // The GoogleReviewApiAdapter lives in integration/infrastructure but
   // implements review context's port. Composition root wires them.
   const googleReviewApi = createGoogleReviewApiAdapter({
-    connectionRepo: integration.connectionRepo,
-    encryption: integration.encryptionPort,
-    refreshToken: integration.refreshGoogleTokenUseCase,
+    connectionRepo: integration.internal.repos.connectionRepo,
+    encryption: integration.internal.repos.encryptionPort,
+    refreshToken: integration.internal.useCases.refreshGoogleToken,
   })
 
   const review = buildReviewContext({
@@ -240,13 +240,16 @@ export function createContainer(options?: { enableJobs?: boolean }) {
   // Adapters live in inbox/infrastructure/adapters/ — cross-context SQL is
   // encapsulated there, not in the composition root or inbox repository.
   const reviewLookup = createReviewLookupAdapter({
-    findReviewById: (id, orgId) => review.reviewRepo.findById(id, orgId),
-    findReviewsByIds: (ids, orgId) => review.reviewRepo.findByIds(ids, orgId),
+    findReviewById: (id, orgId) => review.internal.repos.reviewRepo.findById(id, orgId),
+    findReviewsByIds: (ids, orgId) =>
+      review.internal.repos.reviewRepo.findByIds(ids, orgId),
   })
 
   const feedbackLookup = createFeedbackLookupAdapter({
-    findFeedbackById: (id, orgId) => guest.guestRepo.findFeedbackById(id, orgId),
-    findRatingById: (id, orgId) => guest.guestRepo.findRatingById(id, orgId),
+    findFeedbackById: (id, orgId) =>
+      guest.internal.repos.guestRepo.findFeedbackById(id, orgId),
+    findRatingById: (id, orgId) =>
+      guest.internal.repos.guestRepo.findRatingById(id, orgId),
   })
 
   const inboxPropertyLookup = createPropertyLookupAdapter({
@@ -319,7 +322,7 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     const oid = toOrgId(organizationId)
     for (const pid of propertyIds) {
       try {
-        await staff.useCases.createStaffAssignment(
+        await staff.internal.useCases.createStaffAssignment(
           {
             userId: uid,
             propertyId: propertyId(pid),
@@ -345,43 +348,43 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     jobQueue: infra.jobQueue,
     jobRegistry: infra.jobRegistry,
     useCases: {
-      ...identity.useCases,
-      ...property.useCases,
-      ...staff.useCases,
-      ...team.useCases,
-      ...portal.useCases,
-      ...guest.useCases,
-      ...integration.useCases,
+      ...identity.internal.useCases,
+      ...property.internal.useCases,
+      ...staff.internal.useCases,
+      ...team.internal.useCases,
+      ...portal.internal.useCases,
+      ...guest.internal.useCases,
+      ...integration.internal.useCases,
       handleGbpNotification: handleGbpNotification({
         propertyLookup,
-        reviewQueue: review.queue,
+        reviewQueue: review.internal.repos.queue,
         logger: getLogger(),
       }),
-      syncReviews: review.syncReviews,
-      draftReply: review.draftReply,
-      submitReply: review.submitReply,
-      approveReply: review.approveReply,
-      rejectReply: review.rejectReply,
-      deleteReply: review.deleteReply,
-      getReply: review.getReply,
-      retryPublish: review.retryPublish,
-      ...inbox.useCases,
-      getDashboardData: dashboard.getDashboardData,
-      getPortalAnalytics: dashboard.getPortalAnalytics,
-      ...goal.useCases,
+      syncReviews: review.internal.useCases.syncReviews,
+      draftReply: review.internal.useCases.draftReply,
+      submitReply: review.internal.useCases.submitReply,
+      approveReply: review.internal.useCases.approveReply,
+      rejectReply: review.internal.useCases.rejectReply,
+      deleteReply: review.internal.useCases.deleteReply,
+      getReply: review.internal.useCases.getReply,
+      retryPublish: review.internal.useCases.retryPublish,
+      ...inbox.internal.useCases,
+      getDashboardData: dashboard.publicApi.getDashboardData,
+      getPortalAnalytics: dashboard.publicApi.getPortalAnalytics,
+      ...goal.internal.useCases,
     },
-    storage: portal.storage,
-    portalRepo: portal.portalRepo,
-    portalLinkRepo: portal.portalLinkRepo,
-    reviewRepo: review.reviewRepo,
-    replyRepo: review.replyRepo,
-    reviewQueue: review.queue,
-    replyQueue: review.replyQueue,
+    storage: portal.internal.repos.storage,
+    portalRepo: portal.internal.repos.portalRepo,
+    portalLinkRepo: portal.internal.repos.portalLinkRepo,
+    reviewRepo: review.internal.repos.reviewRepo,
+    replyRepo: review.internal.repos.replyRepo,
+    reviewQueue: review.internal.repos.queue,
+    replyQueue: review.internal.repos.replyQueue,
     googleReviewApi,
-    inboxRepo: inbox.inboxRepo,
-    inboxNoteRepo: inbox.inboxNoteRepo,
-    newCounter: inbox.newCounter,
-    goalRepo: goal.goalRepo,
+    inboxRepo: inbox.internal.repos.inboxRepo,
+    inboxNoteRepo: inbox.internal.repos.inboxNoteRepo,
+    newCounter: inbox.internal.repos.newCounter,
+    goalRepo: goal.internal.repos.goalRepo,
     activityPublicApi: activity.publicApi,
     metricPublicApi: metricApi.publicApi,
   } as const

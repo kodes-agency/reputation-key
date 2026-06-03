@@ -1,5 +1,9 @@
 # Portal Context
 
+## Bounded context
+
+TODO: One sentence describing what this context does.
+
 Portal page management — creation, configuration, theming, link management, image uploads, and portal group aggregation.
 
 ## Glossary

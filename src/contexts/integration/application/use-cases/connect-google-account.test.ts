@@ -44,7 +44,7 @@ describe('connectGoogleAccount', () => {
     expect(result.status).toBe('active')
     expect(result.organizationId).toBe(ctx.organizationId)
 
-    const emitted = events.capturedByTag('google_account.connected')
+    const emitted = events.capturedByTag('integration.google_account.connected')
     expect(emitted).toHaveLength(1)
     expect(emitted[0].connectionId).toBe(result.id)
     expect(emitted[0].googleEmail).toBe('test@gmail.com')
@@ -94,7 +94,7 @@ describe('connectGoogleAccount', () => {
     expect(result.visibility).toBe('organization')
     expect(connectionRepo.all()).toHaveLength(1)
 
-    const emitted = events.capturedByTag('google_account.connected')
+    const emitted = events.capturedByTag('integration.google_account.connected')
     expect(emitted).toHaveLength(1)
     expect(emitted[0].connectionId).toBe(existing.id)
   })

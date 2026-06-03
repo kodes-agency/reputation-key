@@ -20,7 +20,7 @@ describe('trackReviewLinkClick', () => {
     })
 
     expect(bus.capturedEvents).toHaveLength(1)
-    expect(bus.capturedEvents[0]._tag).toBe('review-link.clicked')
+    expect(bus.capturedEvents[0]._tag).toBe('guest.review_link.clicked')
   })
 
   it('silently fails when event emit throws', async () => {

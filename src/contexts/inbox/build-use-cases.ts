@@ -30,7 +30,7 @@ type WireInput = Readonly<{
   clock: () => Date
 }>
 
-export function wireUseCases(input: WireInput): InboxContextApi['useCases'] {
+export function wireUseCases(input: WireInput): InboxContextApi['internal']['useCases'] {
   return {
     createInboxItem: createInboxItemUseCase({
       repo: input.inboxRepo,

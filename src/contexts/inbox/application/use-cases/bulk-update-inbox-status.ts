@@ -10,7 +10,7 @@ import type { InboxStatus } from '../../domain/types'
 import type { Role } from '#/shared/domain/roles'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { validateTransition } from '../../domain/rules'
-import { inboxBulkStatusChanged } from '../../domain/events'
+import { inboxItemBulkStatusChanged } from '../../domain/events'
 import { can } from '#/shared/domain/permissions'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 
@@ -126,7 +126,7 @@ export const bulkUpdateInboxStatus =
     // Emit bulk status changed events for each updated item
     for (const id of validIds) {
       await deps.events.emit(
-        inboxBulkStatusChanged({
+        inboxItemBulkStatusChanged({
           inboxItemId: id,
           organizationId: input.organizationId,
           oldStatus: oldStatuses.get(id)!,

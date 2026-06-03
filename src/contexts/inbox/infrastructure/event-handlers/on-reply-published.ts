@@ -1,13 +1,13 @@
 // Inbox context — event handler for reply.published
 // Auto-transitions the corresponding inbox item to 'addressed'.
 
-import type { ReplyPublished } from '#/contexts/review/application/public-api'
+import type { ReviewReplyPublished } from '#/contexts/review/application/public-api'
 import type { InboxRepository } from '../../application/ports/inbox.repository'
 import type { NewCounterPort } from '../../application/ports/new-counter.port'
 import type { EventBus } from '#/shared/events/event-bus'
 import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
-import { inboxStatusChanged } from '../../domain/events'
+import { inboxItemStatusChanged } from '../../domain/events'
 
 export type OnReplyPublishedDeps = Readonly<{
   repo: InboxRepository
@@ -17,7 +17,7 @@ export type OnReplyPublishedDeps = Readonly<{
 
 export const onReplyPublished =
   (deps: OnReplyPublishedDeps) =>
-  async (event: ReplyPublished): Promise<void> => {
+  async (event: ReviewReplyPublished): Promise<void> => {
     return trace('event.onReplyPublished', async () => {
       try {
         const inboxItem = await deps.repo.findBySource(
@@ -66,7 +66,7 @@ export const onReplyPublished =
 
         // Emit status changed event
         await deps.events.emit(
-          inboxStatusChanged({
+          inboxItemStatusChanged({
             inboxItemId: inboxItem.id,
             organizationId: inboxItem.organizationId,
             oldStatus,

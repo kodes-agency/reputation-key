@@ -82,8 +82,7 @@ const handleActivityEvent =
 
 // Helper to extract userId from various event shapes
 function extractUserId(event: DomainEvent): string | null {
-  if ('authorUserId' in event && typeof event.authorUserId === 'string')
-    return event.authorUserId
+  if ('userId' in event && typeof event.userId === 'string') return event.userId
   if ('userId' in event && typeof event.userId === 'string') return event.userId
   if ('assignedTo' in event && typeof event.assignedTo === 'string')
     return event.assignedTo
@@ -94,17 +93,17 @@ export const registerActivityHandlers = (deps: RegisterActivityHandlersDeps): vo
   const handler = handleActivityEvent(deps)
 
   const EVENT_TAGS = [
-    'inbox.item.created',
-    'inbox.status.changed',
-    'inbox.item.escalated',
-    'inbox.item.assigned',
-    'inbox.item.unassigned',
-    'inbox.note.added',
-    'inbox.bulk.status.changed',
-    'reply.published',
-    'reply.submitted',
-    'reply.approved',
-    'reply.rejected',
+    'inbox.inbox_item.created',
+    'inbox.inbox_item.status_changed',
+    'inbox.inbox_item.escalated',
+    'inbox.inbox_item.assigned',
+    'inbox.inbox_item.unassigned',
+    'inbox.inbox_note.added',
+    'inbox.inbox_item.bulk_status_changed',
+    'review.reply.published',
+    'review.reply.submitted',
+    'review.reply.approved',
+    'review.reply.rejected',
   ] as const
 
   for (const tag of EVENT_TAGS) {

@@ -1,7 +1,7 @@
 // Inbox context — event handler for feedback.submitted
 // Creates an inbox item when guest feedback is submitted.
 
-import type { FeedbackSubmitted } from '#/contexts/guest/application/public-api'
+import type { GuestFeedbackSubmitted } from '#/contexts/guest/application/public-api'
 import type { CreateInboxItemUseCase } from '../../application/use-cases/create-inbox-item'
 import { isInboxError } from '../../domain/errors'
 import { getLogger } from '#/shared/observability/logger'
@@ -13,7 +13,7 @@ export type OnFeedbackSubmittedDeps = Readonly<{
 
 export const onFeedbackSubmitted =
   (deps: OnFeedbackSubmittedDeps) =>
-  async (event: FeedbackSubmitted): Promise<void> => {
+  async (event: GuestFeedbackSubmitted): Promise<void> => {
     return trace('event.onFeedbackSubmitted', async () => {
       try {
         await deps.createInboxItem({

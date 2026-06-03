@@ -59,5 +59,8 @@ export const buildActivityContext = (input: BuildInput) => {
     getOrgActivity: orgActivity,
   }
 
-  return { publicApi }
+  return {
+    publicApi,
+    internal: { repos: { activityRepo: repo }, useCases: {} as const },
+  } as const
 }

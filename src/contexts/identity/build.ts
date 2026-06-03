@@ -94,5 +94,5 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     }),
   } as const
 
-  return { useCases } as const
+  return { publicApi: {} as const, internal: { repos: {} as const, useCases } } as const
 }

@@ -2,18 +2,18 @@ import { describe, it, expect } from 'vitest'
 import { eventToActivity } from '../application/event-to-activity'
 import {
   inboxItemCreated,
-  inboxStatusChanged,
+  inboxItemStatusChanged,
   inboxItemAssigned,
   inboxItemUnassigned,
   inboxNoteAdded,
   inboxItemEscalated,
-  inboxBulkStatusChanged,
+  inboxItemBulkStatusChanged,
 } from '#/contexts/inbox/domain/events'
 import {
-  replyPublished,
-  replySubmitted,
-  replyApproved,
-  replyRejected,
+  reviewReplyPublished,
+  reviewReplySubmitted,
+  reviewReplyApproved,
+  reviewReplyRejected,
   reviewCreated,
   reviewUpdated,
 } from '#/contexts/review/domain/events'
@@ -55,7 +55,7 @@ describe('eventToActivity', () => {
   })
 
   it('maps inbox.status.changed', () => {
-    const event = inboxStatusChanged({
+    const event = inboxItemStatusChanged({
       inboxItemId: inboxItemId('item-1'),
       organizationId: organizationId('org-1'),
       oldStatus: 'new',
@@ -135,7 +135,7 @@ describe('eventToActivity', () => {
     const event = inboxNoteAdded({
       inboxItemId: inboxItemId('item-1'),
       organizationId: organizationId('org-1'),
-      authorUserId: userId('user-1'),
+      userId: userId('user-1'),
       noteId: inboxNoteId('note-1'),
       text,
       occurredAt: new Date(),
@@ -159,7 +159,7 @@ describe('eventToActivity', () => {
     const event = inboxNoteAdded({
       inboxItemId: inboxItemId('item-1'),
       organizationId: organizationId('org-1'),
-      authorUserId: userId('user-1'),
+      userId: userId('user-1'),
       noteId: inboxNoteId('note-1'),
       text: longText,
       occurredAt: new Date(),
@@ -173,7 +173,7 @@ describe('eventToActivity', () => {
   })
 
   it('maps inbox.bulk.status.changed', () => {
-    const event = inboxBulkStatusChanged({
+    const event = inboxItemBulkStatusChanged({
       inboxItemId: inboxItemId('item-1'),
       organizationId: organizationId('org-1'),
       oldStatus: 'new',
@@ -194,7 +194,7 @@ describe('eventToActivity', () => {
   })
 
   it('maps reply.published', () => {
-    const event = replyPublished({
+    const event = reviewReplyPublished({
       replyId: replyId('reply-1'),
       reviewId: reviewId('rev-1'),
       propertyId: propertyId('prop-1'),
@@ -213,7 +213,7 @@ describe('eventToActivity', () => {
   })
 
   it('maps reply.submitted', () => {
-    const event = replySubmitted({
+    const event = reviewReplySubmitted({
       replyId: replyId('reply-1'),
       reviewId: reviewId('rev-1'),
       propertyId: propertyId('prop-1'),
@@ -232,7 +232,7 @@ describe('eventToActivity', () => {
   })
 
   it('maps reply.approved', () => {
-    const event = replyApproved({
+    const event = reviewReplyApproved({
       replyId: replyId('reply-1'),
       reviewId: reviewId('rev-1'),
       propertyId: propertyId('prop-1'),
@@ -250,7 +250,7 @@ describe('eventToActivity', () => {
   })
 
   it('maps reply.rejected with reason', () => {
-    const event = replyRejected({
+    const event = reviewReplyRejected({
       replyId: replyId('reply-1'),
       reviewId: reviewId('rev-1'),
       propertyId: propertyId('prop-1'),
@@ -269,7 +269,7 @@ describe('eventToActivity', () => {
   })
 
   it('maps reply.rejected with null reason', () => {
-    const event = replyRejected({
+    const event = reviewReplyRejected({
       replyId: replyId('reply-1'),
       reviewId: reviewId('rev-1'),
       propertyId: propertyId('prop-1'),
@@ -312,7 +312,7 @@ describe('eventToActivity', () => {
       groupId: null,
       metricKey: 'portal.scan',
       value: 42,
-      recordedAt: new Date(),
+      occurredAt: new Date(),
     })
 
     const result = eventToActivity(event)

@@ -30,21 +30,25 @@ export type GoalContextBuildInput = Readonly<{
 }>
 
 export type GoalContextApi = Readonly<{
-  useCases: {
-    createGoal: ReturnType<typeof createGoal>
-    updateGoal: ReturnType<typeof updateGoal>
-    cancelGoal: ReturnType<typeof cancelGoal>
-    listGoals: ReturnType<typeof listGoals>
-    getGoal: ReturnType<typeof getGoal>
-  }
-  goalRepo: GoalRepository
-  events: EventBus
   publicApi: Readonly<{
     createGoal: ReturnType<typeof createGoal>
     updateGoal: ReturnType<typeof updateGoal>
     cancelGoal: ReturnType<typeof cancelGoal>
     listGoals: ReturnType<typeof listGoals>
     getGoal: ReturnType<typeof getGoal>
+  }>
+  internal: Readonly<{
+    repos: Readonly<{
+      goalRepo: GoalRepository
+      events: EventBus
+    }>
+    useCases: Readonly<{
+      createGoal: ReturnType<typeof createGoal>
+      updateGoal: ReturnType<typeof updateGoal>
+      cancelGoal: ReturnType<typeof cancelGoal>
+      listGoals: ReturnType<typeof listGoals>
+      getGoal: ReturnType<typeof getGoal>
+    }>
   }>
 }>
 
@@ -88,21 +92,25 @@ export const buildGoalContext = (input: GoalContextBuildInput): GoalContextApi =
   })
 
   return {
-    useCases: {
-      createGoal: _createGoal,
-      updateGoal: _updateGoal,
-      cancelGoal: _cancelGoal,
-      listGoals: _listGoals,
-      getGoal: _getGoal,
-    },
-    goalRepo,
-    events: input.events,
     publicApi: {
       createGoal: _createGoal,
       updateGoal: _updateGoal,
       cancelGoal: _cancelGoal,
       listGoals: _listGoals,
       getGoal: _getGoal,
+    },
+    internal: {
+      repos: {
+        goalRepo,
+        events: input.events,
+      },
+      useCases: {
+        createGoal: _createGoal,
+        updateGoal: _updateGoal,
+        cancelGoal: _cancelGoal,
+        listGoals: _listGoals,
+        getGoal: _getGoal,
+      },
     },
   }
 }

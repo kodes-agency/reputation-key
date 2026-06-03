@@ -42,6 +42,8 @@ function makeInboxItem(overrides: Partial<InboxItem> = {}): InboxItem {
 
 const mockEvent: ReviewUpdated = {
   _tag: 'review.updated',
+  eventId: 'test-event-id',
+  correlationId: null,
   reviewId: REVIEW_ID,
   propertyId: PROP_ID,
   organizationId: ORG_ID,

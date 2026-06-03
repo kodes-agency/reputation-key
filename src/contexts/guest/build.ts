@@ -69,5 +69,11 @@ export const buildGuestContext = (deps: GuestContextDeps) => {
     getPublicPortal: getPublicPortal({ publicPortalLookup }),
   } as const
 
-  return { useCases, guestRepo, portalContextResolver, publicPortalLookup } as const
+  return {
+    publicApi: {
+      getPublicPortal: useCases.getPublicPortal,
+      resolvePortalContext: useCases.resolvePortalContext,
+    },
+    internal: { repos: { guestRepo, portalContextResolver }, useCases },
+  } as const
 }

@@ -10,7 +10,7 @@ import type {
 } from '#/shared/domain/ids'
 import type { ScanSource } from '../../domain/types'
 import { buildFeedback } from '../../domain/constructors'
-import { feedbackSubmitted } from '../../domain/events'
+import { guestFeedbackSubmitted } from '../../domain/events'
 
 export type SubmitFeedbackDeps = Readonly<{
   guestRepo: GuestInteractionRepository
@@ -54,7 +54,7 @@ export const submitFeedback =
     await deps.guestRepo.insertFeedback(feedback)
 
     await deps.events.emit(
-      feedbackSubmitted({
+      guestFeedbackSubmitted({
         feedbackId: feedback.id,
         organizationId: input.organizationId,
         portalId: input.portalId,

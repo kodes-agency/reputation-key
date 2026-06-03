@@ -21,7 +21,7 @@ type CreateMetricReadingInput = Readonly<{
   metricKey: MetricKey
   value: number
   groupId: PortalGroupId | null
-  recordedAt: Date
+  occurredAt: Date
 }>
 
 export const createMetricReading = (
@@ -53,6 +53,6 @@ export const createMetricReading = (
     metricKey: input.metricKey,
     value: input.value,
     groupId: input.groupId,
-    recordedAt: input.recordedAt,
+    occurredAt: input.occurredAt,
   })
 }

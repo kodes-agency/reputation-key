@@ -9,7 +9,7 @@ import type { UpdateConnectionVisibilityInput } from '../dto/update-connection-v
 import { can } from '#/shared/domain/permissions'
 import { googleConnectionId } from '#/shared/domain/ids'
 import { integrationError } from '../../domain/errors'
-import { googleConnectionVisibilityChanged } from '../../domain/events'
+import { integrationGoogleConnectionVisibilityChanged } from '../../domain/events'
 
 export type UpdateConnectionVisibilityDeps = Readonly<{
   connectionRepo: GoogleConnectionRepository
@@ -59,7 +59,7 @@ export const updateConnectionVisibility =
 
     // 4. Emit event
     await deps.events.emit(
-      googleConnectionVisibilityChanged({
+      integrationGoogleConnectionVisibilityChanged({
         connectionId,
         organizationId: ctx.organizationId,
         visibility: input.visibility,

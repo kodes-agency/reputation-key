@@ -152,7 +152,7 @@ describe('bulkUpdateInboxStatus', () => {
       role: 'AccountAdmin' as Role,
     })
 
-    const emitted = events.capturedByTag('inbox.bulk.status.changed')
+    const emitted = events.capturedByTag('inbox.inbox_item.bulk_status_changed')
     expect(emitted).toHaveLength(2)
     const bulkIds = emitted.map((e) => e.bulkId)
     expect(bulkIds[0]).toBeTruthy()

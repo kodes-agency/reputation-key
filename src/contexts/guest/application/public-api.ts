@@ -4,11 +4,16 @@
 
 export type { ScanEvent, Rating, Feedback, ScanSource } from '../domain/types'
 
-export { scanRecorded, ratingSubmitted, feedbackSubmitted, reviewLinkClicked } from '../domain/events'
+export {
+  guestScanRecorded,
+  guestRatingSubmitted,
+  guestFeedbackSubmitted,
+  guestReviewLinkClicked,
+} from '../domain/events'
 export type {
-  ScanRecorded,
-  RatingSubmitted,
-  FeedbackSubmitted,
-  ReviewLinkClicked,
+  GuestScanRecorded,
+  GuestRatingSubmitted,
+  GuestFeedbackSubmitted,
+  GuestReviewLinkClicked,
   GuestEvent,
 } from '../domain/events'

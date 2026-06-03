@@ -3,7 +3,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { onFeedbackSubmitted } from './on-feedback-submitted'
 import type { CreateInboxItemUseCase } from '../../application/use-cases/create-inbox-item'
-import type { FeedbackSubmitted } from '#/contexts/guest/application/public-api'
+import type { GuestFeedbackSubmitted } from '#/contexts/guest/application/public-api'
 import {
   organizationId,
   propertyId,
@@ -19,8 +19,10 @@ const PORTAL_ID = portalId('portal-1')
 const RATING_ID = ratingId('rating-1')
 const NOW = new Date('2025-06-01T12:00:00Z')
 
-const mockEvent: FeedbackSubmitted = {
-  _tag: 'feedback.submitted',
+const mockEvent: GuestFeedbackSubmitted = {
+  _tag: 'guest.feedback.submitted',
+  eventId: 'test-event-id',
+  correlationId: null,
   feedbackId: FEEDBACK_ID,
   organizationId: ORG_ID,
   portalId: PORTAL_ID,
@@ -53,6 +55,8 @@ describe('onFeedbackSubmitted', () => {
   it('silently handles already_exists error', async () => {
     const alreadyExistsErr = {
       _tag: 'InboxError',
+      eventId: 'test-event-id',
+      correlationId: null,
       code: 'already_exists' as const,
       message: 'duplicate',
     }

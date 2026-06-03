@@ -36,18 +36,25 @@ export type ReviewContextBuildInput = Readonly<{
 }>
 
 export type ReviewContextApi = Readonly<{
-  syncReviews: ReturnType<typeof syncReviews>
-  draftReply: ReturnType<typeof draftReply>
-  submitReply: ReturnType<typeof submitReply>
-  approveReply: ReturnType<typeof approveReply>
-  rejectReply: ReturnType<typeof rejectReply>
-  deleteReply: ReturnType<typeof deleteReply>
-  getReply: ReturnType<typeof getReply>
-  retryPublish: ReturnType<typeof retryPublish>
-  reviewRepo: ReviewRepository
-  replyRepo: ReplyRepository
-  queue: ReviewQueuePort
-  replyQueue: ReplyQueuePort
+  publicApi: Record<string, never>
+  internal: Readonly<{
+    repos: Readonly<{
+      reviewRepo: ReviewRepository
+      replyRepo: ReplyRepository
+      queue: ReviewQueuePort
+      replyQueue: ReplyQueuePort
+    }>
+    useCases: Readonly<{
+      syncReviews: ReturnType<typeof syncReviews>
+      draftReply: ReturnType<typeof draftReply>
+      submitReply: ReturnType<typeof submitReply>
+      approveReply: ReturnType<typeof approveReply>
+      rejectReply: ReturnType<typeof rejectReply>
+      deleteReply: ReturnType<typeof deleteReply>
+      getReply: ReturnType<typeof getReply>
+      retryPublish: ReturnType<typeof retryPublish>
+    }>
+  }>
 }>
 
 export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContextApi => {
@@ -93,7 +100,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     queue,
   })
 
-  return {
+  const useCases = {
     syncReviews: syncReviews({
       reviewRepo,
       replyRepo,
@@ -111,9 +118,18 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     deleteReply: deleteReply(replyDeps),
     getReply: getReply(replyDeps),
     retryPublish: retryPublish(replyDeps),
-    reviewRepo,
-    replyRepo,
-    queue,
-    replyQueue,
-  } as const
+  }
+
+  return {
+    publicApi: {} as Record<string, never>,
+    internal: {
+      repos: {
+        reviewRepo,
+        replyRepo,
+        queue,
+        replyQueue,
+      },
+      useCases,
+    },
+  }
 }

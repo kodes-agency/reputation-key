@@ -43,14 +43,14 @@ export const metricReadings = pgTable(
     groupId: uuid('group_id').references(() => portalGroups.id, { onDelete: 'set null' }),
     metricKey: varchar('metric_key', { length: 100 }).notNull(),
     value: real('value').notNull(),
-    recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull(),
+    occurredAt: timestamp('recorded_at', { withTimezone: true }).notNull(),
   },
   (t) => [
     index('metric_readings_org_idx').on(t.organizationId),
     index('metric_readings_org_key_recorded_idx').on(
       t.organizationId,
       t.metricKey,
-      t.recordedAt,
+      t.occurredAt,
     ),
     index('metric_readings_org_property_idx').on(t.organizationId, t.propertyId),
   ],

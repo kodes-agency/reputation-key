@@ -80,7 +80,7 @@ async function seedMetricReading(
   const id = crypto.randomUUID()
   const orgId = overrides.orgId ?? ORG_A
   const propId = overrides.propId ?? PROP_A
-  const recordedAt = new Date(Date.now() - (overrides.daysAgo ?? 0) * MS_PER_DAY)
+  const occurredAt = new Date(Date.now() - (overrides.daysAgo ?? 0) * MS_PER_DAY)
 
   await pool.query(
     `INSERT INTO metric_readings (id, organization_id, property_id, portal_id, metric_key, value, recorded_at)
@@ -92,7 +92,7 @@ async function seedMetricReading(
       overrides.portalId ?? null,
       overrides.metricKey,
       overrides.value,
-      recordedAt,
+      occurredAt,
     ],
   )
   return id

@@ -17,7 +17,7 @@ export type MappedActivity = Readonly<{
 
 export const eventToActivity = (event: DomainEvent): MappedActivity | null => {
   switch (event._tag) {
-    case 'inbox.item.created':
+    case 'inbox.inbox_item.created':
       return {
         action: 'created',
         resourceType: 'inbox_item',
@@ -31,7 +31,7 @@ export const eventToActivity = (event: DomainEvent): MappedActivity | null => {
           detail: event.sourceType,
         },
       }
-    case 'inbox.status.changed':
+    case 'inbox.inbox_item.status_changed':
       return {
         action: 'changed',
         resourceType: 'inbox_item',
@@ -45,7 +45,7 @@ export const eventToActivity = (event: DomainEvent): MappedActivity | null => {
           detail: null,
         },
       }
-    case 'inbox.item.escalated':
+    case 'inbox.inbox_item.escalated':
       return {
         action: 'escalated',
         resourceType: 'inbox_item',
@@ -59,7 +59,7 @@ export const eventToActivity = (event: DomainEvent): MappedActivity | null => {
           detail: null,
         },
       }
-    case 'inbox.item.assigned':
+    case 'inbox.inbox_item.assigned':
       return {
         action: 'assigned',
         resourceType: 'inbox_item',
@@ -73,7 +73,7 @@ export const eventToActivity = (event: DomainEvent): MappedActivity | null => {
           detail: null,
         },
       }
-    case 'inbox.item.unassigned':
+    case 'inbox.inbox_item.unassigned':
       return {
         action: 'unassigned',
         resourceType: 'inbox_item',
@@ -87,7 +87,7 @@ export const eventToActivity = (event: DomainEvent): MappedActivity | null => {
           detail: null,
         },
       }
-    case 'inbox.note.added':
+    case 'inbox.inbox_note.added':
       return {
         action: 'added',
         resourceType: 'note',
@@ -101,7 +101,7 @@ export const eventToActivity = (event: DomainEvent): MappedActivity | null => {
           detail: event.text.length > 100 ? event.text.slice(0, 100) + '...' : event.text,
         },
       }
-    case 'inbox.bulk.status.changed':
+    case 'inbox.inbox_item.bulk_status_changed':
       return {
         action: 'changed',
         resourceType: 'inbox_item',
@@ -116,7 +116,7 @@ export const eventToActivity = (event: DomainEvent): MappedActivity | null => {
           bulkId: event.bulkId,
         },
       }
-    case 'reply.published':
+    case 'review.reply.published':
       return {
         action: 'published',
         resourceType: 'reply',
@@ -125,7 +125,7 @@ export const eventToActivity = (event: DomainEvent): MappedActivity | null => {
         organizationId: event.organizationId as string,
         payload: { subject: 'reply', from: null, to: null, detail: null },
       }
-    case 'reply.submitted':
+    case 'review.reply.submitted':
       return {
         action: 'submitted',
         resourceType: 'reply',
@@ -134,7 +134,7 @@ export const eventToActivity = (event: DomainEvent): MappedActivity | null => {
         organizationId: event.organizationId as string,
         payload: { subject: 'reply', from: null, to: null, detail: null },
       }
-    case 'reply.approved':
+    case 'review.reply.approved':
       return {
         action: 'approved',
         resourceType: 'reply',
@@ -143,7 +143,7 @@ export const eventToActivity = (event: DomainEvent): MappedActivity | null => {
         organizationId: event.organizationId as string,
         payload: { subject: 'reply', from: null, to: null, detail: null },
       }
-    case 'reply.rejected':
+    case 'review.reply.rejected':
       return {
         action: 'rejected',
         resourceType: 'reply',

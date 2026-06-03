@@ -62,7 +62,7 @@ describe('registerUserAndOrg', () => {
 
     await useCase(validInput)
 
-    const emitted = events.capturedByTag('organization.created')
+    const emitted = events.capturedByTag('identity.organization.created')
     expect(emitted).toHaveLength(1)
     expect(emitted[0].organizationName).toBe('Test Org')
     expect(emitted[0].slug).toBe('test-org')

@@ -1,5 +1,5 @@
 // Inbox context — domain events
-// Per architecture: "Events are facts, named in the past tense."
+// Standards: docs/standards.md §1
 
 import type {
   InboxItemId,
@@ -12,130 +12,237 @@ import type {
 } from '#/shared/domain/ids'
 import type { InboxStatus, SourceType } from './types'
 
-// fallow-ignore-next-line unused-type
 export type InboxItemCreated = Readonly<{
-  _tag: 'inbox.item.created'
+  _tag: 'inbox.inbox_item.created'
+  eventId: string
   inboxItemId: InboxItemId
   organizationId: OrganizationId
   propertyId: PropertyId
   sourceType: SourceType
   sourceId: ReviewId | FeedbackId
+  userId: UserId | null
+  source: 'web' | 'import'
   occurredAt: Date
+  correlationId: string | null
 }>
+export const inboxItemCreated = (
+  args: Omit<
+    InboxItemCreated,
+    '_tag' | 'eventId' | 'correlationId' | 'userId' | 'source' | 'propertyId'
+  > & { userId?: UserId; source?: 'web' | 'import'; propertyId?: PropertyId },
+): InboxItemCreated => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  assert(args.inboxItemId !== '', 'inboxItemId required')
+  return {
+    _tag: 'inbox.inbox_item.created',
+    eventId: crypto.randomUUID(),
+    correlationId: null,
+    propertyId: args.propertyId ?? ('' as PropertyId),
+    userId: args.userId ?? ('' as UserId),
+    source: args.source ?? 'web',
+    ...args,
+  }
+}
 
-// fallow-ignore-next-line unused-type
-export type InboxStatusChanged = Readonly<{
-  _tag: 'inbox.status.changed'
+export type InboxItemStatusChanged = Readonly<{
+  _tag: 'inbox.inbox_item.status_changed'
+  eventId: string
   inboxItemId: InboxItemId
   organizationId: OrganizationId
+  propertyId: PropertyId
+  userId: UserId
   oldStatus: InboxStatus
   newStatus: InboxStatus
+  source: 'web' | 'import'
   occurredAt: Date
+  correlationId: string | null
 }>
+export const inboxItemStatusChanged = (
+  args: Omit<
+    InboxItemStatusChanged,
+    '_tag' | 'eventId' | 'correlationId' | 'userId' | 'source' | 'propertyId'
+  > & { userId?: UserId; source?: 'web' | 'import'; propertyId?: PropertyId },
+): InboxItemStatusChanged => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  assert(
+    args.oldStatus !== args.newStatus,
+    'Status change must transition to different status',
+  )
+  return {
+    _tag: 'inbox.inbox_item.status_changed',
+    eventId: crypto.randomUUID(),
+    correlationId: null,
+    propertyId: args.propertyId ?? ('' as PropertyId),
+    userId: args.userId ?? ('' as UserId),
+    source: args.source ?? 'web',
+    ...args,
+  }
+}
 
-// fallow-ignore-next-line unused-type
 export type InboxItemAssigned = Readonly<{
-  _tag: 'inbox.item.assigned'
+  _tag: 'inbox.inbox_item.assigned'
+  eventId: string
   inboxItemId: InboxItemId
   organizationId: OrganizationId
+  propertyId: PropertyId
+  userId: UserId
   assignedTo: UserId
+  source: 'web' | 'import'
   occurredAt: Date
+  correlationId: string | null
 }>
+export const inboxItemAssigned = (
+  args: Omit<
+    InboxItemAssigned,
+    '_tag' | 'eventId' | 'correlationId' | 'userId' | 'source' | 'propertyId'
+  > & { userId?: UserId; source?: 'web' | 'import'; propertyId?: PropertyId },
+): InboxItemAssigned => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  assert(args.userId !== '', 'userId required')
+  return {
+    _tag: 'inbox.inbox_item.assigned',
+    eventId: crypto.randomUUID(),
+    correlationId: null,
+    propertyId: args.propertyId ?? ('' as PropertyId),
+    userId: args.userId ?? ('' as UserId),
+    source: args.source ?? 'web',
+    ...args,
+  }
+}
 
-// fallow-ignore-next-line unused-type
-export type InboxNoteAdded = Readonly<{
-  _tag: 'inbox.note.added'
+export type InboxItemUnassigned = Readonly<{
+  _tag: 'inbox.inbox_item.unassigned'
+  eventId: string
   inboxItemId: InboxItemId
   organizationId: OrganizationId
-  authorUserId: UserId
+  propertyId: PropertyId
+  userId: UserId
+  previousAssignee: UserId
+  source: 'web' | 'import'
+  occurredAt: Date
+  correlationId: string | null
+}>
+export const inboxItemUnassigned = (
+  args: Omit<
+    InboxItemUnassigned,
+    '_tag' | 'eventId' | 'correlationId' | 'userId' | 'source' | 'propertyId'
+  > & { userId?: UserId; source?: 'web' | 'import'; propertyId?: PropertyId },
+): InboxItemUnassigned => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  return {
+    _tag: 'inbox.inbox_item.unassigned',
+    eventId: crypto.randomUUID(),
+    correlationId: null,
+    propertyId: args.propertyId ?? ('' as PropertyId),
+    userId: args.userId ?? ('' as UserId),
+    source: args.source ?? 'web',
+    ...args,
+  }
+}
+
+export type InboxItemEscalated = Readonly<{
+  _tag: 'inbox.inbox_item.escalated'
+  eventId: string
+  inboxItemId: InboxItemId
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  userId: UserId
+  oldStatus: InboxStatus
+  source: 'web' | 'import'
+  occurredAt: Date
+  correlationId: string | null
+}>
+export const inboxItemEscalated = (
+  args: Omit<
+    InboxItemEscalated,
+    '_tag' | 'eventId' | 'correlationId' | 'userId' | 'source' | 'propertyId'
+  > & { userId?: UserId; source?: 'web' | 'import'; propertyId?: PropertyId },
+): InboxItemEscalated => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  return {
+    _tag: 'inbox.inbox_item.escalated',
+    eventId: crypto.randomUUID(),
+    correlationId: null,
+    propertyId: args.propertyId ?? ('' as PropertyId),
+    userId: args.userId ?? ('' as UserId),
+    source: args.source ?? 'web',
+    ...args,
+  }
+}
+
+export type InboxNoteAdded = Readonly<{
+  _tag: 'inbox.inbox_note.added'
+  eventId: string
+  inboxItemId: InboxItemId
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  userId: UserId
   noteId: InboxNoteId
   text: string
+  source: 'web' | 'import'
   occurredAt: Date
+  correlationId: string | null
 }>
+export const inboxNoteAdded = (
+  args: Omit<
+    InboxNoteAdded,
+    '_tag' | 'eventId' | 'correlationId' | 'userId' | 'source' | 'propertyId'
+  > & { userId?: UserId; source?: 'web' | 'import'; propertyId?: PropertyId },
+): InboxNoteAdded => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  assert(args.text.length > 0, 'note text required')
+  return {
+    _tag: 'inbox.inbox_note.added',
+    eventId: crypto.randomUUID(),
+    correlationId: null,
+    propertyId: args.propertyId ?? ('' as PropertyId),
+    userId: args.userId ?? ('' as UserId),
+    source: args.source ?? 'web',
+    ...args,
+  }
+}
 
-// fallow-ignore-next-line unused-type
-export type InboxItemUnassigned = Readonly<{
-  _tag: 'inbox.item.unassigned'
+export type InboxItemBulkStatusChanged = Readonly<{
+  _tag: 'inbox.inbox_item.bulk_status_changed'
+  eventId: string
   inboxItemId: InboxItemId
   organizationId: OrganizationId
-  previousAssignee: UserId
-  occurredAt: Date
-}>
-
-// fallow-ignore-next-line unused-type
-export type InboxBulkStatusChanged = Readonly<{
-  _tag: 'inbox.bulk.status.changed'
-  inboxItemId: InboxItemId
-  organizationId: OrganizationId
+  propertyId: PropertyId
+  userId: UserId
   oldStatus: InboxStatus
   newStatus: InboxStatus
   bulkId: string
+  source: 'web' | 'import'
   occurredAt: Date
+  correlationId: string | null
 }>
-
-// fallow-ignore-next-line unused-type
-export type InboxItemEscalated = Readonly<{
-  _tag: 'inbox.item.escalated'
-  inboxItemId: InboxItemId
-  organizationId: OrganizationId
-  oldStatus: InboxStatus
-  occurredAt: Date
-}>
+export const inboxItemBulkStatusChanged = (
+  args: Omit<
+    InboxItemBulkStatusChanged,
+    '_tag' | 'eventId' | 'correlationId' | 'userId' | 'source' | 'propertyId'
+  > & { userId?: UserId; source?: 'web' | 'import'; propertyId?: PropertyId },
+): InboxItemBulkStatusChanged => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  assert(
+    args.oldStatus !== args.newStatus,
+    'Bulk status change must transition to different status',
+  )
+  return {
+    _tag: 'inbox.inbox_item.bulk_status_changed',
+    eventId: crypto.randomUUID(),
+    correlationId: null,
+    propertyId: args.propertyId ?? ('' as PropertyId),
+    userId: args.userId ?? ('' as UserId),
+    source: args.source ?? 'web',
+    ...args,
+  }
+}
 
 export type InboxEvent =
   | InboxItemCreated
-  | InboxStatusChanged
+  | InboxItemStatusChanged
   | InboxItemEscalated
   | InboxItemAssigned
   | InboxItemUnassigned
   | InboxNoteAdded
-  | InboxBulkStatusChanged
-
-// ── Event constructors ──────────────────────────────────────────────
-
-export const inboxItemCreated = (
-  args: Omit<InboxItemCreated, '_tag'>,
-): InboxItemCreated => ({
-  _tag: 'inbox.item.created',
-  ...args,
-})
-
-export const inboxStatusChanged = (
-  args: Omit<InboxStatusChanged, '_tag'>,
-): InboxStatusChanged => ({
-  _tag: 'inbox.status.changed',
-  ...args,
-})
-
-export const inboxItemAssigned = (
-  args: Omit<InboxItemAssigned, '_tag'>,
-): InboxItemAssigned => ({
-  _tag: 'inbox.item.assigned',
-  ...args,
-})
-
-export const inboxItemUnassigned = (
-  args: Omit<InboxItemUnassigned, '_tag'>,
-): InboxItemUnassigned => ({
-  _tag: 'inbox.item.unassigned',
-  ...args,
-})
-
-export const inboxItemEscalated = (
-  args: Omit<InboxItemEscalated, '_tag'>,
-): InboxItemEscalated => ({
-  _tag: 'inbox.item.escalated',
-  ...args,
-})
-
-export const inboxNoteAdded = (args: Omit<InboxNoteAdded, '_tag'>): InboxNoteAdded => ({
-  _tag: 'inbox.note.added',
-  ...args,
-})
-
-export const inboxBulkStatusChanged = (
-  args: Omit<InboxBulkStatusChanged, '_tag'>,
-): InboxBulkStatusChanged => ({
-  _tag: 'inbox.bulk.status.changed',
-  ...args,
-})
+  | InboxItemBulkStatusChanged

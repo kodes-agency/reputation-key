@@ -134,7 +134,7 @@ describe('assignInboxItem', () => {
 
     const emitted = events.capturedEvents
     expect(emitted).toHaveLength(1)
-    expect(emitted[0]._tag).toBe('inbox.item.assigned')
+    expect(emitted[0]._tag).toBe('inbox.inbox_item.assigned')
   })
 
   it('emits inbox.item.unassigned event when unassigning (assignedToUserId is null)', async () => {
@@ -151,7 +151,7 @@ describe('assignInboxItem', () => {
 
     const emitted = events.capturedEvents
     expect(emitted).toHaveLength(1)
-    expect(emitted[0]._tag).toBe('inbox.item.unassigned')
+    expect(emitted[0]._tag).toBe('inbox.inbox_item.unassigned')
   })
 
   it('allows PropertyManager to assign item for any property (inbox.manage bypasses property check)', async () => {

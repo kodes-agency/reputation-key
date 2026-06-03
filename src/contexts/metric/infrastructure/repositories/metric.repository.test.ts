@@ -58,7 +58,7 @@ describe('MetricRepository', () => {
       metricKey: 'portal.scan',
       value: 1,
       groupId: null,
-      recordedAt: FIXED_TIME,
+      occurredAt: FIXED_TIME,
     })
 
     const results = await fake.repo.findByOrganizationId(ORG_1)
@@ -66,7 +66,7 @@ describe('MetricRepository', () => {
     expect(results[0].metricKey).toBe('portal.scan')
     expect(results[0].value).toBe(1)
     expect(results[0].portalId).toEqual(portalIdCtor('portal-1'))
-    expect(results[0].recordedAt).toEqual(FIXED_TIME)
+    expect(results[0].occurredAt).toEqual(FIXED_TIME)
   })
 
   it('inserts a property review reading without portalId', async () => {
@@ -77,7 +77,7 @@ describe('MetricRepository', () => {
       metricKey: 'property.review',
       value: 4,
       groupId: null,
-      recordedAt: FIXED_TIME,
+      occurredAt: FIXED_TIME,
     })
 
     const results = await fake.repo.findByOrganizationId(ORG_1)
@@ -95,7 +95,7 @@ describe('MetricRepository', () => {
       metricKey: 'portal.scan',
       value: 1,
       groupId: null,
-      recordedAt: FIXED_TIME,
+      occurredAt: FIXED_TIME,
     })
     await fake.repo.insertReading({
       organizationId: ORG_1,
@@ -104,7 +104,7 @@ describe('MetricRepository', () => {
       metricKey: 'portal.rating',
       value: 5,
       groupId: null,
-      recordedAt: FIXED_TIME,
+      occurredAt: FIXED_TIME,
     })
 
     const scans = await fake.repo.findByOrganizationId(ORG_1, 'portal.scan')
@@ -120,7 +120,7 @@ describe('MetricRepository', () => {
       metricKey: 'portal.scan',
       value: 1,
       groupId: null,
-      recordedAt: FIXED_TIME,
+      occurredAt: FIXED_TIME,
     })
     await fake.repo.insertReading({
       organizationId: ORG_2,
@@ -129,7 +129,7 @@ describe('MetricRepository', () => {
       metricKey: 'portal.scan',
       value: 1,
       groupId: null,
-      recordedAt: FIXED_TIME,
+      occurredAt: FIXED_TIME,
     })
 
     const results = await fake.repo.findByOrganizationId(ORG_1)

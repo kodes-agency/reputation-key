@@ -28,8 +28,8 @@ export function createMetricStatsAdapter(db: Database): MetricStatsPort {
             and(
               eq(metricReadings.organizationId, organizationId),
               eq(metricReadings.propertyId, propertyId),
-              gte(metricReadings.recordedAt, startDate),
-              lte(metricReadings.recordedAt, endDate),
+              gte(metricReadings.occurredAt, startDate),
+              lte(metricReadings.occurredAt, endDate),
             ),
           )
           .groupBy(metricReadings.metricKey)
@@ -60,8 +60,8 @@ export function createMetricStatsAdapter(db: Database): MetricStatsPort {
               eq(metricReadings.organizationId, organizationId),
               eq(metricReadings.propertyId, propertyId),
               eq(metricReadings.portalId, portalId),
-              gte(metricReadings.recordedAt, startDate),
-              lte(metricReadings.recordedAt, endDate),
+              gte(metricReadings.occurredAt, startDate),
+              lte(metricReadings.occurredAt, endDate),
             ),
           )
           .groupBy(metricReadings.metricKey)
@@ -92,8 +92,8 @@ export function createMetricStatsAdapter(db: Database): MetricStatsPort {
               eq(metricReadings.organizationId, organizationId),
               eq(metricReadings.propertyId, propertyId),
               eq(metricReadings.portalId, portalId),
-              gte(metricReadings.recordedAt, startDate),
-              lte(metricReadings.recordedAt, endDate),
+              gte(metricReadings.occurredAt, startDate),
+              lte(metricReadings.occurredAt, endDate),
             ),
           )
           .groupBy(metricReadings.metricKey)

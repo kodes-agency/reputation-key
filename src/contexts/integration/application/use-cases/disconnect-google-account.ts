@@ -12,7 +12,7 @@ import type { DisconnectGoogleInput } from '../dto/disconnect-google.dto'
 import { can } from '#/shared/domain/permissions'
 import { googleConnectionId } from '#/shared/domain/ids'
 import { integrationError } from '../../domain/errors'
-import { googleAccountDisconnected } from '../../domain/events'
+import { integrationGoogleAccountDisconnected } from '../../domain/events'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 
 export type DisconnectGoogleAccountDeps = Readonly<{
@@ -74,7 +74,7 @@ export const disconnectGoogleAccount =
 
     // 6. Emit event
     await deps.events.emit(
-      googleAccountDisconnected({
+      integrationGoogleAccountDisconnected({
         connectionId,
         organizationId: ctx.organizationId,
         occurredAt: deps.clock(),

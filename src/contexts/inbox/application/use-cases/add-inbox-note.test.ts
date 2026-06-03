@@ -87,14 +87,14 @@ describe('addInboxNote', () => {
     const note = await useCase({
       inboxItemId: ITEM_ID,
       organizationId: ORG_ID,
-      authorUserId: USER_ID,
+      userId: USER_ID,
       text: '  This is a note  ',
       role: 'AccountAdmin' as Role,
     })
 
     expect(note.id).toBe(FIXED_ID)
     expect(note.text).toBe('This is a note') // trimmed
-    expect(note.authorUserId).toBe(USER_ID)
+    expect(note.userId).toBe(USER_ID)
     expect(noteRepo.notes).toHaveLength(1)
   })
 
@@ -106,7 +106,7 @@ describe('addInboxNote', () => {
       useCase({
         inboxItemId: ITEM_ID,
         organizationId: ORG_ID,
-        authorUserId: USER_ID,
+        userId: USER_ID,
         text: '   ',
         role: 'AccountAdmin' as Role,
       }),
@@ -120,7 +120,7 @@ describe('addInboxNote', () => {
       useCase({
         inboxItemId: ITEM_ID,
         organizationId: ORG_ID,
-        authorUserId: USER_ID,
+        userId: USER_ID,
         text: 'A note',
         role: 'AccountAdmin' as Role,
       }),
@@ -139,7 +139,7 @@ describe('addInboxNote', () => {
       useCase({
         inboxItemId: ITEM_ID,
         organizationId: ORG_ID,
-        authorUserId: USER_ID,
+        userId: USER_ID,
         text: 'test note',
         role: 'Guest' as unknown as Role,
       }),
@@ -158,7 +158,7 @@ describe('addInboxNote', () => {
       useCase({
         inboxItemId: ITEM_ID,
         organizationId: ORG_ID,
-        authorUserId: USER_ID,
+        userId: USER_ID,
         text: 'test note',
         role: 'Staff' as Role,
       }),
@@ -175,7 +175,7 @@ describe('addInboxNote', () => {
     const note = await useCase({
       inboxItemId: ITEM_ID,
       organizationId: ORG_ID,
-      authorUserId: USER_ID,
+      userId: USER_ID,
       text: 'test note',
       role: 'Staff' as Role,
     })
@@ -191,11 +191,11 @@ describe('addInboxNote', () => {
     await useCase({
       inboxItemId: ITEM_ID,
       organizationId: ORG_ID,
-      authorUserId: USER_ID,
+      userId: USER_ID,
       text: 'hello',
       role: 'AccountAdmin' as Role,
     })
 
-    expect(deps.events.capturedEvents[0]._tag).toBe('inbox.note.added')
+    expect(deps.events.capturedEvents[0]._tag).toBe('inbox.inbox_note.added')
   })
 })

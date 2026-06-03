@@ -26,7 +26,7 @@ const createFakeDeps = (): OnReviewLinkClickedDeps & {
       return {
         id: metricReadingId('metric-1'),
         ...input,
-        recordedAt: FIXED_TIME,
+        occurredAt: FIXED_TIME,
       } as MetricReading
     },
   }
@@ -42,7 +42,9 @@ describe('onReviewLinkClicked', () => {
   it('records a portal.review_link_click reading with value 1', async () => {
     const handler = onReviewLinkClicked(deps)
     await handler({
-      _tag: 'review-link.clicked',
+      _tag: 'guest.review_link.clicked',
+      eventId: 'test-event-id',
+      correlationId: null,
       linkId: portalLinkId('link-1'),
       organizationId: organizationId('org-1'),
       portalId: portalId('portal-1'),
@@ -71,7 +73,9 @@ describe('onReviewLinkClicked', () => {
 
     await expect(
       handler({
-        _tag: 'review-link.clicked',
+        _tag: 'guest.review_link.clicked',
+        eventId: 'test-event-id',
+        correlationId: null,
         linkId: portalLinkId('link-1'),
         organizationId: organizationId('org-1'),
         portalId: portalId('portal-1'),
@@ -84,7 +88,9 @@ describe('onReviewLinkClicked', () => {
   it('sets groupId to null', async () => {
     const handler = onReviewLinkClicked(deps)
     await handler({
-      _tag: 'review-link.clicked',
+      _tag: 'guest.review_link.clicked',
+      eventId: 'test-event-id',
+      correlationId: null,
       linkId: portalLinkId('link-2'),
       organizationId: organizationId('org-1'),
       portalId: portalId('portal-1'),

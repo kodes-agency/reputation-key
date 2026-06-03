@@ -147,5 +147,5 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
     },
   }
 
-  return { useCases, publicApi } as const
+  return { publicApi, internal: { repos: {} as const, useCases } } as const
 }

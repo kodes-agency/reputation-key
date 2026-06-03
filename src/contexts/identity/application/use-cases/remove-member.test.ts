@@ -26,7 +26,7 @@ describe('removeMember', () => {
 
     expect(result.success).toBe(true)
     expect(events.capturedEvents).toHaveLength(1)
-    expect(events.capturedEvents[0]._tag).toBe('member.removed')
+    expect(events.capturedEvents[0]._tag).toBe('identity.member.removed')
   })
 
   it('rejects PropertyManager from removing members', async () => {
@@ -53,7 +53,7 @@ describe('removeMember', () => {
 
     await useCase({ memberId: 'member-1' }, ctx)
 
-    const emitted = events.capturedByTag('member.removed')
+    const emitted = events.capturedByTag('identity.member.removed')
     expect(emitted).toHaveLength(1)
     expect(emitted[0].organizationId).toBe(ctx.organizationId)
     expect(emitted[0].removedBy).toBe(ctx.userId)

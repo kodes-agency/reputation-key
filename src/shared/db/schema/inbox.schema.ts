@@ -70,7 +70,7 @@ export const inboxNotes = pgTable(
       .notNull()
       .references(() => inboxItems.id, { onDelete: 'cascade' }),
     organizationId: varchar('organization_id', { length: 255 }).notNull(),
-    authorUserId: varchar('author_user_id', { length: 255 }).notNull(),
+    userId: varchar('author_user_id', { length: 255 }).notNull(),
     text: text('text').notNull(),
     createdAt: createdAtColumn(),
   },

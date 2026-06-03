@@ -21,7 +21,7 @@ import { inboxNoteAdded } from '../../domain/events'
 export type AddInboxNoteInput = Readonly<{
   inboxItemId: InboxItemId
   organizationId: OrganizationId
-  authorUserId: UserId
+  userId: UserId
   text: string
   role: Role
 }>
@@ -51,7 +51,7 @@ export const addInboxNote =
     if (!can(input.role, 'inbox.manage')) {
       const accessible = await deps.staffPublicApi.getAccessiblePropertyIds(
         input.organizationId,
-        input.authorUserId,
+        input.userId,
         input.role,
       )
       if (
@@ -71,7 +71,7 @@ export const addInboxNote =
       id: deps.idGen(),
       inboxItemId: input.inboxItemId,
       organizationId: input.organizationId,
-      authorUserId: input.authorUserId,
+      userId: input.userId,
       text: input.text,
       clock: deps.clock,
     })
@@ -90,9 +90,11 @@ export const addInboxNote =
       inboxNoteAdded({
         inboxItemId: note.inboxItemId,
         organizationId: note.organizationId,
-        authorUserId: note.authorUserId,
+        propertyId: item.propertyId,
+        userId: note.userId,
         noteId: note.id,
         text: note.text,
+        source: 'web',
         occurredAt: note.createdAt,
       }),
     )

@@ -1,5 +1,5 @@
 // Integration context — domain events
-// Per architecture: "Events are facts, named in the past tense."
+// Standards: docs/standards.md §1
 
 import type {
   GoogleConnectionId,
@@ -7,23 +7,50 @@ import type {
   OrganizationId,
 } from '#/shared/domain/ids'
 
-export type GoogleAccountConnected = Readonly<{
-  _tag: 'google_account.connected'
+export type IntegrationGoogleAccountConnected = Readonly<{
+  _tag: 'integration.google_account.connected'
+  eventId: string
   connectionId: GoogleConnectionId
   organizationId: OrganizationId
   googleEmail: string
   occurredAt: Date
+  correlationId: string | null
 }>
+export const integrationGoogleAccountConnected = (
+  args: Omit<IntegrationGoogleAccountConnected, '_tag' | 'eventId' | 'correlationId'>,
+): IntegrationGoogleAccountConnected => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  return {
+    _tag: 'integration.google_account.connected',
+    eventId: crypto.randomUUID(),
+    correlationId: null,
+    ...args,
+  }
+}
 
-export type GoogleAccountDisconnected = Readonly<{
-  _tag: 'google_account.disconnected'
+export type IntegrationGoogleAccountDisconnected = Readonly<{
+  _tag: 'integration.google_account.disconnected'
+  eventId: string
   connectionId: GoogleConnectionId
   organizationId: OrganizationId
   occurredAt: Date
+  correlationId: string | null
 }>
+export const integrationGoogleAccountDisconnected = (
+  args: Omit<IntegrationGoogleAccountDisconnected, '_tag' | 'eventId' | 'correlationId'>,
+): IntegrationGoogleAccountDisconnected => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  return {
+    _tag: 'integration.google_account.disconnected',
+    eventId: crypto.randomUUID(),
+    correlationId: null,
+    ...args,
+  }
+}
 
-export type PropertyImportCompleted = Readonly<{
-  _tag: 'property_import.completed'
+export type IntegrationPropertyImportCompleted = Readonly<{
+  _tag: 'integration.property_import.completed'
+  eventId: string
   importJobId: GbpImportJobId
   organizationId: OrganizationId
   totalCount: number
@@ -31,37 +58,46 @@ export type PropertyImportCompleted = Readonly<{
   skippedCount: number
   failedCount: number
   occurredAt: Date
+  correlationId: string | null
 }>
+export const integrationPropertyImportCompleted = (
+  args: Omit<IntegrationPropertyImportCompleted, '_tag' | 'eventId' | 'correlationId'>,
+): IntegrationPropertyImportCompleted => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  return {
+    _tag: 'integration.property_import.completed',
+    eventId: crypto.randomUUID(),
+    correlationId: null,
+    ...args,
+  }
+}
 
-export type GoogleConnectionVisibilityChanged = Readonly<{
-  _tag: 'google_connection.visibility_changed'
+export type IntegrationGoogleConnectionVisibilityChanged = Readonly<{
+  _tag: 'integration.google_connection.visibility_changed'
+  eventId: string
   connectionId: GoogleConnectionId
   organizationId: OrganizationId
   visibility: 'private' | 'organization'
   occurredAt: Date
+  correlationId: string | null
 }>
+export const integrationGoogleConnectionVisibilityChanged = (
+  args: Omit<
+    IntegrationGoogleConnectionVisibilityChanged,
+    '_tag' | 'eventId' | 'correlationId'
+  >,
+): IntegrationGoogleConnectionVisibilityChanged => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  return {
+    _tag: 'integration.google_connection.visibility_changed',
+    eventId: crypto.randomUUID(),
+    correlationId: null,
+    ...args,
+  }
+}
 
 export type IntegrationEvent =
-  | GoogleAccountConnected
-  | GoogleAccountDisconnected
-  | GoogleConnectionVisibilityChanged
-  | PropertyImportCompleted
-
-export const googleAccountConnected = (
-  args: Omit<GoogleAccountConnected, '_tag'>,
-): GoogleAccountConnected => ({ _tag: 'google_account.connected', ...args })
-
-export const googleAccountDisconnected = (
-  args: Omit<GoogleAccountDisconnected, '_tag'>,
-): GoogleAccountDisconnected => ({ _tag: 'google_account.disconnected', ...args })
-
-export const propertyImportCompleted = (
-  args: Omit<PropertyImportCompleted, '_tag'>,
-): PropertyImportCompleted => ({ _tag: 'property_import.completed', ...args })
-
-export const googleConnectionVisibilityChanged = (
-  args: Omit<GoogleConnectionVisibilityChanged, '_tag'>,
-): GoogleConnectionVisibilityChanged => ({
-  _tag: 'google_connection.visibility_changed',
-  ...args,
-})
+  | IntegrationGoogleAccountConnected
+  | IntegrationGoogleAccountDisconnected
+  | IntegrationGoogleConnectionVisibilityChanged
+  | IntegrationPropertyImportCompleted

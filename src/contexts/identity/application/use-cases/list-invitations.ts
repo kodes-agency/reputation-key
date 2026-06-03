@@ -11,6 +11,7 @@ import { identityError } from '../../domain/errors'
 export type ListInvitationsOutput = Readonly<{
   invitations: ReadonlyArray<InvitationRecord>
 }>
+export type ListInvitations = ReturnType<typeof listInvitations>
 
 type Deps = Readonly<{ identity: IdentityPort }>
 

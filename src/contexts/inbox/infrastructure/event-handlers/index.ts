@@ -24,12 +24,12 @@ export const registerInboxHandlers = (deps: RegisterInboxHandlersDeps): void => 
     onReviewCreated({ createInboxItem: deps.createInboxItem }),
   )
   deps.events.on(
-    'feedback.submitted',
+    'guest.feedback.submitted',
     onFeedbackSubmitted({ createInboxItem: deps.createInboxItem }),
   )
   deps.events.on('review.updated', onReviewUpdated(deps))
   deps.events.on(
-    'reply.published',
+    'review.reply.published',
     onReplyPublished({
       repo: deps.repo,
       events: deps.events,
@@ -37,7 +37,7 @@ export const registerInboxHandlers = (deps: RegisterInboxHandlersDeps): void => 
     }),
   )
   deps.events.on(
-    'reply.submitted',
+    'review.reply.submitted',
     onReplySubmitted({
       repo: deps.repo,
     }),

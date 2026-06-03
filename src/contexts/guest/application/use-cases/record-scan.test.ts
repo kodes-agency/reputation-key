@@ -45,7 +45,7 @@ describe('recordScan', () => {
     expect(repo.scans.length).toBe(1)
     expect(repo.scans[0].source).toBe('qr')
     expect(bus.capturedEvents).toHaveLength(1)
-    expect(bus.capturedEvents[0]._tag).toBe('scan.recorded')
+    expect(bus.capturedEvents[0]._tag).toBe('guest.scan.recorded')
   })
 
   it('silently fails on repo error', async () => {

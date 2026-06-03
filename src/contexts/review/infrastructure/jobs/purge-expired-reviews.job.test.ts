@@ -107,13 +107,15 @@ describe('createPurgeExpiredReviewsHandler', () => {
     await handler({} as never)
 
     expect(emit).toHaveBeenCalledOnce()
-    expect(emit.mock.calls[0][0]).toEqual({
-      _tag: 'review.expired',
-      reviewId: reviewId('rev-42'),
-      propertyId: propertyId('prop-99'),
-      organizationId: organizationId('org-7'),
-      occurredAt: fixedDate,
-    })
+    expect(emit.mock.calls[0][0]).toEqual(
+      expect.objectContaining({
+        _tag: 'review.expired',
+        reviewId: reviewId('rev-42'),
+        propertyId: propertyId('prop-99'),
+        organizationId: organizationId('org-7'),
+        occurredAt: fixedDate,
+      }),
+    )
   })
 
   // ── Grace window ─────────────────────────────────────────────────

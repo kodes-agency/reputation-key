@@ -51,5 +51,5 @@ export const buildStaffContext = (deps: StaffContextDeps) => {
     },
   }
 
-  return { useCases, publicApi } as const
+  return { publicApi, internal: { repos: {} as const, useCases } } as const
 }

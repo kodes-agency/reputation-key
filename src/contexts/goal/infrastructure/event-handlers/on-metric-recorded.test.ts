@@ -219,9 +219,12 @@ function makeFakeDeps() {
   return { deps, emittedEvents, goals, progresses, addGoalWithProgress, logger }
 }
 
-function makeEvent(overrides: Partial<MetricRecorded> = {}): MetricRecorded {
+function makeEvent(
+  overrides: Partial<Omit<MetricRecorded, 'eventId' | 'correlationId'>> = {},
+): MetricRecorded {
   return {
     _tag: 'metric.recorded',
+    eventId: 'test-event-id',
     readingId: metricReadingId('reading-1'),
     organizationId: organizationId('org-1'),
     propertyId: propertyId('prop-1'),
@@ -229,7 +232,8 @@ function makeEvent(overrides: Partial<MetricRecorded> = {}): MetricRecorded {
     groupId: null,
     metricKey: 'portal.scan',
     value: 1,
-    recordedAt: FIXED_TIME,
+    correlationId: null,
+    occurredAt: FIXED_TIME,
     ...overrides,
   }
 }

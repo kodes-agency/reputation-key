@@ -48,7 +48,7 @@ describe('updatePortalGroup (use case)', () => {
     )
 
     expect(result.name).toBe('New Name')
-    expect(events.capturedByTag('portal_group.updated')).toHaveLength(1)
+    expect(events.capturedByTag('portal.portal_group.updated')).toHaveLength(1)
   })
 
   it('throws not_found for nonexistent group', async () => {

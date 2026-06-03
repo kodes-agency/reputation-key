@@ -79,6 +79,7 @@ export type CreateGoalDeps = Readonly<{
   idGen: () => string
   clock: () => Date
 }>
+export type CreateGoal = ReturnType<typeof createGoal>
 
 // ── Use case ────────────────────────────────────────────────────────────
 

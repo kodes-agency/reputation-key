@@ -1,6 +1,23 @@
 # Guest Context
 
+## Bounded context
+
+TODO: One sentence describing what this context does.
+
 Guest-facing interactions on public portal pages. Covers scan tracking, star ratings, feedback submission, and review-link click tracking.
+
+> **DEPRECATED per docs/standards.md §4.3**
+
+## Glossary
+
+- **Guest** — A person visiting a public portal page to rate their experience. Unauthenticated — no login required.
+- **ScanEvent** — A recorded visit to a public portal page, captured on page load with `source` attribution (`qr`, `nfc`, `direct`). Tracks `portalId`, `propertyId`, timestamp.
+- **Rating** — A 1–5 star rating submitted by a guest for a specific portal visit. NOT the same as Review Rating (review context, public/platform rating).
+- **Feedback** — Optional free-text comment (max 1000 chars) submitted alongside a rating. Private — only visible to property staff.
+- **ReviewLinkClick** — A tracked click on an external review link (e.g., Google review link) from a public portal page.
+- **Source** — How the guest arrived at the portal: `qr` (QR code scan), `nfc` (NFC tap), or `direct` (typed URL).
+
+> **DEPRECATED per docs/standards.md §4.3**
 
 ## Language
 
@@ -51,6 +68,15 @@ _Avoid_: Review gating, filtering, moderation
 - **Anti-Gating** compliance ensures review links are always visible and identically positioned regardless of **Rating**
 - Guest context **depends on** `PortalPublicApi` for portal resolution and public portal data.
 - Guest context **depends on** `StaffPublicApi` for referral code resolution (scan attribution).
+
+## Invariants
+
+- Rating must be an integer 1–5 (`validateRating`). Non-integer or out-of-range values are rejected.
+- Feedback text: max 1000 characters, non-empty after trim (`validateFeedback`).
+- Scan source must be one of `qr`, `nfc`, `direct` (`validateSource`).
+- Session cookie (24h `HttpOnly`, `guest_session`) prevents duplicate ratings within the same session.
+- **Anti-gating**: Review links must always be visible and identically positioned regardless of rating value. No hiding, reordering, or visual deprioritization based on rating.
+- IP hash (SHA-256 with daily-rotating salt) is used for abuse detection only — not for identity.
 
 ## Events produced
 
@@ -109,6 +135,22 @@ Exported from `application/public-api.ts`:
 
 - **`public.ts`** — Guest-facing server functions (record scan, submit rating, submit feedback, track review link click, get public portal data). No authentication required — guest endpoints.
 
+> **DEPRECATED per docs/standards.md §4.3**
+
+## Permissions
+
+Guest context is entirely public — no authentication is required for any endpoint. All server functions are unauthenticated (`public` permission level).
+
+- `scan:create` — Record a portal visit. Public.
+- `rating:create` — Submit a star rating. Public.
+- `feedback:create` — Submit feedback text. Public.
+- `review_link:click` — Track a review link click. Public.
+- `portal:read` — Read public portal data (name, description, links). Public.
+- `feedback.read` — Reserved for future use (viewing feedback history).
+- `feedback.respond` — Reserved for future use (responding to guest feedback).
+
+> **DEPRECATED per docs/standards.md §4.3**
+
 ## Example dialogue
 
 > **Dev:** "When a guest visits a portal, do we show the rating stars immediately or require a click first?"
@@ -119,6 +161,8 @@ Exported from `application/public-api.ts`:
 >
 > **Dev:** "Can a guest rate the same portal twice?"
 > **Domain expert:** "Not within the same session. The session cookie prevents duplicate ratings."
+
+> **DEPRECATED per docs/standards.md §4.3**
 
 ## Flagged ambiguities
 

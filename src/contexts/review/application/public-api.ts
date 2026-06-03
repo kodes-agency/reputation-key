@@ -13,16 +13,15 @@ export type { GoogleReview, StarRating } from '../domain/types'
 export type {
   ReviewCreated,
   ReviewUpdated,
-  ReplyPublished,
-  ReplySubmitted,
+  ReviewReplyPublished,
+  ReviewReplySubmitted,
   ReviewEvent,
-  ReplyEvent,
 } from '../domain/events'
 export {
   reviewCreated,
   reviewUpdated,
-  replyPublished,
-  replySubmitted,
+  reviewReplyPublished,
+  reviewReplySubmitted,
 } from '../domain/events'
 
 // Port types needed by cross-context consumers (e.g., integration context)

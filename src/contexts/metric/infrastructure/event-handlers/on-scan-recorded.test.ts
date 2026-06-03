@@ -23,7 +23,7 @@ const createFakeDeps = (): OnScanRecordedDeps & {
       return {
         id: metricReadingId('metric-1'),
         ...input,
-        recordedAt: FIXED_TIME,
+        occurredAt: FIXED_TIME,
       } as MetricReading
     },
   }
@@ -39,7 +39,9 @@ describe('onScanRecorded', () => {
   it('records a portal.scan reading with value 1', async () => {
     const handler = onScanRecorded(deps)
     await handler({
-      _tag: 'scan.recorded',
+      _tag: 'guest.scan.recorded',
+      eventId: 'test-event-id',
+      correlationId: null,
       scanId: scanEventId('scan-1'),
       organizationId: organizationId('org-1'),
       portalId: portalId('portal-1'),
@@ -69,7 +71,9 @@ describe('onScanRecorded', () => {
 
     await expect(
       handler({
-        _tag: 'scan.recorded',
+        _tag: 'guest.scan.recorded',
+        eventId: 'test-event-id',
+        correlationId: null,
         scanId: scanEventId('scan-1'),
         organizationId: organizationId('org-1'),
         portalId: portalId('portal-1'),
@@ -83,7 +87,9 @@ describe('onScanRecorded', () => {
   it('sets groupId to null', async () => {
     const handler = onScanRecorded(deps)
     await handler({
-      _tag: 'scan.recorded',
+      _tag: 'guest.scan.recorded',
+      eventId: 'test-event-id',
+      correlationId: null,
       scanId: scanEventId('scan-2'),
       organizationId: organizationId('org-1'),
       portalId: portalId('portal-1'),

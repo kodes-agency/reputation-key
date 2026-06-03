@@ -177,7 +177,7 @@ describe('updateInboxStatus', () => {
 
     const emitted = events.capturedEvents
     expect(emitted).toHaveLength(1)
-    expect(emitted[0]._tag).toBe('inbox.status.changed')
+    expect(emitted[0]._tag).toBe('inbox.inbox_item.status_changed')
   })
 
   it('denies access without inbox.write permission for inaccessible property', async () => {
@@ -270,7 +270,7 @@ describe('updateInboxStatus', () => {
 
     const emitted = events.capturedEvents
     expect(emitted).toHaveLength(2)
-    expect(emitted[0]._tag).toBe('inbox.status.changed')
-    expect(emitted[1]._tag).toBe('inbox.item.escalated')
+    expect(emitted[0]._tag).toBe('inbox.inbox_item.status_changed')
+    expect(emitted[1]._tag).toBe('inbox.inbox_item.escalated')
   })
 })

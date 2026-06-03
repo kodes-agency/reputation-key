@@ -51,7 +51,7 @@ describe('submitFeedback', () => {
     expect(result.comment).toBe('Great service!')
     expect(repo.feedback.length).toBe(1)
     expect(bus.capturedEvents).toHaveLength(1)
-    expect(bus.capturedEvents[0]._tag).toBe('feedback.submitted')
+    expect(bus.capturedEvents[0]._tag).toBe('guest.feedback.submitted')
   })
 
   it('rejects empty feedback', async () => {

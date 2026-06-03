@@ -1,5 +1,9 @@
 # Goal Context
 
+## Bounded context
+
+TODO: One sentence describing what this context does.
+
 Property-scoped goals with progress tracking driven by metric events.
 
 ## Glossary
@@ -78,6 +82,8 @@ goal/
   build.ts             composition root
 ```
 
+> **DEPRECATED per docs/standards.md §4.3**
+
 ## Intentional deviations
 
 - **`ui/helpers.ts`**: Contains pure data transformation functions shared between server responses and UI components. This is an intentional deviation from the strict four-layer architecture — these helpers translate domain/DTO shapes into UI-friendly formats without importing React or framework code. Keeping them in `ui/` colocates them with the components that consume them.
@@ -126,6 +132,8 @@ Exported from `application/public-api.ts`:
 
 - **spawn-recurring-instances** — creates child Goal instances from recurring templates at each period boundary.
 - **reconcile-goal-progress** — recomputes progress from raw metric readings for all active goals (computedSource = `reconciliation`).
+
+> **DEPRECATED per docs/standards.md §4.3**
 
 ## Flagged ambiguities
 

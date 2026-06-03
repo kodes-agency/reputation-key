@@ -12,17 +12,20 @@ export type RegisterMetricHandlersDeps = Readonly<{
 }>
 
 export const registerMetricHandlers = (deps: RegisterMetricHandlersDeps): void => {
-  deps.events.on('scan.recorded', onScanRecorded({ recordMetric: deps.recordMetric }))
   deps.events.on(
-    'rating.submitted',
+    'guest.scan.recorded',
+    onScanRecorded({ recordMetric: deps.recordMetric }),
+  )
+  deps.events.on(
+    'guest.rating.submitted',
     onRatingSubmitted({ recordMetric: deps.recordMetric }),
   )
   deps.events.on(
-    'feedback.submitted',
+    'guest.feedback.submitted',
     onFeedbackSubmitted({ recordMetric: deps.recordMetric }),
   )
   deps.events.on(
-    'review-link.clicked',
+    'guest.review_link.clicked',
     onReviewLinkClicked({ recordMetric: deps.recordMetric }),
   )
   deps.events.on('review.created', onReviewCreated({ recordMetric: deps.recordMetric }))

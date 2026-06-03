@@ -36,11 +36,15 @@ function makeGoal(overrides: Partial<Goal> & { id: Goal['id'] }): Goal {
   }
 }
 
-function makeEvent(overrides: Partial<PortalDeleted> = {}): PortalDeleted {
+function makeEvent(
+  overrides: Partial<Omit<PortalDeleted, 'eventId' | 'correlationId'>> = {},
+): PortalDeleted {
   return {
     _tag: 'portal.deleted',
+    eventId: 'test-event-id',
     portalId: portalId('portal-1'),
     organizationId: organizationId('org-1'),
+    correlationId: null,
     occurredAt: FIXED_TIME,
     ...overrides,
   }

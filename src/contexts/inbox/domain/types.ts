@@ -42,7 +42,7 @@ export type InboxNote = Readonly<{
   id: InboxNoteId
   inboxItemId: InboxItemId
   organizationId: OrganizationId
-  authorUserId: UserId
+  userId: UserId
   text: string
   createdAt: Date
 }>

@@ -50,6 +50,28 @@ type IntegrationContextDeps = Readonly<{
   logger: LoggerPort
 }>
 
+export type IntegrationContextApi = Readonly<{
+  publicApi: Record<string, never>
+  internal: Readonly<{
+    repos: Readonly<{
+      connectionRepo: ReturnType<typeof createGoogleConnectionRepository>
+      encryptionPort: ReturnType<typeof createTokenEncryptionAdapter>
+      oauthPort: ReturnType<typeof createGoogleOAuthAdapter>
+    }>
+    useCases: Readonly<{
+      connectGoogleAccount: ReturnType<typeof connectGoogleAccount>
+      disconnectGoogleAccount: ReturnType<typeof disconnectGoogleAccount>
+      listGoogleConnections: ReturnType<typeof listGoogleConnections>
+      updateConnectionVisibility: ReturnType<typeof updateConnectionVisibility>
+      refreshGoogleToken: ReturnType<typeof refreshGoogleToken>
+      listGbpLocations: ReturnType<typeof listGbpLocations>
+      startPropertyImport: ReturnType<typeof startPropertyImport>
+      getImportStatus: ReturnType<typeof getImportStatus>
+      importProperty: ReturnType<typeof importProperty>
+    }>
+  }>
+}>
+
 export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
   // ── Cross-context port implementations (wiring layer) ──────────
   // Delegated through PropertyPublicApi — no direct schema imports.
@@ -172,11 +194,20 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
     }),
   } as const
 
+  // ── Public API — cross-context boundary ─────────────────────────
+  const publicApi: Record<string, never> = {}
+
   return {
-    useCases,
-    connectionRepo,
-    encryptionPort,
-    oauthPort,
-    refreshGoogleTokenUseCase,
+    publicApi,
+    internal: {
+      repos: {
+        connectionRepo,
+        encryptionPort,
+        oauthPort,
+      },
+      useCases: {
+        ...useCases,
+      },
+    },
   } as const
 }

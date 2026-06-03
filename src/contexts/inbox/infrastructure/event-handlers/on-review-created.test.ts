@@ -13,6 +13,8 @@ const NOW = new Date('2025-06-01T12:00:00Z')
 
 const mockEvent: ReviewCreated = {
   _tag: 'review.created',
+  eventId: 'test-event-id',
+  correlationId: null,
   reviewId: REVIEW_ID,
   propertyId: PROP_ID,
   organizationId: ORG_ID,
@@ -61,6 +63,8 @@ describe('onReviewCreated', () => {
   it('silently handles already_exists error', async () => {
     const alreadyExistsErr = {
       _tag: 'InboxError',
+      eventId: 'test-event-id',
+      correlationId: null,
       code: 'already_exists' as const,
       message: 'duplicate',
     }

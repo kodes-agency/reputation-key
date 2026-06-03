@@ -45,7 +45,8 @@ describe('createLinkCategory', () => {
     await expect(
       useCase({ portalId: 'nonexistent', title: 'Reviews' }, ctx),
     ).rejects.toSatisfy(
-      (e: unknown) => isPortalError(e) && (e as { code: string }).code === 'portal_not_found',
+      (e: unknown) =>
+        isPortalError(e) && (e as { code: string }).code === 'portal_not_found',
     )
   })
 
@@ -55,10 +56,9 @@ describe('createLinkCategory', () => {
     const portal = buildTestPortal({})
     portalRepo.seed([portal])
 
-    await expect(
-      useCase({ portalId: portal.id, title: '' }, ctx),
-    ).rejects.toSatisfy(
-      (e: unknown) => isPortalError(e) && (e as { code: string }).code === 'invalid_title',
+    await expect(useCase({ portalId: portal.id, title: '' }, ctx)).rejects.toSatisfy(
+      (e: unknown) =>
+        isPortalError(e) && (e as { code: string }).code === 'invalid_title',
     )
   })
 
@@ -70,7 +70,7 @@ describe('createLinkCategory', () => {
 
     await useCase({ portalId: portal.id, title: 'Reviews' }, ctx)
 
-    const emitted = events.capturedByTag('portal_link_category.created')
+    const emitted = events.capturedByTag('portal.portal_link_category.created')
     expect(emitted).toHaveLength(1)
     expect(emitted[0].categoryId).toBe('c0000000-0000-0000-0000-000000000001')
   })
@@ -81,9 +81,7 @@ describe('createLinkCategory', () => {
     const portal = buildTestPortal({})
     portalRepo.seed([portal])
 
-    await expect(
-      useCase({ portalId: portal.id, title: 'Links' }, ctx),
-    ).rejects.toSatisfy(
+    await expect(useCase({ portalId: portal.id, title: 'Links' }, ctx)).rejects.toSatisfy(
       (e: unknown) => isPortalError(e) && (e as { code: string }).code === 'forbidden',
     )
   })

@@ -69,7 +69,7 @@ describe('reorderLinks', () => {
       ctx,
     )
 
-    const emitted = events.capturedByTag('portal_link.reordered')
+    const emitted = events.capturedByTag('portal.portal_link.reordered')
     expect(emitted).toHaveLength(1)
   })
 })

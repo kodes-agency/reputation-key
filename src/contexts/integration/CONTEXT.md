@@ -1,6 +1,24 @@
 # Integration Context
 
+## Bounded context
+
+TODO: One sentence describing what this context does.
+
 Manages Google OAuth connections, token lifecycle, GBP API infrastructure, and Pub/Sub subscription management. Connection management only — review syncing and property import live in their own contexts (`review` and `property`).
+
+> **DEPRECATED per docs/standards.md §4.3**
+
+## Glossary
+
+- **GoogleConnection** — Authenticated OAuth connection to a Google account. Stores encrypted access/refresh tokens, `connectedBy` user, `visibility` (`private` | `organization`), and `status` (`active` | `disconnected`).
+- **GbpLocation** — A Google Business Profile location fetched via GBP API. Belongs to a GoogleConnection. Has `gbpPlaceId`, `locationName`, `address`.
+- **GbpCacheEntry** — Cached GBP data per property. Currently stores location data only (`dataType: 'location'`).
+- **GbpImportJob** — A batch import of GBP locations. Tracks `importedCount`, `skippedCount`, `failedCount`. Status: `pending` → `processing` → `completed` (or `failed`).
+- **PropertyImport** — Creates a `Property` entity from a successfully imported GBP location. Links the new property back to the originating GoogleConnection.
+- **Token Encryption** — Access/refresh tokens are encrypted at rest using AES-256 via `TokenEncryptionPort`.
+- **OAuth Callback** — Google OAuth flow redirects to `BETTER_AUTH_URL/api/auth/google/callback` after user consent.
+
+> **DEPRECATED per docs/standards.md §4.3**
 
 ## Language
 
@@ -38,6 +56,16 @@ _Avoid_: Permission, access level, sharing
 - Successful **Import Job** items create **Properties** linked to the originating **Google Connection**
 - **Import Job** tracks three counters: `importedCount`, `skippedCount`, `failedCount`
 - **Pub/Sub Subscription** is created per Google account on first property import, removed on last property deletion or disconnect
+
+## Invariants
+
+- A connection must be `active` to start an import or list locations
+- Duplicate GBP place IDs within the same organization are skipped during import
+- Token refresh happens automatically with a 5-minute expiry buffer — the `refreshGoogleToken` use case is called before any GBP API interaction
+- Access tokens are encrypted at rest; never stored in plaintext
+- Each organization may have multiple Google connections, but each connection belongs to exactly one org
+
+> **DEPRECATED per docs/standards.md §4.3 — merged into Invariants above**
 
 ## Domain Rules
 
@@ -128,6 +156,8 @@ Exported from `application/public-api.ts`:
 
 - **import-property** — Processes a single GBP location into a property. Created by `startPropertyImport` use case.
 
+> **DEPRECATED per docs/standards.md §4.3**
+
 ## Example dialogue
 
 > **Dev:** "What happens when a user connects their Google account?"
@@ -144,6 +174,8 @@ Exported from `application/public-api.ts`:
 >
 > **Dev:** "Does the import create properties immediately?"
 > **Domain expert:** "Yes, but asynchronously. The import job enqueues a BullMQ task that creates properties one by one, updating counters as it goes."
+
+> **DEPRECATED per docs/standards.md §4.3**
 
 ## Flagged ambiguities
 

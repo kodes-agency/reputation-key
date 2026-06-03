@@ -36,6 +36,7 @@ describe('GoalPublicApi', () => {
       completedAt: new Date(),
       parentGoalId: null,
       createdBy: userId('u1'),
+      occurredAt: new Date(),
     })
     expect(event._tag).toBe('goal.completed')
   })

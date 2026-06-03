@@ -111,7 +111,7 @@ Composition root: `src/composition.ts`. Bootstrap: `src/bootstrap.ts`.
 
 ## Architecture Decisions
 
-See `docs/adr/` for formal ADRs. Key ADRs:
+See `docs/adr/` for formal ADRs. See `docs/standards.md` for codebase-wide naming and structural standards. Key ADRs:
 
 || ADR | Title | Context |
 || ---- | -------------------------------------- | -------------------------------- |
@@ -122,6 +122,9 @@ See `docs/adr/` for formal ADRs. Key ADRs:
 || 0005 | GBP Review API Path and Error Model Fix | Google Integration, Error Model |
 || 0006 | Staff as a Separate Bounded Context | Identity, Staff Management |
 || 0007 | Dashboard as a Read-Only Aggregation | Dashboard, Read Models |
+|| 0008 | Cross-Context Data Access Rules | Architecture, Bounded Context Boundaries |
+|| 0009 | Permission Model | Identity & Authorization |
+|| 0010 | Activity Context: BullMQ Event Delivery | Activity, Event Delivery |
 
 ## Key Files
 

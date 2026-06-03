@@ -4,7 +4,10 @@ import { describe, it, expect } from 'vitest'
 import { reorderCategories } from './reorder-categories'
 import { createInMemoryPortalLinkRepo } from '#/shared/testing/in-memory-portal-link-repo'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
-import { buildTestAuthContext, buildTestPortalLinkCategory } from '#/shared/testing/fixtures'
+import {
+  buildTestAuthContext,
+  buildTestPortalLinkCategory,
+} from '#/shared/testing/fixtures'
 import { portalLinkCategoryId } from '#/shared/domain/ids'
 import { isPortalError } from '../../domain/errors'
 
@@ -22,8 +25,14 @@ describe('reorderCategories', () => {
   it('reorders categories with new sort keys', async () => {
     const { useCase, portalLinkRepo } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
-    const cat1 = buildTestPortalLinkCategory({ id: portalLinkCategoryId('cat-1'), sortKey: 'a0' })
-    const cat2 = buildTestPortalLinkCategory({ id: portalLinkCategoryId('cat-2'), sortKey: 'a1' })
+    const cat1 = buildTestPortalLinkCategory({
+      id: portalLinkCategoryId('cat-1'),
+      sortKey: 'a0',
+    })
+    const cat2 = buildTestPortalLinkCategory({
+      id: portalLinkCategoryId('cat-2'),
+      sortKey: 'a1',
+    })
     portalLinkRepo.seedCategories([cat1, cat2])
 
     await useCase(
@@ -46,9 +55,7 @@ describe('reorderCategories', () => {
     const { useCase } = setup()
     const ctx = buildTestAuthContext({ role: 'Staff' })
 
-    await expect(
-      useCase({ portalId: 'any', items: [] }, ctx),
-    ).rejects.toSatisfy(
+    await expect(useCase({ portalId: 'any', items: [] }, ctx)).rejects.toSatisfy(
       (e: unknown) => isPortalError(e) && (e as { code: string }).code === 'forbidden',
     )
   })
@@ -60,11 +67,14 @@ describe('reorderCategories', () => {
     portalLinkRepo.seedCategories([cat1])
 
     await useCase(
-      { portalId: 'd0000000-0000-0000-0000-000000000001', items: [{ id: cat1.id, sortKey: 'b0' }] },
+      {
+        portalId: 'd0000000-0000-0000-0000-000000000001',
+        items: [{ id: cat1.id, sortKey: 'b0' }],
+      },
       ctx,
     )
 
-    const emitted = events.capturedByTag('portal_link_category.reordered')
+    const emitted = events.capturedByTag('portal.portal_link_category.reordered')
     expect(emitted).toHaveLength(1)
   })
 })

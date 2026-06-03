@@ -1,5 +1,5 @@
 // Review context — domain events
-// Per architecture: "Events are facts, named in the past tense."
+// Standards: docs/standards.md §1
 
 import type {
   ReviewId,
@@ -10,9 +10,9 @@ import type {
 } from '#/shared/domain/ids'
 import type { ReviewPlatform, StarRating } from './types'
 
-// fallow-ignore-next-line unused-type
 export type ReviewCreated = Readonly<{
   _tag: 'review.created'
+  eventId: string
   reviewId: ReviewId
   propertyId: PropertyId
   organizationId: OrganizationId
@@ -21,11 +21,23 @@ export type ReviewCreated = Readonly<{
   rating: StarRating
   reviewText: string | null
   occurredAt: Date
+  correlationId: string | null
 }>
+export const reviewCreated = (
+  args: Omit<ReviewCreated, '_tag' | 'eventId' | 'correlationId'>,
+): ReviewCreated => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  return {
+    _tag: 'review.created',
+    eventId: crypto.randomUUID(),
+    correlationId: null,
+    ...args,
+  }
+}
 
-// fallow-ignore-next-line unused-type
 export type ReviewUpdated = Readonly<{
   _tag: 'review.updated'
+  eventId: string
   reviewId: ReviewId
   propertyId: PropertyId
   organizationId: OrganizationId
@@ -34,104 +46,163 @@ export type ReviewUpdated = Readonly<{
   rating: StarRating
   reviewText: string | null
   occurredAt: Date
+  correlationId: string | null
 }>
+export const reviewUpdated = (
+  args: Omit<ReviewUpdated, '_tag' | 'eventId' | 'correlationId'>,
+): ReviewUpdated => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  return {
+    _tag: 'review.updated',
+    eventId: crypto.randomUUID(),
+    correlationId: null,
+    ...args,
+  }
+}
 
-// fallow-ignore-next-line unused-type
 export type ReviewExpired = Readonly<{
   _tag: 'review.expired'
+  eventId: string
   reviewId: ReviewId
   propertyId: PropertyId
   organizationId: OrganizationId
   occurredAt: Date
+  correlationId: string | null
 }>
+export const reviewExpired = (
+  args: Omit<ReviewExpired, '_tag' | 'eventId' | 'correlationId'>,
+): ReviewExpired => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  return {
+    _tag: 'review.expired',
+    eventId: crypto.randomUUID(),
+    correlationId: null,
+    ...args,
+  }
+}
 
-export type ReviewEvent = ReviewCreated | ReviewUpdated | ReviewExpired
-
-// fallow-ignore-next-line unused-type
-export type ReplyPublished = Readonly<{
-  _tag: 'reply.published'
-  replyId: ReplyId
-  reviewId: ReviewId
-  propertyId: PropertyId
-  organizationId: OrganizationId
-  occurredAt: Date
-}>
-
-// fallow-ignore-next-line unused-type
-export type ReplySubmitted = Readonly<{
-  _tag: 'reply.submitted'
-  replyId: ReplyId
-  reviewId: ReviewId
-  propertyId: PropertyId
-  organizationId: OrganizationId
-  userId: UserId
-  occurredAt: Date
-}>
-
-// fallow-ignore-next-line unused-type
-export type ReplyApproved = Readonly<{
-  _tag: 'reply.approved'
+export type ReviewReplyPublished = Readonly<{
+  _tag: 'review.reply.published'
+  eventId: string
   replyId: ReplyId
   reviewId: ReviewId
   propertyId: PropertyId
   organizationId: OrganizationId
   userId: UserId
+  source: 'web' | 'import'
   occurredAt: Date
+  correlationId: string | null
 }>
+export const reviewReplyPublished = (
+  args: Omit<
+    ReviewReplyPublished,
+    '_tag' | 'eventId' | 'correlationId' | 'userId' | 'source'
+  > & { userId?: UserId; source?: 'web' | 'import' },
+): ReviewReplyPublished => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  return {
+    _tag: 'review.reply.published',
+    eventId: crypto.randomUUID(),
+    correlationId: null,
+    userId: args.userId ?? ('' as UserId),
+    source: args.source ?? 'web',
+    ...args,
+  }
+}
 
-// fallow-ignore-next-line unused-type
-export type ReplyRejected = Readonly<{
-  _tag: 'reply.rejected'
+export type ReviewReplySubmitted = Readonly<{
+  _tag: 'review.reply.submitted'
+  eventId: string
+  replyId: ReplyId
+  reviewId: ReviewId
+  propertyId: PropertyId
+  organizationId: OrganizationId
+  userId: UserId
+  source: 'web' | 'import'
+  occurredAt: Date
+  correlationId: string | null
+}>
+export const reviewReplySubmitted = (
+  args: Omit<
+    ReviewReplySubmitted,
+    '_tag' | 'eventId' | 'correlationId' | 'userId' | 'source'
+  > & { userId?: UserId; source?: 'web' | 'import' },
+): ReviewReplySubmitted => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  return {
+    _tag: 'review.reply.submitted',
+    eventId: crypto.randomUUID(),
+    correlationId: null,
+    userId: args.userId ?? ('' as UserId),
+    source: args.source ?? 'web',
+    ...args,
+  }
+}
+
+export type ReviewReplyApproved = Readonly<{
+  _tag: 'review.reply.approved'
+  eventId: string
+  replyId: ReplyId
+  reviewId: ReviewId
+  propertyId: PropertyId
+  organizationId: OrganizationId
+  userId: UserId
+  source: 'web' | 'import'
+  occurredAt: Date
+  correlationId: string | null
+}>
+export const reviewReplyApproved = (
+  args: Omit<
+    ReviewReplyApproved,
+    '_tag' | 'eventId' | 'correlationId' | 'userId' | 'source'
+  > & { userId?: UserId; source?: 'web' | 'import' },
+): ReviewReplyApproved => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  return {
+    _tag: 'review.reply.approved',
+    eventId: crypto.randomUUID(),
+    correlationId: null,
+    userId: args.userId ?? ('' as UserId),
+    source: args.source ?? 'web',
+    ...args,
+  }
+}
+
+export type ReviewReplyRejected = Readonly<{
+  _tag: 'review.reply.rejected'
+  eventId: string
   replyId: ReplyId
   reviewId: ReviewId
   propertyId: PropertyId
   organizationId: OrganizationId
   userId: UserId
   reason: string | null
+  source: 'web' | 'import'
   occurredAt: Date
+  correlationId: string | null
 }>
+export const reviewReplyRejected = (
+  args: Omit<
+    ReviewReplyRejected,
+    '_tag' | 'eventId' | 'correlationId' | 'userId' | 'source'
+  > & { userId?: UserId; source?: 'web' | 'import' },
+): ReviewReplyRejected => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  return {
+    _tag: 'review.reply.rejected',
+    eventId: crypto.randomUUID(),
+    correlationId: null,
+    userId: args.userId ?? ('' as UserId),
+    source: args.source ?? 'web',
+    ...args,
+  }
+}
 
-export type ReplyEvent = ReplyPublished | ReplySubmitted | ReplyApproved | ReplyRejected
-
-// NOTE: No ReviewPurged event is emitted when the purge job hard-deletes expired reviews.
-// Purged reviews are already expired (review.expired event was emitted earlier) and are
-// removed from the DB after a 3-day grace period. If downstream systems need to react to
-// permanent deletion (e.g., cleanup of related resources), a review.purged event should be
-// added to this union and emitted in the purge job handler.
-
-// ── Event constructors ──────────────────────────────────────────────
-
-export const reviewCreated = (args: Omit<ReviewCreated, '_tag'>): ReviewCreated => ({
-  _tag: 'review.created',
-  ...args,
-})
-
-export const reviewUpdated = (args: Omit<ReviewUpdated, '_tag'>): ReviewUpdated => ({
-  _tag: 'review.updated',
-  ...args,
-})
-
-export const reviewExpired = (args: Omit<ReviewExpired, '_tag'>): ReviewExpired => ({
-  _tag: 'review.expired',
-  ...args,
-})
-
-export const replyPublished = (args: Omit<ReplyPublished, '_tag'>): ReplyPublished => ({
-  _tag: 'reply.published',
-  ...args,
-})
-
-export const replySubmitted = (args: Omit<ReplySubmitted, '_tag'>): ReplySubmitted => ({
-  _tag: 'reply.submitted',
-  ...args,
-})
-
-export const replyApproved = (args: Omit<ReplyApproved, '_tag'>): ReplyApproved => ({
-  _tag: 'reply.approved',
-  ...args,
-})
-
-export const replyRejected = (args: Omit<ReplyRejected, '_tag'>): ReplyRejected => ({
-  _tag: 'reply.rejected',
-  ...args,
-})
+export type ReviewEvent =
+  | ReviewCreated
+  | ReviewUpdated
+  | ReviewExpired
+  | ReviewReplyPublished
+  | ReviewReplySubmitted
+  | ReviewReplyApproved
+  | ReviewReplyRejected

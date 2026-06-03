@@ -88,7 +88,7 @@ export type CreateInboxNoteInput = Readonly<{
   id: InboxNoteId
   inboxItemId: InboxItemId
   organizationId: OrganizationId
-  authorUserId: UserId
+  userId: UserId
   text: string
   clock: () => Date
 }>
@@ -104,7 +104,7 @@ export const createInboxNote = (
     id: input.id,
     inboxItemId: input.inboxItemId,
     organizationId: input.organizationId,
-    authorUserId: input.authorUserId,
+    userId: input.userId,
     text: trimmed,
     createdAt: input.clock(),
   })

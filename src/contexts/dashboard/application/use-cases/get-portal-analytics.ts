@@ -21,6 +21,7 @@ export type GetPortalAnalyticsDeps = Readonly<{
   repo: DashboardRepository
   portalMetrics: PortalMetricsPort
 }>
+export type GetPortalAnalytics = ReturnType<typeof getPortalAnalytics>
 
 /** Compute trend percentage. Returns null when prior is 0 or result is not finite. */
 function trend(current: number, prior: number): number | null {
@@ -35,21 +36,55 @@ export const getPortalAnalytics =
     const { organizationId, propertyId, portalId, startDate, endDate, timeRange } = input
 
     // For 'all' time range, no meaningful prior period — skip trend comparison
-    const priorStartDate = timeRange === 'all' ? startDate : new Date(startDate.getTime() - (endDate.getTime() - startDate.getTime()))
+    const priorStartDate =
+      timeRange === 'all'
+        ? startDate
+        : new Date(startDate.getTime() - (endDate.getTime() - startDate.getTime()))
     const priorEndDate = timeRange === 'all' ? endDate : new Date(startDate.getTime() - 1)
 
     // Fetch current and prior KPI sums, rating distribution, rating trend, and engagement funnel in parallel
     const [currentSums, priorSums, ratingDistribution, ratingTrend, engagementFunnel] =
       await Promise.all([
-        deps.portalMetrics.getPortalKpiSums(organizationId, propertyId, portalId, startDate, endDate),
-        deps.portalMetrics.getPortalKpiSums(organizationId, propertyId, portalId, priorStartDate, priorEndDate),
-        deps.portalMetrics.getPortalRatingDistribution(organizationId, propertyId, portalId, startDate, endDate),
-        deps.portalMetrics.getPortalRatingTrend(organizationId, propertyId, portalId, startDate, endDate),
-        deps.repo.getEngagementFunnel({ organizationId, propertyId, portalId, startDate, endDate }),
+        deps.portalMetrics.getPortalKpiSums(
+          organizationId,
+          propertyId,
+          portalId,
+          startDate,
+          endDate,
+        ),
+        deps.portalMetrics.getPortalKpiSums(
+          organizationId,
+          propertyId,
+          portalId,
+          priorStartDate,
+          priorEndDate,
+        ),
+        deps.portalMetrics.getPortalRatingDistribution(
+          organizationId,
+          propertyId,
+          portalId,
+          startDate,
+          endDate,
+        ),
+        deps.portalMetrics.getPortalRatingTrend(
+          organizationId,
+          propertyId,
+          portalId,
+          startDate,
+          endDate,
+        ),
+        deps.repo.getEngagementFunnel({
+          organizationId,
+          propertyId,
+          portalId,
+          startDate,
+          endDate,
+        }),
       ])
 
-    const toMap = (rows: readonly { metricKey: string; total: number; count: number }[]) =>
-      new Map(rows.map((r) => [r.metricKey, r]))
+    const toMap = (
+      rows: readonly { metricKey: string; total: number; count: number }[],
+    ) => new Map(rows.map((r) => [r.metricKey, r]))
 
     const cur = toMap(currentSums)
     const prior = toMap(priorSums)
@@ -65,7 +100,9 @@ export const getPortalAnalytics =
 
     // avgRating: total / count (0 if no ratings)
     const curAvgRating = curRating ? curRating.total / Math.max(1, curRating.count) : 0
-    const priorAvgRating = priorRating ? priorRating.total / Math.max(1, priorRating.count) : 0
+    const priorAvgRating = priorRating
+      ? priorRating.total / Math.max(1, priorRating.count)
+      : 0
 
     const kpis: PortalKPIs = {
       scans: {

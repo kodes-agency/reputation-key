@@ -108,7 +108,7 @@ type RejectedProps = Readonly<{
   onEditResubmit: () => void
 }>
 
-export function ReplyRejected({ reply, isSaving, onEditResubmit }: RejectedProps) {
+export function ReviewReplyRejected({ reply, isSaving, onEditResubmit }: RejectedProps) {
   return (
     <div className="space-y-3 border-t pt-4">
       <div className="flex items-center gap-2">

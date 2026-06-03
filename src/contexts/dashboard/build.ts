@@ -16,11 +16,16 @@ export type DashboardContextBuildInput = Readonly<{
 }>
 
 export type DashboardContextApi = Readonly<{
-  getDashboardData: ReturnType<typeof getDashboardData>
-  getPortalAnalytics: ReturnType<typeof getPortalAnalytics>
   publicApi: Readonly<{
     getDashboardData: ReturnType<typeof getDashboardData>
     getPortalAnalytics: ReturnType<typeof getPortalAnalytics>
+  }>
+  internal: Readonly<{
+    repos: Readonly<{ dashboardRepo: ReturnType<typeof createDashboardRepository> }>
+    useCases: Readonly<{
+      getDashboardData: ReturnType<typeof getDashboardData>
+      getPortalAnalytics: ReturnType<typeof getPortalAnalytics>
+    }>
   }>
 }>
 
@@ -39,11 +44,13 @@ export const buildDashboardContext = (
   })
 
   return {
-    getDashboardData: getDashboard,
-    getPortalAnalytics: getPortal,
     publicApi: {
       getDashboardData: getDashboard,
       getPortalAnalytics: getPortal,
+    },
+    internal: {
+      repos: { dashboardRepo },
+      useCases: { getDashboardData: getDashboard, getPortalAnalytics: getPortal },
     },
   }
 }

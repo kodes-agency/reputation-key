@@ -1,39 +1,52 @@
 // Staff context — domain events
+// Standards: docs/standards.md §1
 
 import type { StaffAssignmentId } from './types'
 import type { OrganizationId, PropertyId, TeamId, UserId } from '#/shared/domain/ids'
 
-// fallow-ignore-next-line unused-type
 export type StaffAssigned = Readonly<{
   _tag: 'staff.assigned'
+  eventId: string
   assignmentId: StaffAssignmentId
   organizationId: OrganizationId
   userId: UserId
   propertyId: PropertyId
   teamId: TeamId | null
   occurredAt: Date
+  correlationId: string | null
 }>
+export const staffAssigned = (
+  args: Omit<StaffAssigned, '_tag' | 'eventId' | 'correlationId'>,
+): StaffAssigned => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  return {
+    _tag: 'staff.assigned',
+    eventId: crypto.randomUUID(),
+    correlationId: null,
+    ...args,
+  }
+}
 
-// fallow-ignore-next-line unused-type
 export type StaffUnassigned = Readonly<{
   _tag: 'staff.unassigned'
+  eventId: string
   assignmentId: StaffAssignmentId
   organizationId: OrganizationId
   userId: UserId
   propertyId: PropertyId
   occurredAt: Date
+  correlationId: string | null
 }>
+export const staffUnassigned = (
+  args: Omit<StaffUnassigned, '_tag' | 'eventId' | 'correlationId'>,
+): StaffUnassigned => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  return {
+    _tag: 'staff.unassigned',
+    eventId: crypto.randomUUID(),
+    correlationId: null,
+    ...args,
+  }
+}
 
 export type StaffEvent = StaffAssigned | StaffUnassigned
-
-export const staffAssigned = (args: Omit<StaffAssigned, '_tag'>): StaffAssigned => ({
-  _tag: 'staff.assigned',
-  ...args,
-})
-
-export const staffUnassigned = (
-  args: Omit<StaffUnassigned, '_tag'>,
-): StaffUnassigned => ({
-  _tag: 'staff.unassigned',
-  ...args,
-})

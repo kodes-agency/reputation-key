@@ -18,6 +18,8 @@ const makeQueue = () => {
 
 const makeEvent = (overrides: Record<string, unknown> = {}) => ({
   _tag: 'property.created' as const,
+  eventId: 'test-event-id',
+  correlationId: null,
   propertyId: propertyId('e0000000-0000-0000-0000-000000000001'),
   organizationId: organizationId('e0000000-0000-0000-0000-000000000002'),
   name: 'Test Property',
