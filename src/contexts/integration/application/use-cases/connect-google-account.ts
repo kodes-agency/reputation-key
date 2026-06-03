@@ -13,7 +13,7 @@ import { can } from '#/shared/domain/permissions'
 import { googleConnectionId } from '#/shared/domain/ids'
 import { buildGoogleConnection } from '../../domain/constructors'
 import { integrationError } from '../../domain/errors'
-import { googleAccountConnected } from '../../domain/events'
+import { integrationGoogleAccountConnected } from '../../domain/events'
 
 export type ConnectGoogleAccountDeps = Readonly<{
   connectionRepo: GoogleConnectionRepository
@@ -75,7 +75,7 @@ export const connectGoogleAccount =
 
       // Emit event for reconnection
       await deps.events.emit(
-        googleAccountConnected({
+        integrationGoogleAccountConnected({
           connectionId: updatedConnection.id,
           organizationId: ctx.organizationId,
           googleEmail: updatedConnection.googleEmail,
@@ -128,7 +128,7 @@ export const connectGoogleAccount =
 
     // 7. Emit event
     await deps.events.emit(
-      googleAccountConnected({
+      integrationGoogleAccountConnected({
         connectionId: connection.id,
         organizationId: ctx.organizationId,
         googleEmail: connection.googleEmail,

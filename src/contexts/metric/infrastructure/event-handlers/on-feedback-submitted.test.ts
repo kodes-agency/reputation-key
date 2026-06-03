@@ -27,7 +27,7 @@ const createFakeDeps = (): OnFeedbackSubmittedDeps & {
       return {
         id: metricReadingId('metric-1'),
         ...input,
-        recordedAt: FIXED_TIME,
+        occurredAt: FIXED_TIME,
       } as MetricReading
     },
   }
@@ -43,7 +43,9 @@ describe('onFeedbackSubmitted', () => {
   it('records a portal.feedback reading with value 1', async () => {
     const handler = onFeedbackSubmitted(deps)
     await handler({
-      _tag: 'feedback.submitted',
+      _tag: 'guest.feedback.submitted',
+      eventId: 'test-event-id',
+      correlationId: null,
       feedbackId: feedbackId('fb-1'),
       organizationId: organizationId('org-1'),
       portalId: portalId('portal-1'),
@@ -73,7 +75,9 @@ describe('onFeedbackSubmitted', () => {
 
     await expect(
       handler({
-        _tag: 'feedback.submitted',
+        _tag: 'guest.feedback.submitted',
+        eventId: 'test-event-id',
+        correlationId: null,
         feedbackId: feedbackId('fb-1'),
         organizationId: organizationId('org-1'),
         portalId: portalId('portal-1'),
@@ -87,7 +91,9 @@ describe('onFeedbackSubmitted', () => {
   it('sets groupId to null', async () => {
     const handler = onFeedbackSubmitted(deps)
     await handler({
-      _tag: 'feedback.submitted',
+      _tag: 'guest.feedback.submitted',
+      eventId: 'test-event-id',
+      correlationId: null,
       feedbackId: feedbackId('fb-2'),
       organizationId: organizationId('org-1'),
       portalId: portalId('portal-1'),

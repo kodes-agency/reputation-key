@@ -42,22 +42,27 @@ export type InboxContextBuildInput = Readonly<{
 }>
 
 export type InboxContextApi = Readonly<{
-  useCases: Readonly<{
-    createInboxItem: ReturnType<typeof createInboxItemFn>
-    updateInboxStatus: ReturnType<typeof updateInboxStatusFn>
-    bulkUpdateInboxStatus: ReturnType<typeof bulkUpdateFn>
-    assignInboxItem: ReturnType<typeof assignInboxItemFn>
-    getInboxItems: ReturnType<typeof getInboxItemsFn>
-    addInboxNote: ReturnType<typeof addInboxNoteFn>
-    getNewCount: ReturnType<typeof getNewCountFn>
-    getInboxItemDetail: ReturnType<typeof getInboxItemDetailFn>
-    getInboxNotes: ReturnType<typeof getInboxNotesFn>
-    getInboxFolderCounts: ReturnType<typeof getInboxFolderCountsFn>
+  publicApi: Record<string, never>
+  internal: Readonly<{
+    repos: Readonly<{
+      inboxRepo: InboxRepository
+      inboxNoteRepo: InboxNoteRepository
+      newCounter: NewCounterPort
+      staffPublicApi: StaffPublicApi
+    }>
+    useCases: Readonly<{
+      createInboxItem: ReturnType<typeof createInboxItemFn>
+      updateInboxStatus: ReturnType<typeof updateInboxStatusFn>
+      bulkUpdateInboxStatus: ReturnType<typeof bulkUpdateFn>
+      assignInboxItem: ReturnType<typeof assignInboxItemFn>
+      getInboxItems: ReturnType<typeof getInboxItemsFn>
+      addInboxNote: ReturnType<typeof addInboxNoteFn>
+      getNewCount: ReturnType<typeof getNewCountFn>
+      getInboxItemDetail: ReturnType<typeof getInboxItemDetailFn>
+      getInboxNotes: ReturnType<typeof getInboxNotesFn>
+      getInboxFolderCounts: ReturnType<typeof getInboxFolderCountsFn>
+    }>
   }>
-  inboxRepo: InboxRepository
-  inboxNoteRepo: InboxNoteRepository
-  newCounter: NewCounterPort
-  staffPublicApi: StaffPublicApi
 }>
 
 export const buildInboxContext = (input: InboxContextBuildInput): InboxContextApi => {
@@ -96,10 +101,15 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
   })
 
   return {
-    useCases,
-    inboxRepo,
-    inboxNoteRepo,
-    newCounter,
-    staffPublicApi: input.staffPublicApi,
+    publicApi: {} as Record<string, never>,
+    internal: {
+      repos: {
+        inboxRepo,
+        inboxNoteRepo,
+        newCounter,
+        staffPublicApi: input.staffPublicApi,
+      },
+      useCases,
+    },
   }
 }

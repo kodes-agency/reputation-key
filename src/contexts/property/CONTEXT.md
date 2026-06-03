@@ -1,5 +1,9 @@
 # Property Context
 
+## Bounded context
+
+TODO: One sentence describing what this context does.
+
 Property management — creation, updates, soft-deletion, and cross-context property lookups.
 
 ## Glossary

@@ -1,5 +1,5 @@
 // Metric context — records portal.review_link_click metric on review link click events
-import type { ReviewLinkClicked } from '#/contexts/guest/application/public-api'
+import type { GuestReviewLinkClicked } from '#/contexts/guest/application/public-api'
 import type { RecordMetricInput } from '../../application/use-cases/record-metric'
 import { getLogger } from '#/shared/observability/logger'
 
@@ -9,7 +9,7 @@ export type OnReviewLinkClickedDeps = Readonly<{
 
 export const onReviewLinkClicked =
   (deps: OnReviewLinkClickedDeps) =>
-  async (event: ReviewLinkClicked): Promise<void> => {
+  async (event: GuestReviewLinkClicked): Promise<void> => {
     try {
       await deps.recordMetric({
         organizationId: event.organizationId,

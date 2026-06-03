@@ -6,7 +6,11 @@ import type { Database } from '#/shared/db'
 import { metricReadings } from '#/shared/db/schema'
 import { and, sum, eq, gte, lte, sql, count, avg } from 'drizzle-orm'
 import { trace } from '#/shared/observability/trace'
-import type { PortalMetricsPort, PortalRatingBucket, PortalRatingTrendPoint } from '../../application/ports/portal-metrics.port'
+import type {
+  PortalMetricsPort,
+  PortalRatingBucket,
+  PortalRatingTrendPoint,
+} from '../../application/ports/portal-metrics.port'
 import type { OrganizationId, PropertyId, PortalId } from '#/shared/domain/ids'
 
 export function createPortalMetricsAdapter(db: Database): PortalMetricsPort {
@@ -31,8 +35,8 @@ export function createPortalMetricsAdapter(db: Database): PortalMetricsPort {
               eq(metricReadings.organizationId, organizationId),
               eq(metricReadings.propertyId, propertyId),
               eq(metricReadings.portalId, portalId),
-              gte(metricReadings.recordedAt, startDate),
-              lte(metricReadings.recordedAt, endDate),
+              gte(metricReadings.occurredAt, startDate),
+              lte(metricReadings.occurredAt, endDate),
             ),
           )
           .groupBy(metricReadings.metricKey)
@@ -65,8 +69,8 @@ export function createPortalMetricsAdapter(db: Database): PortalMetricsPort {
               eq(metricReadings.propertyId, propertyId),
               eq(metricReadings.portalId, portalId),
               eq(metricReadings.metricKey, 'portal.rating'),
-              gte(metricReadings.recordedAt, startDate),
-              lte(metricReadings.recordedAt, endDate),
+              gte(metricReadings.occurredAt, startDate),
+              lte(metricReadings.occurredAt, endDate),
             ),
           )
           .groupBy(sql`CAST(${metricReadings.value} AS INTEGER)`)
@@ -89,7 +93,7 @@ export function createPortalMetricsAdapter(db: Database): PortalMetricsPort {
       return trace('dashboard.portalMetrics.getPortalRatingTrend', async () => {
         const rows = await db
           .select({
-            date: sql<string>`DATE(${metricReadings.recordedAt})::TEXT`,
+            date: sql<string>`DATE(${metricReadings.occurredAt})::TEXT`,
             avgRating: sql<number>`ROUND(${avg(metricReadings.value)}::NUMERIC, 1)`,
           })
           .from(metricReadings)
@@ -99,12 +103,12 @@ export function createPortalMetricsAdapter(db: Database): PortalMetricsPort {
               eq(metricReadings.propertyId, propertyId),
               eq(metricReadings.portalId, portalId),
               eq(metricReadings.metricKey, 'portal.rating'),
-              gte(metricReadings.recordedAt, startDate),
-              lte(metricReadings.recordedAt, endDate),
+              gte(metricReadings.occurredAt, startDate),
+              lte(metricReadings.occurredAt, endDate),
             ),
           )
-          .groupBy(sql`DATE(${metricReadings.recordedAt})`)
-          .orderBy(sql`DATE(${metricReadings.recordedAt})`)
+          .groupBy(sql`DATE(${metricReadings.occurredAt})`)
+          .orderBy(sql`DATE(${metricReadings.occurredAt})`)
 
         return rows.map((r) => ({
           date: r.date,

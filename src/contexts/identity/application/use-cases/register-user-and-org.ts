@@ -5,7 +5,7 @@
 import type { EventBus } from '#/shared/events/event-bus'
 import { normalizeSlug, validateOrganizationName } from '../../domain/rules'
 import { identityError } from '../../domain/errors'
-import { organizationCreated } from '../../domain/events'
+import { identityOrganizationCreated } from '../../domain/events'
 import {
   organizationId as toOrganizationId,
   userId as toUserId,
@@ -23,6 +23,7 @@ export type RegisterUserAndOrgInput = Readonly<{
 export type RegisterUserAndOrgOutput = Readonly<{
   organizationId: string
 }>
+export type RegisterUserAndOrg = ReturnType<typeof registerUserAndOrg>
 
 type Deps = Readonly<{
   events: EventBus
@@ -95,7 +96,7 @@ export const registerUserAndOrg =
 
     // 5. Emit event
     await deps.events.emit(
-      organizationCreated({
+      identityOrganizationCreated({
         organizationId: toOrganizationId(orgId),
         organizationName: validName,
         slug,

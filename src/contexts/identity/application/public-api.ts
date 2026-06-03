@@ -3,18 +3,18 @@
 // types and port interfaces from this barrel. Per ADR-0001.
 
 export {
-  organizationCreated,
-  memberInvited,
-  memberRemoved,
-  memberRoleChanged,
+  identityOrganizationCreated,
+  identityMemberInvited,
+  identityMemberRemoved,
+  identityMemberRoleChanged,
 } from '../domain/events'
 export type {
-  OrganizationCreated,
-  MemberInvited,
-  InvitationAccepted,
-  InvitationRejected,
-  MemberRemoved,
-  MemberRoleChanged,
+  IdentityOrganizationCreated,
+  IdentityMemberInvited,
+  IdentityInvitationAccepted,
+  IdentityInvitationRejected,
+  IdentityMemberRemoved,
+  IdentityMemberRoleChanged,
   IdentityEvent,
 } from '../domain/events'
 

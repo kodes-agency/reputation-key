@@ -1,52 +1,71 @@
 // Team context — domain events
-// Per architecture: "Events are facts, named in the past tense."
+// Standards: docs/standards.md §1
 
 import type { TeamId } from './types'
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 
-// fallow-ignore-next-line unused-type
 export type TeamCreated = Readonly<{
   _tag: 'team.created'
+  eventId: string
   teamId: TeamId
   organizationId: OrganizationId
   propertyId: PropertyId
   name: string
   occurredAt: Date
+  correlationId: string | null
 }>
+export const teamCreated = (
+  args: Omit<TeamCreated, '_tag' | 'eventId' | 'correlationId'>,
+): TeamCreated => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  return {
+    _tag: 'team.created',
+    eventId: crypto.randomUUID(),
+    correlationId: null,
+    ...args,
+  }
+}
 
-// fallow-ignore-next-line unused-type
 export type TeamUpdated = Readonly<{
   _tag: 'team.updated'
+  eventId: string
   teamId: TeamId
   organizationId: OrganizationId
   propertyId: PropertyId
   name: string
   occurredAt: Date
+  correlationId: string | null
 }>
+export const teamUpdated = (
+  args: Omit<TeamUpdated, '_tag' | 'eventId' | 'correlationId'>,
+): TeamUpdated => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  return {
+    _tag: 'team.updated',
+    eventId: crypto.randomUUID(),
+    correlationId: null,
+    ...args,
+  }
+}
 
-// fallow-ignore-next-line unused-type
 export type TeamDeleted = Readonly<{
   _tag: 'team.deleted'
+  eventId: string
   teamId: TeamId
   organizationId: OrganizationId
   occurredAt: Date
+  correlationId: string | null
 }>
+export const teamDeleted = (
+  args: Omit<TeamDeleted, '_tag' | 'eventId' | 'correlationId'>,
+): TeamDeleted => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  return {
+    _tag: 'team.deleted',
+    eventId: crypto.randomUUID(),
+    correlationId: null,
+    ...args,
+  }
+}
 
 export type TeamEvent = TeamCreated | TeamUpdated | TeamDeleted
-
-// ── Event constructors ──────────────────────────────────────────────
-
-export const teamCreated = (args: Omit<TeamCreated, '_tag'>): TeamCreated => ({
-  _tag: 'team.created',
-  ...args,
-})
-
-export const teamUpdated = (args: Omit<TeamUpdated, '_tag'>): TeamUpdated => ({
-  _tag: 'team.updated',
-  ...args,
-})
-
-export const teamDeleted = (args: Omit<TeamDeleted, '_tag'>): TeamDeleted => ({
-  _tag: 'team.deleted',
-  ...args,
-})

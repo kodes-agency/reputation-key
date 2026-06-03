@@ -41,6 +41,8 @@ export const inboxItems = pgTable(
     escalatedAt: timestamp('escalated_at', { withTimezone: true }),
     addressedAt: timestamp('addressed_at', { withTimezone: true }),
     archivedAt: timestamp('archived_at', { withTimezone: true }),
+    firstReplySubmittedAt: timestamp('first_reply_submitted_at', { withTimezone: true }),
+    firstReplyPublishedAt: timestamp('first_reply_published_at', { withTimezone: true }),
     createdAt: createdAtColumn(),
     updatedAt: updatedAtColumn(),
   },
@@ -68,7 +70,7 @@ export const inboxNotes = pgTable(
       .notNull()
       .references(() => inboxItems.id, { onDelete: 'cascade' }),
     organizationId: varchar('organization_id', { length: 255 }).notNull(),
-    authorUserId: varchar('author_user_id', { length: 255 }).notNull(),
+    userId: varchar('author_user_id', { length: 255 }).notNull(),
     text: text('text').notNull(),
     createdAt: createdAtColumn(),
   },

@@ -3,30 +3,30 @@
 
 import { describe, it, expect } from 'vitest'
 import {
-  googleAccountConnected,
-  googleAccountDisconnected,
-  propertyImportCompleted,
-  googleConnectionVisibilityChanged,
+  integrationGoogleAccountConnected,
+  integrationGoogleAccountDisconnected,
+  integrationPropertyImportCompleted,
+  integrationGoogleConnectionVisibilityChanged,
 } from './events'
 import { googleConnectionId, gbpImportJobId, organizationId } from '#/shared/domain/ids'
 
 const now = new Date('2025-06-15T12:00:00Z')
 
-// ── googleAccountConnected ──────────────────────────────────────────
+// ── integrationGoogleAccountConnected ──────────────────────────────────────────
 
-describe('googleAccountConnected', () => {
+describe('integrationGoogleAccountConnected', () => {
   it('sets _tag to "google_account.connected"', () => {
-    const event = googleAccountConnected({
+    const event = integrationGoogleAccountConnected({
       connectionId: googleConnectionId('conn-1'),
       organizationId: organizationId('org-1'),
       googleEmail: 'user@example.com',
       occurredAt: now,
     })
-    expect(event._tag).toBe('google_account.connected')
+    expect(event._tag).toBe('integration.google_account.connected')
   })
 
   it('preserves all payload fields', () => {
-    const event = googleAccountConnected({
+    const event = integrationGoogleAccountConnected({
       connectionId: googleConnectionId('conn-1'),
       organizationId: organizationId('org-1'),
       googleEmail: 'user@example.com',
@@ -38,7 +38,7 @@ describe('googleAccountConnected', () => {
   })
 
   it('sets occurredAt as a Date', () => {
-    const event = googleAccountConnected({
+    const event = integrationGoogleAccountConnected({
       connectionId: googleConnectionId('conn-1'),
       organizationId: organizationId('org-1'),
       googleEmail: 'user@example.com',
@@ -49,20 +49,20 @@ describe('googleAccountConnected', () => {
   })
 })
 
-// ── googleAccountDisconnected ───────────────────────────────────────
+// ── integrationGoogleAccountDisconnected ───────────────────────────────────────
 
-describe('googleAccountDisconnected', () => {
+describe('integrationGoogleAccountDisconnected', () => {
   it('sets _tag to "google_account.disconnected"', () => {
-    const event = googleAccountDisconnected({
+    const event = integrationGoogleAccountDisconnected({
       connectionId: googleConnectionId('conn-1'),
       organizationId: organizationId('org-1'),
       occurredAt: now,
     })
-    expect(event._tag).toBe('google_account.disconnected')
+    expect(event._tag).toBe('integration.google_account.disconnected')
   })
 
   it('preserves connectionId and organizationId', () => {
-    const event = googleAccountDisconnected({
+    const event = integrationGoogleAccountDisconnected({
       connectionId: googleConnectionId('conn-2'),
       organizationId: organizationId('org-2'),
       occurredAt: now,
@@ -72,7 +72,7 @@ describe('googleAccountDisconnected', () => {
   })
 
   it('sets occurredAt as a Date', () => {
-    const event = googleAccountDisconnected({
+    const event = integrationGoogleAccountDisconnected({
       connectionId: googleConnectionId('conn-1'),
       organizationId: organizationId('org-1'),
       occurredAt: now,
@@ -82,11 +82,11 @@ describe('googleAccountDisconnected', () => {
   })
 })
 
-// ── propertyImportCompleted ─────────────────────────────────────────
+// ── integrationPropertyImportCompleted ─────────────────────────────────────────
 
-describe('propertyImportCompleted', () => {
+describe('integrationPropertyImportCompleted', () => {
   it('sets _tag to "property_import.completed"', () => {
-    const event = propertyImportCompleted({
+    const event = integrationPropertyImportCompleted({
       importJobId: gbpImportJobId('job-1'),
       organizationId: organizationId('org-1'),
       totalCount: 100,
@@ -95,11 +95,11 @@ describe('propertyImportCompleted', () => {
       failedCount: 5,
       occurredAt: now,
     })
-    expect(event._tag).toBe('property_import.completed')
+    expect(event._tag).toBe('integration.property_import.completed')
   })
 
   it('preserves all payload fields including counters', () => {
-    const event = propertyImportCompleted({
+    const event = integrationPropertyImportCompleted({
       importJobId: gbpImportJobId('job-1'),
       organizationId: organizationId('org-1'),
       totalCount: 100,
@@ -117,7 +117,7 @@ describe('propertyImportCompleted', () => {
   })
 
   it('sets occurredAt as a Date', () => {
-    const event = propertyImportCompleted({
+    const event = integrationPropertyImportCompleted({
       importJobId: gbpImportJobId('job-1'),
       organizationId: organizationId('org-1'),
       totalCount: 0,
@@ -130,21 +130,21 @@ describe('propertyImportCompleted', () => {
   })
 })
 
-// ── googleConnectionVisibilityChanged ───────────────────────────────
+// ── integrationGoogleConnectionVisibilityChanged ───────────────────────────────
 
-describe('googleConnectionVisibilityChanged', () => {
+describe('integrationGoogleConnectionVisibilityChanged', () => {
   it('sets _tag to "google_connection.visibility_changed"', () => {
-    const event = googleConnectionVisibilityChanged({
+    const event = integrationGoogleConnectionVisibilityChanged({
       connectionId: googleConnectionId('conn-1'),
       organizationId: organizationId('org-1'),
       visibility: 'organization',
       occurredAt: now,
     })
-    expect(event._tag).toBe('google_connection.visibility_changed')
+    expect(event._tag).toBe('integration.google_connection.visibility_changed')
   })
 
   it('preserves all payload fields', () => {
-    const event = googleConnectionVisibilityChanged({
+    const event = integrationGoogleConnectionVisibilityChanged({
       connectionId: googleConnectionId('conn-1'),
       organizationId: organizationId('org-1'),
       visibility: 'private',
@@ -156,7 +156,7 @@ describe('googleConnectionVisibilityChanged', () => {
   })
 
   it('sets occurredAt as a Date', () => {
-    const event = googleConnectionVisibilityChanged({
+    const event = integrationGoogleConnectionVisibilityChanged({
       connectionId: googleConnectionId('conn-1'),
       organizationId: organizationId('org-1'),
       visibility: 'organization',

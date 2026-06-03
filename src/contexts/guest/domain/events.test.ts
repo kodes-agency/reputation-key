@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { scanRecorded, ratingSubmitted, feedbackSubmitted } from './events'
+import { guestScanRecorded, guestRatingSubmitted, guestFeedbackSubmitted } from './events'
 import {
   scanEventId,
   organizationId,
@@ -16,9 +16,9 @@ const base = {
   occurredAt: new Date('2026-01-01'),
 }
 
-describe('ScanRecorded event', () => {
+describe('GuestScanRecorded event', () => {
   it('creates event with valid payload', () => {
-    const event = scanRecorded({
+    const event = guestScanRecorded({
       ...base,
       scanId: scanEventId('scan-1'),
       source: 'qr',
@@ -28,9 +28,9 @@ describe('ScanRecorded event', () => {
   })
 })
 
-describe('RatingSubmitted event', () => {
+describe('GuestRatingSubmitted event', () => {
   it('creates event with valid payload', () => {
-    const event = ratingSubmitted({
+    const event = guestRatingSubmitted({
       ...base,
       ratingId: ratingId('rating-1'),
       value: 5,
@@ -40,9 +40,9 @@ describe('RatingSubmitted event', () => {
   })
 })
 
-describe('FeedbackSubmitted event', () => {
+describe('GuestFeedbackSubmitted event', () => {
   it('creates event with valid payload', () => {
-    const event = feedbackSubmitted({
+    const event = guestFeedbackSubmitted({
       ...base,
       feedbackId: feedbackId('fb-1'),
       ratingId: null,

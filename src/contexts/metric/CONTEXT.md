@@ -1,5 +1,9 @@
 # Metric Context
 
+## Bounded context
+
+TODO: One sentence describing what this context does.
+
 Event-driven metric recording and aggregation. Subscribes to domain events from other contexts and records raw metric readings.
 
 ## Glossary
@@ -61,4 +65,14 @@ Exported from `application/public-api.ts`:
 
 ## Background jobs
 
-- **refresh-materialized-view** — Refreshes pre-aggregated metric materialized views (daily, weekly, daily-inbox). Scheduled via `JOB_NAMES` constants.
+- **`refresh-materialized-view.job.ts`** — Periodically refreshes metric materialized views for query performance.
+
+## Server functions
+
+None. Metric is an internal context with no HTTP surface. Metrics are queried through the dashboard context's server functions (`getDashboardData`, `getPortalAnalytics`).
+
+## Permissions
+
+- `metrics:read` — View metric readings and aggregates. Granted to AccountAdmin, PropertyManager. Staff cannot view metrics.
+- `metrics:write` — Record a metric reading. System-only (internal event handlers).
+- Metric data is scoped to the organization; cross-org access is forbidden.

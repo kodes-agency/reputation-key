@@ -1,5 +1,9 @@
 # Inbox Context
 
+## Bounded context
+
+TODO: One sentence describing what this context does.
+
 Unified triage surface for reviews and feedback — status tracking, assignment, notes, and new-item counts.
 
 ## Glossary
@@ -38,11 +42,17 @@ Unified triage surface for reviews and feedback — status tracking, assignment,
 
 ## Events produced
 
-| Tag                    | Payload                                                          | When                                       |
-| ---------------------- | ---------------------------------------------------------------- | ------------------------------------------ |
-| `inbox.item.created`   | inboxItemId, orgId, propertyId, sourceType, sourceId, occurredAt | New review or feedback triggers inbox item |
-| `inbox.status.changed` | inboxItemId, orgId, oldStatus, newStatus, occurredAt             | Status transition                          |
-| `inbox.item.assigned`  | inboxItemId, orgId, assignedTo, occurredAt                       | Item assigned to user                      |
+| Tag                         | Payload                                                                          | When                                       |
+| --------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------ |
+| `inbox.item.created`        | inboxItemId, orgId, propertyId, sourceType, sourceId, occurredAt                 | New review or feedback triggers inbox item |
+| `inbox.status.changed`      | inboxItemId, orgId, propertyId, userId, oldStatus, newStatus, occurredAt         | Status transition                          |
+| `inbox.item.assigned`       | inboxItemId, orgId, propertyId, userId, assignedTo, occurredAt                   | Item assigned to user                      |
+| `inbox.item.unassigned`     | inboxItemId, orgId, propertyId, userId, previousAssignee, occurredAt             | Item unassigned from user                  |
+| `inbox.item.escalated`      | inboxItemId, orgId, propertyId, userId, oldStatus, occurredAt                    | Item escalated alongside status.changed    |
+| `inbox.note.added`          | inboxItemId, orgId, propertyId, userId, noteId, text, occurredAt                 | Internal note added to item                |
+| `inbox.bulk.status.changed` | inboxItemId, orgId, propertyId, userId, oldStatus, newStatus, bulkId, occurredAt | Item status changed in bulk operation      |
+
+Note: `inbox.item.created` has no `userId` — it's emitted by sync pipeline event handlers, not user actions. Activity log attributes it to `'system'`.
 
 ## Events consumed
 
@@ -130,9 +140,13 @@ Exported from `application/public-api.ts`:
 | `inbox.write`  | ✓            | ✓               | ✓     |
 | `inbox.manage` | ✓            | ✓               | —     |
 
+> **DEPRECATED per docs/standards.md §4.3**
+
 ## Intentional deviations
 
 - Domain rules (domain/rules.ts) use hasRole() directly for role-based business logic — this is intentional per ADR-0001.
+
+> **DEPRECATED per docs/standards.md §4.3**
 
 ## Flagged ambiguities
 
@@ -153,3 +167,9 @@ Exported from `application/public-api.ts`:
 - **Timestamp display**: `readAt` timestamp relabelled from "Read" to "Opened" in the detail panel. Auto-transition makes "Read" misleading — "Opened" is honest about what happened. The domain field stays `readAt`; only the display label changes. Status badge for `read` also changes from "Read" to "Opened".
 - **List row styling**: `new` items render bold with a subtle dot indicator. `read` items render normal weight — no badge. `escalated`, `addressed`, `archived` items get their colored status badges. Gmail pattern.
 - **Bulk "Mark Addressed" review guard**: Defense-in-depth. Use case skips reviews in the per-item validation loop (`sourceType === 'review' && newStatus === 'addressed'` → skip). UI filters selected IDs to only feedback items before calling bulk action.
+- **Activity timeline**: Inbox detail panel will render an activity timeline using the ReUI timeline component, showing status changes, notes, replies, and assignments in chronological order. Data sourced from the `activity` context's activity log (per Q11 decisions).
+- **Activity event delivery (Q12)**: In-process via `eventBus.on()`. Matching the metric context's subscriber pattern. Handlers are idempotent (`findDuplicate` check before insert) and errors are logged, not propagated. If durability becomes a requirement (audit entries must survive process crashes), migrate to BullMQ-backed delivery per the original Q12 intent — the `CONTEXT.md` in `src/contexts/activity/` documents this trade-off explicitly.
+- **Activity log schema (Q13)**: Polymorphic table `activity_log` with columns: `id` (UUID PK), `actor_id` (FK auth_user), `actor_role` (denormalized, role at time of action), `action` (verb from fixed vocabulary), `resource_type` + `resource_id` (polymorphic target, no typed FK), `property_id` (nullable, account-level events have no property), `account_id` (FK), `payload` (JSONB, uniform `{field, from, to}` grammar), `source` ('web'|'api'|'system'|'import'), `created_at`. Immutable — no `updated_at`. Indexes: `(resource_type, resource_id, created_at)`, `(account_id, property_id, created_at)`, `(actor_id, created_at)`.
+- **Activity event mapping (Q14)**: One activity entry per event per item. Events that produce entries: `inbox.item.created`, `inbox.status.changed`, `inbox.item.escalated`, `inbox.item.assigned`, `inbox.item.unassigned`, `inbox.note.added`, `inbox.bulk.status.changed`, `reply.published`, `reply.submitted`, `reply.approved`, `reply.rejected`. Excluded: `cache.invalidated`, `item.read` (auto, not user-initiated). Bulk operations produce one entry per affected item with `payload.bulkId` linking them — audit-complete per item, groupable for org-wide feed.
+- **Activity context location (Q15)**: New top-level context `src/contexts/activity/`. Own directory, composition, public API, event handlers, queries, permission filtering. Not shared infrastructure — it's a bounded context with its own schema and business rules.
+- **Activity context structure (Q16)**: `domain/` (activity-log entity, constructors), `ports/` (repository interface, user lookup), `infrastructure/` (drizzle repo, event handlers, identity adapter), `queries/` (timeline + org-wide feed with permission filtering), `application/public-api.ts` (queries only — no commands). No use cases — write-only via event subscription, read-only via queries. Composition wires `eventBus.on()` handlers.

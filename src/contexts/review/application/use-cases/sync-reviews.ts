@@ -203,6 +203,8 @@ async function mirrorReply(
           rejectionReason: existingGoogleReply.rejectionReason,
           aiGenerated: existingGoogleReply.aiGenerated,
           publishedAt: gr.replyUpdatedAt ?? existingGoogleReply.publishedAt,
+          submittedAt: existingGoogleReply.submittedAt,
+          approvedAt: existingGoogleReply.approvedAt,
         },
         now,
       )
@@ -221,6 +223,8 @@ async function mirrorReply(
           rejectedBy: null,
           rejectionReason: null,
           aiGenerated: false,
+          submittedAt: null,
+          approvedAt: null,
           publishedAt: gr.replyUpdatedAt ?? now,
         },
         now,

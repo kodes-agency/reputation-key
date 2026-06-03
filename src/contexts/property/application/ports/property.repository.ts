@@ -7,6 +7,10 @@ import type { OrganizationId, GoogleConnectionId } from '#/shared/domain/ids'
 
 export type PropertyRepository = Readonly<{
   findById: (orgId: OrganizationId, id: PropertyId) => Promise<Property | null>
+  findByIds: (
+    orgId: OrganizationId,
+    ids: ReadonlyArray<PropertyId>,
+  ) => Promise<ReadonlyArray<Property>>
   list: (orgId: OrganizationId) => Promise<ReadonlyArray<Property>>
   slugExists: (
     orgId: OrganizationId,

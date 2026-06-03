@@ -87,9 +87,7 @@ export function InboxNotesThread({
               <div className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
                 <User className="size-3" />
                 <span className="font-medium">
-                  {note.authorUserId === currentUserId
-                    ? 'You'
-                    : `${note.authorUserId.slice(0, 8)}…`}
+                  {note.userId === currentUserId ? 'You' : `${note.userId.slice(0, 8)}…`}
                 </span>
                 <span className="flex items-center gap-1">
                   <Clock className="size-3" />

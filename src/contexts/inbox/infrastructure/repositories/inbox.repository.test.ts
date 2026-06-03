@@ -111,9 +111,15 @@ describe('createInboxRepository', () => {
   it('returns an object satisfying InboxRepository', () => {
     const db = createMockDb()
     const noopPorts = {
-      reviewLookup: { getReviewSnippetById: async () => null },
+      reviewLookup: {
+        getReviewSnippetById: async () => null,
+        getReviewSnippetsByIds: async () => new Map(),
+      },
       feedbackLookup: { getFeedbackSnippetById: async () => null },
-      propertyLookup: { getPropertyNameById: async () => null },
+      propertyLookup: {
+        getPropertyNameById: async () => null,
+        getPropertyNamesByIds: async () => new Map(),
+      },
     }
     const repo = createInboxRepository(db, noopPorts)
 
@@ -133,9 +139,15 @@ describe('createInboxRepository', () => {
   it('factory return type satisfies InboxRepository (compile-time check)', () => {
     const db = createMockDb()
     const noopPorts = {
-      reviewLookup: { getReviewSnippetById: async () => null },
+      reviewLookup: {
+        getReviewSnippetById: async () => null,
+        getReviewSnippetsByIds: async () => new Map(),
+      },
       feedbackLookup: { getFeedbackSnippetById: async () => null },
-      propertyLookup: { getPropertyNameById: async () => null },
+      propertyLookup: {
+        getPropertyNameById: async () => null,
+        getPropertyNamesByIds: async () => new Map(),
+      },
     }
     const repo: InboxRepository = createInboxRepository(db, noopPorts)
     // If this compiles, the factory output matches the port interface
@@ -164,6 +176,8 @@ describe('in-memory inbox repository', () => {
       escalatedAt: null,
       addressedAt: null,
       archivedAt: null,
+      firstReplySubmittedAt: null,
+      firstReplyPublishedAt: null,
       createdAt: new Date(),
       updatedAt: new Date(),
     }
@@ -200,6 +214,8 @@ describe('in-memory inbox repository', () => {
       escalatedAt: null,
       addressedAt: null,
       archivedAt: null,
+      firstReplySubmittedAt: null,
+      firstReplyPublishedAt: null,
       createdAt: new Date(),
       updatedAt: new Date(),
     }

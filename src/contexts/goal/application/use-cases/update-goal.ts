@@ -34,6 +34,7 @@ export type UpdateGoalDeps = Readonly<{
   goalRepo: GoalRepository
   clock: () => Date
 }>
+export type UpdateGoal = ReturnType<typeof updateGoal>
 
 // ── Use case ────────────────────────────────────────────────────────────
 

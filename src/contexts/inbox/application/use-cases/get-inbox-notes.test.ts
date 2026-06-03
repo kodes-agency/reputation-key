@@ -47,6 +47,8 @@ const makeItem = (): InboxItem => ({
   escalatedAt: null,
   addressedAt: null,
   archivedAt: null,
+  firstReplySubmittedAt: null,
+  firstReplyPublishedAt: null,
   createdAt: FIXED_TIME,
   updatedAt: FIXED_TIME,
 })
@@ -76,7 +78,7 @@ describe('getInboxNotes', () => {
       id: inboxNoteId('note-1'),
       inboxItemId: ITEM_ID,
       organizationId: ORG_ID,
-      authorUserId: USER_ID,
+      userId: USER_ID,
       text: 'Test note',
       createdAt: FIXED_TIME,
     })
@@ -115,7 +117,7 @@ describe('getInboxNotes', () => {
       id: inboxNoteId('note-1'),
       inboxItemId: ITEM_ID,
       organizationId: OTHER_ORG_ID,
-      authorUserId: USER_ID,
+      userId: USER_ID,
       text: 'Other org note',
       createdAt: FIXED_TIME,
     })

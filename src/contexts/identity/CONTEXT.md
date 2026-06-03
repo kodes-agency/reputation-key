@@ -1,5 +1,9 @@
 # Identity Context
 
+## Bounded context
+
+TODO: One sentence describing what this context does.
+
 Authentication, session management, organization membership, and invitation workflows. Wraps better-auth as a thin adapter layer — does not own core entity types.
 
 ## Glossary
@@ -70,6 +74,54 @@ identity/
                        better-auth-schemas.ts (Zod schemas for better-auth responses)
   server/              organizations.ts, auth-settings.ts
 ```
+
+## Use cases
+
+| Name                    | Input                                             | Output               | Permission           |
+| ----------------------- | ------------------------------------------------- | -------------------- | -------------------- |
+| `registerUser`          | `name`, `email`, `password`                       | `User`               | public               |
+| `registerUserAndOrg`    | `name`, `email`, `password`, `orgName`, `orgSlug` | `{ user, org }`      | public               |
+| `inviteMember`          | `email`, `role`, `orgId`                          | `Invitation`         | `org:manage_members` |
+| `resendInvitation`      | `invitationId`, `orgId`                           | `Invitation`         | `org:manage_members` |
+| `listInvitations`       | `orgId`                                           | `Invitation[]`       | `org:manage_members` |
+| `removeMember`          | `memberId`, `orgId`                               | `void`               | `org:manage_members` |
+| `updateMemberRole`      | `memberId`, `newRole`, `orgId`                    | `Member`             | `org:manage_members` |
+| `updateOrganization`    | `orgId`, `name?`, `slug?`, `logo?`                | `Organization`       | `org:manage`         |
+| `requestOrgLogoUpload`  | `orgId`, `contentType`                            | `{ uploadUrl, key }` | `org:manage`         |
+| `finalizeOrgLogoUpload` | `orgId`, `key`                                    | `Organization`       | `org:manage`         |
+| `requestAvatarUpload`   | `userId`, `contentType`                           | `{ uploadUrl, key }` | authenticated        |
+| `finalizeAvatarUpload`  | `userId`, `key`                                   | `User`               | authenticated        |
+
+## Server functions
+
+| Name                    | Method | Permission           | Description                     |
+| ----------------------- | ------ | -------------------- | ------------------------------- |
+| `createOrganizationFn`  | POST   | authenticated        | Create new organization         |
+| `getActiveOrganization` | GET    | authenticated        | Get current active org          |
+| `setActiveOrganization` | POST   | authenticated        | Switch active org               |
+| `listMembers`           | GET    | `org:manage_members` | List org members                |
+| `inviteMember`          | POST   | `org:manage_members` | Invite user to org              |
+| `acceptInvitation`      | POST   | authenticated        | Accept pending invitation       |
+| `cancelInvitation`      | POST   | `org:manage_members` | Cancel sent invitation          |
+| `resendInvitation`      | POST   | `org:manage_members` | Resend invitation email         |
+| `listInvitations`       | GET    | `org:manage_members` | List pending invitations        |
+| `updateMemberRole`      | POST   | `org:manage_members` | Change member role              |
+| `removeMember`          | POST   | `org:manage_members` | Remove member from org          |
+| `registerMember`        | POST   | `org:manage_members` | Register new member manually    |
+| `registerUserAndOrg`    | POST   | public               | Register user + create org      |
+| `signInUser`            | POST   | public               | Sign in existing user           |
+| `updateOrganization`    | POST   | `org:manage`         | Update org name/slug/logo       |
+| `requestOrgLogoUpload`  | POST   | `org:manage`         | Get S3 upload URL for org logo  |
+| `finalizeOrgLogoUpload` | POST   | `org:manage`         | Finalize org logo upload        |
+| `requestAvatarUpload`   | POST   | authenticated        | Get S3 upload URL for avatar    |
+| `finalizeAvatarUpload`  | POST   | authenticated        | Finalize avatar upload          |
+| `changePasswordFn`      | POST   | authenticated        | Change user password            |
+| `updateProfileFn`       | POST   | authenticated        | Update user profile             |
+| `updateUserImageFn`     | POST   | authenticated        | Update user image URL           |
+| `listUserInvitations`   | GET    | authenticated        | List user's pending invitations |
+| `listUserOrganizations` | GET    | authenticated        | List user's organizations       |
+
+> **DEPRECATED per docs/standards.md §4.3**
 
 ## Intentional deviations
 

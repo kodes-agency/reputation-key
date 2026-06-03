@@ -13,6 +13,7 @@ import type { AcceptInvitationInput } from '../dto/invitation.dto'
 export type ResendInvitationOutput = Readonly<{
   success: boolean
 }>
+export type ResendInvitation = ReturnType<typeof resendInvitation>
 
 /** Email sender capability — decoupled from infrastructure. */
 type EmailSender = (

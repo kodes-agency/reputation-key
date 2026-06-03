@@ -231,7 +231,7 @@ export const addInboxNoteFn = createServerFn({ method: 'POST' })
           return await useCases.addInboxNote({
             inboxItemId: inboxItemId(data.inboxItemId),
             organizationId: ctx.organizationId,
-            authorUserId: ctx.userId,
+            userId: ctx.userId,
             text: data.text,
             role: ctx.role,
           })

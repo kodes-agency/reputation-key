@@ -62,7 +62,7 @@ describe('updateMemberRole', () => {
     expect(updated?.role).toBe('PropertyManager')
 
     // Verify event
-    const emitted = events.capturedByTag('member.role-changed')
+    const emitted = events.capturedByTag('identity.member.role_changed')
     expect(emitted).toHaveLength(1)
     expect(emitted[0].previousRole).toBe('Staff')
     expect(emitted[0].newRole).toBe('PropertyManager')
@@ -124,7 +124,7 @@ describe('updateMemberRole', () => {
 
     await useCase({ memberId: 'member-staff', role: 'PropertyManager' }, ctx)
 
-    const [event] = events.capturedByTag('member.role-changed')
+    const [event] = events.capturedByTag('identity.member.role_changed')
     expect(event.previousRole).toBe('Staff')
     expect(event.newRole).toBe('PropertyManager')
     expect(event.changedBy).toBe(ctx.userId)

@@ -68,7 +68,7 @@ describe('disconnectGoogleAccount', () => {
     expect(result.status).toBe('disconnected')
     expect(cacheRepo.all()).toHaveLength(0)
 
-    const emitted = events.capturedByTag('google_account.disconnected')
+    const emitted = events.capturedByTag('integration.google_account.disconnected')
     expect(emitted).toHaveLength(1)
     expect(emitted[0].connectionId).toBe(connection.id)
     expect(emitted[0].organizationId).toBe(ctx.organizationId)
@@ -106,7 +106,9 @@ describe('disconnectGoogleAccount', () => {
 
     expect(result.status).toBe('disconnected')
     // No cache purge or event emission for already-disconnected connections
-    expect(events.capturedByTag('google_account.disconnected')).toHaveLength(0)
+    expect(events.capturedByTag('integration.google_account.disconnected')).toHaveLength(
+      0,
+    )
   })
 
   it('still disconnects when token revocation fails', async () => {
@@ -124,7 +126,7 @@ describe('disconnectGoogleAccount', () => {
 
     expect(result.status).toBe('disconnected')
 
-    const emitted = events.capturedByTag('google_account.disconnected')
+    const emitted = events.capturedByTag('integration.google_account.disconnected')
     expect(emitted).toHaveLength(1)
   })
 })

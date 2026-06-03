@@ -25,6 +25,9 @@ export const createInMemoryPropertyRepo = (): InMemoryPropertyRepo => {
       return property && isAccessible(orgId, property) ? property : null
     },
 
+    findByIds: async (orgId, ids) =>
+      [...store.values()].filter((p) => isAccessible(orgId, p) && ids.includes(p.id)),
+
     list: async (orgId) => [...store.values()].filter((p) => isAccessible(orgId, p)),
 
     slugExists: async (orgId, slug, excludeId) =>

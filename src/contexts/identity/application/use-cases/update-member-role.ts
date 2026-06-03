@@ -11,7 +11,7 @@ import type { EventBus } from '#/shared/events/event-bus'
 import { can } from '#/shared/domain/permissions'
 import { canChangeRole } from '../../domain/rules'
 import { identityError } from '../../domain/errors'
-import { memberRoleChanged } from '../../domain/events'
+import { identityMemberRoleChanged } from '../../domain/events'
 import { userId as toUserId } from '#/shared/domain/ids'
 import type { UpdateMemberRoleInput } from '../dto/invitation.dto'
 
@@ -19,6 +19,7 @@ import type { UpdateMemberRoleInput } from '../dto/invitation.dto'
 export type UpdateMemberRoleOutput = Readonly<{
   success: boolean
 }>
+export type UpdateMemberRole = ReturnType<typeof updateMemberRole>
 
 type Deps = Readonly<{
   identity: IdentityPort
@@ -65,7 +66,7 @@ export const updateMemberRole =
 
     // 5. Emit event
     await deps.events.emit(
-      memberRoleChanged({
+      identityMemberRoleChanged({
         organizationId: ctx.organizationId,
         userId: toUserId(targetMember.userId),
         previousRole: targetMember.role,

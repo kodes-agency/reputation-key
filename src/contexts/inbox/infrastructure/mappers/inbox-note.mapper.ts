@@ -12,15 +12,17 @@ export const inboxNoteFromRow = (row: InboxNoteRow): InboxNote => ({
   id: inboxNoteId(row.id),
   inboxItemId: inboxItemId(row.inboxItemId),
   organizationId: organizationId(row.organizationId),
-  authorUserId: userId(row.authorUserId),
+  userId: userId(row.userId),
   text: row.text,
   createdAt: row.createdAt,
 })
 
-export const inboxNoteToInsertRow = (note: Omit<InboxNote, 'createdAt'>): InboxNoteInsertRow => ({
+export const inboxNoteToInsertRow = (
+  note: Omit<InboxNote, 'createdAt'>,
+): InboxNoteInsertRow => ({
   id: note.id as string,
   inboxItemId: note.inboxItemId as string,
   organizationId: note.organizationId as string,
-  authorUserId: note.authorUserId as string,
+  userId: note.userId as string,
   text: note.text,
 })

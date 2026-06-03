@@ -18,7 +18,7 @@ describe('metricRecorded event', () => {
       metricKey: 'portal.scan',
       value: 1,
       groupId: portalGroupId('group-1'),
-      recordedAt: new Date('2026-01-01'),
+      occurredAt: new Date('2026-01-01'),
     })
     expect(withGroup._tag).toBe('metric.recorded')
     expect(withGroup.groupId).toBe('group-1')
@@ -31,7 +31,7 @@ describe('metricRecorded event', () => {
       metricKey: 'portal.scan',
       value: 1,
       groupId: null,
-      recordedAt: new Date('2026-01-01'),
+      occurredAt: new Date('2026-01-01'),
     })
     expect(withoutGroup.groupId).toBeNull()
   })

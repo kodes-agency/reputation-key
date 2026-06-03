@@ -16,8 +16,11 @@ export type MetricContextBuildInput = Readonly<{
 }>
 
 export type MetricContextApi = Readonly<{
-  recordMetric: ReturnType<typeof recordMetric>
   publicApi: MetricPublicApi
+  internal: Readonly<{
+    repos: Record<string, never>
+    useCases: Readonly<{ recordMetric: ReturnType<typeof recordMetric> }>
+  }>
 }>
 
 export const buildMetricContext = (input: MetricContextBuildInput): MetricContextApi => {
@@ -39,7 +42,7 @@ export const buildMetricContext = (input: MetricContextBuildInput): MetricContex
   }
 
   return {
-    recordMetric: record,
     publicApi,
-  }
+    internal: { repos: {} as const, useCases: { recordMetric: record } },
+  } as const
 }

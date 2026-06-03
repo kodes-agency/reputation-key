@@ -32,6 +32,8 @@ export type InboxItem = Readonly<{
   escalatedAt: Date | null
   addressedAt: Date | null
   archivedAt: Date | null
+  firstReplySubmittedAt: Date | null
+  firstReplyPublishedAt: Date | null
   createdAt: Date
   updatedAt: Date
 }>
@@ -40,7 +42,7 @@ export type InboxNote = Readonly<{
   id: InboxNoteId
   inboxItemId: InboxItemId
   organizationId: OrganizationId
-  authorUserId: UserId
+  userId: UserId
   text: string
   createdAt: Date
 }>

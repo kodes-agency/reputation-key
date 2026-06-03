@@ -23,5 +23,5 @@ export type MetricReading = Readonly<{
   metricKey: MetricKey
   value: number
   groupId: PortalGroupId | null
-  recordedAt: Date
+  occurredAt: Date
 }>

@@ -1,10 +1,6 @@
 // Review context — entity constructors
 
-import type {
-  Review,
-  Reply,
-  SentimentLabel,
-} from './types'
+import type { Review, Reply, SentimentLabel } from './types'
 import type {
   ReviewId,
   ReplyId,
@@ -76,6 +72,8 @@ type BuildReplyArgs = {
   rejectedBy?: UserId | null
   rejectionReason?: string | null
   aiGenerated?: boolean
+  submittedAt?: Date | null
+  approvedAt?: Date | null
   publishedAt?: Date | null
   now: Date
 }
@@ -103,6 +101,8 @@ export const buildReply = (args: BuildReplyArgs) => {
     rejectedBy: args.rejectedBy ?? null,
     rejectionReason: args.rejectionReason ?? null,
     aiGenerated: args.aiGenerated ?? false,
+    submittedAt: args.submittedAt ?? null,
+    approvedAt: args.approvedAt ?? null,
     publishedAt: args.publishedAt ?? null,
     createdAt: args.now,
     updatedAt: args.now,

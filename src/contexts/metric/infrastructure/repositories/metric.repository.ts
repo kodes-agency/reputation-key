@@ -41,7 +41,7 @@ function readingFromRow(row: typeof metricReadings.$inferSelect) {
     metricKey: row.metricKey as MetricKey,
     value: row.value,
     groupId: row.groupId ? groupIdCtor(row.groupId) : null,
-    recordedAt: row.recordedAt,
+    occurredAt: row.occurredAt,
   })
   if (result.isErr()) {
     throw new Error(`Invalid metric reading from DB: ${result.error.message}`)
@@ -61,7 +61,7 @@ export const createMetricRepository = (db: Database): MetricRepository => ({
           metricKey: reading.metricKey,
           value: reading.value,
           groupId: reading.groupId,
-          recordedAt: reading.recordedAt,
+          occurredAt: reading.occurredAt,
         })
         .returning()
 
@@ -86,7 +86,7 @@ export const createMetricRepository = (db: Database): MetricRepository => ({
         .select()
         .from(metricReadings)
         .where(where)
-        .orderBy(desc(metricReadings.recordedAt))
+        .orderBy(desc(metricReadings.occurredAt))
         .limit(500)
 
       return rows.map(readingFromRow) satisfies ReadonlyArray<MetricReading>
@@ -108,15 +108,15 @@ export const createMetricRepository = (db: Database): MetricRepository => ({
         conditions.push(eq(metricReadings.groupId, query.groupId))
       }
       if (query.periodStart) {
-        conditions.push(gte(metricReadings.recordedAt, query.periodStart))
+        conditions.push(gte(metricReadings.occurredAt, query.periodStart))
       }
       if (query.periodEnd) {
-        conditions.push(lte(metricReadings.recordedAt, query.periodEnd))
+        conditions.push(lte(metricReadings.occurredAt, query.periodEnd))
       }
       if (query.rollingWindowDays) {
         conditions.push(
           gte(
-            metricReadings.recordedAt,
+            metricReadings.occurredAt,
             sql`NOW() - INTERVAL '1 day' * ${query.rollingWindowDays}`,
           ),
         )

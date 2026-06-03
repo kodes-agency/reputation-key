@@ -1,5 +1,9 @@
 # Dashboard Context
 
+## Bounded context
+
+TODO: One sentence describing what this context does.
+
 Read-only aggregation surface for property-level and portal-level analytics. No writes, no events, no domain rules — pure query orchestration.
 
 ## Glossary
@@ -13,6 +17,22 @@ Read-only aggregation surface for property-level and portal-level analytics. No 
 - **MetricStatsPort** — Facade port for querying metric_readings data (sums by period/portal).
 - **ReviewStatsPort** — Facade port for querying review/reply aggregate data (counts, ratings, reply performance, recent reviews).
 - **PortalMetricsPort** — Facade port for portal-scoped metric queries (KPI sums, rating distribution, rating trend).
+
+## Relationships
+
+Dashboard is a read-only aggregation context with no domain entities. It queries three upstream contexts via facade ports:
+
+- **Review context** via `ReviewStatsPort` — Aggregate review counts, ratings, reply performance, recent reviews.
+- **Metric context** via `MetricStatsPort` — Summed metric readings by time period and portal.
+- **Portal context** via `PortalMetricsPort` — Portal-scoped KPI sums, rating distributions, rating trends.
+
+## Events produced
+
+None. Dashboard is a read-only query context — it does not emit domain events.
+
+## Events consumed
+
+None. Dashboard does not subscribe to events from other contexts. All data is fetched on-demand via facade ports when server functions are called.
 
 ## Architecture layers
 
@@ -49,17 +69,17 @@ Exported from `application/public-api.ts`:
 
 ## Use cases
 
-| Use case              | Input                                            | Output                | Description                                                                                         |
-| --------------------- | ------------------------------------------------ | --------------------- | --------------------------------------------------------------------------------------------------- |
-| `getDashboardData`    | orgId, propertyId, portalId?, startDate, endDate | `DashboardData`       | Orchestrates all repo queries in parallel; engagement funnel + portal-scoped KPIs when portal set   |
-| `getPortalAnalytics`  | orgId, propertyId, portalId, startDate, endDate  | `PortalAnalyticsData` | Portal-scoped analytics: KPIs, funnel, rating distribution, rating trend. No review/reply data.    |
+| Use case             | Input                                            | Output                | Description                                                                                       |
+| -------------------- | ------------------------------------------------ | --------------------- | ------------------------------------------------------------------------------------------------- |
+| `getDashboardData`   | orgId, propertyId, portalId?, startDate, endDate | `DashboardData`       | Orchestrates all repo queries in parallel; engagement funnel + portal-scoped KPIs when portal set |
+| `getPortalAnalytics` | orgId, propertyId, portalId, startDate, endDate  | `PortalAnalyticsData` | Portal-scoped analytics: KPIs, funnel, rating distribution, rating trend. No review/reply data.   |
 
 ## Server functions
 
-| Function               | Method | Permission       | Route                                              |
-| ---------------------- | ------ | ---------------- | -------------------------------------------------- |
-| `getDashboardDataFn`   | GET    | `dashboard.read` | Property-scoped dashboard data with time range     |
-| `getPortalAnalyticsFn` | GET    | `dashboard.read` | Portal-scoped analytics data with time range       |
+| Function               | Method | Permission       | Route                                          |
+| ---------------------- | ------ | ---------------- | ---------------------------------------------- |
+| `getDashboardDataFn`   | GET    | `dashboard.read` | Property-scoped dashboard data with time range |
+| `getPortalAnalyticsFn` | GET    | `dashboard.read` | Portal-scoped analytics data with time range   |
 
 ## Permissions
 

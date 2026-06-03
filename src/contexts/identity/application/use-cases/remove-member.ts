@@ -8,7 +8,7 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import type { EventBus } from '#/shared/events/event-bus'
 import { can } from '#/shared/domain/permissions'
 import { identityError } from '../../domain/errors'
-import { memberRemoved } from '../../domain/events'
+import { identityMemberRemoved } from '../../domain/events'
 import { userId as toUserId } from '#/shared/domain/ids'
 import type { RemoveMemberInput } from '../dto/invitation.dto'
 
@@ -16,6 +16,7 @@ import type { RemoveMemberInput } from '../dto/invitation.dto'
 export type RemoveMemberOutput = Readonly<{
   success: boolean
 }>
+export type RemoveMember = ReturnType<typeof removeMember>
 
 type Deps = Readonly<{
   identity: IdentityPort
@@ -44,7 +45,7 @@ export const removeMember =
 
     // 3. Emit event
     await deps.events.emit(
-      memberRemoved({
+      identityMemberRemoved({
         organizationId: ctx.organizationId,
         userId: toUserId(input.memberId), // memberId is the member's user-facing ID
         removedBy: ctx.userId,

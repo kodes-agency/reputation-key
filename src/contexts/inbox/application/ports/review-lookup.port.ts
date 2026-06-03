@@ -13,4 +13,8 @@ export type ReviewSnippet = Readonly<{
 
 export type ReviewLookupPort = Readonly<{
   getReviewSnippetById(id: ReviewId, orgId: OrganizationId): Promise<ReviewSnippet | null>
+  getReviewSnippetsByIds(
+    ids: ReadonlyArray<ReviewId>,
+    orgId: OrganizationId,
+  ): Promise<ReadonlyMap<string, ReviewSnippet>>
 }>

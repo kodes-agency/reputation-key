@@ -14,9 +14,9 @@ describe('createEventBus', () => {
     it('delivers events to handlers subscribed to the matching tag', async () => {
       const bus = createEventBus()
       const handler = vi.fn(async () => {})
-      bus.on('organization.created', handler)
+      bus.on('identity.organization.created', handler)
 
-      const event = makeTestEvent('organization.created', {
+      const event = makeTestEvent('identity.organization.created', {
         organizationId: 'org-1',
         occurredAt: new Date(),
       })
@@ -30,11 +30,11 @@ describe('createEventBus', () => {
       const bus = createEventBus()
       const received: Array<unknown> = []
 
-      bus.on('organization.created', async (event) => {
+      bus.on('identity.organization.created', async (event) => {
         received.push(event)
       })
 
-      const event = makeTestEvent('organization.created', {
+      const event = makeTestEvent('identity.organization.created', {
         organizationId: 'org-1',
         occurredAt: new Date(),
       })
@@ -50,10 +50,10 @@ describe('createEventBus', () => {
       const handler1 = vi.fn(async () => {})
       const handler2 = vi.fn(async () => {})
 
-      bus.on('organization.created', handler1)
-      bus.on('organization.created', handler2)
+      bus.on('identity.organization.created', handler1)
+      bus.on('identity.organization.created', handler2)
 
-      await bus.emit(makeTestEvent('organization.created'))
+      await bus.emit(makeTestEvent('identity.organization.created'))
 
       expect(handler1).toHaveBeenCalledOnce()
       expect(handler2).toHaveBeenCalledOnce()
@@ -63,8 +63,8 @@ describe('createEventBus', () => {
       const bus = createEventBus()
       const handler = vi.fn(async () => {})
 
-      bus.on('member.invited', handler)
-      await bus.emit(makeTestEvent('organization.created'))
+      bus.on('identity.member.invited', handler)
+      await bus.emit(makeTestEvent('identity.organization.created'))
 
       expect(handler).not.toHaveBeenCalled()
     })
@@ -73,7 +73,7 @@ describe('createEventBus', () => {
       const bus = createEventBus()
       // Should not throw or reject
       await expect(
-        bus.emit(makeTestEvent('organization.created')),
+        bus.emit(makeTestEvent('identity.organization.created')),
       ).resolves.toBeUndefined()
     })
   })
@@ -86,10 +86,10 @@ describe('createEventBus', () => {
       })
       const handler2 = vi.fn(async () => {})
 
-      bus.on('organization.created', handler1)
-      bus.on('organization.created', handler2)
+      bus.on('identity.organization.created', handler1)
+      bus.on('identity.organization.created', handler2)
 
-      await bus.emit(makeTestEvent('organization.created'))
+      await bus.emit(makeTestEvent('identity.organization.created'))
 
       expect(handler1).toHaveBeenCalledOnce()
       expect(handler2).toHaveBeenCalledOnce()
@@ -98,13 +98,13 @@ describe('createEventBus', () => {
     it('a handler throwing does not propagate to the emitter', async () => {
       const bus = createEventBus()
 
-      bus.on('organization.created', async () => {
+      bus.on('identity.organization.created', async () => {
         throw new Error('handler error')
       })
 
       // emit should resolve without throwing
       await expect(
-        bus.emit(makeTestEvent('organization.created')),
+        bus.emit(makeTestEvent('identity.organization.created')),
       ).resolves.toBeUndefined()
     })
   })
@@ -114,10 +114,10 @@ describe('createEventBus', () => {
       const bus = createEventBus()
       const handler = vi.fn(async () => {})
 
-      bus.on('organization.created', handler)
+      bus.on('identity.organization.created', handler)
       bus.clear()
 
-      await bus.emit(makeTestEvent('organization.created'))
+      await bus.emit(makeTestEvent('identity.organization.created'))
 
       expect(handler).not.toHaveBeenCalled()
     })
@@ -126,11 +126,11 @@ describe('createEventBus', () => {
       const bus = createEventBus()
       const handler = vi.fn(async () => {})
 
-      bus.on('organization.created', handler)
+      bus.on('identity.organization.created', handler)
       bus.clear()
-      bus.on('organization.created', handler)
+      bus.on('identity.organization.created', handler)
 
-      await bus.emit(makeTestEvent('organization.created'))
+      await bus.emit(makeTestEvent('identity.organization.created'))
 
       expect(handler).toHaveBeenCalledOnce()
     })

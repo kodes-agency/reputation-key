@@ -19,7 +19,14 @@ function setup(nameTaken = false) {
       listByProperty: async () => [],
       findByNameDuplicate: async () =>
         nameTaken
-          ? { id: portalGroupId('existing'), organizationId: ORG, propertyId: PROP, name: 'Reception', createdAt: new Date(), updatedAt: new Date() }
+          ? {
+              id: portalGroupId('existing'),
+              organizationId: ORG,
+              propertyId: PROP,
+              name: 'Reception',
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            }
           : null,
       insert: async (g) => g,
       update: async (g) => g,
@@ -47,7 +54,7 @@ describe('createPortalGroup (use case)', () => {
     expect(result.organizationId).toBe(ORG)
     expect(result.propertyId).toBe(PROP)
 
-    expect(events.capturedByTag('portal_group.created')).toHaveLength(1)
+    expect(events.capturedByTag('portal.portal_group.created')).toHaveLength(1)
   })
 
   it('rejects duplicate group name', async () => {

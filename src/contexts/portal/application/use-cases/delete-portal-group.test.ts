@@ -18,7 +18,14 @@ function setup(notFound = false) {
       findById: async () =>
         notFound
           ? null
-          : { id: GROUP_ID, organizationId: ORG, propertyId: PROP, name: 'To Delete', createdAt: new Date(), updatedAt: new Date() },
+          : {
+              id: GROUP_ID,
+              organizationId: ORG,
+              propertyId: PROP,
+              name: 'To Delete',
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            },
       listByProperty: async () => [],
       findByNameDuplicate: async () => null,
       insert: async (g) => g,
@@ -36,12 +43,9 @@ describe('deletePortalGroup (use case)', () => {
     const { useCase, events } = setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
-    await useCase(
-      { groupId: 'group-0000-0000-4000-8000-000000000001' },
-      ctx,
-    )
+    await useCase({ groupId: 'group-0000-0000-4000-8000-000000000001' }, ctx)
 
-    expect(events.capturedByTag('portal_group.deleted')).toHaveLength(1)
+    expect(events.capturedByTag('portal.portal_group.deleted')).toHaveLength(1)
   })
 
   it('throws not_found for nonexistent group', async () => {
@@ -49,10 +53,7 @@ describe('deletePortalGroup (use case)', () => {
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
     try {
-      await useCase(
-        { groupId: 'group-0000-0000-4000-8000-000000000001' },
-        ctx,
-      )
+      await useCase({ groupId: 'group-0000-0000-4000-8000-000000000001' }, ctx)
       expect.fail('Expected not_found')
     } catch (e) {
       expect(isPortalError(e)).toBe(true)
@@ -65,10 +66,7 @@ describe('deletePortalGroup (use case)', () => {
     const ctx = buildTestAuthContext({ role: 'Staff' })
 
     try {
-      await useCase(
-        { groupId: 'group-0000-0000-4000-8000-000000000001' },
-        ctx,
-      )
+      await useCase({ groupId: 'group-0000-0000-4000-8000-000000000001' }, ctx)
       expect.fail('Expected forbidden')
     } catch (e) {
       expect(isPortalError(e)).toBe(true)

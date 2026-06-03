@@ -38,7 +38,9 @@ describe('updateConnectionVisibility', () => {
 
     expect(result.visibility).toBe('organization')
 
-    const emitted = events.capturedByTag('google_connection.visibility_changed')
+    const emitted = events.capturedByTag(
+      'integration.google_connection.visibility_changed',
+    )
     expect(emitted).toHaveLength(1)
     expect(emitted[0].connectionId).toBe(connection.id)
     expect(emitted[0].visibility).toBe('organization')
@@ -58,7 +60,9 @@ describe('updateConnectionVisibility', () => {
     )
 
     expect(result.visibility).toBe('private')
-    const emitted = events.capturedByTag('google_connection.visibility_changed')
+    const emitted = events.capturedByTag(
+      'integration.google_connection.visibility_changed',
+    )
     expect(emitted).toHaveLength(1)
     expect(emitted[0].visibility).toBe('private')
   })

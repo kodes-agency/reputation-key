@@ -116,6 +116,8 @@ function makeReply(overrides: Partial<Omit<Reply, 'id'>> & { id?: string } = {})
     rejectedBy: null,
     rejectionReason: null,
     aiGenerated: false,
+    submittedAt: null,
+    approvedAt: null,
     publishedAt: now,
     createdAt: now,
     updatedAt: now,

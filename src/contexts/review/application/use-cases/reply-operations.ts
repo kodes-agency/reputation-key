@@ -11,7 +11,12 @@ import type { Reply } from '../../domain/types'
 import { can } from '#/shared/domain/permissions'
 import { canTransitionReply, MAX_REPLY_LENGTH } from '../../domain/rules'
 import { reviewError } from '../../domain/errors'
-import { replyPublished } from '../../domain/events'
+import {
+  reviewReplyPublished,
+  reviewReplySubmitted,
+  reviewReplyApproved,
+  reviewReplyRejected,
+} from '../../domain/events'
 
 // ── Shared ────────────────────────────────────────────────────────────
 
@@ -30,7 +35,13 @@ export type ReplyDeps = Readonly<{
   idGen: () => ReplyId
 }>
 
-// ── Draft or update reply ─────────────────────────────────────────────
+export type DraftReply = ReturnType<typeof draftReply>
+export type SubmitReply = ReturnType<typeof submitReply>
+export type ApproveReply = ReturnType<typeof approveReply>
+export type RejectReply = ReturnType<typeof rejectReply>
+export type DeleteReply = ReturnType<typeof deleteReply>
+export type GetReply = ReturnType<typeof getReply>
+export type RetryPublish = ReturnType<typeof retryPublish>
 
 export type DraftReplyInput = Readonly<{
   reviewId: ReviewId
@@ -94,6 +105,8 @@ export const draftReply =
         rejectedBy: null,
         rejectionReason: null,
         aiGenerated: false,
+        submittedAt: null,
+        approvedAt: null,
         publishedAt: null,
       },
       now,
@@ -130,7 +143,26 @@ export const submitReply =
     }
 
     const now = deps.clock()
-    return deps.replyRepo.upsert({ ...reply, status: 'pending_approval' }, now)
+    const submitted = await deps.replyRepo.upsert(
+      { ...reply, status: 'pending_approval', submittedAt: now },
+      now,
+    )
+
+    const review = await deps.reviewRepo.findById(input.reviewId, input.organizationId)
+    if (review) {
+      await deps.events.emit(
+        reviewReplySubmitted({
+          replyId: submitted.id,
+          reviewId: submitted.reviewId,
+          propertyId: review.propertyId,
+          organizationId: submitted.organizationId,
+          userId: input.userId,
+          occurredAt: now,
+        }),
+      )
+    }
+
+    return submitted
   }
 
 // ── Approve reply ─────────────────────────────────────────────────────
@@ -164,7 +196,7 @@ export const approveReply =
 
     const now = deps.clock()
     const approved = await deps.replyRepo.upsert(
-      { ...reply, status: 'approved', approvedBy: input.userId },
+      { ...reply, status: 'approved', approvedBy: input.userId, approvedAt: now },
       now,
     )
 
@@ -172,6 +204,20 @@ export const approveReply =
       replyId: approved.id,
       organizationId: approved.organizationId,
     })
+
+    const review = await deps.reviewRepo.findById(input.reviewId, input.organizationId)
+    if (review) {
+      await deps.events.emit(
+        reviewReplyApproved({
+          replyId: approved.id,
+          reviewId: approved.reviewId,
+          propertyId: review.propertyId,
+          organizationId: approved.organizationId,
+          userId: input.userId,
+          occurredAt: now,
+        }),
+      )
+    }
 
     return approved
   }
@@ -207,7 +253,7 @@ export const rejectReply =
     }
 
     const now = deps.clock()
-    return deps.replyRepo.upsert(
+    const updated = await deps.replyRepo.upsert(
       {
         ...reply,
         status: 'rejected',
@@ -216,6 +262,23 @@ export const rejectReply =
       },
       now,
     )
+
+    const review = await deps.reviewRepo.findById(input.reviewId, input.organizationId)
+    if (review) {
+      await deps.events.emit(
+        reviewReplyRejected({
+          replyId: updated.id,
+          reviewId: updated.reviewId,
+          propertyId: review.propertyId,
+          organizationId: updated.organizationId,
+          userId: input.userId,
+          reason: input.reason ?? null,
+          occurredAt: now,
+        }),
+      )
+    }
+
+    return updated
   }
 
 // ── Delete draft ──────────────────────────────────────────────────────
@@ -285,19 +348,19 @@ export const markReplyPublished =
       )
     }
 
+    const review = await deps.reviewRepo.findById(reply.reviewId, input.organizationId)
+    if (!review) {
+      throw reviewError('review_not_found', 'Review not found for published reply')
+    }
+
     const now = deps.clock()
     const published = await deps.replyRepo.upsert(
       { ...reply, status: 'published', publishedAt: now },
       now,
     )
 
-    const review = await deps.reviewRepo.findById(reply.reviewId, input.organizationId)
-    if (!review) {
-      throw reviewError('review_not_found', 'Review not found for published reply')
-    }
-
     await deps.events.emit(
-      replyPublished({
+      reviewReplyPublished({
         replyId: published.id,
         reviewId: reply.reviewId,
         propertyId: review.propertyId,

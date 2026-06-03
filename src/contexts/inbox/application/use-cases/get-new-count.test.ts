@@ -19,28 +19,31 @@ const USER_ID = userId('user-1')
 const makeItem = ({
   id,
   ...overrides
-}: Partial<Omit<InboxItem, 'id'>> & { id: string }): InboxItem => ({
-  id: inboxItemId(id),
-  organizationId: ORG_ID,
-  propertyId: propertyId('prop-1'),
-  sourceType: 'review',
-  sourceId: reviewId(`source-${id}`),
-  status: 'new',
-  rating: 4,
-  sourceDate: new Date('2025-01-01'),
-  platform: null,
-  snippet: null,
-  assignedTo: null,
-  reviewerName: null,
-  propertyName: null,
-  readAt: null,
-  escalatedAt: null,
-  addressedAt: null,
-  archivedAt: null,
-  createdAt: new Date('2025-01-01'),
-  updatedAt: new Date('2025-01-01'),
-  ...overrides,
-})
+}: Partial<Omit<InboxItem, 'id'>> & { id: string }): InboxItem =>
+  ({
+    id: inboxItemId(id),
+    organizationId: ORG_ID,
+    propertyId: propertyId('prop-1'),
+    sourceType: 'review',
+    sourceId: reviewId(`source-${id}`),
+    status: 'new',
+    rating: 4,
+    sourceDate: new Date('2025-01-01'),
+    platform: null,
+    snippet: null,
+    assignedTo: null,
+    reviewerName: null,
+    propertyName: null,
+    readAt: null,
+    escalatedAt: null,
+    addressedAt: null,
+    archivedAt: null,
+    firstReplySubmittedAt: null,
+    firstReplyPublishedAt: null,
+    createdAt: new Date('2025-01-01'),
+    updatedAt: new Date('2025-01-01'),
+    ...overrides,
+  }) satisfies InboxItem
 
 const setup = () => {
   const repo = createInMemoryInboxRepo()

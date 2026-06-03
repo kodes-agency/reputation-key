@@ -37,7 +37,7 @@ const createScopedStaffApi = (ids: ReadonlyArray<string>): StaffPublicApi => ({
 
 function seedItem(overrides: Omit<Partial<InboxItem>, 'id'> & { id: string }): InboxItem {
   const { id, ...restOverrides } = overrides
-  return {
+  const base = {
     id: inboxItemId(id),
     organizationId: ORG_ID,
     propertyId: PROP_ID,
@@ -55,10 +55,13 @@ function seedItem(overrides: Omit<Partial<InboxItem>, 'id'> & { id: string }): I
     escalatedAt: null,
     addressedAt: null,
     archivedAt: null,
+    firstReplySubmittedAt: null as Date | null,
+    firstReplyPublishedAt: null as Date | null,
     createdAt: FIXED_TIME,
     updatedAt: FIXED_TIME,
     ...(restOverrides as Partial<InboxItem>),
-  }
+  } satisfies InboxItem
+  return base
 }
 
 const setup = (staffApi: StaffPublicApi = adminStaffApi) => {

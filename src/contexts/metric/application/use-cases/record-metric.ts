@@ -36,6 +36,7 @@ export type RecordMetricDeps = Readonly<{
   events: EventBus
   clock: () => Date
 }>
+export type RecordMetric = ReturnType<typeof recordMetric>
 
 export const recordMetric =
   (deps: RecordMetricDeps) =>
@@ -51,7 +52,7 @@ export const recordMetric =
       metricKey: input.metricKey,
       value: input.value,
       groupId: input.groupId,
-      recordedAt: deps.clock(),
+      occurredAt: deps.clock(),
     })
 
     await deps.events.emit(
@@ -63,7 +64,7 @@ export const recordMetric =
         groupId: reading.groupId,
         metricKey: reading.metricKey,
         value: reading.value,
-        recordedAt: reading.recordedAt,
+        occurredAt: reading.occurredAt,
       }),
     )
 

@@ -4,6 +4,7 @@
 
 import type { GoalRepository } from '../../application/ports/goal.repository'
 import type { MetricRecorded } from '#/contexts/metric/application/public-api'
+import { goalProgressUpdated, goalCompleted } from '../../domain/events'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { getLogger as getLoggerType } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
@@ -64,37 +65,40 @@ export function onMetricRecorded(deps: OnMetricRecordedDeps) {
           const now = clock()
 
           // Emit GoalProgressUpdated
-          await eventBus.emit({
-            _tag: 'goal.progress_updated',
-            goalId: goal.id,
-            organizationId: goal.organizationId,
-            metricKey: goal.metricKey,
-            previousValue,
-            currentValue: result.currentValue,
-            computedSource: 'event_increment',
-            occurredAt: now,
-          })
+          await eventBus.emit(
+            goalProgressUpdated({
+              goalId: goal.id,
+              organizationId: goal.organizationId,
+              metricKey: goal.metricKey,
+              previousValue,
+              currentValue: result.currentValue,
+              computedSource: 'event_increment',
+              occurredAt: now,
+            }),
+          )
 
           // Check completion
           if (result.currentValue >= goal.targetValue && shouldEmitCompleted(goal)) {
             await goalRepo.markGoalCompleted(goal.id, goal.organizationId, now)
 
-            await eventBus.emit({
-              _tag: 'goal.completed',
-              goalId: goal.id,
-              organizationId: goal.organizationId,
-              propertyId: goal.propertyId,
-              portalId: goal.portalId,
-              groupId: goal.groupId,
-              goalType: goal.goalType,
-              aggregationFunction: goal.aggregationFunction,
-              metricKey: goal.metricKey,
-              targetValue: goal.targetValue,
-              completedValue: result.currentValue,
-              completedAt: now,
-              parentGoalId: goal.parentGoalId,
-              createdBy: goal.createdBy,
-            })
+            await eventBus.emit(
+              goalCompleted({
+                goalId: goal.id,
+                organizationId: goal.organizationId,
+                propertyId: goal.propertyId,
+                portalId: goal.portalId,
+                groupId: goal.groupId,
+                goalType: goal.goalType,
+                aggregationFunction: goal.aggregationFunction,
+                metricKey: goal.metricKey,
+                targetValue: goal.targetValue,
+                completedValue: result.currentValue,
+                completedAt: now,
+                parentGoalId: goal.parentGoalId,
+                createdBy: goal.createdBy,
+                occurredAt: now,
+              }),
+            )
           }
         } catch (err) {
           deps

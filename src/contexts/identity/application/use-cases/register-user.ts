@@ -16,6 +16,7 @@ export type RegisterUserInput = Readonly<{
 export type RegisterUserDeps = Readonly<{
   identity: IdentityPort
 }>
+export type RegisterUser = ReturnType<typeof registerUser>
 
 /**
  * Register a new user account without creating an organization.

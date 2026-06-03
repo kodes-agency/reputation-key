@@ -1,5 +1,9 @@
 # Review Context
 
+## Bounded context
+
+TODO: One sentence describing what this context does.
+
 External platform reviews — sync, storage, reply mirroring, and 30-day retention compliance.
 
 ## Glossary
@@ -13,6 +17,12 @@ External platform reviews — sync, storage, reply mirroring, and 30-day retenti
 - **Platform** — External review source. Currently only `'google'`. The `reviewPlatformEnum` is closed.
 - **External ID** — Google's review ID (extracted from `review.name`). Unique per platform per organization.
 - **Expires At** — Deadline for 30-day Google data retention. Calculated per-review from `reviewedAt + 30 days`.
+
+## Relationships
+
+- **Review → Property** (N:1 via `propertyId`) — Every review belongs to exactly one property.
+- **Review → Reply** (1:N via `reviewId`) — A review can have up to one `google_sync` reply and one `internal` reply (enforced by unique constraint).
+- **Cross-context** — Review listens to `property.created` to enqueue a `sync-property-reviews` job via `ReviewQueuePort.addSyncJob`.
 
 ## Invariants
 
@@ -29,7 +39,10 @@ External platform reviews — sync, storage, reply mirroring, and 30-day retenti
 - **`review.created`** — reviewId, propertyId, organizationId, platform, externalId, rating, reviewText, occurredAt. Emitted when a new review is synced from Google.
 - **`review.updated`** — reviewId, propertyId, organizationId, platform, externalId, rating, reviewText, occurredAt. Emitted when an existing review is re-synced with new data.
 - **`review.expired`** — reviewId, propertyId, organizationId, occurredAt. Emitted when the purge job hard-deletes expired reviews.
-- **`reply.published`** — replyId, reviewId, propertyId, organizationId, occurredAt. Emitted when a reply reaches published status.
+- **`reply.published`** — replyId, reviewId, propertyId, organizationId, userId?, source, occurredAt. Emitted when a reply reaches published status (web: user-approved, import: Google sync mirror).
+- **`reply.submitted`** — replyId, reviewId, propertyId, organizationId, userId, occurredAt. Emitted when a draft reply is submitted for approval.
+- **`reply.approved`** — replyId, reviewId, propertyId, organizationId, userId, occurredAt. Emitted when a reply is approved.
+- **`reply.rejected`** — replyId, reviewId, propertyId, organizationId, userId, reason, occurredAt. Emitted when a reply is rejected during review.
 
 ## Events consumed
 
@@ -72,8 +85,8 @@ review/
 Exported from `application/public-api.ts`:
 
 - Types: `GoogleReview`, `StarRating`, `ReviewQueuePort`, `SyncPropertyReviewsJobData`, `AddSyncJobOptions`, `GoogleReviewApiPort`
-- Event types: `ReviewCreated`, `ReviewUpdated`, `ReplyPublished`, `ReviewEvent`, `ReplyEvent`
-- Event constructors: `reviewCreated`, `reviewUpdated`, `replyPublished`
+- Event types: `ReviewCreated`, `ReviewUpdated`, `ReplyPublished`, `ReplySubmitted`, `ReplyApproved`, `ReplyRejected`, `ReviewEvent`, `ReplyEvent`
+- Event constructors: `reviewCreated`, `reviewUpdated`, `replyPublished`, `replySubmitted`, `replyApproved`, `replyRejected`
 
 ## Server functions
 

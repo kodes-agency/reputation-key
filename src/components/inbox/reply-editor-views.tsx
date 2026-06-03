@@ -9,7 +9,7 @@ type ReplyView = Readonly<{
   rejectionReason: string | null
 }>
 
-export function ReplyApproved({ reply }: Readonly<{ reply: ReplyView }>) {
+export function ReviewReplyApproved({ reply }: Readonly<{ reply: ReplyView }>) {
   return (
     <div className="space-y-3 border-t pt-4">
       <div className="flex items-center gap-2">
@@ -23,7 +23,7 @@ export function ReplyApproved({ reply }: Readonly<{ reply: ReplyView }>) {
   )
 }
 
-export function ReplyPublished({ reply }: Readonly<{ reply: ReplyView }>) {
+export function ReviewReplyPublished({ reply }: Readonly<{ reply: ReplyView }>) {
   return (
     <div className="space-y-3 border-t pt-4">
       <div className="flex items-center gap-2">

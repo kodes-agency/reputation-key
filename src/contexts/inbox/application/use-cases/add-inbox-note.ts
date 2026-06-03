@@ -12,14 +12,16 @@ import type {
 import type { InboxNote } from '../../domain/types'
 import type { Role } from '#/shared/domain/roles'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { EventBus } from '#/shared/events/event-bus'
 import { createInboxNote } from '../../domain/constructors'
 import { inboxError } from '../../domain/errors'
 import { can } from '#/shared/domain/permissions'
+import { inboxNoteAdded } from '../../domain/events'
 
 export type AddInboxNoteInput = Readonly<{
   inboxItemId: InboxItemId
   organizationId: OrganizationId
-  authorUserId: UserId
+  userId: UserId
   text: string
   role: Role
 }>
@@ -31,6 +33,7 @@ export type AddInboxNoteDeps = Readonly<{
   idGen: () => InboxNoteId
   clock: () => Date
   staffPublicApi: StaffPublicApi
+  events: EventBus
 }>
 
 export const addInboxNote =
@@ -48,7 +51,7 @@ export const addInboxNote =
     if (!can(input.role, 'inbox.manage')) {
       const accessible = await deps.staffPublicApi.getAccessiblePropertyIds(
         input.organizationId,
-        input.authorUserId,
+        input.userId,
         input.role,
       )
       if (
@@ -68,7 +71,7 @@ export const addInboxNote =
       id: deps.idGen(),
       inboxItemId: input.inboxItemId,
       organizationId: input.organizationId,
-      authorUserId: input.authorUserId,
+      userId: input.userId,
       text: input.text,
       clock: deps.clock,
     })
@@ -82,7 +85,21 @@ export const addInboxNote =
     // 3. Persist
     await deps.noteRepo.create(note)
 
-    // 4. Return
+    // 4. Emit event
+    await deps.events.emit(
+      inboxNoteAdded({
+        inboxItemId: note.inboxItemId,
+        organizationId: note.organizationId,
+        propertyId: item.propertyId,
+        userId: note.userId,
+        noteId: note.id,
+        text: note.text,
+        source: 'web',
+        occurredAt: note.createdAt,
+      }),
+    )
+
+    // 5. Return
     return note
   }
 

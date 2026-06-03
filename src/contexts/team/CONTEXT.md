@@ -1,5 +1,9 @@
 # Team Context
 
+## Bounded context
+
+TODO: One sentence describing what this context does.
+
 Team management — creation, updates, soft-deletion within a property.
 
 ## Glossary

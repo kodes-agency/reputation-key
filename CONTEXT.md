@@ -35,8 +35,9 @@ Composition root: `src/composition.ts`. Bootstrap: `src/bootstrap.ts`.
 | | Review | External platform reviews (Google), sync, replies | Review |
 | | Inbox | Unified triage surface for reviews + feedback | InboxItem, InboxNote |
 | | Metric | Aggregation of raw counters (scans, ratings, clicks, reviews) | MetricReading |
-|| | Goal | Property-scoped goals with progress tracking; scope levels: property, portal, portal_group | Goal, GoalInstance |
-| | Dashboard | Read-only aggregation of metrics, reviews, replies into property-scoped KPIs and charts | — |
+|| Goal | Property-scoped goals with progress tracking; scope levels: property, portal, portal_group | Goal, GoalInstance |
+|| Dashboard | Read-only aggregation of metrics, reviews, replies into property-scoped KPIs and charts | — |
+|| Activity | Immutable audit log of user actions across all contexts. Pure subscriber (no commands, no use cases). | ActivityLog |
 
 ## Glossary
 
@@ -110,7 +111,7 @@ Composition root: `src/composition.ts`. Bootstrap: `src/bootstrap.ts`.
 
 ## Architecture Decisions
 
-See `docs/adr/` for formal ADRs. Key ADRs:
+See `docs/adr/` for formal ADRs. See `docs/standards.md` for codebase-wide naming and structural standards. Key ADRs:
 
 || ADR | Title | Context |
 || ---- | -------------------------------------- | -------------------------------- |
@@ -121,6 +122,9 @@ See `docs/adr/` for formal ADRs. Key ADRs:
 || 0005 | GBP Review API Path and Error Model Fix | Google Integration, Error Model |
 || 0006 | Staff as a Separate Bounded Context | Identity, Staff Management |
 || 0007 | Dashboard as a Read-Only Aggregation | Dashboard, Read Models |
+|| 0008 | Cross-Context Data Access Rules | Architecture, Bounded Context Boundaries |
+|| 0009 | Permission Model | Identity & Authorization |
+|| 0010 | Activity Context: BullMQ Event Delivery | Activity, Event Delivery |
 
 ## Key Files
 

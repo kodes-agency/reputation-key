@@ -12,7 +12,7 @@ const sampleRow: InboxNoteRow = {
   id: 'note-uuid-001',
   inboxItemId: 'inbox-uuid-001',
   organizationId: 'org-uuid-001',
-  authorUserId: 'user-uuid-001',
+  userId: 'user-uuid-001',
   text: 'Follow up with guest',
   createdAt: now,
 }
@@ -23,7 +23,7 @@ describe('inboxNoteFromRow', () => {
     expect(String(note.id)).toBe('note-uuid-001')
     expect(String(note.inboxItemId)).toBe('inbox-uuid-001')
     expect(String(note.organizationId)).toBe('org-uuid-001')
-    expect(String(note.authorUserId)).toBe('user-uuid-001')
+    expect(String(note.userId)).toBe('user-uuid-001')
   })
 
   it('maps all fields', () => {
@@ -41,7 +41,7 @@ describe('inboxNoteToInsertRow', () => {
     expect(row.id).toBe(sampleRow.id)
     expect(row.inboxItemId).toBe(sampleRow.inboxItemId)
     expect(row.organizationId).toBe(sampleRow.organizationId)
-    expect(row.authorUserId).toBe(sampleRow.authorUserId)
+    expect(row.userId).toBe(sampleRow.userId)
     expect(row.text).toBe(sampleRow.text)
   })
 

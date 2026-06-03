@@ -97,6 +97,8 @@ function makeReply(overrides: Partial<Reply> = {}): Reply {
     rejectedBy: null,
     rejectionReason: null,
     aiGenerated: false,
+    submittedAt: null,
+    approvedAt: null,
     publishedAt: daysAgo(4),
     createdAt: daysAgo(4),
     updatedAt: daysAgo(4),
@@ -125,6 +127,7 @@ function createTestEnv(googleReviews: ReadonlyArray<GoogleReview> = []) {
 
   const reviewRepo: ReviewRepository = {
     findById: vi.fn(async () => null),
+    findByIds: vi.fn(async () => []),
     findByExternalId: vi.fn(
       async (_p, externalId, orgId) => reviewStore.get(`${orgId}:${externalId}`) ?? null,
     ),

@@ -19,6 +19,7 @@ export type GetDashboardDataInput = Readonly<{
 export type GetDashboardDataDeps = Readonly<{
   repo: DashboardRepository
 }>
+export type GetDashboardData = ReturnType<typeof getDashboardData>
 
 export const getDashboardData =
   (deps: GetDashboardDataDeps) =>
@@ -26,33 +27,48 @@ export const getDashboardData =
     const { organizationId, propertyId, portalId, startDate, endDate, timeRange } = input
 
     // For 'all' time range, no meaningful prior period — skip trend comparison
-    const priorStartDate = timeRange === 'all' ? startDate : new Date(startDate.getTime() - (endDate.getTime() - startDate.getTime()))
+    const priorStartDate =
+      timeRange === 'all'
+        ? startDate
+        : new Date(startDate.getTime() - (endDate.getTime() - startDate.getTime()))
     const priorEndDate = timeRange === 'all' ? endDate : new Date(startDate.getTime() - 1)
 
     const { repo } = deps
 
     // Fire all queries in parallel
-    const [kpis, ratingDistribution, ratingTrend, reviewVolume, replyPerformance, recentReviews] =
-      await Promise.all([
-        repo.getKPIs({
-          organizationId,
-          propertyId,
-          portalId: portalId ?? undefined,
-          startDate,
-          endDate,
-          priorStartDate,
-          priorEndDate,
-        }),
-        repo.getRatingDistribution({ organizationId, propertyId, startDate, endDate }),
-        repo.getRatingTrend({ organizationId, propertyId, startDate, endDate }),
-        repo.getReviewVolume({ organizationId, propertyId, startDate, endDate }),
-        repo.getReplyPerformance({ organizationId, propertyId, startDate, endDate }),
-        repo.getRecentReviews({ organizationId, propertyId, limit: 5 }),
-      ])
+    const [
+      kpis,
+      ratingDistribution,
+      ratingTrend,
+      reviewVolume,
+      replyPerformance,
+      recentReviews,
+    ] = await Promise.all([
+      repo.getKPIs({
+        organizationId,
+        propertyId,
+        portalId: portalId ?? undefined,
+        startDate,
+        endDate,
+        priorStartDate,
+        priorEndDate,
+      }),
+      repo.getRatingDistribution({ organizationId, propertyId, startDate, endDate }),
+      repo.getRatingTrend({ organizationId, propertyId, startDate, endDate }),
+      repo.getReviewVolume({ organizationId, propertyId, startDate, endDate }),
+      repo.getReplyPerformance({ organizationId, propertyId, startDate, endDate }),
+      repo.getRecentReviews({ organizationId, propertyId, limit: 5 }),
+    ])
 
     // Engagement funnel only when portal is selected
     const engagementFunnel = portalId
-      ? await repo.getEngagementFunnel({ organizationId, propertyId, portalId, startDate, endDate })
+      ? await repo.getEngagementFunnel({
+          organizationId,
+          propertyId,
+          portalId,
+          startDate,
+          endDate,
+        })
       : null
 
     return {

@@ -77,7 +77,7 @@ describe('createInboxItem', () => {
 
     const emitted = events.capturedEvents
     expect(emitted).toHaveLength(1)
-    expect(emitted[0]._tag).toBe('inbox.item.created')
+    expect(emitted[0]._tag).toBe('inbox.inbox_item.created')
   })
 
   it('throws already_exists for duplicate source', async () => {

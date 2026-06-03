@@ -1,3 +1,6 @@
+// Guest context — domain events
+// Standards: docs/standards.md §1
+
 import type {
   ScanEventId,
   RatingId,
@@ -7,76 +10,109 @@ import type {
   PropertyId,
   PortalLinkId,
 } from '#/shared/domain/ids'
-
 import type { ScanSource } from './types'
 
-export type ScanRecorded = Readonly<{
-  _tag: 'scan.recorded'
+export type GuestScanRecorded = Readonly<{
+  _tag: 'guest.scan.recorded'
+  eventId: string
   scanId: ScanEventId
   organizationId: OrganizationId
   portalId: PortalId
   propertyId: PropertyId
   source: ScanSource
   occurredAt: Date
+  correlationId: string | null
 }>
 
-export const scanRecorded = (payload: Omit<ScanRecorded, '_tag'>): ScanRecorded => ({
-  _tag: 'scan.recorded',
-  ...payload,
-})
+export const guestScanRecorded = (
+  args: Omit<GuestScanRecorded, '_tag' | 'eventId' | 'correlationId'>,
+): GuestScanRecorded => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  assert(args.scanId !== '', 'scanId required')
+  return {
+    _tag: 'guest.scan.recorded',
+    eventId: crypto.randomUUID(),
+    correlationId: null,
+    ...args,
+  }
+}
 
-export type RatingSubmitted = Readonly<{
-  _tag: 'rating.submitted'
+export type GuestRatingSubmitted = Readonly<{
+  _tag: 'guest.rating.submitted'
+  eventId: string
   ratingId: RatingId
   organizationId: OrganizationId
   portalId: PortalId
   propertyId: PropertyId
   value: number
   occurredAt: Date
+  correlationId: string | null
 }>
 
-export const ratingSubmitted = (
-  payload: Omit<RatingSubmitted, '_tag'>,
-): RatingSubmitted => ({
-  _tag: 'rating.submitted',
-  ...payload,
-})
+export const guestRatingSubmitted = (
+  args: Omit<GuestRatingSubmitted, '_tag' | 'eventId' | 'correlationId'>,
+): GuestRatingSubmitted => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  assert(args.ratingId !== '', 'ratingId required')
+  return {
+    _tag: 'guest.rating.submitted',
+    eventId: crypto.randomUUID(),
+    correlationId: null,
+    ...args,
+  }
+}
 
-export type FeedbackSubmitted = Readonly<{
-  _tag: 'feedback.submitted'
+export type GuestFeedbackSubmitted = Readonly<{
+  _tag: 'guest.feedback.submitted'
+  eventId: string
   feedbackId: FeedbackId
   organizationId: OrganizationId
   portalId: PortalId
   propertyId: PropertyId
   ratingId: RatingId | null
   occurredAt: Date
+  correlationId: string | null
 }>
 
-export const feedbackSubmitted = (
-  payload: Omit<FeedbackSubmitted, '_tag'>,
-): FeedbackSubmitted => ({
-  _tag: 'feedback.submitted',
-  ...payload,
-})
+export const guestFeedbackSubmitted = (
+  args: Omit<GuestFeedbackSubmitted, '_tag' | 'eventId' | 'correlationId'>,
+): GuestFeedbackSubmitted => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  assert(args.feedbackId !== '', 'feedbackId required')
+  return {
+    _tag: 'guest.feedback.submitted',
+    eventId: crypto.randomUUID(),
+    correlationId: null,
+    ...args,
+  }
+}
 
-export type ReviewLinkClicked = Readonly<{
-  _tag: 'review-link.clicked'
+export type GuestReviewLinkClicked = Readonly<{
+  _tag: 'guest.review_link.clicked'
+  eventId: string
   linkId: PortalLinkId
   organizationId: OrganizationId
   portalId: PortalId
   propertyId: PropertyId
   occurredAt: Date
+  correlationId: string | null
 }>
 
-export const reviewLinkClicked = (
-  payload: Omit<ReviewLinkClicked, '_tag'>,
-): ReviewLinkClicked => ({
-  _tag: 'review-link.clicked',
-  ...payload,
-})
+export const guestReviewLinkClicked = (
+  args: Omit<GuestReviewLinkClicked, '_tag' | 'eventId' | 'correlationId'>,
+): GuestReviewLinkClicked => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  assert(args.linkId !== '', 'linkId required')
+  return {
+    _tag: 'guest.review_link.clicked',
+    eventId: crypto.randomUUID(),
+    correlationId: null,
+    ...args,
+  }
+}
 
 export type GuestEvent =
-  | ScanRecorded
-  | RatingSubmitted
-  | FeedbackSubmitted
-  | ReviewLinkClicked
+  | GuestScanRecorded
+  | GuestRatingSubmitted
+  | GuestFeedbackSubmitted
+  | GuestReviewLinkClicked

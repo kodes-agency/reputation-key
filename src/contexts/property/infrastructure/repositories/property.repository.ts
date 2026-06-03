@@ -34,6 +34,17 @@ export const createPropertyRepository = (db: Database): PropertyRepository => ({
     })
   },
 
+  findByIds: async (orgId, ids) => {
+    return trace('property.findByIds', async () => {
+      if (ids.length === 0) return []
+      const rows = await db
+        .select()
+        .from(properties)
+        .where(and(...baseWhere(properties, orgId), inArray(properties.id, [...ids])))
+      return rows.map(propertyFromRow)
+    })
+  },
+
   list: async (orgId) => {
     return trace('property.list', async () => {
       const rows = await db

@@ -158,12 +158,16 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
   }
 
   return {
-    useCases,
-    storage,
-    portalRepo,
-    portalLinkRepo,
-    portalGroupRepo,
-    linkResolver,
     publicApi,
+    internal: {
+      repos: {
+        portalRepo,
+        portalLinkRepo,
+        portalGroupRepo,
+        storage,
+        linkResolver,
+      },
+      useCases,
+    },
   } as const
 }

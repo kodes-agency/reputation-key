@@ -30,6 +30,7 @@ export type CancelGoalDeps = Readonly<{
   goalRepo: GoalRepository
   clock: () => Date
 }>
+export type CancelGoal = ReturnType<typeof cancelGoal>
 
 // ── Use case ────────────────────────────────────────────────────────────
 

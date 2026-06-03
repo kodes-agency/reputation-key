@@ -5,7 +5,7 @@ import { onReplyPublished } from './on-reply-published'
 import type { InboxRepository } from '../../application/ports/inbox.repository'
 import type { NewCounterPort } from '../../application/ports/new-counter.port'
 import type { InboxItem } from '../../application/public-api'
-import type { ReplyPublished } from '#/contexts/review/application/public-api'
+import type { ReviewReplyPublished } from '#/contexts/review/application/public-api'
 import type { EventBus } from '#/shared/events/event-bus'
 import {
   inboxItemId,
@@ -13,6 +13,7 @@ import {
   reviewId,
   propertyId,
   replyId,
+  userId,
 } from '#/shared/domain/ids'
 
 const ORG_ID = organizationId('org-1')
@@ -41,18 +42,24 @@ function makeInboxItem(overrides: Partial<InboxItem> = {}): InboxItem {
     escalatedAt: null,
     addressedAt: null,
     archivedAt: null,
+    firstReplySubmittedAt: null,
+    firstReplyPublishedAt: null,
     createdAt: NOW,
     updatedAt: NOW,
     ...overrides,
   }
 }
 
-const mockEvent: ReplyPublished = {
-  _tag: 'reply.published',
+const mockEvent: ReviewReplyPublished = {
+  _tag: 'review.reply.published',
+  eventId: 'test-event-id',
+  correlationId: null,
   replyId: REPLY_ID,
   reviewId: REVIEW_ID,
   propertyId: PROP_ID,
   organizationId: ORG_ID,
+  userId: userId('user-1'),
+  source: 'web',
   occurredAt: NOW,
 }
 
@@ -89,7 +96,7 @@ describe('onReplyPublished', () => {
       INBOX_ID,
       ORG_ID,
       'addressed',
-      { addressedAt: NOW },
+      { addressedAt: NOW, firstReplyPublishedAt: NOW },
       NOW,
     )
   })
@@ -120,7 +127,7 @@ describe('onReplyPublished', () => {
 
     expect(deps.events.emit).toHaveBeenCalledWith(
       expect.objectContaining({
-        _tag: 'inbox.status.changed',
+        _tag: 'inbox.inbox_item.status_changed',
         oldStatus: 'new',
         newStatus: 'addressed',
       }),

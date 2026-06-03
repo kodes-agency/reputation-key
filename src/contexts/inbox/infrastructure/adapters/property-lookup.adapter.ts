@@ -14,8 +14,24 @@ type GetPropertyName = (
   propertyId: PropertyId,
 ) => Promise<string | null>
 
+type GetPropertyNames = (
+  orgId: OrganizationId,
+  propertyIds: ReadonlyArray<PropertyId>,
+) => Promise<ReadonlyArray<{ id: string; name: string | null }>>
+
 export const createPropertyLookupAdapter = (deps: {
   getPropertyName: GetPropertyName
+  getPropertyNames: GetPropertyNames
 }): PropertyLookupPort => ({
   getPropertyNameById: (pid, orgId) => deps.getPropertyName(orgId, pid),
+
+  getPropertyNamesByIds: async (propertyIds, orgId) => {
+    const map = new Map<string, string | null>()
+    if (propertyIds.length === 0) return map
+    const rows = await deps.getPropertyNames(orgId, propertyIds)
+    for (const r of rows) {
+      map.set(r.id, r.name)
+    }
+    return map
+  },
 })

@@ -24,6 +24,7 @@ const setup = () => {
       return p !== null
     },
     getPropertyName: async () => null,
+    getPropertyNames: async () => [],
     findByGbpPlaceId: async () => null,
     findBySlug: async () => null,
     findIdsByGoogleConnection: async () => [],

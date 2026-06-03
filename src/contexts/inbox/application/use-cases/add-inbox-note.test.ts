@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { addInboxNote } from './add-inbox-note'
 import { createInMemoryInboxRepo } from '#/shared/testing/in-memory-inbox-repo'
+import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
 import {
   inboxItemId,
   inboxNoteId,
@@ -53,6 +54,8 @@ const seedItem = (): InboxItem => ({
   escalatedAt: null,
   addressedAt: null,
   archivedAt: null,
+  firstReplySubmittedAt: null,
+  firstReplyPublishedAt: null,
   createdAt: FIXED_TIME,
   updatedAt: FIXED_TIME,
 })
@@ -70,9 +73,10 @@ const setup = (staffApi: StaffPublicApi = defaultStaffApi) => {
     idGen: () => FIXED_ID,
     clock: () => FIXED_TIME,
     staffPublicApi: staffApi,
+    events: createCapturingEventBus(),
   }
   const useCase = addInboxNote(deps)
-  return { useCase, repo, noteRepo }
+  return { useCase, repo, noteRepo, deps }
 }
 
 describe('addInboxNote', () => {
@@ -83,14 +87,14 @@ describe('addInboxNote', () => {
     const note = await useCase({
       inboxItemId: ITEM_ID,
       organizationId: ORG_ID,
-      authorUserId: USER_ID,
+      userId: USER_ID,
       text: '  This is a note  ',
       role: 'AccountAdmin' as Role,
     })
 
     expect(note.id).toBe(FIXED_ID)
     expect(note.text).toBe('This is a note') // trimmed
-    expect(note.authorUserId).toBe(USER_ID)
+    expect(note.userId).toBe(USER_ID)
     expect(noteRepo.notes).toHaveLength(1)
   })
 
@@ -102,7 +106,7 @@ describe('addInboxNote', () => {
       useCase({
         inboxItemId: ITEM_ID,
         organizationId: ORG_ID,
-        authorUserId: USER_ID,
+        userId: USER_ID,
         text: '   ',
         role: 'AccountAdmin' as Role,
       }),
@@ -116,7 +120,7 @@ describe('addInboxNote', () => {
       useCase({
         inboxItemId: ITEM_ID,
         organizationId: ORG_ID,
-        authorUserId: USER_ID,
+        userId: USER_ID,
         text: 'A note',
         role: 'AccountAdmin' as Role,
       }),
@@ -135,7 +139,7 @@ describe('addInboxNote', () => {
       useCase({
         inboxItemId: ITEM_ID,
         organizationId: ORG_ID,
-        authorUserId: USER_ID,
+        userId: USER_ID,
         text: 'test note',
         role: 'Guest' as unknown as Role,
       }),
@@ -154,7 +158,7 @@ describe('addInboxNote', () => {
       useCase({
         inboxItemId: ITEM_ID,
         organizationId: ORG_ID,
-        authorUserId: USER_ID,
+        userId: USER_ID,
         text: 'test note',
         role: 'Staff' as Role,
       }),
@@ -171,12 +175,27 @@ describe('addInboxNote', () => {
     const note = await useCase({
       inboxItemId: ITEM_ID,
       organizationId: ORG_ID,
-      authorUserId: USER_ID,
+      userId: USER_ID,
       text: 'test note',
       role: 'Staff' as Role,
     })
 
     expect(note.text).toBe('test note')
     expect(noteRepo.notes).toHaveLength(1)
+  })
+
+  it('emits inbox.note.added event', async () => {
+    const { useCase, repo, deps } = setup()
+    repo.items.push(seedItem())
+
+    await useCase({
+      inboxItemId: ITEM_ID,
+      organizationId: ORG_ID,
+      userId: USER_ID,
+      text: 'hello',
+      role: 'AccountAdmin' as Role,
+    })
+
+    expect(deps.events.capturedEvents[0]._tag).toBe('inbox.inbox_note.added')
   })
 })

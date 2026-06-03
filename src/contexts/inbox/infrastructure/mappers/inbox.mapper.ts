@@ -35,6 +35,8 @@ export const inboxItemFromRow = (
   escalatedAt: row.escalatedAt,
   addressedAt: row.addressedAt,
   archivedAt: row.archivedAt,
+  firstReplySubmittedAt: row.firstReplySubmittedAt,
+  firstReplyPublishedAt: row.firstReplyPublishedAt,
   createdAt: row.createdAt,
   updatedAt: row.updatedAt,
 })
@@ -57,4 +59,6 @@ export const inboxItemToInsertRow = (
   escalatedAt: item.escalatedAt,
   addressedAt: item.addressedAt,
   archivedAt: item.archivedAt,
+  firstReplySubmittedAt: item.firstReplySubmittedAt,
+  firstReplyPublishedAt: item.firstReplyPublishedAt,
 })

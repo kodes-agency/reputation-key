@@ -9,6 +9,7 @@ import { onReviewCreated } from './on-review-created'
 import { onFeedbackSubmitted } from './on-feedback-submitted'
 import { onReviewUpdated } from './on-review-updated'
 import { onReplyPublished } from './on-reply-published'
+import { onReplySubmitted } from './on-reply-submitted'
 
 export type RegisterInboxHandlersDeps = Readonly<{
   events: EventBus
@@ -23,16 +24,22 @@ export const registerInboxHandlers = (deps: RegisterInboxHandlersDeps): void => 
     onReviewCreated({ createInboxItem: deps.createInboxItem }),
   )
   deps.events.on(
-    'feedback.submitted',
+    'guest.feedback.submitted',
     onFeedbackSubmitted({ createInboxItem: deps.createInboxItem }),
   )
   deps.events.on('review.updated', onReviewUpdated(deps))
   deps.events.on(
-    'reply.published',
+    'review.reply.published',
     onReplyPublished({
       repo: deps.repo,
       events: deps.events,
       newCounter: deps.newCounter,
+    }),
+  )
+  deps.events.on(
+    'review.reply.submitted',
+    onReplySubmitted({
+      repo: deps.repo,
     }),
   )
 }

@@ -70,6 +70,8 @@ function makeReply(overrides: Partial<Reply> = {}): Reply {
     rejectedBy: null,
     rejectionReason: null,
     aiGenerated: false,
+    submittedAt: null,
+    approvedAt: null,
     publishedAt: null,
     createdAt: NOW,
     updatedAt: NOW,
@@ -225,6 +227,18 @@ describe('submitReply', () => {
     expect(result.status).toBe('pending_approval')
   })
 
+  it('sets submittedAt when submitting', async () => {
+    const draft = makeReply({ status: 'draft' })
+    const deps = makeDeps({
+      replyRepo: {
+        ...makeDeps().replyRepo,
+        findInternalByReviewId: vi.fn(async () => draft),
+      } as unknown as ReplyRepository,
+    })
+    const result = await submitReply(deps)({ ...MANAGER_CTX, reviewId: REVIEW_ID })
+    expect(result.submittedAt).toBe(NOW)
+  })
+
   it('rejects if no reply exists', async () => {
     const deps = makeDeps()
     await expect(
@@ -243,6 +257,30 @@ describe('submitReply', () => {
     await expect(
       submitReply(deps)({ ...MANAGER_CTX, reviewId: REVIEW_ID }),
     ).rejects.toThrow()
+  })
+
+  it('emits reviewReplySubmitted event with correct data', async () => {
+    const draft = makeReply({ status: 'draft' })
+    const review = makeReview()
+    const deps = makeDeps({
+      replyRepo: {
+        ...makeDeps().replyRepo,
+        findInternalByReviewId: vi.fn(async () => draft),
+      } as unknown as ReplyRepository,
+      reviewRepo: {
+        findById: vi.fn(async () => review),
+      } as unknown as ReviewRepository,
+    })
+    await submitReply(deps)({ ...MANAGER_CTX, reviewId: REVIEW_ID })
+    expect(deps.events.emit).toHaveBeenCalledTimes(1)
+    const emittedEvent = (deps.events.emit as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    expect(emittedEvent._tag).toBe('review.reply.submitted')
+    expect(emittedEvent.replyId).toBe(REPLY_ID)
+    expect(emittedEvent.reviewId).toBe(REVIEW_ID)
+    expect(emittedEvent.propertyId).toBe(PROP_ID)
+    expect(emittedEvent.organizationId).toBe(ORG_ID)
+    expect(emittedEvent.userId).toBe(USER_ID)
+    expect(emittedEvent.occurredAt).toBe(NOW)
   })
 })
 
@@ -269,6 +307,21 @@ describe('approveReply', () => {
     })
   })
 
+  it('sets approvedAt when approving', async () => {
+    const pending = makeReply({ status: 'pending_approval' })
+    const deps = makeDeps({
+      replyRepo: {
+        ...makeDeps().replyRepo,
+        findInternalByReviewId: vi.fn(async () => pending),
+      } as unknown as ReplyRepository,
+    })
+    const result = await approveReply(deps)({
+      ...MANAGER_CTX,
+      reviewId: REVIEW_ID,
+    })
+    expect(result.approvedAt).toBe(NOW)
+  })
+
   it('rejects approve from draft status', async () => {
     const draft = makeReply({ status: 'draft' })
     const deps = makeDeps({
@@ -280,6 +333,30 @@ describe('approveReply', () => {
     await expect(
       approveReply(deps)({ ...MANAGER_CTX, reviewId: REVIEW_ID }),
     ).rejects.toThrow()
+  })
+
+  it('emits reviewReplyApproved event with correct data', async () => {
+    const pending = makeReply({ status: 'pending_approval' })
+    const review = makeReview()
+    const deps = makeDeps({
+      replyRepo: {
+        ...makeDeps().replyRepo,
+        findInternalByReviewId: vi.fn(async () => pending),
+      } as unknown as ReplyRepository,
+      reviewRepo: {
+        findById: vi.fn(async () => review),
+      } as unknown as ReviewRepository,
+    })
+    await approveReply(deps)({ ...MANAGER_CTX, reviewId: REVIEW_ID })
+    expect(deps.events.emit).toHaveBeenCalledTimes(1)
+    const emittedEvent = (deps.events.emit as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    expect(emittedEvent._tag).toBe('review.reply.approved')
+    expect(emittedEvent.replyId).toBe(REPLY_ID)
+    expect(emittedEvent.reviewId).toBe(REVIEW_ID)
+    expect(emittedEvent.propertyId).toBe(PROP_ID)
+    expect(emittedEvent.organizationId).toBe(ORG_ID)
+    expect(emittedEvent.userId).toBe(USER_ID)
+    expect(emittedEvent.occurredAt).toBe(NOW)
   })
 })
 
@@ -317,6 +394,35 @@ describe('rejectReply', () => {
       reviewId: REVIEW_ID,
     })
     expect(result.rejectionReason).toBeNull()
+  })
+
+  it('emits reviewReplyRejected event with correct data', async () => {
+    const pending = makeReply({ status: 'pending_approval' })
+    const review = makeReview()
+    const deps = makeDeps({
+      replyRepo: {
+        ...makeDeps().replyRepo,
+        findInternalByReviewId: vi.fn(async () => pending),
+      } as unknown as ReplyRepository,
+      reviewRepo: {
+        findById: vi.fn(async () => review),
+      } as unknown as ReviewRepository,
+    })
+    await rejectReply(deps)({
+      ...MANAGER_CTX,
+      reviewId: REVIEW_ID,
+      reason: 'Tone too aggressive',
+    })
+    expect(deps.events.emit).toHaveBeenCalledTimes(1)
+    const emittedEvent = (deps.events.emit as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    expect(emittedEvent._tag).toBe('review.reply.rejected')
+    expect(emittedEvent.replyId).toBe(REPLY_ID)
+    expect(emittedEvent.reviewId).toBe(REVIEW_ID)
+    expect(emittedEvent.propertyId).toBe(PROP_ID)
+    expect(emittedEvent.organizationId).toBe(ORG_ID)
+    expect(emittedEvent.userId).toBe(USER_ID)
+    expect(emittedEvent.reason).toBe('Tone too aggressive')
+    expect(emittedEvent.occurredAt).toBe(NOW)
   })
 })
 

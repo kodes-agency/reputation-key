@@ -4,7 +4,10 @@ import { describe, it, expect } from 'vitest'
 import { createLink } from './create-link'
 import { createInMemoryPortalLinkRepo } from '#/shared/testing/in-memory-portal-link-repo'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
-import { buildTestAuthContext, buildTestPortalLinkCategory } from '#/shared/testing/fixtures'
+import {
+  buildTestAuthContext,
+  buildTestPortalLinkCategory,
+} from '#/shared/testing/fixtures'
 import { isPortalError } from '../../domain/errors'
 
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
@@ -58,7 +61,8 @@ describe('createLink', () => {
         ctx,
       ),
     ).rejects.toSatisfy(
-      (e: unknown) => isPortalError(e) && (e as { code: string }).code === 'category_not_found',
+      (e: unknown) =>
+        isPortalError(e) && (e as { code: string }).code === 'category_not_found',
     )
   })
 
@@ -79,7 +83,8 @@ describe('createLink', () => {
         ctx,
       ),
     ).rejects.toSatisfy(
-      (e: unknown) => isPortalError(e) && (e as { code: string }).code === 'invalid_label',
+      (e: unknown) =>
+        isPortalError(e) && (e as { code: string }).code === 'invalid_label',
     )
   })
 
@@ -120,7 +125,7 @@ describe('createLink', () => {
       ctx,
     )
 
-    const emitted = events.capturedByTag('portal_link.created')
+    const emitted = events.capturedByTag('portal.portal_link.created')
     expect(emitted).toHaveLength(1)
     expect(emitted[0].linkId).toBe('10000000-0000-0000-0000-000000000001')
   })

@@ -23,7 +23,7 @@ const createFakeDeps = (): OnRatingSubmittedDeps & {
       return {
         id: metricReadingId('metric-1'),
         ...input,
-        recordedAt: FIXED_TIME,
+        occurredAt: FIXED_TIME,
       } as MetricReading
     },
   }
@@ -39,7 +39,9 @@ describe('onRatingSubmitted', () => {
   it('records a portal.rating reading with star value', async () => {
     const handler = onRatingSubmitted(deps)
     await handler({
-      _tag: 'rating.submitted',
+      _tag: 'guest.rating.submitted',
+      eventId: 'test-event-id',
+      correlationId: null,
       ratingId: ratingId('rating-1'),
       organizationId: organizationId('org-1'),
       portalId: portalId('portal-1'),
@@ -69,7 +71,9 @@ describe('onRatingSubmitted', () => {
 
     await expect(
       handler({
-        _tag: 'rating.submitted',
+        _tag: 'guest.rating.submitted',
+        eventId: 'test-event-id',
+        correlationId: null,
         ratingId: ratingId('rating-1'),
         organizationId: organizationId('org-1'),
         portalId: portalId('portal-1'),
@@ -83,7 +87,9 @@ describe('onRatingSubmitted', () => {
   it('sets groupId to null', async () => {
     const handler = onRatingSubmitted(deps)
     await handler({
-      _tag: 'rating.submitted',
+      _tag: 'guest.rating.submitted',
+      eventId: 'test-event-id',
+      correlationId: null,
       ratingId: ratingId('rating-2'),
       organizationId: organizationId('org-1'),
       portalId: portalId('portal-1'),

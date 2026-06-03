@@ -1,5 +1,9 @@
 # Staff Context
 
+## Bounded context
+
+TODO: One sentence describing what this context does.
+
 Staff assignment management — linking users to properties (directly or via teams).
 
 ## Glossary
@@ -55,8 +59,16 @@ staff/
     repositories/      staff-assignment.repository.ts (Drizzle)
     mappers/           staff-assignment.mapper.ts
   server/              staff-assignments.ts
-  build.ts             composition root
+  build.ts
 ```
+
+## Use cases
+
+| Name                    | Input                                                           | Output              | Permission    |
+| ----------------------- | --------------------------------------------------------------- | ------------------- | ------------- |
+| `createStaffAssignment` | `propertyId`, `userId`, `teamId?`, `portalId?`, `orgId`, `role` | `StaffAssignment`   | `staff:write` |
+| `listStaffAssignments`  | `propertyId`, `orgId`, `role`                                   | `StaffAssignment[]` | `staff:read`  |
+| `removeStaffAssignment` | `assignmentId`, `orgId`, `role`                                 | `void`              | `staff:write` |
 
 ## Server functions
 

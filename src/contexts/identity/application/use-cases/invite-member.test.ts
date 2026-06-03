@@ -25,7 +25,7 @@ describe('inviteMember', () => {
     await useCase({ email: 'new@test.com', role: 'Staff', propertyIds: [] }, ctx)
 
     expect(events.capturedEvents).toHaveLength(1)
-    expect(events.capturedEvents[0]._tag).toBe('member.invited')
+    expect(events.capturedEvents[0]._tag).toBe('identity.member.invited')
   })
 
   it('allows AccountAdmin to invite with any role', async () => {
@@ -38,7 +38,7 @@ describe('inviteMember', () => {
     expect(identity.allInvitations[0].email).toBe('admin@test.com')
     expect(identity.allInvitations[0].role).toBe('AccountAdmin')
     expect(events.capturedEvents).toHaveLength(1)
-    expect(events.capturedEvents[0]._tag).toBe('member.invited')
+    expect(events.capturedEvents[0]._tag).toBe('identity.member.invited')
   })
 
   it('rejects Staff from inviting anyone', async () => {
@@ -65,7 +65,7 @@ describe('inviteMember', () => {
 
     await useCase({ email: 'new@test.com', role: 'Staff', propertyIds: [] }, ctx)
 
-    const emitted = events.capturedByTag('member.invited')
+    const emitted = events.capturedByTag('identity.member.invited')
     expect(emitted).toHaveLength(1)
     expect(emitted[0].email).toBe('new@test.com')
     expect(emitted[0].role).toBe('Staff')

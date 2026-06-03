@@ -170,7 +170,7 @@ describe('createInboxNote', () => {
       id: inboxNoteId('note-1'),
       inboxItemId: inboxItemId('item-1'),
       organizationId: ORG_ID,
-      authorUserId: USER_ID,
+      userId: USER_ID,
       text: '  Follow up with guest  ',
       clock,
     })
@@ -182,7 +182,7 @@ describe('createInboxNote', () => {
       expect(note.id).toBe(inboxNoteId('note-1'))
       expect(note.inboxItemId).toBe(inboxItemId('item-1'))
       expect(note.organizationId).toBe(ORG_ID)
-      expect(note.authorUserId).toBe(USER_ID)
+      expect(note.userId).toBe(USER_ID)
       expect(note.createdAt).toBe(NOW)
     }
   })
@@ -192,7 +192,7 @@ describe('createInboxNote', () => {
       id: inboxNoteId('note-2'),
       inboxItemId: inboxItemId('item-1'),
       organizationId: ORG_ID,
-      authorUserId: USER_ID,
+      userId: USER_ID,
       text: '',
       clock,
     })
@@ -208,7 +208,7 @@ describe('createInboxNote', () => {
       id: inboxNoteId('note-3'),
       inboxItemId: inboxItemId('item-1'),
       organizationId: ORG_ID,
-      authorUserId: USER_ID,
+      userId: USER_ID,
       text: '   ',
       clock,
     })

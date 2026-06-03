@@ -1,5 +1,5 @@
 // Metric context — records portal.feedback metric on feedback submission events
-import type { FeedbackSubmitted } from '#/contexts/guest/application/public-api'
+import type { GuestFeedbackSubmitted } from '#/contexts/guest/application/public-api'
 import type { RecordMetricInput } from '../../application/use-cases/record-metric'
 import { getLogger } from '#/shared/observability/logger'
 
@@ -9,7 +9,7 @@ export type OnFeedbackSubmittedDeps = Readonly<{
 
 export const onFeedbackSubmitted =
   (deps: OnFeedbackSubmittedDeps) =>
-  async (event: FeedbackSubmitted): Promise<void> => {
+  async (event: GuestFeedbackSubmitted): Promise<void> => {
     try {
       await deps.recordMetric({
         organizationId: event.organizationId,

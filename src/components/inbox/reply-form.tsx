@@ -12,11 +12,11 @@ import {
 } from '#/contexts/review/server/reply'
 import { useMutationAction } from '#/components/hooks/use-mutation-action'
 import { ReplyCompose } from './reply-editor-compose'
-import { ReplyApproved, ReplyPublished } from './reply-editor-views'
+import { ReviewReplyApproved, ReviewReplyPublished } from './reply-editor-views'
 import {
   ReplyPendingApproval,
   ReplyPublishFailed,
-  ReplyRejected,
+  ReviewReplyRejected,
 } from './reply-editor-actions'
 
 export type ReplyData = Awaited<ReturnType<typeof getReplyFn>>
@@ -99,8 +99,8 @@ export function ReplyEditorInner({
     )
   }
 
-  if (reply.status === 'approved') return <ReplyApproved reply={reply} />
-  if (reply.status === 'published') return <ReplyPublished reply={reply} />
+  if (reply.status === 'approved') return <ReviewReplyApproved reply={reply} />
+  if (reply.status === 'published') return <ReviewReplyPublished reply={reply} />
 
   if (reply.status === 'publish_failed') {
     return (
@@ -113,7 +113,9 @@ export function ReplyEditorInner({
   }
 
   if (reply.status === 'rejected') {
-    return <ReplyRejected reply={reply} isSaving={isSaving} onEditResubmit={() => {}} />
+    return (
+      <ReviewReplyRejected reply={reply} isSaving={isSaving} onEditResubmit={() => {}} />
+    )
   }
 
   return null

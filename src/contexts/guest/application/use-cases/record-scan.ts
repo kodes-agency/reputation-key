@@ -8,7 +8,7 @@ import type {
 } from '#/shared/domain/ids'
 import type { ScanSource } from '../../domain/types'
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import { scanRecorded } from '../../domain/events'
+import { guestScanRecorded } from '../../domain/events'
 
 export type RecordScanDeps = Readonly<{
   guestRepo: GuestInteractionRepository
@@ -39,7 +39,7 @@ export const recordScan =
       }
       await deps.guestRepo.recordScan(scan)
       await deps.events.emit(
-        scanRecorded({
+        guestScanRecorded({
           scanId,
           organizationId: input.organizationId,
           portalId: input.portalId,
