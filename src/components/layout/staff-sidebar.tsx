@@ -14,11 +14,17 @@ import {
   SidebarSeparator,
 } from '#/components/ui/sidebar'
 import { useAction } from '#/components/hooks/use-action'
+import {
+  useStaffPropertyId,
+  setStaffPropertyId,
+} from '#/components/hooks/use-staff-property-id'
 import { StaffNavItems } from './staff-nav-items'
 import { StaffOrgSwitcher } from './staff-org-switcher'
+import { StaffPropertySwitcher } from './staff-property-switcher'
 
 type Props = Readonly<{
   organizations: ReadonlyArray<{ id: string; name: string }>
+  properties: ReadonlyArray<{ id: string; name: string; slug: string }>
   activeOrganization: { id: string; name: string } | null
   setActiveOrganization: (input: { data: { organizationId: string } }) => Promise<void>
   hasTeam: boolean
@@ -40,6 +46,7 @@ function useActiveSection(): string {
 
 export function StaffSidebar({
   organizations,
+  properties,
   activeOrganization,
   setActiveOrganization,
   hasTeam,
@@ -47,6 +54,11 @@ export function StaffSidebar({
   const activeSection = useActiveSection()
   const navigate = useNavigate()
   const setOrg = useAction(setActiveOrganization)
+  const rawPropertyId = useStaffPropertyId()
+
+  // Default to the first property if none is stored (e.g., first load).
+  const propertyId: string | undefined =
+    rawPropertyId ?? (properties.length > 0 ? properties[0].id : undefined)
 
   function handleOrgSwitch(orgId: string) {
     setOrg({ data: { organizationId: orgId } })
@@ -58,6 +70,11 @@ export function StaffSidebar({
       })
   }
 
+  function handlePropertySwitch(newPropertyId: string) {
+    setStaffPropertyId(newPropertyId)
+    navigate({ to: '/home' })
+  }
+
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
@@ -65,6 +82,11 @@ export function StaffSidebar({
           organizations={organizations}
           activeOrganization={activeOrganization}
           onSwitch={handleOrgSwitch}
+        />
+        <StaffPropertySwitcher
+          properties={properties}
+          propertyId={propertyId}
+          onSwitch={handlePropertySwitch}
         />
       </SidebarHeader>
 

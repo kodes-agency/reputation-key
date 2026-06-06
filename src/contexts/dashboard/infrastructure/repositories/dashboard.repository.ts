@@ -126,6 +126,85 @@ export function createDashboardRepository(
         }
       })
     },
+    async getKPIsForPortals(input): Promise<KPIs> {
+      return trace('dashboard.getKPIsForPortals', async () => {
+        const {
+          organizationId,
+          propertyId,
+          portalIds,
+          startDate,
+          endDate,
+          priorStartDate,
+          priorEndDate,
+        } = input
+
+        // Review stats at property level (same as getKPIs without portal filter)
+        const [currentReviews, priorReviews] = await Promise.all([
+          reviewStats.getPeriodStats(organizationId, propertyId, startDate, endDate),
+          reviewStats.getPeriodStats(
+            organizationId,
+            propertyId,
+            priorStartDate,
+            priorEndDate,
+          ),
+        ])
+
+        const curReviewCount = currentReviews.count
+        const priorReviewCount = priorReviews.count
+        const curAvgRating = currentReviews.avgRating
+        const priorAvgRating = priorReviews.avgRating
+
+        // Metric sums for current and prior periods across all assigned portals
+        const MetricQuery = (
+          orgId: OrganizationId,
+          propId: PropertyId,
+          start: Date,
+          end: Date,
+        ) =>
+          portalIds.length === 0
+            ? Promise.resolve([] as readonly { metricKey: string; total: number }[])
+            : metricStats.getSumsByPortals(orgId, propId, portalIds, start, end)
+
+        const [currentMetrics, priorMetrics] = await Promise.all([
+          MetricQuery(organizationId, propertyId, startDate, endDate),
+          MetricQuery(organizationId, propertyId, priorStartDate, priorEndDate),
+        ])
+
+        const toMap = (rows: readonly { metricKey: string; total: number }[]) =>
+          new Map(rows.map((r) => [r.metricKey, r.total]))
+
+        const curMetricsMap = toMap(currentMetrics)
+        const priorMetricsMap = toMap(priorMetrics)
+
+        const curScans = curMetricsMap.get('portal.scan') ?? 0
+        const priorScans = priorMetricsMap.get('portal.scan') ?? 0
+        const curFeedback = curMetricsMap.get('portal.feedback') ?? 0
+        const priorFeedback = priorMetricsMap.get('portal.feedback') ?? 0
+
+        return {
+          reviews: {
+            value: curReviewCount,
+            priorValue: priorReviewCount,
+            trend: trend(curReviewCount, priorReviewCount),
+          },
+          avgRating: {
+            value: curAvgRating,
+            priorValue: priorAvgRating,
+            trend: trend(curAvgRating, priorAvgRating),
+          },
+          scans: {
+            value: curScans,
+            priorValue: priorScans,
+            trend: trend(curScans, priorScans),
+          },
+          feedback: {
+            value: curFeedback,
+            priorValue: priorFeedback,
+            trend: trend(curFeedback, priorFeedback),
+          },
+        }
+      })
+    },
     async getRatingDistribution(input): Promise<RatingDistribution> {
       return trace('dashboard.getRatingDistribution', async () => {
         const { organizationId, propertyId, startDate, endDate } = input

@@ -11,6 +11,7 @@ import type { EventBus } from '#/shared/events/event-bus'
 import { createStaffAssignment } from './application/use-cases/create-staff-assignment'
 import { removeStaffAssignment } from './application/use-cases/remove-staff-assignment'
 import { listStaffAssignments } from './application/use-cases/list-staff-assignments'
+import { getAssignedPortals } from './application/use-cases/get-assigned-portals'
 import { staffAssignmentId } from '#/shared/domain/ids'
 import { randomUUID } from 'crypto'
 
@@ -36,6 +37,9 @@ export const buildStaffContext = (deps: StaffContextDeps) => {
       clock: deps.clock,
     }),
     listStaffAssignments: listStaffAssignments({
+      assignmentRepo: deps.repo,
+    }),
+    getAssignedPortals: getAssignedPortals({
       assignmentRepo: deps.repo,
     }),
   } as const

@@ -156,6 +156,7 @@ function AuthenticatedLayout() {
       ) : (
         <StaffSidebar
           organizations={organizations}
+          properties={properties}
           activeOrganization={ctx.activeOrganization}
           setActiveOrganization={setActiveOrganizationFn}
           hasTeam={false}

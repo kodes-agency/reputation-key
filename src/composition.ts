@@ -310,6 +310,7 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     reviewStats,
     metricStats,
     portalMetrics,
+    staffPortalResolver: staff.internal.useCases.getAssignedPortals,
   })
 
   // ── Wire invitation acceptance hook ────────────────────────────
@@ -370,6 +371,7 @@ export function createContainer(options?: { enableJobs?: boolean }) {
       ...inbox.internal.useCases,
       getDashboardData: dashboard.publicApi.getDashboardData,
       getPortalAnalytics: dashboard.publicApi.getPortalAnalytics,
+      getStaffDashboardData: dashboard.publicApi.getStaffDashboardData,
       ...goal.internal.useCases,
     },
     storage: portal.internal.repos.storage,

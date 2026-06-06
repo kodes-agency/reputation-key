@@ -5,26 +5,31 @@
 import type { ReviewStatsPort } from './application/ports/review-stats.port'
 import type { MetricStatsPort } from './application/ports/metric-stats.port'
 import type { PortalMetricsPort } from './application/ports/portal-metrics.port'
+import type { StaffPortalResolver } from './application/ports/staff-portal-resolver.port'
 import { createDashboardRepository } from './infrastructure/repositories/dashboard.repository'
 import { getDashboardData } from './application/use-cases/get-dashboard-data'
 import { getPortalAnalytics } from './application/use-cases/get-portal-analytics'
+import { getStaffDashboardData } from './application/use-cases/get-staff-dashboard-data'
 
 export type DashboardContextBuildInput = Readonly<{
   reviewStats: ReviewStatsPort
   metricStats: MetricStatsPort
   portalMetrics: PortalMetricsPort
+  staffPortalResolver: StaffPortalResolver
 }>
 
 export type DashboardContextApi = Readonly<{
   publicApi: Readonly<{
     getDashboardData: ReturnType<typeof getDashboardData>
     getPortalAnalytics: ReturnType<typeof getPortalAnalytics>
+    getStaffDashboardData: ReturnType<typeof getStaffDashboardData>
   }>
   internal: Readonly<{
     repos: Readonly<{ dashboardRepo: ReturnType<typeof createDashboardRepository> }>
     useCases: Readonly<{
       getDashboardData: ReturnType<typeof getDashboardData>
       getPortalAnalytics: ReturnType<typeof getPortalAnalytics>
+      getStaffDashboardData: ReturnType<typeof getStaffDashboardData>
     }>
   }>
 }>
@@ -43,14 +48,24 @@ export const buildDashboardContext = (
     portalMetrics: input.portalMetrics,
   })
 
+  const getStaffDashboard = getStaffDashboardData({
+    repo: dashboardRepo,
+    staffPortalResolver: input.staffPortalResolver,
+  })
+
   return {
     publicApi: {
       getDashboardData: getDashboard,
       getPortalAnalytics: getPortal,
+      getStaffDashboardData: getStaffDashboard,
     },
     internal: {
       repos: { dashboardRepo },
-      useCases: { getDashboardData: getDashboard, getPortalAnalytics: getPortal },
+      useCases: {
+        getDashboardData: getDashboard,
+        getPortalAnalytics: getPortal,
+        getStaffDashboardData: getStaffDashboard,
+      },
     },
   }
 }
