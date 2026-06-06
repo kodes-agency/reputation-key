@@ -275,13 +275,12 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     clock,
   })
 
+  // Activity context
   const activity = buildActivityContext({
     db,
     events: eventBus,
-    clock,
-    logger: getLogger(),
     staffPublicApi: staff.publicApi,
-    identityPort,
+    queue: infra.jobQueue,
   })
 
   // Goal context needs a cancelGoalFn for event handlers.
@@ -385,6 +384,7 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     inboxNoteRepo: inbox.internal.repos.inboxNoteRepo,
     newCounter: inbox.internal.repos.newCounter,
     goalRepo: goal.internal.repos.goalRepo,
+    activityRepo: activity.internal.repos.activityRepo,
     activityPublicApi: activity.publicApi,
     metricPublicApi: metricApi.publicApi,
   } as const

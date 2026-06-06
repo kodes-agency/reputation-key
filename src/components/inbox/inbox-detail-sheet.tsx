@@ -68,6 +68,7 @@ export function InboxDetailSheet({ open, onOpenChange, item, detailState }: Prop
             updateStatus={detailState.updateStatus}
             notes={detailState.notes}
             onNoteAdded={detailState.refresh}
+            statusVersion={detailState.statusVersion}
           />
         )}
       </SheetContent>

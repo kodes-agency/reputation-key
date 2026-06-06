@@ -17,9 +17,14 @@ import {
 
 type InboxActivityTimelineProps = Readonly<{
   inboxItemId: string
+  /** Bumped on status change — triggers a re-fetch so timeline updates after mark-as-read. */
+  refreshKey?: number
 }>
 
-export function InboxActivityTimeline({ inboxItemId }: InboxActivityTimelineProps) {
+export function InboxActivityTimeline({
+  inboxItemId,
+  refreshKey,
+}: InboxActivityTimelineProps) {
   const getTimeline = useAction(useServerFn(getActivityTimelineFn))
   const [entries, setEntries] = useState<readonly ActivityLog[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -43,7 +48,14 @@ export function InboxActivityTimeline({ inboxItemId }: InboxActivityTimelineProp
 
   useEffect(() => {
     loadTimeline()
-  }, [loadTimeline])
+    // When refreshKey changes (status change, note added), the BullMQ pipeline
+    // (event → handler → job → worker → DB insert) takes ~1-2s.
+    // Schedule a delayed re-fetch to pick up the new activity row.
+    if (refreshKey !== undefined) {
+      const timer = setTimeout(loadTimeline, 2000)
+      return () => clearTimeout(timer)
+    }
+  }, [loadTimeline, refreshKey])
 
   if (isLoading) return <TimelineSkeleton />
   if (error) return <TimelineError message={error} />

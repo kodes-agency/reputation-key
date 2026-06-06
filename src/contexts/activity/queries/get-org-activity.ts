@@ -7,7 +7,21 @@ import type { ActivityLog } from '../domain/types'
 import type { Role } from '#/shared/domain/roles'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { can } from '#/shared/domain/permissions'
+import type { PropertyId } from '#/shared/domain/ids'
 import { organizationId, userId as toUserId } from '#/shared/domain/ids'
+
+/** Filter entries to only those within the user's accessible properties.
+ *  null accessiblePropertyIds = Admin → see everything. */
+export const filterByPropertyAccess = (
+  entries: readonly ActivityLog[],
+  accessiblePropertyIds: readonly PropertyId[] | null,
+): readonly ActivityLog[] => {
+  if (accessiblePropertyIds === null) return entries
+  const allowed = new Set(accessiblePropertyIds.map((p) => p as string))
+  return entries.filter(
+    (entry) => entry.propertyId === null || allowed.has(entry.propertyId),
+  )
+}
 
 type GetOrgActivityInput = Readonly<{
   organizationId: string
@@ -47,14 +61,14 @@ export const getOrgActivity =
     )
 
     if (accessiblePropertyIds !== null && accessiblePropertyIds.length > 0) {
+      // Fetch with expanded limit to cover filtering, then apply pagination
+      const expandedLimit = pagination.offset + pagination.limit
       const entries = await deps.repo.findByOrganization(input.organizationId, filter, {
-        limit: 200,
+        limit: expandedLimit,
         offset: 0,
       })
-      const allowed = new Set(accessiblePropertyIds.map((p) => p as string))
-      return entries.filter(
-        (entry) => entry.propertyId === null || allowed.has(entry.propertyId),
-      )
+      const filtered = filterByPropertyAccess(entries, accessiblePropertyIds)
+      return filtered.slice(pagination.offset, pagination.offset + pagination.limit)
     }
 
     return []

@@ -125,13 +125,16 @@ export const bulkUpdateInboxStatus =
 
     // Emit bulk status changed events for each updated item
     for (const id of validIds) {
+      const oldItem = items.find((i) => i.id === id)
       await deps.events.emit(
         inboxItemBulkStatusChanged({
           inboxItemId: id,
           organizationId: input.organizationId,
+          propertyId: oldItem?.propertyId ?? ('' as PropertyId),
           oldStatus: oldStatuses.get(id)!,
           newStatus: input.newStatus,
           bulkId,
+          userId: input.userId,
           occurredAt: now,
         }),
       )

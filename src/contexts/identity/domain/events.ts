@@ -1,6 +1,7 @@
 // Identity context — domain events
 // Standards: docs/standards.md §1
 
+import assert from 'node:assert/strict'
 import type { OrganizationId, UserId, InvitationId } from '#/shared/domain/ids'
 import type { Role } from '#/shared/domain/roles'
 

@@ -19,8 +19,9 @@ export type CreateActivityLogInput = Readonly<{
   source: ActivityLog['source']
 }>
 
-// Validators sync with the ActivityAction type union — if you add to the type,
-// add to this set. There's a test enforcing this invariant.
+// Validators sync with the ActivityAction/ResourceType/source type unions —
+// if you add to a type, add to the corresponding set.
+// There's a test enforcing the action invariant.
 const ALLOWED_ACTIONS: ReadonlySet<ActivityAction> = new Set([
   'created',
   'changed',
@@ -35,6 +36,17 @@ const ALLOWED_ACTIONS: ReadonlySet<ActivityAction> = new Set([
   'escalated',
 ])
 
+const ALLOWED_RESOURCE_TYPES: ReadonlySet<ActivityLog['resourceType']> = new Set([
+  'inbox_item',
+  'review',
+  'reply',
+  'note',
+  'property',
+  'member',
+])
+
+const ALLOWED_SOURCES: ReadonlySet<ActivityLog['source']> = new Set(['web', 'import'])
+
 export const createActivityLog = (
   input: CreateActivityLogInput,
   clock: () => Date,
@@ -47,8 +59,28 @@ export const createActivityLog = (
     )
   }
 
+  if (!ALLOWED_RESOURCE_TYPES.has(input.resourceType)) {
+    return err(
+      activityError(
+        'invalid_resource_type',
+        `Invalid resourceType: ${input.resourceType}`,
+        {
+          resourceType: input.resourceType,
+        },
+      ),
+    )
+  }
+
+  if (!ALLOWED_SOURCES.has(input.source)) {
+    return err(
+      activityError('invalid_source', `Invalid source: ${input.source}`, {
+        source: input.source,
+      }),
+    )
+  }
+
   return ok({
-    id: '', // populated by the database with uuid defaultRandom()
+    id: '', // placeholder — overwritten by use case with idGen(); DB defaultRandom() is fallback
     actorId: input.actorId,
     actorName: input.actorName,
     actorAvatarUrl: input.actorAvatarUrl,

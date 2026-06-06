@@ -208,4 +208,32 @@ export async function bootstrap(container: Container): Promise<void> {
     { job: SPAWN_RECURRING_JOB_NAME },
     'registered goal recurring spawner job handler',
   )
+
+  // ── Activity log insertion job ────────────────────────────────────
+  const { createInsertActivityLogHandler, INSERT_ACTIVITY_LOG_JOB_NAME } =
+    await import('#/contexts/activity/infrastructure/jobs/insert-activity-log.job')
+  const { createDbUserLookupAdapter } =
+    await import('#/contexts/activity/infrastructure/adapters/db-user-lookup.adapter')
+  const dbUserLookup = createDbUserLookupAdapter(container.db)
+  const insertActivityLogHandler = createInsertActivityLogHandler({
+    repo: container.activityRepo,
+    userLookup: dbUserLookup,
+    clock: () => new Date(),
+    logger: container.logger,
+    idGen: () => crypto.randomUUID(),
+  })
+  container.jobRegistry.register(
+    INSERT_ACTIVITY_LOG_JOB_NAME,
+    async (job): Promise<void> => {
+      await insertActivityLogHandler(
+        job as import('bullmq').Job<
+          import('#/contexts/activity/infrastructure/jobs/insert-activity-log.job').InsertActivityLogJobData
+        >,
+      )
+    },
+  )
+  logger.info(
+    { job: INSERT_ACTIVITY_LOG_JOB_NAME },
+    'registered activity log insertion job handler',
+  )
 }

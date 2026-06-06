@@ -44,6 +44,6 @@ export type ActivityLog = Readonly<{
   propertyId: string | null
   organizationId: string
   payload: ActivityPayload
-  source: 'web' | 'api' | 'system' | 'import'
+  source: 'web' | 'import'
   createdAt: Date
 }>

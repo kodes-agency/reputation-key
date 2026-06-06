@@ -16,7 +16,7 @@ import { z } from 'zod'
 const getActivityTimelineDto = z.object({
   resourceType: z.string(),
   resourceId: z.string(),
-  limit: z.number().min(1).max(100).optional().default(50),
+  limit: z.coerce.number().min(1).max(100).optional().default(50),
 })
 
 export const getActivityTimelineFn = createServerFn({ method: 'GET' })
@@ -40,6 +40,39 @@ export const getActivityTimelineFn = createServerFn({ method: 'GET' })
         userId: ctx.userId,
         role: ctx.role,
         limit: data.limit,
+      })
+    }),
+  )
+
+// ── getOrgActivityFn ───────────────────────────────────────────────
+
+const getOrgActivityDto = z.object({
+  propertyId: z.string().optional(),
+  limit: z.coerce.number().min(1).max(200).optional().default(50),
+  offset: z.coerce.number().min(0).optional().default(0),
+})
+
+export const getOrgActivityFn = createServerFn({ method: 'GET' })
+  .inputValidator(getOrgActivityDto)
+  .handler(
+    tracedHandler(async ({ data }) => {
+      const headers = headersFromContext()
+      const ctx = await resolveTenantContext(headers)
+      if (!can(ctx.role, 'inbox.read')) {
+        throwContextError(
+          'AuthError',
+          { code: 'forbidden', message: 'No inbox read permission' },
+          403,
+        )
+      }
+      const { activityPublicApi } = getContainer()
+      return activityPublicApi.getOrgActivity({
+        organizationId: ctx.organizationId,
+        userId: ctx.userId,
+        role: ctx.role,
+        propertyId: data.propertyId,
+        limit: data.limit,
+        offset: data.offset,
       })
     }),
   )

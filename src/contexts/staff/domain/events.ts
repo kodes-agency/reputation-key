@@ -1,6 +1,7 @@
 // Staff context — domain events
 // Standards: docs/standards.md §1
 
+import assert from 'node:assert/strict'
 import type { StaffAssignmentId } from './types'
 import type { OrganizationId, PropertyId, TeamId, UserId } from '#/shared/domain/ids'
 

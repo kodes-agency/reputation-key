@@ -1,6 +1,7 @@
 // Goal context — domain events
 // Standards: docs/standards.md §1
 
+import assert from 'node:assert/strict'
 import type {
   GoalId,
   OrganizationId,

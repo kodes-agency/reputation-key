@@ -1,5 +1,5 @@
 import type { ActivityLog } from '../domain/types'
-import type { MappedActivity } from '../application/event-to-activity'
+import type { ActivityAction, ResourceType, ActivityPayload } from '../domain/types'
 
 export type ActivityFilter = Readonly<{
   resourceType?: string
@@ -9,8 +9,16 @@ export type ActivityFilter = Readonly<{
 
 export type Pagination = Readonly<{ limit: number; offset: number }>
 
+export type FindDuplicateInput = Readonly<{
+  action: ActivityAction
+  resourceType: ResourceType
+  resourceId: string
+  organizationId: string
+  payload: ActivityPayload
+}>
+
 export type ActivityRepository = Readonly<{
-  insert(entry: Omit<ActivityLog, 'id' | 'createdAt'>): Promise<void>
+  insert(entry: ActivityLog): Promise<void>
   findByResource(
     resourceType: string,
     resourceId: string,
@@ -22,5 +30,5 @@ export type ActivityRepository = Readonly<{
     pagination: Pagination,
   ): Promise<readonly ActivityLog[]>
   /** Check if a duplicate activity entry already exists (idempotency gate). */
-  findDuplicate(mapped: MappedActivity): Promise<boolean>
+  findDuplicate(input: FindDuplicateInput): Promise<boolean>
 }>

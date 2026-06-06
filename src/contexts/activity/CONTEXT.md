@@ -4,7 +4,7 @@
 
 ## Bounded context
 
-The Activity context records an immutable audit log of user-initiated actions across the application. It is a **pure subscriber context** — it has no use cases, no commands, no server functions that mutate state. Writes arrive via domain event subscriptions via BullMQ; reads are served through query functions.
+The Activity context records an immutable audit log of user-initiated actions across the application. It is a **pure subscriber context** — it has a single internal use case (`insertActivityLog`), no commands, no server functions that mutate state. Writes arrive via domain event subscriptions delivered through BullMQ; reads are served through query functions.
 
 Layer: **Thin (subscriber)**. Like the metric context, the activity context is event-driven, not request-driven.
 
@@ -24,7 +24,7 @@ Key entity: `ActivityLog`
 
 - **ActivityLog → Organization** (N:1 via `organizationId`) — Every activity entry is scoped to an organization.
 - **ActivityLog → Property** (N:1 via `propertyId`, nullable) — Property-scoped actions carry a property reference. Organization-level actions use `null`.
-- **Cross-context** — Activity consumes events from inbox and review contexts. Uses `StaffPublicApi` (staff context) for permission filtering and `IdentityPort` (identity context) for actor name/avatar resolution.
+- **Cross-context** — Activity consumes events from inbox and review contexts. Uses `StaffPublicApi` (staff context) for permission filtering. Actor resolution in the BullMQ worker uses a DB-backed adapter (`db-user-lookup.adapter.ts`) that queries member/user tables directly.
 
 ## Invariants
 
@@ -89,20 +89,20 @@ Each handler:
 
 ```
 domain/          → types.ts, constructors.ts, errors.ts (no events — doesn't emit)
-application/     → public-api.ts, event-to-activity.ts
+application/     → public-api.ts, use-cases/insert-activity-log.ts
 ports/           → activity-repository.port.ts, user-lookup.port.ts
 infrastructure/  → activity-repository.drizzle.ts, event-handlers/ (one per tag),
-                    adapters/identity-user-lookup.adapter.ts, jobs/ (BullMQ worker)
+                    adapters/db-user-lookup.adapter.ts, jobs/insert-activity-log.job.ts
 queries/         → get-activity-timeline.ts, get-org-activity.ts
-server/          → activity.ts (server function for timeline fetching)
+server/          → activity.ts (server functions for timeline and org-wide fetching)
 build.ts
 ```
 
 ## Use cases
 
-| Name                | Input                                      | Output | Permission           |
-| ------------------- | ------------------------------------------ | ------ | -------------------- |
-| `insertActivityLog` | `event`, `deps` (repo, userLookup, logger) | `void` | system (worker-only) |
+| Name                | Input                                                                                     | Output | Permission           |
+| ------------------- | ----------------------------------------------------------------------------------------- | ------ | -------------------- |
+| `insertActivityLog` | flat fields (action, resourceType, etc.), `deps` (repo, userLookup, clock, logger, idGen) | `void` | system (worker-only) |
 
 `insertActivityLog` is the single write-side use case. Runs inside the BullMQ worker. Handles idempotency (duplicate check), user resolution, domain construction, and persistence.
 
@@ -110,15 +110,15 @@ build.ts
 
 Exported from `application/public-api.ts`:
 
-- Types: `ActivityLog`, `ActivityAction`, `ResourceType`, `ActivityPayload`
-- Query: `ActivityTimelineQuery`, `OrgActivityQuery`
+- Re-exports: `ActivityLog`, `ActivityAction`, `ResourceType`, `ActivityPayload`
+- Interface: `ActivityPublicApi` (with `getActivityTimeline`, `getOrgActivity` method signatures)
 
 ## Server functions
 
-| Name                  | Method | Permission      | Description                                        |
-| --------------------- | ------ | --------------- | -------------------------------------------------- |
-| `getActivityTimeline` | GET    | `activity:read` | Fetch activity timeline for a resource (paginated) |
-| `getOrgActivity`      | GET    | `activity:read` | Fetch organization-wide activity feed (paginated)  |
+| Name                  | Method | Permission   | Description                                        |
+| --------------------- | ------ | ------------ | -------------------------------------------------- |
+| `getActivityTimeline` | GET    | `inbox.read` | Fetch activity timeline for a resource (paginated) |
+| `getOrgActivity`      | GET    | `inbox.read` | Fetch organization-wide activity feed (paginated)  |
 
 ## Permissions
 
@@ -161,14 +161,14 @@ Indexes:
 - `application/` imports from `domain/`, `shared/domain/`, `shared/events/`
 - `infrastructure/` imports from `domain/`, `application/`, `shared/`, external libs
 - `server/` imports from `application/`, `shared/`, TanStack Start
-- Cross-context: imports `StaffPublicApi` from `staff/application/public-api` and `IdentityPort` from `identity/application/ports/identity.port`
+- Cross-context: imports `StaffPublicApi` from `staff/application/public-api`. Worker (bootstrap.ts) creates a DB-backed `UserLookupPort` adapter that queries `member`/`user` tables directly.
 
 ## Testing
 
-| Layer              | Type                      | Coverage                                  |
-| ------------------ | ------------------------- | ----------------------------------------- |
-| Domain constructor | Pure unit                 | ✓ `constructors.test.ts`                  |
-| Query functions    | Unit with in-memory fakes | ✓ `queries/get-activity-timeline.test.ts` |
-| Identity adapter   | Unit with mock port       | Pending                                   |
-| Event handlers     | Unit with mock repo       | Pending                                   |
-| Drizzle repository | Integration vs Postgres   | Pending                                   |
+| Layer                  | Type                      | Coverage                                  |
+| ---------------------- | ------------------------- | ----------------------------------------- |
+| Domain constructor     | Pure unit                 | ✓ `constructors.test.ts`                  |
+| Query functions        | Unit with in-memory fakes | ✓ `queries/get-activity-timeline.test.ts` |
+| DB user lookup adapter | Unit with mock db         | Pending                                   |
+| Event handlers         | Unit with mock repo       | Pending                                   |
+| Drizzle repository     | Integration vs Postgres   | Pending                                   |

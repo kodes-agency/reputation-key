@@ -1,0 +1,96 @@
+// Activity context — insert activity log use case
+// Extracted from in-process handler for BullMQ worker consumption.
+// Per architecture: "Use cases are standalone functions that receive deps and return an async function."
+
+import type { ActivityRepository } from '../../ports/activity-repository.port'
+import type { UserLookupPort } from '../../ports/user-lookup.port'
+import type { LoggerPort } from '#/shared/domain/logger.port'
+import type { Role } from '#/shared/domain/roles'
+import { createActivityLog } from '../../domain/constructors'
+import type { ActivityAction, ResourceType, ActivityPayload } from '../../domain/types'
+
+export type InsertActivityLogInput = Readonly<{
+  action: ActivityAction
+  resourceType: ResourceType
+  resourceId: string
+  propertyId: string | null
+  organizationId: string
+  userId: string | null
+  source: 'web' | 'import'
+  payload: ActivityPayload
+}>
+
+export type InsertActivityLogDeps = Readonly<{
+  repo: ActivityRepository
+  userLookup: UserLookupPort
+  clock: () => Date
+  logger: LoggerPort
+  idGen: () => string
+}>
+
+export const insertActivityLog =
+  (deps: InsertActivityLogDeps) =>
+  async (input: InsertActivityLogInput): Promise<void> => {
+    const { userId, propertyId, ...activityFields } = input
+    const { action, resourceType, resourceId, organizationId, payload } = activityFields
+
+    // 1. Idempotency gate — skip if a duplicate entry already exists
+    const duplicate = await deps.repo.findDuplicate({
+      action,
+      resourceType,
+      resourceId,
+      organizationId,
+      payload,
+    })
+    if (duplicate) return
+
+    // 2. Resolve actor info — fall back to system defaults on lookup failure
+    let actorName = 'System'
+    let actorAvatarUrl: string | null = null
+    let actorRole: Role = 'Staff'
+
+    if (userId) {
+      try {
+        const user = await deps.userLookup.lookup(userId, organizationId)
+        actorName = user.name
+        actorAvatarUrl = user.avatarUrl
+        actorRole = user.role
+      } catch {
+        // Use system defaults
+      }
+    }
+
+    // 3. Construct the domain object via the domain constructor
+    const result = createActivityLog(
+      {
+        actorId: userId || 'system',
+        actorName,
+        actorAvatarUrl,
+        actorRole,
+        propertyId,
+        ...activityFields,
+      },
+      deps.clock,
+    )
+
+    if (result.isErr()) {
+      deps.logger.warn(
+        { error: result.error, input },
+        'Failed to construct activity log entry',
+      )
+      return
+    }
+
+    // 4. Assign a domain-generated ID
+    const entryWithId = { ...result.value, id: deps.idGen() }
+
+    // 5. Persist the activity log entry
+    try {
+      await deps.repo.insert(entryWithId)
+    } catch (error) {
+      deps.logger.error({ error, input }, 'Failed to persist activity log entry')
+      throw error // re-throw so BullMQ retries
+    }
+  }
+
+export type InsertActivityLog = typeof insertActivityLog
