@@ -54,7 +54,8 @@ function PortalDetailRoute() {
   // Guest-facing portal URLs use the property slug (portals belong to properties)
   const authRoute = getRouteApi('/_authenticated')
   const { properties } = authRoute.useLoaderData()
-  const propertySlug = properties?.find((p) => p.id === propertyId)?.slug ?? ''
+  const propertySlug =
+    properties?.find((p: { id: string; slug: string }) => p.id === propertyId)?.slug ?? ''
 
   return (
     <PageShell>

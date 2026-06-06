@@ -23,35 +23,34 @@ Composition root: `src/composition.ts`. Bootstrap: `src/bootstrap.ts`.
 
 ## Bounded contexts
 
-|| | Context | Responsibility | Key Entities |
-|| --- | ------------ | --------------------------------------------------------------------------------------- | -------------------------------------- |
-|| | Identity | Users, organizations, members, invitations | User, Organization, Member, Invitation |
-|| | Property | Properties (hotels/restaurants) owned by organizations | Property |
-|| | Portal | Guest-facing portal pages, links, and portal groups for aggregate metrics | Portal, Link, LinkCategory, PortalGroup |
-|| | Guest | Public portal rendering, rating collection, feedback | Rating, Feedback |
-|| | Team | Staff teams and shift management (no portal scoping, no metric attribution) | Team |
-|| | Staff | Staff assignments to properties and portal access control | StaffAssignment |
-| | Integration | Google connections, OAuth, tokens, GBP API adapter | GoogleConnection |
-| | Review | External platform reviews (Google), sync, replies | Review |
-| | Inbox | Unified triage surface for reviews + feedback | InboxItem, InboxNote |
-| | Metric | Aggregation of raw counters (scans, ratings, clicks, reviews) | MetricReading |
-|| Goal | Property-scoped goals with progress tracking; scope levels: property, portal, portal_group | Goal, GoalInstance |
-|| Dashboard | Read-only aggregation of metrics, reviews, replies into property-scoped KPIs and charts | — |
-|| Activity | Immutable audit log of user actions across all contexts. Pure subscriber (no commands, no use cases). | ActivityLog |
+|     | Context     | Responsibility                                                                          | Key Entities                           |
+| --- | ----------- | --------------------------------------------------------------------------------------- | -------------------------------------- |
+|     | Identity    | Users, organizations, members, invitations                                              | User, Organization, Member, Invitation |
+|     | Property    | Properties (hotels/restaurants) owned by organizations                                  | Property                               |
+|     | Portal      | Guest-facing portal pages with links, per property                                      | Portal, Link, LinkCategory             |
+|     | Guest       | Public portal rendering, rating collection, feedback                                    | Rating, Feedback                       |
+|     | Team        | Staff teams and shift management                                                        | Team                                   |
+|     | Staff       | Staff assignments to properties                                                         | StaffAssignment                        |
+|     | Integration | Google connections, OAuth, tokens, GBP API adapter                                      | GoogleConnection                       |
+|     | Review      | External platform reviews (Google), sync, replies                                       | Review                                 |
+|     | Inbox       | Unified triage surface for reviews + feedback                                           | InboxItem, InboxNote                   |
+|     | Metric      | Aggregation of raw counters (scans, ratings, clicks, reviews)                           | MetricReading                          |
+|     | Goal        | Property-scoped goals with progress tracking                                            | Goal, GoalInstance                     |
+|     | Dashboard   | Read-only aggregation of metrics, reviews, replies into property-scoped KPIs and charts | —                                      |
 
 ## Glossary
 
 ### Roles & Permissions
 
 | Term                       | Definition                                                                                                                        |
-| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
 | **Role**                   | A named set of permissions assigned to an organization member. Org-wide — not per-property.                                       |
 | **AccountAdmin**           | Organization owner. Full permissions including role management (`ac.*`). Created when the org is created.                         |
 | **PropertyManager**        | Can manage properties, portals, members, teams. Cannot delete resources or manage roles.                                          |
 | **Staff**                  | Read-only access. Can view reviews.                                                                                               |
 | **Permission**             | A `resource.action` string (e.g. `portal.create`). The atomic unit of authorization.                                              |
 | **Dynamic Access Control** | Better-auth feature that loads org-specific role overrides from the DB at permission-check time. Built-in roles are the fallback. |
-|                            | **Staff Assignment**                                                                                                              | Links a member to a specific property. Controls which properties a PropertyManager can manage. Includes optional `portalId` for portal-level access control (not attribution). |
+| **Staff Assignment**       | Links a member to a specific property. Controls which properties a PropertyManager can manage.                                    |
 
 ### Auth Architecture
 
@@ -68,13 +67,6 @@ Composition root: `src/composition.ts`. Bootstrap: `src/bootstrap.ts`.
 | ----------------------- | ------------------------------------------------------------------------------------------------------------ |
 | **Property Assignment** | A `staff_assignment` record linking a user to a property. PropertyManagers only manage assigned properties.  |
 | **Org-wide role**       | A member's role applies across the entire organization, but property-level actions are scoped by assignment. |
-
-### Portal Groups
-
-|| Term | Definition |
-|| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-|| **Portal Group** | A named grouping of portals within a property (e.g., "Reception" = 3 portals). Enables aggregate metrics and goals across multiple portals. A portal belongs to at most one group. Lives in the `portal_group` context. |
-|| **Portal Group Goal** | A goal scoped to a portal group. Aggregates metric readings across all portals in the group. |
 
 ### Reviews & Feedback
 
@@ -111,7 +103,7 @@ Composition root: `src/composition.ts`. Bootstrap: `src/bootstrap.ts`.
 
 ## Architecture Decisions
 
-See `docs/adr/` for formal ADRs. See `docs/standards.md` for codebase-wide naming and structural standards. Key ADRs:
+See `docs/adr/` for formal ADRs. Key ADRs:
 
 || ADR | Title | Context |
 || ---- | -------------------------------------- | -------------------------------- |
@@ -122,9 +114,6 @@ See `docs/adr/` for formal ADRs. See `docs/standards.md` for codebase-wide namin
 || 0005 | GBP Review API Path and Error Model Fix | Google Integration, Error Model |
 || 0006 | Staff as a Separate Bounded Context | Identity, Staff Management |
 || 0007 | Dashboard as a Read-Only Aggregation | Dashboard, Read Models |
-|| 0008 | Cross-Context Data Access Rules | Architecture, Bounded Context Boundaries |
-|| 0009 | Permission Model | Identity & Authorization |
-|| 0010 | Activity Context: BullMQ Event Delivery | Activity, Event Delivery |
 
 ## Key Files
 

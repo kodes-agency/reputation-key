@@ -29,6 +29,14 @@ function PortalListRoute() {
   const { propertyId } = Route.useParams()
   const { portals } = Route.useLoaderData()
   const { properties } = authRoute.useLoaderData()
-  const propertySlug = properties?.find((p) => p.id === propertyId)?.slug ?? ''
-  return <PortalListPage portals={portals} propertyId={propertyId} propertySlug={propertySlug} deletePortalFn={deletePortal} />
+  const propertySlug =
+    properties?.find((p: { id: string; slug: string }) => p.id === propertyId)?.slug ?? ''
+  return (
+    <PortalListPage
+      portals={portals}
+      propertyId={propertyId}
+      propertySlug={propertySlug}
+      deletePortalFn={deletePortal}
+    />
+  )
 }

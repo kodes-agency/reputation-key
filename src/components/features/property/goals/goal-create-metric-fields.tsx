@@ -7,10 +7,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '#/components/ui/select'
-import { aggregationLabel } from '#/contexts/goal/ui/helpers'
+import { Input } from '#/components/ui/input'
+import { scopeLabel, aggregationLabel } from '#/contexts/goal/ui/helpers'
 import type { AggregationFunction, EntityScope } from '#/shared/domain/metric-keys'
-import type { PortalOption, TeamOption } from './goal-entity-types'
-import { EntityPicker } from './goal-entity-picker'
 
 type MetricFieldsProps = Readonly<{
   showEntityPicker: boolean
@@ -22,9 +21,6 @@ type MetricFieldsProps = Readonly<{
   setters: Record<string, (v: string) => void>
   availableMetrics: readonly string[]
   availableAggregations: readonly string[]
-  portals: readonly PortalOption[]
-  teams: readonly TeamOption[]
-  propertyId: string
 }>
 
 export function GoalMetricFields({
@@ -37,22 +33,19 @@ export function GoalMetricFields({
   setters: $,
   availableMetrics,
   availableAggregations,
-  portals,
-  teams,
-  propertyId,
 }: MetricFieldsProps) {
   return (
     <>
       {showEntityPicker && (
-        <EntityPicker
-          entityScope={entityScope}
-          entityId={entityId}
-          setters={$}
-          errors={errors}
-          portals={portals}
-          teams={teams}
-          propertyId={propertyId}
-        />
+        <Field>
+          <FieldLabel htmlFor="entity-id">{scopeLabel(entityScope)} ID</FieldLabel>
+          <Input
+            id="entity-id"
+            value={entityId}
+            onChange={(e) => $.entityId(e.target.value)}
+            placeholder={`Enter ${scopeLabel(entityScope).toLowerCase()} ID`}
+          />
+        </Field>
       )}
       <Field>
         <FieldLabel>Metric Key</FieldLabel>

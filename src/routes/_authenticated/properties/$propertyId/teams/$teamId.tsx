@@ -32,9 +32,11 @@ export const Route = createFileRoute(
       listMembers(),
       listStaffAssignments({ data: { propertyId: params.propertyId } }),
     ])
-    const team = teams.find((t) => t.id === params.teamId)
+    const team = teams.find((t: { id: string }) => t.id === params.teamId)
     if (!team) throw notFound()
-    const teamAssignments = assignments.filter((a) => a.teamId === params.teamId)
+    const teamAssignments = assignments.filter(
+      (a: { teamId: string | null }) => a.teamId === params.teamId,
+    )
     const memberOptions = toMemberOptions(members)
     return {
       team,

@@ -12,7 +12,6 @@ import { scopeLabel, goalTypeLabel } from '#/contexts/goal/ui/helpers'
 import type { EntityScope, AggregationFunction } from '#/shared/domain/metric-keys'
 import { GoalMetricFields } from './goal-create-metric-fields'
 import { GoalCreateExtraFields } from './goal-create-extra-fields'
-import type { PortalOption, TeamOption } from './goal-entity-types'
 
 type F = Readonly<{
   state: {
@@ -39,9 +38,6 @@ type F = Readonly<{
   showRecurrenceRule: boolean
   isPending: boolean
   onCancel: () => void
-  portals: readonly PortalOption[]
-  teams: readonly TeamOption[]
-  propertyId: string
 }>
 
 export function GoalCreateFields({
@@ -55,9 +51,6 @@ export function GoalCreateFields({
   showRecurrenceRule,
   isPending,
   onCancel,
-  portals,
-  teams,
-  propertyId,
 }: F) {
   return (
     <>
@@ -79,7 +72,7 @@ export function GoalCreateFields({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {(['property', 'portal_group', 'portal'] as EntityScope[]).map((scope) => (
+            {(['property', 'portal', 'team', 'staff'] as EntityScope[]).map((scope) => (
               <SelectItem key={scope} value={scope}>
                 {scopeLabel(scope)}
               </SelectItem>
@@ -97,9 +90,6 @@ export function GoalCreateFields({
         setters={$}
         availableMetrics={availableMetrics}
         availableAggregations={availableAggregations}
-        portals={portals}
-        teams={teams}
-        propertyId={propertyId}
       />
       <Field>
         <FieldLabel>Goal Type</FieldLabel>
