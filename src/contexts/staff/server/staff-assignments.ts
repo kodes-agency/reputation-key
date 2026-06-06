@@ -3,6 +3,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { match } from 'ts-pattern'
+import { z } from 'zod/v4'
 import { HTTP_STATUS } from '#/shared/auth/error-status'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
@@ -25,7 +26,12 @@ import {
 const staffErrorStatus = (code: StaffErrorCode): number =>
   match(code)
     .with('forbidden', () => HTTP_STATUS.FORBIDDEN)
-    .with('assignment_not_found', 'property_not_found', 'team_not_found', () => HTTP_STATUS.NOT_FOUND)
+    .with(
+      'assignment_not_found',
+      'property_not_found',
+      'team_not_found',
+      () => HTTP_STATUS.NOT_FOUND,
+    )
     .with('already_assigned', () => HTTP_STATUS.CONFLICT)
     .with('invalid_input', () => HTTP_STATUS.BAD_REQUEST)
     .exhaustive()
@@ -123,5 +129,36 @@ export const listStaffAssignments = createServerFn({ method: 'GET' })
       },
       'GET',
       'staff.listStaffAssignments',
+    ),
+  )
+
+// ── updateStaffPortals ─────────────────────────────────────────────
+
+const updateStaffPortalsSchema = z.object({
+  userId: z.string().min(1, 'User ID is required'),
+  propertyId: z.string().min(1, 'Property ID is required'),
+  portalIds: z.array(z.string()).min(1, 'Select at least one portal'),
+})
+
+export const updateStaffPortals = createServerFn({ method: 'POST' })
+  .inputValidator(updateStaffPortalsSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const headers = headersFromContext()
+        const ctx = await resolveTenantContext(headers)
+
+        try {
+          const { useCases } = getContainer()
+          const result = await useCases.updateStaffPortals(data, ctx)
+          return result
+        } catch (e) {
+          if (isStaffError(e))
+            throwContextError('StaffError', e, staffErrorStatus(e.code))
+          throw catchUntagged(e)
+        }
+      },
+      'POST',
+      'staff.updateStaffPortals',
     ),
   )

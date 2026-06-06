@@ -12,6 +12,7 @@ import { createStaffAssignment } from './application/use-cases/create-staff-assi
 import { removeStaffAssignment } from './application/use-cases/remove-staff-assignment'
 import { listStaffAssignments } from './application/use-cases/list-staff-assignments'
 import { getAssignedPortals } from './application/use-cases/get-assigned-portals'
+import { updateStaffPortals } from './application/use-cases/update-staff-portals'
 import { staffAssignmentId } from '#/shared/domain/ids'
 import { randomUUID } from 'crypto'
 
@@ -41,6 +42,11 @@ export const buildStaffContext = (deps: StaffContextDeps) => {
     }),
     getAssignedPortals: getAssignedPortals({
       assignmentRepo: deps.repo,
+    }),
+    updateStaffPortals: updateStaffPortals({
+      assignmentRepo: deps.repo,
+      events: deps.events,
+      clock: deps.clock,
     }),
   } as const
 
