@@ -44,13 +44,13 @@ export function StaffAssignmentList({
       if (existing) {
         existing.assignmentIds.push(a.id)
         existing.teamIds.push(a.teamId)
-        existing.portalCount++
+        if (a.portalId) existing.portalCount++
       } else {
         grouped.set(a.userId, {
           userId: a.userId,
           assignmentIds: [a.id],
           teamIds: [a.teamId],
-          portalCount: 1,
+          portalCount: a.portalId ? 1 : 0,
         })
       }
     }

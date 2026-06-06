@@ -77,7 +77,7 @@ export const getStaffDashboardDataFn = createServerFn({ method: 'GET' })
         } catch (e) {
           if (isDashboardError(e))
             throwContextError('DashboardError', e, staffDashboardErrorStatus(e.code))
-          catchUntagged(e)
+          throw catchUntagged(e)
         }
       },
       'GET',
