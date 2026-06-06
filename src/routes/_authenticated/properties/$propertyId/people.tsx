@@ -5,6 +5,7 @@ import { can } from '#/shared/domain/permissions'
 import { listStaffAssignments } from '#/contexts/staff/server/staff-assignments'
 import { listTeams } from '#/contexts/team/server/teams'
 import { listMembers } from '#/contexts/identity/server/organizations'
+import { listPortals } from '#/contexts/portal/server/portals'
 import {
   PeoplePage,
   peopleSearchSchema,
@@ -18,19 +19,20 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/peo
   validateSearch: (search) => peopleSearchSchema.parse(search),
   staleTime: 30_000,
   loader: async ({ params: { propertyId } }) => {
-    const [{ assignments }, { members }, { teams }] = await Promise.all([
+    const [{ assignments }, { members }, { teams }, { portals }] = await Promise.all([
       listStaffAssignments({ data: { propertyId } }),
       listMembers(),
       listTeams({ data: { propertyId } }),
+      listPortals({ data: { propertyId } }),
     ])
-    return { assignments, members, teams }
+    return { assignments, members, teams, portals }
   },
   component: PeopleRoute,
 })
 
 function PeopleRoute() {
   const { propertyId } = Route.useParams()
-  const { assignments, members, teams } = Route.useLoaderData()
+  const { assignments, members, teams, portals } = Route.useLoaderData()
   const search = Route.useSearch() as { tab?: string }
   const navigate = Route.useNavigate()
 
@@ -40,6 +42,7 @@ function PeopleRoute() {
       assignments={assignments}
       members={members}
       teams={teams}
+      portals={portals}
       tab={search.tab}
       onTabChange={(t) => navigate({ search: { tab: t } })}
     />

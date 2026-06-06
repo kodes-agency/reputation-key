@@ -12,6 +12,7 @@ import { Plus } from 'lucide-react'
 import { StaffAssignmentList, AssignStaffForm } from '#/components/features/staff'
 import type { Action } from '#/components/hooks/use-action'
 import type { MemberLike, TeamLike } from '#/lib/lookups'
+import type { PortalOption } from '#/components/features/staff/portal-selector'
 import type { CreateStaffAssignmentInput } from '#/contexts/staff/application/dto/staff-assignment.dto'
 
 interface StaffTabProps {
@@ -24,6 +25,7 @@ interface StaffTabProps {
   }>
   memberOptions: MemberLike[]
   teamOptions: TeamLike[]
+  portalOptions: PortalOption[]
   assignedUserIds: Set<string>
   assignMutation: Action<{ data: CreateStaffAssignmentInput }>
   removeMutation: Action<{ data: { assignmentId: string } }>
@@ -36,6 +38,7 @@ export function StaffTab({
   assignments,
   memberOptions,
   teamOptions,
+  portalOptions,
   assignedUserIds,
   assignMutation,
   removeMutation,
@@ -56,7 +59,7 @@ export function StaffTab({
             <DialogHeader>
               <DialogTitle>Assign Staff</DialogTitle>
               <DialogDescription>
-                Select staff members to assign to this property.
+                Select staff members and portals to assign to this property.
               </DialogDescription>
             </DialogHeader>
             <AssignStaffForm
@@ -64,6 +67,7 @@ export function StaffTab({
               mutation={assignMutation}
               members={memberOptions}
               teams={teamOptions}
+              portals={portalOptions}
               assignedUserIds={assignedUserIds}
             />
           </DialogContent>

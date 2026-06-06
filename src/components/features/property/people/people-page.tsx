@@ -24,6 +24,7 @@ import { StaffTab } from '#/components/features/property/people/staff-tab'
 import { TeamsTab } from '#/components/features/property/people/teams-tab'
 import { DirectoryTab } from '#/components/features/property/people/directory-tab'
 import { PageShell } from '#/components/layout/page-shell'
+import { listPortals } from '#/contexts/portal/server/portals'
 
 export const peopleSearchSchema = z.object({
   tab: z.string().optional(),
@@ -34,6 +35,7 @@ interface PeoplePageProps {
   assignments: Awaited<ReturnType<typeof listStaffAssignments>>['assignments']
   members: Awaited<ReturnType<typeof listMembers>>['members']
   teams: Awaited<ReturnType<typeof listTeams>>['teams']
+  portals: Awaited<ReturnType<typeof listPortals>>['portals']
   tab: string | undefined
   onTabChange: (tab: string) => void
 }
@@ -43,6 +45,7 @@ export function PeoplePage({
   assignments,
   members,
   teams,
+  portals,
   tab,
   onTabChange,
 }: PeoplePageProps) {
@@ -52,6 +55,7 @@ export function PeoplePage({
 
   const memberOptions = toMemberOptions(members)
   const teamOptions = toTeamOptions(teams)
+  const portalOptions = portals.map((p) => ({ id: String(p.id), name: p.name }))
   const assignedUserIds = new Set(assignments.map((a) => a.userId))
 
   const invalidateRoutes = [
@@ -99,6 +103,7 @@ export function PeoplePage({
           assignments={assignments}
           memberOptions={memberOptions}
           teamOptions={teamOptions}
+          portalOptions={portalOptions}
           assignedUserIds={assignedUserIds}
           assignMutation={assignMutation}
           removeMutation={removeMutation}

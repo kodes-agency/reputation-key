@@ -1,5 +1,6 @@
 // Assign staff form — used in property staff page
-// Multi-select: pick multiple members, optionally assign to a team, submit all at once.
+// Multi-select: pick multiple members, optionally assign to a team + portals, submit all at once.
+// Submits one row per user × portal combination.
 
 import { useForm } from '@tanstack/react-form'
 import { FieldGroup } from '#/components/ui/field'
@@ -11,11 +12,14 @@ import { z } from 'zod/v4'
 import { toast } from 'sonner'
 import { MemberSelector } from './member-selector'
 import { TeamSelector } from './team-selector'
+import { PortalSelector } from './portal-selector'
+import type { PortalOption } from './portal-selector'
 import type { MemberOption, TeamOption } from '#/components/features/team/shared/types'
 
 const formSchema = createStaffAssignmentInputSchema.pick({ propertyId: true }).extend({
   userIds: z.array(z.string()).min(1, 'Select at least one staff member'),
   teamId: z.string().nullable(),
+  portalIds: z.array(z.string()).min(1, 'Select at least one portal'),
 })
 
 import type { Action } from '#/components/hooks/use-action'
@@ -25,6 +29,7 @@ type Props = Readonly<{
   mutation: Action<{ data: CreateStaffAssignmentInput }>
   members: ReadonlyArray<MemberOption>
   teams: ReadonlyArray<TeamOption>
+  portals: ReadonlyArray<PortalOption>
   assignedUserIds: ReadonlySet<string>
   onSuccess?: (count: number) => void
 }>
@@ -34,6 +39,7 @@ export function AssignStaffForm({
   mutation,
   members,
   teams,
+  portals,
   assignedUserIds,
   onSuccess,
 }: Props) {
@@ -44,22 +50,28 @@ export function AssignStaffForm({
       userIds: [] as string[],
       propertyId,
       teamId: null as string | null,
+      portalIds: [] as string[],
     },
     validators: {
       onSubmit: formSchema,
     },
     onSubmit: async ({ value }) => {
-      const results = await Promise.allSettled(
-        value.userIds.map((userId) =>
-          mutation({
+      // Submit one row per user × portal combination
+      const rows: Array<{ data: CreateStaffAssignmentInput }> = []
+      for (const userId of value.userIds) {
+        for (const portalId of value.portalIds) {
+          rows.push({
             data: {
               userId,
               propertyId: value.propertyId,
               teamId: value.teamId ?? undefined,
+              portalId,
             },
-          }),
-        ),
-      )
+          })
+        }
+      }
+
+      const results = await Promise.allSettled(rows.map((row) => mutation(row)))
 
       const succeeded = results.filter((r) => r.status === 'fulfilled').length
       const failed = results.filter((r) => r.status === 'rejected').length
@@ -67,8 +79,8 @@ export function AssignStaffForm({
       if (succeeded > 0) {
         toast.success(
           failed > 0
-            ? `${succeeded} staff member${succeeded > 1 ? 's' : ''} assigned (${failed} failed)`
-            : `${succeeded} staff member${succeeded > 1 ? 's' : ''} assigned`,
+            ? `${succeeded} assignment${succeeded > 1 ? 's' : ''} created (${failed} failed)`
+            : `${succeeded} assignment${succeeded > 1 ? 's' : ''} created`,
         )
         onSuccess?.(succeeded)
       } else if (failed > 0) {
@@ -96,6 +108,12 @@ export function AssignStaffForm({
         {teams.length > 0 && (
           <form.Field name="teamId">
             {(field) => <TeamSelector field={field} teams={teams} />}
+          </form.Field>
+        )}
+
+        {portals.length > 0 && (
+          <form.Field name="portalIds">
+            {(field) => <PortalSelector field={field} portals={portals} />}
           </form.Field>
         )}
       </FieldGroup>
