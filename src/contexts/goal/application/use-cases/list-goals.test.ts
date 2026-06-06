@@ -129,6 +129,7 @@ const createFakeGoalRepo = (state: {
   findAllActive: async () => [],
   findActiveRecurringTemplates: async () => [],
   findLatestInstance: async () => null,
+  listByPortalAndGroupIds: async () => [],
   createGoalAndProgress: async () => {},
 })
 

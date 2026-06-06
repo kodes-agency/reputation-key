@@ -2,7 +2,7 @@
 // Per architecture: factory function returning Readonly<{ method }>.
 // Every query filters by organization_id AND deleted_at IS NULL via baseWhere().
 
-import { and, eq, not, sql } from 'drizzle-orm'
+import { and, eq, not, sql, inArray, isNotNull } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { baseWhere } from '#/shared/db/base-where'
 import {
@@ -18,7 +18,12 @@ import type {
 } from '../../application/ports/portal.repository'
 import { portalFromRow, portalToRow } from '../mappers/portal.mapper'
 import { portalError } from '../../domain/errors'
-import { unbrand, type OrganizationId, type PropertyId } from '#/shared/domain/ids'
+import {
+  unbrand,
+  type OrganizationId,
+  type PropertyId,
+  type PortalGroupId,
+} from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 
 /** Mutable set-values type for Drizzle .set() — strips readonly from Portal fields. */
@@ -260,6 +265,31 @@ export const createPortalRepository = (db: Database): PortalRepository => ({
         organizationId: org.id,
         propertyId: portal.propertyId,
       } satisfies PublicPortalResult
+    })
+  },
+
+  findGroupIdsByPortalIds: async (orgId, portalIds) => {
+    return trace('portal.findGroupIdsByPortalIds', async () => {
+      if (portalIds.length === 0) return []
+
+      const rows = await db
+        .selectDistinct({ groupId: portals.groupId })
+        .from(portals)
+        .where(
+          and(
+            ...baseWhere(portals, orgId),
+            inArray(portals.id, [...portalIds] as string[]),
+            isNotNull(portals.groupId),
+          ),
+        )
+
+      const groupIds: PortalGroupId[] = []
+      for (const row of rows) {
+        if (row.groupId) {
+          groupIds.push(row.groupId as PortalGroupId)
+        }
+      }
+      return groupIds
     })
   },
 })

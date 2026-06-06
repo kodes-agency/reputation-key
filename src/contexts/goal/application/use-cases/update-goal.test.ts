@@ -111,6 +111,7 @@ function createFakeDeps(overrides?: { storedGoals?: Goal[] }) {
     findAllActive: async () => [],
     findActiveRecurringTemplates: async () => [],
     findLatestInstance: async () => null,
+    listByPortalAndGroupIds: async () => [],
     createGoalAndProgress: async () => {},
   }
 

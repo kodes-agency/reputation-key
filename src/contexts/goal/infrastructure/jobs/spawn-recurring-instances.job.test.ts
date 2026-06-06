@@ -126,6 +126,7 @@ function createFakeDeps(state: {
     findActiveRecurringTemplates: async () => state.templates,
     findLatestInstance: async (parentId) =>
       state.latestInstance.get(parentId as string) ?? null,
+    listByPortalAndGroupIds: async () => [],
     createGoalAndProgress: async (goal, progress) => {
       created.push({ goal, progress })
     },

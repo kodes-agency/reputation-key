@@ -119,4 +119,13 @@ export type GoalRepository = Readonly<{
     parentGoalIds: readonly GoalId[],
     orgId: OrganizationId,
   ): Promise<ReadonlyMap<GoalId, Goal[]>>
+
+  // ── Staff goal resolution ────────────────────────────────────────────
+  // Query goals where portalId IN (portalIds) OR groupId IN (groupIds).
+  // Used by listStaffGoals to resolve goals for a staff member's assigned portals.
+  listByPortalAndGroupIds(input: {
+    organizationId: OrganizationId
+    portalIds: ReadonlyArray<PortalId>
+    groupIds: ReadonlyArray<PortalGroupId>
+  }): Promise<ReadonlyArray<Goal>>
 }>

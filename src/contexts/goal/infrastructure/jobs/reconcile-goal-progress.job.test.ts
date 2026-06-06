@@ -102,6 +102,7 @@ function createFakeDeps() {
         (g) => g.status === 'active' && g.goalType === 'recurring' && !g.parentGoalId,
       ),
     findLatestInstance: async () => null,
+    listByPortalAndGroupIds: async () => [],
     createGoalAndProgress: async () => {},
     findActiveGoalsByMetric: async () => [],
     upsertProgress: async () => ({

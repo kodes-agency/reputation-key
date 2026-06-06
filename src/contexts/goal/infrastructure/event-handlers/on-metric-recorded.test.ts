@@ -160,6 +160,7 @@ function makeFakeDeps() {
     findAllActive: async () => [],
     findActiveRecurringTemplates: async () => [],
     findLatestInstance: async (_parentId, _orgId) => null,
+    listByPortalAndGroupIds: async () => [],
     createGoalAndProgress: async () => {},
   }
 

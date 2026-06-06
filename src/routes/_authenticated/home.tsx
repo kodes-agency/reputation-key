@@ -5,7 +5,7 @@ import { PageShell } from '#/components/layout/page-shell'
 
 export const Route = createFileRoute('/_authenticated/home')({
   loader: async () => {
-    const { goals } = await listStaffGoals()
+    const { goals } = await listStaffGoals({ data: {} })
     return { goals }
   },
   component: StaffHomePage,

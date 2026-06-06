@@ -108,6 +108,7 @@ function createFakeDeps() {
     findAllActive: async () => [],
     findActiveRecurringTemplates: async () => [],
     findLatestInstance: async () => null,
+    listByPortalAndGroupIds: async () => [],
     createGoalAndProgress: async (goal, progress) => {
       goals.push(goal)
       progresses.push(progress)

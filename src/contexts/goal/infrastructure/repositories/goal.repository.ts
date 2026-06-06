@@ -478,6 +478,36 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
 
   // ── Batch lookups (N+1 elimination) ──────────────────────────────────
 
+  // ── Staff goal resolution ────────────────────────────────────────────
+
+  listByPortalAndGroupIds: async (input) => {
+    return trace('goal.listByPortalAndGroupIds', async () => {
+      const { organizationId, portalIds, groupIds } = input
+      if (portalIds.length === 0 && groupIds.length === 0) return []
+
+      const conditions = [eq(goals.organizationId, organizationId)]
+
+      if (portalIds.length > 0 && groupIds.length > 0) {
+        conditions.push(
+          or(
+            inArray(goals.portalId, [...portalIds] as string[]),
+            inArray(goals.groupId, [...groupIds] as string[]),
+          )!,
+        )
+      } else if (portalIds.length > 0) {
+        conditions.push(inArray(goals.portalId, [...portalIds] as string[]))
+      } else if (groupIds.length > 0) {
+        conditions.push(inArray(goals.groupId, [...groupIds] as string[]))
+      }
+
+      const rows = await db
+        .select()
+        .from(goals)
+        .where(and(...conditions))
+      return rows.map(goalFromRow)
+    })
+  },
+
   listInstancesBatch: async (parentGoalIds, orgId) => {
     return trace('goal.listInstancesBatch', async () => {
       const map = new Map<GoalId, Goal[]>()
