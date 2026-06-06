@@ -16,7 +16,12 @@ import type { CreateStaffAssignmentInput } from '#/contexts/staff/application/dt
 
 interface StaffTabProps {
   propertyId: string
-  assignments: ReadonlyArray<{ id: string; userId: string; teamId: string | null }>
+  assignments: ReadonlyArray<{
+    id: string
+    userId: string
+    teamId: string | null
+    portalId: string | null
+  }>
   memberOptions: MemberLike[]
   teamOptions: TeamLike[]
   assignedUserIds: Set<string>

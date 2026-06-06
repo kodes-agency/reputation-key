@@ -8,70 +8,69 @@
 // These match the shapes returned by server functions (listMembers, listTeams, etc.)
 
 export interface MemberLike {
-	userId: string;
-	name: string;
-	email: string;
+  userId: string
+  name: string
+  email: string
 }
 
 export interface TeamLike {
-	id: string;
-	name: string;
+  id: string
+  name: string
 }
 
 export interface AssignmentLike {
-	id: string;
-	userId: string;
-	teamId: string | null;
+  id: string
+  userId: string
+  teamId: string | null
+  portalId: string | null
 }
 
 // ── Lookup builders ────────────────────────────────────────────────────────
 
 /** Build userId → { name, email } lookup from a members array. */
 export function buildMemberLookup(
-	members: ReadonlyArray<MemberLike>,
+  members: ReadonlyArray<MemberLike>,
 ): Map<string, { name: string; email: string }> {
-	const map = new Map<string, { name: string; email: string }>();
-	for (const m of members) {
-		map.set(m.userId, { name: m.name, email: m.email });
-	}
-	return map;
+  const map = new Map<string, { name: string; email: string }>()
+  for (const m of members) {
+    map.set(m.userId, { name: m.name, email: m.email })
+  }
+  return map
 }
 
 /** Build teamId → team name lookup from a teams array. */
-export function buildTeamLookup(
-	teams: ReadonlyArray<TeamLike>,
-): Map<string, string> {
-	const map = new Map<string, string>();
-	for (const t of teams) {
-		map.set(t.id, t.name);
-	}
-	return map;
+export function buildTeamLookup(teams: ReadonlyArray<TeamLike>): Map<string, string> {
+  const map = new Map<string, string>()
+  for (const t of teams) {
+    map.set(t.id, t.name)
+  }
+  return map
 }
 
 export function toMemberOptions(
-	members: ReadonlyArray<{ userId: string; name: string; email: string }>,
+  members: ReadonlyArray<{ userId: string; name: string; email: string }>,
 ): MemberLike[] {
-	return members.map((m) => ({
-		userId: m.userId,
-		name: m.name,
-		email: m.email,
-	}));
+  return members.map((m) => ({
+    userId: m.userId,
+    name: m.name,
+    email: m.email,
+  }))
 }
 
 export function toTeamOptions(
-	teams: ReadonlyArray<{ id: string; name: string }>,
+  teams: ReadonlyArray<{ id: string; name: string }>,
 ): TeamLike[] {
-	return teams.map((t) => ({ id: t.id, name: t.name }));
+  return teams.map((t) => ({ id: t.id, name: t.name }))
 }
 
 /** Get members not yet assigned to a given team. */
 export function getAvailableMembers(
-	members: ReadonlyArray<MemberLike>,
-	assignments: ReadonlyArray<AssignmentLike>,
-	teamId: string,
+  members: ReadonlyArray<MemberLike>,
+  assignments: ReadonlyArray<AssignmentLike>,
+  teamId: string,
 ): MemberLike[] {
-	const teamUserIds = new Set(
-		assignments.filter((a) => a.teamId === teamId).map((a) => a.userId),
-	);
-	return members.filter((m) => !teamUserIds.has(m.userId));
+  const teamUserIds = new Set(
+    assignments.filter((a) => a.teamId === teamId).map((a) => a.userId),
+  )
+  return members.filter((m) => !teamUserIds.has(m.userId))
 }
