@@ -26,6 +26,7 @@ export type DetailContentProps = Readonly<{
   updateStatus: ReturnType<typeof useMutationAction<typeof updateInboxStatusFn>>
   notes: ReadonlyArray<InboxNote>
   onNoteAdded: () => void
+  statusVersion?: number
 }>
 
 export function InboxDetailContent({
@@ -35,6 +36,7 @@ export function InboxDetailContent({
   updateStatus,
   notes,
   onNoteAdded,
+  statusVersion,
 }: DetailContentProps) {
   const { can } = usePermissions()
   const canManageReplies = can('reply.manage')
@@ -88,7 +90,7 @@ export function InboxDetailContent({
         <ReplyEditor reviewId={currentItem.sourceId} />
       )}
 
-      <InboxActivityTimeline inboxItemId={currentItem.id} />
+      <InboxActivityTimeline inboxItemId={currentItem.id} refreshKey={statusVersion} />
 
       <div className="border-t pt-4">
         <InboxNotesThread

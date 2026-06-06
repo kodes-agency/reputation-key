@@ -102,8 +102,10 @@ export const updateInboxStatus =
       inboxItemStatusChanged({
         inboxItemId: updated.id,
         organizationId: updated.organizationId,
+        propertyId: updated.propertyId,
         oldStatus: item.status,
         newStatus: updated.status,
+        userId: input.userId,
         occurredAt: now,
       }),
     )

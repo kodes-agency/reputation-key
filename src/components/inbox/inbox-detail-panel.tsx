@@ -73,6 +73,7 @@ export function InboxDetailPanel({
             updateStatus={detailState.updateStatus}
             notes={detailState.notes}
             onNoteAdded={() => void detailState.refresh()}
+            statusVersion={detailState.statusVersion}
           />
         )}
       </div>

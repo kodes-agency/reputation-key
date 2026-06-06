@@ -1,6 +1,7 @@
 // Property context — domain events
 // Standards: docs/standards.md §1
 
+import assert from 'node:assert/strict'
 import type { PropertyId } from './types'
 import type { OrganizationId, GoogleConnectionId } from '#/shared/domain/ids'
 
