@@ -357,35 +357,68 @@ Now we have events flowing. Metrics captures them into structured data that the 
 
 Goals, portal groups, and badges motivate teams. Leaderboards create healthy competition.
 
-### Phase 14.5 — Portal Access Control
+### Phase 14.5 — Staff Dashboard (Portal Access Control)
 
-**Goal.** Staff members can be assigned to portals for access control. Assigned staff can view the portal's metrics and goals via the staff home page. No referral codes, no `?ref=`, no per-staff metric attribution.
+**Goal.** Staff members get a personalized dashboard: KPIs for their assigned portals, goal progress, recent activity. Managers assign staff to specific portals via an edit modal with multi-select. No referral codes, no `?ref=`, no per-staff metric attribution.
 
-**Why now.** Portal access control is the foundation for staff-facing dashboards. Without it, staff have no personalized view.
+**Why now.** Portal access control is the foundation for staff-facing dashboards. Without it, staff have no personalized view. Also a hard prerequisite for Phase 16 (leaderboards and badges) — leaderboards rank portals, staff need to see their portals' metrics before they can compete.
+
+**Resolved decisions (grilling session 2026-06-06).**
+
+1. **Assignment model** — one row per (user, portal) in `staff_assignments`. Team is inherited on each row. Form submission creates N rows (one per selected portal).
+2. **Explicit portal selection** — manager picks portals from a multi-select. "Select all, deselect exceptions" pattern. No null-portal shortcut.
+3. **No new bounded context** — server functions live in existing contexts (`goal`, `dashboard`, `review`). Staff home is a view composition, not a domain.
+4. **`/home` = scorecard** — KPI strip (4 cards: Reviews, Avg Rating, Scans, Feedback) aggregated across assigned portals. Portal filter to drill in. Goal progress summary (top goals with mini progress bars). Recent activity (last 5 reviews/feedback).
+5. **`/progress` = full goal detail** — all active/completed goals for assigned portals, detailed progress, filters by portal or metric. "View all goals" from `/home` links here.
+6. **`/team` deferred** — placeholder stays. Teams are not a scope level; page has no meaningful content until teams get metrics.
+7. **Assignment editing** — staff tab shows one row per user with portal count badge. "Edit" opens modal with portal multi-select (pre-filled). Save diffs: creates new rows, removes deleted. "Remove" deletes all assignments for that user.
+8. **KPI aggregation** — aggregate across all assigned portals by default. Portal selector dropdown to scope to a single portal.
+9. **Goal visibility** — portal-scoped goals + group-scoped goals (where staff's portals belong to the group). No property-wide goals.
+10. **Property picker** — shared state between manager and staff sidebars. Auto-hidden when staff has one property. When selected property has no assignments, show empty state message.
+11. **Empty state** — "Your manager hasn't assigned you to any portals yet" when on a property with no portal assignments. "Welcome! Ask your manager to assign you" when no properties at all.
+12. **Staff sidebar** — gains property picker. Nav items: Home, Progress, Leaderboard (placeholder), Team (conditional).
+13. **Time range** — 7d / 30d / 90d presets, matching manager dashboard. Default 30d.
+14. **Multi-team display** — if a user has assignments across multiple teams, show "Multiple" in staff tab. Full breakdown in edit modal.
 
 **Scope (in).**
 
-- `staff_assignments.portalId` FK — already exists in schema, repurposed for access control only
-- People page UI: portal selector dropdown on staff assignment create/edit form
-- Staff home (`/home`) shows metrics for assigned portals
+- People page UI: portal multi-select on staff assignment form (create + edit modal)
+- Staff tab: one row per user with portal count badge, edit modal, remove-all button
+- Staff sidebar: property picker (shared state with manager sidebar)
+- `/home`: KPI strip (aggregated, with portal filter), goal progress summary, recent activity
+- `/progress`: full goal list with progress bars, filters, detail
+- Server functions: `listStaffGoals` (wired), `getStaffKpis` (new), `getStaffRecentActivity` (new)
+- Empty states for no-assignments scenarios
+- Tests: server functions, assignment diff logic, KPI aggregation
 
 **Scope (out).**
 
-- Column drops (`referralCode`, `staffId` on readings, `teams.portalId`) — deferred to Phase 15.5
+- Column drops (`referralCode`, `staffId` on readings, `teams.portalId`) — already done in Phase 15.5
 - Referral code generation/resolution
 - `?ref=` query param handling
 - Guest session staff attribution
 - Per-staff QR codes
+- `/team` page content
+- `/leaderboard` page content (Phase 16)
 
 **Gate criteria.**
 
-- Staff member can be assigned to one or more portals via People page
-- Staff home shows metrics scoped to assigned portals
+- Manager can assign staff to specific portals via multi-select form (create + edit)
+- Staff tab shows one row per user with portal count badge
+- Edit modal diffs correctly: adds new rows, removes deleted
+- Staff property picker appears when multiple properties, auto-hides for single
+- `/home` shows KPI strip aggregated across assigned portals, scoped to selected property
+- Portal filter on `/home` correctly scopes KPIs to a single portal
+- Goal progress shows portal + group goals only (no property-wide)
+- `/progress` shows full goal list with progress bars
+- Empty states render correctly (no portals, no properties)
+- `tsc --noEmit` passes
 - All existing tests pass
+- New tests: server functions, KPI aggregation, assignment diff
 
-**Rough effort.** 2-3 days. Primarily UI work (portal selector) + staff home wiring.
+**Rough effort.** 3-4 days. Staff UI (1.5d) + server functions + wiring (1d) + testing + review (1-1.5d).
 
-**Phase after this.** Goals.
+**Phase after this.** Badges and leaderboards (Phase 16).
 
 ---
 
@@ -516,9 +549,19 @@ Goals, portal groups, and badges motivate teams. Leaderboards create healthy com
 
 ### Phase 16 — Badges and leaderboards
 
-**Goal.** Users earn badges automatically based on metric-driven criteria. Leaderboards rank entities by metric performance. Users can see their earned badges.
+**Goal.** Users earn badges automatically based on metric-driven criteria. Leaderboards rank portals and portal groups by metric performance. Staff see rankings of portals they're assigned to.
 
 **Why now.** Completes the gamification loop. Goals give direction; badges and leaderboards give recognition.
+
+**Pre-grilling decisions (session 2026-06-06).**
+
+1. **Leaderboards rank portals and portal groups** — not staff, not teams. No per-staff metric attribution. Staff see a filtered view of rankings for their assigned portals.
+2. **Blend of scorecard (B) + raw data (A)** — landing page shows a composite scorecard (B primary), with drill-down into per-metric rankings (A).
+3. **Weighted composite score (0–100)** — each metric normalized to 0–100, multiplied by a weight, summed. System defaults first, org-configurable weights later.
+4. **Calendar time periods** — this week / this month / this quarter (aligns with goal periods and business rhythms), with a rolling "last N days" fallback.
+5. **Within-property scope** — all portals/groups in the property ranked against each other. Staff's own portals highlighted. Full ranking visible.
+6. **Portal groups as separate tab/toggle** — "rank portals" vs "rank portal groups." Group composite score aggregates member portals' metrics.
+7. **Prerequisite: Phase 14.5** — staff must see their own portal metrics before leaderboards are meaningful.
 
 **Scope (in).**
 
@@ -527,8 +570,8 @@ Goals, portal groups, and badges motivate teams. Leaderboards create healthy com
 - Criteria evaluation engine as pure domain function
 - Seed migration for system-wide default badges ("First Review", "100 Scans", "7-Day Streak", etc.)
 - Background job: `evaluateBadges` (hourly) — checks criteria against metric data, awards new badges
-- Leaderboard use cases — computed from materialized views
-- UI: badge showcase per user/team, leaderboard page with time window and scope tabs
+- Leaderboard use cases — composite score computation, per-metric drill-down, calendar period aggregation
+- UI: badge showcase, leaderboard page with calendar period and scope tabs (portals / portal groups)
 - `badge.awarded` event emission
 - Tests: criteria evaluation across all types (performance, streak, milestone), leaderboard computation, award idempotency
 
@@ -536,18 +579,25 @@ Goals, portal groups, and badges motivate teams. Leaderboards create healthy com
 
 - Custom badge creation UI (backend supports it; UI can come later)
 - Badge notifications via email/push (Arc 8)
+- Cross-property leaderboards (Phase 21)
+- Org-configurable weights for composite score (later)
 
 **Gate criteria.**
 
 - All four badge types evaluate correctly (performance, streak, milestone, special)
-- Badges are awarded exactly once per user/team per criteria-met event
-- Leaderboards rank correctly and load fast (from materialized views)
+- Badges are awarded exactly once per portal/group per criteria-met event
+- Composite score weights produce reasonable rankings across different metric profiles
+- Per-metric drill-down shows correct rankings
+- Calendar periods align with goal periods
+- Leaderboards load fast (from materialized views)
+- Staff see only their assigned portals highlighted in the ranking
 - Tests: 100% coverage on criteria evaluation engine
 
 **Open questions to resolve during this phase.**
 
 - Initial badge library (10-15 system badges is a good start)
-- Whether to support team badges (yes — badges can target entity_type = team)
+- Whether badges target portals, portal groups, or both (start with portals)
+- Exact composite score default weights
 
 **Rough effort.** 5-7 days.
 
