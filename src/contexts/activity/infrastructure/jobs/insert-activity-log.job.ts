@@ -8,6 +8,7 @@ import type {
 } from '../../application/use-cases/insert-activity-log'
 import { insertActivityLog } from '../../application/use-cases/insert-activity-log'
 import type { Job } from 'bullmq'
+import { getLogger } from '#/shared/observability/logger'
 
 export const INSERT_ACTIVITY_LOG_JOB_NAME = 'insert-activity-log'
 
@@ -16,14 +17,9 @@ export type InsertActivityLogJobData = InsertActivityLogInput
 export function createInsertActivityLogHandler(deps: InsertActivityLogDeps) {
   const useCase = insertActivityLog(deps)
   return async (job: Job<InsertActivityLogJobData>): Promise<void> => {
-    console.log('[activity] processing insert-activity-log job', {
-      jobId: job.id,
-      resourceId: job.data.resourceId,
-    })
+    const log = getLogger().child({ jobId: job.id, resourceId: job.data.resourceId })
+    log.info('Processing insert-activity-log job')
     await useCase(job.data)
-    console.log('[activity] inserted activity log', {
-      jobId: job.id,
-      resourceId: job.data.resourceId,
-    })
+    log.info('Inserted activity log')
   }
 }

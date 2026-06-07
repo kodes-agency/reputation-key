@@ -1,6 +1,7 @@
 import type { InboxItemStatusChanged } from '#/contexts/inbox/application/public-api'
 import type { InsertActivityLogInput } from '../../application/use-cases/insert-activity-log'
 import type { Queue } from 'bullmq'
+import { getLogger } from '#/shared/observability/logger'
 
 type Deps = { queue: Queue }
 
@@ -22,10 +23,9 @@ export const onInboxStatusChanged =
         detail: null,
       },
     }
-    console.log('[activity] enqueue insert-activity-log job', {
-      resourceId: event.inboxItemId,
-      from: event.oldStatus,
-      to: event.newStatus,
-    })
+    getLogger().info(
+      { resourceId: event.inboxItemId, from: event.oldStatus, to: event.newStatus },
+      'Enqueue insert-activity-log job',
+    )
     await deps.queue.add('insert-activity-log', payload)
   }

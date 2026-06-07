@@ -51,8 +51,7 @@ vi.mock('#/composition', () => {
   let container = mkContainer()
   return {
     getContainer: vi.fn(() => container),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    __setContainer: (c: any) => {
+    __setContainer: (c: ReturnType<typeof mkContainer>) => {
       container = c
     },
     __mkContainer: mkContainer,
@@ -62,9 +61,9 @@ vi.mock('#/composition', () => {
 const { getContainer } = vi.mocked(await import('#/composition'))
 
 // Helper — re-exported from mock for creating override containers
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const mkContainer = ((await import('#/composition')) as any).__mkContainer as (
-  overrides?: Record<string, any>, // eslint-disable-line @typescript-eslint/no-explicit-any
+const mkContainer = ((await import('#/composition')) as Record<string, unknown>)
+  .__mkContainer as (
+  overrides?: Record<string, unknown>,
 ) => ReturnType<typeof getContainer>
 
 describe('listStaffGoals — permission gate', () => {
