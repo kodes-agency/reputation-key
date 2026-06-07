@@ -121,11 +121,13 @@ export type GoalRepository = Readonly<{
   ): Promise<ReadonlyMap<GoalId, Goal[]>>
 
   // ── Staff goal resolution ────────────────────────────────────────────
-  // Query goals where portalId IN (portalIds) OR groupId IN (groupIds).
+  // Query goals where portalId IN (portalIds) OR groupId IN (groupIds)
+  // OR (portalId IS NULL AND groupId IS NULL) for property-scoped goals.
   // Used by listStaffGoals to resolve goals for a staff member's assigned portals.
   listByPortalAndGroupIds(input: {
     organizationId: OrganizationId
     portalIds: ReadonlyArray<PortalId>
     groupIds: ReadonlyArray<PortalGroupId>
+    includePropertyScoped?: boolean
   }): Promise<ReadonlyArray<Goal>>
 }>

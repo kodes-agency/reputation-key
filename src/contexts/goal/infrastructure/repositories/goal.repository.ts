@@ -2,7 +2,7 @@
 // Per architecture: factory function returning Readonly<{ method }>.
 // Wrapped in trace() for observability.
 
-import { and, eq, sql, or, desc, isNull, inArray } from 'drizzle-orm'
+import { and, eq, sql, or, desc, isNull, inArray, type SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { goals, goalProgress } from '#/shared/db/schema/goal.schema'
 import type {
@@ -482,22 +482,24 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
 
   listByPortalAndGroupIds: async (input) => {
     return trace('goal.listByPortalAndGroupIds', async () => {
-      const { organizationId, portalIds, groupIds } = input
-      if (portalIds.length === 0 && groupIds.length === 0) return []
+      const { organizationId, portalIds, groupIds, includePropertyScoped } = input
+      if (portalIds.length === 0 && groupIds.length === 0 && !includePropertyScoped)
+        return []
 
       const conditions = [eq(goals.organizationId, organizationId)]
 
-      if (portalIds.length > 0 && groupIds.length > 0) {
-        conditions.push(
-          or(
-            inArray(goals.portalId, [...portalIds] as string[]),
-            inArray(goals.groupId, [...groupIds] as string[]),
-          )!,
-        )
-      } else if (portalIds.length > 0) {
-        conditions.push(inArray(goals.portalId, [...portalIds] as string[]))
-      } else if (groupIds.length > 0) {
-        conditions.push(inArray(goals.groupId, [...groupIds] as string[]))
+      const portalOrGroup: SQL[] = []
+      if (portalIds.length > 0)
+        portalOrGroup.push(inArray(goals.portalId, [...portalIds] as string[]))
+      if (groupIds.length > 0)
+        portalOrGroup.push(inArray(goals.groupId, [...groupIds] as string[]))
+      if (includePropertyScoped)
+        portalOrGroup.push(and(isNull(goals.portalId), isNull(goals.groupId))!)
+
+      if (portalOrGroup.length === 1) {
+        conditions.push(portalOrGroup[0])
+      } else if (portalOrGroup.length > 1) {
+        conditions.push(or(...portalOrGroup)!)
       }
 
       const rows = await db

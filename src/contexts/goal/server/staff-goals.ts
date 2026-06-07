@@ -60,21 +60,21 @@ export const listStaffGoals = createServerFn({ method: 'GET' })
           ctx,
         )
 
-        if (portalIds.length === 0) {
-          return { goals: [] as StaffGoalEntry[] }
-        }
-
         // 2. Resolve portal groups from portal IDs
-        const groupIds = await container.portalRepo.findGroupIdsByPortalIds(
-          ctx.organizationId,
-          portalIds,
-        )
+        const groupIds =
+          portalIds.length > 0
+            ? await container.portalRepo.findGroupIdsByPortalIds(
+                ctx.organizationId,
+                portalIds,
+              )
+            : []
 
-        // 3. Query goals for portals AND groups
+        // 3. Query goals for portals, groups, AND property-scoped goals
         const goals = await container.goalRepo.listByPortalAndGroupIds({
           organizationId: ctx.organizationId,
           portalIds,
           groupIds,
+          includePropertyScoped: true,
         })
 
         if (goals.length === 0) {

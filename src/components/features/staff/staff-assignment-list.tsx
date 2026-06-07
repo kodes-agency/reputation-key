@@ -38,23 +38,36 @@ export function StaffAssignmentList({
   const teamLookup = buildTeamLookup(teams)
 
   const userRows = useMemo<UserRow[]>(() => {
-    const grouped = new Map<string, UserRow>()
+    const grouped = new Map<
+      string,
+      {
+        userId: string
+        assignmentIds: string[]
+        teamIds: Array<string | null>
+        portalIds: Set<string>
+      }
+    >()
     for (const a of assignments) {
       const existing = grouped.get(a.userId)
       if (existing) {
         existing.assignmentIds.push(a.id)
         existing.teamIds.push(a.teamId)
-        if (a.portalId) existing.portalCount++
+        if (a.portalId) existing.portalIds.add(a.portalId)
       } else {
+        const portalIds = new Set<string>()
+        if (a.portalId) portalIds.add(a.portalId)
         grouped.set(a.userId, {
           userId: a.userId,
           assignmentIds: [a.id],
           teamIds: [a.teamId],
-          portalCount: a.portalId ? 1 : 0,
+          portalIds,
         })
       }
     }
-    return Array.from(grouped.values())
+    return Array.from(grouped.values()).map(({ portalIds, ...rest }) => ({
+      ...rest,
+      portalCount: portalIds.size,
+    }))
   }, [assignments])
 
   if (userRows.length === 0) {
