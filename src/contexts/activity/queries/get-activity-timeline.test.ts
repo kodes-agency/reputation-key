@@ -28,7 +28,7 @@ function createInMemoryActivityRepo(entries: ActivityLog[] = []): ActivityReposi
   return {
     insert: async (_entry) => {},
     findDuplicate: async () => false,
-    findByResource: async (_rt, _rid, limit) => entries.slice(0, limit),
+    findByResource: async (_orgId, _rt, _rid, limit) => entries.slice(0, limit),
     findByOrganization: async (_orgId, _filter, _pagination) => entries,
   }
 }

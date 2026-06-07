@@ -1,5 +1,6 @@
 import type { ActivityLog } from '../domain/types'
 import type { ActivityAction, ResourceType, ActivityPayload } from '../domain/types'
+import type { OrganizationId } from '#/shared/domain/ids'
 
 export type ActivityFilter = Readonly<{
   resourceType?: string
@@ -20,6 +21,7 @@ export type FindDuplicateInput = Readonly<{
 export type ActivityRepository = Readonly<{
   insert(entry: ActivityLog): Promise<void>
   findByResource(
+    orgId: OrganizationId,
     resourceType: string,
     resourceId: string,
     limit: number,

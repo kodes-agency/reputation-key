@@ -49,6 +49,7 @@ export type GoalProgressUpdated = Readonly<{
   eventId: string
   goalId: GoalId
   organizationId: OrganizationId
+  propertyId: PropertyId
   metricKey: MetricKey
   previousValue: number
   currentValue: number

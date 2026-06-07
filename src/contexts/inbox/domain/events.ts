@@ -99,13 +99,14 @@ export const inboxItemAssigned = (
   > & { userId?: UserId; source?: 'web' | 'import'; propertyId?: PropertyId },
 ): InboxItemAssigned => {
   assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
-  assert(args.userId !== '', 'userId required')
+  const resolvedUserId = args.userId ?? ('' as UserId)
+  assert(resolvedUserId !== '', 'userId required')
   return {
     _tag: 'inbox.inbox_item.assigned',
     eventId: crypto.randomUUID(),
     correlationId: null,
     propertyId: args.propertyId ?? ('' as PropertyId),
-    userId: args.userId ?? ('' as UserId),
+    userId: resolvedUserId,
     source: args.source ?? 'web',
     ...args,
   }

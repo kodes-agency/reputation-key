@@ -1,6 +1,7 @@
 import { and, eq, desc, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { activityLog } from '#/shared/db/schema/activity.schema'
+import type { OrganizationId } from '#/shared/domain/ids'
 import type {
   ActivityRepository,
   FindDuplicateInput,
@@ -48,12 +49,13 @@ export const createActivityRepository = (db: Database): ActivityRepository => ({
     return rows.length > 0
   },
 
-  findByResource: async (resourceType, resourceId, limit) => {
+  findByResource: async (orgId: OrganizationId, resourceType, resourceId, limit) => {
     const rows = await db
       .select()
       .from(activityLog)
       .where(
         and(
+          eq(activityLog.organizationId, orgId),
           eq(activityLog.resourceType, resourceType),
           eq(activityLog.resourceId, resourceId),
         ),

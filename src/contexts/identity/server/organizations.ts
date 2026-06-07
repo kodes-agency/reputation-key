@@ -33,6 +33,8 @@ import { finalizeOrgLogoUpload as finalizeOrgLogoUploadUseCase } from '../applic
 import { requestAvatarUpload as requestAvatarUploadUseCase } from '../application/use-cases/request-avatar-upload'
 import { finalizeAvatarUpload as finalizeAvatarUploadUseCase } from '../application/use-cases/finalize-avatar-upload'
 
+const MAX_UPLOAD_BYTES = 5 * 1024 * 1024 // 5MB
+
 // ── Error → HTTP translation ──────────────────────────────────────
 // Per architecture: "ts-pattern with .exhaustive() ensures new error codes
 // force a compiler error here."
@@ -611,10 +613,7 @@ export const updateOrganization = createServerFn({ method: 'POST' })
 
 const requestOrgLogoUploadSchema = z.object({
   contentType: z.string(),
-  fileSize: z
-    .number()
-    .positive()
-    .max(5 * 1024 * 1024),
+  fileSize: z.number().positive().max(MAX_UPLOAD_BYTES),
 })
 
 export const requestOrgLogoUpload = createServerFn({ method: 'POST' })
@@ -681,10 +680,7 @@ export const finalizeOrgLogoUpload = createServerFn({ method: 'POST' })
 
 const requestAvatarUploadSchema = z.object({
   contentType: z.string(),
-  fileSize: z
-    .number()
-    .positive()
-    .max(5 * 1024 * 1024),
+  fileSize: z.number().positive().max(MAX_UPLOAD_BYTES),
 })
 
 export const requestAvatarUpload = createServerFn({ method: 'POST' })

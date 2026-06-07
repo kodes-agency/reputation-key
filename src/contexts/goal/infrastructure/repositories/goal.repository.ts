@@ -175,6 +175,7 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
 
   // ── Event-driven increment ──────────────────────────────────────────
 
+  /** System-level query — no tenant filter by design. Used by spawn-recurring-instances job which scans all orgs. */
   findAllActive: async () => {
     return trace('goal.findAllActive', async () => {
       const rows = await db.select().from(goals).where(eq(goals.status, 'active'))

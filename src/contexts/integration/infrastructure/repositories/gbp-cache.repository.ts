@@ -57,10 +57,15 @@ export const createGbpCacheRepository = (
       const belongs = await propertyQuery.belongsToOrg(propertyId, orgId)
       if (!belongs) return
       // Defense-in-depth: scope DELETE by both propertyId AND organizationId
-      await db.delete(gbpCache).where(and(eq(gbpCache.propertyId, propertyId), eq(gbpCache.organizationId, orgId)))
+      await db
+        .delete(gbpCache)
+        .where(
+          and(eq(gbpCache.propertyId, propertyId), eq(gbpCache.organizationId, orgId)),
+        )
     })
   },
 
+  /** System-level cleanup — no tenant filter by design. Scheduled job purges expired cache entries across all orgs. */
   deleteAllExpired: async () => {
     return trace('gbpCache.deleteAllExpired', async () => {
       const result = await db
@@ -74,7 +79,10 @@ export const createGbpCacheRepository = (
   deleteByConnectionId: async (connectionId, orgId) => {
     return trace('gbpCache.deleteByConnectionId', async () => {
       // Find all properties linked to this connection via port
-      const propertyIds = await propertyQuery.findIdsByGoogleConnection(connectionId, orgId)
+      const propertyIds = await propertyQuery.findIdsByGoogleConnection(
+        connectionId,
+        orgId,
+      )
 
       if (propertyIds.length === 0) {
         return 0
@@ -82,7 +90,12 @@ export const createGbpCacheRepository = (
 
       const result = await db
         .delete(gbpCache)
-        .where(and(inArray(gbpCache.propertyId, propertyIds), eq(gbpCache.organizationId, orgId)))
+        .where(
+          and(
+            inArray(gbpCache.propertyId, propertyIds),
+            eq(gbpCache.organizationId, orgId),
+          ),
+        )
         .returning({ id: gbpCache.id })
 
       return result.length

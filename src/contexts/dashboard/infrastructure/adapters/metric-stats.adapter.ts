@@ -93,6 +93,7 @@ export function createMetricStatsAdapter(db: Database): MetricStatsPort {
             and(
               eq(metricReadings.organizationId, organizationId),
               eq(metricReadings.propertyId, propertyId),
+              // Drizzle inArray() doesn't accept branded PortalId[] — cast to string[] is safe because PortalId is a string-brand.
               inArray(metricReadings.portalId, portalIds as unknown as string[]),
               gte(metricReadings.occurredAt, startDate),
               lte(metricReadings.occurredAt, endDate),

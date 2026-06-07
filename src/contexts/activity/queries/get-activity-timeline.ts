@@ -25,6 +25,7 @@ export const getActivityTimeline =
   async (input: GetTimelineInput): Promise<readonly ActivityLog[]> => {
     const limit = input.limit ?? 50
     const entries = await deps.repo.findByResource(
+      organizationId(input.organizationId),
       input.resourceType,
       input.resourceId,
       limit,
