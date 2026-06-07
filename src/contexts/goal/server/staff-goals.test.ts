@@ -22,7 +22,8 @@ vi.mock('#/shared/auth/middleware', () => ({
 
 // Mock container must be self-contained (hoisted above imports)
 vi.mock('#/composition', () => {
-  const mkContainer = (overrides?: Record<string, unknown>) => ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mkContainer = (overrides?: Record<string, any>) => ({
     useCases: {
       getAssignedPortals: vi.fn(() => Promise.resolve(['portal-1', 'portal-2'])),
       ...overrides?.useCases,
@@ -50,7 +51,8 @@ vi.mock('#/composition', () => {
   let container = mkContainer()
   return {
     getContainer: vi.fn(() => container),
-    __setContainer: (c: Record<string, unknown>) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    __setContainer: (c: any) => {
       container = c
     },
     __mkContainer: mkContainer,
