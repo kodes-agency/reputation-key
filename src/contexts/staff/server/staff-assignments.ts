@@ -9,6 +9,7 @@ import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getContainer } from '#/composition'
+import { portalId as toPortalId } from '#/shared/domain/ids'
 import {
   createStaffAssignmentInputSchema,
   removeStaffAssignmentInputSchema,
@@ -148,8 +149,29 @@ export const updateStaffPortals = createServerFn({ method: 'POST' })
         const headers = headersFromContext()
         const ctx = await resolveTenantContext(headers)
 
+        // Validate portalIds belong to the property
+        const container = getContainer()
+        const propertyPortals = await container.portalRepo.listByProperty(
+          ctx.organizationId,
+          data.propertyId,
+        )
+        const validPortalIds = new Set(propertyPortals.map((p) => p.id))
+        const invalidPortalIds = data.portalIds
+          .map((id) => toPortalId(id))
+          .filter((id) => !validPortalIds.has(id))
+        if (invalidPortalIds.length > 0) {
+          throwContextError(
+            'StaffError',
+            {
+              code: 'invalid_input',
+              message: `Portals not in property: ${invalidPortalIds.join(', ')}`,
+            },
+            HTTP_STATUS.BAD_REQUEST,
+          )
+        }
+
         try {
-          const { useCases } = getContainer()
+          const { useCases } = container
           const result = await useCases.updateStaffPortals(data, ctx)
           return result
         } catch (e) {

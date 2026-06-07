@@ -92,6 +92,11 @@ function StaffHomePage() {
     )
   }
 
+  // localStorage has a property but URL isn't synced yet — don't flash empty
+  if (localPropertyId && !searchPropertyId) {
+    return null
+  }
+
   // Property is selected but staff has no assignments
   if (!hasAssignments && localPropertyId) {
     return (

@@ -1,6 +1,7 @@
 // Review context — staff recent activity server function
-// Returns the last N reviews for the staff member's assigned portals/property.
-// Reviews are property-scoped; portal names are resolved from staff assignments.
+// Returns the last N reviews for the staff member's property.
+// Reviews are property-scoped (no portalId on reviews), so all property
+// reviews are visible to any staff assigned to that property.
 
 import { z } from 'zod/v4'
 import { createServerFn } from '@tanstack/react-start'
@@ -21,7 +22,6 @@ export type StaffRecentReview = {
   rating: number
   snippet: string
   date: string
-  portalName: string | null
 }
 
 export const getStaffRecentActivity = createServerFn({ method: 'GET' })
@@ -42,28 +42,18 @@ export const getStaffRecentActivity = createServerFn({ method: 'GET' })
         const container = getContainer()
         const propertyId = toPropertyId(data.propertyId)
 
-        // Resolve assigned portal IDs for this staff member
-        let portalNames: string[] = []
-        try {
-          const portalIds = await container.useCases.getAssignedPortals(
-            { userId: ctx.userId, propertyId },
-            ctx,
-          )
+        // Verify the staff member has assignments for this property
+        const assignedPortals = await container.useCases.getAssignedPortals(
+          { userId: ctx.userId, propertyId },
+          ctx,
+        )
 
-          // Fetch portal names
-          const names: string[] = []
-          for (const pid of portalIds) {
-            const portal = await container.portalRepo.findById(ctx.organizationId, pid)
-            if (portal && portal.isActive) {
-              names.push(portal.name)
-            }
-          }
-          portalNames = names
-        } catch {
-          // If we can't resolve portals, continue with property-scoped reviews
+        if (assignedPortals.length === 0) {
+          return { reviews: [] }
         }
 
-        // Get all reviews for this property
+        // Reviews are property-scoped — no portalId to filter by.
+        // Staff assigned to any portal in the property can see all reviews.
         const allReviews = await container.reviewRepo.findByPropertyId(
           propertyId,
           ctx.organizationId,
@@ -75,14 +65,11 @@ export const getStaffRecentActivity = createServerFn({ method: 'GET' })
         )
         const recent = sorted.slice(0, 5)
 
-        const portalName = portalNames.length > 0 ? portalNames.join(', ') : null
-
         const reviews: StaffRecentReview[] = recent.map((r) => ({
           id: r.id as string,
           rating: r.rating,
           snippet: r.text ?? '',
           date: r.reviewedAt.toISOString(),
-          portalName,
         }))
 
         return { reviews }

@@ -71,10 +71,17 @@ export function AssignStaffForm({
         }
       }
 
-      const results = await Promise.allSettled(rows.map((row) => mutation(row)))
-
-      const succeeded = results.filter((r) => r.status === 'fulfilled').length
-      const failed = results.filter((r) => r.status === 'rejected').length
+      // Sequential submission — shared useAction state can't handle concurrent calls
+      let succeeded = 0
+      let failed = 0
+      for (const row of rows) {
+        try {
+          await mutation(row)
+          succeeded++
+        } catch {
+          failed++
+        }
+      }
 
       if (succeeded > 0) {
         toast.success(
@@ -111,16 +118,22 @@ export function AssignStaffForm({
           </form.Field>
         )}
 
-        {portals.length > 0 && (
+        {portals.length > 0 ? (
           <form.Field name="portalIds">
             {(field) => <PortalSelector field={field} portals={portals} />}
           </form.Field>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            No portals configured for this property. Create a portal first.
+          </p>
         )}
       </FieldGroup>
 
-      <SubmitButton mutation={mutation} form={form}>
-        Assign staff
-      </SubmitButton>
+      {portals.length > 0 && (
+        <SubmitButton mutation={mutation} form={form}>
+          Assign staff
+        </SubmitButton>
+      )}
     </form>
   )
 }

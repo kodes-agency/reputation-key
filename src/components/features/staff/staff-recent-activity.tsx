@@ -44,14 +44,8 @@ export function StaffRecentActivity({ reviews }: StaffRecentActivityProps) {
                 ) : (
                   <p className="text-sm italic text-muted-foreground">No review text</p>
                 )}
-                <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+                <div className="mt-1 text-xs text-muted-foreground">
                   <span>{formatDate(review.date)}</span>
-                  {review.portalName && (
-                    <>
-                      <span aria-hidden="true">·</span>
-                      <span>{review.portalName}</span>
-                    </>
-                  )}
                 </div>
               </div>
             </div>

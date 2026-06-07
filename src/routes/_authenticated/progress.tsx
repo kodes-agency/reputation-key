@@ -58,6 +58,11 @@ function StaffProgressPage() {
     )
   }
 
+  // localStorage has a property but URL isn't synced yet — don't flash empty
+  if (localPropertyId && !searchPropertyId) {
+    return null
+  }
+
   return (
     <PageShell>
       <div>
