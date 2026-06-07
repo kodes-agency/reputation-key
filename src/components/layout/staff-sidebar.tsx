@@ -58,8 +58,15 @@ export function StaffSidebar({
   const rawPropertyId = useStaffPropertyId()
 
   // Persist default property on first load so routes pick it up
+  // Reset stale property if it was removed from the list
   useEffect(() => {
     if (!rawPropertyId && properties.length > 0) {
+      setStaffPropertyId(properties[0].id)
+    } else if (
+      rawPropertyId &&
+      properties.length > 0 &&
+      !properties.some((p) => p.id === rawPropertyId)
+    ) {
       setStaffPropertyId(properties[0].id)
     }
   }, [rawPropertyId, properties])
