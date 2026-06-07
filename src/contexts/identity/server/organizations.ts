@@ -40,7 +40,12 @@ import { finalizeAvatarUpload as finalizeAvatarUploadUseCase } from '../applicat
 export const identityErrorStatus = (code: IdentityErrorCode): number =>
   match(code)
     .with('forbidden', () => HTTP_STATUS.FORBIDDEN)
-    .with('invalid_slug', 'invalid_name', 'validation_error', () => HTTP_STATUS.BAD_REQUEST)
+    .with(
+      'invalid_slug',
+      'invalid_name',
+      'validation_error',
+      () => HTTP_STATUS.BAD_REQUEST,
+    )
     .with('registration_failed', () => HTTP_STATUS.BAD_REQUEST)
     .with('org_setup_failed', () => HTTP_STATUS.CONFLICT)
     .with('member_not_found', 'invitation_not_found', () => HTTP_STATUS.NOT_FOUND)
@@ -123,34 +128,41 @@ function extractOrgBillingFields(org: unknown): {
 export const getActiveOrganization = createServerFn({ method: 'GET' }).handler(
   tracedHandler(
     async () => {
-      const headers = headersFromContext()
-      const ctx = await resolveTenantContext(headers)
-      // Uses dashboard.read as proxy — all authenticated users need org access
-      if (!can(ctx.role, 'dashboard.read')) {
-        throwContextError(
-          'AuthError',
-          { code: 'forbidden', message: 'Insufficient permissions to read organization' },
-          403,
-        )
-      }
-      const auth = getAuth()
+      try {
+        const headers = headersFromContext()
+        const ctx = await resolveTenantContext(headers)
+        // Uses dashboard.read as proxy — all authenticated users need org access
+        if (!can(ctx.role, 'dashboard.read')) {
+          throwContextError(
+            'AuthError',
+            {
+              code: 'forbidden',
+              message: 'Insufficient permissions to read organization',
+            },
+            403,
+          )
+        }
+        const auth = getAuth()
 
-      const org = await auth.api.getFullOrganization({ headers })
+        const org = await auth.api.getFullOrganization({ headers })
 
-      if (!org) {
-        return { organization: null, role: ctx.role }
-      }
+        if (!org) {
+          return { organization: null, role: ctx.role }
+        }
 
-      return {
-        organization: {
-          id: org.id,
-          name: org.name,
-          slug: org.slug,
-          logo: org.logo ?? null,
-          createdAt: org.createdAt,
-          ...extractOrgBillingFields(org),
-        },
-        role: ctx.role,
+        return {
+          organization: {
+            id: org.id,
+            name: org.name,
+            slug: org.slug,
+            logo: org.logo ?? null,
+            createdAt: org.createdAt,
+            ...extractOrgBillingFields(org),
+          },
+          role: ctx.role,
+        }
+      } catch (e) {
+        throw catchUntagged(e)
       }
     },
     'GET',
@@ -163,31 +175,35 @@ export const getActiveOrganization = createServerFn({ method: 'GET' }).handler(
 export const listMembers = createServerFn({ method: 'GET' }).handler(
   tracedHandler(
     async () => {
-      const headers = headersFromContext()
-      const ctx = await resolveTenantContext(headers)
-      if (!can(ctx.role, 'member.list')) {
-        throwContextError(
-          'AuthError',
-          { code: 'forbidden', message: 'Insufficient permissions to list members' },
-          403,
-        )
+      try {
+        const headers = headersFromContext()
+        const ctx = await resolveTenantContext(headers)
+        if (!can(ctx.role, 'member.list')) {
+          throwContextError(
+            'AuthError',
+            { code: 'forbidden', message: 'Insufficient permissions to list members' },
+            403,
+          )
+        }
+        const auth = getAuth()
+
+        const result = await auth.api.listMembers({ headers })
+
+        const rawMembers = (result?.members ?? result ?? []) as AuthMemberResponse[]
+        const members = rawMembers.map((m) => ({
+          id: m.id,
+          userId: m.userId,
+          role: toDomainRole(m.role),
+          email: m.user?.email ?? '',
+          name: m.user?.name ?? '',
+          image: m.user?.image ?? null,
+          createdAt: m.createdAt,
+        }))
+
+        return { members, requestingRole: ctx.role }
+      } catch (e) {
+        throw catchUntagged(e)
       }
-      const auth = getAuth()
-
-      const result = await auth.api.listMembers({ headers })
-
-      const rawMembers = (result?.members ?? result ?? []) as AuthMemberResponse[]
-      const members = rawMembers.map((m) => ({
-        id: m.id,
-        userId: m.userId,
-        role: toDomainRole(m.role),
-        email: m.user?.email ?? '',
-        name: m.user?.name ?? '',
-        image: m.user?.image ?? null,
-        createdAt: m.createdAt,
-      }))
-
-      return { members, requestingRole: ctx.role }
     },
     'GET',
     'identity.listMembers',
@@ -227,14 +243,18 @@ export const acceptInvitation = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const headers = headersFromContext()
-        await requireAuth(headers)
-        const auth = getAuth()
+        try {
+          const headers = headersFromContext()
+          await requireAuth(headers)
+          const auth = getAuth()
 
-        await auth.api.acceptInvitation({
-          headers,
-          body: { invitationId: data.invitationId },
-        })
+          await auth.api.acceptInvitation({
+            headers,
+            body: { invitationId: data.invitationId },
+          })
+        } catch (e) {
+          throw catchUntagged(e)
+        }
       },
       'POST',
       'identity.acceptInvitation',
@@ -249,24 +269,28 @@ export const cancelInvitation = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const headers = headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'invitation.cancel')) {
-          throwContextError(
-            'AuthError',
-            {
-              code: 'forbidden',
-              message: 'Insufficient permissions to cancel invitations',
-            },
-            403,
-          )
-        }
-        const auth = getAuth()
+        try {
+          const headers = headersFromContext()
+          const ctx = await resolveTenantContext(headers)
+          if (!can(ctx.role, 'invitation.cancel')) {
+            throwContextError(
+              'AuthError',
+              {
+                code: 'forbidden',
+                message: 'Insufficient permissions to cancel invitations',
+              },
+              403,
+            )
+          }
+          const auth = getAuth()
 
-        await auth.api.cancelInvitation({
-          headers,
-          body: { invitationId: data.invitationId },
-        })
+          await auth.api.cancelInvitation({
+            headers,
+            body: { invitationId: data.invitationId },
+          })
+        } catch (e) {
+          throw catchUntagged(e)
+        }
       },
       'POST',
       'identity.cancelInvitation',
@@ -311,7 +335,7 @@ export const listInvitations = createServerFn({ method: 'GET' }).handler(
         return await useCases.listInvitations(undefined, ctx)
       } catch (e) {
         if (isIdentityError(e)) throwIdentityError(e)
-        catchUntagged(e)
+        throw catchUntagged(e)
       }
     },
     'GET',
@@ -396,7 +420,7 @@ export const listUserInvitations = createServerFn({ method: 'GET' }).handler(
         return { invitations }
       } catch (e) {
         if (isIdentityError(e)) throwIdentityError(e)
-        catchUntagged(e)
+        throw catchUntagged(e)
       }
     },
     'GET',
@@ -411,14 +435,18 @@ export const setActiveOrganization = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const headers = headersFromContext()
-        await requireAuth(headers)
-        const auth = getAuth()
+        try {
+          const headers = headersFromContext()
+          await requireAuth(headers)
+          const auth = getAuth()
 
-        await auth.api.setActiveOrganization({
-          headers,
-          body: { organizationId: data.organizationId },
-        })
+          await auth.api.setActiveOrganization({
+            headers,
+            body: { organizationId: data.organizationId },
+          })
+        } catch (e) {
+          throw catchUntagged(e)
+        }
       },
       'POST',
       'identity.setActiveOrganization',
@@ -430,23 +458,29 @@ export const setActiveOrganization = createServerFn({ method: 'POST' })
 export const listUserOrganizations = createServerFn({ method: 'GET' }).handler(
   tracedHandler(
     async () => {
-      const headers = headersFromContext()
-      await requireAuth(headers)
-      const auth = getAuth()
+      try {
+        const headers = headersFromContext()
+        await requireAuth(headers)
+        const auth = getAuth()
 
-      const result = await auth.api.listOrganizations({ headers })
+        const result = await auth.api.listOrganizations({ headers })
 
-      const rawOrgs = (Array.isArray(result) ? result : []) as AuthOrganizationResponse[]
-      const organizations = rawOrgs.map((org) => ({
-        id: org.id,
-        name: org.name,
-        slug: org.slug,
-        logo: org.logo ?? null,
-        createdAt: org.createdAt,
-        ...extractOrgBillingFields(org),
-      }))
+        const rawOrgs = (
+          Array.isArray(result) ? result : []
+        ) as AuthOrganizationResponse[]
+        const organizations = rawOrgs.map((org) => ({
+          id: org.id,
+          name: org.name,
+          slug: org.slug,
+          logo: org.logo ?? null,
+          createdAt: org.createdAt,
+          ...extractOrgBillingFields(org),
+        }))
 
-      return { organizations }
+        return { organizations }
+      } catch (e) {
+        throw catchUntagged(e)
+      }
     },
     'GET',
     'identity.listUserOrganizations',

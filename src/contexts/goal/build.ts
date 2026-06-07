@@ -40,7 +40,6 @@ export type GoalContextApi = Readonly<{
   internal: Readonly<{
     repos: Readonly<{
       goalRepo: GoalRepository
-      events: EventBus
     }>
     useCases: Readonly<{
       createGoal: ReturnType<typeof createGoal>
@@ -102,7 +101,6 @@ export const buildGoalContext = (input: GoalContextBuildInput): GoalContextApi =
     internal: {
       repos: {
         goalRepo,
-        events: input.events,
       },
       useCases: {
         createGoal: _createGoal,

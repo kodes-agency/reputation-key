@@ -7,6 +7,12 @@ import { staffError } from '../../domain/errors'
 import { can } from '#/shared/domain/permissions'
 
 // fallow-ignore-next-line unused-type
+export type GetAssignedPortalsInput = Readonly<{
+  userId: UserId
+  propertyId: PropertyId
+}>
+
+// fallow-ignore-next-line unused-type
 export type GetAssignedPortalsDeps = Readonly<{
   assignmentRepo: StaffAssignmentRepository
 }>
@@ -14,7 +20,7 @@ export type GetAssignedPortalsDeps = Readonly<{
 export const getAssignedPortals =
   (deps: GetAssignedPortalsDeps) =>
   async (
-    input: { userId: UserId; propertyId: PropertyId },
+    input: GetAssignedPortalsInput,
     ctx: AuthContext,
   ): Promise<ReadonlyArray<PortalId>> => {
     if (!can(ctx.role, 'staff_assignment.read')) {
@@ -28,12 +34,12 @@ export const getAssignedPortals =
     )
 
     // Extract unique non-null portalIds
-    const seen = new Set<string>()
+    const seen = new Set<PortalId>()
     const portals: PortalId[] = []
 
     for (const a of assignments) {
-      if (a.portalId !== null && !seen.has(a.portalId as string)) {
-        seen.add(a.portalId as string)
+      if (a.portalId !== null && !seen.has(a.portalId)) {
+        seen.add(a.portalId)
         portals.push(a.portalId)
       }
     }

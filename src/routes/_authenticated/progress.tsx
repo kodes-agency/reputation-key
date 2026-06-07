@@ -6,7 +6,7 @@ import { useStaffPropertyId } from '#/components/hooks/use-staff-property-id'
 import { StaffGoalList } from '#/components/features/staff/staff-goal-list'
 import { StaffEmptyState } from '#/components/features/staff/staff-empty-state'
 import { PageShell } from '#/components/layout/page-shell'
-import type { StaffGoalEntry } from '#/contexts/goal/server/staff-goals'
+import type { StaffGoalEntry } from '#/contexts/goal/application/public-api'
 
 const progressSearch = z.object({
   propertyId: z.string().uuid().optional(),

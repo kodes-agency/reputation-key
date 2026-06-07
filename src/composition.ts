@@ -281,6 +281,8 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     events: eventBus,
     staffPublicApi: staff.publicApi,
     queue: infra.jobQueue,
+    clock,
+    logger,
   })
 
   // Goal context needs a cancelGoalFn for event handlers.
@@ -310,7 +312,7 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     reviewStats,
     metricStats,
     portalMetrics,
-    staffPortalResolver: staff.internal.useCases.getAssignedPortals,
+    staffPortalResolver: staff.publicApi.getAssignedPortals,
   })
 
   // ── Wire invitation acceptance hook ────────────────────────────
@@ -369,9 +371,9 @@ export function createContainer(options?: { enableJobs?: boolean }) {
       getReply: review.internal.useCases.getReply,
       retryPublish: review.internal.useCases.retryPublish,
       ...inbox.internal.useCases,
-      getDashboardData: dashboard.publicApi.getDashboardData,
-      getPortalAnalytics: dashboard.publicApi.getPortalAnalytics,
-      getStaffDashboardData: dashboard.publicApi.getStaffDashboardData,
+      getDashboardData: dashboard.internal.useCases.getDashboardData,
+      getPortalAnalytics: dashboard.internal.useCases.getPortalAnalytics,
+      getStaffDashboardData: dashboard.internal.useCases.getStaffDashboardData,
       ...goal.internal.useCases,
     },
     storage: portal.internal.repos.storage,
@@ -389,6 +391,7 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     activityRepo: activity.internal.repos.activityRepo,
     activityPublicApi: activity.publicApi,
     metricPublicApi: metricApi.publicApi,
+    staffPublicApi: staff.publicApi,
   } as const
 }
 

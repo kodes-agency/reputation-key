@@ -25,6 +25,10 @@ type StaffContextDeps = Readonly<{
 export const buildStaffContext = (deps: StaffContextDeps) => {
   const idGen = () => staffAssignmentId(randomUUID())
 
+  const getAssignedPortalsUC = getAssignedPortals({
+    assignmentRepo: deps.repo,
+  })
+
   const useCases = {
     createStaffAssignment: createStaffAssignment({
       assignmentRepo: deps.repo,
@@ -40,13 +44,12 @@ export const buildStaffContext = (deps: StaffContextDeps) => {
     listStaffAssignments: listStaffAssignments({
       assignmentRepo: deps.repo,
     }),
-    getAssignedPortals: getAssignedPortals({
-      assignmentRepo: deps.repo,
-    }),
+    getAssignedPortals: getAssignedPortalsUC,
     updateStaffPortals: updateStaffPortals({
       assignmentRepo: deps.repo,
       events: deps.events,
       clock: deps.clock,
+      idGen: () => randomUUID(),
     }),
   } as const
 
@@ -59,7 +62,14 @@ export const buildStaffContext = (deps: StaffContextDeps) => {
       if (hasRole(role, 'AccountAdmin')) return null
       return deps.repo.getAccessiblePropertyIds(orgId, userId)
     },
+    getAssignedPortals: getAssignedPortalsUC,
   }
 
-  return { publicApi, internal: { repos: {} as const, useCases } } as const
+  return {
+    publicApi,
+    internal: {
+      repos: { staffAssignmentRepo: deps.repo } as const,
+      useCases,
+    },
+  } as const
 }

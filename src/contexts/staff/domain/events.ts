@@ -3,7 +3,13 @@
 
 import assert from 'node:assert/strict'
 import type { StaffAssignmentId } from './types'
-import type { OrganizationId, PropertyId, TeamId, UserId } from '#/shared/domain/ids'
+import type {
+  OrganizationId,
+  PortalId,
+  PropertyId,
+  TeamId,
+  UserId,
+} from '#/shared/domain/ids'
 
 export type StaffAssigned = Readonly<{
   _tag: 'staff.assigned'
@@ -13,6 +19,7 @@ export type StaffAssigned = Readonly<{
   userId: UserId
   propertyId: PropertyId
   teamId: TeamId | null
+  portalId: PortalId | null
   occurredAt: Date
   correlationId: string | null
 }>
@@ -35,6 +42,7 @@ export type StaffUnassigned = Readonly<{
   organizationId: OrganizationId
   userId: UserId
   propertyId: PropertyId
+  portalId: PortalId | null
   occurredAt: Date
   correlationId: string | null
 }>

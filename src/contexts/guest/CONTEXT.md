@@ -2,11 +2,7 @@
 
 ## Bounded context
 
-TODO: One sentence describing what this context does.
-
 Guest-facing interactions on public portal pages. Covers scan tracking, star ratings, feedback submission, and review-link click tracking.
-
-> **DEPRECATED per docs/standards.md §4.3**
 
 ## Glossary
 
@@ -16,8 +12,6 @@ Guest-facing interactions on public portal pages. Covers scan tracking, star rat
 - **Feedback** — Optional free-text comment (max 1000 chars) submitted alongside a rating. Private — only visible to property staff.
 - **ReviewLinkClick** — A tracked click on an external review link (e.g., Google review link) from a public portal page.
 - **Source** — How the guest arrived at the portal: `qr` (QR code scan), `nfc` (NFC tap), or `direct` (typed URL).
-
-> **DEPRECATED per docs/standards.md §4.3**
 
 ## Language
 
@@ -80,10 +74,10 @@ _Avoid_: Review gating, filtering, moderation
 
 ## Events produced
 
-- **`scan.recorded`** — scanId, organizationId, portalId, propertyId, source, occurredAt.
-- **`rating.submitted`** — ratingId, organizationId, portalId, propertyId, value, occurredAt.
-- **`feedback.submitted`** — feedbackId, organizationId, portalId, propertyId, ratingId, occurredAt.
-- **`review-link.clicked`** — linkId, organizationId, portalId, propertyId, occurredAt.
+- **`guest.scan.recorded`** — scanId, organizationId, portalId, propertyId, source, occurredAt.
+- **`guest.rating.submitted`** — ratingId, organizationId, portalId, propertyId, value, occurredAt.
+- **`guest.feedback.submitted`** — feedbackId, organizationId, portalId, propertyId, ratingId, occurredAt.
+- **`guest.review_link.clicked`** — linkId, organizationId, portalId, propertyId, occurredAt.
 
 ## Events consumed
 
@@ -114,28 +108,24 @@ guest/
 ## Use cases
 
 - **`recordScan`** — Record a scan event (no referral attribution).
-- **`recordScanWithRef`** — Record a scan event with referral code resolution via StaffPublicApi.
-- **`submitRating`** — Submit a 1–5 star rating, emit `rating.submitted`.
-- **`submitFeedback`** — Submit free-text feedback after rating, emit `feedback.submitted`.
-- **`trackReviewLinkClick`** — Track a review link click, emit `review-link.clicked`.
+- **`submitRating`** — Submit a 1–5 star rating, emit `guest.rating.submitted`.
+- **`submitFeedback`** — Submit free-text feedback after rating, emit `guest.feedback.submitted`.
+- **`trackReviewLinkClick`** — Track a review link click, emit `guest.review_link.clicked`.
 - **`resolveLinkAndTrack`** — Resolve a portal link URL and track the click in one operation.
 - **`resolvePortalContext`** — Resolve org + property from portal ID.
 - **`getPublicPortal`** — Fetch full public portal data for guest-facing rendering.
-- **`getStaffIdForSession`** — Resolve staff ID from session cookie for attribution.
 
 ## Public API
 
 Exported from `application/public-api.ts`:
 
 - Types: `ScanEvent`, `Rating`, `Feedback`, `ScanSource`
-- Event types: `ScanRecorded`, `RatingSubmitted`, `FeedbackSubmitted`, `ReviewLinkClicked`, `GuestEvent`
-- Event constructors: `scanRecorded`, `ratingSubmitted`, `feedbackSubmitted`, `reviewLinkClicked`
+- Event types: `GuestScanRecorded`, `GuestRatingSubmitted`, `GuestFeedbackSubmitted`, `GuestReviewLinkClicked`, `GuestEvent`
+- Event constructors: `guestScanRecorded`, `guestRatingSubmitted`, `guestFeedbackSubmitted`, `guestReviewLinkClicked`
 
 ## Server functions
 
 - **`public.ts`** — Guest-facing server functions (record scan, submit rating, submit feedback, track review link click, get public portal data). No authentication required — guest endpoints.
-
-> **DEPRECATED per docs/standards.md §4.3**
 
 ## Permissions
 
@@ -149,8 +139,6 @@ Guest context is entirely public — no authentication is required for any endpo
 - `feedback.read` — Reserved for future use (viewing feedback history).
 - `feedback.respond` — Reserved for future use (responding to guest feedback).
 
-> **DEPRECATED per docs/standards.md §4.3**
-
 ## Example dialogue
 
 > **Dev:** "When a guest visits a portal, do we show the rating stars immediately or require a click first?"
@@ -161,8 +149,6 @@ Guest context is entirely public — no authentication is required for any endpo
 >
 > **Dev:** "Can a guest rate the same portal twice?"
 > **Domain expert:** "Not within the same session. The session cookie prevents duplicate ratings."
-
-> **DEPRECATED per docs/standards.md §4.3**
 
 ## Flagged ambiguities
 

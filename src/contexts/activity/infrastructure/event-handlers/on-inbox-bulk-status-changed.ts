@@ -1,4 +1,4 @@
-import type { InboxItemBulkStatusChanged } from '#/contexts/inbox/domain/events'
+import type { InboxItemBulkStatusChanged } from '#/contexts/inbox/application/public-api'
 import type { InsertActivityLogInput } from '../../application/use-cases/insert-activity-log'
 import type { Queue } from 'bullmq'
 

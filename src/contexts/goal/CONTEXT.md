@@ -2,8 +2,6 @@
 
 ## Bounded context
 
-TODO: One sentence describing what this context does.
-
 Property-scoped goals with progress tracking driven by metric events.
 
 ## Glossary
@@ -29,7 +27,7 @@ Property-scoped goals with progress tracking driven by metric events.
 - Goal → PortalGroup (optional `groupId`, scopes goal to a department).
 - Goal → Goal (optional `parentGoalId`, links recurring instances back to their template).
 - GoalProgress → Goal (one-to-one, tracks current progress).
-- Goal context **subscribes to** `metric.recorded`, `portal.deleted`, `portal_group.deleted` events from other contexts.
+- Goal context **subscribes to** `portal.deleted`, `portal.portal_group.deleted` events from other contexts.
 - Goal context **depends on** `MetricPublicApi` from the metric context (for querying metric readings to reconcile progress).
 
 ## Invariants
@@ -49,18 +47,18 @@ Property-scoped goals with progress tracking driven by metric events.
 
 ## Events produced
 
-| Tag                     | Payload                                                                                                                                           | When                    |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
-| `goal.completed`        | goalId, orgId, propertyId, scope IDs, goalType, metricKey, aggregationFunction, targetValue, completedValue, completedAt, parentGoalId, createdBy | Progress reaches target |
-| `goal.progress_updated` | goalId, orgId, metricKey, previousValue, currentValue, computedSource, occurredAt                                                                 | Progress recomputed     |
+| Tag                     | Payload                                                                                                                                                    | When                    |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
+| `goal.completed`        | goalId, organizationId, propertyId, scope IDs, goalType, metricKey, aggregationFunction, targetValue, completedValue, completedAt, parentGoalId, createdBy | Progress reaches target |
+| `goal.progress_updated` | goalId, organizationId, metricKey, previousValue, currentValue, computedSource, occurredAt                                                                 | Progress recomputed     |
 
 ## Events consumed
 
-| Tag                    | Source context | Handler action                                  |
-| ---------------------- | -------------- | ----------------------------------------------- |
-| `metric.recorded`      | metric         | Increment goal progress via event_increment     |
-| `portal.deleted`       | portal         | Cancel goals scoped to the deleted portal       |
-| `portal_group.deleted` | portal group   | Cancel goals scoped to the deleted portal group |
+| Tag                           | Source context | Handler action                                  |
+| ----------------------------- | -------------- | ----------------------------------------------- |
+| `metric.recorded`             | metric         | Increment goal progress via event_increment     |
+| `portal.deleted`              | portal         | Cancel goals scoped to the deleted portal       |
+| `portal.portal_group.deleted` | portal group   | Cancel goals scoped to the deleted portal group |
 
 ## Architecture layers
 
@@ -82,27 +80,21 @@ goal/
   build.ts             composition root
 ```
 
-> **DEPRECATED per docs/standards.md §4.3**
-
-## Intentional deviations
-
-- **`ui/helpers.ts`**: Contains pure data transformation functions shared between server responses and UI components. This is an intentional deviation from the strict four-layer architecture — these helpers translate domain/DTO shapes into UI-friendly formats without importing React or framework code. Keeping them in `ui/` colocates them with the components that consume them.
-
 ## Use cases
 
-| Use case     | Input                                                                                                                                                                                             | Output   | Permission    |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------------- |
-| `createGoal` | orgId, propertyId, portalId?, groupId?, name, description?, goalType, aggregationFunction, metricKey, targetValue, periodStart?, periodEnd?, recurrenceRule?, rollingWindowDays?, createdBy, role | `Goal`   | `goal.create` |
-| `updateGoal` | goalId, orgId, targetValue?, recurrenceRule?, role                                                                                                                                                | `Goal`   | `goal.update` |
-| `cancelGoal` | goalId, orgId, role                                                                                                                                                                               | `Goal`   | `goal.cancel` |
-| `listGoals`  | orgId, propertyId, portalId?, groupId?, status?, goalType?, role                                                                                                                                  | `Goal[]` | `goal.read`   |
-| `getGoal`    | goalId, orgId, role                                                                                                                                                                               | `Goal`   | `goal.read`   |
+| Use case     | Input                                                                                                                                                                                                      | Output   | Permission    |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------------- |
+| `createGoal` | organizationId, propertyId, portalId?, groupId?, name, description?, goalType, aggregationFunction, metricKey, targetValue, periodStart?, periodEnd?, recurrenceRule?, rollingWindowDays?, createdBy, role | `Goal`   | `goal.create` |
+| `updateGoal` | goalId, organizationId, targetValue?, recurrenceRule?, role                                                                                                                                                | `Goal`   | `goal.update` |
+| `cancelGoal` | goalId, organizationId, role                                                                                                                                                                               | `Goal`   | `goal.cancel` |
+| `listGoals`  | organizationId, propertyId, portalId?, groupId?, status?, goalType?, role                                                                                                                                  | `Goal[]` | `goal.read`   |
+| `getGoal`    | goalId, organizationId, role                                                                                                                                                                               | `Goal`   | `goal.read`   |
 
 ## Public API
 
 Exported from `application/public-api.ts`:
 
-- Types: `CreateGoalInput`, `UpdateGoalInput`, `CancelGoalInput`, `ListGoalsInput`, `GetGoalInput`, `Goal`, `GoalProgress`, `GoalType`, `GoalStatus`
+- Types: `CreateGoalInput`, `UpdateGoalInput`, `CancelGoalInput`, `ListGoalsInput`, `GetGoalInput`, `Goal`, `GoalProgress`, `GoalWithProgress`, `StaffGoalEntry`, `GoalType`, `GoalStatus`
 - Functions: `deriveEntityScope`
 - Port types: `GoalRepository`, `GoalListFilter`
 - Event types: `GoalCompleted`, `GoalProgressUpdated`, `GoalEvent`
@@ -110,14 +102,14 @@ Exported from `application/public-api.ts`:
 
 ## Server functions
 
-| Function         | Method | Permission    | Route                                     |
-| ---------------- | ------ | ------------- | ----------------------------------------- |
-| `createGoal`     | POST   | `goal.create` | Create a new goal                         |
-| `updateGoal`     | POST   | `goal.update` | Update an active goal                     |
-| `cancelGoal`     | POST   | `goal.cancel` | Cancel an active goal                     |
-| `listGoals`      | GET    | `goal.read`   | List goals with filters                   |
-| `getGoal`        | GET    | `goal.read`   | Get single goal detail                    |
-| `listStaffGoals` | GET    | `goal.read`   | List goals for authenticated staff (stub) |
+| Function     | Method           | Permission    | Route                   |
+| ------------ | ---------------- | ------------- | ----------------------- | ----------------------------------------------------------------- |
+| `createGoal` | POST             | `goal.create` | Create a new goal       |
+| `updateGoal` | POST             | `goal.update` | Update an active goal   |
+| `cancelGoal` | POST             | `goal.cancel` | Cancel an active goal   |
+| `listGoals`  | GET              | `goal.read`   | List goals with filters |
+| `getGoal`    | GET              | `goal.read`   | Get single goal detail  |
+|              | `listStaffGoals` | GET           | `goal.read`             | List goals for authenticated staff (portal + portal-group scoped) |
 
 ## Permissions
 
@@ -132,9 +124,3 @@ Exported from `application/public-api.ts`:
 
 - **spawn-recurring-instances** — creates child Goal instances from recurring templates at each period boundary.
 - **reconcile-goal-progress** — recomputes progress from raw metric readings for all active goals (computedSource = `reconciliation`).
-
-> **DEPRECATED per docs/standards.md §4.3**
-
-## Flagged ambiguities
-
-- Staff goals endpoint (`listStaffGoals`) is stubbed — full wiring awaits staff assignment resolution in a future phase.

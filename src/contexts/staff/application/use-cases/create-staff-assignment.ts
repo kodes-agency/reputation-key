@@ -93,6 +93,7 @@ export const createStaffAssignment =
         userId: assignment.userId,
         propertyId: assignment.propertyId,
         teamId: assignment.teamId,
+        portalId: assignment.portalId,
         occurredAt: assignment.createdAt,
       }),
     )

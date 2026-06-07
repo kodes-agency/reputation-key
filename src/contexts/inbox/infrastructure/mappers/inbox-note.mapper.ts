@@ -3,7 +3,13 @@
 
 import type { inboxNotes } from '#/shared/db/schema/inbox.schema'
 import type { InboxNote } from '../../domain/types'
-import { inboxNoteId, inboxItemId, organizationId, userId } from '#/shared/domain/ids'
+import {
+  unbrand,
+  inboxNoteId,
+  inboxItemId,
+  organizationId,
+  userId,
+} from '#/shared/domain/ids'
 
 type InboxNoteRow = typeof inboxNotes.$inferSelect
 type InboxNoteInsertRow = typeof inboxNotes.$inferInsert
@@ -20,9 +26,9 @@ export const inboxNoteFromRow = (row: InboxNoteRow): InboxNote => ({
 export const inboxNoteToInsertRow = (
   note: Omit<InboxNote, 'createdAt'>,
 ): InboxNoteInsertRow => ({
-  id: note.id as string,
-  inboxItemId: note.inboxItemId as string,
-  organizationId: note.organizationId as string,
-  userId: note.userId as string,
+  id: unbrand(note.id),
+  inboxItemId: unbrand(note.inboxItemId),
+  organizationId: unbrand(note.organizationId),
+  userId: unbrand(note.userId),
   text: note.text,
 })

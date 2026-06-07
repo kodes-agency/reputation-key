@@ -27,10 +27,12 @@ const USER_ID = userId('user-1')
 
 const adminStaffApi: StaffPublicApi = {
   getAccessiblePropertyIds: async () => null,
+  getAssignedPortals: async () => [],
 }
 
 const createScopedStaffApi = (ids: ReadonlyArray<string>): StaffPublicApi => ({
   getAccessiblePropertyIds: async () => ids.map(propertyId),
+  getAssignedPortals: async () => [],
 })
 
 function makeItem(overrides: Partial<InboxItem> = {}): InboxItem {

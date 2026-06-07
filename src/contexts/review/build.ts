@@ -36,7 +36,7 @@ export type ReviewContextBuildInput = Readonly<{
 }>
 
 export type ReviewContextApi = Readonly<{
-  publicApi: Record<string, never>
+  publicApi: Readonly<Record<string, never>>
   internal: Readonly<{
     repos: Readonly<{
       reviewRepo: ReviewRepository
@@ -121,7 +121,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
   }
 
   return {
-    publicApi: {} as Record<string, never>,
+    publicApi: {} as const,
     internal: {
       repos: {
         reviewRepo,

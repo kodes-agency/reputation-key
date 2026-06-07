@@ -19,6 +19,7 @@ import {
   portalId,
   portalGroupId,
   userId,
+  unbrand,
 } from '#/shared/domain/ids'
 
 type GoalRow = typeof goals.$inferSelect
@@ -111,13 +112,13 @@ export const goalProgressFromRow = (row: GoalProgressRow): GoalProgress => ({
 export const goalToInsertRow = (
   goal: Omit<Goal, 'id' | 'createdAt' | 'updatedAt'>,
 ): typeof goals.$inferInsert => ({
-  organizationId: goal.organizationId as string,
-  propertyId: goal.propertyId as string,
-  portalId: goal.portalId as string | null,
-  groupId: goal.groupId as string | null,
+  organizationId: unbrand(goal.organizationId),
+  propertyId: unbrand(goal.propertyId),
+  portalId: goal.portalId != null ? unbrand(goal.portalId) : null,
+  groupId: goal.groupId != null ? unbrand(goal.groupId) : null,
   name: goal.name,
   description: goal.description,
-  createdBy: goal.createdBy as string,
+  createdBy: unbrand(goal.createdBy),
   goalType: goal.goalType,
   aggregationFunction: goal.aggregationFunction,
   metricKey: goal.metricKey,
@@ -129,7 +130,7 @@ export const goalToInsertRow = (
     ? { frequency: goal.recurrenceRule.frequency }
     : null,
   rollingWindowDays: goal.rollingWindowDays,
-  parentGoalId: goal.parentGoalId as string | null,
+  parentGoalId: goal.parentGoalId != null ? unbrand(goal.parentGoalId) : null,
   completedAt: goal.completedAt,
 })
 
@@ -139,7 +140,7 @@ export const goalToInsertRow = (
 export const goalProgressToInsertRow = (
   progress: Omit<GoalProgress, 'id'>,
 ): typeof goalProgress.$inferInsert => ({
-  goalId: progress.goalId as string,
+  goalId: unbrand(progress.goalId),
   currentValue: progress.currentValue,
   currentSum: progress.currentSum,
   currentCount: progress.currentCount,

@@ -1,7 +1,7 @@
 import { MessageSquare } from 'lucide-react'
 import { Stars } from '#/components/features/property/property-dashboard-helpers'
 import { EmptyState } from '#/components/ui/empty-state'
-import type { StaffRecentReview } from '#/contexts/review/server/staff-recent-activity'
+import type { StaffRecentReview } from '#/contexts/review/application/public-api'
 
 type StaffRecentActivityProps = Readonly<{
   reviews: readonly StaffRecentReview[]

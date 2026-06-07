@@ -49,6 +49,7 @@ function seedNew(overrides?: Partial<InboxItem>): InboxItem {
 
 const staffApiAllAccess: StaffPublicApi = {
   getAccessiblePropertyIds: async () => null,
+  getAssignedPortals: async () => [],
 }
 
 const setup = (staffApi: StaffPublicApi = staffApiAllAccess) => {
@@ -184,6 +185,7 @@ describe('updateInboxStatus', () => {
     // Use a role not in the permission table to simulate lacking inbox.write
     const staffApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [],
+      getAssignedPortals: async () => [],
     }
     const { useCase, repo } = setup(staffApi)
     repo.items.push(seedNew())
@@ -202,6 +204,7 @@ describe('updateInboxStatus', () => {
   it('allows update when user has access to the property', async () => {
     const staffApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [propertyId('prop-1')],
+      getAssignedPortals: async () => [],
     }
     const { useCase, repo } = setup(staffApi)
     repo.items.push(seedNew())
@@ -221,6 +224,7 @@ describe('updateInboxStatus', () => {
     // PropertyManager has inbox.write, so can() passes and the property access check is skipped
     const staffApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [propertyId('prop-other')],
+      getAssignedPortals: async () => [],
     }
     const { useCase, repo } = setup(staffApi)
     repo.items.push(seedNew())
@@ -241,6 +245,7 @@ describe('updateInboxStatus', () => {
       getAccessiblePropertyIds: async () => {
         throw new Error('Should not be called')
       },
+      getAssignedPortals: async () => [],
     }
     const { useCase, repo } = setup(staffApi)
     repo.items.push(seedNew())

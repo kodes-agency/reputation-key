@@ -34,11 +34,17 @@ function createInMemoryActivityRepo(entries: ActivityLog[] = []): ActivityReposi
 }
 
 function staffApiAllAccess(): StaffPublicApi {
-  return { getAccessiblePropertyIds: async () => null }
+  return {
+    getAccessiblePropertyIds: async () => null,
+    getAssignedPortals: async () => [],
+  }
 }
 
 function staffApiLimited(ids: string[]): StaffPublicApi {
-  return { getAccessiblePropertyIds: async () => ids as never }
+  return {
+    getAccessiblePropertyIds: async () => ids as never,
+    getAssignedPortals: async () => [],
+  }
 }
 
 describe('getActivityTimeline', () => {

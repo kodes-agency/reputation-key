@@ -13,20 +13,35 @@ export type { GoogleReview, StarRating } from '../domain/types'
 export type {
   ReviewCreated,
   ReviewUpdated,
+  ReviewExpired,
   ReviewReplyPublished,
   ReviewReplySubmitted,
+  ReviewReplyApproved,
+  ReviewReplyRejected,
   ReviewEvent,
 } from '../domain/events'
 export {
   reviewCreated,
   reviewUpdated,
+  reviewExpired,
   reviewReplyPublished,
   reviewReplySubmitted,
+  reviewReplyApproved,
+  reviewReplyRejected,
 } from '../domain/events'
 
 // Port types needed by cross-context consumers (e.g., integration context)
+export type { GoogleReviewApiPort } from './ports/google-review-api.port'
 export type {
   ReviewQueuePort,
   SyncPropertyReviewsJobData,
   AddSyncJobOptions,
 } from './ports/review-queue.port'
+
+// ── Staff type aliases for cross-context consumers ──────────────────────
+export type StaffRecentReview = {
+  id: string
+  rating: number
+  snippet: string
+  date: string
+}

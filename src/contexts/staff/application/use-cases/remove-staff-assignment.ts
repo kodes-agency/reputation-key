@@ -42,6 +42,7 @@ export const removeStaffAssignment =
         organizationId: assignment.organizationId,
         userId: assignment.userId,
         propertyId: assignment.propertyId,
+        portalId: assignment.portalId,
         occurredAt: deps.clock(),
       }),
     )

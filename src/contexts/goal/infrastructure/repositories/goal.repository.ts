@@ -482,9 +482,8 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
 
   listByPortalAndGroupIds: async (input) => {
     return trace('goal.listByPortalAndGroupIds', async () => {
-      const { organizationId, portalIds, groupIds, includePropertyScoped } = input
-      if (portalIds.length === 0 && groupIds.length === 0 && !includePropertyScoped)
-        return []
+      const { organizationId, portalIds, groupIds } = input
+      if (portalIds.length === 0 && groupIds.length === 0) return []
 
       const conditions = [eq(goals.organizationId, organizationId)]
 
@@ -493,8 +492,6 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
         portalOrGroup.push(inArray(goals.portalId, [...portalIds] as string[]))
       if (groupIds.length > 0)
         portalOrGroup.push(inArray(goals.groupId, [...groupIds] as string[]))
-      if (includePropertyScoped)
-        portalOrGroup.push(and(isNull(goals.portalId), isNull(goals.groupId))!)
 
       if (portalOrGroup.length === 1) {
         conditions.push(portalOrGroup[0])

@@ -6,7 +6,7 @@
 import type { PortalId, PropertyId, UserId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
 
-export type StaffPortalResolver = (
+export type StaffPortalResolverPort = (
   input: { userId: UserId; propertyId: PropertyId },
   ctx: AuthContext,
 ) => Promise<ReadonlyArray<PortalId>>

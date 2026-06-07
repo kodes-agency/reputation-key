@@ -3,7 +3,7 @@
 // Authorization is enforced at the server function level. No auth logic here.
 
 import type { DashboardRepository } from '../ports/dashboard.repository'
-import type { StaffPortalResolver } from '../ports/staff-portal-resolver.port'
+import type { StaffPortalResolverPort } from '../ports/staff-portal-resolver.port'
 import type { OrganizationId, PropertyId, PortalId, UserId } from '#/shared/domain/ids'
 import type { StaffDashboardData } from '../../domain/types'
 import type { TimeRangePreset } from '../dto/dashboard.dto'
@@ -21,7 +21,7 @@ export type GetStaffDashboardDataInput = Readonly<{
 
 export type GetStaffDashboardDataDeps = Readonly<{
   repo: DashboardRepository
-  staffPortalResolver: StaffPortalResolver
+  staffPortalResolver: StaffPortalResolverPort
 }>
 export type GetStaffDashboardData = ReturnType<typeof getStaffDashboardData>
 

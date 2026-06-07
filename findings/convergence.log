@@ -1,0 +1,9 @@
+# Convergence Log
+
+Track consecutive clean rounds per segment and overall.
+
+## Format: `round_id | segment | agents_clean | findings_count | status`
+
+| Round | Segment | Agent A | Agent B | Agent C | Findings | Consecutive Clean |
+|-------|---------|---------|---------|---------|----------|-------------------|
+| — | — | — | — | — | — | 0 |

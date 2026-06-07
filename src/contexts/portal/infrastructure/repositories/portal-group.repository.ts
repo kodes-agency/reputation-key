@@ -77,7 +77,12 @@ export const createPortalGroupRepository = (db: Database): PortalGroupRepository
       const result = await db
         .update(portalGroups)
         .set({ name: group.name, updatedAt: group.updatedAt })
-        .where(eq(portalGroups.id, unbrand(group.id)))
+        .where(
+          and(
+            eq(portalGroups.id, unbrand(group.id)),
+            eq(portalGroups.organizationId, unbrand(group.organizationId)),
+          ),
+        )
         .returning()
       if (!result[0]) throw new Error('PortalGroup update failed')
       return portalGroupFromRow(result[0])

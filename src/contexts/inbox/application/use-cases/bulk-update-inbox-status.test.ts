@@ -52,6 +52,7 @@ function seedItem(
 
 const defaultStaffApi: StaffPublicApi = {
   getAccessiblePropertyIds: async () => null,
+  getAssignedPortals: async () => [],
 }
 
 const setup = (staffApi: StaffPublicApi = defaultStaffApi) => {
@@ -199,6 +200,7 @@ describe('bulkUpdateInboxStatus', () => {
     // When accessible properties are empty, all items are skipped (returns 0 updated)
     const staffApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [],
+      getAssignedPortals: async () => [],
     }
     const { useCase, repo } = setup(staffApi)
     repo.items.push(seedItem('ii-1', 'new', 'prop-1'))
@@ -222,6 +224,7 @@ describe('bulkUpdateInboxStatus', () => {
     // Staff does NOT have inbox.manage, so the property access check fires
     const staffApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [propertyId('prop-1')],
+      getAssignedPortals: async () => [],
     }
     const { useCase, repo } = setup(staffApi)
     repo.items.push(seedItem('ii-1', 'new', 'prop-1'))
@@ -245,6 +248,7 @@ describe('bulkUpdateInboxStatus', () => {
       getAccessiblePropertyIds: async () => {
         throw new Error('Should not be called for AccountAdmin')
       },
+      getAssignedPortals: async () => [],
     }
     const { useCase, repo } = setup(staffApi)
     repo.items.push(seedItem('ii-1', 'new', 'prop-1'))

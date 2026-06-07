@@ -13,9 +13,9 @@ import { StaffRecentActivity } from '#/components/features/staff/staff-recent-ac
 import { StaffEmptyState } from '#/components/features/staff/staff-empty-state'
 import { PageShell } from '#/components/layout/page-shell'
 import type { KPIs } from '#/contexts/dashboard/application/public-api'
-import type { StaffGoalEntry } from '#/contexts/goal/server/staff-goals'
-import type { StaffPortalEntry } from '#/contexts/staff/server/staff-portals'
-import type { StaffRecentReview } from '#/contexts/review/server/staff-recent-activity'
+import type { StaffGoalEntry } from '#/contexts/goal/application/public-api'
+import type { StaffPortalEntry } from '#/contexts/staff/application/public-api'
+import type { StaffRecentReview } from '#/contexts/review/application/public-api'
 
 const homeSearch = z.object({
   propertyId: z.string().uuid().optional(),

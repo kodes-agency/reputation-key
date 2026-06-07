@@ -9,5 +9,11 @@ export type {
   RecentReview,
   DashboardReplyStatus,
   DashboardData,
+  PortalKPIs,
+  PortalAnalyticsData,
   StaffDashboardData,
 } from '../domain/types'
+
+// ── Error type re-exports (server functions must import from public-api, not domain/errors) ──
+export type { DashboardErrorCode, DashboardError } from '../domain/errors'
+export { isDashboardError } from '../domain/errors'

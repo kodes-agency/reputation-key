@@ -8,9 +8,8 @@ import {
   statusLabel,
   goalTypeLabel,
   formatDate,
-  type GoalWithProgress,
 } from '#/contexts/goal/ui/helpers'
-import type { GoalStatus } from '#/contexts/goal/application/public-api'
+import type { GoalWithProgress, GoalStatus } from '#/contexts/goal/application/public-api'
 
 type StaffGoalListProps = Readonly<{
   goals: readonly GoalWithProgress[]

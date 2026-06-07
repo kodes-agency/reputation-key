@@ -6,7 +6,7 @@ import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { getContainer } from '#/composition'
 import { can } from '#/shared/domain/permissions'
-import { throwContextError } from '#/shared/auth/server-errors'
+import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { z } from 'zod'
@@ -32,15 +32,19 @@ export const getActivityTimelineFn = createServerFn({ method: 'GET' })
           403,
         )
       }
-      const { activityPublicApi } = getContainer()
-      return activityPublicApi.getActivityTimeline({
-        resourceType: data.resourceType,
-        resourceId: data.resourceId,
-        organizationId: ctx.organizationId,
-        userId: ctx.userId,
-        role: ctx.role,
-        limit: data.limit,
-      })
+      try {
+        const { activityPublicApi } = getContainer()
+        return activityPublicApi.getActivityTimeline({
+          resourceType: data.resourceType,
+          resourceId: data.resourceId,
+          organizationId: ctx.organizationId,
+          userId: ctx.userId,
+          role: ctx.role,
+          limit: data.limit,
+        })
+      } catch (e) {
+        throw catchUntagged(e)
+      }
     }),
   )
 
@@ -65,14 +69,18 @@ export const getOrgActivityFn = createServerFn({ method: 'GET' })
           403,
         )
       }
-      const { activityPublicApi } = getContainer()
-      return activityPublicApi.getOrgActivity({
-        organizationId: ctx.organizationId,
-        userId: ctx.userId,
-        role: ctx.role,
-        propertyId: data.propertyId,
-        limit: data.limit,
-        offset: data.offset,
-      })
+      try {
+        const { activityPublicApi } = getContainer()
+        return activityPublicApi.getOrgActivity({
+          organizationId: ctx.organizationId,
+          userId: ctx.userId,
+          role: ctx.role,
+          propertyId: data.propertyId,
+          limit: data.limit,
+          offset: data.offset,
+        })
+      } catch (e) {
+        throw catchUntagged(e)
+      }
     }),
   )

@@ -2,11 +2,7 @@
 
 ## Bounded context
 
-TODO: One sentence describing what this context does.
-
 Manages Google OAuth connections, token lifecycle, GBP API infrastructure, and Pub/Sub subscription management. Connection management only — review syncing and property import live in their own contexts (`review` and `property`).
-
-> **DEPRECATED per docs/standards.md §4.3**
 
 ## Glossary
 
@@ -17,8 +13,6 @@ Manages Google OAuth connections, token lifecycle, GBP API infrastructure, and P
 - **PropertyImport** — Creates a `Property` entity from a successfully imported GBP location. Links the new property back to the originating GoogleConnection.
 - **Token Encryption** — Access/refresh tokens are encrypted at rest using AES-256 via `TokenEncryptionPort`.
 - **OAuth Callback** — Google OAuth flow redirects to `BETTER_AUTH_URL/api/auth/google/callback` after user consent.
-
-> **DEPRECATED per docs/standards.md §4.3**
 
 ## Language
 
@@ -65,8 +59,6 @@ _Avoid_: Permission, access level, sharing
 - Access tokens are encrypted at rest; never stored in plaintext
 - Each organization may have multiple Google connections, but each connection belongs to exactly one org
 
-> **DEPRECATED per docs/standards.md §4.3 — merged into Invariants above**
-
 ## Domain Rules
 
 - A connection must be `active` to start an import or list locations
@@ -79,10 +71,10 @@ _Avoid_: Permission, access level, sharing
 
 ## Events produced
 
-- **`google_account.connected`** — connectionId, organizationId, googleEmail, occurredAt. Emitted when a Google account is connected.
-- **`google_account.disconnected`** — connectionId, organizationId, occurredAt. Emitted when a Google account is disconnected.
-- **`property_import.completed`** — importJobId, organizationId, totalCount, importedCount, skippedCount, failedCount, occurredAt. Emitted when an import job finishes.
-- **`google_connection.visibility_changed`** — connectionId, organizationId, visibility, occurredAt. Emitted when connection visibility is updated.
+- **`integration.google_account.connected`** — connectionId, organizationId, googleEmail, occurredAt. Emitted when a Google account is connected.
+- **`integration.google_account.disconnected`** — connectionId, organizationId, occurredAt. Emitted when a Google account is disconnected.
+- **`integration.property_import.completed`** — importJobId, organizationId, totalCount, importedCount, skippedCount, failedCount, occurredAt. Emitted when an import job finishes.
+- **`integration.google_connection.visibility_changed`** — connectionId, organizationId, visibility, occurredAt. Emitted when connection visibility is updated.
 
 ## Events consumed
 
@@ -119,19 +111,19 @@ integration/
     mappers/           google-connection.mapper.ts, gbp-cache.mapper.ts, gbp-import.mapper.ts
     handlers/          gbp-notification-handler.ts
     jobs/              import-property.job.ts
-  server/              google-connections.ts, gbp-import.ts, shared.ts
+  server/              google-connections.ts, gbp-import.ts, error-helpers.ts
   build.ts             composition root
 ```
 
 ## Use cases
 
-- **`connectGoogleAccount`** — OAuth code exchange, encrypt tokens, store connection. Emits `google_account.connected`.
-- **`disconnectGoogleAccount`** — Revoke tokens, clear caches, null out property FKs. Emits `google_account.disconnected`.
+- **`connectGoogleAccount`** — OAuth code exchange, encrypt tokens, store connection. Emits `integration.google_account.connected`.
+- **`disconnectGoogleAccount`** — Revoke tokens, clear caches, null out property FKs. Emits `integration.google_account.disconnected`.
 - **`listGoogleConnections`** — List connections for an org.
-- **`updateConnectionVisibility`** — Toggle private/organization visibility. Emits `google_connection.visibility_changed`.
+- **`updateConnectionVisibility`** — Toggle private/organization visibility. Emits `integration.google_connection.visibility_changed`.
 - **`refreshGoogleToken`** — Auto-refresh expired tokens with 5-minute buffer.
 - **`listGbpLocations`** — Fetch GBP locations for a connection (with token refresh).
-- **`startPropertyImport`** — Create import job, enqueue bulk import tasks. Emits `property_import.completed`.
+- **`startPropertyImport`** — Create import job, enqueue bulk import tasks. Emits `integration.property_import.completed`.
 - **`getImportStatus`** — Query import job progress (imported/skipped/failed counts).
 - **`importProperty`** — Process single GBP location into a property. Handles duplicate conflicts.
 - **`handleGbpNotification`** — Process Google Pub/Sub push notifications for real-time review updates.
@@ -156,8 +148,6 @@ Exported from `application/public-api.ts`:
 
 - **import-property** — Processes a single GBP location into a property. Created by `startPropertyImport` use case.
 
-> **DEPRECATED per docs/standards.md §4.3**
-
 ## Example dialogue
 
 > **Dev:** "What happens when a user connects their Google account?"
@@ -174,8 +164,6 @@ Exported from `application/public-api.ts`:
 >
 > **Dev:** "Does the import create properties immediately?"
 > **Domain expert:** "Yes, but asynchronously. The import job enqueues a BullMQ task that creates properties one by one, updating counters as it goes."
-
-> **DEPRECATED per docs/standards.md §4.3**
 
 ## Flagged ambiguities
 

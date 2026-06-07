@@ -38,6 +38,7 @@ Composition root: `src/composition.ts`. Bootstrap: `src/bootstrap.ts`.
 || Goal | Property-scoped goals with progress tracking; scope levels: property, portal, portal_group | Goal, GoalInstance |
 || Dashboard | Read-only aggregation of metrics, reviews, replies into property-scoped KPIs and charts | — |
 || Activity | Immutable audit log of user actions across all contexts. Pure subscriber (no commands, no use cases). | ActivityLog |
+|| Notification | User-addressed, dismissable alerts about domain events. Event-driven subscriber with channel routing and preferences. | Notification |
 
 ## Glossary
 
@@ -90,6 +91,7 @@ Composition root: `src/composition.ts`. Bootstrap: `src/bootstrap.ts`.
 | **Reply**            | A response to a review. Separate entity from Review. Has `source`: `google_sync` (mirrored from GBP) or `internal` (staff-authored with draft/approve/reject lifecycle). Internal replies follow: `draft` → `pending_approval` → `approved` → `published` (or `publish_failed`). Only PM+ roles can manage replies; Staff cannot view or manage them. |
 | **Inbox Item**       | A unified triage entry pointing to a Review or Feedback. Carries denormalized filter/sort fields and inbox state (status, assignment). Lives in the `inbox` context.                                                                                                                                                                                  |
 | **Inbox Status**     | The triage state of an inbox item: `new`, `read`, `addressed`, `escalated`, `archived`. Transitions follow a defined graph (see ADR 0004).                                                                                                                                                                                                            |
+| **Notification**     | A user-addressed, dismissable alert about a domain event. Distinct from ActivityLog (immutable audit) — notifications carry delivery state (unread/dismissed), channel routing, and user preferences. Lives in the `notification` context.                                                                                                            |
 | **Addressed**        | Inbox item has been handled. For reviews: reply published or manually marked. For feedback: internally handled.                                                                                                                                                                                                                                       |
 | **Internal Note**    | A text annotation on an inbox item. Multiple per item, tracks author and timestamp. Lives in `inbox` context.                                                                                                                                                                                                                                         |
 
@@ -125,6 +127,7 @@ See `docs/adr/` for formal ADRs. See `docs/standards.md` for codebase-wide namin
 || 0008 | Cross-Context Data Access Rules | Architecture, Bounded Context Boundaries |
 || 0009 | Permission Model | Identity & Authorization |
 || 0010 | Activity Context: BullMQ Event Delivery | Activity, Event Delivery |
+|| 0011 | Notification Context: BullMQ Event Delivery | Notification, Event Delivery |
 
 ## Key Files
 

@@ -6,7 +6,7 @@ import { createInMemoryDashboardRepository } from '#/shared/testing/in-memory-da
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { organizationId, propertyId, portalId, userId } from '#/shared/domain/ids'
 import type { PortalId, PropertyId, UserId } from '#/shared/domain/ids'
-import type { StaffPortalResolver } from '../ports/staff-portal-resolver.port'
+import type { StaffPortalResolverPort } from '../ports/staff-portal-resolver.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
 
 const MS_PER_DAY = 86_400_000
@@ -16,7 +16,7 @@ const PROP_A = propertyId('a0000000-0000-0000-0000-000000000001')
 const PORTAL_A = portalId('b0000000-0000-0000-0000-000000000001')
 const PORTAL_B = portalId('b0000000-0000-0000-0000-000000000002')
 
-type TestResolver = StaffPortalResolver & {
+type TestResolver = StaffPortalResolverPort & {
   setPortals: (portals: ReadonlyArray<PortalId>) => void
 }
 

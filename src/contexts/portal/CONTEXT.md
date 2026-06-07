@@ -2,8 +2,6 @@
 
 ## Bounded context
 
-TODO: One sentence describing what this context does.
-
 Portal page management — creation, configuration, theming, link management, image uploads, and portal group aggregation.
 
 ## Glossary
@@ -24,7 +22,7 @@ Portal page management — creation, configuration, theming, link management, im
 - Portal has many PortalLinkCategories, each with many PortalLinks.
 - Guest context **depends on** `PortalPublicApi` for resolving portal context and public portal data.
 - Goal context **subscribes to** `portal.deleted` events to cancel portal-scoped goals.
-- Goal context **subscribes to** `portal_group.deleted` events to cancel group-scoped goals.
+- Goal context **subscribes to** `portal.portal_group.deleted` events to cancel group-scoped goals.
 
 ## Invariants
 
@@ -39,13 +37,13 @@ Portal page management — creation, configuration, theming, link management, im
 - **`portal.created`** — portalId, organizationId, name, slug, occurredAt.
 - **`portal.updated`** — portalId, organizationId, name, slug, occurredAt.
 - **`portal.deleted`** — portalId, organizationId, occurredAt.
-- **`portal_group.created`** — groupId, organizationId, propertyId, name, occurredAt.
-- **`portal_group.updated`** — groupId, organizationId, propertyId, name, occurredAt.
-- **`portal_group.deleted`** — groupId, organizationId, propertyId, occurredAt.
-- **`portal_link_category.created`** — portalId, categoryId, organizationId, occurredAt.
-- **`portal_link_category.reordered`** — portalId, organizationId, occurredAt.
-- **`portal_link.created`** — portalId, linkId, categoryId, organizationId, occurredAt.
-- **`portal_link.reordered`** — portalId, categoryId, organizationId, occurredAt.
+- **`portal.portal_group.created`** — groupId, organizationId, propertyId, name, occurredAt.
+- **`portal.portal_group.updated`** — groupId, organizationId, propertyId, name, occurredAt.
+- **`portal.portal_group.deleted`** — groupId, organizationId, propertyId, occurredAt.
+- **`portal.portal_link_category.created`** — portalId, categoryId, organizationId, occurredAt.
+- **`portal.portal_link_category.reordered`** — portalId, organizationId, occurredAt.
+- **`portal.portal_link.created`** — portalId, linkId, categoryId, organizationId, occurredAt.
+- **`portal.portal_link.reordered`** — portalId, categoryId, organizationId, occurredAt.
 
 ## Events consumed
 
@@ -56,7 +54,7 @@ None. Portal context does not subscribe to events from other contexts.
 ```
 portal/
   domain/              types.ts, constructors.ts, events.ts, errors.ts, rules.ts
-                       portal-group-types.ts, portal-group-constructors.ts, portal-group-events.ts
+                       (PortalGroup types, constructors, and events are in the shared files above)
   application/
     ports/             portal.repository.ts, portal-group.repository.ts, portal-link.repository.ts,
                        storage.port.ts, link-resolver.port.ts

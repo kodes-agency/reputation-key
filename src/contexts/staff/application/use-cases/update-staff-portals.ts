@@ -5,31 +5,33 @@
 import type { StaffAssignmentRepository } from '../ports/staff-assignment.repository'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import type { PortalId } from '#/shared/domain/ids'
+import type { UserId, PropertyId, PortalId } from '#/shared/domain/ids'
 import type { StaffAssignment } from '../../domain/types'
 import { can } from '#/shared/domain/permissions'
 import { staffError } from '../../domain/errors'
 import { staffAssigned, staffUnassigned } from '../../domain/events'
 import { buildStaffAssignment } from '../../domain/constructors'
-import {
-  userId as toUserId,
-  propertyId as toPropertyId,
-  portalId as toPortalId,
-  staffAssignmentId,
-} from '#/shared/domain/ids'
-import { randomUUID } from 'crypto'
+import { staffAssignmentId } from '#/shared/domain/ids'
+
+// fallow-ignore-next-line unused-type
+export type UpdateStaffPortalsInput = Readonly<{
+  userId: UserId
+  propertyId: PropertyId
+  portalIds: ReadonlyArray<PortalId>
+}>
 
 // fallow-ignore-next-line unused-type
 export type UpdateStaffPortalsDeps = Readonly<{
   assignmentRepo: StaffAssignmentRepository
   events: EventBus
   clock: () => Date
+  idGen: () => string
 }>
 
 export const updateStaffPortals =
   (deps: UpdateStaffPortalsDeps) =>
   async (
-    input: { userId: string; propertyId: string; portalIds: string[] },
+    input: UpdateStaffPortalsInput,
     ctx: AuthContext,
   ): Promise<{ added: number; removed: number }> => {
     // 1. Authorize — update is create + delete combined
@@ -40,20 +42,20 @@ export const updateStaffPortals =
       throw staffError('forbidden', 'this role cannot manage staff assignments')
     }
 
-    const uId = toUserId(input.userId)
-    const pId = toPropertyId(input.propertyId)
-    const desired = new Set(input.portalIds.map((id) => toPortalId(id)))
+    const correlationId = deps.idGen()
 
     // 2. Load current assignments for this user in this property
     const current = await deps.assignmentRepo.listByUserAndProperty(
       ctx.organizationId,
-      uId,
-      pId,
+      input.userId,
+      input.propertyId,
     )
 
     // 3. Build lookup: portalId → assignment
     const currentByPortal: Map<PortalId, StaffAssignment> = new Map(
-      current.filter((a) => a.portalId != null).map((a) => [a.portalId!, a] as const),
+      current
+        .filter((a): a is StaffAssignment & { portalId: PortalId } => a.portalId != null)
+        .map((a) => [a.portalId, a] as const),
     )
     const currentPortalIds = new Set(currentByPortal.keys())
 
@@ -65,17 +67,19 @@ export const updateStaffPortals =
     const referenceAssignment = current[0]
     const teamId = referenceAssignment?.teamId ?? null
 
-    for (const portalId of desired) {
-      if (!currentPortalIds.has(portalId)) {
-        const idGen = () => staffAssignmentId(randomUUID())
+    const desiredSet = new Set(input.portalIds)
+
+    for (const pId of input.portalIds) {
+      if (!currentPortalIds.has(pId)) {
+        const id = staffAssignmentId(deps.idGen())
 
         const buildResult = buildStaffAssignment({
-          id: idGen(),
+          id,
           organizationId: ctx.organizationId,
-          userId: uId,
-          propertyId: pId,
+          userId: input.userId,
+          propertyId: input.propertyId,
           teamId,
-          portalId,
+          portalId: pId,
           actingUserId: ctx.userId,
           now: deps.clock(),
         })
@@ -86,16 +90,18 @@ export const updateStaffPortals =
 
         await deps.assignmentRepo.insert(ctx.organizationId, buildResult.value)
 
-        await deps.events.emit(
-          staffAssigned({
+        await deps.events.emit({
+          ...staffAssigned({
             assignmentId: buildResult.value.id,
             organizationId: buildResult.value.organizationId,
             userId: buildResult.value.userId,
             propertyId: buildResult.value.propertyId,
             teamId: buildResult.value.teamId,
+            portalId: buildResult.value.portalId,
             occurredAt: buildResult.value.createdAt,
           }),
-        )
+          correlationId,
+        })
 
         added++
       }
@@ -103,18 +109,20 @@ export const updateStaffPortals =
 
     // 5. Remove assignments for portals no longer desired
     for (const [portalId, assignment] of currentByPortal) {
-      if (!desired.has(portalId)) {
+      if (!desiredSet.has(portalId)) {
         await deps.assignmentRepo.softDelete(ctx.organizationId, assignment.id)
 
-        await deps.events.emit(
-          staffUnassigned({
+        await deps.events.emit({
+          ...staffUnassigned({
             assignmentId: assignment.id,
             organizationId: assignment.organizationId,
             userId: assignment.userId,
             propertyId: assignment.propertyId,
+            portalId: assignment.portalId,
             occurredAt: deps.clock(),
           }),
-        )
+          correlationId,
+        })
 
         removed++
       }

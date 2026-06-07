@@ -1,0 +1,29 @@
+{
+  "metadata": {
+    "created": "2026-06-07",
+    "codebase": "reputation-key",
+    "base_path": "/Users/bozhidardenev/conductor/workspaces/reputation-key/hyderabad",
+    "total_files": 947,
+    "total_loc": 90491,
+    "contexts": 13,
+    "test_files": 199,
+    "convergence_target": 3,
+    "current_consecutive_clean": 0
+  },
+  "rounds_completed": 0,
+  "phases": {
+    "A_hygiene": "pending",
+    "B_contexts": "pending",
+    "C_components": "pending",
+    "D_crosscutting_security": "pending",
+    "E_documentation": "pending",
+    "convergence": "pending"
+  },
+  "findings": [],
+  "stats": {
+    "by_severity": { "CRITICAL": 0, "MAJOR": 0, "MINOR": 0, "NIT": 0 },
+    "by_category": {},
+    "by_segment": {},
+    "by_status": { "open": 0, "fixing": 0, "fixed": 0, "wontfix": 0, "deferred": 0 }
+  }
+}

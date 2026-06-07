@@ -2,8 +2,6 @@
 
 ## Bounded context
 
-TODO: One sentence describing what this context does.
-
 Team management — creation, updates, soft-deletion within a property.
 
 ## Glossary
@@ -16,7 +14,6 @@ Team management — creation, updates, soft-deletion within a property.
 - Team → Property (required `propertyId`).
 - Team → User (optional `teamLeadId`, via identity context).
 - Team ← StaffAssignment (staff can be assigned to a team within a property).
-- Goal context **subscribes to** `team.deleted` events to cancel team-scoped goals.
 - Team context **depends on** `PropertyPublicApi` for property existence validation.
 - Team context **depends on** `StaffPublicApi` for accessible property filtering and team member lookups.
 
@@ -67,7 +64,7 @@ team/
 
 Exported from `application/public-api.ts`:
 
-- Types: `Team`, `TeamId`
+- Types: `Team`, `TeamId`, `TeamPublicApi`
 - Event types: `TeamCreated`, `TeamUpdated`, `TeamDeleted`, `TeamEvent`
 - Event constructors: `teamCreated`, `teamUpdated`, `teamDeleted`
 

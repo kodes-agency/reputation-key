@@ -6,7 +6,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '#/components/ui/select'
-import type { StaffPortalEntry } from '#/contexts/staff/server/staff-portals'
+import type { StaffPortalEntry } from '#/contexts/staff/application/public-api'
 
 type StaffPortalFilterProps = Readonly<{
   portals: readonly StaffPortalEntry[]

@@ -51,43 +51,47 @@ export const getGoogleAuthUrl = createServerFn({ method: 'GET' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        // Require authentication — only logged-in users can generate OAuth URLs
-        const headers = headersFromContext()
-        const ctx = await resolveTenantContext(headers)
+        try {
+          // Require authentication — only logged-in users can generate OAuth URLs
+          const headers = headersFromContext()
+          const ctx = await resolveTenantContext(headers)
 
-        if (!can(ctx.role, 'integration.manage')) {
-          throwContextError(
-            'Forbidden',
-            { code: 'FORBIDDEN', message: 'Insufficient permissions' },
-            403,
+          if (!can(ctx.role, 'integration.manage')) {
+            throwContextError(
+              'Forbidden',
+              { code: 'FORBIDDEN', message: 'Insufficient permissions' },
+              403,
+            )
+          }
+
+          const { visibility } = data
+          const callbackUrl = `${getEnv().BETTER_AUTH_URL}/api/auth/google/callback`
+
+          // Build state with visibility preference, CSRF nonce, and HMAC signature
+          const nonce = crypto.randomUUID()
+          const payload = { visibility, nonce, ts: Date.now() }
+          const signature = signState(payload)
+          const state = Buffer.from(JSON.stringify({ ...payload, signature })).toString(
+            'base64',
           )
+
+          // Build OAuth URL
+          const params = new URLSearchParams({
+            client_id: getEnv().GOOGLE_CLIENT_ID,
+            redirect_uri: callbackUrl,
+            scope: GBP_OAUTH_SCOPES.join(' '),
+            response_type: 'code',
+            state,
+            access_type: 'offline',
+            prompt: 'consent',
+          })
+
+          const url = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`
+
+          return { url }
+        } catch (e) {
+          throw catchUntagged(e)
         }
-
-        const { visibility } = data
-        const callbackUrl = `${getEnv().BETTER_AUTH_URL}/api/auth/google/callback`
-
-        // Build state with visibility preference, CSRF nonce, and HMAC signature
-        const nonce = crypto.randomUUID()
-        const payload = { visibility, nonce, ts: Date.now() }
-        const signature = signState(payload)
-        const state = Buffer.from(JSON.stringify({ ...payload, signature })).toString(
-          'base64',
-        )
-
-        // Build OAuth URL
-        const params = new URLSearchParams({
-          client_id: getEnv().GOOGLE_CLIENT_ID,
-          redirect_uri: callbackUrl,
-          scope: GBP_OAUTH_SCOPES.join(' '),
-          response_type: 'code',
-          state,
-          access_type: 'offline',
-          prompt: 'consent',
-        })
-
-        const url = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`
-
-        return { url }
       },
       'GET',
       'integration.getGoogleAuthUrl',

@@ -15,8 +15,8 @@ import {
   removeStaffAssignmentInputSchema,
   listStaffAssignmentsInputSchema,
 } from '../application/dto/staff-assignment.dto'
-import { isStaffError } from '../domain/errors'
-import type { StaffErrorCode } from '../domain/errors'
+import { isStaffError } from '../application/public-api'
+import type { StaffErrorCode } from '../application/public-api'
 import {
   staffAssignmentId as toStaffAssignmentId,
   propertyId as toPropertyId,
@@ -115,17 +115,7 @@ export const listStaffAssignments = createServerFn({ method: 'GET' })
         } catch (e) {
           if (isStaffError(e))
             throwContextError('StaffError', e, staffErrorStatus(e.code))
-          // Transient DB errors (stale connection, cold start) should not crash the page.
-          // Log and return empty — callers degrade gracefully.
-          const logger = (await import('#/shared/observability/logger')).getLogger()
-          logger.error(
-            {
-              error: e instanceof Error ? e.message : String(e),
-              path: 'staff.listStaffAssignments',
-            },
-            'staff.listStaffAssignments — returning empty due to unexpected error',
-          )
-          return { assignments: [] }
+          throw catchUntagged(e)
         }
       },
       'GET',
@@ -172,7 +162,14 @@ export const updateStaffPortals = createServerFn({ method: 'POST' })
 
         try {
           const { useCases } = container
-          const result = await useCases.updateStaffPortals(data, ctx)
+          const result = await useCases.updateStaffPortals(
+            {
+              userId: toUserId(data.userId),
+              propertyId: toPropertyId(data.propertyId),
+              portalIds: data.portalIds.map((id) => toPortalId(id)),
+            },
+            ctx,
+          )
           return result
         } catch (e) {
           if (isStaffError(e))

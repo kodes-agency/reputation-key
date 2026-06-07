@@ -7,11 +7,11 @@ import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
-import { throwContextError } from '#/shared/auth/server-errors'
+import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { can } from '#/shared/domain/permissions'
 import { getContainer } from '#/composition'
 import { propertyId as toPropertyId } from '#/shared/domain/ids'
-import type { Goal, GoalProgress } from '../application/public-api'
+import type { StaffGoalEntry } from '../application/public-api'
 
 // ── Schema ──────────────────────────────────────────────────────────
 
@@ -20,13 +20,6 @@ export const listStaffGoalsSchema = z.object({
 })
 
 export type ListStaffGoalsInput = z.infer<typeof listStaffGoalsSchema>
-
-// ── Types ───────────────────────────────────────────────────────────
-
-export type StaffGoalEntry = {
-  goal: Goal
-  progress: GoalProgress | null
-}
 
 // ── Server function ─────────────────────────────────────────────────
 
@@ -45,52 +38,55 @@ export const listStaffGoals = createServerFn({ method: 'GET' })
           )
         }
 
-        const container = getContainer()
+        try {
+          const container = getContainer()
 
-        // If no propertyId provided, return empty (caller should supply one)
-        if (!data.propertyId) {
-          return { goals: [] as StaffGoalEntry[] }
+          // If no propertyId provided, return empty (caller should supply one)
+          if (!data.propertyId) {
+            return { goals: [] as StaffGoalEntry[] }
+          }
+
+          const propertyId = toPropertyId(data.propertyId)
+
+          // 1. Resolve assigned portals via staff public API
+          const portalIds = await container.staffPublicApi.getAssignedPortals(
+            { userId: ctx.userId, propertyId },
+            ctx,
+          )
+
+          // 2. Resolve portal groups from portal IDs
+          const groupIds =
+            portalIds.length > 0
+              ? await container.portalRepo.findGroupIdsByPortalIds(
+                  ctx.organizationId,
+                  portalIds,
+                )
+              : []
+
+          // 3. Query goals for portals and groups only (staff should not see property-scoped goals)
+          const goals = await container.goalRepo.listByPortalAndGroupIds({
+            organizationId: ctx.organizationId,
+            portalIds,
+            groupIds,
+          })
+
+          if (goals.length === 0) {
+            return { goals: [] as StaffGoalEntry[] }
+          }
+
+          // 4. Batch-fetch progress for all goals
+          const allGoalIds = goals.map((g) => g.id)
+          const progressMap = await container.goalRepo.getProgressBatch(allGoalIds)
+
+          const entries: StaffGoalEntry[] = goals.map((goal) => ({
+            goal,
+            progress: progressMap.get(goal.id) ?? null,
+          }))
+
+          return { goals: entries }
+        } catch (e) {
+          throw catchUntagged(e)
         }
-
-        const propertyId = toPropertyId(data.propertyId)
-
-        // 1. Resolve assigned portals for this staff member
-        const portalIds = await container.useCases.getAssignedPortals(
-          { userId: ctx.userId, propertyId },
-          ctx,
-        )
-
-        // 2. Resolve portal groups from portal IDs
-        const groupIds =
-          portalIds.length > 0
-            ? await container.portalRepo.findGroupIdsByPortalIds(
-                ctx.organizationId,
-                portalIds,
-              )
-            : []
-
-        // 3. Query goals for portals, groups, AND property-scoped goals
-        const goals = await container.goalRepo.listByPortalAndGroupIds({
-          organizationId: ctx.organizationId,
-          portalIds,
-          groupIds,
-          includePropertyScoped: true,
-        })
-
-        if (goals.length === 0) {
-          return { goals: [] as StaffGoalEntry[] }
-        }
-
-        // 4. Batch-fetch progress for all goals
-        const allGoalIds = goals.map((g) => g.id)
-        const progressMap = await container.goalRepo.getProgressBatch(allGoalIds)
-
-        const entries: StaffGoalEntry[] = goals.map((goal) => ({
-          goal,
-          progress: progressMap.get(goal.id) ?? null,
-        }))
-
-        return { goals: entries }
       },
       'GET',
       'goal.listStaffGoals',

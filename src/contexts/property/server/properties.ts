@@ -27,7 +27,12 @@ export const propertyErrorStatus = (code: PropertyErrorCode): number =>
     .with('forbidden', () => HTTP_STATUS.FORBIDDEN)
     .with('property_not_found', () => HTTP_STATUS.NOT_FOUND)
     .with('slug_taken', () => HTTP_STATUS.CONFLICT)
-    .with('invalid_slug', 'invalid_name', 'invalid_timezone', () => HTTP_STATUS.BAD_REQUEST)
+    .with(
+      'invalid_slug',
+      'invalid_name',
+      'invalid_timezone',
+      () => HTTP_STATUS.BAD_REQUEST,
+    )
     .exhaustive()
 
 // ── Shared Zod validators ──────────────────────────────────────────
@@ -102,7 +107,7 @@ export const listProperties = createServerFn({ method: 'GET' }).handler(
       } catch (e) {
         if (isPropertyError(e))
           throwContextError('PropertyError', e, propertyErrorStatus(e.code))
-        catchUntagged(e)
+        throw catchUntagged(e)
       }
     },
     'GET',

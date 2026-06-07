@@ -2,8 +2,6 @@
 
 ## Bounded context
 
-TODO: One sentence describing what this context does.
-
 Authentication, session management, organization membership, and invitation workflows. Wraps better-auth as a thin adapter layer — does not own core entity types.
 
 ## Glossary
@@ -36,14 +34,14 @@ Authentication, session management, organization membership, and invitation work
 
 ## Events produced
 
-| Tag                    | Payload                                         | When                    |
-| ---------------------- | ----------------------------------------------- | ----------------------- |
-| `organization.created` | orgId, orgName, slug, ownerId                   | Organization created    |
-| `member.invited`       | orgId, email, role, inviterId, invitationId     | Invitation sent         |
-| `invitation.accepted`  | orgId, userId, role, invitationId               | Invitation accepted     |
-| `invitation.rejected`  | orgId, invitationId, email                      | Invitation rejected     |
-| `member.removed`       | orgId, userId, removedBy                        | Member removed from org |
-| `member.role-changed`  | orgId, userId, previousRole, newRole, changedBy | Member role updated     |
+||| Tag | Payload | When |
+|| -------------------------------- | ---------------------------------------------------- | ----------------------- |
+|| `identity.organization.created` | organizationId, organizationName, slug, ownerId | Organization created |
+|| `identity.member.invited` | organizationId, email, role, userId, invitationId | Invitation sent |
+|| `identity.invitation.accepted` | organizationId, userId, role, invitationId | Invitation accepted |
+|| `identity.invitation.rejected` | organizationId, invitationId, email | Invitation rejected |
+|| `identity.member.removed` | organizationId, userId, removedBy | Member removed from org |
+|| `identity.member.role_changed` | organizationId, userId, previousRole, newRole, changedBy | Member role updated |
 
 ## Events consumed
 
@@ -52,7 +50,8 @@ None. Identity context does not subscribe to events from other contexts.
 ## Public API
 
 - `src/contexts/identity/application/public-api.ts`
-  - Re-exports event types and constructors: `OrganizationCreated`, `MemberInvited`, `InvitationAccepted`, `InvitationRejected`, `MemberRemoved`, `MemberRoleChanged`
+  - Re-exports event types: `IdentityOrganizationCreated`, `IdentityMemberInvited`, `IdentityInvitationAccepted`, `IdentityInvitationRejected`, `IdentityMemberRemoved`, `IdentityMemberRoleChanged`, `IdentityEvent`
+  - Re-exports event constructors: `identityOrganizationCreated`, `identityMemberInvited`, `identityMemberRemoved`, `identityMemberRoleChanged`
   - Re-exports port types: `IdentityPort`, `MemberRecord`, `InvitationRecord`, `OrganizationRecord`
 
 ## Architecture layers
@@ -77,20 +76,20 @@ identity/
 
 ## Use cases
 
-| Name                    | Input                                             | Output               | Permission           |
-| ----------------------- | ------------------------------------------------- | -------------------- | -------------------- |
-| `registerUser`          | `name`, `email`, `password`                       | `User`               | public               |
-| `registerUserAndOrg`    | `name`, `email`, `password`, `orgName`, `orgSlug` | `{ user, org }`      | public               |
-| `inviteMember`          | `email`, `role`, `orgId`                          | `Invitation`         | `org:manage_members` |
-| `resendInvitation`      | `invitationId`, `orgId`                           | `Invitation`         | `org:manage_members` |
-| `listInvitations`       | `orgId`                                           | `Invitation[]`       | `org:manage_members` |
-| `removeMember`          | `memberId`, `orgId`                               | `void`               | `org:manage_members` |
-| `updateMemberRole`      | `memberId`, `newRole`, `orgId`                    | `Member`             | `org:manage_members` |
-| `updateOrganization`    | `orgId`, `name?`, `slug?`, `logo?`                | `Organization`       | `org:manage`         |
-| `requestOrgLogoUpload`  | `orgId`, `contentType`                            | `{ uploadUrl, key }` | `org:manage`         |
-| `finalizeOrgLogoUpload` | `orgId`, `key`                                    | `Organization`       | `org:manage`         |
-| `requestAvatarUpload`   | `userId`, `contentType`                           | `{ uploadUrl, key }` | authenticated        |
-| `finalizeAvatarUpload`  | `userId`, `key`                                   | `User`               | authenticated        |
+| Name                    | Input                                                      | Output               | Permission           |
+| ----------------------- | ---------------------------------------------------------- | -------------------- | -------------------- |
+| `registerUser`          | `name`, `email`, `password`                                | `User`               | public               |
+| `registerUserAndOrg`    | `name`, `email`, `password`, `organizationName`, `orgSlug` | `{ user, org }`      | public               |
+| `inviteMember`          | `email`, `role`, `organizationId`                          | `Invitation`         | `org:manage_members` |
+| `resendInvitation`      | `invitationId`, `organizationId`                           | `Invitation`         | `org:manage_members` |
+| `listInvitations`       | `organizationId`                                           | `Invitation[]`       | `org:manage_members` |
+| `removeMember`          | `memberId`, `organizationId`                               | `void`               | `org:manage_members` |
+| `updateMemberRole`      | `memberId`, `newRole`, `organizationId`                    | `Member`             | `org:manage_members` |
+| `updateOrganization`    | `organizationId`, `name?`, `slug?`, `logo?`                | `Organization`       | `org:manage`         |
+| `requestOrgLogoUpload`  | `organizationId`, `contentType`                            | `{ uploadUrl, key }` | `org:manage`         |
+| `finalizeOrgLogoUpload` | `organizationId`, `key`                                    | `Organization`       | `org:manage`         |
+| `requestAvatarUpload`   | `userId`, `contentType`                                    | `{ uploadUrl, key }` | authenticated        |
+| `finalizeAvatarUpload`  | `userId`, `key`                                            | `User`               | authenticated        |
 
 ## Server functions
 
@@ -121,8 +120,6 @@ identity/
 | `listUserInvitations`   | GET    | authenticated        | List user's pending invitations |
 | `listUserOrganizations` | GET    | authenticated        | List user's organizations       |
 
-> **DEPRECATED per docs/standards.md §4.3**
-
 ## Intentional deviations
 
 - **No `types.ts` or `constructors.ts`**: Identity is a wrapper around better-auth. Core entity types come from better-auth's schema and API responses. See `domain/ARCHITECTURE.md` for full rationale.
@@ -149,4 +146,3 @@ Identity context uses the following permissions from `shared/domain/permissions.
 - `invitation.resend` — Resend invitation emails
 - `identity.avatar_upload` — Upload user avatar
 - `identity.logo_upload` — Upload organization logo
-- `dashboard.read` — Access dashboard data

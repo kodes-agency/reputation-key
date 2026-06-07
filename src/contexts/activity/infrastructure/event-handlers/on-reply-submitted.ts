@@ -1,4 +1,4 @@
-import type { ReviewReplySubmitted } from '#/contexts/review/domain/events'
+import type { ReviewReplySubmitted } from '#/contexts/review/application/public-api'
 import type { InsertActivityLogInput } from '../../application/use-cases/insert-activity-log'
 import type { InboxItemLookupPort } from '../../ports/inbox-item-lookup.port'
 import type { Queue } from 'bullmq'
