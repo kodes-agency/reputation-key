@@ -120,6 +120,7 @@ export function StaffTab({
 
       {editingUserId != null && (
         <EditStaffPortalsModal
+          key={editingUserId}
           userId={editingUserId}
           userName={editingUserName}
           propertyId={propertyId}
