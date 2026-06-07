@@ -1,4 +1,5 @@
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
+import { useEffect } from 'react'
 import { Settings } from 'lucide-react'
 import {
   Sidebar,
@@ -55,6 +56,13 @@ export function StaffSidebar({
   const navigate = useNavigate()
   const setOrg = useAction(setActiveOrganization)
   const rawPropertyId = useStaffPropertyId()
+
+  // Persist default property on first load so routes pick it up
+  useEffect(() => {
+    if (!rawPropertyId && properties.length > 0) {
+      setStaffPropertyId(properties[0].id)
+    }
+  }, [rawPropertyId, properties])
 
   // Default to the first property if none is stored (e.g., first load).
   const propertyId: string | undefined =
