@@ -10,7 +10,7 @@
     "convergence_target": 3,
     "current_consecutive_clean": 0
   },
-  "rounds_completed": 7,
+  "rounds_completed": 8,
   "phases": {
     "A_hygiene": "pending",
     "B_contexts": "pending",
@@ -2227,6 +2227,62 @@
       "fix_direction": "Mark F124 as by_design",
       "status": "false_positive",
       "found_in_round": 7
+    },
+    {
+      "id": "F158",
+      "severity": "HIGH",
+      "category": "logic-error",
+      "tag": "code-fix",
+      "segment": "S4",
+      "file": "src/components/inbox/reply-form.tsx:117",
+      "line": 117,
+      "what": "Rejected reply's onEditResubmit callback is a no-op: `onEditResubmit={() => {}}`. The domain state machine allows rejected \u2192 draft transition, but the UI never triggers it. Users see a button that does nothing when trying to re-edit a rejected reply.",
+      "why": "Rejected replies cannot be re-drafted through the UI \u2014 dead-end for users",
+      "fix_direction": "Wire onEditResubmit to call the draft-reply server function with the existing reply content, triggering the rejected \u2192 draft transition",
+      "status": "open",
+      "found_in_round": 8
+    },
+    {
+      "id": "F159",
+      "severity": "MEDIUM",
+      "category": "security",
+      "tag": "code-fix",
+      "segment": "S5",
+      "file": "src/components/features/guest/cookie-consent-banner.tsx:11-18",
+      "line": 11,
+      "what": "Cookie consent banner is purely cosmetic. The guest session cookie (sessionId) is set by the server regardless of consent state. The banner dismisses by writing to localStorage, but no code checks consent before setting cookies. The banner text says 'We use a session cookie' but there's no actual consent enforcement.",
+      "why": "Misleading consent \u2014 cookie is set before user consents. May violate cookie consent regulations (GDPR/ePrivacy)",
+      "fix_direction": "Either gate the session cookie behind consent (don't set until consented), or remove the banner if the cookie is strictly necessary and exempt",
+      "status": "open",
+      "found_in_round": 8
+    },
+    {
+      "id": "F160",
+      "severity": "MEDIUM",
+      "category": "security",
+      "tag": "code-fix",
+      "segment": "S5",
+      "file": "src/contexts/portal/domain/constructors.ts:133",
+      "line": 133,
+      "what": "buildPortalLink constructor uses validateUrl (accepts any valid URL including javascript:, data:) instead of isValidExternalUrl (HTTPS only). While use cases (create-link, update-link) add the HTTPS check, the domain constructor itself is permissive. If anyone calls the constructor directly without the use-case check, XSS is possible.",
+      "why": "Defense-in-depth gap \u2014 domain layer should enforce HTTPS-only for external links",
+      "fix_direction": "Change constructor to use isValidExternalUrl or a stricter validateExternalUrl that requires HTTPS",
+      "status": "open",
+      "found_in_round": 8
+    },
+    {
+      "id": "F161",
+      "severity": "LOW",
+      "category": "logic-error",
+      "tag": "code-fix",
+      "segment": "S2",
+      "file": "src/shared/auth/middleware.ts:20-22",
+      "line": 20,
+      "what": "Tenant cache keyed by raw cookie header with 5s TTL. After org switch (setActiveOrg), the cookie changes but stale entries with old orgId persist for up to 5 seconds. clearTenantCache only removes expired entries, not the specific stale key.",
+      "why": "Up to 5s of stale org context after switching organizations \u2014 server functions may operate on wrong tenant",
+      "fix_direction": "On org switch, call resetTenantCache() or clear all entries (not just expired ones)",
+      "status": "open",
+      "found_in_round": 8
     }
   ],
   "stats": {
@@ -2234,14 +2290,14 @@
       "MINOR": 7,
       "CRITICAL": 3,
       "MAJOR": 21,
-      "HIGH": 26,
-      "MEDIUM": 62,
-      "LOW": 38
+      "HIGH": 27,
+      "MEDIUM": 64,
+      "LOW": 39
     },
     "by_category": {},
     "by_segment": {},
     "by_status": {
-      "open": 156,
+      "open": 160,
       "fixing": 0,
       "fixed": 0,
       "wontfix": 0,
