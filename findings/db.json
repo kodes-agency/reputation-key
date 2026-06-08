@@ -10,7 +10,7 @@
     "convergence_target": 3,
     "current_consecutive_clean": 0
   },
-  "rounds_completed": 13,
+  "rounds_completed": 14,
   "phases": {
     "A_hygiene": "pending",
     "B_contexts": "pending",
@@ -2471,6 +2471,7 @@
       "wontfix": 0,
       "deferred": 0,
       "false_positive": 1
-    }
+    },
+    "consecutive_clean_rounds": 1
   }
 }
