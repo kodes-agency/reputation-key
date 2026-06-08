@@ -10,7 +10,7 @@
     "convergence_target": 3,
     "current_consecutive_clean": 0
   },
-  "rounds_completed": 8,
+  "rounds_completed": 9,
   "phases": {
     "A_hygiene": "pending",
     "B_contexts": "pending",
@@ -2283,6 +2283,20 @@
       "fix_direction": "On org switch, call resetTenantCache() or clear all entries (not just expired ones)",
       "status": "open",
       "found_in_round": 8
+    },
+    {
+      "id": "F162",
+      "severity": "MEDIUM",
+      "category": "data-consistency",
+      "tag": "code-fix",
+      "segment": "S5",
+      "file": "src/shared/db/schema/guest.schema.ts:59-76",
+      "line": 59,
+      "what": "The feedback table has no unique constraint on (sessionId, portalId). Unlike ratings which have `ratings_session_portal_unique` to prevent duplicate ratings per session per portal, feedback allows unlimited submissions per session per portal. A malicious or buggy client can flood feedback entries.",
+      "why": "No dedup protection for guest feedback \u2014 spam vector",
+      "fix_direction": "Add uniqueIndex on (sessionId, portalId) to match ratings, or add rate limiting at the use-case level if multiple feedback entries per portal are intentional",
+      "status": "open",
+      "found_in_round": 9
     }
   ],
   "stats": {
@@ -2291,13 +2305,13 @@
       "CRITICAL": 3,
       "MAJOR": 21,
       "HIGH": 27,
-      "MEDIUM": 64,
+      "MEDIUM": 65,
       "LOW": 39
     },
     "by_category": {},
     "by_segment": {},
     "by_status": {
-      "open": 160,
+      "open": 161,
       "fixing": 0,
       "fixed": 0,
       "wontfix": 0,
