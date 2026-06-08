@@ -10,7 +10,7 @@
     "convergence_target": 3,
     "current_consecutive_clean": 0
   },
-  "rounds_completed": 4,
+  "rounds_completed": 5,
   "phases": {
     "A_hygiene": "pending",
     "B_contexts": "pending",
@@ -2003,6 +2003,90 @@
       "fix_direction": "Verify goal repo queries always include organizationId filter",
       "status": "open",
       "found_in_round": 4
+    },
+    {
+      "id": "F142",
+      "severity": "HIGH",
+      "category": "logic-error",
+      "tag": "code-fix",
+      "segment": "S9",
+      "file": "src/contexts/identity/application/use-cases/remove-member.ts:35-57",
+      "line": 35,
+      "what": "removeMember does NOT check if the target is the last AccountAdmin in the org. An admin can remove themselves (or the only other admin), leaving the org with no admin. No self-removal guard either.",
+      "why": "Organization becomes unmanageable \u2014 no one left with AccountAdmin role to invite/manage members",
+      "fix_direction": "Add invariant check: count admins in org, reject if target is the last admin. Also reject self-removal if that would leave 0 admins",
+      "status": "open",
+      "found_in_round": 5
+    },
+    {
+      "id": "F143",
+      "severity": "MEDIUM",
+      "category": "logic-error",
+      "tag": "code-fix",
+      "segment": "S9",
+      "file": "src/contexts/identity/application/use-cases/update-member-role.ts:41-80",
+      "line": 64,
+      "what": "updateMemberRole persists the role change and then emits an event \u2014 but does NOT check if the role change would leave the org with 0 AccountAdmins. Demoting the last admin to PropertyManager or Staff makes the org unmanageable.",
+      "why": "Same as F142 \u2014 last-admin demotion leaves org without admin access",
+      "fix_direction": "Add invariant: if newTargetRole != 'AccountAdmin' and target is the last admin, reject",
+      "status": "open",
+      "found_in_round": 5
+    },
+    {
+      "id": "F144",
+      "severity": "MEDIUM",
+      "category": "logic-error",
+      "tag": "code-fix",
+      "segment": "S4",
+      "file": "src/contexts/property/application/use-cases/create-property.ts:33-40",
+      "line": 33,
+      "what": "Classic TOCTOU slug race: slugExists() checks uniqueness, then insert() happens later. Two concurrent createProperty calls with same name can both pass the slugExists check, then one fails at DB level. The error isn't caught as a duplicate slug.",
+      "why": "Concurrent property creation with same name causes unhandled DB error instead of friendly 'slug_taken' error",
+      "fix_direction": "Catch DB unique constraint violation on insert and map to slug_taken error, or use INSERT ON CONFLICT",
+      "status": "open",
+      "found_in_round": 5
+    },
+    {
+      "id": "F145",
+      "severity": "MEDIUM",
+      "category": "data-consistency",
+      "tag": "code-fix",
+      "segment": "S8",
+      "file": "src/contexts/review/application/use-cases/sync-reviews.ts:176-246",
+      "line": 188,
+      "what": "mirrorReply: when Google has a reply and a google_sync reply exists, the sync updates the reply text but preserves existing status/approvedBy/rejectedBy fields. If a draft reply was in progress locally and Google sync overwrites it, the local draft is lost but its status/submittedAt/approvedAt metadata persists on the google_sync row.",
+      "why": "Data inconsistency \u2014 google_sync reply has stale approval metadata from a previous local draft that was overwritten",
+      "fix_direction": "When overwriting with google_sync source, reset approval fields to null since the source is external",
+      "status": "open",
+      "found_in_round": 5
+    },
+    {
+      "id": "F146",
+      "severity": "LOW",
+      "category": "logic-error",
+      "tag": "code-fix",
+      "segment": "S6",
+      "file": "src/contexts/goal/domain/progress-strategy.ts:141-165",
+      "line": 155,
+      "what": "computeProgressValue for 'max' uses -Infinity as initial value. If all rows have negative values (possible for diff-based metrics), the result is correct. But if rows is empty, returns 0 \u2014 which could be misleading for a max aggregation (max of nothing is undefined, not 0).",
+      "why": "Minor: empty dataset shows 0 progress for MAX aggregation, which could trigger false goal completion if target is 0",
+      "fix_direction": "Consider returning null/undefined for empty rows on max aggregation, or document that 0 is intentional",
+      "status": "open",
+      "found_in_round": 5
+    },
+    {
+      "id": "F147",
+      "severity": "MEDIUM",
+      "category": "security",
+      "tag": "code-fix",
+      "segment": "S17",
+      "file": "src/contexts/integration/infrastructure/adapters/token-encryption.adapter.ts:9",
+      "line": 9,
+      "what": "ENCRYPTION_KEY is read from env as hex string. If the env var is not set, Buffer.from(undefined, 'hex') produces an empty buffer, and key.length !== 32 throws. But the error message leaks the expected key format \u2014 helpful for attackers.",
+      "why": "Error message reveals encryption scheme details (AES-256-GCM, 32 bytes, hex format)",
+      "fix_direction": "Use generic error message like 'Invalid encryption configuration' without format details",
+      "status": "open",
+      "found_in_round": 5
     }
   ],
   "stats": {
@@ -2010,14 +2094,14 @@
       "MINOR": 7,
       "CRITICAL": 3,
       "MAJOR": 21,
-      "HIGH": 22,
-      "MEDIUM": 53,
-      "LOW": 35
+      "HIGH": 23,
+      "MEDIUM": 57,
+      "LOW": 36
     },
     "by_category": {},
     "by_segment": {},
     "by_status": {
-      "open": 141,
+      "open": 147,
       "fixing": 0,
       "fixed": 0,
       "wontfix": 0,
