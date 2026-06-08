@@ -34,25 +34,18 @@ Authentication, session management, organization membership, and invitation work
 
 ## Events produced
 
-||| Tag | Payload | When |
-|| -------------------------------- | ---------------------------------------------------- | ----------------------- |
-|| `identity.organization.created` | organizationId, organizationName, slug, ownerId | Organization created |
-|| `identity.member.invited` | organizationId, email, role, userId, invitationId | Invitation sent |
-|| `identity.invitation.accepted` | organizationId, userId, role, invitationId | Invitation accepted |
-|| `identity.invitation.rejected` | organizationId, invitationId, email | Invitation rejected |
-|| `identity.member.removed` | organizationId, userId, removedBy | Member removed from org |
-|| `identity.member.role_changed` | organizationId, userId, previousRole, newRole, changedBy | Member role updated |
+|                                 | Tag                                                      | Payload                 | When |
+| ------------------------------- | -------------------------------------------------------- | ----------------------- | ---- |
+| `identity.organization.created` | organizationId, organizationName, slug, ownerId          | Organization created    |
+| `identity.member.invited`       | organizationId, email, role, userId, invitationId        | Invitation sent         |
+| `identity.invitation.accepted`  | organizationId, userId, role, invitationId               | Invitation accepted     |
+| `identity.invitation.rejected`  | organizationId, invitationId, email                      | Invitation rejected     |
+| `identity.member.removed`       | organizationId, userId, removedBy                        | Member removed from org |
+| `identity.member.role_changed`  | organizationId, userId, previousRole, newRole, changedBy | Member role updated     |
 
 ## Events consumed
 
 None. Identity context does not subscribe to events from other contexts.
-
-## Public API
-
-- `src/contexts/identity/application/public-api.ts`
-  - Re-exports event types: `IdentityOrganizationCreated`, `IdentityMemberInvited`, `IdentityInvitationAccepted`, `IdentityInvitationRejected`, `IdentityMemberRemoved`, `IdentityMemberRoleChanged`, `IdentityEvent`
-  - Re-exports event constructors: `identityOrganizationCreated`, `identityMemberInvited`, `identityMemberRemoved`, `identityMemberRoleChanged`
-  - Re-exports port types: `IdentityPort`, `MemberRecord`, `InvitationRecord`, `OrganizationRecord`
 
 ## Architecture layers
 
@@ -91,6 +84,13 @@ identity/
 | `requestAvatarUpload`   | `userId`, `contentType`                                    | `{ uploadUrl, key }` | authenticated        |
 | `finalizeAvatarUpload`  | `userId`, `key`                                            | `User`               | authenticated        |
 
+## Public API
+
+- `src/contexts/identity/application/public-api.ts`
+  - Re-exports event types: `IdentityOrganizationCreated`, `IdentityMemberInvited`, `IdentityInvitationAccepted`, `IdentityInvitationRejected`, `IdentityMemberRemoved`, `IdentityMemberRoleChanged`, `IdentityEvent`
+  - Re-exports event constructors: `identityOrganizationCreated`, `identityMemberInvited`, `identityMemberRemoved`, `identityMemberRoleChanged`
+  - Re-exports port types: `IdentityPort`, `MemberRecord`, `InvitationRecord`, `OrganizationRecord`
+
 ## Server functions
 
 | Name                    | Method | Permission           | Description                     |
@@ -119,18 +119,6 @@ identity/
 | `updateUserImageFn`     | POST   | authenticated        | Update user image URL           |
 | `listUserInvitations`   | GET    | authenticated        | List user's pending invitations |
 | `listUserOrganizations` | GET    | authenticated        | List user's organizations       |
-
-## Intentional deviations
-
-- **No `types.ts` or `constructors.ts`**: Identity is a wrapper around better-auth. Core entity types come from better-auth's schema and API responses. See `domain/ARCHITECTURE.md` for full rationale.
-- **Port-driven design**: All better-auth calls go through `IdentityPort`. Use cases never import better-auth directly.
-- **Use-case-only permission pattern**: Identity context enforces permissions exclusively at the use-case layer. Server functions do not add redundant `can()` checks for routes that delegate to use cases. For routes that bypass use cases (e.g., thin auth delegation), the server function performs the permission check directly.
-- **Domain rules (domain/rules.ts) use hasRole() directly for role-based business logic — this is intentional per ADR-0001.**
-
-## Dependencies
-
-- **Shared** — Uses shared domain ids (`OrganizationId`, `UserId`, `InvitationId`), roles, auth context, and slug utilities.
-- No direct dependencies on other bounded contexts (identity is a foundational context).
 
 ## Permissions
 

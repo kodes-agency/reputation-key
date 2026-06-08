@@ -26,6 +26,15 @@ Dashboard is a read-only aggregation context with no domain entities. It queries
 - **Metric context** via `MetricStatsPort` — Summed metric readings by time period and portal.
 - **Portal context** via `PortalMetricsPort` — Portal-scoped KPI sums, rating distributions, rating trends.
 
+## Invariants
+
+- Read-only: no mutations, no events produced, no event handlers.
+- Prior period is computed as `same duration immediately before current period`.
+- Engagement funnel returns `null` when no portal is selected (property dashboard).
+- Engagement funnel uses `portal.rating` for the ratings step (NOT `portal.feedback`).
+- Dashboard never queries other contexts' tables directly — only through facade ports.
+- When `portalId` is provided to `getKPIs`, metric queries (scans, feedback) are portal-scoped. Review KPIs (reviews, avgRating) remain property-scoped.
+
 ## Events produced
 
 None. Dashboard is a read-only query context — it does not emit domain events.
@@ -51,24 +60,6 @@ dashboard/
   build.ts             composition root
 ```
 
-## Ports
-
-Dashboard defines facade ports (per ADR-0007 / ADR-0008) for cross-context data:
-
-- **MetricStatsPort** — sums of metric readings by period/portal, implemented by metric context adapter.
-- **ReviewStatsPort** — review counts, rating distribution, reply performance, recent reviews, implemented by review context adapter.
-- **PortalMetricsPort** — portal-scoped metric sums, rating distribution, and rating trend. Implemented by portal-metrics.adapter.ts.
-- **StaffPortalResolverPort** — resolves which portals a staff user has access to for a given property. Implemented by staff context adapter.
-
-All ports are injected at composition time via `buildDashboardContext()`.
-
-## Public API
-
-Exported from `application/public-api.ts`:
-
-- Types: `KPIValue`, `KPIs`, `RecentReview`, `DashboardReplyStatus`, `DashboardData`, `PortalKPIs`, `PortalAnalyticsData`, `StaffDashboardData`
-- Error types: `DashboardErrorCode`, `DashboardError`, `isDashboardError`
-
 ## Use cases
 
 | Use case           | Input                                                     | Output                                                    | Description                                                                                       |
@@ -76,6 +67,13 @@ Exported from `application/public-api.ts`:
 | `getDashboardData` | organizationId, propertyId, portalId?, startDate, endDate | `DashboardData`                                           | Orchestrates all repo queries in parallel; engagement funnel + portal-scoped KPIs when portal set |
 |                    | `getPortalAnalytics`                                      | organizationId, propertyId, portalId, startDate, endDate  | `PortalAnalyticsData`                                                                             | Portal-scoped analytics: KPIs, funnel, rating distribution, rating trend. No review/reply data. |
 |                    | `getStaffDashboardData`                                   | organizationId, userId, propertyId, portalIds?, timeRange | `StaffDashboardData`                                                                              | Staff-scoped dashboard aggregation filtered to assigned portals.                                |
+
+## Public API
+
+Exported from `application/public-api.ts`:
+
+- Types: `KPIValue`, `KPIs`, `RecentReview`, `DashboardReplyStatus`, `DashboardData`, `PortalKPIs`, `PortalAnalyticsData`, `StaffDashboardData`
+- Error types: `DashboardErrorCode`, `DashboardError`, `isDashboardError`
 
 ## Server functions
 
@@ -91,11 +89,13 @@ Exported from `application/public-api.ts`:
 | ---------------- | ------------ | --------------- | ----- |
 | `dashboard.read` | ✓            | ✓               | ✓     |
 
-## Invariants
+## Ports
 
-- Read-only: no mutations, no events produced, no event handlers.
-- Prior period is computed as `same duration immediately before current period`.
-- Engagement funnel returns `null` when no portal is selected (property dashboard).
-- Engagement funnel uses `portal.rating` for the ratings step (NOT `portal.feedback`).
-- Dashboard never queries other contexts' tables directly — only through facade ports.
-- When `portalId` is provided to `getKPIs`, metric queries (scans, feedback) are portal-scoped. Review KPIs (reviews, avgRating) remain property-scoped.
+Dashboard defines facade ports (per ADR-0007 / ADR-0008) for cross-context data:
+
+- **MetricStatsPort** — sums of metric readings by period/portal, implemented by metric context adapter.
+- **ReviewStatsPort** — review counts, rating distribution, reply performance, recent reviews, implemented by review context adapter.
+- **PortalMetricsPort** — portal-scoped metric sums, rating distribution, and rating trend. Implemented by portal-metrics.adapter.ts.
+- **StaffPortalResolverPort** — resolves which portals a staff user has access to for a given property. Implemented by staff context adapter.
+
+All ports are injected at composition time via `buildDashboardContext()`.

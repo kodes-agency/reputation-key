@@ -6,19 +6,19 @@ Unified triage surface for reviews and feedback — status tracking, assignment,
 
 ## Glossary
 
-| Term              | Definition                                                                                                                                              |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Inbox Item**    | A unified triage entry. Points to either a Review or a Feedback. Carries denormalized filter/sort fields and inbox-specific state (status, assignment). |
-| **Source Type**   | The origin of an inbox item: `'review'` or `'feedback'`.                                                                                                |
-| **Source ID**     | The primary key of the source entity (a `ReviewId` or `FeedbackId`).                                                                                    |
-| **Status**        | The triage state of an inbox item: `new`, `read`, `addressed`, `escalated`, `archived`.                                                                 |
-|                   | **Addressed**                                                                                                                                           | The item has been handled. For reviews: only via `review.reply.published` event (auto-transition). For feedback: manager manually marks it (no reply possible). No manual "Mark Addressed" button for reviews — archive instead. |
-| **Escalated**     | The item has been flagged for management attention. Can be escalated from any status.                                                                   |
-| **Assignment**    | Linking an inbox item to a specific team member. PM+ only. Assignee must have access to the item's property.                                            |
-| **Internal Note** | A text annotation on an inbox item. Stored in `inbox_notes`. Tracks author and timestamp. Multiple notes per item.                                      |
-| **Source Date**   | The denormalized date from the source entity (`reviewedAt` for reviews, `createdAt` for feedback). Used for sorting.                                    |
-|                   | **New Badge**                                                                                                                                           | Count of inbox items with `status = 'new'` for the current user's accessible properties. Redis-cached, invalidated on status events. Ephemeral — items auto-transition `new→read` on open.                                       |
-|                   | **Unaddressed**                                                                                                                                         | Filter group meaning "needs attention": items with `status IN ('new', 'read')`. Used as the secondary tab alongside "All".                                                                                                       |
+| Term              | Definition                                                                                                                                                                                                                       |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Inbox Item**    | A unified triage entry. Points to either a Review or a Feedback. Carries denormalized filter/sort fields and inbox-specific state (status, assignment).                                                                          |
+| **Source Type**   | The origin of an inbox item: `'review'` or `'feedback'`.                                                                                                                                                                         |
+| **Source ID**     | The primary key of the source entity (a `ReviewId` or `FeedbackId`).                                                                                                                                                             |
+| **Status**        | The triage state of an inbox item: `new`, `read`, `addressed`, `escalated`, `archived`.                                                                                                                                          |
+| **Addressed**     | The item has been handled. For reviews: only via `review.reply.published` event (auto-transition). For feedback: manager manually marks it (no reply possible). No manual "Mark Addressed" button for reviews — archive instead. |
+| **Escalated**     | The item has been flagged for management attention. Can be escalated from any status.                                                                                                                                            |
+| **Assignment**    | Linking an inbox item to a specific team member. PM+ only. Assignee must have access to the item's property.                                                                                                                     |
+| **Internal Note** | A text annotation on an inbox item. Stored in `inbox_notes`. Tracks author and timestamp. Multiple notes per item.                                                                                                               |
+| **Source Date**   | The denormalized date from the source entity (`reviewedAt` for reviews, `createdAt` for feedback). Used for sorting.                                                                                                             |
+| **New Badge**     | Count of inbox items with `status = 'new'` for the current user's accessible properties. Redis-cached, invalidated on status events. Ephemeral — items auto-transition `new→read` on open.                                       |
+| **Unaddressed**   | Filter group meaning "needs attention": items with `status IN ('new', 'read')`. Used as the secondary tab alongside "All".                                                                                                       |
 
 ## Relationships
 
@@ -40,15 +40,15 @@ Unified triage surface for reviews and feedback — status tracking, assignment,
 
 ## Events produced
 
-|| Tag | Payload | When |
-|| ------------------------------------ | -------------------------------------------------------------------------------- | ------------------------------------------ |
-||| `inbox.inbox_item.created` | inboxItemId, organizationId, propertyId, sourceType, sourceId, occurredAt | New review or feedback triggers inbox item |
-||| `inbox.inbox_item.status_changed` | inboxItemId, organizationId, propertyId, userId, oldStatus, newStatus, occurredAt | Status transition |
-||| `inbox.inbox_item.assigned` | inboxItemId, organizationId, propertyId, userId, assignedTo, occurredAt | Item assigned to user |
-||| `inbox.inbox_item.unassigned` | inboxItemId, organizationId, propertyId, userId, previousAssignee, occurredAt | Item unassigned from user |
-||| `inbox.inbox_item.escalated` | inboxItemId, organizationId, propertyId, userId, oldStatus, occurredAt | Item escalated alongside status.changed |
-||| `inbox.inbox_note.added` | inboxItemId, organizationId, propertyId, userId, noteId, text, occurredAt | Internal note added to item |
-||| `inbox.inbox_item.bulk_status_changed` | inboxItemId, organizationId, propertyId, userId, oldStatus, newStatus, bulkId, occurredAt | Item status changed in bulk operation |
+| Tag                                    | Payload                                                                                   | When                                       |
+| -------------------------------------- | ----------------------------------------------------------------------------------------- | ------------------------------------------ |
+| `inbox.inbox_item.created`             | inboxItemId, organizationId, propertyId, sourceType, sourceId, occurredAt                 | New review or feedback triggers inbox item |
+| `inbox.inbox_item.status_changed`      | inboxItemId, organizationId, propertyId, userId, oldStatus, newStatus, occurredAt         | Status transition                          |
+| `inbox.inbox_item.assigned`            | inboxItemId, organizationId, propertyId, userId, assignedTo, occurredAt                   | Item assigned to user                      |
+| `inbox.inbox_item.unassigned`          | inboxItemId, organizationId, propertyId, userId, previousAssignee, occurredAt             | Item unassigned from user                  |
+| `inbox.inbox_item.escalated`           | inboxItemId, organizationId, propertyId, userId, oldStatus, occurredAt                    | Item escalated alongside status.changed    |
+| `inbox.inbox_note.added`               | inboxItemId, organizationId, propertyId, userId, noteId, text, occurredAt                 | Internal note added to item                |
+| `inbox.inbox_item.bulk_status_changed` | inboxItemId, organizationId, propertyId, userId, oldStatus, newStatus, bulkId, occurredAt | Item status changed in bulk operation      |
 
 Note: `inbox.inbox_item.created` has no `userId` — it's emitted by sync pipeline event handlers, not user actions. Activity log attributes it to `'system'`.
 
@@ -60,16 +60,6 @@ Note: `inbox.inbox_item.created` has no `userId` — it's emitted by sync pipeli
 | `review.updated`           | review         | Update denormalized fields on inbox item  |
 | `guest.feedback.submitted` | guest          | Create inbox item for new feedback        |
 | `review.reply.published`   | review         | Auto-transition inbox item to `addressed` |
-
-## Lookup ports
-
-Inbox defines cross-context lookup ports (per ADR-0008):
-
-- **ReviewLookupPort** — fetches review snippet (reviewerName, text, reviewerProfilePhotoUrl) by ID.
-- **FeedbackLookupPort** — fetches feedback snippet (comment, ratingValue) by ID.
-- **PropertyLookupPort** — fetches property name by ID (for denormalization).
-
-All ports are implemented by adapters from their respective contexts, wired at composition time.
 
 ## Architecture layers
 
@@ -141,14 +131,15 @@ Exported from `application/public-api.ts`:
 | `inbox.write`  | ✓            | ✓               | ✓     |
 | `inbox.manage` | ✓            | ✓               | —     |
 
-## Intentional deviations
+## Lookup ports
 
-- Domain rules (domain/rules.ts) use hasRole() directly for role-based business logic — this is intentional per ADR-0001.
+Inbox defines cross-context lookup ports (per ADR-0008):
 
-## Flagged ambiguities
+- **ReviewLookupPort** — fetches review snippet (reviewerName, text, reviewerProfilePhotoUrl) by ID.
+- **FeedbackLookupPort** — fetches feedback snippet (comment, ratingValue) by ID.
+- **PropertyLookupPort** — fetches property name by ID (for denormalization).
 
-- Whether bulk actions are atomic (all-or-nothing) or best-effort. Implementation decision.
-- Feedback category — deferred to Arc 7. No column until AI categorization is built.
+All ports are implemented by adapters from their respective contexts, wired at composition time.
 
 ## Resolved decisions
 

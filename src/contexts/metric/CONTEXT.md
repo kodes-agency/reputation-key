@@ -61,10 +61,6 @@ Exported from `application/public-api.ts`:
 - Event types: `MetricRecorded`, `MetricEvent`
 - Event constructors: `metricRecorded`
 
-## Background jobs
-
-- **`refresh-materialized-view.job.ts`** — Periodically refreshes metric materialized views for query performance.
-
 ## Server functions
 
 None. Metric is an internal context with no HTTP surface. Metrics are queried through the dashboard context's server functions (`getDashboardData`, `getPortalAnalytics`).
@@ -74,3 +70,7 @@ None. Metric is an internal context with no HTTP surface. Metrics are queried th
 - `metrics:read` — View metric readings and aggregates. Granted to AccountAdmin, PropertyManager. Staff cannot view metrics.
 - `metrics:write` — Record a metric reading. System-only (internal event handlers).
 - Metric data is scoped to the organization; cross-org access is forbidden.
+
+## Background jobs
+
+- **`refresh-materialized-view.job.ts`** — Periodically refreshes metric materialized views for query performance.

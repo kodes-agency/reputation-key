@@ -14,32 +14,6 @@ Manages Google OAuth connections, token lifecycle, GBP API infrastructure, and P
 - **Token Encryption** — Access/refresh tokens are encrypted at rest using AES-256 via `TokenEncryptionPort`.
 - **OAuth Callback** — Google OAuth flow redirects to `BETTER_AUTH_URL/api/auth/google/callback` after user consent.
 
-## Language
-
-**Google Connection**:
-An authenticated OAuth connection to a Google account that owns one or more GBP locations. Stores encrypted tokens.
-_Avoid_: Auth, integration, account (too generic)
-
-**GBP Location**:
-A specific business location from Google Business Profile, identified by a `placeId` (e.g., `accounts/123/locations/456`).
-_Avoid_: Place, business, store
-
-**GBP Cache**:
-Cached data from GBP API (locations only) stored locally to reduce API calls and improve performance. Reviews are normalized in the `reviews` table (review context).
-_Avoid_: Cache, data store, snapshot
-
-**Import Job**:
-A background job that processes a batch of GBP locations and creates corresponding properties in the system. Tracks progress (imported, skipped, failed counts).
-_Avoid_: Batch, bulk import, sync job
-
-**OAuth Token**:
-Access and refresh tokens encrypted at rest using AES-256-GCM. Refreshed automatically when expired.
-_Avoid_: Auth token, credential, secret
-
-**Visibility**:
-Connection visibility setting: `private` (only the creator sees it) or `organization` (all org members can use it for imports).
-_Avoid_: Permission, access level, sharing
-
 ## Relationships
 
 - An **Organization** can have multiple **Google Connections** (different accounts)
@@ -58,16 +32,6 @@ _Avoid_: Permission, access level, sharing
 - Token refresh happens automatically with a 5-minute expiry buffer — the `refreshGoogleToken` use case is called before any GBP API interaction
 - Access tokens are encrypted at rest; never stored in plaintext
 - Each organization may have multiple Google connections, but each connection belongs to exactly one org
-
-## Domain Rules
-
-- A connection must be `active` to start an import or list locations
-- Duplicate GBP place IDs within the same organization are skipped during import
-- Token refresh happens automatically with a 5-minute expiry buffer — the `refreshGoogleToken` use case is called before any GBP API interaction
-- Cache entries expire after a configurable TTL and are refreshed on next access
-- Only users with `property.create` permission can start an import
-- Disconnecting a connection deletes all associated cache entries
-- Import jobs track three terminal statuses: `completed`, `completed_with_skips` (some skipped or failed), and `failed` (all failed)
 
 ## Events produced
 
@@ -147,28 +111,3 @@ Exported from `application/public-api.ts`:
 ## Background jobs
 
 - **import-property** — Processes a single GBP location into a property. Created by `startPropertyImport` use case.
-
-## Example dialogue
-
-> **Dev:** "What happens when a user connects their Google account?"
-> **Domain expert:** "We redirect them to Google OAuth, exchange the code for tokens, encrypt them, and store a GoogleConnection with `active` status."
->
-> **Dev:** "Can multiple users in the same org connect the same Google account?"
-> **Domain expert:** "Yes, but each connection is separate. We track who connected it via `connectedBy` and visibility controls who can use it."
->
-> **Dev:** "How do we handle token expiration?"
-> **Domain expert:** "Automatically. When we detect an expired token, we use the refresh token to get new access/refresh tokens, encrypt them, and update the connection."
->
-> **Dev:** "What if an import fails for some locations?"
-> **Domain expert:** "We track each attempt: `importedCount` for successes, `skippedCount` for duplicates, `failedCount` for errors. The job completes regardless of partial failures."
->
-> **Dev:** "Does the import create properties immediately?"
-> **Domain expert:** "Yes, but asynchronously. The import job enqueues a BullMQ task that creates properties one by one, updating counters as it goes."
-
-## Flagged ambiguities
-
-- "Location" always refers to a GBP location (`accounts/*/locations/*`), not a physical address or property.
-- "Import" refers to the GBP→Property sync flow, not file uploads or data migrations.
-- "Connection" specifically means Google OAuth connection — other integrations would have their own connection types.
-- "Queue" refers to BullMQ job queue for background processing, not a message broker.
-- "completed_with_skips" means the import finished but some locations were skipped (duplicates) or failed — it is NOT a failure state.

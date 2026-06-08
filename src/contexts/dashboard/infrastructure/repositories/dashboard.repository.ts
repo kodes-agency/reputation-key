@@ -20,7 +20,11 @@ import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import { reviewId } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 
-/** Compute trend percentage. Returns null when prior is 0 or result is not finite. */
+/** Compute trend percentage. Returns null when prior is 0 or result is not finite.
+ *  DEVIATION: Pure computation in infrastructure layer. Acceptable because it's a
+ *  read-model aggregation (no domain rules depend on it) and tightly coupled to
+ *  the SQL result-shaping in this repo. Moving to domain would add indirection
+ *  with no architectural benefit for a thin read-model context. */
 function trend(current: number, prior: number): number | null {
   if (prior === 0) return null
   const result = ((current - prior) / prior) * 100

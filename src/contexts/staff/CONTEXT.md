@@ -33,18 +33,6 @@ Staff assignment management — linking users to properties (directly or via tea
 
 None. Staff context does not subscribe to events from other contexts.
 
-## Public API
-
-Exported from `application/public-api.ts`:
-
-- Types: `StaffPublicApi` interface
-  - `getAccessiblePropertyIds(organizationId, userId, role)` — Returns property IDs accessible to a user based on role and assignments. Returns `null` for AccountAdmin (all properties).
-  - `getAssignedPortals(input, ctx)` — Returns portal IDs assigned to a staff user for a given property. Cross-context consumers must call this, not `container.useCases`.
-- Types: `StaffPortalEntry` (cross-context portal lookup shape with branded `PortalId`)
-- Error types: `StaffErrorCode`, `StaffError`, `isStaffError`
-- Event types: `StaffAssigned`, `StaffUnassigned`, `StaffEvent`
-- Event constructors: `staffAssigned`, `staffUnassigned`
-
 ## Architecture layers
 
 ```
@@ -72,6 +60,18 @@ staff/
 | `removeStaffAssignment` | `assignmentId`, `organizationId`, `role`                                 | `void`                               | `staff_assignment.delete`                             |
 | `getAssignedPortals`    | `userId`, `propertyId`                                                   | `PortalId[]`                         | `staff_assignment.read`                               |
 | `updateStaffPortals`    | `userId`, `propertyId`, `portalIds`                                      | `{ added: number, removed: number }` | `staff_assignment.create` + `staff_assignment.delete` |
+
+## Public API
+
+Exported from `application/public-api.ts`:
+
+- Types: `StaffPublicApi` interface
+  - `getAccessiblePropertyIds(organizationId, userId, role)` — Returns property IDs accessible to a user based on role and assignments. Returns `null` for AccountAdmin (all properties).
+  - `getAssignedPortals(input, ctx)` — Returns portal IDs assigned to a staff user for a given property. Cross-context consumers must call this, not `container.useCases`.
+- Types: `StaffPortalEntry` (cross-context portal lookup shape with branded `PortalId`)
+- Error types: `StaffErrorCode`, `StaffError`, `isStaffError`
+- Event types: `StaffAssigned`, `StaffUnassigned`, `StaffEvent`
+- Event constructors: `staffAssigned`, `staffUnassigned`
 
 ## Server functions
 

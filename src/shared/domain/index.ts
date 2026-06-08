@@ -14,6 +14,7 @@ export type {
   ScanEventId,
   RatingId,
   FeedbackId,
+  ActivityLogId,
 } from './ids'
 
 // ── ID constructors ───────────────────────────────────────────────
@@ -29,6 +30,7 @@ export {
   scanEventId,
   ratingId,
   feedbackId,
+  activityLogId,
 } from './ids'
 
 // ── Core types ────────────────────────────────────────────────────

@@ -72,11 +72,6 @@ Exported from `application/public-api.ts`:
 
 - **`teams.ts`** — CRUD server functions for teams (create, update, list, get, delete).
 
-## Dependencies
-
-- **Property context** — `PropertyPublicApi` used to validate property existence on team creation.
-- **Staff context** — `StaffPublicApi` used for accessible property filtering and team member lookups.
-
 ## Permissions
 
 Team context uses the following permissions from `shared/domain/permissions.ts`:

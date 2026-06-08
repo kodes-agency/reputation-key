@@ -8,12 +8,11 @@ import type {
   MetricReadingId,
 } from '#/shared/domain/ids'
 
-export type MetricKey =
-  | 'portal.scan'
-  | 'portal.rating'
-  | 'portal.feedback'
-  | 'portal.review_link_click'
-  | 'property.review'
+export type { MetricKey } from '#/shared/domain/metric-keys'
+export type { AggregationFunction } from '#/shared/domain/metric-keys'
+
+// Re-export for backward compatibility — consumers import MetricKey from here
+import type { MetricKey } from '#/shared/domain/metric-keys'
 
 export type MetricReading = Readonly<{
   id: MetricReadingId

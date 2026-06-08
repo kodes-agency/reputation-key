@@ -76,7 +76,3 @@ Exported from `application/public-api.ts`:
 - `property.create` — Create new properties (also used cross-context by integration).
 - `property.update` — Update property settings.
 - `property.delete` — Soft-delete properties.
-
-## Dependencies
-
-- **Staff context** — Property listing uses `StaffPublicApi.getAccessiblePropertyIds` to filter properties by user role.
