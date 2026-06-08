@@ -10,7 +10,7 @@
     "convergence_target": 3,
     "current_consecutive_clean": 0
   },
-  "rounds_completed": 6,
+  "rounds_completed": 7,
   "phases": {
     "A_hygiene": "pending",
     "B_contexts": "pending",
@@ -2171,6 +2171,62 @@
       "fix_direction": "Batch upserts and use Promise.all with concurrency limit for independent reviews",
       "status": "open",
       "found_in_round": 6
+    },
+    {
+      "id": "F154",
+      "severity": "HIGH",
+      "category": "data-consistency",
+      "tag": "code-fix",
+      "segment": "S6",
+      "file": "src/contexts/goal/application/use-cases/cancel-goal.ts:58-68",
+      "line": 58,
+      "what": "Cancelling a recurring template goal first cancels all instances (cancelByParent) then updates the parent to cancelled. These are NOT in a transaction \u2014 if the parent update fails, instances are cancelled but the parent stays active. Conversely, if cancelByParent fails partway, some instances are cancelled while others remain active.",
+      "why": "Partial cancellation leaves recurring goal in inconsistent state \u2014 some instances cancelled, parent still active",
+      "fix_direction": "Wrap cancelByParent + parent update in a DB transaction, or reverse order (cancel parent first, then instances)",
+      "status": "open",
+      "found_in_round": 7
+    },
+    {
+      "id": "F155",
+      "severity": "HIGH",
+      "category": "data-consistency",
+      "tag": "code-fix",
+      "segment": "S6",
+      "file": "src/contexts/goal/infrastructure/jobs/spawn-recurring-instances.job.ts:105-122",
+      "line": 105,
+      "what": "Recurring instance spawn has TOCTOU race: checks for existing instance with listInstances() then inserts. Two concurrent cron runs (or a cron + manual trigger) can both pass the duplicate check and create two instances for the same period. The code itself flags this with TODO(review/G0-11) for a unique DB constraint.",
+      "why": "Duplicate recurring goal instances for the same period \u2014 double-counts progress",
+      "fix_direction": "Add unique DB constraint on (parentGoalId, periodStart) as the TODO suggests, and catch duplicate key errors",
+      "status": "open",
+      "found_in_round": 7
+    },
+    {
+      "id": "F156",
+      "severity": "MEDIUM",
+      "category": "data-consistency",
+      "tag": "code-fix",
+      "segment": "S6",
+      "file": "src/contexts/goal/application/use-cases/create-goal.ts:224",
+      "line": 224,
+      "what": "Creating a recurring template goal persists the template AND spawns the first instance, but not atomically (flagged with TODO(review/G0-11)). If instance creation fails, the template exists with no instance for the current period.",
+      "why": "Recurring goal template has no instance for the first period \u2014 progress tracking starts empty",
+      "fix_direction": "Wrap template + first instance creation in a transaction",
+      "status": "open",
+      "found_in_round": 7
+    },
+    {
+      "id": "F157",
+      "severity": "LOW",
+      "category": "correction",
+      "tag": "code-fix",
+      "segment": "S17",
+      "file": "findings/db.json:F124",
+      "line": 0,
+      "what": "F124 (dashboard route missing auth guard) is a FALSE POSITIVE. The Staff role has 'dashboard.read' permission in the permission matrix. The dashboard server functions check can(ctx.role, 'dashboard.read') which Staff passes. The route being accessible to Staff is by design.",
+      "why": "Correction \u2014 Staff CAN see the dashboard per the permission matrix",
+      "fix_direction": "Mark F124 as by_design",
+      "status": "false_positive",
+      "found_in_round": 7
     }
   ],
   "stats": {
@@ -2178,18 +2234,19 @@
       "MINOR": 7,
       "CRITICAL": 3,
       "MAJOR": 21,
-      "HIGH": 24,
-      "MEDIUM": 61,
-      "LOW": 37
+      "HIGH": 26,
+      "MEDIUM": 62,
+      "LOW": 38
     },
     "by_category": {},
     "by_segment": {},
     "by_status": {
-      "open": 153,
+      "open": 156,
       "fixing": 0,
       "fixed": 0,
       "wontfix": 0,
-      "deferred": 0
+      "deferred": 0,
+      "false_positive": 1
     }
   }
 }
