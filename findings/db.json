@@ -2437,6 +2437,20 @@
       "fix_direction": "Convert to a partial unique index: WHERE deleted_at IS NULL. In Drizzle this requires a raw SQL index or dropping the deleted row's name to a sentinel value on soft-delete",
       "status": "open",
       "found_in_round": 13
+    },
+    {
+      "id": "F173",
+      "severity": "MEDIUM",
+      "category": "correctness",
+      "tag": "code-fix",
+      "segment": "S3",
+      "file": "src/contexts/identity/application/use-cases/resend-invitation.ts:10+48",
+      "line": 10,
+      "what": "resend-invitation.ts re-exports AcceptInvitationInput as ResendInvitationInput (line 10) but TS cannot resolve the name at line 48. Pre-push hook fails with TS2304. This prevents deploying from a clean checkout.",
+      "why": "Build failure blocks deployment \u2014 pre-push typecheck catches this error",
+      "fix_direction": "Import the type directly instead of re-exporting, or check if the DTO module path is correct",
+      "status": "open",
+      "found_in_round": 13
     }
   ],
   "stats": {
@@ -2445,13 +2459,13 @@
       "CRITICAL": 3,
       "MAJOR": 21,
       "HIGH": 28,
-      "MEDIUM": 71,
+      "MEDIUM": 72,
       "LOW": 42
     },
     "by_category": {},
     "by_segment": {},
     "by_status": {
-      "open": 171,
+      "open": 172,
       "fixing": 0,
       "fixed": 0,
       "wontfix": 0,
