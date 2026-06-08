@@ -10,7 +10,7 @@
     "convergence_target": 3,
     "current_consecutive_clean": 0
   },
-  "rounds_completed": 5,
+  "rounds_completed": 6,
   "phases": {
     "A_hygiene": "pending",
     "B_contexts": "pending",
@@ -2087,6 +2087,90 @@
       "fix_direction": "Use generic error message like 'Invalid encryption configuration' without format details",
       "status": "open",
       "found_in_round": 5
+    },
+    {
+      "id": "F148",
+      "severity": "HIGH",
+      "category": "logic-error",
+      "tag": "code-fix",
+      "segment": "S9",
+      "file": "src/contexts/identity/application/use-cases/register-user-and-org.ts:69-95",
+      "line": 69,
+      "what": "Registration creates user first, then org. If org creation fails (step 3-4), the user account exists but has no org. The error message says 'Account created, but organization setup failed' but there's no recovery flow \u2014 user can't re-register (email taken) and can't create org (no UI for it if not authenticated).",
+      "why": "User is stranded with an account but no organization \u2014 cannot use the app at all",
+      "fix_direction": "Either (a) wrap in a transaction/compensating action that deletes the user on org failure, or (b) provide a recovery flow for users with accounts but no org",
+      "status": "open",
+      "found_in_round": 6
+    },
+    {
+      "id": "F149",
+      "severity": "MEDIUM",
+      "category": "security",
+      "tag": "code-fix",
+      "segment": "S17",
+      "file": "src/routes/api/webhooks/gbp/notifications.ts:105-106",
+      "line": 105,
+      "what": "Webhook always returns 200 even on internal errors (catch block returns 500, but the normal path returns 200 for all outcomes). Google Pub/Sub will not retry on 200, meaning a successfully enqueued but failed-to-process notification is silently dropped. But more critically: there's NO replay protection \u2014 the same messageId can trigger multiple sync jobs (the jobId is 'webhook:{messageId}' but BullMQ may still add duplicates if the previous job completed).",
+      "why": "Duplicate review sync jobs waste API quota and can cause race conditions on upsert",
+      "fix_direction": "Add dedup store (Redis SET with TTL) for processed messageIds, or use BullMQ job deduplication with attempts",
+      "status": "open",
+      "found_in_round": 6
+    },
+    {
+      "id": "F150",
+      "severity": "MEDIUM",
+      "category": "data-consistency",
+      "tag": "code-fix",
+      "segment": "S6",
+      "file": "src/contexts/integration/application/use-cases/import-property.ts:75-77",
+      "line": 75,
+      "what": "generatePropertySlug generates slug as `${normalizeSlug(businessName)}-${hashFn(gbpPlaceId).slice(0,8)}`. If the business name normalizes to empty string (e.g., name is all special chars like '!!!'), the slug becomes '-{hash}' which starts with a hyphen \u2014 likely violating slug constraints in the DB.",
+      "why": "Property import could fail with invalid slug format when business name contains no alphanumeric chars",
+      "fix_direction": "Add fallback: if normalizeSlug returns empty, use 'property' as base",
+      "status": "open",
+      "found_in_round": 6
+    },
+    {
+      "id": "F151",
+      "severity": "MEDIUM",
+      "category": "logic-error",
+      "tag": "code-fix",
+      "segment": "S8",
+      "file": "src/contexts/review/infrastructure/jobs/refresh-expiring-reviews.job.ts:37-40",
+      "line": 37,
+      "what": "Groups expiring reviews by propertyId:connectionId:externalLocationId but if externalLocationId is null/undefined for any review, it creates key 'propId:connId:undefined' \u2014 all reviews without externalLocationId get grouped into one sync job with locationName=undefined, which will fail at the Google API call.",
+      "why": "Reviews with missing externalLocationId (edge case from manual DB inserts or migration) cause sync job failures",
+      "fix_direction": "Skip reviews where externalLocationId is null/undefined, log a warning",
+      "status": "open",
+      "found_in_round": 6
+    },
+    {
+      "id": "F152",
+      "severity": "MEDIUM",
+      "category": "logic-error",
+      "tag": "code-fix",
+      "segment": "S6",
+      "file": "src/contexts/integration/application/use-cases/refresh-google-token.ts:53-54",
+      "line": 53,
+      "what": "Token refresh uses expiresIn from Google's response to compute tokenExpiresAt. If Google returns expiresIn=0 or a very small value, tokenExpiresAt will be in the past, causing an immediate refresh loop on the next call.",
+      "why": "Google API can return expiresIn=0 during token revocation \u2014 the code would loop trying to refresh a revoked token",
+      "fix_direction": "Validate expiresIn > minimum threshold (e.g., 60 seconds) before accepting; handle refresh failure gracefully",
+      "status": "open",
+      "found_in_round": 6
+    },
+    {
+      "id": "F153",
+      "severity": "LOW",
+      "category": "logic-error",
+      "tag": "code-fix",
+      "segment": "S8",
+      "file": "src/contexts/review/application/use-cases/sync-reviews.ts:93-159",
+      "line": 93,
+      "what": "Review sync processes reviews sequentially in a for loop. For a location with 500+ reviews, this means 500 sequential DB upserts + 500 event emits. No batching, no concurrency.",
+      "why": "Slow sync \u2014 a location with many reviews could take minutes, blocking the BullMQ worker",
+      "fix_direction": "Batch upserts and use Promise.all with concurrency limit for independent reviews",
+      "status": "open",
+      "found_in_round": 6
     }
   ],
   "stats": {
@@ -2094,14 +2178,14 @@
       "MINOR": 7,
       "CRITICAL": 3,
       "MAJOR": 21,
-      "HIGH": 23,
-      "MEDIUM": 57,
-      "LOW": 36
+      "HIGH": 24,
+      "MEDIUM": 61,
+      "LOW": 37
     },
     "by_category": {},
     "by_segment": {},
     "by_status": {
-      "open": 147,
+      "open": 153,
       "fixing": 0,
       "fixed": 0,
       "wontfix": 0,
