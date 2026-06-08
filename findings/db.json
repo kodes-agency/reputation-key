@@ -10,7 +10,7 @@
     "convergence_target": 3,
     "current_consecutive_clean": 0
   },
-  "rounds_completed": 10,
+  "rounds_completed": 11,
   "phases": {
     "A_hygiene": "pending",
     "B_contexts": "pending",
@@ -2339,6 +2339,48 @@
       "fix_direction": "Process goals in batches (cursor-based pagination by organizationId) to bound memory usage",
       "status": "open",
       "found_in_round": 10
+    },
+    {
+      "id": "F166",
+      "severity": "MEDIUM",
+      "category": "correctness",
+      "tag": "code-fix",
+      "segment": "S9",
+      "file": "src/contexts/staff/application/use-cases/update-staff-portals.ts:57+111",
+      "line": 57,
+      "what": "updateStaffPortals filters portalId=null assignments OUT of the diff (line 57), so the 'all portals' assignment created during invitation acceptance can never be removed through the UI. Step 5 only iterates currentByPortal which excludes null-portalId entries.",
+      "why": "Users invited with 'all portals' scope cannot have their assignments modified \u2014 the all-portal assignment is invisible to the update flow",
+      "fix_direction": "Handle portalId=null assignments explicitly: if input.portalIds is non-empty and a null-portalId assignment exists, soft-delete it and create specific assignments instead",
+      "status": "open",
+      "found_in_round": 11
+    },
+    {
+      "id": "F167",
+      "severity": "MEDIUM",
+      "category": "correctness",
+      "tag": "code-fix",
+      "segment": "S9",
+      "file": "src/contexts/staff/application/use-cases/update-staff-portals.ts:72-129",
+      "line": 72,
+      "what": "updateStaffPortals runs multiple sequential DB mutations (inserts + soft-deletes) without a transaction. If insert succeeds but soft-delete fails (or vice versa), the user ends up with duplicate or missing assignments.",
+      "why": "Non-atomic assignment updates can leave inconsistent state \u2014 partial application of the diff",
+      "fix_direction": "Wrap the diff operation (steps 4+5) in a DB transaction to ensure atomicity",
+      "status": "open",
+      "found_in_round": 11
+    },
+    {
+      "id": "F168",
+      "severity": "LOW",
+      "category": "correctness",
+      "tag": "code-fix",
+      "segment": "S7",
+      "file": "src/shared/auth/auth.ts:163-167",
+      "line": 163,
+      "what": "afterAcceptInvitation silently returns if propertyIds JSON parse fails. This means a new team member gets NO property assignments with zero feedback \u2014 no error logged, no retry, no notification.",
+      "why": "Silent failure leaves new team members with no portal assignments and no indication something went wrong",
+      "fix_direction": "Log a warning when JSON.parse fails so the issue is detectable in production logs. Consider queuing a retry or sending an admin notification",
+      "status": "open",
+      "found_in_round": 11
     }
   ],
   "stats": {
@@ -2347,13 +2389,13 @@
       "CRITICAL": 3,
       "MAJOR": 21,
       "HIGH": 27,
-      "MEDIUM": 67,
-      "LOW": 40
+      "MEDIUM": 69,
+      "LOW": 41
     },
     "by_category": {},
     "by_segment": {},
     "by_status": {
-      "open": 164,
+      "open": 167,
       "fixing": 0,
       "fixed": 0,
       "wontfix": 0,
