@@ -10,7 +10,7 @@
     "convergence_target": 3,
     "current_consecutive_clean": 0
   },
-  "rounds_completed": 9,
+  "rounds_completed": 10,
   "phases": {
     "A_hygiene": "pending",
     "B_contexts": "pending",
@@ -2297,6 +2297,48 @@
       "fix_direction": "Add uniqueIndex on (sessionId, portalId) to match ratings, or add rate limiting at the use-case level if multiple feedback entries per portal are intentional",
       "status": "open",
       "found_in_round": 9
+    },
+    {
+      "id": "F163",
+      "severity": "MEDIUM",
+      "category": "performance",
+      "tag": "code-fix",
+      "segment": "S6",
+      "file": "src/shared/db/schema/audit.ts:6-20",
+      "line": 6,
+      "what": "audit_logs table has no indexes on organizationId or userId. This table grows unboundedly (every significant action). Querying audit logs by org (the primary access pattern) causes full table scans.",
+      "why": "Audit log queries degrade to O(n) full scans as the table grows",
+      "fix_direction": "Add index on (organizationId) and (userId) to match query patterns",
+      "status": "open",
+      "found_in_round": 10
+    },
+    {
+      "id": "F164",
+      "severity": "MEDIUM",
+      "category": "performance",
+      "tag": "code-fix",
+      "segment": "S6",
+      "file": "src/contexts/metric/infrastructure/jobs/refresh-materialized-view.job.ts:17-19",
+      "line": 17,
+      "what": "Materialized view refresh uses REFRESH MATERIALIZED VIEW without CONCURRENTLY. This locks the view exclusively during refresh, blocking all reads. For daily/weekly metrics on a growing dataset, this causes brief query failures or timeouts.",
+      "why": "Read queries against metric MVs will block/fail during refresh window",
+      "fix_direction": "Use REFRESH MATERIALIZED VIEW CONCURRENTLY (requires unique index on the MV) to allow reads during refresh",
+      "status": "open",
+      "found_in_round": 10
+    },
+    {
+      "id": "F165",
+      "severity": "LOW",
+      "category": "performance",
+      "tag": "code-fix",
+      "segment": "S6",
+      "file": "src/contexts/goal/infrastructure/jobs/reconcile-goal-progress.job.ts:41",
+      "line": 41,
+      "what": "findAllActive() loads ALL active goals across ALL orgs into memory. At scale (thousands of orgs \u00d7 dozens of goals), this could consume significant memory and cause GC pressure.",
+      "why": "Potential OOM risk at scale \u2014 all active goals loaded at once",
+      "fix_direction": "Process goals in batches (cursor-based pagination by organizationId) to bound memory usage",
+      "status": "open",
+      "found_in_round": 10
     }
   ],
   "stats": {
@@ -2305,13 +2347,13 @@
       "CRITICAL": 3,
       "MAJOR": 21,
       "HIGH": 27,
-      "MEDIUM": 65,
-      "LOW": 39
+      "MEDIUM": 67,
+      "LOW": 40
     },
     "by_category": {},
     "by_segment": {},
     "by_status": {
-      "open": 161,
+      "open": 164,
       "fixing": 0,
       "fixed": 0,
       "wontfix": 0,
