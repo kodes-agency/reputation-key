@@ -22,7 +22,7 @@ export const createLinkCategory = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const headers = headersFromContext()
+        const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         try {
           const { useCases } = getContainer()
@@ -44,7 +44,7 @@ export const updateLinkCategory = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const headers = headersFromContext()
+        const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         try {
           const { useCases } = getContainer()
@@ -66,7 +66,7 @@ export const deleteLinkCategory = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const headers = headersFromContext()
+        const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         try {
           const { useCases } = getContainer()
@@ -88,7 +88,7 @@ export const reorderCategories = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const headers = headersFromContext()
+        const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         try {
           const { useCases } = getContainer()

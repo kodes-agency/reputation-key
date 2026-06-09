@@ -27,7 +27,7 @@ export const getInboxItemsFn = createServerFn({ method: 'GET' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const headers = headersFromContext()
+        const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         if (!can(ctx.role, 'inbox.read')) {
           throwContextError(
@@ -101,7 +101,7 @@ export const getNewCountFn = createServerFn({ method: 'GET' })
   .handler(
     tracedHandler(
       async ({ data: _data }) => {
-        const headers = headersFromContext()
+        const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         if (!can(ctx.role, 'inbox.read')) {
           throwContextError(
@@ -136,7 +136,7 @@ export const getInboxFolderCountsFn = createServerFn({ method: 'GET' })
     tracedHandler(
       async ({ data: _data }) => {
         void _data
-        const headers = headersFromContext()
+        const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         if (!can(ctx.role, 'inbox.read')) {
           throwContextError(

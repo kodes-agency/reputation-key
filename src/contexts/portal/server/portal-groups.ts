@@ -21,7 +21,7 @@ export const createPortalGroup = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const headers = headersFromContext()
+        const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         try {
           const { useCases } = getContainer()
@@ -47,7 +47,7 @@ export const updatePortalGroup = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const headers = headersFromContext()
+        const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         try {
           const { useCases } = getContainer()
@@ -73,7 +73,7 @@ export const deletePortalGroup = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const headers = headersFromContext()
+        const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         try {
           const { useCases } = getContainer()
@@ -99,7 +99,7 @@ export const listPortalGroups = createServerFn({ method: 'GET' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const headers = headersFromContext()
+        const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         try {
           const { useCases } = getContainer()

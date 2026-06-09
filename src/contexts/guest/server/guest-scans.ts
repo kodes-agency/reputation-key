@@ -54,7 +54,7 @@ export const recordScanFn = createServerFn({ method: 'POST' })
     tracedHandler(
       async ({ data }) => {
         const { useCases } = getContainer()
-        const headers = headersFromContext()
+        const headers = await headersFromContext()
 
         const cookieHeader = headers?.get('cookie') ?? ''
         const sessionId =

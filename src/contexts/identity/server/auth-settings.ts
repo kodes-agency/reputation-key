@@ -21,7 +21,7 @@ export const changePasswordFn = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const headers = headersFromContext()
+        const headers = await headersFromContext()
         await requireAuth(headers)
         const auth = getAuth()
 
@@ -61,7 +61,7 @@ export const updateProfileFn = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const headers = headersFromContext()
+        const headers = await headersFromContext()
         await requireAuth(headers)
         const auth = getAuth()
 
@@ -95,7 +95,7 @@ export const updateUserImageFn = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const headers = headersFromContext()
+        const headers = await headersFromContext()
         await requireAuth(headers)
         const auth = getAuth()
 

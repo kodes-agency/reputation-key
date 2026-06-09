@@ -21,7 +21,7 @@ export const submitRatingFn = createServerFn({ method: 'POST' })
     tracedHandler(
       async ({ data }) => {
         const { useCases, rateLimiter } = getContainer()
-        const headers = headersFromContext()
+        const headers = await headersFromContext()
 
         const cookieHeader = headers?.get('cookie') ?? ''
         // F065 NOTE: sessionId is extracted from cookie or generated. The generated
@@ -81,7 +81,7 @@ export const submitFeedbackFn = createServerFn({ method: 'POST' })
         }
 
         const { useCases, rateLimiter } = getContainer()
-        const headers = headersFromContext()
+        const headers = await headersFromContext()
 
         const cookieHeader = headers?.get('cookie') ?? ''
         const sessionId =

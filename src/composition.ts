@@ -158,7 +158,7 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     sendEmail: sendInvitationEmail,
     getOrganizationName: async (_ctx) => {
       const auth = getAuth()
-      const headers = headersFromContext()
+      const headers = await headersFromContext()
       const org = await auth.api.getFullOrganization({ headers })
       return org?.name ?? 'Unknown Organization'
     },

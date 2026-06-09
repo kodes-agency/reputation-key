@@ -23,7 +23,7 @@ export const connectGoogle = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const headers = headersFromContext()
+        const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         if (!can(ctx.role, 'integration.manage')) {
           throwContextError(
@@ -56,7 +56,7 @@ export const connectGoogle = createServerFn({ method: 'POST' })
 export const listGoogleConnections = createServerFn({ method: 'GET' }).handler(
   tracedHandler(
     async () => {
-      const headers = headersFromContext()
+      const headers = await headersFromContext()
       const ctx = await resolveTenantContext(headers)
       if (!can(ctx.role, 'integration.manage')) {
         throwContextError(
@@ -91,7 +91,7 @@ export const disconnectGoogle = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const headers = headersFromContext()
+        const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
 
         try {
@@ -116,7 +116,7 @@ export const updateConnectionVisibility = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const headers = headersFromContext()
+        const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
 
         try {

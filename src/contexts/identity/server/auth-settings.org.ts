@@ -26,7 +26,7 @@ export const createOrganizationFn = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const headers = headersFromContext()
+        const headers = await headersFromContext()
         await requireAuth(headers)
         const auth = getAuth()
 

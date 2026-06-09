@@ -95,7 +95,7 @@ export const setActiveOrganization = createServerFn({ method: 'POST' })
     tracedHandler(
       async ({ data }) => {
         try {
-          const headers = headersFromContext()
+          const headers = await headersFromContext()
           await requireAuth(headers)
           const auth = getAuth()
 
@@ -118,7 +118,7 @@ export const listUserInvitations = createServerFn({ method: 'GET' }).handler(
   tracedHandler(
     async () => {
       try {
-        const headers = headersFromContext()
+        const headers = await headersFromContext()
         await requireAuth(headers)
         const auth = getAuth()
 

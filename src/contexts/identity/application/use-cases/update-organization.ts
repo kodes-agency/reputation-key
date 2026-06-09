@@ -7,7 +7,7 @@ import { identityError } from '../../domain/errors'
 
 export type UpdateOrganizationDeps = Readonly<{
   updateOrg: (headers: Headers, data: Record<string, unknown>) => Promise<void>
-  getHeaders: () => Headers | undefined
+  getHeaders: () => Headers | Promise<Headers> | undefined
 }>
 
 export type UpdateOrganizationInput = Readonly<{
@@ -59,7 +59,7 @@ export const updateOrganization =
     }
 
     // 3. Delegate to auth provider
-    const headers = deps.getHeaders()
+    const headers = await deps.getHeaders()
     if (!headers) {
       throw identityError('validation_error', 'Request headers not available')
     }

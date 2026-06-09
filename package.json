@@ -6,7 +6,7 @@
     "#/*": "./src/*"
   },
   "scripts": {
-    "dev": "vite dev --port 3000",
+    "dev": "NODE_ENV=development vite dev --port 3000",
     "dev:worker": "tsx src/worker/index.ts",
     "build": "vite build",
     "build:worker": "tsup",
@@ -36,8 +36,8 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@rolldown/binding-darwin-arm64": "^1.0.1",
     "@tanstack/react-form": "^1.29.1",
-    "@tanstack/react-router": "latest",
-    "@tanstack/react-start": "latest",
+    "@tanstack/react-router": "1.170.10",
+    "@tanstack/react-start": "1.168.18",
     "better-auth": "^1.5.3",
     "bullmq": "^5.75.2",
     "class-variance-authority": "^0.7.1",
@@ -72,7 +72,7 @@
     "@playwright/test": "^1.59.1",
     "@tailwindcss/typography": "^0.5.19",
     "@tailwindcss/vite": "^4.2.4",
-    "@tanstack/devtools-vite": "latest",
+    "@tanstack/devtools-vite": "0.7.0",
     "@types/node": "^22.10.2",
     "@types/pg": "^8.15.6",
     "@types/qrcode": "^1.5.6",

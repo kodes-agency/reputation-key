@@ -28,7 +28,7 @@ Shared code is **used by 2+ modules** across the codebase. If only one context u
 - **`auth-client.ts`** — better-auth client instance
 - **`middleware.ts`** — `resolveTenantContext(headers)` resolves org from session, returns `AuthContext`. Has a 5s TTL cache keyed by cookie header to deduplicate concurrent server function calls. Call `clearTenantCache()` at the end of each server function.
 - **`permissions.ts`** — `createAccessControl(statement)` defining the universe of `resource.action` permissions
-- **`auth.functions.ts`** — server-side session helpers (`getSession`)
+- **`headers.ts`** — `headersFromContext()` (async). Builds a `Headers` object from the current TanStack Start request context. Uses **dynamic import** for `@tanstack/react-start/server` because this module is reachable from client code via `composition.ts` — a static import would pull server-only modules into the client bundle. Returns empty headers when called outside server context (e.g., BullMQ worker). All 47 server functions that call this must `await` it.
 - **`server-errors.ts`** — `throwContextError` (logs before throwing), `catchUntagged` for wrapping non-domain errors
 - **`emails.ts`** — email sending via Resend
 - **`error-status.ts`** — shared HTTP status code constants (`HTTP_STATUS`) and `standardErrorStatus` mapping (moved to `shared/http/status.ts`)

@@ -21,7 +21,7 @@ export const getActiveOrganization = createServerFn({ method: 'GET' }).handler(
   tracedHandler(
     async () => {
       try {
-        const headers = headersFromContext()
+        const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         if (!can(ctx.role, 'dashboard.read')) {
           throwContextError(
@@ -67,7 +67,7 @@ export const listMembers = createServerFn({ method: 'GET' }).handler(
   tracedHandler(
     async () => {
       try {
-        const headers = headersFromContext()
+        const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         if (!can(ctx.role, 'member.list')) {
           throwContextError(
@@ -112,7 +112,7 @@ export const listUserOrganizations = createServerFn({ method: 'GET' }).handler(
   tracedHandler(
     async () => {
       try {
-        const headers = headersFromContext()
+        const headers = await headersFromContext()
         await requireAuth(headers)
         const auth = getAuth()
 

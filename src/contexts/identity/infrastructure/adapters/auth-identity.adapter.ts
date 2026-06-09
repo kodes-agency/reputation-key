@@ -15,7 +15,6 @@ import { toDomainRole, toBetterAuthRole } from '#/shared/domain/roles'
 import { identityError } from '../../domain/errors'
 import { organizationId, invitationId } from '#/shared/domain/ids'
 import type { InvitationId } from '#/shared/domain/ids'
-import { getRequest } from '@tanstack/react-start/server'
 import {
   parseBetterAuthResponse,
   signUpResponseSchema,
@@ -27,15 +26,20 @@ import {
 } from './better-auth-schemas'
 
 /** Build request headers that carry the better-auth session cookie.
- * The adapter needs real headers because better-auth server APIs
- * authenticate via cookies, not via context objects. */
-function headersFromRequest(): Headers {
+ * Uses dynamic import to avoid @tanstack/react-start/server being part of
+ * the static module graph, which triggers client-side import protection. */
+async function headersFromRequest(): Promise<Headers> {
   const headers = new Headers()
-  const req = getRequest()
-  if (req) {
-    req.headers.forEach((value: string, key: string) => {
-      headers.set(key, value)
-    })
+  try {
+    const { getRequest } = await import('@tanstack/react-start/server')
+    const req = getRequest()
+    if (req) {
+      req.headers.forEach((value: string, key: string) => {
+        headers.set(key, value)
+      })
+    }
+  } catch {
+    // Outside server context (e.g., worker) — return empty headers
   }
   return headers
 }
@@ -80,7 +84,7 @@ export function createBetterAuthIdentityAdapter(): IdentityPort {
     },
 
     async listMembers(_ctx: AuthContext): Promise<ReadonlyArray<MemberRecord>> {
-      const headers = headersFromRequest()
+      const headers = await headersFromRequest()
       const result = await auth.api.listMembers({ headers })
 
       const data = parseBetterAuthResponse(
@@ -93,7 +97,7 @@ export function createBetterAuthIdentityAdapter(): IdentityPort {
     },
 
     async getMember(_ctx: AuthContext, memberId: string): Promise<MemberRecord | null> {
-      const headers = headersFromRequest()
+      const headers = await headersFromRequest()
       const result = await auth.api.listMembers({ headers })
 
       const data = parseBetterAuthResponse(
@@ -112,7 +116,7 @@ export function createBetterAuthIdentityAdapter(): IdentityPort {
       role: string,
       propertyIds?: ReadonlyArray<string>,
     ): Promise<InvitationId> {
-      const headers = headersFromRequest()
+      const headers = await headersFromRequest()
       const result = await auth.api.createInvitation({
         headers,
         body: {
@@ -142,7 +146,7 @@ export function createBetterAuthIdentityAdapter(): IdentityPort {
     },
 
     async listInvitations(_ctx: AuthContext): Promise<ReadonlyArray<InvitationRecord>> {
-      const headers = headersFromRequest()
+      const headers = await headersFromRequest()
       const result = await auth.api.listInvitations({ headers })
 
       const invitations = parseBetterAuthResponse(
@@ -195,7 +199,7 @@ export function createBetterAuthIdentityAdapter(): IdentityPort {
       memberId: string,
       role: string,
     ): Promise<void> {
-      const headers = headersFromRequest()
+      const headers = await headersFromRequest()
       await auth.api.updateMemberRole({
         headers,
         body: {
@@ -206,7 +210,7 @@ export function createBetterAuthIdentityAdapter(): IdentityPort {
     },
 
     async removeMember(_ctx: AuthContext, memberId: string): Promise<void> {
-      const headers = headersFromRequest()
+      const headers = await headersFromRequest()
       await auth.api.removeMember({
         headers,
         body: { memberIdOrEmail: memberId },
