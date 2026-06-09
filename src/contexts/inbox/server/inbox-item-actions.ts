@@ -23,7 +23,7 @@ export const assignInboxItemFn = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const headers = headersFromContext()
+        const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         if (!can(ctx.role, 'inbox.write')) {
           throwContextError(
@@ -61,7 +61,7 @@ export const addInboxNoteFn = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const headers = headersFromContext()
+        const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         if (!can(ctx.role, 'inbox.write')) {
           throwContextError(

@@ -21,7 +21,7 @@ const propertyIdSchema = z.object({
 export const listProperties = createServerFn({ method: 'GET' }).handler(
   tracedHandler(
     async () => {
-      const headers = headersFromContext()
+      const headers = await headersFromContext()
       const ctx = await resolveTenantContext(headers)
       // All authenticated roles can list properties
 
@@ -47,7 +47,7 @@ export const getProperty = createServerFn({ method: 'GET' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const headers = headersFromContext()
+        const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
 
         try {
@@ -72,7 +72,7 @@ export const deleteProperty = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const headers = headersFromContext()
+        const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
 
         try {

@@ -24,7 +24,7 @@ export const inviteMember = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const headers = headersFromContext()
+        const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         if (!can(ctx.role, 'member.create')) {
           throwContextError(
@@ -55,7 +55,7 @@ export const updateMemberRole = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const headers = headersFromContext()
+        const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         if (!can(ctx.role, 'member.update')) {
           throwContextError(
@@ -89,7 +89,7 @@ export const removeMember = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const headers = headersFromContext()
+        const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         if (!can(ctx.role, 'member.delete')) {
           throwContextError(

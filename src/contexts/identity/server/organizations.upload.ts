@@ -29,7 +29,7 @@ export const requestOrgLogoUpload = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const headers = headersFromContext()
+        const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         const { storage } = getContainer()
         const useCase = requestOrgLogoUploadUseCase({
@@ -57,7 +57,7 @@ export const finalizeOrgLogoUpload = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const headers = headersFromContext()
+        const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         const { storage } = getContainer()
         const useCase = finalizeOrgLogoUploadUseCase({ storage })
@@ -96,7 +96,7 @@ export const requestAvatarUpload = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const headers = headersFromContext()
+        const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         const { storage } = getContainer()
         const useCase = requestAvatarUploadUseCase({ storage, idGen: () => randomUUID() })
@@ -121,7 +121,7 @@ export const finalizeAvatarUpload = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const headers = headersFromContext()
+        const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         const { storage } = getContainer()
         const useCase = finalizeAvatarUploadUseCase({ storage })

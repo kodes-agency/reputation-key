@@ -44,7 +44,7 @@ export const getGoogleAuthUrl = createServerFn({ method: 'GET' })
       async ({ data }) => {
         try {
           // Require authentication — only logged-in users can generate OAuth URLs
-          const headers = headersFromContext()
+          const headers = await headersFromContext()
           const ctx = await resolveTenantContext(headers)
 
           if (!can(ctx.role, 'integration.manage')) {

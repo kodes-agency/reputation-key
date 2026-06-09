@@ -10,11 +10,17 @@ const config = defineConfig(({ mode }) => {
   // Vite's loadEnv populates process.env for the current mode.
   loadEnv(mode, process.cwd(), '')
 
+  // Nitro plugin is only needed for production builds (Sentry externalization).
+  // During dev, Nitro creates a dispatchFetch environment that prevents
+  // TanStack Start's dev server middleware from installing, which breaks
+  // server function routing and client hydration.
+  const isBuild = mode === 'production'
+
   return {
     resolve: { tsconfigPaths: true },
     plugins: [
       devtools(),
-      nitro({ rollupConfig: { external: [/^@sentry\//] } }),
+      ...(isBuild ? [nitro({ rollupConfig: { external: [/^@sentry\//] } })] : []),
       tailwindcss(),
       tanstackStart(),
       viteReact(),

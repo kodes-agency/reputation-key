@@ -26,7 +26,7 @@ export const updateStaffPortals = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const headers = headersFromContext()
+        const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
 
         // F058: Portal validation moved inside try/catch below to prevent unhandled errors

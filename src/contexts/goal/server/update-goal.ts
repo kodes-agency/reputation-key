@@ -24,7 +24,7 @@ export const updateGoal = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const headers = headersFromContext()
+        const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         if (!can(ctx.role, 'goal.update')) {
           throwContextError(

@@ -41,7 +41,7 @@ type IdentityContextDeps = Readonly<{
   /** Update organization fields via auth provider. */
   updateOrg: (headers: Headers, data: Record<string, unknown>) => Promise<void>
   /** Build headers carrying the current request session. */
-  headers: () => Headers
+  headers: () => Headers | Promise<Headers>
   /** Send an invitation email. */
   sendEmail: (params: {
     email: string

@@ -26,7 +26,7 @@ export const createLink = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const headers = headersFromContext()
+        const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         try {
           const { useCases } = getContainer()
@@ -48,7 +48,7 @@ export const updateLink = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const headers = headersFromContext()
+        const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         try {
           const { useCases } = getContainer()
@@ -70,7 +70,7 @@ export const deleteLink = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const headers = headersFromContext()
+        const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         try {
           const { useCases } = getContainer()
@@ -92,7 +92,7 @@ export const reorderLinks = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const headers = headersFromContext()
+        const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         try {
           const { useCases } = getContainer()
@@ -116,7 +116,7 @@ export const listPortalLinks = createServerFn({ method: 'GET' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const headers = headersFromContext()
+        const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         const { useCases } = getContainer()
 

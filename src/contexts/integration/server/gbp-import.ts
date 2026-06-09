@@ -22,7 +22,7 @@ export const listGbpLocations = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const headers = headersFromContext()
+        const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         if (!can(ctx.role, 'integration.manage')) {
           throwContextError(
@@ -57,7 +57,7 @@ export const startPropertyImport = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const headers = headersFromContext()
+        const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         if (!can(ctx.role, 'integration.manage')) {
           throwContextError(
@@ -92,7 +92,7 @@ export const getImportStatus = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const headers = headersFromContext()
+        const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         if (!can(ctx.role, 'integration.manage')) {
           throwContextError(

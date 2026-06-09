@@ -27,7 +27,7 @@ export const listPortals = createServerFn({ method: 'GET' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const headers = headersFromContext()
+        const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
 
         try {
@@ -52,7 +52,7 @@ export const getPortal = createServerFn({ method: 'GET' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const headers = headersFromContext()
+        const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
 
         try {
@@ -77,7 +77,7 @@ export const deletePortal = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const headers = headersFromContext()
+        const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
 
         try {

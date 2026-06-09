@@ -23,7 +23,7 @@ export const acceptInvitation = createServerFn({ method: 'POST' })
     tracedHandler(
       async ({ data }) => {
         try {
-          const headers = headersFromContext()
+          const headers = await headersFromContext()
           await requireAuth(headers)
           const auth = getAuth()
 
@@ -49,7 +49,7 @@ export const cancelInvitation = createServerFn({ method: 'POST' })
     tracedHandler(
       async ({ data }) => {
         try {
-          const headers = headersFromContext()
+          const headers = await headersFromContext()
           const ctx = await resolveTenantContext(headers)
           if (!can(ctx.role, 'invitation.cancel')) {
             throwContextError(
@@ -83,7 +83,7 @@ export const resendInvitation = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const headers = headersFromContext()
+        const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         if (!can(ctx.role, 'invitation.resend')) {
           throwContextError(
@@ -114,7 +114,7 @@ export const resendInvitation = createServerFn({ method: 'POST' })
 export const listInvitations = createServerFn({ method: 'GET' }).handler(
   tracedHandler(
     async () => {
-      const headers = headersFromContext()
+      const headers = await headersFromContext()
       const ctx = await resolveTenantContext(headers)
       if (!can(ctx.role, 'invitation.list')) {
         throwContextError(

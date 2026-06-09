@@ -111,6 +111,79 @@ Composition root: `src/composition.ts`. Bootstrap: `src/bootstrap.ts`.
 - Never use `hasRole()` for permission checks — only for hierarchy
 - Never call `toDomainRole()` on an already-mapped domain role — `resolveTenantContext()` already returns domain roles
 
+## Pitfalls — Do Not Repeat
+
+### P001: Nitro plugin in dev mode breaks TanStack Start hydration
+
+**Symptom:** Pages render but server functions return 404 HTML instead of JSON. Client hydration never initializes. Browser console shows no TanStack router state.
+
+**Root cause:** The `nitro()` Vite plugin (used for Sentry externalization in production builds) adds a `dispatchFetch` method to its Vite SSR environment during dev mode. TanStack Start's dev server plugin checks `"dispatchFetch" in serverEnv` and **skips installing its own middleware** when it finds it. Without TanStack's middleware, `/_serverFn/*` routes fall through to Nitro's catch-all, which returns HTML.
+
+**Fix:** Only load `nitro()` during production builds:
+
+```ts
+const isBuild = mode === 'production'
+return {
+  plugins: [
+    ...(isBuild ? [nitro({ rollupConfig: { external: [/^@sentry\//] } })] : []),
+    // ...other plugins
+  ],
+}
+```
+
+**Rule:** Any Vite plugin that modifies the SSR environment must be validated against TanStack Start's dev server middleware. Test by hitting `/_serverFn/` — it must return JSON, never HTML.
+
+**Reference:** ADR 0012.
+
+### P002: NODE_ENV=production in shell skips devDependencies
+
+**Symptom:** `vite: command not found`, missing TanStack devtools, no vitest.
+
+**Root cause:** `NODE_ENV=production` in the shell environment causes `pnpm install` to skip all `devDependencies`.
+
+**Fix:** The dev script explicitly sets `NODE_ENV=development`:
+
+```json
+"dev": "NODE_ENV=development vite dev --port 3000"
+```
+
+**Rule:** Never assume `NODE_ENV` defaults to `development`. Always set it explicitly in dev scripts.
+
+### P003: TanStack @latest version drift breaks server function serialization
+
+**Symptom:** Server functions return unexpected errors after a clean install. `start-plugin-core@1.171.x` vs `react-start@1.168.x` mismatch.
+
+**Root cause:** Using `"latest"` in `package.json` means every `pnpm install` can pull different versions. TanStack Start's internal serialization protocol is version-sensitive.
+
+**Fix:** Pin all TanStack packages to exact versions in `package.json`:
+
+- `@tanstack/react-router`: `1.170.10`
+- `@tanstack/react-start`: `1.168.18`
+- `@tanstack/devtools-vite`: `0.7.0`
+
+**Rule:** Never use `"latest"` or unbounded ranges for TanStack packages. Test version bumps deliberately.
+
+### P004: Static import of @tanstack/react-start/server in shared modules
+
+**Symptom:** Client-side build errors about server-only modules being imported in client bundles.
+
+**Root cause:** `headersFromContext()` used a static `import { getRequest }` from `@tanstack/react-start/server`. Because `composition.ts` imports from shared and is reachable from both client and server, the static import pulled the server-only module into the client bundle.
+
+**Fix:** Use dynamic import with try/catch:
+
+```ts
+export async function headersFromContext(): Promise<Headers> {
+  try {
+    const { getRequest } = await import('@tanstack/react-start/server')
+    // ...
+  } catch {
+    // Outside server context — return empty headers
+  }
+}
+```
+
+**Rule:** Any shared module that touches `@tanstack/react-start/server` must use dynamic imports. Server functions are the only place where static imports from this package are safe.
+
 ## Architecture Decisions
 
 See `docs/adr/` for formal ADRs. See `docs/standards.md` for codebase-wide naming and structural standards. Key ADRs:
@@ -128,6 +201,7 @@ See `docs/adr/` for formal ADRs. See `docs/standards.md` for codebase-wide namin
 || 0009 | Permission Model | Identity & Authorization |
 || 0010 | Activity Context: BullMQ Event Delivery | Activity, Event Delivery |
 || 0011 | Notification Context: BullMQ Event Delivery | Notification, Event Delivery |
+| 0012 | Nitro Vite Plugin — Dev-Mode Exclusion | Dev Tooling, Vite, TanStack Start |
 
 ## Key Files
 

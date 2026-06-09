@@ -39,7 +39,7 @@ export type RegisterUserAndOrgDeps = Readonly<{
   /** Set the active organization for the current session. */
   setActiveOrg: (headers: Headers, orgId: string) => Promise<void>
   /** Build headers carrying the current request session. */
-  headers: () => Headers
+  headers: () => Headers | Promise<Headers>
   /** Injectable clock for deterministic timestamps. */
   clock: () => Date
 }>
@@ -86,7 +86,7 @@ export const registerUserAndOrg =
     // A compensating transaction (delete user on org failure) is intentionally
     // NOT attempted — the user may have already received a welcome email or
     // triggered other side effects. Manual admin cleanup is safer.
-    const headers = deps.headers()
+    const headers = await deps.headers()
     let orgId: string
     try {
       orgId = await deps.createOrg(headers, validName, slug, userId)
