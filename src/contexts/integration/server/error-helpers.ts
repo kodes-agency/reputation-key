@@ -2,7 +2,7 @@
 // Error-to-HTTP-status mapping shared across server function modules.
 
 import { match } from 'ts-pattern'
-import { HTTP_STATUS } from '#/shared/auth/error-status'
+import { HTTP_STATUS } from '#/shared/http/status'
 import type { IntegrationErrorCode } from '../domain/errors'
 
 export const integrationErrorStatus = (code: IntegrationErrorCode): number =>

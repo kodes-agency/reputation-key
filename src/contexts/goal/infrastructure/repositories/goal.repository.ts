@@ -115,6 +115,33 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
     })
   },
 
+  cancelGoalWithInstances: async (goalId, orgId, now) => {
+    return trace('goal.cancelGoalWithInstances', async () => {
+      return db.transaction(async (tx) => {
+        // 1. Cancel all non-completed child instances
+        await tx
+          .update(goals)
+          .set({ status: 'cancelled', updatedAt: now })
+          .where(
+            and(
+              eq(goals.parentGoalId, goalId),
+              eq(goals.organizationId, orgId),
+              sql`${goals.status} != 'completed'`,
+            ),
+          )
+
+        // 2. Cancel the parent goal
+        const result = await tx
+          .update(goals)
+          .set({ status: 'cancelled', updatedAt: now })
+          .where(and(eq(goals.id, goalId), eq(goals.organizationId, orgId)))
+          .returning()
+
+        return result[0] ? goalFromRow(result[0]) : null
+      })
+    })
+  },
+
   // ── Goal Progress ──────────────────────────────────────────────────────
 
   insertProgress: async (progress) => {
@@ -175,9 +202,9 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
 
   // ── Event-driven increment ──────────────────────────────────────────
 
-  /** System-level query — no tenant filter by design. Used by spawn-recurring-instances job which scans all orgs. */
-  findAllActive: async () => {
-    return trace('goal.findAllActive', async () => {
+  /** ⚠️ CROSS-TENANT: System-level query — scans ALL orgs. Only for background jobs (reconcile, spawner). */
+  findAllActiveAcrossTenants: async () => {
+    return trace('goal.findAllActiveAcrossTenants', async () => {
       const rows = await db.select().from(goals).where(eq(goals.status, 'active'))
       return rows.map(goalFromRow)
     })
@@ -218,6 +245,25 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
         await tx.insert(goals).values({
           ...goalToInsertRow(goal),
           id: goal.id as string,
+        })
+        await tx.insert(goalProgress).values({
+          ...goalProgressToInsertRow(progress),
+          id: progress.id as string,
+        })
+      })
+    })
+  },
+
+  createTemplateInstanceAndProgress: async (template, instance, progress) => {
+    return trace('goal.createTemplateInstanceAndProgress', async () => {
+      await db.transaction(async (tx) => {
+        await tx.insert(goals).values({
+          ...goalToInsertRow(template),
+          id: template.id as string,
+        })
+        await tx.insert(goals).values({
+          ...goalToInsertRow(instance),
+          id: instance.id as string,
         })
         await tx.insert(goalProgress).values({
           ...goalProgressToInsertRow(progress),
@@ -277,8 +323,12 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
     })
   },
 
-  incrementProgress: async (goalId, aggregation, delta) => {
+  incrementProgress: async (goalId, organizationId, aggregation, delta) => {
     return trace('goal.incrementProgress', async () => {
+      // Atomic tenant isolation: subquery ensures the goal belongs to
+      // the caller's org at the moment the UPDATE executes (no TOCTOU gap).
+      const tenantGuard = sql`EXISTS (SELECT 1 FROM goals WHERE id = ${goalId} AND organization_id = ${organizationId})`
+
       if (aggregation === 'sum' || aggregation === 'count') {
         const incDelta = aggregation === 'count' ? 1 : delta
         const result = await db
@@ -286,14 +336,16 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
           .set({
             currentValue: sql`${goalProgress.currentValue} + ${incDelta}`,
           })
-          .where(eq(goalProgress.goalId, goalId))
+          .where(and(eq(goalProgress.goalId, goalId), tenantGuard))
           .returning({
             currentValue: goalProgress.currentValue,
             currentSum: goalProgress.currentSum,
             currentCount: goalProgress.currentCount,
           })
         if (!result[0]) {
-          throw new Error(`incrementProgress: no progress row for goal ${goalId}`)
+          throw new Error(
+            `incrementProgress: goal ${goalId} not found, tenant mismatch, or no progress row`,
+          )
         }
         return {
           currentValue: result[0].currentValue,
@@ -308,14 +360,16 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
           .set({
             currentValue: sql`GREATEST(${goalProgress.currentValue}, ${delta})`,
           })
-          .where(eq(goalProgress.goalId, goalId))
+          .where(and(eq(goalProgress.goalId, goalId), tenantGuard))
           .returning({
             currentValue: goalProgress.currentValue,
             currentSum: goalProgress.currentSum,
             currentCount: goalProgress.currentCount,
           })
         if (!result[0]) {
-          throw new Error(`incrementProgress: no progress row for goal ${goalId}`)
+          throw new Error(
+            `incrementProgress: goal ${goalId} not found, tenant mismatch, or no progress row`,
+          )
         }
         return {
           currentValue: result[0].currentValue,
@@ -332,14 +386,16 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
             currentCount: sql`COALESCE(${goalProgress.currentCount}, 0) + 1`,
             currentValue: sql`(COALESCE(${goalProgress.currentSum}, 0) + ${delta}) / (COALESCE(${goalProgress.currentCount}, 0) + 1)`,
           })
-          .where(eq(goalProgress.goalId, goalId))
+          .where(and(eq(goalProgress.goalId, goalId), tenantGuard))
           .returning({
             currentValue: goalProgress.currentValue,
             currentSum: goalProgress.currentSum,
             currentCount: goalProgress.currentCount,
           })
         if (!result[0]) {
-          throw new Error(`incrementProgress: no progress row for goal ${goalId}`)
+          throw new Error(
+            `incrementProgress: goal ${goalId} not found, tenant mismatch, or no progress row`,
+          )
         }
         return {
           currentValue: result[0].currentValue,

@@ -37,7 +37,7 @@ export const createSpawnRecurringInstancesHandler =
       const logger = getLogger()
       const now = deps.clock()
 
-      const templates = await deps.goalRepo.findAllActive()
+      const templates = await deps.goalRepo.findAllActiveAcrossTenants()
       const recurringTemplates = templates.filter(
         (g) => g.goalType === 'recurring' && g.parentGoalId === null,
       )
@@ -102,25 +102,6 @@ export const createSpawnRecurringInstancesHandler =
 
           const instance = instanceResult.value
 
-          // Guard against race condition: check if instance already exists for this period
-          // TODO(review/G0-11): Replace with a unique DB constraint on (parentGoalId, periodStart) for correctness
-          const instances = await deps.goalRepo.listInstances(
-            template.id,
-            template.organizationId,
-          )
-          const duplicate = instances.some(
-            (inst) =>
-              inst.periodStart &&
-              Math.abs(inst.periodStart.getTime() - nextStart.getTime()) < 1000,
-          )
-          if (duplicate) {
-            logger.info(
-              { templateId: template.id },
-              'Instance already exists for this period — skipping',
-            )
-            continue
-          }
-
           // Create initial progress
           const progress: GoalProgress = {
             id: goalProgressId(deps.idGen()),
@@ -132,8 +113,24 @@ export const createSpawnRecurringInstancesHandler =
             computedSource: 'event_increment',
           }
 
-          await deps.goalRepo.createGoalAndProgress(instance, progress)
-          spawned++
+          try {
+            await deps.goalRepo.createGoalAndProgress(instance, progress)
+            spawned++
+          } catch (err) {
+            // Unique constraint on (parentGoalId, periodStart) — concurrent job beat us
+            const isDuplicate =
+              err instanceof Error &&
+              'code' in err &&
+              (err as { code: string }).code === '23505'
+            if (isDuplicate) {
+              logger.info(
+                { templateId: template.id as string },
+                'Instance already exists for this period (DB constraint) — skipping',
+              )
+              continue
+            }
+            throw err
+          }
         } catch (err) {
           logger.error(
             { err, templateId: template.id },

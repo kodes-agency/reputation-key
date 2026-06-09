@@ -84,7 +84,7 @@ export async function sendResetPasswordEmail(to: string, url: string): Promise<v
 
 // ─── Email HTML templates ─────────────────────────────────────────────
 
-function emailShell(innerHtml: string): string {
+function emailShell(bodyHtml: string, footerHtml: string = ''): string {
   return `
 <!DOCTYPE html>
 <html lang="en">
@@ -107,21 +107,21 @@ function emailShell(innerHtml: string): string {
     <div class="header">
       <h1>Reputation Key</h1>
     </div>
-    <div class="body">${innerHtml}</div>
+    <div class="body">${bodyHtml}</div>
+    ${footerHtml ? `<div class="footer">${footerHtml}</div>` : ''}
   </div>
 </body>
 </html>`
 }
 
 function resetPasswordEmailHtml(resetUrl: string): string {
-  return emailShell(`
+  return emailShell(
+    `
       <p>We received a request to reset your password.</p>
       <a href="${escapeHtml(resetUrl)}" class="button">Reset Password</a>
-      <p>If you didn't request this, you can safely ignore this email.</p>
-    </div>
-    <div class="footer">
-      <p>This link expires in 1 hour.</p>
-`)
+      <p>If you didn't request this, you can safely ignore this email.</p>`,
+    '<p>This link expires in 1 hour.</p>',
+  )
 }
 
 // ─── Organization Invitation Email ────────────────────────────────────
@@ -144,13 +144,12 @@ export async function sendInvitationEmail(params: InvitationEmailParams): Promis
 }
 
 function invitationEmailHtml(params: InvitationEmailParams): string {
-  return emailShell(`
+  return emailShell(
+    `
       <p><strong>${escapeHtml(params.invitedByUsername)}</strong> has invited you to join <strong>${escapeHtml(params.organizationName)}</strong> on Reputation Key.</p>
       <a href="${escapeHtml(params.inviteLink)}" class="button">Accept Invitation</a>
       <p>If you don't have an account yet, you'll be guided to create one after clicking the button above.</p>
-      <p>If you weren't expecting this invitation, you can safely ignore this email.</p>
-    </div>
-    <div class="footer">
-      <p>This invitation expires in 7 days.</p>
-`)
+      <p>If you weren't expecting this invitation, you can safely ignore this email.</p>`,
+    '<p>This invitation expires in 7 days.</p>',
+  )
 }

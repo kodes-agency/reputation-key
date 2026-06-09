@@ -1,17 +1,21 @@
 // Goal context — cancel-goal use case
 // Sets status to 'cancelled', cascades for recurring templates.
 // Per architecture: "Dependencies are passed as function arguments."
+//
+// NOTE(F030): This use case does NOT emit a domain event (e.g. goal.cancelled).
+// Goal cancellation is a management action with no downstream consumers yet.
+// If event-driven reactions to cancellation are needed, add a goalCancelled event.
 
 import type { GoalRepository } from '../ports/goal.repository'
 import type { Goal } from '../../domain/types'
 import type { GoalId, OrganizationId } from '#/shared/domain/ids'
 import type { Role } from '#/shared/domain/roles'
 import { can } from '#/shared/domain/permissions'
-import { ok, err, type Result } from 'neverthrow'
+import { ok, err, type Result } from '#/shared/domain'
 
 // ── Input type ──────────────────────────────────────────────────────────
 
-type CancelGoalInput = Readonly<{
+export type CancelGoalInput = Readonly<{
   goalId: GoalId
   organizationId: OrganizationId
   role: Role
@@ -54,14 +58,20 @@ export const cancelGoal =
 
     const now = deps.clock()
 
-    // 3. Cascade to instances for recurring templates
-    // TODO(review/G0-11): Wrap cancelByParent + update in a transaction.
-    // Current implementation could leave instances cancelled but parent active on partial failure.
+    // 3. Cancel instances + parent atomically for recurring templates
     if (goal.goalType === 'recurring' && goal.parentGoalId === null) {
-      await deps.goalRepo.cancelByParent(goal.id, input.organizationId, now)
+      const updated = await deps.goalRepo.cancelGoalWithInstances(
+        goal.id,
+        input.organizationId,
+        now,
+      )
+      if (!updated) {
+        return err({ tag: 'goal_not_found' })
+      }
+      return ok(updated)
     }
 
-    // 4. Update status to cancelled
+    // 4. Non-recurring: just update status to cancelled
     const updated = await deps.goalRepo.update(input.goalId, input.organizationId, {
       status: 'cancelled',
       updatedAt: now,

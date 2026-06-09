@@ -101,6 +101,10 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
         await deps.repo.clearGoogleConnectionRef(orgId, propertyIds)
       }
     },
+    // F060 NOTE: importProperty intentionally bypasses buildProperty use case.
+    // GBP sync requires raw property construction because imported properties
+    // have different validation rules (no user-facing slug collision check, etc.).
+    // The repo's insertAndReturn still enforces tenant guard (orgId mismatch check).
     importProperty: async (input) => {
       try {
         const id = idGen()

@@ -193,11 +193,12 @@ describe('validatePortalTheme', () => {
 // ── validateSmartRoutingThreshold ──────────────────────────────────
 
 describe('validateSmartRoutingThreshold', () => {
-  it('accepts 1 through 4', () => {
+  it('accepts 1 through 5', () => {
     expect(validateSmartRoutingThreshold(1).isOk()).toBe(true)
     expect(validateSmartRoutingThreshold(2).isOk()).toBe(true)
     expect(validateSmartRoutingThreshold(3).isOk()).toBe(true)
     expect(validateSmartRoutingThreshold(4).isOk()).toBe(true)
+    expect(validateSmartRoutingThreshold(5).isOk()).toBe(true)
   })
 
   it('rejects 0', () => {
@@ -208,8 +209,8 @@ describe('validateSmartRoutingThreshold', () => {
     }
   })
 
-  it('rejects 5', () => {
-    const result = validateSmartRoutingThreshold(5)
+  it('rejects 6', () => {
+    const result = validateSmartRoutingThreshold(6)
     expect(result.isErr()).toBe(true)
     if (result.isErr()) {
       expect(result.error.code).toBe('invalid_threshold')

@@ -25,7 +25,7 @@ export type RegisterUserAndOrgOutput = Readonly<{
 }>
 export type RegisterUserAndOrg = ReturnType<typeof registerUserAndOrg>
 
-type Deps = Readonly<{
+export type RegisterUserAndOrgDeps = Readonly<{
   events: EventBus
   /** Sign up a new user with email+password. Returns user ID or throws. */
   signUp: (name: string, email: string, password: string) => Promise<string>
@@ -56,7 +56,7 @@ type Deps = Readonly<{
  * 6. Return
  */
 export const registerUserAndOrg =
-  (deps: Deps) =>
+  (deps: RegisterUserAndOrgDeps) =>
   async (input: RegisterUserAndOrgInput): Promise<RegisterUserAndOrgOutput> => {
     // 1. Validate organization name using domain rule
     const nameResult = validateOrganizationName(input.organizationName)
@@ -80,6 +80,12 @@ export const registerUserAndOrg =
     // 3–4. Create the org and set it as active
     // Pass userId to createOrganization so it works server-side
     // (the new user's session cookies aren't available yet).
+    // F148 NOTE: This is not fully atomic — user creation succeeds even if org
+    // setup fails. The error code 'org_setup_failed' signals this state to the
+    // client, which should prompt "you have an account, sign in and create an org."
+    // A compensating transaction (delete user on org failure) is intentionally
+    // NOT attempted — the user may have already received a welcome email or
+    // triggered other side effects. Manual admin cleanup is safer.
     const headers = deps.headers()
     let orgId: string
     try {

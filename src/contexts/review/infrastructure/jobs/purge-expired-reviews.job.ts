@@ -1,5 +1,12 @@
 // Review context — BullMQ job handler for purging expired reviews
 // Deletes reviews that expired more than 3 days ago (grace period for failed syncs).
+//
+// ⚠️ CROSS-TENANT: This job intentionally scans ALL organizations in one pass.
+// It uses findAllExpiredBeforeAcrossTenants() which has no tenant filter.
+// This is safe because:
+//   1. The job is system-level, triggered by a scheduler, not by any user action.
+//   2. Each review's organizationId is used when calling deleteById (tenant-scoped delete).
+//   3. No user-supplied input controls which orgs are processed.
 
 import type { Job } from 'bullmq'
 
@@ -22,7 +29,10 @@ export const createPurgeExpiredReviewsHandler = (deps: PurgeHandlerDeps) => {
       const logger = getLogger()
       const threeDaysAgo = new Date(deps.clock().getTime() - 3 * 24 * 60 * 60 * 1000)
 
-      const expired = await deps.reviewRepo.findAllExpiredBefore(threeDaysAgo)
+      // Cross-tenant scan: intentionally fetches across all orgs (system-level job).
+      // Each iteration below is tenant-scoped via review.organizationId.
+      const expired =
+        await deps.reviewRepo.findAllExpiredBeforeAcrossTenants(threeDaysAgo)
       const now = deps.clock()
 
       let purged = 0
@@ -37,6 +47,7 @@ export const createPurgeExpiredReviewsHandler = (deps: PurgeHandlerDeps) => {
               occurredAt: now,
             }),
           )
+          // deleteById is tenant-scoped — uses review.organizationId
           await deps.reviewRepo.deleteById(review.id, review.organizationId)
           purged++
         } catch (err) {

@@ -93,6 +93,7 @@ const createFakeGoalRepo = (state: {
     return state.instances.get(parentId as string) ?? []
   },
   cancelByParent: async () => 0,
+  cancelGoalWithInstances: async () => null,
   insertProgress: async () => {
     throw new Error('not used')
   },
@@ -126,11 +127,12 @@ const createFakeGoalRepo = (state: {
     currentCount: null,
   }),
   markGoalCompleted: async () => {},
-  findAllActive: async () => [],
+  findAllActiveAcrossTenants: async () => [],
   findActiveRecurringTemplates: async () => [],
   findLatestInstance: async () => null,
   listByPortalAndGroupIds: async () => [],
   createGoalAndProgress: async () => {},
+  createTemplateInstanceAndProgress: async () => {},
 })
 
 // ── Setup helper ───────────────────────────────────────────────────────────

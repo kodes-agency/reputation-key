@@ -1,122 +1,17 @@
+// Guest context — rating & feedback submission server functions
+// Per architecture: thin — resolve auth → validate input → call use case → translate errors → return
+
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
-import { z } from 'zod/v4'
-import { match } from 'ts-pattern'
-import { HTTP_STATUS } from '#/shared/auth/error-status'
 import { getContainer } from '#/composition'
 import { headersFromContext } from '#/shared/auth/headers'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { ratingInputSchema } from '../application/dto/rating.dto'
 import { feedbackInputSchema } from '../application/dto/feedback.dto'
 import { isGuestError } from '../domain/errors'
-import type { GuestErrorCode } from '../domain/errors'
 export type { PublicPortalLoaderData } from '../application/dto/public-portal.dto'
-import { portalId, portalLinkId, ratingId } from '#/shared/domain/ids'
-import { getEnv } from '#/shared/config/env'
-import { createHash } from 'crypto'
-
-// ── recordScan ────────────────────────────────────────────────────
-
-const recordScanSchema = z.object({
-  portalId: z.string().min(1),
-  source: z.enum(['qr', 'nfc', 'direct']),
-})
-
-export const recordScanFn = createServerFn({ method: 'POST' })
-  .inputValidator(recordScanSchema)
-  .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const { useCases } = getContainer()
-        const headers = headersFromContext()
-
-        const cookieHeader = headers?.get('cookie') ?? ''
-        const sessionId =
-          cookieHeader.match(/guest_session=([^;]+)/)?.[1] ?? crypto.randomUUID()
-
-        const ip = headers?.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
-        const ipHash = hashIp(ip)
-
-        const ctx = await useCases.resolvePortalContext({
-          portalId: portalId(data.portalId),
-        })
-
-        try {
-          await useCases.recordScan({
-            organizationId: ctx.organizationId,
-            portalId: portalId(data.portalId),
-            propertyId: ctx.propertyId,
-            source: data.source,
-            sessionId,
-            ipHash,
-          })
-          return { success: true }
-        } catch (e) {
-          if (isGuestError(e))
-            throwContextError('GuestError', e, guestErrorStatus(e.code))
-          throw catchUntagged(e)
-        }
-      },
-      'POST',
-      'guest.recordScan',
-    ),
-  )
-
-// ── Error → HTTP status mapping (exhaustive) ──────────────────────
-
-const guestErrorStatus = (code: GuestErrorCode): number =>
-  match(code)
-    .with('rate_limit_exceeded', () => 429)
-    .with(
-      'invalid_rating',
-      'duplicate_rating',
-      'feedback_too_long',
-      'feedback_empty',
-      'invalid_source',
-      'invalid_session',
-      () => 400,
-    )
-    .with('portal_not_found', () => HTTP_STATUS.NOT_FOUND)
-    .with('portal_inactive', () => 410)
-    .exhaustive()
-
-// ── Helpers ───────────────────────────────────────────────────────
-
-function hashIp(ip: string): string {
-  const env = getEnv()
-  const today = new Date().toISOString().slice(0, 10)
-  const salt = `${env.GUEST_SESSION_SALT}:${today}`
-  return createHash('sha256').update(`${ip}:${salt}`).digest('hex')
-}
-
-// ── getPublicPortal ────────────────────────────────────────────────
-
-const publicPortalSchema = z.object({
-  propertySlug: z.string().min(1),
-  portalSlug: z.string().min(1),
-})
-
-export const getPublicPortal = createServerFn({ method: 'GET' })
-  .inputValidator(publicPortalSchema)
-  .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const { useCases } = getContainer()
-        try {
-          return await useCases.getPublicPortal({
-            propertySlug: data.propertySlug,
-            portalSlug: data.portalSlug,
-          })
-        } catch (e) {
-          if (isGuestError(e))
-            throwContextError('GuestError', e, guestErrorStatus(e.code))
-          throw catchUntagged(e)
-        }
-      },
-      'GET',
-      'guest.getPublicPortal',
-    ),
-  )
+import { portalId, ratingId } from '#/shared/domain/ids'
+import { guestErrorStatus, hashIp } from './guest-scans'
 
 // ── submitRating ───────────────────────────────────────────────────
 
@@ -129,6 +24,9 @@ export const submitRatingFn = createServerFn({ method: 'POST' })
         const headers = headersFromContext()
 
         const cookieHeader = headers?.get('cookie') ?? ''
+        // F065 NOTE: sessionId is extracted from cookie or generated. The generated
+        // ID is used for rate limiting and analytics but is NOT set as a response cookie
+        // here — that's handled by the guest-scans server function where session init happens.
         const sessionId =
           cookieHeader.match(/guest_session=([^;]+)/)?.[1] ?? crypto.randomUUID()
 
@@ -228,29 +126,6 @@ export const submitFeedbackFn = createServerFn({ method: 'POST' })
     ),
   )
 
-// ── resolveLinkAndTrack ───────────────────────────────────────────
-// Resolves a portal link to its redirect URL and tracks the click.
-// Used by the public click-tracking API route.
+// ── Re-exports from split files ────────────────────────────────────
 
-const resolveLinkSchema = z.object({
-  linkId: z.string().min(1),
-})
-
-export const resolveLinkAndTrack = createServerFn({ method: 'GET' })
-  .inputValidator(resolveLinkSchema)
-  .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const { useCases } = getContainer()
-        try {
-          return await useCases.resolveLinkAndTrack({ linkId: portalLinkId(data.linkId) })
-        } catch (e) {
-          if (isGuestError(e))
-            throwContextError('GuestError', e, guestErrorStatus(e.code))
-          throw catchUntagged(e)
-        }
-      },
-      'GET',
-      'guest.resolveLinkAndTrack',
-    ),
-  )
+export { recordScanFn, getPublicPortal, resolveLinkAndTrack } from './guest-scans'

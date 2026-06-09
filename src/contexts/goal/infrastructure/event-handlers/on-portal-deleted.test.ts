@@ -3,7 +3,7 @@ import { onPortalDeleted, type OnPortalDeletedDeps } from './on-portal-deleted'
 import type { PortalDeleted } from '#/contexts/portal/application/public-api'
 import type { GoalRepository } from '../../application/ports/goal.repository'
 import type { Goal } from '../../domain/types'
-import { ok, err } from 'neverthrow'
+import { ok, err } from '#/shared/domain'
 import { organizationId, propertyId, userId, goalId, portalId } from '#/shared/domain/ids'
 
 const FIXED_TIME = new Date('2026-06-15T12:00:00Z')
@@ -70,6 +70,7 @@ function makeFakeDeps(storedGoals: Goal[] = []) {
     },
     listInstances: async () => [],
     cancelByParent: async () => 0,
+    cancelGoalWithInstances: async () => null,
     insertProgress: async () => {
       throw new Error('not used')
     },
@@ -101,11 +102,12 @@ function makeFakeDeps(storedGoals: Goal[] = []) {
       currentCount: null,
     }),
     markGoalCompleted: async () => {},
-    findAllActive: async () => [],
+    findAllActiveAcrossTenants: async () => [],
     findActiveRecurringTemplates: async () => [],
     findLatestInstance: async () => null,
     listByPortalAndGroupIds: async () => [],
     createGoalAndProgress: async () => {},
+    createTemplateInstanceAndProgress: async () => {},
   }
 
   type CancelGoalFn = OnPortalDeletedDeps['cancelGoalFn']

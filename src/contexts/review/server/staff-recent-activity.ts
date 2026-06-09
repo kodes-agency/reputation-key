@@ -47,20 +47,14 @@ export const getStaffRecentActivity = createServerFn({ method: 'GET' })
             return { reviews: [] }
           }
 
-          // Reviews are property-scoped — no portalId to filter by.
-          // Staff assigned to any portal in the property can see all reviews.
-          const allReviews = await container.reviewRepo.findByPropertyId(
+          // F038: Push LIMIT + ORDER BY to SQL instead of pulling 500 rows and sorting in JS.
+          const recentReviews = await container.reviewRepo.findByPropertyId(
             propertyId,
             ctx.organizationId,
+            { limit: 5 },
           )
 
-          // Sort by most recent and take last 5
-          const sorted = [...allReviews].sort(
-            (a, b) => b.reviewedAt.getTime() - a.reviewedAt.getTime(),
-          )
-          const recent = sorted.slice(0, 5)
-
-          const reviews: StaffRecentReview[] = recent.map((r) => ({
+          const reviews: StaffRecentReview[] = recentReviews.map((r) => ({
             id: r.id as string,
             rating: r.rating,
             snippet: r.text ?? '',

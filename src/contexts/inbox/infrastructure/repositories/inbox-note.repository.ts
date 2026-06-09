@@ -18,23 +18,22 @@ export const createInboxNoteRepository = (db: Database): InboxNoteRepository => 
         .select()
         .from(inboxNotes)
         .where(
-          and(
-            eq(inboxNotes.inboxItemId, itemId),
-            eq(inboxNotes.organizationId, orgId),
-          ),
+          and(eq(inboxNotes.inboxItemId, itemId), eq(inboxNotes.organizationId, orgId)),
         )
         .orderBy(desc(inboxNotes.createdAt))
       return rows.map(inboxNoteFromRow)
     })
   },
 
-  create: async (note: InboxNote) => {
+  create: async (note: InboxNote, orgId: OrganizationId) => {
     return trace('inboxNote.create', async () => {
+      if (note.organizationId !== orgId) {
+        throw new Error(
+          `InboxNote.create: tenant mismatch — note.orgId=${note.organizationId as string} != caller.orgId=${orgId as string}`,
+        )
+      }
       const row = inboxNoteToInsertRow(note)
-      const result = await db
-        .insert(inboxNotes)
-        .values(row)
-        .returning()
+      const result = await db.insert(inboxNotes).values(row).returning()
 
       if (!result[0]) {
         throw new Error('Inbox note insert failed — no row returned')

@@ -5,6 +5,10 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import { identityError } from '../../domain/errors'
 import { can } from '#/shared/domain/permissions'
 
+export type FinalizeOrgLogoUploadInput = Readonly<{
+  key: string
+}>
+
 // fallow-ignore-next-line unused-type
 export type FinalizeOrgLogoUploadDeps = Readonly<{
   storage: StoragePort
@@ -12,7 +16,10 @@ export type FinalizeOrgLogoUploadDeps = Readonly<{
 
 export const finalizeOrgLogoUpload =
   (deps: FinalizeOrgLogoUploadDeps) =>
-  async (input: { key: string }, ctx: AuthContext): Promise<{ logoUrl: string }> => {
+  async (
+    input: FinalizeOrgLogoUploadInput,
+    ctx: AuthContext,
+  ): Promise<{ logoUrl: string }> => {
     if (!can(ctx.role, 'identity.logo_upload')) {
       throw identityError(
         'forbidden',

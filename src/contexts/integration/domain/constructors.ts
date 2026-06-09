@@ -14,7 +14,7 @@ import type {
   PropertyId,
   UserId,
 } from '#/shared/domain/ids'
-import { ok, err } from 'neverthrow'
+import { ok, err } from '#/shared/domain'
 import { integrationError } from './errors'
 import { isValidVisibility, isValidEmail } from './rules'
 

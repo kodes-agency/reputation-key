@@ -79,11 +79,11 @@ export const validatePortalTheme = (
 
 // ── Smart routing threshold ────────────────────────────────────────
 
-/** Validate smart routing threshold (1-4). */
+/** Validate smart routing threshold (1-5). */
 export const validateSmartRoutingThreshold = (n: number): Result<number, PortalError> => {
-  if (!Number.isInteger(n) || n < 1 || n > 4) {
+  if (!Number.isInteger(n) || n < 1 || n > 5) {
     return err(
-      portalError('invalid_threshold', 'Threshold must be an integer between 1 and 4'),
+      portalError('invalid_threshold', 'Threshold must be an integer between 1 and 5'),
     )
   }
   return ok(n)
@@ -91,10 +91,13 @@ export const validateSmartRoutingThreshold = (n: number): Result<number, PortalE
 
 // ── URL validation ─────────────────────────────────────────────────
 
-/** Validate a URL for portal links. */
+/** Validate a URL for portal links. Only http/https allowed. */
 export const validateUrl = (url: string): Result<string, PortalError> => {
   try {
-    new URL(url)
+    const parsed = new URL(url)
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+      return err(portalError('invalid_url', 'Only http and https URLs are allowed'))
+    }
     return ok(url)
   } catch {
     return err(portalError('invalid_url', 'Must be a valid URL'))

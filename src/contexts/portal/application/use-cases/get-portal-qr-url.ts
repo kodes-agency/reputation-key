@@ -7,6 +7,10 @@ import { can } from '#/shared/domain/permissions'
 import { portalId } from '#/shared/domain/ids'
 import { portalError } from '../../domain/errors'
 
+export type GetPortalQrUrlInput = Readonly<{
+  portalId: string
+}>
+
 export type GetPortalQrUrlDeps = Readonly<{
   portalRepo: PortalRepository
   baseUrl: string
@@ -15,7 +19,7 @@ export type GetPortalQrUrlDeps = Readonly<{
 export const getPortalQrUrl =
   (deps: GetPortalQrUrlDeps) =>
   async (
-    input: { portalId: string },
+    input: GetPortalQrUrlInput,
     ctx: AuthContext,
   ): Promise<{ portalUrl: string; slug: string }> => {
     if (!can(ctx.role, 'portal.read')) {

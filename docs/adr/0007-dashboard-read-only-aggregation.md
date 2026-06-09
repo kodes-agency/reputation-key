@@ -64,7 +64,19 @@ Aggregation queries against metric_readings data. Implemented by `infrastructure
 - `getSumsByPeriod(orgId, propertyId, startDate, endDate)` — Summed metric values by metricKey for a property
 - `getSumsByPortal(orgId, propertyId, portalId, startDate, endDate)` — Summed metric values by metricKey for a portal
 
-Both ports follow the facade pattern: dashboard's application layer depends only on the port interface, never on other contexts' database tables. Adapters in the infrastructure layer encapsulate the SQL queries.
+### PortalMetricsPort (`application/ports/portal-metrics.port.ts`)
+
+Portal-scoped analytics for the staff dashboard. Implemented by `infrastructure/adapters/portal-metrics.adapter.ts`.
+
+- `getPortalKpiSums(orgId, propertyId, portalId, startDate, endDate)` — Summed metric values by metricKey for a portal
+- `getPortalRatingDistribution(orgId, propertyId, portalId, startDate, endDate)` — Rating buckets for a portal
+- `getPortalRatingTrend(orgId, propertyId, portalId, startDate, endDate)` — Daily average rating trend for a portal
+
+### StaffPortalResolverPort (`application/ports/staff-portal-resolver.port.ts`)
+
+Resolves the portals a staff user is assigned to. Used by staff dashboard to scope queries.
+
+All four ports follow the facade pattern: dashboard's application layer depends only on the port interface, never on other contexts' database tables. Adapters in the infrastructure layer encapsulate the SQL queries.
 
 ## Consequences
 
@@ -75,7 +87,7 @@ Both ports follow the facade pattern: dashboard's application layer depends only
 - No domain events, no writes, no state — simplest possible context
 - Other contexts evolve independently; adapters absorb schema changes
 - Composition layer wires ports once; adding new data sources is additive
-- Facade ports are query-focused: `ReviewStatsPort` for review aggregations, `MetricStatsPort` for metric aggregations
+- Facade ports are query-focused: `ReviewStatsPort` for review aggregations, `MetricStatsPort` for metric aggregations, `PortalMetricsPort` for portal analytics, `StaffPortalResolverPort` for staff portal resolution
 
 ### Negative
 

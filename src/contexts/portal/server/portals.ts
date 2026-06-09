@@ -4,8 +4,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { match } from 'ts-pattern'
-import { HTTP_STATUS } from '#/shared/auth/error-status'
-import { z } from 'zod/v4'
+import { HTTP_STATUS } from '#/shared/http/status'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
@@ -42,16 +41,6 @@ export const portalErrorStatus = (code: PortalErrorCode): number =>
       () => 400,
     )
     .exhaustive()
-
-// ── Shared Zod validators ──────────────────────────────────────────
-
-const portalIdSchema = z.object({
-  portalId: z.string().min(1, 'Portal ID is required'),
-})
-
-const listPortalsSchema = z.object({
-  propertyId: z.string().optional(),
-})
 
 // ── createPortal ───────────────────────────────────────────────────
 
@@ -103,178 +92,7 @@ export const updatePortal = createServerFn({ method: 'POST' })
     ),
   )
 
-// ── listPortals ────────────────────────────────────────────────────
+// ── Re-exports from split files ────────────────────────────────────
 
-export const listPortals = createServerFn({ method: 'GET' })
-  .inputValidator(listPortalsSchema)
-  .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const headers = headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-
-        try {
-          const { useCases } = getContainer()
-          const portals_list = await useCases.listPortals(data, ctx)
-          return { portals: portals_list }
-        } catch (e) {
-          if (isPortalError(e))
-            throwContextError('PortalError', e, portalErrorStatus(e.code))
-          throw catchUntagged(e)
-        }
-      },
-      'GET',
-      'portal.listPortals',
-    ),
-  )
-
-// ── getPortal ──────────────────────────────────────────────────────
-
-export const getPortal = createServerFn({ method: 'GET' })
-  .inputValidator(portalIdSchema)
-  .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const headers = headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-
-        try {
-          const { useCases } = getContainer()
-          const portal = await useCases.getPortal(data, ctx)
-          return { portal }
-        } catch (e) {
-          if (isPortalError(e))
-            throwContextError('PortalError', e, portalErrorStatus(e.code))
-          throw catchUntagged(e)
-        }
-      },
-      'GET',
-      'portal.getPortal',
-    ),
-  )
-
-// ── deletePortal (soft-delete) ─────────────────────────────────────
-
-export const deletePortal = createServerFn({ method: 'POST' })
-  .inputValidator(portalIdSchema)
-  .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const headers = headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-
-        try {
-          const { useCases } = getContainer()
-          await useCases.softDeletePortal(data, ctx)
-          return { deleted: true, portalId: data.portalId }
-        } catch (e) {
-          if (isPortalError(e))
-            throwContextError('PortalError', e, portalErrorStatus(e.code))
-          throw catchUntagged(e)
-        }
-      },
-      'POST',
-      'portal.deletePortal',
-    ),
-  )
-
-// ── Upload schemas ─────────────────────────────────────────────────
-
-const requestUploadSchema = z.object({
-  portalId: z.string().min(1),
-  contentType: z.string().min(1),
-  fileSize: z.number().min(1),
-})
-
-const finalizeUploadSchema = z.object({
-  portalId: z.string().min(1),
-  key: z.string().min(1),
-})
-
-// ── requestUploadUrl ───────────────────────────────────────────────
-
-export const requestUploadUrl = createServerFn({ method: 'POST' })
-  .inputValidator(requestUploadSchema)
-  .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const headers = headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-
-        try {
-          const { useCases } = getContainer()
-          const result = await useCases.requestUploadUrl(data, ctx)
-          return result
-        } catch (e) {
-          if (isPortalError(e))
-            throwContextError('PortalError', e, portalErrorStatus(e.code))
-          const { getLogger } = await import('#/shared/observability/logger')
-          getLogger().error({ err: e }, 'Upload request failed')
-          throwContextError(
-            'PortalError',
-            { code: 'upload_failed', message: 'Upload request failed' },
-            422,
-          )
-        }
-      },
-      'POST',
-      'portal.requestUploadUrl',
-    ),
-  )
-
-// ── finalizeUpload ─────────────────────────────────────────────────
-
-export const finalizeUpload = createServerFn({ method: 'POST' })
-  .inputValidator(finalizeUploadSchema)
-  .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const headers = headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-
-        try {
-          const { useCases } = getContainer()
-          const result = await useCases.finalizeUpload(data, ctx)
-          return result
-        } catch (e) {
-          if (isPortalError(e))
-            throwContextError('PortalError', e, portalErrorStatus(e.code))
-          const { getLogger } = await import('#/shared/observability/logger')
-          getLogger().error({ err: e }, 'Upload finalization failed')
-          throwContextError(
-            'PortalError',
-            { code: 'upload_failed', message: 'Upload finalization failed' },
-            422,
-          )
-        }
-      },
-      'POST',
-      'portal.finalizeUpload',
-    ),
-  )
-
-// ── getPortalForQR ────────────────────────────────────────────────
-// Returns the public-facing URL for a portal (used to generate QR codes).
-// Requires authentication — only org members can generate QR codes for their portals.
-
-export const getPortalForQR = createServerFn({ method: 'GET' })
-  .inputValidator(portalIdSchema)
-  .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const headers = headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-
-        try {
-          const { useCases } = getContainer()
-          return await useCases.getPortalQrUrl({ portalId: data.portalId }, ctx)
-        } catch (e) {
-          if (isPortalError(e))
-            throwContextError('PortalError', e, portalErrorStatus(e.code))
-          throw catchUntagged(e)
-        }
-      },
-      'GET',
-      'portal.getPortalForQR',
-    ),
-  )
+export { listPortals, getPortal, deletePortal } from './portal-read'
+export { requestUploadUrl, finalizeUpload, getPortalForQR } from './portal-uploads'

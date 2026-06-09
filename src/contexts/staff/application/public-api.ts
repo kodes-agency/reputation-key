@@ -26,6 +26,15 @@ export type StaffPublicApi = Readonly<{
     input: { userId: UserId; propertyId: PropertyId },
     ctx: AuthContext,
   ) => Promise<ReadonlyArray<PortalId>>
+
+  /**
+   * Count active staff assignments for a given team.
+   * Used by team context to prevent deleting teams with active assignments.
+   */
+  countAssignmentsByTeam: (
+    orgId: OrganizationId,
+    teamId: import('#/shared/domain/ids').TeamId,
+  ) => Promise<number>
 }>
 
 // Event re-exports — cross-context consumers must import events from public-api, not domain/events

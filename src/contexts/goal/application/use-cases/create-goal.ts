@@ -32,11 +32,11 @@ import {
   type ProgressQuery,
 } from '../../domain/progress-strategy'
 import { can } from '#/shared/domain/permissions'
-import { ok, err, type Result } from 'neverthrow'
+import { ok, err, type Result } from '#/shared/domain'
 
 // ── Input type ──────────────────────────────────────────────────────────
 
-type CreateGoalInput = Readonly<{
+export type CreateGoalInput = Readonly<{
   organizationId: OrganizationId
   propertyId: PropertyId
   portalId: PortalId | null
@@ -155,8 +155,7 @@ async function handleRecurringGoal(
   template: Goal,
   now: Date,
 ): Promise<Result<CreateGoalOutput, CreateGoalError>> {
-  // Persist the template first (instance references it via parentGoalId)
-  await deps.goalRepo.insert(template)
+  // Template will be persisted atomically with instance + progress below
 
   if (!template.recurrenceRule) {
     return err({ tag: 'construction_error', error: { tag: 'recurrence_rule_required' } })
@@ -219,11 +218,8 @@ async function handleRecurringGoal(
     computedSource: 'reconciliation' as ComputedSource,
   }
 
-  await deps.goalRepo.createGoalAndProgress(instance, progress)
-
-  // TODO(review/G0-11): The template goal itself also needs to be persisted atomically with
-  // the instance. Currently the template is inserted separately in the caller.
-  // A transactional wrapper or a combined port method would be needed.
+  // Persist template + instance + progress atomically
+  await deps.goalRepo.createTemplateInstanceAndProgress(template, instance, progress)
 
   return ok({ goal: template, progress })
 }

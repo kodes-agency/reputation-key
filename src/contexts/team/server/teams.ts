@@ -4,7 +4,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { match } from 'ts-pattern'
-import { HTTP_STATUS } from '#/shared/auth/error-status'
+import { HTTP_STATUS } from '#/shared/http/status'
 import { z } from 'zod/v4'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
@@ -22,6 +22,7 @@ const teamErrorStatus = (code: TeamErrorCode): number =>
     .with('team_not_found', 'property_not_found', () => HTTP_STATUS.NOT_FOUND)
     .with('name_taken', () => HTTP_STATUS.CONFLICT)
     .with('invalid_name', () => HTTP_STATUS.BAD_REQUEST)
+    .with('team_has_assignments', () => HTTP_STATUS.CONFLICT)
     .exhaustive()
 
 const teamIdSchema = z.object({

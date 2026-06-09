@@ -1,20 +1,26 @@
 // Activity context — entity constructors
 // Per architecture: "Domain Returns Result<T, DomainError>. Never throws."
 
-import { ok, err, type Result } from 'neverthrow'
+import { ok, err, type Result } from '#/shared/domain'
 import type { ActivityLog, ActivityAction } from './types'
+import type {
+  ActivityLogId,
+  UserId,
+  OrganizationId,
+  PropertyId,
+} from '#/shared/domain/ids'
 import { activityError, type ActivityError } from './errors'
 
 export type CreateActivityLogInput = Readonly<{
-  actorId: string
+  actorId: UserId
   actorName: string
   actorAvatarUrl: string | null
   actorRole: ActivityLog['actorRole']
   action: ActivityAction
   resourceType: ActivityLog['resourceType']
   resourceId: string
-  propertyId: string | null
-  organizationId: string
+  propertyId: PropertyId | null
+  organizationId: OrganizationId
   payload: ActivityLog['payload']
   source: ActivityLog['source']
 }>
@@ -80,7 +86,10 @@ export const createActivityLog = (
   }
 
   return ok({
-    id: '', // placeholder — overwritten by use case with idGen(); DB defaultRandom() is fallback
+    // Sentinel ID — overwritten by the use case layer (insertActivityLog) via deps.idGen().
+    // The DB column has defaultRandom() as a safety fallback. This follows the same
+    // sentinel pattern used by other domain constructors in this codebase.
+    id: '' as unknown as ActivityLogId,
     actorId: input.actorId,
     actorName: input.actorName,
     actorAvatarUrl: input.actorAvatarUrl,

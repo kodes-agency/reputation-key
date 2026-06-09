@@ -3,7 +3,7 @@
 // returning a Result."
 // Pure — ID and time are inputs, no side effects.
 
-import { Result } from 'neverthrow'
+import { Result } from '#/shared/domain'
 import type { Property, PropertyId } from './types'
 import type { PropertyError } from './errors'
 import type { OrganizationId, GoogleConnectionId } from '#/shared/domain/ids'

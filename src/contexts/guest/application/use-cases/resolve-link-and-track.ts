@@ -9,6 +9,10 @@ import type { LinkResolverPort } from '#/contexts/portal/application/public-api'
 import type { TrackReviewLinkClick } from './track-review-link-click'
 import type { PortalLinkId } from '#/shared/domain/ids'
 
+export type ResolveLinkAndTrackInput = Readonly<{
+  linkId: PortalLinkId
+}>
+
 export type ResolveLinkAndTrackDeps = Readonly<{
   linkResolver: LinkResolverPort
   trackClick: TrackReviewLinkClick
@@ -20,7 +24,7 @@ export type ResolveLinkAndTrackResult = Readonly<{
 
 export const resolveLinkAndTrack =
   (deps: ResolveLinkAndTrackDeps) =>
-  async (input: { linkId: PortalLinkId }): Promise<ResolveLinkAndTrackResult> => {
+  async (input: ResolveLinkAndTrackInput): Promise<ResolveLinkAndTrackResult> => {
     const resolved = await deps.linkResolver.resolveLinkById(input.linkId)
     if (!resolved) {
       return null

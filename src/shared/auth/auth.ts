@@ -162,7 +162,9 @@ export function createAuth() {
             let propertyIds: string[]
             try {
               propertyIds = JSON.parse(raw)
-            } catch {
+            } catch (err) {
+              // F168 FIX: Log parse failure instead of silently returning
+              console.error('[auth] Failed to parse propertyIds from invitation:', err)
               return
             }
             if (!Array.isArray(propertyIds) || propertyIds.length === 0) return

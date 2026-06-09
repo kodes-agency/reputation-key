@@ -173,6 +173,7 @@ Webhook routes (`routes/api/webhooks/`) are exempt from the standard API route r
 - `getContainer()` for queue access (to enqueue background jobs)
 - `shared/auth/` imports for token/JWT verification
 - Direct `Response` construction (no server fn wrapping needed)
+- **Exception:** `routes/api/webhooks/gbp/notifications.ts` imports `handleGbpNotification` from `contexts/integration/infrastructure/handlers/` — this is allowed because the webhook handler is a thin infrastructure adapter that verifies the JWT and delegates to the use case. The eslint-disable comment on the import documents this exception.
 
 NOT allowed:
 

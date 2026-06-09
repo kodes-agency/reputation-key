@@ -7,7 +7,7 @@ import type { GoalRepository } from '../../application/ports/goal.repository'
 import type { Goal } from '../../domain/types'
 import type { GoalId, OrganizationId } from '#/shared/domain/ids'
 import type { Role } from '#/shared/domain/roles'
-import type { Result } from 'neverthrow'
+import type { Result } from '#/shared/domain'
 import type { getLogger as getLoggerType } from '#/shared/observability/logger'
 
 // ── Dependencies ──────────────────────────────────────────────────────

@@ -12,6 +12,10 @@ export type PropertyCreated = Readonly<{
   organizationId: OrganizationId
   name: string
   slug: string
+  // F063 NOTE: gbpPlaceId and gbpLocationName are optional because
+  // properties can be created without GBP integration. When populated
+  // via importProperty, googleConnectionId is set but gbpLocationName
+  // is still empty — it must be filled in by a subsequent GBP sync.
   gbpPlaceId?: string
   gbpLocationName?: string
   googleConnectionId?: GoogleConnectionId

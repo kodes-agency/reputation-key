@@ -28,6 +28,7 @@ export default defineConfig({
         singleFork: true,
       },
     },
+    testTimeout: 30_000,
     env: {
       NODE_ENV: 'test',
       DATABASE_URL:

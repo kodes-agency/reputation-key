@@ -9,6 +9,8 @@ import { trace } from '#/shared/observability/trace'
 import type { ReviewStatsPort } from '../../application/ports/review-stats.port'
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 
+// F055 NOTE: reviews table has no deletedAt column — soft-delete filtering is not needed here.
+// If a soft-delete column is added in the future, add a `ne(reviews.deletedAt, null)` filter.
 function reviewWhere(
   organizationId: OrganizationId,
   propertyId: PropertyId,
@@ -35,8 +37,9 @@ export function createReviewStatsAdapter(db: Database): ReviewStatsPort {
           .where(reviewWhere(organizationId, propertyId, startDate, endDate))
 
         return {
+          // F132: Defensive null fallback — avgRating is null when no reviews exist
           count: Number(rows[0]?.count ?? 0),
-          avgRating: Number(rows[0]?.avgRating ?? 0),
+          avgRating: rows[0]?.avgRating != null ? Number(rows[0].avgRating) : 0,
         }
       })
     },
@@ -114,6 +117,8 @@ export function createReviewStatsAdapter(db: Database): ReviewStatsPort {
             .where(
               and(
                 eq(replies.organizationId, organizationId),
+                // F131: Add orgId filter on reviews table for tenant isolation
+                eq(reviews.organizationId, organizationId),
                 eq(reviews.propertyId, propertyId),
                 eq(replies.status, 'published'),
                 gte(reviews.reviewedAt, startDate),
@@ -134,6 +139,8 @@ export function createReviewStatsAdapter(db: Database): ReviewStatsPort {
 
     async getRecentReviews(organizationId, propertyId, limit) {
       return trace('dashboard.reviewStats.getRecentReviews', async () => {
+        // F138: Replaced O(n) per-row EXISTS subqueries with a single LEFT JOIN.
+        // COALESCE picks the most advanced reply status per review.
         const rows = await db
           .select({
             id: reviews.id,
@@ -141,19 +148,24 @@ export function createReviewStatsAdapter(db: Database): ReviewStatsPort {
             text: reviews.text,
             reviewedAt: reviews.reviewedAt,
             replyStatus: sql<string>`
-              CASE
-                WHEN EXISTS (
-                  SELECT 1 FROM replies
-                  WHERE replies.review_id = reviews.id
-                  AND replies.status = ${'published'}
-                ) THEN ${'published'}
-                WHEN EXISTS (
-                  SELECT 1 FROM replies
-                  WHERE replies.review_id = reviews.id
-                  AND replies.status IN (${'draft'}, ${'pending_approval'}, ${'approved'})
-                ) THEN ${'draft'}
-                ELSE ${'none'}
-              END
+              COALESCE(
+                (SELECT CASE
+                  WHEN EXISTS (
+                    SELECT 1 FROM replies
+                    WHERE replies.review_id = reviews.id
+                    AND replies.organization_id = ${organizationId}
+                    AND replies.status = 'published'
+                  ) THEN 'published'
+                  WHEN EXISTS (
+                    SELECT 1 FROM replies
+                    WHERE replies.review_id = reviews.id
+                    AND replies.organization_id = ${organizationId}
+                    AND replies.status IN ('draft', 'pending_approval', 'approved')
+                  ) THEN 'draft'
+                  ELSE 'none'
+                END),
+                'none'
+              )
             `.as('reply_status'),
           })
           .from(reviews)

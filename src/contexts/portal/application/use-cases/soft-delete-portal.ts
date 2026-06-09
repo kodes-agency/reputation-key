@@ -9,6 +9,11 @@ import { portalDeleted } from '../../domain/events'
 import type { EventBus } from '#/shared/events/event-bus'
 
 // fallow-ignore-next-line unused-type
+export type SoftDeletePortalInput = Readonly<{
+  portalId: string
+}>
+
+// fallow-ignore-next-line unused-type
 export type SoftDeletePortalDeps = Readonly<{
   portalRepo: PortalRepository
   events: EventBus
@@ -17,7 +22,7 @@ export type SoftDeletePortalDeps = Readonly<{
 
 export const softDeletePortal =
   (deps: SoftDeletePortalDeps) =>
-  async (input: { portalId: string }, ctx: AuthContext): Promise<void> => {
+  async (input: SoftDeletePortalInput, ctx: AuthContext): Promise<void> => {
     if (!can(ctx.role, 'portal.delete')) {
       throw portalError('forbidden', 'this role cannot delete portals')
     }

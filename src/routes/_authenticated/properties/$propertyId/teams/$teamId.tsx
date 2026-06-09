@@ -5,9 +5,12 @@ import {
   Link,
   notFound,
   Outlet,
+  redirect,
   useLocation,
   useNavigate,
 } from '@tanstack/react-router'
+import type { AuthRouteContext } from '#/routes/_authenticated'
+import { can } from '#/shared/domain/permissions'
 import { listTeams } from '#/contexts/team/server/teams'
 import { listStaffAssignments } from '#/contexts/staff/server/staff-assignments'
 import { listMembers } from '#/contexts/identity/server/organizations'
@@ -25,6 +28,10 @@ export function useTeamLayout() {
 export const Route = createFileRoute(
   '/_authenticated/properties/$propertyId/teams/$teamId',
 )({
+  beforeLoad: ({ context }) => {
+    const { role } = context as AuthRouteContext
+    if (!can(role, 'team.read')) throw redirect({ to: '/properties' })
+  },
   staleTime: 30_000,
   loader: async ({ params }) => {
     const [{ teams }, { members }, { assignments }] = await Promise.all([

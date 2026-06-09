@@ -13,6 +13,14 @@ import type {
 import { ok, err, type Result } from 'neverthrow'
 import { metricError, type MetricError } from './errors'
 
+const VALID_METRIC_KEYS: ReadonlySet<MetricKey> = new Set<MetricKey>([
+  'portal.scan',
+  'portal.rating',
+  'portal.feedback',
+  'portal.review_link_click',
+  'property.review',
+])
+
 type CreateMetricReadingInput = Readonly<{
   id: MetricReadingId
   organizationId: OrganizationId
@@ -43,6 +51,16 @@ export const createMetricReading = (
   }
   if (!input.propertyId) {
     return err(metricError('missing_required_field', 'propertyId is required'))
+  }
+
+  // metricKey must be from the allowed set
+  if (!VALID_METRIC_KEYS.has(input.metricKey)) {
+    return err(
+      metricError(
+        'invalid_metric_key',
+        `Invalid metricKey: ${input.metricKey as string}`,
+      ),
+    )
   }
 
   return ok({

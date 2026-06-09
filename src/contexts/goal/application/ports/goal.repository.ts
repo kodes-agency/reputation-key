@@ -45,17 +45,30 @@ export type GoalRepository = Readonly<{
   list(filter: GoalListFilter): Promise<ReadonlyArray<Goal>>
   listInstances(parentGoalId: GoalId, orgId: OrganizationId): Promise<ReadonlyArray<Goal>>
   cancelByParent(parentGoalId: GoalId, orgId: OrganizationId, now: Date): Promise<number>
+  cancelGoalWithInstances(
+    goalId: GoalId,
+    orgId: OrganizationId,
+    now: Date,
+  ): Promise<Goal | null>
 
   // ── Goal queries (reconciliation & spawner) ───────────────────────────
-  // Safe: findAllActive is a background job that legitimately processes all orgs
-  findAllActive(): Promise<ReadonlyArray<Goal>>
+  // ⚠️ CROSS-TENANT: findAllActiveAcrossTenants scans ALL orgs.
+  // Only call from system-level background jobs (reconcile, spawner).
+  findAllActiveAcrossTenants(): Promise<ReadonlyArray<Goal>>
   findActiveRecurringTemplates(
     organizationId: OrganizationId,
   ): Promise<ReadonlyArray<Goal>>
   findLatestInstance(parentGoalId: GoalId, orgId: OrganizationId): Promise<Goal | null>
   createGoalAndProgress(goal: Goal, progress: GoalProgress): Promise<void>
+  createTemplateInstanceAndProgress(
+    template: Goal,
+    instance: Goal,
+    progress: GoalProgress,
+  ): Promise<void>
 
   // ── Event-driven increment ───────────────────────────────────────────
+  // NOTE(F029): incrementProgress is actively used by the onMetricRecorded
+  // event handler for real-time goal progress updates. It is NOT dead code.
   findActiveGoalsByMetric(
     metricKey: MetricKey,
     organizationId: OrganizationId,
@@ -66,6 +79,7 @@ export type GoalRepository = Readonly<{
 
   incrementProgress(
     goalId: GoalId,
+    organizationId: OrganizationId,
     aggregation: AggregationFunction,
     delta: number,
   ): Promise<{

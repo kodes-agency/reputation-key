@@ -2,7 +2,7 @@
 // Per architecture: factory function returning Readonly<{ method }>.
 // Every query filters by organization_id AND deleted_at IS NULL via baseWhere().
 
-import { and, eq, not, sql, inArray, isNotNull } from 'drizzle-orm'
+import { and, eq, not, sql, inArray, isNotNull, isNull } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { baseWhere } from '#/shared/db/base-where'
 import {
@@ -201,11 +201,17 @@ export const createPortalRepository = (db: Database): PortalRepository => ({
         .limit(1)
       if (propRows.length === 0) return null
 
-      // 2. Find portal by propertyId + slug
+      // 2. Find portal by propertyId + slug (exclude soft-deleted)
       const portalRows = await db
         .select()
         .from(portals)
-        .where(and(eq(portals.propertyId, propRows[0].id), eq(portals.slug, portalSlug)))
+        .where(
+          and(
+            eq(portals.propertyId, propRows[0].id),
+            eq(portals.slug, portalSlug),
+            isNull(portals.deletedAt),
+          ),
+        )
         .limit(1)
       if (portalRows.length === 0) return null
 

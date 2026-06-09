@@ -9,8 +9,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { match } from 'ts-pattern'
-import { HTTP_STATUS } from '#/shared/auth/error-status'
-import { z } from 'zod/v4'
+import { HTTP_STATUS } from '#/shared/http/status'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
@@ -34,12 +33,6 @@ export const propertyErrorStatus = (code: PropertyErrorCode): number =>
       () => HTTP_STATUS.BAD_REQUEST,
     )
     .exhaustive()
-
-// ── Shared Zod validators ──────────────────────────────────────────
-
-const propertyIdSchema = z.object({
-  propertyId: z.string().min(1, 'Property ID is required'),
-})
 
 // ── createProperty ─────────────────────────────────────────────────
 
@@ -91,76 +84,6 @@ export const updateProperty = createServerFn({ method: 'POST' })
     ),
   )
 
-// ── listProperties ─────────────────────────────────────────────────
+// ── Re-exports from split files ────────────────────────────────────
 
-export const listProperties = createServerFn({ method: 'GET' }).handler(
-  tracedHandler(
-    async () => {
-      const headers = headersFromContext()
-      const ctx = await resolveTenantContext(headers)
-      // All authenticated roles can list properties
-
-      try {
-        const { useCases } = getContainer()
-        const properties = await useCases.listProperties(ctx)
-        return { properties }
-      } catch (e) {
-        if (isPropertyError(e))
-          throwContextError('PropertyError', e, propertyErrorStatus(e.code))
-        throw catchUntagged(e)
-      }
-    },
-    'GET',
-    'property.listProperties',
-  ),
-)
-
-// ── getProperty ────────────────────────────────────────────────────
-
-export const getProperty = createServerFn({ method: 'GET' })
-  .inputValidator(propertyIdSchema)
-  .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const headers = headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-
-        try {
-          const { useCases } = getContainer()
-          const property = await useCases.getProperty(data, ctx)
-          return { property }
-        } catch (e) {
-          if (isPropertyError(e))
-            throwContextError('PropertyError', e, propertyErrorStatus(e.code))
-          throw catchUntagged(e)
-        }
-      },
-      'GET',
-      'property.getProperty',
-    ),
-  )
-
-// ── deleteProperty ──────────────────────────────────────────────────
-
-export const deleteProperty = createServerFn({ method: 'POST' })
-  .inputValidator(propertyIdSchema)
-  .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const headers = headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-
-        try {
-          const { useCases } = getContainer()
-          await useCases.softDeleteProperty(data, ctx)
-          return { deleted: true, propertyId: data.propertyId }
-        } catch (e) {
-          if (isPropertyError(e))
-            throwContextError('PropertyError', e, propertyErrorStatus(e.code))
-          throw catchUntagged(e)
-        }
-      },
-      'POST',
-      'property.deleteProperty',
-    ),
-  )
+export { listProperties, getProperty, deleteProperty } from './property-read'

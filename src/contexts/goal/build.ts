@@ -27,6 +27,8 @@ export type GoalContextBuildInput = Readonly<{
   idGen: () => string
   cancelGoalFn: CancelGoalFn
   getLogger: typeof getLoggerType
+  /** F112: Pre-created goal repo to avoid duplicate instances. If omitted, one is created here. */
+  goalRepo?: GoalRepository
 }>
 
 export type GoalContextApi = Readonly<{
@@ -52,7 +54,7 @@ export type GoalContextApi = Readonly<{
 }>
 
 export const buildGoalContext = (input: GoalContextBuildInput): GoalContextApi => {
-  const goalRepo = createGoalRepository(input.db)
+  const goalRepo = input.goalRepo ?? createGoalRepository(input.db)
 
   const _createGoal = createGoal({
     goalRepo,

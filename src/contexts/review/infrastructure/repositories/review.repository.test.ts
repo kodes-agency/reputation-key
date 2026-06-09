@@ -18,13 +18,19 @@ const PROP_B = propertyId('1b000000-0000-0000-0000-000000000002')
 let pool: Pool
 
 async function truncateReviews(pool: Pool) {
-  await pool.query('DELETE FROM replies WHERE organization_id IN ($1, $2)', [ORG_A, ORG_B])
-  await pool.query('DELETE FROM reviews WHERE organization_id IN ($1, $2)', [ORG_A, ORG_B])
+  await pool.query('DELETE FROM replies WHERE organization_id IN ($1, $2)', [
+    ORG_A,
+    ORG_B,
+  ])
+  await pool.query('DELETE FROM reviews WHERE organization_id IN ($1, $2)', [
+    ORG_A,
+    ORG_B,
+  ])
 }
 
 async function seedOrgs(pool: Pool, ids: string[]) {
   // Clean up stale rows that hold our target slugs (from previous test runs with different IDs)
-  const slugs = ids.map(id => 't-' + id.replace(/-/g, '').slice(-12))
+  const slugs = ids.map((id) => 't-' + id.replace(/-/g, '').slice(-12))
   await pool.query(
     `DELETE FROM organization WHERE slug = ANY($1) AND NOT (id = ANY($2))`,
     [slugs, ids],
@@ -72,7 +78,9 @@ beforeEach(async () => {
   await seedProperties(pool)
 })
 
-function makeReview(overrides: Partial<Omit<Review, 'id'>> & { id?: string } = {}): Review {
+function makeReview(
+  overrides: Partial<Omit<Review, 'id'>> & { id?: string } = {},
+): Review {
   const idStr = overrides.id ?? '1a000000-0000-0000-0000-000000000001'
   const now = new Date('2025-06-01T12:00:00Z')
   const reviewedAt = new Date('2025-05-27T12:00:00Z')
@@ -148,21 +156,25 @@ describe.sequential('reviewRepository (integration)', () => {
       const repo = createReviewRepository(db)
       const sharedExternalId = 'ext-shared'
 
-      await repo.upsert(makeReview({
-        id: '1a000000-0000-0000-0000-000000000001',
-        organizationId: ORG_A,
-        propertyId: PROP_A,
-        externalId: sharedExternalId,
-        rating: 5,
-      }))
+      await repo.upsert(
+        makeReview({
+          id: '1a000000-0000-0000-0000-000000000001',
+          organizationId: ORG_A,
+          propertyId: PROP_A,
+          externalId: sharedExternalId,
+          rating: 5,
+        }),
+      )
 
-      await repo.upsert(makeReview({
-        id: '1a000000-0000-0000-0000-000000000002',
-        organizationId: ORG_B,
-        propertyId: PROP_B,
-        externalId: sharedExternalId,
-        rating: 1,
-      }))
+      await repo.upsert(
+        makeReview({
+          id: '1a000000-0000-0000-0000-000000000002',
+          organizationId: ORG_B,
+          propertyId: PROP_B,
+          externalId: sharedExternalId,
+          rating: 1,
+        }),
+      )
 
       const foundA = await repo.findByExternalId('google', sharedExternalId, ORG_A)
       const foundB = await repo.findByExternalId('google', sharedExternalId, ORG_B)
@@ -178,11 +190,13 @@ describe.sequential('reviewRepository (integration)', () => {
       const db = getDb()
       const repo = createReviewRepository(db)
 
-      await repo.upsert(makeReview({
-        id: '1a000000-0000-0000-0000-000000000001',
-        organizationId: ORG_A,
-        externalId: 'ext-secret',
-      }))
+      await repo.upsert(
+        makeReview({
+          id: '1a000000-0000-0000-0000-000000000001',
+          organizationId: ORG_A,
+          externalId: 'ext-secret',
+        }),
+      )
 
       const found = await repo.findByExternalId('google', 'ext-secret', ORG_B)
       expect(found).toBeNull()
@@ -194,8 +208,12 @@ describe.sequential('reviewRepository (integration)', () => {
       const db = getDb()
       const repo = createReviewRepository(db)
 
-      await repo.upsert(makeReview({ id: '1a000000-0000-0000-0000-000000000001', externalId: 'ext-1' }))
-      await repo.upsert(makeReview({ id: '1a000000-0000-0000-0000-000000000002', externalId: 'ext-2' }))
+      await repo.upsert(
+        makeReview({ id: '1a000000-0000-0000-0000-000000000001', externalId: 'ext-1' }),
+      )
+      await repo.upsert(
+        makeReview({ id: '1a000000-0000-0000-0000-000000000002', externalId: 'ext-2' }),
+      )
 
       const reviews = await repo.findByPropertyId(PROP_A, ORG_A)
       expect(reviews).toHaveLength(2)
@@ -214,55 +232,67 @@ describe.sequential('reviewRepository (integration)', () => {
       const db = getDb()
       const repo = createReviewRepository(db)
 
-      await repo.upsert(makeReview({ id: '1a000000-0000-0000-0000-000000000001', externalId: 'ext-1' }))
-      await repo.upsert(makeReview({ id: '1a000000-0000-0000-0000-000000000002', externalId: 'ext-2' }))
+      await repo.upsert(
+        makeReview({ id: '1a000000-0000-0000-0000-000000000001', externalId: 'ext-1' }),
+      )
+      await repo.upsert(
+        makeReview({ id: '1a000000-0000-0000-0000-000000000002', externalId: 'ext-2' }),
+      )
 
       const reviews = await repo.findByOrganizationId(ORG_A)
       expect(reviews).toHaveLength(2)
     })
   })
 
-  describe('findAllExpiringBefore / findAllExpiredBefore', () => {
-    it('findAllExpiringBefore returns reviews where expiresAt <= date', async () => {
+  describe('findAllExpiringBeforeAcrossTenants / findAllExpiredBeforeAcrossTenants', () => {
+    it('findAllExpiringBeforeAcrossTenants returns reviews where expiresAt <= date', async () => {
       const db = getDb()
       const repo = createReviewRepository(db)
       const now = new Date('2025-06-01T12:00:00Z')
 
-      await repo.upsert(makeReview({
-        id: '1a000000-0000-0000-0000-000000000001',
-        externalId: 'ext-soon',
-        expiresAt: new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000), // 2 days
-      }))
-      await repo.upsert(makeReview({
-        id: '1a000000-0000-0000-0000-000000000002',
-        externalId: 'ext-later',
-        expiresAt: new Date(now.getTime() + 20 * 24 * 60 * 60 * 1000), // 20 days
-      }))
+      await repo.upsert(
+        makeReview({
+          id: '1a000000-0000-0000-0000-000000000001',
+          externalId: 'ext-soon',
+          expiresAt: new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000), // 2 days
+        }),
+      )
+      await repo.upsert(
+        makeReview({
+          id: '1a000000-0000-0000-0000-000000000002',
+          externalId: 'ext-later',
+          expiresAt: new Date(now.getTime() + 20 * 24 * 60 * 60 * 1000), // 20 days
+        }),
+      )
 
       const threshold = new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000)
-      const expiring = await repo.findAllExpiringBefore(threshold)
+      const expiring = await repo.findAllExpiringBeforeAcrossTenants(threshold)
 
       expect(expiring).toHaveLength(1)
       expect(expiring[0].externalId).toBe('ext-soon')
     })
 
-    it('findAllExpiredBefore uses exclusive boundary', async () => {
+    it('findAllExpiredBeforeAcrossTenants uses exclusive boundary', async () => {
       const db = getDb()
       const repo = createReviewRepository(db)
       const now = new Date('2025-06-01T12:00:00Z')
 
-      await repo.upsert(makeReview({
-        id: '1a000000-0000-0000-0000-000000000001',
-        externalId: 'ext-expired',
-        expiresAt: new Date(now.getTime() - 1), // 1ms before now
-      }))
-      await repo.upsert(makeReview({
-        id: '1a000000-0000-0000-0000-000000000002',
-        externalId: 'ext-active',
-        expiresAt: now, // exactly now — should NOT be included (exclusive)
-      }))
+      await repo.upsert(
+        makeReview({
+          id: '1a000000-0000-0000-0000-000000000001',
+          externalId: 'ext-expired',
+          expiresAt: new Date(now.getTime() - 1), // 1ms before now
+        }),
+      )
+      await repo.upsert(
+        makeReview({
+          id: '1a000000-0000-0000-0000-000000000002',
+          externalId: 'ext-active',
+          expiresAt: now, // exactly now — should NOT be included (exclusive)
+        }),
+      )
 
-      const expired = await repo.findAllExpiredBefore(now)
+      const expired = await repo.findAllExpiredBeforeAcrossTenants(now)
 
       expect(expired).toHaveLength(1)
       expect(expired[0].externalId).toBe('ext-expired')
@@ -288,8 +318,12 @@ describe.sequential('reviewRepository (integration)', () => {
       const db = getDb()
       const repo = createReviewRepository(db)
 
-      await repo.upsert(makeReview({ id: '1a000000-0000-0000-0000-000000000001', externalId: 'ext-1' }))
-      await repo.upsert(makeReview({ id: '1a000000-0000-0000-0000-000000000002', externalId: 'ext-2' }))
+      await repo.upsert(
+        makeReview({ id: '1a000000-0000-0000-0000-000000000001', externalId: 'ext-1' }),
+      )
+      await repo.upsert(
+        makeReview({ id: '1a000000-0000-0000-0000-000000000002', externalId: 'ext-2' }),
+      )
 
       await repo.deleteByPropertyId(PROP_A, ORG_A)
 
@@ -319,8 +353,12 @@ describe.sequential('reviewRepository (integration)', () => {
       const db = getDb()
       const repo = createReviewRepository(db)
 
-      await repo.upsert(makeReview({ id: '1a000000-0000-0000-0000-000000000001', externalId: 'ext-1' }))
-      await repo.upsert(makeReview({ id: '1a000000-0000-0000-0000-000000000002', externalId: 'ext-2' }))
+      await repo.upsert(
+        makeReview({ id: '1a000000-0000-0000-0000-000000000001', externalId: 'ext-1' }),
+      )
+      await repo.upsert(
+        makeReview({ id: '1a000000-0000-0000-0000-000000000002', externalId: 'ext-2' }),
+      )
 
       // Attempt delete with ORG_B (wrong org)
       await repo.deleteByPropertyId(PROP_A, ORG_B)

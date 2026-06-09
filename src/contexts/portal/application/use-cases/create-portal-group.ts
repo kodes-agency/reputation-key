@@ -4,6 +4,7 @@ import type { EventBus } from '#/shared/events/event-bus'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { PortalGroup } from '../../domain/types'
 import type { CreatePortalGroupInput } from '../dto/portal-group.dto'
+export type { CreatePortalGroupInput }
 import { can } from '#/shared/domain/permissions'
 import { buildPortalGroup } from '../../domain/constructors'
 import { portalError } from '../../domain/errors'

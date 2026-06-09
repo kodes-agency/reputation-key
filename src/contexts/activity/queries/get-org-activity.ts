@@ -7,8 +7,7 @@ import type { ActivityLog } from '../domain/types'
 import type { Role } from '#/shared/domain/roles'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { can } from '#/shared/domain/permissions'
-import type { PropertyId } from '#/shared/domain/ids'
-import { organizationId, userId as toUserId } from '#/shared/domain/ids'
+import type { OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
 
 /** Filter entries to only those within the user's accessible properties.
  *  null accessiblePropertyIds = Admin → see everything. */
@@ -19,15 +18,15 @@ export const filterByPropertyAccess = (
   if (accessiblePropertyIds === null) return entries
   const allowed = new Set(accessiblePropertyIds.map((p) => p as string))
   return entries.filter(
-    (entry) => entry.propertyId === null || allowed.has(entry.propertyId),
+    (entry) => entry.propertyId === null || allowed.has(entry.propertyId as string),
   )
 }
 
 type GetOrgActivityInput = Readonly<{
-  organizationId: string
-  userId: string
+  organizationId: OrganizationId
+  userId: UserId
   role: Role
-  propertyId?: string
+  propertyId?: PropertyId
   limit?: number
   offset?: number
 }>
@@ -55,13 +54,16 @@ export const getOrgActivity =
 
     // PM/Staff: scope to accessible properties
     const accessiblePropertyIds = await deps.staffPublicApi.getAccessiblePropertyIds(
-      organizationId(input.organizationId),
-      toUserId(input.userId),
+      input.organizationId,
+      input.userId,
       input.role,
     )
 
     if (accessiblePropertyIds !== null && accessiblePropertyIds.length > 0) {
-      // Fetch with expanded limit to cover filtering, then apply pagination
+      // F083 NOTE: In-memory pagination — fetches expanded set from DB, filters by
+      // accessible properties in JS, then slices for the requested page.
+      // This is acceptable because PM/Staff activity volumes are bounded by property count.
+      // If per-org activity grows large, push filtering into SQL via a JOIN on staff_assignments.
       const expandedLimit = pagination.offset + pagination.limit
       const entries = await deps.repo.findByOrganization(input.organizationId, filter, {
         limit: expandedLimit,

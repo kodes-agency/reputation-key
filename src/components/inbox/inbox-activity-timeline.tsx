@@ -46,15 +46,20 @@ export function InboxActivityTimeline({
     }
   }, [inboxItemId])
 
+  // F122: Fixed double fetch — initial load and refreshKey-triggered load are
+  // separated into distinct effects. Previously, loadTimeline was in deps
+  // causing it to re-run whenever inboxItemId changed even when refreshKey didn't.
   useEffect(() => {
     loadTimeline()
-    // When refreshKey changes (status change, note added), the BullMQ pipeline
-    // (event → handler → job → worker → DB insert) takes ~1-2s.
-    // Schedule a delayed re-fetch to pick up the new activity row.
-    if (refreshKey !== undefined) {
-      const timer = setTimeout(loadTimeline, 2000)
-      return () => clearTimeout(timer)
-    }
+  }, [loadTimeline])
+
+  // When refreshKey changes (status change, note added), the BullMQ pipeline
+  // (event → handler → job → worker → DB insert) takes ~1-2s.
+  // Schedule a delayed re-fetch to pick up the new activity row.
+  useEffect(() => {
+    if (refreshKey === undefined) return
+    const timer = setTimeout(loadTimeline, 2000)
+    return () => clearTimeout(timer)
   }, [loadTimeline, refreshKey])
 
   if (isLoading) return <TimelineSkeleton />

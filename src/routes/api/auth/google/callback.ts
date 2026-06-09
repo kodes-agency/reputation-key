@@ -6,7 +6,7 @@
 
 import { createHmac, timingSafeEqual } from 'crypto'
 import { createFileRoute } from '@tanstack/react-router'
-import { err, ok, Result } from 'neverthrow'
+import { err, ok, type Result } from '#/shared/domain'
 import { getEnv } from '#/shared/config/env'
 import { getContainer } from '#/composition'
 import { resolveTenantContext } from '#/shared/auth/middleware'

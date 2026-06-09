@@ -14,5 +14,6 @@ export type NewCounterPort = Readonly<{
   setCount(orgId: OrganizationId, count: number): Promise<void>
   increment(orgId: OrganizationId): Promise<void>
   decrement(orgId: OrganizationId): Promise<void>
+  decrementBy(orgId: OrganizationId, count: number): Promise<void>
   invalidate(orgId: OrganizationId): Promise<void>
 }>

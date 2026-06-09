@@ -1,5 +1,11 @@
 // Identity context — domain events
 // Standards: docs/standards.md §1
+//
+// NOTE: These event types and constructors are defined for future use.
+// They are not currently emitted by any handler in the codebase. When
+// identity flows (invite, role change, member removal) are migrated to
+// the event-driven pattern, the relevant use cases should call these
+// constructors and emit via the event bus.
 
 import assert from 'node:assert/strict'
 import type { OrganizationId, UserId, InvitationId } from '#/shared/domain/ids'

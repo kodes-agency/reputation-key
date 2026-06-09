@@ -9,11 +9,12 @@ import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { can } from '#/shared/domain/permissions'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
-import { timeRangePreset, type TimeRangePreset } from '../application/dto/dashboard.dto'
+import { timeRangePreset } from '../application/dto/dashboard.dto'
+import { timeRangeToDates } from '../application/utils'
 import { propertyId, portalId, userId } from '#/shared/domain/ids'
 import { isDashboardError } from '../application/public-api'
 import type { DashboardErrorCode } from '../application/public-api'
-import { standardErrorStatus } from '#/shared/auth/error-status'
+import { standardErrorStatus } from '#/shared/http/status'
 import { z } from 'zod/v4'
 
 /** Local error constructor — server must not import domain error constructors. */
@@ -24,20 +25,6 @@ const makeDashboardError = (code: DashboardErrorCode, message: string) => ({
 })
 
 export const staffDashboardErrorStatus = standardErrorStatus
-
-const MS_PER_DAY = 86_400_000
-
-function timeRangeToDates(preset: TimeRangePreset) {
-  const now = new Date()
-  if (preset === 'all') {
-    return { startDate: new Date(0), endDate: now }
-  }
-  const days = preset === '7d' ? 7 : preset === '60d' ? 60 : preset === '90d' ? 90 : 30
-  return {
-    startDate: new Date(now.getTime() - days * MS_PER_DAY),
-    endDate: now,
-  }
-}
 
 const getStaffDashboardDataDto = z.object({
   propertyId: z.string().uuid(),

@@ -72,5 +72,11 @@ export const feedback = pgTable(
     ipHash: text('ip_hash').notNull(),
     createdAt: createdAtColumn(),
   },
-  () => ({}),
+  (t) => ({
+    // F162: Unique constraint prevents duplicate feedback from same session+portal
+    sessionPortalUnique: uniqueIndex('feedback_session_portal_unique').on(
+      t.sessionId,
+      t.portalId,
+    ),
+  }),
 )

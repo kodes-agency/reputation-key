@@ -1,7 +1,7 @@
 // Dashboard context — domain response shapes
 // Read-only aggregation surface. No domain rules, no events, no writes.
 
-import { ok, err, type Result } from 'neverthrow'
+import { ok, err, type Result } from '#/shared/domain'
 import type { ReviewId } from '#/shared/domain/ids'
 
 // ─── KPI Strip ───

@@ -3,6 +3,7 @@ import type { PortalGroupRepository } from '../ports/portal-group.repository'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { PortalGroup } from '../../domain/types'
 import type { ListPortalGroupsInput } from '../dto/portal-group.dto'
+export type { ListPortalGroupsInput }
 import { can } from '#/shared/domain/permissions'
 import { portalError } from '../../domain/errors'
 import { propertyId as toPropertyId } from '#/shared/domain/ids'

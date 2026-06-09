@@ -12,6 +12,7 @@ import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 const createStubStaffApi = (): StaffPublicApi => ({
   getAccessiblePropertyIds: async () => null,
   getAssignedPortals: async () => [],
+  countAssignmentsByTeam: async () => 0,
 })
 
 describe('PropertyPublicApi', () => {

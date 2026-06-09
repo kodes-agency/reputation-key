@@ -12,6 +12,7 @@ import type { PropertyId } from '#/shared/domain/ids'
 const createStaffApi = (accessibleIds: PropertyId[] | null): StaffPublicApi => ({
   getAccessiblePropertyIds: async () => accessibleIds,
   getAssignedPortals: async () => [],
+  countAssignmentsByTeam: async () => 0,
 })
 
 const setup = (staffApi?: StaffPublicApi) => {

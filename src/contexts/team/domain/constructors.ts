@@ -1,7 +1,7 @@
 // Team context — domain constructors (smart constructors)
 // Pure — ID and time are inputs, no side effects.
 
-import { Result } from 'neverthrow'
+import type { Result } from '#/shared/domain'
 import type { Team, TeamId } from './types'
 import type { TeamError } from './errors'
 import type { OrganizationId, UserId, PropertyId } from '#/shared/domain/ids'

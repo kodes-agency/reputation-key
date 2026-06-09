@@ -79,6 +79,7 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
         setCount: async () => {},
         increment: async () => {},
         decrement: async () => {},
+        decrementBy: async () => {},
         invalidate: async () => {},
       }
 

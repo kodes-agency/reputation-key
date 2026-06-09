@@ -21,7 +21,8 @@ export const createRefreshExpiringReviewsHandler = (deps: RefreshHandlerDeps) =>
       const logger = getLogger()
       const fiveDaysFromNow = new Date(deps.clock().getTime() + 5 * 24 * 60 * 60 * 1000)
 
-      const expiring = await deps.reviewRepo.findAllExpiringBefore(fiveDaysFromNow)
+      const expiring =
+        await deps.reviewRepo.findAllExpiringBeforeAcrossTenants(fiveDaysFromNow)
 
       // Group by (propertyId, connectionId, locationName, organizationId)
       const grouped = new Map<

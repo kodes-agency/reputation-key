@@ -3,7 +3,7 @@
 // returning a Result."
 // Pure — ID and time are inputs, no side effects.
 
-import { Result, err, ok } from 'neverthrow'
+import { Result, err, ok } from '#/shared/domain'
 import type {
   Portal,
   PortalId,
@@ -61,11 +61,11 @@ export const buildPortal = (input: BuildPortalInput): Result<Portal, PortalError
       propertyId: input.propertyId,
       entityType: input.entityType ?? 'property',
       entityId: input.entityId
-        ? (input.entityType === 'team'
-            ? teamId(input.entityId)
-            : input.entityType === 'staff'
-              ? userId(input.entityId)
-              : propertyId(input.entityId))
+        ? input.entityType === 'team'
+          ? teamId(input.entityId)
+          : input.entityType === 'staff'
+            ? userId(input.entityId)
+            : propertyId(input.entityId)
         : input.propertyId,
       name: validName,
       slug: validSlug,

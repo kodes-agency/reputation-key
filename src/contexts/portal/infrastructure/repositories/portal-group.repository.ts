@@ -4,7 +4,7 @@ import type { Database } from '#/shared/db'
 import { baseWhere } from '#/shared/db/base-where'
 import { portalGroups } from '#/shared/db/schema/portal-group.schema'
 import type { PortalGroupRepository } from '../../application/ports/portal-group.repository'
-import { portalGroupFromRow } from '../mappers/portal-group.mapper'
+import { portalGroupFromRow, portalGroupToRow } from '../mappers/portal-group.mapper'
 import { unbrand } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 
@@ -58,14 +58,7 @@ export const createPortalGroupRepository = (db: Database): PortalGroupRepository
     return trace('portalGroup.insert', async () => {
       const result = await db
         .insert(portalGroups)
-        .values({
-          id: unbrand(group.id),
-          organizationId: unbrand(group.organizationId),
-          propertyId: unbrand(group.propertyId),
-          name: group.name,
-          createdAt: group.createdAt,
-          updatedAt: group.updatedAt,
-        })
+        .values(portalGroupToRow(group))
         .returning()
       if (!result[0]) throw new Error('PortalGroup insert failed')
       return portalGroupFromRow(result[0])

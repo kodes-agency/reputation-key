@@ -8,6 +8,12 @@ import { can } from '#/shared/domain/permissions'
 import { staffError } from '../../domain/errors'
 import { staffUnassigned } from '../../domain/events'
 
+// ── Input type ────────────────────────────────────────────────────────────
+
+export type RemoveStaffAssignmentInput = Readonly<{
+  assignmentId: StaffAssignmentId
+}>
+
 // fallow-ignore-next-line unused-type
 export type RemoveStaffAssignmentDeps = Readonly<{
   assignmentRepo: StaffAssignmentRepository
@@ -17,7 +23,7 @@ export type RemoveStaffAssignmentDeps = Readonly<{
 
 export const removeStaffAssignment =
   (deps: RemoveStaffAssignmentDeps) =>
-  async (input: { assignmentId: StaffAssignmentId }, ctx: AuthContext): Promise<void> => {
+  async (input: RemoveStaffAssignmentInput, ctx: AuthContext): Promise<void> => {
     // 1. Authorize
     if (!can(ctx.role, 'staff_assignment.delete')) {
       throw staffError('forbidden', 'this role cannot manage staff assignments')

@@ -122,10 +122,10 @@
       "segment": "S2",
       "file": "src/routes/p/$propertySlug/$portalSlug.tsx:79",
       "line": 79,
-      "what": "portal.id reference in useEffect out of scope \u2014 guest scans broken",
+      "what": "portal.id reference in useEffect out of scope — guest scans broken",
       "why": "Variable destructured AFTER useEffect, should be data.portal.id",
       "fix_direction": "Change portal.id to data.portal.id inside useEffect",
-      "status": "open",
+      "status": "fixed",
       "found_in_round": 1
     },
     {
@@ -377,7 +377,7 @@
       "what": "incrementProgress lacks tenant isolation \u2014 no orgId filter",
       "why": "Cross-tenant progress manipulation theoretically possible",
       "fix_direction": "Add orgId parameter, JOIN on goals table to verify ownership",
-      "status": "open",
+      "status": "fixed",
       "found_in_round": 1
     },
     {
@@ -391,7 +391,7 @@
       "what": "findAllActive queries ALL tenants with no safeguard preventing request-scoped use",
       "why": "If called from server fn, returns cross-tenant data",
       "fix_direction": "Rename to findAllActiveForAllTenants() or add branded type guard",
-      "status": "open",
+      "status": "fixed",
       "found_in_round": 1
     },
     {
@@ -461,7 +461,7 @@
       "what": "InboxNote create() trusts note.organizationId without explicit orgId param",
       "why": "Defense-in-depth gap \u2014 other repos require explicit orgId",
       "fix_direction": "Add orgId param and verify match",
-      "status": "open",
+      "status": "fixed",
       "found_in_round": 1
     },
     {
@@ -1105,7 +1105,7 @@
       "what": "findByResource doesn't filter by organizationId \u2014 potential cross-tenant data leak",
       "why": "Resource ID lookup not scoped to tenant",
       "fix_direction": "Add organizationId to WHERE clause",
-      "status": "open",
+      "status": "fixed",
       "found_in_round": 1
     },
     {
@@ -1525,7 +1525,7 @@
       "what": "TOCTOU race in draftReply: finds existing reply (L69), checks status (L77), then upserts (L83/95). Two concurrent draftReply calls can both pass the status check before either writes, allowing overwriting a submitted/approved reply.",
       "why": "Lost update if two users draft a reply for the same review simultaneously",
       "fix_direction": "Use DB-level conditional UPDATE WHERE status IN ('draft','rejected') \u2014 check affected row count",
-      "status": "open",
+      "status": "fixed",
       "found_in_round": 2
     },
     {
@@ -1539,7 +1539,7 @@
       "what": "TOCTOU race in submitReply: reads reply (L130), validates transition (L138), upserts (L146). Concurrent submit+approve could both pass validation.",
       "why": "Status machine can be violated under concurrent access \u2014 reply could skip states",
       "fix_direction": "Atomic UPDATE WHERE id=? AND status='draft' \u2014 if 0 rows affected, throw transition error",
-      "status": "open",
+      "status": "fixed",
       "found_in_round": 2
     },
     {
@@ -1553,7 +1553,7 @@
       "what": "Same TOCTOU pattern in approveReply (L182 validate, L198 upsert), rejectReply (L240 validate, L256 upsert), retryPublish (L415 validate, L431 upsert). All reply operations read-then-write without atomicity.",
       "why": "Entire reply lifecycle vulnerable to concurrent state corruption",
       "fix_direction": "All reply mutations need atomic conditional UPDATE WHERE status=current_expected",
-      "status": "open",
+      "status": "fixed",
       "found_in_round": 2
     },
     {

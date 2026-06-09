@@ -8,12 +8,12 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import { can } from '#/shared/domain/permissions'
 import { identityError } from '../../domain/errors'
 import type { AcceptInvitationInput } from '../dto/invitation.dto'
+export type ResendInvitationInput = AcceptInvitationInput
 
 // fallow-ignore-next-line unused-type
 export type ResendInvitationOutput = Readonly<{
   success: boolean
 }>
-export type ResendInvitation = ReturnType<typeof resendInvitation>
 
 /** Email sender capability — decoupled from infrastructure. */
 type EmailSender = (
@@ -25,12 +25,13 @@ type EmailSender = (
   }>,
 ) => Promise<void>
 
-type Deps = Readonly<{
+export type ResendInvitationDeps = Readonly<{
   identity: IdentityPort
   sendEmail: EmailSender
   getOrganizationName: (ctx: AuthContext) => Promise<string>
   baseUrl: string
 }>
+export type ResendInvitation = ReturnType<typeof resendInvitation>
 
 /**
  * Resend an invitation email.
@@ -43,9 +44,9 @@ type Deps = Readonly<{
  * 5. Return success
  */
 export const resendInvitation =
-  (deps: Deps) =>
+  (deps: ResendInvitationDeps) =>
   async (
-    input: AcceptInvitationInput,
+    input: ResendInvitationInput,
     ctx: AuthContext,
   ): Promise<ResendInvitationOutput> => {
     // 1. Authorize — permission check

@@ -64,6 +64,7 @@ function createFakeDeps() {
     list: async () => [],
     listInstances: async () => [],
     cancelByParent: async () => 0,
+    cancelGoalWithInstances: async () => null,
     insertProgress: async (data) => {
       const progress: GoalProgress = {
         id: goalProgressId(nextId()),
@@ -105,12 +106,16 @@ function createFakeDeps() {
       currentCount: null,
     }),
     markGoalCompleted: async () => {},
-    findAllActive: async () => [],
+    findAllActiveAcrossTenants: async () => [],
     findActiveRecurringTemplates: async () => [],
     findLatestInstance: async () => null,
     listByPortalAndGroupIds: async () => [],
     createGoalAndProgress: async (goal, progress) => {
       goals.push(goal)
+      progresses.push(progress)
+    },
+    createTemplateInstanceAndProgress: async (template, instance, progress) => {
+      goals.push(template, instance)
       progresses.push(progress)
     },
   }

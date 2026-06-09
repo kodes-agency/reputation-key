@@ -50,6 +50,7 @@ function seedNew(overrides?: Partial<InboxItem>): InboxItem {
 const staffApiAllAccess: StaffPublicApi = {
   getAccessiblePropertyIds: async () => null,
   getAssignedPortals: async () => [],
+  countAssignmentsByTeam: async () => 0,
 }
 
 const setup = (staffApi: StaffPublicApi = staffApiAllAccess) => {
@@ -63,6 +64,7 @@ const setup = (staffApi: StaffPublicApi = staffApiAllAccess) => {
     decrement: async (orgId) => {
       decrements.push({ orgId: orgId as string })
     },
+    decrementBy: async () => {},
     invalidate: async () => {},
   }
   const deps = {
@@ -186,6 +188,7 @@ describe('updateInboxStatus', () => {
     const staffApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [],
       getAssignedPortals: async () => [],
+      countAssignmentsByTeam: async () => 0,
     }
     const { useCase, repo } = setup(staffApi)
     repo.items.push(seedNew())
@@ -205,6 +208,7 @@ describe('updateInboxStatus', () => {
     const staffApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [propertyId('prop-1')],
       getAssignedPortals: async () => [],
+      countAssignmentsByTeam: async () => 0,
     }
     const { useCase, repo } = setup(staffApi)
     repo.items.push(seedNew())
@@ -225,6 +229,7 @@ describe('updateInboxStatus', () => {
     const staffApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [propertyId('prop-other')],
       getAssignedPortals: async () => [],
+      countAssignmentsByTeam: async () => 0,
     }
     const { useCase, repo } = setup(staffApi)
     repo.items.push(seedNew())
@@ -246,6 +251,7 @@ describe('updateInboxStatus', () => {
         throw new Error('Should not be called')
       },
       getAssignedPortals: async () => [],
+      countAssignmentsByTeam: async () => 0,
     }
     const { useCase, repo } = setup(staffApi)
     repo.items.push(seedNew())

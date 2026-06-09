@@ -63,6 +63,7 @@ const seedItem = (): InboxItem => ({
 const defaultStaffApi: StaffPublicApi = {
   getAccessiblePropertyIds: async () => null,
   getAssignedPortals: async () => [],
+  countAssignmentsByTeam: async () => 0,
 }
 
 const setup = (staffApi: StaffPublicApi = defaultStaffApi) => {
@@ -133,6 +134,7 @@ describe('addInboxNote', () => {
     const staffApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [],
       getAssignedPortals: async () => [],
+      countAssignmentsByTeam: async () => 0,
     }
     const { useCase, repo } = setup(staffApi)
     repo.items.push(seedItem())
@@ -153,6 +155,7 @@ describe('addInboxNote', () => {
     const staffApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [propertyId('prop-other')],
       getAssignedPortals: async () => [],
+      countAssignmentsByTeam: async () => 0,
     }
     const { useCase, repo } = setup(staffApi)
     repo.items.push(seedItem())
@@ -172,6 +175,7 @@ describe('addInboxNote', () => {
     const staffApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [propertyId('prop-1')],
       getAssignedPortals: async () => [],
+      countAssignmentsByTeam: async () => 0,
     }
     const { useCase, repo, noteRepo } = setup(staffApi)
     repo.items.push(seedItem())

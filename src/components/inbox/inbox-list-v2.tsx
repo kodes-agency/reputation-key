@@ -103,8 +103,9 @@ export function InboxListV2({
   onDeselectAll,
   onRowClick,
 }: InboxListV2Props) {
-  const allSelected =
-    items.length > 0 && items.every((item) => selectedIds.includes(item.id))
+  // FE-095 FIX: Use Set for O(1) lookup instead of Array.includes O(n)
+  const selectedSet = React.useMemo(() => new Set(selectedIds), [selectedIds])
+  const allSelected = items.length > 0 && items.every((item) => selectedSet.has(item.id))
 
   return (
     // FE-17 FIX: Add ARIA listbox role for accessibility
@@ -130,7 +131,7 @@ export function InboxListV2({
         <ListItemRow
           key={item.id}
           item={item}
-          isSelected={selectedIds.includes(item.id)}
+          isSelected={selectedSet.has(item.id)}
           onToggleSelect={onToggleSelect}
           onRowClick={onRowClick}
         />

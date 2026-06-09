@@ -20,16 +20,7 @@ import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import { reviewId } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 
-/** Compute trend percentage. Returns null when prior is 0 or result is not finite.
- *  DEVIATION: Pure computation in infrastructure layer. Acceptable because it's a
- *  read-model aggregation (no domain rules depend on it) and tightly coupled to
- *  the SQL result-shaping in this repo. Moving to domain would add indirection
- *  with no architectural benefit for a thin read-model context. */
-function trend(current: number, prior: number): number | null {
-  if (prior === 0) return null
-  const result = ((current - prior) / prior) * 100
-  return Number.isFinite(result) ? Math.round(result) : null
-}
+import { computeTrend } from '../../application/utils'
 
 export function createDashboardRepository(
   reviewStats: ReviewStatsPort,
@@ -110,22 +101,22 @@ export function createDashboardRepository(
           reviews: {
             value: curReviewCount,
             priorValue: priorReviewCount,
-            trend: trend(curReviewCount, priorReviewCount),
+            trend: computeTrend(curReviewCount, priorReviewCount),
           },
           avgRating: {
             value: curAvgRating,
             priorValue: priorAvgRating,
-            trend: trend(curAvgRating, priorAvgRating),
+            trend: computeTrend(curAvgRating, priorAvgRating),
           },
           scans: {
             value: curScans,
             priorValue: priorScans,
-            trend: trend(curScans, priorScans),
+            trend: computeTrend(curScans, priorScans),
           },
           feedback: {
             value: curFeedback,
             priorValue: priorFeedback,
-            trend: trend(curFeedback, priorFeedback),
+            trend: computeTrend(curFeedback, priorFeedback),
           },
         }
       })
@@ -142,7 +133,8 @@ export function createDashboardRepository(
           priorEndDate,
         } = input
 
-        // Review stats at property level (same as getKPIs without portal filter)
+        // F054 NOTE: Review stats are property-level (no portalId filter on reviews).
+        // This is correct — reviews are property-scoped. Metric stats are portal-scoped below.
         const [currentReviews, priorReviews] = await Promise.all([
           reviewStats.getPeriodStats(organizationId, propertyId, startDate, endDate),
           reviewStats.getPeriodStats(
@@ -189,22 +181,22 @@ export function createDashboardRepository(
           reviews: {
             value: curReviewCount,
             priorValue: priorReviewCount,
-            trend: trend(curReviewCount, priorReviewCount),
+            trend: computeTrend(curReviewCount, priorReviewCount),
           },
           avgRating: {
             value: curAvgRating,
             priorValue: priorAvgRating,
-            trend: trend(curAvgRating, priorAvgRating),
+            trend: computeTrend(curAvgRating, priorAvgRating),
           },
           scans: {
             value: curScans,
             priorValue: priorScans,
-            trend: trend(curScans, priorScans),
+            trend: computeTrend(curScans, priorScans),
           },
           feedback: {
             value: curFeedback,
             priorValue: priorFeedback,
-            trend: trend(curFeedback, priorFeedback),
+            trend: computeTrend(curFeedback, priorFeedback),
           },
         }
       })

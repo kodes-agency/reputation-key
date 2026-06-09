@@ -34,8 +34,7 @@ export {
 } from './ids'
 
 // ── Core types ────────────────────────────────────────────────────
-export type { Result } from './result'
-export { ok, err } from './result'
+export { Result, ok, err } from './result'
 
 export type { TaggedError } from './errors'
 export { createErrorFactory } from './errors'

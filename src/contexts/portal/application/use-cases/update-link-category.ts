@@ -9,6 +9,12 @@ import { can } from '#/shared/domain/permissions'
 import { portalLinkCategoryId } from '#/shared/domain/ids'
 
 // fallow-ignore-next-line unused-type
+export type UpdateLinkCategoryInput = Readonly<{
+  categoryId: string
+  title?: string
+}>
+
+// fallow-ignore-next-line unused-type
 export type UpdateLinkCategoryDeps = Readonly<{
   portalLinkRepo: PortalLinkRepository
   clock: () => Date
@@ -17,7 +23,7 @@ export type UpdateLinkCategoryDeps = Readonly<{
 export const updateLinkCategory =
   (deps: UpdateLinkCategoryDeps) =>
   async (
-    input: { categoryId: string; title?: string },
+    input: UpdateLinkCategoryInput,
     ctx: AuthContext,
   ): Promise<PortalLinkCategory> => {
     // 1. Authorize
@@ -37,10 +43,14 @@ export const updateLinkCategory =
       const r = validateCategoryTitle(input.title)
       if (r.isErr()) throw r.error
       const updatedAt = deps.clock()
-      await deps.portalLinkRepo.updateCategory(ctx.organizationId, portalLinkCategoryId(input.categoryId), {
-        title: r.value,
-        updatedAt,
-      })
+      await deps.portalLinkRepo.updateCategory(
+        ctx.organizationId,
+        portalLinkCategoryId(input.categoryId),
+        {
+          title: r.value,
+          updatedAt,
+        },
+      )
       return { ...existing, title: r.value, updatedAt }
     }
 

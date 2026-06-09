@@ -7,11 +7,11 @@ import type { Goal, RecurrenceRule } from '../../domain/types'
 import type { GoalId, OrganizationId } from '#/shared/domain/ids'
 import type { Role } from '#/shared/domain/roles'
 import { can } from '#/shared/domain/permissions'
-import { ok, err, type Result } from 'neverthrow'
+import { ok, err, type Result } from '#/shared/domain'
 
 // ── Input type ──────────────────────────────────────────────────────────
 
-type UpdateGoalInput = Readonly<{
+export type UpdateGoalInput = Readonly<{
   goalId: GoalId
   organizationId: OrganizationId
   targetValue?: number

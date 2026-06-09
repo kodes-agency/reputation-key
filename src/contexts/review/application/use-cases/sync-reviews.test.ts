@@ -139,8 +139,8 @@ function createTestEnv(googleReviews: ReadonlyArray<GoogleReview> = []) {
     }),
     findByPropertyId: vi.fn(async (_propertyId, _orgId) => []),
     findByOrganizationId: vi.fn(async () => []),
-    findAllExpiringBefore: vi.fn(async () => []),
-    findAllExpiredBefore: vi.fn(async () => []),
+    findAllExpiringBeforeAcrossTenants: vi.fn(async () => []),
+    findAllExpiredBeforeAcrossTenants: vi.fn(async () => []),
     deleteById: vi.fn(async (_id, _orgId) => {}),
     deleteByPropertyId: vi.fn(async (_propertyId, _orgId) => {}),
   }
@@ -160,6 +160,7 @@ function createTestEnv(googleReviews: ReadonlyArray<GoogleReview> = []) {
       replyStore.set(String(reply.id), full)
       return full
     }),
+    conditionalUpdate: vi.fn(async () => null),
     deleteById: vi.fn(async (_id, _orgId) => {}),
     deleteByReviewIdAndSource: vi.fn(async (revId, source, _orgId) => {
       for (const [k, r] of replyStore.entries()) {

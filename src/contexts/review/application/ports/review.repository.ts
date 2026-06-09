@@ -19,10 +19,13 @@ export type ReviewRepository = Readonly<{
   findByPropertyId(
     propertyId: PropertyId,
     organizationId: OrganizationId,
+    options?: { limit?: number },
   ): Promise<ReadonlyArray<Review>>
   findByOrganizationId(orgId: OrganizationId): Promise<ReadonlyArray<Review>>
-  findAllExpiringBefore(date: Date): Promise<ReadonlyArray<Review>>
-  findAllExpiredBefore(date: Date): Promise<ReadonlyArray<Review>>
+  /** ⚠️ CROSS-TENANT: System-level query — scans ALL orgs. Only for background jobs (refresh-expiring). */
+  findAllExpiringBeforeAcrossTenants(date: Date): Promise<ReadonlyArray<Review>>
+  /** ⚠️ CROSS-TENANT: System-level query — scans ALL orgs. Only for background jobs (purge-expired). */
+  findAllExpiredBeforeAcrossTenants(date: Date): Promise<ReadonlyArray<Review>>
   deleteById(id: ReviewId, organizationId: OrganizationId): Promise<void>
   deleteByPropertyId(
     propertyId: PropertyId,

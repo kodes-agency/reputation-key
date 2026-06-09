@@ -16,8 +16,8 @@ export const onReplyPublished =
 
     const payload: InsertActivityLogInput = {
       action: 'published' as const,
-      resourceType: 'inbox_item' as const,
-      resourceId: inboxItemId,
+      resourceType: 'reply' as const,
+      resourceId: event.replyId as string,
       propertyId: event.propertyId || null,
       organizationId: event.organizationId,
       userId: event.userId || null,

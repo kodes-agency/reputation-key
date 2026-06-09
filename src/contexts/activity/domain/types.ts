@@ -2,6 +2,12 @@
 // Per architecture: "Domain types use Readonly<> on every field."
 
 import type { Role } from '#/shared/domain/roles'
+import type {
+  ActivityLogId,
+  UserId,
+  OrganizationId,
+  PropertyId,
+} from '#/shared/domain/ids'
 
 export type ActivityAction =
   | 'created'
@@ -33,16 +39,16 @@ export type ActivityPayload = Readonly<{
 }>
 
 export type ActivityLog = Readonly<{
-  id: string
-  actorId: string
+  id: ActivityLogId
+  actorId: UserId
   actorName: string
   actorAvatarUrl: string | null
   actorRole: Role
   action: ActivityAction
   resourceType: ResourceType
   resourceId: string
-  propertyId: string | null
-  organizationId: string
+  propertyId: PropertyId | null
+  organizationId: OrganizationId
   payload: ActivityPayload
   source: 'web' | 'import'
   createdAt: Date

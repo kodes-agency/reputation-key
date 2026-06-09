@@ -8,7 +8,15 @@ import type { GoalId, OrganizationId } from '#/shared/domain/ids'
 import type { GoalWithProgress } from './list-goals'
 import type { Role } from '#/shared/domain/roles'
 import { can } from '#/shared/domain/permissions'
-import { ok, err, type Result } from 'neverthrow'
+import { ok, err, type Result } from '#/shared/domain'
+
+// ── Input type ────────────────────────────────────────────────────────────
+
+export type GetGoalInput = Readonly<{
+  goalId: GoalId
+  organizationId: OrganizationId
+  role: Role
+}>
 
 // ── Return types ───────────────────────────────────────────────────────────
 
@@ -33,11 +41,7 @@ export type GetGoalDeps = Readonly<{
 
 export const getGoal =
   (deps: GetGoalDeps) =>
-  async (input: {
-    goalId: GoalId
-    organizationId: OrganizationId
-    role: Role
-  }): Promise<Result<GoalDetail, GetGoalError>> => {
+  async (input: GetGoalInput): Promise<Result<GoalDetail, GetGoalError>> => {
     if (!can(input.role, 'goal.read')) {
       return err({ tag: 'forbidden' })
     }

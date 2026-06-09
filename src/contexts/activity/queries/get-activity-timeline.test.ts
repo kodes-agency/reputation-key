@@ -4,11 +4,12 @@ import type { ActivityLog } from '../domain/types'
 import type { ActivityRepository } from '../ports/activity-repository.port'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { Role } from '#/shared/domain/roles'
+import { activityLogId, userId, propertyId, organizationId } from '#/shared/domain/ids'
 
 function makeEntry(overrides: Partial<ActivityLog> = {}): ActivityLog {
   return {
-    id: 'al-1',
-    actorId: 'user-1',
+    id: activityLogId('al-1'),
+    actorId: userId('user-1'),
     actorName: 'Test',
     actorAvatarUrl: null,
     actorRole: 'Staff' as Role,
@@ -16,7 +17,7 @@ function makeEntry(overrides: Partial<ActivityLog> = {}): ActivityLog {
     resourceType: 'inbox_item',
     resourceId: 'ii-1',
     propertyId: null,
-    organizationId: 'org-1',
+    organizationId: organizationId('org-1'),
     payload: { subject: 'test', from: null, to: null, detail: null },
     source: 'web',
     createdAt: new Date(),
@@ -37,13 +38,15 @@ function staffApiAllAccess(): StaffPublicApi {
   return {
     getAccessiblePropertyIds: async () => null,
     getAssignedPortals: async () => [],
+    countAssignmentsByTeam: async () => 0,
   }
 }
 
 function staffApiLimited(ids: string[]): StaffPublicApi {
   return {
-    getAccessiblePropertyIds: async () => ids as never,
+    getAccessiblePropertyIds: async () => ids.map(propertyId),
     getAssignedPortals: async () => [],
+    countAssignmentsByTeam: async () => 0,
   }
 }
 
@@ -51,15 +54,15 @@ describe('getActivityTimeline', () => {
   const baseInput = {
     resourceType: 'inbox_item',
     resourceId: 'ii-1',
-    organizationId: 'org-1',
-    userId: 'user-1',
+    organizationId: organizationId('org-1'),
+    userId: userId('user-1'),
     role: 'Staff' as Role,
   }
 
   it('returns all entries for admin users', async () => {
     const repo = createInMemoryActivityRepo([
       makeEntry(),
-      makeEntry({ id: 'al-2', propertyId: 'prop-2' }),
+      makeEntry({ id: activityLogId('al-2'), propertyId: propertyId('prop-2') }),
     ])
     const deps = { repo, staffPublicApi: staffApiAllAccess() }
     const result = await getActivityTimeline(deps)({
@@ -71,9 +74,9 @@ describe('getActivityTimeline', () => {
 
   it('filters entries by accessible properties for non-admin', async () => {
     const repo = createInMemoryActivityRepo([
-      makeEntry({ id: 'al-1', propertyId: 'prop-1' }),
-      makeEntry({ id: 'al-2', propertyId: 'prop-2' }),
-      makeEntry({ id: 'al-3', propertyId: null }),
+      makeEntry({ id: activityLogId('al-1'), propertyId: propertyId('prop-1') }),
+      makeEntry({ id: activityLogId('al-2'), propertyId: propertyId('prop-2') }),
+      makeEntry({ id: activityLogId('al-3'), propertyId: null }),
     ])
     const deps = { repo, staffPublicApi: staffApiLimited(['prop-1']) }
     const result = await getActivityTimeline(deps)(baseInput)
@@ -82,8 +85,8 @@ describe('getActivityTimeline', () => {
 
   it('returns empty when staff has no accessible properties', async () => {
     const repo = createInMemoryActivityRepo([
-      makeEntry({ id: 'al-1', propertyId: 'prop-1' }),
-      makeEntry({ id: 'al-2', propertyId: 'prop-2' }),
+      makeEntry({ id: activityLogId('al-1'), propertyId: propertyId('prop-1') }),
+      makeEntry({ id: activityLogId('al-2'), propertyId: propertyId('prop-2') }),
     ])
     const deps = { repo, staffPublicApi: staffApiLimited([]) }
     const result = await getActivityTimeline(deps)(baseInput)
@@ -91,7 +94,9 @@ describe('getActivityTimeline', () => {
   })
 
   it('respects limit parameter', async () => {
-    const entries = Array.from({ length: 10 }, (_, i) => makeEntry({ id: `al-${i}` }))
+    const entries = Array.from({ length: 10 }, (_, i) =>
+      makeEntry({ id: activityLogId(`al-${i}`) }),
+    )
     const repo = createInMemoryActivityRepo(entries)
     const deps = { repo, staffPublicApi: staffApiAllAccess() }
     const result = await getActivityTimeline(deps)({

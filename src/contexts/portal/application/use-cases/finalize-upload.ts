@@ -8,6 +8,12 @@ import { portalId } from '#/shared/domain/ids'
 import { portalError } from '../../domain/errors'
 
 // fallow-ignore-next-line unused-type
+export type FinalizeUploadInput = Readonly<{
+  portalId: string
+  key: string
+}>
+
+// fallow-ignore-next-line unused-type
 export type FinalizeUploadDeps = Readonly<{
   portalRepo: PortalRepository
   storage: StoragePort
@@ -17,11 +23,14 @@ export type FinalizeUploadDeps = Readonly<{
 export const finalizeUpload =
   (deps: FinalizeUploadDeps) =>
   async (
-    input: { portalId: string; key: string },
+    input: FinalizeUploadInput,
     ctx: AuthContext,
   ): Promise<{ heroImageUrl: string }> => {
     if (!can(ctx.role, 'portal.update')) {
-      throw portalError('forbidden', 'Insufficient permissions to finalize portal uploads')
+      throw portalError(
+        'forbidden',
+        'Insufficient permissions to finalize portal uploads',
+      )
     }
 
     const portal = await deps.portalRepo.findById(

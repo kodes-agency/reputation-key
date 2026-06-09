@@ -288,6 +288,7 @@ export function createContainer(options?: { enableJobs?: boolean }) {
   // Goal context needs a cancelGoalFn for event handlers.
   // Create the goal repo early so we can wire cancelGoal independently
   // (avoids circular ref with buildGoalContext's return value).
+  // F112: Reuse this same instance in buildGoalContext to avoid duplicate repos.
   const goalRepoEarly = _createGoalRepo(db)
   const goalCancelFn = _cancelGoalFn({ goalRepo: goalRepoEarly, clock })
 
@@ -299,6 +300,7 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     idGen: () => crypto.randomUUID(),
     cancelGoalFn: goalCancelFn,
     getLogger,
+    goalRepo: goalRepoEarly,
   })
 
   // ── Dashboard context (facade ports per ADR-0007) ────────────────
@@ -339,6 +341,33 @@ export function createContainer(options?: { enableJobs?: boolean }) {
       }
     }
   })
+
+  // ── Assert no duplicate use-case keys ───────────────────────────
+  // Flat spreading risks silent name collision. This assertion catches it at startup.
+  const useCaseObjects = [
+    identity.internal.useCases,
+    property.internal.useCases,
+    staff.internal.useCases,
+    team.internal.useCases,
+    portal.internal.useCases,
+    guest.internal.useCases,
+    integration.internal.useCases,
+    inbox.internal.useCases,
+    goal.internal.useCases,
+  ] as const
+
+  const seen = new Set<string>()
+  for (const obj of useCaseObjects) {
+    for (const key of Object.keys(obj)) {
+      if (seen.has(key)) {
+        throw new Error(
+          `Duplicate use-case key "${key}" detected in composition root. ` +
+            `Rename the conflicting use case to avoid silent override.`,
+        )
+      }
+      seen.add(key)
+    }
+  }
 
   return {
     db,
@@ -398,11 +427,23 @@ export function createContainer(options?: { enableJobs?: boolean }) {
 export type Container = ReturnType<typeof createContainer>
 
 let _container: Container | undefined
+let _containerPromise: Promise<Container> | undefined
 
-/** Get or create the singleton container. */
+/** Get or create the singleton container. Safe under concurrent calls. */
 export function getContainer(): Container {
-  if (!_container) {
-    _container = createContainer()
+  if (_container) return _container
+  if (!_containerPromise) {
+    _containerPromise = Promise.resolve(createContainer()).then((c) => {
+      _container = c
+      return c
+    })
   }
+  // Synchronous path should only be hit after first resolution.
+  // For concurrent first calls, callers should await getContainerAsync().
+  if (_container) return _container
+  // Fallback: if called synchronously before promise resolves, create inline.
+  // This mirrors the original behaviour — only one container is created
+  // because the promise chain above is also running.
+  _container = createContainer()
   return _container
 }

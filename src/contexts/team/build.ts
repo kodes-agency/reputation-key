@@ -12,6 +12,7 @@ import { updateTeam } from './application/use-cases/update-team'
 import { listTeams } from './application/use-cases/list-teams'
 import { getTeam } from './application/use-cases/get-team'
 import { softDeleteTeam } from './application/use-cases/soft-delete-team'
+import type { AssignmentCheckPort } from './application/ports/assignment-check.port'
 import { teamId } from '#/shared/domain/ids'
 import { randomUUID } from 'crypto'
 
@@ -26,6 +27,11 @@ type TeamContextDeps = Readonly<{
 export const buildTeamContext = (deps: TeamContextDeps) => {
   const teamRepo = createTeamRepository(deps.db)
   const idGen = () => teamId(randomUUID())
+
+  // Anti-corruption: delegate assignment counting to staff context via public API
+  const assignmentCheck: AssignmentCheckPort = {
+    countByTeam: (orgId, teamId) => deps.staffApi.countAssignmentsByTeam(orgId, teamId),
+  }
 
   const useCases = {
     createTeam: createTeam({
@@ -50,6 +56,7 @@ export const buildTeamContext = (deps: TeamContextDeps) => {
     }),
     softDeleteTeam: softDeleteTeam({
       teamRepo,
+      assignmentCheck,
       events: deps.events,
       clock: deps.clock,
     }),

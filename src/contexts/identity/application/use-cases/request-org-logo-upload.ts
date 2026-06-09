@@ -5,6 +5,11 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import { identityError } from '../../domain/errors'
 import { can } from '#/shared/domain/permissions'
 
+export type RequestOrgLogoUploadInput = Readonly<{
+  contentType: string
+  fileSize: number
+}>
+
 // fallow-ignore-next-line unused-type
 export type RequestOrgLogoUploadDeps = Readonly<{
   storage: StoragePort
@@ -17,7 +22,7 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5 MB for logos
 export const requestOrgLogoUpload =
   (deps: RequestOrgLogoUploadDeps) =>
   async (
-    input: { contentType: string; fileSize: number },
+    input: RequestOrgLogoUploadInput,
     ctx: AuthContext,
   ): Promise<{ uploadUrl: string; key: string }> => {
     if (!can(ctx.role, 'identity.logo_upload')) {

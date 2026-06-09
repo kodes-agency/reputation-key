@@ -9,7 +9,7 @@ import type {
   GoogleConnectionId,
   UserId,
 } from '#/shared/domain/ids'
-import { ok, err } from 'neverthrow'
+import { ok, err } from '#/shared/domain'
 import { reviewError } from './errors'
 import { isValidRating, calculateExpiresAt, MAX_REPLY_LENGTH } from './rules'
 

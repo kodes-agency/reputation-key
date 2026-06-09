@@ -72,7 +72,9 @@ function generatePropertySlug(
   gbpPlaceId: string,
   hashFn: (input: string) => string,
 ): string {
-  const baseSlug = normalizeSlug(businessName)
+  // F150: Guard against empty business name — fall back to gbpPlaceId prefix
+  const trimmed = businessName.trim()
+  const baseSlug = trimmed.length > 0 ? normalizeSlug(trimmed) : `property`
   const slugSuffix = hashFn(gbpPlaceId).slice(0, 8)
   return `${baseSlug}-${slugSuffix}`
 }

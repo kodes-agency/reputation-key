@@ -49,7 +49,8 @@ export const buildStaffContext = (deps: StaffContextDeps) => {
       assignmentRepo: deps.repo,
       events: deps.events,
       clock: deps.clock,
-      idGen: () => randomUUID(),
+      // F059: Use branded staffAssignmentId constructor instead of returning raw string
+      idGen: () => staffAssignmentId(randomUUID()),
     }),
   } as const
 
@@ -63,6 +64,10 @@ export const buildStaffContext = (deps: StaffContextDeps) => {
       return deps.repo.getAccessiblePropertyIds(orgId, userId)
     },
     getAssignedPortals: getAssignedPortalsUC,
+    countAssignmentsByTeam: async (orgId, teamId) => {
+      const assignments = await deps.repo.listByTeam(orgId, teamId)
+      return assignments.length
+    },
   }
 
   return {

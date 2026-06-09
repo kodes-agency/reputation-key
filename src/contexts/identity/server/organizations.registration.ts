@@ -1,0 +1,150 @@
+// Registration and auth server functions (register, sign in, set active org).
+// Per architecture: server/ contains TanStack Start server functions.
+
+import { createServerFn } from '@tanstack/react-start'
+import { tracedHandler } from '#/shared/observability/traced-server-fn'
+import { headersFromContext } from '#/shared/auth/headers'
+import { requireAuth } from '#/shared/auth/middleware'
+import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
+import { toDomainRole } from '#/shared/domain/roles'
+import { getAuth } from '#/shared/auth/auth'
+import { getContainer } from '#/composition'
+import { isIdentityError } from '../domain/errors'
+import { throwIdentityError, type AuthInvitationResponse } from './organizations.shared'
+import {
+  registerUserInputSchema,
+  registerMemberInputSchema,
+  setActiveOrgInputSchema,
+  signInInputSchema,
+} from '../application/dto/invitation.dto'
+
+// ── Register user only (no organization) ────────────────────────────
+// Used by invited members joining an existing org via /join.
+export const registerMember = createServerFn({ method: 'POST' })
+  .inputValidator(registerMemberInputSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        try {
+          const { useCases } = getContainer()
+          await useCases.registerUser(data)
+        } catch (e) {
+          if (isIdentityError(e)) throwIdentityError(e)
+          throw catchUntagged(e)
+        }
+      },
+      'POST',
+      'identity.registerMember',
+    ),
+  )
+
+// ── Register user + create organization ────────────────────────────
+export const registerUserAndOrg = createServerFn({ method: 'POST' })
+  .inputValidator(registerUserInputSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        try {
+          const { useCases } = getContainer()
+          await useCases.registerUserAndOrg(data)
+        } catch (e) {
+          if (isIdentityError(e)) throwIdentityError(e)
+          throw catchUntagged(e)
+        }
+      },
+      'POST',
+      'identity.registerUserAndOrg',
+    ),
+  )
+
+// ── Sign in user ────────────────────────────────────────────────────
+// Direct delegation: no use case because this is pure delegation to better-auth.
+
+export const signInUser = createServerFn({ method: 'POST' })
+  .inputValidator(signInInputSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const auth = getAuth()
+
+        try {
+          await auth.api.signInEmail({
+            body: { email: data.email, password: data.password },
+          })
+        } catch (e) {
+          const { getLogger } = await import('#/shared/observability/logger')
+          const { maskEmail } = await import('#/shared/observability/pii')
+          getLogger().warn({ email: maskEmail(data.email), err: e }, 'Sign-in failed')
+          throwContextError(
+            'AuthError',
+            { code: 'invalid_credentials', message: 'Invalid email or password' },
+            401,
+          )
+        }
+      },
+      'POST',
+      'identity.signInUser',
+    ),
+  )
+
+// ── Set active organization ────────────────────────────────────────
+
+export const setActiveOrganization = createServerFn({ method: 'POST' })
+  .inputValidator(setActiveOrgInputSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        try {
+          const headers = headersFromContext()
+          await requireAuth(headers)
+          const auth = getAuth()
+
+          await auth.api.setActiveOrganization({
+            headers,
+            body: { organizationId: data.organizationId },
+          })
+        } catch (e) {
+          throw catchUntagged(e)
+        }
+      },
+      'POST',
+      'identity.setActiveOrganization',
+    ),
+  )
+
+// ── List user invitations (for accept invitation page) ──────────────
+
+export const listUserInvitations = createServerFn({ method: 'GET' }).handler(
+  tracedHandler(
+    async () => {
+      try {
+        const headers = headersFromContext()
+        await requireAuth(headers)
+        const auth = getAuth()
+
+        const result = await auth.api.listUserInvitations({ headers })
+
+        const rawInvitations = (
+          Array.isArray(result) ? result : []
+        ) as AuthInvitationResponse[]
+        const invitations = rawInvitations.map((inv) => ({
+          id: inv.id,
+          organizationId: inv.organizationId,
+          organizationName: inv.organization?.name ?? 'Unknown Organization',
+          email: inv.email,
+          role: toDomainRole(inv.role),
+          status: inv.status,
+          expiresAt: inv.expiresAt,
+          createdAt: inv.createdAt,
+        }))
+
+        return { invitations }
+      } catch (e) {
+        if (isIdentityError(e)) throwIdentityError(e)
+        throw catchUntagged(e)
+      }
+    },
+    'GET',
+    'identity.listUserInvitations',
+  ),
+)

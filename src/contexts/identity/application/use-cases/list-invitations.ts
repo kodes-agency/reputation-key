@@ -7,13 +7,14 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import { can } from '#/shared/domain/permissions'
 import { identityError } from '../../domain/errors'
 
+export type ListInvitationsInput = void
+
 // fallow-ignore-next-line unused-type
 export type ListInvitationsOutput = Readonly<{
   invitations: ReadonlyArray<InvitationRecord>
 }>
+export type ListInvitationsDeps = Readonly<{ identity: IdentityPort }>
 export type ListInvitations = ReturnType<typeof listInvitations>
-
-type Deps = Readonly<{ identity: IdentityPort }>
 
 /**
  * List pending invitations for the active organization.
@@ -24,8 +25,11 @@ type Deps = Readonly<{ identity: IdentityPort }>
  * 3. Return
  */
 export const listInvitations =
-  (deps: Deps) =>
-  async (_input: void, ctx: AuthContext): Promise<ListInvitationsOutput> => {
+  (deps: ListInvitationsDeps) =>
+  async (
+    _input: ListInvitationsInput,
+    ctx: AuthContext,
+  ): Promise<ListInvitationsOutput> => {
     // 1. Authorize
     if (!can(ctx.role, 'invitation.list')) {
       throw identityError('forbidden', 'Insufficient role to view invitations')

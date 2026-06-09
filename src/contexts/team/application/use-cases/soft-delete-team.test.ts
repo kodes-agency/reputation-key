@@ -13,8 +13,14 @@ const FIXED_TIME = new Date('2026-04-15T12:00:00Z')
 const setup = () => {
   const teamRepo = createInMemoryTeamRepo()
   const events = createCapturingEventBus()
-  const useCase = softDeleteTeam({ teamRepo, events, clock: () => FIXED_TIME })
-  return { useCase, teamRepo, events }
+  const assignmentCheck = { countByTeam: async () => 0 }
+  const useCase = softDeleteTeam({
+    teamRepo,
+    assignmentCheck,
+    events,
+    clock: () => FIXED_TIME,
+  })
+  return { useCase, teamRepo, events, assignmentCheck }
 }
 
 describe('softDeleteTeam', () => {

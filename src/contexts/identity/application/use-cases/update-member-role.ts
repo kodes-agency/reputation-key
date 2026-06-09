@@ -9,23 +9,24 @@ import type { IdentityPort } from '../ports/identity.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { EventBus } from '#/shared/events/event-bus'
 import { can } from '#/shared/domain/permissions'
+import { ADMIN_ROLE } from '#/shared/domain/roles'
 import { canChangeRole } from '../../domain/rules'
 import { identityError } from '../../domain/errors'
 import { identityMemberRoleChanged } from '../../domain/events'
 import { userId as toUserId } from '#/shared/domain/ids'
 import type { UpdateMemberRoleInput } from '../dto/invitation.dto'
+export type { UpdateMemberRoleInput }
 
 // fallow-ignore-next-line unused-type
 export type UpdateMemberRoleOutput = Readonly<{
   success: boolean
 }>
-export type UpdateMemberRole = ReturnType<typeof updateMemberRole>
-
-type Deps = Readonly<{
+export type UpdateMemberRoleDeps = Readonly<{
   identity: IdentityPort
   events: EventBus
   clock: () => Date
 }>
+export type UpdateMemberRole = ReturnType<typeof updateMemberRole>
 
 /**
  * Update a member's role in the organization.
@@ -39,7 +40,7 @@ type Deps = Readonly<{
  * 6. Return
  */
 export const updateMemberRole =
-  (deps: Deps) =>
+  (deps: UpdateMemberRoleDeps) =>
   async (
     input: UpdateMemberRoleInput,
     ctx: AuthContext,
@@ -59,6 +60,18 @@ export const updateMemberRole =
     const authResult = canChangeRole(ctx.role, targetMember.role, input.role)
     if (authResult.isErr()) {
       throw identityError(authResult.error.code, authResult.error.message)
+    }
+
+    // 3b. Last-admin guard — cannot demote the last AccountAdmin
+    if (targetMember.role === ADMIN_ROLE && input.role !== ADMIN_ROLE) {
+      const members = await deps.identity.listMembers(ctx)
+      const adminCount = members.filter((m) => m.role === ADMIN_ROLE).length
+      if (adminCount <= 1) {
+        throw identityError(
+          'forbidden',
+          'Cannot demote the last admin of the organization',
+        )
+      }
     }
 
     // 4. Persist

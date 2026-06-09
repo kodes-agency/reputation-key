@@ -72,6 +72,14 @@ function createFakeDeps(overrides?: { storedGoals?: Goal[] }) {
       cancelledByParentCount++
       return 2 // simulate 2 instances cancelled
     },
+    cancelGoalWithInstances: async (id, _orgId, _now) => {
+      cancelledByParentCount++
+      const existing = stored.get(id as string)
+      if (!existing) return null
+      const updated: Goal = { ...existing, status: 'cancelled' }
+      stored.set(id as string, updated)
+      return updated
+    },
     insertProgress: async (data) => ({
       id: goalProgressId('p-1'),
       goalId: data.goalId,
@@ -109,11 +117,12 @@ function createFakeDeps(overrides?: { storedGoals?: Goal[] }) {
       currentCount: null,
     }),
     markGoalCompleted: async () => {},
-    findAllActive: async () => [],
+    findAllActiveAcrossTenants: async () => [],
     findActiveRecurringTemplates: async () => [],
     findLatestInstance: async () => null,
     listByPortalAndGroupIds: async () => [],
     createGoalAndProgress: async () => {},
+    createTemplateInstanceAndProgress: async () => {},
   }
 
   const deps: CancelGoalDeps = {

@@ -5,6 +5,9 @@ import type { InboxNote } from '../../domain/types'
 import type { InboxItemId, OrganizationId } from '#/shared/domain/ids'
 
 export type InboxNoteRepository = Readonly<{
-  findByInboxItemId(inboxItemId: InboxItemId, orgId: OrganizationId): Promise<ReadonlyArray<InboxNote>>
-  create(note: InboxNote): Promise<InboxNote>
+  findByInboxItemId(
+    inboxItemId: InboxItemId,
+    orgId: OrganizationId,
+  ): Promise<ReadonlyArray<InboxNote>>
+  create(note: InboxNote, orgId: OrganizationId): Promise<InboxNote>
 }>

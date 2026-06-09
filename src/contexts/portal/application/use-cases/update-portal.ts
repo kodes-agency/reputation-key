@@ -5,6 +5,7 @@ import type { EventBus } from '#/shared/events/event-bus'
 import type { Portal, PortalTheme } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { UpdatePortalInput } from '../dto/update-portal.dto'
+export type { UpdatePortalInput }
 import { can } from '#/shared/domain/permissions'
 import { portalId as toPortalId, type OrganizationId } from '#/shared/domain/ids'
 import {

@@ -14,6 +14,15 @@ import { portalId, portalLinkCategoryId, portalLinkId } from '#/shared/domain/id
 import { isValidExternalUrl } from '../../domain/rules'
 
 // fallow-ignore-next-line unused-type
+export type CreateLinkInput = Readonly<{
+  categoryId: string
+  portalId: string
+  label: string
+  url: string
+  iconKey?: string
+}>
+
+// fallow-ignore-next-line unused-type
 export type CreateLinkDeps = Readonly<{
   portalLinkRepo: PortalLinkRepository
   events: EventBus
@@ -23,16 +32,7 @@ export type CreateLinkDeps = Readonly<{
 
 export const createLink =
   (deps: CreateLinkDeps) =>
-  async (
-    input: {
-      categoryId: string
-      portalId: string
-      label: string
-      url: string
-      iconKey?: string
-    },
-    ctx: AuthContext,
-  ): Promise<PortalLink> => {
+  async (input: CreateLinkInput, ctx: AuthContext): Promise<PortalLink> => {
     if (!can(ctx.role, 'portal.update')) {
       throw portalError('forbidden', 'Insufficient permissions to create portal links')
     }

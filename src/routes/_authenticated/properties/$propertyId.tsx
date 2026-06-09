@@ -1,6 +1,8 @@
 // Property layout — shared shell for property-scoped routes.
 // Child routes render via <Outlet />. Navigation is handled by the sidebar.
-import { createFileRoute, Outlet, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, Outlet, redirect, useNavigate } from '@tanstack/react-router'
+import type { AuthRouteContext } from '#/routes/_authenticated'
+import { can } from '#/shared/domain/permissions'
 import { getProperty } from '#/contexts/property/server/properties'
 import { listStaffAssignments } from '#/contexts/staff/server/staff-assignments'
 import { listTeams } from '#/contexts/team/server/teams'
@@ -9,6 +11,10 @@ import { Alert, AlertDescription } from '#/components/ui/alert'
 import { AlertCircle } from 'lucide-react'
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId')({
+  beforeLoad: ({ context }) => {
+    const { role } = context as AuthRouteContext
+    if (!can(role, 'property.read')) throw redirect({ to: '/properties' })
+  },
   staleTime: 60_000,
   loader: async ({ params: { propertyId } }) => {
     // Use allSettled so a transient DB error in staff/teams doesn't crash the page.
@@ -25,12 +31,8 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId')({
 
     return {
       property: propertyRes.value.property,
-      staffCount:
-        staffRes.status === 'fulfilled'
-          ? staffRes.value.assignments.length
-          : 0,
-      teamCount:
-        teamsRes.status === 'fulfilled' ? teamsRes.value.teams.length : 0,
+      staffCount: staffRes.status === 'fulfilled' ? staffRes.value.assignments.length : 0,
+      teamCount: teamsRes.status === 'fulfilled' ? teamsRes.value.teams.length : 0,
     }
   },
   component: PropertyLayout,

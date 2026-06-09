@@ -26,6 +26,8 @@ const teamErrorStatus = (code: TeamErrorCode): number => {
       return 409
     case 'invalid_name':
       return 400
+    case 'team_has_assignments':
+      return 409
   }
 }
 

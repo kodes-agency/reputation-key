@@ -14,13 +14,10 @@ import type { EventBus } from '#/shared/events/event-bus'
 import { metricError } from '../../domain/errors'
 import { metricRecorded } from '../../domain/events'
 
-const BUILT_IN_METRIC_KEYS: Set<MetricKey> = new Set([
-  'portal.scan',
-  'portal.rating',
-  'portal.feedback',
-  'portal.review_link_click',
-  'property.review',
-])
+// F073: Use the shared METRIC_KEYS constant instead of duplicating values.
+// If a new MetricKey is added to the union, it is automatically valid here.
+import { METRIC_KEYS } from '#/shared/domain/metric-keys'
+const BUILT_IN_METRIC_KEYS: Set<MetricKey> = new Set(METRIC_KEYS)
 
 export type RecordMetricInput = Readonly<{
   organizationId: OrganizationId

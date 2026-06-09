@@ -59,6 +59,7 @@ const setup = () => {
     setCount: async () => {},
     increment: async () => {},
     decrement: async () => {},
+    decrementBy: async () => {},
     invalidate: async () => {},
   }
 

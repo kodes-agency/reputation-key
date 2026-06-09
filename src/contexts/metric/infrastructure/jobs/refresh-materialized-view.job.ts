@@ -14,9 +14,11 @@ export type RefreshMatViewDeps = Readonly<{
 }>
 
 const REFRESH_QUERIES: Readonly<Record<string, SQL>> = {
-  dailyMetrics: sql`REFRESH MATERIALIZED VIEW mv_daily_metrics`,
-  weeklyMetrics: sql`REFRESH MATERIALIZED VIEW mv_weekly_metrics`,
-  dailyInboxMetrics: sql`REFRESH MATERIALIZED VIEW mv_daily_inbox_metrics`,
+  // F164: CONCURRENTLY avoids locking readers during MV refresh.
+  // Requires the MV to have a UNIQUE index; refresh may take longer but won't block reads.
+  dailyMetrics: sql`REFRESH MATERIALIZED VIEW CONCURRENTLY mv_daily_metrics`,
+  weeklyMetrics: sql`REFRESH MATERIALIZED VIEW CONCURRENTLY mv_weekly_metrics`,
+  dailyInboxMetrics: sql`REFRESH MATERIALIZED VIEW CONCURRENTLY mv_daily_inbox_metrics`,
 }
 
 export const JOB_NAMES = {
