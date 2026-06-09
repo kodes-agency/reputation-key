@@ -179,7 +179,7 @@ describe('createPortal', () => {
         {
           name: 'Test',
           propertyId: 'a0000000-0000-0000-0000-000000000001',
-          smartRoutingThreshold: 5,
+          smartRoutingThreshold: 6,
         },
         ctx,
       ),

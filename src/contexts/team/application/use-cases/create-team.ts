@@ -7,8 +7,9 @@ import type { EventBus } from '#/shared/events/event-bus'
 import type { Team, TeamId } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { CreateTeamInput } from '../dto/create-team.dto'
+export type { CreateTeamInput } from '../dto/create-team.dto'
 import { can } from '#/shared/domain/permissions'
-import { propertyId as toPropertyId } from '#/shared/domain/ids'
+import { propertyId as toPropertyId, userId as toUserId } from '#/shared/domain/ids'
 import { buildTeam } from '../../domain/constructors'
 import { teamError } from '../../domain/errors'
 import { teamCreated } from '../../domain/events'
@@ -54,7 +55,7 @@ export const createTeam =
       propertyId: pid,
       name: input.name,
       description: input.description,
-      teamLeadId: input.teamLeadId as Team['teamLeadId'],
+      teamLeadId: input.teamLeadId ? toUserId(input.teamLeadId) : null,
       now: deps.clock(),
     })
 

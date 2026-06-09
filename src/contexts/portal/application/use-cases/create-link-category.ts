@@ -13,6 +13,12 @@ import type { EventBus } from '#/shared/events/event-bus'
 import { portalId, portalLinkCategoryId } from '#/shared/domain/ids'
 
 // fallow-ignore-next-line unused-type
+export type CreateLinkCategoryInput = Readonly<{
+  portalId: string
+  title: string
+}>
+
+// fallow-ignore-next-line unused-type
 export type CreateLinkCategoryDeps = Readonly<{
   portalRepo: PortalRepository
   portalLinkRepo: PortalLinkRepository
@@ -24,7 +30,7 @@ export type CreateLinkCategoryDeps = Readonly<{
 export const createLinkCategory =
   (deps: CreateLinkCategoryDeps) =>
   async (
-    input: { portalId: string; title: string },
+    input: CreateLinkCategoryInput,
     ctx: AuthContext,
   ): Promise<PortalLinkCategory> => {
     if (!can(ctx.role, 'portal.update')) {

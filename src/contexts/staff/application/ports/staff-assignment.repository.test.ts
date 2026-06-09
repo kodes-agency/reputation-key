@@ -30,6 +30,7 @@ describe('StaffAssignmentRepository', () => {
       listByUser: async () => [assignment],
       listByProperty: async () => [assignment],
       listByTeam: async () => [assignment],
+      listByUserAndProperty: async () => [assignment],
       assignmentExists: async () => true,
       insert: async () => {},
       softDelete: async () => {},

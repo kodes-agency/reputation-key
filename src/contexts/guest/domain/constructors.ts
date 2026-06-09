@@ -1,4 +1,4 @@
-import { Result } from 'neverthrow'
+import { Result } from '#/shared/domain'
 import type { Rating, Feedback, ScanSource } from './types'
 import type {
   RatingId,

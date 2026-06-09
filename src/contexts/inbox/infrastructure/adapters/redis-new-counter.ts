@@ -18,6 +18,18 @@ const DECREMENT_FLOOR_SCRIPT = `
   return current
 `
 
+// Lua script: decrement by N but floor at 0
+const DECREMENT_BY_FLOOR_SCRIPT = `
+  local current = tonumber(redis.call('GET', KEYS[1]) or '0')
+  local delta = tonumber(ARGV[1])
+  if current <= 0 then return 0 end
+  if current >= delta then
+    return redis.call('DECRBY', KEYS[1], delta)
+  end
+  redis.call('SET', KEYS[1], '0')
+  return 0
+`
+
 export const createRedisNewCounter = (redis: Redis): NewCounterPort => ({
   getCount: async (orgId) => {
     try {
@@ -40,7 +52,11 @@ export const createRedisNewCounter = (redis: Redis): NewCounterPort => ({
 
   increment: async (orgId) => {
     try {
-      await redis.incr(key(orgId))
+      const k = key(orgId)
+      await redis.incr(k)
+      // F113 FIX: Refresh TTL on increment so the key doesn't expire silently
+      // while still being actively incremented
+      await redis.expire(k, 86400)
     } catch {
       // Non-critical
     }
@@ -49,6 +65,14 @@ export const createRedisNewCounter = (redis: Redis): NewCounterPort => ({
   decrement: async (orgId) => {
     try {
       await redis.eval(DECREMENT_FLOOR_SCRIPT, 1, key(orgId))
+    } catch {
+      // Non-critical
+    }
+  },
+
+  decrementBy: async (orgId, count) => {
+    try {
+      await redis.eval(DECREMENT_BY_FLOOR_SCRIPT, 1, key(orgId), count.toString())
     } catch {
       // Non-critical
     }

@@ -11,6 +11,11 @@ import { googleConnectionId } from '#/shared/domain/ids'
 import { integrationError } from '../../domain/errors'
 import { TOKEN_EXPIRY_BUFFER_MS } from '../constants'
 
+export type RefreshGoogleTokenInput = Readonly<{
+  orgId: OrganizationId
+  connectionId: string
+}>
+
 export type RefreshGoogleTokenDeps = Readonly<{
   connectionRepo: GoogleConnectionRepository
   oauth: GoogleOAuthPort

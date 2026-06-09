@@ -76,10 +76,13 @@ function PublicPortalPage() {
     // Record the scan
     recordScan({
       data: {
-        portalId: portal.id,
+        portalId: data.portal.id,
         source,
       },
     })
+    // F130: data.portal.id and source are derived from loader/search params which are
+    // stable for the lifetime of this component (route params don't change without remount).
+    // Adding deps would cause re-scans on any re-render, which is worse.
   }, [])
 
   const { portal, categories, links } = data

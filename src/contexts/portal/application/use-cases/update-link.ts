@@ -9,6 +9,14 @@ import { can } from '#/shared/domain/permissions'
 import { portalLinkId } from '#/shared/domain/ids'
 
 // fallow-ignore-next-line unused-type
+export type UpdateLinkInput = Readonly<{
+  linkId: string
+  label?: string
+  url?: string
+  iconKey?: string | null
+}>
+
+// fallow-ignore-next-line unused-type
 export type UpdateLinkDeps = Readonly<{
   portalLinkRepo: PortalLinkRepository
   clock: () => Date
@@ -16,15 +24,7 @@ export type UpdateLinkDeps = Readonly<{
 
 export const updateLink =
   (deps: UpdateLinkDeps) =>
-  async (
-    input: {
-      linkId: string
-      label?: string
-      url?: string
-      iconKey?: string | null
-    },
-    ctx: AuthContext,
-  ): Promise<PortalLink> => {
+  async (input: UpdateLinkInput, ctx: AuthContext): Promise<PortalLink> => {
     // 1. Authorize
     if (!can(ctx.role, 'portal.update')) {
       throw portalError('forbidden', 'this role cannot update portal links')

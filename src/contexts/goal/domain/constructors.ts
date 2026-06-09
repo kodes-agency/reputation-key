@@ -17,7 +17,7 @@ import {
 import { assertNever } from '#/shared/domain/assert'
 import type { Goal, GoalType, RecurrenceRule } from './types'
 import { deriveEntityScope } from './types'
-import { ok, err, type Result } from 'neverthrow'
+import { ok, err, type Result } from '#/shared/domain'
 
 // ── Error types ──────────────────────────────────────────────────────────
 

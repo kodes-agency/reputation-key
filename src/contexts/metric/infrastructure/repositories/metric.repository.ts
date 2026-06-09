@@ -17,6 +17,7 @@ import {
   propertyId as propIdCtor,
   portalId as portalIdCtor,
   portalGroupId as groupIdCtor,
+  unbrand,
 } from '#/shared/domain/ids'
 import { createMetricReading } from '../../domain/constructors'
 import { trace } from '#/shared/observability/trace'
@@ -55,12 +56,12 @@ export const createMetricRepository = (db: Database): MetricRepository => ({
       const result = await db
         .insert(metricReadings)
         .values({
-          organizationId: reading.organizationId,
-          propertyId: reading.propertyId,
-          portalId: reading.portalId,
+          organizationId: unbrand(reading.organizationId),
+          propertyId: unbrand(reading.propertyId),
+          portalId: reading.portalId ? unbrand(reading.portalId) : null,
           metricKey: reading.metricKey,
           value: reading.value,
-          groupId: reading.groupId,
+          groupId: reading.groupId ? unbrand(reading.groupId) : null,
           occurredAt: reading.occurredAt,
         })
         .returning()
@@ -77,10 +78,10 @@ export const createMetricRepository = (db: Database): MetricRepository => ({
     return trace('metric.findByOrganizationId', async () => {
       const where = metricKey
         ? and(
-            eq(metricReadings.organizationId, orgId),
+            eq(metricReadings.organizationId, unbrand(orgId)),
             eq(metricReadings.metricKey, metricKey),
           )
-        : eq(metricReadings.organizationId, orgId)
+        : eq(metricReadings.organizationId, unbrand(orgId))
 
       const rows = await db
         .select()
@@ -96,16 +97,16 @@ export const createMetricRepository = (db: Database): MetricRepository => ({
   queryAggregate: async (query) => {
     return trace('metric.queryAggregate', async () => {
       const conditions = [
-        eq(metricReadings.organizationId, query.organizationId),
-        eq(metricReadings.propertyId, query.propertyId),
+        eq(metricReadings.organizationId, unbrand(query.organizationId)),
+        eq(metricReadings.propertyId, unbrand(query.propertyId)),
         eq(metricReadings.metricKey, query.metricKey),
       ]
 
       if (query.portalId) {
-        conditions.push(eq(metricReadings.portalId, query.portalId))
+        conditions.push(eq(metricReadings.portalId, unbrand(query.portalId)))
       }
       if (query.groupId) {
-        conditions.push(eq(metricReadings.groupId, query.groupId))
+        conditions.push(eq(metricReadings.groupId, unbrand(query.groupId)))
       }
       if (query.periodStart) {
         conditions.push(gte(metricReadings.occurredAt, query.periodStart))
@@ -113,6 +114,8 @@ export const createMetricRepository = (db: Database): MetricRepository => ({
       if (query.periodEnd) {
         conditions.push(lte(metricReadings.occurredAt, query.periodEnd))
       }
+      // F118: rollingWindowDays overrides periodEnd — compute rolling start
+      // from NOW() and use it as the sole lower-bound (replaces periodEnd).
       if (query.rollingWindowDays) {
         conditions.push(
           gte(

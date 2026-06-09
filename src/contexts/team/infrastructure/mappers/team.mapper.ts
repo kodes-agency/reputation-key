@@ -22,11 +22,11 @@ export const teamFromRow = (row: TeamRow): Team => ({
 
 export const teamToRow = (team: Team): TeamInsertRow => ({
   id: unbrand(team.id),
-  organizationId: team.organizationId as string,
-  propertyId: team.propertyId as string,
+  organizationId: unbrand(team.organizationId),
+  propertyId: unbrand(team.propertyId),
   name: team.name,
   description: team.description,
-  teamLeadId: team.teamLeadId as string | null,
+  teamLeadId: team.teamLeadId != null ? unbrand(team.teamLeadId) : null,
   createdAt: team.createdAt,
   updatedAt: team.updatedAt,
   deletedAt: team.deletedAt,

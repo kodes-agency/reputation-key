@@ -3,7 +3,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { match } from 'ts-pattern'
-import { HTTP_STATUS } from '#/shared/auth/error-status'
+import { HTTP_STATUS } from '#/shared/http/status'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
@@ -13,8 +13,8 @@ import {
   removeStaffAssignmentInputSchema,
   listStaffAssignmentsInputSchema,
 } from '../application/dto/staff-assignment.dto'
-import { isStaffError } from '../domain/errors'
-import type { StaffErrorCode } from '../domain/errors'
+import { isStaffError } from '../application/public-api'
+import type { StaffErrorCode } from '../application/public-api'
 import {
   staffAssignmentId as toStaffAssignmentId,
   propertyId as toPropertyId,
@@ -22,10 +22,15 @@ import {
   teamId as toTeamId,
 } from '#/shared/domain/ids'
 
-const staffErrorStatus = (code: StaffErrorCode): number =>
+export const staffErrorStatus = (code: StaffErrorCode): number =>
   match(code)
     .with('forbidden', () => HTTP_STATUS.FORBIDDEN)
-    .with('assignment_not_found', 'property_not_found', 'team_not_found', () => HTTP_STATUS.NOT_FOUND)
+    .with(
+      'assignment_not_found',
+      'property_not_found',
+      'team_not_found',
+      () => HTTP_STATUS.NOT_FOUND,
+    )
     .with('already_assigned', () => HTTP_STATUS.CONFLICT)
     .with('invalid_input', () => HTTP_STATUS.BAD_REQUEST)
     .exhaustive()
@@ -108,20 +113,14 @@ export const listStaffAssignments = createServerFn({ method: 'GET' })
         } catch (e) {
           if (isStaffError(e))
             throwContextError('StaffError', e, staffErrorStatus(e.code))
-          // Transient DB errors (stale connection, cold start) should not crash the page.
-          // Log and return empty — callers degrade gracefully.
-          const logger = (await import('#/shared/observability/logger')).getLogger()
-          logger.error(
-            {
-              error: e instanceof Error ? e.message : String(e),
-              path: 'staff.listStaffAssignments',
-            },
-            'staff.listStaffAssignments — returning empty due to unexpected error',
-          )
-          return { assignments: [] }
+          throw catchUntagged(e)
         }
       },
       'GET',
       'staff.listStaffAssignments',
     ),
   )
+
+// ── Re-exports from split files ────────────────────────────────────
+
+export { updateStaffPortals } from './staff-portals-update'

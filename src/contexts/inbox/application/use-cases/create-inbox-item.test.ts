@@ -19,11 +19,12 @@ const setup = () => {
   const newCounter = {
     getCount: async () => 0,
     setCount: async () => {},
-    increment: async (key: string) => {
+    increment: async (orgId: string) => {
       increments.count++
-      increments.keys.push(key)
+      increments.keys.push(orgId)
     },
     decrement: async () => {},
+    decrementBy: async () => {},
     invalidate: async () => {},
   }
   const deps = {

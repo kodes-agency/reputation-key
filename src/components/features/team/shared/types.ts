@@ -18,4 +18,5 @@ export interface AssignmentInTeam {
   readonly id: string
   readonly userId: string
   readonly teamId: string | null
+  readonly portalId: string | null
 }

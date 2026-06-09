@@ -8,6 +8,13 @@ import { can } from '#/shared/domain/permissions'
 import { portalError } from '../../domain/errors'
 
 // fallow-ignore-next-line unused-type
+export type RequestUploadUrlInput = Readonly<{
+  portalId: string
+  contentType: string
+  fileSize: number
+}>
+
+// fallow-ignore-next-line unused-type
 export type RequestUploadUrlDeps = Readonly<{
   portalRepo: PortalRepository
   storage: StoragePort
@@ -20,7 +27,7 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
 export const requestUploadUrl =
   (deps: RequestUploadUrlDeps) =>
   async (
-    input: { portalId: string; contentType: string; fileSize: number },
+    input: RequestUploadUrlInput,
     ctx: AuthContext,
   ): Promise<{ uploadUrl: string; key: string }> => {
     if (!can(ctx.role, 'portal.update')) {

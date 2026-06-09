@@ -5,6 +5,7 @@ import type { EventBus } from '#/shared/events/event-bus'
 import type { StaffAssignment, StaffAssignmentId } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { CreateStaffAssignmentInput } from '../dto/staff-assignment.dto'
+export type { CreateStaffAssignmentInput } from '../dto/staff-assignment.dto'
 import { can } from '#/shared/domain/permissions'
 import { buildStaffAssignment } from '../../domain/constructors'
 import { staffError } from '../../domain/errors'
@@ -93,6 +94,7 @@ export const createStaffAssignment =
         userId: assignment.userId,
         propertyId: assignment.propertyId,
         teamId: assignment.teamId,
+        portalId: assignment.portalId,
         occurredAt: assignment.createdAt,
       }),
     )

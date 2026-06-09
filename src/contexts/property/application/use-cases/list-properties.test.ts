@@ -20,6 +20,8 @@ const createTestStaffApi = (
     if (role === 'AccountAdmin') return null // all accessible
     return assignments.get(userId as string) ?? []
   },
+  getAssignedPortals: async () => [],
+  countAssignmentsByTeam: async () => 0,
 })
 
 const setup = () => {

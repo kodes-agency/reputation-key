@@ -7,6 +7,10 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import { can } from '#/shared/domain/permissions'
 import { identityError } from '../../domain/errors'
 
+export type FinalizeAvatarUploadInput = Readonly<{
+  key: string
+}>
+
 // fallow-ignore-next-line unused-type
 export type FinalizeAvatarUploadDeps = Readonly<{
   storage: StoragePort
@@ -14,7 +18,10 @@ export type FinalizeAvatarUploadDeps = Readonly<{
 
 export const finalizeAvatarUpload =
   (deps: FinalizeAvatarUploadDeps) =>
-  async (input: { key: string }, ctx: AuthContext): Promise<{ avatarUrl: string }> => {
+  async (
+    input: FinalizeAvatarUploadInput,
+    ctx: AuthContext,
+  ): Promise<{ avatarUrl: string }> => {
     if (!can(ctx.role, 'identity.avatar_upload')) {
       throw identityError('forbidden', 'Insufficient permissions to upload avatar')
     }

@@ -9,6 +9,12 @@ import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { can } from '#/shared/domain/permissions'
 import { teamError } from '../../domain/errors'
 
+// ── Input type ────────────────────────────────────────────────────────────
+
+export type GetTeamInput = Readonly<{
+  teamId: TeamId
+}>
+
 // fallow-ignore-next-line unused-type
 export type GetTeamDeps = Readonly<{
   teamRepo: TeamRepository
@@ -17,7 +23,7 @@ export type GetTeamDeps = Readonly<{
 
 export const getTeam =
   (deps: GetTeamDeps) =>
-  async (input: { teamId: TeamId }, ctx: AuthContext): Promise<Team> => {
+  async (input: GetTeamInput, ctx: AuthContext): Promise<Team> => {
     if (!can(ctx.role, 'team.read')) {
       throw teamError('forbidden', 'Insufficient permissions to view teams')
     }

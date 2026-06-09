@@ -3,6 +3,7 @@
 
 import type { properties } from '#/shared/db/schema/property.schema'
 import type { Property } from '../../domain/types'
+import { unbrand } from '#/shared/domain/ids'
 import { propertyId, organizationId, googleConnectionId } from '#/shared/domain/ids'
 
 type PropertyRow = typeof properties.$inferSelect
@@ -15,20 +16,23 @@ export const propertyFromRow = (row: PropertyRow): Property => ({
   slug: row.slug,
   timezone: row.timezone,
   gbpPlaceId: row.gbpPlaceId,
-  googleConnectionId: row.googleConnectionId ? googleConnectionId(row.googleConnectionId) : null,
+  googleConnectionId: row.googleConnectionId
+    ? googleConnectionId(row.googleConnectionId)
+    : null,
   createdAt: row.createdAt,
   updatedAt: row.updatedAt,
   deletedAt: row.deletedAt,
 })
 
 export const propertyToRow = (property: Property): PropertyInsertRow => ({
-  id: property.id,
-  organizationId: property.organizationId,
+  id: unbrand(property.id),
+  organizationId: unbrand(property.organizationId),
   name: property.name,
   slug: property.slug,
   timezone: property.timezone,
   gbpPlaceId: property.gbpPlaceId,
-  googleConnectionId: property.googleConnectionId,
+  googleConnectionId:
+    property.googleConnectionId != null ? unbrand(property.googleConnectionId) : null,
   createdAt: property.createdAt,
   updatedAt: property.updatedAt,
   deletedAt: property.deletedAt,

@@ -5,10 +5,13 @@
 import { createCipheriv, createDecipheriv, randomBytes } from 'crypto'
 import type { TokenEncryptionPort } from '../../application/ports/token-encryption.port'
 
-export const createTokenEncryptionAdapter = (encryptionKey: string): TokenEncryptionPort => {
+export const createTokenEncryptionAdapter = (
+  encryptionKey: string,
+): TokenEncryptionPort => {
   const key = Buffer.from(encryptionKey, 'hex')
   if (key.length !== 32) {
-    throw new Error('ENCRYPTION_KEY must be 64 hex characters (32 bytes) for AES-256-GCM')
+    // F147: Sanitized error — do not leak encryption key length or format details
+    throw new Error('Invalid encryption key configuration')
   }
 
   const encrypt = (plaintext: string): string => {
@@ -26,7 +29,8 @@ export const createTokenEncryptionAdapter = (encryptionKey: string): TokenEncryp
   const decrypt = (ciphertext: string): string => {
     const parts = ciphertext.split(':')
     if (parts.length !== 3) {
-      throw new Error('Invalid ciphertext format: expected iv:authTag:ciphertext')
+      // F147: Sanitized error — do not reveal expected ciphertext format
+      throw new Error('Invalid ciphertext format')
     }
     const [ivBase64, authTagBase64, encryptedBase64] = parts
 

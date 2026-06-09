@@ -3,6 +3,7 @@
 
 import type { googleConnections } from '#/shared/db/schema/google-connection.schema'
 import type { GoogleConnection } from '../../domain/types'
+import { unbrand } from '#/shared/domain/ids'
 import { googleConnectionId, organizationId, userId } from '#/shared/domain/ids'
 
 type GoogleConnectionRow = typeof googleConnections.$inferSelect
@@ -27,15 +28,15 @@ export const googleConnectionFromRow = (row: GoogleConnectionRow): GoogleConnect
 export const googleConnectionToInsert = (
   conn: GoogleConnection,
 ): GoogleConnectionInsertRow => ({
-  id: conn.id,
-  organizationId: conn.organizationId,
+  id: unbrand(conn.id),
+  organizationId: unbrand(conn.organizationId),
   googleAccountId: conn.googleAccountId,
   googleEmail: conn.googleEmail,
   encryptedAccessToken: conn.encryptedAccessToken,
   encryptedRefreshToken: conn.encryptedRefreshToken,
   tokenExpiresAt: conn.tokenExpiresAt,
   scopes: [...conn.scopes],
-  connectedBy: conn.connectedBy,
+  connectedBy: unbrand(conn.connectedBy),
   visibility: conn.visibility,
   status: conn.status,
   createdAt: conn.createdAt,

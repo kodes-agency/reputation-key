@@ -62,6 +62,8 @@ const seedItem = (): InboxItem => ({
 
 const defaultStaffApi: StaffPublicApi = {
   getAccessiblePropertyIds: async () => null,
+  getAssignedPortals: async () => [],
+  countAssignmentsByTeam: async () => 0,
 }
 
 const setup = (staffApi: StaffPublicApi = defaultStaffApi) => {
@@ -131,6 +133,8 @@ describe('addInboxNote', () => {
     // Use a role not in the permission table to simulate lacking inbox.write
     const staffApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [],
+      getAssignedPortals: async () => [],
+      countAssignmentsByTeam: async () => 0,
     }
     const { useCase, repo } = setup(staffApi)
     repo.items.push(seedItem())
@@ -150,6 +154,8 @@ describe('addInboxNote', () => {
     // Staff has inbox.write but NOT inbox.manage, so property access is enforced
     const staffApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [propertyId('prop-other')],
+      getAssignedPortals: async () => [],
+      countAssignmentsByTeam: async () => 0,
     }
     const { useCase, repo } = setup(staffApi)
     repo.items.push(seedItem())
@@ -168,6 +174,8 @@ describe('addInboxNote', () => {
   it('allows note when user has access to the property', async () => {
     const staffApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [propertyId('prop-1')],
+      getAssignedPortals: async () => [],
+      countAssignmentsByTeam: async () => 0,
     }
     const { useCase, repo, noteRepo } = setup(staffApi)
     repo.items.push(seedItem())

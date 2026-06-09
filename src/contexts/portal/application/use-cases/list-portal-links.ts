@@ -10,6 +10,11 @@ import { can } from '#/shared/domain/permissions'
 import { portalId } from '#/shared/domain/ids'
 
 // fallow-ignore-next-line unused-type
+export type ListPortalLinksInput = Readonly<{
+  portalId: string
+}>
+
+// fallow-ignore-next-line unused-type
 export type ListPortalLinksDeps = Readonly<{
   portalLinkRepo: PortalLinkRepository
 }>
@@ -17,7 +22,7 @@ export type ListPortalLinksDeps = Readonly<{
 export const listPortalLinks =
   (deps: ListPortalLinksDeps) =>
   async (
-    input: { portalId: string },
+    input: ListPortalLinksInput,
     ctx: AuthContext,
   ): Promise<{
     categories: Awaited<ReturnType<PortalLinkRepository['listCategories']>>

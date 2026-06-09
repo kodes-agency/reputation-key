@@ -17,13 +17,13 @@ export type ProcessImageJobData = Readonly<{
   organizationId: string
 }>
 
-type Deps = Readonly<{
+export type ProcessImageJobDeps = Readonly<{
   storage: StoragePort
   portalRepo: PortalRepository
   clock: () => Date
 }>
 
-export function createProcessImageJob(deps: Deps) {
+export function createProcessImageJob(deps: ProcessImageJobDeps) {
   return async function processImageJob(job: Job<ProcessImageJobData>): Promise<void> {
     return trace('job.processImage', async () => {
       const logger = getLogger()

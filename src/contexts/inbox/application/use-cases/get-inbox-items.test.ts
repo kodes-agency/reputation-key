@@ -23,16 +23,22 @@ const USER_ID = userId('user-1')
 // Mock: AccountAdmin gets null (all access)
 const adminStaffApi: StaffPublicApi = {
   getAccessiblePropertyIds: async () => null,
+  getAssignedPortals: async () => [],
+  countAssignmentsByTeam: async () => 0,
 }
 
 // Mock: PropertyManager gets null (all access — PM has inbox.manage)
 const pmStaffApi: StaffPublicApi = {
   getAccessiblePropertyIds: async () => null,
+  getAssignedPortals: async () => [],
+  countAssignmentsByTeam: async () => 0,
 }
 
 // Mock: Staff gets specific property IDs (scoped)
 const createScopedStaffApi = (ids: ReadonlyArray<string>): StaffPublicApi => ({
   getAccessiblePropertyIds: async () => ids.map(propertyId),
+  getAssignedPortals: async () => [],
+  countAssignmentsByTeam: async () => 0,
 })
 
 function seedItem(overrides: Omit<Partial<InboxItem>, 'id'> & { id: string }): InboxItem {

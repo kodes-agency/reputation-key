@@ -108,17 +108,17 @@ export const bulkUpdateInboxStatus =
     )
 
     // Decrement new counter for items transitioning away from 'new'
+    // Use a single bulk decrement instead of O(n) individual calls.
     if (input.newStatus !== 'new') {
       const newCount = validIds.filter((id) => oldStatuses.get(id) === 'new').length
-      for (let i = 0; i < newCount; i++) {
+      if (newCount > 0) {
         try {
-          await deps.newCounter.decrement(input.organizationId)
+          await deps.newCounter.decrementBy(input.organizationId, newCount)
         } catch (err) {
           deps.logger.warn(
             { err, organizationId: input.organizationId },
-            'New counter decrement failed, DB is source of truth',
+            'New counter bulk decrement failed, DB is source of truth',
           )
-          break
         }
       }
     }

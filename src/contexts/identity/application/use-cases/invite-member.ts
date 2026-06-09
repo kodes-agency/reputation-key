@@ -16,7 +16,7 @@ import type { InviteMemberInput } from '../dto/invitation.dto'
 export type { InviteMemberInput }
 export type InviteMember = ReturnType<typeof inviteMember>
 
-type Deps = Readonly<{
+export type InviteMemberDeps = Readonly<{
   identity: IdentityPort
   events: EventBus
   clock: () => Date
@@ -33,7 +33,7 @@ type Deps = Readonly<{
  * 5. Emit — member.invited event
  */
 export const inviteMember =
-  (deps: Deps) =>
+  (deps: InviteMemberDeps) =>
   async (input: InviteMemberInput, ctx: AuthContext): Promise<void> => {
     // 1. Authorize — permission check + role hierarchy
     if (!can(ctx.role, 'invitation.create')) {

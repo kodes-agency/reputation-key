@@ -7,6 +7,14 @@ import type { PropertyId, TeamId, UserId } from '#/shared/domain/ids'
 import { staffError } from '../../domain/errors'
 import { can } from '#/shared/domain/permissions'
 
+// ── Input type ────────────────────────────────────────────────────────────
+
+export type ListStaffAssignmentsInput = Readonly<{
+  propertyId?: PropertyId
+  userId?: UserId
+  teamId?: TeamId
+}>
+
 // fallow-ignore-next-line unused-type
 export type ListStaffAssignmentsDeps = Readonly<{
   assignmentRepo: StaffAssignmentRepository
@@ -15,7 +23,7 @@ export type ListStaffAssignmentsDeps = Readonly<{
 export const listStaffAssignments =
   (deps: ListStaffAssignmentsDeps) =>
   async (
-    input: { propertyId?: PropertyId; userId?: UserId; teamId?: TeamId },
+    input: ListStaffAssignmentsInput,
     ctx: AuthContext,
   ): Promise<ReadonlyArray<StaffAssignment>> => {
     if (!can(ctx.role, 'staff_assignment.read')) {

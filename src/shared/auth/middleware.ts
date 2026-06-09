@@ -13,11 +13,15 @@ import { throwContextError } from './server-errors'
 
 // ── Request-scoped tenant cache ───────────────────────────────
 // Within a single page load, multiple server functions call resolveTenantContext
-// with identical cookies. This cache deduplicates the getActiveMember() DB call.
-// Keyed by raw cookie header — different users/sessions get different entries.
+// with identical sessions. This cache deduplicates the getActiveMember() DB call.
+// Keyed by session cookie value only — ignores non-session cookies and ordering.
 // Max-size eviction prevents unbounded memory growth under high concurrency.
 
 const TENANT_CACHE_TTL_MS = 5_000 // 5 seconds — covers a single page load
+// NOTE(F161): After an org switch, the cached tenant context may be stale for
+// up to TENANT_CACHE_TTL_MS. This is acceptable because org switches are rare
+// and the browser reloads on switch. If stale-cache issues arise, consider
+// calling resetTenantCache() from the org-switch handler.
 const TENANT_CACHE_MAX_SIZE = 100 // Evict oldest entry when full
 const tenantCache = new Map<string, { ctx: AuthContext; ts: number }>()
 
@@ -26,7 +30,14 @@ function tenantCacheKey(headers: Headers): string | null {
   if (!cookie || cookie.trim() === '') {
     return null // Skip cache for empty cookies — prevents collision
   }
-  return cookie
+  // Extract only the session cookie value — different cookie ordering
+  // or non-session cookies shouldn't create separate cache entries.
+  // Better-auth uses 'better-auth.session_token' by default.
+  const sessionCookie = cookie
+    .split(';')
+    .map((c) => c.trim())
+    .find((c) => c.startsWith('better-auth.session_token='))
+  return sessionCookie ?? null
 }
 
 function evictOldestIfNeeded(): void {

@@ -303,8 +303,8 @@ export const deleteReply =
       throw reviewError('reply_not_found', 'No reply found for this review')
     }
 
-    if (reply.status !== 'draft') {
-      throw reviewError('invalid_transition', 'Can only delete draft replies')
+    if (reply.status !== 'draft' && reply.status !== 'rejected') {
+      throw reviewError('invalid_transition', 'Can only delete draft or rejected replies')
     }
 
     await deps.replyRepo.deleteById(reply.id, input.organizationId)

@@ -6,6 +6,11 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import { can } from '#/shared/domain/permissions'
 import { identityError } from '../../domain/errors'
 
+export type RequestAvatarUploadInput = Readonly<{
+  contentType: string
+  fileSize: number
+}>
+
 // fallow-ignore-next-line unused-type
 export type RequestAvatarUploadDeps = Readonly<{
   storage: StoragePort
@@ -18,7 +23,7 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5 MB
 export const requestAvatarUpload =
   (deps: RequestAvatarUploadDeps) =>
   async (
-    input: { contentType: string; fileSize: number },
+    input: RequestAvatarUploadInput,
     ctx: AuthContext,
   ): Promise<{ uploadUrl: string; key: string }> => {
     if (!can(ctx.role, 'identity.avatar_upload')) {

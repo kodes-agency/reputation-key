@@ -77,7 +77,7 @@ describe('createRefreshExpiringReviewsHandler', () => {
 
     const handler = createRefreshExpiringReviewsHandler({
       reviewRepo: {
-        findAllExpiringBefore: vi.fn().mockResolvedValue(reviews),
+        findAllExpiringBeforeAcrossTenants: vi.fn().mockResolvedValue(reviews),
       } as unknown as ReviewRepository,
       queue: { addSyncJob } as ReviewQueuePort,
       clock: vi.fn(() => NOW),
@@ -112,7 +112,7 @@ describe('createRefreshExpiringReviewsHandler', () => {
 
     const handler = createRefreshExpiringReviewsHandler({
       reviewRepo: {
-        findAllExpiringBefore: vi.fn().mockResolvedValue(reviews),
+        findAllExpiringBeforeAcrossTenants: vi.fn().mockResolvedValue(reviews),
       } as unknown as ReviewRepository,
       queue: { addSyncJob } as ReviewQueuePort,
       clock: vi.fn(() => NOW),
@@ -132,17 +132,17 @@ describe('createRefreshExpiringReviewsHandler', () => {
   // ── Clock usage ──────────────────────────────────────────────────
 
   it('queries reviews expiring within 5 days from clock', async () => {
-    const findAllExpiringBefore = vi.fn().mockResolvedValue([])
+    const findAllExpiringBeforeAcrossTenants = vi.fn().mockResolvedValue([])
 
     const handler = createRefreshExpiringReviewsHandler({
-      reviewRepo: { findAllExpiringBefore } as unknown as ReviewRepository,
+      reviewRepo: { findAllExpiringBeforeAcrossTenants } as unknown as ReviewRepository,
       queue: { addSyncJob: vi.fn() } as ReviewQueuePort,
       clock: vi.fn(() => NOW),
     })
 
     await handler({} as never)
 
-    const threshold = findAllExpiringBefore.mock.calls[0][0] as Date
+    const threshold = findAllExpiringBeforeAcrossTenants.mock.calls[0][0] as Date
     const expectedThreshold = new Date(NOW.getTime() + 5 * 24 * 60 * 60 * 1000)
     expect(threshold.getTime()).toBe(expectedThreshold.getTime())
   })
@@ -171,7 +171,7 @@ describe('createRefreshExpiringReviewsHandler', () => {
 
     const handler = createRefreshExpiringReviewsHandler({
       reviewRepo: {
-        findAllExpiringBefore: vi.fn().mockResolvedValue(reviews),
+        findAllExpiringBeforeAcrossTenants: vi.fn().mockResolvedValue(reviews),
       } as unknown as ReviewRepository,
       queue: { addSyncJob } as ReviewQueuePort,
       clock: vi.fn(() => NOW),
@@ -190,7 +190,7 @@ describe('createRefreshExpiringReviewsHandler', () => {
 
     const handler = createRefreshExpiringReviewsHandler({
       reviewRepo: {
-        findAllExpiringBefore: vi.fn().mockResolvedValue([]),
+        findAllExpiringBeforeAcrossTenants: vi.fn().mockResolvedValue([]),
       } as unknown as ReviewRepository,
       queue: { addSyncJob } as ReviewQueuePort,
       clock: vi.fn(() => NOW),
@@ -211,7 +211,7 @@ describe('createRefreshExpiringReviewsHandler', () => {
 
     const handler = createRefreshExpiringReviewsHandler({
       reviewRepo: {
-        findAllExpiringBefore: vi.fn().mockResolvedValue(reviews),
+        findAllExpiringBeforeAcrossTenants: vi.fn().mockResolvedValue(reviews),
       } as unknown as ReviewRepository,
       queue: { addSyncJob } as ReviewQueuePort,
       clock: vi.fn(() => NOW),

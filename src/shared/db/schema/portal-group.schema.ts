@@ -3,6 +3,7 @@
 // Per architecture: snake_case columns, camelCase field names.
 
 import { pgTable, uuid, varchar, uniqueIndex } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
 import { properties } from './property.schema'
 import { createdAtColumn, updatedAtColumn, deletedAtColumn } from '../columns'
 
@@ -20,10 +21,8 @@ export const portalGroups = pgTable(
     deletedAt: deletedAtColumn(),
   },
   (t) => ({
-    orgPropertyNameUnique: uniqueIndex('portal_groups_org_property_name_unique').on(
-      t.organizationId,
-      t.propertyId,
-      t.name,
-    ),
+    orgPropertyNameUnique: uniqueIndex('portal_groups_org_property_name_unique')
+      .on(t.organizationId, t.propertyId, t.name)
+      .where(sql`${t.deletedAt} IS NULL`),
   }),
 )

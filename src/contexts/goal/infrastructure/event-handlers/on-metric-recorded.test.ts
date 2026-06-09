@@ -67,6 +67,7 @@ function makeFakeDeps() {
     list: async () => [],
     listInstances: async () => [],
     cancelByParent: async () => 0,
+    cancelGoalWithInstances: async () => null,
     upsertProgress: async (goalId, _orgId, aggregation, delta) => {
       let p = progresses.get(goalId as string)
       if (!p) {
@@ -157,10 +158,12 @@ function makeFakeDeps() {
         goals[idx] = { ...g, status: 'completed', completedAt }
       }
     },
-    findAllActive: async () => [],
+    findAllActiveAcrossTenants: async () => [],
     findActiveRecurringTemplates: async () => [],
     findLatestInstance: async (_parentId, _orgId) => null,
+    listByPortalAndGroupIds: async () => [],
     createGoalAndProgress: async () => {},
+    createTemplateInstanceAndProgress: async () => {},
   }
 
   const eventBus = {

@@ -2,7 +2,7 @@
 // Standalone adapter — does NOT share code with gbp-api.adapter.ts (GbpApiPort).
 // Uses RefreshGoogleToken use case for token management. Pagination handled internally.
 
-import type { GoogleReviewApiPort } from '#/contexts/review/application/internal-ports'
+import type { GoogleReviewApiPort } from '#/contexts/review/application/public-api'
 import type { GoogleReview, StarRating } from '#/contexts/review/application/public-api'
 import type { OrganizationId, GoogleConnectionId } from '#/shared/domain/ids'
 import type { GoogleConnectionRepository } from '../../application/ports/google-connection.repository'

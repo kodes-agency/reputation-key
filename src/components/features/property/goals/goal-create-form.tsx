@@ -11,7 +11,7 @@ import type { CreateGoalInput } from '#/contexts/goal/application/dto/goal.dto'
 import { createGoalSchema } from '#/contexts/goal/application/dto/goal.dto'
 import { GoalCreateFields } from './goal-create-fields'
 import type { PortalOption, TeamOption } from './goal-entity-types'
-import { type FormState, initial, buildScopeOverrides } from './go-create-form-state'
+import { type FormState, initial, buildScopeOverrides } from './goal-create-form-state'
 
 type Props = Readonly<{
   propertyId: string

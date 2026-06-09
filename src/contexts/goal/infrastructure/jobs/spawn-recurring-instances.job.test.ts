@@ -91,6 +91,7 @@ function createFakeDeps(state: {
     list: async () => [],
     listInstances: async () => [],
     cancelByParent: async () => 0,
+    cancelGoalWithInstances: async () => null,
     insertProgress: async () => {
       throw new Error('not used')
     },
@@ -122,12 +123,16 @@ function createFakeDeps(state: {
       currentCount: null,
     }),
     markGoalCompleted: async () => {},
-    findAllActive: async () => state.templates,
+    findAllActiveAcrossTenants: async () => state.templates,
     findActiveRecurringTemplates: async () => state.templates,
     findLatestInstance: async (parentId) =>
       state.latestInstance.get(parentId as string) ?? null,
+    listByPortalAndGroupIds: async () => [],
     createGoalAndProgress: async (goal, progress) => {
       created.push({ goal, progress })
+    },
+    createTemplateInstanceAndProgress: async (_template, instance, progress) => {
+      created.push({ goal: instance, progress })
     },
   }
 

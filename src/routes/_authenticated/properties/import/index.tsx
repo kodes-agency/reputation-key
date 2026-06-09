@@ -1,5 +1,7 @@
-import { createFileRoute, useSearch } from '@tanstack/react-router'
+import { createFileRoute, redirect, useSearch } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
+import type { AuthRouteContext } from '#/routes/_authenticated'
+import { can } from '#/shared/domain/permissions'
 import {
   getGoogleAuthUrl,
   listGoogleConnections,
@@ -15,6 +17,10 @@ import { ImportPageHeader } from './-import-page-header'
 import { PageShell } from '#/components/layout/page-shell'
 
 export const Route = createFileRoute('/_authenticated/properties/import/')({
+  beforeLoad: ({ context }) => {
+    const { role } = context as AuthRouteContext
+    if (!can(role, 'integration.manage')) throw redirect({ to: '/properties' })
+  },
   staleTime: 60_000,
   loader: async () => {
     const result = await listGoogleConnections()

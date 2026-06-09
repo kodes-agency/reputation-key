@@ -3,6 +3,7 @@ import type { PortalGroupRepository } from '../ports/portal-group.repository'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { DeletePortalGroupInput } from '../dto/portal-group.dto'
+export type { DeletePortalGroupInput }
 import { can } from '#/shared/domain/permissions'
 import { portalError } from '../../domain/errors'
 import { portalGroupDeleted } from '../../domain/events'

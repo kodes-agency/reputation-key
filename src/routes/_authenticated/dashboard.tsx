@@ -3,6 +3,7 @@
 import { createFileRoute, getRouteApi } from '@tanstack/react-router'
 import { DashboardPage } from '#/components/features/property/dashboard-page'
 import { deleteProperty } from '#/contexts/property/server/properties'
+import { useMutationAction } from '#/components/hooks/use-mutation-action'
 
 const authRoute = getRouteApi('/_authenticated')
 
@@ -12,5 +13,8 @@ export const Route = createFileRoute('/_authenticated/dashboard')({
 
 function DashboardRoute() {
   const { properties } = authRoute.useLoaderData()
-  return <DashboardPage properties={properties} deletePropertyFn={deleteProperty} />
+  const deleteAction = useMutationAction(deleteProperty, {
+    invalidateRoutes: ['/_authenticated'],
+  })
+  return <DashboardPage properties={properties} deleteAction={deleteAction} />
 }

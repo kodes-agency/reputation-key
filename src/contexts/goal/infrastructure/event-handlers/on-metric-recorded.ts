@@ -69,6 +69,7 @@ export function onMetricRecorded(deps: OnMetricRecordedDeps) {
             goalProgressUpdated({
               goalId: goal.id,
               organizationId: goal.organizationId,
+              propertyId: goal.propertyId,
               metricKey: goal.metricKey,
               previousValue,
               currentValue: result.currentValue,

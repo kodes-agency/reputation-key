@@ -52,9 +52,9 @@ export const feedbackFromRow = (row: FeedbackRow): Feedback => ({
 
 export const scanEventToRow = (scan: ScanEvent) => ({
   id: unbrand(scan.id),
-  organizationId: scan.organizationId as string,
-  portalId: scan.portalId as string,
-  propertyId: scan.propertyId as string,
+  organizationId: unbrand(scan.organizationId),
+  portalId: unbrand(scan.portalId),
+  propertyId: unbrand(scan.propertyId),
   source: scan.source,
   sessionId: scan.sessionId,
   ipHash: scan.ipHash,
@@ -63,9 +63,9 @@ export const scanEventToRow = (scan: ScanEvent) => ({
 
 export const ratingToRow = (rating: Rating) => ({
   id: unbrand(rating.id),
-  organizationId: rating.organizationId as string,
-  portalId: rating.portalId as string,
-  propertyId: rating.propertyId as string,
+  organizationId: unbrand(rating.organizationId),
+  portalId: unbrand(rating.portalId),
+  propertyId: unbrand(rating.propertyId),
   sessionId: rating.sessionId,
   value: rating.value,
   source: rating.source,
@@ -75,11 +75,11 @@ export const ratingToRow = (rating: Rating) => ({
 
 export const feedbackToRow = (fb: Feedback) => ({
   id: unbrand(fb.id),
-  organizationId: fb.organizationId as string,
-  portalId: fb.portalId as string,
-  propertyId: fb.propertyId as string,
+  organizationId: unbrand(fb.organizationId),
+  portalId: unbrand(fb.portalId),
+  propertyId: unbrand(fb.propertyId),
   sessionId: fb.sessionId,
-  ratingId: fb.ratingId as string | null,
+  ratingId: fb.ratingId != null ? unbrand(fb.ratingId) : null,
   comment: fb.comment,
   source: fb.source,
   ipHash: fb.ipHash,

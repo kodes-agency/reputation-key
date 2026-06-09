@@ -7,6 +7,7 @@ import type { EventBus } from '#/shared/events/event-bus'
 import type { Portal, PortalId } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { CreatePortalInput } from '../dto/create-portal.dto'
+export type { CreatePortalInput }
 import { can } from '#/shared/domain/permissions'
 import { normalizeSlug } from '../../domain/rules'
 import { buildPortal } from '../../domain/constructors'

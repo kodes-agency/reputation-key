@@ -1,4 +1,5 @@
-export type ScanSource = 'qr' | 'nfc' | 'direct'
+// F066: Re-export ScanSource from domain/types instead of duplicating the union
+export type { ScanSource } from '../../domain/types'
 
 export type PublicPortalLoaderData = {
   portal: {

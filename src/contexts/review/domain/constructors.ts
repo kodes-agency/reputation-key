@@ -9,11 +9,11 @@ import type {
   GoogleConnectionId,
   UserId,
 } from '#/shared/domain/ids'
-import { ok, err } from 'neverthrow'
+import { ok, err } from '#/shared/domain'
 import { reviewError } from './errors'
 import { isValidRating, calculateExpiresAt, MAX_REPLY_LENGTH } from './rules'
 
-type BuildReviewArgs = {
+type BuildReviewArgs = Readonly<{
   id: ReviewId
   organizationId: OrganizationId
   propertyId: PropertyId
@@ -29,7 +29,7 @@ type BuildReviewArgs = {
   now: Date
   sentimentLabel?: SentimentLabel
   sentimentScore?: number | null
-}
+}>
 
 export const buildReview = (args: BuildReviewArgs) => {
   if (!isValidRating(args.rating)) {
@@ -60,7 +60,7 @@ export const buildReview = (args: BuildReviewArgs) => {
   })
 }
 
-type BuildReplyArgs = {
+type BuildReplyArgs = Readonly<{
   id: ReplyId
   reviewId: ReviewId
   organizationId: OrganizationId
@@ -76,7 +76,7 @@ type BuildReplyArgs = {
   approvedAt?: Date | null
   publishedAt?: Date | null
   now: Date
-}
+}>
 
 export const buildReply = (args: BuildReplyArgs) => {
   if (!args.text.trim()) {

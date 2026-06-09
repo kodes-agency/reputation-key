@@ -6,9 +6,10 @@ import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { getContainer } from '#/composition'
 import { can } from '#/shared/domain/permissions'
-import { throwContextError } from '#/shared/auth/server-errors'
+import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
+import { propertyId } from '#/shared/domain/ids'
 import { z } from 'zod'
 
 // ── getActivityTimelineFn ───────────────────────────────────────────
@@ -22,26 +23,34 @@ const getActivityTimelineDto = z.object({
 export const getActivityTimelineFn = createServerFn({ method: 'GET' })
   .inputValidator(getActivityTimelineDto)
   .handler(
-    tracedHandler(async ({ data }) => {
-      const headers = headersFromContext()
-      const ctx = await resolveTenantContext(headers)
-      if (!can(ctx.role, 'inbox.read')) {
-        throwContextError(
-          'AuthError',
-          { code: 'forbidden', message: 'No inbox read permission' },
-          403,
-        )
-      }
-      const { activityPublicApi } = getContainer()
-      return activityPublicApi.getActivityTimeline({
-        resourceType: data.resourceType,
-        resourceId: data.resourceId,
-        organizationId: ctx.organizationId,
-        userId: ctx.userId,
-        role: ctx.role,
-        limit: data.limit,
-      })
-    }),
+    tracedHandler(
+      async ({ data }) => {
+        const headers = headersFromContext()
+        const ctx = await resolveTenantContext(headers)
+        if (!can(ctx.role, 'inbox.read')) {
+          throwContextError(
+            'AuthError',
+            { code: 'forbidden', message: 'No inbox read permission' },
+            403,
+          )
+        }
+        try {
+          const { activityPublicApi } = getContainer()
+          return activityPublicApi.getActivityTimeline({
+            resourceType: data.resourceType,
+            resourceId: data.resourceId,
+            organizationId: ctx.organizationId,
+            userId: ctx.userId,
+            role: ctx.role,
+            limit: data.limit,
+          })
+        } catch (e) {
+          throw catchUntagged(e)
+        }
+      },
+      'GET',
+      'activity.getActivityTimeline',
+    ),
   )
 
 // ── getOrgActivityFn ───────────────────────────────────────────────
@@ -55,24 +64,32 @@ const getOrgActivityDto = z.object({
 export const getOrgActivityFn = createServerFn({ method: 'GET' })
   .inputValidator(getOrgActivityDto)
   .handler(
-    tracedHandler(async ({ data }) => {
-      const headers = headersFromContext()
-      const ctx = await resolveTenantContext(headers)
-      if (!can(ctx.role, 'inbox.read')) {
-        throwContextError(
-          'AuthError',
-          { code: 'forbidden', message: 'No inbox read permission' },
-          403,
-        )
-      }
-      const { activityPublicApi } = getContainer()
-      return activityPublicApi.getOrgActivity({
-        organizationId: ctx.organizationId,
-        userId: ctx.userId,
-        role: ctx.role,
-        propertyId: data.propertyId,
-        limit: data.limit,
-        offset: data.offset,
-      })
-    }),
+    tracedHandler(
+      async ({ data }) => {
+        const headers = headersFromContext()
+        const ctx = await resolveTenantContext(headers)
+        if (!can(ctx.role, 'inbox.read')) {
+          throwContextError(
+            'AuthError',
+            { code: 'forbidden', message: 'No inbox read permission' },
+            403,
+          )
+        }
+        try {
+          const { activityPublicApi } = getContainer()
+          return activityPublicApi.getOrgActivity({
+            organizationId: ctx.organizationId,
+            userId: ctx.userId,
+            role: ctx.role,
+            propertyId: data.propertyId ? propertyId(data.propertyId) : undefined,
+            limit: data.limit,
+            offset: data.offset,
+          })
+        } catch (e) {
+          throw catchUntagged(e)
+        }
+      },
+      'GET',
+      'activity.getOrgActivity',
+    ),
   )

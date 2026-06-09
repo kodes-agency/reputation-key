@@ -9,6 +9,13 @@ import { portalError } from '../../domain/errors'
 import { portalId, portalLinkId, portalLinkCategoryId } from '#/shared/domain/ids'
 
 // fallow-ignore-next-line unused-type
+export type ReorderLinksInput = Readonly<{
+  categoryId: string
+  portalId: string
+  items: ReadonlyArray<{ id: string; sortKey: string }>
+}>
+
+// fallow-ignore-next-line unused-type
 export type ReorderLinksDeps = Readonly<{
   portalLinkRepo: PortalLinkRepository
   events: EventBus
@@ -17,14 +24,7 @@ export type ReorderLinksDeps = Readonly<{
 
 export const reorderLinks =
   (deps: ReorderLinksDeps) =>
-  async (
-    input: {
-      categoryId: string
-      portalId: string
-      items: ReadonlyArray<{ id: string; sortKey: string }>
-    },
-    ctx: AuthContext,
-  ): Promise<void> => {
+  async (input: ReorderLinksInput, ctx: AuthContext): Promise<void> => {
     // 1. Authorize
     if (!can(ctx.role, 'portal.update')) {
       throw portalError('forbidden', 'this role cannot reorder portal links')

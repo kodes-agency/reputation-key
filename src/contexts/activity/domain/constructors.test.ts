@@ -1,20 +1,21 @@
 import { describe, it, expect } from 'vitest'
 import { createActivityLog } from './constructors'
 import type { ActivityAction, ResourceType } from './types'
+import { userId, propertyId, organizationId } from '#/shared/domain/ids'
 
 const clock = () => new Date('2026-06-02T12:00:00Z')
 
 describe('createActivityLog', () => {
   const validInput = {
-    actorId: 'user-1',
+    actorId: userId('user-1'),
     actorName: 'Bozhidar',
     actorAvatarUrl: null,
     actorRole: 'AccountAdmin' as const,
     action: 'created' as ActivityAction,
     resourceType: 'inbox_item' as ResourceType,
     resourceId: 'ii-1',
-    propertyId: 'prop-1',
-    organizationId: 'org-1',
+    propertyId: propertyId('prop-1'),
+    organizationId: organizationId('org-1'),
     payload: {
       subject: 'inbox_item',
       from: null,

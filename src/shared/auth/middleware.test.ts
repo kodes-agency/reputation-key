@@ -228,7 +228,7 @@ describe('resolveTenantContext', () => {
 describe('resolveTenantContext cache', () => {
   it('returns cached result on second call with same cookies', async () => {
     // Arrange
-    const headers = makeHeaders({ cookie: 'session=abc123' })
+    const headers = makeHeaders({ cookie: 'better-auth.session_token=abc123' })
     mockGetSession.mockResolvedValue({
       session: { id: 'sess-1', activeOrganizationId: 'org-1' },
       user: { id: 'u1' },
@@ -238,7 +238,7 @@ describe('resolveTenantContext cache', () => {
     // Act — first call
     const ctx1 = await resolveTenantContext(headers)
     // Act — second call with identical cookies
-    const headers2 = makeHeaders({ cookie: 'session=abc123' })
+    const headers2 = makeHeaders({ cookie: 'better-auth.session_token=abc123' })
     const ctx2 = await resolveTenantContext(headers2)
 
     // Assert — both return same result
@@ -250,7 +250,7 @@ describe('resolveTenantContext cache', () => {
   it('bypasses cache after TTL expires', async () => {
     // Arrange
     vi.useFakeTimers()
-    const headers = makeHeaders({ cookie: 'session=xyz' })
+    const headers = makeHeaders({ cookie: 'better-auth.session_token=xyz' })
     mockGetSession.mockResolvedValue({
       session: { id: 'sess-2', activeOrganizationId: 'org-2' },
       user: { id: 'u2' },
@@ -272,8 +272,8 @@ describe('resolveTenantContext cache', () => {
 
   it('does not cache across different cookies', async () => {
     // Arrange
-    const headers1 = makeHeaders({ cookie: 'session=aaa' })
-    const headers2 = makeHeaders({ cookie: 'session=bbb' })
+    const headers1 = makeHeaders({ cookie: 'better-auth.session_token=aaa' })
+    const headers2 = makeHeaders({ cookie: 'better-auth.session_token=bbb' })
     mockGetSession.mockResolvedValue({
       session: { id: 'sess-1', activeOrganizationId: 'org-1' },
       user: { id: 'u1' },

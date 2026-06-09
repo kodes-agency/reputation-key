@@ -67,7 +67,7 @@ describe('createPurgeExpiredReviewsHandler', () => {
 
     const handler = createPurgeExpiredReviewsHandler({
       reviewRepo: {
-        findAllExpiredBefore: vi.fn().mockResolvedValue(reviews),
+        findAllExpiredBeforeAcrossTenants: vi.fn().mockResolvedValue(reviews),
         deleteById: tracker.deleteById,
       } as unknown as ReviewRepository,
       events: { emit: tracker.emit } as unknown as EventBus,
@@ -97,7 +97,7 @@ describe('createPurgeExpiredReviewsHandler', () => {
 
     const handler = createPurgeExpiredReviewsHandler({
       reviewRepo: {
-        findAllExpiredBefore: vi.fn().mockResolvedValue([review]),
+        findAllExpiredBeforeAcrossTenants: vi.fn().mockResolvedValue([review]),
         deleteById: vi.fn().mockResolvedValue(undefined),
       } as unknown as ReviewRepository,
       events: { emit } as unknown as EventBus,
@@ -122,11 +122,11 @@ describe('createPurgeExpiredReviewsHandler', () => {
 
   it('uses 3-day grace window from clock', async () => {
     const now = new Date('2025-12-31T23:59:59.999Z')
-    const findAllExpiredBefore = vi.fn().mockResolvedValue([])
+    const findAllExpiredBeforeAcrossTenants = vi.fn().mockResolvedValue([])
 
     const handler = createPurgeExpiredReviewsHandler({
       reviewRepo: {
-        findAllExpiredBefore,
+        findAllExpiredBeforeAcrossTenants,
         deleteById: vi.fn(),
       } as unknown as ReviewRepository,
       events: { emit: vi.fn() } as unknown as EventBus,
@@ -135,7 +135,7 @@ describe('createPurgeExpiredReviewsHandler', () => {
 
     await handler({} as never)
 
-    const threshold = findAllExpiredBefore.mock.calls[0][0] as Date
+    const threshold = findAllExpiredBeforeAcrossTenants.mock.calls[0][0] as Date
     expect(now.getTime() - threshold.getTime()).toBe(3 * 24 * 60 * 60 * 1000)
   })
 
@@ -144,11 +144,11 @@ describe('createPurgeExpiredReviewsHandler', () => {
     const secondDate = new Date('2025-01-10T00:05:00Z')
     const clock = vi.fn(() => (clock.mock.calls.length === 1 ? firstDate : secondDate))
     const emit = vi.fn().mockResolvedValue(undefined)
-    const findAllExpiredBefore = vi.fn().mockResolvedValue([makeReview()])
+    const findAllExpiredBeforeAcrossTenants = vi.fn().mockResolvedValue([makeReview()])
 
     const handler = createPurgeExpiredReviewsHandler({
       reviewRepo: {
-        findAllExpiredBefore,
+        findAllExpiredBeforeAcrossTenants,
         deleteById: vi.fn(),
       } as unknown as ReviewRepository,
       events: { emit } as unknown as EventBus,
@@ -159,7 +159,7 @@ describe('createPurgeExpiredReviewsHandler', () => {
 
     expect(clock).toHaveBeenCalledTimes(2)
     // First call → threshold
-    const threshold = findAllExpiredBefore.mock.calls[0][0] as Date
+    const threshold = findAllExpiredBeforeAcrossTenants.mock.calls[0][0] as Date
     expect(threshold.getTime()).toBe(firstDate.getTime() - 3 * 24 * 60 * 60 * 1000)
     // Second call → occurredAt
     expect(emit.mock.calls[0][0].occurredAt).toBe(secondDate)
@@ -179,7 +179,9 @@ describe('createPurgeExpiredReviewsHandler', () => {
 
     const handler = createPurgeExpiredReviewsHandler({
       reviewRepo: {
-        findAllExpiredBefore: vi.fn().mockResolvedValue([review1, review2, review3]),
+        findAllExpiredBeforeAcrossTenants: vi
+          .fn()
+          .mockResolvedValue([review1, review2, review3]),
         deleteById: tracker.deleteById,
       } as unknown as ReviewRepository,
       events: { emit: tracker.emit } as unknown as EventBus,
@@ -209,7 +211,9 @@ describe('createPurgeExpiredReviewsHandler', () => {
 
     const handler = createPurgeExpiredReviewsHandler({
       reviewRepo: {
-        findAllExpiredBefore: vi.fn().mockResolvedValue([review1, review2, review3]),
+        findAllExpiredBeforeAcrossTenants: vi
+          .fn()
+          .mockResolvedValue([review1, review2, review3]),
         deleteById,
       } as unknown as ReviewRepository,
       events: { emit } as unknown as EventBus,
@@ -236,7 +240,7 @@ describe('createPurgeExpiredReviewsHandler', () => {
 
     const handler = createPurgeExpiredReviewsHandler({
       reviewRepo: {
-        findAllExpiredBefore: vi.fn().mockResolvedValue([]),
+        findAllExpiredBeforeAcrossTenants: vi.fn().mockResolvedValue([]),
         deleteById,
       } as unknown as ReviewRepository,
       events: { emit } as unknown as EventBus,

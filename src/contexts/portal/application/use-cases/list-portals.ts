@@ -7,16 +7,18 @@ import { portalError } from '../../domain/errors'
 import { can } from '#/shared/domain/permissions'
 
 // fallow-ignore-next-line unused-type
+export type ListPortalsInput = Readonly<{
+  propertyId?: string
+}>
+
+// fallow-ignore-next-line unused-type
 export type ListPortalsDeps = Readonly<{
   portalRepo: PortalRepository
 }>
 
 export const listPortals =
   (deps: ListPortalsDeps) =>
-  async (
-    input: { propertyId?: string },
-    ctx: AuthContext,
-  ): Promise<ReadonlyArray<Portal>> => {
+  async (input: ListPortalsInput, ctx: AuthContext): Promise<ReadonlyArray<Portal>> => {
     if (!can(ctx.role, 'portal.read')) {
       throw portalError('forbidden', 'No portal read permission')
     }

@@ -45,6 +45,7 @@ describe('GoalPublicApi', () => {
     const event = goalProgressUpdated({
       goalId: goalId('g1'),
       organizationId: organizationId('o1'),
+      propertyId: propertyId('p1'),
       metricKey: 'portal.scan',
       previousValue: 5,
       currentValue: 8,

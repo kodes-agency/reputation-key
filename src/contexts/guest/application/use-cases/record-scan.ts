@@ -32,6 +32,9 @@ export const recordScan =
   async (input: RecordScanInput): Promise<void> => {
     try {
       const scanId = deps.idGen()
+      // F064 NOTE: Scan events bypass a domain constructor (unlike Rating/Feedback).
+      // This is acceptable because ScanEvent has no domain invariants beyond the
+      // source validation which is already enforced by the server function's input schema.
       const scan = {
         id: scanId,
         ...input,

@@ -127,6 +127,7 @@ export function buildTestStaffAssignment(
     userId: userId('user-00000000-0000-0000-0000-000000000001'),
     propertyId: propertyId('a0000000-0000-0000-0000-000000000001'),
     teamId: null,
+    portalId: null,
     createdAt: new Date('2026-04-15T12:00:00Z'),
     updatedAt: new Date('2026-04-15T12:00:00Z'),
     deletedAt: null,

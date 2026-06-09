@@ -5,6 +5,7 @@ import type { ReviewReplySubmitted } from '#/contexts/review/application/public-
 import type { InboxRepository } from '../../application/ports/inbox.repository'
 import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
+import { unbrand } from '#/shared/domain/ids'
 
 export type OnReplySubmittedDeps = Readonly<{
   repo: InboxRepository
@@ -17,7 +18,7 @@ export const onReplySubmitted =
       try {
         const inboxItem = await deps.repo.findBySource(
           'review',
-          event.reviewId,
+          unbrand(event.reviewId),
           event.organizationId,
         )
         if (!inboxItem) {

@@ -26,6 +26,11 @@ export type StaffAssignmentRepository = Readonly<{
     orgId: OrganizationId,
     teamId: TeamId,
   ) => Promise<ReadonlyArray<StaffAssignment>>
+  listByUserAndProperty: (
+    orgId: OrganizationId,
+    userId: UserId,
+    propertyId: PropertyId,
+  ) => Promise<ReadonlyArray<StaffAssignment>>
   assignmentExists: (
     orgId: OrganizationId,
     userId: UserId,

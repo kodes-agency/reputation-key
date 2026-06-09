@@ -81,6 +81,7 @@ describe('staffAssignmentRepository (integration)', () => {
       const db = getDb()
       const repo = createStaffAssignmentRepository(db)
       const assignment = buildTestStaffAssignment({
+        id: 'staff-findbyid-1',
         organizationId: ORG_A,
         userId: USER_1,
         propertyId: PROP_A1,

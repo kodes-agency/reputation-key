@@ -11,6 +11,8 @@ import type { PropertyId } from '#/shared/domain/ids'
 
 const createStaffApi = (accessibleIds: PropertyId[] | null): StaffPublicApi => ({
   getAccessiblePropertyIds: async () => accessibleIds,
+  getAssignedPortals: async () => [],
+  countAssignmentsByTeam: async () => 0,
 })
 
 const setup = (staffApi?: StaffPublicApi) => {
@@ -80,9 +82,7 @@ describe('getTeam', () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- intentionally invalid role to test permission guard
     const ctx = buildTestAuthContext({ role: 'Guest' as any })
 
-    await expect(
-      useCase({ teamId: team.id }, ctx),
-    ).rejects.toSatisfy(
+    await expect(useCase({ teamId: team.id }, ctx)).rejects.toSatisfy(
       (e: unknown) => isTeamError(e) && (e as { code: string }).code === 'forbidden',
     )
   })

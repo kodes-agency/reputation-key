@@ -38,7 +38,7 @@ import {
   createPublishReplyHandler,
   JOB_NAME as PUBLISH_REPLY_JOB_NAME,
 } from '#/contexts/review/infrastructure/jobs/publish-reply.job'
-import { replyId } from '#/shared/domain/ids'
+import { activityLogId, replyId } from '#/shared/domain/ids'
 
 export async function bootstrap(container: Container): Promise<void> {
   const logger = getLogger()
@@ -220,7 +220,7 @@ export async function bootstrap(container: Container): Promise<void> {
     userLookup: dbUserLookup,
     clock: () => new Date(),
     logger: container.logger,
-    idGen: () => crypto.randomUUID(),
+    idGen: () => activityLogId(crypto.randomUUID()),
   })
   container.jobRegistry.register(
     INSERT_ACTIVITY_LOG_JOB_NAME,

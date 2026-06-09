@@ -6,7 +6,7 @@
 
 ```
 shared/
-  domain/        brand, ids, result, errors, clock, auth-context, roles, permissions, timezones
+  domain/        brand, ids, result, errors, auth-context, roles, permissions, timezones
   events/        event bus, master DomainEvent union
   db/            Drizzle client factory, pool, columns, schema/ (auth, property, team, staff-assignment, portal, audit), migrations
   auth/          better-auth config, client, headers, middleware, permissions, server session helpers, emails, server-errors
@@ -31,6 +31,9 @@ Shared code is **used by 2+ modules** across the codebase. If only one context u
 - **`auth.functions.ts`** — server-side session helpers (`getSession`)
 - **`server-errors.ts`** — `throwContextError` (logs before throwing), `catchUntagged` for wrapping non-domain errors
 - **`emails.ts`** — email sending via Resend
+- **`error-status.ts`** — shared HTTP status code constants (`HTTP_STATUS`) and `standardErrorStatus` mapping (moved to `shared/http/status.ts`)
+- **`pubsub-jwt.verifier.ts`** — Google Pub/Sub JWT verification for GBP webhook authentication
+- **`auth-cli.ts`** — CLI auth utilities for seeding/scripting
 
 ## Domain types (`shared/domain/`)
 
@@ -39,7 +42,6 @@ Shared code is **used by 2+ modules** across the codebase. If only one context u
 - **`permissions.ts`** — `Permission` type, `can(role, permission)` sync check. Use in server functions and route guards.
 - **`auth-context.ts`** — `AuthContext` type (`{ userId, organizationId, role }`)
 - **`errors.ts`** — base error types
-- **`clock.ts`** — injectable clock for test determinism. Use cases receive `clock` as a dependency instead of `new Date()`.
 - **`result.ts`** — neverthrow `Result` re-exports
 - **`brand.ts`** — branded type helpers for nominal typing
 - **`timezones.ts`** — timezone list and utilities
@@ -65,6 +67,7 @@ Shared code is **used by 2+ modules** across the codebase. If only one context u
 ## Testing (`shared/testing/`)
 
 In-memory port fakes for unit testing use cases without a database:
+
 - `in-memory-identity-port.ts`, `in-memory-property-repo.ts`, `in-memory-team-repo.ts`, `in-memory-staff-assignment-repo.ts`
 - `in-memory-portal-repo.ts`, `in-memory-portal-link-repo.ts`
 - `in-memory-dashboard-repo.ts`, `in-memory-google-connection-repo.ts`, `in-memory-inbox-repo.ts`

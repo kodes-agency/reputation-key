@@ -83,7 +83,7 @@ export const addInboxNote =
     const note = result.value
 
     // 3. Persist
-    await deps.noteRepo.create(note)
+    await deps.noteRepo.create(note, input.organizationId)
 
     // 4. Emit event
     await deps.events.emit(

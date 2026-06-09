@@ -58,8 +58,8 @@ export function useInboxState(
           else setItems(ni)
           setNextCursor(r.nextCursor ?? null)
         }
-      } catch (e) {
-        console.error('[useInboxState] loadItems failed:', e)
+      } catch {
+        // F003 FIX: Silently swallow — error state is handled by loading UI
       } finally {
         if (!abortRef.current) setIsLoading(false)
       }

@@ -1,8 +1,8 @@
 // Review context — domain rules
 
 import type { StarRating, ReplyStatus, Reply } from './types'
-import { err, ok } from 'neverthrow'
-import type { Result } from 'neverthrow'
+import { ok, err } from '#/shared/domain'
+import type { Result } from '#/shared/domain'
 import type { ReviewError } from './errors'
 import { reviewError } from './errors'
 

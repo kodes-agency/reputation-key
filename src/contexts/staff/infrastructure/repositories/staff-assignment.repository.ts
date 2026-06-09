@@ -77,6 +77,22 @@ export const createStaffAssignmentRepository = (
     })
   },
 
+  listByUserAndProperty: async (orgId, userId, propertyId) => {
+    return trace('staffAssignment.listByUserAndProperty', async () => {
+      const rows = await db
+        .select()
+        .from(staffAssignments)
+        .where(
+          and(
+            ...baseWhere(staffAssignments, orgId),
+            eq(staffAssignments.userId, userId as string),
+            eq(staffAssignments.propertyId, propertyId as string),
+          ),
+        )
+      return rows.map(staffAssignmentFromRow)
+    })
+  },
+
   assignmentExists: async (orgId, userId, propertyId, teamId, portalId) => {
     return trace('staffAssignment.assignmentExists', async () => {
       const conditions = [

@@ -9,14 +9,11 @@ import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { can } from '#/shared/domain/permissions'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
-import {
-  getDashboardDataDto,
-  type TimeRangePreset,
-} from '../application/dto/dashboard.dto'
+import { getDashboardDataDto } from '../application/dto/dashboard.dto'
 import { propertyId, portalId } from '#/shared/domain/ids'
 import { isDashboardError } from '../domain/errors'
 import type { DashboardErrorCode } from '../domain/errors'
-import { standardErrorStatus } from '#/shared/auth/error-status'
+import { standardErrorStatus } from '#/shared/http/status'
 
 /** Local error constructor — server must not import domain error constructors. */
 const makeDashboardError = (code: DashboardErrorCode, message: string) => ({
@@ -25,22 +22,9 @@ const makeDashboardError = (code: DashboardErrorCode, message: string) => ({
   message,
 })
 
+import { timeRangeToDates } from '../application/utils'
+
 export const dashboardErrorStatus = standardErrorStatus
-
-const MS_PER_DAY = 86_400_000
-
-function timeRangeToDates(preset: TimeRangePreset) {
-  const now = new Date()
-  if (preset === 'all') {
-    // No start bound — epoch captures all data
-    return { startDate: new Date(0), endDate: now }
-  }
-  const days = preset === '7d' ? 7 : preset === '60d' ? 60 : preset === '90d' ? 90 : 30
-  return {
-    startDate: new Date(now.getTime() - days * MS_PER_DAY),
-    endDate: now,
-  }
-}
 
 export const getDashboardDataFn = createServerFn({ method: 'GET' })
   .inputValidator(getDashboardDataDto)
@@ -70,7 +54,7 @@ export const getDashboardDataFn = createServerFn({ method: 'GET' })
         } catch (e) {
           if (isDashboardError(e))
             throwContextError('DashboardError', e, dashboardErrorStatus(e.code))
-          catchUntagged(e)
+          throw catchUntagged(e)
         }
       },
       'GET',

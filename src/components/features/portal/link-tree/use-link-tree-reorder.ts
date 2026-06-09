@@ -41,9 +41,13 @@ export function useLinkTreeReorder(
 ) {
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event
+    // F115: Only process drag-end events where the active item is a category.
+    // Link reordering is handled by handleReorderLinks instead.
     if (!over || active.id === over.id) return
     const oldIndex = categories.findIndex((c) => c.id === active.id)
     const newIndex = categories.findIndex((c) => c.id === over.id)
+    // Skip if neither active nor over is a category (e.g. link drag)
+    if (oldIndex === -1 && newIndex === -1) return
     const reordered = arrayMove([...categories], oldIndex, newIndex)
     setCategories(reordered)
     const updates: { id: string; sortKey: string }[] = []
@@ -54,6 +58,8 @@ export function useLinkTreeReorder(
     try {
       await reorderCategoriesMutation({ data: { portalId, items: updates } })
     } catch {
+      // F119: Rollback optimistic UI update on failure
+      setCategories(categories)
       getLogger().error('Failed to reorder categories')
     }
   }
@@ -77,6 +83,8 @@ export function useLinkTreeReorder(
         data: { portalId, categoryId, items: updates },
       })
     } catch {
+      // F119: Rollback optimistic UI update on failure
+      setLinks(links)
       getLogger().error('Failed to reorder links')
     }
   }

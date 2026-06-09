@@ -52,6 +52,9 @@ export const goals = pgTable(
     index('goals_org_status_idx').on(t.organizationId, t.status),
     index('goals_parent_idx').on(t.parentGoalId),
     index('goals_group_idx').on(t.groupId),
+    // Prevents duplicate recurring instances — one per (template, periodStart).
+    // NULL parentGoalId rows (templates) won't conflict because PostgreSQL treats NULL ≠ NULL in unique indexes.
+    uniqueIndex('goals_recurring_instance_uniq').on(t.parentGoalId, t.periodStart),
   ],
 )
 

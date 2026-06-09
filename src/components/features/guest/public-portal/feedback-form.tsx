@@ -36,12 +36,20 @@ export function FeedbackForm({ portalId, source, submitFeedback }: Props) {
     setError(null)
 
     try {
+      // F123: Read honeypot value from DOM to actually enforce bot detection.
+      // If the honeypot field is filled (by a bot), treat as blocked.
+      const form = e.target as HTMLFormElement
+      const honeypotInput = form.querySelector(
+        'input[name="honeypot"]',
+      ) as HTMLInputElement | null
+      const honeypotValue = honeypotInput?.value ?? ''
+
       const result = await submitAction({
         data: {
           portalId,
           comment,
           source,
-          honeypot: '',
+          honeypot: honeypotValue,
           submittedAt: Date.now(),
         },
       })

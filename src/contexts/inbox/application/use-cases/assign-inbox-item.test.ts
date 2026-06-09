@@ -48,6 +48,8 @@ const seedItem = (): InboxItem => ({
 
 const defaultStaffApi: StaffPublicApi = {
   getAccessiblePropertyIds: async () => null,
+  getAssignedPortals: async () => [],
+  countAssignmentsByTeam: async () => 0,
 }
 
 const setup = (staffApi: StaffPublicApi = defaultStaffApi) => {
@@ -158,6 +160,8 @@ describe('assignInboxItem', () => {
     // PropertyManager has inbox.manage, so can() passes and the property access check is skipped
     const staffApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [PROP_OTHER],
+      getAssignedPortals: async () => [],
+      countAssignmentsByTeam: async () => 0,
     }
     const { useCase, repo } = setup(staffApi)
     repo.items.push(seedItem())
@@ -177,6 +181,8 @@ describe('assignInboxItem', () => {
     // Roles without inbox.write hit the auth gate before validateAssignment
     const staffApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [],
+      getAssignedPortals: async () => [],
+      countAssignmentsByTeam: async () => 0,
     }
     const { useCase, repo } = setup(staffApi)
     repo.items.push(seedItem())
@@ -195,6 +201,8 @@ describe('assignInboxItem', () => {
   it('allows assignment when user has access to the property', async () => {
     const staffApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [PROP_1],
+      getAssignedPortals: async () => [],
+      countAssignmentsByTeam: async () => 0,
     }
     const { useCase, repo } = setup(staffApi)
     repo.items.push(seedItem())

@@ -11,6 +11,8 @@ import type { EventBus } from '#/shared/events/event-bus'
 import { createStaffAssignment } from './application/use-cases/create-staff-assignment'
 import { removeStaffAssignment } from './application/use-cases/remove-staff-assignment'
 import { listStaffAssignments } from './application/use-cases/list-staff-assignments'
+import { getAssignedPortals } from './application/use-cases/get-assigned-portals'
+import { updateStaffPortals } from './application/use-cases/update-staff-portals'
 import { staffAssignmentId } from '#/shared/domain/ids'
 import { randomUUID } from 'crypto'
 
@@ -22,6 +24,10 @@ type StaffContextDeps = Readonly<{
 
 export const buildStaffContext = (deps: StaffContextDeps) => {
   const idGen = () => staffAssignmentId(randomUUID())
+
+  const getAssignedPortalsUC = getAssignedPortals({
+    assignmentRepo: deps.repo,
+  })
 
   const useCases = {
     createStaffAssignment: createStaffAssignment({
@@ -38,6 +44,14 @@ export const buildStaffContext = (deps: StaffContextDeps) => {
     listStaffAssignments: listStaffAssignments({
       assignmentRepo: deps.repo,
     }),
+    getAssignedPortals: getAssignedPortalsUC,
+    updateStaffPortals: updateStaffPortals({
+      assignmentRepo: deps.repo,
+      events: deps.events,
+      clock: deps.clock,
+      // F059: Use branded staffAssignmentId constructor instead of returning raw string
+      idGen: () => staffAssignmentId(randomUUID()),
+    }),
   } as const
 
   const publicApi: StaffPublicApi = {
@@ -49,7 +63,18 @@ export const buildStaffContext = (deps: StaffContextDeps) => {
       if (hasRole(role, 'AccountAdmin')) return null
       return deps.repo.getAccessiblePropertyIds(orgId, userId)
     },
+    getAssignedPortals: getAssignedPortalsUC,
+    countAssignmentsByTeam: async (orgId, teamId) => {
+      const assignments = await deps.repo.listByTeam(orgId, teamId)
+      return assignments.length
+    },
   }
 
-  return { publicApi, internal: { repos: {} as const, useCases } } as const
+  return {
+    publicApi,
+    internal: {
+      repos: { staffAssignmentRepo: deps.repo } as const,
+      useCases,
+    },
+  } as const
 }

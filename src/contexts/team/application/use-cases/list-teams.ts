@@ -10,6 +10,12 @@ import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { can } from '#/shared/domain/permissions'
 import { teamError } from '../../domain/errors'
 
+// ── Input type ────────────────────────────────────────────────────────────
+
+export type ListTeamsInput = Readonly<{
+  propertyId: PropertyId
+}>
+
 // fallow-ignore-next-line unused-type
 export type ListTeamsDeps = Readonly<{
   teamRepo: TeamRepository
@@ -18,10 +24,7 @@ export type ListTeamsDeps = Readonly<{
 
 export const listTeams =
   (deps: ListTeamsDeps) =>
-  async (
-    input: { propertyId: PropertyId },
-    ctx: AuthContext,
-  ): Promise<ReadonlyArray<Team>> => {
+  async (input: ListTeamsInput, ctx: AuthContext): Promise<ReadonlyArray<Team>> => {
     if (!can(ctx.role, 'team.read')) {
       throw teamError('forbidden', 'Insufficient permissions to list teams')
     }

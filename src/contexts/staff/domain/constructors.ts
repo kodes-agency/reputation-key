@@ -3,7 +3,7 @@
 // returning a Result."
 // Pure — ID and time are inputs, no side effects.
 
-import { ok, err, type Result } from 'neverthrow'
+import { ok, err, type Result } from '#/shared/domain'
 import type { StaffAssignment, StaffAssignmentId } from './types'
 import type { StaffError } from './errors'
 import type {

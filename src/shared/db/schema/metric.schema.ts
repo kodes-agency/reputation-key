@@ -53,5 +53,7 @@ export const metricReadings = pgTable(
       t.occurredAt,
     ),
     index('metric_readings_org_property_idx').on(t.organizationId, t.propertyId),
+    // F170: Index for portal-scoped metric queries
+    index('metric_readings_org_portal_idx').on(t.organizationId, t.portalId),
   ],
 )

@@ -13,6 +13,27 @@ const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
 const setup = () => {
   const identity = createInMemoryIdentityPort()
   const events = createCapturingEventBus()
+  // Seed members so getMember() and listMembers() return data for last-admin guard
+  identity.seedMembers([
+    {
+      id: 'member-1',
+      userId: 'user-target',
+      email: 'target@test.com',
+      name: 'Target Member',
+      role: 'Staff',
+      image: null,
+      createdAt: new Date('2026-01-01'),
+    },
+    {
+      id: 'admin-1',
+      userId: 'user-00000000-0000-0000-0000-000000000001',
+      email: 'admin@test.com',
+      name: 'Admin',
+      role: 'AccountAdmin',
+      image: null,
+      createdAt: new Date('2026-01-01'),
+    },
+  ])
   const useCase = removeMember({ identity, events, clock: () => FIXED_TIME })
   return { useCase, identity, events }
 }

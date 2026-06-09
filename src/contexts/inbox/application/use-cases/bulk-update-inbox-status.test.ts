@@ -52,18 +52,21 @@ function seedItem(
 
 const defaultStaffApi: StaffPublicApi = {
   getAccessiblePropertyIds: async () => null,
+  getAssignedPortals: async () => [],
+  countAssignmentsByTeam: async () => 0,
 }
 
 const setup = (staffApi: StaffPublicApi = defaultStaffApi) => {
   const repo = createInMemoryInboxRepo()
   const events = createCapturingEventBus()
-  const decrements: Array<string> = []
+  const decrementByCalls: Array<{ orgId: string; count: number }> = []
   const newCounter: NewCounterPort = {
     getCount: async () => 0,
     setCount: async () => {},
     increment: async () => {},
-    decrement: async (orgId) => {
-      decrements.push(orgId as string)
+    decrement: async () => {},
+    decrementBy: async (orgId, count) => {
+      decrementByCalls.push({ orgId: orgId as string, count })
     },
     invalidate: async () => {},
   }
@@ -83,7 +86,7 @@ const setup = (staffApi: StaffPublicApi = defaultStaffApi) => {
     } as never,
   }
   const useCase = bulkUpdateInboxStatus(deps)
-  return { useCase, repo, events, decrements }
+  return { useCase, repo, events, decrementByCalls }
 }
 
 describe('bulkUpdateInboxStatus', () => {
@@ -160,7 +163,7 @@ describe('bulkUpdateInboxStatus', () => {
   })
 
   it('decrements new counter for new→read transitions', async () => {
-    const { useCase, repo, decrements } = setup()
+    const { useCase, repo, decrementByCalls } = setup()
     repo.items.push(seedItem('ii-1', 'new'))
     repo.items.push(seedItem('ii-2', 'new'))
 
@@ -172,7 +175,8 @@ describe('bulkUpdateInboxStatus', () => {
       role: 'AccountAdmin' as Role,
     })
 
-    expect(decrements).toHaveLength(2)
+    expect(decrementByCalls).toHaveLength(1)
+    expect(decrementByCalls[0].count).toBe(2)
   })
 
   it('skips reviews when bulk marking as addressed (review guard)', async () => {
@@ -199,6 +203,8 @@ describe('bulkUpdateInboxStatus', () => {
     // When accessible properties are empty, all items are skipped (returns 0 updated)
     const staffApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [],
+      getAssignedPortals: async () => [],
+      countAssignmentsByTeam: async () => 0,
     }
     const { useCase, repo } = setup(staffApi)
     repo.items.push(seedItem('ii-1', 'new', 'prop-1'))
@@ -222,6 +228,8 @@ describe('bulkUpdateInboxStatus', () => {
     // Staff does NOT have inbox.manage, so the property access check fires
     const staffApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [propertyId('prop-1')],
+      getAssignedPortals: async () => [],
+      countAssignmentsByTeam: async () => 0,
     }
     const { useCase, repo } = setup(staffApi)
     repo.items.push(seedItem('ii-1', 'new', 'prop-1'))
@@ -245,6 +253,8 @@ describe('bulkUpdateInboxStatus', () => {
       getAccessiblePropertyIds: async () => {
         throw new Error('Should not be called for AccountAdmin')
       },
+      getAssignedPortals: async () => [],
+      countAssignmentsByTeam: async () => 0,
     }
     const { useCase, repo } = setup(staffApi)
     repo.items.push(seedItem('ii-1', 'new', 'prop-1'))

@@ -168,7 +168,7 @@ The product becomes a reputation management tool. Reviews come in from Google, m
 **Open questions to resolve during this phase.**
 
 - Whether rejected replies can be edited and resubmitted (yes — draft status again)
-- Whether approvers can be notified of pending approvals (yes — add to Arc 8 notifications)
+- Whether approvers can be notified of pending approvals (yes — Phase 16.1)
 - Auto-approval for AccountAdmins (i.e., their drafts skip approval) — suggest no, keep the workflow uniform for clarity
 
 **Rough effort.** 5-6 days.
@@ -202,7 +202,7 @@ Now we have events flowing. Metrics captures them into structured data that the 
   - `metric_definitions` table: `id, metric_key (unique), display_name, entity_level ('portal'|'property'), value_type ('count'|'rating'), description`
   - `metric_readings` table: `id, organizationId, propertyId, portalId (nullable), groupId (nullable), metric_key, value (real), recorded_at (timestamptz)`
   - Index on `(organization_id, metric_key, recorded_at)` for dashboard queries
-  - No partitioning at MVP scale (deferred to Phase 22)
+  - No partitioning at MVP scale (deferred to Phase 21)
 
 - **Seed: 5 built-in metric definitions**
 
@@ -247,8 +247,8 @@ Now we have events flowing. Metrics captures them into structured data that the 
 **Design decisions (resolved).**
 
 - **Raw readings, not pre-computed metrics.** Event handlers insert one row per event. Materialized views compute all aggregates (count, avg, conversion rate, distribution). Keeps handlers trivial, moves math to refresh jobs.
-- **No partitioning at MVP.** Good indexes + materialized views handle performance. Deferred to Phase 22 or when 500+ properties.
-- **Plain `REFRESH MATERIALIZED VIEW`** (not `CONCURRENTLY`). View stays readable enough for MVP. `CONCURRENTLY` with unique index added in Phase 22.
+- **No partitioning at MVP.** Good indexes + materialized views handle performance. Deferred to Phase 21 or when 500+ properties.
+- **Plain `REFRESH MATERIALIZED VIEW`** (not `CONCURRENTLY`). View stays readable enough for MVP. `CONCURRENTLY` with unique index added in Phase 21.
 - **No metric readings for inbox events.** Inbox KPIs computed directly from `inbox_items` table in `mv_daily_inbox_metrics`.
 - **No admin/lifecycle events.** Only guest journey events (scan, rate, feedback, click) and review arrival produce metric readings.
 - **Custom metric registration deferred.** Schema supports it; CRUD API and UI come later.
@@ -256,8 +256,8 @@ Now we have events flowing. Metrics captures them into structured data that the 
 **Scope (out).**
 
 - Dashboard UI (Phase 14)
-- `CONCURRENTLY` refresh upgrade (Phase 22)
-- Table partitioning (Phase 22)
+- `CONCURRENTLY` refresh upgrade (Phase 21)
+- Table partitioning (Phase 21)
 - Custom metric registration UI
 - E2E tests spanning full pipeline (Phase 14)
 - Analytics page (Arc 8)
@@ -307,10 +307,10 @@ Now we have events flowing. Metrics captures them into structured data that the 
 
 - Staff home page (Phase 15)
 - Team/staff scope filter (Phase 15)
-- Org-level dashboard (Phase 21)
-- Custom date range (Phase 21)
-- Comparison mode (Phase 21)
-- Per-section caching (Phase 21)
+- Org-level dashboard (Phase 20)
+- Custom date range (Phase 20)
+- Comparison mode (Phase 20)
+- Per-section caching (Phase 20)
 - Drill-down from KPIs (later)
 - Export dashboard (Arc 8)
 
@@ -328,11 +328,11 @@ Now we have events flowing. Metrics captures them into structured data that the 
 
 **Resolved decisions.**
 
-- Dashboard is property-centric, lives at `/properties/$propertyId`. No org-level dashboard for now (deferred to Phase 21).
+- Dashboard is property-centric, lives at `/properties/$propertyId`. No org-level dashboard for now (deferred to Phase 20).
 - New `contexts/dashboard/` bounded context. Read-only aggregation layer — composes data from metric, review, inbox contexts. No domain rules, no events, no writes. Has use cases, repo ports, Drizzle repo impls, server functions. `domain/types.ts` for response shapes only.
 - Scope selector: property (from URL) + portal group + portal (cascading dropdowns).
 - Four KPI cards: Reviews (count), Average Rating (avg of Google stars), Scans (count), Feedback (count). No computed rates for MVP. Each card shows trend indicator vs previous equal-length period (e.g. "↑12% vs prior 30d").
-- Data source: raw `metric_readings` with SQL aggregation. Migration to materialized views deferred to Phase 22.
+- Data source: raw `metric_readings` with SQL aggregation. Migration to materialized views deferred to Phase 21.
 - 7 dashboard sections (all in Phase 14 scope):
   1. **KPI strip** — 4 cards with trend vs prior period
   2. **Rating distribution** — horizontal bar chart (1★–5★ counts from reviews table)
@@ -342,7 +342,7 @@ Now we have events flowing. Metrics captures them into structured data that the 
   6. **Engagement funnel** — Scans → Ratings → Review Link Clicks (conditional: only when portal selected in scope dropdown; when no portal selected, show inline hint "Select a portal to see the engagement funnel")
   7. **Recent reviews** — last 5 reviews with rating, snippet, date, reply status
 - Reply time uses `reviews.reviewedAt` (customer's review date), not `reviews.createdAt` (import date). Reflects customer-facing reality.
-- Caching: single Redis key per `(propertyId, timeRange, portalId)`, 5-minute TTL. Per-section caching deferred to Phase 21.
+- Caching: single Redis key per `(propertyId, timeRange, portalId)`, 5-minute TTL. Per-section caching deferred to Phase 20.
 - Phase 14 builds the **manager** dashboard only. Staff home (`/home`) stays a placeholder until Phase 14.5 when portal access control makes staff-viewable metrics possible.
 
 **All open questions resolved.** No remaining unknowns.
@@ -353,39 +353,72 @@ Now we have events flowing. Metrics captures them into structured data that the 
 
 ---
 
-## Arc 6 — Gamification (Phases 14.5-16)
+## Arc 6 — Gamification (Phases 14.5-16.2)
 
 Goals, portal groups, and badges motivate teams. Leaderboards create healthy competition.
 
-### Phase 14.5 — Portal Access Control
+### Phase 14.5 — Staff Dashboard (Portal Access Control)
 
-**Goal.** Staff members can be assigned to portals for access control. Assigned staff can view the portal's metrics and goals via the staff home page. No referral codes, no `?ref=`, no per-staff metric attribution.
+**Goal.** Staff members get a personalized dashboard: KPIs for their assigned portals, goal progress, recent activity. Managers assign staff to specific portals via an edit modal with multi-select. No referral codes, no `?ref=`, no per-staff metric attribution.
 
-**Why now.** Portal access control is the foundation for staff-facing dashboards. Without it, staff have no personalized view.
+**Why now.** Portal access control is the foundation for staff-facing dashboards. Without it, staff have no personalized view. Also a hard prerequisite for Phase 16 (leaderboards and badges) — leaderboards rank portals, staff need to see their portals' metrics before they can compete.
+
+**Resolved decisions (grilling session 2026-06-06).**
+
+1. **Assignment model** — one row per (user, portal) in `staff_assignments`. Team is inherited on each row. Form submission creates N rows (one per selected portal).
+2. **Explicit portal selection** — manager picks portals from a multi-select. "Select all, deselect exceptions" pattern. No null-portal shortcut.
+3. **No new bounded context** — server functions live in existing contexts (`goal`, `dashboard`, `review`). Staff home is a view composition, not a domain.
+4. **`/home` = scorecard** — KPI strip (4 cards: Reviews, Avg Rating, Scans, Feedback) aggregated across assigned portals. Portal filter to drill in. Goal progress summary (top goals with mini progress bars). Recent activity (last 5 reviews/feedback).
+5. **`/progress` = full goal detail** — all active/completed goals for assigned portals, detailed progress, filters by portal or metric. "View all goals" from `/home` links here.
+6. **`/team` deferred** — placeholder stays. Teams are not a scope level; page has no meaningful content until teams get metrics.
+7. **Assignment editing** — staff tab shows one row per user with portal count badge. "Edit" opens modal with portal multi-select (pre-filled). Save diffs: creates new rows, removes deleted. "Remove" deletes all assignments for that user.
+8. **KPI aggregation** — aggregate across all assigned portals by default. Portal selector dropdown to scope to a single portal.
+9. **Goal visibility** — portal-scoped goals + group-scoped goals (where staff's portals belong to the group). No property-wide goals.
+10. **Property picker** — shared state between manager and staff sidebars. Auto-hidden when staff has one property. When selected property has no assignments, show empty state message.
+11. **Empty state** — "Your manager hasn't assigned you to any portals yet" when on a property with no portal assignments. "Welcome! Ask your manager to assign you" when no properties at all.
+12. **Staff sidebar** — gains property picker. Nav items: Home, Progress, Leaderboard (placeholder), Team (conditional).
+13. **Time range** — 7d / 30d / 90d presets, matching manager dashboard. Default 30d.
+14. **Multi-team display** — if a user has assignments across multiple teams, show "Multiple" in staff tab. Full breakdown in edit modal.
 
 **Scope (in).**
 
-- `staff_assignments.portalId` FK — already exists in schema, repurposed for access control only
-- People page UI: portal selector dropdown on staff assignment create/edit form
-- Staff home (`/home`) shows metrics for assigned portals
+- People page UI: portal multi-select on staff assignment form (create + edit modal)
+- Staff tab: one row per user with portal count badge, edit modal, remove-all button
+- Staff sidebar: property picker (shared state with manager sidebar)
+- `/home`: KPI strip (aggregated, with portal filter), goal progress summary, recent activity
+- `/progress`: full goal list with progress bars, filters, detail
+- Server functions: `listStaffGoals` (wired), `getStaffKpis` (new), `getStaffRecentActivity` (new)
+- Empty states for no-assignments scenarios
+- Tests: server functions, assignment diff logic, KPI aggregation
 
 **Scope (out).**
 
-- Column drops (`referralCode`, `staffId` on readings, `teams.portalId`) — deferred to Phase 15.5
+- Column drops (`referralCode`, `staffId` on readings, `teams.portalId`) — already done in Phase 15.5
 - Referral code generation/resolution
 - `?ref=` query param handling
 - Guest session staff attribution
 - Per-staff QR codes
+- `/team` page content
+- `/leaderboard` page content (Phase 16)
 
 **Gate criteria.**
 
-- Staff member can be assigned to one or more portals via People page
-- Staff home shows metrics scoped to assigned portals
+- Manager can assign staff to specific portals via multi-select form (create + edit)
+- Staff tab shows one row per user with portal count badge
+- Edit modal diffs correctly: adds new rows, removes deleted
+- Staff property picker appears when multiple properties, auto-hides for single
+- `/home` shows KPI strip aggregated across assigned portals, scoped to selected property
+- Portal filter on `/home` correctly scopes KPIs to a single portal
+- Goal progress shows portal + group goals only (no property-wide)
+- `/progress` shows full goal list with progress bars
+- Empty states render correctly (no portals, no properties)
+- `tsc --noEmit` passes
 - All existing tests pass
+- New tests: server functions, KPI aggregation, assignment diff
 
-**Rough effort.** 2-3 days. Primarily UI work (portal selector) + staff home wiring.
+**Rough effort.** 3-4 days. Staff UI (1.5d) + server functions + wiring (1d) + testing + review (1-1.5d).
 
-**Phase after this.** Goals.
+**Phase after this.** Badges and leaderboards (Phase 16).
 
 ---
 
@@ -416,7 +449,7 @@ Goals, portal groups, and badges motivate teams. Leaderboards create healthy com
 
 - Portal groups (deferred to Phase 15.5)
 - `groupId` scope (deferred to Phase 15.5)
-- Email/push milestone notifications (Arc 8)
+- Email/push milestone notifications (Phase 16.1)
 - Goal templates (later)
 
 **Gate criteria.** (from original Phase 15A/B/C implementation)
@@ -514,11 +547,174 @@ Goals, portal groups, and badges motivate teams. Leaderboards create healthy com
 
 ---
 
-### Phase 16 — Badges and leaderboards
+### Phase 16.1 — Notifications
 
-**Goal.** Users earn badges automatically based on metric-driven criteria. Leaderboards rank entities by metric performance. Users can see their earned badges.
+**Goal.** Users receive targeted, dismissable notifications about domain events through in-app (polling) and email digest (Resend). Notification context is a BullMQ-backed subscriber, following the Activity pattern. 13 notification types ship; 2 deferred for prerequisite phases.
 
-**Why now.** Completes the gamification loop. Goals give direction; badges and leaderboards give recognition.
+**Why now.** Notifications are high-value infrastructure. Every subsequent phase (badges, AI, analytics) benefits from notifications being live. Managers need to know about escalations, pending approvals, and new reviews before badges or AI features exist. Shipping notifications before Phase 16.2 means badge-earned notifications work from day one.
+
+**Design decisions (resolved in grilling session 2026-06-07).**
+
+1. **Separate bounded context** — `contexts/notification/`. Distinct from Activity (immutable audit) — notifications carry mutable delivery state, channel routing, and user preferences.
+2. **Point-in-time model** — each event produces one notification row per recipient per channel. No state-tracking or grouping. Low volume (5-20/day per manager) makes this sufficient.
+3. **In-app + email digest only** — no push (FCM) in MVP. Desktop-first user base. Push deferred until users ask.
+4. **Polling for in-app** — 30s interval. `getUnreadCount` endpoint, cached in Redis. No SSE/WebSocket for notifications. (SSE reserved for AI reply streaming in Phase 17.)
+5. **BullMQ for delivery** — same pattern as Activity (ADR 0010). Event → in-process handler → enqueue BullMQ job → worker inserts rows. At-least-once, retry, dead-letter queue.
+6. **One handler per event tag** — matches Activity/Metric pattern. Handler resolves recipients, enqueues one BullMQ job per user.
+7. **Idempotency via eventId** — composite unique on `(user_id, type, resource_id, event_id)`. Never suppresses legitimate notifications.
+8. **Single `RecipientResolverPort`** — encapsulates all "who should know?" logic. Notification handlers call one port, not multiple context APIs.
+9. **Channel-level preferences** — `notification_preferences` table. Absence of row = enabled. No per-type toggles in MVP.
+10. **Priority-based email routing** — `priority` field on email rows. Urgent types send immediately via `sendUrgentEmail` job. Normal types wait for daily digest.
+11. **Urgent types** — `reply.publish_failed`, `inbox.escalated`, `reply.pending_approval`. These bypass digest and send immediately.
+12. **Daily digest at 8am local** — requires IANA `timezone` column on `organizations` (default `'UTC'`, configurable in org settings). Hourly BullMQ sweep checks which orgs are at ~8am local time.
+13. **Three-state in-app lifecycle** — `pending` → `read` → `dismissed`. Email: `pending` → `delivered`.
+14. **Denormalized `propertyId`** — on notification rows for click-through routing and property-scoped filtering. Most events already carry it.
+15. **Template functions** — centralized `notification-templates.ts` module. Pure functions, testable, decoupled from handler logic.
+16. **Pure subscriber** — notification context emits no events. Notification rows are the data source for future analytics.
+17. **Email retry** — 3 attempts with exponential backoff. Dead-letter queue on permanent failure. Same as reply publish pattern.
+
+**Prerequisite: organization timezone.**
+
+- Add `timezone` text column to `organizations` table, default `'UTC'`, nullable.
+- Add timezone selector in org settings page.
+- Not required at registration — default suffices until configured.
+
+**Scope (in).**
+
+- **Context: `contexts/notification/`** with full layer structure:
+  - `domain/types.ts` — `Notification`, `NotificationType`, `NotificationChannel`, `NotificationStatus`, `EmailPriority`
+  - `domain/errors.ts` — `NotificationError`
+  - `application/public-api.ts` — `NotificationPublicApi`
+  - `application/ports/notification.repository.port.ts` — insert, query by user/org, mark read, mark dismissed, count unread
+  - `application/ports/recipient-resolver.port.ts` — `resolveRecipients(event): UserId[]`
+  - `application/ports/preference-lookup.port.ts` — `isEnabled(userId, channel): boolean`
+  - `application/use-cases/insert-notification.ts` — idempotency check, insert row(s)
+  - `application/notification-templates.ts` — title/body template functions per type
+  - `infrastructure/notification.repository.drizzle.ts`
+  - `infrastructure/adapters/recipient-resolver.adapter.ts` — calls StaffPublicApi + IdentityPublicApi
+  - `infrastructure/adapters/preference-lookup.adapter.ts` — queries notification_preferences
+  - `infrastructure/event-handlers/` — one file per event tag (see table below)
+  - `infrastructure/jobs/insert-notification.job.ts` — BullMQ worker for `notification-insert` queue
+  - `infrastructure/jobs/send-urgent-email.job.ts` — BullMQ worker for immediate email delivery
+  - `infrastructure/jobs/daily-digest.job.ts` — hourly sweep, processes orgs at their 8am local
+  - `infrastructure/email/resend.adapter.ts` — Resend integration for email sending
+  - `queries/get-notifications.ts`, `get-unread-count.ts`
+  - `server/notification.ts` — server functions
+  - `build.ts`
+
+- **Schema: `shared/db/schema/notification.schema.ts`**
+  - `notifications` table: `id (UUID PK)`, `user_id`, `organization_id`, `property_id (nullable)`, `type`, `title`, `body`, `resource_type`, `resource_id`, `event_id`, `channel`, `priority (nullable, email only)`, `status`, `created_at`, `read_at (nullable)`
+  - `notification_preferences` table: `id (UUID PK)`, `user_id`, `organization_id`, `channel`, `enabled`, `updated_at`
+  - Index on `(user_id, status, created_at)` — unread query
+  - Index on `(organization_id, channel, status, created_at)` — digest query
+  - Unique on `(user_id, type, resource_id, event_id)` — idempotency
+
+- **Schema migration:** `organizations` table gains `timezone` text column, default `'UTC'`
+
+- **13 event handlers** (subscribe to existing domain events):
+
+| Handler file                  | Event tag                    | Notification type         | Recipients                                             |
+| ----------------------------- | ---------------------------- | ------------------------- | ------------------------------------------------------ |
+| `on-review-created.ts`        | `review.created`             | `review.created`          | PropertyManagers of property + AccountAdmin            |
+| `on-inbox-item-created.ts`    | `inbox.inbox_item.created`   | `feedback.created`        | PropertyManagers + AccountAdmin (when source=feedback) |
+| `on-reply-submitted.ts`       | `review.reply.submitted`     | `reply.pending_approval`  | PropertyManagers + AccountAdmin                        |
+| `on-reply-approved.ts`        | `review.reply.approved`      | `reply.approved`          | Reply author                                           |
+| `on-reply-rejected.ts`        | `review.reply.rejected`      | `reply.rejected`          | Reply author                                           |
+| `on-reply-published.ts`       | `review.reply.published`     | `reply.published`         | Reply author                                           |
+| `on-reply-publish-failed.ts`  | (detected in reply worker)   | `reply.publish_failed`    | Reply author + PropertyManagers                        |
+| `on-inbox-escalated.ts`       | `inbox.inbox_item.escalated` | `inbox.escalated`         | PropertyManagers + AccountAdmin                        |
+| `on-inbox-assigned.ts`        | `inbox.inbox_item.assigned`  | `inbox.assigned`          | Assigned user                                          |
+| `on-goal-completed.ts`        | `goal.completed`             | `goal.completed`          | Goal creator + PropertyManagers                        |
+| `on-goal-progress-updated.ts` | `goal.progress_updated`      | `goal.progress_milestone` | Goal creator (only at 25/50/75% thresholds)            |
+| `on-member-invited.ts`        | `identity.member_invited`    | `member.invited`          | Invitee (email only)                                   |
+| `on-inbox-note-added.ts`      | `inbox.inbox_note.added`     | `inbox_note.added`        | Note target's assignee (if different from author)      |
+
+- **Background jobs:**
+  - `insert-notification` queue — worker inserts notification rows (one job per user per event)
+  - `send-urgent-email` — sends immediate email via Resend for urgent priority, marks `delivered`
+  - `daily-digest` (hourly repeatable) — checks which orgs are at ~8am local, fetches pending normal-priority email notifications, groups by user, renders digest template, sends via Resend, marks `delivered`
+
+- **Server functions:**
+  - `getNotifications` (paginated, filterable by read/unread, type, property)
+  - `getUnreadCount` — lightweight, Redis-cached (30s TTL)
+  - `markAsRead(id)` — single notification
+  - `markAllAsRead` — all pending for user in org
+  - `dismissNotification(id)`
+  - `getNotificationPreferences` — channel preferences for current user
+  - `updateNotificationPreference(channel, enabled)` — upsert preference row
+
+- **UI:**
+  - Bell icon in top nav with unread count badge (polls `getUnreadCount` every 30s)
+  - Notification panel (popover/dropdown): last 20 notifications, read/unread state, relative time, click-through to resource
+  - "Mark all as read" button in panel
+  - "View all" link to `/notifications` page
+  - `/notifications` page: full paginated list, filters (read/unread, type, property), bulk actions
+  - Org settings: timezone selector
+  - User settings: notification channel preferences (in-app on/off, email on/off)
+
+- **Email templates (Resend):**
+  - Digest template: grouped list of notifications with titles, previews, and click-through links
+  - Urgent template: single notification with clear subject line and CTA link
+
+- **Tests:**
+  - Unit: domain types, template functions, idempotency logic
+  - Unit: recipient resolver with mocked public APIs
+  - Unit: event handlers (mock deps → verify correct job enqueued)
+  - Integration: notification repository against Postgres
+  - Integration: full pipeline (emit event → handler → job → row inserted → verify dedup)
+  - Integration: digest job with mock Resend (verify correct orgs processed, correct emails sent)
+  - Integration: urgent email sent immediately, not queued for digest
+  - E2E: manager receives in-app notification, clicks through to resource
+
+**Scope (out).**
+
+- Push notifications / FCM (deferred)
+- Per-type notification preferences (channel-level only for MVP)
+- WebSocket / SSE for real-time notification delivery (polling sufficient)
+- `review.urgent` notification type (requires AI Phase 17)
+- `badge.awarded` notification type (requires Phase 16.2)
+- Notification events emitted by the notification context (pure subscriber)
+- Localization of notification text
+- Notification analytics / engagement tracking
+
+**Gate criteria.**
+
+- Each of the 13 event types produces correct notification rows for correct recipients
+- Idempotency: re-delivered event does not produce duplicate notifications
+- In-app: bell icon shows correct unread count, polling updates within 30s
+- In-app: clicking notification navigates to correct resource
+- In-app: mark-as-read, mark-all-as-read, dismiss all work correctly
+- Email digest: orgs at 8am local time receive batched digest with all pending notifications
+- Email digest: urgent types (publish_failed, escalated, pending_approval) send immediately, not in digest
+- Email retry: Resend failure triggers up to 3 retries, dead-letter on exhaustion
+- Preferences: opting out of a channel stops notifications for that channel
+- Tenant isolation: notifications scoped to user's organization
+- Timezone: org timezone setting persists and affects digest timing
+- `tsc --noEmit` passes
+- All existing tests pass
+- New tests: domain, handlers, repository, integration pipeline, digest, urgent email
+
+**Rough effort.** 7-10 days. Context setup + schema + BullMQ wiring (2d) + 13 handlers + templates (2d) + email digest + Resend (2d) + UI (bell, panel, page, preferences) (2d) + timezone prerequisite (0.5d) + testing + review (1.5d).
+
+**Phase after this.** Badges and leaderboards (Phase 16.2).
+
+---
+
+### Phase 16.2 — Badges and leaderboards
+
+**Goal.** Users earn badges automatically based on metric-driven criteria. Leaderboards rank portals and portal groups by metric performance. Staff see rankings of portals they're assigned to.
+
+**Why now.** Completes the gamification loop. Goals give direction; badges and leaderboards give recognition. Notifications (Phase 16.1) already live — badge-earned notifications work from day one.
+
+**Pre-grilling decisions (session 2026-06-06).**
+
+1. **Leaderboards rank portals and portal groups** — not staff, not teams. No per-staff metric attribution. Staff see a filtered view of rankings for their assigned portals.
+2. **Blend of scorecard (B) + raw data (A)** — landing page shows a composite scorecard (B primary), with drill-down into per-metric rankings (A).
+3. **Weighted composite score (0–100)** — each metric normalized to 0–100, multiplied by a weight, summed. System defaults first, org-configurable weights later.
+4. **Calendar time periods** — this week / this month / this quarter (aligns with goal periods and business rhythms), with a rolling "last N days" fallback.
+5. **Within-property scope** — all portals/groups in the property ranked against each other. Staff's own portals highlighted. Full ranking visible.
+6. **Portal groups as separate tab/toggle** — "rank portals" vs "rank portal groups." Group composite score aggregates member portals' metrics.
+7. **Prerequisite: Phase 14.5** — staff must see their own portal metrics before leaderboards are meaningful.
 
 **Scope (in).**
 
@@ -527,27 +723,34 @@ Goals, portal groups, and badges motivate teams. Leaderboards create healthy com
 - Criteria evaluation engine as pure domain function
 - Seed migration for system-wide default badges ("First Review", "100 Scans", "7-Day Streak", etc.)
 - Background job: `evaluateBadges` (hourly) — checks criteria against metric data, awards new badges
-- Leaderboard use cases — computed from materialized views
-- UI: badge showcase per user/team, leaderboard page with time window and scope tabs
+- Leaderboard use cases — composite score computation, per-metric drill-down, calendar period aggregation
+- UI: badge showcase, leaderboard page with calendar period and scope tabs (portals / portal groups)
 - `badge.awarded` event emission
 - Tests: criteria evaluation across all types (performance, streak, milestone), leaderboard computation, award idempotency
 
 **Scope (out).**
 
 - Custom badge creation UI (backend supports it; UI can come later)
-- Badge notifications via email/push (Arc 8)
+- Badge notifications via notification context (handler added in this phase — subscribes to `badge.awarded`)
+- Cross-property leaderboards (Phase 20)
+- Org-configurable weights for composite score (later)
 
 **Gate criteria.**
 
 - All four badge types evaluate correctly (performance, streak, milestone, special)
-- Badges are awarded exactly once per user/team per criteria-met event
-- Leaderboards rank correctly and load fast (from materialized views)
+- Badges are awarded exactly once per portal/group per criteria-met event
+- Composite score weights produce reasonable rankings across different metric profiles
+- Per-metric drill-down shows correct rankings
+- Calendar periods align with goal periods
+- Leaderboards load fast (from materialized views)
+- Staff see only their assigned portals highlighted in the ranking
 - Tests: 100% coverage on criteria evaluation engine
 
 **Open questions to resolve during this phase.**
 
 - Initial badge library (10-15 system badges is a good start)
-- Whether to support team badges (yes — badges can target entity_type = team)
+- Whether badges target portals, portal groups, or both (start with portals)
+- Exact composite score default weights
 
 **Rough effort.** 5-7 days.
 
@@ -592,7 +795,7 @@ AI adds differentiation. Sentiment, priority, reply drafting, trend detection.
 - Reply generation works and takes <10 seconds for typical reviews
 - Quota enforcement: exceeding quota returns graceful error, doesn't break non-AI features
 - AI calls are logged with token counts and estimated cost
-- Priority score threshold triggers "urgent review" events (used in Arc 8 for push notifications)
+- Priority score threshold triggers "urgent review" events (notification handler added when Phase 17 lands — notification context already wired in Phase 16.1)
 - Tests pass
 
 **Open questions to resolve during this phase.**
@@ -644,21 +847,11 @@ AI adds differentiation. Sentiment, priority, reply drafting, trend detection.
 
 ---
 
-## Arc 8 — Polish and Production Readiness (Phases 19-22)
+## Arc 8 — Polish and Production Readiness (Phases 19-21)
 
 Now we fill in the gaps that make this a real product, not just a collection of features.
 
-### Phase 19 — Notifications
-
-**Goal.** Users receive notifications through three channels (in-app, email digest, push for critical). Preferences are configurable.
-
-**Scope.** Notifications context, Resend for email, FCM for push, in-app bell icon, preferences UI, all notification types from the spec.
-
-**Rough effort.** 5-7 days.
-
----
-
-### Phase 20 — Compliance: GDPR flows and audit logs
+### Phase 19 — Compliance: GDPR flows and audit logs
 
 **Goal.** Full audit log coverage. Account deletion (with grace period). Data export (GDPR Article 20). Cookie consent properly integrated.
 
@@ -668,7 +861,7 @@ Now we fill in the gaps that make this a real product, not just a collection of 
 
 ---
 
-### Phase 21 — Conversion analytics and account dashboard
+### Phase 20 — Conversion analytics and account dashboard
 
 **Goal.** The analytics page from Phase 14's scope-out lands here. Conversion funnel, before/after comparison, rating distribution, top performers, exports. Org-level dashboard. Dashboard caching upgraded to per-section granularity.
 
@@ -678,7 +871,7 @@ Now we fill in the gaps that make this a real product, not just a collection of 
 
 ---
 
-### Phase 22 — Production hardening
+### Phase 21 — Production hardening
 
 **Goal.** Before real users touch the system: load testing, error handling audit, security audit, observability review.
 
@@ -702,26 +895,26 @@ Now we fill in the gaps that make this a real product, not just a collection of 
 
 ## Summary: remaining phases
 
-| Arc | Phase | Name                     | Status                 | Rough effort |
-| --- | ----- | ------------------------ | ---------------------- | ------------ |
-| 1–3 | 1–9   | Foundation through Guest | Completed              | ~40 days     |
-| 4   | 10    | Review schema + GBP sync | Completed              | 7-10 days    |
-| 4   | 11    | Unified inbox            | Completed              | 5-7 days     |
-| 4   | 12    | Reply flow               | Completed              | 5-6 days     |
-| 5   | 13    | Metrics foundation       | Completed              | 5-7 days     |
-| 5   | 14    | Dashboard                | Completed              | 5-7 days     |
-| 6   | 14.5  | Portal Access Control    | Pending                | 2-3 days     |
-| 6   | 15    | Goals                    | Completed (needs 15.5) | 5-7 days     |
-| 6   | 15.5  | Portal Groups + Reconfig | Completed              | 5-7 days     |
-| 6   | 16    | Badges + leaderboards    | Pending                | 5-7 days     |
-| 7   | 17    | AI v1                    | Pending                | 7-10 days    |
-| 7   | 18    | AI v2                    | Pending                | 5-7 days     |
-| 8   | 19    | Notifications            | Pending                | 5-7 days     |
-| 8   | 20    | Compliance + audit       | Pending                | 5-7 days     |
-| 8   | 21    | Analytics                | Pending                | 5-7 days     |
-| 8   | 22    | Production hardening     | Pending                | 5-7 days     |
+|     | Arc  | Phase                    | Name                   | Status    | Rough effort |
+| --- | ---- | ------------------------ | ---------------------- | --------- | ------------ |
+| 1–3 | 1–9  | Foundation through Guest | Completed              | ~40 days  |
+| 4   | 10   | Review schema + GBP sync | Completed              | 7-10 days |
+| 4   | 11   | Unified inbox            | Completed              | 5-7 days  |
+| 4   | 12   | Reply flow               | Completed              | 5-6 days  |
+| 5   | 13   | Metrics foundation       | Completed              | 5-7 days  |
+| 5   | 14   | Dashboard                | Completed              | 5-7 days  |
+| 6   | 14.5 | Portal Access Control    | Pending                | 2-3 days  |
+| 6   | 15   | Goals                    | Completed (needs 15.5) | 5-7 days  |
+| 6   | 15.5 | Portal Groups + Reconfig | Completed              | 5-7 days  |
+| 6   | 16.1 | Notifications            | Pending                | 7-10 days |
+| 6   | 16.2 | Badges + leaderboards    | Pending                | 5-7 days  |
+| 7   | 17   | AI v1                    | Pending                | 7-10 days |
+| 7   | 18   | AI v2                    | Pending                | 5-7 days  |
+| 8   | 19   | Compliance + audit       | Pending                | 5-7 days  |
+| 8   | 20   | Analytics                | Pending                | 5-7 days  |
+| 8   | 21   | Production hardening     | Pending                | 5-7 days  |
 
-**Remaining: 9 phases, roughly 45-65 working days.**
+**Remaining: 10 phases, roughly 55-75 working days.**
 
 ---
 

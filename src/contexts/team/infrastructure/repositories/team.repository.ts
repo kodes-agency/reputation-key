@@ -37,9 +37,7 @@ export const createTeamRepository = (db: Database): TeamRepository => ({
       const rows = await db
         .select()
         .from(teams)
-        .where(
-          and(...baseWhere(teams, orgId), eq(teams.propertyId, propertyId as string)),
-        )
+        .where(and(...baseWhere(teams, orgId), eq(teams.propertyId, unbrand(propertyId))))
       return rows.map(teamFromRow)
     })
   },
@@ -48,7 +46,7 @@ export const createTeamRepository = (db: Database): TeamRepository => ({
     return trace('team.nameExistsInProperty', async () => {
       const conditions = [
         ...baseWhere(teams, orgId),
-        eq(teams.propertyId, propertyId as string),
+        eq(teams.propertyId, unbrand(propertyId)),
         eq(teams.name, name),
       ]
       if (excludeId) {

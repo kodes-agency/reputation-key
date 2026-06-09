@@ -73,6 +73,11 @@ export function setPermissionLookup(lookup: PermissionLookup): void {
   _lookup = lookup
 }
 
+/** Reset the permission lookup. Test-only — use in test teardown to prevent state leaking between tests. */
+export function resetPermissionLookup(): void {
+  _lookup = null
+}
+
 // ── Sync permission check ─────────────────────────────────────────
 // Pure, synchronous, nanosecond-cost. Used by use cases and server functions.
 // Throws if the permission table hasn't been initialized.

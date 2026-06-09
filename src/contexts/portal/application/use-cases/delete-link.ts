@@ -7,13 +7,18 @@ import { can } from '#/shared/domain/permissions'
 import { portalLinkId } from '#/shared/domain/ids'
 
 // fallow-ignore-next-line unused-type
+export type DeleteLinkInput = Readonly<{
+  linkId: string
+}>
+
+// fallow-ignore-next-line unused-type
 export type DeleteLinkDeps = Readonly<{
   portalLinkRepo: PortalLinkRepository
 }>
 
 export const deleteLink =
   (deps: DeleteLinkDeps) =>
-  async (input: { linkId: string }, ctx: AuthContext): Promise<void> => {
+  async (input: DeleteLinkInput, ctx: AuthContext): Promise<void> => {
     // 1. Authorize
     if (!can(ctx.role, 'portal.update')) {
       throw portalError('forbidden', 'this role cannot delete portal links')

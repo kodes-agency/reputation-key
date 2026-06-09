@@ -8,13 +8,18 @@ import { portalId } from '#/shared/domain/ids'
 import { can } from '#/shared/domain/permissions'
 
 // fallow-ignore-next-line unused-type
+export type GetPortalInput = Readonly<{
+  portalId: string
+}>
+
+// fallow-ignore-next-line unused-type
 export type GetPortalDeps = Readonly<{
   portalRepo: PortalRepository
 }>
 
 export const getPortal =
   (deps: GetPortalDeps) =>
-  async (input: { portalId: string }, ctx: AuthContext): Promise<Portal> => {
+  async (input: GetPortalInput, ctx: AuthContext): Promise<Portal> => {
     if (!can(ctx.role, 'portal.read')) {
       throw portalError('forbidden', 'Insufficient permissions to view portal')
     }

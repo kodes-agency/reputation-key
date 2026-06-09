@@ -5,7 +5,7 @@
 // Cross-context data (review/feedback/property) is fetched via lookup ports
 // defined in application/ports/ — never via direct table JOINs.
 
-import { and, eq, desc, inArray, sql } from 'drizzle-orm'
+import { and, eq, desc, inArray, sql, gte, lte } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { inboxItems } from '#/shared/db/schema/inbox.schema'
 import type {
@@ -134,16 +134,16 @@ export const createInboxRepository = (
         conditions.push(eq(inboxItems.platform, filters.platform))
       }
       if (filters.ratingMin !== undefined) {
-        conditions.push(sql`${inboxItems.rating} >= ${filters.ratingMin}`)
+        conditions.push(gte(inboxItems.rating, filters.ratingMin))
       }
       if (filters.ratingMax !== undefined) {
-        conditions.push(sql`${inboxItems.rating} <= ${filters.ratingMax}`)
+        conditions.push(lte(inboxItems.rating, filters.ratingMax))
       }
       if (filters.sourceDateFrom) {
-        conditions.push(sql`${inboxItems.sourceDate} >= ${filters.sourceDateFrom}`)
+        conditions.push(gte(inboxItems.sourceDate, filters.sourceDateFrom))
       }
       if (filters.sourceDateTo) {
-        conditions.push(sql`${inboxItems.sourceDate} <= ${filters.sourceDateTo}`)
+        conditions.push(lte(inboxItems.sourceDate, filters.sourceDateTo))
       }
       if (filters.q) {
         const escaped = filters.q.replace(/%/g, '\\%').replace(/_/g, '\\_')

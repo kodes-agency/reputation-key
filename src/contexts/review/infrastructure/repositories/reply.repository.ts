@@ -1,7 +1,7 @@
 // Review context — Drizzle reply repository implementation
 // Per architecture: factory function returning Readonly<{ method }>.
 
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { replies } from '#/shared/db/schema/review.schema'
 import type { ReplyRepository } from '../../application/ports/reply.repository'
@@ -99,6 +99,39 @@ export const createReplyRepository = (db: Database): ReplyRepository => ({
         throw new Error('Reply upsert failed — no row returned')
       }
       return replyFromRow(result[0])
+    })
+  },
+
+  conditionalUpdate: async (id, organizationId, expectedStatuses, updates, now) => {
+    return trace('reply.conditionalUpdate', async () => {
+      const updatedAt = now ?? new Date()
+
+      // Build SET clause from the provided updates
+      const setClause: Record<string, unknown> = { updatedAt }
+      if (updates.status !== undefined) setClause.status = updates.status
+      if (updates.text !== undefined) setClause.text = updates.text
+      if (updates.submittedAt !== undefined) setClause.submittedAt = updates.submittedAt
+      if (updates.approvedBy !== undefined) setClause.approvedBy = updates.approvedBy
+      if (updates.approvedAt !== undefined) setClause.approvedAt = updates.approvedAt
+      if (updates.rejectedBy !== undefined) setClause.rejectedBy = updates.rejectedBy
+      if (updates.rejectionReason !== undefined)
+        setClause.rejectionReason = updates.rejectionReason
+      if (updates.publishedAt !== undefined) setClause.publishedAt = updates.publishedAt
+
+      const result = await db
+        .update(replies)
+        .set(setClause)
+        .where(
+          and(
+            eq(replies.id, id),
+            eq(replies.organizationId, organizationId),
+            inArray(replies.status, [...expectedStatuses]),
+          ),
+        )
+        .returning()
+
+      // No row matched → status changed concurrently, TOCTOU guard triggered
+      return result[0] ? replyFromRow(result[0]) : null
     })
   },
 

@@ -5,11 +5,11 @@
 // Query limits:
 //   500  — findByPropertyId, findAllByOrganization: per-request page size. Matches typical
 //          GBP location review counts (<500 for most businesses). Paginate if exceeded.
-//   5000 — findAllExpiringBefore, findAllExpiredBefore: system-level batch queries for
-//          scheduled jobs. No tenant filter — designed to scan all orgs in one pass.
-//          If total reviews exceed ~5K, these jobs need cursor-based pagination.
+//   5000 — findAllExpiringBeforeAcrossTenants, findAllExpiredBeforeAcrossTenants: system-level
+//          batch queries for scheduled jobs. No tenant filter — designed to scan all orgs in
+//          one pass. If total reviews exceed ~5K, these jobs need cursor-based pagination.
 
-import { and, eq, lte, lt, inArray } from 'drizzle-orm'
+import { and, eq, lte, lt, inArray, desc } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { reviews } from '#/shared/db/schema/review.schema'
 import type { ReviewRepository } from '../../application/ports/review.repository'
@@ -96,9 +96,9 @@ export const createReviewRepository = (db: Database): ReviewRepository => ({
     })
   },
 
-  findByPropertyId: async (propertyId: PropertyId, organizationId: OrganizationId) => {
+  findByPropertyId: async (propertyId, organizationId, options) => {
     return trace('review.findByPropertyId', async () => {
-      const rows = await db
+      const query = db
         .select()
         .from(reviews)
         .where(
@@ -107,7 +107,11 @@ export const createReviewRepository = (db: Database): ReviewRepository => ({
             eq(reviews.organizationId, organizationId),
           ),
         )
-        .limit(500)
+        .orderBy(desc(reviews.reviewedAt))
+
+      // F038: Support LIMIT pushdown instead of fetching 500 rows and sorting in JS
+      const limit = options?.limit ?? 500
+      const rows = await query.limit(limit)
       return rows.map(reviewFromRow)
     })
   },
@@ -123,9 +127,9 @@ export const createReviewRepository = (db: Database): ReviewRepository => ({
     })
   },
 
-  /** Reviews where expiresAt <= date (inclusive). System-level query — no tenant filter by design. */
-  findAllExpiringBefore: async (date: Date) => {
-    return trace('review.findAllExpiringBefore', async () => {
+  /** ⚠️ CROSS-TENANT: Reviews where expiresAt <= date (inclusive). Scans ALL orgs. Only for background jobs. */
+  findAllExpiringBeforeAcrossTenants: async (date: Date) => {
+    return trace('review.findAllExpiringBeforeAcrossTenants', async () => {
       const rows = await db
         .select()
         .from(reviews)
@@ -135,9 +139,9 @@ export const createReviewRepository = (db: Database): ReviewRepository => ({
     })
   },
 
-  /** Reviews where expiresAt < date (exclusive). System-level query — no tenant filter by design. Used by purge job with 3-day grace period. */
-  findAllExpiredBefore: async (date: Date) => {
-    return trace('review.findAllExpiredBefore', async () => {
+  /** ⚠️ CROSS-TENANT: Reviews where expiresAt < date (exclusive). Scans ALL orgs. Only for purge job with 3-day grace period. */
+  findAllExpiredBeforeAcrossTenants: async (date: Date) => {
+    return trace('review.findAllExpiredBeforeAcrossTenants', async () => {
       const rows = await db
         .select()
         .from(reviews)

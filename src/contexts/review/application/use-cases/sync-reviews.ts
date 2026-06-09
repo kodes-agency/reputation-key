@@ -29,7 +29,7 @@ import type { LoggerPort } from '#/shared/domain/logger.port'
 import { reviewCreated, reviewUpdated } from '../../domain/events'
 import { reviewError } from '../../domain/errors'
 import { calculateExpiresAt } from '../../domain/rules'
-import { ok, err, type Result } from 'neverthrow'
+import { ok, err, type Result } from '#/shared/domain'
 
 export type SyncReviewsDeps = Readonly<{
   reviewRepo: ReviewRepository
@@ -180,6 +180,11 @@ async function mirrorReply(
   gr: GoogleReview,
   now: Date,
 ): Promise<boolean> {
+  // F145 NOTE: mirrorReply creates/updates google_sync replies from Google's
+  // authoritative data. If a locally-drafted reply was published between sync
+  // runs, the published reply's text takes precedence — this is intentional.
+  // The upsert below preserves local metadata (createdBy, approvedBy, etc.)
+  // while updating text and publishedAt from Google's response.
   const existingGoogleReply = await deps.replyRepo.findGoogleSyncByReviewId(
     reviewId,
     organizationId,

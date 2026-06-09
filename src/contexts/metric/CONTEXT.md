@@ -2,8 +2,6 @@
 
 ## Bounded context
 
-TODO: One sentence describing what this context does.
-
 Event-driven metric recording and aggregation. Subscribes to domain events from other contexts and records raw metric readings.
 
 ## Glossary
@@ -14,7 +12,7 @@ Event-driven metric recording and aggregation. Subscribes to domain events from 
 
 ## Relationships
 
-- Metric context **subscribes to** `review.created`, `scan.recorded`, `rating.submitted`, `feedback.submitted`, `review-link.clicked` events from other contexts.
+- Metric context **subscribes to** `review.created`, `guest.scan.recorded`, `guest.rating.submitted`, `guest.feedback.submitted`, `guest.review_link.clicked` events from other contexts.
 - Goal context **depends on** `MetricPublicApi` for querying metric aggregates to reconcile goal progress.
 
 ## Invariants
@@ -29,10 +27,10 @@ Event-driven metric recording and aggregation. Subscribes to domain events from 
 ## Events consumed
 
 - **`review.created`** — Records a `property.review` metric (value = 1).
-- **`scan.recorded`** — Records a `portal.scan` metric (value = 1).
-- **`rating.submitted`** — Records a `portal.rating` metric (value = rating value).
-- **`feedback.submitted`** — Records a `portal.feedback` metric (value = 1).
-- **`review-link.clicked`** — Records a `portal.review_link_click` metric (value = 1).
+- **`guest.scan.recorded`** — Records a `portal.scan` metric (value = 1).
+- **`guest.rating.submitted`** — Records a `portal.rating` metric (value = rating value).
+- **`guest.feedback.submitted`** — Records a `portal.feedback` metric (value = 1).
+- **`guest.review_link.clicked`** — Records a `portal.review_link_click` metric (value = 1).
 
 ## Architecture layers
 
@@ -63,10 +61,6 @@ Exported from `application/public-api.ts`:
 - Event types: `MetricRecorded`, `MetricEvent`
 - Event constructors: `metricRecorded`
 
-## Background jobs
-
-- **`refresh-materialized-view.job.ts`** — Periodically refreshes metric materialized views for query performance.
-
 ## Server functions
 
 None. Metric is an internal context with no HTTP surface. Metrics are queried through the dashboard context's server functions (`getDashboardData`, `getPortalAnalytics`).
@@ -76,3 +70,7 @@ None. Metric is an internal context with no HTTP surface. Metrics are queried th
 - `metrics:read` — View metric readings and aggregates. Granted to AccountAdmin, PropertyManager. Staff cannot view metrics.
 - `metrics:write` — Record a metric reading. System-only (internal event handlers).
 - Metric data is scoped to the organization; cross-org access is forbidden.
+
+## Background jobs
+
+- **`refresh-materialized-view.job.ts`** — Periodically refreshes metric materialized views for query performance.

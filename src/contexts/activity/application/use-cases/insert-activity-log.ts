@@ -6,6 +6,12 @@ import type { ActivityRepository } from '../../ports/activity-repository.port'
 import type { UserLookupPort } from '../../ports/user-lookup.port'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { Role } from '#/shared/domain/roles'
+import type {
+  UserId,
+  OrganizationId,
+  PropertyId,
+  ActivityLogId,
+} from '#/shared/domain/ids'
 import { createActivityLog } from '../../domain/constructors'
 import type { ActivityAction, ResourceType, ActivityPayload } from '../../domain/types'
 
@@ -13,9 +19,9 @@ export type InsertActivityLogInput = Readonly<{
   action: ActivityAction
   resourceType: ResourceType
   resourceId: string
-  propertyId: string | null
-  organizationId: string
-  userId: string | null
+  propertyId: PropertyId | null
+  organizationId: OrganizationId
+  userId: UserId | null
   source: 'web' | 'import'
   payload: ActivityPayload
 }>
@@ -25,7 +31,7 @@ export type InsertActivityLogDeps = Readonly<{
   userLookup: UserLookupPort
   clock: () => Date
   logger: LoggerPort
-  idGen: () => string
+  idGen: () => ActivityLogId
 }>
 
 export const insertActivityLog =
@@ -51,7 +57,10 @@ export const insertActivityLog =
 
     if (userId) {
       try {
-        const user = await deps.userLookup.lookup(userId, organizationId)
+        const user = await deps.userLookup.lookup(
+          userId as string,
+          organizationId as string,
+        )
         actorName = user.name
         actorAvatarUrl = user.avatarUrl
         actorRole = user.role
@@ -63,7 +72,7 @@ export const insertActivityLog =
     // 3. Construct the domain object via the domain constructor
     const result = createActivityLog(
       {
-        actorId: userId || 'system',
+        actorId: userId || ('system' as unknown as UserId),
         actorName,
         actorAvatarUrl,
         actorRole,

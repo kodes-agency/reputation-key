@@ -61,8 +61,12 @@ afterAll(async () => {
 })
 
 beforeEach(async () => {
-  // Only truncate the table under test — re-seed properties (parallel tests may have deleted them)
-  await pool.query('TRUNCATE TABLE teams CASCADE')
+  // Only delete teams from our test orgs to avoid affecting parallel test files
+  await pool.query('DELETE FROM staff_assignments WHERE organization_id IN ($1, $2)', [
+    ORG_A,
+    ORG_B,
+  ])
+  await pool.query('DELETE FROM teams WHERE organization_id IN ($1, $2)', [ORG_A, ORG_B])
   await seedProperty(pool, PROP_A1, ORG_A, 'team-test-a1')
   await seedProperty(pool, PROP_A2, ORG_A, 'team-test-a2')
   await seedProperty(pool, PROP_B1, ORG_B, 'team-test-b1')

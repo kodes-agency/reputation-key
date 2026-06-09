@@ -1,11 +1,8 @@
 // Dashboard context — domain response shapes
 // Read-only aggregation surface. No domain rules, no events, no writes.
 
-import { ok, err, type Result } from 'neverthrow'
+import { ok, err, type Result } from '#/shared/domain'
 import type { ReviewId } from '#/shared/domain/ids'
-// Pre-existing: trend point type defined in application port
-// eslint-disable-next-line boundaries/dependencies
-import type { PortalRatingTrendPoint } from '../application/ports/portal-metrics.port'
 
 // ─── KPI Strip ───
 
@@ -116,9 +113,21 @@ export type PortalKPIs = Readonly<{
   reviewLinkClicks: KPIValue
 }>
 
+export type PortalRatingTrendPoint = Readonly<{
+  date: string // YYYY-MM-DD
+  avgRating: number
+}>
+
 export type PortalAnalyticsData = Readonly<{
   kpis: PortalKPIs
   engagementFunnel: EngagementFunnel
   ratingDistribution: RatingDistribution
   ratingTrend: PortalRatingTrendPoint[]
+}>
+
+// ─── Staff Dashboard ───
+
+export type StaffDashboardData = Readonly<{
+  kpis: KPIs
+  hasAssignments: boolean
 }>

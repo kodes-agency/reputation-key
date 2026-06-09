@@ -1,6 +1,6 @@
 // Inbox context — entity constructors
 
-import { ok, err, type Result } from 'neverthrow'
+import { ok, err, type Result } from '#/shared/domain'
 import type { InboxItem, InboxNote, InboxStatus, SourceType } from './types'
 import { inboxError, type InboxError } from './errors'
 import type {

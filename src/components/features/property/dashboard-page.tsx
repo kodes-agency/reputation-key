@@ -6,7 +6,7 @@ import { Plus, ChevronRight } from 'lucide-react'
 import { useEffect } from 'react'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { DeletePropertyDialog } from './delete-property-dialog'
-import { deleteProperty } from '#/contexts/property/server/properties'
+import type { Action } from '#/components/hooks/use-action'
 import { PageShell } from '#/components/layout/page-shell'
 
 interface Property {
@@ -18,10 +18,13 @@ interface Property {
 
 interface DashboardPageProps {
   properties: ReadonlyArray<Property>
-  deletePropertyFn: typeof deleteProperty
+  deleteAction: Action<
+    { data: { propertyId: string } },
+    { deleted: boolean; propertyId: string }
+  >
 }
 
-export function DashboardPage({ properties, deletePropertyFn }: DashboardPageProps) {
+export function DashboardPage({ properties, deleteAction }: DashboardPageProps) {
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -97,7 +100,11 @@ export function DashboardPage({ properties, deletePropertyFn }: DashboardPagePro
               </div>
             </div>
             <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-              <DeletePropertyDialog propertyId={p.id} propertyName={p.name} deletePropertyFn={deletePropertyFn} />
+              <DeletePropertyDialog
+                propertyId={p.id}
+                propertyName={p.name}
+                deleteAction={deleteAction}
+              />
               <ChevronRight className="size-4 text-muted-foreground" />
             </div>
           </div>

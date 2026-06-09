@@ -8,6 +8,7 @@ export type TeamErrorCode =
   | 'name_taken'
   | 'team_not_found'
   | 'property_not_found'
+  | 'team_has_assignments'
 
 export type TeamError = Readonly<{
   _tag: 'TeamError'

@@ -8,6 +8,7 @@ import type { EventBus } from '#/shared/events/event-bus'
 import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
 import { inboxItemStatusChanged } from '../../domain/events'
+import { unbrand } from '#/shared/domain/ids'
 
 export type OnReplyPublishedDeps = Readonly<{
   repo: InboxRepository
@@ -22,7 +23,7 @@ export const onReplyPublished =
       try {
         const inboxItem = await deps.repo.findBySource(
           'review',
-          event.reviewId,
+          unbrand(event.reviewId),
           event.organizationId,
         )
         if (!inboxItem) {
@@ -69,6 +70,7 @@ export const onReplyPublished =
           inboxItemStatusChanged({
             inboxItemId: inboxItem.id,
             organizationId: inboxItem.organizationId,
+            propertyId: inboxItem.propertyId,
             oldStatus,
             newStatus: 'addressed',
             occurredAt: event.occurredAt,

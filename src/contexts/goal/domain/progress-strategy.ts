@@ -6,7 +6,7 @@ import type { AggregationFunction, MetricKey } from '#/shared/domain/metric-keys
 import type { PropertyId, PortalId, PortalGroupId } from '#/shared/domain/ids'
 import { assertNever } from '#/shared/domain/assert'
 import type { Goal } from './types'
-import { err, ok, type Result } from 'neverthrow'
+import { err, ok, type Result } from '#/shared/domain'
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -142,6 +142,11 @@ export function computeProgressValue(
   agg: AggregationFunction,
   rows: ReadonlyArray<{ value: number }>,
 ): number {
+  // NOTE(F146): For MAX aggregation, an empty dataset returns 0 instead of
+  // null. This is a known trade-off — changing the return type to `number | null`
+  // would cascade through all callers. If MAX-with-empty-data semantics become
+  // important, revisit with a return type change. Currently reconciliation always
+  // provides real data rows.
   if (rows.length === 0) return 0
 
   switch (agg) {

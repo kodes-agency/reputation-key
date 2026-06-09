@@ -34,6 +34,12 @@ export const createInMemoryStaffAssignmentRepo = (): InMemoryStaffAssignmentRepo
     listByTeam: async (orgId, teamId) =>
       [...store.values()].filter((a) => isAccessible(orgId, a) && a.teamId === teamId),
 
+    listByUserAndProperty: async (orgId, userId, propertyId) =>
+      [...store.values()].filter(
+        (a) =>
+          isAccessible(orgId, a) && a.userId === userId && a.propertyId === propertyId,
+      ),
+
     assignmentExists: async (orgId, userId, propertyId, teamId) =>
       [...store.values()].some(
         (a) =>
