@@ -4,7 +4,6 @@
 import { ok, err, type Result } from '#/shared/domain'
 import type { Notification, NotificationEmail } from './types'
 import { notificationError, type NotificationError } from './errors'
-import { ALLOWED_STATUSES } from './constructors'
 
 // ── Notification status transitions ─────────────────────────────────
 
@@ -16,7 +15,7 @@ export const markNotificationRead = (
     return ok(notification) // Idempotent — already read
   }
 
-  if (!ALLOWED_STATUSES.has(notification.status)) {
+  if (notification.status !== 'unread') {
     return err(
       notificationError(
         'invalid_status',

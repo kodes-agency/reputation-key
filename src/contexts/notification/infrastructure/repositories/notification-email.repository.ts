@@ -116,7 +116,7 @@ export const createNotificationEmailRepository = (db: Database) => ({
       .where(
         and(
           eq(notificationEmailQueue.id, id),
-          eq(notificationEmailQueue.status, 'pending'),
+          inArray(notificationEmailQueue.status, ['pending', 'failed']),
         ),
       )
   },
@@ -142,6 +142,11 @@ export const createNotificationEmailRepository = (db: Database) => ({
     await db
       .update(notificationEmailQueue)
       .set({ status: 'skipped', updatedAt: new Date() })
-      .where(eq(notificationEmailQueue.id, id))
+      .where(
+        and(
+          eq(notificationEmailQueue.id, id),
+          eq(notificationEmailQueue.status, 'pending'),
+        ),
+      )
   },
 })

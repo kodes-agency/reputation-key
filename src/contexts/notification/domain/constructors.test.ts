@@ -286,17 +286,16 @@ describe('markNotificationRead', () => {
     }
   })
 
-  it('transitions a dismissed notification to read', () => {
+  it('rejects dismissed notification — only unread → read is valid', () => {
     const dismissed: Notification = {
       ...baseNotification,
       status: 'dismissed',
     }
 
     const result = markNotificationRead(dismissed, clock)
-    expect(result.isOk()).toBe(true)
-    if (result.isOk()) {
-      expect(result.value.status).toBe('read')
-      expect(result.value.readAt).toBe(FIXED_DATE)
+    expect(result.isErr()).toBe(true)
+    if (result.isErr()) {
+      expect(result.error.code).toBe('invalid_status')
     }
   })
 })
