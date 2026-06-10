@@ -52,6 +52,7 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
         'Notification not found for urgent email',
       )
       await emailRepo.markSkipped(emailId)
+      // State machine: only 'pending' → 'skipped'. See domain/constructors-transitions.ts markEmailSkipped.
       return
     }
 
@@ -62,6 +63,7 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
     if (!userEmail) {
       logger.warn({ userId: entry.userId }, 'User email not found, skipping urgent email')
       await emailRepo.markSkipped(emailId)
+      // State machine: only 'pending' → 'skipped'. See domain/constructors-transitions.ts markEmailSkipped.
       return
     }
 
@@ -80,9 +82,13 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
         html,
       })
       await emailRepo.markSent(emailId, new Date())
+      // State machine: only 'pending'/'failed' → 'sent'. See domain/constructors-transitions.ts markEmailSent.
+      // The repo WHERE clause enforces this at DB level.
     } catch (err) {
       logger.error({ err, notificationEmailId: emailId }, 'Urgent email send failed')
       await emailRepo.markFailed(emailId, new Date())
+      // State machine: only 'pending'/'failed' → 'failed'. See domain/constructors-transitions.ts markEmailFailed.
+      // The repo WHERE clause enforces this at DB level.
       throw err // re-throw for BullMQ retry
     }
   }

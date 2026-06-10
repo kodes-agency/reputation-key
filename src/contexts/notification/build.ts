@@ -12,6 +12,7 @@ import { createNotificationPreferenceRepository } from './infrastructure/reposit
 import { createDbUserLookupAdapter } from './infrastructure/adapters/db-user-lookup.adapter'
 import { registerNotificationHandlers } from './infrastructure/event-handlers'
 import { insertNotification } from './application/use-cases/insert-notification'
+import { markNotificationRead } from './domain/constructors-transitions'
 
 type BuildInput = Readonly<{
   db: Database
@@ -58,8 +59,13 @@ export const buildNotificationContext = (input: BuildInput) => {
       notificationRepo.countUnreadByUser(userId, orgId),
     getNotifications: (userId: string, orgId: string, limit: number, offset: number) =>
       notificationRepo.findByUser(userId, orgId, limit, offset),
-    markRead: (id: string, orgId: string) =>
-      notificationRepo.markRead(id, orgId, input.clock(), input.clock()),
+    markRead: async (id: string, orgId: string) => {
+      const n = await notificationRepo.findById(id, orgId)
+      if (!n) return
+      const result = markNotificationRead(n, input.clock)
+      if (result.isErr()) return // invalid transition, skip
+      await notificationRepo.markRead(id, orgId, input.clock(), input.clock())
+    },
     markAllRead: (userId: string, orgId: string) =>
       notificationRepo.markAllRead(userId, orgId, input.clock()),
   } as const

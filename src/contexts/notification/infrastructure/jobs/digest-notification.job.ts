@@ -109,6 +109,8 @@ export const createDigestNotificationJobHandler = (deps: DigestDeps) => {
           })
           for (const entry of entries) {
             await emailRepo.markSent(notificationEmailId(entry.id as string), new Date())
+            // State machine: only 'pending' → 'sent'. See domain/constructors-transitions.ts markEmailSent.
+            // The repo WHERE clause (pending-only in findPendingByOrg) enforces this at DB level.
           }
         } catch (err) {
           logger.error({ err, uid, orgId: rawOrgId }, 'Digest email send failed')
@@ -118,6 +120,8 @@ export const createDigestNotificationJobHandler = (deps: DigestDeps) => {
                 notificationEmailId(entry.id as string),
                 new Date(),
               )
+              // State machine: only 'pending'/'failed' → 'failed'. See domain/constructors-transitions.ts markEmailFailed.
+              // The repo WHERE clause enforces this at DB level.
             } catch (markErr) {
               logger.error(
                 { markErr, notificationEmailId: entry.id },

@@ -47,6 +47,16 @@ export const markEmailSent = (
     return ok(email) // Idempotent
   }
 
+  if (email.status !== 'pending' && email.status !== 'failed') {
+    return err(
+      notificationError(
+        'invalid_status',
+        `Cannot mark email as sent from status: ${email.status}`,
+        { status: email.status },
+      ),
+    )
+  }
+
   const now = clock()
   return ok({
     ...email,
