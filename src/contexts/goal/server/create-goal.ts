@@ -46,7 +46,9 @@ export const createGoal = createServerFn({ method: 'POST' })
             organizationId: ctx.organizationId,
             propertyId: toPropertyId(data.propertyId),
             portalId: data.portalId ? toPortalId(data.portalId) : null,
-            groupId: data.groupId ? toPortalGroupId(data.groupId) : null,
+            portalGroupId: data.portalGroupId
+              ? toPortalGroupId(data.portalGroupId)
+              : null,
             name: data.name,
             description: data.description ?? null,
             createdBy: ctx.userId,

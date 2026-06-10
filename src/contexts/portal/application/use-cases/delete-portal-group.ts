@@ -10,7 +10,7 @@ import { portalGroupDeleted } from '../../domain/events'
 import { portalGroupId } from '#/shared/domain/ids'
 
 export type DeletePortalGroupDeps = Readonly<{
-  groupRepo: PortalGroupRepository
+  portalGroupRepo: PortalGroupRepository
   events: EventBus
   clock: () => Date
 }>
@@ -23,17 +23,17 @@ export const deletePortalGroup =
     }
 
     const groupId = portalGroupId(input.groupId)
-    const existing = await deps.groupRepo.findById(ctx.organizationId, groupId)
+    const existing = await deps.portalGroupRepo.findById(ctx.organizationId, groupId)
     if (!existing) {
       throw portalError('group_not_found', 'Portal group not found')
     }
 
-    // Hard-delete
-    await deps.groupRepo.delete(ctx.organizationId, groupId)
+    // Soft-delete
+    await deps.portalGroupRepo.softDelete(ctx.organizationId, groupId)
 
     await deps.events.emit(
       portalGroupDeleted({
-        groupId,
+        portalGroupId: groupId,
         organizationId: existing.organizationId,
         propertyId: existing.propertyId,
         occurredAt: deps.clock(),

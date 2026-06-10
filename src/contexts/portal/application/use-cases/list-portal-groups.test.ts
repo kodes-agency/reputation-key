@@ -9,19 +9,40 @@ const ORG = organizationId('org-00000000-0000-0000-0000-000000000001')
 const PROP = propertyId('a0000000-0000-4000-8000-000000000001')
 
 const sampleGroups: ReadonlyArray<PortalGroup> = [
-  { id: portalGroupId('g1'), organizationId: ORG, propertyId: PROP, name: 'Group A', createdAt: new Date(), updatedAt: new Date() },
-  { id: portalGroupId('g2'), organizationId: ORG, propertyId: PROP, name: 'Group B', createdAt: new Date(), updatedAt: new Date() },
+  {
+    id: portalGroupId('g1'),
+    organizationId: ORG,
+    propertyId: PROP,
+    name: 'Group A',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    deletedAt: null,
+  },
+  {
+    id: portalGroupId('g2'),
+    organizationId: ORG,
+    propertyId: PROP,
+    name: 'Group B',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    deletedAt: null,
+  },
 ]
 
 function setup(groups: ReadonlyArray<PortalGroup> = sampleGroups) {
   const useCase = listPortalGroups({
-    groupRepo: {
+    portalGroupRepo: {
       listByProperty: async () => groups,
       findById: async () => null,
-      findByNameDuplicate: async () => null,
-      insert: async (g) => g,
-      update: async (g) => g,
-      delete: async () => {},
+      nameExists: async () => false,
+      insert: async () => {},
+      update: async () => {},
+      softDelete: async () => {},
+      addPortal: async () => {},
+      removePortal: async () => false,
+      findPortalMembership: async () => null,
+      getGroupPortalIds: async () => [],
+      findGroupForPortal: async () => null,
     },
   })
   return { useCase }

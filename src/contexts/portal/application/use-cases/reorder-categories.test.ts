@@ -74,7 +74,7 @@ describe('reorderCategories', () => {
       ctx,
     )
 
-    const emitted = events.capturedByTag('portal.portal_link_category.reordered')
+    const emitted = events.capturedByTag('portal_link_category.reordered')
     expect(emitted).toHaveLength(1)
   })
 })

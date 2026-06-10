@@ -2,13 +2,14 @@
 // Per architecture: factory function returning Readonly<{ method }>.
 // Every query filters by organization_id AND deleted_at IS NULL via baseWhere().
 
-import { and, eq, not, sql, inArray, isNotNull, isNull } from 'drizzle-orm'
+import { and, eq, not, sql, inArray, isNull } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { baseWhere } from '#/shared/db/base-where'
 import {
   portals,
   portalLinkCategories,
   portalLinks,
+  portalGroupMembers,
 } from '#/shared/db/schema/portal.schema'
 import { properties } from '#/shared/db/schema/property.schema'
 import type {
@@ -279,20 +280,20 @@ export const createPortalRepository = (db: Database): PortalRepository => ({
       if (portalIds.length === 0) return []
 
       const rows = await db
-        .selectDistinct({ groupId: portals.groupId })
-        .from(portals)
+        .selectDistinct({ portalGroupId: portalGroupMembers.portalGroupId })
+        .from(portalGroupMembers)
+        .innerJoin(portals, eq(portals.id, portalGroupMembers.portalId))
         .where(
           and(
             ...baseWhere(portals, orgId),
             inArray(portals.id, [...portalIds] as string[]),
-            isNotNull(portals.groupId),
           ),
         )
 
       const groupIds: PortalGroupId[] = []
       for (const row of rows) {
-        if (row.groupId) {
-          groupIds.push(row.groupId as PortalGroupId)
+        if (row.portalGroupId) {
+          groupIds.push(row.portalGroupId as PortalGroupId)
         }
       }
       return groupIds

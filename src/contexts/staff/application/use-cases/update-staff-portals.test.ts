@@ -225,7 +225,11 @@ describe('updateStaffPortals', () => {
 
     expect(captured).toHaveLength(3)
 
-    const correlationIds = captured.map((e) => e.correlationId)
+    const correlationIds = captured.map((e) =>
+      'correlationId' in e
+        ? String((e as Record<string, unknown>).correlationId)
+        : 'none',
+    )
     // All correlationIds must be the same
     const uniqueCorrelationIds = new Set(correlationIds)
     expect(uniqueCorrelationIds.size).toBe(1)

@@ -38,7 +38,7 @@ export const createReconcileGoalProgressHandler =
       const logger = getLogger()
       const now = deps.clock()
 
-      const goals = await deps.goalRepo.findAllActiveAcrossTenants()
+      const goals = await deps.goalRepo.findAllActive()
       // NOTE(F165): All active goals across all tenants are loaded into memory
       // at once. At current scale (<1000 goals) this is fine. If the goal count
       // grows significantly, consider cursor-based batch processing.
@@ -166,7 +166,7 @@ function progressQueryToMetricReadingsQuery(
     organizationId: goal.organizationId,
     propertyId: pq.scopeFilter.propertyId,
     portalId: pq.scopeFilter.portalId,
-    groupId: pq.scopeFilter.groupId,
+    groupId: pq.scopeFilter.portalGroupId,
     metricKey: pq.metricKey,
   }
 

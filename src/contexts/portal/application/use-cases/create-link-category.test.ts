@@ -70,7 +70,7 @@ describe('createLinkCategory', () => {
 
     await useCase({ portalId: portal.id, title: 'Reviews' }, ctx)
 
-    const emitted = events.capturedByTag('portal.portal_link_category.created')
+    const emitted = events.capturedByTag('portal_link_category.created')
     expect(emitted).toHaveLength(1)
     expect(emitted[0].categoryId).toBe('c0000000-0000-0000-0000-000000000001')
   })

@@ -232,14 +232,16 @@ function makeFakeDeps() {
 function makeEvent(overrides: Partial<MetricRecorded> = {}): MetricRecorded {
   return {
     _tag: 'metric.recorded',
+    eventId: 'test-event-id',
     readingId: metricReadingId('reading-1'),
     organizationId: organizationId('org-1'),
     propertyId: propertyId('prop-1'),
     portalId: null,
-    staffId: null,
+    groupId: null,
     metricKey: 'portal.scan',
     value: 1,
-    recordedAt: FIXED_TIME,
+    occurredAt: FIXED_TIME,
+    correlationId: null,
     ...overrides,
   }
 }

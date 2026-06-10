@@ -60,11 +60,13 @@ export const cancelGoal =
 
     // 3. Cancel instances + parent atomically for recurring templates
     if (goal.goalType === 'recurring' && goal.parentGoalId === null) {
-      const updated = await deps.goalRepo.cancelGoalWithInstances(
-        goal.id,
-        input.organizationId,
-        now,
-      )
+      // Cancel all active instances first
+      await deps.goalRepo.cancelByParent(goal.id, input.organizationId, now)
+      // Then cancel the parent template
+      const updated = await deps.goalRepo.update(goal.id, input.organizationId, {
+        status: 'cancelled',
+        updatedAt: now,
+      })
       if (!updated) {
         return err({ tag: 'goal_not_found' })
       }

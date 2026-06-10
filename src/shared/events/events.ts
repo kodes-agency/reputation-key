@@ -11,17 +11,17 @@ export type {
   // fallow-ignore-next-line unused-type
   IdentityEvent,
   // fallow-ignore-next-line unused-type
-  OrganizationCreated,
+  IdentityOrganizationCreated,
   // fallow-ignore-next-line unused-type
-  MemberInvited,
+  IdentityMemberInvited,
   // fallow-ignore-next-line unused-type
-  InvitationAccepted,
+  IdentityInvitationAccepted,
   // fallow-ignore-next-line unused-type
-  InvitationRejected,
+  IdentityInvitationRejected,
   // fallow-ignore-next-line unused-type
-  MemberRemoved,
+  IdentityMemberRemoved,
   // fallow-ignore-next-line unused-type
-  MemberRoleChanged,
+  IdentityMemberRoleChanged,
 } from '#/contexts/identity/domain/events'
 
 // Property context events
@@ -81,13 +81,13 @@ export type {
   // fallow-ignore-next-line unused-type
   GuestEvent,
   // fallow-ignore-next-line unused-type
-  ScanRecorded,
+  GuestScanRecorded,
   // fallow-ignore-next-line unused-type
-  RatingSubmitted,
+  GuestRatingSubmitted,
   // fallow-ignore-next-line unused-type
-  FeedbackSubmitted,
+  GuestFeedbackSubmitted,
   // fallow-ignore-next-line unused-type
-  ReviewLinkClicked,
+  GuestReviewLinkClicked,
 } from '#/contexts/guest/domain/events'
 
 // Integration context events
@@ -95,13 +95,13 @@ export type {
   // fallow-ignore-next-line unused-type
   IntegrationEvent,
   // fallow-ignore-next-line unused-type
-  GoogleAccountConnected,
+  IntegrationGoogleAccountConnected,
   // fallow-ignore-next-line unused-type
-  GoogleAccountDisconnected,
+  IntegrationGoogleAccountDisconnected,
   // fallow-ignore-next-line unused-type
-  GoogleConnectionVisibilityChanged,
+  IntegrationGoogleConnectionVisibilityChanged,
   // fallow-ignore-next-line unused-type
-  PropertyImportCompleted,
+  IntegrationPropertyImportCompleted,
 } from '#/contexts/integration/domain/events'
 
 // Review context events
@@ -115,9 +115,7 @@ export type {
   // fallow-ignore-next-line unused-type
   ReviewExpired,
   // fallow-ignore-next-line unused-type
-  ReplyEvent,
-  // fallow-ignore-next-line unused-type
-  ReplyPublished,
+  ReviewReplyPublished,
 } from '#/contexts/review/domain/events'
 
 // Inbox context events
@@ -127,7 +125,7 @@ export type {
   // fallow-ignore-next-line unused-type
   InboxItemCreated,
   // fallow-ignore-next-line unused-type
-  InboxStatusChanged,
+  InboxItemStatusChanged,
   // fallow-ignore-next-line unused-type
   InboxItemAssigned,
 } from '#/contexts/inbox/domain/events'
@@ -160,7 +158,6 @@ import type { PortalEvent } from '#/contexts/portal/domain/events'
 import type { GuestEvent } from '#/contexts/guest/domain/events'
 import type { IntegrationEvent } from '#/contexts/integration/domain/events'
 import type { ReviewEvent } from '#/contexts/review/domain/events'
-import type { ReplyEvent } from '#/contexts/review/domain/events'
 import type { InboxEvent } from '#/contexts/inbox/domain/events'
 import type { GoalEvent } from '#/contexts/goal/domain/events'
 import type { MetricEvent } from '#/contexts/metric/domain/events'
@@ -174,7 +171,6 @@ export type DomainEvent =
   | GuestEvent
   | IntegrationEvent
   | ReviewEvent
-  | ReplyEvent
   | InboxEvent
   | GoalEvent
   | MetricEvent
