@@ -21,9 +21,9 @@ export type NotificationEmailRepositoryPort = Readonly<{
   /** Fetch all pending urgent emails across all orgs (for global email worker). */
   findPendingUrgent(): Promise<readonly NotificationEmail[]>
 
-  markSent(id: NotificationEmailId, sentAt: Date): Promise<void>
+  markSent(id: NotificationEmailId, sentAt: Date, updatedAt: Date): Promise<void>
 
-  markFailed(id: NotificationEmailId, failedAt: Date): Promise<void>
+  markFailed(id: NotificationEmailId, failedAt: Date, updatedAt: Date): Promise<void>
 
-  markSkipped(id: NotificationEmailId): Promise<void>
+  markSkipped(id: NotificationEmailId, updatedAt: Date): Promise<void>
 }>

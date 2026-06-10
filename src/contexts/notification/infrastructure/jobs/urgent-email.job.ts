@@ -52,9 +52,11 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
         'Notification not found for urgent email',
       )
       if (entry.status === 'failed') {
-        await emailRepo.markFailed(emailId, new Date())
+        const now = new Date()
+        await emailRepo.markFailed(emailId, now, now)
       } else {
-        await emailRepo.markSkipped(emailId)
+        const now = new Date()
+        await emailRepo.markSkipped(emailId, now)
       }
       return
     }
@@ -66,9 +68,11 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
     if (!userEmail) {
       logger.warn({ userId: entry.userId }, 'User email not found, skipping urgent email')
       if (entry.status === 'failed') {
-        await emailRepo.markFailed(emailId, new Date())
+        const now = new Date()
+        await emailRepo.markFailed(emailId, now, now)
       } else {
-        await emailRepo.markSkipped(emailId)
+        const now = new Date()
+        await emailRepo.markSkipped(emailId, now)
       }
       return
     }
@@ -87,12 +91,14 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
         subject: `${notif.title} — Reputation Key`,
         html,
       })
-      await emailRepo.markSent(emailId, new Date())
+      const sentNow = new Date()
+      await emailRepo.markSent(emailId, sentNow, sentNow)
       // State machine: only 'pending'/'failed' → 'sent'. See domain/constructors-transitions.ts markEmailSent.
       // The repo WHERE clause enforces this at DB level.
     } catch (err) {
       logger.error({ err, notificationEmailId: emailId }, 'Urgent email send failed')
-      await emailRepo.markFailed(emailId, new Date())
+      const failNow = new Date()
+      await emailRepo.markFailed(emailId, failNow, failNow)
       // State machine: only 'pending'/'failed' → 'failed'. See domain/constructors-transitions.ts markEmailFailed.
       // The repo WHERE clause enforces this at DB level.
       throw err // re-throw for BullMQ retry

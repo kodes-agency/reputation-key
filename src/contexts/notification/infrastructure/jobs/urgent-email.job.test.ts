@@ -138,7 +138,11 @@ describe('createUrgentEmailJobHandler', () => {
     expect(sendCall.subject).toContain('Review escalated')
     expect(sendCall.html).toContain('Review escalated')
 
-    expect(deps.emailRepo.markSent).toHaveBeenCalledWith(EMAIL_ENTRY_ID, expect.any(Date))
+    expect(deps.emailRepo.markSent).toHaveBeenCalledWith(
+      EMAIL_ENTRY_ID,
+      expect.any(Date),
+      expect.any(Date),
+    )
     expect(deps.emailRepo.markFailed).not.toHaveBeenCalled()
   })
 
@@ -149,7 +153,11 @@ describe('createUrgentEmailJobHandler', () => {
     await handler(createFakeJob('email-entry-1'))
 
     expect(deps.emailSender.send).toHaveBeenCalledTimes(1)
-    expect(deps.emailRepo.markSent).toHaveBeenCalledWith(EMAIL_ENTRY_ID, expect.any(Date))
+    expect(deps.emailRepo.markSent).toHaveBeenCalledWith(
+      EMAIL_ENTRY_ID,
+      expect.any(Date),
+      expect.any(Date),
+    )
   })
 
   it('skips if entry not found', async () => {
@@ -195,7 +203,10 @@ describe('createUrgentEmailJobHandler', () => {
     await handler(createFakeJob('email-entry-1'))
 
     expect(deps.emailSender.send).not.toHaveBeenCalled()
-    expect(deps.emailRepo.markSkipped).toHaveBeenCalledWith(EMAIL_ENTRY_ID)
+    expect(deps.emailRepo.markSkipped).toHaveBeenCalledWith(
+      EMAIL_ENTRY_ID,
+      expect.any(Date),
+    )
   })
 
   it('marks skipped when user email not found', async () => {
@@ -206,7 +217,10 @@ describe('createUrgentEmailJobHandler', () => {
     await handler(createFakeJob('email-entry-1'))
 
     expect(deps.emailSender.send).not.toHaveBeenCalled()
-    expect(deps.emailRepo.markSkipped).toHaveBeenCalledWith(EMAIL_ENTRY_ID)
+    expect(deps.emailRepo.markSkipped).toHaveBeenCalledWith(
+      EMAIL_ENTRY_ID,
+      expect.any(Date),
+    )
   })
 
   it('marks failed and re-throws when email send fails', async () => {
@@ -218,6 +232,7 @@ describe('createUrgentEmailJobHandler', () => {
 
     expect(deps.emailRepo.markFailed).toHaveBeenCalledWith(
       EMAIL_ENTRY_ID,
+      expect.any(Date),
       expect.any(Date),
     )
     expect(deps.emailRepo.markSent).not.toHaveBeenCalled()

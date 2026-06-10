@@ -109,10 +109,10 @@ export const createNotificationEmailRepository = (db: Database) => ({
     return rows.map(emailFromRow)
   },
 
-  markSent: async (id: string, sentAt: Date): Promise<void> => {
+  markSent: async (id: string, sentAt: Date, updatedAt: Date): Promise<void> => {
     await db
       .update(notificationEmailQueue)
-      .set({ status: 'sent', sentAt, updatedAt: new Date() })
+      .set({ status: 'sent', sentAt, updatedAt })
       .where(
         and(
           eq(notificationEmailQueue.id, id),
@@ -121,14 +121,14 @@ export const createNotificationEmailRepository = (db: Database) => ({
       )
   },
 
-  markFailed: async (id: string, failedAt: Date): Promise<void> => {
+  markFailed: async (id: string, failedAt: Date, updatedAt: Date): Promise<void> => {
     await db
       .update(notificationEmailQueue)
       .set({
         status: 'failed',
         failedAt,
         retryCount: sql`${notificationEmailQueue.retryCount} + 1`,
-        updatedAt: new Date(),
+        updatedAt,
       })
       .where(
         and(
@@ -138,10 +138,10 @@ export const createNotificationEmailRepository = (db: Database) => ({
       )
   },
 
-  markSkipped: async (id: string): Promise<void> => {
+  markSkipped: async (id: string, updatedAt: Date): Promise<void> => {
     await db
       .update(notificationEmailQueue)
-      .set({ status: 'skipped', updatedAt: new Date() })
+      .set({ status: 'skipped', updatedAt })
       .where(
         and(
           eq(notificationEmailQueue.id, id),

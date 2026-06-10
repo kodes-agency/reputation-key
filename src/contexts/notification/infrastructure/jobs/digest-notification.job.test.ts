@@ -282,6 +282,7 @@ describe('createDigestNotificationJobHandler', () => {
     expect(deps.emailRepo.markFailed).toHaveBeenCalledWith(
       notificationEmailId(EMAIL_ID_1),
       expect.any(Date),
+      expect.any(Date),
     )
     expect(deps.emailRepo.markSent).not.toHaveBeenCalled()
     expect(deps.logger.error).toHaveBeenCalledWith(

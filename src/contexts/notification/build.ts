@@ -62,9 +62,9 @@ export const buildNotificationContext = (input: BuildInput) => {
     markRead: async (id: string, orgId: string) => {
       const n = await notificationRepo.findById(id, orgId)
       if (!n) return
-      const result = markNotificationRead(n, input.clock)
-      if (result.isErr()) return // invalid transition, skip
       const now = input.clock()
+      const result = markNotificationRead(n, () => now)
+      if (result.isErr()) return // invalid transition, skip
       await notificationRepo.markRead(id, orgId, now, now)
     },
     markAllRead: (userId: string, orgId: string) => {
