@@ -59,9 +59,9 @@ export const buildNotificationContext = (input: BuildInput) => {
     getNotifications: (userId: string, orgId: string, limit: number, offset: number) =>
       notificationRepo.findByUser(userId, orgId, limit, offset),
     markRead: (id: string, orgId: string) =>
-      notificationRepo.markRead(id, orgId, input.clock()),
+      notificationRepo.markRead(id, orgId, input.clock(), input.clock()),
     markAllRead: (userId: string, orgId: string) =>
-      notificationRepo.markAllRead(userId, orgId),
+      notificationRepo.markAllRead(userId, orgId, input.clock()),
   } as const
 
   return {

@@ -1,5 +1,4 @@
 // Notification panel — popover with bell icon, unread badge, and notification list.
-
 import { useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { Bell, CheckCheck, Inbox } from 'lucide-react'
@@ -68,7 +67,6 @@ function NotificationRow({
 }
 
 // ── Main notification panel ─────────────────────────────────────────
-
 export function NotificationPanel() {
   const [open, setOpen] = useState(false)
   const navigate = useNavigate()
@@ -109,7 +107,6 @@ export function NotificationPanel() {
           )}
         </Button>
       </PopoverTrigger>
-
       <PopoverContent align="end" className="w-80 p-0">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3">

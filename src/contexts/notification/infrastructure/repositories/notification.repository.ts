@@ -51,10 +51,15 @@ export const createNotificationRepository = (db: Database) => ({
     return notificationFromRow(row[0]!)
   },
 
-  markRead: async (id: string, orgId: string, readAt: Date): Promise<void> => {
+  markRead: async (
+    id: string,
+    orgId: string,
+    readAt: Date,
+    updatedAt: Date,
+  ): Promise<void> => {
     await db
       .update(notifications)
-      .set({ status: 'read', readAt, updatedAt: new Date() })
+      .set({ status: 'read', readAt, updatedAt })
       .where(
         and(
           eq(notifications.id, id),
@@ -64,10 +69,10 @@ export const createNotificationRepository = (db: Database) => ({
       )
   },
 
-  markAllRead: async (userId: string, orgId: string): Promise<void> => {
+  markAllRead: async (userId: string, orgId: string, updatedAt: Date): Promise<void> => {
     await db
       .update(notifications)
-      .set({ status: 'read', readAt: new Date(), updatedAt: new Date() })
+      .set({ status: 'read', readAt: updatedAt, updatedAt })
       .where(
         and(
           eq(notifications.userId, userId),

@@ -1,5 +1,8 @@
 // Notification context — repository port for the email queue
 // Per architecture: type alias + Readonly<{…}>, no classes.
+// Note: Implementations accept `string` for branded type params.
+// TypeScript structural typing makes `string` assignable to branded types.
+// Brands serve as documentation of intent, not runtime enforcement.
 
 import type { NotificationEmail, NotificationPriority } from '../../domain/types'
 import type { NotificationEmailId, OrganizationId } from '#/shared/domain/ids'

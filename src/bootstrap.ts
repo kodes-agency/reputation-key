@@ -236,4 +236,69 @@ export async function bootstrap(container: Container): Promise<void> {
     { job: INSERT_ACTIVITY_LOG_JOB_NAME },
     'registered activity log insertion job handler',
   )
+
+  // ── Notification jobs ────────────────────────────────────────────
+  const { createInsertNotificationHandler, INSERT_NOTIFICATION_JOB_NAME } =
+    await import('#/contexts/notification/infrastructure/jobs/insert-notification.job')
+  const { createDbUserLookupAdapter: createNotifUserLookup } =
+    await import('#/contexts/notification/infrastructure/adapters/db-user-lookup.adapter')
+  const { createResendEmailAdapter } =
+    await import('#/contexts/notification/infrastructure/adapters/resend-email.adapter')
+  const { notificationId, notificationEmailId } = await import('#/shared/domain/ids')
+  const notifUserLookup = createNotifUserLookup(container.db)
+  const notifEmailSender = createResendEmailAdapter()
+  const insertNotifHandler = createInsertNotificationHandler({
+    notificationRepo: container.notificationRepo,
+    emailRepo: container.notificationEmailRepo,
+    preferenceRepo: container.notificationPrefRepo,
+    clock: () => new Date(),
+    idGen: () => notificationId(crypto.randomUUID()),
+    emailIdGen: () => notificationEmailId(crypto.randomUUID()),
+    logger: container.logger,
+  })
+  container.jobRegistry.register(INSERT_NOTIFICATION_JOB_NAME, async (job) => {
+    await insertNotifHandler(
+      job as import('bullmq').Job<
+        import('#/contexts/notification/infrastructure/jobs/insert-notification.job').InsertNotificationJobData
+      >,
+    )
+  })
+  logger.info(
+    { job: INSERT_NOTIFICATION_JOB_NAME },
+    'registered insert-notification job handler',
+  )
+
+  const { createUrgentEmailJobHandler, URGENT_EMAIL_JOB_NAME } =
+    await import('#/contexts/notification/infrastructure/jobs/urgent-email.job')
+  const urgentEmailHandler = createUrgentEmailJobHandler({
+    emailRepo: container.notificationEmailRepo,
+    notifRepo: container.notificationRepo,
+    userLookup: notifUserLookup,
+    emailSender: notifEmailSender,
+    logger: container.logger,
+  })
+  container.jobRegistry.register(URGENT_EMAIL_JOB_NAME, async (job) => {
+    await urgentEmailHandler(
+      job as import('bullmq').Job<
+        import('#/contexts/notification/infrastructure/jobs/urgent-email.job').UrgentEmailJobData
+      >,
+    )
+  })
+  logger.info({ job: URGENT_EMAIL_JOB_NAME }, 'registered urgent-email job handler')
+
+  const { createDigestNotificationJobHandler, DIGEST_JOB_NAME } =
+    await import('#/contexts/notification/infrastructure/jobs/digest-notification.job')
+  const { getPool } = await import('#/shared/db/pool')
+  const digestHandler = createDigestNotificationJobHandler({
+    pool: getPool(),
+    emailRepo: container.notificationEmailRepo,
+    notifRepo: container.notificationRepo,
+    userLookup: notifUserLookup,
+    emailSender: notifEmailSender,
+    logger: container.logger,
+  })
+  container.jobRegistry.register(DIGEST_JOB_NAME, async (job) => {
+    await digestHandler(job as import('bullmq').Job<void>)
+  })
+  logger.info({ job: DIGEST_JOB_NAME }, 'registered digest-notification job handler')
 }

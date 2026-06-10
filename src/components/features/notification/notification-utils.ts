@@ -40,7 +40,7 @@ export function getNotificationUrl(
 export function formatRelativeTime(date: Date | string): string {
   const d = typeof date === 'string' ? new Date(date) : date
   const now = Date.now()
-  const diffMs = now - d.getTime()
+  const diffMs = Math.max(0, now - d.getTime())
   const diffSec = Math.floor(diffMs / 1000)
   const diffMin = Math.floor(diffSec / 60)
   const diffHr = Math.floor(diffMin / 60)
