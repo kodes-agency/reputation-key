@@ -17,9 +17,11 @@ export type PortalErrorCode =
   | 'category_not_found'
   | 'link_not_found'
   | 'property_not_found'
-  | 'upload_failed'
   | 'group_not_found'
   | 'group_name_taken'
+  | 'portal_already_grouped'
+  | 'portal_not_in_group'
+  | 'upload_failed'
 
 export type PortalError = Readonly<{
   _tag: 'PortalError'

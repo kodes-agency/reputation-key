@@ -37,7 +37,7 @@ export const createSpawnRecurringInstancesHandler =
       const logger = getLogger()
       const now = deps.clock()
 
-      const templates = await deps.goalRepo.findAllActiveAcrossTenants()
+      const templates = await deps.goalRepo.findAllActive()
       const recurringTemplates = templates.filter(
         (g) => g.goalType === 'recurring' && g.parentGoalId === null,
       )
@@ -77,7 +77,7 @@ export const createSpawnRecurringInstancesHandler =
             organizationId: template.organizationId,
             propertyId: template.propertyId,
             portalId: template.portalId,
-            groupId: template.groupId,
+            portalGroupId: template.portalGroupId,
             name: template.name,
             description: template.description,
             createdBy: template.createdBy,
@@ -102,6 +102,25 @@ export const createSpawnRecurringInstancesHandler =
 
           const instance = instanceResult.value
 
+          // Guard against race condition: check if instance already exists for this period
+          // TODO: Replace with a unique DB constraint on (parentGoalId, periodStart) for correctness
+          const instances = await deps.goalRepo.listInstances(
+            template.id,
+            template.organizationId,
+          )
+          const duplicate = instances.some(
+            (inst) =>
+              inst.periodStart &&
+              Math.abs(inst.periodStart.getTime() - nextStart.getTime()) < 1000,
+          )
+          if (duplicate) {
+            logger.info(
+              { templateId: template.id },
+              'Instance already exists for this period — skipping',
+            )
+            continue
+          }
+
           // Create initial progress
           const progress: GoalProgress = {
             id: goalProgressId(deps.idGen()),
@@ -113,24 +132,8 @@ export const createSpawnRecurringInstancesHandler =
             computedSource: 'event_increment',
           }
 
-          try {
-            await deps.goalRepo.createGoalAndProgress(instance, progress)
-            spawned++
-          } catch (err) {
-            // Unique constraint on (parentGoalId, periodStart) — concurrent job beat us
-            const isDuplicate =
-              err instanceof Error &&
-              'code' in err &&
-              (err as { code: string }).code === '23505'
-            if (isDuplicate) {
-              logger.info(
-                { templateId: template.id as string },
-                'Instance already exists for this period (DB constraint) — skipping',
-              )
-              continue
-            }
-            throw err
-          }
+          await deps.goalRepo.createGoalAndProgress(instance, progress)
+          spawned++
         } catch (err) {
           logger.error(
             { err, templateId: template.id },

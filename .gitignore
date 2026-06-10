@@ -30,3 +30,15 @@ coverage/
 CLAUDE.md
 .pi/reviews/
 package-lock.json
+.beads/
+.dolt-data/
+.events.jsonl
+.events.jsonl.lock
+.runtime/
+daemon/
+deacon/
+events/
+logs/
+mayor/
+reputation_key/
+witness/

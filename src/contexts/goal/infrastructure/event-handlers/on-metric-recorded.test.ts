@@ -25,7 +25,7 @@ function makeGoal(overrides: Partial<Goal> & { id: Goal['id'] }): Goal {
     organizationId: organizationId('org-1'),
     propertyId: propertyId('prop-1'),
     portalId: null,
-    groupId: null,
+    portalGroupId: null,
     name: 'Test goal',
     description: null,
     createdBy: userId('user-1'),
@@ -67,7 +67,6 @@ function makeFakeDeps() {
     list: async () => [],
     listInstances: async () => [],
     cancelByParent: async () => 0,
-    cancelGoalWithInstances: async () => null,
     upsertProgress: async (goalId, _orgId, aggregation, delta) => {
       let p = progresses.get(goalId as string)
       if (!p) {
@@ -138,16 +137,25 @@ function makeFakeDeps() {
     },
     updateProgress: async () => null,
 
-    findActiveGoalsByMetric: async (metricKey, organizationId, propertyId, portalId) => {
+    findActiveGoalsByMetric: async (
+      metricKey,
+      organizationId,
+      propertyId,
+      portalId,
+      portalGroupId,
+    ) => {
       return goals.filter((g) => {
         if (g.status !== 'active') return false
         if (g.metricKey !== metricKey) return false
         if (g.organizationId !== organizationId) return false
         if (g.propertyId !== propertyId) return false
-        if (portalId) {
-          return g.portalId === portalId || g.portalId === null
-        }
-        return g.portalId === null
+        // Property-scoped goals always match
+        if (g.portalId === null && g.portalGroupId === null) return true
+        // Portal-scoped goals match on portalId
+        if (portalId && g.portalId === portalId) return true
+        // Portal-group-scoped goals match on portalGroupId
+        if (portalGroupId && g.portalGroupId === portalGroupId) return true
+        return false
       })
     },
 
@@ -158,12 +166,10 @@ function makeFakeDeps() {
         goals[idx] = { ...g, status: 'completed', completedAt }
       }
     },
-    findAllActiveAcrossTenants: async () => [],
+    findAllActive: async () => [],
     findActiveRecurringTemplates: async () => [],
     findLatestInstance: async (_parentId, _orgId) => null,
-    listByPortalAndGroupIds: async () => [],
     createGoalAndProgress: async () => {},
-    createTemplateInstanceAndProgress: async () => {},
   }
 
   const eventBus = {
@@ -191,6 +197,7 @@ function makeFakeDeps() {
     goalRepo,
     eventBus,
     clock: () => FIXED_TIME,
+    findGroupForPortal: async () => null,
     getLogger: () =>
       logger as unknown as OnMetricRecordedDeps['getLogger'] extends () => infer R
         ? R
@@ -222,21 +229,17 @@ function makeFakeDeps() {
   return { deps, emittedEvents, goals, progresses, addGoalWithProgress, logger }
 }
 
-function makeEvent(
-  overrides: Partial<Omit<MetricRecorded, 'eventId' | 'correlationId'>> = {},
-): MetricRecorded {
+function makeEvent(overrides: Partial<MetricRecorded> = {}): MetricRecorded {
   return {
     _tag: 'metric.recorded',
-    eventId: 'test-event-id',
     readingId: metricReadingId('reading-1'),
     organizationId: organizationId('org-1'),
     propertyId: propertyId('prop-1'),
     portalId: null,
-    groupId: null,
+    staffId: null,
     metricKey: 'portal.scan',
     value: 1,
-    correlationId: null,
-    occurredAt: FIXED_TIME,
+    recordedAt: FIXED_TIME,
     ...overrides,
   }
 }

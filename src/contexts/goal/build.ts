@@ -27,11 +27,22 @@ export type GoalContextBuildInput = Readonly<{
   idGen: () => string
   cancelGoalFn: CancelGoalFn
   getLogger: typeof getLoggerType
-  /** F112: Pre-created goal repo to avoid duplicate instances. If omitted, one is created here. */
-  goalRepo?: GoalRepository
+  findGroupForPortal: (
+    orgId: import('#/shared/domain/ids').OrganizationId,
+    portalId: import('#/shared/domain/ids').PortalId,
+  ) => Promise<{ portalGroupId: import('#/shared/domain/ids').PortalGroupId } | null>
 }>
 
 export type GoalContextApi = Readonly<{
+  useCases: {
+    createGoal: ReturnType<typeof createGoal>
+    updateGoal: ReturnType<typeof updateGoal>
+    cancelGoal: ReturnType<typeof cancelGoal>
+    listGoals: ReturnType<typeof listGoals>
+    getGoal: ReturnType<typeof getGoal>
+  }
+  goalRepo: GoalRepository
+  events: EventBus
   publicApi: Readonly<{
     createGoal: ReturnType<typeof createGoal>
     updateGoal: ReturnType<typeof updateGoal>
@@ -39,22 +50,10 @@ export type GoalContextApi = Readonly<{
     listGoals: ReturnType<typeof listGoals>
     getGoal: ReturnType<typeof getGoal>
   }>
-  internal: Readonly<{
-    repos: Readonly<{
-      goalRepo: GoalRepository
-    }>
-    useCases: Readonly<{
-      createGoal: ReturnType<typeof createGoal>
-      updateGoal: ReturnType<typeof updateGoal>
-      cancelGoal: ReturnType<typeof cancelGoal>
-      listGoals: ReturnType<typeof listGoals>
-      getGoal: ReturnType<typeof getGoal>
-    }>
-  }>
 }>
 
 export const buildGoalContext = (input: GoalContextBuildInput): GoalContextApi => {
-  const goalRepo = input.goalRepo ?? createGoalRepository(input.db)
+  const goalRepo = createGoalRepository(input.db)
 
   const _createGoal = createGoal({
     goalRepo,
@@ -81,7 +80,7 @@ export const buildGoalContext = (input: GoalContextBuildInput): GoalContextApi =
     goalRepo,
   })
 
-  // Register event handlers (metric.recorded, staff.unassigned, etc.)
+  // Register event handlers (metric.recorded, portal_group.deleted, etc.)
   // Per architecture: handlers are registered at build time so every process
   // (web server + worker) handles events without a separate bootstrap() call.
   registerGoalEventHandlers({
@@ -90,27 +89,25 @@ export const buildGoalContext = (input: GoalContextBuildInput): GoalContextApi =
     cancelGoalFn: input.cancelGoalFn,
     clock: input.clock,
     getLogger: input.getLogger,
+    findGroupForPortal: input.findGroupForPortal,
   })
 
   return {
-    publicApi: {
+    useCases: {
       createGoal: _createGoal,
       updateGoal: _updateGoal,
       cancelGoal: _cancelGoal,
       listGoals: _listGoals,
       getGoal: _getGoal,
     },
-    internal: {
-      repos: {
-        goalRepo,
-      },
-      useCases: {
-        createGoal: _createGoal,
-        updateGoal: _updateGoal,
-        cancelGoal: _cancelGoal,
-        listGoals: _listGoals,
-        getGoal: _getGoal,
-      },
+    goalRepo,
+    events: input.events,
+    publicApi: {
+      createGoal: _createGoal,
+      updateGoal: _updateGoal,
+      cancelGoal: _cancelGoal,
+      listGoals: _listGoals,
+      getGoal: _getGoal,
     },
   }
 }

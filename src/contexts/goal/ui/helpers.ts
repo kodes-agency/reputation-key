@@ -81,16 +81,19 @@ export function sortGoalsByStatus(goals: Goal[]): Goal[] {
   })
 }
 
-// ── 5. filterGoalsForGroupView ─────────────────────────────────────────
+// ── 5. filterGoalsForPortalGroupView ──────────────────────────────────
 
 const VISIBLE_STATUSES: ReadonlySet<GoalStatus> = new Set(['active', 'completed'])
 
-export function filterGoalsForGroupView(goals: Goal[], groupIds: string[]): Goal[] {
-  const groupSet = new Set(groupIds)
+export function filterGoalsForPortalGroupView(
+  goals: Goal[],
+  portalGroupIds: string[],
+): Goal[] {
+  const groupSet = new Set(portalGroupIds)
 
   return goals.filter((g) => {
     if (!VISIBLE_STATUSES.has(g.status)) return false
-    return g.groupId != null && groupSet.has(g.groupId)
+    return g.portalGroupId != null && groupSet.has(g.portalGroupId)
   })
 }
 

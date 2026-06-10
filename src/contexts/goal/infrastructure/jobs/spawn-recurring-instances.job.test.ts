@@ -26,7 +26,7 @@ const makeTemplate = (overrides: Partial<Goal> & { id: Goal['id'] }): Goal => ({
   organizationId: ORG_ID,
   propertyId: PROP_ID,
   portalId: null,
-  groupId: null,
+  portalGroupId: null,
   name: 'Monthly scans',
   description: null,
   createdBy: USER_ID,
@@ -51,7 +51,7 @@ const makeInstance = (overrides: Partial<Goal> & { id: Goal['id'] }): Goal => ({
   organizationId: ORG_ID,
   propertyId: PROP_ID,
   portalId: null,
-  groupId: null,
+  portalGroupId: null,
   name: 'Monthly scans',
   description: null,
   createdBy: USER_ID,
@@ -91,7 +91,6 @@ function createFakeDeps(state: {
     list: async () => [],
     listInstances: async () => [],
     cancelByParent: async () => 0,
-    cancelGoalWithInstances: async () => null,
     insertProgress: async () => {
       throw new Error('not used')
     },
@@ -123,16 +122,12 @@ function createFakeDeps(state: {
       currentCount: null,
     }),
     markGoalCompleted: async () => {},
-    findAllActiveAcrossTenants: async () => state.templates,
+    findAllActive: async () => state.templates,
     findActiveRecurringTemplates: async () => state.templates,
     findLatestInstance: async (parentId) =>
       state.latestInstance.get(parentId as string) ?? null,
-    listByPortalAndGroupIds: async () => [],
     createGoalAndProgress: async (goal, progress) => {
       created.push({ goal, progress })
-    },
-    createTemplateInstanceAndProgress: async (_template, instance, progress) => {
-      created.push({ goal: instance, progress })
     },
   }
 

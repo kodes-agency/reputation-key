@@ -17,7 +17,7 @@ import {
 import { createdAtColumn, updatedAtColumn } from '../columns'
 import { properties } from './property.schema'
 import { portals } from './portal.schema'
-import { portalGroups } from './portal-group.schema'
+import { portalGroups } from './portal.schema'
 
 export const goals = pgTable(
   'goals',
@@ -28,7 +28,9 @@ export const goals = pgTable(
       .notNull()
       .references(() => properties.id, { onDelete: 'cascade' }),
     portalId: uuid('portal_id').references(() => portals.id, { onDelete: 'cascade' }),
-    groupId: uuid('group_id').references(() => portalGroups.id, { onDelete: 'cascade' }),
+    portalGroupId: uuid('portal_group_id').references(() => portalGroups.id, {
+      onDelete: 'set null',
+    }),
     name: varchar('name', { length: 200 }).notNull(),
     description: text('description'),
     createdBy: varchar('created_by', { length: 255 }).notNull(),
@@ -51,10 +53,7 @@ export const goals = pgTable(
     index('goals_org_property_idx').on(t.organizationId, t.propertyId),
     index('goals_org_status_idx').on(t.organizationId, t.status),
     index('goals_parent_idx').on(t.parentGoalId),
-    index('goals_group_idx').on(t.groupId),
-    // Prevents duplicate recurring instances — one per (template, periodStart).
-    // NULL parentGoalId rows (templates) won't conflict because PostgreSQL treats NULL ≠ NULL in unique indexes.
-    uniqueIndex('goals_recurring_instance_uniq').on(t.parentGoalId, t.periodStart),
+    index('goals_portal_group_idx').on(t.portalGroupId),
   ],
 )
 

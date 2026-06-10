@@ -1,30 +1,32 @@
 // Portal context — list portal groups use case
+// Per architecture: simple query use case — authorize, query, return.
+
 import type { PortalGroupRepository } from '../ports/portal-group.repository'
-import type { AuthContext } from '#/shared/domain/auth-context'
 import type { PortalGroup } from '../../domain/types'
-import type { ListPortalGroupsInput } from '../dto/portal-group.dto'
-export type { ListPortalGroupsInput }
+import type { AuthContext } from '#/shared/domain/auth-context'
 import { can } from '#/shared/domain/permissions'
 import { portalError } from '../../domain/errors'
-import { propertyId as toPropertyId } from '#/shared/domain/ids'
+import { propertyId } from '#/shared/domain/ids'
 
+// fallow-ignore-next-line unused-type
 export type ListPortalGroupsDeps = Readonly<{
-  groupRepo: PortalGroupRepository
+  portalGroupRepo: PortalGroupRepository
 }>
 
 export const listPortalGroups =
   (deps: ListPortalGroupsDeps) =>
   async (
-    input: ListPortalGroupsInput,
+    input: { propertyId: string },
     ctx: AuthContext,
   ): Promise<ReadonlyArray<PortalGroup>> => {
     if (!can(ctx.role, 'portal.read')) {
       throw portalError('forbidden', 'No portal read permission')
     }
-    return deps.groupRepo.listByProperty(
+    return deps.portalGroupRepo.listByProperty(
       ctx.organizationId,
-      toPropertyId(input.propertyId),
+      propertyId(input.propertyId),
     )
   }
 
+// fallow-ignore-next-line unused-type
 export type ListPortalGroups = ReturnType<typeof listPortalGroups>

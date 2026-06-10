@@ -2,7 +2,7 @@
 // Per architecture: factory function returning Readonly<{ method }>.
 // Wrapped in trace() for observability.
 
-import { and, eq, sql, or, desc, isNull, inArray, type SQL } from 'drizzle-orm'
+import { and, eq, sql, or, desc, isNull, inArray } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { goals, goalProgress } from '#/shared/db/schema/goal.schema'
 import type {
@@ -72,7 +72,8 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
       if (filter.propertyId)
         conditions.push(eq(goals.propertyId, filter.propertyId as string))
       if (filter.portalId) conditions.push(eq(goals.portalId, filter.portalId))
-      if (filter.groupId) conditions.push(eq(goals.groupId, filter.groupId))
+      if (filter.portalGroupId)
+        conditions.push(eq(goals.portalGroupId, filter.portalGroupId))
       if (filter.status) conditions.push(eq(goals.status, filter.status))
       if (filter.goalType) conditions.push(eq(goals.goalType, filter.goalType))
 
@@ -112,33 +113,6 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
         )
         .returning()
       return result.length
-    })
-  },
-
-  cancelGoalWithInstances: async (goalId, orgId, now) => {
-    return trace('goal.cancelGoalWithInstances', async () => {
-      return db.transaction(async (tx) => {
-        // 1. Cancel all non-completed child instances
-        await tx
-          .update(goals)
-          .set({ status: 'cancelled', updatedAt: now })
-          .where(
-            and(
-              eq(goals.parentGoalId, goalId),
-              eq(goals.organizationId, orgId),
-              sql`${goals.status} != 'completed'`,
-            ),
-          )
-
-        // 2. Cancel the parent goal
-        const result = await tx
-          .update(goals)
-          .set({ status: 'cancelled', updatedAt: now })
-          .where(and(eq(goals.id, goalId), eq(goals.organizationId, orgId)))
-          .returning()
-
-        return result[0] ? goalFromRow(result[0]) : null
-      })
     })
   },
 
@@ -202,9 +176,8 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
 
   // ── Event-driven increment ──────────────────────────────────────────
 
-  /** ⚠️ CROSS-TENANT: System-level query — scans ALL orgs. Only for background jobs (reconcile, spawner). */
-  findAllActiveAcrossTenants: async () => {
-    return trace('goal.findAllActiveAcrossTenants', async () => {
+  findAllActive: async () => {
+    return trace('goal.findAllActive', async () => {
       const rows = await db.select().from(goals).where(eq(goals.status, 'active'))
       return rows.map(goalFromRow)
     })
@@ -254,31 +227,12 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
     })
   },
 
-  createTemplateInstanceAndProgress: async (template, instance, progress) => {
-    return trace('goal.createTemplateInstanceAndProgress', async () => {
-      await db.transaction(async (tx) => {
-        await tx.insert(goals).values({
-          ...goalToInsertRow(template),
-          id: template.id as string,
-        })
-        await tx.insert(goals).values({
-          ...goalToInsertRow(instance),
-          id: instance.id as string,
-        })
-        await tx.insert(goalProgress).values({
-          ...goalProgressToInsertRow(progress),
-          id: progress.id as string,
-        })
-      })
-    })
-  },
-
   findActiveGoalsByMetric: async (
     metricKey,
     organizationId,
     propertyId,
     portalId,
-    groupId,
+    portalGroupId,
   ) => {
     return trace('goal.findActiveGoalsByMetric', async () => {
       const start = Date.now()
@@ -293,23 +247,22 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
         eq(goals.propertyId, propertyId),
       ]
 
-      // Match logic:
-      // - portal-scoped goals: match on portalId exactly
-      // - group-scoped goals: match on groupId exactly
-      // - property-scoped goals: both portalId and groupId IS NULL
-      // A reading with portalId=null,groupId=null matches only property-scoped goals.
-      // A reading with portalId matches portal-scoped + property-scoped goals.
-      // A reading with groupId matches group-scoped + property-scoped goals.
+      // Build scope-matching conditions:
+      // 1. Property-scoped goals (portalId IS NULL AND portalGroupId IS NULL) always match
+      // 2. Portal-scoped goals match when event has matching portalId
+      // 3. Portal-group-scoped goals match when event's portal belongs to the group
+      const scopeConditions: ReturnType<typeof or>[] = [
+        and(sql`${goals.portalId} IS NULL`, sql`${goals.portalGroupId} IS NULL`)!,
+      ]
+
       if (portalId) {
-        conditions.push(or(eq(goals.portalId, portalId), sql`${goals.portalId} IS NULL`)!)
-      } else {
-        conditions.push(sql`${goals.portalId} IS NULL`)
+        scopeConditions.push(eq(goals.portalId, portalId))
       }
-      if (groupId) {
-        conditions.push(or(eq(goals.groupId, groupId), sql`${goals.groupId} IS NULL`)!)
-      } else {
-        conditions.push(sql`${goals.groupId} IS NULL`)
+      if (portalGroupId) {
+        scopeConditions.push(eq(goals.portalGroupId, portalGroupId))
       }
+
+      conditions.push(or(...scopeConditions)!)
 
       const rows = await db
         .select()
@@ -323,12 +276,8 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
     })
   },
 
-  incrementProgress: async (goalId, organizationId, aggregation, delta) => {
+  incrementProgress: async (goalId, aggregation, delta) => {
     return trace('goal.incrementProgress', async () => {
-      // Atomic tenant isolation: subquery ensures the goal belongs to
-      // the caller's org at the moment the UPDATE executes (no TOCTOU gap).
-      const tenantGuard = sql`EXISTS (SELECT 1 FROM goals WHERE id = ${goalId} AND organization_id = ${organizationId})`
-
       if (aggregation === 'sum' || aggregation === 'count') {
         const incDelta = aggregation === 'count' ? 1 : delta
         const result = await db
@@ -336,16 +285,14 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
           .set({
             currentValue: sql`${goalProgress.currentValue} + ${incDelta}`,
           })
-          .where(and(eq(goalProgress.goalId, goalId), tenantGuard))
+          .where(eq(goalProgress.goalId, goalId))
           .returning({
             currentValue: goalProgress.currentValue,
             currentSum: goalProgress.currentSum,
             currentCount: goalProgress.currentCount,
           })
         if (!result[0]) {
-          throw new Error(
-            `incrementProgress: goal ${goalId} not found, tenant mismatch, or no progress row`,
-          )
+          throw new Error(`incrementProgress: no progress row for goal ${goalId}`)
         }
         return {
           currentValue: result[0].currentValue,
@@ -360,16 +307,14 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
           .set({
             currentValue: sql`GREATEST(${goalProgress.currentValue}, ${delta})`,
           })
-          .where(and(eq(goalProgress.goalId, goalId), tenantGuard))
+          .where(eq(goalProgress.goalId, goalId))
           .returning({
             currentValue: goalProgress.currentValue,
             currentSum: goalProgress.currentSum,
             currentCount: goalProgress.currentCount,
           })
         if (!result[0]) {
-          throw new Error(
-            `incrementProgress: goal ${goalId} not found, tenant mismatch, or no progress row`,
-          )
+          throw new Error(`incrementProgress: no progress row for goal ${goalId}`)
         }
         return {
           currentValue: result[0].currentValue,
@@ -386,16 +331,14 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
             currentCount: sql`COALESCE(${goalProgress.currentCount}, 0) + 1`,
             currentValue: sql`(COALESCE(${goalProgress.currentSum}, 0) + ${delta}) / (COALESCE(${goalProgress.currentCount}, 0) + 1)`,
           })
-          .where(and(eq(goalProgress.goalId, goalId), tenantGuard))
+          .where(eq(goalProgress.goalId, goalId))
           .returning({
             currentValue: goalProgress.currentValue,
             currentSum: goalProgress.currentSum,
             currentCount: goalProgress.currentCount,
           })
         if (!result[0]) {
-          throw new Error(
-            `incrementProgress: goal ${goalId} not found, tenant mismatch, or no progress row`,
-          )
+          throw new Error(`incrementProgress: no progress row for goal ${goalId}`)
         }
         return {
           currentValue: result[0].currentValue,
@@ -534,35 +477,6 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
   },
 
   // ── Batch lookups (N+1 elimination) ──────────────────────────────────
-
-  // ── Staff goal resolution ────────────────────────────────────────────
-
-  listByPortalAndGroupIds: async (input) => {
-    return trace('goal.listByPortalAndGroupIds', async () => {
-      const { organizationId, portalIds, groupIds } = input
-      if (portalIds.length === 0 && groupIds.length === 0) return []
-
-      const conditions = [eq(goals.organizationId, organizationId)]
-
-      const portalOrGroup: SQL[] = []
-      if (portalIds.length > 0)
-        portalOrGroup.push(inArray(goals.portalId, [...portalIds] as string[]))
-      if (groupIds.length > 0)
-        portalOrGroup.push(inArray(goals.groupId, [...groupIds] as string[]))
-
-      if (portalOrGroup.length === 1) {
-        conditions.push(portalOrGroup[0])
-      } else if (portalOrGroup.length > 1) {
-        conditions.push(or(...portalOrGroup)!)
-      }
-
-      const rows = await db
-        .select()
-        .from(goals)
-        .where(and(...conditions))
-      return rows.map(goalFromRow)
-    })
-  },
 
   listInstancesBatch: async (parentGoalIds, orgId) => {
     return trace('goal.listInstancesBatch', async () => {

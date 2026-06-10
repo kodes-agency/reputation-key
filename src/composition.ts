@@ -39,7 +39,6 @@ import { buildGuestContext } from '#/contexts/guest/build'
 import { buildReviewContext } from '#/contexts/review/build'
 import { buildInboxContext } from '#/contexts/inbox/build'
 import { buildMetricContext } from '#/contexts/metric/build'
-import { buildActivityContext } from '#/contexts/activity/build'
 import { buildDashboardContext } from '#/contexts/dashboard/build'
 import { createReviewStatsAdapter } from '#/contexts/dashboard/infrastructure/adapters/review-stats.adapter'
 import { createMetricStatsAdapter } from '#/contexts/dashboard/infrastructure/adapters/metric-stats.adapter'
@@ -158,7 +157,7 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     sendEmail: sendInvitationEmail,
     getOrganizationName: async (_ctx) => {
       const auth = getAuth()
-      const headers = await headersFromContext()
+      const headers = headersFromContext()
       const org = await auth.api.getFullOrganization({ headers })
       return org?.name ?? 'Unknown Organization'
     },
@@ -192,7 +191,8 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     db,
     events: eventBus,
     clock,
-    linkResolver: portal.internal.repos.linkResolver,
+    linkResolver: portal.linkResolver,
+    staffApi: staff.publicApi,
     portalApi: portal.publicApi,
     logger,
   })
@@ -220,9 +220,9 @@ export function createContainer(options?: { enableJobs?: boolean }) {
   // The GoogleReviewApiAdapter lives in integration/infrastructure but
   // implements review context's port. Composition root wires them.
   const googleReviewApi = createGoogleReviewApiAdapter({
-    connectionRepo: integration.internal.repos.connectionRepo,
-    encryption: integration.internal.repos.encryptionPort,
-    refreshToken: integration.internal.useCases.refreshGoogleToken,
+    connectionRepo: integration.connectionRepo,
+    encryption: integration.encryptionPort,
+    refreshToken: integration.refreshGoogleTokenUseCase,
   })
 
   const review = buildReviewContext({
@@ -240,21 +240,16 @@ export function createContainer(options?: { enableJobs?: boolean }) {
   // Adapters live in inbox/infrastructure/adapters/ — cross-context SQL is
   // encapsulated there, not in the composition root or inbox repository.
   const reviewLookup = createReviewLookupAdapter({
-    findReviewById: (id, orgId) => review.internal.repos.reviewRepo.findById(id, orgId),
-    findReviewsByIds: (ids, orgId) =>
-      review.internal.repos.reviewRepo.findByIds(ids, orgId),
+    findReviewById: (id, orgId) => review.reviewRepo.findById(id, orgId),
   })
 
   const feedbackLookup = createFeedbackLookupAdapter({
-    findFeedbackById: (id, orgId) =>
-      guest.internal.repos.guestRepo.findFeedbackById(id, orgId),
-    findRatingById: (id, orgId) =>
-      guest.internal.repos.guestRepo.findRatingById(id, orgId),
+    findFeedbackById: (id, orgId) => guest.guestRepo.findFeedbackById(id, orgId),
+    findRatingById: (id, orgId) => guest.guestRepo.findRatingById(id, orgId),
   })
 
   const inboxPropertyLookup = createPropertyLookupAdapter({
     getPropertyName: (orgId, pid) => property.publicApi.getPropertyName(orgId, pid),
-    getPropertyNames: (orgId, pids) => property.publicApi.getPropertyNames(orgId, pids),
   })
 
   const inbox = buildInboxContext({
@@ -275,20 +270,9 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     clock,
   })
 
-  // Activity context
-  const activity = buildActivityContext({
-    db,
-    events: eventBus,
-    staffPublicApi: staff.publicApi,
-    queue: infra.jobQueue,
-    clock,
-    logger,
-  })
-
   // Goal context needs a cancelGoalFn for event handlers.
   // Create the goal repo early so we can wire cancelGoal independently
   // (avoids circular ref with buildGoalContext's return value).
-  // F112: Reuse this same instance in buildGoalContext to avoid duplicate repos.
   const goalRepoEarly = _createGoalRepo(db)
   const goalCancelFn = _cancelGoalFn({ goalRepo: goalRepoEarly, clock })
 
@@ -300,7 +284,10 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     idGen: () => crypto.randomUUID(),
     cancelGoalFn: goalCancelFn,
     getLogger,
-    goalRepo: goalRepoEarly,
+    findGroupForPortal: async (orgId, pid) => {
+      const group = await portal.portalGroupPublicApi.findGroupForPortal(orgId, pid)
+      return group ? { portalGroupId: group.id } : null
+    },
   })
 
   // ── Dashboard context (facade ports per ADR-0007) ────────────────
@@ -314,7 +301,6 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     reviewStats,
     metricStats,
     portalMetrics,
-    staffPortalResolver: staff.publicApi.getAssignedPortals,
   })
 
   // ── Wire invitation acceptance hook ────────────────────────────
@@ -326,7 +312,7 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     const oid = toOrgId(organizationId)
     for (const pid of propertyIds) {
       try {
-        await staff.internal.useCases.createStaffAssignment(
+        await staff.useCases.createStaffAssignment(
           {
             userId: uid,
             propertyId: propertyId(pid),
@@ -342,33 +328,6 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     }
   })
 
-  // ── Assert no duplicate use-case keys ───────────────────────────
-  // Flat spreading risks silent name collision. This assertion catches it at startup.
-  const useCaseObjects = [
-    identity.internal.useCases,
-    property.internal.useCases,
-    staff.internal.useCases,
-    team.internal.useCases,
-    portal.internal.useCases,
-    guest.internal.useCases,
-    integration.internal.useCases,
-    inbox.internal.useCases,
-    goal.internal.useCases,
-  ] as const
-
-  const seen = new Set<string>()
-  for (const obj of useCaseObjects) {
-    for (const key of Object.keys(obj)) {
-      if (seen.has(key)) {
-        throw new Error(
-          `Duplicate use-case key "${key}" detected in composition root. ` +
-            `Rename the conflicting use case to avoid silent override.`,
-        )
-      }
-      seen.add(key)
-    }
-  }
-
   return {
     db,
     logger,
@@ -379,71 +338,55 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     jobQueue: infra.jobQueue,
     jobRegistry: infra.jobRegistry,
     useCases: {
-      ...identity.internal.useCases,
-      ...property.internal.useCases,
-      ...staff.internal.useCases,
-      ...team.internal.useCases,
-      ...portal.internal.useCases,
-      ...guest.internal.useCases,
-      ...integration.internal.useCases,
+      ...identity.useCases,
+      ...property.useCases,
+      ...staff.useCases,
+      ...team.useCases,
+      ...portal.useCases,
+      ...guest.useCases,
+      ...integration.useCases,
       handleGbpNotification: handleGbpNotification({
         propertyLookup,
-        reviewQueue: review.internal.repos.queue,
+        reviewQueue: review.queue,
         logger: getLogger(),
       }),
-      syncReviews: review.internal.useCases.syncReviews,
-      draftReply: review.internal.useCases.draftReply,
-      submitReply: review.internal.useCases.submitReply,
-      approveReply: review.internal.useCases.approveReply,
-      rejectReply: review.internal.useCases.rejectReply,
-      deleteReply: review.internal.useCases.deleteReply,
-      getReply: review.internal.useCases.getReply,
-      retryPublish: review.internal.useCases.retryPublish,
-      ...inbox.internal.useCases,
-      getDashboardData: dashboard.internal.useCases.getDashboardData,
-      getPortalAnalytics: dashboard.internal.useCases.getPortalAnalytics,
-      getStaffDashboardData: dashboard.internal.useCases.getStaffDashboardData,
-      ...goal.internal.useCases,
+      syncReviews: review.syncReviews,
+      draftReply: review.draftReply,
+      submitReply: review.submitReply,
+      approveReply: review.approveReply,
+      rejectReply: review.rejectReply,
+      deleteReply: review.deleteReply,
+      getReply: review.getReply,
+      retryPublish: review.retryPublish,
+      ...inbox.useCases,
+      getDashboardData: dashboard.getDashboardData,
+      getPortalAnalytics: dashboard.getPortalAnalytics,
+      ...goal.useCases,
     },
-    storage: portal.internal.repos.storage,
-    portalRepo: portal.internal.repos.portalRepo,
-    portalLinkRepo: portal.internal.repos.portalLinkRepo,
-    reviewRepo: review.internal.repos.reviewRepo,
-    replyRepo: review.internal.repos.replyRepo,
-    reviewQueue: review.internal.repos.queue,
-    replyQueue: review.internal.repos.replyQueue,
+    storage: portal.storage,
+    portalRepo: portal.portalRepo,
+    portalLinkRepo: portal.portalLinkRepo,
+    reviewRepo: review.reviewRepo,
+    replyRepo: review.replyRepo,
+    reviewQueue: review.queue,
+    replyQueue: review.replyQueue,
     googleReviewApi,
-    inboxRepo: inbox.internal.repos.inboxRepo,
-    inboxNoteRepo: inbox.internal.repos.inboxNoteRepo,
-    newCounter: inbox.internal.repos.newCounter,
-    goalRepo: goal.internal.repos.goalRepo,
-    activityRepo: activity.internal.repos.activityRepo,
-    activityPublicApi: activity.publicApi,
+    inboxRepo: inbox.inboxRepo,
+    inboxNoteRepo: inbox.inboxNoteRepo,
+    unreadCounter: inbox.unreadCounter,
+    goalRepo: goal.goalRepo,
     metricPublicApi: metricApi.publicApi,
-    staffPublicApi: staff.publicApi,
   } as const
 }
 
 export type Container = ReturnType<typeof createContainer>
 
 let _container: Container | undefined
-let _containerPromise: Promise<Container> | undefined
 
-/** Get or create the singleton container. Safe under concurrent calls. */
+/** Get or create the singleton container. */
 export function getContainer(): Container {
-  if (_container) return _container
-  if (!_containerPromise) {
-    _containerPromise = Promise.resolve(createContainer()).then((c) => {
-      _container = c
-      return c
-    })
+  if (!_container) {
+    _container = createContainer()
   }
-  // Synchronous path should only be hit after first resolution.
-  // For concurrent first calls, callers should await getContainerAsync().
-  if (_container) return _container
-  // Fallback: if called synchronously before promise resolves, create inline.
-  // This mirrors the original behaviour — only one container is created
-  // because the promise chain above is also running.
-  _container = createContainer()
   return _container
 }

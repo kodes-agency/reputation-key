@@ -38,7 +38,7 @@ function createFakeDeps(overrides?: { storedGoals?: Goal[] }) {
         organizationId: data.organizationId,
         propertyId: data.propertyId,
         portalId: data.portalId,
-        groupId: data.groupId,
+        portalGroupId: data.portalGroupId,
         name: data.name,
         description: data.description,
         createdBy: data.createdBy,
@@ -71,7 +71,6 @@ function createFakeDeps(overrides?: { storedGoals?: Goal[] }) {
     list: async () => [],
     listInstances: async () => [],
     cancelByParent: async () => 0,
-    cancelGoalWithInstances: async () => null,
     insertProgress: async (data) => ({
       id: goalProgressId('p-1'),
       goalId: data.goalId,
@@ -109,12 +108,10 @@ function createFakeDeps(overrides?: { storedGoals?: Goal[] }) {
       currentCount: null,
     }),
     markGoalCompleted: async () => {},
-    findAllActiveAcrossTenants: async () => [],
+    findAllActive: async () => [],
     findActiveRecurringTemplates: async () => [],
     findLatestInstance: async () => null,
-    listByPortalAndGroupIds: async () => [],
     createGoalAndProgress: async () => {},
-    createTemplateInstanceAndProgress: async () => {},
   }
 
   const deps: UpdateGoalDeps = {
@@ -130,7 +127,7 @@ const makeGoal = (overrides: Partial<Goal> = {}): Goal => ({
   organizationId: organizationId('org-1'),
   propertyId: propertyId('prop-1'),
   portalId: null,
-  groupId: null,
+  portalGroupId: null,
   name: 'Get 200 scans',
   description: null,
   createdBy: userId('user-1'),

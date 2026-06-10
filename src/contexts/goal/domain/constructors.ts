@@ -17,7 +17,7 @@ import {
 import { assertNever } from '#/shared/domain/assert'
 import type { Goal, GoalType, RecurrenceRule } from './types'
 import { deriveEntityScope } from './types'
-import { ok, err, type Result } from '#/shared/domain'
+import { ok, err, type Result } from 'neverthrow'
 
 // ── Error types ──────────────────────────────────────────────────────────
 
@@ -48,7 +48,7 @@ export type BuildGoalInput = Readonly<{
   organizationId: OrganizationId
   propertyId: PropertyId
   portalId: PortalId | null
-  groupId: PortalGroupId | null
+  portalGroupId: PortalGroupId | null
   name: string
   description: string | null
   createdBy: UserId
@@ -70,7 +70,7 @@ export function buildGoal(input: BuildGoalInput): Result<Goal, GoalConstructionE
   const scope = deriveEntityScope(input)
 
   // Exactly-one FK validation
-  const fkCount = [input.portalId, input.groupId].filter(Boolean).length
+  const fkCount = [input.portalId, input.portalGroupId].filter(Boolean).length
   if (fkCount > 1) {
     return err({ tag: 'ambiguous_scope' })
   }
@@ -166,7 +166,7 @@ export function buildGoal(input: BuildGoalInput): Result<Goal, GoalConstructionE
     organizationId: input.organizationId,
     propertyId: input.propertyId,
     portalId: input.portalId,
-    groupId: input.groupId,
+    portalGroupId: input.portalGroupId,
     name: input.name,
     description: input.description,
     createdBy: input.createdBy,

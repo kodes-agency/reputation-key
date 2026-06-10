@@ -9,7 +9,7 @@ import {
 } from '#/components/ui/select'
 import { aggregationLabel } from '#/contexts/goal/ui/helpers'
 import type { AggregationFunction, EntityScope } from '#/shared/domain/metric-keys'
-import type { PortalOption, TeamOption } from './goal-entity-types'
+import type { PortalOption } from './goal-entity-types'
 import { EntityPicker } from './goal-entity-picker'
 
 type MetricFieldsProps = Readonly<{
@@ -23,7 +23,7 @@ type MetricFieldsProps = Readonly<{
   availableMetrics: readonly string[]
   availableAggregations: readonly string[]
   portals: readonly PortalOption[]
-  teams: readonly TeamOption[]
+  portalGroups: readonly PortalOption[]
   propertyId: string
 }>
 
@@ -38,7 +38,7 @@ export function GoalMetricFields({
   availableMetrics,
   availableAggregations,
   portals,
-  teams,
+  portalGroups,
   propertyId,
 }: MetricFieldsProps) {
   return (
@@ -50,7 +50,7 @@ export function GoalMetricFields({
           setters={$}
           errors={errors}
           portals={portals}
-          teams={teams}
+          portalGroups={portalGroups}
           propertyId={propertyId}
         />
       )}

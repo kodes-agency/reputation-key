@@ -9,7 +9,7 @@ import {
   SelectValue,
 } from '#/components/ui/select'
 import type { EntityScope } from '#/shared/domain/metric-keys'
-import type { PortalOption, TeamOption } from './goal-entity-types'
+import type { PortalOption } from './goal-entity-types'
 
 export function EntityPicker({
   entityScope,
@@ -17,7 +17,7 @@ export function EntityPicker({
   setters,
   errors,
   portals,
-  teams,
+  portalGroups,
   propertyId,
 }: {
   entityScope: EntityScope
@@ -25,7 +25,7 @@ export function EntityPicker({
   setters: Record<string, (v: string) => void>
   errors: Record<string, string>
   portals: readonly PortalOption[]
-  teams: readonly TeamOption[]
+  portalGroups: readonly PortalOption[]
   propertyId: string
 }) {
   if (entityScope === 'portal') {
@@ -68,32 +68,24 @@ export function EntityPicker({
   }
 
   if (entityScope === 'portal_group') {
-    return teams.length === 0 ? (
+    return portalGroups.length === 0 ? (
       <Field>
-        <FieldLabel>Team</FieldLabel>
+        <FieldLabel>Portal Group</FieldLabel>
         <p className="text-sm text-muted-foreground">
-          No teams created yet. Create a team on the{' '}
-          <Link
-            to="/properties/$propertyId/people"
-            params={{ propertyId }}
-            className="text-sm font-medium text-primary underline-offset-4 hover:underline"
-          >
-            People
-          </Link>{' '}
-          page to set team-scoped goals.
+          No portal groups created yet. Create a portal group to set group-scoped goals.
         </p>
       </Field>
     ) : (
       <Field>
-        <FieldLabel>Team</FieldLabel>
+        <FieldLabel>Portal Group</FieldLabel>
         <Select value={entityId} onValueChange={(v) => setters.entityId(v)}>
           <SelectTrigger className="w-full">
-            <SelectValue placeholder="Select a team" />
+            <SelectValue placeholder="Select a portal group" />
           </SelectTrigger>
           <SelectContent>
-            {teams.map((t) => (
-              <SelectItem key={t.id} value={t.id}>
-                {t.name}
+            {portalGroups.map((g) => (
+              <SelectItem key={g.id} value={g.id}>
+                {g.name}
               </SelectItem>
             ))}
           </SelectContent>

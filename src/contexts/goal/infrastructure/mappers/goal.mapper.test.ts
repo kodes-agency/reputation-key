@@ -16,7 +16,7 @@ const sampleGoalRow: GoalRow = {
   organizationId: 'org-uuid-001',
   propertyId: 'prop-uuid-001',
   portalId: 'portal-uuid-001',
-  groupId: null,
+  portalGroupId: null,
   name: 'Get 50 reviews',
   description: 'Achieve 50 reviews this month',
   createdBy: 'user-uuid-001',
@@ -90,11 +90,11 @@ describe('goalFromRow', () => {
     const row: GoalRow = {
       ...sampleGoalRow,
       portalId: null,
-      groupId: null,
+      portalGroupId: null,
     }
     const goal = goalFromRow(row)
     expect(goal.portalId).toBeNull()
-    expect(goal.groupId).toBeNull()
+    expect(goal.portalGroupId).toBeNull()
   })
 
   it('brands parentGoalId when present', () => {
