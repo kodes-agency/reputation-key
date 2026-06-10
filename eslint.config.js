@@ -18,6 +18,8 @@ export default tseslint.config(
       '**/.agents/**',
       'src/routeTree.gen.ts',
       'scripts/**',
+      'deacon/**',
+      'reputation_key/**',
     ],
   },
 
@@ -176,7 +178,13 @@ export default tseslint.config(
               from: { type: 'application' },
               allow: {
                 to: {
-                  type: ['domain', 'shared-domain', 'shared-events', 'shared-other', 'application'],
+                  type: [
+                    'domain',
+                    'shared-domain',
+                    'shared-events',
+                    'shared-other',
+                    'application',
+                  ],
                 },
               },
             },
