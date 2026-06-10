@@ -16,6 +16,7 @@ export const portalGroups = pgTable(
       .notNull()
       .references(() => properties.id, { onDelete: 'cascade' }),
     name: varchar('name', { length: 100 }).notNull(),
+    sortKey: varchar('sort_key', { length: 255 }),
     createdAt: createdAtColumn(),
     updatedAt: updatedAtColumn(),
     deletedAt: deletedAtColumn(),

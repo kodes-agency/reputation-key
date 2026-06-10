@@ -54,6 +54,7 @@ export type PortalGroup = Readonly<{
   organizationId: OrganizationId
   propertyId: PropertyId
   name: string
+  sortKey: string | null
   createdAt: Date
   updatedAt: Date
   deletedAt: Date | null

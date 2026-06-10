@@ -147,6 +147,7 @@ describe('createPortalGroup', () => {
       organizationId: ctx.organizationId,
       propertyId: propertyId('a0000000-0000-0000-0000-000000000001'),
       name: 'My Group',
+      sortKey: null,
       createdAt: FIXED_TIME,
       updatedAt: FIXED_TIME,
       deletedAt: null,

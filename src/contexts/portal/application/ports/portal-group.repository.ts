@@ -31,7 +31,7 @@ export type PortalGroupRepository = Readonly<{
   update: (
     orgId: OrganizationId,
     id: PortalGroupId,
-    patch: Readonly<Partial<Pick<PortalGroup, 'name' | 'updatedAt'>>>,
+    patch: Readonly<Partial<Pick<PortalGroup, 'name' | 'sortKey' | 'updatedAt'>>>,
   ) => Promise<void>
   softDelete: (orgId: OrganizationId, id: PortalGroupId) => Promise<void>
   addPortal: (
