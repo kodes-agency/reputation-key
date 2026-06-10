@@ -341,6 +341,23 @@ describe('markEmailSent', () => {
       expect(result.value).toEqual(sent)
     }
   })
+
+  it('marks a failed email as sent (retry path)', () => {
+    const failed: NotificationEmail = {
+      ...baseEmail,
+      status: 'failed',
+      failedAt: FIXED_DATE,
+      retryCount: 2,
+    }
+
+    const result = markEmailSent(failed, clock)
+    expect(result.isOk()).toBe(true)
+    if (result.isOk()) {
+      expect(result.value.status).toBe('sent')
+      expect(result.value.sentAt).toBe(FIXED_DATE)
+      expect(result.value.retryCount).toBe(2) // preserved
+    }
+  })
 })
 
 // ── markEmailFailed ─────────────────────────────────────────────────

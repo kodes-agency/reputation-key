@@ -51,8 +51,11 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
         { notificationId: entry.notificationId },
         'Notification not found for urgent email',
       )
-      await emailRepo.markSkipped(emailId)
-      // State machine: only 'pending' → 'skipped'. See domain/constructors-transitions.ts markEmailSkipped.
+      if (entry.status === 'failed') {
+        await emailRepo.markFailed(emailId, new Date())
+      } else {
+        await emailRepo.markSkipped(emailId)
+      }
       return
     }
 
@@ -62,8 +65,11 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
     )
     if (!userEmail) {
       logger.warn({ userId: entry.userId }, 'User email not found, skipping urgent email')
-      await emailRepo.markSkipped(emailId)
-      // State machine: only 'pending' → 'skipped'. See domain/constructors-transitions.ts markEmailSkipped.
+      if (entry.status === 'failed') {
+        await emailRepo.markFailed(emailId, new Date())
+      } else {
+        await emailRepo.markSkipped(emailId)
+      }
       return
     }
 

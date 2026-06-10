@@ -64,10 +64,13 @@ export const buildNotificationContext = (input: BuildInput) => {
       if (!n) return
       const result = markNotificationRead(n, input.clock)
       if (result.isErr()) return // invalid transition, skip
-      await notificationRepo.markRead(id, orgId, input.clock(), input.clock())
+      const now = input.clock()
+      await notificationRepo.markRead(id, orgId, now, now)
     },
-    markAllRead: (userId: string, orgId: string) =>
-      notificationRepo.markAllRead(userId, orgId, input.clock()),
+    markAllRead: (userId: string, orgId: string) => {
+      const now = input.clock()
+      return notificationRepo.markAllRead(userId, orgId, now)
+    },
   } as const
 
   return {
