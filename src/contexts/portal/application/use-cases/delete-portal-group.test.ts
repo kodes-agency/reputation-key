@@ -23,6 +23,7 @@ function setup(notFound = false) {
               organizationId: ORG,
               propertyId: PROP,
               name: 'To Delete',
+              sortKey: null,
               createdAt: new Date(),
               updatedAt: new Date(),
               deletedAt: null,
