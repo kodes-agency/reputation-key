@@ -125,7 +125,7 @@ describe('createLink', () => {
       ctx,
     )
 
-    const emitted = events.capturedByTag('portal.portal_link.created')
+    const emitted = events.capturedByTag('portal_link.created')
     expect(emitted).toHaveLength(1)
     expect(emitted[0].linkId).toBe('10000000-0000-0000-0000-000000000001')
   })

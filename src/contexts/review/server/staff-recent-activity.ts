@@ -37,8 +37,8 @@ export const getStaffRecentActivity = createServerFn({ method: 'GET' })
           const container = getContainer()
           const propertyId = toPropertyId(data.propertyId)
 
-          // Verify the staff member has assignments for this property via staff public API
-          const assignedPortals = await container.staffPublicApi.getAssignedPortals(
+          // Verify the staff member has assignments for this property via staff use case
+          const assignedPortals = await container.useCases.getAssignedPortals(
             { userId: ctx.userId, propertyId },
             ctx,
           )

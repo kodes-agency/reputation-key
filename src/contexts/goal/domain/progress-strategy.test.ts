@@ -313,7 +313,6 @@ describe('buildProgressQuery', () => {
         propertyId: propertyId('prop-1'),
         portalId: null,
         portalGroupId: null,
-        staffId: null,
       })
     })
 
@@ -327,7 +326,6 @@ describe('buildProgressQuery', () => {
       const query = result._unsafeUnwrap()
       expect(query.scopeFilter.portalId).toEqual(portalId('portal-1'))
       expect(query.scopeFilter.portalGroupId).toBeNull()
-      expect(query.scopeFilter.staffId).toBeNull()
     })
 
     it('portal_group scope', () => {
@@ -341,7 +339,6 @@ describe('buildProgressQuery', () => {
       const query = result._unsafeUnwrap()
       expect(query.scopeFilter.portalGroupId).toEqual(portalGroupId('pg-1'))
       expect(query.scopeFilter.portalId).toBeNull()
-      expect(query.scopeFilter.staffId).toBeNull()
     })
   })
 
@@ -406,7 +403,6 @@ describe('buildProgressQuery', () => {
         propertyId: propertyId('prop-1'),
         portalId: portalId('p-1'),
         portalGroupId: portalGroupId('pg-1'),
-        staffId: null,
       })
     })
   })

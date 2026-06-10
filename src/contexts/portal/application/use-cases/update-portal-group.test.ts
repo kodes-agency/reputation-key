@@ -18,18 +18,24 @@ const existing = {
   name: 'Old Name',
   createdAt: new Date('2026-05-01T00:00:00Z'),
   updatedAt: new Date('2026-05-01T00:00:00Z'),
+  deletedAt: null,
 }
 
 function setup(notFound = false) {
   const events = createCapturingEventBus()
   const useCase = updatePortalGroup({
-    groupRepo: {
+    portalGroupRepo: {
       findById: async () => (notFound ? null : existing),
       listByProperty: async () => [],
-      findByNameDuplicate: async () => null,
-      insert: async (g) => g,
-      update: async (g) => g,
-      delete: async () => {},
+      nameExists: async () => false,
+      insert: async () => {},
+      update: async () => {},
+      softDelete: async () => {},
+      addPortal: async () => {},
+      removePortal: async () => false,
+      findPortalMembership: async () => null,
+      getGroupPortalIds: async () => [],
+      findGroupForPortal: async () => null,
     },
     events,
     clock: () => FIXED_TIME,
@@ -43,12 +49,12 @@ describe('updatePortalGroup (use case)', () => {
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
 
     const result = await useCase(
-      { groupId: 'group-0000-0000-4000-8000-000000000001', name: 'New Name' },
+      { portalGroupId: 'group-0000-0000-4000-8000-000000000001', name: 'New Name' },
       ctx,
     )
 
     expect(result.name).toBe('New Name')
-    expect(events.capturedByTag('portal.portal_group.updated')).toHaveLength(1)
+    expect(events.capturedByTag('portal_group.updated')).toHaveLength(1)
   })
 
   it('throws not_found for nonexistent group', async () => {
@@ -57,7 +63,7 @@ describe('updatePortalGroup (use case)', () => {
 
     try {
       await useCase(
-        { groupId: 'group-0000-0000-4000-8000-000000000001', name: 'New' },
+        { portalGroupId: 'group-0000-0000-4000-8000-000000000001', name: 'New' },
         ctx,
       )
       expect.fail('Expected not_found')
@@ -73,7 +79,7 @@ describe('updatePortalGroup (use case)', () => {
 
     try {
       await useCase(
-        { groupId: 'group-0000-0000-4000-8000-000000000001', name: 'New' },
+        { portalGroupId: 'group-0000-0000-4000-8000-000000000001', name: 'New' },
         ctx,
       )
       expect.fail('Expected forbidden')

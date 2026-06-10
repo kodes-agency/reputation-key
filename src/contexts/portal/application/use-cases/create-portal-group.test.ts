@@ -94,6 +94,7 @@ const setup = () => {
       propertyExists: async (_orgId: OrganizationId, pid: PropertyId) =>
         String(pid) === 'a0000000-0000-0000-0000-000000000001',
       getPropertyName: async () => null,
+      getPropertyNames: async () => [],
       findByGbpPlaceId: async () => null,
       findBySlug: async () => null,
       findIdsByGoogleConnection: async () => [],
@@ -123,7 +124,6 @@ describe('createPortalGroup', () => {
     )
 
     expect(group.name).toBe('My Group')
-    expect(group.sortKey).toBeNull()
     expect(portalGroupRepo.all()).toHaveLength(1)
   })
 
@@ -147,7 +147,6 @@ describe('createPortalGroup', () => {
       organizationId: ctx.organizationId,
       propertyId: propertyId('a0000000-0000-0000-0000-000000000001'),
       name: 'My Group',
-      sortKey: null,
       createdAt: FIXED_TIME,
       updatedAt: FIXED_TIME,
       deletedAt: null,

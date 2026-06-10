@@ -71,7 +71,6 @@ export const createPortalGroupRepository = (db: Database): PortalGroupRepository
     return trace('portalGroup.update', async () => {
       const setValues: Record<string, unknown> = {}
       if (patch.name !== undefined) setValues['name'] = patch.name
-      if (patch.sortKey !== undefined) setValues['sortKey'] = patch.sortKey
       if (patch.updatedAt !== undefined) setValues['updatedAt'] = patch.updatedAt
 
       await db

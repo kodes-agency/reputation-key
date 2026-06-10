@@ -3,9 +3,11 @@
 // Portal analytics never imports metric_readings table directly — this port is the boundary.
 
 import type { OrganizationId, PropertyId, PortalId } from '#/shared/domain/ids'
-import type { PortalRatingTrendPoint } from '../../domain/types'
 
-export type { PortalRatingTrendPoint }
+export type PortalRatingTrendPoint = Readonly<{
+  date: string // YYYY-MM-DD
+  avgRating: number
+}>
 
 export type PortalRatingBucket = Readonly<{
   stars: number

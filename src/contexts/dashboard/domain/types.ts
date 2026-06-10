@@ -122,3 +122,10 @@ export type PortalAnalyticsData = Readonly<{
   ratingDistribution: RatingDistribution
   ratingTrend: PortalRatingTrendPoint[]
 }>
+
+// ─── Staff Dashboard ───
+
+export type StaffDashboardData = Readonly<{
+  kpis: KPIs
+  hasAssignments: boolean
+}>

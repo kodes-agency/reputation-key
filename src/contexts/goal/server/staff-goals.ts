@@ -12,6 +12,7 @@ import { can } from '#/shared/domain/permissions'
 import { getContainer } from '#/composition'
 import { propertyId as toPropertyId } from '#/shared/domain/ids'
 import type { StaffGoalEntry } from '../application/public-api'
+import type { PortalId, PortalGroupId } from '#/shared/domain/ids'
 
 // ── Schema ──────────────────────────────────────────────────────────
 
@@ -48,8 +49,8 @@ export const listStaffGoals = createServerFn({ method: 'GET' })
 
           const propertyId = toPropertyId(data.propertyId)
 
-          // 1. Resolve assigned portals via staff public API
-          const portalIds = await container.staffPublicApi.getAssignedPortals(
+          // 1. Resolve assigned portals via staff use case
+          const portalIds = await container.useCases.getAssignedPortals(
             { userId: ctx.userId, propertyId },
             ctx,
           )
@@ -63,11 +64,20 @@ export const listStaffGoals = createServerFn({ method: 'GET' })
                 )
               : []
 
-          // 3. Query goals for portals and groups only (staff should not see property-scoped goals)
-          const goals = await container.goalRepo.listByPortalAndGroupIds({
+          // 3. Query goals for the org+property, then filter to staff-visible portals/groups
+          const allGoals = await container.goalRepo.list({
             organizationId: ctx.organizationId,
-            portalIds,
-            groupIds,
+            propertyId,
+          })
+
+          const portalIdSet = new Set<PortalId>(portalIds)
+          const groupIdSet = new Set<PortalGroupId>(groupIds)
+          const goals = allGoals.filter((g) => {
+            // Property-scoped goals are excluded — staff should not see them
+            if (g.portalId === null && g.portalGroupId === null) return false
+            if (g.portalId && portalIdSet.has(g.portalId)) return true
+            if (g.portalGroupId && groupIdSet.has(g.portalGroupId)) return true
+            return false
           })
 
           if (goals.length === 0) {

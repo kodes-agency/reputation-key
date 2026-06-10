@@ -43,7 +43,9 @@ export const listGoals = createServerFn({ method: 'GET' })
             organizationId: ctx.organizationId,
             propertyId: toPropertyId(data.propertyId),
             portalId: data.portalId ? toPortalId(data.portalId) : undefined,
-            groupId: data.groupId ? toPortalGroupId(data.groupId) : undefined,
+            portalGroupId: data.portalGroupId
+              ? toPortalGroupId(data.portalGroupId)
+              : undefined,
             status: data.status,
             goalType: data.goalType,
             role: ctx.role,

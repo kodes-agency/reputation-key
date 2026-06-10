@@ -4,6 +4,8 @@
 
 import { sql } from 'drizzle-orm'
 import { createdAtColumn, updatedAtColumn, deletedAtColumn } from '../columns'
+import { portalGroups } from './portal-group.schema'
+export { portalGroups } from './portal-group.schema'
 import {
   pgTable,
   uuid,
@@ -78,32 +80,8 @@ export const portalLinks = pgTable('portal_links', {
   updatedAt: updatedAtColumn(),
 })
 
-// ── portal_groups ─────────────────────────────────────────────────
-
-export const portalGroups = pgTable(
-  'portal_groups',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    organizationId: varchar('organization_id', { length: 255 }).notNull(),
-    propertyId: varchar('property_id', { length: 255 }).notNull(),
-    name: varchar('name', { length: 100 }).notNull(),
-    sortKey: varchar('sort_key', { length: 50 }),
-    createdAt: createdAtColumn(),
-    updatedAt: updatedAtColumn(),
-    deletedAt: deletedAtColumn(),
-  },
-  (t) => ({
-    orgPropertyNameUnique: uniqueIndex('portal_groups_org_property_name_unique')
-      .on(t.organizationId, t.propertyId, t.name)
-      .where(sql`deleted_at IS NULL`),
-    orgPropertyIdx: index('portal_groups_org_property_idx').on(
-      t.organizationId,
-      t.propertyId,
-    ),
-  }),
-)
-
 // ── portal_group_members ──────────────────────────────────────────
+// portalGroups table is defined in portal-group.schema.ts
 
 export const portalGroupMembers = pgTable(
   'portal_group_members',

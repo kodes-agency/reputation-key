@@ -33,10 +33,24 @@ vi.mock('#/composition', () => {
       ...overrides?.portalRepo,
     },
     goalRepo: {
-      listByPortalAndGroupIds: vi.fn(() =>
+      list: vi.fn(() =>
         Promise.resolve([
-          { id: 'goal-1', status: 'active', goalType: 'one_shot', createdAt: new Date() },
-          { id: 'goal-2', status: 'active', goalType: 'rolling', createdAt: new Date() },
+          {
+            id: 'goal-1',
+            status: 'active',
+            goalType: 'one_shot',
+            portalId: 'portal-1',
+            portalGroupId: null,
+            createdAt: new Date(),
+          },
+          {
+            id: 'goal-2',
+            status: 'active',
+            goalType: 'rolling',
+            portalId: null,
+            portalGroupId: 'group-1',
+            createdAt: new Date(),
+          },
         ]),
       ),
       getProgressBatch: vi.fn(() => {
@@ -166,16 +180,14 @@ describe('listStaffGoals — goal resolution', () => {
 
   it('queries goals by portal and group IDs', async () => {
     const container = getContainer()
-    const goals = await container.goalRepo.listByPortalAndGroupIds({
+    const goals = await container.goalRepo.list({
       organizationId: 'org-1' as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-      portalIds: ['portal-1', 'portal-2'] as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-      groupIds: ['group-1'] as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+      propertyId: 'prop-1' as any, // eslint-disable-line @typescript-eslint/no-explicit-any
     })
     expect(goals).toHaveLength(2)
-    expect(container.goalRepo.listByPortalAndGroupIds).toHaveBeenCalledWith({
+    expect(container.goalRepo.list).toHaveBeenCalledWith({
       organizationId: 'org-1',
-      portalIds: ['portal-1', 'portal-2'],
-      groupIds: ['group-1'],
+      propertyId: 'prop-1',
     })
   })
 
@@ -196,7 +208,7 @@ describe('listStaffGoals — goal resolution', () => {
   it('returns empty goals when no goals match portals/groups', async () => {
     const container = mkContainer({
       goalRepo: {
-        listByPortalAndGroupIds: vi.fn(() => Promise.resolve([])),
+        list: vi.fn(() => Promise.resolve([])),
         getProgressBatch: vi.fn(() => Promise.resolve(new Map())),
       },
       portalRepo: {
@@ -206,10 +218,9 @@ describe('listStaffGoals — goal resolution', () => {
     const mod = await import('#/composition')
     ;(mod as any).__setContainer(container) // eslint-disable-line @typescript-eslint/no-explicit-any
 
-    const goals = await container.goalRepo.listByPortalAndGroupIds({
+    const goals = await container.goalRepo.list({
       organizationId: 'org-1' as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-      portalIds: ['portal-1'] as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-      groupIds: [] as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+      propertyId: 'prop-1' as any, // eslint-disable-line @typescript-eslint/no-explicit-any
     })
     expect(goals).toHaveLength(0)
   })

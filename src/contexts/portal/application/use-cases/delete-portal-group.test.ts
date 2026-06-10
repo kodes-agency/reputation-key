@@ -14,7 +14,7 @@ const GROUP_ID = portalGroupId('group-0000-0000-4000-8000-000000000001')
 function setup(notFound = false) {
   const events = createCapturingEventBus()
   const useCase = deletePortalGroup({
-    groupRepo: {
+    portalGroupRepo: {
       findById: async () =>
         notFound
           ? null
@@ -25,12 +25,18 @@ function setup(notFound = false) {
               name: 'To Delete',
               createdAt: new Date(),
               updatedAt: new Date(),
+              deletedAt: null,
             },
       listByProperty: async () => [],
-      findByNameDuplicate: async () => null,
-      insert: async (g) => g,
-      update: async (g) => g,
-      delete: async () => {},
+      nameExists: async () => false,
+      insert: async () => {},
+      update: async () => {},
+      softDelete: async () => {},
+      addPortal: async () => {},
+      removePortal: async () => false,
+      findPortalMembership: async () => null,
+      getGroupPortalIds: async () => [],
+      findGroupForPortal: async () => null,
     },
     events,
     clock: () => FIXED_TIME,
@@ -45,7 +51,7 @@ describe('deletePortalGroup (use case)', () => {
 
     await useCase({ groupId: 'group-0000-0000-4000-8000-000000000001' }, ctx)
 
-    expect(events.capturedByTag('portal.portal_group.deleted')).toHaveLength(1)
+    expect(events.capturedByTag('portal_group.deleted')).toHaveLength(1)
   })
 
   it('throws not_found for nonexistent group', async () => {

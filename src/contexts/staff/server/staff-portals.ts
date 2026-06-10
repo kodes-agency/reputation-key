@@ -36,8 +36,8 @@ export const listStaffPortals = createServerFn({ method: 'GET' })
           const container = getContainer()
           const propertyId = toPropertyId(data.propertyId)
 
-          // 1. Resolve assigned portal IDs for this staff member via public API
-          const portalIds = await container.staffPublicApi.getAssignedPortals(
+          // 1. Resolve assigned portal IDs for this staff member via use case
+          const portalIds = await container.useCases.getAssignedPortals(
             { userId: ctx.userId, propertyId },
             ctx,
           )
