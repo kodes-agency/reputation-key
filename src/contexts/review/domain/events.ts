@@ -199,6 +199,29 @@ export const reviewReplyRejected = (
   }
 }
 
+export type ReviewReplyPublishFailed = Readonly<{
+  _tag: 'review.reply.publish_failed'
+  eventId: string
+  replyId: ReplyId
+  reviewId: ReviewId
+  propertyId: PropertyId
+  organizationId: OrganizationId
+  authorId: UserId
+  occurredAt: Date
+  correlationId: string | null
+}>
+export const reviewReplyPublishFailed = (
+  args: Omit<ReviewReplyPublishFailed, '_tag' | 'eventId' | 'correlationId'>,
+): ReviewReplyPublishFailed => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  return {
+    _tag: 'review.reply.publish_failed',
+    eventId: crypto.randomUUID(),
+    correlationId: null,
+    ...args,
+  }
+}
+
 export type ReviewEvent =
   | ReviewCreated
   | ReviewUpdated
@@ -207,3 +230,4 @@ export type ReviewEvent =
   | ReviewReplySubmitted
   | ReviewReplyApproved
   | ReviewReplyRejected
+  | ReviewReplyPublishFailed

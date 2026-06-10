@@ -1,0 +1,24 @@
+// Notification context — repository port for the email queue
+// Per architecture: type alias + Readonly<{…}>, no classes.
+
+import type { NotificationEmail, NotificationPriority } from '../../domain/types'
+import type { NotificationEmailId, OrganizationId } from '#/shared/domain/ids'
+
+export type NotificationEmailRepositoryPort = Readonly<{
+  /** Upsert on conflict (by notificationId). */
+  insert(email: NotificationEmail): Promise<NotificationEmail>
+
+  findPendingByOrg(
+    orgId: OrganizationId,
+    priority: NotificationPriority,
+  ): Promise<readonly NotificationEmail[]>
+
+  /** Fetch all pending urgent emails across all orgs (for global email worker). */
+  findPendingUrgent(): Promise<readonly NotificationEmail[]>
+
+  markSent(id: NotificationEmailId, sentAt: Date): Promise<void>
+
+  markFailed(id: NotificationEmailId, failedAt: Date): Promise<void>
+
+  markSkipped(id: NotificationEmailId): Promise<void>
+}>

@@ -121,6 +121,21 @@ export function activityLogId(id: string): ActivityLogId {
   return id as ActivityLogId
 }
 
+export type NotificationId = Brand<string, 'NotificationId'>
+export function notificationId(id: string): NotificationId {
+  return id as NotificationId
+}
+
+export type NotificationEmailId = Brand<string, 'NotificationEmailId'>
+export function notificationEmailId(id: string): NotificationEmailId {
+  return id as NotificationEmailId
+}
+
+export type NotificationPreferenceId = Brand<string, 'NotificationPreferenceId'>
+export function notificationPreferenceId(id: string): NotificationPreferenceId {
+  return id as NotificationPreferenceId
+}
+
 /** Safely strip brand from a branded ID type for use at infrastructure boundaries. */
 export function unbrand<T extends string>(branded: T): string {
   return String(branded)

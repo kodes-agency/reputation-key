@@ -1,0 +1,49 @@
+// Notification context — event handler registration (BullMQ-backed)
+// Per-tag handlers subscribe to domain events and enqueue BullMQ jobs.
+// Per architecture (ADR 0010): "Handlers map event → job payload, worker calls use case."
+
+import type { EventBus } from '#/shared/events/event-bus'
+import type { Queue } from 'bullmq'
+import type { UserLookupPort } from '../../application/ports/user-lookup.port'
+import { onReviewCreated } from './on-review-created'
+import { onInboxItemCreated } from './on-inbox-item-created'
+import { onInboxItemAssigned } from './on-inbox-item-assigned'
+import { onInboxItemEscalated } from './on-inbox-item-escalated'
+import { onInboxNoteAdded } from './on-inbox-note-added'
+import { onReplySubmitted } from './on-reply-submitted'
+import { onReplyApproved } from './on-reply-approved'
+import { onReplyRejected } from './on-reply-rejected'
+import { onReplyPublished } from './on-reply-published'
+import { onReplyPublishFailed } from './on-reply-publish-failed'
+import { onGoalCompleted } from './on-goal-completed'
+
+export type RegisterNotificationHandlersDeps = Readonly<{
+  events: EventBus
+  queue: Queue
+  userLookup: UserLookupPort
+}>
+
+export const registerNotificationHandlers = (
+  deps: RegisterNotificationHandlersDeps,
+): void => {
+  const { events, queue, userLookup } = deps
+
+  // Review events
+  events.on('review.created', onReviewCreated({ queue, userLookup }))
+
+  // Inbox events
+  events.on('inbox.inbox_item.created', onInboxItemCreated({ queue, userLookup }))
+  events.on('inbox.inbox_item.assigned', onInboxItemAssigned({ queue }))
+  events.on('inbox.inbox_item.escalated', onInboxItemEscalated({ queue, userLookup }))
+  events.on('inbox.inbox_note.added', onInboxNoteAdded({ queue, userLookup }))
+
+  // Reply lifecycle
+  events.on('review.reply.submitted', onReplySubmitted({ queue, userLookup }))
+  events.on('review.reply.approved', onReplyApproved({ queue }))
+  events.on('review.reply.rejected', onReplyRejected({ queue }))
+  events.on('review.reply.published', onReplyPublished({ queue }))
+  events.on('review.reply.publish_failed', onReplyPublishFailed({ queue }))
+
+  // Goal events
+  events.on('goal.completed', onGoalCompleted({ queue }))
+}

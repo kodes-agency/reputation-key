@@ -40,5 +40,8 @@ export default defineConfig({
     'goals',
     'goal_progress',
     'activity_log',
+    'notifications',
+    'notification_email_queue',
+    'notification_preferences',
   ],
 })
