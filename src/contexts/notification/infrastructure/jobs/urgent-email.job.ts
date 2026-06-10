@@ -33,10 +33,10 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
     // 1. Get the email queue entry by ID
     const entry = await emailRepo.findById(emailId)
 
-    if (!entry || entry.status !== 'pending') {
+    if (!entry || (entry.status !== 'pending' && entry.status !== 'failed')) {
       logger.warn(
         { notificationEmailId: emailId },
-        'Urgent email entry not found or not pending',
+        'Urgent email entry not found or not retryable',
       )
       return
     }
