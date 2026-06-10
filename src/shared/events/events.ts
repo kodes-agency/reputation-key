@@ -116,6 +116,8 @@ export type {
   ReviewExpired,
   // fallow-ignore-next-line unused-type
   ReviewReplyPublished,
+  // fallow-ignore-next-line unused-type
+  ReviewReplyPublishFailed,
 } from '#/contexts/review/domain/events'
 
 // Inbox context events

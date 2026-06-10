@@ -16,6 +16,7 @@ import {
   reviewReplySubmitted,
   reviewReplyApproved,
   reviewReplyRejected,
+  reviewReplyPublishFailed,
 } from '../../domain/events'
 
 // ── Shared ────────────────────────────────────────────────────────────
@@ -214,6 +215,7 @@ export const approveReply =
           propertyId: review.propertyId,
           organizationId: approved.organizationId,
           userId: input.userId,
+          authorId: approved.createdBy ?? ('' as UserId),
           occurredAt: now,
         }),
       )
@@ -272,6 +274,7 @@ export const rejectReply =
           propertyId: review.propertyId,
           organizationId: updated.organizationId,
           userId: input.userId,
+          authorId: updated.createdBy ?? ('' as UserId),
           reason: input.reason ?? null,
           occurredAt: now,
         }),
@@ -365,6 +368,7 @@ export const markReplyPublished =
         reviewId: reply.reviewId,
         propertyId: review.propertyId,
         organizationId: reply.organizationId,
+        authorId: published.createdBy ?? ('' as UserId),
         occurredAt: now,
       }),
     )
@@ -395,7 +399,31 @@ export const markReplyPublishFailed =
     }
 
     const now = deps.clock()
-    return deps.replyRepo.upsert({ ...reply, status: 'publish_failed' }, now)
+    const updated = await deps.replyRepo.upsert(
+      { ...reply, status: 'publish_failed' },
+      now,
+    )
+
+    // Emit event after status update — failure should not break the update
+    try {
+      const review = await deps.reviewRepo.findById(reply.reviewId, input.organizationId)
+      if (review) {
+        await deps.events.emit(
+          reviewReplyPublishFailed({
+            replyId: updated.id,
+            reviewId: updated.reviewId,
+            propertyId: review.propertyId,
+            organizationId: updated.organizationId,
+            authorId: updated.createdBy ?? ('' as UserId),
+            occurredAt: now,
+          }),
+        )
+      }
+    } catch {
+      // Swallow — status update succeeded; event emission failure is non-critical
+    }
+
+    return updated
   }
 
 // ── Retry publish ─────────────────────────────────────────────────────

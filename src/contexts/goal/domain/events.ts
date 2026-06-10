@@ -14,6 +14,8 @@ import type { GoalType, ComputedSource } from './types'
 // fallow-ignore-next-line unused-type
 export type GoalCompleted = Readonly<{
   _tag: 'goal.completed'
+  eventId: string
+  correlationId: string | null
   goalId: GoalId
   organizationId: OrganizationId
   propertyId: PropertyId

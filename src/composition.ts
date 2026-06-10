@@ -41,6 +41,7 @@ import { buildInboxContext } from '#/contexts/inbox/build'
 import { buildMetricContext } from '#/contexts/metric/build'
 import { buildDashboardContext } from '#/contexts/dashboard/build'
 import { buildActivityContext } from '#/contexts/activity/build'
+import { buildNotificationContext } from '#/contexts/notification/build'
 import { createReviewStatsAdapter } from '#/contexts/dashboard/infrastructure/adapters/review-stats.adapter'
 import { createMetricStatsAdapter } from '#/contexts/dashboard/infrastructure/adapters/metric-stats.adapter'
 import { createPortalMetricsAdapter } from '#/contexts/dashboard/infrastructure/adapters/portal-metrics.adapter'
@@ -324,6 +325,15 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     logger,
   })
 
+  // ── Notification context ────────────────────────────────────────
+  const notification = buildNotificationContext({
+    db,
+    events: eventBus,
+    queue: infra.jobQueue,
+    clock,
+    logger,
+  })
+
   // ── Wire invitation acceptance hook ────────────────────────────
   // The hook creates staff assignments when a member accepts an invite.
   // This is the only cross-context dependency: identity acceptance
@@ -400,6 +410,10 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     metricPublicApi: metricApi.publicApi,
     activityPublicApi: activity.publicApi,
     activityRepo: activity.internal.repos.activityRepo,
+    notificationPublicApi: notification.publicApi,
+    notificationRepo: notification.internal.repos.notificationRepo,
+    notificationEmailRepo: notification.internal.repos.emailRepo,
+    notificationPrefRepo: notification.internal.repos.prefRepo,
   } as const
 }
 

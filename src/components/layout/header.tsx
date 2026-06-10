@@ -9,6 +9,7 @@ import {
   DropdownMenuSeparator,
 } from '#/components/ui/dropdown-menu'
 import { ThemeToggle } from '#/components/layout/theme-toggle'
+import { NotificationPanel } from '#/components/features/notification/notification-panel'
 
 // ── Sub-components ───────────────────────────────────────────────────
 
@@ -99,6 +100,7 @@ export function Header({ onSignOut }: Readonly<{ onSignOut: () => void }>) {
           )}
         </div>
         <div className="flex items-center gap-2">
+          {isLoggedIn && <NotificationPanel />}
           <ThemeToggle />
           <AuthActions isLoggedIn={isLoggedIn} onSignOut={onSignOut} />
         </div>
