@@ -5,7 +5,7 @@ import {
   progressBarWidth,
   progressBarColor,
   sortGoalsByStatus,
-  filterGoalsForStaffView,
+  filterGoalsForPortalGroupView,
   getMetricKeysForScope,
   getDefaultAggregationForKey,
   getValidAggregationsForKey,
@@ -20,8 +20,7 @@ function makeGoal(overrides: Partial<Goal> & { id: Goal['id'] }): Goal {
     organizationId: 'org1' as Goal['organizationId'],
     propertyId: 'prop1' as Goal['propertyId'],
     portalId: null,
-    teamId: null,
-    staffId: null,
+    portalGroupId: null,
     name: 'Test Goal',
     description: null,
     createdBy: 'user1' as Goal['createdBy'],
@@ -106,7 +105,6 @@ describe('progressBarWidth', () => {
   })
 
   it('handles fractional percentages with floor', () => {
-    // 33/100 = 33%
     expect(progressBarWidth(33, 100)).toBe(33)
   })
 })
@@ -165,7 +163,7 @@ describe('sortGoalsByStatus', () => {
     })
 
     const result = sortGoalsByStatus([cancelled, active, expired, completed])
-    expect(result.map((g) => g.status)).toEqual([
+    expect(result.map((g: Goal) => g.status)).toEqual([
       'active',
       'completed',
       'expired',
@@ -191,7 +189,7 @@ describe('sortGoalsByStatus', () => {
     })
 
     const result = sortGoalsByStatus([a1, a2, a3])
-    expect(result.map((g) => g.id)).toEqual(['g2', 'g3', 'g1'])
+    expect(result.map((g: Goal) => g.id)).toEqual(['g2', 'g3', 'g1'])
   })
 
   it('returns empty array for empty input', () => {
@@ -210,86 +208,64 @@ describe('sortGoalsByStatus', () => {
       createdAt: new Date('2026-06-01'),
     })
     const result = sortGoalsByStatus([g1, g2])
-    expect(result.map((g) => g.id)).toEqual(['g2', 'g1'])
+    expect(result.map((g: Goal) => g.id)).toEqual(['g2', 'g1'])
   })
 })
 
-// ── 5. filterGoalsForStaffView ─────────────────────────────────────────
+// ── 5. filterGoalsForPortalGroupView ──────────────────────────────────
 
-describe('filterGoalsForStaffView', () => {
-  const staffGoal = makeGoal({
+describe('filterGoalsForPortalGroupView', () => {
+  const groupGoal = makeGoal({
     id: 'g1' as Goal['id'],
-    staffId: 'staff-A' as Goal['staffId'],
-    teamId: null,
+    portalGroupId: 'pg-A' as Goal['portalGroupId'],
     status: 'active',
   })
-  const teamGoal = makeGoal({
-    id: 'g2' as Goal['id'],
-    staffId: null,
-    teamId: 'team-X' as Goal['teamId'],
-    status: 'completed',
-  })
   const otherGoal = makeGoal({
+    id: 'g2' as Goal['id'],
+    portalGroupId: 'pg-B' as Goal['portalGroupId'],
+    status: 'active',
+  })
+  const propertyGoal = makeGoal({
     id: 'g3' as Goal['id'],
-    staffId: 'staff-B' as Goal['staffId'],
-    teamId: 'team-Y' as Goal['teamId'],
+    portalGroupId: null,
     status: 'active',
   })
   const expiredGoal = makeGoal({
     id: 'g4' as Goal['id'],
-    staffId: 'staff-A' as Goal['staffId'],
+    portalGroupId: 'pg-A' as Goal['portalGroupId'],
     status: 'expired',
   })
-  const cancelledGoal = makeGoal({
-    id: 'g5' as Goal['id'],
-    teamId: 'team-X' as Goal['teamId'],
-    status: 'cancelled',
+
+  it('returns goals matching portalGroupIds', () => {
+    const result = filterGoalsForPortalGroupView([groupGoal, otherGoal, propertyGoal], ['pg-A'])
+    expect(result.map((g: Goal) => g.id)).toEqual(['g1'])
   })
 
-  it('returns goals matching staffIds', () => {
-    const result = filterGoalsForStaffView(
-      [staffGoal, teamGoal, otherGoal],
-      ['staff-A'],
-      [],
+  it('returns goals matching any of multiple groupIds', () => {
+    const result = filterGoalsForPortalGroupView(
+      [groupGoal, otherGoal],
+      ['pg-A', 'pg-B'],
     )
-    expect(result.map((g) => g.id)).toEqual(['g1'])
+    expect(result.map((g: Goal) => g.id)).toEqual(['g1', 'g2'])
   })
 
-  it('returns goals matching teamIds', () => {
-    const result = filterGoalsForStaffView(
-      [staffGoal, teamGoal, otherGoal],
-      [],
-      ['team-X'],
-    )
-    expect(result.map((g) => g.id)).toEqual(['g2'])
-  })
-
-  it('returns goals matching either staffIds OR teamIds', () => {
-    const result = filterGoalsForStaffView(
-      [staffGoal, teamGoal, otherGoal],
-      ['staff-A'],
-      ['team-X'],
-    )
-    expect(result.map((g) => g.id)).toEqual(['g1', 'g2'])
-  })
-
-  it('excludes expired goals even if staffId matches', () => {
-    const result = filterGoalsForStaffView([expiredGoal], ['staff-A'], [])
+  it('excludes expired goals even if groupId matches', () => {
+    const result = filterGoalsForPortalGroupView([expiredGoal], ['pg-A'])
     expect(result).toEqual([])
   })
 
-  it('excludes cancelled goals even if teamId matches', () => {
-    const result = filterGoalsForStaffView([cancelledGoal], [], ['team-X'])
+  it('excludes goals with null portalGroupId', () => {
+    const result = filterGoalsForPortalGroupView([propertyGoal], ['pg-A'])
     expect(result).toEqual([])
   })
 
-  it('returns empty for no matching staff or team', () => {
-    const result = filterGoalsForStaffView([staffGoal], ['staff-Z'], ['team-Z'])
+  it('returns empty for no matching group', () => {
+    const result = filterGoalsForPortalGroupView([groupGoal], ['pg-Z'])
     expect(result).toEqual([])
   })
 
   it('returns empty for empty goals array', () => {
-    expect(filterGoalsForStaffView([], ['staff-A'], ['team-X'])).toEqual([])
+    expect(filterGoalsForPortalGroupView([], ['pg-A'])).toEqual([])
   })
 })
 
@@ -307,14 +283,14 @@ describe('getMetricKeysForScope', () => {
     ])
   })
 
-  it('returns portal-only keys for team scope', () => {
-    const keys = getMetricKeysForScope('team')
+  it('returns portal keys for portal_group scope', () => {
+    const keys = getMetricKeysForScope('portal_group')
     expect(keys).not.toContain('property.review')
     expect(keys).toContain('portal.scan')
   })
 
-  it('returns portal-only keys for staff scope', () => {
-    const keys = getMetricKeysForScope('staff')
+  it('returns portal keys for portal scope', () => {
+    const keys = getMetricKeysForScope('portal')
     expect(keys).not.toContain('property.review')
     expect(keys.length).toBe(4)
   })
@@ -361,7 +337,6 @@ describe('daysRemaining', () => {
   })
 
   it('returns positive days for future date', () => {
-    // 2026-06-01 is 10 days after 2026-05-22
     expect(daysRemaining(new Date('2026-06-01T00:00:00Z'))).toBe(10)
   })
 
@@ -370,12 +345,10 @@ describe('daysRemaining', () => {
   })
 
   it('returns negative days for past date', () => {
-    // 2026-05-20 is 2 days before 2026-05-22
     expect(daysRemaining(new Date('2026-05-20T00:00:00Z'))).toBe(-2)
   })
 
   it('uses ceiling for fractional days', () => {
-    // 2.5 days from now → ceil = 3
     const future = new Date('2026-05-25T00:00:00Z')
     expect(daysRemaining(future)).toBe(3)
   })

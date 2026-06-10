@@ -4,8 +4,7 @@ import {
   organizationId,
   propertyId,
   portalId,
-  teamId,
-  staffId,
+  portalGroupId,
   goalId,
   userId,
 } from '#/shared/domain/ids'
@@ -16,8 +15,7 @@ const BASE = {
   organizationId: organizationId('org-1'),
   propertyId: propertyId('prop-1'),
   portalId: null as ReturnType<typeof portalId> | null,
-  teamId: null as ReturnType<typeof teamId> | null,
-  staffId: null as ReturnType<typeof staffId> | null,
+  portalGroupId: null as ReturnType<typeof portalGroupId> | null,
   name: 'Get 200 scans',
   description: null as string | null,
   createdBy: userId('user-1'),
@@ -56,20 +54,11 @@ describe('buildGoal', () => {
       expect(result.isOk()).toBe(true)
     })
 
-    it('creates an open goal at team scope', () => {
+    it('creates an open goal at portal group scope', () => {
       const result = buildGoal({
         ...BASE,
         goalType: 'open',
-        teamId: teamId('team-1'),
-      })
-      expect(result.isOk()).toBe(true)
-    })
-
-    it('creates an open goal at staff scope', () => {
-      const result = buildGoal({
-        ...BASE,
-        goalType: 'open',
-        staffId: staffId('staff-1'),
+        portalGroupId: portalGroupId('pg-1'),
       })
       expect(result.isOk()).toBe(true)
     })
@@ -311,7 +300,6 @@ describe('buildGoal', () => {
   // ── Exhaustive goalType coverage ─────────────────────────────────────
   describe('exhaustive goalType switch', () => {
     const goalTypes: GoalType[] = ['open', 'one_shot', 'rolling', 'recurring']
-
     it('handles all four goal types without throwing', () => {
       for (const goalType of goalTypes) {
         const input: Parameters<typeof buildGoal>[0] = {
@@ -338,33 +326,22 @@ describe('buildGoal', () => {
 
   // ── Scope → metric key validation ───────────────────────────────────
   describe('scope constraints', () => {
-    it('rejects staff scope with property.review metric', () => {
+    it('rejects portal_group scope with property.review metric', () => {
       const result = buildGoal({
         ...BASE,
         goalType: 'open',
-        staffId: staffId('staff-1'),
+        portalGroupId: portalGroupId('pg-1'),
         metricKey: 'property.review',
       })
       expect(result.isErr()).toBe(true)
       expect(result._unsafeUnwrapErr().tag).toBe('invalid_metric_for_scope')
     })
 
-    it('rejects team scope with property.review metric', () => {
+    it('allows portal_group scope with portal.scan metric', () => {
       const result = buildGoal({
         ...BASE,
         goalType: 'open',
-        teamId: teamId('team-1'),
-        metricKey: 'property.review',
-      })
-      expect(result.isErr()).toBe(true)
-      expect(result._unsafeUnwrapErr().tag).toBe('invalid_metric_for_scope')
-    })
-
-    it('allows staff scope with portal.scan metric', () => {
-      const result = buildGoal({
-        ...BASE,
-        goalType: 'open',
-        staffId: staffId('staff-1'),
+        portalGroupId: portalGroupId('pg-1'),
         metricKey: 'portal.scan',
       })
       expect(result.isOk()).toBe(true)
@@ -375,7 +352,7 @@ describe('buildGoal', () => {
         ...BASE,
         goalType: 'open',
         portalId: portalId('portal-1'),
-        teamId: teamId('team-1'),
+        portalGroupId: portalGroupId('pg-1'),
       })
       expect(result.isErr()).toBe(true)
       expect(result._unsafeUnwrapErr().tag).toBe('ambiguous_scope')

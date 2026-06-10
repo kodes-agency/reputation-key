@@ -42,17 +42,8 @@ describe('metric-keys', () => {
       ])
     })
 
-    it('team scope allows only portal.* keys (carry staffId)', () => {
-      expect(VALID_SCOPE_METRIC_KEYS.team).toEqual([
-        'portal.scan',
-        'portal.rating',
-        'portal.feedback',
-        'portal.review_link_click',
-      ])
-    })
-
-    it('staff scope allows only portal.* keys (carry staffId)', () => {
-      expect(VALID_SCOPE_METRIC_KEYS.staff).toEqual([
+    it('portal_group scope allows only portal.* keys', () => {
+      expect(VALID_SCOPE_METRIC_KEYS.portal_group).toEqual([
         'portal.scan',
         'portal.rating',
         'portal.feedback',
@@ -65,7 +56,7 @@ describe('metric-keys', () => {
     })
 
     it('isValidMetricKeyForScope returns false for invalid pair', () => {
-      expect(isValidMetricKeyForScope('staff', 'property.review')).toBe(false)
+      expect(isValidMetricKeyForScope('portal_group', 'property.review')).toBe(false)
     })
   })
 

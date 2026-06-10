@@ -140,3 +140,17 @@ export const validateCategoryTitle = (title: string): Result<string, PortalError
   }
   return ok(trimmed)
 }
+
+// ── Group name validation ──────────────────────────────────────────
+
+/** Validate a portal group name. */
+export const validateGroupName = (name: string): Result<string, PortalError> => {
+  const trimmed = name.trim()
+  if (trimmed.length < 1) {
+    return err(portalError('invalid_name', 'Group name is required'))
+  }
+  if (trimmed.length > 100) {
+    return err(portalError('invalid_name', 'Group name must be at most 100 characters'))
+  }
+  return ok(trimmed)
+}

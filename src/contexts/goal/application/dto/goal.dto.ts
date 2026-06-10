@@ -26,8 +26,7 @@ const metricKeyValues = [...METRIC_KEYS] as [MetricKey, ...MetricKey[]]
 export const createGoalSchema = z.object({
   propertyId: z.string().min(1, 'Property ID is required'),
   portalId: z.string().min(1).optional(),
-  teamId: z.string().min(1).optional(),
-  staffId: z.string().min(1).optional(),
+  portalGroupId: z.string().min(1).optional(),
   name: z
     .string()
     .min(1, 'Goal name is required')
@@ -94,8 +93,7 @@ export type CancelGoalInput = z.infer<typeof cancelGoalSchema>
 export const listGoalsSchema = z.object({
   propertyId: z.string().min(1, 'Property ID is required'),
   portalId: z.string().min(1).optional(),
-  teamId: z.string().min(1).optional(),
-  staffId: z.string().min(1).optional(),
+  portalGroupId: z.string().min(1).optional(),
   status: goalStatusSchema.optional(),
   goalType: goalTypeSchema.optional(),
 })

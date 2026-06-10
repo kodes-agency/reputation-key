@@ -19,6 +19,7 @@ export type PortalLinkCategoryId = Brand<string, 'PortalLinkCategoryId'>
 export type PortalLinkId = Brand<string, 'PortalLinkId'>
 export type InboxItemId = Brand<string, 'InboxItemId'>
 export type InboxNoteId = Brand<string, 'InboxNoteId'>
+export type PortalGroupId = Brand<string, 'PortalGroupId'>
 export type GoalId = Brand<string, 'GoalId'>
 export type GoalProgressId = Brand<string, 'GoalProgressId'>
 
@@ -110,6 +111,9 @@ export function goalId(id: string): GoalId {
 }
 export function goalProgressId(id: string): GoalProgressId {
   return id as GoalProgressId
+}
+export function portalGroupId(id: string): PortalGroupId {
+  return id as PortalGroupId
 }
 
 /** Safely strip brand from a branded ID type for use at infrastructure boundaries. */

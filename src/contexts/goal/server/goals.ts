@@ -21,8 +21,7 @@ import type { GoalErrorCode } from '../domain/errors'
 import {
   propertyId as toPropertyId,
   portalId as toPortalId,
-  teamId as toTeamId,
-  staffId as toStaffId,
+  portalGroupId as toPortalGroupId,
   goalId as toGoalId,
 } from '#/shared/domain/ids'
 import type { MetricKey, AggregationFunction } from '#/shared/domain/metric-keys'
@@ -70,8 +69,7 @@ export const createGoal = createServerFn({ method: 'POST' })
             organizationId: ctx.organizationId,
             propertyId: toPropertyId(data.propertyId),
             portalId: data.portalId ? toPortalId(data.portalId) : null,
-            teamId: data.teamId ? toTeamId(data.teamId) : null,
-            staffId: data.staffId ? toStaffId(data.staffId) : null,
+            portalGroupId: data.portalGroupId ? toPortalGroupId(data.portalGroupId) : null,
             name: data.name,
             description: data.description ?? null,
             createdBy: ctx.userId,
@@ -305,8 +303,7 @@ export const listGoals = createServerFn({ method: 'GET' })
             organizationId: ctx.organizationId,
             propertyId: toPropertyId(data.propertyId),
             portalId: data.portalId ? toPortalId(data.portalId) : undefined,
-            teamId: data.teamId ? toTeamId(data.teamId) : undefined,
-            staffId: data.staffId ? toStaffId(data.staffId) : undefined,
+            portalGroupId: data.portalGroupId ? toPortalGroupId(data.portalGroupId) : undefined,
             status: data.status,
             goalType: data.goalType,
             role: ctx.role,

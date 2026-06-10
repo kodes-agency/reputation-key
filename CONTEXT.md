@@ -27,7 +27,7 @@ Composition root: `src/composition.ts`. Bootstrap: `src/bootstrap.ts`.
 | --- | ----------- | --------------------------------------------------------------------------------------- | -------------------------------------- |
 |     | Identity    | Users, organizations, members, invitations                                              | User, Organization, Member, Invitation |
 |     | Property    | Properties (hotels/restaurants) owned by organizations                                  | Property                               |
-|     | Portal      | Guest-facing portal pages with links, per property                                      | Portal, Link, LinkCategory             |
+|     | Portal      | Guest-facing portal pages with links and portal groups, per property                    | Portal, Link, LinkCategory, PortalGroup |
 |     | Guest       | Public portal rendering, rating collection, feedback                                    | Rating, Feedback                       |
 |     | Team        | Staff teams and shift management                                                        | Team                                   |
 |     | Staff       | Staff assignments to properties                                                         | StaffAssignment                        |
@@ -67,6 +67,13 @@ Composition root: `src/composition.ts`. Bootstrap: `src/bootstrap.ts`.
 | ----------------------- | ------------------------------------------------------------------------------------------------------------ |
 | **Property Assignment** | A `staff_assignment` record linking a user to a property. PropertyManagers only manage assigned properties.  |
 | **Org-wide role**       | A member's role applies across the entire organization, but property-level actions are scoped by assignment. |
+
+### Portal Groups
+
+| Term                | Definition                                                                                                                                                        |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Portal Group**    | A named collection of portals within a property. Used for goal scoping and leaderboard ranking. One portal belongs to at most one group. Lives in the portal context. |
+| **Ungrouped Portal** | A portal not assigned to any portal group. Still individually targetable by goals and rankable on leaderboards.                                                  |
 
 ### Reviews & Feedback
 

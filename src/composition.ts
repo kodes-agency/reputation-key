@@ -284,6 +284,10 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     idGen: () => crypto.randomUUID(),
     cancelGoalFn: goalCancelFn,
     getLogger,
+    findGroupForPortal: async (orgId, pid) => {
+      const group = await portal.portalGroupPublicApi.findGroupForPortal(orgId, pid)
+      return group ? { portalGroupId: group.id } : null
+    },
   })
 
   // ── Dashboard context (facade ports per ADR-0007) ────────────────

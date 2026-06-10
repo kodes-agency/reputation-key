@@ -7,11 +7,12 @@ import { Result } from 'neverthrow'
 import type {
   Portal,
   PortalId,
+  PortalGroup,
   PortalLinkCategory,
   PortalLink,
   PortalTheme,
 } from './types'
-import type { PortalLinkCategoryId, PortalLinkId } from '#/shared/domain/ids'
+import type { PortalGroupId, PortalLinkCategoryId, PortalLinkId } from '#/shared/domain/ids'
 import type { PortalError } from './errors'
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import { propertyId, teamId, userId } from '#/shared/domain/ids'
@@ -25,6 +26,7 @@ import {
   validateUrl,
   validateLinkLabel,
   validateCategoryTitle,
+  validateGroupName,
 } from './rules'
 
 // ── Portal constructor ─────────────────────────────────────────────
@@ -74,6 +76,36 @@ export const buildPortal = (input: BuildPortalInput): Result<Portal, PortalError
       smartRoutingEnabled: input.smartRoutingEnabled ?? false,
       smartRoutingThreshold: validThreshold,
       isActive: true,
+      createdAt: input.now,
+      updatedAt: input.now,
+      deletedAt: null,
+    }),
+  )
+}
+
+// ── PortalGroup constructor ────────────────────────────────────────
+
+// fallow-ignore-next-line unused-type
+export type BuildPortalGroupInput = Readonly<{
+  id: PortalGroupId
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  name: string
+  sortKey?: string
+  now: Date
+}>
+
+export const buildPortalGroup = (
+  input: BuildPortalGroupInput,
+): Result<PortalGroup, PortalError> => {
+  const nameResult = validateGroupName(input.name)
+  return nameResult.map(
+    (validName): PortalGroup => ({
+      id: input.id,
+      organizationId: input.organizationId,
+      propertyId: input.propertyId,
+      name: validName,
+      sortKey: input.sortKey ?? null,
       createdAt: input.now,
       updatedAt: input.now,
       deletedAt: null,

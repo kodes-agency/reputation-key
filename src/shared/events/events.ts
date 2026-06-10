@@ -68,6 +68,12 @@ export type {
   PortalUpdated,
   // fallow-ignore-next-line unused-type
   PortalDeleted,
+  // fallow-ignore-next-line unused-type
+  PortalGroupCreated,
+  // fallow-ignore-next-line unused-type
+  PortalGroupUpdated,
+  // fallow-ignore-next-line unused-type
+  PortalGroupDeleted,
 } from '#/contexts/portal/domain/events'
 
 // Guest context events

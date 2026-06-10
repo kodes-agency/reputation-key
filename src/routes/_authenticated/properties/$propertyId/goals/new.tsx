@@ -4,8 +4,7 @@ import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import { createGoal } from '#/contexts/goal/server/goals'
 import { listPortals } from '#/contexts/portal/server/portals'
-import { listTeams } from '#/contexts/team/server/teams'
-import { listStaffAssignments } from '#/contexts/staff/server/staff-assignments'
+import { listPortalGroups } from '#/contexts/portal/server/portal-groups'
 import { useMutationAction } from '#/components/hooks/use-mutation-action'
 import { GoalCreateForm } from '#/components/features/property/goals/goal-create-form'
 import { PageShell } from '#/components/layout/page-shell'
@@ -18,19 +17,18 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/goa
     }
   },
   loader: async ({ params: { propertyId } }) => {
-    const [{ portals }, { teams }, { assignments }] = await Promise.all([
+    const [{ portals }, { groups }] = await Promise.all([
       listPortals({ data: { propertyId } }),
-      listTeams({ data: { propertyId } }),
-      listStaffAssignments({ data: { propertyId } }),
+      listPortalGroups({ data: { propertyId } }),
     ])
-    return { portals, teams, staffAssignments: assignments }
+    return { portals, portalGroups: groups }
   },
   component: CreateGoalPage,
 })
 
 function CreateGoalPage() {
   const { propertyId } = Route.useParams()
-  const { portals, teams, staffAssignments } = Route.useLoaderData()
+  const { portals, portalGroups } = Route.useLoaderData()
   const navigate = useNavigate()
 
   const mutation = useMutationAction(createGoal, {
@@ -56,8 +54,7 @@ function CreateGoalPage() {
         propertyId={propertyId}
         mutation={mutation}
         portals={portals}
-        teams={teams}
-        staffAssignments={staffAssignments}
+        portalGroups={portalGroups}
       />
     </PageShell>
   )

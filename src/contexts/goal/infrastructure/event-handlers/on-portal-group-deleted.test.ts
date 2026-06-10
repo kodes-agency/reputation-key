@@ -1,10 +1,10 @@
 import { describe, it, expect, vi } from 'vitest'
-import { onTeamDeleted, type OnTeamDeletedDeps } from './on-team-deleted'
-import type { TeamDeleted } from '#/contexts/team/application/public-api'
+import { onPortalGroupDeleted, type OnPortalGroupDeletedDeps } from './on-portal-group-deleted'
+import type { PortalGroupDeleted } from '#/contexts/portal/application/public-api'
 import type { GoalRepository } from '../../application/ports/goal.repository'
 import type { Goal } from '../../domain/types'
 import { ok, err } from 'neverthrow'
-import { organizationId, propertyId, userId, goalId, teamId } from '#/shared/domain/ids'
+import { organizationId, propertyId, userId, goalId, portalGroupId } from '#/shared/domain/ids'
 
 const FIXED_TIME = new Date('2026-06-15T12:00:00Z')
 
@@ -15,8 +15,7 @@ function makeGoal(overrides: Partial<Goal> & { id: Goal['id'] }): Goal {
     organizationId: organizationId('org-1'),
     propertyId: propertyId('prop-1'),
     portalId: null,
-    teamId: null,
-    staffId: null,
+    portalGroupId: null,
     name: 'Test goal',
     description: null,
     createdBy: userId('user-1'),
@@ -37,11 +36,12 @@ function makeGoal(overrides: Partial<Goal> & { id: Goal['id'] }): Goal {
   }
 }
 
-function makeEvent(overrides: Partial<TeamDeleted> = {}): TeamDeleted {
+function makeEvent(overrides: Partial<PortalGroupDeleted> = {}): PortalGroupDeleted {
   return {
-    _tag: 'team.deleted',
-    teamId: teamId('team-1'),
+    _tag: 'portal_group.deleted',
+    portalGroupId: portalGroupId('pg-1'),
     organizationId: organizationId('org-1'),
+    propertyId: propertyId('prop-1'),
     occurredAt: FIXED_TIME,
     ...overrides,
   }
@@ -61,7 +61,8 @@ function makeFakeDeps(storedGoals: Goal[] = []) {
         if (g.status !== filter.status) return false
         if (filter.organizationId && g.organizationId !== filter.organizationId)
           return false
-        if (filter.teamId && g.teamId !== filter.teamId) return false
+        if (filter.portalGroupId && g.portalGroupId !== filter.portalGroupId)
+          return false
         return true
       })
     },
@@ -104,7 +105,7 @@ function makeFakeDeps(storedGoals: Goal[] = []) {
     createGoalAndProgress: async () => {},
   }
 
-  type CancelGoalFn = OnTeamDeletedDeps['cancelGoalFn']
+  type CancelGoalFn = OnPortalGroupDeletedDeps['cancelGoalFn']
 
   const cancelGoalFn: CancelGoalFn = async (input) => {
     cancelledGoalIds.push(input.goalId as string)
@@ -119,7 +120,7 @@ function makeFakeDeps(storedGoals: Goal[] = []) {
     debug: vi.fn(),
   }
 
-  const deps: OnTeamDeletedDeps = {
+  const deps: OnPortalGroupDeletedDeps = {
     goalRepo,
     cancelGoalFn: cancelGoalFnMock,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -131,21 +132,21 @@ function makeFakeDeps(storedGoals: Goal[] = []) {
 
 // ── Tests ─────────────────────────────────────────────────────────────
 
-describe('onTeamDeleted', () => {
-  it('cancels active goals scoped to the deleted team', async () => {
+describe('onPortalGroupDeleted', () => {
+  it('cancels active goals scoped to the deleted portal group', async () => {
     const g1 = makeGoal({
       id: goalId('g-1'),
-      teamId: teamId('team-1'),
+      portalGroupId: portalGroupId('pg-1'),
       status: 'active',
     })
     const g2 = makeGoal({
       id: goalId('g-2'),
-      teamId: teamId('team-1'),
+      portalGroupId: portalGroupId('pg-1'),
       status: 'active',
     })
 
     const fakes = makeFakeDeps([g1, g2])
-    const handler = onTeamDeleted(fakes.deps)
+    const handler = onPortalGroupDeleted(fakes.deps)
 
     await handler(makeEvent())
 
@@ -154,20 +155,20 @@ describe('onTeamDeleted', () => {
     expect(fakes.cancelledGoalIds).toContain('g-2')
   })
 
-  it('does not cancel goals scoped to other teams', async () => {
+  it('does not cancel goals scoped to other portal groups', async () => {
     const matching = makeGoal({
       id: goalId('g-match'),
-      teamId: teamId('team-1'),
+      portalGroupId: portalGroupId('pg-1'),
       status: 'active',
     })
     const other = makeGoal({
       id: goalId('g-other'),
-      teamId: teamId('team-999'),
+      portalGroupId: portalGroupId('pg-999'),
       status: 'active',
     })
 
     const fakes = makeFakeDeps([matching, other])
-    const handler = onTeamDeleted(fakes.deps)
+    const handler = onPortalGroupDeleted(fakes.deps)
 
     await handler(makeEvent())
 
@@ -178,7 +179,7 @@ describe('onTeamDeleted', () => {
 
   it('completes silently when no active goals match', async () => {
     const fakes = makeFakeDeps([])
-    const handler = onTeamDeleted(fakes.deps)
+    const handler = onPortalGroupDeleted(fakes.deps)
 
     await handler(makeEvent())
 
@@ -188,33 +189,33 @@ describe('onTeamDeleted', () => {
   it('logs error but does not throw when cancel fails', async () => {
     const g1 = makeGoal({
       id: goalId('g-fail'),
-      teamId: teamId('team-1'),
+      portalGroupId: portalGroupId('pg-1'),
       status: 'active',
     })
 
     const fakes = makeFakeDeps([g1])
     fakes.cancelGoalFn.mockResolvedValueOnce(err({ tag: 'goal_not_found' }))
 
-    const handler = onTeamDeleted(fakes.deps)
+    const handler = onPortalGroupDeleted(fakes.deps)
 
     // Should not throw
     await expect(handler(makeEvent())).resolves.toBeUndefined()
 
     expect(fakes.logger.error).toHaveBeenCalledWith(
       expect.objectContaining({ goalId: g1.id }),
-      'goal: failed to cancel on team deleted',
+      'goal: failed to cancel on portal group deleted',
     )
   })
 
   it('continues cancelling remaining goals when one cancel fails', async () => {
     const g1 = makeGoal({
       id: goalId('g-fail'),
-      teamId: teamId('team-1'),
+      portalGroupId: portalGroupId('pg-1'),
       status: 'active',
     })
     const g2 = makeGoal({
       id: goalId('g-ok'),
-      teamId: teamId('team-1'),
+      portalGroupId: portalGroupId('pg-1'),
       status: 'active',
     })
 
@@ -224,7 +225,7 @@ describe('onTeamDeleted', () => {
       err({ tag: 'goal_not_active', status: 'completed' }),
     )
 
-    const handler = onTeamDeleted(fakes.deps)
+    const handler = onPortalGroupDeleted(fakes.deps)
     await handler(makeEvent())
 
     // Both goals were attempted
@@ -232,7 +233,7 @@ describe('onTeamDeleted', () => {
     // Error was logged for the failed one
     expect(fakes.logger.error).toHaveBeenCalledWith(
       expect.objectContaining({ goalId: g1.id }),
-      'goal: failed to cancel on team deleted',
+      'goal: failed to cancel on portal group deleted',
     )
     // Second goal was still cancelled
     expect(fakes.cancelledGoalIds).toContain('g-ok')
@@ -245,7 +246,7 @@ describe('onTeamDeleted', () => {
         throw new Error('DB down')
       },
     }
-    const handler = onTeamDeleted({
+    const handler = onPortalGroupDeleted({
       ...makeFakeDeps().deps,
       goalRepo: throwingRepo,
     })
@@ -260,12 +261,12 @@ describe('onTeamDeleted', () => {
     }
     const g1 = makeGoal({
       id: goalId('g-1'),
-      teamId: teamId('team-1'),
+      portalGroupId: portalGroupId('pg-1'),
       status: 'active',
     })
 
     const fakes = makeFakeDeps([g1])
-    const handler = onTeamDeleted({ ...fakes.deps, cancelGoalFn: throwingCancel })
+    const handler = onPortalGroupDeleted({ ...fakes.deps, cancelGoalFn: throwingCancel })
 
     // Should NOT throw
     await expect(handler(makeEvent())).resolves.toBeUndefined()

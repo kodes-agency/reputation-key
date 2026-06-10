@@ -8,6 +8,7 @@ import type { EventBus } from '#/shared/events/event-bus'
 import type { Database } from '#/shared/db'
 import { createPortalRepository } from './infrastructure/repositories/portal.repository'
 import { createPortalLinkRepository } from './infrastructure/repositories/portal-link.repository'
+import { createPortalGroupRepository } from './infrastructure/repositories/portal-group.repository'
 import { createLinkResolverPort } from './infrastructure/repositories/link-resolver.repository'
 import { createS3StorageAdapter } from './infrastructure/adapters/s3-storage.adapter'
 import { createPortal } from './application/use-cases/create-portal'
@@ -27,7 +28,14 @@ import { requestUploadUrl } from './application/use-cases/request-upload-url'
 import { finalizeUpload } from './application/use-cases/finalize-upload'
 import { getPortalQrUrl } from './application/use-cases/get-portal-qr-url'
 import { listPortalLinks } from './application/use-cases/list-portal-links'
-import { portalId } from '#/shared/domain/ids'
+import { createPortalGroup } from './application/use-cases/create-portal-group'
+import { updatePortalGroup } from './application/use-cases/update-portal-group'
+import { listPortalGroups } from './application/use-cases/list-portal-groups'
+import { getPortalGroup } from './application/use-cases/get-portal-group'
+import { softDeletePortalGroup } from './application/use-cases/soft-delete-portal-group'
+import { addPortalToGroup } from './application/use-cases/add-portal-to-group'
+import { removePortalFromGroup } from './application/use-cases/remove-portal-from-group'
+import { portalId, portalGroupId } from '#/shared/domain/ids'
 import { getEnv } from '#/shared/config/env'
 import { randomUUID } from 'crypto'
 
@@ -42,6 +50,7 @@ type PortalContextDeps = Readonly<{
 export const buildPortalContext = (deps: PortalContextDeps) => {
   const portalRepo = createPortalRepository(deps.db)
   const portalLinkRepo = createPortalLinkRepository(deps.db)
+  const portalGroupRepo = createPortalGroupRepository(deps.db)
   const linkResolver = createLinkResolverPort(deps.db)
   const env = getEnv()
   const storage = createS3StorageAdapter({
@@ -51,6 +60,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     region: env.AWS_S3_REGION,
   })
   const portalIdGen = () => portalId(randomUUID())
+  const portalGroupIdGen = () => portalGroupId(randomUUID())
   const linkIdGen = () => randomUUID()
 
   const useCases = {
@@ -120,6 +130,39 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     listPortalLinks: listPortalLinks({
       portalLinkRepo,
     }),
+    createPortalGroup: createPortalGroup({
+      portalGroupRepo,
+      propertyApi: deps.propertyApi,
+      events: deps.events,
+      idGen: portalGroupIdGen,
+      clock: deps.clock,
+    }),
+    updatePortalGroup: updatePortalGroup({
+      portalGroupRepo,
+      events: deps.events,
+      clock: deps.clock,
+    }),
+    listPortalGroups: listPortalGroups({
+      portalGroupRepo,
+    }),
+    getPortalGroup: getPortalGroup({
+      portalGroupRepo,
+    }),
+    softDeletePortalGroup: softDeletePortalGroup({
+      portalGroupRepo,
+      events: deps.events,
+      clock: deps.clock,
+    }),
+    addPortalToGroup: addPortalToGroup({
+      portalGroupRepo,
+      events: deps.events,
+      clock: deps.clock,
+    }),
+    removePortalFromGroup: removePortalFromGroup({
+      portalGroupRepo,
+      events: deps.events,
+      clock: deps.clock,
+    }),
   } as const
 
   // ── Public API — consumed by guest context and other cross-context callers ──
@@ -131,12 +174,23 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       portalRepo.findPublicPortalBySlug(propertySlug, portalSlug),
   }
 
+  const portalGroupPublicApi: import('./application/public-api').PortalGroupPublicApi = {
+    findGroupForPortal: async (orgId, pid) => {
+      const group = await portalGroupRepo.findGroupForPortal(orgId, pid)
+      if (!group) return null
+      return { id: group.id, propertyId: group.propertyId, name: group.name }
+    },
+    getGroupPortalIds: (orgId, groupId) => portalGroupRepo.getGroupPortalIds(orgId, groupId),
+  }
+
   return {
     useCases,
     storage,
     portalRepo,
     portalLinkRepo,
+    portalGroupRepo,
     linkResolver,
     publicApi,
+    portalGroupPublicApi,
   } as const
 }

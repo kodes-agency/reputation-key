@@ -27,6 +27,7 @@ export type GoalContextBuildInput = Readonly<{
   idGen: () => string
   cancelGoalFn: CancelGoalFn
   getLogger: typeof getLoggerType
+  findGroupForPortal: (orgId: import('#/shared/domain/ids').OrganizationId, portalId: import('#/shared/domain/ids').PortalId) => Promise<{ portalGroupId: import('#/shared/domain/ids').PortalGroupId } | null>
 }>
 
 export type GoalContextApi = Readonly<{
@@ -76,7 +77,7 @@ export const buildGoalContext = (input: GoalContextBuildInput): GoalContextApi =
     goalRepo,
   })
 
-  // Register event handlers (metric.recorded, staff.unassigned, etc.)
+  // Register event handlers (metric.recorded, portal_group.deleted, etc.)
   // Per architecture: handlers are registered at build time so every process
   // (web server + worker) handles events without a separate bootstrap() call.
   registerGoalEventHandlers({
@@ -85,6 +86,7 @@ export const buildGoalContext = (input: GoalContextBuildInput): GoalContextApi =
     cancelGoalFn: input.cancelGoalFn,
     clock: input.clock,
     getLogger: input.getLogger,
+    findGroupForPortal: input.findGroupForPortal,
   })
 
   return {

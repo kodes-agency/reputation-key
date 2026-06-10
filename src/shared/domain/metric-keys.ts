@@ -17,7 +17,7 @@ export type MetricKey =
 
 export type AggregationFunction = 'sum' | 'count' | 'max' | 'avg'
 
-export type EntityScope = 'property' | 'portal' | 'team' | 'staff'
+export type EntityScope = 'property' | 'portal_group' | 'portal'
 
 // ── Constants ────────────────────────────────────────────────────────────
 
@@ -38,15 +38,14 @@ export const AGGREGATION_FUNCTIONS: readonly AggregationFunction[] = [
 
 /**
  * Which metric keys are valid for each entity scope.
- * Team/staff scopes are limited to portal.* because only portal metrics carry staffId.
+ * Portal group scope uses the same keys as portal scope — aggregated across member portals.
  */
 export const VALID_SCOPE_METRIC_KEYS: Readonly<
   Record<EntityScope, readonly MetricKey[]>
 > = {
   property: [...METRIC_KEYS],
   portal: ['portal.scan', 'portal.rating', 'portal.feedback', 'portal.review_link_click'],
-  team: ['portal.scan', 'portal.rating', 'portal.feedback', 'portal.review_link_click'],
-  staff: ['portal.scan', 'portal.rating', 'portal.feedback', 'portal.review_link_click'],
+  portal_group: ['portal.scan', 'portal.rating', 'portal.feedback', 'portal.review_link_click'],
 }
 
 /**

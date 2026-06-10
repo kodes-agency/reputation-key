@@ -1,19 +1,18 @@
-// Goal context — StaffUnassigned event handler
-// Cancels active goals scoped to the unassigned staff member.
+// Goal context — PortalGroupDeleted event handler
+// Cancels active goals scoped to the deleted portal group.
 // Per architecture: event handler subscribes via EventBus, drives use case.
 
-import type { StaffUnassigned } from '#/contexts/staff/application/public-api'
+import type { PortalGroupDeleted } from '#/contexts/portal/application/public-api'
 import type { GoalRepository } from '../../application/ports/goal.repository'
 import type { Goal } from '../../domain/types'
 import type { GoalId, OrganizationId } from '#/shared/domain/ids'
-import { staffId } from '#/shared/domain/ids'
 import type { Role } from '#/shared/domain/roles'
 import type { Result } from 'neverthrow'
 import type { getLogger as getLoggerType } from '#/shared/observability/logger'
 
 // ── Dependencies ──────────────────────────────────────────────────────
 
-export type OnStaffUnassignedDeps = Readonly<{
+export type OnPortalGroupDeletedDeps = Readonly<{
   goalRepo: GoalRepository
   cancelGoalFn: (
     input: Readonly<{ goalId: GoalId; organizationId: OrganizationId; role: Role }>,
@@ -23,16 +22,13 @@ export type OnStaffUnassignedDeps = Readonly<{
 
 // ── Handler factory ───────────────────────────────────────────────────
 
-export const onStaffUnassigned =
-  (deps: OnStaffUnassignedDeps) =>
-  async (event: StaffUnassigned): Promise<void> => {
+export const onPortalGroupDeleted =
+  (deps: OnPortalGroupDeletedDeps) =>
+  async (event: PortalGroupDeleted): Promise<void> => {
     try {
-      // StaffUnassigned.assignmentId is StaffAssignmentId.
-      // In the goal context, staff-scoped goals use the assignment ID as the staff key.
-      // Map via staffId() constructor to preserve brand safety at the boundary.
       const goals = await deps.goalRepo.list({
         organizationId: event.organizationId,
-        staffId: staffId(event.assignmentId),
+        portalGroupId: event.portalGroupId,
         status: 'active',
       })
 
@@ -47,16 +43,13 @@ export const onStaffUnassigned =
             .getLogger()
             .error(
               { err: result.error, goalId: goal.id },
-              'goal: failed to cancel on staff unassigned',
+              'goal: failed to cancel on portal group deleted',
             )
         }
       }
     } catch (err) {
       deps
         .getLogger()
-        .error(
-          { err, assignmentId: event.assignmentId },
-          'goal: fatal error in onStaffUnassigned',
-        )
+        .error({ err, portalGroupId: event.portalGroupId }, 'goal: fatal error in onPortalGroupDeleted')
     }
   }

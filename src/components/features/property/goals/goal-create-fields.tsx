@@ -12,7 +12,7 @@ import { scopeLabel, goalTypeLabel } from '#/contexts/goal/ui/helpers'
 import type { EntityScope, AggregationFunction } from '#/shared/domain/metric-keys'
 import { GoalMetricFields } from './goal-create-metric-fields'
 import { GoalCreateExtraFields } from './goal-create-extra-fields'
-import type { PortalOption, TeamOption, StaffOption } from './goal-entity-types'
+import type { PortalOption } from './goal-entity-types'
 
 type F = Readonly<{
   state: {
@@ -40,8 +40,7 @@ type F = Readonly<{
   isPending: boolean
   onCancel: () => void
   portals: readonly PortalOption[]
-  teams: readonly TeamOption[]
-  staffAssignments: readonly StaffOption[]
+  portalGroups: readonly PortalOption[]
   propertyId: string
 }>
 
@@ -57,8 +56,7 @@ export function GoalCreateFields({
   isPending,
   onCancel,
   portals,
-  teams,
-  staffAssignments,
+  portalGroups,
   propertyId,
 }: F) {
   return (
@@ -100,8 +98,7 @@ export function GoalCreateFields({
         availableMetrics={availableMetrics}
         availableAggregations={availableAggregations}
         portals={portals}
-        teams={teams}
-        staffAssignments={staffAssignments}
+        portalGroups={portalGroups}
         propertyId={propertyId}
       />
       <Field>

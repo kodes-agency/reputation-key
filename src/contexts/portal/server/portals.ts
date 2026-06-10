@@ -28,6 +28,8 @@ export const portalErrorStatus = (code: PortalErrorCode): number =>
     )
     .with('slug_taken', () => 409)
     .with('upload_failed', () => 422)
+    .with('group_not_found', 'portal_not_in_group', () => 404)
+    .with('group_name_taken', 'portal_already_grouped', () => 409)
     .with(
       'invalid_slug',
       'invalid_name',

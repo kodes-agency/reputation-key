@@ -9,7 +9,10 @@ export type { LinkResolverPort } from './ports/link-resolver.port'
 export type { PortalDeleted, PortalEvent } from '../domain/events'
 export { portalDeleted } from '../domain/events'
 
-import type { OrganizationId, PropertyId, PortalId } from '#/shared/domain/ids'
+export type { PortalGroupDeleted } from '../domain/events'
+export { portalGroupDeleted } from '../domain/events'
+
+import type { OrganizationId, PropertyId, PortalId, PortalGroupId } from '#/shared/domain/ids'
 
 /** Result of resolving a portal's context (org + property) by portal ID. */
 export type PortalContextResult = Readonly<{
@@ -60,4 +63,17 @@ export type PortalPublicApi = Readonly<{
     propertySlug: string,
     portalSlug: string,
   ) => Promise<PublicPortalBySlugResult | null>
+}>
+
+/** Minimal portal group info for cross-context consumers. */
+export type PortalGroupSummary = Readonly<{
+  id: PortalGroupId
+  propertyId: PropertyId
+  name: string
+}>
+
+/** Portal group public API — consumed by other contexts for cross-context queries. */
+export type PortalGroupPublicApi = Readonly<{
+  findGroupForPortal: (orgId: OrganizationId, portalId: PortalId) => Promise<PortalGroupSummary | null>
+  getGroupPortalIds: (orgId: OrganizationId, groupId: PortalGroupId) => Promise<ReadonlyArray<PortalId>>
 }>

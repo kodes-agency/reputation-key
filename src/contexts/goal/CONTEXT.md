@@ -5,16 +5,16 @@ Property-scoped goals with progress tracking driven by metric events.
 ## Glossary
 
 | Term                    | Definition                                                                                                                                                                        |
-| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | -------------------------------------------------------------------- |
-| **Goal**                | A property-scoped target (e.g. "reach 4.5 average rating", "collect 50 reviews"). Belongs to an organization and is scoped to a property, portal, team, or staff member.          |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Goal**                | A property-scoped target (e.g. "reach 4.5 average rating", "collect 50 reviews"). Belongs to an organization and is scoped to a property, portal, or portal group.               |
 | **GoalType**            | `'open'`, `'one_shot'`, `'rolling'`, or `'recurring'`. Determines how time periods and progress are computed.                                                                     |
 | **GoalStatus**          | Lifecycle: `active` → `completed`, `expired`, or `cancelled`. Only `active` goals accept progress updates.                                                                        |
 | **GoalProgress**        | Current numeric progress toward a goal's target. Tracks `currentValue`, `currentSum`, `currentCount`, and `computedSource`. One-to-one with a Goal.                               |
 | **GoalInstance**        | A recurring goal's spawned child for a specific period. Has `parentGoalId` set to the template Goal. Shares the template's metric, aggregation, and target.                       |
 | **AggregationFunction** | How progress is computed from raw metric readings: `sum`, `count`, `max`, `avg`. Must be valid for the chosen `MetricKey`.                                                        |
-| **MetricKey**           | Which metric feeds this goal (e.g. `rating_average`, `review_count`). Valid keys depend on the goal's `EntityScope` (property, portal, team, staff).                              |
-| **EntityScope**         | The level at which a goal operates: `property`, `portal`, `team`, or `staff`. Derived from which nullable FK is filled (`portalId`, `teamId`, `staffId`). Falls back to property. |
-| **RecurrenceRule**      | Configuration for recurring goals: `{ frequency: 'weekly'                                                                                                                         | 'monthly' | 'quarterly' }`. Required for `recurring` type, forbidden for others. |
+| **MetricKey**           | Which metric feeds this goal (e.g. `rating_average`, `review_count`). Valid keys depend on the goal's `EntityScope` (property, portal, portal_group).                             |
+| **EntityScope**         | The level at which a goal operates: `property`, `portal`, or `portal_group`. Derived from which nullable FK is filled (`portalId`, `portalGroupId`). Falls back to property.      |
+| **RecurrenceRule**      | Configuration for recurring goals: `{ frequency: 'weekly' | 'monthly' | 'quarterly' }`. Required for `recurring` type, forbidden for others.                                       |
 | **RollingWindowDays**   | Number of days for the sliding window in `rolling` goals. Required for `rolling` type, forbidden for others.                                                                      |
 | **ComputedSource**      | How progress was last updated: `'event_increment'` (real-time from metric event) or `'reconciliation'` (background job recomputation).                                            |
 
@@ -22,12 +22,12 @@ Property-scoped goals with progress tracking driven by metric events.
 
 - Goal → Property (required `propertyId`).
 - Goal → Portal (optional `portalId`, scopes goal to a specific portal).
-- Goal → Team (optional `teamId`, scopes goal to a team).
-- Goal → Staff (optional `staffId`, scopes goal to an individual staff member).
+- Goal → PortalGroup (optional `portalGroupId`, scopes goal to a portal group).
 - Goal → Goal (optional `parentGoalId`, links recurring instances back to their template).
 - GoalProgress → Goal (one-to-one, tracks current progress).
-- Goal context **subscribes to** `metric.recorded`, `staff.unassigned`, `portal.deleted`, `team.deleted` events from other contexts.
+- Goal context **subscribes to** `metric.recorded`, `portal.deleted`, `portal_group.deleted` events from other contexts.
 - Goal context **depends on** `MetricPublicApi` from the metric context (for querying metric readings to reconcile progress).
+- Goal context **depends on** `PortalGroupPublicApi.findGroupForPortal` from the portal context (for resolving group membership on metric events).
 
 ## Invariants
 
@@ -41,8 +41,8 @@ Property-scoped goals with progress tracking driven by metric events.
   - `one_shot`: requires `periodStart` + `periodEnd`. No rolling window, no recurrence.
   - `rolling`: requires `rollingWindowDays > 0`. No period, no recurrence.
   - `recurring`: requires `recurrenceRule`. Templates have no period; instances have bounded periods from the scheduler.
-- At most one of [`portalId`, `teamId`, `staffId`] determines scope. If all null, scope is `property`.
-- Goals are cancelled (not deleted) when their target entity (portal, team, staff) is removed.
+- At most one of [`portalId`, `portalGroupId`] determines scope. If all null, scope is `property`.
+- Goals are cancelled (not deleted) when their target entity (portal, portal group) is removed.
 
 ## Events produced
 
@@ -53,12 +53,11 @@ Property-scoped goals with progress tracking driven by metric events.
 
 ## Events consumed
 
-| Tag                | Source context | Handler action                                  |
-| ------------------ | -------------- | ----------------------------------------------- |
-| `metric.recorded`  | metric         | Increment goal progress via event_increment     |
-| `staff.unassigned` | staff          | Cancel goals scoped to the removed staff member |
-| `portal.deleted`   | portal         | Cancel goals scoped to the deleted portal       |
-| `team.deleted`     | team           | Cancel goals scoped to the deleted team         |
+| Tag                    | Source context | Handler action                                   |
+| --------------------- | -------------- | ------------------------------------------------ |
+| `metric.recorded`     | metric         | Increment goal progress via event_increment      |
+| `portal.deleted`      | portal         | Cancel goals scoped to the deleted portal        |
+| `portal_group.deleted`| portal         | Cancel goals scoped to the deleted portal group  |
 
 ## Architecture layers
 
@@ -73,7 +72,7 @@ goal/
   infrastructure/
     repositories/      goal.repository.ts (Drizzle)
     mappers/           goal.mapper.ts
-    event-handlers/    on-metric-recorded.ts, on-staff-unassigned.ts, on-portal-deleted.ts, on-team-deleted.ts
+    event-handlers/    on-metric-recorded.ts, on-portal-deleted.ts, on-portal-group-deleted.ts
     jobs/              spawn-recurring-instances.job.ts, reconcile-goal-progress.job.ts
   server/              goals.ts, staff-goals.ts
   ui/                  helpers.ts (pure UI helper functions)
@@ -86,13 +85,13 @@ goal/
 
 ## Use cases
 
-| Use case     | Input                                                                                                                                                                                                      | Output   | Permission    |
-| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------------- |
-| `createGoal` | orgId, propertyId, portalId?, teamId?, staffId?, name, description?, goalType, aggregationFunction, metricKey, targetValue, periodStart?, periodEnd?, recurrenceRule?, rollingWindowDays?, createdBy, role | `Goal`   | `goal.create` |
-| `updateGoal` | goalId, orgId, targetValue?, recurrenceRule?, role                                                                                                                                                         | `Goal`   | `goal.update` |
-| `cancelGoal` | goalId, orgId, role                                                                                                                                                                                        | `Goal`   | `goal.cancel` |
-| `listGoals`  | orgId, propertyId, portalId?, teamId?, staffId?, status?, goalType?, role                                                                                                                                  | `Goal[]` | `goal.read`   |
-| `getGoal`    | goalId, orgId, role                                                                                                                                                                                        | `Goal`   | `goal.read`   |
+| Use case     | Input                                                                                                                                                                                                   | Output   | Permission    |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------------- |
+| `createGoal` | orgId, propertyId, portalId?, portalGroupId?, name, description?, goalType, aggregationFunction, metricKey, targetValue, periodStart?, periodEnd?, recurrenceRule?, rollingWindowDays?, createdBy, role | `Goal`   | `goal.create` |
+| `updateGoal` | goalId, orgId, targetValue?, recurrenceRule?, role                                                                                                                                                      | `Goal`   | `goal.update` |
+| `cancelGoal` | goalId, orgId, role                                                                                                                                                                                     | `Goal`   | `goal.cancel` |
+| `listGoals`  | orgId, propertyId, portalId?, portalGroupId?, status?, goalType?, role                                                                                                                                  | `Goal[]` | `goal.read`   |
+| `getGoal`    | goalId, orgId, role                                                                                                                                                                                     | `Goal`   | `goal.read`   |
 
 ## Public API
 

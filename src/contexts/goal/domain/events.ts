@@ -5,8 +5,7 @@ import type {
   OrganizationId,
   PropertyId,
   PortalId,
-  TeamId,
-  StaffId,
+  PortalGroupId,
   UserId,
 } from '#/shared/domain/ids'
 import type { MetricKey, AggregationFunction } from '#/shared/domain/metric-keys'
@@ -19,8 +18,7 @@ export type GoalCompleted = Readonly<{
   organizationId: OrganizationId
   propertyId: PropertyId
   portalId: PortalId | null
-  teamId: TeamId | null
-  staffId: StaffId | null
+  portalGroupId: PortalGroupId | null
   goalType: GoalType
   aggregationFunction: AggregationFunction
   metricKey: MetricKey

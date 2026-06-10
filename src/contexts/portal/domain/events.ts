@@ -3,7 +3,7 @@
 // Events live in their owning context's domain/events.ts.
 
 import type { PortalId } from './types'
-import type { OrganizationId, PortalLinkCategoryId, PortalLinkId } from '#/shared/domain/ids'
+import type { OrganizationId, PortalGroupId, PortalLinkCategoryId, PortalLinkId, PropertyId } from '#/shared/domain/ids'
 
 // ── Portal events ──────────────────────────────────────────────────
 
@@ -75,6 +75,55 @@ export type PortalLinkReordered = Readonly<{
   occurredAt: Date
 }>
 
+// ── Portal group events ───────────────────────────────────────────
+
+// fallow-ignore-next-line unused-type
+export type PortalGroupCreated = Readonly<{
+  _tag: 'portal_group.created'
+  portalGroupId: PortalGroupId
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  name: string
+  occurredAt: Date
+}>
+
+// fallow-ignore-next-line unused-type
+export type PortalGroupUpdated = Readonly<{
+  _tag: 'portal_group.updated'
+  portalGroupId: PortalGroupId
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  name: string
+  occurredAt: Date
+}>
+
+// fallow-ignore-next-line unused-type
+export type PortalGroupDeleted = Readonly<{
+  _tag: 'portal_group.deleted'
+  portalGroupId: PortalGroupId
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  occurredAt: Date
+}>
+
+// fallow-ignore-next-line unused-type
+export type PortalAddedToGroup = Readonly<{
+  _tag: 'portal_group.portal_added'
+  portalGroupId: PortalGroupId
+  portalId: PortalId
+  organizationId: OrganizationId
+  occurredAt: Date
+}>
+
+// fallow-ignore-next-line unused-type
+export type PortalRemovedFromGroup = Readonly<{
+  _tag: 'portal_group.portal_removed'
+  portalGroupId: PortalGroupId
+  portalId: PortalId
+  organizationId: OrganizationId
+  occurredAt: Date
+}>
+
 // ── Event union ────────────────────────────────────────────────────
 
 export type PortalEvent =
@@ -85,6 +134,11 @@ export type PortalEvent =
   | PortalLinkCategoryReordered
   | PortalLinkCreated
   | PortalLinkReordered
+  | PortalGroupCreated
+  | PortalGroupUpdated
+  | PortalGroupDeleted
+  | PortalAddedToGroup
+  | PortalRemovedFromGroup
 
 // ── Event constructors ─────────────────────────────────────────────
 
@@ -118,3 +172,25 @@ export const portalLinkCreated = (
 export const portalLinkReordered = (
   args: Omit<PortalLinkReordered, '_tag'>,
 ): PortalLinkReordered => ({ _tag: 'portal_link.reordered', ...args })
+
+// ── Portal group event constructors ────────────────────────────────
+
+export const portalGroupCreated = (
+  args: Omit<PortalGroupCreated, '_tag'>,
+): PortalGroupCreated => ({ _tag: 'portal_group.created', ...args })
+
+export const portalGroupUpdated = (
+  args: Omit<PortalGroupUpdated, '_tag'>,
+): PortalGroupUpdated => ({ _tag: 'portal_group.updated', ...args })
+
+export const portalGroupDeleted = (
+  args: Omit<PortalGroupDeleted, '_tag'>,
+): PortalGroupDeleted => ({ _tag: 'portal_group.deleted', ...args })
+
+export const portalAddedToGroup = (
+  args: Omit<PortalAddedToGroup, '_tag'>,
+): PortalAddedToGroup => ({ _tag: 'portal_group.portal_added', ...args })
+
+export const portalRemovedFromGroup = (
+  args: Omit<PortalRemovedFromGroup, '_tag'>,
+): PortalRemovedFromGroup => ({ _tag: 'portal_group.portal_removed', ...args })

@@ -39,7 +39,6 @@ export const initial: FormState = {
 export function buildScopeOverrides(scope: EntityScope, entityId: string) {
   const eid = entityId || undefined
   if (scope === 'portal') return { portalId: eid }
-  if (scope === 'team') return { portalId: eid, teamId: eid }
-  if (scope === 'staff') return { portalId: eid, teamId: eid, staffId: eid }
+  if (scope === 'portal_group') return { portalGroupId: eid }
   return {}
 }

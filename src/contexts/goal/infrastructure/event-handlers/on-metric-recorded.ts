@@ -16,6 +16,7 @@ export type OnMetricRecordedDeps = Readonly<{
   eventBus: EventBus
   clock: () => Date
   getLogger: typeof getLoggerType
+  findGroupForPortal: (orgId: import('#/shared/domain/ids').OrganizationId, portalId: import('#/shared/domain/ids').PortalId) => Promise<{ portalGroupId: import('#/shared/domain/ids').PortalGroupId } | null>
 }>
 
 // ── Handler factory ───────────────────────────────────────────────────
@@ -25,6 +26,18 @@ export function onMetricRecorded(deps: OnMetricRecordedDeps) {
     return trace('event.onMetricRecorded', async () => {
       const { goalRepo, eventBus, clock } = deps
 
+      // Resolve portalGroupId if event has a portalId
+      let resolvedPortalGroupId: import('#/shared/domain/ids').PortalGroupId | null = null
+      if (event.portalId) {
+        try {
+          const group = await deps.findGroupForPortal(event.organizationId, event.portalId)
+          resolvedPortalGroupId = group?.portalGroupId ?? null
+        } catch (err) {
+          // Group lookup failure shouldn't block metric processing
+          deps.getLogger().warn({ portalId: event.portalId, err }, 'portal group resolution failed')
+        }
+      }
+
       let affectedGoals
       try {
         affectedGoals = await goalRepo.findActiveGoalsByMetric(
@@ -32,6 +45,7 @@ export function onMetricRecorded(deps: OnMetricRecordedDeps) {
           event.organizationId,
           event.propertyId,
           event.portalId,
+          resolvedPortalGroupId,
         )
       } catch (err) {
         deps
@@ -84,8 +98,7 @@ export function onMetricRecorded(deps: OnMetricRecordedDeps) {
               organizationId: goal.organizationId,
               propertyId: goal.propertyId,
               portalId: goal.portalId,
-              teamId: goal.teamId,
-              staffId: goal.staffId,
+              portalGroupId: goal.portalGroupId,
               goalType: goal.goalType,
               aggregationFunction: goal.aggregationFunction,
               metricKey: goal.metricKey,

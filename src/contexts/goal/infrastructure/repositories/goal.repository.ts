@@ -72,8 +72,7 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
       if (filter.propertyId)
         conditions.push(eq(goals.propertyId, filter.propertyId as string))
       if (filter.portalId) conditions.push(eq(goals.portalId, filter.portalId))
-      if (filter.teamId) conditions.push(eq(goals.teamId, filter.teamId))
-      if (filter.staffId) conditions.push(eq(goals.staffId, filter.staffId))
+      if (filter.portalGroupId) conditions.push(eq(goals.portalGroupId, filter.portalGroupId))
       if (filter.status) conditions.push(eq(goals.status, filter.status))
       if (filter.goalType) conditions.push(eq(goals.goalType, filter.goalType))
 
@@ -227,7 +226,7 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
     })
   },
 
-  findActiveGoalsByMetric: async (metricKey, organizationId, propertyId, portalId) => {
+  findActiveGoalsByMetric: async (metricKey, organizationId, propertyId, portalId, portalGroupId) => {
     return trace('goal.findActiveGoalsByMetric', async () => {
       const start = Date.now()
       log.debug(
@@ -241,14 +240,22 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
         eq(goals.propertyId, propertyId),
       ]
 
-      // When event has a portalId, match both portal-scoped goals (exact match)
-      // and property-scoped goals (portalId IS NULL).
-      // When event has no portalId, only match property-scoped goals.
+      // Build scope-matching conditions:
+      // 1. Property-scoped goals (portalId IS NULL AND portalGroupId IS NULL) always match
+      // 2. Portal-scoped goals match when event has matching portalId
+      // 3. Portal-group-scoped goals match when event's portal belongs to the group
+      const scopeConditions: ReturnType<typeof or>[] = [
+        and(sql`${goals.portalId} IS NULL`, sql`${goals.portalGroupId} IS NULL`)!,
+      ]
+
       if (portalId) {
-        conditions.push(or(eq(goals.portalId, portalId), sql`${goals.portalId} IS NULL`)!)
-      } else {
-        conditions.push(sql`${goals.portalId} IS NULL`)
+        scopeConditions.push(eq(goals.portalId, portalId))
       }
+      if (portalGroupId) {
+        scopeConditions.push(eq(goals.portalGroupId, portalGroupId))
+      }
+
+      conditions.push(or(...scopeConditions)!)
 
       const rows = await db
         .select()

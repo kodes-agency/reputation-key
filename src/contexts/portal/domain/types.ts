@@ -3,7 +3,7 @@
 // Per architecture: types are data only — no methods, no classes.
 // readonly on every field. Branded IDs prevent accidental substitution.
 
-import type { OrganizationId, PortalId, PropertyId, PortalLinkCategoryId, PortalLinkId, TeamId, UserId } from '#/shared/domain/ids'
+import type { OrganizationId, PortalId, PortalGroupId, PropertyId, PortalLinkCategoryId, PortalLinkId, TeamId, UserId } from '#/shared/domain/ids'
 
 // ── Theme ──────────────────────────────────────────────────────────
 
@@ -38,6 +38,19 @@ export type Portal = Readonly<{
   deletedAt: Date | null
 }>
 
+// ── PortalGroup ───────────────────────────────────────────────────
+
+export type PortalGroup = Readonly<{
+  id: PortalGroupId
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  name: string
+  sortKey: string | null
+  createdAt: Date
+  updatedAt: Date
+  deletedAt: Date | null
+}>
+
 // ── PortalLinkCategory ─────────────────────────────────────────────
 
 export type PortalLinkCategory = Readonly<{
@@ -67,3 +80,6 @@ export type PortalLink = Readonly<{
 
 /** Re-export PortalId from shared for convenience */
 export type { PortalId } from '#/shared/domain/ids'
+
+/** Re-export PortalGroupId from shared for convenience */
+export type { PortalGroupId } from '#/shared/domain/ids'

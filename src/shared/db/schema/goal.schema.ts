@@ -17,7 +17,7 @@ import {
 import { createdAtColumn, updatedAtColumn } from '../columns'
 import { properties } from './property.schema'
 import { portals } from './portal.schema'
-import { teams } from './team.schema'
+import { portalGroups } from './portal.schema'
 
 export const goals = pgTable(
   'goals',
@@ -28,10 +28,7 @@ export const goals = pgTable(
       .notNull()
       .references(() => properties.id, { onDelete: 'cascade' }),
     portalId: uuid('portal_id').references(() => portals.id, { onDelete: 'cascade' }),
-    teamId: uuid('team_id').references(() => teams.id, { onDelete: 'cascade' }),
-    // staffId intentionally has no FK — stores cross-context staff assignment IDs
-    // from the staff bounded context. FK would create an unwanted cross-context schema dependency.
-    staffId: varchar('staff_id', { length: 255 }),
+    portalGroupId: uuid('portal_group_id').references(() => portalGroups.id, { onDelete: 'set null' }),
     name: varchar('name', { length: 200 }).notNull(),
     description: text('description'),
     createdBy: varchar('created_by', { length: 255 }).notNull(),
@@ -54,8 +51,7 @@ export const goals = pgTable(
     index('goals_org_property_idx').on(t.organizationId, t.propertyId),
     index('goals_org_status_idx').on(t.organizationId, t.status),
     index('goals_parent_idx').on(t.parentGoalId),
-    index('goals_staff_idx').on(t.staffId),
-    index('goals_team_idx').on(t.teamId),
+    index('goals_portal_group_idx').on(t.portalGroupId),
   ],
 )
 
