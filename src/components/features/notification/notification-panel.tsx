@@ -72,24 +72,29 @@ function NotificationRow({
 export function NotificationPanel() {
   const [open, setOpen] = useState(false)
   const navigate = useNavigate()
-  const { count } = useUnreadNotificationCount()
+  const { count, refetch: refetchCount } = useUnreadNotificationCount()
   const { notifications, refetch: refetchList } = useNotifications(20)
   const markRead = useMarkNotificationRead()
   const markAllRead = useMarkAllNotificationsRead()
 
   function handleNotificationClick(n: Notification) {
-    const url = getNotificationUrl(n.resourceType, n.resourceId)
     setOpen(false)
-    void navigate({ to: url })
+    if (n.resourceType === 'inbox_item') {
+      void navigate({ to: '/inbox', search: { itemId: n.resourceId } })
+    } else {
+      const url = getNotificationUrl(n.resourceType, n.resourceId)
+      void navigate({ to: url })
+    }
   }
 
   async function handleMarkAllRead() {
     await markAllRead({ data: undefined })
-    await refetchList()
+    await Promise.all([refetchList(), refetchCount()])
   }
 
   async function handleMarkRead(id: string) {
     await markRead({ data: { notificationId: id } })
+    void refetchCount()
   }
 
   return (

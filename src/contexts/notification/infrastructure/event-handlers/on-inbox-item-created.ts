@@ -25,6 +25,14 @@ export const onInboxItemCreated =
 
     const recipients = await deps.userLookup.findAssignedManagers(event.propertyId)
 
+    if (recipients.length === 0) {
+      deps.logger.warn(
+        { propertyId: event.propertyId, eventId: event.eventId },
+        'onInboxItemCreated: no recipients found for feedback notification',
+      )
+      return
+    }
+
     await Promise.all(
       recipients.map((userId) =>
         deps.queue.add(INSERT_NOTIFICATION_JOB_NAME, {

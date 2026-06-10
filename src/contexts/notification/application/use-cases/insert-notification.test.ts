@@ -152,7 +152,7 @@ describe('insertNotification', () => {
     expect(deps.notificationRepo.insert).toHaveBeenCalledTimes(1)
   })
 
-  it('skips notification entirely when in-app preference is disabled', async () => {
+  it('persists for email-only when in-app disabled but email enabled', async () => {
     ;(
       deps.preferenceRepo.findByUserAndType as ReturnType<typeof vi.fn>
     ).mockResolvedValue({
@@ -168,14 +168,43 @@ describe('insertNotification', () => {
 
     const result = await insertNotification(deps)(validInput)
 
-    // Should NOT persist — returns null
+    // Notification row is persisted (email needs the FK)
+    expect(deps.notificationRepo.insert).toHaveBeenCalledTimes(1)
+    // Email is enqueued
+    expect(deps.emailRepo.insert).toHaveBeenCalledTimes(1)
+    // But null is returned — not for in-app display
+    expect(result).toBeNull()
+    // Logger should note email-only persistence
+    expect(deps.logger.info).toHaveBeenCalledWith(
+      expect.objectContaining({ notificationId: NOTIF_ID }),
+      'Notification persisted for email only — not returned for in-app display',
+    )
+  })
+
+  it('skips entirely when both in-app and email are disabled', async () => {
+    ;(
+      deps.preferenceRepo.findByUserAndType as ReturnType<typeof vi.fn>
+    ).mockResolvedValue({
+      id: 'pref-1',
+      userId: USER_ID,
+      organizationId: ORG_ID,
+      type: 'review.created',
+      emailEnabled: false,
+      inAppEnabled: false,
+      createdAt: FIXED_DATE,
+      updatedAt: FIXED_DATE,
+    })
+
+    const result = await insertNotification(deps)(validInput)
+
+    // Should NOT persist anything — returns null
     expect(deps.notificationRepo.insert).not.toHaveBeenCalled()
     expect(deps.emailRepo.insert).not.toHaveBeenCalled()
     expect(result).toBeNull()
     // Logger should have logged the skip
     expect(deps.logger.info).toHaveBeenCalledWith(
       expect.objectContaining({ userId: USER_ID, type: 'review.created' }),
-      'Notification skipped — in-app disabled by preference',
+      'Notification skipped — both in-app and email disabled by preference',
     )
   })
 

@@ -5,39 +5,8 @@ import { and, eq, desc, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { notifications } from '#/shared/db/schema/notification.schema'
 import { unbrand } from '#/shared/domain/ids'
-import {
-  notificationId,
-  userId as toUserId,
-  organizationId as toOrgId,
-} from '#/shared/domain/ids'
-import type {
-  Notification,
-  NotificationType,
-  NotificationPriority,
-  NotificationStatus,
-  NotificationResourceType,
-} from '../../domain/types'
-
-// ── Row → Domain mapper ─────────────────────────────────────────────
-
-type NotificationRow = typeof notifications.$inferSelect
-
-const notificationFromRow = (row: NotificationRow): Notification => ({
-  id: notificationId(row.id),
-  userId: toUserId(row.userId),
-  organizationId: toOrgId(row.organizationId),
-  type: row.type as NotificationType,
-  priority: row.priority as NotificationPriority,
-  status: row.status as NotificationStatus,
-  resourceType: row.resourceType as NotificationResourceType,
-  resourceId: row.resourceId,
-  eventId: row.eventId,
-  title: row.title,
-  body: row.body,
-  readAt: row.readAt,
-  createdAt: row.createdAt,
-  updatedAt: row.updatedAt,
-})
+import type { Notification } from '../../domain/types'
+import { notificationFromRow } from './notification-row.mapper'
 
 // ── Repository ──────────────────────────────────────────────────────
 
@@ -86,7 +55,13 @@ export const createNotificationRepository = (db: Database) => ({
     await db
       .update(notifications)
       .set({ status: 'read', readAt, updatedAt: new Date() })
-      .where(and(eq(notifications.id, id), eq(notifications.organizationId, orgId)))
+      .where(
+        and(
+          eq(notifications.id, id),
+          eq(notifications.organizationId, orgId),
+          eq(notifications.status, 'unread'),
+        ),
+      )
   },
 
   markAllRead: async (userId: string, orgId: string): Promise<void> => {

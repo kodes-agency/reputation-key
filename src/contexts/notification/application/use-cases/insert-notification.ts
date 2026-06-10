@@ -65,15 +65,16 @@ export const insertNotification =
     const inAppEnabled = pref?.inAppEnabled ?? true // default-on
     const emailEnabled = pref?.emailEnabled ?? true
 
-    if (!inAppEnabled) {
+    if (!inAppEnabled && !emailEnabled) {
       logger.info(
         { userId: input.userId, type: input.type },
-        'Notification skipped — in-app disabled by preference',
+        'Notification skipped — both in-app and email disabled by preference',
       )
       return null
     }
 
-    // 3. Assign ID and persist
+    // 3. Assign ID and persist — always create the row if any channel is enabled
+    // (email needs the FK reference to the notification row)
     const notification: Notification = { ...result.value, id: deps.idGen() }
     const inserted = await deps.notificationRepo.insert(notification)
 
@@ -98,6 +99,15 @@ export const insertNotification =
           'Failed to create email queue entry',
         )
       }
+    }
+
+    // 5. Return notification only if in-app channel is enabled
+    if (!inAppEnabled) {
+      logger.info(
+        { notificationId: inserted.id },
+        'Notification persisted for email only — not returned for in-app display',
+      )
+      return null
     }
 
     return inserted

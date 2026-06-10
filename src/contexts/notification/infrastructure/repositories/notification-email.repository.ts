@@ -1,7 +1,7 @@
 // Notification context — Drizzle repository adapter for notification email queue
 // Per architecture: factory pattern `createXxxRepository(db)` returning port interface.
 
-import { and, eq, asc, sql } from 'drizzle-orm'
+import { and, eq, asc, inArray, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { notificationEmailQueue } from '#/shared/db/schema/notification.schema'
 import {
@@ -130,7 +130,12 @@ export const createNotificationEmailRepository = (db: Database) => ({
         retryCount: sql`${notificationEmailQueue.retryCount} + 1`,
         updatedAt: new Date(),
       })
-      .where(eq(notificationEmailQueue.id, id))
+      .where(
+        and(
+          eq(notificationEmailQueue.id, id),
+          inArray(notificationEmailQueue.status, ['pending', 'failed']),
+        ),
+      )
   },
 
   markSkipped: async (id: string): Promise<void> => {
