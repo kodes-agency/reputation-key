@@ -4,7 +4,6 @@
 
 import type { GoalRepository } from '../../application/ports/goal.repository'
 import type { MetricRecorded } from '#/contexts/metric/application/public-api'
-import { goalProgressUpdated, goalCompleted } from '../../domain/events'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { getLogger as getLoggerType } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
@@ -17,6 +16,10 @@ export type OnMetricRecordedDeps = Readonly<{
   eventBus: EventBus
   clock: () => Date
   getLogger: typeof getLoggerType
+  findGroupForPortal: (
+    orgId: import('#/shared/domain/ids').OrganizationId,
+    portalId: import('#/shared/domain/ids').PortalId,
+  ) => Promise<{ portalGroupId: import('#/shared/domain/ids').PortalGroupId } | null>
 }>
 
 // ── Handler factory ───────────────────────────────────────────────────
@@ -26,6 +29,23 @@ export function onMetricRecorded(deps: OnMetricRecordedDeps) {
     return trace('event.onMetricRecorded', async () => {
       const { goalRepo, eventBus, clock } = deps
 
+      // Resolve portalGroupId if event has a portalId
+      let resolvedPortalGroupId: import('#/shared/domain/ids').PortalGroupId | null = null
+      if (event.portalId) {
+        try {
+          const group = await deps.findGroupForPortal(
+            event.organizationId,
+            event.portalId,
+          )
+          resolvedPortalGroupId = group?.portalGroupId ?? null
+        } catch (err) {
+          // Group lookup failure shouldn't block metric processing
+          deps
+            .getLogger()
+            .warn({ portalId: event.portalId, err }, 'portal group resolution failed')
+        }
+      }
+
       let affectedGoals
       try {
         affectedGoals = await goalRepo.findActiveGoalsByMetric(
@@ -33,7 +53,7 @@ export function onMetricRecorded(deps: OnMetricRecordedDeps) {
           event.organizationId,
           event.propertyId,
           event.portalId,
-          event.groupId ?? null,
+          resolvedPortalGroupId,
         )
       } catch (err) {
         deps
@@ -65,41 +85,37 @@ export function onMetricRecorded(deps: OnMetricRecordedDeps) {
           const now = clock()
 
           // Emit GoalProgressUpdated
-          await eventBus.emit(
-            goalProgressUpdated({
-              goalId: goal.id,
-              organizationId: goal.organizationId,
-              propertyId: goal.propertyId,
-              metricKey: goal.metricKey,
-              previousValue,
-              currentValue: result.currentValue,
-              computedSource: 'event_increment',
-              occurredAt: now,
-            }),
-          )
+          await eventBus.emit({
+            _tag: 'goal.progress_updated',
+            goalId: goal.id,
+            organizationId: goal.organizationId,
+            metricKey: goal.metricKey,
+            previousValue,
+            currentValue: result.currentValue,
+            computedSource: 'event_increment',
+            occurredAt: now,
+          })
 
           // Check completion
           if (result.currentValue >= goal.targetValue && shouldEmitCompleted(goal)) {
             await goalRepo.markGoalCompleted(goal.id, goal.organizationId, now)
 
-            await eventBus.emit(
-              goalCompleted({
-                goalId: goal.id,
-                organizationId: goal.organizationId,
-                propertyId: goal.propertyId,
-                portalId: goal.portalId,
-                groupId: goal.groupId,
-                goalType: goal.goalType,
-                aggregationFunction: goal.aggregationFunction,
-                metricKey: goal.metricKey,
-                targetValue: goal.targetValue,
-                completedValue: result.currentValue,
-                completedAt: now,
-                parentGoalId: goal.parentGoalId,
-                createdBy: goal.createdBy,
-                occurredAt: now,
-              }),
-            )
+            await eventBus.emit({
+              _tag: 'goal.completed',
+              goalId: goal.id,
+              organizationId: goal.organizationId,
+              propertyId: goal.propertyId,
+              portalId: goal.portalId,
+              portalGroupId: goal.portalGroupId,
+              goalType: goal.goalType,
+              aggregationFunction: goal.aggregationFunction,
+              metricKey: goal.metricKey,
+              targetValue: goal.targetValue,
+              completedValue: result.currentValue,
+              completedAt: now,
+              parentGoalId: goal.parentGoalId,
+              createdBy: goal.createdBy,
+            })
           }
         } catch (err) {
           deps

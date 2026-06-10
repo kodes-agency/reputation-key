@@ -1,18 +1,19 @@
 // Portal context — update portal group use case
+// Full 7-step pattern: authorize → find → check uniqueness → update → emit → return
+
 import type { PortalGroupRepository } from '../ports/portal-group.repository'
 import type { EventBus } from '#/shared/events/event-bus'
-import type { AuthContext } from '#/shared/domain/auth-context'
 import type { PortalGroup } from '../../domain/types'
-import type { UpdatePortalGroupInput } from '../dto/portal-group.dto'
-export type { UpdatePortalGroupInput }
+import type { AuthContext } from '#/shared/domain/auth-context'
+import type { UpdatePortalGroupInput } from '../dto/update-portal-group.dto'
 import { can } from '#/shared/domain/permissions'
-import { buildPortalGroup } from '../../domain/constructors'
 import { portalError } from '../../domain/errors'
 import { portalGroupUpdated } from '../../domain/events'
 import { portalGroupId } from '#/shared/domain/ids'
 
+// fallow-ignore-next-line unused-type
 export type UpdatePortalGroupDeps = Readonly<{
-  groupRepo: PortalGroupRepository
+  portalGroupRepo: PortalGroupRepository
   events: EventBus
   clock: () => Date
 }>
@@ -20,57 +21,54 @@ export type UpdatePortalGroupDeps = Readonly<{
 export const updatePortalGroup =
   (deps: UpdatePortalGroupDeps) =>
   async (input: UpdatePortalGroupInput, ctx: AuthContext): Promise<PortalGroup> => {
+    // 1. Authorize
     if (!can(ctx.role, 'portal.update')) {
-      throw portalError('forbidden', 'Only managers can update portal groups')
+      throw portalError('forbidden', 'this role cannot update portal groups')
     }
 
-    const groupId = portalGroupId(input.groupId)
-    const existing = await deps.groupRepo.findById(ctx.organizationId, groupId)
+    // 2. Find existing
+    const gid = portalGroupId(input.portalGroupId)
+    const existing = await deps.portalGroupRepo.findById(ctx.organizationId, gid)
     if (!existing) {
-      throw portalError('group_not_found', 'Portal group not found')
+      throw portalError('group_not_found', 'portal group not found in this organization')
     }
 
-    // Check name uniqueness (excluding self)
-    const duplicate = await deps.groupRepo.findByNameDuplicate(
-      ctx.organizationId,
-      existing.propertyId,
-      input.name,
-      groupId,
-    )
-    if (duplicate) {
-      throw portalError('group_name_taken', 'A group with this name already exists')
+    // 3. Check name uniqueness if name is changing
+    const newName = input.name ?? existing.name
+    if (newName !== existing.name) {
+      if (
+        await deps.portalGroupRepo.nameExists(
+          ctx.organizationId,
+          existing.propertyId,
+          newName,
+          gid,
+        )
+      ) {
+        throw portalError('group_name_taken', 'a group with this name already exists')
+      }
     }
 
-    const buildResult = buildPortalGroup({
-      id: existing.id,
-      organizationId: existing.organizationId,
-      propertyId: existing.propertyId,
-      name: input.name,
-      now: deps.clock(),
+    // 4. Update
+    const now = deps.clock()
+    await deps.portalGroupRepo.update(ctx.organizationId, gid, {
+      name: newName,
+      updatedAt: now,
     })
 
-    if (buildResult.isErr()) {
-      throw buildResult.error
-    }
-
-    const updated: PortalGroup = {
-      ...buildResult.value,
-      createdAt: existing.createdAt,
-    }
-
-    const result = await deps.groupRepo.update(updated)
-
+    // 5. Emit event
     await deps.events.emit(
       portalGroupUpdated({
-        groupId: result.id,
-        organizationId: result.organizationId,
-        propertyId: result.propertyId,
-        name: result.name,
-        occurredAt: result.updatedAt,
+        portalGroupId: gid,
+        organizationId: ctx.organizationId,
+        propertyId: existing.propertyId,
+        name: newName,
+        occurredAt: now,
       }),
     )
 
-    return result
+    // 6. Return updated group
+    return { ...existing, name: newName, updatedAt: now }
   }
 
+// fallow-ignore-next-line unused-type
 export type UpdatePortalGroup = ReturnType<typeof updatePortalGroup>

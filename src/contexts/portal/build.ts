@@ -30,8 +30,11 @@ import { getPortalQrUrl } from './application/use-cases/get-portal-qr-url'
 import { listPortalLinks } from './application/use-cases/list-portal-links'
 import { createPortalGroup } from './application/use-cases/create-portal-group'
 import { updatePortalGroup } from './application/use-cases/update-portal-group'
-import { deletePortalGroup } from './application/use-cases/delete-portal-group'
 import { listPortalGroups } from './application/use-cases/list-portal-groups'
+import { getPortalGroup } from './application/use-cases/get-portal-group'
+import { softDeletePortalGroup } from './application/use-cases/soft-delete-portal-group'
+import { addPortalToGroup } from './application/use-cases/add-portal-to-group'
+import { removePortalFromGroup } from './application/use-cases/remove-portal-from-group'
 import { portalId, portalGroupId } from '#/shared/domain/ids'
 import { getEnv } from '#/shared/config/env'
 import { randomUUID } from 'crypto'
@@ -128,23 +131,37 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       portalLinkRepo,
     }),
     createPortalGroup: createPortalGroup({
-      groupRepo: portalGroupRepo,
+      portalGroupRepo,
+      propertyApi: deps.propertyApi,
       events: deps.events,
       idGen: portalGroupIdGen,
       clock: deps.clock,
     }),
     updatePortalGroup: updatePortalGroup({
-      groupRepo: portalGroupRepo,
-      events: deps.events,
-      clock: deps.clock,
-    }),
-    deletePortalGroup: deletePortalGroup({
-      groupRepo: portalGroupRepo,
+      portalGroupRepo,
       events: deps.events,
       clock: deps.clock,
     }),
     listPortalGroups: listPortalGroups({
-      groupRepo: portalGroupRepo,
+      portalGroupRepo,
+    }),
+    getPortalGroup: getPortalGroup({
+      portalGroupRepo,
+    }),
+    softDeletePortalGroup: softDeletePortalGroup({
+      portalGroupRepo,
+      events: deps.events,
+      clock: deps.clock,
+    }),
+    addPortalToGroup: addPortalToGroup({
+      portalGroupRepo,
+      events: deps.events,
+      clock: deps.clock,
+    }),
+    removePortalFromGroup: removePortalFromGroup({
+      portalGroupRepo,
+      events: deps.events,
+      clock: deps.clock,
     }),
   } as const
 
@@ -157,17 +174,24 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       portalRepo.findPublicPortalBySlug(propertySlug, portalSlug),
   }
 
-  return {
-    publicApi,
-    internal: {
-      repos: {
-        portalRepo,
-        portalLinkRepo,
-        portalGroupRepo,
-        storage,
-        linkResolver,
-      },
-      useCases,
+  const portalGroupPublicApi: import('./application/public-api').PortalGroupPublicApi = {
+    findGroupForPortal: async (orgId, pid) => {
+      const group = await portalGroupRepo.findGroupForPortal(orgId, pid)
+      if (!group) return null
+      return { id: group.id, propertyId: group.propertyId, name: group.name }
     },
+    getGroupPortalIds: (orgId, groupId) =>
+      portalGroupRepo.getGroupPortalIds(orgId, groupId),
+  }
+
+  return {
+    useCases,
+    storage,
+    portalRepo,
+    portalLinkRepo,
+    portalGroupRepo,
+    linkResolver,
+    publicApi,
+    portalGroupPublicApi,
   } as const
 }

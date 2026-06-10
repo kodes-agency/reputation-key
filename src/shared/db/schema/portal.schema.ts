@@ -14,7 +14,6 @@ import {
   index,
   uniqueIndex,
 } from 'drizzle-orm/pg-core'
-import { portalGroups } from './portal-group.schema'
 
 // ── portals ────────────────────────────────────────────────────────
 
@@ -34,7 +33,6 @@ export const portals = pgTable(
     smartRoutingEnabled: boolean('smart_routing_enabled').notNull().default(false),
     smartRoutingThreshold: smallint('smart_routing_threshold').notNull().default(4),
     isActive: boolean('is_active').notNull().default(true),
-    groupId: uuid('group_id').references(() => portalGroups.id, { onDelete: 'set null' }),
     createdAt: createdAtColumn(),
     updatedAt: updatedAtColumn(),
     deletedAt: deletedAtColumn(),
@@ -79,3 +77,49 @@ export const portalLinks = pgTable('portal_links', {
   createdAt: createdAtColumn(),
   updatedAt: updatedAtColumn(),
 })
+
+// ── portal_groups ─────────────────────────────────────────────────
+
+export const portalGroups = pgTable(
+  'portal_groups',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: varchar('property_id', { length: 255 }).notNull(),
+    name: varchar('name', { length: 100 }).notNull(),
+    sortKey: varchar('sort_key', { length: 50 }),
+    createdAt: createdAtColumn(),
+    updatedAt: updatedAtColumn(),
+    deletedAt: deletedAtColumn(),
+  },
+  (t) => ({
+    orgPropertyNameUnique: uniqueIndex('portal_groups_org_property_name_unique')
+      .on(t.organizationId, t.propertyId, t.name)
+      .where(sql`deleted_at IS NULL`),
+    orgPropertyIdx: index('portal_groups_org_property_idx').on(
+      t.organizationId,
+      t.propertyId,
+    ),
+  }),
+)
+
+// ── portal_group_members ──────────────────────────────────────────
+
+export const portalGroupMembers = pgTable(
+  'portal_group_members',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    portalGroupId: uuid('portal_group_id')
+      .notNull()
+      .references(() => portalGroups.id, { onDelete: 'cascade' }),
+    portalId: uuid('portal_id')
+      .notNull()
+      .references(() => portals.id, { onDelete: 'cascade' }),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    createdAt: createdAtColumn(),
+  },
+  (t) => ({
+    portalIdUnique: uniqueIndex('portal_group_members_portal_id_unique').on(t.portalId),
+    groupIdx: index('portal_group_members_group_idx').on(t.portalGroupId),
+  }),
+)

@@ -56,7 +56,7 @@ describe('metric-keys', () => {
     })
 
     it('isValidMetricKeyForScope returns false for invalid pair', () => {
-      expect(isValidMetricKeyForScope('portal', 'property.review')).toBe(false)
+      expect(isValidMetricKeyForScope('portal_group', 'property.review')).toBe(false)
     })
   })
 

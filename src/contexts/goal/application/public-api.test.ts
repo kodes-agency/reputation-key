@@ -27,7 +27,7 @@ describe('GoalPublicApi', () => {
       organizationId: organizationId('o1'),
       propertyId: propertyId('p1'),
       portalId: null,
-      groupId: null,
+      portalGroupId: null,
       goalType: 'one_shot',
       aggregationFunction: 'sum',
       metricKey: 'portal.scan',
@@ -36,7 +36,6 @@ describe('GoalPublicApi', () => {
       completedAt: new Date(),
       parentGoalId: null,
       createdBy: userId('u1'),
-      occurredAt: new Date(),
     })
     expect(event._tag).toBe('goal.completed')
   })
@@ -45,7 +44,6 @@ describe('GoalPublicApi', () => {
     const event = goalProgressUpdated({
       goalId: goalId('g1'),
       organizationId: organizationId('o1'),
-      propertyId: propertyId('p1'),
       metricKey: 'portal.scan',
       previousValue: 5,
       currentValue: 8,

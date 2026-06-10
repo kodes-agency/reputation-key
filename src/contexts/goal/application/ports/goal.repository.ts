@@ -12,9 +12,9 @@ import type {
 import type {
   GoalId,
   OrganizationId,
-  PortalGroupId,
   PropertyId,
   PortalId,
+  PortalGroupId,
 } from '#/shared/domain/ids'
 import type { MetricKey, AggregationFunction } from '#/shared/domain/metric-keys'
 
@@ -22,7 +22,7 @@ export type GoalListFilter = Readonly<{
   organizationId: OrganizationId
   propertyId?: PropertyId
   portalId?: PortalId
-  groupId?: PortalGroupId
+  portalGroupId?: PortalGroupId
   status?: GoalStatus
   goalType?: GoalType
 }>
@@ -45,41 +45,27 @@ export type GoalRepository = Readonly<{
   list(filter: GoalListFilter): Promise<ReadonlyArray<Goal>>
   listInstances(parentGoalId: GoalId, orgId: OrganizationId): Promise<ReadonlyArray<Goal>>
   cancelByParent(parentGoalId: GoalId, orgId: OrganizationId, now: Date): Promise<number>
-  cancelGoalWithInstances(
-    goalId: GoalId,
-    orgId: OrganizationId,
-    now: Date,
-  ): Promise<Goal | null>
 
   // ── Goal queries (reconciliation & spawner) ───────────────────────────
-  // ⚠️ CROSS-TENANT: findAllActiveAcrossTenants scans ALL orgs.
-  // Only call from system-level background jobs (reconcile, spawner).
-  findAllActiveAcrossTenants(): Promise<ReadonlyArray<Goal>>
+  // Safe: findAllActive is a background job that legitimately processes all orgs
+  findAllActive(): Promise<ReadonlyArray<Goal>>
   findActiveRecurringTemplates(
     organizationId: OrganizationId,
   ): Promise<ReadonlyArray<Goal>>
   findLatestInstance(parentGoalId: GoalId, orgId: OrganizationId): Promise<Goal | null>
   createGoalAndProgress(goal: Goal, progress: GoalProgress): Promise<void>
-  createTemplateInstanceAndProgress(
-    template: Goal,
-    instance: Goal,
-    progress: GoalProgress,
-  ): Promise<void>
 
   // ── Event-driven increment ───────────────────────────────────────────
-  // NOTE(F029): incrementProgress is actively used by the onMetricRecorded
-  // event handler for real-time goal progress updates. It is NOT dead code.
   findActiveGoalsByMetric(
     metricKey: MetricKey,
     organizationId: OrganizationId,
     propertyId: PropertyId,
     portalId: PortalId | null,
-    groupId: PortalGroupId | null,
+    portalGroupId: PortalGroupId | null,
   ): Promise<ReadonlyArray<Goal>>
 
   incrementProgress(
     goalId: GoalId,
-    organizationId: OrganizationId,
     aggregation: AggregationFunction,
     delta: number,
   ): Promise<{
@@ -133,13 +119,4 @@ export type GoalRepository = Readonly<{
     parentGoalIds: readonly GoalId[],
     orgId: OrganizationId,
   ): Promise<ReadonlyMap<GoalId, Goal[]>>
-
-  // ── Staff goal resolution ────────────────────────────────────────────
-  // Query goals where portalId IN (portalIds) OR groupId IN (groupIds).
-  // Used by listStaffGoals to resolve goals for a staff member's assigned portals.
-  listByPortalAndGroupIds(input: {
-    organizationId: OrganizationId
-    portalIds: ReadonlyArray<PortalId>
-    groupIds: ReadonlyArray<PortalGroupId>
-  }): Promise<ReadonlyArray<Goal>>
 }>

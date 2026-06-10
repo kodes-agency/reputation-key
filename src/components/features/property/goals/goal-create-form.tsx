@@ -10,17 +10,17 @@ import type { Action } from '#/components/hooks/use-action'
 import type { CreateGoalInput } from '#/contexts/goal/application/dto/goal.dto'
 import { createGoalSchema } from '#/contexts/goal/application/dto/goal.dto'
 import { GoalCreateFields } from './goal-create-fields'
-import type { PortalOption, TeamOption } from './goal-entity-types'
-import { type FormState, initial, buildScopeOverrides } from './goal-create-form-state'
+import type { PortalOption } from './goal-entity-types'
+import { type FormState, initial, buildScopeOverrides } from './go-create-form-state'
 
 type Props = Readonly<{
   propertyId: string
   mutation: Action<{ data: CreateGoalInput }, unknown>
   portals: readonly PortalOption[]
-  teams: readonly TeamOption[]
+  portalGroups: readonly PortalOption[]
 }>
 
-export function GoalCreateForm({ propertyId, mutation, portals, teams }: Props) {
+export function GoalCreateForm({ propertyId, mutation, portals, portalGroups }: Props) {
   const navigate = useNavigate()
   const [s, setS] = useState<FormState>(initial)
 
@@ -106,7 +106,7 @@ export function GoalCreateForm({ propertyId, mutation, portals, teams }: Props) 
           navigate({ to: '/properties/$propertyId/goals', params: { propertyId } })
         }
         portals={portals}
-        teams={teams}
+        portalGroups={portalGroups}
         propertyId={propertyId}
       />
       {mutation.error != null && (

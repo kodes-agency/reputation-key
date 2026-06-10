@@ -37,7 +37,7 @@ function createFakeDeps(overrides?: { storedGoals?: Goal[] }) {
         organizationId: data.organizationId,
         propertyId: data.propertyId,
         portalId: data.portalId,
-        groupId: data.groupId,
+        portalGroupId: data.portalGroupId,
         name: data.name,
         description: data.description,
         createdBy: data.createdBy,
@@ -71,14 +71,6 @@ function createFakeDeps(overrides?: { storedGoals?: Goal[] }) {
     cancelByParent: async (_parentId, _orgId, _now) => {
       cancelledByParentCount++
       return 2 // simulate 2 instances cancelled
-    },
-    cancelGoalWithInstances: async (id, _orgId, _now) => {
-      cancelledByParentCount++
-      const existing = stored.get(id as string)
-      if (!existing) return null
-      const updated: Goal = { ...existing, status: 'cancelled' }
-      stored.set(id as string, updated)
-      return updated
     },
     insertProgress: async (data) => ({
       id: goalProgressId('p-1'),
@@ -117,12 +109,10 @@ function createFakeDeps(overrides?: { storedGoals?: Goal[] }) {
       currentCount: null,
     }),
     markGoalCompleted: async () => {},
-    findAllActiveAcrossTenants: async () => [],
+    findAllActive: async () => [],
     findActiveRecurringTemplates: async () => [],
     findLatestInstance: async () => null,
-    listByPortalAndGroupIds: async () => [],
     createGoalAndProgress: async () => {},
-    createTemplateInstanceAndProgress: async () => {},
   }
 
   const deps: CancelGoalDeps = {
@@ -138,7 +128,7 @@ const makeGoal = (overrides: Partial<Goal> = {}): Goal => ({
   organizationId: organizationId('org-1'),
   propertyId: propertyId('prop-1'),
   portalId: null,
-  groupId: null,
+  portalGroupId: null,
   name: 'Get 200 scans',
   description: null,
   createdBy: userId('user-1'),

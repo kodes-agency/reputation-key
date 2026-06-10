@@ -38,7 +38,7 @@ function createFakeDeps() {
         organizationId: data.organizationId,
         propertyId: data.propertyId,
         portalId: data.portalId,
-        groupId: data.groupId,
+        portalGroupId: data.portalGroupId,
         name: data.name,
         description: data.description,
         createdBy: data.createdBy,
@@ -64,7 +64,6 @@ function createFakeDeps() {
     list: async () => [],
     listInstances: async () => [],
     cancelByParent: async () => 0,
-    cancelGoalWithInstances: async () => null,
     insertProgress: async (data) => {
       const progress: GoalProgress = {
         id: goalProgressId(nextId()),
@@ -106,16 +105,11 @@ function createFakeDeps() {
       currentCount: null,
     }),
     markGoalCompleted: async () => {},
-    findAllActiveAcrossTenants: async () => [],
+    findAllActive: async () => [],
     findActiveRecurringTemplates: async () => [],
     findLatestInstance: async () => null,
-    listByPortalAndGroupIds: async () => [],
     createGoalAndProgress: async (goal, progress) => {
       goals.push(goal)
-      progresses.push(progress)
-    },
-    createTemplateInstanceAndProgress: async (template, instance, progress) => {
-      goals.push(template, instance)
       progresses.push(progress)
     },
   }
@@ -148,7 +142,7 @@ const BASE_INPUT = {
   organizationId: organizationId('org-1'),
   propertyId: propertyId('prop-1'),
   portalId: null as ReturnType<typeof portalId> | null,
-  groupId: null as ReturnType<typeof portalGroupId> | null,
+  portalGroupId: null as ReturnType<typeof portalGroupId> | null,
   name: 'Get 200 scans',
   description: null as string | null,
   createdBy: userId('user-1'),
@@ -410,7 +404,7 @@ describe('createGoal', () => {
       const result = await createGoal(fakes.deps)({
         ...BASE_INPUT,
         goalType: 'open',
-        groupId: portalGroupId('group-1'),
+        portalGroupId: portalGroupId('pg-1'),
         metricKey: 'property.review',
       })
 

@@ -30,7 +30,7 @@ function makeGoal(overrides: Partial<Goal> & { goalType: Goal['goalType'] }): Go
     organizationId: organizationId('org-1'),
     propertyId: propertyId('prop-1'),
     portalId: null,
-    groupId: null,
+    portalGroupId: null,
     name: 'Test goal',
     description: null,
     createdBy: userId('user-1'),
@@ -96,16 +96,13 @@ function createFakeDeps() {
     list: async () => [],
     listInstances: async () => [],
     cancelByParent: async () => 0,
-    cancelGoalWithInstances: async () => null,
-    findAllActiveAcrossTenants: async () => goals.filter((g) => g.status === 'active'),
+    findAllActive: async () => goals.filter((g) => g.status === 'active'),
     findActiveRecurringTemplates: async () =>
       goals.filter(
         (g) => g.status === 'active' && g.goalType === 'recurring' && !g.parentGoalId,
       ),
     findLatestInstance: async () => null,
-    listByPortalAndGroupIds: async () => [],
     createGoalAndProgress: async () => {},
-    createTemplateInstanceAndProgress: async () => {},
     findActiveGoalsByMetric: async () => [],
     upsertProgress: async () => ({
       currentValue: 0,

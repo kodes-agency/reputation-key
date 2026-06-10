@@ -30,7 +30,7 @@ function makeGoal(overrides: Partial<Goal> & { goalType: Goal['goalType'] }): Go
     organizationId: organizationId('org-1'),
     propertyId: propertyId('prop-1'),
     portalId: null,
-    groupId: null,
+    portalGroupId: null,
     name: 'Test goal',
     description: null,
     createdBy: userId('user-1'),
@@ -312,7 +312,8 @@ describe('buildProgressQuery', () => {
       expect(query.scopeFilter).toEqual({
         propertyId: propertyId('prop-1'),
         portalId: null,
-        groupId: null,
+        portalGroupId: null,
+        staffId: null,
       })
     })
 
@@ -325,20 +326,22 @@ describe('buildProgressQuery', () => {
       expect(result.isOk()).toBe(true)
       const query = result._unsafeUnwrap()
       expect(query.scopeFilter.portalId).toEqual(portalId('portal-1'))
-      expect(query.scopeFilter.groupId).toBeNull()
+      expect(query.scopeFilter.portalGroupId).toBeNull()
+      expect(query.scopeFilter.staffId).toBeNull()
     })
 
-    it('group scope', () => {
+    it('portal_group scope', () => {
       const goal = makeGoal({
         goalType: 'open',
-        groupId: portalGroupId('group-1'),
+        portalGroupId: portalGroupId('pg-1'),
         metricKey: 'portal.scan',
       })
       const result = buildProgressQuery(goal)
       expect(result.isOk()).toBe(true)
       const query = result._unsafeUnwrap()
-      expect(query.scopeFilter.groupId).toEqual(portalGroupId('group-1'))
+      expect(query.scopeFilter.portalGroupId).toEqual(portalGroupId('pg-1'))
       expect(query.scopeFilter.portalId).toBeNull()
+      expect(query.scopeFilter.staffId).toBeNull()
     })
   })
 
@@ -393,7 +396,7 @@ describe('buildProgressQuery', () => {
         goalType: 'recurring',
         recurrenceRule: { frequency: 'monthly' },
         portalId: portalId('p-1'),
-        groupId: portalGroupId('g-1'),
+        portalGroupId: portalGroupId('pg-1'),
         metricKey: 'portal.scan',
       })
       const result = buildProgressQueryForInstance(goal, INSTANCE_START, INSTANCE_END)
@@ -402,7 +405,8 @@ describe('buildProgressQuery', () => {
       expect(query.scopeFilter).toEqual({
         propertyId: propertyId('prop-1'),
         portalId: portalId('p-1'),
-        groupId: portalGroupId('g-1'),
+        portalGroupId: portalGroupId('pg-1'),
+        staffId: null,
       })
     })
   })

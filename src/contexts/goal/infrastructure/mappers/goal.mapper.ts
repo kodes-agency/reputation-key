@@ -19,7 +19,6 @@ import {
   portalId,
   portalGroupId,
   userId,
-  unbrand,
 } from '#/shared/domain/ids'
 
 type GoalRow = typeof goals.$inferSelect
@@ -61,7 +60,7 @@ export const goalFromRow = (row: GoalRow): Goal => ({
   organizationId: organizationId(row.organizationId),
   propertyId: propertyId(row.propertyId),
   portalId: row.portalId ? portalId(row.portalId) : null,
-  groupId: row.groupId ? portalGroupId(row.groupId) : null,
+  portalGroupId: row.portalGroupId ? portalGroupId(row.portalGroupId) : null,
   name: row.name,
   description: row.description,
   createdBy: userId(row.createdBy),
@@ -112,13 +111,13 @@ export const goalProgressFromRow = (row: GoalProgressRow): GoalProgress => ({
 export const goalToInsertRow = (
   goal: Omit<Goal, 'id' | 'createdAt' | 'updatedAt'>,
 ): typeof goals.$inferInsert => ({
-  organizationId: unbrand(goal.organizationId),
-  propertyId: unbrand(goal.propertyId),
-  portalId: goal.portalId != null ? unbrand(goal.portalId) : null,
-  groupId: goal.groupId != null ? unbrand(goal.groupId) : null,
+  organizationId: goal.organizationId as string,
+  propertyId: goal.propertyId as string,
+  portalId: goal.portalId as string | null,
+  portalGroupId: goal.portalGroupId as string | null,
   name: goal.name,
   description: goal.description,
-  createdBy: unbrand(goal.createdBy),
+  createdBy: goal.createdBy as string,
   goalType: goal.goalType,
   aggregationFunction: goal.aggregationFunction,
   metricKey: goal.metricKey,
@@ -130,7 +129,7 @@ export const goalToInsertRow = (
     ? { frequency: goal.recurrenceRule.frequency }
     : null,
   rollingWindowDays: goal.rollingWindowDays,
-  parentGoalId: goal.parentGoalId != null ? unbrand(goal.parentGoalId) : null,
+  parentGoalId: goal.parentGoalId as string | null,
   completedAt: goal.completedAt,
 })
 
@@ -140,7 +139,7 @@ export const goalToInsertRow = (
 export const goalProgressToInsertRow = (
   progress: Omit<GoalProgress, 'id'>,
 ): typeof goalProgress.$inferInsert => ({
-  goalId: unbrand(progress.goalId),
+  goalId: progress.goalId as string,
   currentValue: progress.currentValue,
   currentSum: progress.currentSum,
   currentCount: progress.currentCount,
