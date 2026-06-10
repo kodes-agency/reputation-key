@@ -215,6 +215,7 @@ export const approveReply =
           propertyId: review.propertyId,
           organizationId: approved.organizationId,
           userId: input.userId,
+          authorId: approved.createdBy ?? ('' as UserId),
           occurredAt: now,
         }),
       )
@@ -273,6 +274,7 @@ export const rejectReply =
           propertyId: review.propertyId,
           organizationId: updated.organizationId,
           userId: input.userId,
+          authorId: updated.createdBy ?? ('' as UserId),
           reason: input.reason ?? null,
           occurredAt: now,
         }),
@@ -366,6 +368,7 @@ export const markReplyPublished =
         reviewId: reply.reviewId,
         propertyId: review.propertyId,
         organizationId: reply.organizationId,
+        authorId: published.createdBy ?? ('' as UserId),
         occurredAt: now,
       }),
     )

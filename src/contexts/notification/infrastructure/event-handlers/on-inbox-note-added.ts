@@ -5,6 +5,7 @@
 
 import type { InboxNoteAdded } from '#/contexts/inbox/application/public-api'
 import type { UserLookupPort } from '../../application/ports/user-lookup.port'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { InsertNotificationJobData } from '../jobs/insert-notification.job'
 import { INSERT_NOTIFICATION_JOB_NAME } from '../jobs/insert-notification.job'
 import type { Queue } from 'bullmq'
@@ -12,6 +13,7 @@ import type { Queue } from 'bullmq'
 type Deps = Readonly<{
   queue: Queue
   userLookup: UserLookupPort
+  logger: LoggerPort
 }>
 
 export const onInboxNoteAdded =
@@ -19,7 +21,18 @@ export const onInboxNoteAdded =
   async (event: InboxNoteAdded): Promise<void> => {
     const recipients = await deps.userLookup.findAssignedManagers(event.propertyId)
 
-    const jobs: InsertNotificationJobData[] = recipients.map((userId) => ({
+    // R2-M1: Filter out the note author to avoid self-notification
+    const filtered = recipients.filter((uid) => uid !== event.userId)
+
+    if (filtered.length === 0) {
+      deps.logger.warn(
+        { propertyId: event.propertyId, eventId: event.eventId },
+        'onInboxNoteAdded: no recipients after filtering, skipping',
+      )
+      return
+    }
+
+    const jobs: InsertNotificationJobData[] = filtered.map((userId) => ({
       userId,
       organizationId: event.organizationId,
       type: 'inbox_note.added' as const,

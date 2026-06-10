@@ -42,6 +42,8 @@ const notificationFromRow = (row: NotificationRow): Notification => ({
 // ── Repository ──────────────────────────────────────────────────────
 
 export const createNotificationRepository = (db: Database) => ({
+  // ── Mutations ────────────────────────────────────────────────────
+
   insert: async (notification: Notification): Promise<Notification> => {
     const row = await db
       .insert(notifications)
@@ -72,7 +74,6 @@ export const createNotificationRepository = (db: Database) => ({
           title: notification.title,
           body: notification.body,
           priority: notification.priority,
-          status: notification.status,
           updatedAt: notification.updatedAt,
         },
       })
@@ -80,6 +81,28 @@ export const createNotificationRepository = (db: Database) => ({
 
     return notificationFromRow(row[0]!)
   },
+
+  markRead: async (id: string, orgId: string, readAt: Date): Promise<void> => {
+    await db
+      .update(notifications)
+      .set({ status: 'read', readAt, updatedAt: new Date() })
+      .where(and(eq(notifications.id, id), eq(notifications.organizationId, orgId)))
+  },
+
+  markAllRead: async (userId: string, orgId: string): Promise<void> => {
+    await db
+      .update(notifications)
+      .set({ status: 'read', readAt: new Date(), updatedAt: new Date() })
+      .where(
+        and(
+          eq(notifications.userId, userId),
+          eq(notifications.organizationId, orgId),
+          eq(notifications.status, 'unread'),
+        ),
+      )
+  },
+
+  // ── Queries ──────────────────────────────────────────────────────
 
   findById: async (id: string, orgId: string): Promise<Notification | null> => {
     const rows = await db
@@ -146,25 +169,5 @@ export const createNotificationRepository = (db: Database) => ({
       .offset(offset)
 
     return rows.map(notificationFromRow)
-  },
-
-  markRead: async (id: string, orgId: string, readAt: Date): Promise<void> => {
-    await db
-      .update(notifications)
-      .set({ status: 'read', readAt, updatedAt: new Date() })
-      .where(and(eq(notifications.id, id), eq(notifications.organizationId, orgId)))
-  },
-
-  markAllRead: async (userId: string, orgId: string): Promise<void> => {
-    await db
-      .update(notifications)
-      .set({ status: 'read', readAt: new Date(), updatedAt: new Date() })
-      .where(
-        and(
-          eq(notifications.userId, userId),
-          eq(notifications.organizationId, orgId),
-          eq(notifications.status, 'unread'),
-        ),
-      )
   },
 })

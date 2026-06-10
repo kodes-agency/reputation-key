@@ -40,7 +40,14 @@ function createFakeDeps() {
     getEmail: vi.fn(),
     getName: vi.fn(),
   }
-  return { queue, addMock, userLookup, jobs }
+  const logger = {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+    child: vi.fn().mockReturnThis(),
+  }
+  return { queue, addMock, userLookup, logger, jobs }
 }
 
 describe('onReviewCreated (notification)', () => {
@@ -99,6 +106,17 @@ describe('onReviewCreated (notification)', () => {
     await onReviewCreated(deps)(mockEvent)
 
     expect(deps.queue.add).not.toHaveBeenCalled()
+  })
+
+  it('logs a warning when no managers are assigned', async () => {
+    deps.userLookup.findAssignedManagers.mockResolvedValue([])
+
+    await onReviewCreated(deps)(mockEvent)
+
+    expect(deps.logger.warn).toHaveBeenCalledWith(
+      { propertyId: PROP_ID, eventId: 'test-event-id' },
+      'onReviewCreated: no recipients found, skipping',
+    )
   })
 
   it('includes the correct rating in the body text', async () => {

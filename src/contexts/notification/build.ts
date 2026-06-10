@@ -53,6 +53,7 @@ export const buildNotificationContext = (input: BuildInput) => {
     insertNotification: useCases.insertNotification,
 
     // Query methods exposed for server functions
+    findById: (id: string, orgId: string) => notificationRepo.findById(id, orgId),
     getUnreadCount: (userId: string, orgId: string) =>
       notificationRepo.countUnreadByUser(userId, orgId),
     getNotifications: (userId: string, orgId: string, limit: number, offset: number) =>

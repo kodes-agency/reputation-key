@@ -31,16 +31,19 @@ export const registerNotificationHandlers = (
   const { events, queue, userLookup, logger } = deps
 
   // Review events
-  events.on('review.created', onReviewCreated({ queue, userLookup }))
+  events.on('review.created', onReviewCreated({ queue, userLookup, logger }))
 
   // Inbox events
   events.on('inbox.inbox_item.created', onInboxItemCreated({ queue, userLookup, logger }))
   events.on('inbox.inbox_item.assigned', onInboxItemAssigned({ queue }))
-  events.on('inbox.inbox_item.escalated', onInboxItemEscalated({ queue, userLookup }))
-  events.on('inbox.inbox_note.added', onInboxNoteAdded({ queue, userLookup }))
+  events.on(
+    'inbox.inbox_item.escalated',
+    onInboxItemEscalated({ queue, userLookup, logger }),
+  )
+  events.on('inbox.inbox_note.added', onInboxNoteAdded({ queue, userLookup, logger }))
 
   // Reply lifecycle
-  events.on('review.reply.submitted', onReplySubmitted({ queue, userLookup }))
+  events.on('review.reply.submitted', onReplySubmitted({ queue, userLookup, logger }))
   events.on('review.reply.approved', onReplyApproved({ queue }))
   events.on('review.reply.rejected', onReplyRejected({ queue }))
   events.on('review.reply.published', onReplyPublished({ queue }))

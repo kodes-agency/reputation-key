@@ -25,11 +25,11 @@ export function getNotificationUrl(
 ): string {
   switch (resourceType) {
     case 'inbox_item':
-      return `/inbox?inboxItemId=${resourceId}`
+      return `/inbox?itemId=${resourceId}`
     case 'reply':
-      return `/reviews/${resourceId}/replies`
+      return '/inbox'
     case 'goal':
-      return `/goals/${resourceId}`
+      return '/properties'
     default:
       return '#'
   }

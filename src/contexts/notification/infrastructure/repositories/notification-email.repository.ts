@@ -57,7 +57,6 @@ export const createNotificationEmailRepository = (db: Database) => ({
         target: [notificationEmailQueue.notificationId],
         set: {
           priority: email.priority,
-          status: email.status,
           updatedAt: email.updatedAt,
         },
       })
@@ -114,7 +113,12 @@ export const createNotificationEmailRepository = (db: Database) => ({
     await db
       .update(notificationEmailQueue)
       .set({ status: 'sent', sentAt, updatedAt: new Date() })
-      .where(eq(notificationEmailQueue.id, id))
+      .where(
+        and(
+          eq(notificationEmailQueue.id, id),
+          eq(notificationEmailQueue.status, 'pending'),
+        ),
+      )
   },
 
   markFailed: async (id: string, failedAt: Date): Promise<void> => {

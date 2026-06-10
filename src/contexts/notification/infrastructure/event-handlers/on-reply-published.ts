@@ -14,7 +14,7 @@ export const onReplyPublished =
   (deps: Deps) =>
   async (event: ReviewReplyPublished): Promise<void> => {
     const data: InsertNotificationJobData = {
-      userId: event.userId,
+      userId: event.authorId,
       organizationId: event.organizationId,
       type: 'reply.published' as const,
       resourceType: 'reply' as const,

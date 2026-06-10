@@ -47,7 +47,14 @@ function createFakeDeps() {
     getEmail: vi.fn(),
     getName: vi.fn(),
   }
-  return { queue, addMock, userLookup, jobs }
+  const logger = {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+    child: vi.fn().mockReturnThis(),
+  }
+  return { queue, addMock, userLookup, logger, jobs }
 }
 
 describe('onReplySubmitted (notification)', () => {
@@ -106,6 +113,17 @@ describe('onReplySubmitted (notification)', () => {
     await onReplySubmitted(deps)(mockEvent)
 
     expect(deps.queue.add).not.toHaveBeenCalled()
+  })
+
+  it('logs a warning when no AccountAdmins exist', async () => {
+    deps.userLookup.findByRole.mockResolvedValue([])
+
+    await onReplySubmitted(deps)(mockEvent)
+
+    expect(deps.logger.warn).toHaveBeenCalledWith(
+      { organizationId: ORG_ID, eventId: 'test-event-id' },
+      'onReplySubmitted: no recipients found, skipping',
+    )
   })
 
   it('enqueues exactly one job for a single admin', async () => {

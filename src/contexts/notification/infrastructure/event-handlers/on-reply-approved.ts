@@ -14,7 +14,7 @@ export const onReplyApproved =
   (deps: Deps) =>
   async (event: ReviewReplyApproved): Promise<void> => {
     const data: InsertNotificationJobData = {
-      userId: event.userId,
+      userId: event.authorId,
       organizationId: event.organizationId,
       type: 'reply.approved' as const,
       resourceType: 'reply' as const,

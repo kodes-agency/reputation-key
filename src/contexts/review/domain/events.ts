@@ -90,6 +90,7 @@ export type ReviewReplyPublished = Readonly<{
   propertyId: PropertyId
   organizationId: OrganizationId
   userId: UserId
+  authorId: UserId
   source: 'web' | 'import'
   occurredAt: Date
   correlationId: string | null
@@ -148,6 +149,7 @@ export type ReviewReplyApproved = Readonly<{
   propertyId: PropertyId
   organizationId: OrganizationId
   userId: UserId
+  authorId: UserId
   source: 'web' | 'import'
   occurredAt: Date
   correlationId: string | null
@@ -177,6 +179,7 @@ export type ReviewReplyRejected = Readonly<{
   propertyId: PropertyId
   organizationId: OrganizationId
   userId: UserId
+  authorId: UserId
   reason: string | null
   source: 'web' | 'import'
   occurredAt: Date

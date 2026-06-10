@@ -101,6 +101,18 @@ export const markNotificationReadFn = createServerFn({ method: 'POST' })
         }
         try {
           const { notificationPublicApi } = getContainer()
+          // R2-H5: Verify notification belongs to current user before marking read
+          const notification = await notificationPublicApi.findById(
+            data.notificationId,
+            ctx.organizationId,
+          )
+          if (!notification || notification.userId !== ctx.userId) {
+            throwContextError(
+              'AuthError',
+              { code: 'forbidden', message: 'Notification not found or access denied' },
+              403,
+            )
+          }
           return notificationPublicApi.markRead(data.notificationId, ctx.organizationId)
         } catch (e) {
           throw catchUntagged(e)

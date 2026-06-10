@@ -59,6 +59,7 @@ const mockEvent: ReviewReplyPublished = {
   propertyId: PROP_ID,
   organizationId: ORG_ID,
   userId: userId('user-1'),
+  authorId: userId('author-1'),
   source: 'web',
   occurredAt: NOW,
 }

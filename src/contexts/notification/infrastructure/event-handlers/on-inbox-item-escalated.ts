@@ -4,11 +4,13 @@
 import type { Queue } from 'bullmq'
 import type { InboxItemEscalated } from '#/contexts/inbox/application/public-api'
 import type { UserLookupPort } from '../../application/ports/user-lookup.port'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import { INSERT_NOTIFICATION_JOB_NAME } from '../jobs/insert-notification.job'
 
 type Deps = Readonly<{
   queue: Queue
   userLookup: UserLookupPort
+  logger: LoggerPort
 }>
 
 export const onInboxItemEscalated =
@@ -18,6 +20,14 @@ export const onInboxItemEscalated =
       event.organizationId,
       'AccountAdmin' as const,
     )
+
+    if (recipients.length === 0) {
+      deps.logger.warn(
+        { organizationId: event.organizationId, eventId: event.eventId },
+        'onInboxItemEscalated: no recipients found, skipping',
+      )
+      return
+    }
 
     await Promise.all(
       recipients.map((userId) =>
