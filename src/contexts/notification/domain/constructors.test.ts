@@ -1,15 +1,15 @@
 // Notification context — domain constructor tests
 
 import { describe, it, expect } from 'vitest'
+import { createNotification } from './constructors'
+import { createNotificationEmail } from './constructors-email'
+import { createNotificationPreference } from './constructors-preference'
 import {
-  createNotification,
-  createNotificationEmail,
-  createNotificationPreference,
   markNotificationRead,
   markEmailSent,
   markEmailFailed,
   markEmailSkipped,
-} from './constructors'
+} from './constructors-transitions'
 import {
   organizationId,
   userId,

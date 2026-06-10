@@ -18,7 +18,7 @@ export const onReplyRejected =
       organizationId: event.organizationId,
       type: 'reply.rejected' as const,
       resourceType: 'reply' as const,
-      resourceId: event.reviewId,
+      resourceId: event.replyId,
       eventId: event.eventId,
       title: 'Reply rejected',
       body: event.reason ? `Rejected: ${event.reason}` : 'Your reply has been rejected',

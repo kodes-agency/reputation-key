@@ -18,7 +18,7 @@ export const onReplyPublishFailed =
       organizationId: event.organizationId,
       type: 'reply.publish_failed' as const,
       resourceType: 'reply' as const,
-      resourceId: event.reviewId,
+      resourceId: event.replyId,
       eventId: event.eventId,
       title: 'Reply publish failed',
       body: 'Failed to publish your reply to Google. Please retry.',

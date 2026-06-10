@@ -5,6 +5,7 @@
 import type { EventBus } from '#/shared/events/event-bus'
 import type { Queue } from 'bullmq'
 import type { UserLookupPort } from '../../application/ports/user-lookup.port'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import { onReviewCreated } from './on-review-created'
 import { onInboxItemCreated } from './on-inbox-item-created'
 import { onInboxItemAssigned } from './on-inbox-item-assigned'
@@ -21,18 +22,19 @@ export type RegisterNotificationHandlersDeps = Readonly<{
   events: EventBus
   queue: Queue
   userLookup: UserLookupPort
+  logger: LoggerPort
 }>
 
 export const registerNotificationHandlers = (
   deps: RegisterNotificationHandlersDeps,
 ): void => {
-  const { events, queue, userLookup } = deps
+  const { events, queue, userLookup, logger } = deps
 
   // Review events
   events.on('review.created', onReviewCreated({ queue, userLookup }))
 
   // Inbox events
-  events.on('inbox.inbox_item.created', onInboxItemCreated({ queue, userLookup }))
+  events.on('inbox.inbox_item.created', onInboxItemCreated({ queue, userLookup, logger }))
   events.on('inbox.inbox_item.assigned', onInboxItemAssigned({ queue }))
   events.on('inbox.inbox_item.escalated', onInboxItemEscalated({ queue, userLookup }))
   events.on('inbox.inbox_note.added', onInboxNoteAdded({ queue, userLookup }))

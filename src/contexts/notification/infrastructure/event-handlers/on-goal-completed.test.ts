@@ -15,6 +15,8 @@ const NOW = new Date('2026-06-01T12:00:00Z')
 
 const mockEvent: GoalCompleted = {
   _tag: 'goal.completed',
+  eventId: 'evt-goal-completed-1',
+  correlationId: null,
   goalId: GOAL_ID,
   organizationId: ORG_ID,
   propertyId: PROP_ID,
@@ -58,20 +60,17 @@ describe('onGoalCompleted (notification)', () => {
       type: 'goal.completed',
       resourceType: 'goal',
       resourceId: GOAL_ID,
-      eventId: expect.any(String),
+      eventId: 'evt-goal-completed-1',
       title: 'Goal completed! 🎉',
       body: 'Your goal has been completed',
     })
   })
 
-  it('generates a unique eventId via crypto.randomUUID', async () => {
+  it('propagates eventId from the domain event', async () => {
     await onGoalCompleted(deps)(mockEvent)
 
     const data = deps.jobs[0]!.data as { eventId: string }
-    // Should be a valid UUID format
-    expect(data.eventId).toMatch(
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
-    )
+    expect(data.eventId).toBe('evt-goal-completed-1')
   })
 
   it('sends notification to the goal creator (createdBy)', async () => {

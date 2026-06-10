@@ -33,6 +33,7 @@ export const buildNotificationContext = (input: BuildInput) => {
       events: input.events,
       queue: input.queue,
       userLookup,
+      logger: input.logger,
     })
   }
 
@@ -52,12 +53,14 @@ export const buildNotificationContext = (input: BuildInput) => {
     insertNotification: useCases.insertNotification,
 
     // Query methods exposed for server functions
-    getUnreadCount: (userId: string) => notificationRepo.countUnreadByUser(userId),
-    getNotifications: (userId: string, limit: number, offset: number) =>
-      notificationRepo.findByUser(userId, limit, offset),
+    getUnreadCount: (userId: string, orgId: string) =>
+      notificationRepo.countUnreadByUser(userId, orgId),
+    getNotifications: (userId: string, orgId: string, limit: number, offset: number) =>
+      notificationRepo.findByUser(userId, orgId, limit, offset),
     markRead: (id: string, orgId: string) =>
       notificationRepo.markRead(id, orgId, input.clock()),
-    markAllRead: (userId: string) => notificationRepo.markAllRead(userId),
+    markAllRead: (userId: string, orgId: string) =>
+      notificationRepo.markAllRead(userId, orgId),
   } as const
 
   return {

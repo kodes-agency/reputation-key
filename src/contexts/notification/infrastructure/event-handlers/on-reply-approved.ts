@@ -18,7 +18,7 @@ export const onReplyApproved =
       organizationId: event.organizationId,
       type: 'reply.approved' as const,
       resourceType: 'reply' as const,
-      resourceId: event.reviewId,
+      resourceId: event.replyId,
       eventId: event.eventId,
       title: 'Reply approved',
       body: 'Your reply has been approved',

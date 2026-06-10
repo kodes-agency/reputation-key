@@ -12,19 +12,21 @@ export type NotificationRepositoryPort = Readonly<{
 
   findUnreadByUser(
     userId: UserId,
+    orgId: OrganizationId,
     limit: number,
     offset: number,
   ): Promise<readonly Notification[]>
 
-  countUnreadByUser(userId: UserId): Promise<number>
+  countUnreadByUser(userId: UserId, orgId: OrganizationId): Promise<number>
 
   findByUser(
     userId: UserId,
+    orgId: OrganizationId,
     limit: number,
     offset: number,
   ): Promise<readonly Notification[]>
 
   markRead(id: NotificationId, orgId: OrganizationId, readAt: Date): Promise<void>
 
-  markAllRead(userId: UserId): Promise<void>
+  markAllRead(userId: UserId, orgId: OrganizationId): Promise<void>
 }>

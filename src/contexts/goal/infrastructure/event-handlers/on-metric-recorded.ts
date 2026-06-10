@@ -102,6 +102,8 @@ export function onMetricRecorded(deps: OnMetricRecordedDeps) {
 
             await eventBus.emit({
               _tag: 'goal.completed',
+              eventId: crypto.randomUUID(),
+              correlationId: null,
               goalId: goal.id,
               organizationId: goal.organizationId,
               propertyId: goal.propertyId,

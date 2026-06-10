@@ -3,7 +3,8 @@
 
 import type { Notification } from '../../domain/types'
 import type { NotificationType } from '../../domain/types'
-import { createNotification, createNotificationEmail } from '../../domain/constructors'
+import { createNotification } from '../../domain/constructors'
+import { createNotificationEmail } from '../../domain/constructors-email'
 import type { NotificationRepositoryPort } from '../ports/notification-repository.port'
 import type { NotificationEmailRepositoryPort } from '../ports/notification-email-repository.port'
 import type { NotificationPreferenceRepositoryPort } from '../ports/notification-preference-repository.port'
@@ -44,7 +45,7 @@ export type InsertNotificationDeps = Readonly<{
 
 export const insertNotification =
   (deps: InsertNotificationDeps) =>
-  async (input: InsertNotificationInput): Promise<Notification> => {
+  async (input: InsertNotificationInput): Promise<Notification | null> => {
     const { logger } = deps
 
     // 1. Construct domain object
@@ -69,7 +70,7 @@ export const insertNotification =
         { userId: input.userId, type: input.type },
         'Notification skipped — in-app disabled by preference',
       )
-      return result.value
+      return null
     }
 
     // 3. Assign ID and persist

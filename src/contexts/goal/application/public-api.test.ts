@@ -23,6 +23,8 @@ describe('GoalPublicApi', () => {
 
   it('goalCompleted creates an event with _tag goal.completed', () => {
     const event = goalCompleted({
+      eventId: crypto.randomUUID(),
+      correlationId: null,
       goalId: goalId('g1'),
       organizationId: organizationId('o1'),
       propertyId: propertyId('p1'),

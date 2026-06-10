@@ -8,6 +8,8 @@ export type NotificationEmailRepositoryPort = Readonly<{
   /** Upsert on conflict (by notificationId). */
   insert(email: NotificationEmail): Promise<NotificationEmail>
 
+  findById(id: NotificationEmailId): Promise<NotificationEmail | null>
+
   findPendingByOrg(
     orgId: OrganizationId,
     priority: NotificationPriority,

@@ -19,7 +19,7 @@ export const onGoalCompleted =
       type: 'goal.completed' as const,
       resourceType: 'goal' as const,
       resourceId: event.goalId,
-      eventId: crypto.randomUUID(),
+      eventId: event.eventId,
       title: 'Goal completed! 🎉',
       body: 'Your goal has been completed',
     }

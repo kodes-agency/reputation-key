@@ -93,13 +93,20 @@ export const createNotificationRepository = (db: Database) => ({
 
   findUnreadByUser: async (
     userId: string,
+    orgId: string,
     limit: number,
     offset: number,
   ): Promise<Notification[]> => {
     const rows = await db
       .select()
       .from(notifications)
-      .where(and(eq(notifications.userId, userId), eq(notifications.status, 'unread')))
+      .where(
+        and(
+          eq(notifications.userId, userId),
+          eq(notifications.organizationId, orgId),
+          eq(notifications.status, 'unread'),
+        ),
+      )
       .orderBy(desc(notifications.createdAt))
       .limit(limit)
       .offset(offset)
@@ -107,24 +114,33 @@ export const createNotificationRepository = (db: Database) => ({
     return rows.map(notificationFromRow)
   },
 
-  countUnreadByUser: async (userId: string): Promise<number> => {
+  countUnreadByUser: async (userId: string, orgId: string): Promise<number> => {
     const rows = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(notifications)
-      .where(and(eq(notifications.userId, userId), eq(notifications.status, 'unread')))
+      .where(
+        and(
+          eq(notifications.userId, userId),
+          eq(notifications.organizationId, orgId),
+          eq(notifications.status, 'unread'),
+        ),
+      )
 
     return rows[0]!.count
   },
 
   findByUser: async (
     userId: string,
+    orgId: string,
     limit: number,
     offset: number,
   ): Promise<Notification[]> => {
     const rows = await db
       .select()
       .from(notifications)
-      .where(eq(notifications.userId, userId))
+      .where(
+        and(eq(notifications.userId, userId), eq(notifications.organizationId, orgId)),
+      )
       .orderBy(desc(notifications.createdAt))
       .limit(limit)
       .offset(offset)
@@ -139,10 +155,16 @@ export const createNotificationRepository = (db: Database) => ({
       .where(and(eq(notifications.id, id), eq(notifications.organizationId, orgId)))
   },
 
-  markAllRead: async (userId: string): Promise<void> => {
+  markAllRead: async (userId: string, orgId: string): Promise<void> => {
     await db
       .update(notifications)
       .set({ status: 'read', readAt: new Date(), updatedAt: new Date() })
-      .where(and(eq(notifications.userId, userId), eq(notifications.status, 'unread')))
+      .where(
+        and(
+          eq(notifications.userId, userId),
+          eq(notifications.organizationId, orgId),
+          eq(notifications.status, 'unread'),
+        ),
+      )
   },
 })

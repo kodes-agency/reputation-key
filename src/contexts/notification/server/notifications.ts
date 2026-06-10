@@ -27,7 +27,10 @@ export const getUnreadNotificationCountFn = createServerFn({ method: 'GET' }).ha
       }
       try {
         const { notificationPublicApi } = getContainer()
-        const count = await notificationPublicApi.getUnreadCount(ctx.userId)
+        const count = await notificationPublicApi.getUnreadCount(
+          ctx.userId,
+          ctx.organizationId,
+        )
         return { count }
       } catch (e) {
         throw catchUntagged(e)
@@ -63,6 +66,7 @@ export const getNotificationsFn = createServerFn({ method: 'GET' })
           const { notificationPublicApi } = getContainer()
           return notificationPublicApi.getNotifications(
             ctx.userId,
+            ctx.organizationId,
             data.limit,
             data.offset,
           )
@@ -123,7 +127,7 @@ export const markAllNotificationsReadFn = createServerFn({ method: 'POST' }).han
       }
       try {
         const { notificationPublicApi } = getContainer()
-        return notificationPublicApi.markAllRead(ctx.userId)
+        return notificationPublicApi.markAllRead(ctx.userId, ctx.organizationId)
       } catch (e) {
         throw catchUntagged(e)
       }

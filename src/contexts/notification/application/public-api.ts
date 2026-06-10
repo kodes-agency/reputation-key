@@ -17,11 +17,9 @@ export type {
 export { isUrgent, URGENT_TYPES } from '../domain/types'
 
 // ── Constructor re-exports ────────────────────────────────────────────
-export type {
-  CreateNotificationInput,
-  CreateNotificationEmailInput,
-  CreateNotificationPreferenceInput,
-} from '../domain/constructors'
+export type { CreateNotificationInput } from '../domain/constructors'
+export type { CreateNotificationEmailInput } from '../domain/constructors-email'
+export type { CreateNotificationPreferenceInput } from '../domain/constructors-preference'
 
 // ── Error re-exports ──────────────────────────────────────────────────
 export type { NotificationError } from '../domain/errors'

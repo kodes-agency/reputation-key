@@ -10,12 +10,11 @@ Produces user-facing in-app and email notifications about domain events. Subscri
 server/       → createServerFn wrappers (queries + mutations)
 application/  → use cases, ports, public-api barrel
 domain/       → types, constructors, errors, isUrgent
-infrastructure/
+infrastructure:
   event-handlers/  → subscribe to domain events, enqueue BullMQ jobs
   jobs/            → BullMQ workers (insert-notification, digest, urgent-email)
   adapters/        → cross-context lookup adapters (user, property)
   repositories/    → Drizzle implementations of ports
-queries/      → read-only queries (list, count)
 ```
 
 ## Key decisions
@@ -56,5 +55,5 @@ queries/      → read-only queries (list, count)
 - `NotificationRepositoryPort` — CRUD for notifications
 - `NotificationEmailRepositoryPort` — email queue management
 - `NotificationPreferenceRepositoryPort` — preference CRUD
-- `UserLookupPort` — `findByRole()`, `findAssignedManagers()`, `getEmail()`
+- `UserLookupPort` — `findByRole()`, `findAssignedManagers()`, `getEmail()`, `getName()`
 - `EmailSenderPort` — wraps Resend `sendEmail()`

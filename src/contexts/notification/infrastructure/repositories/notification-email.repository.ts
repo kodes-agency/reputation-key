@@ -66,6 +66,16 @@ export const createNotificationEmailRepository = (db: Database) => ({
     return emailFromRow(row[0]!)
   },
 
+  findById: async (id: string): Promise<NotificationEmail | null> => {
+    const rows = await db
+      .select()
+      .from(notificationEmailQueue)
+      .where(eq(notificationEmailQueue.id, id))
+      .limit(1)
+
+    return rows[0] ? emailFromRow(rows[0]) : null
+  },
+
   findPendingByOrg: async (
     orgId: string,
     priority: string,

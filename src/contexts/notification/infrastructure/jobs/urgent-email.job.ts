@@ -29,11 +29,10 @@ export const urgentEmailJobHandler = async (
 
   const { notificationEmailId } = job.data
 
-  // 1. Get the email queue entry
-  const pending = await emailRepo.findPendingUrgent()
-  const entry = pending.find((e) => (e.id as string) === notificationEmailId)
+  // 1. Get the email queue entry by ID
+  const entry = await emailRepo.findById(notificationEmailId)
 
-  if (!entry) {
+  if (!entry || entry.status !== 'pending') {
     logger.warn({ notificationEmailId }, 'Urgent email entry not found or not pending')
     return
   }

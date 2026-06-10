@@ -46,6 +46,7 @@ function createFakeDeps(): InsertNotificationDeps {
         insertedEmails.push(e)
         return e
       }),
+      findById: vi.fn(async () => null),
       findPendingByOrg: vi.fn(async () => []),
       findPendingUrgent: vi.fn(async () => []),
       markSent: vi.fn(async () => {}),
@@ -90,18 +91,19 @@ describe('insertNotification', () => {
 
   it('creates and persists a notification with correct fields', async () => {
     const result = await insertNotification(deps)(validInput)
+    expect(result).not.toBeNull()
 
-    expect(result.id).toBe(NOTIF_ID)
-    expect(result.userId).toBe(USER_ID)
-    expect(result.organizationId).toBe(ORG_ID)
-    expect(result.type).toBe('review.created')
-    expect(result.priority).toBe('normal')
-    expect(result.status).toBe('unread')
-    expect(result.resourceType).toBe('inbox_item')
-    expect(result.resourceId).toBe('res-1')
-    expect(result.eventId).toBe('evt-1')
-    expect(result.title).toBe('New review')
-    expect(result.body).toBe('A 4-star review was received')
+    expect(result!.id).toBe(NOTIF_ID)
+    expect(result!.userId).toBe(USER_ID)
+    expect(result!.organizationId).toBe(ORG_ID)
+    expect(result!.type).toBe('review.created')
+    expect(result!.priority).toBe('normal')
+    expect(result!.status).toBe('unread')
+    expect(result!.resourceType).toBe('inbox_item')
+    expect(result!.resourceId).toBe('res-1')
+    expect(result!.eventId).toBe('evt-1')
+    expect(result!.title).toBe('New review')
+    expect(result!.body).toBe('A 4-star review was received')
     expect(deps.notificationRepo.insert).toHaveBeenCalledTimes(1)
   })
 
@@ -113,7 +115,8 @@ describe('insertNotification', () => {
 
     const result = await insertNotification(deps)(input)
 
-    expect(result.priority).toBe('urgent')
+    expect(result).not.toBeNull()
+    expect(result!.priority).toBe('urgent')
   })
 
   it('enqueues an email when email preference is enabled (default)', async () => {
@@ -165,10 +168,10 @@ describe('insertNotification', () => {
 
     const result = await insertNotification(deps)(validInput)
 
-    // Should NOT persist — just returns the constructed notification
+    // Should NOT persist — returns null
     expect(deps.notificationRepo.insert).not.toHaveBeenCalled()
     expect(deps.emailRepo.insert).not.toHaveBeenCalled()
-    expect(result.type).toBe('review.created')
+    expect(result).toBeNull()
     // Logger should have logged the skip
     expect(deps.logger.info).toHaveBeenCalledWith(
       expect.objectContaining({ userId: USER_ID, type: 'review.created' }),
@@ -218,7 +221,8 @@ describe('insertNotification', () => {
 
     const result = await insertNotification(customDeps)(validInput)
 
-    expect(result.id).toBe(customId)
+    expect(result).not.toBeNull()
+    expect(result!.id).toBe(customId)
   })
 
   it('logs warning if email construction fails but does not throw', async () => {
@@ -230,7 +234,8 @@ describe('insertNotification', () => {
     // Since createNotificationEmail always succeeds, this path is hard to exercise
     // without mocking. Instead, let's just verify the happy path completes cleanly.
     const result = await insertNotification(deps)(validInput)
-    expect(result.id).toBe(NOTIF_ID)
+    expect(result).not.toBeNull()
+    expect(result!.id).toBe(NOTIF_ID)
   })
 
   it('works for each valid notification type', async () => {
@@ -251,7 +256,8 @@ describe('insertNotification', () => {
     for (const type of types) {
       const freshDeps = createFakeDeps()
       const result = await insertNotification(freshDeps)({ ...validInput, type })
-      expect(result.type).toBe(type)
+      expect(result).not.toBeNull()
+      expect(result!.type).toBe(type)
       expect(freshDeps.notificationRepo.insert).toHaveBeenCalledTimes(1)
     }
   })
@@ -269,7 +275,8 @@ describe('insertNotification', () => {
         ...validInput,
         resourceType,
       })
-      expect(result.resourceType).toBe(resourceType)
+      expect(result).not.toBeNull()
+      expect(result!.resourceType).toBe(resourceType)
     }
   })
 })

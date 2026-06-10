@@ -18,7 +18,7 @@ export const onReplyPublished =
       organizationId: event.organizationId,
       type: 'reply.published' as const,
       resourceType: 'reply' as const,
-      resourceId: event.reviewId,
+      resourceId: event.replyId,
       eventId: event.eventId,
       title: 'Reply published',
       body: 'Your reply has been published to Google',

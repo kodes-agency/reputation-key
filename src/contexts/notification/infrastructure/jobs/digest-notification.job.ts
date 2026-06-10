@@ -37,7 +37,9 @@ export const digestNotificationJobHandler = async (_job: Job<void>): Promise<voi
   const { rows } = await pool.query<{
     organization_id: string
     timezone: string
-  }>(`SELECT DISTINCT organization_id, timezone FROM properties WHERE deleted_at IS NULL`)
+  }>(
+    `SELECT DISTINCT organization_id, COALESCE(timezone, 'UTC') AS timezone FROM properties WHERE deleted_at IS NULL`,
+  )
 
   // 2. Group qualifying orgIds (those at 8am local)
   const qualifyingOrgIds = new Set<string>()
@@ -100,6 +102,17 @@ export const digestNotificationJobHandler = async (_job: Job<void>): Promise<voi
         }
       } catch (err) {
         logger.error({ err, uid, orgId }, 'Digest email send failed')
+        // Mark each pending email entry as failed so it can be retried
+        for (const entry of entries) {
+          try {
+            await emailRepo.markFailed(entry.id as string, new Date())
+          } catch (markErr) {
+            logger.error(
+              { markErr, notificationEmailId: entry.id as string },
+              'Failed to mark digest email as failed',
+            )
+          }
+        }
       }
     }
   }
