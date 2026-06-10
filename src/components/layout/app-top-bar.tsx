@@ -11,6 +11,7 @@ import {
 } from '#/components/ui/dropdown-menu'
 import { authClient } from '#/shared/auth/auth-client'
 import { useEffect, useState } from 'react'
+import { NotificationPanel } from '#/components/features/notification/notification-panel'
 
 type ThemeMode = 'light' | 'dark' | 'auto'
 
@@ -65,7 +66,8 @@ export function AppTopBar({ user }: Props) {
 
       <div className="flex-1" />
 
-      {/* User menu */}
+      {/* Notifications + User menu */}
+      <NotificationPanel />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="icon-sm" className="rounded-full">
