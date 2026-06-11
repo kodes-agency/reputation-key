@@ -43,6 +43,18 @@ vi.mock('@tanstack/react-start/server', () => ({
   getRequest: () => null,
 }))
 
+// Mock auth schema (adapter imports user table)
+vi.mock('#/shared/db/schema/auth', () => ({
+  user: { id: 'id' },
+}))
+
+// Mock db for createBetterAuthIdentityAdapter
+const mockTx = { execute: vi.fn().mockResolvedValue(undefined) }
+const db = {
+  transaction: vi.fn((fn: (tx: typeof mockTx) => Promise<unknown>) => fn(mockTx)),
+  delete: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) }),
+} as unknown as Parameters<typeof createBetterAuthIdentityAdapter>[0]
+
 import { createBetterAuthIdentityAdapter } from './auth-identity.adapter'
 
 const testCtx: AuthContext = {
@@ -56,7 +68,7 @@ beforeEach(() => {
 })
 
 describe('createBetterAuthIdentityAdapter', () => {
-  const adapter = createBetterAuthIdentityAdapter()
+  const adapter = createBetterAuthIdentityAdapter(db)
 
   describe('signUp', () => {
     it('returns user ID on successful sign-up', async () => {

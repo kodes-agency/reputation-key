@@ -93,6 +93,16 @@ export const disconnectGoogle = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
+        if (!can(ctx.role, 'integration.manage')) {
+          throwContextError(
+            'AuthError',
+            {
+              code: 'forbidden',
+              message: 'Insufficient permissions to manage integrations',
+            },
+            403,
+          )
+        }
 
         try {
           const { useCases } = getContainer()
@@ -118,6 +128,16 @@ export const updateConnectionVisibility = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
+        if (!can(ctx.role, 'integration.manage')) {
+          throwContextError(
+            'AuthError',
+            {
+              code: 'forbidden',
+              message: 'Insufficient permissions to manage integrations',
+            },
+            403,
+          )
+        }
 
         try {
           const { useCases } = getContainer()

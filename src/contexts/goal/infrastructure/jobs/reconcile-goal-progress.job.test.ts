@@ -97,6 +97,14 @@ function createFakeDeps() {
     listInstances: async () => [],
     cancelByParent: async () => 0,
     findAllActive: async () => goals.filter((g) => g.status === 'active'),
+    findAllActiveRecurring: async () =>
+      goals.filter(
+        (g) => g.status === 'active' && g.goalType === 'recurring' && !g.parentGoalId,
+      ),
+    findAllActiveGlobal: async () =>
+      goals.filter(
+        (g) => g.status === 'active' && g.portalId === null && g.portalGroupId === null,
+      ),
     findActiveRecurringTemplates: async () =>
       goals.filter(
         (g) => g.status === 'active' && g.goalType === 'recurring' && !g.parentGoalId,

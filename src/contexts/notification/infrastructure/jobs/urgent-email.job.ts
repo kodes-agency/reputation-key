@@ -14,6 +14,7 @@ export const URGENT_EMAIL_JOB_NAME = 'urgent-email' as const
 
 export type UrgentEmailJobData = {
   notificationEmailId: string
+  organizationId: string
 }
 
 type UrgentEmailDeps = Readonly<{
@@ -29,9 +30,9 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
     const { logger, emailRepo, notifRepo, userLookup, emailSender } = deps
 
     const emailId = notificationEmailId(job.data.notificationEmailId)
-
+    const orgId = job.data.organizationId as Parameters<typeof emailRepo.findById>[1]
     // 1. Get the email queue entry by ID
-    const entry = await emailRepo.findById(emailId)
+    const entry = await emailRepo.findById(emailId, orgId)
 
     if (!entry || (entry.status !== 'pending' && entry.status !== 'failed')) {
       logger.warn(
@@ -53,10 +54,10 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
       )
       if (entry.status === 'failed') {
         const now = new Date()
-        await emailRepo.markFailed(emailId, now, now)
+        await emailRepo.markFailed(emailId, orgId, now, now)
       } else {
         const now = new Date()
-        await emailRepo.markSkipped(emailId, now)
+        await emailRepo.markSkipped(emailId, orgId, now)
       }
       return
     }
@@ -69,10 +70,10 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
       logger.warn({ userId: entry.userId }, 'User email not found, skipping urgent email')
       if (entry.status === 'failed') {
         const now = new Date()
-        await emailRepo.markFailed(emailId, now, now)
+        await emailRepo.markFailed(emailId, orgId, now, now)
       } else {
         const now = new Date()
-        await emailRepo.markSkipped(emailId, now)
+        await emailRepo.markSkipped(emailId, orgId, now)
       }
       return
     }
@@ -92,13 +93,13 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
         html,
       })
       const sentNow = new Date()
-      await emailRepo.markSent(emailId, sentNow, sentNow)
+      await emailRepo.markSent(emailId, orgId, sentNow, sentNow)
       // State machine: only 'pending'/'failed' → 'sent'. See domain/constructors-transitions.ts markEmailSent.
       // The repo WHERE clause enforces this at DB level.
     } catch (err) {
       logger.error({ err, notificationEmailId: emailId }, 'Urgent email send failed')
       const failNow = new Date()
-      await emailRepo.markFailed(emailId, failNow, failNow)
+      await emailRepo.markFailed(emailId, orgId, failNow, failNow)
       // State machine: only 'pending'/'failed' → 'failed'. See domain/constructors-transitions.ts markEmailFailed.
       // The repo WHERE clause enforces this at DB level.
       throw err // re-throw for BullMQ retry

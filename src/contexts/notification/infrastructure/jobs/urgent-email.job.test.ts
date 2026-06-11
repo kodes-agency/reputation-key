@@ -110,10 +110,10 @@ function setupHappyPathMocks(
   deps.emailRepo.markSkipped.mockResolvedValue(undefined)
 }
 
-function createFakeJob(notificationEmailId: string): Job {
+function createFakeJob(emailId: string, orgIdOverride?: string): Job {
   return {
     id: 'job-urgent-1',
-    data: { notificationEmailId },
+    data: { notificationEmailId: emailId, organizationId: orgIdOverride ?? 'org-1' },
     attemptsMade: 0,
     log: vi.fn(),
   } as unknown as Job
@@ -140,6 +140,7 @@ describe('createUrgentEmailJobHandler', () => {
 
     expect(deps.emailRepo.markSent).toHaveBeenCalledWith(
       EMAIL_ENTRY_ID,
+      'org-1',
       expect.any(Date),
       expect.any(Date),
     )
@@ -155,6 +156,7 @@ describe('createUrgentEmailJobHandler', () => {
     expect(deps.emailSender.send).toHaveBeenCalledTimes(1)
     expect(deps.emailRepo.markSent).toHaveBeenCalledWith(
       EMAIL_ENTRY_ID,
+      'org-1',
       expect.any(Date),
       expect.any(Date),
     )
@@ -205,6 +207,7 @@ describe('createUrgentEmailJobHandler', () => {
     expect(deps.emailSender.send).not.toHaveBeenCalled()
     expect(deps.emailRepo.markSkipped).toHaveBeenCalledWith(
       EMAIL_ENTRY_ID,
+      'org-1',
       expect.any(Date),
     )
   })
@@ -219,6 +222,7 @@ describe('createUrgentEmailJobHandler', () => {
     expect(deps.emailSender.send).not.toHaveBeenCalled()
     expect(deps.emailRepo.markSkipped).toHaveBeenCalledWith(
       EMAIL_ENTRY_ID,
+      'org-1',
       expect.any(Date),
     )
   })
@@ -232,6 +236,7 @@ describe('createUrgentEmailJobHandler', () => {
 
     expect(deps.emailRepo.markFailed).toHaveBeenCalledWith(
       EMAIL_ENTRY_ID,
+      'org-1',
       expect.any(Date),
       expect.any(Date),
     )

@@ -5,7 +5,7 @@ import { signIn, registerAccount } from './helpers/auth'
 
 test.describe('Authentication', () => {
   test('register a new account and sign in', async ({ page }) => {
-    const uniqueEmail = `e2e-register-${Date.now()}@example.com`
+    const uniqueEmail = `e2e-register-${crypto.randomUUID().slice(0, 8)}@example.com`
 
     // Register
     await registerAccount(page, uniqueEmail)

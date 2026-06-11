@@ -67,6 +67,8 @@ export const createProperty =
         organizationId: property.organizationId,
         name: property.name,
         slug: property.slug,
+        gbpPlaceId: property.gbpPlaceId ?? undefined,
+        googleConnectionId: property.googleConnectionId ?? undefined,
         occurredAt: property.createdAt,
       }),
     )

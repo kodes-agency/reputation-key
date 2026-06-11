@@ -106,6 +106,8 @@ function createFakeDeps() {
     }),
     markGoalCompleted: async () => {},
     findAllActive: async () => [],
+    findAllActiveRecurring: async () => [],
+    findAllActiveGlobal: async () => [],
     findActiveRecurringTemplates: async () => [],
     findLatestInstance: async () => null,
     createGoalAndProgress: async (goal, progress) => {

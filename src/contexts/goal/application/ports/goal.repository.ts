@@ -47,8 +47,11 @@ export type GoalRepository = Readonly<{
   cancelByParent(parentGoalId: GoalId, orgId: OrganizationId, now: Date): Promise<number>
 
   // ── Goal queries (reconciliation & spawner) ───────────────────────────
-  // Safe: findAllActive is a background job that legitimately processes all orgs
-  findAllActive(): Promise<ReadonlyArray<Goal>>
+  findAllActive(organizationId: OrganizationId): Promise<ReadonlyArray<Goal>>
+  /** ⚠️ CROSS-TENANT — background job use only. Returns all active recurring templates across all orgs. */
+  findAllActiveRecurring(): Promise<ReadonlyArray<Goal>>
+  /** ⚠️ CROSS-TENANT — background job use only. Returns all active goals across all orgs. */
+  findAllActiveGlobal(): Promise<ReadonlyArray<Goal>>
   findActiveRecurringTemplates(
     organizationId: OrganizationId,
   ): Promise<ReadonlyArray<Goal>>

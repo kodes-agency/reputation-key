@@ -57,12 +57,16 @@ export function createAuth() {
       //   3. Update login/register UX to show "check your email" state
       //   4. Add email verification reminder UI for unverified users
       // Once ready, flip to: requireEmailVerification: true
+      // FUTURE: Enable after:
+      //   1. Run scripts/migrations/verify-existing-emails.sql to set emailVerified=true for all existing users
+      //   2. Confirm Resend domain verification is complete
+      //   3. Test full signup → verify → sign-in flow
       requireEmailVerification: false,
       sendResetPassword: async ({ user, url }) => {
         await sendResetPasswordEmail(user.email, url)
       },
     },
-    // Re-enable email verification once email sending is set up
+    // Email verification config — uncomment and enable once prerequisites above are met:
     // emailVerification: {
     //   sendOnSignUp: true,
     //   sendVerificationEmail: async ({ user, url }) => {

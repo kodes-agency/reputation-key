@@ -53,6 +53,8 @@ type IdentityContextDeps = Readonly<{
   getOrganizationName: (ctx: AuthContext) => Promise<string>
   /** Base URL for building invitation links. */
   baseUrl: string
+  /** Delete a user (compensating transaction for registration rollback). */
+  deleteUser: (userId: string) => Promise<void>
 }>
 
 export const buildIdentityContext = (deps: IdentityContextDeps) => {
@@ -86,6 +88,7 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
       setActiveOrg: deps.setActiveOrg,
       headers: deps.headers,
       clock: deps.clock,
+      deleteUser: deps.deleteUser,
     }),
     registerUser: registerUser({ identity: deps.identityPort }),
     updateOrganization: updateOrganization({

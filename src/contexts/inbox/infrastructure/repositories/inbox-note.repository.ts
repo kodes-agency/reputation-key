@@ -10,6 +10,7 @@ import type { InboxNote } from '../../domain/types'
 import type { InboxItemId, OrganizationId } from '#/shared/domain/ids'
 import { inboxNoteFromRow, inboxNoteToInsertRow } from '../mappers/inbox-note.mapper'
 import { trace } from '#/shared/observability/trace'
+import { inboxError } from '../../domain/errors'
 
 export const createInboxNoteRepository = (db: Database): InboxNoteRepository => ({
   findByInboxItemId: async (itemId: InboxItemId, orgId: OrganizationId) => {
@@ -28,15 +29,16 @@ export const createInboxNoteRepository = (db: Database): InboxNoteRepository => 
   create: async (note: InboxNote, orgId: OrganizationId) => {
     return trace('inboxNote.create', async () => {
       if (note.organizationId !== orgId) {
-        throw new Error(
-          `InboxNote.create: tenant mismatch — note.orgId=${note.organizationId as string} != caller.orgId=${orgId as string}`,
-        )
+        throw inboxError('forbidden', 'InboxNote.create: tenant mismatch', {
+          noteOrgId: note.organizationId as string,
+          callerOrgId: orgId as string,
+        })
       }
       const row = inboxNoteToInsertRow(note)
       const result = await db.insert(inboxNotes).values(row).returning()
 
       if (!result[0]) {
-        throw new Error('Inbox note insert failed — no row returned')
+        throw inboxError('not_found', 'Inbox note insert failed — no row returned')
       }
       return inboxNoteFromRow(result[0])
     })

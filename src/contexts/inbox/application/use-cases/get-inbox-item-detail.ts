@@ -26,6 +26,9 @@ export type GetInboxItemDetailDeps = Readonly<{
 export const getInboxItemDetail =
   (deps: GetInboxItemDetailDeps) =>
   async (input: GetInboxItemDetailInput): Promise<InboxItemDetail> => {
+    if (!can(input.role, 'inbox.read')) {
+      throw inboxError('forbidden', 'No inbox read permission')
+    }
     const detail = await deps.repo.findDetailById(input.inboxItemId, input.organizationId)
     if (!detail) {
       throw inboxError('not_found', 'Inbox item not found', {

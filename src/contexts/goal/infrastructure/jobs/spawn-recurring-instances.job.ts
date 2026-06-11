@@ -37,10 +37,8 @@ export const createSpawnRecurringInstancesHandler =
       const logger = getLogger()
       const now = deps.clock()
 
-      const templates = await deps.goalRepo.findAllActive()
-      const recurringTemplates = templates.filter(
-        (g) => g.goalType === 'recurring' && g.parentGoalId === null,
-      )
+      // ⚠️ CROSS-TENANT by design — background job processes all orgs
+      const recurringTemplates = await deps.goalRepo.findAllActiveRecurring()
 
       let spawned = 0
       let failed = 0

@@ -42,6 +42,8 @@ export type RegisterUserAndOrgDeps = Readonly<{
   headers: () => Headers | Promise<Headers>
   /** Injectable clock for deterministic timestamps. */
   clock: () => Date
+  /** Delete a user (compensating transaction for registration rollback). */
+  deleteUser: (userId: string) => Promise<void>
 }>
 
 /**
@@ -80,20 +82,19 @@ export const registerUserAndOrg =
     // 3–4. Create the org and set it as active
     // Pass userId to createOrganization so it works server-side
     // (the new user's session cookies aren't available yet).
-    // F148 NOTE: This is not fully atomic — user creation succeeds even if org
-    // setup fails. The error code 'org_setup_failed' signals this state to the
-    // client, which should prompt "you have an account, sign in and create an org."
-    // A compensating transaction (delete user on org failure) is intentionally
-    // NOT attempted — the user may have already received a welcome email or
-    // triggered other side effects. Manual admin cleanup is safer.
     const headers = await deps.headers()
     let orgId: string
     try {
       orgId = await deps.createOrg(headers, validName, slug, userId)
       await deps.setActiveOrg(headers, orgId)
     } catch (e) {
-      // User was created but org setup failed — distinct error so the client
-      // can prompt "you have an account, please sign in and create an org"
+      // Compensating transaction: remove the orphaned user
+      try {
+        await deps.deleteUser(userId)
+      } catch {
+        // Best effort — log but don't mask the original error
+        // (In production, this should trigger an alert for manual cleanup)
+      }
       throw identityError(
         'org_setup_failed',
         `Account created, but organization setup failed: ${e instanceof Error ? e.message : 'unknown error'}`,

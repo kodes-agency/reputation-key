@@ -10,6 +10,7 @@ import {
   organizationId as toOrgId,
 } from '#/shared/domain/ids'
 import type { NotificationPreference, NotificationType } from '../../domain/types'
+import { notificationError } from '../../domain/errors'
 
 // ── Row → Domain mapper ─────────────────────────────────────────────
 
@@ -76,7 +77,10 @@ export const createNotificationPreferenceRepository = (db: Database) => ({
       })
       .returning()
 
-    return preferenceFromRow(row[0]!)
+    const r = row[0]
+    if (!r)
+      throw notificationError('insert_failed', 'No row returned from preference UPSERT')
+    return preferenceFromRow(r)
   },
 
   findByUser: async (

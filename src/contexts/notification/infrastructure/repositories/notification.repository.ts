@@ -7,6 +7,7 @@ import { notifications } from '#/shared/db/schema/notification.schema'
 import { unbrand } from '#/shared/domain/ids'
 import type { Notification } from '../../domain/types'
 import { notificationFromRow } from './notification-row.mapper'
+import { notificationError } from '../../domain/errors'
 
 // ── Repository ──────────────────────────────────────────────────────
 
@@ -48,7 +49,10 @@ export const createNotificationRepository = (db: Database) => ({
       })
       .returning()
 
-    return notificationFromRow(row[0]!)
+    const r = row[0]
+    if (!r)
+      throw notificationError('insert_failed', 'No row returned from notification INSERT')
+    return notificationFromRow(r)
   },
 
   markRead: async (

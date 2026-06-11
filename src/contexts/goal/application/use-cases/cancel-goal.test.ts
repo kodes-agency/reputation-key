@@ -110,6 +110,8 @@ function createFakeDeps(overrides?: { storedGoals?: Goal[] }) {
     }),
     markGoalCompleted: async () => {},
     findAllActive: async () => [],
+    findAllActiveRecurring: async () => [],
+    findAllActiveGlobal: async () => [],
     findActiveRecurringTemplates: async () => [],
     findLatestInstance: async () => null,
     createGoalAndProgress: async () => {},

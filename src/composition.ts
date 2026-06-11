@@ -46,8 +46,6 @@ import { createReviewStatsAdapter } from '#/contexts/dashboard/infrastructure/ad
 import { createMetricStatsAdapter } from '#/contexts/dashboard/infrastructure/adapters/metric-stats.adapter'
 import { createPortalMetricsAdapter } from '#/contexts/dashboard/infrastructure/adapters/portal-metrics.adapter'
 import { buildGoalContext } from '#/contexts/goal/build'
-import { createGoalRepository as _createGoalRepo } from '#/contexts/goal/infrastructure/repositories/goal.repository'
-import { cancelGoal as _cancelGoalFn } from '#/contexts/goal/application/use-cases/cancel-goal'
 import { createStaffAssignmentRepository } from '#/contexts/staff/infrastructure/repositories/staff-assignment.repository'
 import { createGoogleReviewApiAdapter } from '#/contexts/integration/infrastructure/adapters/google-review-api.adapter'
 import { handleGbpNotification } from '#/contexts/integration/application/use-cases'
@@ -134,7 +132,7 @@ export function createContainer(options?: { enableJobs?: boolean }) {
   const infra = buildInfrastructure({ redis, enableJobs })
 
   // Identity port (adapter)
-  const identityPort = createBetterAuthIdentityAdapter()
+  const identityPort = createBetterAuthIdentityAdapter(db)
 
   // ── Context builds (dependency order) ──────────────────────────────
   const staffRepo = createStaffAssignmentRepository(db)
@@ -164,6 +162,7 @@ export function createContainer(options?: { enableJobs?: boolean }) {
       return org?.name ?? 'Unknown Organization'
     },
     baseUrl: env.BETTER_AUTH_URL,
+    deleteUser: identityPort.deleteUser,
   })
 
   const property = buildPropertyContext({
@@ -276,19 +275,13 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     clock,
   })
 
-  // Goal context needs a cancelGoalFn for event handlers.
-  // Create the goal repo early so we can wire cancelGoal independently
-  // (avoids circular ref with buildGoalContext's return value).
-  const goalRepoEarly = _createGoalRepo(db)
-  const goalCancelFn = _cancelGoalFn({ goalRepo: goalRepoEarly, clock })
-
+  // Goal context — buildGoalContext creates its own repo and cancelGoalFn internally.
   const goal = buildGoalContext({
     db,
     metricApi: metricApi.publicApi,
     events: eventBus,
     clock,
     idGen: () => crypto.randomUUID(),
-    cancelGoalFn: goalCancelFn,
     getLogger,
     findGroupForPortal: async (orgId, pid) => {
       const group = await portal.portalGroupPublicApi.findGroupForPortal(orgId, pid)

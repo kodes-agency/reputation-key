@@ -23,6 +23,7 @@ import { reviewId, feedbackId, propertyId } from '#/shared/domain/ids'
 import { inboxItemFromRow, inboxItemToInsertRow } from '../mappers/inbox.mapper'
 import { trace } from '#/shared/observability/trace'
 import { getLogger } from '#/shared/observability/logger'
+import { inboxError } from '../../domain/errors'
 
 const log = getLogger().child({ component: 'inbox-repo' })
 
@@ -216,7 +217,7 @@ export const createInboxRepository = (
       const result = await db.insert(inboxItems).values(row).returning()
 
       if (!result[0]) {
-        throw new Error('Inbox item insert failed — no row returned')
+        throw inboxError('not_found', 'Inbox item insert failed — no row returned')
       }
       return withDefaults(result[0])
     })
@@ -241,7 +242,7 @@ export const createInboxRepository = (
         .returning()
 
       if (!result[0]) {
-        throw new Error('Inbox item status update failed — no row returned')
+        throw inboxError('not_found', 'Inbox item status update failed — no row returned')
       }
       return withDefaults(result[0])
     })
@@ -291,7 +292,10 @@ export const createInboxRepository = (
         .returning()
 
       if (!result[0]) {
-        throw new Error('Inbox item assignment update failed — no row returned')
+        throw inboxError(
+          'not_found',
+          'Inbox item assignment update failed — no row returned',
+        )
       }
       return withDefaults(result[0])
     })

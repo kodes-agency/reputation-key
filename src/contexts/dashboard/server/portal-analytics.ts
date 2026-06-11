@@ -76,7 +76,7 @@ export const getPortalAnalyticsFn = createServerFn({ method: 'GET' })
         } catch (e) {
           if (isDashboardError(e))
             throwContextError('DashboardError', e, dashboardErrorStatus(e.code))
-          catchUntagged(e)
+          throw catchUntagged(e)
         }
       },
       'GET',
