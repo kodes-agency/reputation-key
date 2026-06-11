@@ -40,37 +40,38 @@ export const removeMember =
     if (!can(ctx.role, 'member.delete')) {
       throw identityError('forbidden', 'Insufficient role to remove members')
     }
-
-    // 1b. Load target member to check last-admin invariant
-    const targetMember = await deps.identity.getMember(ctx, input.memberId)
-    if (!targetMember) {
-      throw identityError('member_not_found', 'Member not found in this organization')
-    }
-
-    // 1c. Last-admin guard — cannot remove the last AccountAdmin
-    if (targetMember.role === ADMIN_ROLE) {
-      const members = await deps.identity.listMembers(ctx)
-      const adminCount = members.filter((m) => m.role === ADMIN_ROLE).length
-      if (adminCount <= 1) {
-        throw identityError(
-          'forbidden',
-          'Cannot remove the last admin of the organization',
-        )
+    return deps.identity.withOrgLock(ctx.organizationId, async () => {
+      // 1b. Load target member to check last-admin invariant
+      const targetMember = await deps.identity.getMember(ctx, input.memberId)
+      if (!targetMember) {
+        throw identityError('member_not_found', 'Member not found in this organization')
       }
-    }
 
-    // 2. Persist — delegate to port (better-auth handles the rest)
-    await deps.identity.removeMember(ctx, input.memberId)
+      // 1c. Last-admin guard — cannot remove the last AccountAdmin
+      if (targetMember.role === ADMIN_ROLE) {
+        const members = await deps.identity.listMembers(ctx)
+        const adminCount = members.filter((m) => m.role === ADMIN_ROLE).length
+        if (adminCount <= 1) {
+          throw identityError(
+            'forbidden',
+            'Cannot remove the last admin of the organization',
+          )
+        }
+      }
 
-    // 3. Emit event
-    await deps.events.emit(
-      identityMemberRemoved({
-        organizationId: ctx.organizationId,
-        userId: toUserId(input.memberId), // memberId is the member's user-facing ID
-        removedBy: ctx.userId,
-        occurredAt: deps.clock(),
-      }),
-    )
+      // 2. Persist — delegate to port (better-auth handles the rest)
+      await deps.identity.removeMember(ctx, input.memberId)
 
-    return { success: true }
+      // 3. Emit event
+      await deps.events.emit(
+        identityMemberRemoved({
+          organizationId: ctx.organizationId,
+          userId: toUserId(input.memberId),
+          removedBy: ctx.userId,
+          occurredAt: deps.clock(),
+        }),
+      )
+
+      return { success: true }
+    })
   }

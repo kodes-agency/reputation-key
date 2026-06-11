@@ -25,6 +25,17 @@ export const registerMember = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
+        const reqHeaders = await headersFromContext()
+        const ip = reqHeaders.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+        const { rateLimiter: rl } = getContainer()
+        const rlResult = await rl.check(`auth:register:${ip}`)
+        if (!rlResult.allowed) {
+          throwContextError(
+            'AuthError',
+            { code: 'rate_limited', message: 'Too many registration attempts' },
+            429,
+          )
+        }
         try {
           const { useCases } = getContainer()
           await useCases.registerUser(data)
@@ -44,6 +55,17 @@ export const registerUserAndOrg = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
+        const reqHeaders = await headersFromContext()
+        const ip = reqHeaders.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+        const { rateLimiter: rl } = getContainer()
+        const rlResult = await rl.check(`auth:register:${ip}`)
+        if (!rlResult.allowed) {
+          throwContextError(
+            'AuthError',
+            { code: 'rate_limited', message: 'Too many registration attempts' },
+            429,
+          )
+        }
         try {
           const { useCases } = getContainer()
           await useCases.registerUserAndOrg(data)
@@ -65,6 +87,17 @@ export const signInUser = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
+        const reqHeaders = await headersFromContext()
+        const ip = reqHeaders.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+        const { rateLimiter: rl } = getContainer()
+        const rlResult = await rl.check(`auth:signin:${ip}`)
+        if (!rlResult.allowed) {
+          throwContextError(
+            'AuthError',
+            { code: 'rate_limited', message: 'Too many sign-in attempts' },
+            429,
+          )
+        }
         const auth = getAuth()
 
         try {

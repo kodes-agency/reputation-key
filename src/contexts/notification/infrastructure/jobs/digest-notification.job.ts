@@ -111,6 +111,7 @@ export const createDigestNotificationJobHandler = (deps: DigestDeps) => {
           for (const entry of entries) {
             await emailRepo.markSent(
               notificationEmailId(entry.id as string),
+              orgId(rawOrgId),
               sentNow,
               sentNow,
             )
@@ -124,6 +125,7 @@ export const createDigestNotificationJobHandler = (deps: DigestDeps) => {
             try {
               await emailRepo.markFailed(
                 notificationEmailId(entry.id as string),
+                orgId(rawOrgId),
                 failNow,
                 failNow,
               )

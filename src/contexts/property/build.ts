@@ -5,6 +5,7 @@
 import type { PropertyRepository } from './application/ports/property.repository'
 import type { PropertyPublicApi } from './application/public-api'
 import { propertyImportConflict } from './application/public-api'
+import { propertyCreated } from './domain/events'
 import type { Property } from './domain/types'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { OrganizationId, PropertyId, GoogleConnectionId } from '#/shared/domain/ids'
@@ -122,6 +123,17 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
           deletedAt: null,
         }
         const inserted = await deps.repo.insertAndReturn(input.orgId, property)
+        await deps.events.emit(
+          propertyCreated({
+            propertyId: inserted.id,
+            organizationId: inserted.organizationId,
+            name: inserted.name,
+            slug: inserted.slug,
+            gbpPlaceId: inserted.gbpPlaceId ?? undefined,
+            googleConnectionId: inserted.googleConnectionId ?? undefined,
+            occurredAt: inserted.createdAt,
+          }),
+        )
         return {
           id: inserted.id,
           organizationId: inserted.organizationId,

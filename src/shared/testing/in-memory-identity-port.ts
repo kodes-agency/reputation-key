@@ -118,11 +118,19 @@ export function createInMemoryIdentityPort(): InMemoryIdentityPort {
     ): Promise<ReadonlyArray<OrganizationRecord>> {
       return [...organizations.values()]
     },
-
     async setActiveOrganization(
       _headers: Headers,
       _organizationId: string,
     ): Promise<void> {
+      // Test fake — no-op
+    },
+
+    async withOrgLock<T>(_organizationId: string, fn: () => Promise<T>): Promise<T> {
+      // Test fake — no real locking, just execute the function
+      return fn()
+    },
+
+    async deleteUser(_userId: string): Promise<void> {
       // Test fake — no-op
     },
 

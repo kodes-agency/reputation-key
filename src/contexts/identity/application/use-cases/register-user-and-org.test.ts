@@ -22,6 +22,7 @@ const setup = () => {
     setActiveOrg: vi.fn().mockResolvedValue(undefined),
     headers,
     clock: () => FIXED_TIME,
+    deleteUser: vi.fn().mockResolvedValue(undefined),
   }
 
   const useCase = registerUserAndOrg(deps)

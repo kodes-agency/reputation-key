@@ -38,7 +38,8 @@ export const createReconcileGoalProgressHandler =
       const logger = getLogger()
       const now = deps.clock()
 
-      const goals = await deps.goalRepo.findAllActive()
+      // ⚠️ CROSS-TENANT by design — background job processes all orgs
+      const goals = await deps.goalRepo.findAllActiveGlobal()
       // NOTE(F165): All active goals across all tenants are loaded into memory
       // at once. At current scale (<1000 goals) this is fine. If the goal count
       // grows significantly, consider cursor-based batch processing.

@@ -15,6 +15,7 @@ import type {
   NotificationPriority,
   EmailQueueStatus,
 } from '../../domain/types'
+import { notificationError } from '../../domain/errors'
 
 // ── Row → Domain mapper ─────────────────────────────────────────────
 
@@ -62,16 +63,26 @@ export const createNotificationEmailRepository = (db: Database) => ({
       })
       .returning()
 
-    return emailFromRow(row[0]!)
+    const r = row[0]
+    if (!r)
+      throw notificationError(
+        'insert_failed',
+        'No row returned from notification email INSERT',
+      )
+    return emailFromRow(r)
   },
 
-  findById: async (id: string): Promise<NotificationEmail | null> => {
+  findById: async (id: string, orgId: string): Promise<NotificationEmail | null> => {
     const rows = await db
       .select()
       .from(notificationEmailQueue)
-      .where(eq(notificationEmailQueue.id, id))
+      .where(
+        and(
+          eq(notificationEmailQueue.id, id),
+          eq(notificationEmailQueue.organizationId, orgId),
+        ),
+      )
       .limit(1)
-
     return rows[0] ? emailFromRow(rows[0]) : null
   },
 
@@ -94,6 +105,7 @@ export const createNotificationEmailRepository = (db: Database) => ({
     return rows.map(emailFromRow)
   },
 
+  // ⚠️ CROSS-TENANT by design — global email worker
   findPendingUrgent: async (): Promise<NotificationEmail[]> => {
     const rows = await db
       .select()
@@ -105,23 +117,34 @@ export const createNotificationEmailRepository = (db: Database) => ({
         ),
       )
       .orderBy(asc(notificationEmailQueue.createdAt))
-
+      .limit(1000)
     return rows.map(emailFromRow)
   },
 
-  markSent: async (id: string, sentAt: Date, updatedAt: Date): Promise<void> => {
+  markSent: async (
+    id: string,
+    orgId: string,
+    sentAt: Date,
+    updatedAt: Date,
+  ): Promise<void> => {
     await db
       .update(notificationEmailQueue)
       .set({ status: 'sent', sentAt, updatedAt })
       .where(
         and(
           eq(notificationEmailQueue.id, id),
+          eq(notificationEmailQueue.organizationId, orgId),
           inArray(notificationEmailQueue.status, ['pending', 'failed']),
         ),
       )
   },
 
-  markFailed: async (id: string, failedAt: Date, updatedAt: Date): Promise<void> => {
+  markFailed: async (
+    id: string,
+    orgId: string,
+    failedAt: Date,
+    updatedAt: Date,
+  ): Promise<void> => {
     await db
       .update(notificationEmailQueue)
       .set({
@@ -133,18 +156,20 @@ export const createNotificationEmailRepository = (db: Database) => ({
       .where(
         and(
           eq(notificationEmailQueue.id, id),
+          eq(notificationEmailQueue.organizationId, orgId),
           inArray(notificationEmailQueue.status, ['pending', 'failed']),
         ),
       )
   },
 
-  markSkipped: async (id: string, updatedAt: Date): Promise<void> => {
+  markSkipped: async (id: string, orgId: string, updatedAt: Date): Promise<void> => {
     await db
       .update(notificationEmailQueue)
       .set({ status: 'skipped', updatedAt })
       .where(
         and(
           eq(notificationEmailQueue.id, id),
+          eq(notificationEmailQueue.organizationId, orgId),
           eq(notificationEmailQueue.status, 'pending'),
         ),
       )

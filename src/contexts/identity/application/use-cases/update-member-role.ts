@@ -50,44 +50,46 @@ export const updateMemberRole =
       throw identityError('forbidden', 'Insufficient role to change member roles')
     }
 
-    // 2. Validate referenced entities — load the target member
-    const targetMember = await deps.identity.getMember(ctx, input.memberId)
-    if (!targetMember) {
-      throw identityError('member_not_found', 'Member not found in this organization')
-    }
-
-    // 3. Check business invariants — role hierarchy with actual current role
-    const authResult = canChangeRole(ctx.role, targetMember.role, input.role)
-    if (authResult.isErr()) {
-      throw identityError(authResult.error.code, authResult.error.message)
-    }
-
-    // 3b. Last-admin guard — cannot demote the last AccountAdmin
-    if (targetMember.role === ADMIN_ROLE && input.role !== ADMIN_ROLE) {
-      const members = await deps.identity.listMembers(ctx)
-      const adminCount = members.filter((m) => m.role === ADMIN_ROLE).length
-      if (adminCount <= 1) {
-        throw identityError(
-          'forbidden',
-          'Cannot demote the last admin of the organization',
-        )
+    return deps.identity.withOrgLock(ctx.organizationId, async () => {
+      // 2. Validate referenced entities — load the target member
+      const targetMember = await deps.identity.getMember(ctx, input.memberId)
+      if (!targetMember) {
+        throw identityError('member_not_found', 'Member not found in this organization')
       }
-    }
 
-    // 4. Persist
-    await deps.identity.updateMemberRole(ctx, input.memberId, input.role)
+      // 3. Check business invariants — role hierarchy with actual current role
+      const authResult = canChangeRole(ctx.role, targetMember.role, input.role)
+      if (authResult.isErr()) {
+        throw identityError(authResult.error.code, authResult.error.message)
+      }
 
-    // 5. Emit event
-    await deps.events.emit(
-      identityMemberRoleChanged({
-        organizationId: ctx.organizationId,
-        userId: toUserId(targetMember.userId),
-        previousRole: targetMember.role,
-        newRole: input.role,
-        changedBy: ctx.userId,
-        occurredAt: deps.clock(),
-      }),
-    )
+      // 3b. Last-admin guard — cannot demote the last AccountAdmin
+      if (targetMember.role === ADMIN_ROLE && input.role !== ADMIN_ROLE) {
+        const members = await deps.identity.listMembers(ctx)
+        const adminCount = members.filter((m) => m.role === ADMIN_ROLE).length
+        if (adminCount <= 1) {
+          throw identityError(
+            'forbidden',
+            'Cannot demote the last admin of the organization',
+          )
+        }
+      }
 
-    return { success: true }
+      // 4. Persist
+      await deps.identity.updateMemberRole(ctx, input.memberId, input.role)
+
+      // 5. Emit event
+      await deps.events.emit(
+        identityMemberRoleChanged({
+          organizationId: ctx.organizationId,
+          userId: toUserId(targetMember.userId),
+          previousRole: targetMember.role,
+          newRole: input.role,
+          changedBy: ctx.userId,
+          occurredAt: deps.clock(),
+        }),
+      )
+
+      return { success: true }
+    })
   }

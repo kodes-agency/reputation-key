@@ -3,6 +3,9 @@
 // Wraps better-auth's API calls behind the port interface so use cases
 // remain testable with in-memory fakes.
 
+import type { Database } from '#/shared/db'
+import { eq, sql } from 'drizzle-orm'
+import { user as userTable } from '#/shared/db/schema/auth'
 import type {
   IdentityPort,
   MemberRecord,
@@ -14,7 +17,7 @@ import { getAuth } from '#/shared/auth/auth'
 import { toDomainRole, toBetterAuthRole } from '#/shared/domain/roles'
 import { identityError } from '../../domain/errors'
 import { organizationId, invitationId } from '#/shared/domain/ids'
-import type { InvitationId } from '#/shared/domain/ids'
+import type { InvitationId, OrganizationId } from '#/shared/domain/ids'
 import {
   parseBetterAuthResponse,
   signUpResponseSchema,
@@ -63,8 +66,7 @@ function toMemberRecord(m: {
   }
 }
 
-/** Create the better-auth implementation of IdentityPort. */
-export function createBetterAuthIdentityAdapter(): IdentityPort {
+export function createBetterAuthIdentityAdapter(db: Database): IdentityPort {
   const auth = getAuth()
   return {
     async signUp(name: string, email: string, password: string): Promise<string> {
@@ -242,5 +244,28 @@ export function createBetterAuthIdentityAdapter(): IdentityPort {
     async setActiveOrganization(headers: Headers, organizationId: string): Promise<void> {
       await auth.api.setActiveOrganization({ headers, body: { organizationId } })
     },
+
+    async withOrgLock<T>(
+      organizationId: OrganizationId,
+      fn: () => Promise<T>,
+    ): Promise<T> {
+      const lockKey = hashStringToInteger(organizationId as string)
+      return db.transaction(async (tx) => {
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(${lockKey})`)
+        return fn()
+      })
+    },
+
+    async deleteUser(userId: string): Promise<void> {
+      await db.delete(userTable).where(eq(userTable.id, userId))
+    },
   }
+}
+
+function hashStringToInteger(str: string): number {
+  let hash = 0
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0
+  }
+  return Math.abs(hash)
 }

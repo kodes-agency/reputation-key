@@ -123,6 +123,8 @@ function createFakeDeps(state: {
     }),
     markGoalCompleted: async () => {},
     findAllActive: async () => state.templates,
+    findAllActiveRecurring: async () => state.templates,
+    findAllActiveGlobal: async () => [],
     findActiveRecurringTemplates: async () => state.templates,
     findLatestInstance: async (parentId) =>
       state.latestInstance.get(parentId as string) ?? null,

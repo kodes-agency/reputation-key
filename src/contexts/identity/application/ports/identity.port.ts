@@ -80,4 +80,9 @@ export type IdentityPort = Readonly<{
 
   /** Set the active organization for the current session. */
   setActiveOrganization: (headers: Headers, organizationId: string) => Promise<void>
+
+  /** Execute fn with an advisory lock for the given organization. Prevents concurrent last-admin mutations. */
+  withOrgLock: <T>(organizationId: OrganizationId, fn: () => Promise<T>) => Promise<T>
+  /** Delete a user by ID. Used as compensating transaction when org setup fails. */
+  deleteUser: (userId: string) => Promise<void>
 }>

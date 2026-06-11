@@ -176,8 +176,34 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
 
   // ── Event-driven increment ──────────────────────────────────────────
 
-  findAllActive: async () => {
+  findAllActive: async (organizationId) => {
     return trace('goal.findAllActive', async () => {
+      const rows = await db
+        .select()
+        .from(goals)
+        .where(and(eq(goals.organizationId, organizationId), eq(goals.status, 'active')))
+      return rows.map(goalFromRow)
+    })
+  },
+  // ⚠️ CROSS-TENANT by design — background job
+  findAllActiveRecurring: async () => {
+    return trace('goal.findAllActiveRecurring', async () => {
+      const rows = await db
+        .select()
+        .from(goals)
+        .where(
+          and(
+            eq(goals.status, 'active'),
+            eq(goals.goalType, 'recurring'),
+            isNull(goals.parentGoalId),
+          ),
+        )
+      return rows.map(goalFromRow)
+    })
+  },
+  // ⚠️ CROSS-TENANT by design — background job
+  findAllActiveGlobal: async () => {
+    return trace('goal.findAllActiveGlobal', async () => {
       const rows = await db.select().from(goals).where(eq(goals.status, 'active'))
       return rows.map(goalFromRow)
     })

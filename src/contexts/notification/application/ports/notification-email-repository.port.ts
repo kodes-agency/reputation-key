@@ -11,19 +11,36 @@ export type NotificationEmailRepositoryPort = Readonly<{
   /** Upsert on conflict (by notificationId). */
   insert(email: NotificationEmail): Promise<NotificationEmail>
 
-  findById(id: NotificationEmailId): Promise<NotificationEmail | null>
+  findById(
+    id: NotificationEmailId,
+    orgId: OrganizationId,
+  ): Promise<NotificationEmail | null>
 
   findPendingByOrg(
     orgId: OrganizationId,
     priority: NotificationPriority,
   ): Promise<readonly NotificationEmail[]>
 
-  /** Fetch all pending urgent emails across all orgs (for global email worker). */
+  /** ⚠️ CROSS-TENANT by design — global email worker. Results limited to 1000. */
   findPendingUrgent(): Promise<readonly NotificationEmail[]>
 
-  markSent(id: NotificationEmailId, sentAt: Date, updatedAt: Date): Promise<void>
+  markSent(
+    id: NotificationEmailId,
+    orgId: OrganizationId,
+    sentAt: Date,
+    updatedAt: Date,
+  ): Promise<void>
 
-  markFailed(id: NotificationEmailId, failedAt: Date, updatedAt: Date): Promise<void>
+  markFailed(
+    id: NotificationEmailId,
+    orgId: OrganizationId,
+    failedAt: Date,
+    updatedAt: Date,
+  ): Promise<void>
 
-  markSkipped(id: NotificationEmailId, updatedAt: Date): Promise<void>
+  markSkipped(
+    id: NotificationEmailId,
+    orgId: OrganizationId,
+    updatedAt: Date,
+  ): Promise<void>
 }>

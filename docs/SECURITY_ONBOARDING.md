@@ -104,3 +104,13 @@ If secrets are leaked:
 2. **Check Neon logs** for unauthorized queries
 3. **Check Resend logs** for unauthorized email sends
 4. **Invalidate Better Auth sessions** by rotating `BETTER_AUTH_SECRET` (forces all users to re-authenticate)
+
+## 7. Email Verification
+
+Email verification is currently disabled (`requireEmailVerification: false`). To enable:
+
+1. Verify Resend domain ownership
+2. Run `scripts/migrations/verify-existing-emails.sql` against the database
+3. Test full signup → verify → sign-in flow
+4. Set `requireEmailVerification: true` in `src/shared/auth/auth.ts`
+5. Uncomment the `emailVerification` block in `createAuth()`

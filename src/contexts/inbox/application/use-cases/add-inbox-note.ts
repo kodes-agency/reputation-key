@@ -39,6 +39,9 @@ export type AddInboxNoteDeps = Readonly<{
 export const addInboxNote =
   (deps: AddInboxNoteDeps) =>
   async (input: AddInboxNoteInput): Promise<InboxNote> => {
+    if (!can(input.role, 'inbox.write')) {
+      throw inboxError('forbidden', 'No inbox write permission')
+    }
     // 1. Find item
     const item = await deps.repo.findById(input.inboxItemId, input.organizationId)
     if (!item) {

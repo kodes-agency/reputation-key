@@ -9,7 +9,6 @@ import type { Database } from '#/shared/db'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { MetricPublicApi } from '#/contexts/metric/application/public-api'
 import type { GoalRepository } from './application/ports/goal.repository'
-import type { CancelGoalFn } from './infrastructure/event-handlers'
 import type { getLogger as getLoggerType } from '#/shared/observability/logger'
 import { createGoalRepository } from './infrastructure/repositories/goal.repository'
 import { createGoal } from './application/use-cases/create-goal'
@@ -25,7 +24,6 @@ export type GoalContextBuildInput = Readonly<{
   events: EventBus
   clock: () => Date
   idGen: () => string
-  cancelGoalFn: CancelGoalFn
   getLogger: typeof getLoggerType
   findGroupForPortal: (
     orgId: import('#/shared/domain/ids').OrganizationId,
@@ -86,7 +84,7 @@ export const buildGoalContext = (input: GoalContextBuildInput): GoalContextApi =
   registerGoalEventHandlers({
     eventBus: input.events,
     goalRepo,
-    cancelGoalFn: input.cancelGoalFn,
+    cancelGoalFn: _cancelGoal,
     clock: input.clock,
     getLogger: input.getLogger,
     findGroupForPortal: input.findGroupForPortal,
