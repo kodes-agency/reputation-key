@@ -5,7 +5,12 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest'
 import { createGbpCacheRepository } from './gbp-cache.repository'
 import { getDb } from '#/shared/db'
-import { organizationId, propertyId, gbpCacheEntryId } from '#/shared/domain/ids'
+import {
+  organizationId,
+  propertyId,
+  gbpCacheEntryId,
+  googleConnectionId,
+} from '#/shared/domain/ids'
 import { Pool } from 'pg'
 import { getEnv } from '#/shared/config/env'
 import type { GbpCacheEntry, GbpCacheDataType } from '../../domain/types'
@@ -21,8 +26,8 @@ const PROP_SLUG_A = 'cachep-' + (PROP_A as string).slice(0, 12)
 const PROP_SLUG_B = 'cachep-' + (PROP_B as string).slice(0, 12)
 const PORTAL_SLUG_A = 'cacheport-' + crypto.randomUUID().slice(0, 12)
 const PORTAL_SLUG_B = 'cacheport-' + crypto.randomUUID().slice(0, 12)
-const CONNECTION_ID_A = crypto.randomUUID()
-const CONNECTION_ID_B = crypto.randomUUID()
+const CONNECTION_ID_A = googleConnectionId(crypto.randomUUID())
+const CONNECTION_ID_B = googleConnectionId(crypto.randomUUID())
 
 let pool: Pool
 
@@ -186,7 +191,7 @@ describe('gbpCacheRepository (integration)', () => {
       const repo = createGbpCacheRepository(db, testPropertyQuery(db))
       await repo.upsert(buildTestCacheEntry({ dataType: 'location' }))
 
-      await repo.deleteByProperty(PROP_A, ORG_A as string)
+      await repo.deleteByProperty(PROP_A, ORG_A)
       const found = await repo.findByPropertyAndType(ORG_A, PROP_A, 'location')
       expect(found).toBeNull()
     })
@@ -256,7 +261,7 @@ describe('gbpCacheRepository (integration)', () => {
       )
 
       // Delete ORG_A's cache entries
-      await repo.deleteByProperty(PROP_A, ORG_A as string)
+      await repo.deleteByProperty(PROP_A, ORG_A)
 
       // ORG_A's entry should be gone
       expect(await repo.findByPropertyAndType(ORG_A, PROP_A, 'location')).toBeNull()

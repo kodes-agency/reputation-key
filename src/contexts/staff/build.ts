@@ -49,8 +49,7 @@ export const buildStaffContext = (deps: StaffContextDeps) => {
       assignmentRepo: deps.repo,
       events: deps.events,
       clock: deps.clock,
-      // F059: Use branded staffAssignmentId constructor instead of returning raw string
-      idGen: () => staffAssignmentId(randomUUID()),
+      idGen,
     }),
   } as const
 

@@ -138,8 +138,8 @@ function createFakeDeps() {
       progresses.set(data.goalId as string, p)
       return p
     },
-    getProgress: async (goalId) => progresses.get(goalId as string) ?? null,
-    getProgressBatch: async (ids) => {
+    getProgress: async (goalId, _orgId) => progresses.get(goalId as string) ?? null,
+    getProgressBatch: async (ids, _orgId) => {
       const map = new Map()
       for (const id of ids) {
         map.set(id, progresses.get(id as string) ?? null)
@@ -153,7 +153,7 @@ function createFakeDeps() {
       }
       return map
     },
-    updateProgress: async (goalId, data) => {
+    updateProgress: async (goalId, _orgId, data) => {
       const existing = progresses.get(goalId as string)
       if (!existing) return null
       const updated: GoalProgress = { ...existing, ...data }

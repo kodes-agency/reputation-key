@@ -3,7 +3,7 @@
 // Cache entries are indexed by organizationId + propertyId + dataType for tenant-isolated lookups.
 
 import type { GbpCacheEntry, GbpCacheDataType } from '../../domain/types'
-import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
+import type { OrganizationId, PropertyId, GoogleConnectionId } from '#/shared/domain/ids'
 
 export type GbpCacheRepository = Readonly<{
   findByPropertyAndType: (
@@ -12,7 +12,10 @@ export type GbpCacheRepository = Readonly<{
     dataType: GbpCacheDataType,
   ) => Promise<GbpCacheEntry | null>
   upsert: (entry: GbpCacheEntry) => Promise<void>
-  deleteByProperty: (propertyId: PropertyId, orgId: string) => Promise<void>
+  deleteByProperty: (propertyId: PropertyId, orgId: OrganizationId) => Promise<void>
   deleteAllExpired: () => Promise<number>
-  deleteByConnectionId: (connectionId: string, orgId: OrganizationId) => Promise<number>
+  deleteByConnectionId: (
+    connectionId: GoogleConnectionId,
+    orgId: OrganizationId,
+  ) => Promise<number>
 }>

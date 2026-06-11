@@ -9,7 +9,10 @@ export type UserLookupPort = Readonly<{
   findByRole(orgId: OrganizationId, role: Role): Promise<readonly UserId[]>
 
   /** Find user IDs of managers (owner/admin) assigned to a property via staff_assignments. */
-  findAssignedManagers(propertyId: string): Promise<readonly UserId[]>
+  findAssignedManagers(
+    orgId: OrganizationId,
+    propertyId: string,
+  ): Promise<readonly UserId[]>
 
   /** Get a user's email address. Returns null if not found. */
   getEmail(userId: UserId): Promise<string | null>

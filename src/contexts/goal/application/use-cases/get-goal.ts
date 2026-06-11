@@ -51,7 +51,9 @@ export const getGoal =
       return err({ tag: 'goal_not_found' })
     }
 
-    const [progressMap] = await Promise.all([deps.goalRepo.getProgressBatch([goal.id])])
+    const [progressMap] = await Promise.all([
+      deps.goalRepo.getProgressBatch([goal.id], goal.organizationId),
+    ])
     const progress = progressMap.get(goal.id) ?? null
 
     // For recurring templates, load all instances with their progress
@@ -69,7 +71,7 @@ export const getGoal =
       const instanceIds = sorted.map((i) => i.id)
       const instanceProgressMap =
         instanceIds.length > 0
-          ? await deps.goalRepo.getProgressBatch(instanceIds)
+          ? await deps.goalRepo.getProgressBatch(instanceIds, goal.organizationId)
           : new Map<GoalId, GoalProgress | null>()
 
       const instancesWithProgress: GoalWithProgress[] = []

@@ -18,6 +18,7 @@ import {
   reviewReplyRejected,
   reviewReplyPublishFailed,
 } from '../../domain/events'
+import { getLogger } from '#/shared/observability/logger'
 
 // ── Shared ────────────────────────────────────────────────────────────
 
@@ -425,8 +426,11 @@ export const markReplyPublishFailed =
           }),
         )
       }
-    } catch {
-      // Swallow — status update succeeded; event emission failure is non-critical
+    } catch (e) {
+      // Status update succeeded; event emission failure is non-critical but logged
+      getLogger()
+        .child({ replyId: updated.id })
+        .error({ err: e }, 'Failed to emit reply publish failed event')
     }
 
     return updated

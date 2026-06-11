@@ -21,6 +21,7 @@ export type PortalErrorCode =
   | 'group_name_taken'
   | 'portal_already_grouped'
   | 'portal_not_in_group'
+  | 'portal_inactive'
   | 'upload_failed'
 
 export type PortalError = Readonly<{

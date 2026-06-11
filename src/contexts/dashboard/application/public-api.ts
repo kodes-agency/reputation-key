@@ -11,6 +11,8 @@ export type {
   DashboardData,
   PortalKPIs,
   PortalAnalyticsData,
+  StaffDashboardData,
+  PortalRatingTrendPoint,
 } from '../domain/types'
 
 // ── Error type re-exports (server functions must import from public-api, not domain/errors) ──

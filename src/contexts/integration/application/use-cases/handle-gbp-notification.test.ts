@@ -7,7 +7,7 @@ import type { PropertyLookup } from '../ports/property-lookup.port'
 import type {
   SyncPropertyReviewsJobData,
   AddSyncJobOptions,
-} from '#/contexts/review/application/internal-ports'
+} from '#/contexts/review/application/public-api'
 
 // ── In-memory fakes ──────────────────────────────────────────────
 

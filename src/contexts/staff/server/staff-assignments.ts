@@ -5,6 +5,7 @@ import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { match } from 'ts-pattern'
 import { HTTP_STATUS } from '#/shared/http/status'
 import { headersFromContext } from '#/shared/auth/headers'
+import { can } from '#/shared/domain/permissions'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getContainer } from '#/composition'
@@ -44,6 +45,13 @@ export const createStaffAssignment = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
+        if (!can(ctx.role, 'staff_assignment.create')) {
+          throwContextError(
+            'AuthError',
+            { code: 'forbidden', message: 'No staff assignment create permission' },
+            403,
+          )
+        }
 
         try {
           const { useCases } = getContainer()
@@ -69,6 +77,13 @@ export const removeStaffAssignment = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
+        if (!can(ctx.role, 'staff_assignment.delete')) {
+          throwContextError(
+            'AuthError',
+            { code: 'forbidden', message: 'No staff assignment delete permission' },
+            403,
+          )
+        }
 
         try {
           const { useCases } = getContainer()
@@ -97,6 +112,13 @@ export const listStaffAssignments = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
+        if (!can(ctx.role, 'staff_assignment.read')) {
+          throwContextError(
+            'AuthError',
+            { code: 'forbidden', message: 'No staff assignment read permission' },
+            403,
+          )
+        }
 
         try {
           const { useCases } = getContainer()

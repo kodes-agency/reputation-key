@@ -64,8 +64,11 @@ export const insertActivityLog =
         actorName = user.name
         actorAvatarUrl = user.avatarUrl
         actorRole = user.role
-      } catch {
-        // Use system defaults
+      } catch (e) {
+        deps.logger.warn(
+          { error: e, userId },
+          'Activity user lookup failed, using system defaults',
+        )
       }
     }
 

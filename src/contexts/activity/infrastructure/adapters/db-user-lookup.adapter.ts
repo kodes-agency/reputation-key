@@ -9,6 +9,7 @@ import type { UserLookupPort, UserInfo } from '../../ports/user-lookup.port'
 import type { Database } from '#/shared/db'
 import type { Role } from '#/shared/domain/roles'
 import { sql } from 'drizzle-orm'
+import { getLogger } from '#/shared/observability/logger'
 
 const VALID_ROLES = new Set<string>(['Owner', 'Admin', 'PropertyManager', 'Staff'])
 
@@ -43,7 +44,11 @@ export const createDbUserLookupAdapter = (db: Database): UserLookupPort => ({
         avatarUrl: ((row as Record<string, unknown>).image as string) ?? null,
         role: validateRole((row as Record<string, unknown>).role),
       }
-    } catch {
+    } catch (e) {
+      getLogger().warn(
+        { err: e, userId, orgId },
+        'DB user lookup failed, returning fallback user',
+      )
       return FALLBACK_USER
     }
   },

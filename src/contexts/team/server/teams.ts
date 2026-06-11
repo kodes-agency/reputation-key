@@ -7,6 +7,7 @@ import { match } from 'ts-pattern'
 import { HTTP_STATUS } from '#/shared/http/status'
 import { z } from 'zod/v4'
 import { headersFromContext } from '#/shared/auth/headers'
+import { can } from '#/shared/domain/permissions'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getContainer } from '#/composition'
@@ -42,6 +43,13 @@ export const createTeam = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
+        if (!can(ctx.role, 'team.create')) {
+          throwContextError(
+            'AuthError',
+            { code: 'forbidden', message: 'No team create permission' },
+            403,
+          )
+        }
 
         try {
           const { useCases } = getContainer()
@@ -66,6 +74,13 @@ export const updateTeam = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
+        if (!can(ctx.role, 'team.update')) {
+          throwContextError(
+            'AuthError',
+            { code: 'forbidden', message: 'No team update permission' },
+            403,
+          )
+        }
 
         try {
           const { useCases } = getContainer()
@@ -90,6 +105,13 @@ export const listTeams = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
+        if (!can(ctx.role, 'team.read')) {
+          throwContextError(
+            'AuthError',
+            { code: 'forbidden', message: 'No team read permission' },
+            403,
+          )
+        }
 
         try {
           const { useCases } = getContainer()
@@ -117,6 +139,13 @@ export const deleteTeam = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
+        if (!can(ctx.role, 'team.delete')) {
+          throwContextError(
+            'AuthError',
+            { code: 'forbidden', message: 'No team delete permission' },
+            403,
+          )
+        }
 
         try {
           const { useCases } = getContainer()

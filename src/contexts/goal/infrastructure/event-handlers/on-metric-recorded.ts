@@ -72,7 +72,7 @@ export function onMetricRecorded(deps: OnMetricRecordedDeps) {
       for (const goal of affectedGoals) {
         try {
           // Get previous progress value for GoalProgressUpdated
-          const prevProgress = await goalRepo.getProgress(goal.id)
+          const prevProgress = await goalRepo.getProgress(goal.id, goal.organizationId)
           const previousValue = prevProgress?.currentValue ?? 0
 
           // Increment progress (insert initial row if none exists)

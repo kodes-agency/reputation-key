@@ -46,10 +46,13 @@ export const listStaffPortals = createServerFn({ method: 'GET' })
             return { portals: [] as StaffPortalEntry[] }
           }
 
-          // 2. Fetch portal details for each assigned portal
+          // 2. Fetch portal details for each assigned portal via portal public API
           const portals: StaffPortalEntry[] = []
           for (const pid of portalIds) {
-            const portal = await container.portalRepo.findById(ctx.organizationId, pid)
+            const portal = await container.portalPublicApi.portal.getPortalInfo(
+              ctx.organizationId,
+              pid,
+            )
             if (portal && portal.isActive) {
               portals.push({ id: portal.id, name: portal.name })
             }

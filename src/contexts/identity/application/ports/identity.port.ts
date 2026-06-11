@@ -61,7 +61,8 @@ export type IdentityPort = Readonly<{
   acceptInvitation: (invitationId: InvitationId, headers: Headers) => Promise<void>
 
   /** Reject an invitation. */
-  rejectInvitation: (invitationId: InvitationId, headers: Headers) => Promise<void>
+  /** Cancel a sent invitation. */
+  cancelInvitation: (invitationId: InvitationId, headers: Headers) => Promise<void>
 
   /** List pending invitations for the active organization. */
   listInvitations: (ctx: AuthContext) => Promise<ReadonlyArray<InvitationRecord>>
@@ -76,7 +77,8 @@ export type IdentityPort = Readonly<{
   removeMember: (ctx: AuthContext, memberId: string) => Promise<void>
 
   /** List organizations the current user belongs to. */
-  listUserOrganizations: (headers: Headers) => Promise<ReadonlyArray<OrganizationRecord>>
+  /** Get the active organization details for the current session. */
+  getActiveOrg: (headers: Headers) => Promise<OrganizationRecord | null>
 
   /** Set the active organization for the current session. */
   setActiveOrganization: (headers: Headers, organizationId: string) => Promise<void>

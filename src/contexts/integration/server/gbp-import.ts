@@ -59,12 +59,12 @@ export const startPropertyImport = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'integration.manage')) {
+        if (!can(ctx.role, 'property.create')) {
           throwContextError(
             'AuthError',
             {
               code: 'forbidden',
-              message: 'Insufficient permissions to manage integrations',
+              message: 'Insufficient permissions to create properties',
             },
             403,
           )

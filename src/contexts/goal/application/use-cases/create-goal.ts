@@ -20,9 +20,7 @@ import type {
   PropertyId,
   PortalId,
   PortalGroupId,
-  GoalId,
   UserId,
-  GoalProgressId,
 } from '#/shared/domain/ids'
 import type { MetricKey, AggregationFunction } from '#/shared/domain/metric-keys'
 import type { Role } from '#/shared/domain/roles'
@@ -35,6 +33,10 @@ import {
 } from '../../domain/progress-strategy'
 import { can } from '#/shared/domain/permissions'
 import { ok, err, type Result } from 'neverthrow'
+import {
+  goalId as toGoalId,
+  goalProgressId as toGoalProgressId,
+} from '#/shared/domain/ids'
 
 // ── Input type ──────────────────────────────────────────────────────────
 
@@ -91,7 +93,7 @@ export const createGoal =
     }
 
     const now = deps.clock()
-    const goalId = deps.idGen() as GoalId
+    const goalId = toGoalId(deps.idGen())
 
     // 1. Build the goal via domain constructor
     const buildResult = buildGoal({
@@ -135,7 +137,7 @@ export const createGoal =
     const progressValue = computeValue(goal.aggregationFunction, aggregate)
 
     const progress: GoalProgress = {
-      id: deps.idGen() as unknown as GoalProgressId,
+      id: toGoalProgressId(deps.idGen()),
       goalId: goal.id,
       organizationId: goal.organizationId,
       currentValue: progressValue,
@@ -162,7 +164,7 @@ async function handleRecurringGoal(
 
   const rule = template.recurrenceRule!
   const period = computeCalendarPeriod(now, rule.frequency)
-  const instanceId = deps.idGen() as GoalId
+  const instanceId = toGoalId(deps.idGen())
 
   // Build the instance as a child of the template
   const instanceResult = buildGoal({
@@ -209,7 +211,7 @@ async function handleRecurringGoal(
   const progressValue = computeValue(template.aggregationFunction, aggregate)
 
   const progress: GoalProgress = {
-    id: deps.idGen() as unknown as GoalProgressId,
+    id: toGoalProgressId(deps.idGen()),
     goalId: instance.id,
     organizationId: template.organizationId,
     currentValue: progressValue,

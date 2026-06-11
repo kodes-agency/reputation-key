@@ -118,11 +118,11 @@ function makeFakeDeps() {
       progresses.set(data.goalId as string, p)
       return p as unknown as GoalProgress
     },
-    getProgress: async (goalId) => {
+    getProgress: async (goalId, _orgId) => {
       const p = progresses.get(goalId as string)
       return p ? { ...p } : null
     },
-    getProgressBatch: async (ids) => {
+    getProgressBatch: async (ids, _orgId) => {
       const map = new Map()
       for (const id of ids) {
         const p = progresses.get(id as string)
@@ -137,7 +137,7 @@ function makeFakeDeps() {
       }
       return map
     },
-    updateProgress: async () => null,
+    updateProgress: async (_gid, _orgId, _data) => null,
 
     findActiveGoalsByMetric: async (
       metricKey,

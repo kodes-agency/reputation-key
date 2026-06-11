@@ -74,15 +74,11 @@ export const cancelInvitation = createServerFn({ method: 'POST' })
               403,
             )
           }
-          const auth = getAuth()
+          const { identityPort, eventBus } = getContainer()
 
-          await auth.api.cancelInvitation({
-            headers,
-            body: { invitationId: data.invitationId },
-          })
+          await identityPort.cancelInvitation(invitationId(data.invitationId), headers)
 
-          const container = getContainer()
-          await container.eventBus.emit(
+          await eventBus.emit(
             identityInvitationRejected({
               eventId: crypto.randomUUID(),
               organizationId: ctx.organizationId,

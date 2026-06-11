@@ -97,7 +97,7 @@ describe('onReviewCreated (notification)', () => {
 
     await onReviewCreated(deps)(mockEvent)
 
-    expect(deps.userLookup.findAssignedManagers).toHaveBeenCalledWith(PROP_ID)
+    expect(deps.userLookup.findAssignedManagers).toHaveBeenCalledWith(ORG_ID, PROP_ID)
   })
 
   it('does not enqueue any jobs when no managers are assigned', async () => {

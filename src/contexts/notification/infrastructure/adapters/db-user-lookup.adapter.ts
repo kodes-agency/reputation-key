@@ -23,14 +23,18 @@ export function createDbUserLookupAdapter(db: Database) {
     },
 
     /** Find user IDs of managers (owner/admin) assigned to a property via staff_assignments. */
-    async findAssignedManagers(propertyId: string): Promise<UserId[]> {
+    async findAssignedManagers(
+      orgId: OrganizationId,
+      propertyId: string,
+    ): Promise<UserId[]> {
       const result = await db.execute(sql`
         SELECT sa.user_id
         FROM staff_assignments sa
         JOIN member m
           ON m.user_id = sa.user_id
           AND m.organization_id = sa.organization_id
-        WHERE sa.property_id = ${propertyId}
+        WHERE sa.organization_id = ${unbrand(orgId)}
+          AND sa.property_id = ${propertyId}
           AND sa.deleted_at IS NULL
           AND m.role IN ('owner', 'admin')
       `)

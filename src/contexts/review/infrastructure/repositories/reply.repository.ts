@@ -8,8 +8,8 @@ import type { ReplyRepository } from '../../application/ports/reply.repository'
 import type { Reply, ReplySource } from '../../domain/types'
 import type { OrganizationId, ReplyId, ReviewId } from '#/shared/domain/ids'
 import { replyFromRow, replyToRow } from '../mappers/reply.mapper'
+import { reviewError } from '../../domain/errors'
 import { trace } from '#/shared/observability/trace'
-
 export const createReplyRepository = (db: Database): ReplyRepository => ({
   findById: async (id: ReplyId, organizationId: OrganizationId) => {
     return trace('reply.findById', async () => {
@@ -96,7 +96,7 @@ export const createReplyRepository = (db: Database): ReplyRepository => ({
         .returning()
 
       if (!result[0]) {
-        throw new Error('Reply upsert failed — no row returned')
+        throw reviewError('repo_upsert_failed', 'Reply upsert failed — no row returned')
       }
       return replyFromRow(result[0])
     })

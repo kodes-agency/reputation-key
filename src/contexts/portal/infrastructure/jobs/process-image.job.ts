@@ -9,6 +9,7 @@ import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
 import type { StoragePort } from '../../application/ports/storage.port'
 import type { PortalRepository } from '../../application/ports/portal.repository'
+import { portalError } from '../../domain/errors'
 import { organizationId, portalId } from '#/shared/domain/ids'
 
 export type ProcessImageJobData = Readonly<{
@@ -42,7 +43,8 @@ export function createProcessImageJob(deps: ProcessImageJobDeps) {
         const publicUrl = deps.storage.getPublicUrl(key)
         const response = await fetch(publicUrl)
         if (!response.ok) {
-          throw new Error(
+          throw portalError(
+            'upload_failed',
             `Failed to download image: ${response.status} ${response.statusText}`,
           )
         }

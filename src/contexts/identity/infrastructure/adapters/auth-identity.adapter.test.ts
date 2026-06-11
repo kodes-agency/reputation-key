@@ -337,23 +337,6 @@ describe('createBetterAuthIdentityAdapter', () => {
     })
   })
 
-  describe('rejectInvitation', () => {
-    it('calls rejectInvitation API with correct params', async () => {
-      // Arrange
-      mockRejectInvitation.mockResolvedValue(undefined)
-      const headers = new Headers()
-
-      // Act
-      await adapter.rejectInvitation(invitationId('inv-1'), headers)
-
-      // Assert
-      expect(mockRejectInvitation).toHaveBeenCalledWith({
-        headers,
-        body: { invitationId: invitationId('inv-1') },
-      })
-    })
-  })
-
   describe('listInvitations', () => {
     it('maps raw invitations to InvitationRecord', async () => {
       // Arrange
@@ -485,47 +468,6 @@ describe('createBetterAuthIdentityAdapter', () => {
         headers: expect.any(Headers),
         body: { memberIdOrEmail: 'm-1' },
       })
-    })
-  })
-
-  describe('listUserOrganizations', () => {
-    it('maps raw organizations to OrganizationRecord', async () => {
-      // Arrange
-      const now = new Date('2026-01-01')
-      mockListOrganizations.mockResolvedValue([
-        {
-          id: 'org-1',
-          name: 'Org One',
-          slug: 'org-one',
-          logo: 'logo.png',
-          createdAt: now,
-        },
-        { id: 'org-2', name: 'Org Two', slug: 'org-two', logo: null, createdAt: now },
-      ])
-
-      // Act
-      const orgs = await adapter.listUserOrganizations(new Headers())
-
-      // Assert
-      expect(orgs).toHaveLength(2)
-      expect(orgs[0]).toEqual({
-        id: 'org-1',
-        name: 'Org One',
-        slug: 'org-one',
-        logo: 'logo.png',
-        createdAt: now,
-      })
-      expect(orgs[1].logo).toBeNull()
-    })
-
-    it('throws when response does not match schema', async () => {
-      // Arrange
-      mockListOrganizations.mockResolvedValue(null)
-
-      // Act & Assert
-      await expect(adapter.listUserOrganizations(new Headers())).rejects.toThrow(
-        'listOrganizations response did not match expected schema',
-      )
     })
   })
 

@@ -6,6 +6,7 @@
 import type { Database } from '#/shared/db'
 import { eq, sql } from 'drizzle-orm'
 import { user as userTable } from '#/shared/db/schema/auth'
+import { getLogger } from '#/shared/observability/logger'
 import type {
   IdentityPort,
   MemberRecord,
@@ -25,7 +26,7 @@ import {
   createInvitationResponseSchema,
   listInvitationsResponseSchema,
   listUserInvitationsResponseSchema,
-  listOrganizationsResponseSchema,
+  betterAuthOrganizationSchema,
 } from './better-auth-schemas'
 
 /** Build request headers that carry the better-auth session cookie.
@@ -41,8 +42,11 @@ async function headersFromRequest(): Promise<Headers> {
         headers.set(key, value)
       })
     }
-  } catch {
-    // Outside server context (e.g., worker) — return empty headers
+  } catch (e) {
+    getLogger().debug(
+      { err: e },
+      'headersFromRequest: no server context available, returning empty headers',
+    )
   }
   return headers
 }
@@ -151,8 +155,8 @@ export function createBetterAuthIdentityAdapter(db: Database): IdentityPort {
       await auth.api.acceptInvitation({ headers, body: { invitationId: id } })
     },
 
-    async rejectInvitation(id: InvitationId, headers: Headers): Promise<void> {
-      await auth.api.rejectInvitation({ headers, body: { invitationId: id } })
+    async cancelInvitation(id: InvitationId, headers: Headers): Promise<void> {
+      await auth.api.cancelInvitation({ headers, body: { invitationId: id } })
     },
 
     async listInvitations(_ctx: AuthContext): Promise<ReadonlyArray<InvitationRecord>> {
@@ -237,26 +241,22 @@ export function createBetterAuthIdentityAdapter(db: Database): IdentityPort {
       })
     },
 
-    async listUserOrganizations(
-      headers: Headers,
-    ): Promise<ReadonlyArray<OrganizationRecord>> {
-      const result = await auth.api.listOrganizations({ headers })
-
-      const orgs = parseBetterAuthResponse(
-        listOrganizationsResponseSchema,
+    async getActiveOrg(headers: Headers): Promise<OrganizationRecord | null> {
+      const result = await auth.api.getFullOrganization({ headers })
+      if (!result) return null
+      const org = parseBetterAuthResponse(
+        betterAuthOrganizationSchema,
         result,
         'org_setup_failed',
-        'listOrganizations response did not match expected schema',
+        'getFullOrganization response did not match expected schema',
       )
-      return orgs.map(
-        (org): OrganizationRecord => ({
-          id: org.id,
-          name: org.name,
-          slug: org.slug,
-          logo: org.logo ?? null,
-          createdAt: org.createdAt,
-        }),
-      )
+      return {
+        id: org.id,
+        name: org.name,
+        slug: org.slug,
+        logo: org.logo ?? null,
+        createdAt: org.createdAt,
+      }
     },
 
     async setActiveOrganization(headers: Headers, organizationId: string): Promise<void> {

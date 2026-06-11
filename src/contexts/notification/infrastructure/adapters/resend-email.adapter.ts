@@ -4,16 +4,6 @@ import { Resend } from 'resend'
 import { getEnv } from '#/shared/config/env'
 import { getLogger } from '#/shared/observability/logger'
 
-let _resend: Resend | undefined
-
-function getResend(): Resend {
-  if (!_resend) {
-    const env = getEnv()
-    _resend = new Resend(env.RESEND_API_KEY)
-  }
-  return _resend
-}
-
 function maskEmail(email: string): string {
   const [local, domain] = email.split('@')
   if (!local || !domain) return '***'
@@ -21,12 +11,22 @@ function maskEmail(email: string): string {
 }
 
 export function createResendEmailAdapter() {
+  let resend: Resend | undefined
+
+  function getResend(): Resend {
+    if (!resend) {
+      const env = getEnv()
+      resend = new Resend(env.RESEND_API_KEY)
+    }
+    return resend
+  }
+
   return {
     async send(params: { to: string; subject: string; html: string }): Promise<void> {
       const logger = getLogger()
-      const resend = getResend()
+      const client = getResend()
 
-      const { error } = await resend.emails.send({
+      const { error } = await client.emails.send({
         from: 'Reputation Key <info@kodes.agency>',
         to: params.to,
         subject: params.subject,

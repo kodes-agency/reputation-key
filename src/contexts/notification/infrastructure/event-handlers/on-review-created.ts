@@ -16,7 +16,10 @@ type Deps = Readonly<{
 export const onReviewCreated =
   (deps: Deps) =>
   async (event: ReviewCreated): Promise<void> => {
-    const recipients = await deps.userLookup.findAssignedManagers(event.propertyId)
+    const recipients = await deps.userLookup.findAssignedManagers(
+      event.organizationId,
+      event.propertyId,
+    )
 
     if (recipients.length === 0) {
       deps.logger.warn(

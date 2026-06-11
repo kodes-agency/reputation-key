@@ -60,6 +60,15 @@ export type PortalPublicApi = Readonly<{
   resolvePortalContext: (portalId: PortalId) => Promise<PortalContextResult | null>
 
   /**
+   * Get minimal portal info (id, name, isActive) by org + portal ID.
+   * Used by staff context to resolve assigned portal details.
+   */
+  getPortalInfo: (
+    orgId: OrganizationId,
+    portalId: PortalId,
+  ) => Promise<Readonly<{ id: PortalId; name: string; isActive: boolean }> | null>
+
+  /**
    * Full public portal lookup by property slug + portal slug.
    * Returns portal info, link categories, links, and org name.
    * Used by guest context for the public-facing portal page.

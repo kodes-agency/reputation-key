@@ -10,7 +10,7 @@ import type { PropertyRepository } from '../../application/ports/property.reposi
 import { propertyFromRow, propertyToRow } from '../mappers/property.mapper'
 import { propertyError } from '../../domain/errors'
 import { trace } from '#/shared/observability/trace'
-import type { GoogleConnectionId, PropertyId } from '#/shared/domain/ids'
+import { propertyId, type GoogleConnectionId } from '#/shared/domain/ids'
 
 /** Mutable set-values type for Drizzle .set() — strips readonly from Property fields. */
 type SetValues = {
@@ -147,7 +147,7 @@ export const createPropertyRepository = (db: Database): PropertyRepository => ({
             eq(properties.googleConnectionId, connectionId as string),
           ),
         )
-      return rows.map((r) => r.id as PropertyId)
+      return rows.map((r) => propertyId(r.id))
     })
   },
 

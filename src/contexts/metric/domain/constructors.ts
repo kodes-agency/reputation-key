@@ -11,7 +11,7 @@ import type {
   PortalGroupId,
 } from '#/shared/domain/ids'
 import { metricError } from './errors'
-const VALID_METRIC_KEYS: ReadonlySet<MetricKey> = new Set<MetricKey>([
+export const VALID_METRIC_KEYS: ReadonlySet<MetricKey> = new Set<MetricKey>([
   'portal.scan',
   'portal.rating',
   'portal.feedback',

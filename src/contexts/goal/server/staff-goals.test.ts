@@ -53,7 +53,7 @@ vi.mock('#/composition', () => {
           },
         ]),
       ),
-      getProgressBatch: vi.fn(() => {
+      getProgressBatch: vi.fn((_ids, _orgId) => {
         const map = new Map()
         map.set('goal-1', { goalId: 'goal-1', currentValue: 25 })
         map.set('goal-2', null)
@@ -195,6 +195,7 @@ describe('listStaffGoals — goal resolution', () => {
     const container = getContainer()
     const progressMap = await container.goalRepo.getProgressBatch(
       ['goal-1', 'goal-2'] as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+      'org-1' as any, // eslint-disable-line @typescript-eslint/no-explicit-any
     )
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect((progressMap as any).get('goal-1')).toEqual({

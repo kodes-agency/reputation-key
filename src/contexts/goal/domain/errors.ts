@@ -21,6 +21,11 @@ export type GoalErrorCode =
   | 'name_too_long'
   | 'description_too_long'
   | 'invalid_target_value'
+  | 'repo_insert_failed'
+  | 'progress_not_found'
+  | 'unsupported_aggregation'
+  | 'not_found_or_tenant_mismatch'
+  | 'upsert_failed'
 
 export type GoalError = Readonly<{
   _tag: 'GoalError'

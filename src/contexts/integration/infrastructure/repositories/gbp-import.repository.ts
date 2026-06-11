@@ -38,7 +38,7 @@ export const createGbpImportRepository = (db: Database): GbpImportRepository => 
     })
   },
 
-  updateStatus: async (id, orgId, status) => {
+  updateStatus: async (orgId, id, status) => {
     return trace('gbpImport.updateStatus', async () => {
       await db
         .update(gbpImportJobs)
@@ -50,7 +50,7 @@ export const createGbpImportRepository = (db: Database): GbpImportRepository => 
     })
   },
 
-  incrementImported: async (id, orgId) => {
+  incrementImported: async (orgId, id) => {
     return trace('gbpImport.incrementImported', async () => {
       await db
         .update(gbpImportJobs)
@@ -62,7 +62,7 @@ export const createGbpImportRepository = (db: Database): GbpImportRepository => 
     })
   },
 
-  incrementSkipped: async (id, orgId) => {
+  incrementSkipped: async (orgId, id) => {
     return trace('gbpImport.incrementSkipped', async () => {
       await db
         .update(gbpImportJobs)
@@ -74,7 +74,7 @@ export const createGbpImportRepository = (db: Database): GbpImportRepository => 
     })
   },
 
-  incrementFailed: async (id, orgId) => {
+  incrementFailed: async (orgId, id) => {
     return trace('gbpImport.incrementFailed', async () => {
       await db
         .update(gbpImportJobs)
