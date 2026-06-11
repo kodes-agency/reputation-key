@@ -4,7 +4,7 @@
 
 ## Bounded context
 
-The Activity context records an immutable audit log of user-initiated actions across the application. It is a **pure subscriber context** — it has a single internal use case (`insertActivityLog`), no commands, no server functions that mutate state. Writes arrive via domain event subscriptions delivered through BullMQ; reads are served through query functions.
+The Activity context records an immutable audit log of user-initiated actions across the application. It is a **pure subscriber context** — it has a single internal use case (`insertActivityLog`), no commands, no mutating server functions. Writes arrive via domain event subscriptions delivered through BullMQ; reads are served through query functions.
 
 Layer: **Thin (subscriber)**. Like the metric context, the activity context is event-driven, not request-driven.
 
@@ -90,9 +90,10 @@ Each handler:
 ```
 domain/          → types.ts, constructors.ts, errors.ts (no events — doesn't emit)
 application/     → public-api.ts, use-cases/insert-activity-log.ts
-ports/           → activity-repository.port.ts, user-lookup.port.ts
+ports/           → activity-repository.port.ts, user-lookup.port.ts, inbox-item-lookup.port.ts
 infrastructure/  → activity-repository.drizzle.ts, event-handlers/ (one per tag),
-                    adapters/db-user-lookup.adapter.ts, jobs/insert-activity-log.job.ts
+                    adapters/db-user-lookup.adapter.ts, adapters/db-inbox-item-lookup.adapter.ts,
+                    jobs/insert-activity-log.job.ts
 queries/         → get-activity-timeline.ts, get-org-activity.ts
 server/          → activity.ts (server functions for timeline and org-wide fetching)
 build.ts

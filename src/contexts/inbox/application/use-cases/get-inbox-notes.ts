@@ -28,6 +28,10 @@ export type GetInboxNotesDeps = Readonly<{
 export const getInboxNotes =
   (deps: GetInboxNotesDeps) =>
   async (input: GetInboxNotesInput): Promise<ReadonlyArray<InboxNote>> => {
+    if (!can(input.role, 'inbox.read')) {
+      throw inboxError('forbidden', 'Insufficient role to read inbox notes')
+    }
+
     const item = await deps.repo.findById(input.inboxItemId, input.organizationId)
     if (!item) {
       throw inboxError('not_found', 'Inbox item not found', {

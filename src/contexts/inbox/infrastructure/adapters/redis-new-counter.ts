@@ -6,6 +6,7 @@
 import type { NewCounterPort } from '../../application/ports/new-counter.port'
 import type { OrganizationId } from '#/shared/domain/ids'
 import type { Redis } from 'ioredis'
+import { getLogger } from '#/shared/observability/logger'
 
 const key = (orgId: OrganizationId) => `inbox:new:${orgId as string}`
 
@@ -37,16 +38,17 @@ export const createRedisNewCounter = (redis: Redis): NewCounterPort => ({
       if (!val) return 0
       const n = parseInt(val, 10)
       return Number.isNaN(n) ? 0 : n // INF-011 NaN guard
-    } catch {
-      return 0 // Redis down — serve 0, don't crash
+    } catch (e) {
+      getLogger().warn({ err: e, orgId }, 'Redis getCount failed — serving 0')
+      return 0
     }
   },
 
   setCount: async (orgId, count) => {
     try {
       await redis.set(key(orgId), count.toString(), 'EX', 86400) // INF-009: 24h TTL
-    } catch {
-      // Non-critical — log would go here if logger was available
+    } catch (e) {
+      getLogger().warn({ err: e, orgId, count }, 'Redis setCount failed')
     }
   },
 
@@ -57,32 +59,32 @@ export const createRedisNewCounter = (redis: Redis): NewCounterPort => ({
       // F113 FIX: Refresh TTL on increment so the key doesn't expire silently
       // while still being actively incremented
       await redis.expire(k, 86400)
-    } catch {
-      // Non-critical
+    } catch (e) {
+      getLogger().warn({ err: e, orgId }, 'Redis increment failed')
     }
   },
 
   decrement: async (orgId) => {
     try {
       await redis.eval(DECREMENT_FLOOR_SCRIPT, 1, key(orgId))
-    } catch {
-      // Non-critical
+    } catch (e) {
+      getLogger().warn({ err: e, orgId }, 'Redis decrement failed')
     }
   },
 
   decrementBy: async (orgId, count) => {
     try {
       await redis.eval(DECREMENT_BY_FLOOR_SCRIPT, 1, key(orgId), count.toString())
-    } catch {
-      // Non-critical
+    } catch (e) {
+      getLogger().warn({ err: e, orgId, count }, 'Redis decrementBy failed')
     }
   },
 
   invalidate: async (orgId) => {
     try {
       await redis.del(key(orgId))
-    } catch {
-      // Best-effort
+    } catch (e) {
+      getLogger().warn({ err: e, orgId }, 'Redis invalidate failed')
     }
   },
 })

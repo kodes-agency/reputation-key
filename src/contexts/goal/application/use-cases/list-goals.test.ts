@@ -59,6 +59,7 @@ const makeProgress = (
 ): GoalProgress => ({
   id: goalProgressId(`gp-${goalIdStr}`),
   goalId: goalId(goalIdStr),
+  organizationId: null,
   currentValue: 5,
   currentSum: null,
   currentCount: null,
@@ -96,10 +97,10 @@ const createFakeGoalRepo = (state: {
   insertProgress: async () => {
     throw new Error('not used')
   },
-  getProgress: async (gid) => {
+  getProgress: async (gid, _orgId) => {
     return state.progress.get(gid as string) ?? null
   },
-  getProgressBatch: async (ids) => {
+  getProgressBatch: async (ids, _orgId) => {
     const map = new Map()
     for (const id of ids) {
       map.set(id, state.progress.get(id as string) ?? null)
@@ -113,7 +114,7 @@ const createFakeGoalRepo = (state: {
     }
     return map
   },
-  updateProgress: async () => null,
+  updateProgress: async (_gid, _orgId, _data) => null,
   findActiveGoalsByMetric: async () => [],
   upsertProgress: async () => ({
     currentValue: 0,

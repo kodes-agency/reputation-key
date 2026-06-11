@@ -29,13 +29,13 @@ export const createInMemoryGbpImportRepo = (): InMemoryGbpImportRepo => {
       store.set(job.id as string, job)
     },
 
-    updateStatus: async (id, orgId, status) => {
+    updateStatus: async (orgId, id, status) => {
       const existing = store.get(id as string)
       if (!existing || !byOrg(orgId)(existing)) return
       store.set(id as string, { ...existing, status, updatedAt: new Date() })
     },
 
-    incrementImported: async (id, orgId) => {
+    incrementImported: async (orgId, id) => {
       const existing = store.get(id as string)
       if (!existing || !byOrg(orgId)(existing)) return
       store.set(id as string, {
@@ -45,7 +45,7 @@ export const createInMemoryGbpImportRepo = (): InMemoryGbpImportRepo => {
       })
     },
 
-    incrementSkipped: async (id, orgId) => {
+    incrementSkipped: async (orgId, id) => {
       const existing = store.get(id as string)
       if (!existing || !byOrg(orgId)(existing)) return
       store.set(id as string, {
@@ -55,7 +55,7 @@ export const createInMemoryGbpImportRepo = (): InMemoryGbpImportRepo => {
       })
     },
 
-    incrementFailed: async (id, orgId) => {
+    incrementFailed: async (orgId, id) => {
       const existing = store.get(id as string)
       if (!existing || !byOrg(orgId)(existing)) return
       store.set(id as string, {

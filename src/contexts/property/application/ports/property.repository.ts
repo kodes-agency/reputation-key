@@ -24,8 +24,11 @@ export type PropertyRepository = Readonly<{
     patch: Readonly<Partial<Property>>,
   ) => Promise<void>
   hardDelete: (orgId: OrganizationId, id: PropertyId) => Promise<void>
-  /** Find a non-deleted property by its Google Business Profile place ID. */
-  findByGbpPlaceId: (gbpPlaceId: string) => Promise<Property | null>
+  /** ⚠️ CROSS-TENANT when orgId is omitted — caller MUST be JWT-verified (GBP webhook handler). */
+  findByGbpPlaceId: (
+    gbpPlaceId: string,
+    orgId?: OrganizationId,
+  ) => Promise<Property | null>
 
   /** Find a non-deleted property by its slug (public-facing, no orgId). */
   findBySlug: (slug: string) => Promise<Property | null>

@@ -49,7 +49,7 @@ export type InboxRepository = Readonly<{
     cursor?: Cursor,
     limit?: number,
   ): Promise<PaginatedResult>
-  create(item: InboxItem): Promise<InboxItem>
+  create(item: InboxItem, orgId: OrganizationId): Promise<InboxItem>
   updateStatus(
     id: InboxItemId,
     orgId: OrganizationId,

@@ -76,6 +76,7 @@ export const disconnectGoogleAccount =
     // 6. Emit event
     await deps.events.emit(
       integrationGoogleAccountDisconnected({
+        eventId: crypto.randomUUID(),
         connectionId,
         organizationId: ctx.organizationId,
         occurredAt: deps.clock(),

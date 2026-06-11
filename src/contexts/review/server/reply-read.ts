@@ -34,6 +34,8 @@ export const reviewErrorStatus = (code: ReviewErrorCode): number =>
       'connection_inactive',
       'sync_failed',
       'reply_publish_failed',
+      'repo_upsert_failed',
+      'build_config_error',
       () => 500,
     )
     .exhaustive()

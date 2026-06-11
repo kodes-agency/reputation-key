@@ -88,6 +88,7 @@ export const updateTeam =
     // 6. Emit event
     await deps.events.emit(
       teamUpdated({
+        eventId: crypto.randomUUID(),
         teamId: updated.id,
         organizationId: updated.organizationId,
         propertyId: updated.propertyId,

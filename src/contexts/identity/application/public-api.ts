@@ -5,6 +5,8 @@
 export {
   identityOrganizationCreated,
   identityMemberInvited,
+  identityInvitationAccepted,
+  identityInvitationRejected,
   identityMemberRemoved,
   identityMemberRoleChanged,
 } from '../domain/events'

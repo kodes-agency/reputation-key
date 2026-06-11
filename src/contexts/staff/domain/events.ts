@@ -1,7 +1,6 @@
 // Staff context — domain events
 // Standards: docs/standards.md §1
 
-import assert from 'node:assert/strict'
 import type { StaffAssignmentId } from './types'
 import type {
   OrganizationId,
@@ -10,6 +9,7 @@ import type {
   TeamId,
   UserId,
 } from '#/shared/domain/ids'
+import { staffError } from './errors'
 
 export type StaffAssigned = Readonly<{
   _tag: 'staff.assigned'
@@ -24,12 +24,12 @@ export type StaffAssigned = Readonly<{
   correlationId: string | null
 }>
 export const staffAssigned = (
-  args: Omit<StaffAssigned, '_tag' | 'eventId' | 'correlationId'>,
+  args: Omit<StaffAssigned, '_tag' | 'correlationId'>,
 ): StaffAssigned => {
-  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  if (!(args.occurredAt instanceof Date))
+    throw staffError('invalid_input', 'occurredAt must be Date')
   return {
     _tag: 'staff.assigned',
-    eventId: crypto.randomUUID(),
     correlationId: null,
     ...args,
   }
@@ -47,12 +47,12 @@ export type StaffUnassigned = Readonly<{
   correlationId: string | null
 }>
 export const staffUnassigned = (
-  args: Omit<StaffUnassigned, '_tag' | 'eventId' | 'correlationId'>,
+  args: Omit<StaffUnassigned, '_tag' | 'correlationId'>,
 ): StaffUnassigned => {
-  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  if (!(args.occurredAt instanceof Date))
+    throw staffError('invalid_input', 'occurredAt must be Date')
   return {
     _tag: 'staff.unassigned',
-    eventId: crypto.randomUUID(),
     correlationId: null,
     ...args,
   }

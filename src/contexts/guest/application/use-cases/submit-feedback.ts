@@ -56,6 +56,7 @@ export const submitFeedback =
     await deps.events.emit(
       guestFeedbackSubmitted({
         feedbackId: feedback.id,
+        eventId: crypto.randomUUID(),
         organizationId: input.organizationId,
         portalId: input.portalId,
         propertyId: input.propertyId,

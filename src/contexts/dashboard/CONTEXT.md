@@ -50,8 +50,8 @@ dashboard/
   domain/              types.ts, errors.ts
   application/
     ports/             dashboard.repository.ts, metric-stats.port.ts, review-stats.port.ts, portal-metrics.port.ts, staff-portal-resolver.port.ts
-    dto/               dashboard.dto.ts (Zod schemas)
     use-cases/         get-dashboard-data.ts, get-portal-analytics.ts, get-staff-dashboard-data.ts
+    utils.ts           pure data helpers
     public-api.ts      re-exports domain types
   infrastructure/
     adapters/          metric-stats.adapter.ts, review-stats.adapter.ts, portal-metrics.adapter.ts
@@ -62,11 +62,11 @@ dashboard/
 
 ## Use cases
 
-| Use case           | Input                                                     | Output                                                    | Description                                                                                       |
-| ------------------ | --------------------------------------------------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `getDashboardData` | organizationId, propertyId, portalId?, startDate, endDate | `DashboardData`                                           | Orchestrates all repo queries in parallel; engagement funnel + portal-scoped KPIs when portal set |
-|                    | `getPortalAnalytics`                                      | organizationId, propertyId, portalId, startDate, endDate  | `PortalAnalyticsData`                                                                             | Portal-scoped analytics: KPIs, funnel, rating distribution, rating trend. No review/reply data. |
-|                    | `getStaffDashboardData`                                   | organizationId, userId, propertyId, portalIds?, timeRange | `StaffDashboardData`                                                                              | Staff-scoped dashboard aggregation filtered to assigned portals.                                |
+| Use case                | Input                                                     | Output                | Description                                                                                       |
+| ----------------------- | --------------------------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------- |
+| `getDashboardData`      | organizationId, propertyId, portalId?, startDate, endDate | `DashboardData`       | Orchestrates all repo queries in parallel; engagement funnel + portal-scoped KPIs when portal set |
+| `getPortalAnalytics`    | organizationId, propertyId, portalId, startDate, endDate  | `PortalAnalyticsData` | Portal-scoped analytics: KPIs, funnel, rating distribution, rating trend. No review/reply data.   |
+| `getStaffDashboardData` | organizationId, userId, propertyId, portalId?, timeRange  | `StaffDashboardData`  | Staff-scoped dashboard aggregation filtered to assigned portals.                                  |
 
 ## Public API
 

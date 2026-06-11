@@ -9,6 +9,7 @@ import type {
 import type { ScanSource } from '../../domain/types'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { guestScanRecorded } from '../../domain/events'
+import { buildScanEvent } from '../../domain/constructors'
 
 export type RecordScanDeps = Readonly<{
   guestRepo: GuestInteractionRepository
@@ -32,18 +33,25 @@ export const recordScan =
   async (input: RecordScanInput): Promise<void> => {
     try {
       const scanId = deps.idGen()
-      // F064 NOTE: Scan events bypass a domain constructor (unlike Rating/Feedback).
-      // This is acceptable because ScanEvent has no domain invariants beyond the
-      // source validation which is already enforced by the server function's input schema.
-      const scan = {
+      // Validate via domain constructor
+      const scanResult = buildScanEvent({
         id: scanId,
         ...input,
-        createdAt: deps.clock(),
+        now: deps.clock(),
+      })
+      if (scanResult.isErr()) {
+        deps.logger.warn(
+          { err: scanResult.error, propertyId: input.propertyId },
+          'Scan event construction failed — suppressed per I10',
+        )
+        return
       }
+      const scan = scanResult.value
       await deps.guestRepo.recordScan(scan)
       await deps.events.emit(
         guestScanRecorded({
           scanId,
+          eventId: crypto.randomUUID(),
           organizationId: input.organizationId,
           portalId: input.portalId,
           propertyId: input.propertyId,

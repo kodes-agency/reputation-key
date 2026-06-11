@@ -45,6 +45,7 @@ import { buildNotificationContext } from '#/contexts/notification/build'
 import { createReviewStatsAdapter } from '#/contexts/dashboard/infrastructure/adapters/review-stats.adapter'
 import { createMetricStatsAdapter } from '#/contexts/dashboard/infrastructure/adapters/metric-stats.adapter'
 import { createPortalMetricsAdapter } from '#/contexts/dashboard/infrastructure/adapters/portal-metrics.adapter'
+import { createStaffPortalResolverAdapter } from '#/contexts/dashboard/infrastructure/adapters/staff-portal-resolver.adapter'
 import { buildGoalContext } from '#/contexts/goal/build'
 import { createStaffAssignmentRepository } from '#/contexts/staff/infrastructure/repositories/staff-assignment.repository'
 import { createGoogleReviewApiAdapter } from '#/contexts/integration/infrastructure/adapters/google-review-api.adapter'
@@ -79,12 +80,7 @@ function buildInfrastructure(options: { redis: Redis | undefined; enableJobs: bo
 
 // ── Identity infrastructure helpers ────────────────────────────────
 
-function createOrg(
-  _headers: Headers,
-  name: string,
-  slug: string,
-  userId?: string,
-): Promise<string> {
+function createOrg(name: string, slug: string, userId?: string): Promise<string> {
   const auth = getAuth()
   return auth.api
     .createOrganization({
@@ -101,10 +97,11 @@ function createOrg(
     })
 }
 
-async function setActiveOrg(headers: Headers, orgId: string): Promise<void> {
+async function setActiveOrg(orgId: string): Promise<void> {
   const auth = getAuth()
   const logger = getLogger()
   try {
+    const headers = await headersFromContext()
     await auth.api.setActiveOrganization({
       headers,
       body: { organizationId: orgId },
@@ -149,11 +146,11 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     signUp: identityPort.signUp,
     createOrg,
     setActiveOrg,
-    updateOrg: async (headers, data) => {
+    updateOrg: async (data) => {
       const auth = getAuth()
+      const headers = await headersFromContext()
       await auth.api.updateOrganization({ headers, body: { data } })
     },
-    headers: headersFromContext,
     sendEmail: sendInvitationEmail,
     getOrganizationName: async (_ctx) => {
       const auth = getAuth()
@@ -186,14 +183,21 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     clock,
     propertyApi: property.publicApi,
     baseUrl: env.BETTER_AUTH_URL ?? 'http://localhost:3000',
+    idGen: () => crypto.randomUUID(),
+    storageConfig: {
+      accessKey: env.AWS_S3_ACCESS_KEY ?? '',
+      secretKey: env.AWS_S3_SECRET_ACCESS_KEY ?? '',
+      bucketName: env.AWS_S3_BUCKET_NAME ?? '',
+      region: env.AWS_S3_REGION ?? '',
+    },
   })
 
   const guest = buildGuestContext({
     db,
     events: eventBus,
     clock,
-    linkResolver: portal.linkResolver,
-    portalApi: portal.publicApi,
+    linkResolver: portal.internal.repos.linkResolver,
+    portalApi: portal.publicApi.portal,
     logger,
   })
 
@@ -284,7 +288,7 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     idGen: () => crypto.randomUUID(),
     getLogger,
     findGroupForPortal: async (orgId, pid) => {
-      const group = await portal.portalGroupPublicApi.findGroupForPortal(orgId, pid)
+      const group = await portal.publicApi.portalGroup.findGroupForPortal(orgId, pid)
       return group ? { portalGroupId: group.id } : null
     },
   })
@@ -296,10 +300,7 @@ export function createContainer(options?: { enableJobs?: boolean }) {
   const metricStats = createMetricStatsAdapter(db)
   const portalMetrics = createPortalMetricsAdapter(db)
 
-  const staffPortalResolver: import('#/contexts/dashboard/application/ports/staff-portal-resolver.port').StaffPortalResolverPort =
-    async (input, ctx) => {
-      return staff.publicApi.getAssignedPortals(input, ctx)
-    }
+  const staffPortalResolver = createStaffPortalResolverAdapter(staff.publicApi)
 
   const dashboard = buildDashboardContext({
     reviewStats,
@@ -366,7 +367,7 @@ export function createContainer(options?: { enableJobs?: boolean }) {
       ...property.internal.useCases,
       ...staff.internal.useCases,
       ...team.internal.useCases,
-      ...portal.useCases,
+      ...portal.internal.useCases,
       ...guest.internal.useCases,
       ...integration.internal.useCases,
       handleGbpNotification: handleGbpNotification({
@@ -386,11 +387,11 @@ export function createContainer(options?: { enableJobs?: boolean }) {
       getDashboardData: dashboard.publicApi.getDashboardData,
       getPortalAnalytics: dashboard.publicApi.getPortalAnalytics,
       getStaffDashboardData: dashboard.publicApi.getStaffDashboardData,
-      ...goal.useCases,
+      ...goal.internal.useCases,
     },
-    storage: portal.storage,
-    portalRepo: portal.portalRepo,
-    portalLinkRepo: portal.portalLinkRepo,
+    storage: portal.internal.storage,
+    portalRepo: portal.internal.repos.portalRepo,
+    portalLinkRepo: portal.internal.repos.portalLinkRepo,
     reviewRepo: review.internal.repos.reviewRepo,
     replyRepo: review.internal.repos.replyRepo,
     reviewQueue: review.internal.repos.queue,
@@ -399,11 +400,13 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     inboxRepo: inbox.internal.repos.inboxRepo,
     inboxNoteRepo: inbox.internal.repos.inboxNoteRepo,
     unreadCounter: inbox.internal.repos.newCounter,
-    goalRepo: goal.goalRepo,
+    goalRepo: goal.internal.repos.goalRepo,
     metricPublicApi: metricApi.publicApi,
     activityPublicApi: activity.publicApi,
     activityRepo: activity.internal.repos.activityRepo,
     notificationPublicApi: notification.publicApi,
+    identityPort,
+    portalPublicApi: portal.publicApi,
     notificationRepo: notification.internal.repos.notificationRepo,
     notificationEmailRepo: notification.internal.repos.emailRepo,
     notificationPrefRepo: notification.internal.repos.prefRepo,

@@ -30,16 +30,9 @@ export type RegisterUserAndOrgDeps = Readonly<{
   /** Sign up a new user with email+password. Returns user ID or throws. */
   signUp: (name: string, email: string, password: string) => Promise<string>
   /** Create an organization with the given name and slug. Accepts optional userId for server-side creation. */
-  createOrg: (
-    headers: Headers,
-    name: string,
-    slug: string,
-    userId?: string,
-  ) => Promise<string>
+  createOrg: (name: string, slug: string, userId?: string) => Promise<string>
   /** Set the active organization for the current session. */
-  setActiveOrg: (headers: Headers, orgId: string) => Promise<void>
-  /** Build headers carrying the current request session. */
-  headers: () => Headers | Promise<Headers>
+  setActiveOrg: (orgId: string) => Promise<void>
   /** Injectable clock for deterministic timestamps. */
   clock: () => Date
   /** Delete a user (compensating transaction for registration rollback). */
@@ -82,11 +75,10 @@ export const registerUserAndOrg =
     // 3–4. Create the org and set it as active
     // Pass userId to createOrganization so it works server-side
     // (the new user's session cookies aren't available yet).
-    const headers = await deps.headers()
     let orgId: string
     try {
-      orgId = await deps.createOrg(headers, validName, slug, userId)
-      await deps.setActiveOrg(headers, orgId)
+      orgId = await deps.createOrg(validName, slug, userId)
+      await deps.setActiveOrg(orgId)
     } catch (e) {
       // Compensating transaction: remove the orphaned user
       try {
@@ -104,6 +96,7 @@ export const registerUserAndOrg =
     // 5. Emit event
     await deps.events.emit(
       identityOrganizationCreated({
+        eventId: crypto.randomUUID(),
         organizationId: toOrganizationId(orgId),
         organizationName: validName,
         slug,

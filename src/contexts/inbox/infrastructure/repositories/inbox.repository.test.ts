@@ -181,7 +181,7 @@ describe('in-memory inbox repository', () => {
       createdAt: new Date(),
       updatedAt: new Date(),
     }
-    await repo.create(item)
+    await repo.create(item, 'org-1' as OrganizationId)
 
     const result = await repo.findDetailById(
       'item-1' as InboxItemId,
@@ -219,7 +219,7 @@ describe('in-memory inbox repository', () => {
       createdAt: new Date(),
       updatedAt: new Date(),
     }
-    await repo.create(item)
+    await repo.create(item, 'org-1' as OrganizationId)
 
     const result = await repo.findDetailById(
       'item-2' as InboxItemId,

@@ -3,11 +3,10 @@
 import { ok, err } from '#/shared/domain'
 import type { Result } from '#/shared/domain'
 import type { Role } from '#/shared/domain/roles'
-import { hasRole } from '#/shared/domain/roles'
+import { can } from '#/shared/domain/permissions'
 import type { InboxStatus } from './types'
 import type { InboxError } from './errors'
 import { inboxError } from './errors'
-
 const VALID_TRANSITIONS: Readonly<Record<InboxStatus, readonly InboxStatus[]>> = {
   new: ['read', 'addressed', 'archived', 'escalated'],
   read: ['addressed', 'escalated', 'archived'],
@@ -38,11 +37,11 @@ export const validateTransition = (
   return ok(to)
 }
 
-/** Returns true when the given role is allowed to assign inbox items. */
+/** Returns true when the given role is allowed to assign inbox items.
+ *  // Uses can() for permission gating, not hasRole() hierarchy check */
 export const canAssign = (role: Role): boolean => {
-  return hasRole(role, 'PropertyManager')
+  return can(role, 'inbox.manage')
 }
-
 /** Validates assignment eligibility, returning `Result` with error on failure. */
 export const validateAssignment = (role: Role): Result<true, InboxError> => {
   if (!canAssign(role)) {

@@ -39,11 +39,13 @@ function makeGoal(overrides: Partial<Goal> & { id: Goal['id'] }): Goal {
 function makeEvent(overrides: Partial<PortalDeleted> = {}): PortalDeleted {
   return {
     _tag: 'portal.deleted',
+    eventId: 'test-event-1',
+    correlationId: null,
     portalId: portalId('portal-1'),
     organizationId: organizationId('org-1'),
     occurredAt: FIXED_TIME,
     ...overrides,
-  }
+  } as PortalDeleted
 }
 
 function makeFakeDeps(storedGoals: Goal[] = []) {
@@ -69,8 +71,8 @@ function makeFakeDeps(storedGoals: Goal[] = []) {
     insertProgress: async () => {
       throw new Error('not used')
     },
-    getProgress: async () => null,
-    getProgressBatch: async (ids) => {
+    getProgress: async (_gid, _orgId) => null,
+    getProgressBatch: async (ids, _orgId) => {
       const map = new Map()
       for (const id of ids) {
         map.set(id, null)
@@ -84,7 +86,7 @@ function makeFakeDeps(storedGoals: Goal[] = []) {
       }
       return map
     },
-    updateProgress: async () => null,
+    updateProgress: async (_gid, _orgId, _data) => null,
     findActiveGoalsByMetric: async () => [],
     upsertProgress: async () => ({
       currentValue: 0,

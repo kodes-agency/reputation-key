@@ -11,6 +11,8 @@ import { getAuth } from '#/shared/auth/auth'
 import { getContainer } from '#/composition'
 import { isIdentityError } from '../domain/errors'
 import { throwIdentityError } from './organizations.shared'
+import { identityInvitationAccepted, identityInvitationRejected } from '../domain/events'
+import { organizationId, userId, invitationId } from '#/shared/domain/ids'
 import { acceptInvitationInputSchema } from '../application/dto/invitation.dto'
 
 // ── Accept invitation ──────────────────────────────────────────────
@@ -24,13 +26,24 @@ export const acceptInvitation = createServerFn({ method: 'POST' })
       async ({ data }) => {
         try {
           const headers = await headersFromContext()
-          await requireAuth(headers)
+          const user = await requireAuth(headers)
           const auth = getAuth()
 
-          await auth.api.acceptInvitation({
+          const result = (await auth.api.acceptInvitation({
             headers,
             body: { invitationId: data.invitationId },
-          })
+          })) as unknown as { organizationId: string }
+
+          const container = getContainer()
+          await container.eventBus.emit(
+            identityInvitationAccepted({
+              eventId: crypto.randomUUID(),
+              organizationId: organizationId(result.organizationId),
+              userId: userId(user.id),
+              invitationId: invitationId(data.invitationId),
+              occurredAt: new Date(),
+            }),
+          )
         } catch (e) {
           throw catchUntagged(e)
         }
@@ -61,12 +74,18 @@ export const cancelInvitation = createServerFn({ method: 'POST' })
               403,
             )
           }
-          const auth = getAuth()
+          const { identityPort, eventBus } = getContainer()
 
-          await auth.api.cancelInvitation({
-            headers,
-            body: { invitationId: data.invitationId },
-          })
+          await identityPort.cancelInvitation(invitationId(data.invitationId), headers)
+
+          await eventBus.emit(
+            identityInvitationRejected({
+              eventId: crypto.randomUUID(),
+              organizationId: ctx.organizationId,
+              invitationId: invitationId(data.invitationId),
+              occurredAt: new Date(),
+            }),
+          )
         } catch (e) {
           throw catchUntagged(e)
         }

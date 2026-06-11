@@ -9,9 +9,14 @@ import type {
   OrganizationId,
   PropertyId,
 } from '#/shared/domain/ids'
+import { userId } from '#/shared/domain/ids'
 import { activityError, type ActivityError } from './errors'
 
+/** System user ID for automated / background operations. */
+export const SYSTEM_USER_ID: UserId = userId('system')
+
 export type CreateActivityLogInput = Readonly<{
+  id: ActivityLogId
   actorId: UserId
   actorName: string
   actorAvatarUrl: string | null
@@ -86,10 +91,7 @@ export const createActivityLog = (
   }
 
   return ok({
-    // Sentinel ID — overwritten by the use case layer (insertActivityLog) via deps.idGen().
-    // The DB column has defaultRandom() as a safety fallback. This follows the same
-    // sentinel pattern used by other domain constructors in this codebase.
-    id: '' as unknown as ActivityLogId,
+    id: input.id,
     actorId: input.actorId,
     actorName: input.actorName,
     actorAvatarUrl: input.actorAvatarUrl,

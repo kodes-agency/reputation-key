@@ -220,9 +220,7 @@ export const createPortalRepository = (db: Database): PortalRepository => ({
 
       // 3. Check active
       if (!portal.isActive) {
-        throw Object.assign(new Error('Portal is inactive'), {
-          _tag: 'portal_inactive' as const,
-        })
+        throw portalError('portal_inactive', 'Portal is inactive')
       }
 
       // 4. Load organization name

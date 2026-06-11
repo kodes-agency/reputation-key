@@ -60,7 +60,10 @@ export const listGoals =
 
     // Batch 1: fetch progress for all goals in one query
     const allGoalIds = goals.map((g) => g.id)
-    const progressMap = await deps.goalRepo.getProgressBatch(allGoalIds)
+    const progressMap = await deps.goalRepo.getProgressBatch(
+      allGoalIds,
+      filter.organizationId,
+    )
 
     // Batch 2: for recurring templates, fetch instances in one query
     const recurringParents = goals.filter((g) => g.goalType === 'recurring')
@@ -81,7 +84,7 @@ export const listGoals =
     }
     const instanceProgressMap =
       allInstanceIds.length > 0
-        ? await deps.goalRepo.getProgressBatch(allInstanceIds)
+        ? await deps.goalRepo.getProgressBatch(allInstanceIds, filter.organizationId)
         : new Map<GoalId, GoalProgress | null>()
 
     const results: GoalWithProgress[] = []

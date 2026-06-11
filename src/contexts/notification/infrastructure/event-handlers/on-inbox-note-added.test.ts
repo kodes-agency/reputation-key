@@ -105,7 +105,7 @@ describe('onInboxNoteAdded (notification)', () => {
 
     await onInboxNoteAdded(deps)(mockEvent)
 
-    expect(deps.userLookup.findAssignedManagers).toHaveBeenCalledWith(PROP_ID)
+    expect(deps.userLookup.findAssignedManagers).toHaveBeenCalledWith(ORG_ID, PROP_ID)
   })
 
   it('does not enqueue any jobs when all managers are filtered out (self-notification)', async () => {

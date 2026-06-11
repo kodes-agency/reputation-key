@@ -94,6 +94,7 @@ export const goalFromRow = (row: GoalRow): Goal => ({
 export const goalProgressFromRow = (row: GoalProgressRow): GoalProgress => ({
   id: goalProgressId(row.id),
   goalId: goalId(row.goalId),
+  organizationId: row.organizationId ? organizationId(row.organizationId) : null,
   currentValue: row.currentValue,
   currentSum: row.currentSum,
   currentCount: row.currentCount,
@@ -140,6 +141,7 @@ export const goalProgressToInsertRow = (
   progress: Omit<GoalProgress, 'id'>,
 ): typeof goalProgress.$inferInsert => ({
   goalId: progress.goalId as string,
+  organizationId: progress.organizationId as string | null,
   currentValue: progress.currentValue,
   currentSum: progress.currentSum,
   currentCount: progress.currentCount,

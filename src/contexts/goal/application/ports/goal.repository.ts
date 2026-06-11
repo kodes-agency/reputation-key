@@ -99,15 +99,18 @@ export type GoalRepository = Readonly<{
 
   // ── Goal Progress ──────────────────────────────────────────────────────
   insertProgress(progress: Omit<GoalProgress, 'id'>): Promise<GoalProgress>
-  // Safe: goalId is a globally unique UUID — no cross-tenant risk
-  getProgress(goalId: GoalId): Promise<GoalProgress | null>
+  getProgress(
+    goalId: GoalId,
+    organizationId: OrganizationId,
+  ): Promise<GoalProgress | null>
   // Batch: fetches progress for multiple goals in a single query
   getProgressBatch(
     goalIds: readonly GoalId[],
+    organizationId: OrganizationId,
   ): Promise<ReadonlyMap<GoalId, GoalProgress | null>>
-  // Safe: goalId is a globally unique UUID — no cross-tenant risk
   updateProgress(
     goalId: GoalId,
+    organizationId: OrganizationId,
     data: Readonly<{
       currentValue: number
       currentSum?: number | null

@@ -104,7 +104,7 @@ describe('onInboxItemCreated (notification)', () => {
 
     await onInboxItemCreated(deps)(mockEvent)
 
-    expect(deps.userLookup.findAssignedManagers).toHaveBeenCalledWith(PROP_ID)
+    expect(deps.userLookup.findAssignedManagers).toHaveBeenCalledWith(ORG_ID, PROP_ID)
   })
 
   it('skips non-feedback sources', async () => {

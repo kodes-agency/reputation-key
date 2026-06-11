@@ -63,6 +63,7 @@ export const createProperty =
     // 6. Emit event
     await deps.events.emit(
       propertyCreated({
+        eventId: crypto.randomUUID(),
         propertyId: property.id,
         organizationId: property.organizationId,
         name: property.name,

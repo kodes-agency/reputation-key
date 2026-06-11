@@ -56,6 +56,7 @@ export const softDeleteTeam =
     // 5. Emit event
     await deps.events.emit(
       teamDeleted({
+        eventId: crypto.randomUUID(),
         teamId: team.id,
         organizationId: team.organizationId,
         occurredAt: deps.clock(),

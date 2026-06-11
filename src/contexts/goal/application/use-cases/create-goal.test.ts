@@ -68,6 +68,7 @@ function createFakeDeps() {
       const progress: GoalProgress = {
         id: goalProgressId(nextId()),
         goalId: data.goalId,
+        organizationId: data.organizationId,
         currentValue: data.currentValue,
         currentSum: data.currentSum,
         currentCount: data.currentCount,
@@ -77,8 +78,8 @@ function createFakeDeps() {
       progresses.push(progress)
       return progress
     },
-    getProgress: async () => null,
-    getProgressBatch: async (ids) => {
+    getProgress: async (_gid, _orgId) => null,
+    getProgressBatch: async (ids, _orgId) => {
       const map = new Map()
       for (const id of ids) {
         map.set(id, null)
@@ -92,7 +93,7 @@ function createFakeDeps() {
       }
       return map
     },
-    updateProgress: async () => null,
+    updateProgress: async (_gid, _orgId, _data) => null,
     findActiveGoalsByMetric: async () => [],
     upsertProgress: async () => ({
       currentValue: 0,

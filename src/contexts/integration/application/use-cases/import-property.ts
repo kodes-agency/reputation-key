@@ -101,7 +101,7 @@ export const importProperty =
     const orgId = deps.toOrgId(input.organizationId)
 
     // Mark job in progress
-    await deps.importRepo.updateStatus(jobId, orgId, 'in_progress')
+    await deps.importRepo.updateStatus(orgId, jobId, 'in_progress')
 
     const createdProperties: CreatedProperty[] = []
 
@@ -119,7 +119,7 @@ export const importProperty =
       for (const location of input.locations) {
         try {
           if (existingGbpPlaceIds.has(location.gbpPlaceId)) {
-            await deps.importRepo.incrementSkipped(jobId, orgId)
+            await deps.importRepo.incrementSkipped(orgId, jobId)
             continue
           }
 
@@ -138,7 +138,7 @@ export const importProperty =
             googleConnectionId: input.connectionId,
           })
 
-          await deps.importRepo.incrementImported(jobId, orgId)
+          await deps.importRepo.incrementImported(orgId, jobId)
 
           createdProperties.push({
             id: inserted.id,
@@ -176,9 +176,9 @@ export const importProperty =
           }
 
           if (treatAsSkip) {
-            await deps.importRepo.incrementSkipped(jobId, orgId)
+            await deps.importRepo.incrementSkipped(orgId, jobId)
           } else {
-            await deps.importRepo.incrementFailed(jobId, orgId)
+            await deps.importRepo.incrementFailed(orgId, jobId)
           }
         }
       }
@@ -194,7 +194,7 @@ export const importProperty =
           )
         : 'failed'
 
-      await deps.importRepo.updateStatus(jobId, orgId, finalStatus)
+      await deps.importRepo.updateStatus(orgId, jobId, finalStatus)
 
       // 4. Emit property.created events
       for (const prop of createdProperties) {
@@ -224,7 +224,7 @@ export const importProperty =
         { err, jobId: input.jobId, organizationId: input.organizationId },
         'Import handler crashed unexpectedly',
       )
-      await deps.importRepo.updateStatus(jobId, orgId, 'failed')
+      await deps.importRepo.updateStatus(orgId, jobId, 'failed')
       return { created: createdProperties, status: 'failed' }
     }
   }

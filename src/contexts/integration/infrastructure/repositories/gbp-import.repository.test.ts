@@ -97,7 +97,7 @@ describe('gbpImportRepository (integration)', () => {
       })
       await repo.insert(job)
 
-      await repo.updateStatus(job.id, ORG_A, 'in_progress')
+      await repo.updateStatus(ORG_A, job.id, 'in_progress')
       const found = await repo.findById(ORG_A, job.id)
       expect(found!.status).toBe('in_progress')
     })
@@ -114,7 +114,7 @@ describe('gbpImportRepository (integration)', () => {
       })
       await repo.insert(job)
 
-      await repo.incrementImported(job.id, ORG_A)
+      await repo.incrementImported(ORG_A, job.id)
       const found = await repo.findById(ORG_A, job.id)
       expect(found!.importedCount).toBe(4)
     })
@@ -131,7 +131,7 @@ describe('gbpImportRepository (integration)', () => {
       })
       await repo.insert(job)
 
-      await repo.incrementSkipped(job.id, ORG_A)
+      await repo.incrementSkipped(ORG_A, job.id)
       const found = await repo.findById(ORG_A, job.id)
       expect(found!.skippedCount).toBe(2)
     })
@@ -148,7 +148,7 @@ describe('gbpImportRepository (integration)', () => {
       })
       await repo.insert(job)
 
-      await repo.incrementFailed(job.id, ORG_A)
+      await repo.incrementFailed(ORG_A, job.id)
       const found = await repo.findById(ORG_A, job.id)
       expect(found!.failedCount).toBe(1)
     })

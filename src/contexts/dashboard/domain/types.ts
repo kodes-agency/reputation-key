@@ -3,9 +3,11 @@
 
 import { ok, err, type Result } from 'neverthrow'
 import type { ReviewId } from '#/shared/domain/ids'
-// Pre-existing: trend point type defined in application port
-// eslint-disable-next-line boundaries/dependencies
-import type { PortalRatingTrendPoint } from '../application/ports/portal-metrics.port'
+
+export type PortalRatingTrendPoint = Readonly<{
+  date: string // YYYY-MM-DD
+  avgRating: number
+}>
 
 // ─── KPI Strip ───
 

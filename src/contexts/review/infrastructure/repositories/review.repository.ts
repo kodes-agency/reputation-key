@@ -16,8 +16,8 @@ import type { ReviewRepository } from '../../application/ports/review.repository
 import type { Review, ReviewPlatform } from '../../domain/types'
 import type { OrganizationId, PropertyId, ReviewId } from '#/shared/domain/ids'
 import { reviewFromRow, reviewToRow } from '../mappers/review.mapper'
+import { reviewError } from '../../domain/errors'
 import { trace } from '#/shared/observability/trace'
-
 export const createReviewRepository = (db: Database): ReviewRepository => ({
   findById: async (id: ReviewId, organizationId: OrganizationId) => {
     return trace('review.findById', async () => {
@@ -90,7 +90,7 @@ export const createReviewRepository = (db: Database): ReviewRepository => ({
         .returning()
 
       if (!result[0]) {
-        throw new Error('Review upsert failed — no row returned')
+        throw reviewError('repo_upsert_failed', 'Review upsert failed — no row returned')
       }
       return reviewFromRow(result[0])
     })

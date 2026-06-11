@@ -20,7 +20,7 @@ Property management — creation, updates, soft-deletion, and cross-context prop
 ## Invariants
 
 - Property slugs must be unique within an organization.
-- Properties are soft-deleted (`deletedAt`), never hard-deleted.
+- Properties are hard-deleted (`deleteProperty`), cascading to reviews, replies, and inbox items via FK. The use-case file is named `soft-delete-property.ts` but the implementation performs a hard delete via `propertyRepo.hardDelete`.
 - GBP place IDs must be unique within an organization (enforced by `PropertyImportConflict`).
 
 ## Events produced
@@ -42,10 +42,12 @@ property/
     ports/             property.repository.ts
     dto/               create-property.dto.ts, update-property.dto.ts
     public-api.ts      re-exports PropertyPublicApi, import types, event types/constructors
+    use-cases/         create-property.ts, update-property.ts, soft-delete-property.ts,
+                       get-property.ts, list-properties.ts
   infrastructure/
     repositories/      property.repository.ts (Drizzle)
     mappers/           property.mapper.ts
-  server/              properties.ts
+  server/              properties.ts, property-read.ts
   build.ts             composition root
 ```
 
@@ -55,7 +57,7 @@ property/
 - **`updateProperty`** — Update property settings, emits `property.updated`.
 - **`getProperty`** — Retrieve a single property by ID.
 - **`listProperties`** — List properties for an org, filtered by user's accessible properties (via StaffPublicApi).
-- **`softDeleteProperty`** — Soft-delete a property, emits `property.deleted`.
+- **`deleteProperty`** — Hard-delete a property (file: `soft-delete-property.ts`), emits `property.deleted`. Cascades to reviews, replies, inbox items via FK. Requires `property.delete` permission.
 
 ## Public API
 

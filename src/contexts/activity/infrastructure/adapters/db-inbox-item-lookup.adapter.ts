@@ -6,6 +6,7 @@
 import type { InboxItemLookupPort } from '../../ports/inbox-item-lookup.port'
 import type { Database } from '#/shared/db'
 import { sql } from 'drizzle-orm'
+import { getLogger } from '#/shared/observability/logger'
 
 export const createDbInboxItemLookupAdapter = (db: Database): InboxItemLookupPort => ({
   findBySourceId: async (sourceId, orgId): Promise<string | null> => {
@@ -18,7 +19,11 @@ export const createDbInboxItemLookupAdapter = (db: Database): InboxItemLookupPor
       const row = rows.rows?.[0]
       if (!row) return null
       return (row as Record<string, unknown>).id as string
-    } catch {
+    } catch (e) {
+      getLogger().warn(
+        { err: e, sourceId, orgId },
+        'DB inbox item lookup failed, returning null',
+      )
       return null
     }
   },

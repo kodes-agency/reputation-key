@@ -80,6 +80,7 @@ export const assignInboxItem =
     if (input.assignedToUserId) {
       await deps.events.emit(
         inboxItemAssigned({
+          eventId: crypto.randomUUID(),
           inboxItemId: updated.id,
           organizationId: updated.organizationId,
           propertyId: item.propertyId,
@@ -92,6 +93,7 @@ export const assignInboxItem =
     } else if (item.assignedTo) {
       await deps.events.emit(
         inboxItemUnassigned({
+          eventId: crypto.randomUUID(),
           inboxItemId: updated.id,
           organizationId: updated.organizationId,
           propertyId: item.propertyId,

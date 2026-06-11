@@ -26,9 +26,9 @@ Team management — creation, updates, soft-deletion within a property.
 
 ## Events produced
 
-- **`team.created`** — teamId, organizationId, propertyId, name, occurredAt.
-- **`team.updated`** — teamId, organizationId, propertyId, name, occurredAt.
-- **`team.deleted`** — teamId, organizationId, occurredAt.
+- **`team.created`** — teamId, organizationId, propertyId, name, occurredAt, eventId, correlationId.
+- **`team.updated`** — teamId, organizationId, propertyId, name, occurredAt, eventId, correlationId.
+- **`team.deleted`** — teamId, organizationId, occurredAt, eventId, correlationId.
 
 ## Events consumed
 
@@ -40,7 +40,7 @@ None. Team context does not subscribe to events from other contexts.
 team/
   domain/              types.ts, constructors.ts, events.ts, errors.ts, rules.ts
   application/
-    ports/             team.repository.ts
+    ports/             team.repository.ts, assignment-check.port.ts
     dto/               create-team.dto.ts, update-team.dto.ts
     use-cases/         create-team.ts, update-team.ts, get-team.ts, list-teams.ts,
                        soft-delete-team.ts
@@ -76,7 +76,7 @@ Exported from `application/public-api.ts`:
 
 Team context uses the following permissions from `shared/domain/permissions.ts`:
 
-- `team.read` — List/view teams (reserved for future use — currently gated at use-case level)
+- `team.read` — List/view teams (actively enforced in listTeams server function via `can(ctx.role, 'team.read')`)
 - `team.create` — Create a new team within a property (AccountAdmin, PropertyManager)
 - `team.update` — Update team settings (AccountAdmin, PropertyManager)
 - `team.delete` — Soft-delete a team (AccountAdmin only)

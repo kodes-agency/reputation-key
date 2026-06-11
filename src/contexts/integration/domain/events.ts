@@ -1,12 +1,12 @@
 // Integration context — domain events
 // Standards: docs/standards.md §1
 
-import assert from 'node:assert/strict'
 import type {
   GoogleConnectionId,
   GbpImportJobId,
   OrganizationId,
 } from '#/shared/domain/ids'
+import { integrationError } from './errors'
 
 export type IntegrationGoogleAccountConnected = Readonly<{
   _tag: 'integration.google_account.connected'
@@ -18,12 +18,12 @@ export type IntegrationGoogleAccountConnected = Readonly<{
   correlationId: string | null
 }>
 export const integrationGoogleAccountConnected = (
-  args: Omit<IntegrationGoogleAccountConnected, '_tag' | 'eventId' | 'correlationId'>,
+  args: Omit<IntegrationGoogleAccountConnected, '_tag' | 'correlationId'>,
 ): IntegrationGoogleAccountConnected => {
-  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  if (!(args.occurredAt instanceof Date))
+    throw integrationError('invalid_cache_entry', 'occurredAt must be Date')
   return {
     _tag: 'integration.google_account.connected',
-    eventId: crypto.randomUUID(),
     correlationId: null,
     ...args,
   }
@@ -38,12 +38,12 @@ export type IntegrationGoogleAccountDisconnected = Readonly<{
   correlationId: string | null
 }>
 export const integrationGoogleAccountDisconnected = (
-  args: Omit<IntegrationGoogleAccountDisconnected, '_tag' | 'eventId' | 'correlationId'>,
+  args: Omit<IntegrationGoogleAccountDisconnected, '_tag' | 'correlationId'>,
 ): IntegrationGoogleAccountDisconnected => {
-  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  if (!(args.occurredAt instanceof Date))
+    throw integrationError('invalid_cache_entry', 'occurredAt must be Date')
   return {
     _tag: 'integration.google_account.disconnected',
-    eventId: crypto.randomUUID(),
     correlationId: null,
     ...args,
   }
@@ -62,12 +62,12 @@ export type IntegrationPropertyImportCompleted = Readonly<{
   correlationId: string | null
 }>
 export const integrationPropertyImportCompleted = (
-  args: Omit<IntegrationPropertyImportCompleted, '_tag' | 'eventId' | 'correlationId'>,
+  args: Omit<IntegrationPropertyImportCompleted, '_tag' | 'correlationId'>,
 ): IntegrationPropertyImportCompleted => {
-  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  if (!(args.occurredAt instanceof Date))
+    throw integrationError('invalid_cache_entry', 'occurredAt must be Date')
   return {
     _tag: 'integration.property_import.completed',
-    eventId: crypto.randomUUID(),
     correlationId: null,
     ...args,
   }
@@ -83,15 +83,12 @@ export type IntegrationGoogleConnectionVisibilityChanged = Readonly<{
   correlationId: string | null
 }>
 export const integrationGoogleConnectionVisibilityChanged = (
-  args: Omit<
-    IntegrationGoogleConnectionVisibilityChanged,
-    '_tag' | 'eventId' | 'correlationId'
-  >,
+  args: Omit<IntegrationGoogleConnectionVisibilityChanged, '_tag' | 'correlationId'>,
 ): IntegrationGoogleConnectionVisibilityChanged => {
-  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  if (!(args.occurredAt instanceof Date))
+    throw integrationError('invalid_cache_entry', 'occurredAt must be Date')
   return {
     _tag: 'integration.google_connection.visibility_changed',
-    eventId: crypto.randomUUID(),
     correlationId: null,
     ...args,
   }

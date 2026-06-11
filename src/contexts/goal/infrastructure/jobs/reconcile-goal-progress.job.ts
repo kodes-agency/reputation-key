@@ -76,11 +76,12 @@ export const createReconcileGoalProgressHandler =
           const value = computeValue(goal.aggregationFunction, aggregate)
 
           // 5. Compare with stored progress and update if different
-          const progress = await deps.goalRepo.getProgress(goal.id)
+          const progress = await deps.goalRepo.getProgress(goal.id, goal.organizationId)
           if (!progress) {
             // First reconciliation — create initial progress row
             await deps.goalRepo.insertProgress({
               goalId: goal.id,
+              organizationId: goal.organizationId,
               currentValue: value,
               currentSum: goal.aggregationFunction === 'avg' ? aggregate.sum : null,
               currentCount: goal.aggregationFunction === 'avg' ? aggregate.count : null,
@@ -89,7 +90,7 @@ export const createReconcileGoalProgressHandler =
             })
             updated++
           } else if (progress.currentValue !== value) {
-            await deps.goalRepo.updateProgress(goal.id, {
+            await deps.goalRepo.updateProgress(goal.id, goal.organizationId, {
               currentValue: value,
               currentSum: goal.aggregationFunction === 'avg' ? aggregate.sum : null,
               currentCount: goal.aggregationFunction === 'avg' ? aggregate.count : null,

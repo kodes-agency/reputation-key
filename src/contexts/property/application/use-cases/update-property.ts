@@ -104,6 +104,7 @@ export const updateProperty =
 
     await deps.events.emit(
       propertyUpdated({
+        eventId: crypto.randomUUID(),
         propertyId,
         organizationId: ctx.organizationId,
         name: fields.newName,

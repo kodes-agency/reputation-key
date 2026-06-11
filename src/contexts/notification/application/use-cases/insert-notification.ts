@@ -2,32 +2,20 @@
 // Creates a notification, checks preferences, persists, and enqueues email if needed.
 
 import type { Notification } from '../../domain/types'
-import type { NotificationType } from '../../domain/types'
-import { createNotification } from '../../domain/constructors'
+import {
+  createNotification,
+  type CreateNotificationInput,
+} from '../../domain/constructors'
 import { createNotificationEmail } from '../../domain/constructors-email'
 import type { NotificationRepositoryPort } from '../ports/notification-repository.port'
 import type { NotificationEmailRepositoryPort } from '../ports/notification-email-repository.port'
 import type { NotificationPreferenceRepositoryPort } from '../ports/notification-preference-repository.port'
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import type {
-  NotificationId,
-  NotificationEmailId,
-  UserId,
-  OrganizationId,
-} from '#/shared/domain/ids'
+import type { NotificationId, NotificationEmailId } from '#/shared/domain/ids'
 
 // ── Input ───────────────────────────────────────────────────────────
 
-export type InsertNotificationInput = Readonly<{
-  userId: UserId
-  organizationId: OrganizationId
-  type: NotificationType
-  resourceType: 'inbox_item' | 'reply' | 'goal'
-  resourceId: string
-  eventId: string
-  title: string
-  body: string | null
-}>
+export type InsertNotificationInput = CreateNotificationInput
 
 // ── Deps ────────────────────────────────────────────────────────────
 

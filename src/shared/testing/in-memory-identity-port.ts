@@ -80,12 +80,8 @@ export function createInMemoryIdentityPort(): InMemoryIdentityPort {
         invitations.set(invitationId, { ...inv, status: 'accepted' })
       }
     },
-
-    async rejectInvitation(invitationId: string, _headers: Headers): Promise<void> {
-      const inv = invitations.get(invitationId)
-      if (inv) {
-        invitations.set(invitationId, { ...inv, status: 'rejected' })
-      }
+    async cancelInvitation(invitationId: string, _headers: Headers): Promise<void> {
+      invitations.delete(invitationId)
     },
 
     async listInvitations(_ctx: AuthContext): Promise<ReadonlyArray<InvitationRecord>> {
@@ -108,16 +104,15 @@ export function createInMemoryIdentityPort(): InMemoryIdentityPort {
         members.set(memberId, { ...member, role: role as Role })
       }
     },
+    async getActiveOrg(_headers: Headers): Promise<OrganizationRecord | null> {
+      const org = organizations.get(DEFAULT_TEST_ORG_ID)
+      return org ?? null
+    },
 
     async removeMember(_ctx: AuthContext, memberId: string): Promise<void> {
       members.delete(memberId)
     },
 
-    async listUserOrganizations(
-      _headers: Headers,
-    ): Promise<ReadonlyArray<OrganizationRecord>> {
-      return [...organizations.values()]
-    },
     async setActiveOrganization(
       _headers: Headers,
       _organizationId: string,

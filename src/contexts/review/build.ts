@@ -2,6 +2,7 @@
 // Per architecture: "Build functions wire ports → adapters, deps → use cases."
 // Returns the public API surface of the review context.
 
+import { reviewError } from './domain/errors'
 import type { Database } from '#/shared/db'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { Queue } from 'bullmq'
@@ -61,7 +62,11 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
   const reviewRepo = createReviewRepository(input.db)
   const replyRepo = createReplyRepository(input.db)
 
-  if (!input.jobQueue) throw new Error('jobQueue required')
+  if (!input.jobQueue)
+    throw reviewError(
+      'build_config_error',
+      'jobQueue is required to build review context',
+    )
   const jobQueue = input.jobQueue
 
   const queue: ReviewQueuePort = {

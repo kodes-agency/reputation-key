@@ -74,6 +74,7 @@ function makeFakeDeps() {
         p = {
           id: `progress-${++progressCounter}` as unknown as GoalProgressId,
           goalId: goalId,
+          organizationId: null,
           currentValue: 0,
           currentSum: null,
           currentCount: null,
@@ -107,6 +108,7 @@ function makeFakeDeps() {
       const p: MutableProgress = {
         id: `progress-${++progressCounter}` as unknown as GoalProgressId,
         goalId: data.goalId,
+        organizationId: data.organizationId ?? null,
         currentValue: data.currentValue,
         currentSum: data.currentSum,
         currentCount: data.currentCount,
@@ -116,11 +118,11 @@ function makeFakeDeps() {
       progresses.set(data.goalId as string, p)
       return p as unknown as GoalProgress
     },
-    getProgress: async (goalId) => {
+    getProgress: async (goalId, _orgId) => {
       const p = progresses.get(goalId as string)
       return p ? { ...p } : null
     },
-    getProgressBatch: async (ids) => {
+    getProgressBatch: async (ids, _orgId) => {
       const map = new Map()
       for (const id of ids) {
         const p = progresses.get(id as string)
@@ -135,7 +137,7 @@ function makeFakeDeps() {
       }
       return map
     },
-    updateProgress: async () => null,
+    updateProgress: async (_gid, _orgId, _data) => null,
 
     findActiveGoalsByMetric: async (
       metricKey,
@@ -218,6 +220,7 @@ function makeFakeDeps() {
     const progress: MutableProgress = {
       id: `progress-${++progressCounter}` as GoalProgressId,
       goalId: goal.id,
+      organizationId: goal.organizationId,
       currentValue: progressOverrides.currentValue ?? 0,
       currentSum: progressOverrides.currentSum ?? null,
       currentCount: progressOverrides.currentCount ?? null,

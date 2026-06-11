@@ -8,6 +8,7 @@ import type { EventBus } from '#/shared/events/event-bus'
 import type { getLogger as getLoggerType } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
 import { shouldEmitCompleted } from '../../domain/progress-strategy'
+import { goalProgressUpdated, goalCompleted } from '../../domain/events'
 
 // ── Dependencies ──────────────────────────────────────────────────────
 
@@ -71,7 +72,7 @@ export function onMetricRecorded(deps: OnMetricRecordedDeps) {
       for (const goal of affectedGoals) {
         try {
           // Get previous progress value for GoalProgressUpdated
-          const prevProgress = await goalRepo.getProgress(goal.id)
+          const prevProgress = await goalRepo.getProgress(goal.id, goal.organizationId)
           const previousValue = prevProgress?.currentValue ?? 0
 
           // Increment progress (insert initial row if none exists)
@@ -85,39 +86,39 @@ export function onMetricRecorded(deps: OnMetricRecordedDeps) {
           const now = clock()
 
           // Emit GoalProgressUpdated
-          await eventBus.emit({
-            _tag: 'goal.progress_updated',
-            goalId: goal.id,
-            organizationId: goal.organizationId,
-            metricKey: goal.metricKey,
-            previousValue,
-            currentValue: result.currentValue,
-            computedSource: 'event_increment',
-            occurredAt: now,
-          })
+          await eventBus.emit(
+            goalProgressUpdated({
+              goalId: goal.id,
+              organizationId: goal.organizationId,
+              metricKey: goal.metricKey,
+              previousValue,
+              currentValue: result.currentValue,
+              computedSource: 'event_increment',
+              occurredAt: now,
+            }),
+          )
 
           // Check completion
           if (result.currentValue >= goal.targetValue && shouldEmitCompleted(goal)) {
             await goalRepo.markGoalCompleted(goal.id, goal.organizationId, now)
 
-            await eventBus.emit({
-              _tag: 'goal.completed',
-              eventId: crypto.randomUUID(),
-              correlationId: null,
-              goalId: goal.id,
-              organizationId: goal.organizationId,
-              propertyId: goal.propertyId,
-              portalId: goal.portalId,
-              portalGroupId: goal.portalGroupId,
-              goalType: goal.goalType,
-              aggregationFunction: goal.aggregationFunction,
-              metricKey: goal.metricKey,
-              targetValue: goal.targetValue,
-              completedValue: result.currentValue,
-              completedAt: now,
-              parentGoalId: goal.parentGoalId,
-              createdBy: goal.createdBy,
-            })
+            await eventBus.emit(
+              goalCompleted({
+                goalId: goal.id,
+                organizationId: goal.organizationId,
+                propertyId: goal.propertyId,
+                portalId: goal.portalId,
+                portalGroupId: goal.portalGroupId,
+                goalType: goal.goalType,
+                aggregationFunction: goal.aggregationFunction,
+                metricKey: goal.metricKey,
+                targetValue: goal.targetValue,
+                completedValue: result.currentValue,
+                completedAt: now,
+                parentGoalId: goal.parentGoalId,
+                createdBy: goal.createdBy,
+              }),
+            )
           }
         } catch (err) {
           deps

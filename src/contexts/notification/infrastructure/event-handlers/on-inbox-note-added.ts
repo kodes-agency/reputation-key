@@ -19,7 +19,10 @@ type Deps = Readonly<{
 export const onInboxNoteAdded =
   (deps: Deps) =>
   async (event: InboxNoteAdded): Promise<void> => {
-    const recipients = await deps.userLookup.findAssignedManagers(event.propertyId)
+    const recipients = await deps.userLookup.findAssignedManagers(
+      event.organizationId,
+      event.propertyId,
+    )
 
     // R2-M1: Filter out the note author to avoid self-notification
     const filtered = recipients.filter((uid) => uid !== event.userId)

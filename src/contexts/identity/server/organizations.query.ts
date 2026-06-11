@@ -4,14 +4,14 @@
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { headersFromContext } from '#/shared/auth/headers'
-import { requireAuth, resolveTenantContext } from '#/shared/auth/middleware'
+import { resolveTenantContext } from '#/shared/auth/middleware'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
-import { toDomainRole } from '#/shared/domain/roles'
+
 import { can } from '#/shared/domain/permissions'
 import { getAuth } from '#/shared/auth/auth'
+import { getContainer } from '#/composition'
 import {
   extractOrgBillingFields,
-  type AuthMemberResponse,
   type AuthOrganizationResponse,
 } from './organizations.shared'
 
@@ -76,27 +76,19 @@ export const listMembers = createServerFn({ method: 'GET' }).handler(
             403,
           )
         }
-        const auth = getAuth()
-
-        const result = await auth.api.listMembers({ headers })
-
-        // F048: Null-safe fallback for listMembers response
-        const rawMembers = (result?.members ??
-          (Array.isArray(result) ? result : null)) as AuthMemberResponse[] | null
-        if (!rawMembers) {
-          return { members: [], requestingRole: ctx.role }
-        }
-        const members = rawMembers.map((m) => ({
+        const { identityPort } = getContainer()
+        const members = await identityPort.listMembers(ctx)
+        const mapped = members.map((m) => ({
           id: m.id,
           userId: m.userId,
-          role: toDomainRole(m.role),
-          email: m.user?.email ?? '',
-          name: m.user?.name ?? '',
-          image: m.user?.image ?? null,
+          role: m.role,
+          email: m.email,
+          name: m.name,
+          image: m.image,
           createdAt: m.createdAt,
         }))
 
-        return { members, requestingRole: ctx.role }
+        return { members: mapped, requestingRole: ctx.role }
       } catch (e) {
         throw catchUntagged(e)
       }
@@ -113,7 +105,6 @@ export const listUserOrganizations = createServerFn({ method: 'GET' }).handler(
     async () => {
       try {
         const headers = await headersFromContext()
-        await requireAuth(headers)
         const auth = getAuth()
 
         const result = await auth.api.listOrganizations({ headers })

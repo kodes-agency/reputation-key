@@ -1,12 +1,13 @@
 import { describe, it, expect } from 'vitest'
 import { createActivityLog } from './constructors'
 import type { ActivityAction, ResourceType } from './types'
-import { userId, propertyId, organizationId } from '#/shared/domain/ids'
+import { userId, propertyId, organizationId, activityLogId } from '#/shared/domain/ids'
 
 const clock = () => new Date('2026-06-02T12:00:00Z')
 
 describe('createActivityLog', () => {
   const validInput = {
+    id: activityLogId('al-1'),
     actorId: userId('user-1'),
     actorName: 'Bozhidar',
     actorAvatarUrl: null,
@@ -30,7 +31,7 @@ describe('createActivityLog', () => {
     expect(result.isOk()).toBe(true)
     if (!result.isOk()) throw new Error('unreachable')
     const entry = result.value
-    expect(entry.id).toBe('')
+    expect(entry.id).toBe('al-1')
     expect(entry.actorId).toBe('user-1')
     expect(entry.actorName).toBe('Bozhidar')
     expect(entry.action).toBe('created')

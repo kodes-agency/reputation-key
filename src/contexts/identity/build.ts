@@ -30,18 +30,11 @@ type IdentityContextDeps = Readonly<{
   /** Sign up a new user. Returns user ID. */
   signUp: (name: string, email: string, password: string) => Promise<string>
   /** Create an organization. Returns org ID. */
-  createOrg: (
-    headers: Headers,
-    name: string,
-    slug: string,
-    userId?: string,
-  ) => Promise<string>
+  createOrg: (name: string, slug: string, userId?: string) => Promise<string>
   /** Set the active organization for the current session. */
-  setActiveOrg: (headers: Headers, orgId: string) => Promise<void>
+  setActiveOrg: (orgId: string) => Promise<void>
   /** Update organization fields via auth provider. */
-  updateOrg: (headers: Headers, data: Record<string, unknown>) => Promise<void>
-  /** Build headers carrying the current request session. */
-  headers: () => Headers | Promise<Headers>
+  updateOrg: (data: Record<string, unknown>) => Promise<void>
   /** Send an invitation email. */
   sendEmail: (params: {
     email: string
@@ -86,14 +79,12 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
       signUp: deps.signUp,
       createOrg: deps.createOrg,
       setActiveOrg: deps.setActiveOrg,
-      headers: deps.headers,
       clock: deps.clock,
       deleteUser: deps.deleteUser,
     }),
     registerUser: registerUser({ identity: deps.identityPort }),
     updateOrganization: updateOrganization({
       updateOrg: deps.updateOrg,
-      getHeaders: deps.headers,
     }),
   } as const
 

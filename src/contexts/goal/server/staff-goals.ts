@@ -86,7 +86,10 @@ export const listStaffGoals = createServerFn({ method: 'GET' })
 
           // 4. Batch-fetch progress for all goals
           const allGoalIds = goals.map((g) => g.id)
-          const progressMap = await container.goalRepo.getProgressBatch(allGoalIds)
+          const progressMap = await container.goalRepo.getProgressBatch(
+            allGoalIds,
+            ctx.organizationId,
+          )
 
           const entries: StaffGoalEntry[] = goals.map((goal) => ({
             goal,

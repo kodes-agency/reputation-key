@@ -8,6 +8,7 @@ export type GuestErrorCode =
   | 'rate_limit_exceeded'
   | 'invalid_source'
   | 'invalid_session'
+  | 'forbidden'
 
 export type GuestError = Readonly<{
   _tag: 'GuestError'

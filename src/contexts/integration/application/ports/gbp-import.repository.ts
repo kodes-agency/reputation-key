@@ -10,11 +10,11 @@ export type GbpImportRepository = Readonly<{
   findByOrganization: (orgId: OrganizationId) => Promise<ReadonlyArray<GbpImportJob>>
   insert: (job: GbpImportJob) => Promise<void>
   updateStatus: (
-    id: GbpImportJobId,
     orgId: OrganizationId,
+    id: GbpImportJobId,
     status: GbpImportJobStatus,
   ) => Promise<void>
-  incrementImported: (id: GbpImportJobId, orgId: OrganizationId) => Promise<void>
-  incrementSkipped: (id: GbpImportJobId, orgId: OrganizationId) => Promise<void>
-  incrementFailed: (id: GbpImportJobId, orgId: OrganizationId) => Promise<void>
+  incrementImported: (orgId: OrganizationId, id: GbpImportJobId) => Promise<void>
+  incrementSkipped: (orgId: OrganizationId, id: GbpImportJobId) => Promise<void>
+  incrementFailed: (orgId: OrganizationId, id: GbpImportJobId) => Promise<void>
 }>

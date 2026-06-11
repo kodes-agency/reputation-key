@@ -5,6 +5,7 @@ import type { gbpCache } from '#/shared/db/schema/gbp-cache.schema'
 import type { GbpCacheEntry } from '../../domain/types'
 import { organizationId, propertyId, gbpCacheEntryId, unbrand } from '#/shared/domain/ids'
 import { createGbpCacheEntry } from '../../domain/constructors'
+import { integrationError } from '../../domain/errors'
 
 type GbpCacheRow = typeof gbpCache.$inferSelect
 type GbpCacheUpsertRow = typeof gbpCache.$inferInsert
@@ -23,7 +24,10 @@ export const gbpCacheFromRow = (row: GbpCacheRow): GbpCacheEntry => {
     updatedAt: row.updatedAt,
   })
   if (result.isErr()) {
-    throw new Error(`Invalid GBP cache entry from DB: ${result.error.message}`)
+    throw integrationError(
+      'invalid_cache_entry',
+      `Invalid GBP cache entry from DB: ${result.error.message}`,
+    )
   }
   return result.value
 }

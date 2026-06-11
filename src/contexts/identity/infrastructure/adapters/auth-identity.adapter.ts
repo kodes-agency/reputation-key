@@ -6,6 +6,7 @@
 import type { Database } from '#/shared/db'
 import { eq, sql } from 'drizzle-orm'
 import { user as userTable } from '#/shared/db/schema/auth'
+import { getLogger } from '#/shared/observability/logger'
 import type {
   IdentityPort,
   MemberRecord,
@@ -25,7 +26,7 @@ import {
   createInvitationResponseSchema,
   listInvitationsResponseSchema,
   listUserInvitationsResponseSchema,
-  listOrganizationsResponseSchema,
+  betterAuthOrganizationSchema,
 } from './better-auth-schemas'
 
 /** Build request headers that carry the better-auth session cookie.
@@ -41,8 +42,11 @@ async function headersFromRequest(): Promise<Headers> {
         headers.set(key, value)
       })
     }
-  } catch {
-    // Outside server context (e.g., worker) — return empty headers
+  } catch (e) {
+    getLogger().debug(
+      { err: e },
+      'headersFromRequest: no server context available, returning empty headers',
+    )
   }
   return headers
 }
@@ -85,6 +89,9 @@ export function createBetterAuthIdentityAdapter(db: Database): IdentityPort {
       return data.user.id
     },
 
+    // Relies on better-auth session scoping — the active organization is bound
+    // to the session cookie. Members returned are scoped to that organization.
+    // If better-auth adds orgId to member records, verify it matches ctx.organizationId.
     async listMembers(_ctx: AuthContext): Promise<ReadonlyArray<MemberRecord>> {
       const headers = await headersFromRequest()
       const result = await auth.api.listMembers({ headers })
@@ -98,6 +105,9 @@ export function createBetterAuthIdentityAdapter(db: Database): IdentityPort {
       return data.members.map(toMemberRecord)
     },
 
+    // better-auth doesn't return orgId on individual member records.
+    // The listMembers call is session-scoped to the active org, so the
+    // membership is implicitly verified. No cross-tenant risk in practice.
     async getMember(_ctx: AuthContext, memberId: string): Promise<MemberRecord | null> {
       const headers = await headersFromRequest()
       const result = await auth.api.listMembers({ headers })
@@ -112,6 +122,8 @@ export function createBetterAuthIdentityAdapter(db: Database): IdentityPort {
       return member ? toMemberRecord(member) : null
     },
 
+    // Relies on session-bound organization — better-auth creates the invitation
+    // under the active org from the session cookie. No explicit orgId in the body.
     async createInvitation(
       _ctx: AuthContext,
       email: string,
@@ -143,8 +155,8 @@ export function createBetterAuthIdentityAdapter(db: Database): IdentityPort {
       await auth.api.acceptInvitation({ headers, body: { invitationId: id } })
     },
 
-    async rejectInvitation(id: InvitationId, headers: Headers): Promise<void> {
-      await auth.api.rejectInvitation({ headers, body: { invitationId: id } })
+    async cancelInvitation(id: InvitationId, headers: Headers): Promise<void> {
+      await auth.api.cancelInvitation({ headers, body: { invitationId: id } })
     },
 
     async listInvitations(_ctx: AuthContext): Promise<ReadonlyArray<InvitationRecord>> {
@@ -197,10 +209,15 @@ export function createBetterAuthIdentityAdapter(db: Database): IdentityPort {
     },
 
     async updateMemberRole(
-      _ctx: AuthContext,
+      ctx: AuthContext,
       memberId: string,
       role: string,
     ): Promise<void> {
+      // Verify member belongs to the current org before mutating
+      const member = await this.getMember(ctx, memberId)
+      if (!member) {
+        throw identityError('forbidden', 'Member not found in current organization')
+      }
       const headers = await headersFromRequest()
       await auth.api.updateMemberRole({
         headers,
@@ -211,7 +228,12 @@ export function createBetterAuthIdentityAdapter(db: Database): IdentityPort {
       })
     },
 
-    async removeMember(_ctx: AuthContext, memberId: string): Promise<void> {
+    async removeMember(ctx: AuthContext, memberId: string): Promise<void> {
+      // Verify member belongs to the current org before removing
+      const member = await this.getMember(ctx, memberId)
+      if (!member) {
+        throw identityError('forbidden', 'Member not found in current organization')
+      }
       const headers = await headersFromRequest()
       await auth.api.removeMember({
         headers,
@@ -219,26 +241,22 @@ export function createBetterAuthIdentityAdapter(db: Database): IdentityPort {
       })
     },
 
-    async listUserOrganizations(
-      headers: Headers,
-    ): Promise<ReadonlyArray<OrganizationRecord>> {
-      const result = await auth.api.listOrganizations({ headers })
-
-      const orgs = parseBetterAuthResponse(
-        listOrganizationsResponseSchema,
+    async getActiveOrg(headers: Headers): Promise<OrganizationRecord | null> {
+      const result = await auth.api.getFullOrganization({ headers })
+      if (!result) return null
+      const org = parseBetterAuthResponse(
+        betterAuthOrganizationSchema,
         result,
         'org_setup_failed',
-        'listOrganizations response did not match expected schema',
+        'getFullOrganization response did not match expected schema',
       )
-      return orgs.map(
-        (org): OrganizationRecord => ({
-          id: org.id,
-          name: org.name,
-          slug: org.slug,
-          logo: org.logo ?? null,
-          createdAt: org.createdAt,
-        }),
-      )
+      return {
+        id: org.id,
+        name: org.name,
+        slug: org.slug,
+        logo: org.logo ?? null,
+        createdAt: org.createdAt,
+      }
     },
 
     async setActiveOrganization(headers: Headers, organizationId: string): Promise<void> {

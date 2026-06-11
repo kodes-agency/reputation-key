@@ -67,7 +67,7 @@ Steps in order, **including only what applies**:
 1. **Authorize** — `can(ctx.role, 'resource.action')`
 2. **Load referenced entities** — call repos
 3. **Check invariants** — call repos
-4. **Build domain object** — smart constructor, returns `Result`
+4. **Build domain object** — smart constructor (throws on invariant violation)
 5. **Persist** — call repo
 6. **Emit event** — via event bus
 7. **Return result**
@@ -91,20 +91,27 @@ Anonymous/public use cases (registration, guest flows) omit `AuthContext` — th
 Every server function wraps logic in `tracedHandler()`:
 
 ```typescript
-export const getPortal = createServerFn({ method: 'GET' })
-  .validator(getPortalDto)
+export const createPortal = createServerFn({ method: 'POST' })
+  .inputValidator(createPortalInputSchema)
   .handler(
-    tracedHandler(async ({ data }) => {
-      const ctx = await resolveTenantContext(request.headers)
-      const result = await getPortalUseCase(deps)({ portalId: data.portalId }, ctx)
-      clearTenantCache() // evict expired tenant cache entries
-      return match(result)
-        .with({ _tag: 'Ok' }, ({ value }) => ({ portal: value }))
-        .with({ _tag: 'Err' }, ({ error }) => {
-          throw mapError(error)
-        })
-        .exhaustive()
-    }),
+    tracedHandler(
+      async ({ data }) => {
+        const headers = await headersFromContext()
+        const ctx = await resolveTenantContext(headers)
+
+        try {
+          const { useCases } = getContainer()
+          const portal = await useCases.createPortal(data, ctx)
+          return { portal }
+        } catch (e) {
+          if (isPortalError(e))
+            throwContextError('PortalError', e, portalErrorStatus(e.code))
+          throw e
+        }
+      },
+      'POST',
+      'portal.createPortal',
+    ),
   )
 ```
 
@@ -112,8 +119,7 @@ Key points:
 
 - **`tracedHandler`** — wraps handler with ALS request context, correlation ID, named span with timing. From `shared/observability/traced-server-fn`.
 - **`resolveTenantContext(headers)`** — resolves org from session, returns `AuthContext`. Has a 5s TTL cache keyed by cookie header to deduplicate concurrent calls during page loads.
-- **`clearTenantCache()`** — evict expired entries after each server function completes. Optional safety measure — the cache self-manages via 5s TTL and max-size (100 entries) eviction, so calling this is recommended but not strictly required.
-- **Error mapping** — pattern-match `_tag` and `code`, throw `Error` with `.name`, `.message`, `.code`, `.status`. Never return `{ success: false }`.
+- **Error mapping** — catch with `isXxxError(e)` type guard, map `_tag`/`code` to HTTP status via `throwContextError()`. Never return `{ success: false }`.
 - **`catchUntagged`** — wrap untagged errors (DB, network) that would otherwise be swallowed raw.
 
 ## Functional style
@@ -122,7 +128,7 @@ Key points:
 - **Exception:** `class ... extends Error` for runtime `instanceof` checks and seroval-compatible error serialization. See `shared/auth/server-errors.ts` (`ServerFunctionError`) and `shared/domain/assert.ts` (`UnreachableError`).
 - `readonly` on all domain fields. `ReadonlyArray<T>` in domain.
 - Discriminated unions tagged with `_tag`.
-- `Result<T, E>` from neverthrow in domain. Throw tagged errors at boundaries.
+- All layers throw tagged domain errors (`{ _tag: 'XxxError', code, message }`). Constructors and use cases throw; server functions catch and map to HTTP.
 - `match(...).exhaustive()` from ts-pattern for union dispatch.
 - Repositories: `createXxxRepository(db)` returning a record of functions.
 - Use cases: `(deps) => async (input, ctx) => Promise<T>`.
@@ -131,12 +137,12 @@ Key points:
 
 Tagged error shape: `{ _tag: 'XxxError', code: '<reason>', message: string, context?: Record<string, unknown> }`.
 
-| Layer          | Behavior                                                                    |
-| -------------- | --------------------------------------------------------------------------- |
-| Domain         | Returns `Result<T, DomainError>`. Never throws.                             |
-| Application    | Throws tagged errors on `Result.isErr()`.                                   |
-| Infrastructure | Catches library errors, translates to tagged errors.                        |
-| Server         | Pattern-matches `_tag`/`code`, throws `Error` with HTTP-appropriate status. |
+| Layer          | Behavior                                                                              |
+| -------------- | ------------------------------------------------------------------------------------- |
+| Domain         | Throws tagged errors from constructors on invariant violation.                        |
+| Application    | Throws tagged errors (`xxxError(code, message)`). Authorization, invariant checks.    |
+| Infrastructure | Catches library errors (DB, network), translates to tagged domain errors.             |
+| Server         | Catches tagged errors via `isXxxError(e)` type guard, maps to HTTP status and throws. |
 
 ## Events
 

@@ -1,8 +1,9 @@
 import { Result } from '#/shared/domain'
-import type { Rating, Feedback, ScanSource } from './types'
+import type { Rating, Feedback, ScanEvent, ScanSource } from './types'
 import type {
   RatingId,
   FeedbackId,
+  ScanEventId,
   OrganizationId,
   PortalId,
   PropertyId,
@@ -70,6 +71,36 @@ export const buildFeedback = (
       ratingId: input.ratingId,
       comment: validComment,
       source: input.source,
+      ipHash: input.ipHash,
+      createdAt: input.now,
+    }),
+  )
+}
+
+export type BuildScanEventInput = Readonly<{
+  id: ScanEventId
+  organizationId: OrganizationId
+  portalId: PortalId
+  propertyId: PropertyId
+  source: ScanSource
+  sessionId: string
+  ipHash: string
+  now: Date
+}>
+
+export const buildScanEvent = (
+  input: BuildScanEventInput,
+): Result<ScanEvent, GuestError> => {
+  const sourceResult = validateSource(input.source)
+
+  return sourceResult.map(
+    (_validSource): ScanEvent => ({
+      id: input.id,
+      organizationId: input.organizationId,
+      portalId: input.portalId,
+      propertyId: input.propertyId,
+      source: input.source,
+      sessionId: input.sessionId,
       ipHash: input.ipHash,
       createdAt: input.now,
     }),

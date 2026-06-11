@@ -41,6 +41,7 @@ export const deleteProperty =
     // 4. Emit event
     await deps.events.emit(
       propertyDeleted({
+        eventId: crypto.randomUUID(),
         propertyId,
         organizationId: ctx.organizationId,
         occurredAt: deps.clock(),

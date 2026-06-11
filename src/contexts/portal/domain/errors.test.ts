@@ -58,6 +58,11 @@ describe('portalError exhaustive codes', () => {
     'category_not_found',
     'link_not_found',
     'property_not_found',
+    'group_not_found',
+    'group_name_taken',
+    'portal_already_grouped',
+    'portal_not_in_group',
+    'portal_inactive',
     'upload_failed',
   ]
 
@@ -70,6 +75,6 @@ describe('portalError exhaustive codes', () => {
   })
 
   it('covers all codes (fails if a new code is added but not listed here)', () => {
-    expect(codes).toHaveLength(15)
+    expect(codes).toHaveLength(20)
   })
 })

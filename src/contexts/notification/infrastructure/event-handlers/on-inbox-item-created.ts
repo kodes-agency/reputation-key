@@ -23,7 +23,10 @@ export const onInboxItemCreated =
       return
     }
 
-    const recipients = await deps.userLookup.findAssignedManagers(event.propertyId)
+    const recipients = await deps.userLookup.findAssignedManagers(
+      event.organizationId,
+      event.propertyId,
+    )
 
     if (recipients.length === 0) {
       deps.logger.warn(

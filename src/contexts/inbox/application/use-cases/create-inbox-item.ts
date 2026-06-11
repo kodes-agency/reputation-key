@@ -78,7 +78,7 @@ export const createInboxItem =
     const item = result.value
 
     // 3. Persist
-    await deps.repo.create(item)
+    await deps.repo.create(item, input.organizationId)
 
     // 4. Increment new counter (new item starts as 'new')
     try {
@@ -93,6 +93,7 @@ export const createInboxItem =
     // 5. Emit event
     await deps.events.emit(
       inboxItemCreated({
+        eventId: crypto.randomUUID(),
         inboxItemId: item.id,
         organizationId: item.organizationId,
         propertyId: item.propertyId,

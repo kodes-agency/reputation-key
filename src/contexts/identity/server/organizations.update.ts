@@ -40,11 +40,10 @@ export const updateOrganization = createServerFn({ method: 'POST' })
 
         try {
           const useCase = updateOrganizationUseCase({
-            updateOrg: async (h, d) => {
+            updateOrg: async (data) => {
               const auth = getAuth()
-              await auth.api.updateOrganization({ headers: h, body: { data: d } })
+              await auth.api.updateOrganization({ headers, body: { data } })
             },
-            getHeaders: () => headers,
           })
           await useCase(data, ctx)
         } catch (e) {

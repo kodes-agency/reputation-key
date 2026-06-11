@@ -36,8 +36,6 @@ import { softDeletePortalGroup } from './application/use-cases/soft-delete-porta
 import { addPortalToGroup } from './application/use-cases/add-portal-to-group'
 import { removePortalFromGroup } from './application/use-cases/remove-portal-from-group'
 import { portalId, portalGroupId } from '#/shared/domain/ids'
-import { getEnv } from '#/shared/config/env'
-import { randomUUID } from 'crypto'
 
 type PortalContextDeps = Readonly<{
   db: Database
@@ -45,6 +43,13 @@ type PortalContextDeps = Readonly<{
   clock: () => Date
   propertyApi: PropertyPublicApi
   baseUrl: string
+  idGen: () => string
+  storageConfig: Readonly<{
+    accessKey: string
+    secretKey: string
+    bucketName: string
+    region: string
+  }>
 }>
 
 export const buildPortalContext = (deps: PortalContextDeps) => {
@@ -52,17 +57,15 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
   const portalLinkRepo = createPortalLinkRepository(deps.db)
   const portalGroupRepo = createPortalGroupRepository(deps.db)
   const linkResolver = createLinkResolverPort(deps.db)
-  const env = getEnv()
   const storage = createS3StorageAdapter({
-    accessKey: env.AWS_S3_ACCESS_KEY,
-    secretKey: env.AWS_S3_SECRET_ACCESS_KEY,
-    bucketName: env.AWS_S3_BUCKET_NAME,
-    region: env.AWS_S3_REGION,
+    accessKey: deps.storageConfig.accessKey,
+    secretKey: deps.storageConfig.secretKey,
+    bucketName: deps.storageConfig.bucketName,
+    region: deps.storageConfig.region,
   })
-  const portalIdGen = () => portalId(randomUUID())
-  const portalGroupIdGen = () => portalGroupId(randomUUID())
-  const linkIdGen = () => randomUUID()
-
+  const portalIdGen = () => portalId(deps.idGen())
+  const portalGroupIdGen = () => portalGroupId(deps.idGen())
+  const linkIdGen = () => deps.idGen()
   const useCases = {
     createPortal: createPortal({
       portalRepo,
@@ -116,7 +119,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     requestUploadUrl: requestUploadUrl({
       portalRepo,
       storage,
-      idGen: () => randomUUID(),
+      idGen: deps.idGen,
     }),
     finalizeUpload: finalizeUpload({
       portalRepo,
@@ -170,6 +173,10 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
   const publicApi: PortalPublicApi = {
     resolvePortalContext: (portalIdParam) =>
       portalRepo.resolvePortalContext(portalIdParam),
+    getPortalInfo: (orgId, pid) =>
+      portalRepo
+        .findById(orgId, pid)
+        .then((p) => (p ? { id: p.id, name: p.name, isActive: p.isActive } : null)),
     findPublicPortalBySlug: (propertySlug, portalSlug) =>
       portalRepo.findPublicPortalBySlug(propertySlug, portalSlug),
   }
@@ -185,13 +192,19 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
   }
 
   return {
-    useCases,
-    storage,
-    portalRepo,
-    portalLinkRepo,
-    portalGroupRepo,
-    linkResolver,
-    publicApi,
-    portalGroupPublicApi,
+    publicApi: {
+      portal: publicApi,
+      portalGroup: portalGroupPublicApi,
+    },
+    internal: {
+      repos: {
+        portalRepo,
+        portalLinkRepo,
+        portalGroupRepo,
+        linkResolver,
+      },
+      useCases,
+      storage,
+    },
   } as const
 }

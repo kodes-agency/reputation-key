@@ -1,11 +1,10 @@
 // Identity context — request user avatar upload URL use case.
 // Separate from org logo upload: uses user-scoped S3 keys and no org side effects.
 
-import type { StoragePort } from '#/contexts/portal/application/public-api'
+import type { IdentityStoragePort } from '../ports/identity.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { can } from '#/shared/domain/permissions'
 import { identityError } from '../../domain/errors'
-
 export type RequestAvatarUploadInput = Readonly<{
   contentType: string
   fileSize: number
@@ -13,7 +12,7 @@ export type RequestAvatarUploadInput = Readonly<{
 
 // fallow-ignore-next-line unused-type
 export type RequestAvatarUploadDeps = Readonly<{
-  storage: StoragePort
+  storage: IdentityStoragePort
   idGen: () => string
 }>
 

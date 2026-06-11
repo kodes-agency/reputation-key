@@ -30,6 +30,7 @@ const guestErrorStatus = (code: GuestErrorCode): number =>
     )
     .with('portal_not_found', () => 404)
     .with('portal_inactive', () => 410)
+    .with('forbidden', () => 403)
     .exhaustive()
 
 describe('guestErrorStatus (mirrors server module)', () => {

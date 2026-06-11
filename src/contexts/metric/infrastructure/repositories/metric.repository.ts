@@ -19,22 +19,18 @@ import {
   portalGroupId as groupIdCtor,
   unbrand,
 } from '#/shared/domain/ids'
-import { createMetricReading } from '../../domain/constructors'
+import { createMetricReading, VALID_METRIC_KEYS } from '../../domain/constructors'
+import { metricError } from '../../domain/errors'
 import { trace } from '#/shared/observability/trace'
 
-const VALID_METRIC_KEYS: Set<string> = new Set([
-  'portal.scan',
-  'portal.rating',
-  'portal.feedback',
-  'portal.review_link_click',
-  'property.review',
-])
-
 function readingFromRow(row: typeof metricReadings.$inferSelect) {
-  if (!VALID_METRIC_KEYS.has(row.metricKey)) {
-    throw new Error(`Invalid metric_key in DB row: ${row.metricKey}`)
+  if (!VALID_METRIC_KEYS.has(row.metricKey as MetricKey)) {
+    throw metricError(
+      'unknown_metric_key',
+      `Invalid metric_key in DB row: ${row.metricKey}`,
+    )
   }
-  const result = createMetricReading({
+  return createMetricReading({
     id: metricReadingId(row.id),
     organizationId: orgIdCtor(row.organizationId),
     propertyId: propIdCtor(row.propertyId),
@@ -44,10 +40,6 @@ function readingFromRow(row: typeof metricReadings.$inferSelect) {
     groupId: row.groupId ? groupIdCtor(row.groupId) : null,
     occurredAt: row.occurredAt,
   })
-  if (result.isErr()) {
-    throw new Error(`Invalid metric reading from DB: ${result.error.message}`)
-  }
-  return result.value
 }
 
 export const createMetricRepository = (db: Database): MetricRepository => ({
@@ -66,8 +58,11 @@ export const createMetricRepository = (db: Database): MetricRepository => ({
         })
         .returning()
 
-      if (!result[0]) {
-        throw new Error('Metric reading insert failed — no row returned')
+      if (!result.length) {
+        throw metricError(
+          'repo_insert_failed',
+          'Metric reading insert failed — no row returned',
+        )
       }
 
       return readingFromRow(result[0])

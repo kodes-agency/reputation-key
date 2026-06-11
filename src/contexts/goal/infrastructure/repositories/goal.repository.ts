@@ -19,6 +19,7 @@ import {
 } from '../mappers/goal.mapper'
 import { trace } from '#/shared/observability/trace'
 import { getLogger } from '#/shared/observability/logger'
+import { goalError } from '../../domain/errors'
 
 const log = getLogger().child({ component: 'goal-repo' })
 
@@ -32,7 +33,7 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
       const row = goalToInsertRow(goal)
       const result = await db.insert(goals).values(row).returning()
       if (!result[0]) {
-        throw new Error('Goal insert failed — no row returned')
+        throw goalError('repo_insert_failed', 'Goal insert failed — no row returned')
       }
       log.debug(
         { goalId: result[0].id, duration: Date.now() - start },
@@ -123,26 +124,33 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
       const row = goalProgressToInsertRow(progress)
       const result = await db.insert(goalProgress).values(row).returning()
       if (!result[0]) {
-        throw new Error('Goal progress insert failed — no row returned')
+        throw goalError(
+          'repo_insert_failed',
+          'Goal progress insert failed — no row returned',
+        )
       }
       return goalProgressFromRow(result[0])
     })
   },
 
-  // Safe: goalId is a globally unique UUID — no cross-tenant risk
-  getProgress: async (goalId) => {
+  getProgress: async (goalId, organizationId) => {
     return trace('goal.getProgress', async () => {
       const rows = await db
         .select()
         .from(goalProgress)
-        .where(eq(goalProgress.goalId, goalId))
+        .where(
+          and(
+            eq(goalProgress.goalId, goalId),
+            eq(goalProgress.organizationId, organizationId),
+          ),
+        )
         .limit(1)
       return rows[0] ? goalProgressFromRow(rows[0]) : null
     })
   },
 
   // Batch: fetches progress for multiple goals in a single query
-  getProgressBatch: async (goalIds) => {
+  getProgressBatch: async (goalIds, organizationId) => {
     return trace('goal.getProgressBatch', async () => {
       const map = new Map<GoalId, GoalProgress | null>()
       if (goalIds.length === 0) return map
@@ -153,7 +161,12 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
       const rows = await db
         .select()
         .from(goalProgress)
-        .where(inArray(goalProgress.goalId, [...goalIds] as string[]))
+        .where(
+          and(
+            inArray(goalProgress.goalId, [...goalIds] as string[]),
+            eq(goalProgress.organizationId, organizationId),
+          ),
+        )
       for (const row of rows) {
         const progress = goalProgressFromRow(row)
         map.set(progress.goalId, progress)
@@ -162,13 +175,17 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
     })
   },
 
-  // Safe: goalId is a globally unique UUID — no cross-tenant risk
-  updateProgress: async (goalId, data) => {
+  updateProgress: async (goalId, organizationId, data) => {
     return trace('goal.updateProgress', async () => {
       const result = await db
         .update(goalProgress)
         .set(data)
-        .where(eq(goalProgress.goalId, goalId))
+        .where(
+          and(
+            eq(goalProgress.goalId, goalId),
+            eq(goalProgress.organizationId, organizationId),
+          ),
+        )
         .returning()
       return result[0] ? goalProgressFromRow(result[0]) : null
     })
@@ -248,6 +265,7 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
         await tx.insert(goalProgress).values({
           ...goalProgressToInsertRow(progress),
           id: progress.id as string,
+          organizationId: goal.organizationId as string,
         })
       })
     })
@@ -318,7 +336,10 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
             currentCount: goalProgress.currentCount,
           })
         if (!result[0]) {
-          throw new Error(`incrementProgress: no progress row for goal ${goalId}`)
+          throw goalError(
+            'progress_not_found',
+            `incrementProgress: no progress row for goal ${goalId}`,
+          )
         }
         return {
           currentValue: result[0].currentValue,
@@ -340,7 +361,10 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
             currentCount: goalProgress.currentCount,
           })
         if (!result[0]) {
-          throw new Error(`incrementProgress: no progress row for goal ${goalId}`)
+          throw goalError(
+            'progress_not_found',
+            `incrementProgress: no progress row for goal ${goalId}`,
+          )
         }
         return {
           currentValue: result[0].currentValue,
@@ -364,7 +388,10 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
             currentCount: goalProgress.currentCount,
           })
         if (!result[0]) {
-          throw new Error(`incrementProgress: no progress row for goal ${goalId}`)
+          throw goalError(
+            'progress_not_found',
+            `incrementProgress: no progress row for goal ${goalId}`,
+          )
         }
         return {
           currentValue: result[0].currentValue,
@@ -373,7 +400,10 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
         }
       }
 
-      throw new Error(`incrementProgress: unsupported aggregation ${aggregation}`)
+      throw goalError(
+        'unsupported_aggregation',
+        `incrementProgress: unsupported aggregation ${aggregation}`,
+      )
     })
   },
 
@@ -387,7 +417,10 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
         .limit(1)
 
       if (!row || row.organizationId !== organizationId) {
-        throw new Error(`upsertProgress: goal ${goalId} not found or tenant mismatch`)
+        throw goalError(
+          'not_found_or_tenant_mismatch',
+          `upsertProgress: goal ${goalId} not found or tenant mismatch`,
+        )
       }
 
       if (aggregation === 'sum' || aggregation === 'count') {
@@ -414,7 +447,7 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
             currentCount: goalProgress.currentCount,
           })
         if (!result[0]) {
-          throw new Error(`upsertProgress: failed for goal ${goalId}`)
+          throw goalError('upsert_failed', `upsertProgress: failed for goal ${goalId}`)
         }
         return {
           currentValue: result[0].currentValue,
@@ -446,7 +479,7 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
             currentCount: goalProgress.currentCount,
           })
         if (!result[0]) {
-          throw new Error(`upsertProgress: failed for goal ${goalId}`)
+          throw goalError('upsert_failed', `upsertProgress: failed for goal ${goalId}`)
         }
         return {
           currentValue: result[0].currentValue,
@@ -480,7 +513,7 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
             currentCount: goalProgress.currentCount,
           })
         if (!result[0]) {
-          throw new Error(`upsertProgress: failed for goal ${goalId}`)
+          throw goalError('upsert_failed', `upsertProgress: failed for goal ${goalId}`)
         }
         return {
           currentValue: result[0].currentValue,
@@ -489,7 +522,10 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
         }
       }
 
-      throw new Error(`upsertProgress: unsupported aggregation ${aggregation}`)
+      throw goalError(
+        'unsupported_aggregation',
+        `upsertProgress: unsupported aggregation ${aggregation}`,
+      )
     })
   },
 

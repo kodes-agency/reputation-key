@@ -18,28 +18,7 @@ import { assertNever } from '#/shared/domain/assert'
 import type { Goal, GoalType, RecurrenceRule } from './types'
 import { deriveEntityScope } from './types'
 import { ok, err, type Result } from 'neverthrow'
-
-// ── Error types ──────────────────────────────────────────────────────────
-
-export type GoalConstructionError =
-  | { tag: 'ambiguous_scope' }
-  | { tag: 'invalid_metric_for_scope'; metricKey: MetricKey; scope: string }
-  | {
-      tag: 'invalid_aggregation_for_metric'
-      metricKey: MetricKey
-      aggregation: AggregationFunction
-    }
-  | { tag: 'period_not_allowed'; goalType: GoalType }
-  | { tag: 'period_required'; goalType: GoalType }
-  | { tag: 'invalid_period'; detail: string }
-  | { tag: 'rolling_window_required' }
-  | { tag: 'rolling_window_not_allowed'; goalType: GoalType }
-  | { tag: 'recurrence_rule_required' }
-  | { tag: 'recurrence_rule_not_allowed'; goalType: GoalType }
-  | { tag: 'empty_name' }
-  | { tag: 'name_too_long' }
-  | { tag: 'description_too_long' }
-  | { tag: 'invalid_target_value' }
+import { goalError, type GoalError } from './errors'
 
 // ── Input type ───────────────────────────────────────────────────────────
 
@@ -66,35 +45,48 @@ export type BuildGoalInput = Readonly<{
 
 // ── Constructor ──────────────────────────────────────────────────────────
 
-export function buildGoal(input: BuildGoalInput): Result<Goal, GoalConstructionError> {
+export function buildGoal(input: BuildGoalInput): Result<Goal, GoalError> {
   const scope = deriveEntityScope(input)
 
   // Exactly-one FK validation
   const fkCount = [input.portalId, input.portalGroupId].filter(Boolean).length
   if (fkCount > 1) {
-    return err({ tag: 'ambiguous_scope' })
+    return err(goalError('ambiguous_scope', 'Ambiguous scope: multiple FKs provided'))
   }
 
   // Field validations
-  if (!input.name.trim()) return err({ tag: 'empty_name' })
-  if (input.name.length > 200) return err({ tag: 'name_too_long' })
+  if (!input.name.trim()) return err(goalError('empty_name', 'Goal name cannot be empty'))
+  if (input.name.length > 200)
+    return err(goalError('name_too_long', 'Goal name exceeds 200 characters'))
   if (input.description !== null && input.description.length > 1000)
-    return err({ tag: 'description_too_long' })
+    return err(
+      goalError('description_too_long', 'Goal description exceeds 1000 characters'),
+    )
   if (!Number.isFinite(input.targetValue) || input.targetValue <= 0)
-    return err({ tag: 'invalid_target_value' })
+    return err(
+      goalError('invalid_target_value', 'Target value must be a positive finite number'),
+    )
 
   // Scope → metric key
   if (!isValidMetricKeyForScope(scope, input.metricKey)) {
-    return err({ tag: 'invalid_metric_for_scope', metricKey: input.metricKey, scope })
+    return err(
+      goalError(
+        'invalid_metric_for_scope',
+        `Metric key ${input.metricKey} not valid for scope ${scope}`,
+        { metricKey: input.metricKey, scope },
+      ),
+    )
   }
 
   // Metric key → aggregation
   if (!isValidAggregationForMetric(input.metricKey, input.aggregationFunction)) {
-    return err({
-      tag: 'invalid_aggregation_for_metric',
-      metricKey: input.metricKey,
-      aggregation: input.aggregationFunction,
-    })
+    return err(
+      goalError(
+        'invalid_aggregation_for_metric',
+        `Aggregation ${input.aggregationFunction} not valid for metric ${input.metricKey}`,
+        { metricKey: input.metricKey, aggregation: input.aggregationFunction },
+      ),
+    )
   }
 
   const periodStart = input.periodStart ?? null
@@ -106,54 +98,115 @@ export function buildGoal(input: BuildGoalInput): Result<Goal, GoalConstructionE
   switch (input.goalType) {
     case 'open': {
       if (periodStart || periodEnd)
-        return err({ tag: 'period_not_allowed', goalType: 'open' })
+        return err(
+          goalError('period_not_allowed', 'Period not allowed for open goals', {
+            goalType: 'open',
+          }),
+        )
       if (rollingWindowDays !== null)
-        return err({ tag: 'rolling_window_not_allowed', goalType: 'open' })
+        return err(
+          goalError(
+            'rolling_window_not_allowed',
+            'Rolling window not allowed for open goals',
+            { goalType: 'open' },
+          ),
+        )
       if (recurrenceRule)
-        return err({ tag: 'recurrence_rule_not_allowed', goalType: 'open' })
+        return err(
+          goalError(
+            'recurrence_rule_not_allowed',
+            'Recurrence rule not allowed for open goals',
+            { goalType: 'open' },
+          ),
+        )
       break
     }
     case 'one_shot': {
       if (!periodStart || !periodEnd)
-        return err({ tag: 'period_required', goalType: 'one_shot' })
+        return err(
+          goalError('period_required', 'Period required for one-shot goals', {
+            goalType: 'one_shot',
+          }),
+        )
       if (periodEnd <= periodStart)
-        return err({
-          tag: 'invalid_period',
-          detail: 'periodEnd must be after periodStart',
-        })
+        return err(goalError('invalid_period', 'periodEnd must be after periodStart'))
       if (rollingWindowDays !== null)
-        return err({ tag: 'rolling_window_not_allowed', goalType: 'one_shot' })
+        return err(
+          goalError(
+            'rolling_window_not_allowed',
+            'Rolling window not allowed for one-shot goals',
+            { goalType: 'one_shot' },
+          ),
+        )
       if (recurrenceRule)
-        return err({ tag: 'recurrence_rule_not_allowed', goalType: 'one_shot' })
+        return err(
+          goalError(
+            'recurrence_rule_not_allowed',
+            'Recurrence rule not allowed for one-shot goals',
+            { goalType: 'one_shot' },
+          ),
+        )
       break
     }
     case 'rolling': {
       if (!rollingWindowDays || rollingWindowDays <= 0)
-        return err({ tag: 'rolling_window_required' })
+        return err(
+          goalError(
+            'rolling_window_required',
+            'Rolling window required for rolling goals',
+          ),
+        )
       if (periodStart || periodEnd)
-        return err({ tag: 'period_not_allowed', goalType: 'rolling' })
+        return err(
+          goalError('period_not_allowed', 'Period not allowed for rolling goals', {
+            goalType: 'rolling',
+          }),
+        )
       if (recurrenceRule)
-        return err({ tag: 'recurrence_rule_not_allowed', goalType: 'rolling' })
+        return err(
+          goalError(
+            'recurrence_rule_not_allowed',
+            'Recurrence rule not allowed for rolling goals',
+            { goalType: 'rolling' },
+          ),
+        )
       break
     }
     case 'recurring': {
-      if (!recurrenceRule) return err({ tag: 'recurrence_rule_required' })
+      if (!recurrenceRule)
+        return err(
+          goalError(
+            'recurrence_rule_required',
+            'Recurrence rule required for recurring goals',
+          ),
+        )
       // Template (no parentGoalId) cannot have period dates;
       // Instances (parentGoalId set) must have period dates.
       const parentGoalId = input.parentGoalId ?? null
       if (!parentGoalId && (periodStart || periodEnd))
-        return err({ tag: 'period_not_allowed', goalType: 'recurring' })
+        return err(
+          goalError('period_not_allowed', 'Period not allowed for recurring templates', {
+            goalType: 'recurring',
+          }),
+        )
       if (parentGoalId) {
         if (!periodStart || !periodEnd)
-          return err({ tag: 'period_required', goalType: 'recurring' })
+          return err(
+            goalError('period_required', 'Period required for recurring instances', {
+              goalType: 'recurring',
+            }),
+          )
         if (periodEnd <= periodStart)
-          return err({
-            tag: 'invalid_period',
-            detail: 'periodEnd must be after periodStart',
-          })
+          return err(goalError('invalid_period', 'periodEnd must be after periodStart'))
       }
       if (rollingWindowDays !== null)
-        return err({ tag: 'rolling_window_not_allowed', goalType: 'recurring' })
+        return err(
+          goalError(
+            'rolling_window_not_allowed',
+            'Rolling window not allowed for recurring goals',
+            { goalType: 'recurring' },
+          ),
+        )
       break
     }
     default: {

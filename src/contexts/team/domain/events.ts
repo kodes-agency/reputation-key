@@ -1,9 +1,9 @@
 // Team context — domain events
 // Standards: docs/standards.md §1
 
-import assert from 'node:assert/strict'
 import type { TeamId } from './types'
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
+import { teamError } from './errors'
 
 export type TeamCreated = Readonly<{
   _tag: 'team.created'
@@ -16,12 +16,12 @@ export type TeamCreated = Readonly<{
   correlationId: string | null
 }>
 export const teamCreated = (
-  args: Omit<TeamCreated, '_tag' | 'eventId' | 'correlationId'>,
+  args: Omit<TeamCreated, '_tag' | 'correlationId'>,
 ): TeamCreated => {
-  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  if (!(args.occurredAt instanceof Date))
+    throw teamError('invalid_name', 'occurredAt must be Date')
   return {
     _tag: 'team.created',
-    eventId: crypto.randomUUID(),
     correlationId: null,
     ...args,
   }
@@ -38,12 +38,12 @@ export type TeamUpdated = Readonly<{
   correlationId: string | null
 }>
 export const teamUpdated = (
-  args: Omit<TeamUpdated, '_tag' | 'eventId' | 'correlationId'>,
+  args: Omit<TeamUpdated, '_tag' | 'correlationId'>,
 ): TeamUpdated => {
-  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  if (!(args.occurredAt instanceof Date))
+    throw teamError('invalid_name', 'occurredAt must be Date')
   return {
     _tag: 'team.updated',
-    eventId: crypto.randomUUID(),
     correlationId: null,
     ...args,
   }
@@ -58,12 +58,12 @@ export type TeamDeleted = Readonly<{
   correlationId: string | null
 }>
 export const teamDeleted = (
-  args: Omit<TeamDeleted, '_tag' | 'eventId' | 'correlationId'>,
+  args: Omit<TeamDeleted, '_tag' | 'correlationId'>,
 ): TeamDeleted => {
-  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  if (!(args.occurredAt instanceof Date))
+    throw teamError('invalid_name', 'occurredAt must be Date')
   return {
     _tag: 'team.deleted',
-    eventId: crypto.randomUUID(),
     correlationId: null,
     ...args,
   }
