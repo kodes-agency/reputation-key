@@ -23,7 +23,6 @@ Guest-facing interactions on public portal pages. Covers scan tracking, star rat
 - **Smart Routing** affects the visual emphasis of the **Feedback** form based on the **Rating** value
 - **Anti-Gating** compliance ensures review links are always visible and identically positioned regardless of **Rating**
 - Guest context **depends on** `PortalPublicApi` for portal resolution and public portal data.
-- Guest context **depends on** `StaffPublicApi` for referral code resolution (scan attribution).
 
 ## Invariants
 
@@ -63,7 +62,7 @@ guest/
     repositories/      guest-interaction.repository.ts
     mappers/           guest.mapper.ts
     resolvers/         portal-context-resolver.ts, public-portal-lookup.ts
-  server/              public.ts
+  server/              public.ts, guest-scans.ts
   build.ts             composition root
 ```
 
@@ -87,11 +86,12 @@ Exported from `application/public-api.ts`:
 
 ## Server functions
 
-- **`public.ts`** — Guest-facing server functions (record scan, submit rating, submit feedback, track review link click, get public portal data). No authentication required — guest endpoints.
+- **`public.ts`** — Guest-facing server functions (submit rating, submit feedback, track review link click). No authentication required — guest endpoints.
+- **`guest-scans.ts`** — Scan recording and public portal read server functions (recordScan, getPublicPortal, resolveLinkAndTrack). No authentication required — guest endpoints.
 
 ## Permissions
 
-Guest context is entirely public — no authentication is required for any endpoint. All server functions are unauthenticated (`public` permission level).
+Guest context is entirely public — no authentication is required for any endpoint. All server functions are unauthenticated (`public` permission level). These are logical operation identifiers for tracing/auditing only. All guest endpoints are unauthenticated (public by design). No `can()` enforcement exists because guest context has no auth middleware.
 
 - `scan:create` — Record a portal visit. Public.
 - `rating:create` — Submit a star rating. Public.

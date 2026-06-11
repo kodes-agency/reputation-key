@@ -2,7 +2,7 @@
 
 ## Architecture
 
-Layered hexagonal (clean architecture). Twelve bounded contexts in `src/contexts/`, shared infrastructure in `src/shared/`, React frontend in `src/components/` and `src/routes/`.
+Layered hexagonal (clean architecture). Fourteen bounded contexts in `src/contexts/`, shared infrastructure in `src/shared/`, React frontend in `src/components/` and `src/routes/`.
 
 ```
 routes/ → contexts/<ctx>/server/ → contexts/<ctx>/application/ → contexts/<ctx>/domain/
@@ -23,20 +23,22 @@ Composition root: `src/composition.ts`. Bootstrap: `src/bootstrap.ts`.
 
 ## Bounded contexts
 
-|     | Context     | Responsibility                                                                          | Key Entities                            |
-| --- | ----------- | --------------------------------------------------------------------------------------- | --------------------------------------- |
-|     | Identity    | Users, organizations, members, invitations                                              | User, Organization, Member, Invitation  |
-|     | Property    | Properties (hotels/restaurants) owned by organizations                                  | Property                                |
-|     | Portal      | Guest-facing portal pages with links and portal groups, per property                    | Portal, Link, LinkCategory, PortalGroup |
-|     | Guest       | Public portal rendering, rating collection, feedback                                    | Rating, Feedback                        |
-|     | Team        | Staff teams and shift management                                                        | Team                                    |
-|     | Staff       | Staff assignments to properties                                                         | StaffAssignment                         |
-|     | Integration | Google connections, OAuth, tokens, GBP API adapter                                      | GoogleConnection                        |
-|     | Review      | External platform reviews (Google), sync, replies                                       | Review                                  |
-|     | Inbox       | Unified triage surface for reviews + feedback                                           | InboxItem, InboxNote                    |
-|     | Metric      | Aggregation of raw counters (scans, ratings, clicks, reviews)                           | MetricReading                           |
-|     | Goal        | Property-scoped goals with progress tracking                                            | Goal, GoalInstance                      |
-|     | Dashboard   | Read-only aggregation of metrics, reviews, replies into property-scoped KPIs and charts | —                                       |
+|     | Context      | Responsibility                                                                          | Key Entities                            |
+| --- | ------------ | --------------------------------------------------------------------------------------- | --------------------------------------- |
+|     | Identity     | Users, organizations, members, invitations                                              | User, Organization, Member, Invitation  |
+|     | Property     | Properties (hotels/restaurants) owned by organizations                                  | Property                                |
+|     | Portal       | Guest-facing portal pages with links and portal groups, per property                    | Portal, Link, LinkCategory, PortalGroup |
+|     | Guest        | Public portal rendering, rating collection, feedback                                    | Rating, Feedback                        |
+|     | Team         | Staff teams and shift management                                                        | Team                                    |
+|     | Staff        | Staff assignments to properties                                                         | StaffAssignment                         |
+|     | Integration  | Google connections, OAuth, tokens, GBP API adapter                                      | GoogleConnection                        |
+|     | Review       | External platform reviews (Google), sync, replies                                       | Review                                  |
+|     | Inbox        | Unified triage surface for reviews + feedback                                           | InboxItem, InboxNote                    |
+|     | Metric       | Aggregation of raw counters (scans, ratings, clicks, reviews)                           | MetricReading                           |
+|     | Goal         | Property-scoped goals with progress tracking                                            | Goal, GoalInstance                      |
+|     | Dashboard    | Read-only aggregation of metrics, reviews, replies into property-scoped KPIs and charts | —                                       |
+|     | Notification | User-facing in-app/email notifications                                                  | —                                       |
+|     | Activity     | Immutable audit log                                                                     | —                                       |
 
 ## Glossary
 
@@ -121,6 +123,12 @@ See `docs/adr/` for formal ADRs. Key ADRs:
 || 0005 | GBP Review API Path and Error Model Fix | Google Integration, Error Model |
 || 0006 | Staff as a Separate Bounded Context | Identity, Staff Management |
 || 0007 | Dashboard as a Read-Only Aggregation | Dashboard, Read Models |
+|| 0008 | Cross-Context Data Access Rules | Architecture, Bounded Context Boundaries |
+|| 0009 | Permission Model | Architecture, Authorization |
+|| 0010 | Activity Context: BullMQ Event Delivery | Activity Context, Event Delivery |
+|| 0011 | Notification Context: BullMQ Event Delivery | Notification Context, Event Delivery |
+|| 0012 | Nitro Vite Plugin — Dev-Mode Exclusion | Dev Tooling, Vite Config, TanStack Start |
+|| 0013 | Portal Groups Replace Team and Staff as Goal/Leaderboard Scopes | Goal Scoping, Portal Groups |
 
 ## Key Files
 

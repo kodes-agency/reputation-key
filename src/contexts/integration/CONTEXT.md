@@ -9,7 +9,7 @@ Manages Google OAuth connections, token lifecycle, GBP API infrastructure, and P
 - **GoogleConnection** — Authenticated OAuth connection to a Google account. Stores encrypted access/refresh tokens, `connectedBy` user, `visibility` (`private` | `organization`), and `status` (`active` | `disconnected`).
 - **GbpLocation** — A Google Business Profile location fetched via GBP API. Belongs to a GoogleConnection. Has `gbpPlaceId`, `locationName`, `address`.
 - **GbpCacheEntry** — Cached GBP data per property. Currently stores location data only (`dataType: 'location'`).
-- **GbpImportJob** — A batch import of GBP locations. Tracks `importedCount`, `skippedCount`, `failedCount`. Status: `pending` → `processing` → `completed` (or `failed`).
+- **GbpImportJob** — A batch import of GBP locations. Tracks `importedCount`, `skippedCount`, `failedCount`. Status: `'queued'` → `'in_progress'` → `'completed'` \| `'completed_with_skips'` \| `'completed_with_failures'` \| `'failed'`.
 - **PropertyImport** — Creates a `Property` entity from a successfully imported GBP location. Links the new property back to the originating GoogleConnection.
 - **Token Encryption** — Access/refresh tokens are encrypted at rest using AES-256 via `TokenEncryptionPort`.
 - **OAuth Callback** — Google OAuth flow redirects to `BETTER_AUTH_URL/api/auth/google/callback` after user consent.
@@ -37,7 +37,7 @@ Manages Google OAuth connections, token lifecycle, GBP API infrastructure, and P
 
 - **`integration.google_account.connected`** — connectionId, organizationId, googleEmail, occurredAt. Emitted when a Google account is connected.
 - **`integration.google_account.disconnected`** — connectionId, organizationId, occurredAt. Emitted when a Google account is disconnected.
-- **`integration.property_import.completed`** — importJobId, organizationId, totalCount, importedCount, skippedCount, failedCount, occurredAt. Emitted when an import job finishes.
+- **`integration.property_import.completed`** — importJobId, organizationId, totalCount, importedCount, skippedCount, failedCount, occurredAt. Emitted when an import job finishes. _(Defined in events.ts but not yet emitted — deferred)_
 - **`integration.google_connection.visibility_changed`** — connectionId, organizationId, visibility, occurredAt. Emitted when connection visibility is updated.
 
 ## Events consumed
@@ -65,6 +65,7 @@ integration/
                        refresh-google-token.ts, list-gbp-locations.ts,
                        start-property-import.ts, get-import-status.ts,
                        import-property.ts, handle-gbp-notification.ts
+    constants.ts       application-level constants
     public-api.ts      re-exports DTO types, domain types
   infrastructure/
     repositories/      google-connection.repository.ts, gbp-cache.repository.ts,
@@ -75,14 +76,16 @@ integration/
     mappers/           google-connection.mapper.ts, gbp-cache.mapper.ts, gbp-import.mapper.ts
     handlers/          gbp-notification-handler.ts
     jobs/              import-property.job.ts
-  server/              google-connections.ts, gbp-import.ts, error-helpers.ts
+    event-handlers/    (empty — no consumers)
+  server/              google-connections.ts, gbp-import.ts, error-helpers.ts,
+                       google-auth-url.ts
   build.ts             composition root
 ```
 
 ## Use cases
 
 - **`connectGoogleAccount`** — OAuth code exchange, encrypt tokens, store connection. Emits `integration.google_account.connected`.
-- **`disconnectGoogleAccount`** — Revoke tokens, clear caches, null out property FKs. Emits `integration.google_account.disconnected`.
+- **`disconnectGoogleAccount`** — Revoke tokens, clear caches, set connection status to `'disconnected'`. Emits `integration.google_account.disconnected`. (FK nulling does NOT happen on disconnect — only on delete.)
 - **`listGoogleConnections`** — List connections for an org.
 - **`updateConnectionVisibility`** — Toggle private/organization visibility. Emits `integration.google_connection.visibility_changed`.
 - **`refreshGoogleToken`** — Auto-refresh expired tokens with 5-minute buffer.
@@ -100,13 +103,13 @@ Exported from `application/public-api.ts`:
 
 ## Server functions
 
-- **`google-connections.ts`** — Server functions for Google connection CRUD (connect, disconnect, list, update visibility, list locations, start import, get import status, handle webhook).
+- **`google-connections.ts`** — Server functions for Google connection CRUD (connect, disconnect, list, update visibility, list locations, start import, get import status).
 - **`gbp-import.ts`** — Server functions for GBP import operations.
 
 ## Permissions
 
 - `integration.manage` — Connect, disconnect, and manage Google connections.
-- `property.create` — Start property imports from GBP locations (cross-context permission from property).
+- `property.create` — Start property imports from GBP locations. The code in `gbp-import.ts` checks `can(ctx.role, 'property.create')`.
 
 ## Background jobs
 

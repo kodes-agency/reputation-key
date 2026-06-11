@@ -34,14 +34,14 @@ Authentication, session management, organization membership, and invitation work
 
 ## Events produced
 
-|                                 | Tag                                                      | Payload                 | When |
-| ------------------------------- | -------------------------------------------------------- | ----------------------- | ---- |
-| `identity.organization.created` | organizationId, organizationName, slug, ownerId          | Organization created    |
-| `identity.member.invited`       | organizationId, email, role, userId, invitationId        | Invitation sent         |
-| `identity.invitation.accepted`  | organizationId, userId, role, invitationId               | Invitation accepted     |
-| `identity.invitation.rejected`  | organizationId, invitationId, email                      | Invitation rejected     |
-| `identity.member.removed`       | organizationId, userId, removedBy                        | Member removed from org |
-| `identity.member.role_changed`  | organizationId, userId, previousRole, newRole, changedBy | Member role updated     |
+| Name                 | Tag                             | Payload                                                  | When                    |
+| -------------------- | ------------------------------- | -------------------------------------------------------- | ----------------------- |
+| Organization created | `identity.organization.created` | organizationId, organizationName, slug, ownerId          | Organization created    |
+| Invitation sent      | `identity.member.invited`       | organizationId, email, role, userId, invitationId        | Invitation sent         |
+| Invitation accepted  | `identity.invitation.accepted`  | organizationId, userId, role, invitationId               | Invitation accepted     |
+| Invitation rejected  | `identity.invitation.rejected`  | organizationId, invitationId, email                      | Invitation rejected     |
+| Member removed       | `identity.member.removed`       | organizationId, userId, removedBy                        | Member removed from org |
+| Member role updated  | `identity.member.role_changed`  | organizationId, userId, previousRole, newRole, changedBy | Member role updated     |
 
 ## Events consumed
 
@@ -64,25 +64,29 @@ identity/
   infrastructure/
     adapters/          auth-identity.adapter.ts (implements IdentityPort),
                        better-auth-schemas.ts (Zod schemas for better-auth responses)
-  server/              organizations.ts, auth-settings.ts
+  server/              organizations.ts, organizations.query.ts, organizations.update.ts,
+                       organizations.members.ts, organizations.invitations.ts,
+                       organizations.registration.ts, organizations.upload.ts,
+                       organizations.shared.ts, auth-settings.ts, auth-settings.org.ts,
+                       auth-settings.helpers.ts
 ```
 
 ## Use cases
 
-| Name                    | Input                                                      | Output               | Permission           |
-| ----------------------- | ---------------------------------------------------------- | -------------------- | -------------------- |
-| `registerUser`          | `name`, `email`, `password`                                | `User`               | public               |
-| `registerUserAndOrg`    | `name`, `email`, `password`, `organizationName`, `orgSlug` | `{ user, org }`      | public               |
-| `inviteMember`          | `email`, `role`, `organizationId`                          | `Invitation`         | `org:manage_members` |
-| `resendInvitation`      | `invitationId`, `organizationId`                           | `Invitation`         | `org:manage_members` |
-| `listInvitations`       | `organizationId`                                           | `Invitation[]`       | `org:manage_members` |
-| `removeMember`          | `memberId`, `organizationId`                               | `void`               | `org:manage_members` |
-| `updateMemberRole`      | `memberId`, `newRole`, `organizationId`                    | `Member`             | `org:manage_members` |
-| `updateOrganization`    | `organizationId`, `name?`, `slug?`, `logo?`                | `Organization`       | `org:manage`         |
-| `requestOrgLogoUpload`  | `organizationId`, `contentType`                            | `{ uploadUrl, key }` | `org:manage`         |
-| `finalizeOrgLogoUpload` | `organizationId`, `key`                                    | `Organization`       | `org:manage`         |
-| `requestAvatarUpload`   | `userId`, `contentType`                                    | `{ uploadUrl, key }` | authenticated        |
-| `finalizeAvatarUpload`  | `userId`, `key`                                            | `User`               | authenticated        |
+| Name                    | Input                                                      | Output               | Permission               |
+| ----------------------- | ---------------------------------------------------------- | -------------------- | ------------------------ |
+| `registerUser`          | `name`, `email`, `password`                                | `User`               | public                   |
+| `registerUserAndOrg`    | `name`, `email`, `password`, `organizationName`, `orgSlug` | `{ user, org }`      | public                   |
+| `inviteMember`          | `email`, `role`, `organizationId`                          | `Invitation`         | `invitation.create`      |
+| `resendInvitation`      | `invitationId`, `organizationId`                           | `Invitation`         | `invitation.resend`      |
+| `listInvitations`       | `organizationId`                                           | `Invitation[]`       | `invitation.list`        |
+| `removeMember`          | `memberId`, `organizationId`                               | `void`               | `member.delete`          |
+| `updateMemberRole`      | `memberId`, `newRole`, `organizationId`                    | `Member`             | `member.update`          |
+| `updateOrganization`    | `organizationId`, `name?`, `slug?`, `logo?`                | `Organization`       | `organization.update`    |
+| `requestOrgLogoUpload`  | `contentType`, `fileSize`                                  | `{ uploadUrl, key }` | `identity.logo_upload`   |
+| `finalizeOrgLogoUpload` | `key`                                                      | `{ logoUrl }`        | `identity.logo_upload`   |
+| `requestAvatarUpload`   | `contentType`, `fileSize`                                  | `{ uploadUrl, key }` | `identity.avatar_upload` |
+| `finalizeAvatarUpload`  | `key`                                                      | `{ avatarUrl }`      | `identity.avatar_upload` |
 
 ## Public API
 
@@ -93,32 +97,32 @@ identity/
 
 ## Server functions
 
-| Name                    | Method | Permission           | Description                     |
-| ----------------------- | ------ | -------------------- | ------------------------------- |
-| `createOrganizationFn`  | POST   | authenticated        | Create new organization         |
-| `getActiveOrganization` | GET    | authenticated        | Get current active org          |
-| `setActiveOrganization` | POST   | authenticated        | Switch active org               |
-| `listMembers`           | GET    | `org:manage_members` | List org members                |
-| `inviteMember`          | POST   | `org:manage_members` | Invite user to org              |
-| `acceptInvitation`      | POST   | authenticated        | Accept pending invitation       |
-| `cancelInvitation`      | POST   | `org:manage_members` | Cancel sent invitation          |
-| `resendInvitation`      | POST   | `org:manage_members` | Resend invitation email         |
-| `listInvitations`       | GET    | `org:manage_members` | List pending invitations        |
-| `updateMemberRole`      | POST   | `org:manage_members` | Change member role              |
-| `removeMember`          | POST   | `org:manage_members` | Remove member from org          |
-| `registerMember`        | POST   | `org:manage_members` | Register new member manually    |
-| `registerUserAndOrg`    | POST   | public               | Register user + create org      |
-| `signInUser`            | POST   | public               | Sign in existing user           |
-| `updateOrganization`    | POST   | `org:manage`         | Update org name/slug/logo       |
-| `requestOrgLogoUpload`  | POST   | `org:manage`         | Get S3 upload URL for org logo  |
-| `finalizeOrgLogoUpload` | POST   | `org:manage`         | Finalize org logo upload        |
-| `requestAvatarUpload`   | POST   | authenticated        | Get S3 upload URL for avatar    |
-| `finalizeAvatarUpload`  | POST   | authenticated        | Finalize avatar upload          |
-| `changePasswordFn`      | POST   | authenticated        | Change user password            |
-| `updateProfileFn`       | POST   | authenticated        | Update user profile             |
-| `updateUserImageFn`     | POST   | authenticated        | Update user image URL           |
-| `listUserInvitations`   | GET    | authenticated        | List user's pending invitations |
-| `listUserOrganizations` | GET    | authenticated        | List user's organizations       |
+| Name                    | Method | Permission               | Description                     |
+| ----------------------- | ------ | ------------------------ | ------------------------------- |
+| `createOrganizationFn`  | POST   | authenticated            | Create new organization         |
+| `getActiveOrganization` | GET    | `dashboard.read`         | Get current active org          |
+| `setActiveOrganization` | POST   | authenticated            | Switch active org               |
+| `listMembers`           | GET    | `member.list`            | List org members                |
+| `inviteMember`          | POST   | `member.create`          | Invite user to org              |
+| `acceptInvitation`      | POST   | authenticated            | Accept pending invitation       |
+| `cancelInvitation`      | POST   | `invitation.cancel`      | Cancel sent invitation          |
+| `resendInvitation`      | POST   | `invitation.resend`      | Resend invitation email         |
+| `listInvitations`       | GET    | `invitation.list`        | List pending invitations        |
+| `updateMemberRole`      | POST   | `member.update`          | Change member role              |
+| `removeMember`          | POST   | `member.delete`          | Remove member from org          |
+| `registerMember`        | POST   | public                   | Register new member manually    |
+| `registerUserAndOrg`    | POST   | public                   | Register user + create org      |
+| `signInUser`            | POST   | public                   | Sign in existing user           |
+| `updateOrganization`    | POST   | `organization.update`    | Update org name/slug/logo       |
+| `requestOrgLogoUpload`  | POST   | `identity.logo_upload`   | Get S3 upload URL for org logo  |
+| `finalizeOrgLogoUpload` | POST   | `identity.logo_upload`   | Finalize org logo upload        |
+| `requestAvatarUpload`   | POST   | `identity.avatar_upload` | Get S3 upload URL for avatar    |
+| `finalizeAvatarUpload`  | POST   | `identity.avatar_upload` | Finalize avatar upload          |
+| `changePasswordFn`      | POST   | authenticated            | Change user password            |
+| `updateProfileFn`       | POST   | authenticated            | Update user profile             |
+| `updateUserImageFn`     | POST   | authenticated            | Update user image URL           |
+| `listUserInvitations`   | GET    | authenticated            | List user's pending invitations |
+| `listUserOrganizations` | GET    | authenticated            | List user's organizations       |
 
 ## Permissions
 
@@ -128,6 +132,8 @@ Identity context uses the following permissions from `shared/domain/permissions.
 - `member.update` — Change member roles
 - `member.delete` — Remove members from organization
 - `member.list` — List organization members
+- `member.create` — Invite members (used in inviteMember server function)
+- `dashboard.read` — Read organization dashboard data (used in getActiveOrganization)
 - `invitation.create` — Send invitations to new members
 - `invitation.list` — View pending invitations
 - `invitation.cancel` — Cancel pending invitations

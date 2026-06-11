@@ -81,7 +81,8 @@ portal/
     adapters/          s3-storage.adapter.ts
     mappers/           portal.mapper.ts, portal-group.mapper.ts, portal-link.mapper.ts
     jobs/              process-image.job.ts
-  server/              portals.ts, portal-links.ts, portal-groups.ts
+  server/              portals.ts, portal-groups.ts, portal-uploads.ts, portal-links.ts,
+                       portal-link-categories.ts, portal-read.ts
   build.ts             composition root
 ```
 
@@ -100,7 +101,7 @@ portal/
 - **`listPortalLinks`** — List all links for a portal (flat, with category info).
 - **`createPortalGroup`** — Create a new portal group for a property. Validates name uniqueness and portal memberships. Optionally adds initial portals (pre-validated).
 - **`updatePortalGroup`** — Update group name. Validates name uniqueness (excluding self).
-- **`softDeletePortalGroup`** — Soft-delete a group, emits `portal_group.deleted`. Does not cascade-remove portal memberships.
+- **`softDeletePortalGroup`** — Soft-delete a group, emits `portal_group.deleted`. Does not cascade-remove portal memberships. Note: a duplicate `deletePortalGroup` function exists in `delete-portal-group.ts` (same behavior); `softDeletePortalGroup` is the canonical version.
 - **`listPortalGroups`** — List groups for an org/property.
 - **`getPortalGroup`** — Retrieve a single group by ID.
 - **`addPortalToGroup`** — Add a portal to a group. Validates portal not already in another group.
@@ -120,6 +121,9 @@ Exported from `application/public-api.ts`:
 - **`portals.ts`** — CRUD server functions for portals.
 - **`portal-links.ts`** — CRUD server functions for portal links and link categories.
 - **`portal-groups.ts`** — CRUD server functions for portal groups and portal membership management.
+- **`portal-uploads.ts`** — Server functions for portal image upload operations.
+- **`portal-link-categories.ts`** — Server functions for portal link category CRUD operations.
+- **`portal-read.ts`** — Read-only server functions for portal data retrieval.
 
 ## Permissions
 
@@ -131,3 +135,9 @@ Exported from `application/public-api.ts`:
 ## Background jobs
 
 - **process-image** — Resizes and converts uploaded portal hero images to multiple variants.
+
+## Errors
+
+Closed union of 20 error codes (`PortalErrorCode`):
+
+`forbidden`, `invalid_slug`, `invalid_name`, `invalid_description`, `invalid_theme`, `invalid_threshold`, `invalid_url`, `invalid_label`, `invalid_title`, `slug_taken`, `portal_not_found`, `category_not_found`, `link_not_found`, `property_not_found`, `group_not_found`, `group_name_taken`, `portal_already_grouped`, `portal_not_in_group`, `portal_inactive`, `upload_failed`

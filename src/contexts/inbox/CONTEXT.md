@@ -81,10 +81,11 @@ inbox/
     mappers/           inbox.mapper.ts, inbox-note.mapper.ts
     repositories/      inbox.repository.ts, inbox-note.repository.ts (Drizzle)
     event-handlers/    on-review-created.ts, on-review-updated.ts, on-feedback-submitted.ts,
-                      on-reply-published.ts
-  server/              inbox.ts
+                      on-reply-published.ts, on-reply-submitted.ts
+  server/              inbox.ts, inbox-item-queries.ts, inbox-status.ts, inbox-item-actions.ts,
+                      inbox-queries.ts, inbox-shared.ts
   build.ts             composition root
-```
+  build-use-cases.ts   use-case factory
 
 ## Use cases
 
@@ -97,8 +98,7 @@ inbox/
 | `assignInboxItem`       | inboxItemId, organizationId, assignedToUserId?, userId, role        | updated item          | `inbox.write` |
 | `addInboxNote`          | inboxItemId, organizationId, authorUserId, text, role               | `InboxNote`           | `inbox.write` |
 | `getNewCount`           | organizationId                                                      | count                 | `inbox.read`  |
-| `getInboxNotes`         | inboxItemId, organizationId, userId, role                           | `InboxNote[]`         | `inbox.read`  |
-| `createInboxItem`       | organizationId, propertyId, sourceType, sourceId, rating?, snippet? | `InboxItem`           | internal only |
+| `createInboxItem`       | organizationId, propertyId, sourceType, sourceId, rating?, sourceDate, platform?, snippet? | `InboxItem`           | internal only |
 | `getFolderCounts`       | organizationId, userId, role                                        | `InboxFolderCounts`   | `inbox.read`  |
 
 ## Public API
@@ -120,8 +120,8 @@ Exported from `application/public-api.ts`:
 | `assignInboxItemFn`       | POST   | `inbox.write` | Assign/unassign item              |
 | `addInboxNoteFn`          | POST   | `inbox.write` | Add internal note                 |
 | `getNewCountFn`           | GET    | `inbox.read`  | New badge count                   |
-| `getInboxItemDetailFn`    | GET    | `inbox.read`  | Item detail with source data      |
-| `getInboxNotesFn`         | GET    | `inbox.read`  | Notes for an item                 |
+| `getInboxNotesFn`            | GET    | `inbox.read`  | Notes for an item                 |
+| `getInboxFolderCountsFn`     | GET    | `inbox.read`  | Folder counts (new, unaddressed, total) |
 
 ## Permissions
 
@@ -161,3 +161,4 @@ All ports are implemented by adapters from their respective contexts, wired at c
 - **Activity event mapping (Q14)**: One activity entry per event per item. Events that produce entries: `inbox.inbox_item.created`, `inbox.inbox_item.status_changed`, `inbox.inbox_item.escalated`, `inbox.inbox_item.assigned`, `inbox.inbox_item.unassigned`, `inbox.inbox_note.added`, `inbox.inbox_item.bulk_status_changed`, `review.reply.published`, `review.reply.submitted`, `review.reply.approved`, `review.reply.rejected`. Excluded: `cache.invalidated`, `item.read` (auto, not user-initiated). Bulk operations produce one entry per affected item with `payload.bulkId` linking them — audit-complete per item, groupable for org-wide feed.
 - **Activity context location (Q15)**: New top-level context `src/contexts/activity/`. Own directory, composition, public API, event handlers, queries, permission filtering. Not shared infrastructure — it's a bounded context with its own schema and business rules.
 - **Activity context structure (Q16)**: `domain/` (activity-log entity, constructors), `ports/` (repository interface, user lookup), `infrastructure/` (drizzle repo, event handlers, identity adapter), `queries/` (timeline + org-wide feed with permission filtering), `application/public-api.ts` (queries only — no commands). No use cases — write-only via event subscription, read-only via queries. Composition wires `eventBus.on()` handlers.
+```

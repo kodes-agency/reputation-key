@@ -7,7 +7,7 @@ Event-driven metric recording and aggregation. Subscribes to domain events from 
 ## Glossary
 
 - **MetricKey** — Enum of known metric identifiers: `portal.scan`, `portal.rating`, `portal.feedback`, `portal.review_link_click`, `property.review`.
-- **MetricReading** — A single raw metric data point. Has `metricKey`, `value`, `organizationId`, `propertyId`, optional `portalId`, optional `groupId`, `recordedAt`.
+- **MetricReading** — A single raw metric data point. Has `metricKey`, `value`, `organizationId`, `propertyId`, optional `portalId`, optional `groupId`, `occurredAt`.
 - **MetricPublicApi** — Application-level API for cross-context consumption. Provides `queryAggregate` for aggregated queries (sum, count, max).
 
 ## Relationships
@@ -26,7 +26,7 @@ Event-driven metric recording and aggregation. Subscribes to domain events from 
 
 ## Events consumed
 
-- **`review.created`** — Records a `property.review` metric (value = 1).
+- **`review.created`** — Records a `property.review` metric (value = event.rating, the star rating value).
 - **`guest.scan.recorded`** — Records a `portal.scan` metric (value = 1).
 - **`guest.rating.submitted`** — Records a `portal.rating` metric (value = rating value).
 - **`guest.feedback.submitted`** — Records a `portal.feedback` metric (value = 1).

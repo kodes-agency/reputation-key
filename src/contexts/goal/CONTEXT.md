@@ -46,10 +46,10 @@ Property-scoped goals with progress tracking driven by metric events.
 
 ## Events produced
 
-| Tag                     | Payload                                                                                                                                           | When                    |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
-| `goal.completed`        | goalId, orgId, propertyId, scope IDs, goalType, metricKey, aggregationFunction, targetValue, completedValue, completedAt, parentGoalId, createdBy | Progress reaches target |
-| `goal.progress_updated` | goalId, orgId, metricKey, previousValue, currentValue, computedSource, occurredAt                                                                 | Progress recomputed     |
+| Tag                     | Payload                                                                                                                                                    | When                    |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
+| `goal.completed`        | goalId, organizationId, propertyId, scope IDs, goalType, metricKey, aggregationFunction, targetValue, completedValue, completedAt, parentGoalId, createdBy | Progress reaches target |
+| `goal.progress_updated` | goalId, organizationId, metricKey, previousValue, currentValue, computedSource, occurredAt                                                                 | Progress recomputed     |
 
 ## Events consumed
 
@@ -74,7 +74,7 @@ goal/
     mappers/           goal.mapper.ts
     event-handlers/    on-metric-recorded.ts, on-portal-deleted.ts, on-portal-group-deleted.ts
     jobs/              spawn-recurring-instances.job.ts, reconcile-goal-progress.job.ts
-  server/              goals.ts, staff-goals.ts
+  server/              goals.ts, staff-goals.ts, staff-goals.test.ts, goals.test.ts
   ui/                  helpers.ts (pure UI helper functions)
   build.ts             composition root
 ```
@@ -85,19 +85,19 @@ goal/
 
 ## Use cases
 
-| Use case     | Input                                                                                                                                                                                                   | Output   | Permission    |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------------- |
-| `createGoal` | orgId, propertyId, portalId?, portalGroupId?, name, description?, goalType, aggregationFunction, metricKey, targetValue, periodStart?, periodEnd?, recurrenceRule?, rollingWindowDays?, createdBy, role | `Goal`   | `goal.create` |
-| `updateGoal` | goalId, orgId, targetValue?, recurrenceRule?, role                                                                                                                                                      | `Goal`   | `goal.update` |
-| `cancelGoal` | goalId, orgId, role                                                                                                                                                                                     | `Goal`   | `goal.cancel` |
-| `listGoals`  | orgId, propertyId, portalId?, portalGroupId?, status?, goalType?, role                                                                                                                                  | `Goal[]` | `goal.read`   |
-| `getGoal`    | goalId, orgId, role                                                                                                                                                                                     | `Goal`   | `goal.read`   |
+| Use case     | Input                                                                                                                                                                                                            | Output   | Permission    |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------------- |
+| `createGoal` | organizationId, propertyId, portalId?, portalGroupId?, name, description?, goalType, aggregationFunction, metricKey, targetValue, periodStart?, periodEnd?, recurrenceRule?, rollingWindowDays?, createdBy, role | `Goal`   | `goal.create` |
+| `updateGoal` | goalId, organizationId, targetValue?, recurrenceRule?, role                                                                                                                                                      | `Goal`   | `goal.update` |
+| `cancelGoal` | goalId, organizationId, role                                                                                                                                                                                     | `Goal`   | `goal.cancel` |
+| `listGoals`  | organizationId, propertyId, portalId?, portalGroupId?, status?, goalType?, role                                                                                                                                  | `Goal[]` | `goal.read`   |
+| `getGoal`    | goalId, organizationId, role                                                                                                                                                                                     | `Goal`   | `goal.read`   |
 
 ## Public API
 
 Exported from `application/public-api.ts`:
 
-- Types: `CreateGoalInput`, `UpdateGoalInput`, `CancelGoalInput`, `ListGoalsInput`, `GetGoalInput`, `Goal`, `GoalProgress`, `GoalType`, `GoalStatus`
+- Types: `CreateGoalInput`, `UpdateGoalInput`, `CancelGoalInput`, `ListGoalsInput`, `GetGoalInput`, `Goal`, `GoalProgress`, `GoalType`, `GoalStatus`, `StaffGoalEntry`, `GoalWithProgress`
 - Functions: `deriveEntityScope`
 - Port types: `GoalRepository`, `GoalListFilter`
 - Event types: `GoalCompleted`, `GoalProgressUpdated`, `GoalEvent`
@@ -119,7 +119,7 @@ Exported from `application/public-api.ts`:
 | Permission    | AccountAdmin | PropertyManager | Staff |
 | ------------- | ------------ | --------------- | ----- |
 | `goal.read`   | ✓            | ✓               | ✓     |
-| `goal.create` | ✓            | ✓               | ✓     |
+| `goal.create` | ✓            | ✓               | —     |
 | `goal.update` | ✓            | ✓               | —     |
 | `goal.cancel` | ✓            | ✓               | —     |
 

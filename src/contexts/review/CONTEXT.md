@@ -12,6 +12,8 @@ External platform reviews — sync, storage, reply mirroring, and 30-day retenti
 - **Reply** — Response to a Review. Separate entity from Review. Has `source`: `google_sync` (mirrored from Google) or `internal` (drafted by staff). Internal replies follow a lifecycle: `draft` → `pending_approval` → `approved` → `published` (or `publish_failed`). Can be `rejected` (with optional reason) and re-drafted.
 - **Reply Lifecycle** — `draft` → `pending_approval` → `approved` → `published`. `approved` may transition to `publish_failed` on Google API error. `rejected` replies can be re-drafted. Only PM+ roles can manage replies; Staff cannot view or manage replies.
 - **Reply Audit Fields** — `approvedBy`, `rejectedBy` (UserId), `rejectionReason` (optional text), `aiGenerated` (boolean, always false until AI integration).
+- **authorId** — Original reply author (distinct from `userId` who performed the action). Present on all reply events.
+- **source** — Reply origin: `'web'` (staff-drafted) or `'import'` (Google sync mirror). Present on all reply events except `publish_failed`.
 - **Platform** — External review source. Currently only `'google'`. The `reviewPlatformEnum` is closed.
 - **External ID** — Google's review ID (extracted from `review.name`). Unique per platform per organization.
 - **Expires At** — Deadline for 30-day Google data retention. Calculated per-review from `reviewedAt + 30 days`.
@@ -37,10 +39,11 @@ External platform reviews — sync, storage, reply mirroring, and 30-day retenti
 - **`review.created`** — reviewId, propertyId, organizationId, platform, externalId, rating, reviewText, occurredAt. Emitted when a new review is synced from Google.
 - **`review.updated`** — reviewId, propertyId, organizationId, platform, externalId, rating, reviewText, occurredAt. Emitted when an existing review is re-synced with new data.
 - **`review.expired`** — reviewId, propertyId, organizationId, occurredAt. Emitted when the purge job hard-deletes expired reviews.
-- **`review.reply.published`** — replyId, reviewId, propertyId, organizationId, userId?, source, occurredAt. Emitted when a reply reaches published status (web: user-approved, import: Google sync mirror).
-- **`review.reply.submitted`** — replyId, reviewId, propertyId, organizationId, userId, occurredAt. Emitted when a draft reply is submitted for approval.
-- **`review.reply.approved`** — replyId, reviewId, propertyId, organizationId, userId, occurredAt. Emitted when a reply is approved.
-- **`review.reply.rejected`** — replyId, reviewId, propertyId, organizationId, userId, reason, occurredAt. Emitted when a reply is rejected during review.
+- **`review.reply.published`** — replyId, reviewId, propertyId, organizationId, userId (nullable), authorId, source, occurredAt. Emitted when a reply reaches published status (web: user-approved, import: Google sync mirror).
+- **`review.reply.submitted`** — replyId, reviewId, propertyId, organizationId, userId, source, occurredAt. Emitted when a draft reply is submitted for approval.
+- **`review.reply.approved`** — replyId, reviewId, propertyId, organizationId, userId, authorId, source, occurredAt. Emitted when a reply is approved.
+- **`review.reply.rejected`** — replyId, reviewId, propertyId, organizationId, userId, authorId, source, reason, occurredAt. Emitted when a reply is rejected during review.
+- **`review.reply.publish_failed`** — replyId, reviewId, propertyId, organizationId, authorId, occurredAt. Emitted when reply publishing fails after retry.
 
 ## Events consumed
 
@@ -57,13 +60,14 @@ review/
     dto/               sync-reviews.dto.ts
     use-cases/         sync-reviews.ts, reply-operations.ts
     public-api.ts      re-exports DTO types, port types, event types/constructors
+    internal-ports.ts  internal-only port re-exports (ReviewQueuePort, GoogleReviewApiPort)
   infrastructure/
     repositories/      review.repository.ts, reply.repository.ts (Drizzle)
     mappers/           review.mapper.ts, reply.mapper.ts
     event-handlers/    on-property-created.ts, index.ts
     jobs/              sync-property-reviews.job.ts, refresh-expiring-reviews.job.ts,
                        purge-expired-reviews.job.ts, publish-reply.job.ts
-  server/              reply.ts, staff-recent-activity.ts
+  server/              reply.ts, reply-draft.ts, reply-read.ts, staff-recent-activity.ts
   build.ts             composition root
 ```
 
@@ -83,8 +87,8 @@ review/
 Exported from `application/public-api.ts`:
 
 - Types: `GoogleReview`, `StarRating`, `ReviewQueuePort`, `SyncPropertyReviewsJobData`, `AddSyncJobOptions`, `GoogleReviewApiPort`, `StaffRecentReview`
-- Event types: `ReviewCreated`, `ReviewUpdated`, `ReviewReplyPublished`, `ReviewReplySubmitted`, `ReviewReplyApproved`, `ReviewReplyRejected`, `ReviewExpired`, `ReviewEvent`
-- Event constructors: `reviewCreated`, `reviewUpdated`, `reviewReplyPublished`, `reviewReplySubmitted`, `reviewReplyApproved`, `reviewReplyRejected`, `reviewExpired`
+- Event types: `ReviewCreated`, `ReviewUpdated`, `ReviewReplyPublished`, `ReviewReplySubmitted`, `ReviewReplyApproved`, `ReviewReplyRejected`, `ReviewReplyPublishFailed`, `ReviewExpired`, `ReviewEvent`
+- Event constructors: `reviewCreated`, `reviewUpdated`, `reviewReplyPublished`, `reviewReplySubmitted`, `reviewReplyApproved`, `reviewReplyRejected`, `reviewReplyPublishFailed`, `reviewExpired`
 
 ## Server functions
 

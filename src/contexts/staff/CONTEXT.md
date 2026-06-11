@@ -29,6 +29,8 @@ Staff assignment management — linking users to properties (directly or via tea
 | `staff.assigned`   | assignmentId, organizationId, userId, propertyId, teamId, portalId | Staff assigned to property  |
 | `staff.unassigned` | assignmentId, organizationId, userId, propertyId, portalId         | Staff removed from property |
 
+All events include envelope fields: eventId, occurredAt, correlationId (may be null).
+
 ## Events consumed
 
 None. Staff context does not subscribe to events from other contexts.
@@ -47,7 +49,7 @@ staff/
   infrastructure/
     repositories/      staff-assignment.repository.ts (Drizzle)
     mappers/           staff-assignment.mapper.ts
-  server/              staff-assignments.ts, staff-portals.ts
+  server/              staff-assignments.ts, staff-portals.ts, staff-portals-update.ts
   build.ts
 ```
 
@@ -60,6 +62,8 @@ staff/
 | `removeStaffAssignment` | `assignmentId`, `organizationId`, `role`                                 | `void`                               | `staff_assignment.delete`                             |
 | `getAssignedPortals`    | `userId`, `propertyId`                                                   | `PortalId[]`                         | `staff_assignment.read`                               |
 | `updateStaffPortals`    | `userId`, `propertyId`, `portalIds`                                      | `{ added: number, removed: number }` | `staff_assignment.create` + `staff_assignment.delete` |
+
+Note: `organizationId` and `role` are derived from AuthContext (resolved via `resolveTenantContext`), not from request body/query params. The Input column shows only request-level parameters; auth context fields are implicit.
 
 ## Public API
 
@@ -76,7 +80,8 @@ Exported from `application/public-api.ts`:
 ## Server functions
 
 - **`staff-assignments.ts`** — Server functions for staff assignment CRUD (create, remove, list).
-- **`staff-portals.ts`** — Server functions for staff portal access (listStaffPortals, updateStaffPortals).
+- **`staff-portals.ts`** — Server function for listing staff portals (`listStaffPortals`).
+- **`staff-portals-update.ts`** — Server function for updating staff portals (`updateStaffPortals`).
 
 ## Permissions
 
@@ -86,5 +91,13 @@ Exported from `application/public-api.ts`:
 
 ## Ports
 
-- **StaffAssignmentRepository** — Persistence port for staff assignments.
-  - `listByUserAndProperty(organizationId, userId, propertyId)` — Returns assignments for a user in a specific property.
+- **StaffAssignmentRepository** — Persistence port for staff assignments (`application/ports/staff-assignment.repository.ts`).
+  - `findById(orgId, id)` — Find assignment by ID.
+  - `listByUser(orgId, userId)` — List all assignments for a user.
+  - `listByProperty(orgId, propertyId)` — List all assignments for a property.
+  - `listByTeam(orgId, teamId)` — List all assignments for a team.
+  - `listByUserAndProperty(orgId, userId, propertyId)` — Returns assignments for a user in a specific property.
+  - `assignmentExists(orgId, userId, propertyId, teamId, portalId)` — Check for duplicate assignment.
+  - `insert(orgId, assignment)` — Create new assignment.
+  - `softDelete(orgId, id)` — Soft-delete assignment.
+  - `getAccessiblePropertyIds(orgId, userId)` — Get all unique property IDs a user is assigned to.
