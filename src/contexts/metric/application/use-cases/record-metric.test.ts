@@ -12,7 +12,7 @@ import {
 
 const FIXED_TIME = new Date('2026-01-01')
 
-type InsertInput = Omit<MetricReading, 'id'>
+type InsertInput = MetricReading
 
 const createFakeDeps = (): RecordMetricDeps & {
   readings: InsertInput[]
@@ -24,13 +24,9 @@ const createFakeDeps = (): RecordMetricDeps & {
     readings,
     emittedEvents,
     metricRepo: {
-      insertReading: async (input: InsertInput) => {
-        const reading: MetricReading = {
-          id: metricReadingId(`mr-${readings.length + 1}`),
-          ...input,
-        }
-        readings.push(reading)
-        return reading
+      insertReading: async (input: MetricReading) => {
+        readings.push(input)
+        return input
       },
       findByOrganizationId: async () => [],
       queryAggregate: async () => ({ sum: 0, count: 0, max: 0 }),
@@ -43,6 +39,7 @@ const createFakeDeps = (): RecordMetricDeps & {
       clear: () => {},
     },
     clock: () => FIXED_TIME,
+    idGen: () => metricReadingId('mr-gen'),
   }
 }
 

@@ -1,9 +1,9 @@
 // Property context — domain events
 // Standards: docs/standards.md §1
 
-import assert from 'node:assert/strict'
 import type { PropertyId } from './types'
 import type { OrganizationId, GoogleConnectionId } from '#/shared/domain/ids'
+import { propertyError } from './errors'
 
 export type PropertyCreated = Readonly<{
   _tag: 'property.created'
@@ -23,12 +23,12 @@ export type PropertyCreated = Readonly<{
   correlationId: string | null
 }>
 export const propertyCreated = (
-  args: Omit<PropertyCreated, '_tag' | 'eventId' | 'correlationId'>,
+  args: Omit<PropertyCreated, '_tag' | 'correlationId'>,
 ): PropertyCreated => {
-  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  if (!(args.occurredAt instanceof Date))
+    throw propertyError('invalid_name', 'occurredAt must be Date')
   return {
     _tag: 'property.created',
-    eventId: crypto.randomUUID(),
     correlationId: null,
     ...args,
   }
@@ -45,12 +45,12 @@ export type PropertyUpdated = Readonly<{
   correlationId: string | null
 }>
 export const propertyUpdated = (
-  args: Omit<PropertyUpdated, '_tag' | 'eventId' | 'correlationId'>,
+  args: Omit<PropertyUpdated, '_tag' | 'correlationId'>,
 ): PropertyUpdated => {
-  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  if (!(args.occurredAt instanceof Date))
+    throw propertyError('invalid_name', 'occurredAt must be Date')
   return {
     _tag: 'property.updated',
-    eventId: crypto.randomUUID(),
     correlationId: null,
     ...args,
   }
@@ -65,12 +65,12 @@ export type PropertyDeleted = Readonly<{
   correlationId: string | null
 }>
 export const propertyDeleted = (
-  args: Omit<PropertyDeleted, '_tag' | 'eventId' | 'correlationId'>,
+  args: Omit<PropertyDeleted, '_tag' | 'correlationId'>,
 ): PropertyDeleted => {
-  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  if (!(args.occurredAt instanceof Date))
+    throw propertyError('invalid_name', 'occurredAt must be Date')
   return {
     _tag: 'property.deleted',
-    eventId: crypto.randomUUID(),
     correlationId: null,
     ...args,
   }

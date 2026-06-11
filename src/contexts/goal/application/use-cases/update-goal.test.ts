@@ -74,6 +74,7 @@ function createFakeDeps(overrides?: { storedGoals?: Goal[] }) {
     insertProgress: async (data) => ({
       id: goalProgressId('p-1'),
       goalId: data.goalId,
+      organizationId: data.organizationId ?? null,
       currentValue: data.currentValue,
       currentSum: data.currentSum,
       currentCount: data.currentCount,

@@ -1,7 +1,6 @@
 // Inbox context — domain events
 // Standards: docs/standards.md §1
 
-import assert from 'node:assert/strict'
 import type {
   InboxItemId,
   InboxNoteId,
@@ -12,6 +11,7 @@ import type {
   FeedbackId,
 } from '#/shared/domain/ids'
 import type { InboxStatus, SourceType } from './types'
+import { inboxError } from './errors'
 
 export type InboxItemCreated = Readonly<{
   _tag: 'inbox.inbox_item.created'
@@ -29,14 +29,14 @@ export type InboxItemCreated = Readonly<{
 export const inboxItemCreated = (
   args: Omit<
     InboxItemCreated,
-    '_tag' | 'eventId' | 'correlationId' | 'userId' | 'source' | 'propertyId'
+    '_tag' | 'correlationId' | 'userId' | 'source' | 'propertyId'
   > & { userId?: UserId; source?: 'web' | 'import'; propertyId?: PropertyId },
 ): InboxItemCreated => {
-  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
-  assert(args.inboxItemId !== '', 'inboxItemId required')
+  if (!(args.occurredAt instanceof Date))
+    throw inboxError('invalid_input', 'occurredAt must be Date')
+  if (args.inboxItemId === '') throw inboxError('invalid_input', 'inboxItemId required')
   return {
     _tag: 'inbox.inbox_item.created',
-    eventId: crypto.randomUUID(),
     correlationId: null,
     propertyId: args.propertyId ?? ('' as PropertyId),
     userId: args.userId ?? ('' as UserId),
@@ -61,17 +61,18 @@ export type InboxItemStatusChanged = Readonly<{
 export const inboxItemStatusChanged = (
   args: Omit<
     InboxItemStatusChanged,
-    '_tag' | 'eventId' | 'correlationId' | 'userId' | 'source' | 'propertyId'
+    '_tag' | 'correlationId' | 'userId' | 'source' | 'propertyId'
   > & { userId?: UserId; source?: 'web' | 'import'; propertyId?: PropertyId },
 ): InboxItemStatusChanged => {
-  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
-  assert(
-    args.oldStatus !== args.newStatus,
-    'Status change must transition to different status',
-  )
+  if (!(args.occurredAt instanceof Date))
+    throw inboxError('invalid_input', 'occurredAt must be Date')
+  if (args.oldStatus === args.newStatus)
+    throw inboxError(
+      'invalid_transition',
+      'Status change must transition to different status',
+    )
   return {
     _tag: 'inbox.inbox_item.status_changed',
-    eventId: crypto.randomUUID(),
     correlationId: null,
     propertyId: args.propertyId ?? ('' as PropertyId),
     userId: args.userId ?? ('' as UserId),
@@ -95,15 +96,15 @@ export type InboxItemAssigned = Readonly<{
 export const inboxItemAssigned = (
   args: Omit<
     InboxItemAssigned,
-    '_tag' | 'eventId' | 'correlationId' | 'userId' | 'source' | 'propertyId'
+    '_tag' | 'correlationId' | 'userId' | 'source' | 'propertyId'
   > & { userId?: UserId; source?: 'web' | 'import'; propertyId?: PropertyId },
 ): InboxItemAssigned => {
-  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  if (!(args.occurredAt instanceof Date))
+    throw inboxError('invalid_input', 'occurredAt must be Date')
   const resolvedUserId = args.userId ?? ('' as UserId)
-  assert(resolvedUserId !== '', 'userId required')
+  if (resolvedUserId === '') throw inboxError('invalid_input', 'userId required')
   return {
     _tag: 'inbox.inbox_item.assigned',
-    eventId: crypto.randomUUID(),
     correlationId: null,
     propertyId: args.propertyId ?? ('' as PropertyId),
     userId: resolvedUserId,
@@ -127,13 +128,13 @@ export type InboxItemUnassigned = Readonly<{
 export const inboxItemUnassigned = (
   args: Omit<
     InboxItemUnassigned,
-    '_tag' | 'eventId' | 'correlationId' | 'userId' | 'source' | 'propertyId'
+    '_tag' | 'correlationId' | 'userId' | 'source' | 'propertyId'
   > & { userId?: UserId; source?: 'web' | 'import'; propertyId?: PropertyId },
 ): InboxItemUnassigned => {
-  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  if (!(args.occurredAt instanceof Date))
+    throw inboxError('invalid_input', 'occurredAt must be Date')
   return {
     _tag: 'inbox.inbox_item.unassigned',
-    eventId: crypto.randomUUID(),
     correlationId: null,
     propertyId: args.propertyId ?? ('' as PropertyId),
     userId: args.userId ?? ('' as UserId),
@@ -157,13 +158,13 @@ export type InboxItemEscalated = Readonly<{
 export const inboxItemEscalated = (
   args: Omit<
     InboxItemEscalated,
-    '_tag' | 'eventId' | 'correlationId' | 'userId' | 'source' | 'propertyId'
+    '_tag' | 'correlationId' | 'userId' | 'source' | 'propertyId'
   > & { userId?: UserId; source?: 'web' | 'import'; propertyId?: PropertyId },
 ): InboxItemEscalated => {
-  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  if (!(args.occurredAt instanceof Date))
+    throw inboxError('invalid_input', 'occurredAt must be Date')
   return {
     _tag: 'inbox.inbox_item.escalated',
-    eventId: crypto.randomUUID(),
     correlationId: null,
     propertyId: args.propertyId ?? ('' as PropertyId),
     userId: args.userId ?? ('' as UserId),
@@ -188,14 +189,14 @@ export type InboxNoteAdded = Readonly<{
 export const inboxNoteAdded = (
   args: Omit<
     InboxNoteAdded,
-    '_tag' | 'eventId' | 'correlationId' | 'userId' | 'source' | 'propertyId'
+    '_tag' | 'correlationId' | 'userId' | 'source' | 'propertyId'
   > & { userId?: UserId; source?: 'web' | 'import'; propertyId?: PropertyId },
 ): InboxNoteAdded => {
-  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
-  assert(args.text.length > 0, 'note text required')
+  if (!(args.occurredAt instanceof Date))
+    throw inboxError('invalid_input', 'occurredAt must be Date')
+  if (args.text.length === 0) throw inboxError('invalid_input', 'note text required')
   return {
     _tag: 'inbox.inbox_note.added',
-    eventId: crypto.randomUUID(),
     correlationId: null,
     propertyId: args.propertyId ?? ('' as PropertyId),
     userId: args.userId ?? ('' as UserId),
@@ -221,17 +222,18 @@ export type InboxItemBulkStatusChanged = Readonly<{
 export const inboxItemBulkStatusChanged = (
   args: Omit<
     InboxItemBulkStatusChanged,
-    '_tag' | 'eventId' | 'correlationId' | 'userId' | 'source' | 'propertyId'
+    '_tag' | 'correlationId' | 'userId' | 'source' | 'propertyId'
   > & { userId?: UserId; source?: 'web' | 'import'; propertyId?: PropertyId },
 ): InboxItemBulkStatusChanged => {
-  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
-  assert(
-    args.oldStatus !== args.newStatus,
-    'Bulk status change must transition to different status',
-  )
+  if (!(args.occurredAt instanceof Date))
+    throw inboxError('invalid_input', 'occurredAt must be Date')
+  if (args.oldStatus === args.newStatus)
+    throw inboxError(
+      'invalid_transition',
+      'Bulk status change must transition to different status',
+    )
   return {
     _tag: 'inbox.inbox_item.bulk_status_changed',
-    eventId: crypto.randomUUID(),
     correlationId: null,
     propertyId: args.propertyId ?? ('' as PropertyId),
     userId: args.userId ?? ('' as UserId),

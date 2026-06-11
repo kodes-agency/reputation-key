@@ -85,6 +85,9 @@ export function createBetterAuthIdentityAdapter(db: Database): IdentityPort {
       return data.user.id
     },
 
+    // Relies on better-auth session scoping — the active organization is bound
+    // to the session cookie. Members returned are scoped to that organization.
+    // If better-auth adds orgId to member records, verify it matches ctx.organizationId.
     async listMembers(_ctx: AuthContext): Promise<ReadonlyArray<MemberRecord>> {
       const headers = await headersFromRequest()
       const result = await auth.api.listMembers({ headers })
@@ -98,6 +101,9 @@ export function createBetterAuthIdentityAdapter(db: Database): IdentityPort {
       return data.members.map(toMemberRecord)
     },
 
+    // better-auth doesn't return orgId on individual member records.
+    // The listMembers call is session-scoped to the active org, so the
+    // membership is implicitly verified. No cross-tenant risk in practice.
     async getMember(_ctx: AuthContext, memberId: string): Promise<MemberRecord | null> {
       const headers = await headersFromRequest()
       const result = await auth.api.listMembers({ headers })
@@ -112,6 +118,8 @@ export function createBetterAuthIdentityAdapter(db: Database): IdentityPort {
       return member ? toMemberRecord(member) : null
     },
 
+    // Relies on session-bound organization — better-auth creates the invitation
+    // under the active org from the session cookie. No explicit orgId in the body.
     async createInvitation(
       _ctx: AuthContext,
       email: string,
@@ -197,10 +205,15 @@ export function createBetterAuthIdentityAdapter(db: Database): IdentityPort {
     },
 
     async updateMemberRole(
-      _ctx: AuthContext,
+      ctx: AuthContext,
       memberId: string,
       role: string,
     ): Promise<void> {
+      // Verify member belongs to the current org before mutating
+      const member = await this.getMember(ctx, memberId)
+      if (!member) {
+        throw identityError('forbidden', 'Member not found in current organization')
+      }
       const headers = await headersFromRequest()
       await auth.api.updateMemberRole({
         headers,
@@ -211,7 +224,12 @@ export function createBetterAuthIdentityAdapter(db: Database): IdentityPort {
       })
     },
 
-    async removeMember(_ctx: AuthContext, memberId: string): Promise<void> {
+    async removeMember(ctx: AuthContext, memberId: string): Promise<void> {
+      // Verify member belongs to the current org before removing
+      const member = await this.getMember(ctx, memberId)
+      if (!member) {
+        throw identityError('forbidden', 'Member not found in current organization')
+      }
       const headers = await headersFromRequest()
       await auth.api.removeMember({
         headers,

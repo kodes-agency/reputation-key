@@ -1,6 +1,6 @@
 // Metric context — entity constructors
-// Per architecture: "Build domain entities from raw input, composing all validations,
-// returning a Result."
+// Per architecture: "Build domain entities from raw input, composing all validations."
+// Constructors throw domain errors on validation failure instead of returning Result.
 
 import type { MetricReading, MetricKey } from './types'
 import type {
@@ -10,9 +10,7 @@ import type {
   PortalId,
   PortalGroupId,
 } from '#/shared/domain/ids'
-import { ok, err, type Result } from 'neverthrow'
-import { metricError, type MetricError } from './errors'
-
+import { metricError } from './errors'
 const VALID_METRIC_KEYS: ReadonlySet<MetricKey> = new Set<MetricKey>([
   'portal.scan',
   'portal.rating',
@@ -32,38 +30,32 @@ type CreateMetricReadingInput = Readonly<{
   occurredAt: Date
 }>
 
-export const createMetricReading = (
-  input: CreateMetricReadingInput,
-): Result<MetricReading, MetricError> => {
+export const createMetricReading = (input: CreateMetricReadingInput): MetricReading => {
   // value >= 0
   if (input.value < 0) {
-    return err(
-      metricError('invalid_value', `Metric value must be >= 0, got ${input.value}`),
-    )
+    throw metricError('invalid_value', `Metric value must be >= 0, got ${input.value}`)
   }
 
   // Required IDs present
   if (!input.id) {
-    return err(metricError('missing_required_field', 'id is required'))
+    throw metricError('missing_required_field', 'id is required')
   }
   if (!input.organizationId) {
-    return err(metricError('missing_required_field', 'organizationId is required'))
+    throw metricError('missing_required_field', 'organizationId is required')
   }
   if (!input.propertyId) {
-    return err(metricError('missing_required_field', 'propertyId is required'))
+    throw metricError('missing_required_field', 'propertyId is required')
   }
 
   // metricKey must be from the allowed set
   if (!VALID_METRIC_KEYS.has(input.metricKey)) {
-    return err(
-      metricError(
-        'invalid_metric_key',
-        `Invalid metricKey: ${input.metricKey as string}`,
-      ),
+    throw metricError(
+      'invalid_metric_key',
+      `Invalid metricKey: ${input.metricKey as string}`,
     )
   }
 
-  return ok({
+  return {
     id: input.id,
     organizationId: input.organizationId,
     propertyId: input.propertyId,
@@ -72,5 +64,5 @@ export const createMetricReading = (
     value: input.value,
     groupId: input.groupId,
     occurredAt: input.occurredAt,
-  })
+  }
 }

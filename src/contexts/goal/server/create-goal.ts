@@ -75,14 +75,14 @@ export const createGoal = createServerFn({ method: 'POST' })
               .with({ tag: 'construction_error' }, (e) =>
                 throwContextError(
                   'GoalError',
-                  makeGoalError('validation_error', e.error.tag),
+                  makeGoalError('validation_error', e.error.code),
                   400,
                 ),
               )
               .with({ tag: 'instance_construction_error' }, (e) =>
                 throwContextError(
                   'GoalError',
-                  makeGoalError('validation_error', e.error.tag),
+                  makeGoalError('validation_error', e.error.code),
                   400,
                 ),
               )

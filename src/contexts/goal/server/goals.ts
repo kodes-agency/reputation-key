@@ -41,6 +41,23 @@ export const goalErrorStatus = (code: GoalErrorCode): number =>
     .with('not_found', () => 404)
     .with('validation_error', () => 400)
     .with('immutable_goal', () => 409)
+    .with(
+      'ambiguous_scope',
+      'invalid_metric_for_scope',
+      'invalid_aggregation_for_metric',
+      'period_not_allowed',
+      'period_required',
+      'invalid_period',
+      'rolling_window_required',
+      'rolling_window_not_allowed',
+      'recurrence_rule_required',
+      'recurrence_rule_not_allowed',
+      'empty_name',
+      'name_too_long',
+      'description_too_long',
+      'invalid_target_value',
+      () => 400,
+    )
     .exhaustive()
 
 // ── createGoal ────────────────────────────────────────────────────────
@@ -98,14 +115,14 @@ export const createGoal = createServerFn({ method: 'POST' })
               .with({ tag: 'construction_error' }, (e) =>
                 throwContextError(
                   'GoalError',
-                  makeGoalError('validation_error', e.error.tag),
+                  makeGoalError('validation_error', e.error.code),
                   400,
                 ),
               )
               .with({ tag: 'instance_construction_error' }, (e) =>
                 throwContextError(
                   'GoalError',
-                  makeGoalError('validation_error', e.error.tag),
+                  makeGoalError('validation_error', e.error.code),
                   400,
                 ),
               )

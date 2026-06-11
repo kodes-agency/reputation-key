@@ -68,6 +68,7 @@ export const onReplyPublished =
         // Emit status changed event
         await deps.events.emit(
           inboxItemStatusChanged({
+            eventId: crypto.randomUUID(),
             inboxItemId: inboxItem.id,
             organizationId: inboxItem.organizationId,
             propertyId: inboxItem.propertyId,

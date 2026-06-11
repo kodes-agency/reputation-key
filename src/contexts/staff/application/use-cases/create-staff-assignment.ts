@@ -89,6 +89,7 @@ export const createStaffAssignment =
     // 6. Emit event
     await deps.events.emit(
       staffAssigned({
+        eventId: crypto.randomUUID(),
         assignmentId: assignment.id,
         organizationId: assignment.organizationId,
         userId: assignment.userId,

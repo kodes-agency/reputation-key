@@ -153,6 +153,7 @@ export const submitReply =
     if (review) {
       await deps.events.emit(
         reviewReplySubmitted({
+          eventId: crypto.randomUUID(),
           replyId: submitted.id,
           reviewId: submitted.reviewId,
           propertyId: review.propertyId,
@@ -210,6 +211,7 @@ export const approveReply =
     if (review) {
       await deps.events.emit(
         reviewReplyApproved({
+          eventId: crypto.randomUUID(),
           replyId: approved.id,
           reviewId: approved.reviewId,
           propertyId: review.propertyId,
@@ -269,6 +271,7 @@ export const rejectReply =
     if (review) {
       await deps.events.emit(
         reviewReplyRejected({
+          eventId: crypto.randomUUID(),
           replyId: updated.id,
           reviewId: updated.reviewId,
           propertyId: review.propertyId,
@@ -364,10 +367,12 @@ export const markReplyPublished =
 
     await deps.events.emit(
       reviewReplyPublished({
+        eventId: crypto.randomUUID(),
         replyId: published.id,
         reviewId: reply.reviewId,
         propertyId: review.propertyId,
         organizationId: reply.organizationId,
+        userId: published.createdBy,
         authorId: published.createdBy ?? ('' as UserId),
         occurredAt: now,
       }),
@@ -410,6 +415,7 @@ export const markReplyPublishFailed =
       if (review) {
         await deps.events.emit(
           reviewReplyPublishFailed({
+            eventId: crypto.randomUUID(),
             replyId: updated.id,
             reviewId: updated.reviewId,
             propertyId: review.propertyId,

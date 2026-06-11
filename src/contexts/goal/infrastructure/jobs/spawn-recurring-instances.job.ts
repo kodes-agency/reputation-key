@@ -123,6 +123,7 @@ export const createSpawnRecurringInstancesHandler =
           const progress: GoalProgress = {
             id: goalProgressId(deps.idGen()),
             goalId: instance.id,
+            organizationId: instance.organizationId,
             currentValue: 0,
             currentSum: null,
             currentCount: null,

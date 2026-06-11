@@ -59,6 +59,7 @@ const makeProgress = (
 ): GoalProgress => ({
   id: goalProgressId(`gp-${goalIdStr}`),
   goalId: goalId(goalIdStr),
+  organizationId: null,
   currentValue: 5,
   currentSum: null,
   currentCount: null,

@@ -1,7 +1,6 @@
 // Metric context — domain events
 // Standards: docs/standards.md §1
 
-import assert from 'node:assert/strict'
 import type {
   MetricReadingId,
   OrganizationId,
@@ -10,6 +9,7 @@ import type {
   PortalGroupId,
 } from '#/shared/domain/ids'
 import type { MetricKey } from './types'
+import { metricError } from './errors'
 
 export type MetricRecorded = Readonly<{
   _tag: 'metric.recorded'
@@ -25,12 +25,12 @@ export type MetricRecorded = Readonly<{
   correlationId: string | null
 }>
 export const metricRecorded = (
-  args: Omit<MetricRecorded, '_tag' | 'eventId' | 'correlationId'>,
+  args: Omit<MetricRecorded, '_tag' | 'correlationId'>,
 ): MetricRecorded => {
-  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  if (!(args.occurredAt instanceof Date))
+    throw metricError('invalid_value', 'occurredAt must be Date')
   return {
     _tag: 'metric.recorded',
-    eventId: crypto.randomUUID(),
     correlationId: null,
     ...args,
   }

@@ -49,13 +49,8 @@ describe('registerUserAndOrg', () => {
       'test@example.com',
       'password123',
     )
-    expect(deps.createOrg).toHaveBeenCalledWith(
-      expect.any(Headers),
-      'Test Org',
-      'test-org',
-      FIXED_USER_ID,
-    )
-    expect(deps.setActiveOrg).toHaveBeenCalledWith(expect.any(Headers), FIXED_ORG_ID)
+    expect(deps.createOrg).toHaveBeenCalledWith('Test Org', 'test-org', FIXED_USER_ID)
+    expect(deps.setActiveOrg).toHaveBeenCalledWith(FIXED_ORG_ID)
   })
 
   it('emits organization.created event', async () => {
@@ -76,7 +71,6 @@ describe('registerUserAndOrg', () => {
     await useCase({ ...validInput, organizationName: 'My Awesome Org!!!' })
 
     expect(deps.createOrg).toHaveBeenCalledWith(
-      expect.any(Headers),
       'My Awesome Org!!!',
       'my-awesome-org',
       FIXED_USER_ID,

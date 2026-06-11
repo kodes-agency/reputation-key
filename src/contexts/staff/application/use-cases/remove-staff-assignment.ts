@@ -44,6 +44,7 @@ export const removeStaffAssignment =
     // 6. Emit event
     await deps.events.emit(
       staffUnassigned({
+        eventId: crypto.randomUUID(),
         assignmentId: assignment.id,
         organizationId: assignment.organizationId,
         userId: assignment.userId,

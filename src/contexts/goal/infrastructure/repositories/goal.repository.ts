@@ -248,6 +248,7 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
         await tx.insert(goalProgress).values({
           ...goalProgressToInsertRow(progress),
           id: progress.id as string,
+          organizationId: goal.organizationId as string,
         })
       })
     })

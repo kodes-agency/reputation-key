@@ -68,6 +68,7 @@ function createFakeDeps() {
       const progress: GoalProgress = {
         id: goalProgressId(nextId()),
         goalId: data.goalId,
+        organizationId: data.organizationId,
         currentValue: data.currentValue,
         currentSum: data.currentSum,
         currentCount: data.currentCount,

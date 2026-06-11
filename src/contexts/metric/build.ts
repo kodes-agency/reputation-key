@@ -8,6 +8,7 @@ import type { MetricPublicApi } from './application/public-api'
 import { createMetricRepository } from './infrastructure/repositories/metric.repository'
 import { recordMetric } from './application/use-cases/record-metric'
 import { registerMetricHandlers } from './infrastructure/event-handlers'
+import { metricReadingId } from '#/shared/domain/ids'
 
 export type MetricContextBuildInput = Readonly<{
   db: Database
@@ -30,6 +31,7 @@ export const buildMetricContext = (input: MetricContextBuildInput): MetricContex
     metricRepo,
     events: input.events,
     clock: input.clock,
+    idGen: () => metricReadingId(crypto.randomUUID()),
   })
 
   registerMetricHandlers({

@@ -437,6 +437,17 @@ describe('createBetterAuthIdentityAdapter', () => {
   describe('updateMemberRole', () => {
     it('calls updateMemberRole API with mapped role', async () => {
       // Arrange
+      mockListMembers.mockResolvedValue({
+        members: [
+          {
+            id: 'm-1',
+            userId: 'user-1',
+            role: 'member',
+            createdAt: new Date(),
+            user: { id: 'user-1', email: 'a@t.com', name: 'A', image: null },
+          },
+        ],
+      })
       mockUpdateMemberRole.mockResolvedValue(undefined)
 
       // Act
@@ -453,6 +464,17 @@ describe('createBetterAuthIdentityAdapter', () => {
   describe('removeMember', () => {
     it('calls removeMember API with correct memberId', async () => {
       // Arrange
+      mockListMembers.mockResolvedValue({
+        members: [
+          {
+            id: 'm-1',
+            userId: 'user-1',
+            role: 'member',
+            createdAt: new Date(),
+            user: { id: 'user-1', email: 'a@t.com', name: 'A', image: null },
+          },
+        ],
+      })
       mockRemoveMember.mockResolvedValue(undefined)
 
       // Act

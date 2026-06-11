@@ -106,22 +106,25 @@ export const createPropertyRepository = (db: Database): PropertyRepository => ({
     })
   },
 
-  // Intentional cross-org lookup: GBP webhook identifies properties by placeId,
-  // not orgId. The webhook handler verifies Google Pub/Sub JWT before calling this.
-  // Caller is responsible for org-scoping the result.
-  findByGbpPlaceId: async (gbpPlaceId) => {
+  /** ⚠️ CROSS-TENANT when orgId is omitted — caller MUST be JWT-verified (GBP webhook handler). */
+  findByGbpPlaceId: async (gbpPlaceId, orgId) => {
     return trace('property.findByGbpPlaceId', async () => {
+      const conditions = [
+        eq(properties.gbpPlaceId, gbpPlaceId),
+        isNull(properties.deletedAt),
+      ]
+      if (orgId) {
+        conditions.push(eq(properties.organizationId, orgId as string))
+      }
       const rows = await db
         .select()
         .from(properties)
-        .where(and(eq(properties.gbpPlaceId, gbpPlaceId), isNull(properties.deletedAt)))
+        .where(and(...conditions))
         .limit(1)
       return rows[0] ? propertyFromRow(rows[0]) : null
     })
   },
-
-  // Public slug lookup — no orgId scoping. Slugs are unique per property
-  // and used for public-facing URLs (guest portal resolution).
+  /** ⚠️ CROSS-TENANT by design — public-facing guest portal resolution. */
   findBySlug: async (slug) => {
     return trace('property.findBySlug', async () => {
       const rows = await db

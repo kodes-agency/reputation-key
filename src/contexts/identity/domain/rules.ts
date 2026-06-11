@@ -60,6 +60,8 @@ export function canInviteWithRole(
   inviterRole: Role,
   targetRole: Role,
 ): Result<true, IdentityError> {
+  // Defense-in-depth: use case already gates with can(role, 'invitation.create').
+  // This ensures the domain rule is independently enforceable even if called outside a use case.
   // Must be at least PropertyManager to invite
   if (!hasRole(inviterRole, 'PropertyManager')) {
     return err(identityError('forbidden', 'Insufficient role to invite members'))
@@ -93,6 +95,8 @@ export function canChangeRole(
   currentTargetRole: Role,
   newTargetRole: Role,
 ): Result<true, IdentityError> {
+  // Defense-in-depth: use case already gates with can(role, 'member.update').
+  // This ensures the domain rule is independently enforceable even if called outside a use case.
   // Must be at least PropertyManager to change roles
   if (!hasRole(changerRole, 'PropertyManager')) {
     return err(identityError('forbidden', 'Insufficient role to change member roles'))

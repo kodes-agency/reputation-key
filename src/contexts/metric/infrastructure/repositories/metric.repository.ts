@@ -44,10 +44,7 @@ function readingFromRow(row: typeof metricReadings.$inferSelect) {
     groupId: row.groupId ? groupIdCtor(row.groupId) : null,
     occurredAt: row.occurredAt,
   })
-  if (result.isErr()) {
-    throw new Error(`Invalid metric reading from DB: ${result.error.message}`)
-  }
-  return result.value
+  return result
 }
 
 export const createMetricRepository = (db: Database): MetricRepository => ({

@@ -55,6 +55,7 @@ export type Goal = Readonly<{
 export type GoalProgress = Readonly<{
   id: GoalProgressId
   goalId: GoalId
+  organizationId: OrganizationId | null
   currentValue: number
   currentSum: number | null
   currentCount: number | null

@@ -30,6 +30,7 @@ export const guestErrorStatus = (code: GuestErrorCode): number =>
     )
     .with('portal_not_found', () => HTTP_STATUS.NOT_FOUND)
     .with('portal_inactive', () => 410)
+    .with('forbidden', () => HTTP_STATUS.FORBIDDEN)
     .exhaustive()
 
 // ── Helpers ───────────────────────────────────────────────────────

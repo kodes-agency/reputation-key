@@ -12,7 +12,7 @@ import type {
   PropertyId,
   ActivityLogId,
 } from '#/shared/domain/ids'
-import { createActivityLog } from '../../domain/constructors'
+import { createActivityLog, SYSTEM_USER_ID } from '../../domain/constructors'
 import type { ActivityAction, ResourceType, ActivityPayload } from '../../domain/types'
 
 export type InsertActivityLogInput = Readonly<{
@@ -72,7 +72,8 @@ export const insertActivityLog =
     // 3. Construct the domain object via the domain constructor
     const result = createActivityLog(
       {
-        actorId: userId || ('system' as unknown as UserId),
+        id: deps.idGen(),
+        actorId: userId || SYSTEM_USER_ID,
         actorName,
         actorAvatarUrl,
         actorRole,
@@ -90,12 +91,9 @@ export const insertActivityLog =
       return
     }
 
-    // 4. Assign a domain-generated ID
-    const entryWithId = { ...result.value, id: deps.idGen() }
-
-    // 5. Persist the activity log entry
+    // 4. Persist the activity log entry
     try {
-      await deps.repo.insert(entryWithId)
+      await deps.repo.insert(result.value)
     } catch (error) {
       deps.logger.error({ error, input }, 'Failed to persist activity log entry')
       throw error // re-throw so BullMQ retries

@@ -81,6 +81,7 @@ export const createReconcileGoalProgressHandler =
             // First reconciliation — create initial progress row
             await deps.goalRepo.insertProgress({
               goalId: goal.id,
+              organizationId: goal.organizationId,
               currentValue: value,
               currentSum: goal.aggregationFunction === 'avg' ? aggregate.sum : null,
               currentCount: goal.aggregationFunction === 'avg' ? aggregate.count : null,

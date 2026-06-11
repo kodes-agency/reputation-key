@@ -125,6 +125,7 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
         const inserted = await deps.repo.insertAndReturn(input.orgId, property)
         await deps.events.emit(
           propertyCreated({
+            eventId: randomUUID(),
             propertyId: inserted.id,
             organizationId: inserted.organizationId,
             name: inserted.name,

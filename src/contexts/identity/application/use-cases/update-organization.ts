@@ -6,8 +6,7 @@ import { can } from '#/shared/domain/permissions'
 import { identityError } from '../../domain/errors'
 
 export type UpdateOrganizationDeps = Readonly<{
-  updateOrg: (headers: Headers, data: Record<string, unknown>) => Promise<void>
-  getHeaders: () => Headers | Promise<Headers> | undefined
+  updateOrg: (data: Record<string, unknown>) => Promise<void>
 }>
 
 export type UpdateOrganizationInput = Readonly<{
@@ -59,11 +58,7 @@ export const updateOrganization =
     }
 
     // 3. Delegate to auth provider
-    const headers = await deps.getHeaders()
-    if (!headers) {
-      throw identityError('validation_error', 'Request headers not available')
-    }
-    await deps.updateOrg(headers, updateData)
+    await deps.updateOrg(updateData)
   }
 
 export type UpdateOrganization = ReturnType<typeof updateOrganization>

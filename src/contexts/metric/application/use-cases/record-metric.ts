@@ -9,10 +9,12 @@ import type {
   PropertyId,
   PortalId,
   PortalGroupId,
+  MetricReadingId,
 } from '#/shared/domain/ids'
 import type { EventBus } from '#/shared/events/event-bus'
 import { metricError } from '../../domain/errors'
 import { metricRecorded } from '../../domain/events'
+import { createMetricReading } from '../../domain/constructors'
 
 // F073: Use the shared METRIC_KEYS constant instead of duplicating values.
 // If a new MetricKey is added to the union, it is automatically valid here.
@@ -32,6 +34,7 @@ export type RecordMetricDeps = Readonly<{
   metricRepo: MetricRepository
   events: EventBus
   clock: () => Date
+  idGen: () => MetricReadingId
 }>
 export type RecordMetric = ReturnType<typeof recordMetric>
 
@@ -42,7 +45,8 @@ export const recordMetric =
       throw metricError('unknown_metric_key', `Unknown metric key: ${input.metricKey}`)
     }
 
-    const reading = await deps.metricRepo.insertReading({
+    const reading = createMetricReading({
+      id: deps.idGen(),
       organizationId: input.organizationId,
       propertyId: input.propertyId,
       portalId: input.portalId,
@@ -52,18 +56,21 @@ export const recordMetric =
       occurredAt: deps.clock(),
     })
 
+    const persisted = await deps.metricRepo.insertReading(reading)
+
     await deps.events.emit(
       metricRecorded({
-        readingId: reading.id,
-        organizationId: reading.organizationId,
-        propertyId: reading.propertyId,
-        portalId: reading.portalId,
-        groupId: reading.groupId,
-        metricKey: reading.metricKey,
-        value: reading.value,
-        occurredAt: reading.occurredAt,
+        eventId: crypto.randomUUID(),
+        readingId: persisted.id,
+        organizationId: persisted.organizationId,
+        propertyId: persisted.propertyId,
+        portalId: persisted.portalId,
+        groupId: persisted.groupId,
+        metricKey: persisted.metricKey,
+        value: persisted.value,
+        occurredAt: persisted.occurredAt,
       }),
     )
 
-    return reading
+    return persisted
   }

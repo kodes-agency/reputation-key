@@ -54,6 +54,7 @@ function makeProgress(overrides: Partial<GoalProgress> = {}): GoalProgress {
   return {
     id: goalProgressId('progress-1'),
     goalId: goalId('goal-1'),
+    organizationId: null,
     currentValue: 0,
     currentSum: null,
     currentCount: null,
@@ -127,6 +128,7 @@ function createFakeDeps() {
       const p: GoalProgress = {
         id: goalProgressId('new'),
         goalId: data.goalId,
+        organizationId: data.organizationId,
         currentValue: data.currentValue,
         currentSum: data.currentSum,
         currentCount: data.currentCount,

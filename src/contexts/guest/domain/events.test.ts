@@ -10,6 +10,7 @@ import {
 } from '#/shared/domain/ids'
 
 const base = {
+  eventId: 'test-event-1',
   organizationId: organizationId('org-1'),
   portalId: portalId('portal-1'),
   propertyId: propertyId('prop-1'),

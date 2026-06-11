@@ -1,4 +1,5 @@
 import { and, eq, desc } from 'drizzle-orm'
+import { guestError } from '../../domain/errors'
 import type { Database } from '#/shared/db'
 import { scanEvents, ratings, feedback } from '#/shared/db/schema/guest.schema'
 import type { GuestInteractionRepository } from '../../application/ports/guest-interaction.repository'
@@ -33,12 +34,15 @@ export const createGuestInteractionRepository = (
   },
 
   insertRating: async (rating) => {
+    if (!rating.organizationId)
+      throw guestError('forbidden', 'organizationId is required')
     return trace('guestInteraction.insertRating', async () => {
       await db.insert(ratings).values(ratingToRow(rating))
     })
   },
 
   insertFeedback: async (fb) => {
+    if (!fb.organizationId) throw guestError('forbidden', 'organizationId is required')
     return trace('guestInteraction.insertFeedback', async () => {
       await db.insert(feedback).values(feedbackToRow(fb))
     })

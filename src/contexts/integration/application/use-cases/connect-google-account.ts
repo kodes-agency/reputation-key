@@ -77,6 +77,7 @@ export const connectGoogleAccount =
       // Emit event for reconnection
       await deps.events.emit(
         integrationGoogleAccountConnected({
+          eventId: crypto.randomUUID(),
           connectionId: updatedConnection.id,
           organizationId: ctx.organizationId,
           googleEmail: updatedConnection.googleEmail,
@@ -130,6 +131,7 @@ export const connectGoogleAccount =
     // 7. Emit event
     await deps.events.emit(
       integrationGoogleAccountConnected({
+        eventId: crypto.randomUUID(),
         connectionId: connection.id,
         organizationId: ctx.organizationId,
         googleEmail: connection.googleEmail,

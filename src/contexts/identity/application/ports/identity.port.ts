@@ -86,3 +86,12 @@ export type IdentityPort = Readonly<{
   /** Delete a user by ID. Used as compensating transaction when org setup fails. */
   deleteUser: (userId: string) => Promise<void>
 }>
+
+/** Storage port for avatar uploads — local abstraction to avoid cross-context imports. */
+export type IdentityStoragePort = Readonly<{
+  createPresignedUploadUrl: (
+    key: string,
+    contentType: string,
+    maxSizeBytes: number,
+  ) => Promise<{ uploadUrl: string; key: string }>
+}>

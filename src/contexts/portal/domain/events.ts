@@ -2,6 +2,7 @@
 // Per architecture: "Events are facts, named in the past tense."
 // Events live in their owning context's domain/events.ts.
 
+import assert from 'node:assert/strict'
 import type { PortalId } from './types'
 import type {
   OrganizationId,
@@ -10,12 +11,15 @@ import type {
   PortalLinkId,
   PropertyId,
 } from '#/shared/domain/ids'
+import { portalError } from './errors'
 
 // ── Portal events ──────────────────────────────────────────────────
 
 // fallow-ignore-next-line unused-type
 export type PortalCreated = Readonly<{
   _tag: 'portal.created'
+  eventId: string
+  correlationId: string | null
   portalId: PortalId
   organizationId: OrganizationId
   name: string
@@ -26,6 +30,8 @@ export type PortalCreated = Readonly<{
 // fallow-ignore-next-line unused-type
 export type PortalUpdated = Readonly<{
   _tag: 'portal.updated'
+  eventId: string
+  correlationId: string | null
   portalId: PortalId
   organizationId: OrganizationId
   name: string
@@ -36,6 +42,8 @@ export type PortalUpdated = Readonly<{
 // fallow-ignore-next-line unused-type
 export type PortalDeleted = Readonly<{
   _tag: 'portal.deleted'
+  eventId: string
+  correlationId: string | null
   portalId: PortalId
   organizationId: OrganizationId
   occurredAt: Date
@@ -46,6 +54,8 @@ export type PortalDeleted = Readonly<{
 // fallow-ignore-next-line unused-type
 export type PortalLinkCategoryCreated = Readonly<{
   _tag: 'portal_link_category.created'
+  eventId: string
+  correlationId: string | null
   portalId: PortalId
   categoryId: PortalLinkCategoryId
   organizationId: OrganizationId
@@ -55,6 +65,8 @@ export type PortalLinkCategoryCreated = Readonly<{
 // fallow-ignore-next-line unused-type
 export type PortalLinkCategoryReordered = Readonly<{
   _tag: 'portal_link_category.reordered'
+  eventId: string
+  correlationId: string | null
   portalId: PortalId
   organizationId: OrganizationId
   occurredAt: Date
@@ -65,6 +77,8 @@ export type PortalLinkCategoryReordered = Readonly<{
 // fallow-ignore-next-line unused-type
 export type PortalLinkCreated = Readonly<{
   _tag: 'portal_link.created'
+  eventId: string
+  correlationId: string | null
   portalId: PortalId
   linkId: PortalLinkId
   categoryId: PortalLinkCategoryId
@@ -75,6 +89,8 @@ export type PortalLinkCreated = Readonly<{
 // fallow-ignore-next-line unused-type
 export type PortalLinkReordered = Readonly<{
   _tag: 'portal_link.reordered'
+  eventId: string
+  correlationId: string | null
   portalId: PortalId
   categoryId: PortalLinkCategoryId
   organizationId: OrganizationId
@@ -86,6 +102,8 @@ export type PortalLinkReordered = Readonly<{
 // fallow-ignore-next-line unused-type
 export type PortalGroupCreated = Readonly<{
   _tag: 'portal_group.created'
+  eventId: string
+  correlationId: string | null
   portalGroupId: PortalGroupId
   organizationId: OrganizationId
   propertyId: PropertyId
@@ -96,6 +114,8 @@ export type PortalGroupCreated = Readonly<{
 // fallow-ignore-next-line unused-type
 export type PortalGroupUpdated = Readonly<{
   _tag: 'portal_group.updated'
+  eventId: string
+  correlationId: string | null
   portalGroupId: PortalGroupId
   organizationId: OrganizationId
   propertyId: PropertyId
@@ -106,6 +126,8 @@ export type PortalGroupUpdated = Readonly<{
 // fallow-ignore-next-line unused-type
 export type PortalGroupDeleted = Readonly<{
   _tag: 'portal_group.deleted'
+  eventId: string
+  correlationId: string | null
   portalGroupId: PortalGroupId
   organizationId: OrganizationId
   propertyId: PropertyId
@@ -115,6 +137,8 @@ export type PortalGroupDeleted = Readonly<{
 // fallow-ignore-next-line unused-type
 export type PortalAddedToGroup = Readonly<{
   _tag: 'portal_group.portal_added'
+  eventId: string
+  correlationId: string | null
   portalGroupId: PortalGroupId
   portalId: PortalId
   organizationId: OrganizationId
@@ -124,6 +148,8 @@ export type PortalAddedToGroup = Readonly<{
 // fallow-ignore-next-line unused-type
 export type PortalRemovedFromGroup = Readonly<{
   _tag: 'portal_group.portal_removed'
+  eventId: string
+  correlationId: string | null
   portalGroupId: PortalGroupId
   portalId: PortalId
   organizationId: OrganizationId
@@ -148,55 +174,166 @@ export type PortalEvent =
 
 // ── Event constructors ─────────────────────────────────────────────
 
-export const portalCreated = (args: Omit<PortalCreated, '_tag'>): PortalCreated => ({
-  _tag: 'portal.created',
-  ...args,
-})
+export const portalCreated = (
+  args: Omit<PortalCreated, '_tag' | 'eventId' | 'correlationId'>,
+): PortalCreated => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  if (!args.name || args.name.trim().length === 0) {
+    throw portalError('invalid_name', 'name must be a non-empty string')
+  }
+  if (!args.slug || args.slug.trim().length === 0) {
+    throw portalError('invalid_slug', 'slug must be a non-empty string')
+  }
+  return {
+    _tag: 'portal.created',
+    eventId: crypto.randomUUID(),
+    correlationId: null,
+    ...args,
+  }
+}
 
-export const portalUpdated = (args: Omit<PortalUpdated, '_tag'>): PortalUpdated => ({
-  _tag: 'portal.updated',
-  ...args,
-})
+export const portalUpdated = (
+  args: Omit<PortalUpdated, '_tag' | 'eventId' | 'correlationId'>,
+): PortalUpdated => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  if (!args.name || args.name.trim().length === 0) {
+    throw portalError('invalid_name', 'name must be a non-empty string')
+  }
+  if (!args.slug || args.slug.trim().length === 0) {
+    throw portalError('invalid_slug', 'slug must be a non-empty string')
+  }
+  return {
+    _tag: 'portal.updated',
+    eventId: crypto.randomUUID(),
+    correlationId: null,
+    ...args,
+  }
+}
 
-export const portalDeleted = (args: Omit<PortalDeleted, '_tag'>): PortalDeleted => ({
-  _tag: 'portal.deleted',
-  ...args,
-})
+export const portalDeleted = (
+  args: Omit<PortalDeleted, '_tag' | 'eventId' | 'correlationId'>,
+): PortalDeleted => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  return {
+    _tag: 'portal.deleted',
+    eventId: crypto.randomUUID(),
+    correlationId: null,
+    ...args,
+  }
+}
 
 export const portalLinkCategoryCreated = (
-  args: Omit<PortalLinkCategoryCreated, '_tag'>,
-): PortalLinkCategoryCreated => ({ _tag: 'portal_link_category.created', ...args })
+  args: Omit<PortalLinkCategoryCreated, '_tag' | 'eventId' | 'correlationId'>,
+): PortalLinkCategoryCreated => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  return {
+    _tag: 'portal_link_category.created',
+    eventId: crypto.randomUUID(),
+    correlationId: null,
+    ...args,
+  }
+}
 
 export const portalLinkCategoryReordered = (
-  args: Omit<PortalLinkCategoryReordered, '_tag'>,
-): PortalLinkCategoryReordered => ({ _tag: 'portal_link_category.reordered', ...args })
+  args: Omit<PortalLinkCategoryReordered, '_tag' | 'eventId' | 'correlationId'>,
+): PortalLinkCategoryReordered => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  return {
+    _tag: 'portal_link_category.reordered',
+    eventId: crypto.randomUUID(),
+    correlationId: null,
+    ...args,
+  }
+}
 
 export const portalLinkCreated = (
-  args: Omit<PortalLinkCreated, '_tag'>,
-): PortalLinkCreated => ({ _tag: 'portal_link.created', ...args })
+  args: Omit<PortalLinkCreated, '_tag' | 'eventId' | 'correlationId'>,
+): PortalLinkCreated => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  return {
+    _tag: 'portal_link.created',
+    eventId: crypto.randomUUID(),
+    correlationId: null,
+    ...args,
+  }
+}
 
 export const portalLinkReordered = (
-  args: Omit<PortalLinkReordered, '_tag'>,
-): PortalLinkReordered => ({ _tag: 'portal_link.reordered', ...args })
+  args: Omit<PortalLinkReordered, '_tag' | 'eventId' | 'correlationId'>,
+): PortalLinkReordered => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  return {
+    _tag: 'portal_link.reordered',
+    eventId: crypto.randomUUID(),
+    correlationId: null,
+    ...args,
+  }
+}
 
 // ── Portal group event constructors ────────────────────────────────
 
 export const portalGroupCreated = (
-  args: Omit<PortalGroupCreated, '_tag'>,
-): PortalGroupCreated => ({ _tag: 'portal_group.created', ...args })
+  args: Omit<PortalGroupCreated, '_tag' | 'eventId' | 'correlationId'>,
+): PortalGroupCreated => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  if (!args.name || args.name.trim().length === 0) {
+    throw portalError('invalid_label', 'name must be a non-empty string')
+  }
+  return {
+    _tag: 'portal_group.created',
+    eventId: crypto.randomUUID(),
+    correlationId: null,
+    ...args,
+  }
+}
 
 export const portalGroupUpdated = (
-  args: Omit<PortalGroupUpdated, '_tag'>,
-): PortalGroupUpdated => ({ _tag: 'portal_group.updated', ...args })
+  args: Omit<PortalGroupUpdated, '_tag' | 'eventId' | 'correlationId'>,
+): PortalGroupUpdated => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  if (!args.name || args.name.trim().length === 0) {
+    throw portalError('invalid_label', 'name must be a non-empty string')
+  }
+  return {
+    _tag: 'portal_group.updated',
+    eventId: crypto.randomUUID(),
+    correlationId: null,
+    ...args,
+  }
+}
 
 export const portalGroupDeleted = (
-  args: Omit<PortalGroupDeleted, '_tag'>,
-): PortalGroupDeleted => ({ _tag: 'portal_group.deleted', ...args })
+  args: Omit<PortalGroupDeleted, '_tag' | 'eventId' | 'correlationId'>,
+): PortalGroupDeleted => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  return {
+    _tag: 'portal_group.deleted',
+    eventId: crypto.randomUUID(),
+    correlationId: null,
+    ...args,
+  }
+}
 
 export const portalAddedToGroup = (
-  args: Omit<PortalAddedToGroup, '_tag'>,
-): PortalAddedToGroup => ({ _tag: 'portal_group.portal_added', ...args })
+  args: Omit<PortalAddedToGroup, '_tag' | 'eventId' | 'correlationId'>,
+): PortalAddedToGroup => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  return {
+    _tag: 'portal_group.portal_added',
+    eventId: crypto.randomUUID(),
+    correlationId: null,
+    ...args,
+  }
+}
 
 export const portalRemovedFromGroup = (
-  args: Omit<PortalRemovedFromGroup, '_tag'>,
-): PortalRemovedFromGroup => ({ _tag: 'portal_group.portal_removed', ...args })
+  args: Omit<PortalRemovedFromGroup, '_tag' | 'eventId' | 'correlationId'>,
+): PortalRemovedFromGroup => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  return {
+    _tag: 'portal_group.portal_removed',
+    eventId: crypto.randomUUID(),
+    correlationId: null,
+    ...args,
+  }
+}

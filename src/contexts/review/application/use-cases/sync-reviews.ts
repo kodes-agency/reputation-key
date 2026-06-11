@@ -134,6 +134,7 @@ export const syncReviews =
 
         // 6. Emit domain event
         const eventPayload = {
+          eventId: crypto.randomUUID(),
           reviewId: review.id,
           propertyId: input.propertyId,
           organizationId: input.organizationId,

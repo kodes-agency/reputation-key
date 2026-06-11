@@ -38,6 +38,7 @@ const sampleGoalRow: GoalRow = {
 const sampleProgressRow: GoalProgressRow = {
   id: 'progress-uuid-001',
   goalId: 'goal-uuid-001',
+  organizationId: 'org-uuid-001',
   currentValue: 23,
   currentSum: 230,
   currentCount: 10,
@@ -156,6 +157,13 @@ describe('goalProgressFromRow', () => {
     expect(progress.currentCount).toBe(10)
     expect(progress.lastComputedAt).toBe(now)
     expect(progress.computedSource).toBe('event_increment')
+    expect(String(progress.organizationId)).toBe('org-uuid-001')
+  })
+
+  it('handles null organizationId', () => {
+    const row = { ...sampleProgressRow, organizationId: null }
+    const progress = goalProgressFromRow(row)
+    expect(progress.organizationId).toBeNull()
   })
 
   it('handles null currentSum and currentCount', () => {

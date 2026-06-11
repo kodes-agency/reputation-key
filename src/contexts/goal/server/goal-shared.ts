@@ -32,6 +32,23 @@ export const goalErrorStatus = (code: GoalErrorCode): number =>
     .with('not_found', () => HTTP_STATUS.NOT_FOUND)
     .with('validation_error', () => HTTP_STATUS.BAD_REQUEST)
     .with('immutable_goal', () => HTTP_STATUS.CONFLICT)
+    .with(
+      'ambiguous_scope',
+      'invalid_metric_for_scope',
+      'invalid_aggregation_for_metric',
+      'period_not_allowed',
+      'period_required',
+      'invalid_period',
+      'rolling_window_required',
+      'rolling_window_not_allowed',
+      'recurrence_rule_required',
+      'recurrence_rule_not_allowed',
+      'empty_name',
+      'name_too_long',
+      'description_too_long',
+      'invalid_target_value',
+      () => HTTP_STATUS.BAD_REQUEST,
+    )
     .exhaustive()
 
 export {

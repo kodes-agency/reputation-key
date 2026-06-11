@@ -8,97 +8,75 @@ import { isIdentityError } from '../../domain/errors'
 // ── Setup ────────────────────────────────────────────────────────
 
 const setup = () => {
-  const updateCalls: Array<{ headers: Headers; data: Record<string, unknown> }> = []
-  const updateOrg = async (headers: Headers, data: Record<string, unknown>) => {
-    updateCalls.push({ headers, data })
+  const updateCalls: Array<Record<string, unknown>> = []
+  const updateOrg = async (data: Record<string, unknown>) => {
+    updateCalls.push(data)
   }
-  let headersValue: Headers | undefined = new Headers()
-  const getHeaders = () => headersValue
 
-  const deps = { updateOrg, getHeaders }
+  const deps = { updateOrg }
   const useCase = updateOrganization(deps)
 
-  return { useCase, updateCalls, setHeaders: (h: Headers | undefined) => { headersValue = h } }
+  return { useCase, updateCalls }
 }
 
 // ── Tests ────────────────────────────────────────────────────────
 
 describe('updateOrganization', () => {
   it('happy path: AccountAdmin can update organization name and slug', async () => {
-    const { useCase, updateCalls, setHeaders } = setup()
+    const { useCase, updateCalls } = setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
-    setHeaders(new Headers())
 
     await useCase({ name: 'New Org Name', slug: 'new-org-slug' }, ctx)
 
     expect(updateCalls).toHaveLength(1)
-    expect(updateCalls[0].data).toEqual({
+    expect(updateCalls[0]).toEqual({
       name: 'New Org Name',
       slug: 'new-org-slug',
     })
   })
 
   it('happy path: PropertyManager can update organization', async () => {
-    const { useCase, updateCalls, setHeaders } = setup()
+    const { useCase, updateCalls } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
-    setHeaders(new Headers())
 
     await useCase({ name: 'PM Org Name' }, ctx)
 
     expect(updateCalls).toHaveLength(1)
-    expect(updateCalls[0].data.name).toBe('PM Org Name')
+    expect(updateCalls[0].name).toBe('PM Org Name')
   })
 
   it('rejects Staff from updating organization → forbidden', async () => {
-    const { useCase, setHeaders } = setup()
+    const { useCase } = setup()
     const ctx = buildTestAuthContext({ role: 'Staff' })
-    setHeaders(new Headers())
 
-    await expect(
-      useCase({ name: 'Staff Org' }, ctx),
-    ).rejects.toSatisfy(
+    await expect(useCase({ name: 'Staff Org' }, ctx)).rejects.toSatisfy(
       (e: unknown) => isIdentityError(e) && (e as { code: string }).code === 'forbidden',
     )
   })
 
-  it('rejects when headers are not available → validation_error', async () => {
-    const { useCase, setHeaders } = setup()
-    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
-    setHeaders(undefined)
-
-    await expect(
-      useCase({ name: 'No Headers' }, ctx),
-    ).rejects.toSatisfy(
-      (e: unknown) => isIdentityError(e) && (e as { code: string }).code === 'validation_error',
-    )
-  })
-
   it('converts null logo to undefined for Better Auth', async () => {
-    const { useCase, updateCalls, setHeaders } = setup()
+    const { useCase, updateCalls } = setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
-    setHeaders(new Headers())
 
     await useCase({ logo: null }, ctx)
 
     expect(updateCalls).toHaveLength(1)
-    expect(updateCalls[0].data.logo).toBeUndefined()
+    expect(updateCalls[0].logo).toBeUndefined()
   })
 
   it('passes logo value when provided', async () => {
-    const { useCase, updateCalls, setHeaders } = setup()
+    const { useCase, updateCalls } = setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
-    setHeaders(new Headers())
 
     await useCase({ logo: 'https://example.com/logo.png' }, ctx)
 
     expect(updateCalls).toHaveLength(1)
-    expect(updateCalls[0].data.logo).toBe('https://example.com/logo.png')
+    expect(updateCalls[0].logo).toBe('https://example.com/logo.png')
   })
 
   it('converts null billing fields to undefined', async () => {
-    const { useCase, updateCalls, setHeaders } = setup()
+    const { useCase, updateCalls } = setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
-    setHeaders(new Headers())
 
     await useCase(
       {
@@ -113,7 +91,7 @@ describe('updateOrganization', () => {
     )
 
     expect(updateCalls).toHaveLength(1)
-    const data = updateCalls[0].data
+    const data = updateCalls[0]
     expect(data.contactEmail).toBeUndefined()
     expect(data.billingCompanyName).toBeUndefined()
     expect(data.billingAddress).toBeUndefined()
@@ -123,9 +101,8 @@ describe('updateOrganization', () => {
   })
 
   it('passes billing fields as strings when provided', async () => {
-    const { useCase, updateCalls, setHeaders } = setup()
+    const { useCase, updateCalls } = setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
-    setHeaders(new Headers())
 
     await useCase(
       {
@@ -140,7 +117,7 @@ describe('updateOrganization', () => {
     )
 
     expect(updateCalls).toHaveLength(1)
-    const data = updateCalls[0].data
+    const data = updateCalls[0]
     expect(data.contactEmail).toBe('billing@test.com')
     expect(data.billingCompanyName).toBe('Test Corp')
     expect(data.billingAddress).toBe('123 Billing St')
@@ -150,28 +127,15 @@ describe('updateOrganization', () => {
   })
 
   it('omits name and slug when not provided', async () => {
-    const { useCase, updateCalls, setHeaders } = setup()
+    const { useCase, updateCalls } = setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
-    setHeaders(new Headers())
 
     await useCase({ logo: 'https://example.com/new-logo.png' }, ctx)
 
     expect(updateCalls).toHaveLength(1)
-    const data = updateCalls[0].data
+    const data = updateCalls[0]
     expect(data).not.toHaveProperty('name')
     expect(data).not.toHaveProperty('slug')
     expect(data.logo).toBe('https://example.com/new-logo.png')
-  })
-
-  it('passes headers to updateOrg', async () => {
-    const { useCase, updateCalls, setHeaders } = setup()
-    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
-    const testHeaders = new Headers({ authorization: 'Bearer test-token' })
-    setHeaders(testHeaders)
-
-    await useCase({ name: 'Headers Test' }, ctx)
-
-    expect(updateCalls).toHaveLength(1)
-    expect(updateCalls[0].headers).toBe(testHeaders)
   })
 })

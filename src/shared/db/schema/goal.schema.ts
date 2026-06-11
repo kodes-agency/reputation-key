@@ -64,11 +64,15 @@ export const goalProgress = pgTable(
     goalId: uuid('goal_id')
       .notNull()
       .references(() => goals.id, { onDelete: 'cascade' }),
+    organizationId: varchar('organization_id', { length: 255 }),
     currentValue: real('current_value').notNull().default(0),
     currentSum: real('current_sum'),
     currentCount: integer('current_count'),
     lastComputedAt: timestamp('last_computed_at', { withTimezone: true }).notNull(),
     computedSource: varchar('computed_source', { length: 20 }).notNull(),
   },
-  (t) => [uniqueIndex('goal_progress_goal_uniq').on(t.goalId)],
+  (t) => [
+    uniqueIndex('goal_progress_goal_uniq').on(t.goalId),
+    index('goal_progress_org_idx').on(t.organizationId),
+  ],
 )

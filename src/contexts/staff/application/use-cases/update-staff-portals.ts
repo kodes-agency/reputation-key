@@ -92,6 +92,7 @@ export const updateStaffPortals =
 
         await deps.events.emit({
           ...staffAssigned({
+            eventId: crypto.randomUUID(),
             assignmentId: buildResult.value.id,
             organizationId: buildResult.value.organizationId,
             userId: buildResult.value.userId,
@@ -114,6 +115,7 @@ export const updateStaffPortals =
 
         await deps.events.emit({
           ...staffUnassigned({
+            eventId: crypto.randomUUID(),
             assignmentId: assignment.id,
             organizationId: assignment.organizationId,
             userId: assignment.userId,

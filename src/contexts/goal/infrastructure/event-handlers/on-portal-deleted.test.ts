@@ -39,11 +39,13 @@ function makeGoal(overrides: Partial<Goal> & { id: Goal['id'] }): Goal {
 function makeEvent(overrides: Partial<PortalDeleted> = {}): PortalDeleted {
   return {
     _tag: 'portal.deleted',
+    eventId: 'test-event-1',
+    correlationId: null,
     portalId: portalId('portal-1'),
     organizationId: organizationId('org-1'),
     occurredAt: FIXED_TIME,
     ...overrides,
-  }
+  } as PortalDeleted
 }
 
 function makeFakeDeps(storedGoals: Goal[] = []) {

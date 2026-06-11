@@ -71,7 +71,7 @@ describe('buildGoal', () => {
         periodEnd: new Date('2026-06-30'),
       })
       expect(result.isErr()).toBe(true)
-      expect(result._unsafeUnwrapErr().tag).toBe('period_not_allowed')
+      expect(result._unsafeUnwrapErr().code).toBe('period_not_allowed')
     })
 
     it('rejects open goal with rollingWindowDays', () => {
@@ -81,7 +81,7 @@ describe('buildGoal', () => {
         rollingWindowDays: 30,
       })
       expect(result.isErr()).toBe(true)
-      expect(result._unsafeUnwrapErr().tag).toBe('rolling_window_not_allowed')
+      expect(result._unsafeUnwrapErr().code).toBe('rolling_window_not_allowed')
     })
 
     it('rejects open goal with recurrenceRule', () => {
@@ -91,7 +91,7 @@ describe('buildGoal', () => {
         recurrenceRule: { frequency: 'monthly' },
       })
       expect(result.isErr()).toBe(true)
-      expect(result._unsafeUnwrapErr().tag).toBe('recurrence_rule_not_allowed')
+      expect(result._unsafeUnwrapErr().code).toBe('recurrence_rule_not_allowed')
     })
   })
 
@@ -116,7 +116,7 @@ describe('buildGoal', () => {
         goalType: 'one_shot',
       })
       expect(result.isErr()).toBe(true)
-      expect(result._unsafeUnwrapErr().tag).toBe('period_required')
+      expect(result._unsafeUnwrapErr().code).toBe('period_required')
     })
 
     it('rejects one-shot goal with periodEnd before periodStart', () => {
@@ -127,7 +127,7 @@ describe('buildGoal', () => {
         periodEnd: new Date('2026-06-01'),
       })
       expect(result.isErr()).toBe(true)
-      expect(result._unsafeUnwrapErr().tag).toBe('invalid_period')
+      expect(result._unsafeUnwrapErr().code).toBe('invalid_period')
     })
 
     it('rejects one-shot goal with rollingWindowDays', () => {
@@ -139,7 +139,7 @@ describe('buildGoal', () => {
         rollingWindowDays: 30,
       })
       expect(result.isErr()).toBe(true)
-      expect(result._unsafeUnwrapErr().tag).toBe('rolling_window_not_allowed')
+      expect(result._unsafeUnwrapErr().code).toBe('rolling_window_not_allowed')
     })
 
     it('rejects one-shot goal with recurrenceRule', () => {
@@ -151,7 +151,7 @@ describe('buildGoal', () => {
         recurrenceRule: { frequency: 'monthly' },
       })
       expect(result.isErr()).toBe(true)
-      expect(result._unsafeUnwrapErr().tag).toBe('recurrence_rule_not_allowed')
+      expect(result._unsafeUnwrapErr().code).toBe('recurrence_rule_not_allowed')
     })
   })
 
@@ -175,7 +175,7 @@ describe('buildGoal', () => {
         goalType: 'rolling',
       })
       expect(result.isErr()).toBe(true)
-      expect(result._unsafeUnwrapErr().tag).toBe('rolling_window_required')
+      expect(result._unsafeUnwrapErr().code).toBe('rolling_window_required')
     })
 
     it('rejects rolling goal with period dates', () => {
@@ -187,7 +187,7 @@ describe('buildGoal', () => {
         periodEnd: new Date('2026-06-30'),
       })
       expect(result.isErr()).toBe(true)
-      expect(result._unsafeUnwrapErr().tag).toBe('period_not_allowed')
+      expect(result._unsafeUnwrapErr().code).toBe('period_not_allowed')
     })
 
     it('rejects rolling goal with recurrenceRule', () => {
@@ -198,7 +198,7 @@ describe('buildGoal', () => {
         recurrenceRule: { frequency: 'monthly' },
       })
       expect(result.isErr()).toBe(true)
-      expect(result._unsafeUnwrapErr().tag).toBe('recurrence_rule_not_allowed')
+      expect(result._unsafeUnwrapErr().code).toBe('recurrence_rule_not_allowed')
     })
 
     it('rejects rolling goal with rollingWindowDays = 0', () => {
@@ -208,7 +208,7 @@ describe('buildGoal', () => {
         rollingWindowDays: 0,
       })
       expect(result.isErr()).toBe(true)
-      expect(result._unsafeUnwrapErr().tag).toBe('rolling_window_required')
+      expect(result._unsafeUnwrapErr().code).toBe('rolling_window_required')
     })
 
     it('rejects rolling goal with negative rollingWindowDays', () => {
@@ -218,7 +218,7 @@ describe('buildGoal', () => {
         rollingWindowDays: -5,
       })
       expect(result.isErr()).toBe(true)
-      expect(result._unsafeUnwrapErr().tag).toBe('rolling_window_required')
+      expect(result._unsafeUnwrapErr().code).toBe('rolling_window_required')
     })
   })
 
@@ -243,7 +243,7 @@ describe('buildGoal', () => {
         goalType: 'recurring',
       })
       expect(result.isErr()).toBe(true)
-      expect(result._unsafeUnwrapErr().tag).toBe('recurrence_rule_required')
+      expect(result._unsafeUnwrapErr().code).toBe('recurrence_rule_required')
     })
 
     it('rejects recurring with period dates (template cannot have dates)', () => {
@@ -255,7 +255,7 @@ describe('buildGoal', () => {
         periodEnd: new Date('2026-06-30'),
       })
       expect(result.isErr()).toBe(true)
-      expect(result._unsafeUnwrapErr().tag).toBe('period_not_allowed')
+      expect(result._unsafeUnwrapErr().code).toBe('period_not_allowed')
     })
 
     it('rejects recurring with rollingWindowDays', () => {
@@ -266,7 +266,7 @@ describe('buildGoal', () => {
         rollingWindowDays: 30,
       })
       expect(result.isErr()).toBe(true)
-      expect(result._unsafeUnwrapErr().tag).toBe('rolling_window_not_allowed')
+      expect(result._unsafeUnwrapErr().code).toBe('rolling_window_not_allowed')
     })
 
     it('allows recurring instance (parentGoalId set) with period dates', () => {
@@ -293,7 +293,7 @@ describe('buildGoal', () => {
         periodEnd: new Date('2026-06-01'),
       })
       expect(result.isErr()).toBe(true)
-      expect(result._unsafeUnwrapErr().tag).toBe('invalid_period')
+      expect(result._unsafeUnwrapErr().code).toBe('invalid_period')
     })
   })
 
@@ -334,7 +334,7 @@ describe('buildGoal', () => {
         metricKey: 'property.review',
       })
       expect(result.isErr()).toBe(true)
-      expect(result._unsafeUnwrapErr().tag).toBe('invalid_metric_for_scope')
+      expect(result._unsafeUnwrapErr().code).toBe('invalid_metric_for_scope')
     })
 
     it('allows portal_group scope with portal.scan metric', () => {
@@ -355,7 +355,7 @@ describe('buildGoal', () => {
         portalGroupId: portalGroupId('pg-1'),
       })
       expect(result.isErr()).toBe(true)
-      expect(result._unsafeUnwrapErr().tag).toBe('ambiguous_scope')
+      expect(result._unsafeUnwrapErr().code).toBe('ambiguous_scope')
     })
   })
 
@@ -369,7 +369,7 @@ describe('buildGoal', () => {
         aggregationFunction: 'avg',
       })
       expect(result.isErr()).toBe(true)
-      expect(result._unsafeUnwrapErr().tag).toBe('invalid_aggregation_for_metric')
+      expect(result._unsafeUnwrapErr().code).toBe('invalid_aggregation_for_metric')
     })
 
     it('allows AVG on portal.rating', () => {
@@ -390,7 +390,7 @@ describe('buildGoal', () => {
         aggregationFunction: 'sum',
       })
       expect(result.isErr()).toBe(true)
-      expect(result._unsafeUnwrapErr().tag).toBe('invalid_aggregation_for_metric')
+      expect(result._unsafeUnwrapErr().code).toBe('invalid_aggregation_for_metric')
     })
   })
 
@@ -403,7 +403,7 @@ describe('buildGoal', () => {
         name: '',
       })
       expect(result.isErr()).toBe(true)
-      expect(result._unsafeUnwrapErr().tag).toBe('empty_name')
+      expect(result._unsafeUnwrapErr().code).toBe('empty_name')
     })
 
     it('rejects whitespace-only name', () => {
@@ -413,7 +413,7 @@ describe('buildGoal', () => {
         name: '   ',
       })
       expect(result.isErr()).toBe(true)
-      expect(result._unsafeUnwrapErr().tag).toBe('empty_name')
+      expect(result._unsafeUnwrapErr().code).toBe('empty_name')
     })
 
     it('rejects zero targetValue', () => {
@@ -423,7 +423,7 @@ describe('buildGoal', () => {
         targetValue: 0,
       })
       expect(result.isErr()).toBe(true)
-      expect(result._unsafeUnwrapErr().tag).toBe('invalid_target_value')
+      expect(result._unsafeUnwrapErr().code).toBe('invalid_target_value')
     })
 
     it('rejects negative targetValue', () => {
@@ -433,7 +433,7 @@ describe('buildGoal', () => {
         targetValue: -5,
       })
       expect(result.isErr()).toBe(true)
-      expect(result._unsafeUnwrapErr().tag).toBe('invalid_target_value')
+      expect(result._unsafeUnwrapErr().code).toBe('invalid_target_value')
     })
 
     it('rejects NaN targetValue', () => {
@@ -443,7 +443,7 @@ describe('buildGoal', () => {
         targetValue: NaN,
       })
       expect(result.isErr()).toBe(true)
-      expect(result._unsafeUnwrapErr().tag).toBe('invalid_target_value')
+      expect(result._unsafeUnwrapErr().code).toBe('invalid_target_value')
     })
 
     it('rejects Infinity targetValue', () => {
@@ -453,7 +453,7 @@ describe('buildGoal', () => {
         targetValue: Infinity,
       })
       expect(result.isErr()).toBe(true)
-      expect(result._unsafeUnwrapErr().tag).toBe('invalid_target_value')
+      expect(result._unsafeUnwrapErr().code).toBe('invalid_target_value')
     })
 
     it('accepts name at exactly 200 characters', () => {
@@ -472,7 +472,7 @@ describe('buildGoal', () => {
         name: 'A'.repeat(201),
       })
       expect(result.isErr()).toBe(true)
-      expect(result._unsafeUnwrapErr().tag).toBe('name_too_long')
+      expect(result._unsafeUnwrapErr().code).toBe('name_too_long')
     })
 
     it('accepts description at exactly 1000 characters', () => {
@@ -492,7 +492,7 @@ describe('buildGoal', () => {
         description: 'D'.repeat(1001),
       })
       expect(result.isErr()).toBe(true)
-      expect(result._unsafeUnwrapErr().tag).toBe('description_too_long')
+      expect(result._unsafeUnwrapErr().code).toBe('description_too_long')
     })
   })
 

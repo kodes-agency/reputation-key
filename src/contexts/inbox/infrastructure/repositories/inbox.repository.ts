@@ -211,8 +211,11 @@ export const createInboxRepository = (
     })
   },
 
-  create: async (item: InboxItem) => {
+  create: async (item: InboxItem, orgId: OrganizationId) => {
     return trace('inbox.create', async () => {
+      if (item.organizationId !== orgId) {
+        throw inboxError('forbidden', 'InboxItem.create: tenant mismatch')
+      }
       const row = inboxItemToInsertRow(item)
       const result = await db.insert(inboxItems).values(row).returning()
 

@@ -79,12 +79,7 @@ function buildInfrastructure(options: { redis: Redis | undefined; enableJobs: bo
 
 // ── Identity infrastructure helpers ────────────────────────────────
 
-function createOrg(
-  _headers: Headers,
-  name: string,
-  slug: string,
-  userId?: string,
-): Promise<string> {
+function createOrg(name: string, slug: string, userId?: string): Promise<string> {
   const auth = getAuth()
   return auth.api
     .createOrganization({
@@ -101,10 +96,11 @@ function createOrg(
     })
 }
 
-async function setActiveOrg(headers: Headers, orgId: string): Promise<void> {
+async function setActiveOrg(orgId: string): Promise<void> {
   const auth = getAuth()
   const logger = getLogger()
   try {
+    const headers = await headersFromContext()
     await auth.api.setActiveOrganization({
       headers,
       body: { organizationId: orgId },
@@ -149,11 +145,11 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     signUp: identityPort.signUp,
     createOrg,
     setActiveOrg,
-    updateOrg: async (headers, data) => {
+    updateOrg: async (data) => {
       const auth = getAuth()
+      const headers = await headersFromContext()
       await auth.api.updateOrganization({ headers, body: { data } })
     },
-    headers: headersFromContext,
     sendEmail: sendInvitationEmail,
     getOrganizationName: async (_ctx) => {
       const auth = getAuth()

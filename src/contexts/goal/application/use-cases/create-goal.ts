@@ -26,7 +26,8 @@ import type {
 } from '#/shared/domain/ids'
 import type { MetricKey, AggregationFunction } from '#/shared/domain/metric-keys'
 import type { Role } from '#/shared/domain/roles'
-import { buildGoal, type GoalConstructionError } from '../../domain/constructors'
+import { buildGoal } from '../../domain/constructors'
+import type { GoalError } from '../../domain/errors'
 import {
   buildProgressQuery,
   buildProgressQueryForInstance,
@@ -60,8 +61,8 @@ type CreateGoalInput = Readonly<{
 
 export type CreateGoalError =
   | { tag: 'forbidden' }
-  | { tag: 'construction_error'; error: GoalConstructionError }
-  | { tag: 'instance_construction_error'; error: GoalConstructionError }
+  | { tag: 'construction_error'; error: GoalError }
+  | { tag: 'instance_construction_error'; error: GoalError }
   | { tag: 'progress_query_error'; errorTag: string }
 
 // ── Output type ─────────────────────────────────────────────────────────
@@ -136,6 +137,7 @@ export const createGoal =
     const progress: GoalProgress = {
       id: deps.idGen() as unknown as GoalProgressId,
       goalId: goal.id,
+      organizationId: goal.organizationId,
       currentValue: progressValue,
       currentSum: goal.aggregationFunction === 'avg' ? aggregate.sum : null,
       currentCount: goal.aggregationFunction === 'avg' ? aggregate.count : null,
@@ -209,6 +211,7 @@ async function handleRecurringGoal(
   const progress: GoalProgress = {
     id: deps.idGen() as unknown as GoalProgressId,
     goalId: instance.id,
+    organizationId: template.organizationId,
     currentValue: progressValue,
     currentSum: template.aggregationFunction === 'avg' ? aggregate.sum : null,
     currentCount: template.aggregationFunction === 'avg' ? aggregate.count : null,

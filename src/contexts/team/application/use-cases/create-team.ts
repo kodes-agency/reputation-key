@@ -71,6 +71,7 @@ export const createTeam =
     // 6. Emit event
     await deps.events.emit(
       teamCreated({
+        eventId: crypto.randomUUID(),
         teamId: team.id,
         organizationId: team.organizationId,
         propertyId: team.propertyId,
