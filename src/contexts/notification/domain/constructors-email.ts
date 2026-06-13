@@ -13,6 +13,7 @@ import type { NotificationError } from './errors'
 // ── Create email queue entry ────────────────────────────────────────
 
 export type CreateNotificationEmailInput = Readonly<{
+  id: NotificationEmailId
   notificationId: NotificationId
   userId: UserId
   organizationId: OrganizationId
@@ -25,7 +26,7 @@ export const createNotificationEmail = (
 ): Result<NotificationEmail, NotificationError> => {
   const now = clock()
   return ok({
-    id: '' as unknown as NotificationEmailId,
+    id: input.id,
     notificationId: input.notificationId,
     userId: input.userId,
     organizationId: input.organizationId,

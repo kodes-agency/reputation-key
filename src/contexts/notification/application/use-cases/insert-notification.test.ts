@@ -7,7 +7,7 @@ import type {
   InsertNotificationDeps,
 } from './insert-notification'
 import type {
-  Notification,
+  Notification as DomainNotification,
   NotificationEmail,
   NotificationPreference,
 } from '../../domain/types'
@@ -25,13 +25,11 @@ const EMAIL_ID = notificationEmailId('email-1')
 const FIXED_DATE = new Date('2026-06-10T10:00:00Z')
 
 function createFakeDeps(): InsertNotificationDeps {
-  const insertedNotifications: Notification[] = []
   const insertedEmails: unknown[] = []
 
   return {
     notificationRepo: {
-      insert: vi.fn(async (n: Notification) => {
-        insertedNotifications.push(n)
+      insert: vi.fn(async (n: DomainNotification) => {
         return n
       }),
       findById: vi.fn(async () => null),
@@ -211,9 +209,11 @@ describe('insertNotification', () => {
   it('throws on invalid notification type', async () => {
     const badInput = { ...validInput, type: 'bogus.type' } as unknown as typeof validInput
 
-    await expect(insertNotification(deps)(badInput)).rejects.toThrow(
-      'Invalid notification type: bogus.type',
-    )
+    await expect(insertNotification(deps)(badInput)).rejects.toMatchObject({
+      _tag: 'NotificationError',
+      code: 'invalid_type',
+      message: 'Invalid notification type: bogus.type',
+    })
     expect(deps.notificationRepo.insert).not.toHaveBeenCalled()
     expect(deps.logger.warn).toHaveBeenCalledWith(
       expect.objectContaining({ input: badInput }),
@@ -227,9 +227,11 @@ describe('insertNotification', () => {
       resourceType: 'bad_resource',
     } as unknown as typeof validInput
 
-    await expect(insertNotification(deps)(badInput)).rejects.toThrow(
-      'Invalid resource type: bad_resource',
-    )
+    await expect(insertNotification(deps)(badInput)).rejects.toMatchObject({
+      _tag: 'NotificationError',
+      code: 'invalid_resource_type',
+      message: 'Invalid resource type: bad_resource',
+    })
   })
 
   it('defaults to enabled when no preference exists', async () => {

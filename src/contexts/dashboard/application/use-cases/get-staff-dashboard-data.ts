@@ -1,7 +1,9 @@
 // Dashboard context — getStaffDashboardData use case
 // Resolves assigned portals for a staff user and queries KPIs across those portals.
-// Authorization is enforced at the server function level. No auth logic here.
+// Per architecture: application use case owns authorization.
 
+import { can } from '#/shared/domain/permissions'
+import { dashboardError } from '../../domain/errors'
 import type { DashboardRepository } from '../ports/dashboard.repository'
 import type { StaffPortalResolverPort } from '../ports/staff-portal-resolver.port'
 import type { OrganizationId, PropertyId, PortalId, UserId } from '#/shared/domain/ids'
@@ -38,6 +40,10 @@ export const getStaffDashboardData =
     input: GetStaffDashboardDataInput,
     ctx: AuthContext,
   ): Promise<StaffDashboardData> => {
+    if (!can(ctx.role, 'dashboard.read')) {
+      throw dashboardError('forbidden', 'Insufficient permissions to view dashboard')
+    }
+
     const {
       organizationId,
       userId,

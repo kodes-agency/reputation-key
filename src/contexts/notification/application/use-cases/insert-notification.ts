@@ -1,7 +1,6 @@
 // Notification context — insert notification use case
 // Creates a notification, checks preferences, persists, and enqueues email if needed.
 
-import type { Notification } from '../../domain/types'
 import {
   createNotification,
   type CreateNotificationInput,
@@ -12,10 +11,11 @@ import type { NotificationEmailRepositoryPort } from '../ports/notification-emai
 import type { NotificationPreferenceRepositoryPort } from '../ports/notification-preference-repository.port'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { NotificationId, NotificationEmailId } from '#/shared/domain/ids'
+import type { Notification as DomainNotification } from '../../domain/types'
 
 // ── Input ───────────────────────────────────────────────────────────
 
-export type InsertNotificationInput = CreateNotificationInput
+export type InsertNotificationInput = Omit<CreateNotificationInput, 'id'>
 
 // ── Deps ────────────────────────────────────────────────────────────
 
@@ -33,14 +33,13 @@ export type InsertNotificationDeps = Readonly<{
 
 export const insertNotification =
   (deps: InsertNotificationDeps) =>
-  async (input: InsertNotificationInput): Promise<Notification | null> => {
+  async (input: InsertNotificationInput): Promise<DomainNotification | null> => {
     const { logger } = deps
 
-    // 1. Construct domain object
-    const result = createNotification(input, deps.clock)
+    const result = createNotification({ ...input, id: deps.idGen() }, deps.clock)
     if (result.isErr()) {
       logger.warn({ error: result.error, input }, 'Failed to construct notification')
-      throw new Error(result.error.message)
+      throw result.error
     }
 
     // 2. Check notification preference
@@ -61,15 +60,14 @@ export const insertNotification =
       return null
     }
 
-    // 3. Assign ID and persist — always create the row if any channel is enabled
-    // (email needs the FK reference to the notification row)
-    const notification: Notification = { ...result.value, id: deps.idGen() }
+    const notification: DomainNotification = result.value
     const inserted = await deps.notificationRepo.insert(notification)
 
     // 4. Enqueue email if enabled
     if (emailEnabled) {
       const emailResult = createNotificationEmail(
         {
+          id: deps.emailIdGen(),
           notificationId: inserted.id,
           userId: inserted.userId,
           organizationId: inserted.organizationId,
@@ -79,8 +77,7 @@ export const insertNotification =
       )
 
       if (emailResult.isOk()) {
-        const emailEntry = { ...emailResult.value, id: deps.emailIdGen() }
-        await deps.emailRepo.insert(emailEntry)
+        await deps.emailRepo.insert(emailResult.value)
       } else {
         logger.warn(
           { error: emailResult.error, notificationId: inserted.id },
