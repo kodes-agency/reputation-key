@@ -15,18 +15,25 @@ import {
   userId,
   notificationId,
   notificationEmailId,
+  notificationPreferenceId,
 } from '#/shared/domain/ids'
-import type { Notification, NotificationEmail, NotificationType } from './types'
+import type {
+  Notification as DomainNotification,
+  NotificationEmail,
+  NotificationType,
+} from './types'
 
 const ORG_ID = organizationId('org-1')
 const USER_ID = userId('user-1')
+const NOTIFICATION_ID = notificationId('notif-1')
+const EMAIL_ID = notificationEmailId('email-1')
+const PREFERENCE_ID = notificationPreferenceId('pref-1')
 const FIXED_DATE = new Date('2026-06-10T10:00:00Z')
 const clock = () => FIXED_DATE
 
-// ── createNotification ──────────────────────────────────────────────
-
 describe('createNotification', () => {
   const validInput = {
+    id: NOTIFICATION_ID,
     userId: USER_ID,
     organizationId: ORG_ID,
     type: 'review.created' as NotificationType,
@@ -43,6 +50,7 @@ describe('createNotification', () => {
     expect(result.isOk()).toBe(true)
     if (result.isOk()) {
       const n = result.value
+      expect(n.id).toBe(NOTIFICATION_ID)
       expect(n.userId).toBe(USER_ID)
       expect(n.organizationId).toBe(ORG_ID)
       expect(n.type).toBe('review.created')
@@ -151,6 +159,7 @@ describe('createNotificationEmail', () => {
   it('returns ok with a valid email queue entry', () => {
     const result = createNotificationEmail(
       {
+        id: EMAIL_ID,
         notificationId: NOTIF_ID,
         userId: USER_ID,
         organizationId: ORG_ID,
@@ -162,6 +171,7 @@ describe('createNotificationEmail', () => {
     expect(result.isOk()).toBe(true)
     if (result.isOk()) {
       const e = result.value
+      expect(e.id).toBe(EMAIL_ID)
       expect(e.notificationId).toBe(NOTIF_ID)
       expect(e.userId).toBe(USER_ID)
       expect(e.organizationId).toBe(ORG_ID)
@@ -179,6 +189,7 @@ describe('createNotificationEmail', () => {
     const customDate = new Date('2025-06-15T08:30:00Z')
     const result = createNotificationEmail(
       {
+        id: EMAIL_ID,
         notificationId: NOTIF_ID,
         userId: USER_ID,
         organizationId: ORG_ID,
@@ -189,6 +200,7 @@ describe('createNotificationEmail', () => {
 
     expect(result.isOk()).toBe(true)
     if (result.isOk()) {
+      expect(result.value.id).toBe(EMAIL_ID)
       expect(result.value.createdAt).toBe(customDate)
     }
   })
@@ -200,6 +212,7 @@ describe('createNotificationPreference', () => {
   it('returns ok with a valid preference', () => {
     const result = createNotificationPreference(
       {
+        id: PREFERENCE_ID,
         userId: USER_ID,
         organizationId: ORG_ID,
         type: 'review.created',
@@ -212,6 +225,7 @@ describe('createNotificationPreference', () => {
     expect(result.isOk()).toBe(true)
     if (result.isOk()) {
       const p = result.value
+      expect(p.id).toBe(PREFERENCE_ID)
       expect(p.userId).toBe(USER_ID)
       expect(p.organizationId).toBe(ORG_ID)
       expect(p.type).toBe('review.created')
@@ -225,6 +239,7 @@ describe('createNotificationPreference', () => {
   it('returns err for an invalid type', () => {
     const result = createNotificationPreference(
       {
+        id: PREFERENCE_ID,
         userId: USER_ID,
         organizationId: ORG_ID,
         type: 'bogus.type' as unknown as NotificationType,
@@ -244,7 +259,7 @@ describe('createNotificationPreference', () => {
 // ── markNotificationRead ────────────────────────────────────────────
 
 describe('markNotificationRead', () => {
-  const baseNotification: Notification = {
+  const baseNotification: DomainNotification = {
     id: notificationId('n-1'),
     userId: USER_ID,
     organizationId: ORG_ID,
@@ -273,7 +288,7 @@ describe('markNotificationRead', () => {
   })
 
   it('is idempotent when already read', () => {
-    const readNotification: Notification = {
+    const readNotification: DomainNotification = {
       ...baseNotification,
       status: 'read',
       readAt: FIXED_DATE,
@@ -287,7 +302,7 @@ describe('markNotificationRead', () => {
   })
 
   it('rejects dismissed notification — only unread → read is valid', () => {
-    const dismissed: Notification = {
+    const dismissed: DomainNotification = {
       ...baseNotification,
       status: 'dismissed',
     }

@@ -13,6 +13,7 @@ import { ALLOWED_TYPES } from './constructors'
 // ── Create/update preference ────────────────────────────────────────
 
 export type CreateNotificationPreferenceInput = Readonly<{
+  id: NotificationPreferenceId
   userId: UserId
   organizationId: OrganizationId
   type: NotificationType
@@ -34,7 +35,7 @@ export const createNotificationPreference = (
 
   const now = clock()
   return ok({
-    id: '' as unknown as NotificationPreferenceId,
+    id: input.id,
     userId: input.userId,
     organizationId: input.organizationId,
     type: input.type,

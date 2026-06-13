@@ -44,6 +44,7 @@ export const ALLOWED_STATUSES: ReadonlySet<NotificationStatus> = new Set([
 // ── Create notification ─────────────────────────────────────────────
 
 export type CreateNotificationInput = Readonly<{
+  id: NotificationId
   userId: UserId
   organizationId: OrganizationId
   type: NotificationType
@@ -80,7 +81,7 @@ export const createNotification = (
   const priority: NotificationPriority = isUrgent(input.type) ? 'urgent' : 'normal'
 
   return ok({
-    id: '' as unknown as NotificationId,
+    id: input.id,
     userId: input.userId,
     organizationId: input.organizationId,
     type: input.type,
