@@ -136,6 +136,25 @@ export function notificationPreferenceId(id: string): NotificationPreferenceId {
   return id as NotificationPreferenceId
 }
 
+export type BadgeId = Brand<string, 'BadgeId'>
+export function badgeId(id: string): BadgeId {
+  return id as BadgeId
+}
+
+export type OrganizationBadgeEnablementId = Brand<string, 'OrganizationBadgeEnablementId'>
+export function organizationBadgeEnablementId(id: string): OrganizationBadgeEnablementId {
+  return id as OrganizationBadgeEnablementId
+}
+
+export type LeaderboardSnapshotId = Brand<string, 'LeaderboardSnapshotId'>
+export function leaderboardSnapshotId(id: string): LeaderboardSnapshotId {
+  return id as LeaderboardSnapshotId
+}
+
+export type LeaderboardEntryId = Brand<string, 'LeaderboardEntryId'>
+export function leaderboardEntryId(id: string): LeaderboardEntryId {
+  return id as LeaderboardEntryId
+}
 /** Safely strip brand from a branded ID type for use at infrastructure boundaries. */
 export function unbrand<T extends string>(branded: T): string {
   return String(branded)

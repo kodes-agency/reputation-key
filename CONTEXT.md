@@ -2,7 +2,7 @@
 
 ## Architecture
 
-Layered hexagonal (clean architecture). Fourteen bounded contexts in `src/contexts/`, shared infrastructure in `src/shared/`, React frontend in `src/components/` and `src/routes/`.
+Layered hexagonal (clean architecture). Sixteen bounded contexts in `src/contexts/`, shared infrastructure in `src/shared/`, React frontend in `src/components/` and `src/routes/`.
 
 ```
 routes/ → contexts/<ctx>/server/ → contexts/<ctx>/application/ → contexts/<ctx>/domain/
@@ -36,6 +36,8 @@ Composition root: `src/composition.ts`. Bootstrap: `src/bootstrap.ts`.
 |     | Inbox        | Unified triage surface for reviews + feedback                                           | InboxItem, InboxNote                    |
 |     | Metric       | Aggregation of raw counters (scans, ratings, clicks, reviews)                           | MetricReading                           |
 |     | Goal         | Property-scoped goals with progress tracking                                            | Goal, GoalInstance                      |
+|     | Badge        | Recognition awards earned by portals or portal groups from metric-driven criteria       | BadgeDefinition, BadgeAward             |
+|     | Leaderboard  | Read-only ranking of portals and portal groups using composite and per-metric scores    | LeaderboardEntry, LeaderboardSnapshot   |
 |     | Dashboard    | Read-only aggregation of metrics, reviews, replies into property-scoped KPIs and charts | —                                       |
 |     | Notification | User-facing in-app/email notifications                                                  | —                                       |
 |     | Activity     | Immutable audit log                                                                     | —                                       |
@@ -76,6 +78,49 @@ Composition root: `src/composition.ts`. Bootstrap: `src/bootstrap.ts`.
 | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Portal Group**     | A named collection of portals within a property. Used for goal scoping and leaderboard ranking. One portal belongs to at most one group. Lives in the portal context. |
 | **Ungrouped Portal** | A portal not assigned to any portal group. Still individually targetable by goals and rankable on leaderboards.                                                       |
+
+### Badges
+
+| Term                                          | Definition                                                                                                                                                                                                                    |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Badge**                                     | A recognition award earned by a portal or portal group when metric-driven criteria are met. Badges are recognition artifacts, not permissions or access-control labels.                                                       |
+| **Badge Criteria**                            | The metric-driven condition for earning a badge. Criteria can target a portal or portal group and use metric keys, operators, thresholds, time windows, or streak rules.                                                      |
+| **Badge Metric Scope**                        | Phase 16.2 badge criteria use portal-scoped metrics only; property-level metrics are not inherited by portal or portal group badges.                                                                                          |
+| **Badge Criterion Operator**                  | Phase 16.2 badge criteria support `>=` and `<=` comparisons against metric history.                                                                                                                                           |
+| **Badge Criteria Versioning**                 | Badge criteria versions increment only when the earning rule changes, not when presentation metadata changes.                                                                                                                 |
+| **Badge Definition**                          | A reusable badge rule with criteria, target scope, name, icon, and enabled state. Phase 16.2 definitions are system-seeded and org-enabled, not manager-edited.                                                               |
+| **Disabled Badge Definition Existing Awards** | Disabling a system badge definition prevents future awards but keeps already-earned awards visible as historical recognition.                                                                                                 |
+| **Organization Badge Enablement**             | An organization-level choice to enable or disable a system badge definition. It does not change the badge criteria.                                                                                                           |
+| **Badge Streak**                              | A streak criterion that requires a target to be met on consecutive calendar days. A streak is evaluated from metric history, not from goal progress.                                                                          |
+| **Streak Timezone**                           | Badge streak days are evaluated in the target portal's property timezone.                                                                                                                                                     |
+| **Badge Milestone**                           | A one-time badge criterion based on an all-time count threshold, such as first review or first feedback response.                                                                                                             |
+| **Badge Time Window**                         | The period used to evaluate badge criteria. Phase 16.2 supports both calendar windows and rolling windows.                                                                                                                    |
+| **Badge Time Window Set**                     | Phase 16.2 supports calendar periods today, this week, this month, this quarter, all time, and rolling periods last 7, 30, and 90 days.                                                                                       |
+| **Badge Evaluation**                          | The process of checking badge criteria against metric history. Phase 16.2 uses immediate metric-event evaluation plus hourly reconciliation for missed events.                                                                |
+| **Badge Reconciliation**                      | A safety pass that re-evaluates badge criteria so missed events or failed jobs do not permanently prevent valid awards.                                                                                                       |
+| **Badge Award**                               | The fact that a specific portal or portal group earned a specific badge once. For portal group badges, membership is evaluated at award time; later membership changes do not revoke the award.                               |
+| **Deleted Portal Badge History**              | Badge awards earned by a portal remain visible as historical recognition after the portal is soft-deleted.                                                                                                                    |
+| **Badge Award Idempotency Key**               | A badge award is unique per badge definition, criteria version, and target.                                                                                                                                                   |
+| **Deleted Portal Group Badge History**        | Badge awards earned by a portal group remain visible as historical recognition after the group is soft-deleted.                                                                                                               |
+| **Badge Recurrence**                          | Phase 16.2 badges are one-time achievements per target; the same badge is not re-awarded in later periods.                                                                                                                    |
+| **Role-Filtered Badge Visibility**            | Badge visibility follows role and assignment boundaries: managers see managed property badges; staff see badges for assigned portals and portal groups containing assigned portals.                                           |
+| **Staff Badge History Visibility**            | Staff badge visibility follows current assignments only; historical portal/group badge history remains visible to managers and on the target itself.                                                                          |
+| **Badge Notification Audience**               | Badge award notifications go to property managers and staff assigned to the awarded portal or portal group.                                                                                                                   |
+| **Badge UI Placement**                        | Earned badges appear on staff home, leaderboard, and portal detail pages.                                                                                                                                                     |
+| **Phase 16.2 Badge Library**                  | The initial system badge set: First Review, First Feedback Response, 100 Scans, 500 Scans, 1000 Scans, 10 Feedback Responses, 50 Feedback Responses, 4.5 Avg Rating This Month, 7-Day Scan Streak, and 5-Day Feedback Streak. |
+
+### Leaderboards
+
+| Term                                          | Definition                                                                                                                                                             |
+| --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Leaderboard Composite Score**               | A single rank score combining normalized portal or portal group metrics for an overall leaderboard.                                                                    |
+| **Leaderboard Snapshot Strategy**             | Leaderboard snapshots are refreshed by metric events for the affected property/period, with hourly reconciliation for missed updates.                                  |
+| **Leaderboard Snapshot Key**                  | Phase 16.2 leaderboard snapshots are keyed by property, period, scope, and metric.                                                                                     |
+| **Leaderboard Ranking Scope**                 | Phase 16.2 ranks portals and portal groups within a selected property; ungrouped portals remain individually rankable.                                                 |
+| **Leaderboard Tie Handling**                  | Equal leaderboard scores share the same rank; deterministic ordering is used only to stabilize display order within a tie.                                             |
+| **Property-Scoped Leaderboard Normalization** | Metric normalization is computed within a selected property and leaderboard period, so portals and portal groups compete against peers in the same property.           |
+| **Fixed Composite Score Formula**             | The system-defined metric weights used for the overall leaderboard. Phase 16.2 uses 40% average rating, 30% feedback responses, 20% scans, and 10% review-link clicks. |
+| **Per-Metric Leaderboard**                    | A leaderboard ranked by one metric only, used as drill-down from the composite leaderboard.                                                                            |
 
 ### Reviews & Feedback
 
@@ -129,6 +174,7 @@ See `docs/adr/` for formal ADRs. Key ADRs:
 || 0011 | Notification Context: BullMQ Event Delivery | Notification Context, Event Delivery |
 || 0012 | Nitro Vite Plugin — Dev-Mode Exclusion | Dev Tooling, Vite Config, TanStack Start |
 || 0013 | Portal Groups Replace Team and Staff as Goal/Leaderboard Scopes | Goal Scoping, Portal Groups |
+|| 0014 | Badges and Leaderboards as Separate Recognition Contexts | Badges, Leaderboards, Recognition |
 
 ## Key Files
 

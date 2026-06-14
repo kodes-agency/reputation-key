@@ -30,6 +30,8 @@ export type NotificationType =
   | 'inbox_note.added'
   // Goal events
   | 'goal.completed'
+  // Badge events
+  | 'badge.awarded'
 
 // ── Priority ────────────────────────────────────────────────────────
 // Urgent = immediate email. Normal = digest only.
@@ -42,9 +44,7 @@ export type NotificationStatus = 'unread' | 'read' | 'dismissed'
 
 export type EmailQueueStatus = 'pending' | 'sent' | 'failed' | 'skipped'
 
-// ── Resource types (for routing) ────────────────────────────────────
-
-export type NotificationResourceType = 'inbox_item' | 'reply' | 'goal'
+export type NotificationResourceType = 'inbox_item' | 'reply' | 'goal' | 'badge'
 
 // ── In-app notification ─────────────────────────────────────────────
 

@@ -150,8 +150,25 @@ export type {
   MetricRecorded,
 } from '#/contexts/metric/domain/events'
 
+// Badge context events
+export type {
+  // fallow-ignore-next-line unused-type
+  BadgeEvent,
+  // fallow-ignore-next-line unused-type
+  BadgeAwarded,
+} from '#/contexts/badge/domain/events'
+
+// Leaderboard context events
+export type {
+  // fallow-ignore-next-line unused-type
+  LeaderboardEvent,
+  // fallow-ignore-next-line unused-type
+  LeaderboardSnapshotRefreshed,
+} from '#/contexts/leaderboard/domain/events'
+
 // Master union — adding a new context's events requires extending this.
-// This ensures ts-pattern exhaustive checks catch new event types.
+import type { BadgeEvent } from '#/contexts/badge/domain/events'
+import type { LeaderboardEvent } from '#/contexts/leaderboard/domain/events'
 import type { IdentityEvent } from '#/contexts/identity/domain/events'
 import type { PropertyEvent } from '#/contexts/property/domain/events'
 import type { TeamEvent } from '#/contexts/team/domain/events'
@@ -176,3 +193,5 @@ export type DomainEvent =
   | InboxEvent
   | GoalEvent
   | MetricEvent
+  | BadgeEvent
+  | LeaderboardEvent

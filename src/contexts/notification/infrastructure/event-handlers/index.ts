@@ -17,6 +17,7 @@ import { onReplyRejected } from './on-reply-rejected'
 import { onReplyPublished } from './on-reply-published'
 import { onReplyPublishFailed } from './on-reply-publish-failed'
 import { onGoalCompleted } from './on-goal-completed'
+import { onBadgeAwarded } from './on-badge-awarded'
 
 export type RegisterNotificationHandlersDeps = Readonly<{
   events: EventBus
@@ -48,7 +49,9 @@ export const registerNotificationHandlers = (
   events.on('review.reply.rejected', onReplyRejected({ queue }))
   events.on('review.reply.published', onReplyPublished({ queue }))
   events.on('review.reply.publish_failed', onReplyPublishFailed({ queue }))
-
   // Goal events
   events.on('goal.completed', onGoalCompleted({ queue }))
+
+  // Badge events
+  events.on('badge.awarded', onBadgeAwarded({ queue, userLookup, logger }))
 }

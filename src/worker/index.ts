@@ -142,6 +142,19 @@ function main() {
         .then(() => logger.info({ jobName, label }, 'Job scheduled'))
         .catch((err: unknown) => logger.warn({ err, jobName }, 'Failed to schedule job'))
     }
+
+    // ── Badge + Leaderboard reconciliation jobs ──────────────────────
+    type RecognitionSchedule = Readonly<{ jobName: string; every: number; label: string }>
+    const recognitionSchedules: RecognitionSchedule[] = [
+      { jobName: 'badge.reconcile', every: 60 * 60 * 1000, label: 'hourly' },
+      { jobName: 'leaderboard.reconcile', every: 60 * 60 * 1000, label: 'hourly' },
+    ]
+    for (const { jobName, every, label } of recognitionSchedules) {
+      container.jobQueue
+        .add(jobName, {}, { repeat: { every }, jobId: `${jobName}-recurring` })
+        .then(() => logger.info({ jobName, label }, 'Job scheduled'))
+        .catch((err: unknown) => logger.warn({ err, jobName }, 'Failed to schedule job'))
+    }
   } else {
     logger.warn('No Redis available — worker running without job processing')
   }
