@@ -72,7 +72,7 @@ export const badgeAwards = pgTable(
     targetType: varchar('target_type', { length: 20 }).notNull(),
     targetId: uuid('target_id').notNull(),
     organizationId: varchar('organization_id', { length: 255 }).notNull(),
-    propertyId: varchar('property_id', { length: 255 })
+    propertyId: uuid('property_id')
       .notNull()
       .references(() => properties.id, { onDelete: 'cascade' }),
     portalId: uuid('portal_id').references(() => portals.id, { onDelete: 'set null' }),

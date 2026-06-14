@@ -19,7 +19,7 @@ export const leaderboardSnapshots = pgTable(
   'leaderboard_snapshots',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    propertyId: varchar('property_id', { length: 255 })
+    propertyId: uuid('property_id')
       .notNull()
       .references(() => properties.id, { onDelete: 'cascade' }),
     period: varchar('period', { length: 30 }).notNull(),
@@ -52,7 +52,7 @@ export const leaderboardEntries = pgTable(
     targetType: varchar('target_type', { length: 20 }).notNull(),
     targetId: uuid('target_id').notNull(),
     organizationId: varchar('organization_id', { length: 255 }).notNull(),
-    propertyId: varchar('property_id', { length: 255 })
+    propertyId: uuid('property_id')
       .notNull()
       .references(() => properties.id, { onDelete: 'cascade' }),
     score: real('score').notNull(),
