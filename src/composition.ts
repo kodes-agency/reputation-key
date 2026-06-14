@@ -39,14 +39,16 @@ import { buildGuestContext } from '#/contexts/guest/build'
 import { buildReviewContext } from '#/contexts/review/build'
 import { buildInboxContext } from '#/contexts/inbox/build'
 import { buildMetricContext } from '#/contexts/metric/build'
+import { buildBadgeContext } from '#/contexts/badge/build'
+import { buildLeaderboardContext } from '#/contexts/leaderboard/build'
 import { buildDashboardContext } from '#/contexts/dashboard/build'
-import { buildActivityContext } from '#/contexts/activity/build'
-import { buildNotificationContext } from '#/contexts/notification/build'
 import { createReviewStatsAdapter } from '#/contexts/dashboard/infrastructure/adapters/review-stats.adapter'
 import { createMetricStatsAdapter } from '#/contexts/dashboard/infrastructure/adapters/metric-stats.adapter'
 import { createPortalMetricsAdapter } from '#/contexts/dashboard/infrastructure/adapters/portal-metrics.adapter'
 import { createStaffPortalResolverAdapter } from '#/contexts/dashboard/infrastructure/adapters/staff-portal-resolver.adapter'
 import { buildGoalContext } from '#/contexts/goal/build'
+import { buildActivityContext } from '#/contexts/activity/build'
+import { buildNotificationContext } from '#/contexts/notification/build'
 import { createStaffAssignmentRepository } from '#/contexts/staff/infrastructure/repositories/staff-assignment.repository'
 import { createGoogleReviewApiAdapter } from '#/contexts/integration/infrastructure/adapters/google-review-api.adapter'
 import { handleGbpNotification } from '#/contexts/integration/application/use-cases'
@@ -220,8 +222,7 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     logger: getLogger(),
   })
 
-  // ── Review context (cross-context wiring) ──────────────────────────
-  // The GoogleReviewApiAdapter lives in integration/infrastructure but
+  // Goal context — buildGoalContext creates its own repo and cancelGoalFn internally.
   // implements review context's port. Composition root wires them.
   const googleReviewApi = createGoogleReviewApiAdapter({
     connectionRepo: integration.internal.repos.connectionRepo,
@@ -319,7 +320,18 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     logger,
   })
 
-  // ── Notification context ────────────────────────────────────────
+  const badge = buildBadgeContext({
+    db,
+    events: eventBus,
+    clock,
+    metricApi: metricApi.publicApi,
+  })
+
+  const leaderboard = buildLeaderboardContext({
+    db,
+    events: eventBus,
+  })
+  // Goal context — buildGoalContext creates its own repo and cancelGoalFn internally.
   const notification = buildNotificationContext({
     db,
     events: eventBus,
@@ -388,12 +400,16 @@ export function createContainer(options?: { enableJobs?: boolean }) {
       getPortalAnalytics: dashboard.publicApi.getPortalAnalytics,
       getStaffDashboardData: dashboard.publicApi.getStaffDashboardData,
       ...goal.internal.useCases,
+      ...badge.internal.useCases,
+      ...leaderboard.internal.useCases,
     },
     storage: portal.internal.storage,
     portalRepo: portal.internal.repos.portalRepo,
     portalLinkRepo: portal.internal.repos.portalLinkRepo,
     reviewRepo: review.internal.repos.reviewRepo,
     replyRepo: review.internal.repos.replyRepo,
+    badgePublicApi: badge.publicApi,
+    leaderboardPublicApi: leaderboard.publicApi,
     reviewQueue: review.internal.repos.queue,
     replyQueue: review.internal.repos.replyQueue,
     googleReviewApi,

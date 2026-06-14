@@ -54,6 +54,9 @@ export type Permission =
   | 'identity.logo_upload'
   | 'identity.leave_org' // Reserved for future use — leave-org flow not yet permission-gated
   | 'dashboard.read'
+  | 'badge.read'
+  | 'badge.manage'
+  | 'leaderboard.read'
   | 'goal.read'
   | 'goal.create'
   | 'goal.update'

@@ -2,11 +2,13 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useEffect } from 'react'
 import { z } from 'zod/v4'
 import { listStaffGoals } from '#/contexts/goal/server/staff-goals'
+import { getStaffVisibleBadges } from '#/contexts/badge/server/badges'
 import { getStaffDashboardDataFn } from '#/contexts/dashboard/server/staff-dashboard'
 import { listStaffPortals } from '#/contexts/staff/server/staff-portals'
 import { getStaffRecentActivity } from '#/contexts/review/server/staff-recent-activity'
 import { useStaffPropertyId } from '#/components/hooks/use-staff-property-id'
 import { StaffHomeKpis } from '#/components/features/staff/staff-home-kpis'
+import { StaffBadgeSummary } from '#/components/features/badges/staff-badge-summary'
 import { StaffGoalSummary } from '#/components/features/staff/staff-goal-summary'
 import { StaffPortalFilter } from '#/components/features/staff/staff-portal-filter'
 import { StaffRecentActivity } from '#/components/features/staff/staff-recent-activity'
@@ -15,6 +17,7 @@ import { PageShell } from '#/components/layout/page-shell'
 import type { KPIs } from '#/contexts/dashboard/application/public-api'
 import type { StaffGoalEntry } from '#/contexts/goal/application/public-api'
 import type { StaffPortalEntry } from '#/contexts/staff/application/public-api'
+import type { BadgeAwardWithTarget } from '#/contexts/badge/application/public-api'
 import type { StaffRecentReview } from '#/contexts/review/application/public-api'
 
 const homeSearch = z.object({
@@ -35,11 +38,12 @@ export const Route = createFileRoute('/_authenticated/home')({
         kpis: null as KPIs | null,
         portals: [] as StaffPortalEntry[],
         recentReviews: [] as StaffRecentReview[],
+        badges: [] as BadgeAwardWithTarget[],
         hasAssignments: false,
       }
     }
 
-    const [{ goals }, dashboard, { portals }, { reviews: recentReviews }] =
+    const [{ goals }, dashboard, { portals }, { reviews: recentReviews }, badges] =
       await Promise.all([
         listStaffGoals({ data: { propertyId } }),
         getStaffDashboardDataFn({
@@ -47,6 +51,7 @@ export const Route = createFileRoute('/_authenticated/home')({
         }),
         listStaffPortals({ data: { propertyId } }),
         getStaffRecentActivity({ data: { propertyId } }),
+        getStaffVisibleBadges({ data: { propertyId, limit: 6 } }),
       ])
 
     return {
@@ -54,6 +59,7 @@ export const Route = createFileRoute('/_authenticated/home')({
       kpis: dashboard.kpis,
       portals,
       recentReviews,
+      badges: badges as BadgeAwardWithTarget[],
       hasAssignments: dashboard.hasAssignments,
     }
   },
@@ -61,7 +67,8 @@ export const Route = createFileRoute('/_authenticated/home')({
 })
 
 function StaffHomePage() {
-  const { goals, kpis, portals, recentReviews, hasAssignments } = Route.useLoaderData()
+  const { goals, kpis, portals, recentReviews, badges, hasAssignments } =
+    Route.useLoaderData()
   const { propertyId: searchPropertyId, portalId: searchPortalId } = Route.useSearch()
   const navigate = useNavigate()
   const localPropertyId = useStaffPropertyId()
@@ -129,6 +136,8 @@ function StaffHomePage() {
       </div>
 
       {kpis && <StaffHomeKpis kpis={kpis} />}
+
+      <StaffBadgeSummary badges={badges} />
 
       <StaffGoalSummary goals={goals} />
 

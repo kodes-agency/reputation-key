@@ -31,10 +31,12 @@ export const statement = {
   review: ['read'],
   reply: ['manage'],
   feedback: ['read', 'respond'],
+  goal: ['read', 'create', 'update', 'cancel'],
+  badge: ['read', 'manage'],
+  leaderboard: ['read'],
   inbox: ['read', 'write', 'manage'],
   integration: ['manage'],
   identity: ['avatar_upload', 'logo_upload', 'leave_org'],
-  goal: ['read', 'create', 'update', 'cancel'],
 } as const
 
 export const ac = createAccessControl(statement)
@@ -56,6 +58,8 @@ export const admin = ac.newRole({
   review: ['read'],
   reply: ['manage'],
   feedback: ['read', 'respond'],
+  badge: ['read', 'manage'],
+  leaderboard: ['read'],
   inbox: ['read', 'write', 'manage'],
   organization: ['update'],
   goal: ['read', 'create', 'update', 'cancel'],
@@ -64,14 +68,16 @@ export const admin = ac.newRole({
 })
 
 export const memberRole = ac.newRole({
+  property: ['read'],
   review: ['read'],
   dashboard: ['read'],
-  property: ['read'],
+  goal: ['read', 'create'],
+  badge: ['read'],
+  leaderboard: ['read'],
   portal: ['read'],
   team: ['read'],
   staff_assignment: ['read'],
   inbox: ['read', 'write'],
-  goal: ['read', 'create'],
   identity: ['avatar_upload', 'leave_org'],
 })
 

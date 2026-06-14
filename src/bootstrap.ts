@@ -301,4 +301,26 @@ export async function bootstrap(container: Container): Promise<void> {
     await digestHandler(job as import('bullmq').Job<void>)
   })
   logger.info({ job: DIGEST_JOB_NAME }, 'registered digest-notification job handler')
+
+  // ── Seed system badge definitions ────────────────────────────────
+  try {
+    await container.useCases.seedBadgeDefinitions()
+    logger.info('seeded system badge definitions')
+  } catch (e) {
+    logger.error({ err: e }, 'failed to seed badge definitions')
+  }
+  // ── Badge reconciliation job ──────────────────────────────────────
+  container.jobRegistry.register('badge.reconcile', async () => {
+    await container.useCases.reconcileBadgeDefinitions({})
+  })
+  logger.info({ job: 'badge.reconcile' }, 'registered badge reconciliation job handler')
+
+  // ── Leaderboard reconciliation job ────────────────────────────────
+  container.jobRegistry.register('leaderboard.reconcile', async () => {
+    await container.useCases.reconcileLeaderboards()
+  })
+  logger.info(
+    { job: 'leaderboard.reconcile' },
+    'registered leaderboard reconciliation job handler',
+  )
 }
