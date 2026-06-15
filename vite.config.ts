@@ -22,7 +22,37 @@ const config = defineConfig(({ mode }) => {
       devtools(),
       ...(isBuild ? [nitro({ rollupConfig: { external: [/^@sentry\//] } })] : []),
       tailwindcss(),
-      tanstackStart(),
+      // Import protection prevents server-only modules (Node builtins, DB
+      // drivers, the composition root, API routes, repositories) from leaking
+      // into the client bundle — which crashes hydration with
+      // "Module X has been externalized for browser compatibility" errors.
+      // In dev, violations are mocked (recursive Proxy); in build, they error.
+      // See TanStack Start docs → "Import Protection".
+      //
+      // Server functions (src/contexts/*/server/**) are NOT denied: TanStack
+      // RPC-stubs them for the client, and that transform strips their
+      // server-only imports, so denying them would only break the RPC stubs.
+      tanstackStart({
+        importProtection: {
+          client: {
+            files: [
+              '**/*.server.*',
+              '**/routes/api/**',
+              '**/composition.ts',
+              '**/infrastructure/**',
+              '**/build.ts',
+              '**/shared/db/**',
+              '**/shared/cache/**',
+              '**/shared/jobs/**',
+              '**/shared/observability/**',
+              '**/shared/auth/auth.ts',
+              '**/shared/auth/middleware.ts',
+              '**/shared/auth/server-errors.ts',
+              '**/shared/auth/headers.ts',
+            ],
+          },
+        },
+      }),
       viteReact(),
     ],
   }

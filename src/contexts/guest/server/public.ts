@@ -11,7 +11,8 @@ import { feedbackInputSchema } from '../application/dto/feedback.dto'
 import { isGuestError } from '../domain/errors'
 export type { PublicPortalLoaderData } from '../application/dto/public-portal.dto'
 import { portalId, ratingId } from '#/shared/domain/ids'
-import { guestErrorStatus, hashIp } from './guest-scans'
+import { guestErrorStatus } from './guest-scans'
+import { hashIp } from './hash-ip.server'
 
 // ── submitRating ───────────────────────────────────────────────────
 

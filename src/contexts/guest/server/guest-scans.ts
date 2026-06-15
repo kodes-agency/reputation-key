@@ -11,8 +11,7 @@ import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { isGuestError } from '../domain/errors'
 import type { GuestErrorCode } from '../domain/errors'
 import { portalId, portalLinkId } from '#/shared/domain/ids'
-import { getEnv } from '#/shared/config/env'
-import { createHash } from 'crypto'
+import { hashIp } from './hash-ip.server'
 
 // ── Error → HTTP status mapping (exhaustive) ──────────────────────
 
@@ -34,13 +33,6 @@ export const guestErrorStatus = (code: GuestErrorCode): number =>
     .exhaustive()
 
 // ── Helpers ───────────────────────────────────────────────────────
-
-export function hashIp(ip: string): string {
-  const env = getEnv()
-  const today = new Date().toISOString().slice(0, 10)
-  const salt = `${env.GUEST_SESSION_SALT}:${today}`
-  return createHash('sha256').update(`${ip}:${salt}`).digest('hex')
-}
 
 // ── recordScan ────────────────────────────────────────────────────
 
