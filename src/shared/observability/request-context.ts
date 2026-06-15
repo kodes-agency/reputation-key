@@ -1,3 +1,9 @@
+// Mark this module as server-only so TanStack Start's import protection
+// mocks it in the client bundle (dev) instead of letting `node:async_hooks`
+// execute in the browser and crash hydration. See TanStack Start docs:
+// "Import Protection" — file markers.
+import '@tanstack/react-start/server-only'
+
 // Request-scoped context via AsyncLocalStorage.
 // Set once per request at the server function or route loader boundary.
 // Downstream code (logger, trace) reads from ALS — no parameter threading.
