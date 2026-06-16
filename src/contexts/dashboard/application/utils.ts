@@ -1,8 +1,7 @@
 // Dashboard context — shared utilities for server and repository layers
+import type { TimeRangePreset } from './dto/dashboard.dto'
 
 export const MS_PER_DAY = 86_400_000
-
-export type TimeRangePreset = '7d' | '30d' | '60d' | '90d' | 'all'
 
 /** Convert a time-range preset to concrete start/end dates. */
 export function timeRangeToDates(preset: TimeRangePreset) {

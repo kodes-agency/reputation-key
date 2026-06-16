@@ -1,0 +1,26 @@
+name: Fallow
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history so `audit --gate new-only` can diff against the PR base.
+          fetch-depth: 0
+
+      - name: Fallow audit
+        uses: fallow-rs/fallow@v2
+        with:
+          # Combined dead-code + complexity + duplication verdict.
+          # gate: new-only fails ONLY on issues the PR introduces — the
+          # 192-issue regression baseline (.fallowrc.json) never blocks.
+          command: audit
+          gate: new-only

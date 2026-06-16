@@ -1,4 +1,4 @@
-// fallow-ignore-file unused-files — reserved for upcoming phases (property detail fields component)
+// Reserved for upcoming phases (property detail fields component). Currently unused — tracked in fallow baseline.
 /**
  * PropertyDetailFields — view property details.
  * Extracted from the property overview route.

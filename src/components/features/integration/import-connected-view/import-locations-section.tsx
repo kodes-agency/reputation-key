@@ -1,5 +1,5 @@
 import type { GbpLocation } from '#/contexts/integration/application/public-api'
-import { LocationPicker } from '#/components/features/integration'
+import { LocationPicker } from '#/components/features/integration/location-picker'
 import { Button } from '#/components/ui/button'
 import { Loader2 } from 'lucide-react'
 

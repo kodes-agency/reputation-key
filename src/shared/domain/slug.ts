@@ -2,8 +2,8 @@
 // Pure validation used across multiple contexts (property, portal).
 // Per architecture: cross-context pure utilities live in shared/domain.
 
-import { ok, err } from '#/shared/domain'
-import type { Result } from '#/shared/domain'
+import { ok, err } from './result'
+import type { Result } from './result'
 
 /** Normalize a string into a URL-friendly slug (infallible). */
 export const normalizeSlug = (input: string): string =>
