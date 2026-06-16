@@ -11,9 +11,10 @@ import type { Role } from '#/shared/domain/roles'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { can } from '#/shared/domain/permissions'
-import { validateTransition } from '../../domain/rules'
+import { validateTransition, timestampFieldsForStatus } from '../../domain/rules'
 import { inboxItemStatusChanged, inboxItemEscalated } from '../../domain/events'
 import { inboxError } from '../../domain/errors'
+import { loadInboxItemOrThrow, assertPropertyAccessible } from '../inbox-access'
 
 export type UpdateInboxStatusInput = Readonly<{
   inboxItemId: InboxItemId
@@ -36,31 +37,22 @@ export type UpdateInboxStatusDeps = Readonly<{
 export const updateInboxStatus =
   (deps: UpdateInboxStatusDeps) =>
   async (input: UpdateInboxStatusInput): Promise<InboxItem> => {
-    // 1. Find item
-    const item = await deps.repo.findById(input.inboxItemId, input.organizationId)
-    if (!item) {
-      throw inboxError('not_found', 'Inbox item not found', {
-        inboxItemId: input.inboxItemId,
-      })
-    }
+    if (!can(input.role, 'inbox.write'))
+      throw inboxError('forbidden', 'No inbox write permission')
 
-    if (!can(input.role, 'inbox.manage')) {
-      const accessible = await deps.staffPublicApi.getAccessiblePropertyIds(
-        input.organizationId,
-        input.userId,
-        input.role,
-      )
-      if (
-        accessible !== null &&
-        !accessible.includes(
-          item.propertyId as ReturnType<typeof import('#/shared/domain/ids').propertyId>,
-        )
-      ) {
-        throw inboxError('forbidden', 'No access to this property', {
-          propertyId: item.propertyId,
-        })
-      }
-    }
+    // 1. Find item + enforce role-scoped property access
+    const item = await loadInboxItemOrThrow(
+      deps.repo,
+      input.inboxItemId,
+      input.organizationId,
+    )
+    await assertPropertyAccessible(
+      deps.staffPublicApi,
+      input.organizationId,
+      input.userId,
+      input.role,
+      item.propertyId,
+    )
 
     // 2. Validate transition
     const transitionResult = validateTransition(item.status, input.newStatus)
@@ -68,24 +60,17 @@ export const updateInboxStatus =
       throw transitionResult.error
     }
 
-    // 3. Compute timestamp fields
+    // 3. Update status (timestamp fields derived from the target status)
     const now = deps.clock()
-    const timestampFields: Partial<Record<string, Date>> = {}
-    if (input.newStatus === 'read') timestampFields.readAt = now
-    if (input.newStatus === 'escalated') timestampFields.escalatedAt = now
-    if (input.newStatus === 'addressed') timestampFields.addressedAt = now
-    if (input.newStatus === 'archived') timestampFields.archivedAt = now
-
-    // 4. Update status
     const updated = await deps.repo.updateStatus(
       input.inboxItemId,
       input.organizationId,
       input.newStatus,
-      timestampFields,
+      timestampFieldsForStatus(input.newStatus, now),
       now,
     )
 
-    // 5. Decrement new counter if transitioning away from 'new'
+    // 4. Decrement new counter if transitioning away from 'new'
     if (item.status === 'new' && input.newStatus !== 'new') {
       try {
         await deps.newCounter.decrement(input.organizationId)
@@ -97,7 +82,7 @@ export const updateInboxStatus =
       }
     }
 
-    // 6. Emit event
+    // 5. Emit event
     await deps.events.emit(
       inboxItemStatusChanged({
         eventId: crypto.randomUUID(),
@@ -117,13 +102,15 @@ export const updateInboxStatus =
           eventId: crypto.randomUUID(),
           inboxItemId: updated.id,
           organizationId: updated.organizationId,
+          propertyId: updated.propertyId,
           oldStatus: item.status,
+          userId: input.userId,
           occurredAt: now,
         }),
       )
     }
 
-    // 7. Return
+    // 6. Return
     return updated
   }
 

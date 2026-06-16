@@ -36,6 +36,7 @@ export const inboxItems = pgTable(
     sourceDate: timestamp('source_date', { withTimezone: true }).notNull(),
     platform: varchar('platform', { length: 255 }),
     snippet: text('snippet'),
+    reviewerName: varchar('reviewer_name', { length: 255 }),
     assignedTo: varchar('assigned_to', { length: 255 }),
     readAt: timestamp('read_at', { withTimezone: true }),
     escalatedAt: timestamp('escalated_at', { withTimezone: true }),

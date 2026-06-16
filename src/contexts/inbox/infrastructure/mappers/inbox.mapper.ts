@@ -16,9 +16,7 @@ import {
 type InboxItemRow = typeof inboxItems.$inferSelect
 type InboxItemInsertRow = typeof inboxItems.$inferInsert
 
-export const inboxItemFromRow = (
-  row: InboxItemRow,
-): Omit<InboxItem, 'reviewerName' | 'propertyName'> => ({
+export const inboxItemFromRow = (row: InboxItemRow): Omit<InboxItem, 'propertyName'> => ({
   id: inboxItemId(row.id),
   organizationId: organizationId(row.organizationId),
   propertyId: propertyId(row.propertyId),
@@ -30,6 +28,7 @@ export const inboxItemFromRow = (
   sourceDate: row.sourceDate,
   platform: row.platform,
   snippet: row.snippet,
+  reviewerName: row.reviewerName,
   assignedTo: row.assignedTo ? userId(row.assignedTo) : null,
   readAt: row.readAt,
   escalatedAt: row.escalatedAt,
@@ -54,6 +53,7 @@ export const inboxItemToInsertRow = (
   sourceDate: item.sourceDate,
   platform: item.platform,
   snippet: item.snippet,
+  reviewerName: item.reviewerName,
   assignedTo: item.assignedTo ? unbrand(item.assignedTo) : null,
   readAt: item.readAt,
   escalatedAt: item.escalatedAt,

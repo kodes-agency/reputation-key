@@ -27,6 +27,7 @@ export type CreateInboxItemInput = Readonly<{
   sourceDate: Date
   platform: string | null
   snippet: string | null
+  reviewerName: string | null
 }>
 
 // fallow-ignore-next-line unused-type
@@ -67,6 +68,7 @@ export const createInboxItem =
       sourceDate: input.sourceDate,
       platform: input.platform,
       snippet: input.snippet,
+      reviewerName: input.reviewerName,
       assignedTo,
       clock: deps.clock,
     })

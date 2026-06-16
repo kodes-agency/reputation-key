@@ -1,6 +1,7 @@
 // Notification UI utilities — route resolver, relative time, icon mapping.
 
 import {
+  Award,
   Bell,
   MessageSquare,
   CheckCircle,
@@ -27,9 +28,11 @@ export function getNotificationUrl(
     case 'inbox_item':
       return `/inbox?itemId=${resourceId}`
     case 'reply':
-      return '/inbox'
+      // Replies are surfaced from an inbox item thread; deep-link to that item.
+      return `/inbox?itemId=${resourceId}`
     case 'goal':
-      return '/properties'
+      // Goal resourceId is the property the goal belongs to.
+      return `/properties/${resourceId}`
     default:
       return '#'
   }
@@ -69,6 +72,7 @@ const typeIconMap: Record<string, LucideIcon> = {
   'inbox.assigned': UserPlus,
   'inbox_note.added': FileEdit,
   'goal.completed': Target,
+  'badge.awarded': Award,
 }
 
 export function getNotificationIcon(type: NotificationType): LucideIcon {

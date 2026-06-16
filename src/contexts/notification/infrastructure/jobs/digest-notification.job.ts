@@ -4,14 +4,16 @@
 import type { Job } from 'bullmq'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import {
-  notificationId,
   notificationEmailId,
+  notificationId,
   organizationId as orgId,
 } from '#/shared/domain/ids'
 import type { NotificationEmailRepositoryPort } from '../../application/ports/notification-email-repository.port'
 import type { NotificationRepositoryPort } from '../../application/ports/notification-repository.port'
 import type { UserLookupPort } from '../../application/ports/user-lookup.port'
 import type { EmailSenderPort } from '../../application/ports/email-sender.port'
+import type { NotificationEmail, Notification } from '../../domain/types'
+import type { OrganizationId } from '#/shared/domain/ids'
 import type { Pool } from 'pg'
 import { emailShell, escapeHtml } from '#/shared/email'
 
@@ -36,110 +38,169 @@ const currentHourInTz = (tz: string): number => {
   return parseInt(s, 10)
 }
 
+type OrgTimezoneRow = Readonly<{ organization_id: string; timezone: string }>
+
+/** Distinct org + timezone pairs across all non-deleted properties. */
+const fetchOrgTimezones = async (pool: Pool): Promise<OrgTimezoneRow[]> => {
+  const { rows } = await pool.query<OrgTimezoneRow>(
+    `SELECT DISTINCT organization_id, COALESCE(timezone, 'UTC') AS timezone FROM properties WHERE deleted_at IS NULL`,
+  )
+  return rows
+}
+
+/** Orgs whose local hour is the digest window (8am). */
+const selectDigestOrgs = (rows: readonly OrgTimezoneRow[]): Set<string> => {
+  const qualifyingOrgIds = new Set<string>()
+  for (const row of rows) {
+    try {
+      if (currentHourInTz(row.timezone) === 8) {
+        qualifyingOrgIds.add(row.organization_id)
+      }
+    } catch {
+      // invalid timezone — skip
+    }
+  }
+  return qualifyingOrgIds
+}
+
+/** Group email-queue entries by their owning user. */
+const groupEntriesByUser = (
+  entries: readonly NotificationEmail[],
+): Map<string, NotificationEmail[]> => {
+  const byUser = new Map<string, NotificationEmail[]>()
+  for (const entry of entries) {
+    const uid = entry.userId as string
+    const bucket = byUser.get(uid)
+    if (bucket) bucket.push(entry)
+    else byUser.set(uid, [entry])
+  }
+  return byUser
+}
+
+/** Render the per-entry notification fragments for one user's digest. */
+const buildDigestItems = (
+  entries: readonly NotificationEmail[],
+  notifMap: ReadonlyMap<string, Notification>,
+): string[] => {
+  const items: string[] = []
+  for (const entry of entries) {
+    const notif = notifMap.get(entry.notificationId as string)
+    if (!notif) continue
+    items.push(
+      `<p><strong>${escapeHtml(notif.title)}</strong>` +
+        (notif.body ? `<br/>${escapeHtml(notif.body)}` : '') +
+        '</p>',
+    )
+  }
+  return items
+}
+
+/** Mark every entry in a batch as sent. */
+const markEntriesSent = async (
+  deps: DigestDeps,
+  organizationId: OrganizationId,
+  entries: readonly NotificationEmail[],
+): Promise<void> => {
+  const sentNow = new Date()
+  for (const entry of entries) {
+    await deps.emailRepo.markSent(
+      notificationEmailId(entry.id as string),
+      organizationId,
+      sentNow,
+      sentNow,
+    )
+    // State machine: only 'pending' → 'sent'. See domain/constructors-transitions.ts markEmailSent.
+    // The repo WHERE clause (pending-only in findPendingByOrg) enforces this at DB level.
+  }
+}
+
+/** Mark every entry in a batch as failed (transient send error). */
+const markEntriesFailed = async (
+  deps: DigestDeps,
+  organizationId: OrganizationId,
+  entries: readonly NotificationEmail[],
+): Promise<void> => {
+  const failNow = new Date()
+  for (const entry of entries) {
+    try {
+      await deps.emailRepo.markFailed(
+        notificationEmailId(entry.id as string),
+        organizationId,
+        failNow,
+        failNow,
+      )
+      // State machine: only 'pending'/'failed' → 'failed'. See domain/constructors-transitions.ts markEmailFailed.
+      // The repo WHERE clause enforces this at DB level.
+    } catch (markErr) {
+      deps.logger.error(
+        { markErr, notificationEmailId: entry.id },
+        'Failed to mark digest email as failed',
+      )
+    }
+  }
+}
+
+/** Build + send one user's digest, then transition the batch's status. */
+const sendUserDigest = async (
+  deps: DigestDeps,
+  organizationId: OrganizationId,
+  uid: string,
+  entries: readonly NotificationEmail[],
+): Promise<void> => {
+  const email = await deps.userLookup.getEmail(
+    uid as Parameters<typeof deps.userLookup.getEmail>[0],
+  )
+  if (!email) return
+
+  const notifIds = entries.map((e) => notificationId(e.notificationId as string))
+  const notifMap = await deps.notifRepo.findByIds(notifIds, organizationId)
+  const items = buildDigestItems(entries, notifMap)
+  if (items.length === 0) return
+
+  const html = emailShell(items.join('\n'))
+  try {
+    await deps.emailSender.send({
+      to: email,
+      subject: 'Your daily digest — Reputation Key',
+      html,
+    })
+    await markEntriesSent(deps, organizationId, entries)
+  } catch (err) {
+    deps.logger.error({ err, uid, orgId: organizationId }, 'Digest email send failed')
+    await markEntriesFailed(deps, organizationId, entries)
+  }
+}
+
+/** Send digests for one org: gather pending emails, group by user, send each. */
+const sendOrgDigest = async (
+  deps: DigestDeps,
+  organizationId: OrganizationId,
+): Promise<void> => {
+  // Pending normal-priority emails plus any orphaned urgent emails
+  // (enqueue failed / Redis was down).
+  const normal = await deps.emailRepo.findPendingByOrg(organizationId, 'normal')
+  const orphanedUrgent = await deps.emailRepo.findPendingByOrg(organizationId, 'urgent')
+  const pending = [...normal, ...orphanedUrgent]
+  if (pending.length === 0) return
+
+  const byUser = groupEntriesByUser(pending)
+  for (const [uid, entries] of byUser) {
+    await sendUserDigest(deps, organizationId, uid, entries)
+  }
+}
+
 export const createDigestNotificationJobHandler = (deps: DigestDeps) => {
   return async (_job: Job<void>): Promise<void> => {
-    const { pool, emailRepo, notifRepo, userLookup, emailSender, logger } = deps
+    // 1. Distinct org + timezone pairs from properties
+    const rows = await fetchOrgTimezones(deps.pool)
 
-    // 1. Get distinct org + timezone pairs from properties
-    const { rows } = await pool.query<{
-      organization_id: string
-      timezone: string
-    }>(
-      `SELECT DISTINCT organization_id, COALESCE(timezone, 'UTC') AS timezone FROM properties WHERE deleted_at IS NULL`,
-    )
-
-    // 2. Group qualifying orgIds (those at 8am local)
-    const qualifyingOrgIds = new Set<string>()
-    for (const row of rows) {
-      try {
-        if (currentHourInTz(row.timezone) === 8) {
-          qualifyingOrgIds.add(row.organization_id)
-        }
-      } catch {
-        // invalid timezone — skip
-      }
-    }
-
+    // 2. Orgs currently in their 8am digest window
+    const qualifyingOrgIds = selectDigestOrgs(rows)
     if (qualifyingOrgIds.size === 0) return
 
-    // 3. For each qualifying org, fetch pending normal-priority emails
+    // 3. Send each qualifying org's digests
     for (const rawOrgId of qualifyingOrgIds) {
-      const pending = await emailRepo.findPendingByOrg(orgId(rawOrgId), 'normal')
-      if (pending.length === 0) continue
-
-      // 4. Group by userId
-      const byUser = new Map<string, (typeof pending)[number][]>()
-      for (const entry of pending) {
-        const uid = entry.userId as string
-        if (!byUser.has(uid)) byUser.set(uid, [])
-        byUser.get(uid)!.push(entry)
-      }
-
-      // 5. For each user: build digest, send, mark sent
-      for (const [uid, entries] of byUser) {
-        const email = await userLookup.getEmail(
-          uid as Parameters<typeof userLookup.getEmail>[0],
-        )
-        if (!email) continue
-
-        // Collect notification titles/bodies
-        const items: string[] = []
-        for (const entry of entries) {
-          const notif = await notifRepo.findById(
-            notificationId(entry.notificationId as string),
-            orgId(rawOrgId),
-          )
-          if (notif) {
-            items.push(
-              `<p><strong>${escapeHtml(notif.title)}</strong>` +
-                (notif.body ? `<br/>${escapeHtml(notif.body)}` : '') +
-                '</p>',
-            )
-          }
-        }
-
-        if (items.length === 0) continue
-
-        const html = emailShell(items.join('\n'))
-        try {
-          await emailSender.send({
-            to: email,
-            subject: 'Your daily digest — Reputation Key',
-            html,
-          })
-          const sentNow = new Date()
-          for (const entry of entries) {
-            await emailRepo.markSent(
-              notificationEmailId(entry.id as string),
-              orgId(rawOrgId),
-              sentNow,
-              sentNow,
-            )
-            // State machine: only 'pending' → 'sent'. See domain/constructors-transitions.ts markEmailSent.
-            // The repo WHERE clause (pending-only in findPendingByOrg) enforces this at DB level.
-          }
-        } catch (err) {
-          logger.error({ err, uid, orgId: rawOrgId }, 'Digest email send failed')
-          const failNow = new Date()
-          for (const entry of entries) {
-            try {
-              await emailRepo.markFailed(
-                notificationEmailId(entry.id as string),
-                orgId(rawOrgId),
-                failNow,
-                failNow,
-              )
-              // State machine: only 'pending'/'failed' → 'failed'. See domain/constructors-transitions.ts markEmailFailed.
-              // The repo WHERE clause enforces this at DB level.
-            } catch (markErr) {
-              logger.error(
-                { markErr, notificationEmailId: entry.id },
-                'Failed to mark digest email as failed',
-              )
-            }
-          }
-        }
-      }
+      await sendOrgDigest(deps, orgId(rawOrgId))
     }
   }
 }

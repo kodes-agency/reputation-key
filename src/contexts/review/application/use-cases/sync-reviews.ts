@@ -73,14 +73,10 @@ export const syncReviews =
         input.locationName,
       )
     } catch (e: unknown) {
-      const cause =
-        e instanceof Error
-          ? e.message
-          : typeof e === 'object' && e !== null && 'message' in e
-            ? (e as { message: string }).message
-            : String(e)
       return err(
-        reviewError('sync_failed', 'Failed to fetch reviews from Google', { cause }),
+        reviewError('sync_failed', 'Failed to fetch reviews from Google', {
+          cause: toErrorMessage(e),
+        }),
       )
     }
 
@@ -91,88 +87,117 @@ export const syncReviews =
 
     for (const gr of googleReviews) {
       try {
-        // 2. Check if review already exists
-        const existing = await deps.reviewRepo.findByExternalId(
-          'google',
-          gr.externalId,
-          input.organizationId,
-        )
-
-        // Calculate expiresAt from reviewedAt per 30-day retention rule
-        const expiresAt = calculateExpiresAt(gr.reviewedAt, now)
-
-        // 3. Build review domain object
-        const review: Omit<Review, 'createdAt' | 'updatedAt'> = {
-          id: existing?.id ?? deps.idGen(),
-          organizationId: input.organizationId,
-          propertyId: input.propertyId,
-          platform: 'google',
-          externalId: gr.externalId,
-          externalLocationId: gr.externalLocationId,
-          googleConnectionId: input.connectionId,
-          reviewerName: gr.reviewerName,
-          reviewerProfilePhotoUrl: gr.reviewerProfilePhotoUrl,
-          rating: gr.rating,
-          text: gr.text,
-          languageCode: gr.languageCode,
-          reviewedAt: gr.reviewedAt,
-          expiresAt,
-          sentimentLabel: existing?.sentimentLabel ?? null,
-          sentimentScore: existing?.sentimentScore ?? null,
-        }
-
-        // 4. Upsert review
-        await deps.reviewRepo.upsert(review, now)
-
-        const isNew = !existing
-        if (isNew) created++
-        else updated++
-
-        // 5. Mirror reply state from Google
-        const mirrored = await mirrorReply(deps, review.id, input.organizationId, gr, now)
-        if (mirrored) repliesMirrored++
-
-        // 6. Emit domain event
-        const eventPayload = {
-          eventId: crypto.randomUUID(),
-          reviewId: review.id,
-          propertyId: input.propertyId,
-          organizationId: input.organizationId,
-          platform: 'google' as const,
-          externalId: gr.externalId,
-          rating: gr.rating,
-          reviewText: gr.text,
-          occurredAt: gr.reviewedAt,
-        }
-
-        if (isNew) {
-          await deps.events.emit(reviewCreated(eventPayload))
-        } else {
-          await deps.events.emit(reviewUpdated(eventPayload))
-        }
+        const outcome = await syncOneReview(deps, gr, input, now)
+        created += outcome.created
+        updated += outcome.updated
+        repliesMirrored += outcome.repliesMirrored
+        if (outcome.hadError) failed++
       } catch (syncErr) {
         deps.logger.warn(
           { err: syncErr, externalId: gr.externalId },
           'Failed to sync review, continuing',
         )
         failed++
-        continue
       }
     }
 
-    const result: SyncReviewsResult = {
+    // Always return ok — data was persisted for all successful reviews.
+    // Callers should check result.partialFailure to detect partial failures.
+    return ok({
       fetched: googleReviews.length,
       created,
       updated,
       repliesMirrored,
       failed,
       partialFailure: failed > 0,
-    }
-
-    // Always return ok — data was persisted for all successful reviews.
-    // Callers should check result.partialFailure to detect partial failures.
-    return ok(result)
+    })
   }
+
+/** Best-effort stringification of an unknown caught value, for error `cause`. */
+function toErrorMessage(e: unknown): string {
+  if (e instanceof Error) return e.message
+  if (typeof e === 'object' && e !== null && 'message' in e)
+    return (e as { message: string }).message
+  return String(e)
+}
+
+/** Sync a single Google review: upsert + mirror reply + emit event. Returns the delta counts. */
+async function syncOneReview(
+  deps: SyncReviewsDeps,
+  gr: GoogleReview,
+  input: SyncReviewsInput,
+  now: Date,
+): Promise<{
+  created: number
+  updated: number
+  repliesMirrored: number
+  hadError: boolean
+}> {
+  const existing = await deps.reviewRepo.findByExternalId(
+    'google',
+    gr.externalId,
+    input.organizationId,
+  )
+
+  const review: Omit<Review, 'createdAt' | 'updatedAt'> = {
+    id: existing?.id ?? deps.idGen(),
+    organizationId: input.organizationId,
+    propertyId: input.propertyId,
+    platform: 'google',
+    externalId: gr.externalId,
+    externalLocationId: gr.externalLocationId,
+    googleConnectionId: input.connectionId,
+    reviewerName: gr.reviewerName,
+    reviewerProfilePhotoUrl: gr.reviewerProfilePhotoUrl,
+    rating: gr.rating,
+    text: gr.text,
+    languageCode: gr.languageCode,
+    reviewedAt: gr.reviewedAt,
+    expiresAt: calculateExpiresAt(gr.reviewedAt, now),
+    sentimentLabel: existing?.sentimentLabel ?? null,
+    sentimentScore: existing?.sentimentScore ?? null,
+  }
+
+  await deps.reviewRepo.upsert(review, now)
+
+  const isNew = !existing
+  let repliesMirrored = 0
+  let hadError = false
+  try {
+    if (await mirrorReply(deps, review.id, input.organizationId, gr, now))
+      repliesMirrored = 1
+    const eventPayload = {
+      eventId: crypto.randomUUID(),
+      reviewId: review.id,
+      propertyId: input.propertyId,
+      organizationId: input.organizationId,
+      platform: 'google' as const,
+      externalId: gr.externalId,
+      rating: gr.rating,
+      reviewerName: gr.reviewerName,
+      reviewText: gr.text,
+      occurredAt: gr.reviewedAt,
+    }
+    await deps.events.emit(
+      isNew ? reviewCreated(eventPayload) : reviewUpdated(eventPayload),
+    )
+  } catch (postPersistErr) {
+    // Review was persisted (upsert succeeded) but reply-mirror or event emit
+    // failed — count it as a partial failure, not a lost create.
+    deps.logger.warn(
+      { err: postPersistErr, externalId: gr.externalId },
+      'Failed to sync review, continuing',
+    )
+    hadError = true
+  }
+
+  return {
+    created: isNew ? 1 : 0,
+    updated: isNew ? 0 : 1,
+    repliesMirrored,
+    hadError,
+  }
+}
 
 async function mirrorReply(
   deps: SyncReviewsDeps,

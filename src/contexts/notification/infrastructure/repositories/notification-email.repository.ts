@@ -1,7 +1,7 @@
 // Notification context — Drizzle repository adapter for notification email queue
 // Per architecture: factory pattern `createXxxRepository(db)` returning port interface.
 
-import { and, eq, asc, inArray, sql } from 'drizzle-orm'
+import { and, eq, asc, inArray, or, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { notificationEmailQueue } from '#/shared/db/schema/notification.schema'
 import {
@@ -96,28 +96,19 @@ export const createNotificationEmailRepository = (db: Database) => ({
       .where(
         and(
           eq(notificationEmailQueue.organizationId, orgId),
-          eq(notificationEmailQueue.status, 'pending'),
           eq(notificationEmailQueue.priority, priority),
+          // Include 'pending' emails plus 'failed' ones still under the retry cap.
+          or(
+            eq(notificationEmailQueue.status, 'pending'),
+            and(
+              eq(notificationEmailQueue.status, 'failed'),
+              sql`${notificationEmailQueue.retryCount} < 3`,
+            ),
+          ),
         ),
       )
       .orderBy(asc(notificationEmailQueue.createdAt))
 
-    return rows.map(emailFromRow)
-  },
-
-  // ⚠️ CROSS-TENANT by design — global email worker
-  findPendingUrgent: async (): Promise<NotificationEmail[]> => {
-    const rows = await db
-      .select()
-      .from(notificationEmailQueue)
-      .where(
-        and(
-          eq(notificationEmailQueue.status, 'pending'),
-          eq(notificationEmailQueue.priority, 'urgent'),
-        ),
-      )
-      .orderBy(asc(notificationEmailQueue.createdAt))
-      .limit(100)
     return rows.map(emailFromRow)
   },
 

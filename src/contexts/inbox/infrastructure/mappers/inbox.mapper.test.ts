@@ -21,6 +21,7 @@ const sampleRow: InboxItemRow = {
   sourceDate,
   platform: 'google',
   snippet: 'Great service!',
+  reviewerName: null,
   assignedTo: 'user-uuid-001',
   readAt,
   escalatedAt: null,

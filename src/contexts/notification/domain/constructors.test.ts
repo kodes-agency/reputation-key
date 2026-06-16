@@ -6,6 +6,7 @@ import { createNotificationEmail } from './constructors-email'
 import { createNotificationPreference } from './constructors-preference'
 import {
   markNotificationRead,
+  dismissNotification,
   markEmailSent,
   markEmailFailed,
   markEmailSkipped,
@@ -22,6 +23,8 @@ import type {
   NotificationEmail,
   NotificationType,
 } from './types'
+import type { Result } from '#/shared/domain'
+import type { NotificationError } from './errors'
 
 const ORG_ID = organizationId('org-1')
 const USER_ID = userId('user-1')
@@ -42,6 +45,20 @@ describe('createNotification', () => {
     eventId: 'evt-1',
     title: 'New review',
     body: 'A 4-star review was received',
+  }
+
+  /** Assert every type in `types` produces a notification with `expectedPriority`. */
+  function expectPriorityFor(
+    types: ReadonlyArray<NotificationType>,
+    expectedPriority: 'urgent' | 'normal',
+  ): void {
+    for (const type of types) {
+      const result = createNotification({ ...validInput, type }, clock)
+      expect(result.isOk()).toBe(true)
+      if (result.isOk()) {
+        expect(result.value.priority).toBe(expectedPriority)
+      }
+    }
   }
 
   it('returns ok with a notification for valid input', () => {
@@ -72,13 +89,7 @@ describe('createNotification', () => {
       { ...validInput, type: 'invalid.type' as NotificationType },
       clock,
     )
-
-    expect(result.isErr()).toBe(true)
-    if (result.isErr()) {
-      expect(result.error._tag).toBe('NotificationError')
-      expect(result.error.code).toBe('invalid_type')
-      expect(result.error.details).toEqual({ type: 'invalid.type' })
-    }
+    expectConstructorError(result, 'invalid_type', { type: 'invalid.type' })
   })
 
   it('returns err for an invalid resource type', () => {
@@ -86,13 +97,7 @@ describe('createNotification', () => {
       { ...validInput, resourceType: 'invalid' as 'inbox_item' | 'reply' | 'goal' },
       clock,
     )
-
-    expect(result.isErr()).toBe(true)
-    if (result.isErr()) {
-      expect(result.error._tag).toBe('NotificationError')
-      expect(result.error.code).toBe('invalid_resource_type')
-      expect(result.error.details).toEqual({ resourceType: 'invalid' })
-    }
+    expectConstructorError(result, 'invalid_resource_type', { resourceType: 'invalid' })
   })
 
   it('sets priority to "urgent" for urgent types', () => {
@@ -102,13 +107,7 @@ describe('createNotification', () => {
       'inbox.escalated',
     ] as const
 
-    for (const type of urgentTypes) {
-      const result = createNotification({ ...validInput, type }, clock)
-      expect(result.isOk()).toBe(true)
-      if (result.isOk()) {
-        expect(result.value.priority).toBe('urgent')
-      }
-    }
+    expectPriorityFor(urgentTypes, 'urgent')
   })
 
   it('sets priority to "normal" for non-urgent types', () => {
@@ -123,13 +122,7 @@ describe('createNotification', () => {
       'goal.completed',
     ]
 
-    for (const type of normalTypes) {
-      const result = createNotification({ ...validInput, type }, clock)
-      expect(result.isOk()).toBe(true)
-      if (result.isOk()) {
-        expect(result.value.priority).toBe('normal')
-      }
-    }
+    expectPriorityFor(normalTypes, 'normal')
   })
 
   it('accepts null body', () => {
@@ -256,6 +249,41 @@ describe('createNotificationPreference', () => {
   })
 })
 
+/** Assert a transition result is an `invalid_status` error. */
+function expectInvalidStatus(
+  result: Result<DomainNotification, NotificationError>,
+): void {
+  expect(result.isErr()).toBe(true)
+  if (result.isErr()) {
+    expect(result.error.code).toBe('invalid_status')
+  }
+}
+
+/** Assert a constructor result is a `NotificationError` with the given code + details. */
+function expectConstructorError(
+  result: Result<DomainNotification, NotificationError>,
+  code: string,
+  details: Record<string, unknown>,
+): void {
+  expect(result.isErr()).toBe(true)
+  if (result.isErr()) {
+    expect(result.error._tag).toBe('NotificationError')
+    expect(result.error.code).toBe(code)
+    expect(result.error.details).toEqual(details)
+  }
+}
+
+/** Assert an email transition succeeded and is `sent` at FIXED_DATE; return the narrowed value. */
+function expectEmailSent(
+  result: Result<NotificationEmail, NotificationError>,
+): NotificationEmail {
+  expect(result.isOk()).toBe(true)
+  if (result.isErr()) throw new Error('expected email transition to succeed')
+  expect(result.value.status).toBe('sent')
+  expect(result.value.sentAt).toBe(FIXED_DATE)
+  return result.value
+}
+
 // ── markNotificationRead ────────────────────────────────────────────
 
 describe('markNotificationRead', () => {
@@ -308,10 +336,77 @@ describe('markNotificationRead', () => {
     }
 
     const result = markNotificationRead(dismissed, clock)
-    expect(result.isErr()).toBe(true)
-    if (result.isErr()) {
-      expect(result.error.code).toBe('invalid_status')
+    expectInvalidStatus(result)
+  })
+})
+
+// ── dismissNotification ────────────────────────────────────────────
+
+describe('dismissNotification', () => {
+  const baseNotification: DomainNotification = {
+    id: notificationId('n-1'),
+    userId: USER_ID,
+    organizationId: ORG_ID,
+    type: 'review.created',
+    priority: 'normal',
+    status: 'unread',
+    resourceType: 'inbox_item',
+    resourceId: 'res-1',
+    eventId: 'evt-1',
+    title: 'Test',
+    body: null,
+    readAt: null,
+    createdAt: FIXED_DATE,
+    updatedAt: FIXED_DATE,
+  }
+
+  it('dismisses an unread notification', () => {
+    const result = dismissNotification(baseNotification, clock)
+
+    expect(result.isOk()).toBe(true)
+    if (result.isOk()) {
+      expect(result.value.status).toBe('dismissed')
+      expect(result.value.updatedAt).toBe(FIXED_DATE)
     }
+  })
+
+  it('dismisses a read notification', () => {
+    const readNotification: DomainNotification = {
+      ...baseNotification,
+      status: 'read',
+      readAt: FIXED_DATE,
+    }
+
+    const result = dismissNotification(readNotification, clock)
+    expect(result.isOk()).toBe(true)
+    if (result.isOk()) {
+      expect(result.value.status).toBe('dismissed')
+    }
+  })
+
+  it('is idempotent when already dismissed', () => {
+    const dismissed: DomainNotification = {
+      ...baseNotification,
+      status: 'dismissed',
+    }
+
+    const result = dismissNotification(dismissed, clock)
+    expect(result.isOk()).toBe(true)
+    if (result.isOk()) {
+      expect(result.value).toEqual(dismissed) // unchanged
+    }
+  })
+
+  it('rejects notification in an unexpected status', () => {
+    // NotificationStatus only has unread/read/dismissed, all handled above.
+    // This guards against future status additions.
+    const bogus: DomainNotification = {
+      ...baseNotification,
+      status: 'unknown' as DomainNotification['status'],
+    }
+
+    const result = dismissNotification(bogus, clock)
+    expectInvalidStatus(result)
   })
 })
 
@@ -334,13 +429,8 @@ describe('markEmailSent', () => {
 
   it('marks a pending email as sent', () => {
     const result = markEmailSent(baseEmail, clock)
-
-    expect(result.isOk()).toBe(true)
-    if (result.isOk()) {
-      expect(result.value.status).toBe('sent')
-      expect(result.value.sentAt).toBe(FIXED_DATE)
-      expect(result.value.updatedAt).toBe(FIXED_DATE)
-    }
+    const email = expectEmailSent(result)
+    expect(email.updatedAt).toBe(FIXED_DATE)
   })
 
   it('is idempotent when already sent', () => {
@@ -366,12 +456,8 @@ describe('markEmailSent', () => {
     }
 
     const result = markEmailSent(failed, clock)
-    expect(result.isOk()).toBe(true)
-    if (result.isOk()) {
-      expect(result.value.status).toBe('sent')
-      expect(result.value.sentAt).toBe(FIXED_DATE)
-      expect(result.value.retryCount).toBe(2) // preserved
-    }
+    const email = expectEmailSent(result)
+    expect(email.retryCount).toBe(2) // preserved
   })
 })
 

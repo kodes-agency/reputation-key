@@ -22,6 +22,7 @@ const mockEvent: ReviewCreated = {
   externalId: 'ext-1',
   rating: 4,
   reviewText: 'Nice hotel',
+  reviewerName: 'Test Reviewer',
   occurredAt: NOW,
 }
 
@@ -43,6 +44,7 @@ describe('onReviewCreated', () => {
       sourceDate: NOW,
       platform: 'google',
       snippet: 'Nice hotel',
+      reviewerName: 'Test Reviewer',
     })
   })
 

@@ -1,9 +1,7 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 // Notification context — urgent-email job handler tests
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { createUrgentEmailJobHandler } from './urgent-email.job'
-import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { Notification, NotificationEmail } from '../../domain/types'
 import {
   notificationEmailId,
@@ -12,6 +10,20 @@ import {
   userId,
 } from '#/shared/domain/ids'
 import type { Job } from 'bullmq'
+import {
+  createFakeEmailRepo,
+  createFakeNotifRepo,
+  createFakeUserLookup,
+  createFakeEmailSender,
+  createFakeJobLogger,
+} from './test-fixtures'
+import type {
+  FakeEmailRepo,
+  FakeNotifRepo,
+  FakeUserLookup,
+  FakeEmailSender,
+  FakeJobLogger,
+} from './test-fixtures'
 
 const EMAIL_ENTRY_ID = notificationEmailId('email-entry-1')
 const NOTIF_ID = notificationId('notif-1')
@@ -57,48 +69,27 @@ function createFakeNotification(): Notification {
   }
 }
 
-function createFakeDeps(): Record<string, any> {
+export type FakeUrgentDeps = {
+  emailRepo: FakeEmailRepo
+  notifRepo: FakeNotifRepo
+  userLookup: FakeUserLookup
+  emailSender: FakeEmailSender
+  logger: FakeJobLogger
+}
+
+function createFakeDeps(): FakeUrgentDeps {
   return {
-    emailRepo: {
-      insert: vi.fn(),
-      findById: vi.fn(),
-      findPendingByOrg: vi.fn(),
-      findPendingUrgent: vi.fn(),
-      markSent: vi.fn(),
-      markFailed: vi.fn(),
-      markSkipped: vi.fn(),
-    },
-    notifRepo: {
-      insert: vi.fn(),
-      findById: vi.fn(),
-      findUnreadByUser: vi.fn(),
-      countUnreadByUser: vi.fn(),
-      findByUser: vi.fn(),
-      markRead: vi.fn(),
-      markAllRead: vi.fn(),
-    },
-    userLookup: {
-      findByRole: vi.fn(),
-      findAssignedManagers: vi.fn(),
-      getEmail: vi.fn(),
-      getName: vi.fn(),
-    },
-    emailSender: {
-      send: vi.fn(),
-    },
-    logger: {
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-      debug: vi.fn(),
-      child: vi.fn().mockReturnThis(),
-    } as unknown as LoggerPort,
+    emailRepo: createFakeEmailRepo(),
+    notifRepo: createFakeNotifRepo(),
+    userLookup: createFakeUserLookup(),
+    emailSender: createFakeEmailSender(),
+    logger: createFakeJobLogger(),
   }
 }
 
 /** Set up all mocks for a happy-path flow where the email is sent successfully. */
 function setupHappyPathMocks(
-  deps: ReturnType<typeof createFakeDeps>,
+  deps: FakeUrgentDeps,
   overrides: { entry?: NotificationEmail; notif?: Notification } = {},
 ) {
   deps.emailRepo.findById.mockResolvedValue(overrides.entry ?? createFakeEmailEntry())
@@ -119,8 +110,23 @@ function createFakeJob(emailId: string, orgIdOverride?: string): Job {
   } as unknown as Job
 }
 
+/**
+ * Create + run the urgent-email handler for the standard test entry. Centralises
+ * the fake→port cast so individual tests read as plain actions.
+ */
+function runUrgentHandler(deps: FakeUrgentDeps) {
+  return createUrgentEmailJobHandler(
+    deps as unknown as Parameters<typeof createUrgentEmailJobHandler>[0],
+  )(createFakeJob('email-entry-1'))
+}
+
+/** Assert the email sender was never called. */
+function expectNoEmailSent(deps: FakeUrgentDeps): void {
+  expect(deps.emailSender.send).not.toHaveBeenCalled()
+}
+
 describe('createUrgentEmailJobHandler', () => {
-  let deps: ReturnType<typeof createFakeDeps>
+  let deps: FakeUrgentDeps
 
   beforeEach(() => {
     deps = createFakeDeps()
@@ -129,8 +135,7 @@ describe('createUrgentEmailJobHandler', () => {
   it('sends email for a pending entry and marks it sent', async () => {
     setupHappyPathMocks(deps, { entry: createFakeEmailEntry({ status: 'pending' }) })
 
-    const handler = createUrgentEmailJobHandler(deps as any)
-    await handler(createFakeJob('email-entry-1'))
+    await runUrgentHandler(deps)
 
     expect(deps.emailSender.send).toHaveBeenCalledTimes(1)
     const sendCall = deps.emailSender.send.mock.calls[0][0]
@@ -150,8 +155,7 @@ describe('createUrgentEmailJobHandler', () => {
   it('sends email for a failed entry (retry)', async () => {
     setupHappyPathMocks(deps, { entry: createFakeEmailEntry({ status: 'failed' }) })
 
-    const handler = createUrgentEmailJobHandler(deps as any)
-    await handler(createFakeJob('email-entry-1'))
+    await runUrgentHandler(deps)
 
     expect(deps.emailSender.send).toHaveBeenCalledTimes(1)
     expect(deps.emailRepo.markSent).toHaveBeenCalledWith(
@@ -166,10 +170,9 @@ describe('createUrgentEmailJobHandler', () => {
     setupHappyPathMocks(deps)
     deps.emailRepo.findById.mockResolvedValue(null)
 
-    const handler = createUrgentEmailJobHandler(deps as any)
-    await handler(createFakeJob('email-entry-1'))
+    await runUrgentHandler(deps)
 
-    expect(deps.emailSender.send).not.toHaveBeenCalled()
+    expectNoEmailSent(deps)
     expect(deps.emailRepo.markSent).not.toHaveBeenCalled()
     expect(deps.logger.warn).toHaveBeenCalledWith(
       expect.objectContaining({ notificationEmailId: EMAIL_ENTRY_ID }),
@@ -181,45 +184,36 @@ describe('createUrgentEmailJobHandler', () => {
     setupHappyPathMocks(deps)
     deps.emailRepo.findById.mockResolvedValue(createFakeEmailEntry({ status: 'sent' }))
 
-    const handler = createUrgentEmailJobHandler(deps as any)
-    await handler(createFakeJob('email-entry-1'))
+    await runUrgentHandler(deps)
 
-    expect(deps.emailSender.send).not.toHaveBeenCalled()
+    expectNoEmailSent(deps)
   })
 
   it('skips if entry status is "skipped"', async () => {
     setupHappyPathMocks(deps)
     deps.emailRepo.findById.mockResolvedValue(createFakeEmailEntry({ status: 'skipped' }))
 
-    const handler = createUrgentEmailJobHandler(deps as any)
-    await handler(createFakeJob('email-entry-1'))
+    await runUrgentHandler(deps)
 
-    expect(deps.emailSender.send).not.toHaveBeenCalled()
+    expectNoEmailSent(deps)
   })
 
-  it('marks skipped when notification not found', async () => {
+  it.each([
+    {
+      label: 'notification not found',
+      stub: (d: FakeUrgentDeps) => d.notifRepo.findById.mockResolvedValue(null),
+    },
+    {
+      label: 'user email not found',
+      stub: (d: FakeUrgentDeps) => d.userLookup.getEmail.mockResolvedValue(null),
+    },
+  ])('marks skipped when $label', async ({ stub }) => {
     setupHappyPathMocks(deps)
-    deps.notifRepo.findById.mockResolvedValue(null)
+    stub(deps)
 
-    const handler = createUrgentEmailJobHandler(deps as any)
-    await handler(createFakeJob('email-entry-1'))
+    await runUrgentHandler(deps)
 
-    expect(deps.emailSender.send).not.toHaveBeenCalled()
-    expect(deps.emailRepo.markSkipped).toHaveBeenCalledWith(
-      EMAIL_ENTRY_ID,
-      'org-1',
-      expect.any(Date),
-    )
-  })
-
-  it('marks skipped when user email not found', async () => {
-    setupHappyPathMocks(deps)
-    deps.userLookup.getEmail.mockResolvedValue(null)
-
-    const handler = createUrgentEmailJobHandler(deps as any)
-    await handler(createFakeJob('email-entry-1'))
-
-    expect(deps.emailSender.send).not.toHaveBeenCalled()
+    expectNoEmailSent(deps)
     expect(deps.emailRepo.markSkipped).toHaveBeenCalledWith(
       EMAIL_ENTRY_ID,
       'org-1',
@@ -231,8 +225,7 @@ describe('createUrgentEmailJobHandler', () => {
     setupHappyPathMocks(deps)
     deps.emailSender.send.mockRejectedValue(new Error('SMTP down'))
 
-    const handler = createUrgentEmailJobHandler(deps as any)
-    await expect(handler(createFakeJob('email-entry-1'))).rejects.toThrow('SMTP down')
+    await expect(runUrgentHandler(deps)).rejects.toThrow('SMTP down')
 
     expect(deps.emailRepo.markFailed).toHaveBeenCalledWith(
       EMAIL_ENTRY_ID,
@@ -240,11 +233,11 @@ describe('createUrgentEmailJobHandler', () => {
       expect.any(Date),
       expect.any(Date),
     )
-    expect(deps.emailRepo.markSent).not.toHaveBeenCalled()
     expect(deps.logger.error).toHaveBeenCalledWith(
       expect.objectContaining({ notificationEmailId: EMAIL_ENTRY_ID }),
       'Urgent email send failed',
     )
+    expect(deps.emailRepo.markSent).not.toHaveBeenCalled()
   })
 
   it('includes notification title and body in email html', async () => {
@@ -256,8 +249,7 @@ describe('createUrgentEmailJobHandler', () => {
       },
     })
 
-    const handler = createUrgentEmailJobHandler(deps as any)
-    await handler(createFakeJob('email-entry-1'))
+    await runUrgentHandler(deps)
 
     const html = deps.emailSender.send.mock.calls[0][0].html
     expect(html).toContain('Important update')
@@ -269,8 +261,7 @@ describe('createUrgentEmailJobHandler', () => {
       notif: { ...createFakeNotification(), body: null },
     })
 
-    const handler = createUrgentEmailJobHandler(deps as any)
-    await handler(createFakeJob('email-entry-1'))
+    await runUrgentHandler(deps)
 
     expect(deps.emailSender.send).toHaveBeenCalledTimes(1)
   })
@@ -284,8 +275,7 @@ describe('createUrgentEmailJobHandler', () => {
       },
     })
 
-    const handler = createUrgentEmailJobHandler(deps as any)
-    await handler(createFakeJob('email-entry-1'))
+    await runUrgentHandler(deps)
 
     const html = deps.emailSender.send.mock.calls[0][0].html
     expect(html).not.toContain('<script>')

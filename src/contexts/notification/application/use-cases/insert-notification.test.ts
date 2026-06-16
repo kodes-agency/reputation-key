@@ -6,11 +6,7 @@ import type {
   InsertNotificationInput,
   InsertNotificationDeps,
 } from './insert-notification'
-import type {
-  Notification as DomainNotification,
-  NotificationEmail,
-  NotificationPreference,
-} from '../../domain/types'
+import { buildFakeInsertNotificationDeps as createFakeDeps } from './test-fixtures'
 import {
   organizationId,
   userId,
@@ -23,51 +19,6 @@ const USER_ID = userId('user-1')
 const NOTIF_ID = notificationId('notif-1')
 const EMAIL_ID = notificationEmailId('email-1')
 const FIXED_DATE = new Date('2026-06-10T10:00:00Z')
-
-function createFakeDeps(): InsertNotificationDeps {
-  const insertedEmails: unknown[] = []
-
-  return {
-    notificationRepo: {
-      insert: vi.fn(async (n: DomainNotification) => {
-        return n
-      }),
-      findById: vi.fn(async () => null),
-      findUnreadByUser: vi.fn(async () => []),
-      countUnreadByUser: vi.fn(async () => 0),
-      findByUser: vi.fn(async () => []),
-      markRead: vi.fn(async () => {}),
-      markAllRead: vi.fn(async () => {}),
-    },
-    emailRepo: {
-      insert: vi.fn(async (e: NotificationEmail) => {
-        insertedEmails.push(e)
-        return e
-      }),
-      findById: vi.fn(async () => null),
-      findPendingByOrg: vi.fn(async () => []),
-      findPendingUrgent: vi.fn(async () => []),
-      markSent: vi.fn(async () => {}),
-      markFailed: vi.fn(async () => {}),
-      markSkipped: vi.fn(async () => {}),
-    },
-    preferenceRepo: {
-      findByUserAndType: vi.fn(async () => null),
-      upsert: vi.fn(async () => ({}) as NotificationPreference),
-      findByUser: vi.fn(async () => []),
-    },
-    clock: () => FIXED_DATE,
-    idGen: () => NOTIF_ID,
-    emailIdGen: () => EMAIL_ID,
-    logger: {
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-      debug: vi.fn(),
-      child: vi.fn(() => createFakeDeps().logger),
-    },
-  }
-}
 
 const validInput: InsertNotificationInput = {
   userId: USER_ID,
@@ -309,5 +260,45 @@ describe('insertNotification', () => {
       expect(result).not.toBeNull()
       expect(result!.resourceType).toBe(resourceType)
     }
+  })
+
+  it('enqueues urgent email for urgent priority types', async () => {
+    const freshDeps = createFakeDeps()
+    await insertNotification(freshDeps)({
+      ...validInput,
+      type: 'inbox.escalated',
+    })
+
+    expect(freshDeps.enqueueUrgentEmail).toHaveBeenCalledTimes(1)
+    const callArg = (freshDeps.enqueueUrgentEmail as ReturnType<typeof vi.fn>).mock
+      .calls[0]![0] as { notificationEmailId: string; organizationId: string }
+    expect(callArg.notificationEmailId).toBe(EMAIL_ID)
+    expect(callArg.organizationId).toBe(ORG_ID)
+  })
+
+  it('does NOT enqueue urgent email for normal priority types', async () => {
+    const freshDeps = createFakeDeps()
+    await insertNotification(freshDeps)({
+      ...validInput,
+      type: 'review.created',
+    })
+
+    expect(freshDeps.enqueueUrgentEmail).not.toHaveBeenCalled()
+  })
+
+  it('does not throw when enqueueUrgentEmail fails (orphan recovery via digest)', async () => {
+    const freshDeps = createFakeDeps()
+    ;(freshDeps.enqueueUrgentEmail as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      new Error('Redis down'),
+    )
+
+    const result = await insertNotification(freshDeps)({
+      ...validInput,
+      type: 'inbox.escalated',
+    })
+
+    // Notification still created despite enqueue failure
+    expect(result).not.toBeNull()
+    expect(freshDeps.logger.error).toHaveBeenCalled()
   })
 })

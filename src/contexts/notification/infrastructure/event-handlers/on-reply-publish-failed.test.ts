@@ -1,76 +1,44 @@
 // Notification context — on-reply-publish-failed event handler tests
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { onReplyPublishFailed } from './on-reply-publish-failed'
-import type { ReviewReplyPublishFailed } from '#/contexts/review/application/public-api'
-import type { Queue } from 'bullmq'
 import {
-  organizationId,
-  propertyId,
-  reviewId,
-  replyId,
-  userId,
-} from '#/shared/domain/ids'
-import { INSERT_NOTIFICATION_JOB_NAME } from '../jobs/insert-notification.job'
+  createEventHandlerDeps,
+  type FakeEventHandlerDeps,
+  buildReplyPublishFailedEvent,
+  buildExpectedJob,
+  NOTIF_TEST_IDS,
+} from './test-fixtures'
 
-const ORG_ID = organizationId('org-1')
-const PROP_ID = propertyId('prop-1')
-const REVIEW_ID = reviewId('rev-1')
-const REPLY_ID = replyId('reply-1')
-const AUTHOR_ID = userId('author-1')
-const NOW = new Date('2026-06-01T12:00:00Z')
-
-const mockEvent: ReviewReplyPublishFailed = {
-  _tag: 'review.reply.publish_failed',
-  eventId: 'test-event-id',
-  correlationId: null,
-  replyId: REPLY_ID,
-  reviewId: REVIEW_ID,
-  propertyId: PROP_ID,
-  organizationId: ORG_ID,
-  authorId: AUTHOR_ID,
-  occurredAt: NOW,
-}
-
-function createFakeDeps() {
-  const jobs: Array<{ name: string; data: unknown }> = []
-  const addMock = vi.fn(async (name: string, data: unknown) => {
-    jobs.push({ name, data })
-  })
-  const queue = { add: addMock } as unknown as Queue
-  return { queue, addMock, jobs }
-}
+const publishFailedEvent = buildReplyPublishFailedEvent()
 
 describe('onReplyPublishFailed (notification)', () => {
-  let deps: ReturnType<typeof createFakeDeps>
+  let deps: FakeEventHandlerDeps
 
   beforeEach(() => {
-    deps = createFakeDeps()
+    deps = createEventHandlerDeps()
   })
 
   it('enqueues a notification job with correct data', async () => {
-    await onReplyPublishFailed(deps)(mockEvent)
+    await onReplyPublishFailed(deps)(publishFailedEvent)
 
     expect(deps.queue.add).toHaveBeenCalledTimes(1)
-    expect(deps.jobs[0]).toEqual({
-      name: INSERT_NOTIFICATION_JOB_NAME,
-      data: {
-        userId: AUTHOR_ID,
-        organizationId: ORG_ID,
+    expect(deps.jobs[0]).toEqual(
+      buildExpectedJob({
+        userId: NOTIF_TEST_IDS.authorId,
         type: 'reply.publish_failed',
         resourceType: 'reply',
-        resourceId: REPLY_ID,
-        eventId: 'test-event-id',
+        resourceId: NOTIF_TEST_IDS.replyId,
         title: 'Reply publish failed',
         body: 'Failed to publish your reply to Google. Please retry.',
-      },
-    })
+      }),
+    )
   })
 
   it('propagates error from queue.add', async () => {
     deps.addMock.mockRejectedValue(new Error('Queue unavailable'))
 
-    await expect(onReplyPublishFailed(deps)(mockEvent)).rejects.toThrow(
+    await expect(onReplyPublishFailed(deps)(publishFailedEvent)).rejects.toThrow(
       'Queue unavailable',
     )
   })

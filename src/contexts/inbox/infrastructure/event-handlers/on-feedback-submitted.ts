@@ -25,6 +25,7 @@ export const onFeedbackSubmitted =
           sourceDate: event.occurredAt,
           platform: null,
           snippet: null,
+          reviewerName: null,
         })
       } catch (err) {
         if (isInboxError(err) && err.code === 'already_exists') return

@@ -21,9 +21,6 @@ export type NotificationEmailRepositoryPort = Readonly<{
     priority: NotificationPriority,
   ): Promise<readonly NotificationEmail[]>
 
-  /** ⚠️ CROSS-TENANT by design — global email worker. Results limited to 1000. */
-  findPendingUrgent(): Promise<readonly NotificationEmail[]>
-
   markSent(
     id: NotificationEmailId,
     orgId: OrganizationId,

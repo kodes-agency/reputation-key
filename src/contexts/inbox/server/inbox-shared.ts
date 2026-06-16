@@ -1,14 +1,17 @@
-// Inbox context — shared server utilities
+// Inbox context — client-safe shared utilities.
+//
+// This file is loaded by the client module graph (server-fn files import
+// client-safe symbols like `createServerFn`, `can`, `inboxErrorStatus` from
+// here). It MUST NOT import server-only modules — the RPC transform strips
+// handler-only *direct* imports but cannot strip module-level imports in a
+// barrel. Server-only utilities (tracedHandler, getContainer,
+// headersFromContext, resolveTenantContext, throwContextError, catchUntagged)
+// are imported directly by each server-fn file from their source instead.
 
 import { createServerFn } from '@tanstack/react-start'
-import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { match } from 'ts-pattern'
 import { HTTP_STATUS } from '#/shared/http/status'
-import { getContainer } from '#/composition'
 import { can } from '#/shared/domain/permissions'
-import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
-import { headersFromContext } from '#/shared/auth/headers'
-import { resolveTenantContext } from '#/shared/auth/middleware'
 import { isInboxError } from '../domain/errors'
 import type { InboxErrorCode } from '../domain/errors'
 import { inboxItemId, propertyId } from '#/shared/domain/ids'
@@ -32,13 +35,7 @@ const inboxErrorStatus = (code: InboxErrorCode): number =>
 
 export {
   createServerFn,
-  tracedHandler,
-  headersFromContext,
-  resolveTenantContext,
-  throwContextError,
-  catchUntagged,
   can,
-  getContainer,
   isInboxError,
   inboxErrorStatus,
   inboxItemId,

@@ -52,6 +52,7 @@ describe('createInboxItem', () => {
       sourceDate: new Date('2026-04-10'),
       platform: 'google',
       snippet: 'Great stay!',
+      reviewerName: null,
     })
 
     expect(item.id).toBe(FIXED_ID)
@@ -74,6 +75,7 @@ describe('createInboxItem', () => {
       sourceDate: new Date('2026-04-10'),
       platform: null,
       snippet: null,
+      reviewerName: null,
     })
 
     const emitted = events.capturedEvents
@@ -93,6 +95,7 @@ describe('createInboxItem', () => {
       sourceDate: new Date('2026-04-10'),
       platform: 'google',
       snippet: 'OK',
+      reviewerName: null,
     }
 
     await useCase(input)
@@ -114,6 +117,7 @@ describe('createInboxItem', () => {
       sourceDate: new Date('2026-04-10'),
       platform: 'google',
       snippet: 'test',
+      reviewerName: null,
     })
 
     expect(increments.count).toBe(1)

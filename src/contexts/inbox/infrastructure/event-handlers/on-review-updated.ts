@@ -27,6 +27,7 @@ export const onReviewUpdated =
         await deps.repo.syncDenormalizedFields(item.id, item.organizationId, {
           rating: event.rating,
           snippet: event.reviewText ?? undefined,
+          reviewerName: event.reviewerName,
         })
       } catch (err) {
         getLogger().error(

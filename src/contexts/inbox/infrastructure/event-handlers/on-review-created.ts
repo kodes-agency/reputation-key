@@ -25,6 +25,7 @@ export const onReviewCreated =
           sourceDate: event.occurredAt,
           platform: event.platform,
           snippet: event.reviewText ?? null,
+          reviewerName: event.reviewerName,
         })
       } catch (err) {
         if (isInboxError(err) && err.code === 'already_exists') return

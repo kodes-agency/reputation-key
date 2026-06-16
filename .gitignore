@@ -45,3 +45,6 @@ witness/
 
 # fallow analysis cache (regenerated locally; never commit)
 .fallow/cache.bin
+
+# test coverage (generated)
+/coverage/

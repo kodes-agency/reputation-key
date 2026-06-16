@@ -10,6 +10,7 @@ import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { validateAssignment } from '../../domain/rules'
 import { inboxItemAssigned, inboxItemUnassigned } from '../../domain/events'
 import { inboxError } from '../../domain/errors'
+import { loadInboxItemOrThrow, assertPropertyAccessible } from '../inbox-access'
 import { can } from '#/shared/domain/permissions'
 
 export type AssignInboxItemInput = Readonly<{
@@ -42,32 +43,19 @@ export const assignInboxItem =
       throw assignmentResult.error
     }
 
-    // 2. Find item
-    const item = await deps.repo.findById(input.inboxItemId, input.organizationId)
-    if (!item) {
-      throw inboxError('not_found', 'Inbox item not found', {
-        inboxItemId: input.inboxItemId,
-      })
-    }
-
-    // Enforce role-scoped property access
-    if (!can(input.role, 'inbox.manage')) {
-      const accessible = await deps.staffPublicApi.getAccessiblePropertyIds(
-        input.organizationId,
-        input.userId,
-        input.role,
-      )
-      if (
-        accessible !== null &&
-        !accessible.includes(
-          item.propertyId as ReturnType<typeof import('#/shared/domain/ids').propertyId>,
-        )
-      ) {
-        throw inboxError('forbidden', 'No access to this property', {
-          propertyId: item.propertyId,
-        })
-      }
-    }
+    // 2. Find item + enforce role-scoped property access
+    const item = await loadInboxItemOrThrow(
+      deps.repo,
+      input.inboxItemId,
+      input.organizationId,
+    )
+    await assertPropertyAccessible(
+      deps.staffPublicApi,
+      input.organizationId,
+      input.userId,
+      input.role,
+      item.propertyId,
+    )
 
     // 3. Update assignment
     const updated = await deps.repo.updateAssignment(

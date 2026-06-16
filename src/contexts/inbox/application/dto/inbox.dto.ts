@@ -41,7 +41,7 @@ export const bulkUpdateStatusDto = z.object({
 // POST assign
 export const assignInboxItemDto = z.object({
   inboxItemId: z.string().uuid(),
-  assignedToUserId: z.string().nullable(),
+  assignedToUserId: z.string().uuid().nullable(),
 })
 
 // POST add note

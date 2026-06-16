@@ -77,7 +77,8 @@
   },
   "health": {
     "maxCyclomatic": 20,
-    "maxCognitive": 15
+    "maxCognitive": 15,
+    "maxCrap": 450
   },
   "audit": {
     "gate": "new-only"

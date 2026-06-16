@@ -1,9 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // Notification context — digest-notification job handler tests
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest'
 import { createDigestNotificationJobHandler } from './digest-notification.job'
-import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { Notification, NotificationEmail } from '../../domain/types'
 import {
   notificationEmailId,
@@ -12,6 +11,20 @@ import {
   userId,
 } from '#/shared/domain/ids'
 import type { Job } from 'bullmq'
+import {
+  createFakeEmailRepo,
+  createFakeNotifRepo,
+  createFakeUserLookup,
+  createFakeEmailSender,
+  createFakeJobLogger,
+} from './test-fixtures'
+import type {
+  FakeEmailRepo,
+  FakeNotifRepo,
+  FakeUserLookup,
+  FakeEmailSender,
+  FakeJobLogger,
+} from './test-fixtures'
 
 const ORG_ID_1 = 'org-1'
 const ORG_ID_2 = 'org-2'
@@ -60,6 +73,13 @@ function createFakeNotification(overrides: Partial<Notification> = {}): Notifica
   }
 }
 
+/** Wrap notifications into a Map keyed by id (mirrors findByIds return shape). */
+function notificationMap(...notifs: (Notification | null)[]): Map<string, Notification> {
+  const map = new Map<string, Notification>()
+  for (const n of notifs) if (n) map.set(n.id, n)
+  return map
+}
+
 /** Generate timezone rows covering all 24 hours using Etc/GMT offsets. */
 function allHourTimezoneRows(orgId: string) {
   const rows: { organization_id: string; timezone: string }[] = []
@@ -78,53 +98,63 @@ function allHourTimezoneRows(orgId: string) {
 /** All-hour timezones for ORG_ID_1. */
 const ALL_HOUR_TIMEZONES = allHourTimezoneRows(ORG_ID_1)
 
-function createFakeDeps(): Record<string, any> {
+export type FakeDigestDeps = {
+  pool: { query: Mock }
+  emailRepo: FakeEmailRepo
+  notifRepo: FakeNotifRepo
+  userLookup: FakeUserLookup
+  emailSender: FakeEmailSender
+  logger: FakeJobLogger
+}
+
+function createFakeDeps(): FakeDigestDeps {
   return {
     pool: { query: vi.fn() },
-    emailRepo: {
-      insert: vi.fn(),
-      findById: vi.fn(),
-      findPendingByOrg: vi.fn(),
-      findPendingUrgent: vi.fn(),
-      markSent: vi.fn(),
-      markFailed: vi.fn(),
-      markSkipped: vi.fn(),
-    },
-    notifRepo: {
-      insert: vi.fn(),
-      findById: vi.fn(),
-      findUnreadByUser: vi.fn(),
-      countUnreadByUser: vi.fn(),
-      findByUser: vi.fn(),
-      markRead: vi.fn(),
-      markAllRead: vi.fn(),
-    },
-    userLookup: {
-      findByRole: vi.fn(),
-      findAssignedManagers: vi.fn(),
-      getEmail: vi.fn(),
-      getName: vi.fn(),
-    },
-    emailSender: { send: vi.fn() },
-    logger: {
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-      debug: vi.fn(),
-      child: vi.fn().mockReturnThis(),
-    } as unknown as LoggerPort,
+    emailRepo: createFakeEmailRepo(),
+    notifRepo: createFakeNotifRepo(),
+    userLookup: createFakeUserLookup(),
+    emailSender: createFakeEmailSender(),
+    logger: createFakeJobLogger(),
   }
 }
 
 /** Set up all mock return values for a happy-path digest flow. */
-function setupDigestMocks(deps: ReturnType<typeof createFakeDeps>) {
+function setupDigestMocks(deps: FakeDigestDeps) {
   deps.pool.query.mockResolvedValue({ rows: ALL_HOUR_TIMEZONES })
   deps.emailRepo.findPendingByOrg.mockResolvedValue([])
-  deps.notifRepo.findById.mockResolvedValue(null)
+  deps.notifRepo.findByIds.mockResolvedValue(notificationMap(null))
   deps.userLookup.getEmail.mockResolvedValue(null)
   deps.emailSender.send.mockResolvedValue(undefined)
   deps.emailRepo.markSent.mockResolvedValue(undefined)
   deps.emailRepo.markFailed.mockResolvedValue(undefined)
+}
+
+/**
+ * Set up a pending digest entry for a single user and wire the common mocks:
+ * findPendingByOrg returns the entry, findByIds resolves to the notification map,
+ * and getEmail resolves to the user's address. Returns the entry for assertions.
+ */
+function setupPendingEntry(
+  deps: FakeDigestDeps,
+  {
+    entryOverrides = {},
+    notification = createFakeNotification(),
+    email = 'user@example.com',
+  }: {
+    entryOverrides?: Partial<NotificationEmail>
+    notification?: Notification | null
+    email?: string | null
+  } = {},
+): NotificationEmail {
+  const entry = createFakeEmailEntry({
+    userId: userId(USER_ID_1),
+    organizationId: organizationId(ORG_ID_1),
+    ...entryOverrides,
+  })
+  deps.emailRepo.findPendingByOrg.mockResolvedValue([entry])
+  deps.notifRepo.findByIds.mockResolvedValue(notificationMap(notification))
+  deps.userLookup.getEmail.mockResolvedValue(email)
+  return entry
 }
 
 function createFakeJob(): Job {
@@ -136,8 +166,14 @@ function createFakeJob(): Job {
   } as unknown as Job
 }
 
+/** Assert no digest work happened (no pending lookup, no send). */
+function expectNoDigestActivity(deps: FakeDigestDeps): void {
+  expect(deps.emailRepo.findPendingByOrg).not.toHaveBeenCalled()
+  expect(deps.emailSender.send).not.toHaveBeenCalled()
+}
+
 describe('createDigestNotificationJobHandler', () => {
-  let deps: ReturnType<typeof createFakeDeps>
+  let deps: FakeDigestDeps
 
   beforeEach(() => {
     deps = createFakeDeps()
@@ -161,22 +197,13 @@ describe('createDigestNotificationJobHandler', () => {
     const handler = createDigestNotificationJobHandler(deps as any)
     await handler(createFakeJob())
 
-    expect(deps.emailRepo.findPendingByOrg).not.toHaveBeenCalled()
-    expect(deps.emailSender.send).not.toHaveBeenCalled()
+    expectNoDigestActivity(deps)
   })
 
   it('sends digest for qualifying org and marks entries sent', async () => {
     setupDigestMocks(deps)
 
-    const entry = createFakeEmailEntry({
-      id: notificationEmailId(EMAIL_ID_1),
-      notificationId: notificationId(NOTIF_ID_1),
-      userId: userId(USER_ID_1),
-      organizationId: organizationId(ORG_ID_1),
-    })
-    deps.emailRepo.findPendingByOrg.mockResolvedValue([entry])
-    deps.notifRepo.findById.mockResolvedValue(createFakeNotification())
-    deps.userLookup.getEmail.mockResolvedValue('user@example.com')
+    setupPendingEntry(deps)
 
     const handler = createDigestNotificationJobHandler(deps as any)
     await handler(createFakeJob())
@@ -208,8 +235,8 @@ describe('createDigestNotificationJobHandler', () => {
     })
 
     deps.emailRepo.findPendingByOrg.mockResolvedValue([user1Entry, user2Entry])
-    deps.notifRepo.findById.mockResolvedValue(
-      createFakeNotification({ title: 'Grouped notif', body: 'Body' }),
+    deps.notifRepo.findByIds.mockResolvedValue(
+      notificationMap(createFakeNotification({ title: 'Grouped notif', body: 'Body' })),
     )
     deps.userLookup.getEmail.mockImplementation((uid: string) =>
       uid === USER_ID_1
@@ -231,13 +258,7 @@ describe('createDigestNotificationJobHandler', () => {
   it('skips users with no email address', async () => {
     setupDigestMocks(deps)
 
-    const entry = createFakeEmailEntry({
-      userId: userId(USER_ID_1),
-      organizationId: organizationId(ORG_ID_1),
-    })
-    deps.emailRepo.findPendingByOrg.mockResolvedValue([entry])
-    deps.notifRepo.findById.mockResolvedValue(createFakeNotification())
-    deps.userLookup.getEmail.mockResolvedValue(null) // no email
+    setupPendingEntry(deps, { email: null })
 
     const handler = createDigestNotificationJobHandler(deps as any)
     await handler(createFakeJob())
@@ -249,13 +270,7 @@ describe('createDigestNotificationJobHandler', () => {
   it('skips entries when no notifications found for the user', async () => {
     setupDigestMocks(deps)
 
-    const entry = createFakeEmailEntry({
-      userId: userId(USER_ID_1),
-      organizationId: organizationId(ORG_ID_1),
-    })
-    deps.emailRepo.findPendingByOrg.mockResolvedValue([entry])
-    deps.notifRepo.findById.mockResolvedValue(null) // no notification
-    deps.userLookup.getEmail.mockResolvedValue('user@example.com')
+    setupPendingEntry(deps, { notification: null })
 
     const handler = createDigestNotificationJobHandler(deps as any)
     await handler(createFakeJob())
@@ -266,14 +281,7 @@ describe('createDigestNotificationJobHandler', () => {
   it('marks all entries failed when email send fails and logs error', async () => {
     setupDigestMocks(deps)
 
-    const entry = createFakeEmailEntry({
-      id: notificationEmailId(EMAIL_ID_1),
-      userId: userId(USER_ID_1),
-      organizationId: organizationId(ORG_ID_1),
-    })
-    deps.emailRepo.findPendingByOrg.mockResolvedValue([entry])
-    deps.notifRepo.findById.mockResolvedValue(createFakeNotification())
-    deps.userLookup.getEmail.mockResolvedValue('user@example.com')
+    setupPendingEntry(deps)
     deps.emailSender.send.mockRejectedValue(new Error('SES down'))
 
     const handler = createDigestNotificationJobHandler(deps as any)
@@ -301,8 +309,7 @@ describe('createDigestNotificationJobHandler', () => {
     const handler = createDigestNotificationJobHandler(deps as any)
     await handler(createFakeJob())
 
-    expect(deps.emailRepo.findPendingByOrg).not.toHaveBeenCalled()
-    expect(deps.emailSender.send).not.toHaveBeenCalled()
+    expectNoDigestActivity(deps)
   })
 
   it('skips when qualifying org has no pending emails', async () => {
@@ -318,14 +325,7 @@ describe('createDigestNotificationJobHandler', () => {
   it('handles markFailed error gracefully during failure path', async () => {
     setupDigestMocks(deps)
 
-    const entry = createFakeEmailEntry({
-      id: notificationEmailId(EMAIL_ID_1),
-      userId: userId(USER_ID_1),
-      organizationId: organizationId(ORG_ID_1),
-    })
-    deps.emailRepo.findPendingByOrg.mockResolvedValue([entry])
-    deps.notifRepo.findById.mockResolvedValue(createFakeNotification())
-    deps.userLookup.getEmail.mockResolvedValue('user@example.com')
+    setupPendingEntry(deps)
     deps.emailSender.send.mockRejectedValue(new Error('SES down'))
     deps.emailRepo.markFailed.mockRejectedValue(new Error('markFailed also broke'))
 
@@ -361,7 +361,7 @@ describe('createDigestNotificationJobHandler', () => {
       if (orgId === ORG_ID_2) return Promise.resolve([org2Entry])
       return Promise.resolve([])
     })
-    deps.notifRepo.findById.mockResolvedValue(createFakeNotification())
+    deps.notifRepo.findByIds.mockResolvedValue(notificationMap(createFakeNotification()))
     deps.userLookup.getEmail.mockImplementation((uid: string) =>
       Promise.resolve(`${uid}@example.com`),
     )

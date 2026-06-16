@@ -1,9 +1,9 @@
 // Notification context — on-goal-completed event handler tests
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { onGoalCompleted } from './on-goal-completed'
+import { createEventHandlerDeps, type FakeEventHandlerDeps } from './test-fixtures'
 import type { GoalCompleted } from '#/contexts/goal/application/public-api'
-import type { Queue } from 'bullmq'
 import { organizationId, propertyId, goalId, userId } from '#/shared/domain/ids'
 import { INSERT_NOTIFICATION_JOB_NAME } from '../jobs/insert-notification.job'
 
@@ -32,20 +32,11 @@ const mockEvent: GoalCompleted = {
   createdBy: CREATOR_ID,
 }
 
-function createFakeDeps() {
-  const jobs: Array<{ name: string; data: unknown }> = []
-  const addMock = vi.fn(async (name: string, data: unknown) => {
-    jobs.push({ name, data })
-  })
-  const queue = { add: addMock } as unknown as Queue
-  return { queue, addMock, jobs }
-}
-
 describe('onGoalCompleted (notification)', () => {
-  let deps: ReturnType<typeof createFakeDeps>
+  let deps: FakeEventHandlerDeps
 
   beforeEach(() => {
-    deps = createFakeDeps()
+    deps = createEventHandlerDeps()
   })
 
   it('enqueues a single notification for the goal creator', async () => {
