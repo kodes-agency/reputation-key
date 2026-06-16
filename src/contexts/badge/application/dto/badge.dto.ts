@@ -55,10 +55,6 @@ export const setOrganizationBadgeEnablementSchema = z.object({
   enabled: z.boolean(),
 })
 
-export type EvaluateBadgeForTargetInput = z.infer<typeof evaluateBadgeForTargetSchema>
-export type ReconcileBadgeDefinitionsInput = z.infer<
-  typeof reconcileBadgeDefinitionsSchema
->
 export type GetVisibleTargetBadgesInput = z.infer<typeof getVisibleTargetBadgesSchema>
 export type GetStaffVisibleBadgesInput = z.infer<typeof getStaffVisibleBadgesSchema>
 export type SetOrganizationBadgeEnablementInput = z.infer<
