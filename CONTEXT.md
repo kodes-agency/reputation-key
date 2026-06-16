@@ -155,6 +155,38 @@ Composition root: `src/composition.ts`. Bootstrap: `src/bootstrap.ts`.
 - Never use `hasRole()` for permission checks — only for hierarchy
 - Never call `toDomainRole()` on an already-mapped domain role — `resolveTenantContext()` already returns domain roles
 
+## Client/Server Boundary
+
+TanStack Start builds **two bundles** — client and server. Server-only code that leaks into the client bundle **crashes hydration**: Vite externalizes Node builtins, and accessing them in the browser throws (`Module "crypto" has been externalized for browser compatibility`) before React hydrates — every page renders but nothing is interactive. This has bitten us twice (ADR 0012, ADR 0015).
+
+### What is server-only (must never run in the browser)
+
+Node builtins (`crypto`, `async_hooks`, `fs`, `stream`, …), the packages `pg` / `ioredis` / `bullmq` / `drizzle-orm`, and these app modules: `src/composition.ts`, `src/contexts/*/build.ts`, `src/contexts/*/infrastructure/**` (repositories), `src/shared/db/**`, `src/shared/cache/**`, `src/shared/jobs/**`, `src/shared/observability/**`, `src/shared/auth/auth.ts`, `src/routes/api/**`.
+
+### Rules
+
+| Rule                                                                                                                | Why                                                                                                                                                                      |
+| ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Put Node-builtin-using helpers in a `*.server.ts` file                                                              | Import protection mocks `*.server.*` in the client automatically (default rule)                                                                                          |
+| Or add `import '@tanstack/react-start/server-only'` at the top of a server-only file                                | Marks it server-only without renaming                                                                                                                                    |
+| Never mix a plain (non-`createServerFn`) export that uses Node builtins into a server-function file                 | The RPC transform stubs handler bodies but does **not** strip module-level imports used by plain exports — the whole module leaks when a barrel imports the plain export |
+| `server/` barrels must re-export only `createServerFn` results and `import type`                                    | Value-importing a plain server-only helper drags the module (and its Node imports) into the client                                                                       |
+| API routes (`routes/api/**`) are statically imported by `routeTree.gen.ts` and reach the client graph               | They are **not** `createServerFn`, so they are not RPC-stubbed — keep their imports server-only                                                                          |
+| When adding a new server-only directory under `src/`, add it to `importProtection.client.files` in `vite.config.ts` | The default rules only match `*.server.*`; a directory convention needs an explicit deny rule                                                                            |
+
+### Forbidden patterns
+
+- Never export a plain function that uses Node builtins (`createHash`, `AsyncLocalStorage`, `randomUUID`) from a file that also exports `createServerFn` — move it to a `*.server.ts` file.
+- Never value-import a server-only helper into a `server/` barrel that client code reaches (`import { hashIp } from './guest-scans'`). Use `import type` or import from a `*.server.ts` file.
+- Never import `getAuth()` / `getDb()` / `getContainer()` / `getLogger()` from routes, components, or hooks — only from inside `createServerFn` handler bodies or API routes.
+- `createServerFn` server functions are **safe** to import from client code — TanStack RPC-stubs them. `**/server/**` is deliberately **not** in the import-protection deny list; do not add it.
+
+### Verify after touching this boundary
+
+1. Dev server running, browser console open — **no** `externalized for browser compatibility` errors.
+2. A `<button>` or `<input>` has `__reactProps*` keys (React hydrated).
+3. A known server function (e.g. `auth.getSession`) logs `request complete` in the server output.
+
 ## Architecture Decisions
 
 See `docs/adr/` for formal ADRs. Key ADRs:
@@ -175,21 +207,23 @@ See `docs/adr/` for formal ADRs. Key ADRs:
 || 0012 | Nitro Vite Plugin — Dev-Mode Exclusion | Dev Tooling, Vite Config, TanStack Start |
 || 0013 | Portal Groups Replace Team and Staff as Goal/Leaderboard Scopes | Goal Scoping, Portal Groups |
 || 0014 | Badges and Leaderboards as Separate Recognition Contexts | Badges, Leaderboards, Recognition |
+|| 0015 | Import Protection — Server-Only Code Leak | Dev Tooling, Client/Server Boundary |
 
 ## Key Files
 
-| Area                      | Path                                           |
-| ------------------------- | ---------------------------------------------- |
-| Permission definitions    | `src/shared/auth/permissions.ts`               |
-| Permission type + `can()` | `src/shared/domain/permissions.ts`             |
-| Role types + `hasRole()`  | `src/shared/domain/roles.ts`                   |
-| Client permission hook    | `src/shared/hooks/usePermissions.ts`           |
-| Auth context type         | `src/shared/domain/auth-context.ts`            |
-| Auth middleware           | `src/shared/auth/middleware.ts`                |
-| Better-auth config        | `src/shared/auth/auth.ts`                      |
-| Better-auth client        | `src/shared/auth/auth-client.ts`               |
-| Authenticated route       | `src/routes/_authenticated.tsx`                |
-| Composition root          | `src/composition.ts`                           |
-| Bootstrap                 | `src/bootstrap.ts`                             |
-| Request tracing           | `src/shared/observability/traced-server-fn.ts` |
-| Tenant cache              | `src/shared/auth/middleware.ts`                |
+| Area                        | Path                                               |
+| --------------------------- | -------------------------------------------------- |
+| Permission definitions      | `src/shared/auth/permissions.ts`                   |
+| Permission type + `can()`   | `src/shared/domain/permissions.ts`                 |
+| Role types + `hasRole()`    | `src/shared/domain/roles.ts`                       |
+| Client permission hook      | `src/shared/hooks/usePermissions.ts`               |
+| Auth context type           | `src/shared/domain/auth-context.ts`                |
+| Auth middleware             | `src/shared/auth/middleware.ts`                    |
+| Better-auth config          | `src/shared/auth/auth.ts`                          |
+| Better-auth client          | `src/shared/auth/auth-client.ts`                   |
+| Authenticated route         | `src/routes/_authenticated.tsx`                    |
+| Composition root            | `src/composition.ts`                               |
+| Bootstrap                   | `src/bootstrap.ts`                                 |
+| Request tracing             | `src/shared/observability/traced-server-fn.ts`     |
+| Tenant cache                | `src/shared/auth/middleware.ts`                    |
+| Import protection deny list | `vite.config.ts` (`importProtection.client.files`) |
