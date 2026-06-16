@@ -33,7 +33,29 @@
   ],
   "ignoreExports": [
     { "file": "src/contexts/*/infrastructure/jobs/*.job.ts", "exports": ["JOB_NAME"] },
-    { "file": "src/shared/jobs/*.job.ts", "exports": ["JOB_NAME"] }
+    { "file": "src/shared/jobs/*.job.ts", "exports": ["JOB_NAME"] },
+    {
+      "file": "src/contexts/identity/server/organizations.*.ts",
+      "exports": [
+        "updateOrganization",
+        "finalizeAvatarUpload",
+        "finalizeOrgLogoUpload",
+        "requestAvatarUpload",
+        "requestOrgLogoUpload"
+      ]
+    },
+    {
+      "file": "src/contexts/inbox/domain/constructors.ts",
+      "exports": ["createInboxItem", "CreateInboxItemInput"]
+    },
+    {
+      "file": "src/contexts/*/infrastructure/adapters/db-user-lookup.adapter.ts",
+      "exports": ["createDbUserLookupAdapter"]
+    },
+    {
+      "file": "src/contexts/integration/infrastructure/handlers/gbp-notification-handler.ts",
+      "exports": ["handleGbpNotification"]
+    }
   ],
   "production": false,
   "rules": {
@@ -62,7 +84,7 @@
   },
   "regression": {
     "baseline": {
-      "totalIssues": 206,
+      "totalIssues": 192,
       "unusedFiles": 20,
       "unusedExports": 172,
       "unusedTypes": 0,
@@ -73,7 +95,7 @@
       "unusedClassMembers": 0,
       "unresolvedImports": 0,
       "unlistedDependencies": 0,
-      "duplicateExports": 14,
+      "duplicateExports": 0,
       "circularDependencies": 0,
       "reExportCycles": 0,
       "typeOnlyDependencies": 0,
