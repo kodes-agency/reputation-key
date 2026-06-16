@@ -10,7 +10,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      security-events: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -22,12 +21,6 @@ jobs:
         with:
           # Combined dead-code + complexity + duplication verdict.
           # gate: new-only fails ONLY on issues the PR introduces — the
-          # 206-issue regression baseline (.fallowrc.json) never blocks.
+          # 192-issue regression baseline (.fallowrc.json) never blocks.
           command: audit
           gate: new-only
-
-      - name: Upload SARIF
-        if: always()
-        uses: github/codeql-action/upload-sarif@v4
-        with:
-          sarif_file: fallow-results.sarif
