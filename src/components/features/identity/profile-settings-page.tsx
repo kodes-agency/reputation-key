@@ -2,7 +2,7 @@
 // Per conventions: receives user data and serverFns from route context and renders the form.
 import { ProfileSettingsForm, type Props as FormProps } from './profile-settings-form'
 
-export type Props = Readonly<{
+type Props = Readonly<{
   user: FormProps['user']
   updateProfile: FormProps['updateProfile']
   updateUserImage: FormProps['updateUserImage']

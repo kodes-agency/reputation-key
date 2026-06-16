@@ -1,9 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import {
-  GoogleAccountSelector,
-  ConnectGoogleButton,
-} from '#/components/features/integration'
+import { GoogleAccountSelector } from '#/components/features/integration/google-account-selector'
+import { ConnectGoogleButton } from '#/components/features/integration/connect-google-button'
 import type { GoogleConnectionDto } from '#/contexts/integration/application/public-api'
 import { ImportLocationsSection } from './import-locations-section'
 import { useGbpLocations } from './use-gbp-locations'

@@ -8,8 +8,7 @@
 
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
-import { match } from 'ts-pattern'
-import { HTTP_STATUS } from '#/shared/http/status'
+import { propertyErrorStatus } from './property-shared'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
@@ -17,22 +16,6 @@ import { getContainer } from '#/composition'
 import { createPropertyInputSchema } from '../application/dto/create-property.dto'
 import { updatePropertyInputSchema } from '../application/dto/update-property.dto'
 import { isPropertyError } from '../domain/errors'
-import type { PropertyErrorCode } from '../domain/errors'
-
-// ── Error → HTTP status mapping ───────────────────────────────────
-
-export const propertyErrorStatus = (code: PropertyErrorCode): number =>
-  match(code)
-    .with('forbidden', () => HTTP_STATUS.FORBIDDEN)
-    .with('property_not_found', () => HTTP_STATUS.NOT_FOUND)
-    .with('slug_taken', () => HTTP_STATUS.CONFLICT)
-    .with(
-      'invalid_slug',
-      'invalid_name',
-      'invalid_timezone',
-      () => HTTP_STATUS.BAD_REQUEST,
-    )
-    .exhaustive()
 
 // ── createProperty ─────────────────────────────────────────────────
 

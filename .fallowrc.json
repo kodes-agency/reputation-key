@@ -1,22 +1,109 @@
 {
+  "$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
+  "entry": [
+    "src/router.tsx",
+    "src/start.ts",
+    "src/worker/index.ts",
+    "src/bootstrap.ts",
+    "src/composition.ts",
+    "scripts/cleanup-kodes.ts",
+    "scripts/check-db.ts",
+    "scripts/check-schema-drift.ts",
+    "scripts/cleanup-all.ts",
+    "vite.config.ts",
+    "drizzle.config.ts"
+  ],
+  "ignorePatterns": [
+    "src/routeTree.gen.ts",
+    "drizzle/**",
+    "dist/**",
+    "dist-worker/**",
+    ".output/**",
+    "e2e/**",
+    "docs/**",
+    ".claude/**"
+  ],
+  "ignoreDependencies": [
+    "@rolldown/binding-darwin-arm64",
+    "@tanstack/intent",
+    "@better-auth/cli",
+    "@tanstack/start-server-core",
+    "eslint-import-resolver-typescript",
+    "shadcn"
+  ],
+  "ignoreExports": [
+    { "file": "src/contexts/*/infrastructure/jobs/*.job.ts", "exports": ["JOB_NAME"] },
+    { "file": "src/shared/jobs/*.job.ts", "exports": ["JOB_NAME"] },
+    {
+      "file": "src/contexts/identity/server/organizations.*.ts",
+      "exports": [
+        "updateOrganization",
+        "finalizeAvatarUpload",
+        "finalizeOrgLogoUpload",
+        "requestAvatarUpload",
+        "requestOrgLogoUpload"
+      ]
+    },
+    {
+      "file": "src/contexts/inbox/domain/constructors.ts",
+      "exports": ["createInboxItem", "CreateInboxItemInput"]
+    },
+    {
+      "file": "src/contexts/*/infrastructure/adapters/db-user-lookup.adapter.ts",
+      "exports": ["createDbUserLookupAdapter"]
+    },
+    {
+      "file": "src/contexts/integration/infrastructure/handlers/gbp-notification-handler.ts",
+      "exports": ["handleGbpNotification"]
+    }
+  ],
+  "production": false,
+  "rules": {
+    "unresolved-imports": "error",
+    "unlisted-dependencies": "error",
+    "duplicate-exports": "error",
+    "circular-dependencies": "error",
+    "unused-files": "warn",
+    "unused-dependencies": "warn",
+    "unused-dev-dependencies": "warn",
+    "unused-exports": "warn",
+    "unused-types": "off"
+  },
+  "duplicates": {
+    "mode": "mild",
+    "minTokens": 50,
+    "minLines": 5,
+    "threshold": 10
+  },
+  "health": {
+    "maxCyclomatic": 20,
+    "maxCognitive": 15
+  },
+  "audit": {
+    "gate": "new-only"
+  },
   "regression": {
-    "baseline":     {
-      "totalIssues": 247,
-      "unusedFiles": 7,
-      "unusedExports": 104,
-      "unusedTypes": 121,
-      "unusedDependencies": 6,
-      "unusedDevDependencies": 5,
+    "baseline": {
+      "totalIssues": 188,
+      "unusedFiles": 20,
+      "unusedExports": 168,
+      "unusedTypes": 0,
+      "unusedDependencies": 0,
+      "unusedDevDependencies": 0,
       "unusedOptionalDependencies": 0,
       "unusedEnumMembers": 0,
       "unusedClassMembers": 0,
       "unresolvedImports": 0,
       "unlistedDependencies": 0,
-      "duplicateExports": 1,
+      "duplicateExports": 0,
       "circularDependencies": 0,
+      "reExportCycles": 0,
       "typeOnlyDependencies": 0,
-      "testOnlyDependencies": 3,
-      "boundaryViolations": 0
+      "testOnlyDependencies": 0,
+      "boundaryViolations": 0,
+      "boundaryCoverageViolations": 0,
+      "boundaryCallViolations": 0,
+      "policyViolations": 0
     }
   }
 }

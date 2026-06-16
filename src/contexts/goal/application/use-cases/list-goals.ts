@@ -12,7 +12,7 @@ import { err, ok, type Result } from '#/shared/domain'
 
 // ── Input type ────────────────────────────────────────────────────────────
 
-export type ListGoalsInput = Readonly<GoalListFilter & { role: Role }>
+type ListGoalsInput = Readonly<GoalListFilter & { role: Role }>
 
 // ── Return types ───────────────────────────────────────────────────────────
 

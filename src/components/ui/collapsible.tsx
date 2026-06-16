@@ -1,4 +1,4 @@
-// fallow-ignore-file unused-files — reserved for upcoming phases (sidebar collapsible nav)
+// Reserved for upcoming phases (sidebar collapsible nav). Currently unused — tracked in fallow baseline.
 'use client'
 
 import { Collapsible as CollapsiblePrimitive } from 'radix-ui'
