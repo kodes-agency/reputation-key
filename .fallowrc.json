@@ -83,6 +83,24 @@
   "audit": {
     "gate": "new-only"
   },
+  "boundaries": {
+    "zones": [
+      { "name": "domain", "patterns": ["src/contexts/*/domain/**"] },
+      { "name": "application", "patterns": ["src/contexts/*/application/**"] },
+      { "name": "infrastructure", "patterns": ["src/contexts/*/infrastructure/**"] },
+      { "name": "server", "patterns": ["src/contexts/*/server/**"] },
+      { "name": "shared", "patterns": ["src/shared/**"] },
+      { "name": "routes", "patterns": ["src/routes/**"] },
+      { "name": "components", "patterns": ["src/components/**"] }
+    ],
+    "rules": [
+      { "from": "domain", "allow": ["shared"] },
+      { "from": "application", "allow": ["domain", "shared"] },
+      { "from": "infrastructure", "allow": ["domain", "application", "shared"] },
+      { "from": "server", "allow": ["application", "domain", "shared"] },
+      { "from": "shared", "allow": [] }
+    ]
+  },
   "regression": {
     "baseline": {
       "totalIssues": 188,
@@ -102,6 +120,54 @@
       "typeOnlyDependencies": 0,
       "testOnlyDependencies": 0,
       "boundaryViolations": 0,
+      "boundaryCoverageViolations": 0,
+      "boundaryCallViolations": 0,
+      "policyViolations": 0
+    }
+  },
+  "regression": {
+    "baseline": {
+      "totalIssues": 221,
+      "unusedFiles": 17,
+      "unusedExports": 171,
+      "unusedTypes": 0,
+      "unusedDependencies": 0,
+      "unusedDevDependencies": 0,
+      "unusedOptionalDependencies": 0,
+      "unusedEnumMembers": 0,
+      "unusedClassMembers": 0,
+      "unresolvedImports": 0,
+      "unlistedDependencies": 0,
+      "duplicateExports": 0,
+      "circularDependencies": 0,
+      "reExportCycles": 0,
+      "typeOnlyDependencies": 0,
+      "testOnlyDependencies": 0,
+      "boundaryViolations": 33,
+      "boundaryCoverageViolations": 0,
+      "boundaryCallViolations": 0,
+      "policyViolations": 0
+    }
+  },
+  "regression": {
+    "baseline": {
+      "totalIssues": 221,
+      "unusedFiles": 17,
+      "unusedExports": 171,
+      "unusedTypes": 0,
+      "unusedDependencies": 0,
+      "unusedDevDependencies": 0,
+      "unusedOptionalDependencies": 0,
+      "unusedEnumMembers": 0,
+      "unusedClassMembers": 0,
+      "unresolvedImports": 0,
+      "unlistedDependencies": 0,
+      "duplicateExports": 0,
+      "circularDependencies": 0,
+      "reExportCycles": 0,
+      "typeOnlyDependencies": 0,
+      "testOnlyDependencies": 0,
+      "boundaryViolations": 33,
       "boundaryCoverageViolations": 0,
       "boundaryCallViolations": 0,
       "policyViolations": 0
