@@ -9,7 +9,7 @@ import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { can } from '#/shared/domain/permissions'
 import { getContainer } from '#/composition'
 import { isIdentityError } from '../domain/errors'
-import { throwIdentityError } from './organizations.shared'
+import { throwIdentityError } from './organizations.errors.server'
 import {
   inviteMemberInputSchema,
   updateMemberRoleInputSchema,
