@@ -8,7 +8,7 @@
 
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
-import { propertyErrorStatus } from './property-errors'
+import { propertyErrorStatus } from './property-shared'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'

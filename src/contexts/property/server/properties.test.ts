@@ -9,7 +9,7 @@
 import { describe, it, expect } from 'vitest'
 import { propertyError } from '#/contexts/property/domain/errors'
 import type { PropertyErrorCode } from '#/contexts/property/domain/errors'
-import { propertyErrorStatus } from '#/contexts/property/server/property-errors'
+import { propertyErrorStatus } from '#/contexts/property/server/property-shared'
 import { throwContextError } from '#/shared/auth/server-errors'
 import { createPropertyInputSchema } from '#/contexts/property/application/dto/create-property.dto'
 import { updatePropertyInputSchema } from '#/contexts/property/application/dto/update-property.dto'

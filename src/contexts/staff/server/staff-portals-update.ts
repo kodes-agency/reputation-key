@@ -11,7 +11,7 @@ import { getContainer } from '#/composition'
 import { portalId as toPortalId } from '#/shared/domain/ids'
 import { propertyId as toPropertyId, userId as toUserId } from '#/shared/domain/ids'
 import { isStaffError } from '../application/public-api'
-import { staffErrorStatus } from './staff-errors'
+import { staffErrorStatus } from './staff-shared'
 
 // ── updateStaffPortals ─────────────────────────────────────────────
 

@@ -8,7 +8,7 @@ import { resolveTenantContext } from '#/shared/auth/middleware'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getContainer } from '#/composition'
 import { isPropertyError } from '../domain/errors'
-import { propertyErrorStatus } from './property-errors'
+import { propertyErrorStatus } from './property-shared'
 
 // ── Shared Zod validators ──────────────────────────────────────────
 

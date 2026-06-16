@@ -2,7 +2,7 @@
 
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
-import { staffErrorStatus } from './staff-errors'
+import { staffErrorStatus } from './staff-shared'
 import { headersFromContext } from '#/shared/auth/headers'
 import { can } from '#/shared/domain/permissions'
 import { resolveTenantContext } from '#/shared/auth/middleware'
