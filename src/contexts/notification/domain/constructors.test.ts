@@ -6,6 +6,7 @@ import { createNotificationEmail } from './constructors-email'
 import { createNotificationPreference } from './constructors-preference'
 import {
   markNotificationRead,
+  dismissNotification,
   markEmailSent,
   markEmailFailed,
   markEmailSkipped,
@@ -308,6 +309,79 @@ describe('markNotificationRead', () => {
     }
 
     const result = markNotificationRead(dismissed, clock)
+    expect(result.isErr()).toBe(true)
+    if (result.isErr()) {
+      expect(result.error.code).toBe('invalid_status')
+    }
+  })
+})
+
+// ── dismissNotification ────────────────────────────────────────────
+
+describe('dismissNotification', () => {
+  const baseNotification: DomainNotification = {
+    id: notificationId('n-1'),
+    userId: USER_ID,
+    organizationId: ORG_ID,
+    type: 'review.created',
+    priority: 'normal',
+    status: 'unread',
+    resourceType: 'inbox_item',
+    resourceId: 'res-1',
+    eventId: 'evt-1',
+    title: 'Test',
+    body: null,
+    readAt: null,
+    createdAt: FIXED_DATE,
+    updatedAt: FIXED_DATE,
+  }
+
+  it('dismisses an unread notification', () => {
+    const result = dismissNotification(baseNotification, clock)
+
+    expect(result.isOk()).toBe(true)
+    if (result.isOk()) {
+      expect(result.value.status).toBe('dismissed')
+      expect(result.value.updatedAt).toBe(FIXED_DATE)
+    }
+  })
+
+  it('dismisses a read notification', () => {
+    const readNotification: DomainNotification = {
+      ...baseNotification,
+      status: 'read',
+      readAt: FIXED_DATE,
+    }
+
+    const result = dismissNotification(readNotification, clock)
+    expect(result.isOk()).toBe(true)
+    if (result.isOk()) {
+      expect(result.value.status).toBe('dismissed')
+    }
+  })
+
+  it('is idempotent when already dismissed', () => {
+    const dismissed: DomainNotification = {
+      ...baseNotification,
+      status: 'dismissed',
+    }
+
+    const result = dismissNotification(dismissed, clock)
+    expect(result.isOk()).toBe(true)
+    if (result.isOk()) {
+      expect(result.value).toEqual(dismissed) // unchanged
+    }
+  })
+
+  it('rejects notification in an unexpected status', () => {
+    // NotificationStatus only has unread/read/dismissed, all handled above.
+    // This guards against future status additions.
+    const bogus: DomainNotification = {
+      ...baseNotification,
+      status: 'unknown' as DomainNotification['status'],
+    }
+
+    const result = dismissNotification(bogus, clock)
     expect(result.isErr()).toBe(true)
     if (result.isErr()) {
       expect(result.error.code).toBe('invalid_status')

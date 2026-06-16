@@ -9,7 +9,7 @@ import { resolveTenantContext } from '#/shared/auth/middleware'
 import { catchUntagged } from '#/shared/auth/server-errors'
 import { getAuth } from '#/shared/auth/auth'
 import { isIdentityError } from '../domain/errors'
-import { throwIdentityError } from './organizations.shared'
+import { throwIdentityError } from './organizations.errors.server'
 import { updateOrganization as updateOrganizationUseCase } from '../application/use-cases/update-organization'
 
 // ── Update organization ──────────────────────────────────────────────

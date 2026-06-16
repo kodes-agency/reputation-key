@@ -32,6 +32,7 @@ describe('createInboxItem', () => {
       sourceDate: new Date('2025-05-20T10:00:00Z'),
       platform: 'google',
       snippet: 'Great experience!',
+      reviewerName: null,
       assignedTo: null,
       clock,
     })
@@ -62,6 +63,7 @@ describe('createInboxItem', () => {
       sourceDate: new Date('2025-05-21T10:00:00Z'),
       platform: null,
       snippet: null,
+      reviewerName: null,
       assignedTo: USER_ID,
       clock,
     })
@@ -86,6 +88,7 @@ describe('createInboxItem', () => {
       sourceDate: NOW,
       platform: null,
       snippet: null,
+      reviewerName: null,
       assignedTo: null,
       clock,
     })
@@ -108,6 +111,7 @@ describe('createInboxItem', () => {
       sourceDate: NOW,
       platform: null,
       snippet: null,
+      reviewerName: null,
       assignedTo: null,
       clock,
     })
@@ -130,6 +134,7 @@ describe('createInboxItem', () => {
       sourceDate: NOW,
       platform: 'a'.repeat(51),
       snippet: null,
+      reviewerName: null,
       assignedTo: null,
       clock,
     })
@@ -152,6 +157,7 @@ describe('createInboxItem', () => {
       sourceDate: NOW,
       platform: null,
       snippet: 'a'.repeat(10001),
+      reviewerName: null,
       assignedTo: null,
       clock,
     })

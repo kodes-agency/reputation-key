@@ -28,18 +28,20 @@ export function useInboxState(
   const [items, setItems] = useState<ReadonlyArray<InboxItem>>([])
   const [nextCursor, setNextCursor] = useState<Cursor | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [selectedIds, setSelectedIds] = useState<ReadonlyArray<string>>([])
 
   const loadAction = useAction(useServerFn(getInboxItemsFn))
-  const abortRef = useRef(false)
+  const requestIdRef = useRef(0)
   const loadActionRef = useRef(loadAction)
   loadActionRef.current = loadAction
 
   const loadItems = useCallback(
     async (cursor?: Cursor) => {
       if (!orgId) return
-      abortRef.current = false
+      const requestId = ++requestIdRef.current
       if (!cursor) setIsLoading(true)
+      setError(null)
       try {
         const r = await loadActionRef.current({
           data: {
@@ -52,16 +54,19 @@ export function useInboxState(
             limit: INBOX_PAGE_SIZE,
           },
         })
-        if (!abortRef.current) {
+        if (requestId === requestIdRef.current) {
           const ni = r.items ?? []
           if (cursor) setItems((p) => [...p, ...ni])
           else setItems(ni)
           setNextCursor(r.nextCursor ?? null)
         }
       } catch {
-        // F003 FIX: Silently swallow — error state is handled by loading UI
+        if (requestId === requestIdRef.current) {
+          setError('Failed to load inbox items. Check your connection and try again.')
+          if (!cursor) setItems([])
+        }
       } finally {
-        if (!abortRef.current) setIsLoading(false)
+        if (requestId === requestIdRef.current) setIsLoading(false)
       }
     },
     [
@@ -77,10 +82,8 @@ export function useInboxState(
   )
 
   useEffect(() => {
-    loadItems()
-    return () => {
-      abortRef.current = true
-    }
+    const t = setTimeout(() => loadItems(), 300)
+    return () => clearTimeout(t)
   }, [loadItems])
   useEffect(() => {
     setSelectedIds([])
@@ -126,6 +129,7 @@ export function useInboxState(
     setItems,
     nextCursor,
     isLoading,
+    error,
     selectedIds,
     setSelectedIds,
     loadAction,

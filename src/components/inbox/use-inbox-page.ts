@@ -60,6 +60,7 @@ export function useInboxPage(
     setItems,
     nextCursor,
     isLoading,
+    error,
     selectedIds,
     setSelectedIds,
     loadAction,
@@ -82,13 +83,23 @@ export function useInboxPage(
   useEffect(() => {
     if (detailState.statusVersion > 0 && detailState.currentItem) {
       const u = detailState.currentItem
-      setItems((p) =>
-        p.map((i) =>
+      setItems((p) => {
+        // FE-3: after a status change, drop the item from the current view
+        // when its new status no longer matches the active filter (e.g.
+        // marking as 'addressed' while viewing the 'new' tab). The selected-
+        // detail auto-close effect in useInboxState then clears itemId.
+        const visible = !filters.status
+          ? true
+          : typeof filters.status !== 'string'
+            ? filters.status.includes(u.status)
+            : filters.status === u.status
+        if (!visible) return p.filter((i) => i.id !== u.id)
+        return p.map((i) =>
           i.id === u.id ? { ...i, status: u.status, updatedAt: u.updatedAt } : i,
-        ),
-      )
+        )
+      })
     }
-  }, [detailState.statusVersion, detailState.currentItem])
+  }, [detailState.statusVersion, detailState.currentItem, filters.status])
 
   useInboxKeyboardShortcuts({
     items,
@@ -121,6 +132,7 @@ export function useInboxPage(
     setItems,
     nextCursor,
     isLoading,
+    error,
     selectedIds,
     setSelectedIds,
     loadAction,

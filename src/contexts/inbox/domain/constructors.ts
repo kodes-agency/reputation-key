@@ -23,6 +23,7 @@ export type CreateInboxItemInput = Readonly<{
   sourceDate: Date
   platform: string | null
   snippet: string | null
+  reviewerName: string | null
   assignedTo: UserId | null
   clock: () => Date
 }>
@@ -71,7 +72,7 @@ export const createInboxItem = (
     platform: input.platform,
     snippet: input.snippet,
     assignedTo: input.assignedTo,
-    reviewerName: null,
+    reviewerName: input.reviewerName,
     propertyName: null,
     readAt: null,
     escalatedAt: null,

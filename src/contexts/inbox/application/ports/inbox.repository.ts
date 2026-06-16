@@ -74,7 +74,7 @@ export type InboxRepository = Readonly<{
   syncDenormalizedFields(
     id: InboxItemId,
     orgId: OrganizationId,
-    fields: { rating?: number; snippet?: string; sourceDate?: Date },
+    fields: { rating?: number; snippet?: string; reviewerName?: string | null; sourceDate?: Date },
     now?: Date,
   ): Promise<void>
   findDetailById(id: InboxItemId, orgId: OrganizationId): Promise<InboxItemDetail | null>

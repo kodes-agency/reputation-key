@@ -53,6 +53,13 @@ export const getActiveOrganization = createServerFn({ method: 'GET' }).handler(
           role: ctx.role,
         }
       } catch (e) {
+        // No active organization is a valid state (new user, or org not yet
+        // selected). Return a default instead of throwing — a thrown error
+        // loses its `.code` across the server-function RPC boundary, so the
+        // route beforeLoad can't recognize it and the page 500s.
+        if (e instanceof Error && 'code' in e && (e as { code: string }).code === 'no_active_org') {
+          return { organization: null, role: 'Staff' as const }
+        }
         throw catchUntagged(e)
       }
     },

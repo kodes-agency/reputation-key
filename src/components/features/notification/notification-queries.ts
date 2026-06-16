@@ -52,24 +52,60 @@ export function useNotifications(limit = 20) {
   const rawAction = useAction(useServerFn(getNotificationsFn))
   const [notifications, setNotifications] = useState<readonly Notification[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const [error, setError] = useState<Error | null>(null)
+  const [hasMore, setHasMore] = useState(false)
+  const offsetRef = useRef(0)
 
+  // Reset to first page and replace the list.
   const fetchList = useCallback(async () => {
     setIsLoading(true)
+    setError(null)
     try {
-      const result = await rawAction({ data: { limit } })
-      if (result) setNotifications(result as Notification[])
-    } catch {
-      // silently ignore
+      const result = await rawAction({ data: { limit, offset: 0 } })
+      offsetRef.current = 0
+      const items = (result ?? []) as Notification[]
+      setNotifications(items)
+      setHasMore(items.length === limit)
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error('Failed to load notifications'))
     } finally {
       setIsLoading(false)
     }
   }, [limit])
 
+  // Append the next page. Leaves the existing list intact on failure so the
+  // user can retry by clicking again rather than losing what they have.
+  const loadMore = useCallback(async () => {
+    if (isLoadingMore) return
+    setIsLoadingMore(true)
+    try {
+      const nextOffset = offsetRef.current + limit
+      const result = await rawAction({ data: { limit, offset: nextOffset } })
+      const items = (result ?? []) as Notification[]
+      offsetRef.current = nextOffset
+      setNotifications((prev) => [...prev, ...items])
+      setHasMore(items.length === limit)
+    } catch {
+      // Non-fatal: keep current list, button stays available for retry.
+    } finally {
+      setIsLoadingMore(false)
+    }
+  }, [limit, isLoadingMore])
+
   useEffect(() => {
     void fetchList()
   }, [fetchList])
 
-  return { notifications, isLoading, refetch: fetchList }
+  return {
+    notifications,
+    isLoading,
+    isLoadingMore,
+    error,
+    hasMore,
+    refetch: fetchList,
+    loadMore,
+  }
 }
 
 // ── Mark single notification read ───────────────────────────────────

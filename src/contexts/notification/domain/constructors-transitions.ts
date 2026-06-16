@@ -36,6 +36,34 @@ export const markNotificationRead = (
   })
 }
 
+export const dismissNotification = (
+  notification: Notification,
+  clock: () => Date,
+): Result<Notification, NotificationError> => {
+  if (notification.status === 'dismissed') {
+    return ok(notification) // Idempotent — already dismissed
+  }
+
+  if (notification.status !== 'unread' && notification.status !== 'read') {
+    return err(
+      notificationError(
+        'invalid_status',
+        `Cannot dismiss from status: ${notification.status}`,
+        {
+          status: notification.status,
+        },
+      ),
+    )
+  }
+
+  const now = clock()
+  return ok({
+    ...notification,
+    status: 'dismissed',
+    updatedAt: now,
+  })
+}
+
 // ── Email status transitions ────────────────────────────────────────
 
 export const markEmailSent = (

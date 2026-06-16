@@ -12,7 +12,7 @@ const VALID_TRANSITIONS: Readonly<Record<InboxStatus, readonly InboxStatus[]>> =
   read: ['addressed', 'escalated', 'archived'],
   escalated: ['addressed', 'archived'],
   addressed: ['archived', 'escalated'],
-  archived: ['escalated'],
+  archived: ['new', 'read', 'escalated'],
 }
 
 /** Returns true when `from → to` is a legal status transition. Same-status is NOT valid. */

@@ -118,6 +118,10 @@ export function useInboxDetail(
   useEffect(() => {
     if (!options?.autoMarkRead || !active || !item) return
     if (lastMarkedRef.current === item.id) return
+    // FE-2: skip already-read items (and any other non-'new' status) so we
+    // don't fire a redundant markRead mutation — that would trigger an
+    // unnecessary server call plus side effects (toast, query invalidation).
+    if (item.status === 'read') return
     if (item.status !== 'new') return
 
     const timer = setTimeout(() => {

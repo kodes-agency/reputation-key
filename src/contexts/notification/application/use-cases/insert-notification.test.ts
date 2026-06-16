@@ -38,6 +38,8 @@ function createFakeDeps(): InsertNotificationDeps {
       findByUser: vi.fn(async () => []),
       markRead: vi.fn(async () => {}),
       markAllRead: vi.fn(async () => {}),
+      findByIds: vi.fn(async () => new Map()),
+      updateStatus: vi.fn(async () => {}),
     },
     emailRepo: {
       insert: vi.fn(async (e: NotificationEmail) => {
@@ -46,7 +48,6 @@ function createFakeDeps(): InsertNotificationDeps {
       }),
       findById: vi.fn(async () => null),
       findPendingByOrg: vi.fn(async () => []),
-      findPendingUrgent: vi.fn(async () => []),
       markSent: vi.fn(async () => {}),
       markFailed: vi.fn(async () => {}),
       markSkipped: vi.fn(async () => {}),
@@ -59,6 +60,7 @@ function createFakeDeps(): InsertNotificationDeps {
     clock: () => FIXED_DATE,
     idGen: () => NOTIF_ID,
     emailIdGen: () => EMAIL_ID,
+    enqueueUrgentEmail: vi.fn(async () => {}),
     logger: {
       info: vi.fn(),
       warn: vi.fn(),
@@ -309,5 +311,45 @@ describe('insertNotification', () => {
       expect(result).not.toBeNull()
       expect(result!.resourceType).toBe(resourceType)
     }
+  })
+
+  it('enqueues urgent email for urgent priority types', async () => {
+    const freshDeps = createFakeDeps()
+    await insertNotification(freshDeps)({
+      ...validInput,
+      type: 'inbox.escalated',
+    })
+
+    expect(freshDeps.enqueueUrgentEmail).toHaveBeenCalledTimes(1)
+    const callArg = (freshDeps.enqueueUrgentEmail as ReturnType<typeof vi.fn>).mock
+      .calls[0]![0] as { notificationEmailId: string; organizationId: string }
+    expect(callArg.notificationEmailId).toBe(EMAIL_ID)
+    expect(callArg.organizationId).toBe(ORG_ID)
+  })
+
+  it('does NOT enqueue urgent email for normal priority types', async () => {
+    const freshDeps = createFakeDeps()
+    await insertNotification(freshDeps)({
+      ...validInput,
+      type: 'review.created',
+    })
+
+    expect(freshDeps.enqueueUrgentEmail).not.toHaveBeenCalled()
+  })
+
+  it('does not throw when enqueueUrgentEmail fails (orphan recovery via digest)', async () => {
+    const freshDeps = createFakeDeps()
+    ;(freshDeps.enqueueUrgentEmail as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      new Error('Redis down'),
+    )
+
+    const result = await insertNotification(freshDeps)({
+      ...validInput,
+      type: 'inbox.escalated',
+    })
+
+    // Notification still created despite enqueue failure
+    expect(result).not.toBeNull()
+    expect(freshDeps.logger.error).toHaveBeenCalled()
   })
 })

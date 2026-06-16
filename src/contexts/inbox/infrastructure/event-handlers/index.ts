@@ -10,6 +10,7 @@ import { onFeedbackSubmitted } from './on-feedback-submitted'
 import { onReviewUpdated } from './on-review-updated'
 import { onReplyPublished } from './on-reply-published'
 import { onReplySubmitted } from './on-reply-submitted'
+import { onReviewExpired } from './on-review-expired'
 
 export type RegisterInboxHandlersDeps = Readonly<{
   events: EventBus
@@ -40,6 +41,13 @@ export const registerInboxHandlers = (deps: RegisterInboxHandlersDeps): void => 
     'review.reply.submitted',
     onReplySubmitted({
       repo: deps.repo,
+    }),
+  )
+  deps.events.on(
+    'review.expired',
+    onReviewExpired({
+      repo: deps.repo,
+      newCounter: deps.newCounter,
     }),
   )
 }

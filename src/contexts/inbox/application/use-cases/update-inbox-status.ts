@@ -36,6 +36,7 @@ export type UpdateInboxStatusDeps = Readonly<{
 export const updateInboxStatus =
   (deps: UpdateInboxStatusDeps) =>
   async (input: UpdateInboxStatusInput): Promise<InboxItem> => {
+    if (!can(input.role, 'inbox.write')) throw inboxError('forbidden', 'No inbox write permission')
     // 1. Find item
     const item = await deps.repo.findById(input.inboxItemId, input.organizationId)
     if (!item) {
@@ -117,7 +118,9 @@ export const updateInboxStatus =
           eventId: crypto.randomUUID(),
           inboxItemId: updated.id,
           organizationId: updated.organizationId,
+          propertyId: updated.propertyId,
           oldStatus: item.status,
+          userId: input.userId,
           occurredAt: now,
         }),
       )

@@ -4,7 +4,7 @@
 // TypeScript structural typing makes `string` assignable to branded types.
 // Brands serve as documentation of intent, not runtime enforcement.
 
-import type { Notification } from '../../domain/types'
+import type { Notification, NotificationStatus } from '../../domain/types'
 import type { NotificationId, UserId, OrganizationId } from '#/shared/domain/ids'
 
 export type NotificationRepositoryPort = Readonly<{
@@ -12,6 +12,12 @@ export type NotificationRepositoryPort = Readonly<{
   insert(notification: Notification): Promise<Notification>
 
   findById(id: NotificationId, orgId: OrganizationId): Promise<Notification | null>
+
+  /** Batch-fetch by ids within an org. Returns a Map keyed by notification id. */
+  findByIds(
+    ids: readonly NotificationId[],
+    orgId: OrganizationId,
+  ): Promise<Map<string, Notification>>
 
   findUnreadByUser(
     userId: UserId,
@@ -37,4 +43,12 @@ export type NotificationRepositoryPort = Readonly<{
   ): Promise<void>
 
   markAllRead(userId: UserId, orgId: OrganizationId, updatedAt: Date): Promise<void>
+
+
+  updateStatus(
+    id: NotificationId,
+    orgId: OrganizationId,
+    status: NotificationStatus,
+    updatedAt: Date,
+  ): Promise<void>
 }>

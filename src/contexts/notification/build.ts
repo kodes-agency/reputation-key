@@ -5,14 +5,18 @@ import type { Database } from '#/shared/db'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { Queue } from 'bullmq'
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import { notificationId, notificationEmailId } from '#/shared/domain/ids'
+import { notificationId, notificationEmailId, notificationPreferenceId } from '#/shared/domain/ids'
 import { createNotificationRepository } from './infrastructure/repositories/notification.repository'
 import { createNotificationEmailRepository } from './infrastructure/repositories/notification-email.repository'
 import { createNotificationPreferenceRepository } from './infrastructure/repositories/notification-preference.repository'
 import { createDbUserLookupAdapter } from './infrastructure/adapters/db-user-lookup.adapter'
 import { registerNotificationHandlers } from './infrastructure/event-handlers'
 import { insertNotification } from './application/use-cases/insert-notification'
-import { markNotificationRead } from './domain/constructors-transitions'
+import { URGENT_EMAIL_JOB_NAME } from './infrastructure/jobs/urgent-email.job'
+import { markNotificationRead, dismissNotification } from './domain/constructors-transitions'
+import { createNotificationPreference } from './domain/constructors-preference'
+import type { NotificationType } from './domain/types'
+import type { UserId, OrganizationId } from '#/shared/domain/ids'
 
 type BuildInput = Readonly<{
   db: Database
@@ -47,6 +51,14 @@ export const buildNotificationContext = (input: BuildInput) => {
       idGen: () => notificationId(crypto.randomUUID()),
       emailIdGen: () => notificationEmailId(crypto.randomUUID()),
       logger: input.logger,
+      enqueueUrgentEmail: input.queue
+        ? async (data) => {
+            await input.queue!.add(URGENT_EMAIL_JOB_NAME, data, {
+              attempts: 3,
+              backoff: { type: 'exponential', delay: 30_000 },
+            })
+          }
+        : undefined,
     }),
   } as const
 
@@ -70,6 +82,40 @@ export const buildNotificationContext = (input: BuildInput) => {
     markAllRead: (userId: string, orgId: string) => {
       const now = input.clock()
       return notificationRepo.markAllRead(userId, orgId, now)
+    },
+    dismiss: async (id: string, orgId: string) => {
+      const n = await notificationRepo.findById(id, orgId)
+      if (!n) return
+      const now = input.clock()
+      const result = dismissNotification(n, () => now)
+      if (result.isErr()) return // invalid transition, skip
+      await notificationRepo.updateStatus(id, orgId, 'dismissed', now)
+    },
+    getPreferences: (userId: string, orgId: string) =>
+      prefRepo.findByUser(userId, orgId),
+    updatePreference: (
+      userId: string,
+      orgId: string,
+      type: NotificationType,
+      emailEnabled: boolean,
+      inAppEnabled: boolean,
+    ) => {
+      const now = input.clock()
+      const result = createNotificationPreference(
+        {
+          id: notificationPreferenceId(crypto.randomUUID()),
+          userId: userId as UserId,
+          organizationId: orgId as OrganizationId,
+          type,
+          emailEnabled,
+          inAppEnabled,
+        },
+        () => now,
+      )
+      if (result.isErr()) {
+        throw result.error
+      }
+      return prefRepo.upsert(result.value)
     },
   } as const
 

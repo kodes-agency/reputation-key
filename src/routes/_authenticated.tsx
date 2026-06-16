@@ -23,7 +23,6 @@ import { SettingsSidebar } from '#/components/layout/settings-sidebar'
 import { AppTopBar } from '#/components/layout/app-top-bar'
 import { hasRole } from '#/shared/domain/roles'
 import { useMutationActionSilent } from '#/components/hooks/use-mutation-action'
-import { getLogger } from '#/shared/observability/logger'
 
 export type AuthRouteContext = Readonly<{
   user: {
@@ -102,7 +101,7 @@ export const Route = createFileRoute('/_authenticated')({
         'code' in e &&
         (e as { code: string }).code === 'no_active_org'
       if (isNoActiveOrg) {
-        getLogger().info('[beforeLoad] No active organization selected — using defaults')
+        console.info('[beforeLoad] No active organization selected — using defaults')
       } else {
         // Unexpected error — propagate to error boundary
         throw e
@@ -120,12 +119,17 @@ export const Route = createFileRoute('/_authenticated')({
       activeOrganization,
     } satisfies AuthRouteContext
   },
-  loader: async () => {
-    const [orgsResult, propsResult] = await Promise.all([
-      listUserOrganizations(),
-      listProperties(),
-    ])
+  loader: async ({ context }) => {
+    const orgsResult = await listUserOrganizations()
 
+    // No active organization → no tenant-scoped data to load. A new user (or
+    // one who hasn't selected an org) gets an empty property list rather than
+    // a resolveTenantContext 500 from listProperties.
+    if (!context.activeOrganization) {
+      return { organizations: orgsResult.organizations, properties: [] }
+    }
+
+    const propsResult = await listProperties()
     return {
       organizations: orgsResult.organizations,
       properties: propsResult.properties,

@@ -141,6 +141,7 @@ export const syncReviews =
           platform: 'google' as const,
           externalId: gr.externalId,
           rating: gr.rating,
+          reviewerName: gr.reviewerName,
           reviewText: gr.text,
           occurredAt: gr.reviewedAt,
         }

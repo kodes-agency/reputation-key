@@ -10,7 +10,8 @@ import type { InboxStatus } from '../../domain/types'
 import type { Role } from '#/shared/domain/roles'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { validateTransition } from '../../domain/rules'
-import { inboxItemBulkStatusChanged } from '../../domain/events'
+import { inboxError } from '../../domain/errors'
+import { inboxItemBulkStatusChanged, inboxItemEscalated } from '../../domain/events'
 import { can } from '#/shared/domain/permissions'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 
@@ -35,6 +36,7 @@ export type BulkUpdateInboxStatusDeps = Readonly<{
 export const bulkUpdateInboxStatus =
   (deps: BulkUpdateInboxStatusDeps) =>
   async (input: BulkUpdateInboxStatusInput): Promise<{ updated: number }> => {
+    if (!can(input.role, 'inbox.write')) throw inboxError('forbidden', 'No inbox write permission')
     const now = deps.clock()
     const bulkId = randomUUID()
 
@@ -139,6 +141,21 @@ export const bulkUpdateInboxStatus =
           occurredAt: now,
         }),
       )
+      // When escalating via bulk, also emit the per-item escalated event
+      // so the notification context fires urgent alerts (same as single path).
+      if (input.newStatus === 'escalated') {
+        await deps.events.emit(
+          inboxItemEscalated({
+            eventId: crypto.randomUUID(),
+            inboxItemId: id,
+            organizationId: input.organizationId,
+            propertyId: oldItem?.propertyId ?? ('' as PropertyId),
+            oldStatus: oldStatuses.get(id)!,
+            userId: input.userId,
+            occurredAt: now,
+          }),
+        )
+      }
     }
 
     return result

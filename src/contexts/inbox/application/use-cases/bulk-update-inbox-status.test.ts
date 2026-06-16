@@ -111,7 +111,7 @@ describe('bulkUpdateInboxStatus', () => {
   it('skips items with invalid transitions', async () => {
     const { useCase, repo } = setup()
     repo.items.push(seedItem('ii-1', 'new'))
-    repo.items.push(seedItem('ii-2', 'archived'))
+    repo.items.push(seedItem('ii-2', 'addressed'))
 
     const result = await useCase({
       inboxItemIds: [inboxItemId('ii-1'), inboxItemId('ii-2')],
@@ -121,10 +121,10 @@ describe('bulkUpdateInboxStatus', () => {
       role: 'AccountAdmin' as Role,
     })
 
-    // ii-1: new→read (valid), ii-2: archived→read (invalid — archived is terminal)
+    // ii-1: new→read (valid), ii-2: addressed→read (invalid — addressed can only go to archived/escalated)
     expect(result.updated).toBe(1)
     expect(repo.items[0].status).toBe('read')
-    expect(repo.items[1].status).toBe('archived')
+    expect(repo.items[1].status).toBe('addressed')
   })
 
   it('returns 0 when all transitions are invalid', async () => {
@@ -160,6 +160,26 @@ describe('bulkUpdateInboxStatus', () => {
     const bulkIds = emitted.map((e) => e.bulkId)
     expect(bulkIds[0]).toBeTruthy()
     expect(new Set(bulkIds).size).toBe(1) // all events share the same bulkId
+  })
+
+  it('emits escalated events when bulk escalating (P1 fix)', async () => {
+    const { useCase, repo, events } = setup()
+    repo.items.push(seedItem('ii-1', 'new'))
+    repo.items.push(seedItem('ii-2', 'read'))
+
+    await useCase({
+      inboxItemIds: [inboxItemId('ii-1'), inboxItemId('ii-2')],
+      organizationId: ORG_ID,
+      newStatus: 'escalated',
+      userId: USER_ID,
+      role: 'AccountAdmin' as Role,
+    })
+
+    const escalatedEvents = events.capturedByTag('inbox.inbox_item.escalated')
+    expect(escalatedEvents).toHaveLength(2)
+    // Each escalated event must carry propertyId and userId (P2 fix)
+    expect(escalatedEvents[0]!.propertyId).toBeTruthy()
+    expect(escalatedEvents[0]!.userId).toBeTruthy()
   })
 
   it('decrements new counter for new→read transitions', async () => {

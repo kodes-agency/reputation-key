@@ -73,7 +73,7 @@ describe('onInboxItemEscalated (notification)', () => {
         resourceId: INBOX_ITEM_ID,
         eventId: 'test-event-id',
         title: 'Item escalated',
-        body: 'An inbox item has been escalated',
+        body: `Inbox item ${INBOX_ITEM_ID} has been escalated and requires attention`,
       },
     })
     expect(deps.jobs[1]).toEqual({
@@ -86,7 +86,7 @@ describe('onInboxItemEscalated (notification)', () => {
         resourceId: INBOX_ITEM_ID,
         eventId: 'test-event-id',
         title: 'Item escalated',
-        body: 'An inbox item has been escalated',
+        body: `Inbox item ${INBOX_ITEM_ID} has been escalated and requires attention`,
       },
     })
   })

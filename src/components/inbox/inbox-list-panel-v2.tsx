@@ -22,6 +22,8 @@ interface InboxListPanelProps {
   items: readonly InboxItem[]
   selectedIds: readonly string[]
   isLoading: boolean
+  error: string | null
+  onRetry: () => void
   nextCursor: Cursor | null
   loadAction: { isPending: boolean }
   listRef: RefObject<HTMLDivElement | null>
@@ -45,6 +47,8 @@ export function InboxListPanel({
   items,
   selectedIds,
   isLoading,
+  error,
+  onRetry,
   nextCursor,
   loadAction,
   listRef,
@@ -94,6 +98,13 @@ export function InboxListPanel({
                 <Skeleton className="h-3 w-16" />
               </div>
             ))}
+          </div>
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center gap-3 py-16 px-4">
+            <p className="text-center text-sm text-muted-foreground">{error}</p>
+            <Button variant="outline" size="sm" onClick={() => onRetry()}>
+              Retry
+            </Button>
           </div>
         ) : items.length === 0 ? (
           <div className="py-12">

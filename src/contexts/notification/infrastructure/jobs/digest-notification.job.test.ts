@@ -60,6 +60,13 @@ function createFakeNotification(overrides: Partial<Notification> = {}): Notifica
   }
 }
 
+/** Wrap notifications into a Map keyed by id (mirrors findByIds return shape). */
+function notificationMap(...notifs: (Notification | null)[]): Map<string, Notification> {
+  const map = new Map<string, Notification>()
+  for (const n of notifs) if (n) map.set(n.id, n)
+  return map
+}
+
 /** Generate timezone rows covering all 24 hours using Etc/GMT offsets. */
 function allHourTimezoneRows(orgId: string) {
   const rows: { organization_id: string; timezone: string }[] = []
@@ -85,7 +92,6 @@ function createFakeDeps(): Record<string, any> {
       insert: vi.fn(),
       findById: vi.fn(),
       findPendingByOrg: vi.fn(),
-      findPendingUrgent: vi.fn(),
       markSent: vi.fn(),
       markFailed: vi.fn(),
       markSkipped: vi.fn(),
@@ -93,6 +99,7 @@ function createFakeDeps(): Record<string, any> {
     notifRepo: {
       insert: vi.fn(),
       findById: vi.fn(),
+      findByIds: vi.fn(),
       findUnreadByUser: vi.fn(),
       countUnreadByUser: vi.fn(),
       findByUser: vi.fn(),
@@ -120,7 +127,7 @@ function createFakeDeps(): Record<string, any> {
 function setupDigestMocks(deps: ReturnType<typeof createFakeDeps>) {
   deps.pool.query.mockResolvedValue({ rows: ALL_HOUR_TIMEZONES })
   deps.emailRepo.findPendingByOrg.mockResolvedValue([])
-  deps.notifRepo.findById.mockResolvedValue(null)
+  deps.notifRepo.findByIds.mockResolvedValue(notificationMap(null))
   deps.userLookup.getEmail.mockResolvedValue(null)
   deps.emailSender.send.mockResolvedValue(undefined)
   deps.emailRepo.markSent.mockResolvedValue(undefined)
@@ -175,7 +182,7 @@ describe('createDigestNotificationJobHandler', () => {
       organizationId: organizationId(ORG_ID_1),
     })
     deps.emailRepo.findPendingByOrg.mockResolvedValue([entry])
-    deps.notifRepo.findById.mockResolvedValue(createFakeNotification())
+    deps.notifRepo.findByIds.mockResolvedValue(notificationMap(createFakeNotification()))
     deps.userLookup.getEmail.mockResolvedValue('user@example.com')
 
     const handler = createDigestNotificationJobHandler(deps as any)
@@ -208,9 +215,7 @@ describe('createDigestNotificationJobHandler', () => {
     })
 
     deps.emailRepo.findPendingByOrg.mockResolvedValue([user1Entry, user2Entry])
-    deps.notifRepo.findById.mockResolvedValue(
-      createFakeNotification({ title: 'Grouped notif', body: 'Body' }),
-    )
+    deps.notifRepo.findByIds.mockResolvedValue(notificationMap(createFakeNotification({ title: 'Grouped notif', body: 'Body' })))
     deps.userLookup.getEmail.mockImplementation((uid: string) =>
       uid === USER_ID_1
         ? Promise.resolve('user1@example.com')
@@ -236,7 +241,7 @@ describe('createDigestNotificationJobHandler', () => {
       organizationId: organizationId(ORG_ID_1),
     })
     deps.emailRepo.findPendingByOrg.mockResolvedValue([entry])
-    deps.notifRepo.findById.mockResolvedValue(createFakeNotification())
+    deps.notifRepo.findByIds.mockResolvedValue(notificationMap(createFakeNotification()))
     deps.userLookup.getEmail.mockResolvedValue(null) // no email
 
     const handler = createDigestNotificationJobHandler(deps as any)
@@ -254,7 +259,7 @@ describe('createDigestNotificationJobHandler', () => {
       organizationId: organizationId(ORG_ID_1),
     })
     deps.emailRepo.findPendingByOrg.mockResolvedValue([entry])
-    deps.notifRepo.findById.mockResolvedValue(null) // no notification
+    deps.notifRepo.findByIds.mockResolvedValue(notificationMap(null)) // no notification
     deps.userLookup.getEmail.mockResolvedValue('user@example.com')
 
     const handler = createDigestNotificationJobHandler(deps as any)
@@ -272,7 +277,7 @@ describe('createDigestNotificationJobHandler', () => {
       organizationId: organizationId(ORG_ID_1),
     })
     deps.emailRepo.findPendingByOrg.mockResolvedValue([entry])
-    deps.notifRepo.findById.mockResolvedValue(createFakeNotification())
+    deps.notifRepo.findByIds.mockResolvedValue(notificationMap(createFakeNotification()))
     deps.userLookup.getEmail.mockResolvedValue('user@example.com')
     deps.emailSender.send.mockRejectedValue(new Error('SES down'))
 
@@ -324,7 +329,7 @@ describe('createDigestNotificationJobHandler', () => {
       organizationId: organizationId(ORG_ID_1),
     })
     deps.emailRepo.findPendingByOrg.mockResolvedValue([entry])
-    deps.notifRepo.findById.mockResolvedValue(createFakeNotification())
+    deps.notifRepo.findByIds.mockResolvedValue(notificationMap(createFakeNotification()))
     deps.userLookup.getEmail.mockResolvedValue('user@example.com')
     deps.emailSender.send.mockRejectedValue(new Error('SES down'))
     deps.emailRepo.markFailed.mockRejectedValue(new Error('markFailed also broke'))
@@ -361,7 +366,7 @@ describe('createDigestNotificationJobHandler', () => {
       if (orgId === ORG_ID_2) return Promise.resolve([org2Entry])
       return Promise.resolve([])
     })
-    deps.notifRepo.findById.mockResolvedValue(createFakeNotification())
+    deps.notifRepo.findByIds.mockResolvedValue(notificationMap(createFakeNotification()))
     deps.userLookup.getEmail.mockImplementation((uid: string) =>
       Promise.resolve(`${uid}@example.com`),
     )

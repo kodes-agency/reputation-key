@@ -94,6 +94,8 @@ export function InboxPageV2({
           items={s.items}
           selectedIds={s.selectedIds}
           isLoading={s.isLoading}
+          error={s.error}
+          onRetry={s.loadItems}
           nextCursor={s.nextCursor}
           loadAction={s.loadAction}
           listRef={listRef}

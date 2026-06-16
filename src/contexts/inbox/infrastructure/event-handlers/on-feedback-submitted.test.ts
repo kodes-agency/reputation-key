@@ -49,6 +49,7 @@ describe('onFeedbackSubmitted', () => {
       sourceDate: NOW,
       platform: null,
       snippet: null,
+      reviewerName: null,
     })
   })
 

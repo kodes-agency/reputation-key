@@ -63,7 +63,6 @@ function createFakeDeps(): Record<string, any> {
       insert: vi.fn(),
       findById: vi.fn(),
       findPendingByOrg: vi.fn(),
-      findPendingUrgent: vi.fn(),
       markSent: vi.fn(),
       markFailed: vi.fn(),
       markSkipped: vi.fn(),

@@ -1,15 +1,25 @@
 // Notification context — Drizzle repository adapter for notifications
 // Per architecture: factory pattern `createXxxRepository(db)` returning port interface.
 
-import { and, eq, desc, sql } from 'drizzle-orm'
+import { and, eq, desc, inArray, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { notifications } from '#/shared/db/schema/notification.schema'
 import { unbrand } from '#/shared/domain/ids'
-import type { Notification } from '../../domain/types'
+import type { Notification, NotificationStatus } from '../../domain/types'
 import { notificationFromRow } from './notification-row.mapper'
 import { notificationError } from '../../domain/errors'
 
 // ── Repository ──────────────────────────────────────────────────────
+
+// Exclude notifications where the user opted out of in-app display for
+// that type. Correlated NOT EXISTS against the sparse preference table.
+const notOptedOutInApp = sql`NOT EXISTS (
+  SELECT 1 FROM notification_preferences
+  WHERE user_id = notifications.user_id
+    AND organization_id = notifications.organization_id
+    AND type = notifications.type
+    AND in_app_enabled = false
+)`
 
 export const createNotificationRepository = (db: Database) => ({
   // ── Mutations ────────────────────────────────────────────────────
@@ -85,6 +95,22 @@ export const createNotificationRepository = (db: Database) => ({
         ),
       )
   },
+  updateStatus: async (
+    id: string,
+    orgId: string,
+    status: NotificationStatus,
+    updatedAt: Date,
+  ): Promise<void> => {
+    await db
+      .update(notifications)
+      .set({ status, updatedAt })
+      .where(
+        and(
+          eq(notifications.id, id),
+          eq(notifications.organizationId, orgId),
+        ),
+      )
+  },
 
   // ── Queries ──────────────────────────────────────────────────────
 
@@ -96,6 +122,24 @@ export const createNotificationRepository = (db: Database) => ({
       .limit(1)
 
     return rows[0] ? notificationFromRow(rows[0]) : null
+  },
+  findByIds: async (ids: readonly string[], orgId: string): Promise<Map<string, Notification>> => {
+    if (ids.length === 0) return new Map()
+    const rows = await db
+      .select()
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.organizationId, orgId),
+          inArray(notifications.id, ids),
+        ),
+      )
+    const map = new Map<string, Notification>()
+    for (const row of rows) {
+      const n = notificationFromRow(row)
+      map.set(n.id, n)
+    }
+    return map
   },
 
   findUnreadByUser: async (
@@ -112,6 +156,7 @@ export const createNotificationRepository = (db: Database) => ({
           eq(notifications.userId, userId),
           eq(notifications.organizationId, orgId),
           eq(notifications.status, 'unread'),
+          notOptedOutInApp,
         ),
       )
       .orderBy(desc(notifications.createdAt))
@@ -130,6 +175,7 @@ export const createNotificationRepository = (db: Database) => ({
           eq(notifications.userId, userId),
           eq(notifications.organizationId, orgId),
           eq(notifications.status, 'unread'),
+          notOptedOutInApp,
         ),
       )
 
@@ -146,7 +192,11 @@ export const createNotificationRepository = (db: Database) => ({
       .select()
       .from(notifications)
       .where(
-        and(eq(notifications.userId, userId), eq(notifications.organizationId, orgId)),
+        and(
+          eq(notifications.userId, userId),
+          eq(notifications.organizationId, orgId),
+          notOptedOutInApp,
+        ),
       )
       .orderBy(desc(notifications.createdAt))
       .limit(limit)

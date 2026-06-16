@@ -51,6 +51,7 @@ const mockEvent: ReviewUpdated = {
   externalId: 'ext-1',
   rating: 3,
   reviewText: 'Updated review text',
+  reviewerName: null,
   occurredAt: NOW,
 }
 
@@ -68,6 +69,7 @@ describe('onReviewUpdated', () => {
     expect(repo.syncDenormalizedFields).toHaveBeenCalledWith(INBOX_ID, ORG_ID, {
       rating: 3,
       snippet: 'Updated review text',
+      reviewerName: null,
     })
   })
 
@@ -84,6 +86,7 @@ describe('onReviewUpdated', () => {
     expect(repo.syncDenormalizedFields).toHaveBeenCalledWith(INBOX_ID, ORG_ID, {
       rating: 3,
       snippet: undefined,
+      reviewerName: null,
     })
   })
 

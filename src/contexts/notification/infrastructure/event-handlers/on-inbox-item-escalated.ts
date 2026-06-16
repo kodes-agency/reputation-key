@@ -39,7 +39,7 @@ export const onInboxItemEscalated =
           resourceId: event.inboxItemId,
           eventId: event.eventId,
           title: 'Item escalated',
-          body: 'An inbox item has been escalated',
+          body: `Inbox item ${event.inboxItemId} has been escalated and requires attention`,
         }),
       ),
     )

@@ -37,7 +37,6 @@ type LookupPorts = Readonly<{
 
 const withDefaults = (row: InboxItemRow): InboxItem => ({
   ...inboxItemFromRow(row),
-  reviewerName: null,
   propertyName: null,
 })
 
@@ -182,14 +181,21 @@ export const createInboxRepository = (
         batchPropertyNames(ports, propertyIdsToFetch, orgId),
       ])
 
-      const items = sliced.map((row) => ({
-        ...inboxItemFromRow(row),
-        reviewerName:
-          row.sourceType === 'review'
-            ? (reviewSnippets.get(row.sourceId)?.reviewerName ?? null)
-            : null,
-        propertyName: propertyNames.get(row.propertyId) ?? null,
-      }))
+      const items = sliced.map((row) => {
+        const item = inboxItemFromRow(row)
+        return {
+          ...item,
+          // Denormalized column takes priority (survives review deletion).
+          // Fall back to dynamic lookup for legacy items created before
+          // the reviewer_name column was added.
+          reviewerName:
+            item.reviewerName ??
+            (row.sourceType === 'review'
+              ? (reviewSnippets.get(row.sourceId)?.reviewerName ?? null)
+              : null),
+          propertyName: propertyNames.get(row.propertyId) ?? null,
+        }
+      })
 
       const hasNext = rows.length > limit
       const lastItem = items[items.length - 1]
@@ -317,7 +323,7 @@ export const createInboxRepository = (
   syncDenormalizedFields: async (
     id: InboxItemId,
     orgId: OrganizationId,
-    fields: { rating?: number; snippet?: string; sourceDate?: Date },
+    fields: { rating?: number; snippet?: string; reviewerName?: string | null; sourceDate?: Date },
     now?: Date,
   ) => {
     return trace('inbox.syncDenormalizedFields', async () => {
@@ -360,13 +366,15 @@ export const createInboxRepository = (
       )
 
       // Enrich via lookup ports instead of cross-context JOINs
-      let reviewerName: string | null = null
+      // Denormalized column takes priority (survives review deletion);
+      // fall back to lookup for legacy items pre-denormalization.
+      let reviewerName: string | null = item.reviewerName
       if (item.sourceType === 'review') {
         const snippet = await ports.reviewLookup.getReviewSnippetById(
           reviewId(item.sourceId),
           orgId,
         )
-        reviewerName = snippet?.reviewerName ?? null
+        if (!reviewerName) reviewerName = snippet?.reviewerName ?? null
         log.debug(
           {
             id: id as string,

@@ -4,8 +4,8 @@
 import type { Job } from 'bullmq'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import {
-  notificationId,
   notificationEmailId,
+  notificationId,
   organizationId as orgId,
 } from '#/shared/domain/ids'
 import type { NotificationEmailRepositoryPort } from '../../application/ports/notification-email-repository.port'
@@ -63,8 +63,11 @@ export const createDigestNotificationJobHandler = (deps: DigestDeps) => {
     if (qualifyingOrgIds.size === 0) return
 
     // 3. For each qualifying org, fetch pending normal-priority emails
+    //    plus any orphaned urgent emails (enqueue failed / Redis was down).
     for (const rawOrgId of qualifyingOrgIds) {
-      const pending = await emailRepo.findPendingByOrg(orgId(rawOrgId), 'normal')
+      const normal = await emailRepo.findPendingByOrg(orgId(rawOrgId), 'normal')
+      const orphanedUrgent = await emailRepo.findPendingByOrg(orgId(rawOrgId), 'urgent')
+      const pending = [...normal, ...orphanedUrgent]
       if (pending.length === 0) continue
 
       // 4. Group by userId
@@ -82,13 +85,13 @@ export const createDigestNotificationJobHandler = (deps: DigestDeps) => {
         )
         if (!email) continue
 
+        const notifIds = entries.map((e) => notificationId(e.notificationId as string))
+        const notifMap = await notifRepo.findByIds(notifIds, orgId(rawOrgId))
+
         // Collect notification titles/bodies
         const items: string[] = []
         for (const entry of entries) {
-          const notif = await notifRepo.findById(
-            notificationId(entry.notificationId as string),
-            orgId(rawOrgId),
-          )
+          const notif = notifMap.get(entry.notificationId as string)
           if (notif) {
             items.push(
               `<p><strong>${escapeHtml(notif.title)}</strong>` +

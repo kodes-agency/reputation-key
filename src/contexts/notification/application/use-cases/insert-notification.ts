@@ -27,6 +27,10 @@ export type InsertNotificationDeps = Readonly<{
   idGen: () => NotificationId
   emailIdGen: () => NotificationEmailId
   logger: LoggerPort
+  enqueueUrgentEmail?: (data: {
+    notificationEmailId: string
+    organizationId: string
+  }) => Promise<void>
 }>
 
 // ── Use case ────────────────────────────────────────────────────────
@@ -78,6 +82,24 @@ export const insertNotification =
 
       if (emailResult.isOk()) {
         await deps.emailRepo.insert(emailResult.value)
+
+        // Urgent emails are sent immediately via a dedicated job;
+        // normal emails are batched in the daily digest.
+        if (inserted.priority === 'urgent' && deps.enqueueUrgentEmail) {
+          // Best-effort enqueue — if Redis is down, the email stays 'pending'
+          // and is recovered by the digest job's orphaned-urgent sweep.
+          try {
+            await deps.enqueueUrgentEmail({
+              notificationEmailId: emailResult.value.id as string,
+              organizationId: inserted.organizationId as string,
+            })
+          } catch (enqueueErr) {
+            logger.error(
+              { err: enqueueErr, notificationId: inserted.id },
+              'Failed to enqueue urgent email — will be picked up by digest fallback',
+            )
+          }
+        }
       } else {
         logger.warn(
           { error: emailResult.error, notificationId: inserted.id },

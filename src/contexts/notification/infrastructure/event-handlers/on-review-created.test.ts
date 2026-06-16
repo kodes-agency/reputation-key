@@ -25,6 +25,7 @@ const mockEvent: ReviewCreated = {
   externalId: 'ext-1',
   rating: 4,
   reviewText: 'Nice hotel',
+  reviewerName: null,
   occurredAt: NOW,
 }
 

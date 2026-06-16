@@ -155,6 +155,19 @@ function main() {
         .then(() => logger.info({ jobName, label }, 'Job scheduled'))
         .catch((err: unknown) => logger.warn({ err, jobName }, 'Failed to schedule job'))
     }
+
+    // ── Notification digest job ─────────────────────────────────────
+    // Runs hourly to send normal-priority notification emails at each
+    // property's 8am local-time window (ADR 0011).
+    const notifSchedules: RecognitionSchedule[] = [
+      { jobName: 'digest-notification', every: 60 * 60 * 1000, label: 'hourly' },
+    ]
+    for (const { jobName, every, label } of notifSchedules) {
+      container.jobQueue
+        .add(jobName, {}, { repeat: { every }, jobId: `${jobName}-recurring` })
+        .then(() => logger.info({ jobName, label }, 'Job scheduled'))
+        .catch((err: unknown) => logger.warn({ err, jobName }, 'Failed to schedule job'))
+    }
   } else {
     logger.warn('No Redis available — worker running without job processing')
   }

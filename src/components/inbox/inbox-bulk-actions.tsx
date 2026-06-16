@@ -23,6 +23,18 @@ export function InboxBulkActions({ selectedIds, items, onDone, bulkUpdateFn }: P
     onSuccess: onDone,
   })
 
+  // FE-4: "Mark Addressed" only applies to feedback items (reviews have no
+  // 'addressed' transition). Disable it when the selection contains no
+  // feedback items, i.e. only reviews are selected.
+  const selectedSourceItems = selectedIds
+    .map((id) => items.find((i) => i.id === id))
+    .filter((i): i is InboxItem => i != null)
+  const hasFeedbackSelected = selectedSourceItems.some(
+    (i) => i.sourceType === 'feedback',
+  )
+  const onlyReviewsSelected =
+    selectedSourceItems.length > 0 && !hasFeedbackSelected
+
   const handleBulk = (status: BulkStatus) => {
     // "addressed" only applies to feedback items — filter out reviews
     const ids =
@@ -59,7 +71,7 @@ export function InboxBulkActions({ selectedIds, items, onDone, bulkUpdateFn }: P
         variant="default"
         size="sm"
         onClick={() => handleBulk('addressed')}
-        disabled={bulkMutation.isPending}
+        disabled={bulkMutation.isPending || onlyReviewsSelected}
       >
         <CheckCircle className="size-3.5" />
         Mark Addressed
