@@ -2,8 +2,7 @@
 
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
-import { match } from 'ts-pattern'
-import { HTTP_STATUS } from '#/shared/http/status'
+import { staffErrorStatus } from './staff-errors'
 import { headersFromContext } from '#/shared/auth/headers'
 import { can } from '#/shared/domain/permissions'
 import { resolveTenantContext } from '#/shared/auth/middleware'
@@ -15,26 +14,12 @@ import {
   listStaffAssignmentsInputSchema,
 } from '../application/dto/staff-assignment.dto'
 import { isStaffError } from '../application/public-api'
-import type { StaffErrorCode } from '../application/public-api'
 import {
   staffAssignmentId as toStaffAssignmentId,
   propertyId as toPropertyId,
   userId as toUserId,
   teamId as toTeamId,
 } from '#/shared/domain/ids'
-
-export const staffErrorStatus = (code: StaffErrorCode): number =>
-  match(code)
-    .with('forbidden', () => HTTP_STATUS.FORBIDDEN)
-    .with(
-      'assignment_not_found',
-      'property_not_found',
-      'team_not_found',
-      () => HTTP_STATUS.NOT_FOUND,
-    )
-    .with('already_assigned', () => HTTP_STATUS.CONFLICT)
-    .with('invalid_input', () => HTTP_STATUS.BAD_REQUEST)
-    .exhaustive()
 
 // ── createStaffAssignment ──────────────────────────────────────────
 
