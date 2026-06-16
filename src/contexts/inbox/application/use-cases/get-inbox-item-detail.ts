@@ -9,6 +9,7 @@ import type { Role } from '#/shared/domain/roles'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { can } from '#/shared/domain/permissions'
 import { inboxError } from '../../domain/errors'
+import { assertPropertyAccessible } from '../inbox-access'
 
 export type GetInboxItemDetailInput = Readonly<{
   inboxItemId: InboxItemId
@@ -36,25 +37,13 @@ export const getInboxItemDetail =
       })
     }
 
-    if (!can(input.role, 'inbox.manage')) {
-      const accessible = await deps.staffPublicApi.getAccessiblePropertyIds(
-        input.organizationId,
-        input.userId,
-        input.role,
-      )
-      if (
-        accessible !== null &&
-        !accessible.includes(
-          detail.item.propertyId as ReturnType<
-            typeof import('#/shared/domain/ids').propertyId
-          >,
-        )
-      ) {
-        throw inboxError('forbidden', 'No access to this property', {
-          propertyId: detail.item.propertyId,
-        })
-      }
-    }
+    await assertPropertyAccessible(
+      deps.staffPublicApi,
+      input.organizationId,
+      input.userId,
+      input.role,
+      detail.item.propertyId,
+    )
 
     return detail
   }

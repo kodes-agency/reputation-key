@@ -2,17 +2,16 @@
 
 import {
   createServerFn,
-  tracedHandler,
-  headersFromContext,
-  resolveTenantContext,
-  throwContextError,
-  catchUntagged,
   can,
-  getContainer,
   isInboxError,
   inboxErrorStatus,
   inboxItemId,
 } from './inbox-shared'
+import { tracedHandler } from '#/shared/observability/traced-server-fn'
+import { getContainer } from '#/composition'
+import { headersFromContext } from '#/shared/auth/headers'
+import { resolveTenantContext } from '#/shared/auth/middleware'
+import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getInboxItemDetailDto, getInboxNotesDto } from '../application/dto/inbox.dto'
 
 // ── getInboxItemDetail ─────────────────────────────────────────────

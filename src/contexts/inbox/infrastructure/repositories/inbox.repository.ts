@@ -6,6 +6,7 @@
 // defined in application/ports/ — never via direct table JOINs.
 
 import { and, eq, desc, inArray, sql, gte, lte } from 'drizzle-orm'
+import type { SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { inboxItems } from '#/shared/db/schema/inbox.schema'
 import type {
@@ -37,7 +38,6 @@ type LookupPorts = Readonly<{
 
 const withDefaults = (row: InboxItemRow): InboxItem => ({
   ...inboxItemFromRow(row),
-  reviewerName: null,
   propertyName: null,
 })
 
@@ -108,48 +108,8 @@ export const createInboxRepository = (
     return trace('inbox.findFilteredPaginated', async () => {
       const start = Date.now()
       log.debug({ orgId: orgId as string, limit }, 'querying inbox findFilteredPaginated')
-      const conditions = [eq(inboxItems.organizationId, orgId)]
-
-      if (filters.propertyId) {
-        conditions.push(eq(inboxItems.propertyId, filters.propertyId))
-      } else if (filters.propertyIds) {
-        if (filters.propertyIds.length === 0) {
-          return { items: [], nextCursor: null } as PaginatedResult
-        }
-        conditions.push(
-          inArray(inboxItems.propertyId, [...filters.propertyIds] as string[]),
-        )
-      }
-      if (filters.status) {
-        const status = filters.status
-        if (typeof status === 'string') {
-          conditions.push(eq(inboxItems.status, status))
-        } else {
-          conditions.push(inArray(inboxItems.status, [...status] as InboxStatus[]))
-        }
-      }
-      if (filters.sourceType) {
-        conditions.push(eq(inboxItems.sourceType, filters.sourceType))
-      }
-      if (filters.platform) {
-        conditions.push(eq(inboxItems.platform, filters.platform))
-      }
-      if (filters.ratingMin !== undefined) {
-        conditions.push(gte(inboxItems.rating, filters.ratingMin))
-      }
-      if (filters.ratingMax !== undefined) {
-        conditions.push(lte(inboxItems.rating, filters.ratingMax))
-      }
-      if (filters.sourceDateFrom) {
-        conditions.push(gte(inboxItems.sourceDate, filters.sourceDateFrom))
-      }
-      if (filters.sourceDateTo) {
-        conditions.push(lte(inboxItems.sourceDate, filters.sourceDateTo))
-      }
-      if (filters.q) {
-        const escaped = filters.q.replace(/%/g, '\\%').replace(/_/g, '\\_')
-        conditions.push(sql`${inboxItems.snippet} ilike ${'%' + escaped + '%'}`)
-      }
+      const conditions = buildFilterConditions(filters, orgId)
+      if (conditions === null) return { items: [], nextCursor: null } as PaginatedResult
 
       // Cursor-based pagination: sourceDate DESC, id DESC
       // Keyset pagination: ORDER BY sourceDate DESC, id DESC means
@@ -182,14 +142,21 @@ export const createInboxRepository = (
         batchPropertyNames(ports, propertyIdsToFetch, orgId),
       ])
 
-      const items = sliced.map((row) => ({
-        ...inboxItemFromRow(row),
-        reviewerName:
-          row.sourceType === 'review'
-            ? (reviewSnippets.get(row.sourceId)?.reviewerName ?? null)
-            : null,
-        propertyName: propertyNames.get(row.propertyId) ?? null,
-      }))
+      const items = sliced.map((row) => {
+        const item = inboxItemFromRow(row)
+        return {
+          ...item,
+          // Denormalized column takes priority (survives review deletion).
+          // Fall back to dynamic lookup for legacy items created before
+          // the reviewer_name column was added.
+          reviewerName:
+            item.reviewerName ??
+            (row.sourceType === 'review'
+              ? (reviewSnippets.get(row.sourceId)?.reviewerName ?? null)
+              : null),
+          propertyName: propertyNames.get(row.propertyId) ?? null,
+        }
+      })
 
       const hasNext = rows.length > limit
       const lastItem = items[items.length - 1]
@@ -317,7 +284,12 @@ export const createInboxRepository = (
   syncDenormalizedFields: async (
     id: InboxItemId,
     orgId: OrganizationId,
-    fields: { rating?: number; snippet?: string; sourceDate?: Date },
+    fields: {
+      rating?: number
+      snippet?: string
+      reviewerName?: string | null
+      sourceDate?: Date
+    },
     now?: Date,
   ) => {
     return trace('inbox.syncDenormalizedFields', async () => {
@@ -360,13 +332,15 @@ export const createInboxRepository = (
       )
 
       // Enrich via lookup ports instead of cross-context JOINs
-      let reviewerName: string | null = null
+      // Denormalized column takes priority (survives review deletion);
+      // fall back to lookup for legacy items pre-denormalization.
+      let reviewerName: string | null = item.reviewerName
       if (item.sourceType === 'review') {
         const snippet = await ports.reviewLookup.getReviewSnippetById(
           reviewId(item.sourceId),
           orgId,
         )
-        reviewerName = snippet?.reviewerName ?? null
+        if (!reviewerName) reviewerName = snippet?.reviewerName ?? null
         log.debug(
           {
             id: id as string,
@@ -403,6 +377,49 @@ export const createInboxRepository = (
     })
   },
 })
+
+/** Builds the WHERE conditions for the inbox list query. Returns `null` when
+ *  the filter is provably empty (an empty propertyIds list matches no rows). */
+const buildFilterConditions = (
+  filters: InboxFilters,
+  orgId: OrganizationId,
+): SQL[] | null => {
+  const conditions: SQL[] = [eq(inboxItems.organizationId, orgId)]
+
+  // Property filter — an empty propertyIds list provably matches no rows.
+  if (filters.propertyIds?.length === 0) return null
+  if (filters.propertyId) conditions.push(eq(inboxItems.propertyId, filters.propertyId))
+  else if (filters.propertyIds)
+    conditions.push(inArray(inboxItems.propertyId, [...filters.propertyIds] as string[]))
+
+  // Status filter — single value or set
+  if (filters.status)
+    conditions.push(
+      typeof filters.status === 'string'
+        ? eq(inboxItems.status, filters.status)
+        : inArray(inboxItems.status, [...filters.status] as InboxStatus[]),
+    )
+
+  // Simple equality / range filters
+  if (filters.sourceType) conditions.push(eq(inboxItems.sourceType, filters.sourceType))
+  if (filters.platform) conditions.push(eq(inboxItems.platform, filters.platform))
+  if (filters.ratingMin !== undefined)
+    conditions.push(gte(inboxItems.rating, filters.ratingMin))
+  if (filters.ratingMax !== undefined)
+    conditions.push(lte(inboxItems.rating, filters.ratingMax))
+  if (filters.sourceDateFrom)
+    conditions.push(gte(inboxItems.sourceDate, filters.sourceDateFrom))
+  if (filters.sourceDateTo)
+    conditions.push(lte(inboxItems.sourceDate, filters.sourceDateTo))
+
+  // Free-text search on the denormalized snippet (escape LIKE wildcards)
+  if (filters.q) {
+    const escaped = filters.q.replace(/%/g, '\\%').replace(/_/g, '\\_')
+    conditions.push(sql`${inboxItems.snippet} ilike ${'%' + escaped + '%'}`)
+  }
+
+  return conditions
+}
 
 // ── Batch helpers ──────────────────────────────────────────────────
 

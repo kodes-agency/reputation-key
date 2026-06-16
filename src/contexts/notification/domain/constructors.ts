@@ -27,12 +27,14 @@ export const ALLOWED_TYPES: ReadonlySet<NotificationType> = new Set([
   'inbox.assigned',
   'inbox_note.added',
   'goal.completed',
+  'badge.awarded',
 ])
 
 export const ALLOWED_RESOURCE_TYPES: ReadonlySet<NotificationResourceType> = new Set([
   'inbox_item',
   'reply',
   'goal',
+  'badge',
 ])
 
 export const ALLOWED_STATUSES: ReadonlySet<NotificationStatus> = new Set([
@@ -75,6 +77,16 @@ export const createNotification = (
         { resourceType: input.resourceType },
       ),
     )
+  }
+
+  if (!input.title.trim()) {
+    return err(notificationError('invalid_title', 'Title must not be empty'))
+  }
+  if (!input.resourceId.trim()) {
+    return err(notificationError('invalid_resource_id', 'ResourceId must not be empty'))
+  }
+  if (!input.eventId.trim()) {
+    return err(notificationError('invalid_event_id', 'EventId must not be empty'))
   }
 
   const now = clock()

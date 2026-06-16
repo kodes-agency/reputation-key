@@ -15,6 +15,7 @@ import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { EventBus } from '#/shared/events/event-bus'
 import { createInboxNote } from '../../domain/constructors'
 import { inboxError } from '../../domain/errors'
+import { loadInboxItemOrThrow, assertPropertyAccessible } from '../inbox-access'
 import { can } from '#/shared/domain/permissions'
 import { inboxNoteAdded } from '../../domain/events'
 
@@ -42,32 +43,19 @@ export const addInboxNote =
     if (!can(input.role, 'inbox.write')) {
       throw inboxError('forbidden', 'No inbox write permission')
     }
-    // 1. Find item
-    const item = await deps.repo.findById(input.inboxItemId, input.organizationId)
-    if (!item) {
-      throw inboxError('not_found', 'Inbox item not found', {
-        inboxItemId: input.inboxItemId,
-      })
-    }
-
-    // Enforce role-scoped property access
-    if (!can(input.role, 'inbox.manage')) {
-      const accessible = await deps.staffPublicApi.getAccessiblePropertyIds(
-        input.organizationId,
-        input.userId,
-        input.role,
-      )
-      if (
-        accessible !== null &&
-        !accessible.includes(
-          item.propertyId as ReturnType<typeof import('#/shared/domain/ids').propertyId>,
-        )
-      ) {
-        throw inboxError('forbidden', 'No access to this property', {
-          propertyId: item.propertyId,
-        })
-      }
-    }
+    // 1. Find item + enforce role-scoped property access
+    const item = await loadInboxItemOrThrow(
+      deps.repo,
+      input.inboxItemId,
+      input.organizationId,
+    )
+    await assertPropertyAccessible(
+      deps.staffPublicApi,
+      input.organizationId,
+      input.userId,
+      input.role,
+      item.propertyId,
+    )
 
     // 2. Build domain note
     const result = createInboxNote({

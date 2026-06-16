@@ -48,6 +48,7 @@ describe('onReviewCreated', () => {
       externalId: 'ext-1',
       rating: 3,
       reviewText: 'Decent place',
+      reviewerName: null,
       occurredAt: FIXED_TIME,
     })
 
@@ -75,6 +76,7 @@ describe('onReviewCreated', () => {
       externalId: 'ext-2',
       rating: 5,
       reviewText: null,
+      reviewerName: null,
       occurredAt: FIXED_TIME,
     })
 
@@ -102,6 +104,7 @@ describe('onReviewCreated', () => {
         externalId: 'ext-1',
         rating: 1,
         reviewText: null,
+        reviewerName: null,
         occurredAt: FIXED_TIME,
       }),
     ).resolves.toBeUndefined()

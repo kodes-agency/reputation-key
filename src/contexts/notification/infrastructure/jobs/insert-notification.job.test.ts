@@ -3,17 +3,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { createInsertNotificationHandler } from './insert-notification.job'
 import type { InsertNotificationDeps } from '../../application/use-cases/insert-notification'
-import type {
-  Notification,
-  NotificationEmail,
-  NotificationPreference,
-} from '../../domain/types'
-import {
-  organizationId,
-  userId,
-  notificationId,
-  notificationEmailId,
-} from '#/shared/domain/ids'
+import type { Notification } from '../../domain/types'
+import { buildFakeInsertNotificationDeps as createFakeDeps } from '../../application/use-cases/test-fixtures'
+import { organizationId, userId } from '#/shared/domain/ids'
 import type { Job } from 'bullmq'
 
 // ── Mock trace & logger so the job doesn't need ALS / pino ──────────
@@ -33,47 +25,7 @@ vi.mock('#/shared/observability/logger', () => ({
 
 const ORG_ID = organizationId('org-1')
 const USER_ID = userId('user-1')
-const NOTIF_ID = notificationId('notif-1')
-const EMAIL_ID = notificationEmailId('email-1')
 const FIXED_DATE = new Date('2026-06-10T10:00:00Z')
-
-function createFakeDeps(): InsertNotificationDeps {
-  return {
-    notificationRepo: {
-      insert: vi.fn(async (n: Notification) => n),
-      findById: vi.fn(async () => null),
-      findUnreadByUser: vi.fn(async () => []),
-      countUnreadByUser: vi.fn(async () => 0),
-      findByUser: vi.fn(async () => []),
-      markRead: vi.fn(async () => {}),
-      markAllRead: vi.fn(async () => {}),
-    },
-    emailRepo: {
-      insert: vi.fn(async (e: NotificationEmail) => e),
-      findById: vi.fn(async () => null),
-      findPendingByOrg: vi.fn(async () => []),
-      findPendingUrgent: vi.fn(async () => []),
-      markSent: vi.fn(async () => {}),
-      markFailed: vi.fn(async () => {}),
-      markSkipped: vi.fn(async () => {}),
-    },
-    preferenceRepo: {
-      findByUserAndType: vi.fn(async () => null),
-      upsert: vi.fn(async () => ({}) as NotificationPreference),
-      findByUser: vi.fn(async () => []),
-    },
-    clock: () => FIXED_DATE,
-    idGen: () => NOTIF_ID,
-    emailIdGen: () => EMAIL_ID,
-    logger: {
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-      debug: vi.fn(),
-      child: vi.fn().mockReturnThis(),
-    },
-  }
-}
 
 function createFakeJob(data: unknown): Job {
   return {

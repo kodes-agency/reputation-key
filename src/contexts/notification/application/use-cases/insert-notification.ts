@@ -27,7 +27,88 @@ export type InsertNotificationDeps = Readonly<{
   idGen: () => NotificationId
   emailIdGen: () => NotificationEmailId
   logger: LoggerPort
+  enqueueUrgentEmail?: (data: {
+    notificationEmailId: string
+    organizationId: string
+  }) => Promise<void>
 }>
+
+// ── Channel-preference resolution ───────────────────────────────────
+// Reads the sparse preference row; both channels default to enabled.
+
+type ChannelPreferences = Readonly<{ inAppEnabled: boolean; emailEnabled: boolean }>
+
+const resolveChannelPreferences = async (
+  deps: InsertNotificationDeps,
+  input: InsertNotificationInput,
+): Promise<ChannelPreferences> => {
+  const pref = await deps.preferenceRepo.findByUserAndType(
+    input.userId,
+    input.organizationId,
+    input.type,
+  )
+  return {
+    inAppEnabled: pref?.inAppEnabled ?? true, // default-on
+    emailEnabled: pref?.emailEnabled ?? true,
+  }
+}
+
+// ── Email-queue enqueue ─────────────────────────────────────────────
+
+// Best-effort urgent enqueue — if Redis is down the email stays 'pending'
+// and is recovered by the digest job's orphaned-urgent sweep.
+const enqueueUrgentEmailBestEffort = async (
+  deps: InsertNotificationDeps,
+  notification: DomainNotification,
+  emailId: NotificationEmailId,
+): Promise<void> => {
+  if (!deps.enqueueUrgentEmail) return
+  try {
+    await deps.enqueueUrgentEmail({
+      notificationEmailId: emailId as string,
+      organizationId: notification.organizationId as string,
+    })
+  } catch (enqueueErr) {
+    deps.logger.error(
+      { err: enqueueErr, notificationId: notification.id },
+      'Failed to enqueue urgent email — will be picked up by digest fallback',
+    )
+  }
+}
+
+// Create + persist the email-queue row. Urgent rows trigger an immediate
+// delivery job; normal rows are left 'pending' for the daily digest.
+const enqueueEmailEntry = async (
+  deps: InsertNotificationDeps,
+  notification: DomainNotification,
+): Promise<void> => {
+  const emailResult = createNotificationEmail(
+    {
+      id: deps.emailIdGen(),
+      notificationId: notification.id,
+      userId: notification.userId,
+      organizationId: notification.organizationId,
+      priority: notification.priority,
+    },
+    deps.clock,
+  )
+
+  if (emailResult.isErr()) {
+    deps.logger.warn(
+      { error: emailResult.error, notificationId: notification.id },
+      'Failed to create email queue entry',
+    )
+    return
+  }
+
+  await deps.emailRepo.insert(emailResult.value)
+
+  // Urgent emails are sent immediately via a dedicated job;
+  // normal emails are batched in the daily digest.
+  if (notification.priority === 'urgent') {
+    await enqueueUrgentEmailBestEffort(deps, notification, emailResult.value.id)
+  }
+}
 
 // ── Use case ────────────────────────────────────────────────────────
 
@@ -36,21 +117,15 @@ export const insertNotification =
   async (input: InsertNotificationInput): Promise<DomainNotification | null> => {
     const { logger } = deps
 
+    // 1. Construct + validate the domain entity
     const result = createNotification({ ...input, id: deps.idGen() }, deps.clock)
     if (result.isErr()) {
       logger.warn({ error: result.error, input }, 'Failed to construct notification')
       throw result.error
     }
 
-    // 2. Check notification preference
-    const pref = await deps.preferenceRepo.findByUserAndType(
-      input.userId,
-      input.organizationId,
-      input.type,
-    )
-
-    const inAppEnabled = pref?.inAppEnabled ?? true // default-on
-    const emailEnabled = pref?.emailEnabled ?? true
+    // 2. Resolve per-channel preferences
+    const { inAppEnabled, emailEnabled } = await resolveChannelPreferences(deps, input)
 
     if (!inAppEnabled && !emailEnabled) {
       logger.info(
@@ -60,30 +135,12 @@ export const insertNotification =
       return null
     }
 
-    const notification: DomainNotification = result.value
-    const inserted = await deps.notificationRepo.insert(notification)
+    // 3. Persist the notification row (in-app anchor + email FK)
+    const inserted = await deps.notificationRepo.insert(result.value)
 
-    // 4. Enqueue email if enabled
+    // 4. Enqueue the email-queue entry when the email channel is on
     if (emailEnabled) {
-      const emailResult = createNotificationEmail(
-        {
-          id: deps.emailIdGen(),
-          notificationId: inserted.id,
-          userId: inserted.userId,
-          organizationId: inserted.organizationId,
-          priority: inserted.priority,
-        },
-        deps.clock,
-      )
-
-      if (emailResult.isOk()) {
-        await deps.emailRepo.insert(emailResult.value)
-      } else {
-        logger.warn(
-          { error: emailResult.error, notificationId: inserted.id },
-          'Failed to create email queue entry',
-        )
-      }
+      await enqueueEmailEntry(deps, inserted)
     }
 
     // 5. Return notification only if in-app channel is enabled

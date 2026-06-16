@@ -64,15 +64,20 @@ describe('onBadgeAwarded (notification)', () => {
     deps = createFakeDeps()
   })
 
-  it('enqueues a notification job targeting assigned managers', async () => {
+  it('enqueues one notification job per assigned manager', async () => {
     await onBadgeAwarded(deps)(makeEvent())
 
-    expect(deps.addMock).toHaveBeenCalledTimes(1)
-    expect(deps.jobs[0]!.name).toBe(INSERT_NOTIFICATION_JOB_NAME)
-    const data = deps.jobs[0]!.data as Record<string, unknown>
-    expect(data.targetUserIds).toEqual(['manager-1', 'manager-2'])
-    expect(data.resourceType).toBe('badge')
-    expect(data.resourceId).toBe(BADGE_DEF_ID)
+    expect(deps.addMock).toHaveBeenCalledTimes(2)
+    for (const job of deps.jobs) {
+      expect(job.name).toBe(INSERT_NOTIFICATION_JOB_NAME)
+      const data = job.data as Record<string, unknown>
+      expect(data.type).toBe('badge.awarded')
+      expect(data.resourceType).toBe('badge')
+      expect(data.resourceId).toBe(BADGE_DEF_ID)
+      expect(data.userId).toBeTruthy()
+      expect(data.organizationId).toBe(ORG_ID)
+      expect(data.title).toBeTruthy()
+    }
   })
 
   it('queries managers by org and property', async () => {
@@ -81,13 +86,11 @@ describe('onBadgeAwarded (notification)', () => {
     expect(deps.userLookup.findAssignedManagers).toHaveBeenCalledWith(ORG_ID, PROP_ID)
   })
 
-  it('enqueues even when no managers found', async () => {
+  it('skips silently when no managers found', async () => {
     const emptyDeps = createFakeDeps([])
     await onBadgeAwarded(emptyDeps)(makeEvent())
 
-    expect(emptyDeps.addMock).toHaveBeenCalledTimes(1)
-    const data = emptyDeps.jobs[0]!.data as Record<string, unknown>
-    expect(data.targetUserIds).toEqual([])
+    expect(emptyDeps.addMock).not.toHaveBeenCalled()
   })
 
   it('uses badge definition ID as resource ID', async () => {

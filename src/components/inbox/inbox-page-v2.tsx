@@ -2,42 +2,20 @@
 // Sidebar (folder nav) | List (review previews) | Detail (full review).
 import type { InboxCtx } from './inbox-types'
 import { InboxListPanel } from '#/components/inbox/inbox-list-panel-v2'
-import { InboxDetailPanel } from '#/components/inbox/inbox-detail-panel'
-import { InboxDetailSheet } from '#/components/inbox/inbox-detail-sheet'
 import { InboxSidebar } from '#/components/layout/inbox-sidebar'
 import { useInboxPage, type InboxPageNav } from './use-inbox-page'
 import { bulkUpdateInboxStatusFn } from '#/contexts/inbox/server/inbox'
 import { useRef } from 'react'
-import { PageShell } from '#/components/layout/page-shell'
-import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
-import { Inbox } from 'lucide-react'
+import { Panel, PanelGroup } from 'react-resizable-panels'
 import type { InboxSearchParams } from './inbox-search-schema'
+import {
+  ResizeHandle,
+  folderLabelFor,
+  InboxNoOrgState,
+  InboxDetailPane,
+} from './inbox-page-parts'
 
 export { inboxSearchSchema, type InboxSearchParams } from './inbox-search-schema'
-
-const ResizeHandle = () => (
-  <PanelResizeHandle className="w-1.5 bg-border/50 hover:bg-primary/30 active:bg-primary/50 transition-colors" />
-)
-
-const FOLDER_LABELS: Record<string, string> = {
-  escalated: 'Escalated',
-  addressed: 'Addressed',
-  archived: 'Archived',
-}
-
-function EmptyDetailPlaceholder() {
-  return (
-    <div className="flex h-full flex-col border-l items-center justify-center gap-4 px-8">
-      <div className="rounded-full bg-accent-muted/20 p-4">
-        <Inbox className="size-14 opacity-30 text-accent" />
-      </div>
-      <p className="text-base font-semibold text-foreground">No message selected</p>
-      <p className="text-sm text-muted-foreground/70">
-        Select a review from the list to view details
-      </p>
-    </div>
-  )
-}
 
 export function InboxPageV2({
   ctx,
@@ -55,19 +33,9 @@ export function InboxPageV2({
   const orgId = ctx.activeOrganization?.id
   const s = useInboxPage(orgId, search, onNavigate)
   const listRef = useRef<HTMLDivElement>(null)
-  const folderLabel = FOLDER_LABELS[s.folder ?? ''] ?? 'Inbox'
+  const folderLabel = folderLabelFor(s.folder)
 
-  if (!orgId)
-    return (
-      <PageShell>
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">Inbox</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Select an organization to view your inbox.
-          </p>
-        </div>
-      </PageShell>
-    )
+  if (!orgId) return <InboxNoOrgState />
 
   return (
     <PanelGroup direction="horizontal" autoSaveId="inbox-layout" className="h-full">
@@ -94,6 +62,8 @@ export function InboxPageV2({
           items={s.items}
           selectedIds={s.selectedIds}
           isLoading={s.isLoading}
+          error={s.error}
+          onRetry={s.loadItems}
           nextCursor={s.nextCursor}
           loadAction={s.loadAction}
           listRef={listRef}
@@ -111,24 +81,11 @@ export function InboxPageV2({
         />
       </Panel>
       <ResizeHandle />
-      <Panel defaultSize={50} minSize={30} className="overflow-hidden">
-        {s.selectedItem ? (
-          <InboxDetailPanel
-            selectedItem={s.selectedItem}
-            detailState={s.detailState}
-            onClose={s.closeDetail}
-          />
-        ) : (
-          <EmptyDetailPlaceholder />
-        )}
-      </Panel>
-      <InboxDetailSheet
-        open={s.isMobile && !!s.selectedItem}
-        onOpenChange={(o) => {
-          if (!o) s.closeDetail()
-        }}
-        item={s.selectedItem}
+      <InboxDetailPane
+        selectedItem={s.selectedItem}
         detailState={s.detailState}
+        isMobile={s.isMobile}
+        onClose={s.closeDetail}
       />
     </PanelGroup>
   )
