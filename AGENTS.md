@@ -1,7 +1,9 @@
 <!-- intent-skills:start -->
+
 ## Skill Loading
 
 Before substantial work:
+
 - Skill check: run `pnpm dlx @tanstack/intent@latest list`, or use skills already listed in context.
 - Skill guidance: if one local skill clearly matches the task, run `pnpm dlx @tanstack/intent@latest load <package>#<skill>` and follow the returned `SKILL.md`.
 - Monorepos: when working across packages, run the skill check from the workspace root and prefer the local skill for the package being changed.
@@ -78,6 +80,24 @@ Descriptive source labels for `ctx_search(source: "label")`.
 
 After /clear or /compact: knowledge base and session stats preserved. Use `ctx purge` to start fresh.
 
+## Fallow — codebase analysis gate
+
+Fallow (dead code, complexity, boundaries) is installed as a devDependency. Config + regression baseline: `.fallowrc.json` (206 known issues, `audit.gate: new-only`).
+
+**After editing code, before staging/committing** — self-check the changeset:
+
+```bash
+pnpm exec fallow dead-code --changed-since origin/main --format json
+```
+
+Clean → proceed. A newly-orphaned export/file → remove it, but **confirm reachability first** with `pnpm exec fallow dead-code --trace <file>:<export> --format json`. Never delete to silence a finding.
+
+**Pre-commit/push gate (automatic):** `.claude/hooks/fallow-gate.sh` (PreToolUse on `Bash`) runs `fallow audit` on every `git commit`/`git push` and **blocks only on `verdict: fail`** — issues your changeset _introduces_ (new-only). It fails open on runtime errors / missing binary. On block: read the JSON findings on stderr, fix, retry.
+
+**CI gate:** `.github/workflows/fallow.yml` runs `fallow audit --gate new-only` (+ SARIF upload) on every PR — the shared source of truth.
+
+**WIP caution:** the baseline includes unused exports/files in active work (notification/inbox/badge). Do not delete flagged WIP symbols without a `trace` confirming they are truly dead — they may be unwired-but-intended. Prefer `@expected-unused` or leave them for the feature to complete.
+
 ## Agent skills
 
 ### Issue tracker
@@ -91,6 +111,7 @@ Five canonical labels: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-f
 ### Domain docs
 
 Co-located context files in the source tree:
+
 - Root: `CONTEXT.md` — glossary, architecture overview, pointers to layer docs
 - Components: `src/components/CONTEXT.md` — folder structure, naming, forms, hooks
 - Contexts: `src/contexts/CONTEXT.md` — layers, use cases, server functions, dependency rules
