@@ -1,4 +1,4 @@
-// fallow-ignore-file unused-files — reserved for upcoming phases (command palette / searchable lists)
+// Reserved for upcoming phases (command palette / searchable lists). Currently unused — tracked in fallow baseline.
 'use client'
 
 import * as React from 'react'

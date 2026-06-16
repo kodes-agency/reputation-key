@@ -170,6 +170,9 @@ importers:
       eslint-plugin-boundaries:
         specifier: ^6.0.2
         version: 6.0.2(@typescript-eslint/parser@8.60.0(eslint@10.4.1(jiti@2.7.0))(typescript@5.9.3))(eslint-import-resolver-typescript@4.4.4(eslint@10.4.1(jiti@2.7.0)))(eslint@10.4.1(jiti@2.7.0))
+      fallow:
+        specifier: ^2.97.0
+        version: 2.97.0
       husky:
         specifier: ^9.1.7
         version: 9.1.7
@@ -1813,6 +1816,70 @@ packages:
         integrity: sha512-+CNAzxglkrpNf/kKywqQfk74QjtceuOE7Qm+AF8miRvPF/wmmK5+OJOgVh3AVTT3RP2mH3+FOaxlE5v72owk0A==,
       }
     engines: { node: ^20.19.0 || ^22.13.0 || >=24 }
+
+  '@fallow-cli/darwin-arm64@2.97.0':
+    resolution:
+      {
+        integrity: sha512-oHqfa1jhke6dCJNxXfVRyUG7On0fotHy879HEbOJEc8tzMo0NEk9feTaZr8NtnKvhTMCQ1wMDzyWJjrxhZrpMw==,
+      }
+    cpu: [arm64]
+    os: [darwin]
+
+  '@fallow-cli/darwin-x64@2.97.0':
+    resolution:
+      {
+        integrity: sha512-zcaDIdtFHxa0A97sybVdg+zqXE8GovDOlBhXCtSlNvsu9VGdCIEfQoT48nyyyVqdRPAsnJJIYpp47EpSGVIJkA==,
+      }
+    cpu: [x64]
+    os: [darwin]
+
+  '@fallow-cli/linux-arm64-gnu@2.97.0':
+    resolution:
+      {
+        integrity: sha512-AHhuoG9kgIInXaabJpPCOnmSQVlJzeWWAEE597x9zegzSte8RX8Rcjt0XBI+aIzYFsrfjzez/GAUGDEpjetB0A==,
+      }
+    cpu: [arm64]
+    os: [linux]
+
+  '@fallow-cli/linux-arm64-musl@2.97.0':
+    resolution:
+      {
+        integrity: sha512-VdOy9I/hzGGeEVjxlpf8BRCvpqG0dah1+qhUN7DkKKmPz3UrAEKjVUNboNvNH1zNZizn1CMd4hMkW3D6k0uV4g==,
+      }
+    cpu: [arm64]
+    os: [linux]
+
+  '@fallow-cli/linux-x64-gnu@2.97.0':
+    resolution:
+      {
+        integrity: sha512-I1OdeGuHfehpc0PBi02VwMVHIs7mJcebnG+au0pD3A4dchYGyRQo6a/79AsGKKIHJFMrtg5oQUvxKPvbfiXxEQ==,
+      }
+    cpu: [x64]
+    os: [linux]
+
+  '@fallow-cli/linux-x64-musl@2.97.0':
+    resolution:
+      {
+        integrity: sha512-itegzVpaTPm0vAqw6p7Aw/cg2WZZbndMCH5Ps0k8HvELVrvQrTzeroPTrK9B+q6ou8Np4Q90CliP5+afI7AQyQ==,
+      }
+    cpu: [x64]
+    os: [linux]
+
+  '@fallow-cli/win32-arm64-msvc@2.97.0':
+    resolution:
+      {
+        integrity: sha512-hYVlrZbUxJLEk+cNEwhw8hHORpSKTqJerXm8UorNHTc/0/KBzsq1Mng7PSQBBV5QCdMhs/c2SYBKv9/qRpUQxA==,
+      }
+    cpu: [arm64]
+    os: [win32]
+
+  '@fallow-cli/win32-x64-msvc@2.97.0':
+    resolution:
+      {
+        integrity: sha512-XFE8AowSmpKoywOGqGz23owHJoTZUIapiFAAsUbvpsf3Ci/Kzaf232OsshCIlm/frlS0O8+UxIKBRSrw3TcGkg==,
+      }
+    cpu: [x64]
+    os: [win32]
 
   '@floating-ui/core@1.7.5':
     resolution:
@@ -6384,6 +6451,14 @@ packages:
         integrity: sha512-LmDxfWXwcTArk8fUEnOfSZpHOJ6zOMUJKOtFLFqJLoKJetuQG874Uc7/Kki7zFLzYybmZhp1M7+98pfMqeX8yA==,
       }
 
+  fallow@2.97.0:
+    resolution:
+      {
+        integrity: sha512-cy5WQ+3A3/rt4E+ctRU4C4RQ3nhAShZTRFCqmjI/RLnGjfDZRH4cch/FHiBDMmRkUmcle3AZwGbLOdLvhHlfDg==,
+      }
+    engines: { node: '>=16' }
+    hasBin: true
+
   fast-copy@4.0.3:
     resolution:
       {
@@ -10731,6 +10806,30 @@ snapshots:
       '@eslint/core': 1.2.1
       levn: 0.4.1
 
+  '@fallow-cli/darwin-arm64@2.97.0':
+    optional: true
+
+  '@fallow-cli/darwin-x64@2.97.0':
+    optional: true
+
+  '@fallow-cli/linux-arm64-gnu@2.97.0':
+    optional: true
+
+  '@fallow-cli/linux-arm64-musl@2.97.0':
+    optional: true
+
+  '@fallow-cli/linux-x64-gnu@2.97.0':
+    optional: true
+
+  '@fallow-cli/linux-x64-musl@2.97.0':
+    optional: true
+
+  '@fallow-cli/win32-arm64-msvc@2.97.0':
+    optional: true
+
+  '@fallow-cli/win32-x64-msvc@2.97.0':
+    optional: true
+
   '@floating-ui/core@1.7.5':
     dependencies:
       '@floating-ui/utils': 0.2.11
@@ -13549,6 +13648,19 @@ snapshots:
       - supports-color
 
   exsolve@1.0.8: {}
+
+  fallow@2.97.0:
+    dependencies:
+      detect-libc: 2.1.2
+    optionalDependencies:
+      '@fallow-cli/darwin-arm64': 2.97.0
+      '@fallow-cli/darwin-x64': 2.97.0
+      '@fallow-cli/linux-arm64-gnu': 2.97.0
+      '@fallow-cli/linux-arm64-musl': 2.97.0
+      '@fallow-cli/linux-x64-gnu': 2.97.0
+      '@fallow-cli/linux-x64-musl': 2.97.0
+      '@fallow-cli/win32-arm64-msvc': 2.97.0
+      '@fallow-cli/win32-x64-msvc': 2.97.0
 
   fast-copy@4.0.3: {}
 
