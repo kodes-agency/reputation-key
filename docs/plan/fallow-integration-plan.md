@@ -262,3 +262,27 @@ The Vite `importProtection.client.files` deny list (server-only modules) could b
 2. **Boundaries: staged.** Dead-code cleanup (Stage 1–2) before any boundary zones (Stage 3). Phase B1 → B2 → B3.
 3. **`unused-types`: `off` initially**, promoted to `warn` after the unused-exports bucket is cleared.
 ```
+
+---
+
+## Status — implemented (2026-06-16)
+
+All three stages shipped to `main` through the gate:
+
+- **Stage 1 (cleanup)** ✅ — policy config landed; error-severity bucket cleaned (5 circular deps, 14 duplicate-exports, 40 false stale-suppressions all → 0). 3 throwaway migration scripts deleted. Baseline re-saved.
+- **Stage 2 (gates)** ✅ — Layer A (AGENTS.md guidance), Layer B (`.claude/hooks/fallow-gate.sh` PreToolUse on `git commit`/`push`), Layer C (`.github/workflows/fallow.yml` CI `audit --gate new-only` + SARIF). All verified live.
+- **Stage 3 (boundaries)** ✅ Phase B1 — layer-direction zones encoded (`domain → application → infrastructure → server`, per `CONTEXT.md`); `server → domain` allowed (the documented `isXxxError` error-guard pattern). Production layer rules now enforced by the gate.
+- **WIP resolution** ✅ — the 87-file in-flight blob decomposed and landed as coherent gated PRs: infra (#90), identity (#91), inbox+notification+review+metric (#92).
+
+### Config notes / departures from the original plan
+
+- **`health.maxCrap = 450`** (not in the original config). The complexity gate is CRAP-based, and CRAP without coverage data inflates (cx14 → crap 56). The codebase uses mock-heavy unit tests, so repos/server/UI are barely covered → CRAP stays high for reasonable code. `maxCrap` is raised so cx≤20/cog≤15 (the real quality bar) govern; CRAP is a backstop for cx>20 uncovered code. Coverage providers (`@vitest/coverage-v8`/`-istanbul`) are installed; fallow auto-detects `coverage/coverage-final.json`, so tested functions get accurate CRAP.
+- **33 `boundary_violations` in the baseline** — all `src/shared/testing/*` in-memory test-doubles importing context ports (legitimate test infra). fallow can't exclude test-infra from the `shared` zone without excluding all tests (production mode), which would pollute dead-code. They're baselined (stable; new-only gate ignores them; new production violations still fail). Production-mode boundaries = 0 violations (matches the manual `layer-integrity-audit`).
+
+### Known follow-ups (not blocking)
+
+- **Tighten `maxCrap`** once integration/coverage tests exist for the infra/server/UI layers (so CRAP reflects real coverage).
+- **Phase B2 — cross-context `public-api`-only rules** (rulePacks) + **B3 — client/server boundary** (mirror ADR 0015 deny list). Schema/effort TBD.
+- **P3 #20 — cross-repo transaction** around notification+email insert (deferred: the codebase has no cross-repo tx pattern; the standards-compliant path is a repo-scoped combined insert, a deliberate design change).
+- **~17 reserved-WIP unused files** (e.g. `property-detail-fields`, `portal-analytics-time-range-picker`, `command`/`collapsible` UI, `identity`/`team public-api.ts`) — intentionally kept for upcoming phases; triage feature-by-feature as those land.
+- **Agent gate needs `jq`** on PATH (skips with a notice if absent). CI has no such dependency.
