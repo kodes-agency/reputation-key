@@ -42,3 +42,6 @@ logs/
 mayor/
 reputation_key/
 witness/
+
+# fallow analysis cache (regenerated locally; never commit)
+.fallow/cache.bin
