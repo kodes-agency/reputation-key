@@ -10,7 +10,8 @@ import { toDomainRole } from '#/shared/domain/roles'
 import { getAuth } from '#/shared/auth/auth'
 import { getContainer } from '#/composition'
 import { isIdentityError } from '../domain/errors'
-import { throwIdentityError, type AuthInvitationResponse } from './organizations.shared'
+import { type AuthInvitationResponse } from './organizations.shared'
+import { throwIdentityError } from './organizations.errors.server'
 import {
   registerUserInputSchema,
   registerMemberInputSchema,

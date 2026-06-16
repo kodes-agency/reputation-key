@@ -2,9 +2,8 @@
 // Extracted from organizations.ts to keep each file ≤150 lines.
 
 import { HTTP_STATUS } from '#/shared/http/status'
-import { throwContextError } from '#/shared/auth/server-errors'
 import { match } from 'ts-pattern'
-import type { IdentityError, IdentityErrorCode } from '../domain/errors'
+import type { IdentityErrorCode } from '../domain/errors'
 
 export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024 // 5MB
 
@@ -25,12 +24,6 @@ export const identityErrorStatus = (code: IdentityErrorCode): number =>
     .with('org_setup_failed', () => HTTP_STATUS.CONFLICT)
     .with('member_not_found', 'invitation_not_found', () => HTTP_STATUS.NOT_FOUND)
     .exhaustive()
-
-/** Throw a tagged IdentityError as an Error object (not Response).
- * Per architecture: "Server functions throw Error objects with .name, .message, .code, .status." */
-export function throwIdentityError(e: IdentityError): never {
-  throwContextError('IdentityError', e, identityErrorStatus(e.code))
-}
 
 // ── Types for better-auth API responses ──────────────────────────
 // better-auth returns loosely-typed responses; we define precise shapes
