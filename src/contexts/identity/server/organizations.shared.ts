@@ -3,6 +3,10 @@
 
 import { HTTP_STATUS } from '#/shared/http/status'
 import { match } from 'ts-pattern'
+import {
+  DEFAULT_RESPONSE_SLA_HOURS,
+  extractResponseSlaHours,
+} from '#/shared/domain/response-sla'
 import type { IdentityErrorCode } from '../domain/errors'
 
 export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024 // 5MB
@@ -65,9 +69,14 @@ export type AuthOrganizationResponse = Readonly<{
   billingCity: string | null
   billingPostalCode: string | null
   billingCountry: string | null
+  responseSlaHours: number
 }>
+// ── Response SLA (from the shared kernel) ───────────────────────────
+// Defined in shared/domain so the dashboard context can read it without
+// importing from identity's server layer.
+export { DEFAULT_RESPONSE_SLA_HOURS, extractResponseSlaHours }
 
-// ── Helper: Extract billing fields from loosely-typed org response ────────
+// ── Helper: Extract billing/settings fields from loosely-typed org response ──
 
 export function extractOrgBillingFields(org: unknown): {
   contactEmail: string | null
@@ -76,6 +85,7 @@ export function extractOrgBillingFields(org: unknown): {
   billingCity: string | null
   billingPostalCode: string | null
   billingCountry: string | null
+  responseSlaHours: number
 } {
   const o = org as Record<string, unknown>
   return {
@@ -85,5 +95,6 @@ export function extractOrgBillingFields(org: unknown): {
     billingCity: (o.billingCity as string | null) ?? null,
     billingPostalCode: (o.billingPostalCode as string | null) ?? null,
     billingCountry: (o.billingCountry as string | null) ?? null,
+    responseSlaHours: extractResponseSlaHours(o),
   }
 }

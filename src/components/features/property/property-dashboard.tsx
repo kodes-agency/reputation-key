@@ -2,17 +2,22 @@ import { Link } from '@tanstack/react-router'
 import { MessageSquare, Star, ScanLine, MessageCircle } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '#/components/ui/tabs'
-import type { DashboardData } from '#/contexts/dashboard/application/public-api'
+import type {
+  DashboardData,
+  AttentionSignals,
+} from '#/contexts/dashboard/application/public-api'
 import type { TimeRangePreset } from '#/contexts/dashboard/application/dto/dashboard.dto'
 import { TIME_RANGE_OPTIONS } from '#/contexts/dashboard/application/dto/dashboard.dto'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
 import { KPICard, RatingDistributionChart } from './property-dashboard-helpers'
 import { ReviewRow } from './property-dashboard-review-row'
+import { AttentionBand } from './attention-band'
 
 export interface PropertyDashboardProps {
   property: Readonly<{ id: string; name: string }> | null | undefined
   dashboard: DashboardData
+  signals: AttentionSignals
   propertyId: string
   timeRange: TimeRangePreset
   onTimeRangeChange: (value: TimeRangePreset) => void
@@ -21,6 +26,7 @@ export interface PropertyDashboardProps {
 export function PropertyDashboard({
   property,
   dashboard,
+  signals,
   propertyId,
   timeRange,
   onTimeRangeChange,
@@ -56,6 +62,8 @@ export function PropertyDashboard({
           </Tabs>
         }
       />
+
+      <AttentionBand signals={signals} propertyId={propertyId} />
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <KPICard label="Reviews" kpi={kpis.reviews} icon={MessageSquare} />

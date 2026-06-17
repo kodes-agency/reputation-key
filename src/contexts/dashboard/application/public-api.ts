@@ -13,6 +13,10 @@ export type {
   PortalAnalyticsData,
   StaffDashboardData,
   PortalRatingTrendPoint,
+  AttentionSignals,
+  FleetEntry,
+  FleetOverviewData,
+  FleetTotals,
 } from '../domain/types'
 
 // ── Error type re-exports (server functions must import from public-api, not domain/errors) ──

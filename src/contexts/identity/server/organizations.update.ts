@@ -27,6 +27,7 @@ const updateOrganizationInputSchema = z
     billingCity: z.string().nullable().optional(),
     billingPostalCode: z.string().nullable().optional(),
     billingCountry: z.string().nullable().optional(),
+    responseSlaHours: z.number().int().min(1).max(720).optional(),
   })
   .strict()
 

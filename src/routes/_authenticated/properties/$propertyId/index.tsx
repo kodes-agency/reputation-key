@@ -1,6 +1,7 @@
 import { createFileRoute, getRouteApi } from '@tanstack/react-router'
 import { z } from 'zod/v4'
 import { getDashboardDataFn } from '#/contexts/dashboard/server/dashboard'
+import { getAttentionSignalsFn } from '#/contexts/dashboard/server/attention-signals'
 import { PropertyDashboard } from '#/components/features/property/property-dashboard'
 import type { TimeRangePreset } from '#/contexts/dashboard/application/dto/dashboard.dto'
 
@@ -15,15 +16,18 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/')(
   staleTime: 60_000,
   loaderDeps: ({ search }) => ({ timeRange: search.timeRange }),
   loader: async ({ params: { propertyId }, deps: { timeRange } }) => {
-    const dashboard = await getDashboardDataFn({ data: { propertyId, timeRange } })
-    return { dashboard }
+    const [dashboard, signals] = await Promise.all([
+      getDashboardDataFn({ data: { propertyId, timeRange } }),
+      getAttentionSignalsFn({ data: { propertyId, timeRange } }),
+    ])
+    return { dashboard, signals }
   },
   component: PropertyDashboardRoute,
 })
 
 function PropertyDashboardRoute() {
   const { property } = propertyRoute.useLoaderData()
-  const { dashboard } = Route.useLoaderData()
+  const { dashboard, signals } = Route.useLoaderData()
   const { propertyId } = propertyRoute.useParams()
   const { timeRange } = Route.useSearch()
   const navigate = Route.useNavigate()
@@ -36,6 +40,7 @@ function PropertyDashboardRoute() {
     <PropertyDashboard
       property={property}
       dashboard={dashboard}
+      signals={signals}
       propertyId={propertyId}
       timeRange={timeRange}
       onTimeRangeChange={onTimeRangeChange}

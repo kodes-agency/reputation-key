@@ -6,16 +6,22 @@ import type { ReviewStatsPort } from './application/ports/review-stats.port'
 import type { MetricStatsPort } from './application/ports/metric-stats.port'
 import type { PortalMetricsPort } from './application/ports/portal-metrics.port'
 import type { StaffPortalResolverPort } from './application/ports/staff-portal-resolver.port'
+import type { AttentionSignalsPort } from './application/ports/attention-signals.port'
 import { createDashboardRepository } from './infrastructure/repositories/dashboard.repository'
 import { getDashboardData } from './application/use-cases/get-dashboard-data'
 import { getPortalAnalytics } from './application/use-cases/get-portal-analytics'
 import { getStaffDashboardData } from './application/use-cases/get-staff-dashboard-data'
+import { getAttentionSignals } from './application/use-cases/get-attention-signals'
+import type { GetAttentionSignals } from './application/use-cases/get-attention-signals'
+import { getFleetOverview } from './application/use-cases/get-fleet-overview'
+import type { GetFleetOverview } from './application/use-cases/get-fleet-overview'
 
 export type DashboardContextBuildInput = Readonly<{
   reviewStats: ReviewStatsPort
   metricStats: MetricStatsPort
   portalMetrics: PortalMetricsPort
   staffPortalResolver: StaffPortalResolverPort
+  attentionSignals: AttentionSignalsPort
 }>
 
 export type DashboardContextApi = Readonly<{
@@ -23,6 +29,8 @@ export type DashboardContextApi = Readonly<{
     getDashboardData: ReturnType<typeof getDashboardData>
     getPortalAnalytics: ReturnType<typeof getPortalAnalytics>
     getStaffDashboardData: ReturnType<typeof getStaffDashboardData>
+    getAttentionSignals: GetAttentionSignals
+    getFleetOverview: GetFleetOverview
   }>
   internal: Readonly<{
     repos: Readonly<{ dashboardRepo: ReturnType<typeof createDashboardRepository> }>
@@ -30,6 +38,8 @@ export type DashboardContextApi = Readonly<{
       getDashboardData: ReturnType<typeof getDashboardData>
       getPortalAnalytics: ReturnType<typeof getPortalAnalytics>
       getStaffDashboardData: ReturnType<typeof getStaffDashboardData>
+      getAttentionSignals: GetAttentionSignals
+      getFleetOverview: GetFleetOverview
     }>
   }>
 }>
@@ -53,11 +63,23 @@ export const buildDashboardContext = (
     staffPortalResolver: input.staffPortalResolver,
   })
 
+  const getAttention = getAttentionSignals({
+    repo: dashboardRepo,
+    signals: input.attentionSignals,
+  })
+
+  const getFleet = getFleetOverview({
+    repo: dashboardRepo,
+    signals: input.attentionSignals,
+  })
+
   return {
     publicApi: {
       getDashboardData: getDashboard,
       getPortalAnalytics: getPortal,
       getStaffDashboardData: getStaffDashboard,
+      getAttentionSignals: getAttention,
+      getFleetOverview: getFleet,
     },
     internal: {
       repos: { dashboardRepo },
@@ -65,6 +87,8 @@ export const buildDashboardContext = (
         getDashboardData: getDashboard,
         getPortalAnalytics: getPortal,
         getStaffDashboardData: getStaffDashboard,
+        getAttentionSignals: getAttention,
+        getFleetOverview: getFleet,
       },
     },
   }

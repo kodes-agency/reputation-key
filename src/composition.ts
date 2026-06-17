@@ -45,6 +45,7 @@ import { buildDashboardContext } from '#/contexts/dashboard/build'
 import { createReviewStatsAdapter } from '#/contexts/dashboard/infrastructure/adapters/review-stats.adapter'
 import { createMetricStatsAdapter } from '#/contexts/dashboard/infrastructure/adapters/metric-stats.adapter'
 import { createPortalMetricsAdapter } from '#/contexts/dashboard/infrastructure/adapters/portal-metrics.adapter'
+import { createAttentionSignalsAdapter } from '#/contexts/dashboard/infrastructure/adapters/attention-signals.adapter'
 import { createStaffPortalResolverAdapter } from '#/contexts/dashboard/infrastructure/adapters/staff-portal-resolver.adapter'
 import { buildGoalContext } from '#/contexts/goal/build'
 import { buildActivityContext } from '#/contexts/activity/build'
@@ -300,6 +301,7 @@ export function createContainer(options?: { enableJobs?: boolean }) {
   const reviewStats = createReviewStatsAdapter(db)
   const metricStats = createMetricStatsAdapter(db)
   const portalMetrics = createPortalMetricsAdapter(db)
+  const attentionSignals = createAttentionSignalsAdapter(db)
 
   const staffPortalResolver = createStaffPortalResolverAdapter(staff.publicApi)
 
@@ -307,6 +309,7 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     reviewStats,
     metricStats,
     portalMetrics,
+    attentionSignals,
     staffPortalResolver,
   })
 
@@ -399,6 +402,8 @@ export function createContainer(options?: { enableJobs?: boolean }) {
       getDashboardData: dashboard.publicApi.getDashboardData,
       getPortalAnalytics: dashboard.publicApi.getPortalAnalytics,
       getStaffDashboardData: dashboard.publicApi.getStaffDashboardData,
+      getAttentionSignals: dashboard.publicApi.getAttentionSignals,
+      getFleetOverview: dashboard.publicApi.getFleetOverview,
       ...goal.internal.useCases,
       ...badge.internal.useCases,
       ...leaderboard.internal.useCases,
