@@ -61,6 +61,10 @@ export type OrganizationBadgeEnablement = Readonly<{
   createdAt: Date
   updatedAt: Date
 }>
+export type BadgeDefinitionWithOrgEnablement = Readonly<{
+  definition: BadgeDefinition
+  orgEnabled: boolean
+}>
 
 export type BadgeAward = Readonly<{
   id: BadgeId

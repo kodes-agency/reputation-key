@@ -115,3 +115,47 @@ export const setOrganizationBadgeEnablement = createServerFn({ method: 'POST' })
       'badge.setOrganizationBadgeEnablement',
     ),
   )
+
+// ── getOrganizationBadgeDefinitions ───────────────────────────────
+
+export const getOrganizationBadgeDefinitionsFn = createServerFn({
+  method: 'GET',
+}).handler(
+  tracedHandler(
+    async () => {
+      const headers = await headersFromContext()
+      const ctx = await resolveTenantContext(headers)
+      if (!can(ctx.role, 'badge.read')) {
+        throwContextError(
+          'AuthError',
+          { code: 'forbidden', message: 'No badge read permission' },
+          403,
+        )
+      }
+      const rows = await getContainer().badgePublicApi.getOrganizationBadgeDefinitions(
+        toOrgId(ctx.organizationId),
+      )
+      return rows.map((row) => ({
+        id: row.definition.id,
+        key: row.definition.key,
+        name: row.definition.name,
+        description: row.definition.description,
+        icon: row.definition.icon,
+        targetScope: row.definition.targetScope,
+        criteria: {
+          type: row.definition.criteria.type,
+          metricKey: row.definition.criteria.metricKey,
+          operator: row.definition.criteria.operator,
+          threshold: row.definition.criteria.threshold,
+          aggregation: row.definition.criteria.aggregation,
+          period: row.definition.criteria.period,
+          streakDays: row.definition.criteria.streakDays,
+          dailyThreshold: row.definition.criteria.dailyThreshold,
+        },
+        orgEnabled: row.orgEnabled,
+      }))
+    },
+    'GET',
+    'badge.getOrganizationBadgeDefinitions',
+  ),
+)

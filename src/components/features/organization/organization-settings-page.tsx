@@ -5,13 +5,14 @@
 import { useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
-import { useAction } from '#/components/hooks/use-action'
+import { useAction, type Action } from '#/components/hooks/use-action'
 import { toast } from 'sonner'
 import { Badge } from '#/components/ui/badge'
 import { ImageUploadField } from '#/components/forms/image-upload-field'
 import { putFilePresigned } from '#/components/forms/image-upload-field/put-file-presigned'
 import { OrganizationSettingsForm } from './organization-settings-form'
 import { OrganizationSwitchList } from './organization-switch-list'
+import { ResponseSlaCard } from './response-sla-card'
 import {
   updateOrganization,
   requestOrgLogoUpload,
@@ -31,17 +32,23 @@ type OrgData = Readonly<{
   billingPostalCode: string | null
   billingCountry: string | null
 }>
-
 type Props = Readonly<{
   organization: OrgData
   organizations: ReadonlyArray<{ id: string; name: string }>
   activeOrganizationId: string | null
+  responseSlaHours: number
+  updateResponseSla: Action<
+    Readonly<{ data: Readonly<{ responseSlaHours: number }> }>,
+    { responseSlaHours: number }
+  >
 }>
 
 export function OrganizationSettingsPage({
   organization,
   organizations,
   activeOrganizationId,
+  responseSlaHours,
+  updateResponseSla,
 }: Props) {
   const [logoUrl, setLogoUrl] = useState(organization.logo)
   const navigate = useNavigate()
@@ -95,6 +102,10 @@ export function OrganizationSettingsPage({
         }}
         isPending={updateOrg.isPending}
         error={updateOrg.error}
+      />
+      <ResponseSlaCard
+        responseSlaHours={responseSlaHours}
+        updateSla={updateResponseSla}
       />
 
       <OrganizationSwitchList
