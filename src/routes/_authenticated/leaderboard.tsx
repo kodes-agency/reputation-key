@@ -5,6 +5,7 @@ import { getLeaderboard } from '#/contexts/leaderboard/server/leaderboards'
 import { useStaffPropertyId } from '#/components/hooks/use-staff-property-id'
 import { StaffEmptyState } from '#/components/features/staff/staff-empty-state'
 import { PageShell } from '#/components/layout/page-shell'
+import { PageHeader } from '#/components/layout/page-header'
 import type { LeaderboardEntryWithTarget } from '#/contexts/leaderboard/application/public-api'
 
 const leaderboardSearch = z.object({
@@ -111,12 +112,10 @@ function StaffLeaderboardPage() {
   if (!localPropertyId) {
     return (
       <PageShell>
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">Leaderboard</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            See how your portals and groups compare.
-          </p>
-        </div>
+        <PageHeader
+          title="Leaderboard"
+          description="See how your portals and groups compare."
+        />
         <StaffEmptyState />
       </PageShell>
     )
@@ -146,12 +145,10 @@ function StaffLeaderboardPage() {
 
   return (
     <PageShell>
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">Leaderboard</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          See how your portals and groups compare.
-        </p>
-      </div>
+      <PageHeader
+        title="Leaderboard"
+        description="See how your portals and groups compare."
+      />
 
       {/* Period selector */}
       <div className="flex flex-wrap gap-2">

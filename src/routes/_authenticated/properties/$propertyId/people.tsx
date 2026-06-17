@@ -1,5 +1,5 @@
 // People route — thin wrapper around PeoplePage component
-import { createFileRoute, redirect } from '@tanstack/react-router'
+import { createFileRoute, getRouteApi, redirect } from '@tanstack/react-router'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import { listStaffAssignments } from '#/contexts/staff/server/staff-assignments'
@@ -10,6 +10,8 @@ import {
   PeoplePage,
   peopleSearchSchema,
 } from '#/components/features/property/people/people-page'
+
+const propertyRoute = getRouteApi('/_authenticated/properties/$propertyId')
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/people')({
   beforeLoad: ({ context }) => {
@@ -32,6 +34,7 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/peo
 
 function PeopleRoute() {
   const { propertyId } = Route.useParams()
+  const { property } = propertyRoute.useLoaderData()
   const { assignments, members, teams, portals } = Route.useLoaderData()
   const search = Route.useSearch() as { tab?: string }
   const navigate = Route.useNavigate()
@@ -39,6 +42,7 @@ function PeopleRoute() {
   return (
     <PeoplePage
       propertyId={propertyId}
+      propertyName={property.name}
       assignments={assignments}
       members={members}
       teams={teams}

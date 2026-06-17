@@ -1,5 +1,10 @@
 // Create goal route — renders form with mutation
-import { createFileRoute, useNavigate, redirect } from '@tanstack/react-router'
+import {
+  createFileRoute,
+  useNavigate,
+  getRouteApi,
+  redirect,
+} from '@tanstack/react-router'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import { createGoal } from '#/contexts/goal/server/goals'
@@ -8,6 +13,9 @@ import { listPortalGroups } from '#/contexts/portal/server/portal-groups'
 import { useMutationAction } from '#/components/hooks/use-mutation-action'
 import { GoalCreateForm } from '#/components/features/property/goals/goal-create-form'
 import { PageShell } from '#/components/layout/page-shell'
+import { PageHeader } from '#/components/layout/page-header'
+
+const propertyRoute = getRouteApi('/_authenticated/properties/$propertyId')
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/goals/new')({
   beforeLoad: ({ context }) => {
@@ -28,6 +36,7 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/goa
 
 function CreateGoalPage() {
   const { propertyId } = Route.useParams()
+  const { property } = propertyRoute.useLoaderData()
   const { portals, portalGroups } = Route.useLoaderData()
   const navigate = useNavigate()
 
@@ -43,13 +52,17 @@ function CreateGoalPage() {
   })
 
   return (
-    <PageShell>
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">New Goal</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Define a performance goal to track progress.
-        </p>
-      </div>
+    <PageShell tier="narrow">
+      <PageHeader
+        title="New Goal"
+        description="Define a performance goal to track progress."
+        breadcrumbs={[
+          { label: 'Properties', to: '/properties' },
+          { label: property.name, to: `/properties/${propertyId}` },
+          { label: 'Goals', to: `/properties/${propertyId}/goals` },
+          { label: 'New Goal' },
+        ]}
+      />
       <GoalCreateForm
         propertyId={propertyId}
         mutation={mutation}

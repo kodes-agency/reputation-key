@@ -24,6 +24,7 @@ import { StaffTab } from '#/components/features/property/people/staff-tab'
 import { TeamsTab } from '#/components/features/property/people/teams-tab'
 import { DirectoryTab } from '#/components/features/property/people/directory-tab'
 import { PageShell } from '#/components/layout/page-shell'
+import { PageHeader } from '#/components/layout/page-header'
 import { listPortals } from '#/contexts/portal/server/portals'
 
 export const peopleSearchSchema = z.object({
@@ -32,6 +33,7 @@ export const peopleSearchSchema = z.object({
 
 interface PeoplePageProps {
   propertyId: string
+  propertyName: string
   assignments: Awaited<ReturnType<typeof listStaffAssignments>>['assignments']
   members: Awaited<ReturnType<typeof listMembers>>['members']
   teams: Awaited<ReturnType<typeof listTeams>>['teams']
@@ -42,6 +44,7 @@ interface PeoplePageProps {
 
 export function PeoplePage({
   propertyId,
+  propertyName,
   assignments,
   members,
   teams,
@@ -84,12 +87,15 @@ export function PeoplePage({
 
   return (
     <PageShell>
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">People</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Manage staff assignments, team members, and organization directory.
-        </p>
-      </div>
+      <PageHeader
+        title="People"
+        description="Manage staff assignments, team members, and organization directory."
+        breadcrumbs={[
+          { label: 'Properties', to: '/properties' },
+          { label: propertyName, to: `/properties/${propertyId}` },
+          { label: 'People' },
+        ]}
+      />
 
       <Tabs value={defaultTab} onValueChange={(t) => onTabChange(t)}>
         <TabsList>

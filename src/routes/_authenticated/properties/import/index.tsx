@@ -13,8 +13,8 @@ import {
 } from '#/components/features/integration'
 import { useMutationActionSilent } from '#/components/hooks/use-mutation-action'
 import { useAction } from '#/components/hooks/use-action'
-import { ImportPageHeader } from './-import-page-header'
 import { PageShell } from '#/components/layout/page-shell'
+import { PageHeader } from '#/components/layout/page-header'
 
 export const Route = createFileRoute('/_authenticated/properties/import/')({
   beforeLoad: ({ context }) => {
@@ -40,7 +40,15 @@ function ImportPage() {
 
   return (
     <PageShell>
-      <ImportPageHeader showSubtitle />
+      <PageHeader
+        title="Import Properties"
+        description="Import properties from your Google Business Profile"
+        breadcrumbs={[
+          { label: 'Properties', to: '/properties' },
+          { label: 'Import Properties' },
+        ]}
+        backTo={{ to: '/properties', label: 'Back to Properties' }}
+      />
 
       {search.error && (
         <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4">

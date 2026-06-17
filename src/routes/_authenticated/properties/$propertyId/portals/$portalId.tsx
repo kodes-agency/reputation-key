@@ -14,7 +14,10 @@ import { PortalBadgeSection } from '#/components/features/badges/portal-badge-se
 import { useMutationAction } from '#/components/hooks/use-mutation-action'
 import { useServerFn } from '@tanstack/react-start'
 import { PageShell } from '#/components/layout/page-shell'
+import { PageHeader } from '#/components/layout/page-header'
 import type { BadgeAwardWithTarget } from '#/contexts/badge/application/public-api'
+
+const propertyRoute = getRouteApi('/_authenticated/properties/$propertyId')
 
 export const Route = createFileRoute(
   '/_authenticated/properties/$propertyId/portals/$portalId',
@@ -50,6 +53,7 @@ export const Route = createFileRoute(
 
 function PortalDetailRoute() {
   const { portal, categories, links, propertyId, badges } = Route.useLoaderData()
+  const { property } = propertyRoute.useLoaderData()
   const ctx = Route.useRouteContext()
 
   const mutation = useMutationAction(updatePortal, {
@@ -66,6 +70,15 @@ function PortalDetailRoute() {
 
   return (
     <PageShell>
+      <PageHeader
+        title={portal.name}
+        breadcrumbs={[
+          { label: 'Properties', to: '/properties' },
+          { label: property.name, to: `/properties/${propertyId}` },
+          { label: 'Portals', to: `/properties/${propertyId}/portals` },
+          { label: portal.name },
+        ]}
+      />
       <PortalDetailPage
         portal={portal}
         propertyId={propertyId}

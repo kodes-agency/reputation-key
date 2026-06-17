@@ -27,23 +27,14 @@ function TeamMembersPage() {
   })
 
   return (
-    <>
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">Team Members</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Manage who belongs to {team.name}.
-        </p>
-      </div>
-
-      <TeamMemberList
-        teamId={teamId}
-        propertyId={propertyId}
-        assignments={assignments}
-        members={memberOptions}
-        teamLeadId={team.teamLeadId}
-        addAction={addMemberMutation}
-        removeAction={removeMemberMutation}
-      />
-    </>
+    <TeamMemberList
+      teamId={teamId}
+      propertyId={propertyId}
+      assignments={assignments}
+      members={memberOptions}
+      teamLeadId={team.teamLeadId}
+      addAction={addMemberMutation}
+      removeAction={removeMemberMutation}
+    />
   )
 }

@@ -6,9 +6,7 @@ import { can } from '#/shared/domain/permissions'
 import { getProperty } from '#/contexts/property/server/properties'
 import { listStaffAssignments } from '#/contexts/staff/server/staff-assignments'
 import { listTeams } from '#/contexts/team/server/teams'
-import { Button } from '#/components/ui/button'
-import { Alert, AlertDescription } from '#/components/ui/alert'
-import { AlertCircle } from 'lucide-react'
+import { ErrorState } from '#/components/layout/page-states'
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId')({
   beforeLoad: ({ context }) => {
@@ -46,13 +44,10 @@ function PropertyLayout() {
   if (!property) {
     return (
       <div className="flex flex-col items-center gap-4 py-20">
-        <Alert variant="destructive" className="max-w-md">
-          <AlertCircle />
-          <AlertDescription>Property not found.</AlertDescription>
-        </Alert>
-        <Button variant="outline" onClick={() => navigate({ to: '/properties' })}>
-          Back to Properties
-        </Button>
+        <ErrorState
+          message="Property not found."
+          onRetry={() => navigate({ to: '/properties' })}
+        />
       </div>
     )
   }

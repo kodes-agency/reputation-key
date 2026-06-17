@@ -6,6 +6,7 @@ import { useStaffPropertyId } from '#/components/hooks/use-staff-property-id'
 import { StaffGoalList } from '#/components/features/staff/staff-goal-list'
 import { StaffEmptyState } from '#/components/features/staff/staff-empty-state'
 import { PageShell } from '#/components/layout/page-shell'
+import { PageHeader } from '#/components/layout/page-header'
 import type { StaffGoalEntry } from '#/contexts/goal/application/public-api'
 
 const progressSearch = z.object({
@@ -47,12 +48,10 @@ function StaffProgressPage() {
   if (!localPropertyId) {
     return (
       <PageShell>
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">Progress</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Where you are and where you're going.
-          </p>
-        </div>
+        <PageHeader
+          title="Progress"
+          description="Where you are and where you're going."
+        />
         <StaffEmptyState />
       </PageShell>
     )
@@ -65,12 +64,7 @@ function StaffProgressPage() {
 
   return (
     <PageShell>
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">Progress</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Where you are and where you're going.
-        </p>
-      </div>
+      <PageHeader title="Progress" description="Where you are and where you're going." />
       <StaffGoalList goals={goals} />
     </PageShell>
   )

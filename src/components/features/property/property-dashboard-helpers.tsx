@@ -67,3 +67,34 @@ export function KPICard({
     </div>
   )
 }
+
+export function RatingDistributionChart({
+  distribution,
+}: {
+  distribution: ReadonlyArray<{ stars: number; count: number }>
+}) {
+  const max = Math.max(...distribution.map((b) => b.count), 1)
+  return (
+    <div>
+      <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+        Rating Distribution
+      </h2>
+      <div className="mt-3 space-y-2">
+        {distribution.map((bucket) => (
+          <div key={bucket.stars} className="flex items-center gap-3">
+            <span className="w-8 text-right text-sm tabular-nums">{bucket.stars}★</span>
+            <div className="flex-1">
+              <div
+                className="h-2 rounded-full bg-primary transition-all"
+                style={{ width: `${Math.min(100, (bucket.count / max) * 100)}%` }}
+              />
+            </div>
+            <span className="w-8 text-sm tabular-nums text-muted-foreground">
+              {bucket.count}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}

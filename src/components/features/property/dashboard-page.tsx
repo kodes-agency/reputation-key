@@ -8,6 +8,7 @@ import { usePermissions } from '#/shared/hooks/usePermissions'
 import { DeletePropertyDialog } from './delete-property-dialog'
 import type { Action } from '#/components/hooks/use-action'
 import { PageShell } from '#/components/layout/page-shell'
+import { PageHeader } from '#/components/layout/page-header'
 
 interface Property {
   id: string
@@ -43,19 +44,25 @@ export function DashboardPage({ properties, deleteAction }: DashboardPageProps) 
 
   if (properties.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center gap-4 py-24">
-        <h2 className="text-lg font-medium">No properties yet</h2>
-        <p className="max-w-sm text-center text-sm text-muted-foreground">
-          Create your first property to start managing reviews, staff performance, and
-          reputation.
-        </p>
-        <Button asChild>
-          <Link to="/properties/import">
-            <Plus />
-            Create Property
-          </Link>
-        </Button>
-      </div>
+      <PageShell>
+        <PageHeader
+          title="Properties"
+          description="Manage your organization's properties and locations."
+        />
+        <div className="flex flex-col items-center justify-center gap-4 py-24">
+          <h2 className="text-lg font-medium">No properties yet</h2>
+          <p className="max-w-sm text-center text-sm text-muted-foreground">
+            Create your first property to start managing reviews, staff performance, and
+            reputation.
+          </p>
+          <Button asChild>
+            <Link to="/properties/import">
+              <Plus />
+              Create Property
+            </Link>
+          </Button>
+        </div>
+      </PageShell>
     )
   }
 
@@ -63,22 +70,20 @@ export function DashboardPage({ properties, deleteAction }: DashboardPageProps) 
 
   return (
     <PageShell>
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">Properties</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Manage your organization's properties and locations.
-          </p>
-        </div>
-        {can('property.create') && (
-          <Button asChild>
-            <Link to="/properties/import">
-              <Plus />
-              Add Property
-            </Link>
-          </Button>
-        )}
-      </div>
+      <PageHeader
+        title="Properties"
+        description="Manage your organization's properties and locations."
+        actions={
+          can('property.create') && (
+            <Button asChild>
+              <Link to="/properties/import">
+                <Plus />
+                Add Property
+              </Link>
+            </Button>
+          )
+        }
+      />
 
       <div className="flex flex-col gap-2">
         {properties.map((p) => (

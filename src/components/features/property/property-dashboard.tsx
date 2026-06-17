@@ -1,4 +1,3 @@
-// Property dashboard — extracted from route for testability and separation of concerns
 import { Link } from '@tanstack/react-router'
 import { MessageSquare, Star, ScanLine, MessageCircle } from 'lucide-react'
 import { Button } from '#/components/ui/button'
@@ -6,7 +5,9 @@ import { Tabs, TabsList, TabsTrigger } from '#/components/ui/tabs'
 import type { DashboardData } from '#/contexts/dashboard/application/public-api'
 import type { TimeRangePreset } from '#/contexts/dashboard/application/dto/dashboard.dto'
 import { TIME_RANGE_OPTIONS } from '#/contexts/dashboard/application/dto/dashboard.dto'
-import { KPICard } from './property-dashboard-helpers'
+import { PageShell } from '#/components/layout/page-shell'
+import { PageHeader } from '#/components/layout/page-header'
+import { KPICard, RatingDistributionChart } from './property-dashboard-helpers'
 import { ReviewRow } from './property-dashboard-review-row'
 
 export interface PropertyDashboardProps {
@@ -30,26 +31,31 @@ export function PropertyDashboard({
     dashboard
 
   return (
-    <div className="min-w-0 space-y-8">
-      <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">Dashboard</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{property.name}</p>
-        </div>
-        <Tabs
-          value={timeRange}
-          onValueChange={(v) => onTimeRangeChange(v as TimeRangePreset)}
-          className="min-w-0 shrink-0"
-        >
-          <TabsList className="flex-wrap">
-            {TIME_RANGE_OPTIONS.map((opt) => (
-              <TabsTrigger key={opt.value} value={opt.value} className="text-xs">
-                {opt.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
-      </div>
+    <PageShell tier="dashboard">
+      <PageHeader
+        title="Overview"
+        description={property.name}
+        breadcrumbs={[
+          { label: 'Properties', to: '/properties' },
+          { label: property.name },
+          { label: 'Overview' },
+        ]}
+        actions={
+          <Tabs
+            value={timeRange}
+            onValueChange={(v) => onTimeRangeChange(v as TimeRangePreset)}
+            className="min-w-0 shrink-0"
+          >
+            <TabsList className="flex-wrap">
+              {TIME_RANGE_OPTIONS.map((opt) => (
+                <TabsTrigger key={opt.value} value={opt.value} className="text-xs">
+                  {opt.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+        }
+      />
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <KPICard label="Reviews" kpi={kpis.reviews} icon={MessageSquare} />
@@ -83,29 +89,7 @@ export function PropertyDashboard({
         </div>
       )}
 
-      <div>
-        <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-          Rating Distribution
-        </h2>
-        <div className="mt-3 space-y-2">
-          {ratingDistribution.map((bucket) => (
-            <div key={bucket.stars} className="flex items-center gap-3">
-              <span className="w-8 text-right text-sm tabular-nums">{bucket.stars}★</span>
-              <div className="flex-1">
-                <div
-                  className="h-2 rounded-full bg-primary transition-all"
-                  style={{
-                    width: `${Math.min(100, (bucket.count / Math.max(...ratingDistribution.map((b) => b.count), 1)) * 100)}%`,
-                  }}
-                />
-              </div>
-              <span className="w-8 text-sm tabular-nums text-muted-foreground">
-                {bucket.count}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
+      <RatingDistributionChart distribution={ratingDistribution} />
 
       <div>
         <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
@@ -153,6 +137,6 @@ export function PropertyDashboard({
           </div>
         )}
       </div>
-    </div>
+    </PageShell>
   )
 }

@@ -58,7 +58,7 @@ export function ManagerNavItems({ propertyId, activeSection }: Props) {
       {propertyId && (
         <SidebarMenuItem>
           <SidebarMenuButton asChild isActive={activeSection === 'inbox'} tooltip="Inbox">
-            <Link to="/inbox">
+            <Link to="/inbox" search={{ propertyId }}>
               <Inbox />
               <span>Inbox</span>
             </Link>
