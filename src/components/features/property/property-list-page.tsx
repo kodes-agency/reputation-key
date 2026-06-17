@@ -7,6 +7,7 @@ import { Plus, ChevronRight } from 'lucide-react'
 import { DeletePropertyDialog } from './delete-property-dialog'
 import type { Action } from '#/components/hooks/use-action'
 import { PageShell } from '#/components/layout/page-shell'
+import { PageHeader } from '#/components/layout/page-header'
 
 interface Property {
   id: string
@@ -29,22 +30,21 @@ export function PropertyListPage({ properties, deleteAction }: PropertyListPageP
 
   return (
     <PageShell>
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">Properties</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Manage your organization's properties and locations.
-          </p>
-        </div>
-        {can('property.create') && (
-          <Button asChild>
-            <Link to="/properties/import">
-              <Plus />
-              Import Properties
-            </Link>
-          </Button>
-        )}
-      </div>
+      <PageHeader
+        title="Properties"
+        description="Manage your organization's properties and locations."
+        breadcrumbs={[{ label: 'Properties' }]}
+        actions={
+          can('property.create') ? (
+            <Button asChild>
+              <Link to="/properties/import">
+                <Plus />
+                Import Properties
+              </Link>
+            </Button>
+          ) : undefined
+        }
+      />
 
       {properties.length === 0 ? (
         <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed py-12 text-center">

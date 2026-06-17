@@ -21,29 +21,20 @@ function TeamSettingsPage() {
   })
 
   return (
-    <>
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">Team Settings</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Update team name, description, and assign a team lead.
-        </p>
-      </div>
-
-      <EditTeamForm
-        teamId={team.id}
-        initialName={team.name}
-        initialDescription={team.description}
-        initialTeamLeadId={team.teamLeadId}
-        members={memberOptions.map((m) => ({
-          userId: m.userId,
-          name: m.name,
-          email: m.email,
-        }))}
-        mutation={mutation}
-        onCancel={() =>
-          navigate({ to: '/properties/$propertyId/people', params: { propertyId } })
-        }
-      />
-    </>
+    <EditTeamForm
+      teamId={team.id}
+      initialName={team.name}
+      initialDescription={team.description}
+      initialTeamLeadId={team.teamLeadId}
+      members={memberOptions.map((m) => ({
+        userId: m.userId,
+        name: m.name,
+        email: m.email,
+      }))}
+      mutation={mutation}
+      onCancel={() =>
+        navigate({ to: '/properties/$propertyId/people', params: { propertyId } })
+      }
+    />
   )
 }

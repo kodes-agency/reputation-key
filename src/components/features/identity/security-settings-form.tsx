@@ -1,4 +1,6 @@
 import { useForm } from '@tanstack/react-form'
+import { Link } from '@tanstack/react-router'
+import { Button } from '#/components/ui/button'
 import { FieldGroup } from '#/components/ui/field'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { FormTextField } from '#/components/forms/form-text-field'
@@ -93,7 +95,10 @@ export function SecuritySettingsForm({ changePassword }: Props) {
               </form.Field>
             </FieldGroup>
           </CardContent>
-          <div className="px-6 pb-2">
+          <div className="px-6 pb-2 flex gap-2">
+            <Button type="button" variant="outline" asChild>
+              <Link to="/settings/profile">Cancel</Link>
+            </Button>
             <SubmitButton mutation={changePassword} form={form}>
               Update password
             </SubmitButton>

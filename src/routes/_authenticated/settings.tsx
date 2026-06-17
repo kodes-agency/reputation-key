@@ -9,7 +9,7 @@ export const Route = createFileRoute('/_authenticated/settings')({
 
 function SettingsLayout() {
   return (
-    <PageShell>
+    <PageShell tier="narrow">
       <Outlet />
     </PageShell>
   )

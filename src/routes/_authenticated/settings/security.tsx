@@ -1,4 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { PageHeader } from '#/components/layout/page-header'
 import { useMutationAction } from '#/components/hooks/use-mutation-action'
 import { changePasswordFn } from '#/contexts/identity/server/auth-settings'
 import { SecuritySettingsForm } from '#/components/features/identity'
@@ -12,5 +13,14 @@ function SecuritySettings() {
     successMessage: 'Password changed successfully',
   })
 
-  return <SecuritySettingsForm changePassword={changePassword} />
+  return (
+    <>
+      <PageHeader
+        title="Security"
+        description="Manage your password and account security."
+        breadcrumbs={[{ label: 'Settings', to: '/settings' }, { label: 'Security' }]}
+      />
+      <SecuritySettingsForm changePassword={changePassword} />
+    </>
+  )
 }

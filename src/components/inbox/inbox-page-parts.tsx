@@ -6,6 +6,7 @@ import type { InboxDetailState } from './use-inbox-detail'
 import { InboxDetailPanel } from '#/components/inbox/inbox-detail-panel'
 import { InboxDetailSheet } from '#/components/inbox/inbox-detail-sheet'
 import { PageShell } from '#/components/layout/page-shell'
+import { PageHeader } from '#/components/layout/page-header'
 import { Panel, PanelResizeHandle } from 'react-resizable-panels'
 import { Inbox } from 'lucide-react'
 
@@ -25,12 +26,10 @@ export const folderLabelFor = (folder: string | undefined): string =>
 export function InboxNoOrgState() {
   return (
     <PageShell>
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">Inbox</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Select an organization to view your inbox.
-        </p>
-      </div>
+      <PageHeader
+        title="Inbox"
+        description="Select an organization to view your inbox."
+      />
     </PageShell>
   )
 }

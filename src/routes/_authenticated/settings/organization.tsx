@@ -1,4 +1,5 @@
 import { createFileRoute, redirect } from '@tanstack/react-router'
+import { PageHeader } from '#/components/layout/page-header'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import {
@@ -33,19 +34,24 @@ export const Route = createFileRoute('/_authenticated/settings/organization')({
 function OrganizationSettingsRoute() {
   const { organization, organizations, activeOrganizationId } = Route.useLoaderData()
 
-  if (!organization) {
-    return (
-      <div className="text-center text-sm text-muted-foreground py-12">
-        No active organization found.
-      </div>
-    )
-  }
-
   return (
-    <OrganizationSettingsPage
-      organization={organization}
-      organizations={organizations}
-      activeOrganizationId={activeOrganizationId}
-    />
+    <>
+      <PageHeader
+        title="Organization"
+        description="Manage your organization's identity and billing."
+        breadcrumbs={[{ label: 'Settings', to: '/settings' }, { label: 'Organization' }]}
+      />
+      {organization ? (
+        <OrganizationSettingsPage
+          organization={organization}
+          organizations={organizations}
+          activeOrganizationId={activeOrganizationId}
+        />
+      ) : (
+        <div className="text-center text-sm text-muted-foreground py-12">
+          No active organization found.
+        </div>
+      )}
+    </>
   )
 }

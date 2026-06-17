@@ -1,9 +1,9 @@
-import { Link } from '@tanstack/react-router'
-import { ArrowLeft } from 'lucide-react'
 import { Badge } from '#/components/ui/badge'
 import { Button } from '#/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '#/components/ui/card'
 import { Separator } from '#/components/ui/separator'
+import { PageShell } from '#/components/layout/page-shell'
+import { PageHeader } from '#/components/layout/page-header'
 import { ProgressBar } from './progress-bar'
 import { InstanceHistoryTable } from './instance-history-table'
 import {
@@ -25,6 +25,7 @@ type Props = Readonly<{
   progress: GoalProgress | null
   instances: readonly GoalWithProgress[]
   propertyId: string
+  propertyName: string
   onCancel: () => void
   isCancelling: boolean
 }>
@@ -34,6 +35,7 @@ export function GoalDetailPage({
   progress,
   instances,
   propertyId,
+  propertyName,
   onCancel,
   isCancelling,
 }: Props) {
@@ -42,26 +44,23 @@ export function GoalDetailPage({
   const hasPeriod = goal.periodStart && goal.periodEnd
 
   return (
-    <div className="space-y-6">
-      <Link
-        to="/properties/$propertyId/goals"
-        params={{ propertyId }}
-        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="size-4" /> Back to Goals
-      </Link>
-
-      <div className="flex items-start justify-between gap-4">
-        <div className="space-y-1">
-          <h1 className="text-xl font-semibold tracking-tight">{goal.name}</h1>
-          {goal.description && (
-            <p className="text-sm text-muted-foreground">{goal.description}</p>
-          )}
-        </div>
-        <Badge variant={statusBadgeVariant(goal.status)}>
-          {statusLabel(goal.status)}
-        </Badge>
-      </div>
+    <PageShell>
+      <PageHeader
+        title={goal.name}
+        description={goal.description ?? undefined}
+        breadcrumbs={[
+          { label: 'Properties', to: '/properties' },
+          { label: propertyName, to: `/properties/${propertyId}` },
+          { label: 'Goals', to: `/properties/${propertyId}/goals` },
+          { label: goal.name },
+        ]}
+        backTo={{ to: `/properties/${propertyId}/goals`, label: 'Back to Goals' }}
+        actions={
+          <Badge variant={statusBadgeVariant(goal.status)}>
+            {statusLabel(goal.status)}
+          </Badge>
+        }
+      />
 
       <Card>
         <CardHeader>
@@ -129,7 +128,7 @@ export function GoalDetailPage({
       )}
 
       {isRecurringTemplate && <InstanceHistoryTable instances={instances} />}
-    </div>
+    </PageShell>
   )
 }
 

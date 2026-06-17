@@ -2,7 +2,6 @@
 import {
   createFileRoute,
   getRouteApi,
-  Link,
   notFound,
   Outlet,
   redirect,
@@ -15,11 +14,13 @@ import { listTeams } from '#/contexts/team/server/teams'
 import { listStaffAssignments } from '#/contexts/staff/server/staff-assignments'
 import { listMembers } from '#/contexts/identity/server/organizations'
 import { toMemberOptions } from '#/lib/lookups'
-import { Button } from '#/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '#/components/ui/tabs'
-import { ArrowLeft, Settings, Users } from 'lucide-react'
+import { Settings, Users } from 'lucide-react'
+import { PageShell } from '#/components/layout/page-shell'
+import { PageHeader } from '#/components/layout/page-header'
 
 const teamRouteApi = getRouteApi('/_authenticated/properties/$propertyId/teams/$teamId')
+const propertyRoute = getRouteApi('/_authenticated/properties/$propertyId')
 
 export function useTeamLayout() {
   return teamRouteApi.useLoaderData()
@@ -55,21 +56,27 @@ export const Route = createFileRoute(
 })
 
 function TeamLayout() {
-  const { propertyId, teamId } = Route.useLoaderData()
+  const { team, propertyId, teamId } = Route.useLoaderData()
+  const { property } = propertyRoute.useLoaderData()
   const location = useLocation()
   const navigate = useNavigate()
   const activeTab = location.pathname.endsWith('/members') ? 'members' : 'settings'
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-2">
-        <Button variant="ghost" asChild>
-          <Link to="/properties/$propertyId/people" params={{ propertyId }}>
-            <ArrowLeft />
-            Back
-          </Link>
-        </Button>
-      </div>
+    <PageShell>
+      <PageHeader
+        title={team.name}
+        breadcrumbs={[
+          { label: 'Properties', to: '/properties' },
+          { label: property.name, to: `/properties/${propertyId}` },
+          { label: 'People', to: `/properties/${propertyId}/people` },
+          { label: team.name },
+        ]}
+        backTo={{
+          to: `/properties/${propertyId}/people`,
+          label: 'Back to People',
+        }}
+      />
 
       <Tabs
         value={activeTab}
@@ -97,6 +104,6 @@ function TeamLayout() {
       </Tabs>
 
       <Outlet />
-    </div>
+    </PageShell>
   )
 }

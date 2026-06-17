@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '#/components/ui/card'
 import { EmptyState } from '#/components/ui/empty-state'
 import { ProgressBar } from './progress-bar'
 import { PageShell } from '#/components/layout/page-shell'
+import { PageHeader } from '#/components/layout/page-header'
 import {
   statusBadgeVariant,
   statusLabel,
@@ -20,9 +21,10 @@ import { deriveEntityScope } from '#/contexts/goal/application/public-api'
 type GoalsListPageProps = Readonly<{
   goals: readonly GoalWithProgress[]
   propertyId: string
+  propertyName: string
 }>
 
-export function GoalsListPage({ goals, propertyId }: GoalsListPageProps) {
+export function GoalsListPage({ goals, propertyId, propertyName }: GoalsListPageProps) {
   // Sort by status bucket then createdAt desc
   const sorted = [...goals].sort((a, b) => {
     const statusDiff = STATUS_ORDER[a.goal.status] - STATUS_ORDER[b.goal.status]
@@ -32,21 +34,23 @@ export function GoalsListPage({ goals, propertyId }: GoalsListPageProps) {
 
   return (
     <PageShell>
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">Goals</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Track and manage performance goals.
-          </p>
-        </div>
-        <Button asChild>
-          <Link to="/properties/$propertyId/goals/new" params={{ propertyId }}>
-            <Plus className="size-4" />
-            New Goal
-          </Link>
-        </Button>
-      </div>
+      <PageHeader
+        title="Goals"
+        description="Track and manage performance goals."
+        breadcrumbs={[
+          { label: 'Properties', to: '/properties' },
+          { label: propertyName, to: `/properties/${propertyId}` },
+          { label: 'Goals' },
+        ]}
+        actions={
+          <Button asChild>
+            <Link to="/properties/$propertyId/goals/new" params={{ propertyId }}>
+              <Plus className="size-4" />
+              New Goal
+            </Link>
+          </Button>
+        }
+      />
 
       {/* Goal list */}
       {sorted.length === 0 ? (

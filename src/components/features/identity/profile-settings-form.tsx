@@ -1,4 +1,6 @@
 import { useForm } from '@tanstack/react-form'
+import { Link } from '@tanstack/react-router'
+import { Button } from '#/components/ui/button'
 import { useState } from 'react'
 import { z } from 'zod/v4'
 import { putFilePresigned } from '#/components/forms/image-upload-field/put-file-presigned'
@@ -127,7 +129,10 @@ export function ProfileSettingsForm({
               </Field>
             </div>
 
-            <div className="flex justify-end">
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" asChild>
+                <Link to="/settings/profile">Cancel</Link>
+              </Button>
               <SubmitButton mutation={updateProfile} form={form}>
                 Save Changes
               </SubmitButton>
