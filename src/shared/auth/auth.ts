@@ -140,6 +140,11 @@ export function createAuth() {
                 input: true,
                 required: false,
               },
+              responseSlaHours: {
+                type: 'number' as const,
+                input: true,
+                required: false,
+              },
             },
           },
         },

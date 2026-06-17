@@ -19,6 +19,8 @@ export type UpdateOrganizationInput = Readonly<{
   billingCity?: string | null
   billingPostalCode?: string | null
   billingCountry?: string | null
+  /** Response SLA in hours for unanswered-review alerts. Positive integer. */
+  responseSlaHours?: number
 }>
 
 export const updateOrganization =
@@ -54,6 +56,9 @@ export const updateOrganization =
       }),
       ...(input.billingCountry !== undefined && {
         billingCountry: input.billingCountry ?? undefined,
+      }),
+      ...(input.responseSlaHours !== undefined && {
+        responseSlaHours: input.responseSlaHours,
       }),
     }
 

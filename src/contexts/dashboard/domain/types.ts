@@ -131,3 +131,19 @@ export type StaffDashboardData = Readonly<{
   kpis: KPIs
   hasAssignments: boolean
 }>
+
+// ─── Attention Band ───
+
+/** Compact signal counts shown in the property dashboard attention band. */
+export type AttentionSignals = Readonly<{
+  /** Reviews with no published reply past the response SLA. */
+  unanswered: number
+  /** Inbox items in 'new' status (unactioned feedback). */
+  newFeedback: number
+  /** Active goals whose progress is behind the pro-rated pace. */
+  goalsBehindPace: number
+  /** Avg rating dropped ≥ 0.3 vs prior period. */
+  ratingDrop: boolean
+  /** Inbox items in 'escalated' status. */
+  escalated: number
+}>
