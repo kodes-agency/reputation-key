@@ -13,6 +13,8 @@ import { getPortalAnalytics } from './application/use-cases/get-portal-analytics
 import { getStaffDashboardData } from './application/use-cases/get-staff-dashboard-data'
 import { getAttentionSignals } from './application/use-cases/get-attention-signals'
 import type { GetAttentionSignals } from './application/use-cases/get-attention-signals'
+import { getFleetOverview } from './application/use-cases/get-fleet-overview'
+import type { GetFleetOverview } from './application/use-cases/get-fleet-overview'
 
 export type DashboardContextBuildInput = Readonly<{
   reviewStats: ReviewStatsPort
@@ -28,6 +30,7 @@ export type DashboardContextApi = Readonly<{
     getPortalAnalytics: ReturnType<typeof getPortalAnalytics>
     getStaffDashboardData: ReturnType<typeof getStaffDashboardData>
     getAttentionSignals: GetAttentionSignals
+    getFleetOverview: GetFleetOverview
   }>
   internal: Readonly<{
     repos: Readonly<{ dashboardRepo: ReturnType<typeof createDashboardRepository> }>
@@ -36,6 +39,7 @@ export type DashboardContextApi = Readonly<{
       getPortalAnalytics: ReturnType<typeof getPortalAnalytics>
       getStaffDashboardData: ReturnType<typeof getStaffDashboardData>
       getAttentionSignals: GetAttentionSignals
+      getFleetOverview: GetFleetOverview
     }>
   }>
 }>
@@ -64,12 +68,18 @@ export const buildDashboardContext = (
     signals: input.attentionSignals,
   })
 
+  const getFleet = getFleetOverview({
+    repo: dashboardRepo,
+    signals: input.attentionSignals,
+  })
+
   return {
     publicApi: {
       getDashboardData: getDashboard,
       getPortalAnalytics: getPortal,
       getStaffDashboardData: getStaffDashboard,
       getAttentionSignals: getAttention,
+      getFleetOverview: getFleet,
     },
     internal: {
       repos: { dashboardRepo },
@@ -78,6 +88,7 @@ export const buildDashboardContext = (
         getPortalAnalytics: getPortal,
         getStaffDashboardData: getStaffDashboard,
         getAttentionSignals: getAttention,
+        getFleetOverview: getFleet,
       },
     },
   }

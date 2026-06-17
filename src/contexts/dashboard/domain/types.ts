@@ -147,3 +147,35 @@ export type AttentionSignals = Readonly<{
   /** Inbox items in 'escalated' status. */
   escalated: number
 }>
+
+// ─── Fleet Overview ───
+
+/** One property row in the cross-property fleet overview (2+ properties). */
+export type FleetEntry = Readonly<{
+  propertyId: string
+  name: string
+  slug: string
+  timezone: string
+  avgRating: number
+  /** Percentage change in avg rating vs prior period. Null when no prior data. */
+  avgRatingTrend: number | null
+  reviewCount: number
+  feedbackCount: number
+  scanCount: number
+  attentionSignals: AttentionSignals
+  /** Sum of all attention signals (ratingDrop counts as 1 when true). */
+  totalAttention: number
+}>
+
+/** Org-total summary shown in the fleet overview strip. */
+export type FleetTotals = Readonly<{
+  propertyCount: number
+  totalAttention: number
+  /** Mean of per-property avg ratings (properties with 0 rating excluded). */
+  overallAvgRating: number
+}>
+
+export type FleetOverviewData = Readonly<{
+  entries: readonly FleetEntry[]
+  totals: FleetTotals
+}>

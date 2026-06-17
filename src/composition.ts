@@ -403,6 +403,7 @@ export function createContainer(options?: { enableJobs?: boolean }) {
       getPortalAnalytics: dashboard.publicApi.getPortalAnalytics,
       getStaffDashboardData: dashboard.publicApi.getStaffDashboardData,
       getAttentionSignals: dashboard.publicApi.getAttentionSignals,
+      getFleetOverview: dashboard.publicApi.getFleetOverview,
       ...goal.internal.useCases,
       ...badge.internal.useCases,
       ...leaderboard.internal.useCases,
