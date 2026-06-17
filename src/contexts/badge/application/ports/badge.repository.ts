@@ -4,6 +4,7 @@ import type {
   BadgeAward,
   BadgeAwardWithTarget,
   BadgeDefinition,
+  BadgeDefinitionWithOrgEnablement,
   BadgeEvaluationTarget,
   BadgeSeedDefinitionInput,
   OrganizationBadgeEnablement,
@@ -27,6 +28,9 @@ export type BadgeRepository = Readonly<{
   listEnabledDefinitionsForOrg: (
     orgId: OrganizationId,
   ) => Promise<ReadonlyArray<BadgeDefinition>>
+  listDefinitionsWithEnablement: (
+    orgId: OrganizationId,
+  ) => Promise<ReadonlyArray<BadgeDefinitionWithOrgEnablement>>
   findDefinition: (orgId: OrganizationId, id: BadgeId) => Promise<BadgeDefinition | null>
   listOrgIdsWithBadges: () => Promise<ReadonlyArray<OrganizationId>>
   setOrganizationEnablement: (

@@ -28,6 +28,7 @@ export type BadgeContextApi = Readonly<{
   publicApi: Readonly<{
     getStaffVisibleBadges: BadgeRepository['listStaffAwards']
     getVisibleTargetBadges: BadgeRepository['listTargetAwards']
+    getOrganizationBadgeDefinitions: BadgeRepository['listDefinitionsWithEnablement']
     setOrganizationBadgeEnablement: (
       organizationId: OrganizationId,
       badgeDefinitionId: BadgeId,
@@ -80,6 +81,7 @@ export const buildBadgeContext = (deps: BuildBadgeContextDeps): BadgeContextApi 
   return {
     publicApi: {
       getStaffVisibleBadges: badgeRepo.listStaffAwards,
+      getOrganizationBadgeDefinitions: badgeRepo.listDefinitionsWithEnablement,
       getVisibleTargetBadges: badgeRepo.listTargetAwards,
       setOrganizationBadgeEnablement: (organizationId, badgeDefinitionId, enabled) =>
         setEnablement({ organizationId, badgeDefinitionId, enabled }),

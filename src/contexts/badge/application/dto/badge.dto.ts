@@ -50,7 +50,8 @@ export const getStaffVisibleBadgesSchema = z.object({
 })
 
 export const setOrganizationBadgeEnablementSchema = z.object({
-  organizationId: z.string().uuid(),
+  // organizationId is resolved from the authenticated session in the handler,
+  // never from client input (per cross-context architecture contract).
   badgeDefinitionId: z.string().uuid(),
   enabled: z.boolean(),
 })
@@ -60,3 +61,25 @@ export type GetStaffVisibleBadgesInput = z.infer<typeof getStaffVisibleBadgesSch
 export type SetOrganizationBadgeEnablementInput = z.infer<
   typeof setOrganizationBadgeEnablementSchema
 >
+
+export type BadgeCriteriaSummary = Readonly<{
+  type: string
+  metricKey: string
+  operator: string
+  threshold: number
+  aggregation?: string
+  period?: string
+  streakDays?: number
+  dailyThreshold?: number
+}>
+
+export type BadgeDefinitionWithEnablementOutput = Readonly<{
+  id: string
+  key: string
+  name: string
+  description: string | null
+  icon: string
+  targetScope: string
+  criteria: BadgeCriteriaSummary
+  orgEnabled: boolean
+}>

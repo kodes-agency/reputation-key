@@ -116,6 +116,30 @@ export const createBadgeRepository = (db: Database): BadgeRepository => ({
       return rows.map((row) => badgeDefinitionFromRow(row.definition))
     })
   },
+  listDefinitionsWithEnablement: async (orgId) => {
+    return trace('badge.listDefinitionsWithEnablement', async () => {
+      const rows = await db
+        .select({
+          definition: badgeDefinitions,
+          enablement: organizationBadgeEnablements,
+        })
+        .from(badgeDefinitions)
+        .leftJoin(
+          organizationBadgeEnablements,
+          and(
+            eq(organizationBadgeEnablements.organizationId, unbrand(orgId)),
+            eq(organizationBadgeEnablements.badgeDefinitionId, badgeDefinitions.id),
+          ),
+        )
+        .where(eq(badgeDefinitions.enabled, true))
+        .orderBy(desc(badgeDefinitions.name))
+
+      return rows.map((row) => ({
+        definition: badgeDefinitionFromRow(row.definition),
+        orgEnabled: row.enablement?.enabled ?? true,
+      }))
+    })
+  },
 
   findDefinition: async (orgId, id) => {
     return trace('badge.findDefinition', async () => {

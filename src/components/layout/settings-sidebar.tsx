@@ -1,5 +1,14 @@
 import { Link, useRouterState } from '@tanstack/react-router'
-import { User, Shield, Palette, Building2, ArrowLeft } from 'lucide-react'
+import {
+  User,
+  Shield,
+  Palette,
+  Building2,
+  ArrowLeft,
+  Bell,
+  Award,
+  Plug,
+} from 'lucide-react'
 import {
   Sidebar,
   SidebarContent,
@@ -44,6 +53,32 @@ export function SettingsSidebar() {
             label: 'Organization',
             icon: Building2,
             href: '/settings/organization',
+          },
+        ]
+      : []),
+    {
+      key: 'notifications',
+      label: 'Notifications',
+      icon: Bell,
+      href: '/settings/notifications',
+    },
+    ...(can('badge.manage')
+      ? [
+          {
+            key: 'recognition',
+            label: 'Recognition',
+            icon: Award,
+            href: '/settings/recognition',
+          },
+        ]
+      : []),
+    ...(can('integration.manage')
+      ? [
+          {
+            key: 'integrations',
+            label: 'Integrations',
+            icon: Plug,
+            href: '/settings/integrations',
           },
         ]
       : []),
