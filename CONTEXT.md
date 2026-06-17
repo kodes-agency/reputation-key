@@ -138,6 +138,7 @@ Composition root: `src/composition.ts`. Bootstrap: `src/bootstrap.ts`.
 | **Inbox Status**     | The triage state of an inbox item: `new`, `read`, `addressed`, `escalated`, `archived`. Transitions follow a defined graph (see ADR 0004).                                                                                                                                                                                                            |
 | **Addressed**        | Inbox item has been handled. For reviews: reply published or manually marked. For feedback: internally handled.                                                                                                                                                                                                                                       |
 | **Internal Note**    | A text annotation on an inbox item. Multiple per item, tracks author and timestamp. Lives in `inbox` context.                                                                                                                                                                                                                                         |
+| **Response SLA**     | The organization's target maximum elapsed time between a review being received and a reply being published. Configurable per organization (default 48h). Used to flag reviews that still need a reply.                                                                                                                                                |
 
 ## Permission Patterns
 
