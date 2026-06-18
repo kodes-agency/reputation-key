@@ -75,7 +75,7 @@ export function AttentionBand({ signals, propertyId }: AttentionBandProps) {
         <ChipContent
           icon={Inbox}
           count={signals.newFeedback}
-          label={signals.newFeedback === 1 ? 'new feedback' : 'new feedback items'}
+          label={signals.newFeedback === 1 ? 'item to triage' : 'items to triage'}
         />
       </Link>,
     )
