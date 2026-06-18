@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import { LayoutDashboard, MessageSquare, Users, Globe, Inbox, Target } from 'lucide-react'
+import { LayoutDashboard, MessageSquare, Users, Globe, Target } from 'lucide-react'
 import {
   SidebarMenu,
   SidebarMenuButton,
@@ -54,21 +54,6 @@ const navItems: ReadonlyArray<{
 export function ManagerNavItems({ propertyId, activeSection }: Props) {
   return (
     <SidebarMenu>
-      {/* Inbox — top-level route, not nested under a property */}
-      {propertyId && (
-        <SidebarMenuItem>
-          <SidebarMenuButton asChild isActive={activeSection === 'inbox'} tooltip="Inbox">
-            <Link to="/inbox" search={{ propertyId }}>
-              <Inbox />
-              <span>Inbox</span>
-            </Link>
-          </SidebarMenuButton>
-          <SidebarMenuBadge>
-            <InboxNewBadge />
-          </SidebarMenuBadge>
-        </SidebarMenuItem>
-      )}
-
       {navItems.map((item) => {
         const isActive = !!propertyId && activeSection === item.key
 
@@ -91,6 +76,11 @@ export function ManagerNavItems({ propertyId, activeSection }: Props) {
                 <span>{item.label}</span>
               </Link>
             </SidebarMenuButton>
+            {item.key === 'reviews' && (
+              <SidebarMenuBadge>
+                <InboxNewBadge />
+              </SidebarMenuBadge>
+            )}
           </SidebarMenuItem>
         )
       })}
