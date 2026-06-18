@@ -145,7 +145,7 @@ function AuthenticatedLayout() {
   })
   const pathname = useRouterState({ select: (s) => s.location.pathname })
   const isSettings = pathname.startsWith('/settings')
-  const isInbox = pathname.startsWith('/inbox')
+  const isInbox = pathname.startsWith('/inbox') || pathname.includes('/reviews')
 
   const content = (
     <SidebarProvider>
