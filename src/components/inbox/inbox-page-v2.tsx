@@ -23,12 +23,16 @@ export function InboxPageV2({
   properties,
   onNavigate,
   bulkUpdateFn,
+  onPropertyChange,
 }: {
   ctx: InboxCtx
   search: InboxSearchParams
   properties?: ReadonlyArray<{ id: string; name: string }>
   onNavigate: InboxPageNav
   bulkUpdateFn: typeof bulkUpdateInboxStatusFn
+  /** Override for the property-switcher dropdown. On /reviews it cross-navigates
+   *  to another property's reviews route or to /inbox for "All properties". */
+  onPropertyChange?: (propertyId: string | undefined) => void
 }) {
   const orgId = ctx.activeOrganization?.id
   const s = useInboxPage(orgId, search, onNavigate)
@@ -37,18 +41,21 @@ export function InboxPageV2({
 
   if (!orgId) return <InboxNoOrgState />
 
+  const handlePropertyChange =
+    onPropertyChange ??
+    ((id: string | undefined) =>
+      onNavigate({
+        to: '.',
+        search: (p) => ({ ...p, propertyId: id, itemId: undefined }),
+      }))
+
   return (
     <PanelGroup direction="horizontal" autoSaveId="inbox-layout" className="h-full">
       <Panel defaultSize={20} minSize={15} maxSize={30} className="overflow-hidden">
         <InboxSidebar
           propertyId={search.propertyId}
           properties={properties}
-          onPropertyChange={(id) =>
-            onNavigate({
-              to: '.',
-              search: (p) => ({ ...p, propertyId: id, itemId: undefined }),
-            })
-          }
+          onPropertyChange={handlePropertyChange}
         />
       </Panel>
       <ResizeHandle />

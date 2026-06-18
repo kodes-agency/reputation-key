@@ -42,6 +42,13 @@ function PropertyReviewsRoute() {
           search: opts.search({ ...search, propertyId }),
         })
       }
+      onPropertyChange={(id) => {
+        if (id) {
+          navigate({ to: '/properties/$propertyId/reviews', params: { propertyId: id } })
+        } else {
+          navigate({ to: '/inbox' })
+        }
+      }}
     />
   )
 }
