@@ -30,6 +30,7 @@ interface Portal {
 export interface PortalListPageProps {
   portals: readonly Portal[]
   propertyId: string
+  propertyName: string
   propertySlug: string
   deletePortalFn: typeof deletePortal
 }
@@ -37,6 +38,7 @@ export interface PortalListPageProps {
 export function PortalListPage({
   portals,
   propertyId,
+  propertyName,
   propertySlug,
   deletePortalFn,
 }: PortalListPageProps) {
@@ -47,6 +49,11 @@ export function PortalListPage({
       <PageHeader
         title="Portals"
         description="Manage guest-facing portal pages for this property."
+        breadcrumbs={[
+          { label: 'Properties', to: '/properties' },
+          { label: propertyName, to: `/properties/${propertyId}` },
+          { label: 'Portals' },
+        ]}
         actions={
           can('portal.create') ? (
             <Button asChild>
