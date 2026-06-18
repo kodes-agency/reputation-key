@@ -96,12 +96,21 @@ export function InboxSidebar({
       <div className="shrink-0 px-3 py-2.5 border-b space-y-2">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild tooltip="Back to app" size="sm">
-              <Link to="/properties">
-                <ArrowLeft className="size-3.5" />
-                <span className="text-xs">Back to app</span>
-              </Link>
-            </SidebarMenuButton>
+            {propertyId ? (
+              <SidebarMenuButton asChild tooltip="Back to dashboard" size="sm">
+                <Link to="/properties/$propertyId" params={{ propertyId }}>
+                  <ArrowLeft className="size-3.5" />
+                  <span className="text-xs">Dashboard</span>
+                </Link>
+              </SidebarMenuButton>
+            ) : (
+              <SidebarMenuButton asChild tooltip="Back to app" size="sm">
+                <Link to="/properties">
+                  <ArrowLeft className="size-3.5" />
+                  <span className="text-xs">Back to app</span>
+                </Link>
+              </SidebarMenuButton>
+            )}
           </SidebarMenuItem>
         </SidebarMenu>
         <PropertyFilterSelect
