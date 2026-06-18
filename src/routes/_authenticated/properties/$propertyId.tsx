@@ -61,7 +61,7 @@ function PropertyLayout() {
   }
 
   return (
-    <div className={isFullHeight ? 'min-w-0' : 'min-w-0 p-6'}>
+    <div className={isFullHeight ? 'min-w-0 h-full overflow-hidden' : 'min-w-0 p-6'}>
       <Outlet />
     </div>
   )
