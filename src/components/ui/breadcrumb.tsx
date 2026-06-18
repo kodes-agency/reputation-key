@@ -1,5 +1,4 @@
 import * as React from 'react'
-import { Slot } from 'radix-ui'
 import { ChevronRight } from 'lucide-react'
 import { cn } from '#/lib/utils'
 
@@ -26,14 +25,24 @@ function BreadcrumbItem({ className, ...props }: React.ComponentProps<'li'>) {
 function BreadcrumbLink({
   asChild,
   className,
+  children,
   ...props
 }: React.ComponentProps<'a'> & { asChild?: boolean }) {
-  const Comp = (asChild ? Slot : 'a') as React.ElementType
+  if (asChild) {
+    // Render the child (e.g. a <Link>) directly — apply the hover class via cloneElement
+    // so the styling lands on the right element without depending on Radix Slot.
+    return React.isValidElement(children) ? (
+      React.cloneElement(children as React.ReactElement<{ className?: string }>, {
+        className: cn('transition-colors hover:text-foreground', className),
+      })
+    ) : (
+      <>{children}</>
+    )
+  }
   return (
-    <Comp
-      className={cn('transition-colors hover:text-foreground', className)}
-      {...props}
-    />
+    <a className={cn('transition-colors hover:text-foreground', className)} {...props}>
+      {children}
+    </a>
   )
 }
 
