@@ -1,6 +1,6 @@
 // Status transition actions — extracted from inbox-detail-helpers for line-count compliance
 import type { InboxStatus, SourceType } from '#/contexts/inbox/application/public-api'
-import { AlertTriangle, Archive, CheckCircle } from 'lucide-react'
+import { AlertTriangle, Archive, ArchiveRestore, CheckCircle } from 'lucide-react'
 import type { ReactNode } from 'react'
 
 // Status transition buttons — which actions are available per status + sourceType
@@ -133,6 +133,12 @@ export function getStatusActions(
       ]
     case 'archived':
       return [
+        {
+          label: 'Unarchive',
+          targetStatus: 'read',
+          icon: <ArchiveRestore className="size-3.5" />,
+          variant: 'default',
+        },
         {
           label: 'Escalate',
           targetStatus: 'escalated',
