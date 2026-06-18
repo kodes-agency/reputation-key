@@ -1,12 +1,4 @@
-// Inbox sidebar — replaces main sidebar on /inbox routes.
-// Email-style folder panel with badge counts + category labels.
-// Fetches folder counts internally via server function.
-//
-// NOTE: This component imports server functions (getInboxFolderCountsFn) per
-// the CONTEXT.md exception for inbox-scoped data-fetching components.
-// The server function is not passed as a prop because the sidebar is
-// a self-contained sub-tree of the inbox page.
-import { Link, useRouterState } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { ArrowLeft } from 'lucide-react'
 import {
   SidebarGroup,
@@ -22,47 +14,13 @@ import { getInboxFolderCountsFn } from '#/contexts/inbox/server/inbox'
 import { PropertyFilterSelect } from '#/components/inbox/property-filter-select'
 import { FolderItem, CategoryItem, folders, categories } from './inbox-sidebar-items'
 import { useState, useEffect } from 'react'
-
-export interface InboxFolderCounts {
-  inbox: number
-  unaddressed: number
-  escalated: number
-  addressed: number
-  archived: number
-}
-
-const DEFAULT_COUNTS: InboxFolderCounts = {
-  inbox: 0,
-  unaddressed: 0,
-  escalated: 0,
-  addressed: 0,
-  archived: 0,
-}
-
-function useInboxFolder(): string {
-  return useRouterState({
-    select: (s) => {
-      const params = new URLSearchParams(s.location.searchStr)
-      return params.get('folder') ?? ''
-    },
-  })
-}
-
-function useInboxPlatform(): string {
-  return useRouterState({
-    select: (s) => {
-      const params = new URLSearchParams(s.location.searchStr)
-      return params.get('platform') ?? ''
-    },
-  })
-}
-
-function folderCountKey(
-  folder: (typeof folders)[number]['key'],
-): keyof InboxFolderCounts {
-  if (folder === '') return 'unaddressed'
-  return folder as keyof InboxFolderCounts
-}
+import {
+  type InboxFolderCounts,
+  DEFAULT_COUNTS,
+  useInboxFolder,
+  useInboxPlatform,
+  folderCountKey,
+} from './inbox-sidebar-helpers'
 
 interface InboxSidebarProps {
   propertyId: string | undefined
@@ -79,6 +37,7 @@ export function InboxSidebar({
   const activePlatform = useInboxPlatform()
   const [counts, setCounts] = useState<InboxFolderCounts>(DEFAULT_COUNTS)
   const fetchCounts = useAction(useServerFn(getInboxFolderCountsFn))
+  const n = useNavigate()
 
   useEffect(() => {
     fetchCounts({ data: {} })
@@ -86,10 +45,13 @@ export function InboxSidebar({
         const data = result as InboxFolderCounts | undefined
         if (data) setCounts(data)
       })
-      .catch(() => {
-        // Silently keep default counts on error
-      })
+      .catch(() => {})
   }, [fetchCounts])
+
+  const nav = (s: Record<string, unknown>) =>
+    propertyId
+      ? n({ to: '/properties/$propertyId/reviews', params: { propertyId }, search: s })
+      : n({ to: '/inbox', search: s })
 
   return (
     <div className="flex h-full w-full flex-col border-r overflow-hidden">
@@ -136,6 +98,9 @@ export function InboxSidebar({
                     activeFolder === folder.key ||
                     (folder.key === '' && activeFolder === '')
                   }
+                  onClick={() =>
+                    nav({ folder: folder.key || undefined, itemId: undefined })
+                  }
                 />
               ))}
             </SidebarMenu>
@@ -152,6 +117,12 @@ export function InboxSidebar({
                   key={cat.key}
                   category={cat}
                   isActive={activePlatform === cat.key}
+                  onClick={() =>
+                    nav({
+                      platform: activePlatform === cat.key ? undefined : cat.key,
+                      itemId: undefined,
+                    })
+                  }
                 />
               ))}
             </SidebarMenu>

@@ -1,5 +1,4 @@
 // Inbox sidebar folder and category items — extracted for max-lines compliance.
-import { Link } from '@tanstack/react-router'
 import { SidebarMenuButton, SidebarMenuItem } from '#/components/ui/sidebar'
 import { Badge } from '#/components/ui/badge'
 import { Inbox, AlertTriangle, CheckCircle, Archive } from 'lucide-react'
@@ -21,23 +20,23 @@ export function FolderItem({
   folder,
   count,
   isActive,
+  onClick,
 }: Readonly<{
   folder: (typeof folders)[number]
   count: number
   isActive: boolean
+  onClick?: () => void
 }>) {
   return (
     <SidebarMenuItem>
-      <SidebarMenuButton asChild isActive={isActive} tooltip={folder.label}>
-        <Link to="/inbox" search={{ folder: folder.key || undefined, itemId: undefined }}>
-          <folder.icon />
-          <span className="flex-1">{folder.label}</span>
-          {count > 0 && (
-            <Badge variant="secondary" className="ml-auto text-xs tabular-nums">
-              {count}
-            </Badge>
-          )}
-        </Link>
+      <SidebarMenuButton isActive={isActive} tooltip={folder.label} onClick={onClick}>
+        <folder.icon />
+        <span className="flex-1">{folder.label}</span>
+        {count > 0 && (
+          <Badge variant="secondary" className="ml-auto text-xs tabular-nums">
+            {count}
+          </Badge>
+        )}
       </SidebarMenuButton>
     </SidebarMenuItem>
   )
@@ -46,26 +45,20 @@ export function FolderItem({
 export function CategoryItem({
   category,
   isActive,
+  onClick,
 }: Readonly<{
   category: (typeof categories)[number]
   isActive: boolean
+  onClick?: () => void
 }>) {
   return (
     <SidebarMenuItem>
-      <SidebarMenuButton asChild isActive={isActive} tooltip={category.label}>
-        <Link
-          to="/inbox"
-          search={{
-            platform: isActive ? undefined : category.key,
-            itemId: undefined,
-          }}
-        >
-          <span
-            className="flex size-2 shrink-0 rounded-full"
-            style={{ backgroundColor: category.color }}
-          />
-          <span className="flex-1">{category.label}</span>
-        </Link>
+      <SidebarMenuButton isActive={isActive} tooltip={category.label} onClick={onClick}>
+        <span
+          className="flex size-2 shrink-0 rounded-full"
+          style={{ backgroundColor: category.color }}
+        />
+        <span className="flex-1">{category.label}</span>
       </SidebarMenuButton>
     </SidebarMenuItem>
   )
