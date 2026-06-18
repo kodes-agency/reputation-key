@@ -1,7 +1,5 @@
 // Property-scoped reviews = the inbox triage surface filtered by this property.
-// Previously redirected to /inbox; now renders InboxPageV2 directly so the URL
-// stays property-scoped, breadcrumbs work, and back-navigation returns to the
-// property dashboard (not the picker).
+// propertyId comes from the route param (path), NOT from search params.
 import { createFileRoute, getRouteApi, redirect } from '@tanstack/react-router'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
@@ -11,12 +9,15 @@ import { bulkUpdateInboxStatusFn } from '#/contexts/inbox/server/inbox'
 const authRoute = getRouteApi('/_authenticated')
 const propertyRoute = getRouteApi('/_authenticated/properties/$propertyId')
 
+// Reviews route excludes propertyId from search — it's in the URL path.
+const reviewsSearchSchema = inboxSearchSchema.omit({ propertyId: true })
+
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/reviews')({
   beforeLoad: ({ context }) => {
     const { role } = context as AuthRouteContext
     if (!can(role, 'inbox.read')) throw redirect({ to: '/properties' })
   },
-  validateSearch: (search) => inboxSearchSchema.parse(search),
+  validateSearch: (search) => reviewsSearchSchema.parse(search),
   staleTime: 30_000,
   component: PropertyReviewsRoute,
 })
@@ -33,13 +34,14 @@ function PropertyReviewsRoute() {
   return (
     <InboxPageV2
       ctx={ctx}
-      search={{ ...search, propertyId }}
+      search={search}
+      activePropertyId={propertyId}
       properties={parentData.properties}
       bulkUpdateFn={bulkUpdateInboxStatusFn}
       onNavigate={(opts) =>
         navigate({
           to: opts.to,
-          search: opts.search({ ...search, propertyId }),
+          search: opts.search(search),
         })
       }
       onPropertyChange={(id) => {
