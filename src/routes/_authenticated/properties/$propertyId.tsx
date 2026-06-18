@@ -1,6 +1,12 @@
 // Property layout — shared shell for property-scoped routes.
 // Child routes render via <Outlet />. Navigation is handled by the sidebar.
-import { createFileRoute, Outlet, redirect, useNavigate } from '@tanstack/react-router'
+import {
+  createFileRoute,
+  Outlet,
+  redirect,
+  useNavigate,
+  useRouterState,
+} from '@tanstack/react-router'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import { getProperty } from '#/contexts/property/server/properties'
@@ -39,6 +45,8 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId')({
 function PropertyLayout() {
   // propertyId available via Route.useParams() if needed
   const navigate = useNavigate()
+  const pathname = useRouterState({ select: (s) => s.location.pathname })
+  const isFullHeight = pathname.includes('/reviews')
   const { property } = Route.useLoaderData()
 
   if (!property) {
@@ -53,7 +61,7 @@ function PropertyLayout() {
   }
 
   return (
-    <div className="min-w-0 p-6">
+    <div className={isFullHeight ? 'min-w-0' : 'min-w-0 p-6'}>
       <Outlet />
     </div>
   )
