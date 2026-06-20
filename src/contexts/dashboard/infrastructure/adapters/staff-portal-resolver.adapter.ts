@@ -6,8 +6,7 @@
 import type { StaffPortalResolverPort } from '../../application/ports/staff-portal-resolver.port'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 
-export function createStaffPortalResolverAdapter(
-  staffPublicApi: StaffPublicApi,
-): StaffPortalResolverPort {
-  return (input, ctx) => staffPublicApi.getAssignedPortals(input, ctx)
-}
+export const createStaffPortalResolverAdapter =
+  (staffPublicApi: StaffPublicApi): StaffPortalResolverPort =>
+  (input, ctx) =>
+    staffPublicApi.getAssignedPortals(input, ctx)

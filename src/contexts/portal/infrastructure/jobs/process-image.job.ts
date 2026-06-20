@@ -24,7 +24,7 @@ export type ProcessImageJobDeps = Readonly<{
   clock: () => Date
 }>
 
-export function createProcessImageJob(deps: ProcessImageJobDeps) {
+export const createProcessImageJob = (deps: ProcessImageJobDeps) => {
   return async function processImageJob(job: Job<ProcessImageJobData>): Promise<void> {
     return trace('job.processImage', async () => {
       const logger = getLogger()

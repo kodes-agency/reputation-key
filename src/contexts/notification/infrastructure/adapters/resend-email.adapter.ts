@@ -10,7 +10,7 @@ function maskEmail(email: string): string {
   return `${local.slice(0, 1)}***@${domain}`
 }
 
-export function createResendEmailAdapter() {
+export const createResendEmailAdapter = () => {
   let resend: Resend | undefined
 
   function getResend(): Resend {

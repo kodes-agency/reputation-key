@@ -70,7 +70,7 @@ function toMemberRecord(m: {
   }
 }
 
-export function createBetterAuthIdentityAdapter(db: Database): IdentityPort {
+export const createBetterAuthIdentityAdapter = (db: Database): IdentityPort => {
   const auth = getAuth()
   return {
     async signUp(name: string, email: string, password: string): Promise<string> {
