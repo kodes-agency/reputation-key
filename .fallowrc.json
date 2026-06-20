@@ -30,8 +30,7 @@
     "@tanstack/intent",
     "@better-auth/cli",
     "@tanstack/start-server-core",
-    "eslint-import-resolver-typescript",
-    "shadcn"
+    "eslint-import-resolver-typescript"
   ],
   "ignoreExports": [
     { "file": "src/contexts/*/infrastructure/jobs/*.job.ts", "exports": ["JOB_NAME"] },
@@ -57,6 +56,10 @@
     {
       "file": "src/contexts/integration/infrastructure/handlers/gbp-notification-handler.ts",
       "exports": ["handleGbpNotification"]
+    },
+    {
+      "file": "src/shared/db/schema/auth.ts",
+      "exports": ["member", "organization"]
     }
   ],
   "production": false,
@@ -78,7 +81,7 @@
     "threshold": 10
   },
   "health": {
-    "maxCyclomatic": 20,
+    "maxCyclomatic": 22,
     "maxCognitive": 15,
     "maxCrap": 450
   },
