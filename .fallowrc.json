@@ -22,7 +22,8 @@
     "e2e/**",
     "docs/**",
     ".claude/**",
-    "src/shared/testing/**"
+    "src/shared/testing/**",
+    "scripts/**"
   ],
   "ignoreDependencies": [
     "@rolldown/binding-darwin-arm64",

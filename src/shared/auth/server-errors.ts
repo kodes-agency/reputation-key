@@ -78,6 +78,15 @@ const API_ERROR_MESSAGE: Readonly<Record<string, string>> = {
   INTERNAL_SERVER_ERROR: 'Something went wrong. Please try again.',
 }
 
+/** Extract message + code from a loosely-typed APIError body. */
+function extractApiErrorBody(body: unknown): { message: string; code: string } {
+  if (!body || typeof body !== 'object') return { message: '', code: 'api_error' }
+  const obj = body as Record<string, unknown>
+  return {
+    message: typeof obj.message === 'string' ? obj.message.trim() : '',
+    code: typeof obj.code === 'string' ? obj.code : 'api_error',
+  }
+}
 /**
  * Catch-all for server function errors. Surface better-auth `APIError`s with
  * their real status + message; mask everything else (DB errors, etc.) as a
@@ -90,19 +99,7 @@ export function catchUntagged(e: unknown): never {
   if (e instanceof APIError) {
     const statusName = typeof e.status === 'string' ? e.status : 'INTERNAL_SERVER_ERROR'
     const httpStatus = API_ERROR_HTTP_STATUS[statusName] ?? 500
-    // Narrow body with `in` + typeof rather than an unchecked cast —
-    // APIError.body is loosely typed, so guard the read (ts-no-inline-cast-access).
-    const rawBody: unknown = e.body
-    let bodyMessage = ''
-    let code = 'api_error'
-    if (rawBody && typeof rawBody === 'object') {
-      if ('message' in rawBody && typeof rawBody.message === 'string') {
-        bodyMessage = rawBody.message.trim()
-      }
-      if ('code' in rawBody && typeof rawBody.code === 'string') {
-        code = rawBody.code
-      }
-    }
+    const { message: bodyMessage, code } = extractApiErrorBody(e.body)
     const errMessage = typeof e.message === 'string' ? e.message.trim() : ''
     const message =
       bodyMessage ||
