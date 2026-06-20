@@ -14,7 +14,7 @@ export const INSERT_ACTIVITY_LOG_JOB_NAME = 'insert-activity-log'
 
 export type InsertActivityLogJobData = InsertActivityLogInput
 
-export function createInsertActivityLogHandler(deps: InsertActivityLogDeps) {
+export const createInsertActivityLogHandler = (deps: InsertActivityLogDeps) => {
   const useCase = insertActivityLog(deps)
   return async (job: Job<InsertActivityLogJobData>): Promise<void> => {
     const log = getLogger().child({ jobId: job.id, resourceId: job.data.resourceId })

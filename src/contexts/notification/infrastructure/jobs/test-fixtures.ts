@@ -16,16 +16,14 @@ export type FakeEmailRepo = {
   markSkipped: Mock
 }
 
-export function createFakeEmailRepo(): FakeEmailRepo {
-  return {
-    insert: vi.fn(),
-    findById: vi.fn(),
-    findPendingByOrg: vi.fn(),
-    markSent: vi.fn(),
-    markFailed: vi.fn(),
-    markSkipped: vi.fn(),
-  }
-}
+export const createFakeEmailRepo = (): FakeEmailRepo => ({
+  insert: vi.fn(),
+  findById: vi.fn(),
+  findPendingByOrg: vi.fn(),
+  markSent: vi.fn(),
+  markFailed: vi.fn(),
+  markSkipped: vi.fn(),
+})
 
 // Includes `findByIds` (used by the digest job); the urgent job never calls it,
 // but sharing the same shape removes the duplication entirely.
@@ -40,18 +38,16 @@ export type FakeNotifRepo = {
   markAllRead: Mock
 }
 
-export function createFakeNotifRepo(): FakeNotifRepo {
-  return {
-    insert: vi.fn(),
-    findById: vi.fn(),
-    findByIds: vi.fn(),
-    findUnreadByUser: vi.fn(),
-    countUnreadByUser: vi.fn(),
-    findByUser: vi.fn(),
-    markRead: vi.fn(),
-    markAllRead: vi.fn(),
-  }
-}
+export const createFakeNotifRepo = (): FakeNotifRepo => ({
+  insert: vi.fn(),
+  findById: vi.fn(),
+  findByIds: vi.fn(),
+  findUnreadByUser: vi.fn(),
+  countUnreadByUser: vi.fn(),
+  findByUser: vi.fn(),
+  markRead: vi.fn(),
+  markAllRead: vi.fn(),
+})
 
 export type FakeUserLookup = {
   findByRole: Mock
@@ -60,31 +56,26 @@ export type FakeUserLookup = {
   getName: Mock
 }
 
-export function createFakeUserLookup(): FakeUserLookup {
-  return {
-    findByRole: vi.fn(),
-    findAssignedManagers: vi.fn(),
-    getEmail: vi.fn(),
-    getName: vi.fn(),
-  }
-}
+export const createFakeUserLookup = (): FakeUserLookup => ({
+  findByRole: vi.fn(),
+  findAssignedManagers: vi.fn(),
+  getEmail: vi.fn(),
+  getName: vi.fn(),
+})
 
 export type FakeEmailSender = {
   send: Mock
 }
 
-export function createFakeEmailSender(): FakeEmailSender {
-  return { send: vi.fn() }
-}
+export const createFakeEmailSender = (): FakeEmailSender => ({ send: vi.fn() })
 
 export type FakeJobLogger = LoggerPort
 
-export function createFakeJobLogger(): FakeJobLogger {
-  return {
+export const createFakeJobLogger = (): FakeJobLogger =>
+  ({
     info: vi.fn(),
     warn: vi.fn(),
     error: vi.fn(),
     debug: vi.fn(),
     child: vi.fn().mockReturnThis(),
-  } as unknown as LoggerPort
-}
+  }) as unknown as LoggerPort
