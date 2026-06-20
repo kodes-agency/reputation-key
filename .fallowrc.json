@@ -89,6 +89,7 @@
       { "name": "application", "patterns": ["src/contexts/*/application/**"] },
       { "name": "infrastructure", "patterns": ["src/contexts/*/infrastructure/**"] },
       { "name": "server", "patterns": ["src/contexts/*/server/**"] },
+      { "name": "shared-testing", "patterns": ["src/shared/testing/**"] },
       { "name": "shared", "patterns": ["src/shared/**"] },
       { "name": "routes", "patterns": ["src/routes/**"] },
       { "name": "components", "patterns": ["src/components/**"] }
@@ -98,6 +99,7 @@
       { "from": "application", "allow": ["domain", "shared"] },
       { "from": "infrastructure", "allow": ["domain", "application", "shared"] },
       { "from": "server", "allow": ["application", "domain", "shared"] },
+      { "from": "shared-testing", "allow": ["domain", "application", "shared"] },
       { "from": "shared", "allow": [] }
     ]
   },
