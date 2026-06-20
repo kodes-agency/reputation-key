@@ -52,7 +52,7 @@ export function InviteMemberForm({ mutation, allowedRoles, properties }: Props) 
       onSubmit: inviteFormSchema,
     },
     onSubmit: async ({ value }) => {
-      await mutation(value)
+      await mutation({ data: value })
     },
   })
 

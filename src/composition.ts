@@ -6,9 +6,11 @@
 // Dependencies are passed as function arguments. The wiring is in composition.ts, visible."
 
 import { getDb } from '#/shared/db'
+import type { Database } from '#/shared/db'
 import { getLogger } from '#/shared/observability/logger'
 import { getRedis } from '#/shared/cache/redis'
 import { createEventBus } from '#/shared/events/event-bus'
+import type { EventBus } from '#/shared/events/event-bus'
 import { createRedisCache } from '#/shared/cache/redis-cache'
 import { createNoopCache } from '#/shared/cache/noop-cache'
 import type { Cache } from '#/shared/cache/cache.port'
@@ -18,6 +20,7 @@ import { createJobQueue } from '#/shared/jobs/queue'
 import { createJobRegistry } from '#/shared/jobs/registry'
 import type { JobRegistry } from '#/shared/jobs/registry'
 import { createBetterAuthIdentityAdapter } from '#/contexts/identity/infrastructure/adapters/auth-identity.adapter'
+import type { IdentityPort } from '#/contexts/identity/application/ports/identity.port'
 import {
   betterAuthOrganizationSchema,
   parseBetterAuthResponse,
@@ -27,8 +30,10 @@ import { getAuth, setOnAcceptInvitation } from '#/shared/auth/auth'
 import { sendInvitationEmail } from '#/shared/auth/emails'
 import { headersFromContext } from '#/shared/auth/headers'
 import { getEnv } from '#/shared/config/env'
+import type { Env } from '#/shared/config/env'
 import type { Queue } from 'bullmq'
 import type { Redis } from 'ioredis'
+import type { Clock } from '#/shared/domain/clock'
 import { buildPropertyContext } from '#/contexts/property/build'
 import { createPropertyRepository } from '#/contexts/property/infrastructure/repositories/property.repository'
 import { buildIntegrationContext } from '#/contexts/integration/build'
@@ -65,18 +70,23 @@ import {
 
 // ── Infrastructure ─────────────────────────────────────────────────
 
-function buildInfrastructure(options: { redis: Redis | undefined; enableJobs: boolean }) {
+function buildInfrastructure(options: {
+  redis: Redis | undefined
+  enableJobs: boolean
+  /** Override the queue (simulations inject an in-memory queue). */
+  queue?: Queue
+}) {
   const cache: Cache = options.redis ? createRedisCache(options.redis) : createNoopCache()
   const rateLimiter: RateLimiter = createRateLimiter(options.redis, {
     keyPrefix: 'ratelimit:public',
     maxRequests: 60,
     windowSeconds: 60,
   })
-  // Create queue whenever Redis is available — the web server needs it to
-  // enqueue jobs; the worker process also needs it for processing.
-  const jobQueue: Queue | undefined = options.redis
-    ? createJobQueue('default')
-    : undefined
+  // Use the injected queue if provided; otherwise create a BullMQ queue when
+  // Redis is available. The web server needs a queue to enqueue jobs; the
+  // worker needs one for processing.
+  const jobQueue: Queue | undefined =
+    options.queue ?? (options.redis ? createJobQueue('default') : undefined)
   const jobRegistry: JobRegistry = createJobRegistry()
   return { cache, rateLimiter, jobQueue, jobRegistry }
 }
@@ -119,20 +129,38 @@ async function setActiveOrg(orgId: string): Promise<void> {
 
 // ── Main container ─────────────────────────────────────────────────
 
-export function createContainer(options?: { enableJobs?: boolean }) {
+export function createContainer(options?: {
+  enableJobs?: boolean
+  /** Override the database connection (simulations, per-test isolation). */
+  db?: Database
+  /** Override the Redis client (simulations, deterministic backends). */
+  redis?: Redis
+  /** Override env (simulations against throwaway config). */
+  env?: Env
+  /** Override the clock (fast-forward time in tests/simulations). ADR 0017. */
+  clock?: Clock
+  /** Override the event bus (deterministic in-process delivery). */
+  eventBus?: EventBus
+  /** Override the job queue (simulations inject an in-memory queue). */
+  queue?: Queue
+  /** Override the identity port (simulations use the in-memory identity fake). */
+  identityPort?: IdentityPort
+  /** Override the email sender (simulations capture emails instead of sending). */
+  email?: typeof sendInvitationEmail
+}) {
   const { enableJobs = false } = options ?? {}
-  const db = getDb()
+  const db = options?.db ?? getDb()
   const logger = getLogger()
-  const redis = getRedis()
-  const eventBus = createEventBus()
-  const clock = () => new Date()
-  const env = getEnv()
+  const redis = options?.redis ?? getRedis()
+  const eventBus = options?.eventBus ?? createEventBus()
+  const clock = options?.clock ?? (() => new Date())
+  const env = options?.env ?? getEnv()
 
   // Infrastructure
-  const infra = buildInfrastructure({ redis, enableJobs })
+  const infra = buildInfrastructure({ redis, enableJobs, queue: options?.queue })
 
   // Identity port (adapter)
-  const identityPort = createBetterAuthIdentityAdapter(db)
+  const identityPort = options?.identityPort ?? createBetterAuthIdentityAdapter(db)
 
   // ── Context builds (dependency order) ──────────────────────────────
   const staffRepo = createStaffAssignmentRepository(db)
@@ -154,7 +182,7 @@ export function createContainer(options?: { enableJobs?: boolean }) {
       const headers = await headersFromContext()
       await auth.api.updateOrganization({ headers, body: { data } })
     },
-    sendEmail: sendInvitationEmail,
+    sendEmail: options?.email ?? sendInvitationEmail,
     getOrganizationName: async (_ctx) => {
       const auth = getAuth()
       const headers = await headersFromContext()
@@ -301,7 +329,7 @@ export function createContainer(options?: { enableJobs?: boolean }) {
   const reviewStats = createReviewStatsAdapter(db)
   const metricStats = createMetricStatsAdapter(db)
   const portalMetrics = createPortalMetricsAdapter(db)
-  const attentionSignals = createAttentionSignalsAdapter(db)
+  const attentionSignals = createAttentionSignalsAdapter(db, clock)
 
   const staffPortalResolver = createStaffPortalResolverAdapter(staff.publicApi)
 
@@ -333,6 +361,7 @@ export function createContainer(options?: { enableJobs?: boolean }) {
   const leaderboard = buildLeaderboardContext({
     db,
     events: eventBus,
+    clock,
   })
   // Goal context — buildGoalContext creates its own repo and cancelGoalFn internally.
   const notification = buildNotificationContext({
@@ -373,6 +402,7 @@ export function createContainer(options?: { enableJobs?: boolean }) {
     logger,
     redis,
     eventBus,
+    clock,
     cache: infra.cache,
     rateLimiter: infra.rateLimiter,
     jobQueue: infra.jobQueue,

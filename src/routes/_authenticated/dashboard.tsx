@@ -2,8 +2,15 @@
 // The fleet data is server-resolved (role-aware property enumeration) via the loader.
 // The 0/1/2+ render decision uses the parent layout loader's `properties` list.
 import { useEffect } from 'react'
-import { createFileRoute, getRouteApi, useNavigate } from '@tanstack/react-router'
+import {
+  createFileRoute,
+  getRouteApi,
+  redirect,
+  useNavigate,
+} from '@tanstack/react-router'
 import { getFleetOverviewFn } from '#/contexts/dashboard/server/fleet-overview'
+import { hasRole } from '#/shared/domain/roles'
+import type { AuthRouteContext } from '#/routes/_authenticated'
 import {
   FleetOverview,
   FleetOverviewEmpty,
@@ -14,6 +21,11 @@ import {
 const authRoute = getRouteApi('/_authenticated')
 
 export const Route = createFileRoute('/_authenticated/dashboard')({
+  beforeLoad: ({ context }) => {
+    // Fleet dashboard is a manager+ surface. Staff are scoped to /home.
+    const { role } = context as AuthRouteContext
+    if (!hasRole(role, 'PropertyManager')) throw redirect({ to: '/home' })
+  },
   loader: async () => {
     const fleet = await getFleetOverviewFn({ data: { timeRange: '30d' } })
     return { fleet }

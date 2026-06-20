@@ -147,26 +147,24 @@ export const createPortalRepository = (db: Database): PortalRepository => ({
 
   getPortalQrInfo: async (orgId, id) => {
     return trace('portal.getPortalQrInfo', async () => {
-      const result = await db.execute(sql`
-        SELECT p.slug AS portal_slug, pr.slug AS property_slug
-        FROM portals p
-        JOIN ${properties} pr ON pr.id = p.property_id
-        WHERE p.id = ${unbrand(id)}
-          AND p.organization_id = ${unbrand(orgId)}
-          AND p.deleted_at IS NULL
-        LIMIT 1
-      `)
-
-      // Raw SQL result — row shape asserted by the SELECT clause above.
-      // Using `as unknown as` because Drizzle's `execute()` returns `Record<string, unknown>[]`
-      // which doesn't structurally overlap with the expected shape.
-      const rows = result.rows as unknown as ReadonlyArray<{
-        portal_slug: string
-        property_slug: string
-      }>
+      const rows = await db
+        .select({
+          portalSlug: portals.slug,
+          propertySlug: properties.slug,
+        })
+        .from(portals)
+        .innerJoin(properties, eq(properties.id, portals.propertyId))
+        .where(
+          and(
+            eq(portals.id, unbrand(id)),
+            eq(portals.organizationId, unbrand(orgId)),
+            isNull(portals.deletedAt),
+          ),
+        )
+        .limit(1)
       if (rows.length === 0) return null
 
-      return { slug: rows[0].portal_slug, propertySlug: rows[0].property_slug }
+      return { slug: rows[0].portalSlug, propertySlug: rows[0].propertySlug }
     })
   },
 

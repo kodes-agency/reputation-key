@@ -9,11 +9,9 @@ import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { can } from '#/shared/domain/permissions'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
-import {
-  getPortalAnalyticsDto,
-  type TimeRangePreset,
-} from '../application/dto/dashboard.dto'
+import { getPortalAnalyticsDto } from '../application/dto/dashboard.dto'
 export type { PortalAnalyticsData } from '../domain/types'
+import { timeRangeToDates } from '../application/utils'
 import { propertyId, portalId } from '#/shared/domain/ids'
 import { isDashboardError } from '../domain/errors'
 import type { DashboardErrorCode } from '../domain/errors'
@@ -33,21 +31,6 @@ const dashboardErrorStatus = (code: DashboardErrorCode): number =>
     .with('invalid_input', () => 400)
     .exhaustive()
 
-const MS_PER_DAY = 86_400_000
-
-function timeRangeToDates(preset: TimeRangePreset) {
-  const now = new Date()
-  if (preset === 'all') {
-    // No start bound — epoch captures all data
-    return { startDate: new Date(0), endDate: now }
-  }
-  const days = preset === '7d' ? 7 : preset === '60d' ? 60 : preset === '90d' ? 90 : 30
-  return {
-    startDate: new Date(now.getTime() - days * MS_PER_DAY),
-    endDate: now,
-  }
-}
-
 export const getPortalAnalyticsFn = createServerFn({ method: 'GET' })
   .inputValidator(getPortalAnalyticsDto)
   .handler(
@@ -62,8 +45,8 @@ export const getPortalAnalyticsFn = createServerFn({ method: 'GET' })
               'Insufficient permissions to view dashboard',
             )
           }
-          const { useCases } = getContainer()
-          const { startDate, endDate } = timeRangeToDates(data.timeRange)
+          const { useCases, clock } = getContainer()
+          const { startDate, endDate } = timeRangeToDates(data.timeRange, clock())
 
           return await useCases.getPortalAnalytics({
             organizationId: ctx.organizationId,

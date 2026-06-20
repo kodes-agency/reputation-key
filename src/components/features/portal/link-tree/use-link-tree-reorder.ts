@@ -4,7 +4,6 @@ import { generateKeyBetween } from 'fractional-indexing'
 import { arrayMove } from '@dnd-kit/sortable'
 import { type DragEndEvent } from '@dnd-kit/core'
 import type { Action } from '#/components/hooks/use-action'
-import { getLogger } from '#/shared/observability/logger'
 import type { LinkTreeCategory, LinkTreeLink } from './link-tree-types'
 
 type ReorderCategoriesVariables = {
@@ -60,7 +59,7 @@ export function useLinkTreeReorder(
     } catch {
       // F119: Rollback optimistic UI update on failure
       setCategories(categories)
-      getLogger().error('Failed to reorder categories')
+      console.error('Failed to reorder categories')
     }
   }
 
@@ -85,7 +84,7 @@ export function useLinkTreeReorder(
     } catch {
       // F119: Rollback optimistic UI update on failure
       setLinks(links)
-      getLogger().error('Failed to reorder links')
+      console.error('Failed to reorder links')
     }
   }
 

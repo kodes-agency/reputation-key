@@ -3,7 +3,7 @@
  * Fixes the side-effect-in-render bug by using useEffect for auto-accept.
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from '@tanstack/react-router'
 import { useAction } from '#/components/hooks/use-action'
 import { Skeleton } from '#/components/ui/skeleton'
@@ -65,6 +65,10 @@ export function AcceptInvitationPage({
   const [accepted, setAccepted] = useState(false)
   const [accepting, setAccepting] = useState(false)
   const [autoAcceptError, setAutoAcceptError] = useState<string | null>(null)
+  // Dedupes React StrictMode's double-invocation of the auto-accept effect in
+  // dev — without it, acceptInvitation fires twice concurrently and creates a
+  // duplicate membership (and races the active-org activation).
+  const acceptingRef = useRef(false)
 
   const accept = useAction(acceptInvitation)
 
@@ -87,9 +91,11 @@ export function AcceptInvitationPage({
     [accept, router],
   )
 
-  // Auto-accept when arriving with ?id= query param — useEffect, not render-body
+  // Auto-accept when arriving with ?id= query param — useEffect, not render-body.
+  // acceptingRef ensures only the first invocation proceeds (StrictMode-safe).
   useEffect(() => {
-    if (invitationId && !accepted) {
+    if (invitationId && !accepted && !acceptingRef.current) {
+      acceptingRef.current = true
       handleAccept(invitationId)
     }
   }, [invitationId, accepted, handleAccept])

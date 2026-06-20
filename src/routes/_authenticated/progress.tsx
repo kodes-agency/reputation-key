@@ -1,8 +1,6 @@
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { useEffect } from 'react'
+import { createFileRoute } from '@tanstack/react-router'
 import { z } from 'zod/v4'
 import { listStaffGoals } from '#/contexts/goal/server/staff-goals'
-import { useStaffPropertyId } from '#/components/hooks/use-staff-property-id'
 import { StaffGoalList } from '#/components/features/staff/staff-goal-list'
 import { StaffEmptyState } from '#/components/features/staff/staff-empty-state'
 import { PageShell } from '#/components/layout/page-shell'
@@ -30,22 +28,8 @@ export const Route = createFileRoute('/_authenticated/progress')({
 function StaffProgressPage() {
   const { goals } = Route.useLoaderData()
   const { propertyId: searchPropertyId } = Route.useSearch()
-  const navigate = useNavigate()
-  const localPropertyId = useStaffPropertyId()
-
-  // Sync localStorage propertyId to URL search params
-  useEffect(() => {
-    if (localPropertyId && localPropertyId !== searchPropertyId) {
-      navigate({
-        to: '/progress',
-        search: { propertyId: localPropertyId },
-        replace: true,
-      })
-    }
-  }, [localPropertyId, searchPropertyId, navigate])
-
-  // No property selected at all — show empty state
-  if (!localPropertyId) {
+  // No property selected — the sidebar defaults ?propertyId= on first load.
+  if (!searchPropertyId) {
     return (
       <PageShell>
         <PageHeader
@@ -55,11 +39,6 @@ function StaffProgressPage() {
         <StaffEmptyState />
       </PageShell>
     )
-  }
-
-  // localStorage has a property but URL isn't synced yet — don't flash empty
-  if (localPropertyId && !searchPropertyId) {
-    return null
   }
 
   return (

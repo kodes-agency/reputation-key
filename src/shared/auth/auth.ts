@@ -15,6 +15,7 @@ import { tanstackStartCookies } from 'better-auth/tanstack-start'
 import { getEnv } from '#/shared/config/env'
 import { getPool } from '#/shared/db/pool'
 import { sendResetPasswordEmail, sendInvitationEmail } from './emails'
+import { organizationSchema } from './org-schema'
 import { ac, owner, admin, memberRole } from './permissions'
 
 // ── Post-acceptance staff assignment hook ──────────────────────────
@@ -90,64 +91,25 @@ export function createAuth() {
           admin,
           member: memberRole,
         },
+        // Dynamic per-org roles are disabled: the app uses only the 3 static
+        // roles (owner/admin/member). Enabling this makes better-auth's
+        // hasPermission() query an `organizationRole` table that is never
+        // created, which 500s every internal permission check (e.g. invite).
+        // Re-enable (and run the better-auth migration to add the table) only
+        // if runtime custom roles become a feature.
         dynamicAccessControl: {
-          enabled: true,
+          enabled: false,
         },
         invitationExpiresIn: INVITATION_EXPIRY_SECONDS, // 7 days
-        // Custom fields on the invitation table — stores which properties
-        // the invitee should be assigned to upon acceptance.
-        // Custom fields on the organization table — billing and contact info.
-
-        schema: {
-          invitation: {
-            additionalFields: {
-              propertyIds: {
-                type: 'string' as const,
-                input: true,
-                required: false,
-              },
-            },
-          },
-          organization: {
-            additionalFields: {
-              contactEmail: {
-                type: 'string' as const,
-                input: true,
-                required: false,
-              },
-              billingCompanyName: {
-                type: 'string' as const,
-                input: true,
-                required: false,
-              },
-              billingAddress: {
-                type: 'string' as const,
-                input: true,
-                required: false,
-              },
-              billingCity: {
-                type: 'string' as const,
-                input: true,
-                required: false,
-              },
-              billingPostalCode: {
-                type: 'string' as const,
-                input: true,
-                required: false,
-              },
-              billingCountry: {
-                type: 'string' as const,
-                input: true,
-                required: false,
-              },
-              responseSlaHours: {
-                type: 'number' as const,
-                input: true,
-                required: false,
-              },
-            },
-          },
-        },
+        // Match the app's verification-off stance (requireEmailVerification: false
+        // above). Without this, better-auth defaults to requiring email
+        // verification on invitation acceptance — inconsistent with the rest of
+        // the app and blocking accept for unverified invitees.
+        requireEmailVerificationOnInvitation: false,
+        // Custom fields on invitation (propertyIds) and organization (billing/SLA).
+        // Shared with auth-cli.ts via ./org-schema so the migration CLI manages
+        // the same columns as the runtime (prevents drift).
+        schema: organizationSchema,
         // Send invitation emails via Resend
         async sendInvitationEmail(data) {
           const inviteLink = `${env.BETTER_AUTH_URL}/accept-invitation?id=${data.id}`

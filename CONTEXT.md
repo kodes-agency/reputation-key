@@ -209,6 +209,10 @@ See `docs/adr/` for formal ADRs. Key ADRs:
 || 0013 | Portal Groups Replace Team and Staff as Goal/Leaderboard Scopes | Goal Scoping, Portal Groups |
 || 0014 | Badges and Leaderboards as Separate Recognition Contexts | Badges, Leaderboards, Recognition |
 || 0015 | Import Protection — Server-Only Code Leak | Dev Tooling, Client/Server Boundary |
+|| 0016 | Active Property URL Query Param | Navigation, Property Context |
+|| 0017 | Injectable Clock | Testability, Time-Dependent Logic |
+|| 0018 | Injectable Container | Testability, Simulation Isolation |
+|| 0019 | Simulation Harness & Deterministic Backends | Testability, Simulation |
 
 ## Key Files
 
@@ -228,3 +232,9 @@ See `docs/adr/` for formal ADRs. Key ADRs:
 | Request tracing             | `src/shared/observability/traced-server-fn.ts`     |
 | Tenant cache                | `src/shared/auth/middleware.ts`                    |
 | Import protection deny list | `vite.config.ts` (`importProtection.client.files`) |
+| Clock type                  | `src/shared/domain/clock.ts`                       |
+| Simulation container        | `src/shared/testing/simulation-container.ts`       |
+| In-memory queue             | `src/shared/testing/in-memory-queue.ts`            |
+| Invariant harness           | `src/shared/testing/invariants/`                   |
+| Scenario builder            | `src/shared/testing/scenario/builder.ts`           |
+| Seed/simulate script        | `scripts/seed.ts` (`pnpm seed`)                    |

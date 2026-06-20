@@ -31,8 +31,8 @@ export const getStaffDashboardDataFn = createServerFn({ method: 'GET' })
         try {
           const headers = await headersFromContext()
           const ctx = await resolveTenantContext(headers)
-          const { useCases } = getContainer()
-          const { startDate, endDate } = timeRangeToDates(data.timeRange)
+          const { useCases, clock } = getContainer()
+          const { startDate, endDate } = timeRangeToDates(data.timeRange, clock())
 
           return await useCases.getStaffDashboardData(
             {

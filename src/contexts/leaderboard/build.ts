@@ -3,6 +3,7 @@
 
 import type { Database } from '#/shared/db'
 import type { EventBus } from '#/shared/events/event-bus'
+import type { Clock } from '#/shared/domain/clock'
 import { createLeaderboardRepository } from './infrastructure/repositories/leaderboard.repository'
 import { registerLeaderboardEventHandlers } from './infrastructure/event-handlers'
 import type { LeaderboardRepository } from './application/ports/leaderboard.repository'
@@ -33,12 +34,13 @@ export type LeaderboardContextApi = Readonly<{
 export type BuildLeaderboardContextDeps = Readonly<{
   db: Database
   events: EventBus
+  clock: Clock
 }>
 
 export const buildLeaderboardContext = (
   deps: BuildLeaderboardContextDeps,
 ): LeaderboardContextApi => {
-  const leaderboardRepo = createLeaderboardRepository(deps.db, deps.events)
+  const leaderboardRepo = createLeaderboardRepository(deps.db, deps.events, deps.clock)
 
   registerLeaderboardEventHandlers({
     eventBus: deps.events,

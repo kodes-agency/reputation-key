@@ -41,8 +41,9 @@ export const betterAuthInvitationSchema = z.object({
       name: z.string(),
     })
     .optional(),
-  // Additional field added via auth.ts schema config
-  propertyIds: z.string().optional(),
+  // Additional field added via auth.ts schema config — nullable column, so
+  // accept null (better-auth returns null, not undefined, when unset on list).
+  propertyIds: z.string().nullish(),
 })
 
 /** Organization object returned by better-auth. */

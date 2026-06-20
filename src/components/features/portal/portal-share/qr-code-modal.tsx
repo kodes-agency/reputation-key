@@ -15,7 +15,6 @@ import {
   TooltipTrigger,
 } from '#/components/ui/tooltip'
 import { Copy, Download } from 'lucide-react'
-import { getLogger } from '#/shared/observability/logger'
 
 type QRCodeModalProps = Readonly<{
   open: boolean
@@ -48,7 +47,7 @@ export function QRCodeModal({
         },
       })
         .then(setQrDataUrl)
-        .catch((err) => getLogger().error({ err }, 'Failed to generate QR code'))
+        .catch((err) => console.error('Failed to generate QR code', err))
     }
   }, [open, guestUrl])
 

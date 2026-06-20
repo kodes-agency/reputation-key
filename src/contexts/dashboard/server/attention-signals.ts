@@ -51,8 +51,8 @@ export const getAttentionSignalsFn = createServerFn({ method: 'GET' })
           const auth = getAuth()
           const org = await auth.api.getFullOrganization({ headers })
           const slaHours = extractResponseSlaHours(org)
-          const { useCases } = getContainer()
-          const { startDate, endDate } = timeRangeToDates(data.timeRange)
+          const { useCases, clock } = getContainer()
+          const { startDate, endDate } = timeRangeToDates(data.timeRange, clock())
 
           return await useCases.getAttentionSignals({
             organizationId: ctx.organizationId,

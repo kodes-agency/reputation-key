@@ -32,6 +32,8 @@ export interface InboxListPanelProps {
   onSelectAll: () => void
   onDeselectAll: () => void
   onRowClick: (item: InboxItem) => void
+  /** Opens the folder sidebar drawer (mobile only). */
+  onOpenSidebar?: () => void
   onLoadMore: (cursor?: Cursor) => Promise<void>
   onBulkDone: () => void
   bulkUpdateFn: typeof bulkUpdateInboxStatusFn
