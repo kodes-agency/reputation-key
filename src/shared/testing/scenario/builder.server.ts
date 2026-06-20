@@ -28,7 +28,7 @@ import { portals } from '#/shared/db/schema/portal.schema'
 import { scanEvents, ratings, feedback } from '#/shared/db/schema/guest.schema'
 import { metricReadings } from '#/shared/db/schema/metric.schema'
 import { goals } from '#/shared/db/schema/goal.schema'
-import { user, member } from '#/shared/db/schema/auth'
+import { user, member, organization } from '#/shared/db/schema/auth'
 import { staffAssignments } from '#/shared/db/schema/staff-assignment.schema'
 
 const MS_PER_DAY = 86_400_000
@@ -92,6 +92,16 @@ type Ctx = Readonly<{
 // ── Helpers ─────────────────────────────────────────────────────────
 
 async function seedSimUser(ctx: Ctx): Promise<void> {
+  // Create organization first (member FK requires it to exist)
+  await ctx.db
+    .insert(organization)
+    .values({
+      id: unbrand(ctx.orgId),
+      name: 'Sim Organization',
+      slug: `sim-org-${ctx.now.getTime()}`,
+      createdAt: ctx.now,
+    })
+    .onConflictDoNothing()
   await ctx.db
     .insert(user)
     .values({
