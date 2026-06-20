@@ -8,15 +8,18 @@ import { reviews, replies, inboxItems, goals, goalProgress } from '#/shared/db/s
 import { and, count, eq, sql, lt } from 'drizzle-orm'
 import { trace } from '#/shared/observability/trace'
 import type { AttentionSignalsPort } from '../../application/ports/attention-signals.port'
+import { slaCutoff } from '../../application/utils'
+import type { Clock } from '#/shared/domain/clock'
 
-const MS_PER_HOUR = 3_600_000
-
-export function createAttentionSignalsAdapter(db: Database): AttentionSignalsPort {
+export function createAttentionSignalsAdapter(
+  db: Database,
+  clock: Clock,
+): AttentionSignalsPort {
   return {
     async getUnansweredReviewCount(organizationId, propertyId, slaHours) {
       return trace('dashboard.attention.unansweredReviews', async () => {
-        // Past SLA: reviewed earlier than now − slaHours (ms-per-hour conversion).
-        const cutoff = new Date(Date.now() - slaHours * MS_PER_HOUR)
+        // Past SLA: reviewed earlier than clock() − slaHours. Clock injected (ADR 0017).
+        const cutoff = slaCutoff(clock(), slaHours)
         const rows = await db
           .select({ count: count() })
           .from(reviews)

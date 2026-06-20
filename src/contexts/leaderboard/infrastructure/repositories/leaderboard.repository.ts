@@ -21,6 +21,7 @@ import {
 } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 import type { EventBus } from '#/shared/events/event-bus'
+import type { Clock } from '#/shared/domain/clock'
 import { leaderboardSnapshotRefreshed } from '../../domain/events'
 import { leaderboardError } from '../../domain/errors'
 import { periodToRange, LEADERBOARD_PERIODS } from '../../application/utils'
@@ -59,6 +60,7 @@ type TargetValue = Readonly<{
 export const createLeaderboardRepository = (
   db: Database,
   events: EventBus,
+  clock: Clock,
 ): LeaderboardRepository => {
   const listPropertiesWithMetricEvents = async () => {
     return trace('leaderboard.listPropertiesWithMetricEvents', async () => {
@@ -277,7 +279,7 @@ export const createLeaderboardRepository = (
     input: Required<LeaderboardRefreshInput>,
     values: ReadonlyArray<TargetValue>,
   ): Promise<{ entriesWritten: number }> => {
-    const now = new Date()
+    const now = clock()
     const scoreKey = input.metricKey === 'overall' ? 'overall' : input.metricKey
     const snapshotRows = await db
       .insert(leaderboardSnapshots)
@@ -334,7 +336,7 @@ export const createLeaderboardRepository = (
     void events
       .emit(
         leaderboardSnapshotRefreshed({
-          occurredAt: new Date(),
+          occurredAt: clock(),
           organizationId: input.organizationId,
           propertyId: input.propertyId,
           period: input.period,

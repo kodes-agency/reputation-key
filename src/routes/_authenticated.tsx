@@ -23,7 +23,6 @@ import { SettingsSidebar } from '#/components/layout/settings-sidebar'
 import { AppTopBar } from '#/components/layout/app-top-bar'
 import { hasRole } from '#/shared/domain/roles'
 import { useMutationActionSilent } from '#/components/hooks/use-mutation-action'
-import { getLogger } from '#/shared/observability/logger'
 
 export type AuthRouteContext = Readonly<{
   user: {
@@ -102,7 +101,7 @@ export const Route = createFileRoute('/_authenticated')({
         'code' in e &&
         (e as { code: string }).code === 'no_active_org'
       if (isNoActiveOrg) {
-        getLogger().info('[beforeLoad] No active organization selected — using defaults')
+        console.info('[beforeLoad] No active organization selected — using defaults')
       } else {
         // Unexpected error — propagate to error boundary
         throw e
@@ -166,7 +165,7 @@ function AuthenticatedLayout() {
         <AppTopBar user={ctx.user} />
         <main
           className={`min-w-0 flex-1 ${
-            isInbox ? 'overflow-hidden' : 'overflow-auto py-5 md:py-8'
+            isInbox ? 'overflow-hidden' : 'overflow-auto px-4 py-5 md:px-6 md:py-8'
           }`}
         >
           <Outlet />

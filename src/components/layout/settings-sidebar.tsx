@@ -1,6 +1,7 @@
 import { Link, useRouterState } from '@tanstack/react-router'
 import {
   User,
+  Users,
   Shield,
   Palette,
   Building2,
@@ -53,6 +54,16 @@ export function SettingsSidebar() {
             label: 'Organization',
             icon: Building2,
             href: '/settings/organization',
+          },
+        ]
+      : []),
+    ...(can('member.list')
+      ? [
+          {
+            key: 'members',
+            label: 'Members',
+            icon: Users,
+            href: '/settings/members',
           },
         ]
       : []),

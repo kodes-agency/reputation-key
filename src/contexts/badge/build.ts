@@ -64,7 +64,7 @@ export type BuildBadgeContextDeps = Readonly<{
 }>
 
 export const buildBadgeContext = (deps: BuildBadgeContextDeps): BadgeContextApi => {
-  const badgeRepo = createBadgeRepository(deps.db)
+  const badgeRepo = createBadgeRepository(deps.db, deps.clock)
   const evaluate = evaluateBadgeForTarget({
     badgeRepo,
     metricApi: deps.metricApi,

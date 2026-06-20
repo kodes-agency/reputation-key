@@ -1,8 +1,6 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { useEffect } from 'react'
 import { z } from 'zod/v4'
 import { getLeaderboard } from '#/contexts/leaderboard/server/leaderboards'
-import { useStaffPropertyId } from '#/components/hooks/use-staff-property-id'
 import { StaffEmptyState } from '#/components/features/staff/staff-empty-state'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
@@ -81,25 +79,13 @@ function StaffLeaderboardPage() {
   const { entries } = Route.useLoaderData()
   const { propertyId: searchPropertyId, period, scope, metricKey } = Route.useSearch()
   const navigate = useNavigate()
-  const localPropertyId = useStaffPropertyId()
-
-  useEffect(() => {
-    if (localPropertyId && localPropertyId !== searchPropertyId) {
-      navigate({
-        to: '/leaderboard',
-        search: { propertyId: localPropertyId, period, scope, metricKey },
-        replace: true,
-      })
-    }
-  }, [localPropertyId, searchPropertyId, period, scope, metricKey, navigate])
-
   const updateSearch = (
     patch: Partial<{ period: Period; scope: Scope; metricKey: MetricKey }>,
   ) => {
     navigate({
       to: '/leaderboard',
       search: {
-        propertyId: searchPropertyId ?? localPropertyId ?? undefined,
+        propertyId: searchPropertyId,
         period,
         scope,
         metricKey,
@@ -109,7 +95,8 @@ function StaffLeaderboardPage() {
     })
   }
 
-  if (!localPropertyId) {
+  // No property selected — the sidebar defaults ?propertyId= on first load.
+  if (!searchPropertyId) {
     return (
       <PageShell>
         <PageHeader
@@ -119,10 +106,6 @@ function StaffLeaderboardPage() {
         <StaffEmptyState />
       </PageShell>
     )
-  }
-
-  if (localPropertyId && !searchPropertyId) {
-    return null
   }
 
   const periods: Period[] = [

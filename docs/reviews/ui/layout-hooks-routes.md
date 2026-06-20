@@ -196,25 +196,15 @@ function useThemeMode() {
 
 ### [D10] MINOR `staff-sidebar.tsx` uses `useEffect` for side effects that could be derived
 
-- **File:** `src/components/layout/staff-sidebar.tsx:62-72`
-- **Quote:**
+> **✅ Resolved (2026-06-19):** The localStorage layer (`useStaffPropertyId` / `setStaffPropertyId`) was removed. Staff active property now lives solely in the URL (`?propertyId=`, via `usePropertyId`, per ADR 0016); the `useEffect` navigates to set/correct the param instead of syncing localStorage — the re-render loop risk is gone.
 
-```tsx
-useEffect(() => {
-  if (rawPropertyId && !properties.find((p) => p.id === rawPropertyId)) {
-    setStaffPropertyId(properties[0]?.id ?? '')
-  } else if (!rawPropertyId && properties.length > 0) {
-    setStaffPropertyId(properties[0].id)
-  }
-}, [rawPropertyId, properties])
-```
-
-- **Rule:** D10 §6 — This useEffect is for syncing external state (localStorage) which is unavoidable here, but it risks infinite loops if `setStaffPropertyId` triggers a re-render that changes `rawPropertyId`.
-- **Fix:** Add a ref to track whether the effect has already run for the current properties list to prevent redundant writes. Alternatively, compute the effective propertyId synchronously and only call `setStaffPropertyId` when the computed value differs.
+_(Original finding quoted the since-removed localStorage sync `useEffect`; no longer applicable — see resolution above.)_
 
 ---
 
 ### [D10] MINOR `staff-sidebar.tsx` at 138 lines — near limit with `useEffect` logic
+
+> **✅ Resolved (2026-06-19):** The property-sync `useEffect` was removed along with the localStorage layer. Staff property selection is now URL-only (`?propertyId=`, per ADR 0016), so there's no sync hook to extract and the line-count concern no longer applies.
 
 - **File:** `src/components/layout/staff-sidebar.tsx` — **138 lines**
 - **Quote:** (entire file)

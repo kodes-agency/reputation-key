@@ -48,7 +48,7 @@ export async function bootstrap(container: Container): Promise<void> {
     dbHealthy: isDbHealthy,
     redisHealthy: isRedisHealthy,
     logger,
-    clock: () => new Date(),
+    clock: container.clock,
   })
 
   // Handler returns HealthCheckResult (BullMQ stores it as return value);
@@ -62,7 +62,7 @@ export async function bootstrap(container: Container): Promise<void> {
   const processImageHandler = createProcessImageJob({
     storage: container.storage,
     portalRepo: container.portalRepo,
-    clock: () => new Date(),
+    clock: container.clock,
   })
   container.jobRegistry.register(PROCESS_IMAGE_JOB_NAME, async (job) => {
     await processImageHandler(
@@ -95,7 +95,7 @@ export async function bootstrap(container: Container): Promise<void> {
     replyRepo: container.replyRepo,
     googleReviewApi: googleReviewApiForJobs,
     events: container.eventBus,
-    clock: () => new Date(),
+    clock: container.clock,
   })
   container.jobRegistry.register(SYNC_REVIEWS_JOB_NAME, async (job) => {
     await syncReviewsHandler(
@@ -113,7 +113,7 @@ export async function bootstrap(container: Container): Promise<void> {
   const refreshHandler = createRefreshExpiringReviewsHandler({
     reviewRepo: container.reviewRepo,
     queue: container.reviewQueue,
-    clock: () => new Date(),
+    clock: container.clock,
   })
   container.jobRegistry.register(REFRESH_EXPIRING_JOB_NAME, async (job) => {
     await refreshHandler(job)
@@ -126,7 +126,7 @@ export async function bootstrap(container: Container): Promise<void> {
   const purgeHandler = createPurgeExpiredReviewsHandler({
     reviewRepo: container.reviewRepo,
     events: container.eventBus,
-    clock: () => new Date(),
+    clock: container.clock,
   })
   container.jobRegistry.register(PURGE_EXPIRED_JOB_NAME, async (job) => {
     await purgeHandler(job)
@@ -142,7 +142,7 @@ export async function bootstrap(container: Container): Promise<void> {
     reviewRepo: container.reviewRepo,
     googleReviewApi: container.googleReviewApi,
     events: container.eventBus,
-    clock: () => new Date(),
+    clock: container.clock,
     idGen: () => replyId(crypto.randomUUID()),
   })
   container.jobRegistry.register(PUBLISH_REPLY_JOB_NAME, async (job) => {
@@ -182,7 +182,7 @@ export async function bootstrap(container: Container): Promise<void> {
     goalRepo: container.goalRepo,
     metricApi: container.metricPublicApi,
     events: container.eventBus,
-    clock: () => new Date(),
+    clock: container.clock,
   })
   container.jobRegistry.register(RECONCILE_GOAL_JOB_NAME, async (job): Promise<void> => {
     await reconcileHandler(job)
@@ -198,7 +198,7 @@ export async function bootstrap(container: Container): Promise<void> {
   const spawnHandler = createSpawnRecurringInstancesHandler({
     goalRepo: container.goalRepo,
     events: container.eventBus,
-    clock: () => new Date(),
+    clock: container.clock,
     idGen: () => crypto.randomUUID(),
   })
   container.jobRegistry.register(SPAWN_RECURRING_JOB_NAME, async (job): Promise<void> => {
@@ -218,7 +218,7 @@ export async function bootstrap(container: Container): Promise<void> {
   const insertActivityLogHandler = createInsertActivityLogHandler({
     repo: container.activityRepo,
     userLookup: dbUserLookup,
-    clock: () => new Date(),
+    clock: container.clock,
     logger: container.logger,
     idGen: () => activityLogId(crypto.randomUUID()),
   })
@@ -251,7 +251,7 @@ export async function bootstrap(container: Container): Promise<void> {
     notificationRepo: container.notificationRepo,
     emailRepo: container.notificationEmailRepo,
     preferenceRepo: container.notificationPrefRepo,
-    clock: () => new Date(),
+    clock: container.clock,
     idGen: () => notificationId(crypto.randomUUID()),
     emailIdGen: () => notificationEmailId(crypto.randomUUID()),
     logger: container.logger,

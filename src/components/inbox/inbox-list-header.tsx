@@ -1,6 +1,6 @@
 // Inbox list panel header — title, All/Unaddressed tabs, and search bar.
 // Extracted from inbox-page-v2.tsx for max-lines compliance.
-import { Search } from 'lucide-react'
+import { Menu, Search } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { Badge } from '#/components/ui/badge'
 import { Input } from '#/components/ui/input'
@@ -13,6 +13,8 @@ type Props = Readonly<{
   searchQ: string | undefined
   onTabChange: (tab: 'all' | 'unaddressed' | undefined) => void
   onSearchChange: (q: string | undefined) => void
+  /** Opens the folder sidebar drawer (mobile only). */
+  onOpenSidebar?: () => void
 }>
 
 export function InboxListHeader({
@@ -23,12 +25,24 @@ export function InboxListHeader({
   searchQ,
   onTabChange,
   onSearchChange,
+  onOpenSidebar,
 }: Props) {
   return (
     <div className="shrink-0 border-b px-4 py-2.5">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <h1 className="text-lg font-semibold tracking-tight">{folderLabel}</h1>
+        <div className="flex items-center gap-3 min-w-0">
+          {onOpenSidebar && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="-ml-1 size-8 md:hidden"
+              onClick={onOpenSidebar}
+              aria-label="Open folders"
+            >
+              <Menu className="size-4" />
+            </Button>
+          )}
+          <h1 className="truncate text-lg font-semibold tracking-tight">{folderLabel}</h1>
           {newCount > 0 && (
             <Badge variant="secondary" className="text-xs tabular-nums">
               {newCount} new

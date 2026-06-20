@@ -2,6 +2,7 @@
 
 import { and, eq, inArray, isNull, isNotNull, or, sql, desc } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
+import type { Clock } from '#/shared/domain/clock'
 import {
   badgeAwards,
   badgeDefinitions,
@@ -31,10 +32,10 @@ import {
   organizationBadgeEnablementFromRow,
 } from '../mappers/badge.mapper'
 
-export const createBadgeRepository = (db: Database): BadgeRepository => ({
+export const createBadgeRepository = (db: Database, clock: Clock): BadgeRepository => ({
   seedDefinitions: async (definitions) => {
     return trace('badge.seedDefinitions', async () => {
-      const now = new Date()
+      const now = clock()
       const inserted: BadgeDefinition[] = []
 
       for (const definition of definitions) {
@@ -182,7 +183,7 @@ export const createBadgeRepository = (db: Database): BadgeRepository => ({
 
   setOrganizationEnablement: async (orgId, badgeDefinitionId, enabled) => {
     return trace('badge.setOrganizationEnablement', async () => {
-      const now = new Date()
+      const now = clock()
       const rows = await db
         .insert(organizationBadgeEnablements)
         .values({
@@ -468,13 +469,13 @@ export const createBadgeRepository = (db: Database): BadgeRepository => ({
             ? eq(metricReadings.groupId, unbrand(input.portalGroupId))
             : sql`false`
       const rows = await db.execute(sql`
-        SELECT date_trunc('day', occurred_at AT TIME ZONE ${input.timezone})::date AS day, COUNT(*)::int AS count
-        FROM metric_readings
-        WHERE organization_id = ${unbrand(input.organizationId)}
-          AND property_id = ${unbrand(input.propertyId)}
-          AND metric_key = ${input.metricKey}
+        SELECT date_trunc('day', ${metricReadings.occurredAt} AT TIME ZONE ${input.timezone}::text)::date AS day, COUNT(*)::int AS count
+        FROM ${metricReadings}
+        WHERE ${metricReadings.organizationId} = ${unbrand(input.organizationId)}
+          AND ${metricReadings.propertyId} = ${unbrand(input.propertyId)}
+          AND ${metricReadings.metricKey} = ${input.metricKey}
           AND ${scope}
-          AND occurred_at >= NOW() - (${input.days} || ' days')::interval
+          AND ${metricReadings.occurredAt} >= NOW() - (${input.days} * INTERVAL '1 day')
         GROUP BY 1
       `)
 

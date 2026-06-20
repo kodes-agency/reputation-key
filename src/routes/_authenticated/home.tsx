@@ -1,12 +1,10 @@
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { useEffect } from 'react'
+import { createFileRoute } from '@tanstack/react-router'
 import { z } from 'zod/v4'
 import { listStaffGoals } from '#/contexts/goal/server/staff-goals'
 import { getStaffVisibleBadges } from '#/contexts/badge/server/badges'
 import { getStaffDashboardDataFn } from '#/contexts/dashboard/server/staff-dashboard'
 import { listStaffPortals } from '#/contexts/staff/server/staff-portals'
 import { getStaffRecentActivity } from '#/contexts/review/server/staff-recent-activity'
-import { useStaffPropertyId } from '#/components/hooks/use-staff-property-id'
 import { StaffHomeKpis } from '#/components/features/staff/staff-home-kpis'
 import { StaffBadgeSummary } from '#/components/features/badges/staff-badge-summary'
 import { StaffGoalSummary } from '#/components/features/staff/staff-goal-summary'
@@ -71,22 +69,9 @@ function StaffHomePage() {
   const { goals, kpis, portals, recentReviews, badges, hasAssignments } =
     Route.useLoaderData()
   const { propertyId: searchPropertyId, portalId: searchPortalId } = Route.useSearch()
-  const navigate = useNavigate()
-  const localPropertyId = useStaffPropertyId()
-
-  // Sync localStorage propertyId to URL search params
-  useEffect(() => {
-    if (localPropertyId && localPropertyId !== searchPropertyId) {
-      navigate({
-        to: '/home',
-        search: { propertyId: localPropertyId, portalId: searchPortalId },
-        replace: true,
-      })
-    }
-  }, [localPropertyId, searchPropertyId, searchPortalId, navigate])
-
-  // No property selected at all — show empty state
-  if (!localPropertyId) {
+  // No property selected — the sidebar defaults ?propertyId= on first load; if
+  // none ever appears the staff has no assignments, so show the empty state.
+  if (!searchPropertyId) {
     return (
       <PageShell>
         <PageHeader title="Home" description="Your performance at a glance." />
@@ -95,13 +80,8 @@ function StaffHomePage() {
     )
   }
 
-  // localStorage has a property but URL isn't synced yet — don't flash empty
-  if (localPropertyId && !searchPropertyId) {
-    return null
-  }
-
   // Property is selected but staff has no assignments
-  if (!hasAssignments && localPropertyId) {
+  if (!hasAssignments) {
     return (
       <PageShell>
         <PageHeader title="Home" description="Your performance at a glance." />

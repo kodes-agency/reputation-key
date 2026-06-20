@@ -30,6 +30,7 @@ export function InboxListPanel(props: InboxListPanelProps) {
     onBulkDone,
     bulkUpdateFn,
     onLoadMore,
+    onOpenSidebar,
   } = props
 
   return (
@@ -42,6 +43,7 @@ export function InboxListPanel(props: InboxListPanelProps) {
         searchQ={searchQ}
         onTabChange={onTabChange}
         onSearchChange={onSearchChange}
+        onOpenSidebar={onOpenSidebar}
       />
       <BulkActionBar
         selectedIds={selectedIds}

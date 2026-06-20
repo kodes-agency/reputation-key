@@ -40,8 +40,8 @@ export const getDashboardDataFn = createServerFn({ method: 'GET' })
               'Insufficient permissions to view dashboard',
             )
           }
-          const { useCases } = getContainer()
-          const { startDate, endDate } = timeRangeToDates(data.timeRange)
+          const { useCases, clock } = getContainer()
+          const { startDate, endDate } = timeRangeToDates(data.timeRange, clock())
 
           return await useCases.getDashboardData({
             organizationId: ctx.organizationId,

@@ -15,10 +15,7 @@ import {
   SidebarSeparator,
 } from '#/components/ui/sidebar'
 import { useAction } from '#/components/hooks/use-action'
-import {
-  useStaffPropertyId,
-  setStaffPropertyId,
-} from '#/components/hooks/use-staff-property-id'
+import { usePropertyId } from '#/components/hooks/use-property-id'
 import { StaffNavItems } from './staff-nav-items'
 import { StaffOrgSwitcher } from './staff-org-switcher'
 import { StaffPropertySwitcher } from './staff-property-switcher'
@@ -55,23 +52,25 @@ export function StaffSidebar({
   const activeSection = useActiveSection()
   const navigate = useNavigate()
   const setOrg = useAction(setActiveOrganization)
-  const rawPropertyId = useStaffPropertyId()
+  const rawPropertyId = usePropertyId()
 
-  // Persist default property on first load so routes pick it up
-  // Reset stale property if it was removed from the list
+  // The URL ?propertyId= is the single source of truth (ADR 0016). Ensure a
+  // valid property is selected: default to the first when absent, reset when
+  // the active id is no longer in the user's properties. Done via navigation
+  // so the URL — not localStorage — holds the state.
   useEffect(() => {
-    if (!rawPropertyId && properties.length > 0) {
-      setStaffPropertyId(properties[0].id)
-    } else if (
-      rawPropertyId &&
-      properties.length > 0 &&
-      !properties.some((p) => p.id === rawPropertyId)
-    ) {
-      setStaffPropertyId(properties[0].id)
+    if (properties.length === 0) return
+    const valid = !!rawPropertyId && properties.some((p) => p.id === rawPropertyId)
+    if (!valid) {
+      navigate({
+        to: '.',
+        search: (prev) => ({ ...prev, propertyId: properties[0].id }),
+        replace: true,
+      })
     }
-  }, [rawPropertyId, properties])
+  }, [rawPropertyId, properties, navigate])
 
-  // Default to the first property if none is stored (e.g., first load).
+  // Fallback to the first property for switcher display before the URL is set.
   const propertyId: string | undefined =
     rawPropertyId ?? (properties.length > 0 ? properties[0].id : undefined)
 
@@ -86,8 +85,10 @@ export function StaffSidebar({
   }
 
   function handlePropertySwitch(newPropertyId: string) {
-    setStaffPropertyId(newPropertyId)
-    navigate({ to: '/home' })
+    navigate({
+      to: '.',
+      search: (prev) => ({ ...prev, propertyId: newPropertyId }),
+    })
   }
 
   return (

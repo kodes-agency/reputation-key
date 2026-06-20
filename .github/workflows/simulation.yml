@@ -1,0 +1,71 @@
+name: Simulation
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'scripts/seed.ts'
+      - 'scripts/simulate.ts'
+      - 'src/shared/testing/**'
+      - '.github/workflows/simulation.yml'
+
+jobs:
+  simulate:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Push database schema
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://test:test@localhost:5432/test
+          BETTER_AUTH_SECRET: test-secret-at-least-32-characters-long-for-ci
+          BETTER_AUTH_URL: http://localhost:3000
+          GOOGLE_CLIENT_ID: ci-placeholder-client-id
+          GOOGLE_CLIENT_SECRET: ci-placeholder-client-secret
+          ENCRYPTION_KEY: aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd
+          OAUTH_STATE_SECRET: aabbccddaabbccddaabbccddaabbccdd
+        run: echo "y" | pnpm db:push && echo "y" | pnpm auth:migrate
+
+      - name: Run simulation with invariant checks
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://test:test@localhost:5432/test
+          BETTER_AUTH_SECRET: test-secret-at-least-32-characters-long-for-ci
+          BETTER_AUTH_URL: http://localhost:3000
+          RESEND_API_KEY: re_ci_test_key_placeholder
+          GOOGLE_CLIENT_ID: ci-placeholder-client-id
+          GOOGLE_CLIENT_SECRET: ci-placeholder-client-secret
+          ENCRYPTION_KEY: aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd
+          OAUTH_STATE_SECRET: aabbccddaabbccddaabbccddaabbccdd
+        run: pnpm seed -- --org=sim-ci-org --invariants
+        timeout-minutes: 5

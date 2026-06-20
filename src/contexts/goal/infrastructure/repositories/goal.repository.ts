@@ -23,6 +23,19 @@ import { goalError } from '../../domain/errors'
 
 const log = getLogger().child({ component: 'goal-repo' })
 
+/** Map goal rows to domain goals, skipping rows with invalid DB data
+ *  instead of crashing the entire query. Logs a warning per skipped row. */
+function safeMapGoals(rows: ReadonlyArray<typeof goals.$inferSelect>): Goal[] {
+  return rows.flatMap((row) => {
+    try {
+      return [goalFromRow(row)]
+    } catch (e) {
+      log.warn({ err: e, goalId: row.id }, 'Skipping goal with invalid DB data')
+      return []
+    }
+  })
+}
+
 export const createGoalRepository = (db: Database): GoalRepository => ({
   // ── Goal CRUD ──────────────────────────────────────────────────────────
 
@@ -86,7 +99,7 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
         { count: rows.length, duration: Date.now() - start },
         'goal list complete',
       )
-      return rows.map(goalFromRow)
+      return safeMapGoals(rows)
     })
   },
 
@@ -96,7 +109,7 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
         .select()
         .from(goals)
         .where(and(eq(goals.parentGoalId, parentGoalId), eq(goals.organizationId, orgId)))
-      return rows.map(goalFromRow)
+      return safeMapGoals(rows)
     })
   },
 
@@ -199,7 +212,7 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
         .select()
         .from(goals)
         .where(and(eq(goals.organizationId, organizationId), eq(goals.status, 'active')))
-      return rows.map(goalFromRow)
+      return safeMapGoals(rows)
     })
   },
   // ⚠️ CROSS-TENANT by design — background job
@@ -215,14 +228,14 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
             isNull(goals.parentGoalId),
           ),
         )
-      return rows.map(goalFromRow)
+      return safeMapGoals(rows)
     })
   },
   // ⚠️ CROSS-TENANT by design — background job
   findAllActiveGlobal: async () => {
     return trace('goal.findAllActiveGlobal', async () => {
       const rows = await db.select().from(goals).where(eq(goals.status, 'active'))
-      return rows.map(goalFromRow)
+      return safeMapGoals(rows)
     })
   },
 
@@ -239,7 +252,7 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
             isNull(goals.parentGoalId),
           ),
         )
-      return rows.map(goalFromRow)
+      return safeMapGoals(rows)
     })
   },
 
@@ -316,7 +329,7 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
         { metricKey, count: rows.length, duration: Date.now() - start },
         'goal findActiveGoalsByMetric complete',
       )
-      return rows.map(goalFromRow)
+      return safeMapGoals(rows)
     })
   },
 

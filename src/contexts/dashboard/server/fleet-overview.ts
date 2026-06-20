@@ -53,8 +53,8 @@ export const getFleetOverviewFn = createServerFn({ method: 'GET' })
           const org = await auth.api.getFullOrganization({ headers })
           const slaHours = extractResponseSlaHours(org)
 
-          const { useCases } = getContainer()
-          const { startDate, endDate } = timeRangeToDates(data.timeRange)
+          const { useCases, clock } = getContainer()
+          const { startDate, endDate } = timeRangeToDates(data.timeRange, clock())
 
           // Role-aware property enumeration (AccountAdmin sees all; managers/staff
           // see only assigned). Dashboard never queries property tables directly.

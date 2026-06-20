@@ -26,12 +26,15 @@ interface InboxSidebarProps {
   propertyId: string | undefined
   properties?: ReadonlyArray<{ id: string; name: string }>
   onPropertyChange: (propertyId: string | undefined) => void
+  /** Called after a folder/category navigation. Used to close the mobile drawer. */
+  onNavigate?: () => void
 }
 
 export function InboxSidebar({
   propertyId,
   properties,
   onPropertyChange,
+  onNavigate,
 }: InboxSidebarProps) {
   const activeFolder = useInboxFolder()
   const activePlatform = useInboxPlatform()
@@ -48,10 +51,14 @@ export function InboxSidebar({
       .catch(() => {})
   }, [fetchCounts])
 
-  const nav = (s: Record<string, unknown>) =>
-    propertyId
-      ? n({ to: '/properties/$propertyId/reviews', params: { propertyId }, search: s })
-      : n({ to: '/inbox', search: s })
+  const nav = (s: Record<string, unknown>) => {
+    if (propertyId) {
+      n({ to: '/properties/$propertyId/reviews', params: { propertyId }, search: s })
+    } else {
+      n({ to: '/inbox', search: s })
+    }
+    onNavigate?.()
+  }
 
   return (
     <div className="flex h-full w-full flex-col border-r overflow-hidden">

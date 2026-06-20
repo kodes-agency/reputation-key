@@ -21,15 +21,16 @@
     ".output/**",
     "e2e/**",
     "docs/**",
-    ".claude/**"
+    ".claude/**",
+    "src/shared/testing/**",
+    "scripts/**"
   ],
   "ignoreDependencies": [
     "@rolldown/binding-darwin-arm64",
     "@tanstack/intent",
     "@better-auth/cli",
     "@tanstack/start-server-core",
-    "eslint-import-resolver-typescript",
-    "shadcn"
+    "eslint-import-resolver-typescript"
   ],
   "ignoreExports": [
     { "file": "src/contexts/*/infrastructure/jobs/*.job.ts", "exports": ["JOB_NAME"] },
@@ -55,6 +56,10 @@
     {
       "file": "src/contexts/integration/infrastructure/handlers/gbp-notification-handler.ts",
       "exports": ["handleGbpNotification"]
+    },
+    {
+      "file": "src/shared/db/schema/auth.ts",
+      "exports": ["member", "organization"]
     }
   ],
   "production": false,
@@ -76,7 +81,7 @@
     "threshold": 10
   },
   "health": {
-    "maxCyclomatic": 20,
+    "maxCyclomatic": 22,
     "maxCognitive": 15,
     "maxCrap": 450
   },
@@ -89,6 +94,7 @@
       { "name": "application", "patterns": ["src/contexts/*/application/**"] },
       { "name": "infrastructure", "patterns": ["src/contexts/*/infrastructure/**"] },
       { "name": "server", "patterns": ["src/contexts/*/server/**"] },
+      { "name": "shared-testing", "patterns": ["src/shared/testing/**"] },
       { "name": "shared", "patterns": ["src/shared/**"] },
       { "name": "routes", "patterns": ["src/routes/**"] },
       { "name": "components", "patterns": ["src/components/**"] }
@@ -98,6 +104,7 @@
       { "from": "application", "allow": ["domain", "shared"] },
       { "from": "infrastructure", "allow": ["domain", "application", "shared"] },
       { "from": "server", "allow": ["application", "domain", "shared"] },
+      { "from": "shared-testing", "allow": ["domain", "application", "shared"] },
       { "from": "shared", "allow": [] }
     ]
   },

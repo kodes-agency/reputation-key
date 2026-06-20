@@ -1,4 +1,4 @@
-import { boolean, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
+import { boolean, integer, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
 
 // ─── Better Auth tables ────────────────────────────────────────────
 // Column names must be camelCase to match Better Auth's defaults.
@@ -53,4 +53,34 @@ export const verification = pgTable('verification', {
   expiresAt: timestamp('expiresAt').notNull(),
   createdAt: timestamp('createdAt').defaultNow(),
   updatedAt: timestamp('updatedAt').defaultNow(),
+})
+
+// ─── Organization plugin tables ────────────────────────────────────
+// Read-only Drizzle definitions for querying. Migrations are managed by
+// `pnpm auth:migrate` (Better Auth CLI) — NOT by drizzle-kit.
+// Column names are camelCase to match Better Auth's defaults.
+// These tables are excluded from drizzle.config.ts tablesFilter.
+
+export const member = pgTable('member', {
+  id: text('id').primaryKey(),
+  userId: text('userId').notNull(),
+  organizationId: text('organizationId').notNull(),
+  role: text('role').notNull(),
+  createdAt: timestamp('createdAt').notNull().defaultNow(),
+})
+
+export const organization = pgTable('organization', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  slug: text('slug').notNull(),
+  logo: text('logo'),
+  createdAt: timestamp('createdAt').notNull().defaultNow(),
+  // Additional fields from org-schema.ts (managed by Better Auth CLI)
+  contactEmail: text('contactEmail'),
+  billingCompanyName: text('billingCompanyName'),
+  billingAddress: text('billingAddress'),
+  billingCity: text('billingCity'),
+  billingPostalCode: text('billingPostalCode'),
+  billingCountry: text('billingCountry'),
+  responseSlaHours: integer('responseSlaHours'),
 })

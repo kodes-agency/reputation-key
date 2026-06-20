@@ -5,20 +5,21 @@
 
 import type { InboxItemLookupPort } from '../../ports/inbox-item-lookup.port'
 import type { Database } from '#/shared/db'
-import { sql } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
+import { inboxItems } from '#/shared/db/schema/inbox.schema'
 import { getLogger } from '#/shared/observability/logger'
 
 export const createDbInboxItemLookupAdapter = (db: Database): InboxItemLookupPort => ({
   findBySourceId: async (sourceId, orgId): Promise<string | null> => {
     try {
-      const rows = await db.execute(sql`
-        SELECT id FROM inbox_items
-        WHERE source_id = ${sourceId} AND organization_id = ${orgId}
-        LIMIT 1
-      `)
-      const row = rows.rows?.[0]
-      if (!row) return null
-      return (row as Record<string, unknown>).id as string
+      const rows = await db
+        .select({ id: inboxItems.id })
+        .from(inboxItems)
+        .where(
+          and(eq(inboxItems.sourceId, sourceId), eq(inboxItems.organizationId, orgId)),
+        )
+        .limit(1)
+      return rows[0]?.id ?? null
     } catch (e) {
       getLogger().warn(
         { err: e, sourceId, orgId },
