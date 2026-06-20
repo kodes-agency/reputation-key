@@ -13,108 +13,106 @@ import type {
 } from '../../application/ports/portal-metrics.port'
 import type { OrganizationId, PropertyId, PortalId } from '#/shared/domain/ids'
 
-export function createPortalMetricsAdapter(db: Database): PortalMetricsPort {
-  return {
-    async getPortalKpiSums(
-      organizationId: OrganizationId,
-      propertyId: PropertyId,
-      portalId: PortalId,
-      startDate: Date,
-      endDate: Date,
-    ) {
-      return trace('dashboard.portalMetrics.getPortalKpiSums', async () => {
-        const rows = await db
-          .select({
-            metricKey: metricReadings.metricKey,
-            total: sum(metricReadings.value),
-            count: count(metricReadings.value),
-          })
-          .from(metricReadings)
-          .where(
-            and(
-              eq(metricReadings.organizationId, organizationId),
-              eq(metricReadings.propertyId, propertyId),
-              eq(metricReadings.portalId, portalId),
-              gte(metricReadings.occurredAt, startDate),
-              lte(metricReadings.occurredAt, endDate),
-            ),
-          )
-          .groupBy(metricReadings.metricKey)
+export const createPortalMetricsAdapter = (db: Database): PortalMetricsPort => ({
+  async getPortalKpiSums(
+    organizationId: OrganizationId,
+    propertyId: PropertyId,
+    portalId: PortalId,
+    startDate: Date,
+    endDate: Date,
+  ) {
+    return trace('dashboard.portalMetrics.getPortalKpiSums', async () => {
+      const rows = await db
+        .select({
+          metricKey: metricReadings.metricKey,
+          total: sum(metricReadings.value),
+          count: count(metricReadings.value),
+        })
+        .from(metricReadings)
+        .where(
+          and(
+            eq(metricReadings.organizationId, organizationId),
+            eq(metricReadings.propertyId, propertyId),
+            eq(metricReadings.portalId, portalId),
+            gte(metricReadings.occurredAt, startDate),
+            lte(metricReadings.occurredAt, endDate),
+          ),
+        )
+        .groupBy(metricReadings.metricKey)
 
-        return rows.map((r) => ({
-          metricKey: r.metricKey,
-          total: Number(r.total ?? 0),
-          count: Number(r.count ?? 0),
-        }))
-      })
-    },
+      return rows.map((r) => ({
+        metricKey: r.metricKey,
+        total: Number(r.total ?? 0),
+        count: Number(r.count ?? 0),
+      }))
+    })
+  },
 
-    async getPortalRatingDistribution(
-      organizationId: OrganizationId,
-      propertyId: PropertyId,
-      portalId: PortalId,
-      startDate: Date,
-      endDate: Date,
-    ): Promise<readonly PortalRatingBucket[]> {
-      return trace('dashboard.portalMetrics.getPortalRatingDistribution', async () => {
-        const rows = await db
-          .select({
-            stars: sql<number>`CAST(${metricReadings.value} AS INTEGER)`,
-            count: count(),
-          })
-          .from(metricReadings)
-          .where(
-            and(
-              eq(metricReadings.organizationId, organizationId),
-              eq(metricReadings.propertyId, propertyId),
-              eq(metricReadings.portalId, portalId),
-              eq(metricReadings.metricKey, 'portal.rating'),
-              gte(metricReadings.occurredAt, startDate),
-              lte(metricReadings.occurredAt, endDate),
-            ),
-          )
-          .groupBy(sql`CAST(${metricReadings.value} AS INTEGER)`)
-          .orderBy(sql`CAST(${metricReadings.value} AS INTEGER)`)
+  async getPortalRatingDistribution(
+    organizationId: OrganizationId,
+    propertyId: PropertyId,
+    portalId: PortalId,
+    startDate: Date,
+    endDate: Date,
+  ): Promise<readonly PortalRatingBucket[]> {
+    return trace('dashboard.portalMetrics.getPortalRatingDistribution', async () => {
+      const rows = await db
+        .select({
+          stars: sql<number>`CAST(${metricReadings.value} AS INTEGER)`,
+          count: count(),
+        })
+        .from(metricReadings)
+        .where(
+          and(
+            eq(metricReadings.organizationId, organizationId),
+            eq(metricReadings.propertyId, propertyId),
+            eq(metricReadings.portalId, portalId),
+            eq(metricReadings.metricKey, 'portal.rating'),
+            gte(metricReadings.occurredAt, startDate),
+            lte(metricReadings.occurredAt, endDate),
+          ),
+        )
+        .groupBy(sql`CAST(${metricReadings.value} AS INTEGER)`)
+        .orderBy(sql`CAST(${metricReadings.value} AS INTEGER)`)
 
-        return rows.map((r) => ({
-          stars: Number(r.stars),
-          count: Number(r.count),
-        }))
-      })
-    },
+      return rows.map((r) => ({
+        stars: Number(r.stars),
+        count: Number(r.count),
+      }))
+    })
+  },
 
-    async getPortalRatingTrend(
-      organizationId: OrganizationId,
-      propertyId: PropertyId,
-      portalId: PortalId,
-      startDate: Date,
-      endDate: Date,
-    ): Promise<readonly PortalRatingTrendPoint[]> {
-      return trace('dashboard.portalMetrics.getPortalRatingTrend', async () => {
-        const rows = await db
-          .select({
-            date: sql<string>`DATE(${metricReadings.occurredAt})::TEXT`,
-            avgRating: sql<number>`ROUND(${avg(metricReadings.value)}::NUMERIC, 1)`,
-          })
-          .from(metricReadings)
-          .where(
-            and(
-              eq(metricReadings.organizationId, organizationId),
-              eq(metricReadings.propertyId, propertyId),
-              eq(metricReadings.portalId, portalId),
-              eq(metricReadings.metricKey, 'portal.rating'),
-              gte(metricReadings.occurredAt, startDate),
-              lte(metricReadings.occurredAt, endDate),
-            ),
-          )
-          .groupBy(sql`DATE(${metricReadings.occurredAt})`)
-          .orderBy(sql`DATE(${metricReadings.occurredAt})`)
+  async getPortalRatingTrend(
+    organizationId: OrganizationId,
+    propertyId: PropertyId,
+    portalId: PortalId,
+    startDate: Date,
+    endDate: Date,
+  ): Promise<readonly PortalRatingTrendPoint[]> {
+    return trace('dashboard.portalMetrics.getPortalRatingTrend', async () => {
+      const rows = await db
+        .select({
+          date: sql<string>`DATE(${metricReadings.occurredAt})::TEXT`,
+          avgRating: sql<number>`ROUND(${avg(metricReadings.value)}::NUMERIC, 1)`,
+        })
+        .from(metricReadings)
+        .where(
+          and(
+            eq(metricReadings.organizationId, organizationId),
+            eq(metricReadings.propertyId, propertyId),
+            eq(metricReadings.portalId, portalId),
+            eq(metricReadings.metricKey, 'portal.rating'),
+            gte(metricReadings.occurredAt, startDate),
+            lte(metricReadings.occurredAt, endDate),
+          ),
+        )
+        .groupBy(sql`DATE(${metricReadings.occurredAt})`)
+        .orderBy(sql`DATE(${metricReadings.occurredAt})`)
 
-        return rows.map((r) => ({
-          date: r.date,
-          avgRating: Number(r.avgRating ?? 0),
-        }))
-      })
-    },
-  }
-}
+      return rows.map((r) => ({
+        date: r.date,
+        avgRating: Number(r.avgRating ?? 0),
+      }))
+    })
+  },
+})

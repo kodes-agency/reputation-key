@@ -8,7 +8,7 @@ import { staffAssignments } from '#/shared/db/schema/staff-assignment.schema'
 import { userId, type UserId, type OrganizationId, unbrand } from '#/shared/domain/ids'
 import { toBetterAuthRole, type Role } from '#/shared/domain/roles'
 
-export function createDbUserLookupAdapter(db: Database) {
+export const createDbUserLookupAdapter = (db: Database) => {
   return {
     /** Find all user IDs in an org that hold the given domain role. */
     async findByRole(orgId: OrganizationId, role: Role): Promise<UserId[]> {

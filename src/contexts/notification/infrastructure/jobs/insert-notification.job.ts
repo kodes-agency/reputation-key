@@ -14,7 +14,7 @@ export const INSERT_NOTIFICATION_JOB_NAME = 'insert-notification'
 
 export type InsertNotificationJobData = InsertNotificationInput
 
-export function createInsertNotificationHandler(deps: InsertNotificationDeps) {
+export const createInsertNotificationHandler = (deps: InsertNotificationDeps) => {
   const useCase = insertNotification(deps)
 
   return async (job: Job<InsertNotificationJobData>): Promise<void> => {

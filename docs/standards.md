@@ -280,6 +280,61 @@ New contexts MUST follow all standards from inception.
 
 ---
 
+## 8. File Naming Standards
+
+### 8.1 File name conventions by layer
+
+| Layer                         | Convention                                        | Example                                                             |
+| ----------------------------- | ------------------------------------------------- | ------------------------------------------------------------------- |
+| Domain                        | camelCase, single file per concept                | `constructors.ts`, `events.ts`, `types.ts`, `rules.ts`, `errors.ts` |
+| Application ports             | kebab + `.port.ts` suffix                         | `review.repository.ts`, `attention-signals.port.ts`                 |
+| Application use-cases         | kebab-case (mirrors use case name)                | `get-dashboard-data.ts`, `submit-reply.ts`                          |
+| Application public API        | always `public-api.ts`                            | `public-api.ts`                                                     |
+| Infrastructure repos          | kebab + `.repository.ts`                          | `badge.repository.ts`                                               |
+| Infrastructure adapters       | kebab + `.adapter.ts`                             | `attention-signals.adapter.ts`, `db-user-lookup.adapter.ts`         |
+| Infrastructure mappers        | kebab + `.mapper.ts`                              | `goal.mapper.ts`                                                    |
+| Infrastructure jobs           | kebab + `.job.ts`                                 | `purge-expired-reviews.job.ts`                                      |
+| Infrastructure event handlers | kebab + directory name                            | `on-review-created.ts`                                              |
+| Server functions              | kebab-case                                        | `attention-signals.ts`, `auth-settings.ts`                          |
+| Build function                | always `build.ts`                                 | `build.ts`                                                          |
+| Schema                        | kebab + `.schema.ts` (single word: dot-separated) | `property.schema.ts`, `google-connection.schema.ts`                 |
+
+### 8.2 Test file naming
+
+Test files SHALL mirror the source file name with `.test.ts` / `.test.tsx` appended:
+
+| Source                  | Test                         |
+| ----------------------- | ---------------------------- |
+| `constructors.ts`       | `constructors.test.ts`       |
+| `get-dashboard-data.ts` | `get-dashboard-data.test.ts` |
+| `review.repository.ts`  | `review.repository.test.ts`  |
+
+### 8.3 Factory declaration style
+
+All infrastructure factories (repos, adapters, mappers, job handlers) SHALL use arrow-const:
+
+```ts
+// CORRECT — arrow const
+export const createReviewRepository = (db: Database): ReviewRepository => ({
+  findById: async (id) => { ... },
+})
+
+// CORRECT — arrow const with intermediate statements
+export const createBetterAuthIdentityAdapter = (db: Database): IdentityPort => {
+  const auth = getAuth()
+  return { ... }
+}
+
+// WRONG — function declaration (inconsistent with codebase convention)
+export function createReviewRepository(db: Database): ReviewRepository {
+  return { ... }
+}
+```
+
+**Exception:** Domain constructors (`createBadgeDefinition`, `createActivityLog`, etc.) MAY use `export function` — they create domain entities, not infrastructure wiring.
+
+---
+
 ## Related
 
 - ADR 0010: Activity Context BullMQ Delivery
