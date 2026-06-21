@@ -1,14 +1,11 @@
 import { Copy } from 'lucide-react'
+import { copyToClipboard } from '#/lib/clipboard'
 
 export function CopyButton({ text }: { text: string }) {
   const handleCopy = async () => {
-    try {
-      const fullUrl =
-        typeof window !== 'undefined' ? `${window.location.origin}${text}` : text
-      await navigator.clipboard.writeText(fullUrl)
-    } catch {
-      // fallback
-    }
+    const fullUrl =
+      typeof window !== 'undefined' ? `${window.location.origin}${text}` : text
+    await copyToClipboard(fullUrl)
   }
   return (
     <button

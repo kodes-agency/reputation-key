@@ -49,6 +49,7 @@ type Props = Readonly<{
 export function PortalDetailPage({
   portal,
   organizationName,
+  propertySlug,
   propertyId,
   categories,
   links,
@@ -143,7 +144,7 @@ export function PortalDetailPage({
       )}
 
       {currentTab === 'share' && (
-        <PortalShare portalSlug={portal.slug} propertySlug={portal.slug} />
+        <PortalShare portalSlug={portal.slug} propertySlug={propertySlug} />
       )}
 
       {currentTab === 'analytics' && (
