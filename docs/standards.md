@@ -224,7 +224,7 @@ Add only when the context genuinely has them:
 
 These do NOT belong in CONTEXT.md (move to appropriate location):
 
-- **Language / Example dialogue** → belongs in AGENTS.md or prompt engineering docs
+- **Language / Example dialogue** → belongs in prompt engineering docs, not the codebase
 - **Flagged ambiguities** → resolve or log as GitHub Issues
 - **Intentional deviations** → belongs in ADRs
 - **Dependencies (inbound/outbound)** → "Events consumed" + "Ports" already cover this
@@ -332,6 +332,37 @@ export function createReviewRepository(db: Database): ReviewRepository {
 ```
 
 **Exception:** Domain constructors (`createBadgeDefinition`, `createActivityLog`, etc.) MAY use `export function` — they create domain entities, not infrastructure wiring.
+
+## 9. Code Quality Tooling (Fallow)
+
+Fallow (dead-code, complexity, boundaries) is a devDependency. Config + regression baseline: `.fallowrc.json` (audit.gate: new-only).
+
+Self-check a changeset before committing:
+
+```bash
+pnpm exec fallow dead-code --changed-since origin/main --format json
+```
+
+Clean → proceed. A newly-orphaned export/file → remove it, but **confirm reachability first** with `pnpm exec fallow dead-code --trace <file>:<export> --format json`. Never delete to silence a finding.
+
+**CI gate:** `.github/workflows/fallow.yml` runs `fallow audit --gate new-only` on every PR — the shared source of truth. It fails only on issues a PR introduces; the regression baseline never blocks.
+
+**WIP caution:** the baseline may include unused exports/files in active work. Do not delete flagged WIP symbols without a `trace` confirming they are truly dead. Prefer `@expected-unused` or leave them for the feature to complete.
+
+---
+
+## Documentation map
+
+Co-located context files in the source tree:
+
+- Root: `CONTEXT.md` — glossary, architecture overview, pointers to layer docs
+- Components: `src/components/CONTEXT.md` — folder structure, naming, forms, hooks
+- Contexts: `src/contexts/CONTEXT.md` — layers, use cases, server functions, dependency rules
+- Shared: `src/shared/CONTEXT.md` — auth, cache, observability, testing
+- Routes: `src/routes/CONTEXT.md` — loaders, mutations, auth guards, staleTime
+- Plan: `docs/plan/plan.md` — remaining phases
+- ADRs: `docs/adr/`
+- Auth migrations: `docs/auth-migrations.md`
 
 ---
 

@@ -48,3 +48,16 @@ witness/
 
 # test coverage (generated)
 /coverage/
+
+# AI tooling output (regenerable; never commit)
+graphify-out/
+.hermes/
+.kilocode/
+.impeccable/
+.archon/
+.claude/
+.agents/
+skills-lock.json
+
+# Historical AI review output (regenerable; never commit)
+docs/reviews/
