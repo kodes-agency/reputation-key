@@ -1,243 +1,486 @@
-// Inbox context — inbox repository tests
-// No DB test infrastructure exists in this project (no testcontainers or test DB helpers).
-// These tests verify that the repository factory function compiles correctly against
-// the InboxRepository port interface — i.e., structural typing is satisfied.
+// Inbox context — inbox repository integration tests
+// Per architecture: integration tests against real Postgres.
+// Tenant isolation test is NON-NEGOTIABLE.
 
-import { describe, it, expect } from 'vitest'
-import type { InboxRepository } from '../../application/ports/inbox.repository'
-import type { Database } from '#/shared/db'
+import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest'
 import { createInboxRepository } from './inbox.repository'
-import type { InboxItem } from '../../domain/types'
-import type {
-  InboxItemId,
-  OrganizationId,
-  PropertyId,
-  ReviewId,
-  FeedbackId,
+import type { ReviewLookupPort } from '../../application/ports/review-lookup.port'
+import type { FeedbackLookupPort } from '../../application/ports/feedback-lookup.port'
+import type { PropertyLookupPort } from '../../application/ports/property-lookup.port'
+import { getDb } from '#/shared/db'
+import {
+  inboxItemId,
+  organizationId,
+  propertyId,
+  reviewId,
+  feedbackId,
+  userId,
 } from '#/shared/domain/ids'
+import type { InboxItem } from '../../domain/types'
 
-// Simple mock db — we only need to verify the factory returns the right shape
-function createMockDb() {
-  return {
-    select: () => ({
-      from: () => ({
-        where: () => ({
-          limit: () => Promise.resolve([]),
-          orderBy: () => ({
-            limit: () => Promise.resolve([]),
-          }),
-        }),
-      }),
-    }),
-    insert: () => ({
-      values: () => ({
-        returning: () => Promise.resolve([]),
-        onConflictDoUpdate: () => ({
-          returning: () => Promise.resolve([]),
-        }),
-      }),
-    }),
-    update: () => ({
-      set: () => ({
-        where: () => ({
-          returning: () => Promise.resolve([]),
-        }),
-      }),
-    }),
-  } as unknown as Database
+import { Pool } from 'pg'
+import { getEnv } from '#/shared/config/env'
+
+const ORG_A = organizationId('org-inbox-test-aaaa-1111111111111111')
+const ORG_B = organizationId('org-inbox-test-bbbb-2222222222222222')
+const PROP_A = propertyId('1a000000-0000-0000-0000-000000000001')
+const PROP_B = propertyId('1b000000-0000-0000-0000-000000000002')
+const USER_A = userId('user-inbox-test-aaaa-1111111111111111')
+const REVIEW_ID_A = '11111111-1111-1111-1111-111111111111'
+
+let pool: Pool
+const db = getDb()
+
+// Stub lookup ports — inbox repo owns the SQL, these just provide enrichment data
+const stubPorts = {
+  reviewLookup: {
+    getReviewSnippetById: async () => null,
+    getReviewSnippetsByIds: async () => new Map(),
+  } satisfies ReviewLookupPort,
+  feedbackLookup: {
+    getFeedbackSnippetById: async () => null,
+  } satisfies FeedbackLookupPort,
+  propertyLookup: {
+    getPropertyNameById: async () => null,
+    getPropertyNamesByIds: async () => new Map(),
+  } satisfies PropertyLookupPort,
 }
 
-// In-memory repo for testing findDetailById behavior
-function createInMemoryInboxRepo(): InboxRepository {
-  const items: InboxItem[] = []
+// ── Helpers ──────────────────────────────────────────────────────────
 
+function makeInboxItem(overrides: Partial<InboxItem> = {}): InboxItem {
+  const now = new Date()
   return {
-    findById: async (id, orgId) =>
-      items.find((i) => i.id === id && i.organizationId === orgId) ?? null,
-    findBySource: async () => null,
-    findFilteredPaginated: async () => ({ items: [], nextCursor: null }),
-    create: async (item) => {
-      items.push(item)
-      return item
-    },
-    updateStatus: async (id, orgId, status) => {
-      const item = items.find((i) => i.id === id && i.organizationId === orgId)
-      if (!item) throw new Error('Not found')
-      return { ...item, status }
-    },
-    bulkUpdateStatus: async (ids, orgId, status) => {
-      let updated = 0
-      for (const id of ids) {
-        const idx = items.findIndex((i) => i.id === id && i.organizationId === orgId)
-        if (idx !== -1) {
-          items[idx] = { ...items[idx], status }
-          updated++
-        }
-      }
-      return { updated }
-    },
-    updateAssignment: async (id, orgId, assignedTo) => {
-      const item = items.find((i) => i.id === id && i.organizationId === orgId)
-      if (!item) throw new Error('Not found')
-      return { ...item, assignedTo }
-    },
-    countByStatus: async () => 0,
-    syncDenormalizedFields: async () => {},
-    findByIds: async () => [],
-    findDetailById: async (id, orgId) => {
-      const item = items.find((i) => i.id === id && i.organizationId === orgId)
-      if (!item) return null
-      if (item.sourceType === 'review') {
-        return {
-          item: { ...item, reviewerName: 'Test Reviewer' },
-          reviewText: 'Test review text',
-          reviewerProfilePhotoUrl: null,
-          feedbackComment: null,
-          feedbackRatingValue: null,
-        }
-      }
-      return {
-        item,
-        reviewText: null,
-        reviewerProfilePhotoUrl: null,
-        feedbackComment: 'Test feedback comment',
-        feedbackRatingValue: item.rating,
-      }
-    },
+    id: inboxItemId(crypto.randomUUID()),
+    organizationId: ORG_A,
+    propertyId: PROP_A,
+    sourceType: 'review',
+    sourceId: reviewId(crypto.randomUUID()),
+    status: 'new',
+    rating: 4,
+    sourceDate: now,
+    platform: 'google',
+    snippet: 'Great service',
+    assignedTo: null,
+    reviewerName: 'John Doe',
+    propertyName: 'Test Hotel',
+    readAt: null,
+    escalatedAt: null,
+    addressedAt: null,
+    archivedAt: null,
+    firstReplySubmittedAt: null,
+    firstReplyPublishedAt: null,
+    createdAt: now,
+    updatedAt: now,
+    ...overrides,
   }
 }
 
-describe('createInboxRepository', () => {
-  it('returns an object satisfying InboxRepository', () => {
-    const db = createMockDb()
-    const noopPorts = {
-      reviewLookup: {
-        getReviewSnippetById: async () => null,
-        getReviewSnippetsByIds: async () => new Map(),
-      },
-      feedbackLookup: { getFeedbackSnippetById: async () => null },
-      propertyLookup: {
-        getPropertyNameById: async () => null,
-        getPropertyNamesByIds: async () => new Map(),
-      },
-    }
-    const repo = createInboxRepository(db, noopPorts)
+async function truncateInbox(pool: Pool) {
+  await pool.query('DELETE FROM inbox_items WHERE organization_id IN ($1, $2)', [
+    ORG_A as string,
+    ORG_B as string,
+  ])
+}
 
-    // Verify all port methods exist
+async function seedOrgs(pool: Pool, ids: string[]) {
+  for (const id of ids) {
+    const slug = 't-' + id.replace(/-/g, '').slice(-12)
+    await pool.query(
+      `INSERT INTO organization (id, name, slug, "createdAt")
+       VALUES ($1, $2, $3, NOW())
+       ON CONFLICT (id) DO UPDATE SET slug = EXCLUDED.slug, name = EXCLUDED.name`,
+      [id, `Test Org ${slug}`, slug],
+    )
+  }
+}
+
+async function seedProperties(pool: Pool) {
+  const props = [
+    { id: PROP_A as string, org: ORG_A as string, slug: 'inbox-test-prop-a' },
+    { id: PROP_B as string, org: ORG_B as string, slug: 'inbox-test-prop-b' },
+  ]
+  for (const p of props) {
+    await pool.query(
+      `INSERT INTO properties (id, organization_id, name, slug, timezone, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, 'UTC', NOW(), NOW())
+       ON CONFLICT (id) DO NOTHING`,
+      [p.id, p.org, `Test Property ${p.slug}`, p.slug],
+    )
+  }
+}
+
+async function seedReviews(pool: Pool) {
+  await pool.query(
+    `INSERT INTO reviews (id, organization_id, property_id, external_id, external_location_id, platform, rating, text, reviewer_name, reviewed_at, expires_at, created_at, updated_at)
+     VALUES ($1, $2, $3, 'ext-rev-001', 'ext-loc-001', 'google', 4, 'Great service', 'John Doe', NOW(), NOW() + INTERVAL '1 year', NOW(), NOW())
+     ON CONFLICT (platform, external_id, organization_id) DO NOTHING`,
+    [REVIEW_ID_A, ORG_A as string, PROP_A as string],
+  )
+}
+
+// ── Setup / Teardown ────────────────────────────────────────────────
+
+beforeAll(async () => {
+  const env = getEnv()
+  pool = new Pool({ connectionString: env.DATABASE_URL, max: 2 })
+
+  await seedOrgs(pool, [ORG_A as string, ORG_B as string])
+  await seedProperties(pool)
+  await seedReviews(pool)
+})
+
+beforeEach(async () => {
+  await truncateInbox(pool)
+})
+
+afterAll(async () => {
+  await truncateInbox(pool)
+  await pool.end()
+})
+
+// ── Tests ───────────────────────────────────────────────────────────
+
+describe('createInboxRepository', () => {
+  const repo = createInboxRepository(db, stubPorts)
+
+  it('returns an object satisfying InboxRepository', () => {
+    expect(repo).toBeDefined()
     expect(typeof repo.findById).toBe('function')
-    expect(typeof repo.findBySource).toBe('function')
-    expect(typeof repo.findFilteredPaginated).toBe('function')
     expect(typeof repo.create).toBe('function')
     expect(typeof repo.updateStatus).toBe('function')
-    expect(typeof repo.bulkUpdateStatus).toBe('function')
-    expect(typeof repo.updateAssignment).toBe('function')
-    expect(typeof repo.countByStatus).toBe('function')
-    expect(typeof repo.syncDenormalizedFields).toBe('function')
-    expect(typeof repo.findDetailById).toBe('function')
-  })
-
-  it('factory return type satisfies InboxRepository (compile-time check)', () => {
-    const db = createMockDb()
-    const noopPorts = {
-      reviewLookup: {
-        getReviewSnippetById: async () => null,
-        getReviewSnippetsByIds: async () => new Map(),
-      },
-      feedbackLookup: { getFeedbackSnippetById: async () => null },
-      propertyLookup: {
-        getPropertyNameById: async () => null,
-        getPropertyNamesByIds: async () => new Map(),
-      },
-    }
-    const repo: InboxRepository = createInboxRepository(db, noopPorts)
-    // If this compiles, the factory output matches the port interface
-    expect(repo).toBeDefined()
   })
 })
 
-describe('in-memory inbox repository', () => {
-  it('findDetailById returns review source data for review items', async () => {
-    const repo = createInMemoryInboxRepo()
-    const item: InboxItem = {
-      id: 'item-1' as InboxItemId,
-      organizationId: 'org-1' as OrganizationId,
-      propertyId: 'prop-1' as PropertyId,
-      sourceType: 'review',
-      sourceId: 'review-1' as ReviewId,
-      status: 'new',
-      rating: 4,
-      snippet: 'Great place',
-      sourceDate: new Date(),
-      platform: 'google',
-      assignedTo: null,
-      reviewerName: null,
-      propertyName: null,
-      readAt: null,
-      escalatedAt: null,
-      addressedAt: null,
-      archivedAt: null,
-      firstReplySubmittedAt: null,
-      firstReplyPublishedAt: null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    }
-    await repo.create(item, 'org-1' as OrganizationId)
+describe('inbox repository — CRUD', () => {
+  const repo = createInboxRepository(db, stubPorts)
 
-    const result = await repo.findDetailById(
-      'item-1' as InboxItemId,
-      'org-1' as OrganizationId,
-    )
+  it('creates and finds an inbox item by id', async () => {
+    const item = makeInboxItem()
+    await repo.create(item, ORG_A)
 
-    expect(result).not.toBeNull()
-    expect(result?.item.reviewerName).toBe('Test Reviewer')
-    expect(result?.reviewText).toBe('Test review text')
-    expect(result?.feedbackComment).toBeNull()
+    const found = await repo.findById(item.id, ORG_A)
+    expect(found).not.toBeNull()
+    expect(found!.id).toBe(item.id)
+    expect(found!.status).toBe('new')
+    expect(found!.rating).toBe(4)
+    expect(found!.reviewerName).toBe('John Doe')
   })
 
-  it('findDetailById returns feedback source data for feedback items', async () => {
-    const repo = createInMemoryInboxRepo()
-    const item: InboxItem = {
-      id: 'item-2' as InboxItemId,
-      organizationId: 'org-1' as OrganizationId,
-      propertyId: 'prop-1' as PropertyId,
-      sourceType: 'feedback',
-      sourceId: 'feedback-1' as FeedbackId,
-      status: 'new',
-      rating: null,
-      snippet: 'Nice service',
-      sourceDate: new Date(),
-      platform: null,
-      assignedTo: null,
-      reviewerName: null,
-      propertyName: null,
-      readAt: null,
-      escalatedAt: null,
-      addressedAt: null,
-      archivedAt: null,
-      firstReplySubmittedAt: null,
-      firstReplyPublishedAt: null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    }
-    await repo.create(item, 'org-1' as OrganizationId)
+  it('findById returns null for non-existent id', async () => {
+    const found = await repo.findById(inboxItemId(crypto.randomUUID()), ORG_A)
+    expect(found).toBeNull()
+  })
 
-    const result = await repo.findDetailById(
-      'item-2' as InboxItemId,
-      'org-1' as OrganizationId,
+  it('findByIds returns multiple items', async () => {
+    const item1 = makeInboxItem({ sourceId: reviewId(crypto.randomUUID()) })
+    const item2 = makeInboxItem({ sourceId: reviewId(crypto.randomUUID()) })
+    await repo.create(item1, ORG_A)
+    await repo.create(item2, ORG_A)
+
+    const found = await repo.findByIds([item1.id, item2.id], ORG_A)
+    expect(found).toHaveLength(2)
+  })
+
+  it('findBySource finds item by source type + source id', async () => {
+    const srcId = feedbackId(crypto.randomUUID())
+    const item = makeInboxItem({ sourceType: 'feedback', sourceId: srcId })
+    await repo.create(item, ORG_A)
+
+    const found = await repo.findBySource('feedback', srcId as string, ORG_A)
+    expect(found).not.toBeNull()
+    expect(found!.id).toBe(item.id)
+  })
+
+  it('findBySource returns null for wrong source type', async () => {
+    const item = makeInboxItem({
+      sourceType: 'review',
+      sourceId: reviewId(crypto.randomUUID()),
+    })
+    await repo.create(item, ORG_A)
+    const found = await repo.findBySource('feedback', item.sourceId as string, ORG_A)
+    expect(found).toBeNull()
+  })
+})
+
+describe('inbox repository — status transitions', () => {
+  const repo = createInboxRepository(db, stubPorts)
+
+  it('updates status from new to addressed', async () => {
+    const item = makeInboxItem()
+    await repo.create(item, ORG_A)
+
+    const now = new Date()
+    const updated = await repo.updateStatus(
+      item.id,
+      ORG_A,
+      'addressed',
+      { addressedAt: now },
+      now,
+    )
+    expect(updated.status).toBe('addressed')
+    expect(updated.addressedAt).toEqual(now)
+  })
+
+  it('updates status from new to escalated', async () => {
+    const item = makeInboxItem()
+    await repo.create(item, ORG_A)
+
+    const now = new Date()
+    const updated = await repo.updateStatus(
+      item.id,
+      ORG_A,
+      'escalated',
+      { escalatedAt: now },
+      now,
+    )
+    expect(updated.status).toBe('escalated')
+  })
+
+  it('updates status from new to archived', async () => {
+    const item = makeInboxItem()
+    await repo.create(item, ORG_A)
+
+    const now = new Date()
+    const updated = await repo.updateStatus(
+      item.id,
+      ORG_A,
+      'archived',
+      { archivedAt: now },
+      now,
+    )
+    expect(updated.status).toBe('archived')
+  })
+
+  it('bulkUpdateStatus updates multiple items', async () => {
+    const item1 = makeInboxItem({ sourceId: reviewId(crypto.randomUUID()) })
+    const item2 = makeInboxItem({ sourceId: reviewId(crypto.randomUUID()) })
+    await repo.create(item1, ORG_A)
+    await repo.create(item2, ORG_A)
+
+    const now = new Date()
+    const result = await repo.bulkUpdateStatus(
+      [item1.id, item2.id],
+      ORG_A,
+      'addressed',
+      { addressedAt: now },
+      now,
+    )
+    expect(result.updated).toBe(2)
+
+    const found1 = await repo.findById(item1.id, ORG_A)
+    expect(found1!.status).toBe('addressed')
+  })
+})
+
+describe('inbox repository — assignment', () => {
+  const repo = createInboxRepository(db, stubPorts)
+
+  it('assigns an item to a user', async () => {
+    const item = makeInboxItem()
+    await repo.create(item, ORG_A)
+
+    const updated = await repo.updateAssignment(item.id, ORG_A, USER_A)
+    expect(updated.assignedTo).toBe(USER_A)
+  })
+
+  it('unassigns an item', async () => {
+    const item = makeInboxItem({ assignedTo: USER_A })
+    await repo.create(item, ORG_A)
+
+    const updated = await repo.updateAssignment(item.id, ORG_A, null)
+    expect(updated.assignedTo).toBeNull()
+  })
+})
+
+describe('inbox repository — count by status', () => {
+  const repo = createInboxRepository(db, stubPorts)
+
+  it('counts items by status', async () => {
+    await repo.create(
+      makeInboxItem({ sourceId: reviewId(crypto.randomUUID()), status: 'new' }),
+      ORG_A,
+    )
+    await repo.create(
+      makeInboxItem({ sourceId: reviewId(crypto.randomUUID()), status: 'new' }),
+      ORG_A,
+    )
+    await repo.create(
+      makeInboxItem({ sourceId: reviewId(crypto.randomUUID()), status: 'addressed' }),
+      ORG_A,
     )
 
-    expect(result).not.toBeNull()
-    expect(result?.feedbackComment).toBe('Test feedback comment')
-    expect(result?.item.reviewerName).toBeNull()
-    expect(result?.reviewText).toBeNull()
+    const newCount = await repo.countByStatus(ORG_A, 'new')
+    expect(newCount).toBe(2)
+
+    const addressedCount = await repo.countByStatus(ORG_A, 'addressed')
+    expect(addressedCount).toBe(1)
+  })
+})
+
+describe('inbox repository — pagination', () => {
+  const repo = createInboxRepository(db, stubPorts)
+
+  it('returns paginated results with cursor', async () => {
+    // Create 5 items with different source dates
+    for (let i = 0; i < 5; i++) {
+      const date = new Date(2026, 0, i + 1) // Jan 1-5, 2026
+      await repo.create(
+        makeInboxItem({
+          sourceId: reviewId(crypto.randomUUID()),
+          sourceDate: date,
+        }),
+        ORG_A,
+      )
+    }
+
+    // Request first 3
+    const result = await repo.findFilteredPaginated({}, ORG_A, undefined, 3)
+    expect(result.items).toHaveLength(3)
+    expect(result.nextCursor).not.toBeNull()
+
+    // Request next page
+    const page2 = await repo.findFilteredPaginated({}, ORG_A, result.nextCursor!, 3)
+    expect(page2.items).toHaveLength(2)
+    expect(page2.nextCursor).toBeNull()
+  })
+
+  it('filters by property', async () => {
+    await repo.create(makeInboxItem({ sourceId: reviewId(crypto.randomUUID()) }), ORG_A)
+    await repo.create(
+      makeInboxItem({
+        sourceId: reviewId(crypto.randomUUID()),
+        propertyId: propertyId('2a000000-0000-0000-0000-000000000099'),
+      }),
+      ORG_A,
+    )
+
+    const result = await repo.findFilteredPaginated(
+      { propertyId: PROP_A },
+      ORG_A,
+      undefined,
+      50,
+    )
+    expect(result.items).toHaveLength(1)
+  })
+
+  it('filters by status', async () => {
+    await repo.create(
+      makeInboxItem({ sourceId: reviewId(crypto.randomUUID()), status: 'new' }),
+      ORG_A,
+    )
+    await repo.create(
+      makeInboxItem({ sourceId: reviewId(crypto.randomUUID()), status: 'addressed' }),
+      ORG_A,
+    )
+
+    const result = await repo.findFilteredPaginated(
+      { status: 'new' },
+      ORG_A,
+      undefined,
+      50,
+    )
+    expect(result.items).toHaveLength(1)
+    expect(result.items[0]!.status).toBe('new')
+  })
+})
+
+describe('inbox repository — detail view', () => {
+  const repo = createInboxRepository(db, stubPorts)
+
+  it('findDetailById returns review source data for review items', async () => {
+    const item = makeInboxItem({
+      sourceType: 'review',
+      sourceId: reviewId(crypto.randomUUID()),
+    })
+    await repo.create(item, ORG_A)
+
+    const detail = await repo.findDetailById(item.id, ORG_A)
+    expect(detail).not.toBeNull()
+    expect(detail!.item.id).toBe(item.id)
+    expect(detail!.item.sourceType).toBe('review')
   })
 
   it('findDetailById returns null for non-existent item', async () => {
-    const repo = createInMemoryInboxRepo()
-    const result = await repo.findDetailById(
-      'nonexistent' as InboxItemId,
-      'org-1' as OrganizationId,
+    const detail = await repo.findDetailById(inboxItemId(crypto.randomUUID()), ORG_A)
+    expect(detail).toBeNull()
+  })
+})
+
+describe('inbox repository — denormalized field sync', () => {
+  const repo = createInboxRepository(db, stubPorts)
+
+  it('syncDenormalizedFields updates rating and snippet', async () => {
+    const item = makeInboxItem({ rating: 3, snippet: 'Old text' })
+    await repo.create(item, ORG_A)
+
+    await repo.syncDenormalizedFields(item.id, ORG_A, {
+      rating: 5,
+      snippet: 'Updated text',
+      reviewerName: 'Jane Smith',
+    })
+
+    const found = await repo.findById(item.id, ORG_A)
+    expect(found!.rating).toBe(5)
+    expect(found!.snippet).toBe('Updated text')
+    expect(found!.reviewerName).toBe('Jane Smith')
+  })
+})
+
+// ── Tenant isolation ────────────────────────────────────────────────
+
+describe('inbox repository — tenant isolation', () => {
+  const repo = createInboxRepository(db, stubPorts)
+
+  it('findById returns null for different org', async () => {
+    const item = makeInboxItem()
+    await repo.create(item, ORG_A)
+
+    // ORG_B should not see ORG_A's item
+    const found = await repo.findById(item.id, ORG_B)
+    expect(found).toBeNull()
+  })
+
+  it('findBySource returns null for different org', async () => {
+    const item = makeInboxItem({
+      sourceType: 'review',
+      sourceId: reviewId(crypto.randomUUID()),
+    })
+    await repo.create(item, ORG_A)
+
+    const found = await repo.findBySource('review', item.sourceId as string, ORG_B)
+    expect(found).toBeNull()
+  })
+
+  it('findFilteredPaginated returns empty for different org', async () => {
+    await repo.create(makeInboxItem({ sourceId: reviewId(crypto.randomUUID()) }), ORG_A)
+
+    const result = await repo.findFilteredPaginated({}, ORG_B, undefined, 50)
+    expect(result.items).toHaveLength(0)
+  })
+
+  it('updateStatus does not affect different org items', async () => {
+    const item = makeInboxItem()
+    await repo.create(item, ORG_A)
+
+    // ORG_B tries to update ORG_A's item — should throw not_found
+    await expect(
+      repo.updateStatus(item.id, ORG_B, 'addressed', { addressedAt: new Date() }),
+    ).rejects.toThrow()
+  })
+
+  it('countByStatus returns 0 for different org', async () => {
+    await repo.create(
+      makeInboxItem({ sourceId: reviewId(crypto.randomUUID()), status: 'new' }),
+      ORG_A,
     )
-    expect(result).toBeNull()
+
+    const count = await repo.countByStatus(ORG_B, 'new')
+    expect(count).toBe(0)
+  })
+
+  it('create rejects tenant mismatch', async () => {
+    const item = makeInboxItem({ organizationId: ORG_A })
+    await expect(repo.create(item, ORG_B)).rejects.toThrow()
   })
 })
