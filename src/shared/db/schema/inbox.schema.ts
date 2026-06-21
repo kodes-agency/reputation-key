@@ -55,6 +55,12 @@ export const inboxItems = pgTable(
       t.id,
     ),
     index('inbox_items_org_property_idx').on(t.organizationId, t.propertyId),
+    // Composite index for attention signal count queries (org + property + status)
+    index('inbox_items_org_property_status_idx').on(
+      t.organizationId,
+      t.propertyId,
+      t.status,
+    ),
     uniqueIndex('inbox_items_source_unique').on(
       t.sourceType,
       t.sourceId,

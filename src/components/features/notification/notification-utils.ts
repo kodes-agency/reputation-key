@@ -1,4 +1,5 @@
 // Notification UI utilities — route resolver, relative time, icon mapping.
+import { assertNever } from '#/shared/domain/assert'
 
 import {
   Award,
@@ -33,8 +34,10 @@ export function getNotificationUrl(
     case 'goal':
       // Goal resourceId is the property the goal belongs to.
       return `/properties/${resourceId}`
+    case 'badge':
+      return `/settings/recognition`
     default:
-      return '#'
+      return assertNever('notification routing', resourceType)
   }
 }
 

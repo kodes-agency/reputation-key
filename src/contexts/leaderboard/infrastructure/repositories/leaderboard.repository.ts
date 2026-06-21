@@ -333,19 +333,17 @@ export const createLeaderboardRepository = (
       }
     })
 
-    void events
-      .emit(
-        leaderboardSnapshotRefreshed({
-          occurredAt: clock(),
-          organizationId: input.organizationId,
-          propertyId: input.propertyId,
-          period: input.period,
-          scope: input.scope,
-          metricKey: input.metricKey,
-          snapshotId: leaderboardSnapshotId(snapshot.id),
-        }),
-      )
-      .catch(() => undefined)
+    await events.emit(
+      leaderboardSnapshotRefreshed({
+        occurredAt: clock(),
+        organizationId: input.organizationId,
+        propertyId: input.propertyId,
+        period: input.period,
+        scope: input.scope,
+        metricKey: input.metricKey,
+        snapshotId: leaderboardSnapshotId(snapshot.id),
+      }),
+    )
 
     return { entriesWritten: entryRows.length }
   }

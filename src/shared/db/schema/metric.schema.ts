@@ -55,5 +55,13 @@ export const metricReadings = pgTable(
     index('metric_readings_org_property_idx').on(t.organizationId, t.propertyId),
     // F170: Index for portal-scoped metric queries
     index('metric_readings_org_portal_idx').on(t.organizationId, t.portalId),
+    // Composite index for dashboard getSumsByPeriod (org + property + date range)
+    index('metric_readings_org_prop_recorded_idx').on(
+      t.organizationId,
+      t.propertyId,
+      t.occurredAt,
+    ),
+    // Index for portal-group-scoped badge/leaderboard queries
+    index('metric_readings_org_group_idx').on(t.organizationId, t.groupId),
   ],
 )

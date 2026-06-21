@@ -1,6 +1,6 @@
 // Dashboard context — getFleetOverview use case unit tests
 
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { getFleetOverview } from './get-fleet-overview'
 import type { FleetProperty } from './get-fleet-overview'
 import { createInMemoryDashboardRepository } from '#/shared/testing/in-memory-dashboard-repo'
@@ -8,6 +8,10 @@ import { organizationId, propertyId } from '#/shared/domain/ids'
 import type { AttentionSignalsPort } from '../ports/attention-signals.port'
 
 const MS_PER_DAY = 86_400_000
+
+// Fixed time to prevent midnight-boundary flakiness in date range calculations
+beforeEach(() => vi.setSystemTime(new Date('2025-06-15T12:00:00Z')))
+afterEach(() => vi.useRealTimers())
 const ORG = organizationId('org-test')
 const PROP_A: FleetProperty = {
   propertyId: propertyId('a0000000-0000-0000-0000-000000000001'),

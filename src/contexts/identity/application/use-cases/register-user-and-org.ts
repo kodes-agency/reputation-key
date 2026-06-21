@@ -83,9 +83,12 @@ export const registerUserAndOrg =
       // Compensating transaction: remove the orphaned user
       try {
         await deps.deleteUser(userId)
-      } catch {
-        // Best effort — log but don't mask the original error
-        // (In production, this should trigger an alert for manual cleanup)
+      } catch (cleanupErr) {
+        // Compensating transaction failed — orphaned user requires manual cleanup
+        console.error(
+          '[auth] COMPENSATING TX FAILED: orphaned user requires manual cleanup',
+          { orphanedUserId: userId, originalError: e, cleanupError: cleanupErr },
+        )
       }
       throw identityError(
         'org_setup_failed',

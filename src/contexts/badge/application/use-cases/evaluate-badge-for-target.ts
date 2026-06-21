@@ -114,9 +114,7 @@ export async function evaluateBadgeDefinitionForTarget(
   }
 
   const inserted = await deps.badgeRepo.insertAward(award)
-  void deps.events
-    .emit(badgeAwarded({ occurredAt: deps.clock(), ...inserted }))
-    .catch(() => undefined)
+  await deps.events.emit(badgeAwarded({ occurredAt: deps.clock(), ...inserted }))
 
   return { awarded: true, award: inserted, definition }
 }

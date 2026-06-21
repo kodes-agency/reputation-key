@@ -109,6 +109,19 @@ export const signInUser = createServerFn({ method: 'POST' })
           const { getLogger } = await import('#/shared/observability/logger')
           const { maskEmail } = await import('#/shared/observability/pii')
           getLogger().warn({ email: maskEmail(data.email), err: e }, 'Sign-in failed')
+          // Distinguish infrastructure errors (5xx) from auth errors (401).
+          // better-auth APIError carries a statusCode property.
+          const statusCode = (e as { statusCode?: number }).statusCode
+          if (statusCode && statusCode >= 500) {
+            throwContextError(
+              'AuthError',
+              {
+                code: 'server_error',
+                message: 'Sign-in temporarily unavailable. Please try again.',
+              },
+              statusCode,
+            )
+          }
           throwContextError(
             'AuthError',
             { code: 'invalid_credentials', message: 'Invalid email or password' },

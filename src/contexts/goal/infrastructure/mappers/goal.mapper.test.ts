@@ -160,12 +160,6 @@ describe('goalProgressFromRow', () => {
     expect(String(progress.organizationId)).toBe('org-uuid-001')
   })
 
-  it('handles null organizationId', () => {
-    const row = { ...sampleProgressRow, organizationId: null }
-    const progress = goalProgressFromRow(row)
-    expect(progress.organizationId).toBeNull()
-  })
-
   it('handles null currentSum and currentCount', () => {
     const row: GoalProgressRow = {
       ...sampleProgressRow,

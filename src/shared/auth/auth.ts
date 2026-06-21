@@ -14,7 +14,11 @@ import { organization } from 'better-auth/plugins'
 import { tanstackStartCookies } from 'better-auth/tanstack-start'
 import { getEnv } from '#/shared/config/env'
 import { getPool } from '#/shared/db/pool'
-import { sendResetPasswordEmail, sendInvitationEmail } from './emails'
+import {
+  sendResetPasswordEmail,
+  sendInvitationEmail,
+  sendVerificationEmail,
+} from './emails'
 import { organizationSchema } from './org-schema'
 import { ac, owner, admin, memberRole } from './permissions'
 
@@ -56,24 +60,28 @@ export function createAuth() {
       //   1. Verify Resend domain ownership (currently using sandbox)
       //   2. Test sendVerificationEmail flow end-to-end
       //   3. Update login/register UX to show "check your email" state
-      //   4. Add email verification reminder UI for unverified users
-      // Once ready, flip to: requireEmailVerification: true
-      // FUTURE: Enable after:
-      //   1. Run scripts/migrations/verify-existing-emails.sql to set emailVerified=true for all existing users
+      // Email verification: gated behind env var. Enable in production after:
+      //   1. Run scripts/migrations/verify-existing-emails.sql
       //   2. Confirm Resend domain verification is complete
-      //   3. Test full signup → verify → sign-in flow
-      requireEmailVerification: false,
+      //   3. Set EMAIL_VERIFICATION_REQUIRED=true in env
+      requireEmailVerification: process.env.EMAIL_VERIFICATION_REQUIRED === 'true',
       sendResetPassword: async ({ user, url }) => {
         await sendResetPasswordEmail(user.email, url)
       },
     },
-    // Email verification config — uncomment and enable once prerequisites above are met:
-    // emailVerification: {
-    //   sendOnSignUp: true,
-    //   sendVerificationEmail: async ({ user, url }) => {
-    //     await sendVerificationEmail(user.email, url)
-    //   },
-    // },
+    emailVerification: {
+      sendOnSignUp: true,
+      sendVerificationEmail: async ({ user, url }) => {
+        await sendVerificationEmail(user.email, url)
+      },
+    },
+    advanced: {
+      defaultCookieAttributes: {
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        httpOnly: true,
+      },
+    },
     session: {
       expiresIn: SESSION_EXPIRY_SECONDS, // 30 days
       updateAge: SESSION_UPDATE_AGE_SECONDS, // Rolling update every 24 hours
@@ -101,11 +109,8 @@ export function createAuth() {
           enabled: false,
         },
         invitationExpiresIn: INVITATION_EXPIRY_SECONDS, // 7 days
-        // Match the app's verification-off stance (requireEmailVerification: false
-        // above). Without this, better-auth defaults to requiring email
-        // verification on invitation acceptance — inconsistent with the rest of
-        // the app and blocking accept for unverified invitees.
-        requireEmailVerificationOnInvitation: false,
+        requireEmailVerificationOnInvitation:
+          process.env.EMAIL_VERIFICATION_REQUIRED === 'true',
         // Custom fields on invitation (propertyIds) and organization (billing/SLA).
         // Shared with auth-cli.ts via ./org-schema so the migration CLI manages
         // the same columns as the runtime (prevents drift).

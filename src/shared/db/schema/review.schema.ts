@@ -65,6 +65,13 @@ export const reviews = pgTable(
     index('reviews_property_idx').on(t.propertyId),
     index('reviews_org_idx').on(t.organizationId),
     index('reviews_expires_idx').on(t.expiresAt),
+    // Composite index for dashboard review aggregation queries
+    index('reviews_org_property_reviewed_idx').on(
+      t.organizationId,
+      t.propertyId,
+      t.reviewedAt,
+    ),
+    index('reviews_google_connection_idx').on(t.googleConnectionId),
   ],
 )
 

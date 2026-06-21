@@ -54,7 +54,7 @@ function makeProgress(overrides: Partial<GoalProgress> = {}): GoalProgress {
   return {
     id: goalProgressId('progress-1'),
     goalId: goalId('goal-1'),
-    organizationId: null,
+    organizationId: organizationId('org-1'),
     currentValue: 0,
     currentSum: null,
     currentCount: null,

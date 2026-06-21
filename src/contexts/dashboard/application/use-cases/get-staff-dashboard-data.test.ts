@@ -1,6 +1,6 @@
 // Dashboard context — getStaffDashboardData use case unit tests
 
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { getStaffDashboardData } from './get-staff-dashboard-data'
 import { createInMemoryDashboardRepository } from '#/shared/testing/in-memory-dashboard-repo'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
@@ -10,6 +10,10 @@ import type { StaffPortalResolverPort } from '../ports/staff-portal-resolver.por
 import type { AuthContext } from '#/shared/domain/auth-context'
 
 const MS_PER_DAY = 86_400_000
+
+// Fixed time to prevent midnight-boundary flakiness in date range calculations
+beforeEach(() => vi.setSystemTime(new Date('2025-06-15T12:00:00Z')))
+afterEach(() => vi.useRealTimers())
 
 const ORG_A = organizationId('org-test')
 const PROP_A = propertyId('a0000000-0000-0000-0000-000000000001')

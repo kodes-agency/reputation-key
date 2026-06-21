@@ -30,6 +30,7 @@ export const scanEvents = pgTable(
   },
   (t) => ({
     sessionIdx: index('scan_events_session_idx').on(t.sessionId),
+    portalIdx: index('scan_events_portal_idx').on(t.portalId),
   }),
 )
 
@@ -53,6 +54,7 @@ export const ratings = pgTable(
       t.sessionId,
       t.portalId,
     ),
+    portalIdx: index('ratings_portal_idx').on(t.portalId),
   }),
 )
 
@@ -78,5 +80,6 @@ export const feedback = pgTable(
       t.sessionId,
       t.portalId,
     ),
+    portalIdx: index('feedback_portal_idx').on(t.portalId),
   }),
 )

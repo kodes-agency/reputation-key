@@ -1,6 +1,7 @@
 // Goal context — create-goal use case
 // Validates input, builds domain object, persists, computes initial progress.
 // Per architecture: "Dependencies are passed as function arguments."
+import { assertNever } from '#/shared/domain/assert'
 
 import type { GoalRepository } from '../ports/goal.repository'
 import type {
@@ -327,5 +328,7 @@ function computeValue(
       return aggregate.max
     case 'avg':
       return aggregate.count > 0 ? aggregate.sum / aggregate.count : 0
+    default:
+      assertNever('aggregation', agg)
   }
 }

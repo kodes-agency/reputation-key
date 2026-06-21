@@ -185,7 +185,14 @@ const sendOrgDigest = async (
 
   const byUser = groupEntriesByUser(pending)
   for (const [uid, entries] of byUser) {
-    await sendUserDigest(deps, organizationId, uid, entries)
+    try {
+      await sendUserDigest(deps, organizationId, uid, entries)
+    } catch (err) {
+      deps.logger.error(
+        { err, organizationId, userId: uid },
+        'digest-notification: sendUserDigest failed — continuing to next user',
+      )
+    }
   }
 }
 
@@ -198,9 +205,19 @@ export const createDigestNotificationJobHandler = (deps: DigestDeps) => {
     const qualifyingOrgIds = selectDigestOrgs(rows)
     if (qualifyingOrgIds.size === 0) return
 
-    // 3. Send each qualifying org's digests
+    // 3. Send each qualifying org's digests.
+    // Per-org isolation: one org's failure must not prevent other orgs from
+    // receiving their digest, and must not cause retries that re-send to
+    // already-succeeded orgs (duplicate emails).
     for (const rawOrgId of qualifyingOrgIds) {
-      await sendOrgDigest(deps, orgId(rawOrgId))
+      try {
+        await sendOrgDigest(deps, orgId(rawOrgId))
+      } catch (err) {
+        deps.logger.error(
+          { err, organizationId: rawOrgId },
+          'digest-notification: org digest failed — continuing to next org',
+        )
+      }
     }
   }
 }

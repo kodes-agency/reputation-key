@@ -74,7 +74,7 @@ function makeFakeDeps() {
         p = {
           id: `progress-${++progressCounter}` as unknown as GoalProgressId,
           goalId: goalId,
-          organizationId: null,
+          organizationId: organizationId('org-1'),
           currentValue: 0,
           currentSum: null,
           currentCount: null,

@@ -1,45 +1,65 @@
 // Dashboard context — getPortalAnalytics use case unit tests
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { getPortalAnalytics } from './get-portal-analytics'
 import type { PortalMetricsPort } from '../ports/portal-metrics.port'
 import { createInMemoryDashboardRepository } from '#/shared/testing/in-memory-dashboard-repo'
 import { organizationId, propertyId, portalId } from '#/shared/domain/ids'
 import type { PortalAnalyticsData } from '../../domain/types'
 
+// Fixed time to prevent midnight-boundary flakiness in date range calculations
+beforeEach(() => vi.setSystemTime(new Date('2025-06-15T12:00:00Z')))
+afterEach(() => vi.useRealTimers())
+
 const ORG = organizationId('org-test')
 const PROP = propertyId('a0000000-0000-0000-0000-000000000001')
 const PORT = portalId('b0000000-0000-0000-0000-000000000001')
 
 function createFakePortalMetrics(overrides?: {
-  kpiSums?: ReturnType<PortalMetricsPort['getPortalKpiSums']> extends Promise<infer T> ? T : never
-  ratingDistribution?: ReturnType<PortalMetricsPort['getPortalRatingDistribution']> extends Promise<infer T> ? T : never
-  ratingTrend?: ReturnType<PortalMetricsPort['getPortalRatingTrend']> extends Promise<infer T> ? T : never
+  kpiSums?: ReturnType<PortalMetricsPort['getPortalKpiSums']> extends Promise<infer T>
+    ? T
+    : never
+  ratingDistribution?: ReturnType<
+    PortalMetricsPort['getPortalRatingDistribution']
+  > extends Promise<infer T>
+    ? T
+    : never
+  ratingTrend?: ReturnType<PortalMetricsPort['getPortalRatingTrend']> extends Promise<
+    infer T
+  >
+    ? T
+    : never
 }): PortalMetricsPort & { calls: string[] } {
   const calls: string[] = []
   return {
     calls,
     async getPortalKpiSums() {
       calls.push('getPortalKpiSums')
-      return overrides?.kpiSums ?? [
-        { metricKey: 'portal.scan', total: 100, count: 10 },
-        { metricKey: 'portal.feedback', total: 20, count: 5 },
-        { metricKey: 'portal.rating', total: 22, count: 5 },
-        { metricKey: 'portal.review_link_click', total: 8, count: 3 },
-      ]
+      return (
+        overrides?.kpiSums ?? [
+          { metricKey: 'portal.scan', total: 100, count: 10 },
+          { metricKey: 'portal.feedback', total: 20, count: 5 },
+          { metricKey: 'portal.rating', total: 22, count: 5 },
+          { metricKey: 'portal.review_link_click', total: 8, count: 3 },
+        ]
+      )
     },
     async getPortalRatingDistribution() {
       calls.push('getPortalRatingDistribution')
-      return overrides?.ratingDistribution ?? [
-        { stars: 5, count: 6 },
-        { stars: 4, count: 3 },
-      ]
+      return (
+        overrides?.ratingDistribution ?? [
+          { stars: 5, count: 6 },
+          { stars: 4, count: 3 },
+        ]
+      )
     },
     async getPortalRatingTrend() {
       calls.push('getPortalRatingTrend')
-      return overrides?.ratingTrend ?? [
-        { date: '2026-05-19', avgRating: 4.2 },
-        { date: '2026-05-20', avgRating: 4.5 },
-      ]
+      return (
+        overrides?.ratingTrend ?? [
+          { date: '2026-05-19', avgRating: 4.2 },
+          { date: '2026-05-20', avgRating: 4.5 },
+        ]
+      )
     },
   }
 }
