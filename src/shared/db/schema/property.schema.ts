@@ -4,6 +4,7 @@
 
 import { sql } from 'drizzle-orm'
 import { createdAtColumn, updatedAtColumn, deletedAtColumn } from '../columns'
+import { googleConnections } from './google-connection.schema'
 import { pgTable, uuid, varchar, index, uniqueIndex } from 'drizzle-orm/pg-core'
 
 export const properties = pgTable(
@@ -15,7 +16,10 @@ export const properties = pgTable(
     slug: varchar('slug', { length: 64 }).notNull(),
     timezone: varchar('timezone', { length: 64 }).notNull(),
     gbpPlaceId: varchar('gbp_place_id', { length: 500 }),
-    googleConnectionId: uuid('google_connection_id'),
+    googleConnectionId: uuid('google_connection_id').references(
+      () => googleConnections.id,
+      { onDelete: 'set null' },
+    ),
     createdAt: createdAtColumn(),
     updatedAt: updatedAtColumn(),
     deletedAt: deletedAtColumn(),

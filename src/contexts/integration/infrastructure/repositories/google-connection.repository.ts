@@ -5,7 +5,10 @@
 import { and, eq, or } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { googleConnections } from '#/shared/db/schema/google-connection.schema'
-import type { GoogleConnectionRepository, ConnectionVisibilityFilter } from '../../application/ports/google-connection.repository'
+import type {
+  GoogleConnectionRepository,
+  ConnectionVisibilityFilter,
+} from '../../application/ports/google-connection.repository'
 import { uniqueViolationError } from '../../application/ports/google-connection.repository'
 import type { PropertyFkCleanupPort } from '../../application/ports/property-fk-cleanup.port'
 import {
@@ -71,7 +74,9 @@ export const createGoogleConnectionRepository = (
         await db.insert(googleConnections).values(googleConnectionToInsert(conn))
       } catch (err) {
         const isPg23505 =
-          err instanceof Error && 'code' in err && (err as { code: string }).code === '23505'
+          err instanceof Error &&
+          'code' in err &&
+          (err as { code: string }).code === '23505'
         if (isPg23505) {
           throw uniqueViolationError(
             `Duplicate google connection for accountId=${conn.googleAccountId}`,
@@ -177,14 +182,19 @@ export const createGoogleConnectionRepository = (
 
   delete: async (orgId, id) => {
     return trace('googleConnection.delete', async () => {
-      // Null out FK references via port — Property table belongs to another context
+      // Null out FK references first (port belongs to another context — no tx passthrough)
       await propertyFkCleanup.clearGoogleConnectionRef(orgId, id)
 
-      await db
-        .delete(googleConnections)
-        .where(
-          and(eq(googleConnections.organizationId, orgId), eq(googleConnections.id, id)),
-        )
+      await db.transaction(async (tx) => {
+        await tx
+          .delete(googleConnections)
+          .where(
+            and(
+              eq(googleConnections.organizationId, orgId),
+              eq(googleConnections.id, id),
+            ),
+          )
+      })
     })
   },
 })

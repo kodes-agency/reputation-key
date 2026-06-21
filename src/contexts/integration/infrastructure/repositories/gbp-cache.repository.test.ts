@@ -80,6 +80,10 @@ async function truncateAll(pool: Pool) {
     PROP_A as string,
     PROP_B as string,
   ])
+  await pool.query('DELETE FROM google_connections WHERE id IN ($1, $2)', [
+    CONNECTION_ID_A as string,
+    CONNECTION_ID_B as string,
+  ])
   await pool.query('DELETE FROM organization WHERE id IN ($1, $2)', [
     ORG_A as string,
     ORG_B as string,
@@ -96,6 +100,13 @@ beforeAll(async () => {
      VALUES ($1, 'Cache Test Org A', 'cache-test-org-aaa', NOW())
      ON CONFLICT (id) DO NOTHING`,
     [ORG_A as string],
+  )
+  // Seed google_connections (FK target for properties.google_connection_id)
+  await pool.query(
+    `INSERT INTO google_connections (id, organization_id, google_account_id, google_email, encrypted_access_token, encrypted_refresh_token, token_expires_at, scopes, connected_by, created_at, updated_at)
+     VALUES ($1, $2, 'test-acct-a', 'test-a@test.com', 'encrypted', 'encrypted', NOW(), ARRAY['https://www.googleapis.com/auth/business.manage'], 'test-user', NOW(), NOW())
+     ON CONFLICT (id) DO NOTHING`,
+    [CONNECTION_ID_A as string, ORG_A as string],
   )
   await pool.query(
     `INSERT INTO properties (id, organization_id, name, slug, timezone, google_connection_id, created_at, updated_at)
@@ -116,6 +127,13 @@ beforeAll(async () => {
      VALUES ($1, 'Cache Test Org B', 'cache-test-org-bbb', NOW())
      ON CONFLICT (id) DO NOTHING`,
     [ORG_B as string],
+  )
+  // Seed google_connection for ORG_B
+  await pool.query(
+    `INSERT INTO google_connections (id, organization_id, google_account_id, google_email, encrypted_access_token, encrypted_refresh_token, token_expires_at, scopes, connected_by, created_at, updated_at)
+     VALUES ($1, $2, 'test-acct-b', 'test-b@test.com', 'encrypted', 'encrypted', NOW(), ARRAY['https://www.googleapis.com/auth/business.manage'], 'test-user', NOW(), NOW())
+     ON CONFLICT (id) DO NOTHING`,
+    [CONNECTION_ID_B as string, ORG_B as string],
   )
   await pool.query(
     `INSERT INTO properties (id, organization_id, name, slug, timezone, google_connection_id, created_at, updated_at)

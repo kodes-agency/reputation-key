@@ -107,12 +107,14 @@ export const createPortalLinkRepository = (db: Database): PortalLinkRepository =
 
   reorderCategories: async (orgId, updates) => {
     return trace('portalLink.reorderCategories', async () => {
-      for (const { id, sortKey } of updates) {
-        await db
-          .update(portalLinkCategories)
-          .set({ sortKey, updatedAt: new Date() })
-          .where(and(catOrg(orgId), catIdEq(id)))
-      }
+      await db.transaction(async (tx) => {
+        for (const { id, sortKey } of updates) {
+          await tx
+            .update(portalLinkCategories)
+            .set({ sortKey, updatedAt: new Date() })
+            .where(and(catOrg(orgId), catIdEq(id)))
+        }
+      })
     })
   },
 
@@ -149,12 +151,14 @@ export const createPortalLinkRepository = (db: Database): PortalLinkRepository =
 
   reorderLinks: async (orgId, updates) => {
     return trace('portalLink.reorderLinks', async () => {
-      for (const { id, sortKey } of updates) {
-        await db
-          .update(portalLinks)
-          .set({ sortKey, updatedAt: new Date() })
-          .where(and(linkOrg(orgId), linkIdEq(id)))
-      }
+      await db.transaction(async (tx) => {
+        for (const { id, sortKey } of updates) {
+          await tx
+            .update(portalLinks)
+            .set({ sortKey, updatedAt: new Date() })
+            .where(and(linkOrg(orgId), linkIdEq(id)))
+        }
+      })
     })
   },
 

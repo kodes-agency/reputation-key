@@ -2,7 +2,7 @@
 // Per architecture: factory function returning Readonly<{ method }>.
 // Uses sql template literal for incrementing counters.
 
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, sql, desc } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { gbpImportJobs } from '#/shared/db/schema/gbp-import-job.schema'
 import type { GbpImportRepository } from '../../application/ports/gbp-import.repository'
@@ -27,7 +27,8 @@ export const createGbpImportRepository = (db: Database): GbpImportRepository => 
         .select()
         .from(gbpImportJobs)
         .where(eq(gbpImportJobs.organizationId, orgId))
-        .orderBy(gbpImportJobs.createdAt)
+        .orderBy(desc(gbpImportJobs.createdAt))
+        .limit(100)
       return rows.map(gbpImportJobFromRow)
     })
   },

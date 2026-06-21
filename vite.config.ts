@@ -17,6 +17,16 @@ const config = defineConfig(({ mode }) => {
   const isBuild = mode === 'production'
 
   return {
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            'vendor-charts': ['recharts'],
+            'vendor-dnd': ['@dnd-kit/core', '@dnd-kit/sortable', '@dnd-kit/utilities'],
+          },
+        },
+      },
+    },
     resolve: { tsconfigPaths: true },
     plugins: [
       devtools(),

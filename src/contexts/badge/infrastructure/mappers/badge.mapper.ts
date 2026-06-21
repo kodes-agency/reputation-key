@@ -1,5 +1,6 @@
 // Badge context — Drizzle row mapper
 
+import { assertLiteral } from '#/shared/domain/assert'
 import type {
   BadgeDefinition,
   BadgeAward,
@@ -20,6 +21,8 @@ import {
   badgeAwards,
   organizationBadgeEnablements,
 } from '#/shared/db/schema/badge.schema'
+
+const VALID_TARGET_SCOPES: readonly string[] = ['portal', 'portal_group']
 
 export function badgeDefinitionFromRow(
   row: typeof badgeDefinitions.$inferSelect,
@@ -57,7 +60,11 @@ export function badgeAwardFromRow(row: typeof badgeAwards.$inferSelect): BadgeAw
     id: badgeId(row.id),
     badgeDefinitionId: badgeId(row.badgeDefinitionId),
     criteriaVersion: row.criteriaVersion,
-    targetType: row.targetType as BadgeAward['targetType'],
+    targetType: assertLiteral(
+      row.targetType,
+      VALID_TARGET_SCOPES,
+      'badge.targetType',
+    ) as BadgeAward['targetType'],
     targetId:
       row.targetType === 'portal' ? portalId(row.targetId) : portalGroupId(row.targetId),
     organizationId: organizationId(row.organizationId),
@@ -96,14 +103,22 @@ export function badgeAwardWithTargetFromRow(
       name: row.definitionName,
       description: row.definitionDescription,
       icon: row.definitionIcon,
-      targetScope: row.definitionTargetScope as BadgeDefinition['targetScope'],
+      targetScope: assertLiteral(
+        row.definitionTargetScope,
+        VALID_TARGET_SCOPES,
+        'badge.targetScope',
+      ) as BadgeDefinition['targetScope'],
       criteriaVersion: row.definitionCriteriaVersion,
       criteria: row.definitionCriteria as BadgeCriteria,
       enabled: row.definitionEnabled,
       createdAt: row.definitionCreatedAt,
       updatedAt: row.definitionUpdatedAt,
     },
-    targetType: row.award.targetType as BadgeAward['targetType'],
+    targetType: assertLiteral(
+      row.award.targetType,
+      VALID_TARGET_SCOPES,
+      'badge.award.targetType',
+    ) as BadgeAward['targetType'],
     targetId:
       row.award.targetType === 'portal'
         ? portalId(row.award.targetId)

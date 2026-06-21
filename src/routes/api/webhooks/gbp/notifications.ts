@@ -5,12 +5,27 @@
 // Webhook routes are exempt from the "no direct infrastructure import" rule — see src/routes/CONTEXT.md
 
 import { createFileRoute } from '@tanstack/react-router'
+import { z } from 'zod'
 import { verifyPubSubJwt } from '#/shared/auth/pubsub-jwt.verifier'
 import { getEnv } from '#/shared/config/env'
 import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
 // eslint-disable-next-line boundaries/dependencies -- webhook routes delegate directly to context handlers
 import { handleGbpNotification } from '#/contexts/integration/infrastructure/handlers/gbp-notification-handler'
+
+const pubSubBodySchema = z.object({
+  message: z
+    .object({
+      data: z.string(),
+      attributes: z.record(z.string(), z.string()).optional(),
+      messageId: z.string().optional(),
+    })
+    .optional(),
+})
+const gbpNotificationPayloadSchema = z.object({
+  locationName: z.string(),
+  reviewName: z.string(),
+})
 
 export const Route = createFileRoute('/api/webhooks/gbp/notifications')({
   server: {
@@ -39,14 +54,7 @@ export const Route = createFileRoute('/api/webhooks/gbp/notifications')({
             await verifyPubSubJwt(token, audience)
 
             // 2. Parse Pub/Sub push message
-            const body = (await request.json()) as {
-              message?: {
-                data: string // base64-encoded
-                attributes?: Record<string, string>
-                messageId: string
-              }
-              subscription: string
-            }
+            const body = pubSubBodySchema.parse(await request.json())
 
             if (!body.message?.data) {
               logger.warn(
@@ -62,14 +70,9 @@ export const Route = createFileRoute('/api/webhooks/gbp/notifications')({
               )
             }
 
-            const payload = JSON.parse(
-              Buffer.from(body.message.data, 'base64').toString('utf-8'),
-            ) as {
-              locationName?: string
-              reviewName?: string
-              accountName?: string
-              eventType?: 'REVIEW_UPDATED' | 'NEW_REVIEW'
-            }
+            const payload = gbpNotificationPayloadSchema.parse(
+              JSON.parse(Buffer.from(body.message!.data, 'base64').toString('utf-8')),
+            )
 
             if (!payload.locationName || !payload.reviewName) {
               logger.warn({ payload }, 'Webhook received incomplete notification')
@@ -99,7 +102,7 @@ export const Route = createFileRoute('/api/webhooks/gbp/notifications')({
             const result = await handleGbpNotification({
               locationId,
               locationName: payload.locationName,
-              messageId: body.message.messageId,
+              messageId: body.message?.messageId ?? 'unknown',
             })
 
             // Always return 200 to prevent Pub/Sub retry

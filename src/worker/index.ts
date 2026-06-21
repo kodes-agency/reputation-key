@@ -15,6 +15,7 @@ import { RECONCILE_GOAL_JOB_NAME as RECONCILE_JOB_NAME } from '#/contexts/goal/i
 import { SPAWN_RECURRING_JOB_NAME as SPAWN_RECURRING_JOB_NAME } from '#/contexts/goal/infrastructure/jobs/spawn-recurring-instances.job'
 import type { Worker } from 'bullmq'
 
+// fallow-ignore-next-line complexity — worker wires 10+ job schedules, complexity is inherent
 function main() {
   const env = getEnv()
   const logger = getLogger()
@@ -103,11 +104,12 @@ function main() {
     // ── Metric materialized view refresh jobs ──────────────────────────
     type MetricSchedule = Readonly<{
       jobName: string
-      every: number
+      every?: number
+      pattern?: string
       label: string
     }>
     const metricSchedules: MetricSchedule[] = [
-      { jobName: JOB_NAMES.refreshDailyMetrics, every: 60 * 60 * 1000, label: 'hourly' },
+      { jobName: JOB_NAMES.refreshDailyMetrics, pattern: '0 * * * *', label: 'hourly' },
       {
         jobName: JOB_NAMES.refreshWeeklyMetrics,
         every: 24 * 60 * 60 * 1000,
@@ -115,43 +117,57 @@ function main() {
       },
       {
         jobName: JOB_NAMES.refreshDailyInboxMetrics,
-        every: 60 * 60 * 1000,
+        pattern: '5 * * * *',
         label: 'hourly',
       },
     ]
-    for (const { jobName, every, label } of metricSchedules) {
+    for (const { jobName, every, pattern, label } of metricSchedules) {
+      const repeat = pattern ? { pattern } : { every: every! }
       container.jobQueue
-        .add(jobName, {}, { repeat: { every }, jobId: `${jobName}-recurring` })
+        .add(jobName, {}, { repeat, jobId: `${jobName}-recurring` })
         .then(() => logger.info({ jobName, label }, 'Job scheduled'))
         .catch((err: unknown) => logger.warn({ err, jobName }, 'Failed to schedule job'))
     }
 
     // ── Goal jobs ──────────────────────────────────────────────────
-    type GoalSchedule = Readonly<{ jobName: string; every: number; label: string }>
+    type GoalSchedule = Readonly<{
+      jobName: string
+      every?: number
+      pattern?: string
+      label: string
+    }>
     const goalSchedules: GoalSchedule[] = [
-      { jobName: RECONCILE_JOB_NAME, every: 60 * 60 * 1000, label: 'hourly' },
+      { jobName: RECONCILE_JOB_NAME, pattern: '10 * * * *', label: 'hourly' },
       {
         jobName: SPAWN_RECURRING_JOB_NAME,
         every: 24 * 60 * 60 * 1000,
         label: 'daily',
       },
     ]
-    for (const { jobName, every, label } of goalSchedules) {
+    for (const { jobName, every, pattern, label } of goalSchedules) {
+      const repeat = pattern ? { pattern } : { every: every! }
       container.jobQueue
-        .add(jobName, {}, { repeat: { every }, jobId: `${jobName}-recurring` })
+        .add(jobName, {}, { repeat, jobId: `${jobName}-recurring` })
         .then(() => logger.info({ jobName, label }, 'Job scheduled'))
         .catch((err: unknown) => logger.warn({ err, jobName }, 'Failed to schedule job'))
     }
 
     // ── Badge + Leaderboard reconciliation jobs ──────────────────────
-    type RecognitionSchedule = Readonly<{ jobName: string; every: number; label: string }>
+    type RecognitionSchedule = Readonly<{
+      jobName: string
+      every?: number
+      pattern?: string
+      label: string
+    }>
     const recognitionSchedules: RecognitionSchedule[] = [
-      { jobName: 'badge.reconcile', every: 60 * 60 * 1000, label: 'hourly' },
-      { jobName: 'leaderboard.reconcile', every: 60 * 60 * 1000, label: 'hourly' },
+      // Stagger: badge at minute 20, leaderboard at minute 30 to avoid thundering herd
+      { jobName: 'badge.reconcile', pattern: '20 * * * *', label: 'hourly' },
+      { jobName: 'leaderboard.reconcile', pattern: '30 * * * *', label: 'hourly' },
     ]
-    for (const { jobName, every, label } of recognitionSchedules) {
+    for (const { jobName, every, pattern, label } of recognitionSchedules) {
+      const repeat = pattern ? { pattern } : { every: every! }
       container.jobQueue
-        .add(jobName, {}, { repeat: { every }, jobId: `${jobName}-recurring` })
+        .add(jobName, {}, { repeat, jobId: `${jobName}-recurring` })
         .then(() => logger.info({ jobName, label }, 'Job scheduled'))
         .catch((err: unknown) => logger.warn({ err, jobName }, 'Failed to schedule job'))
     }
@@ -160,11 +176,12 @@ function main() {
     // Runs hourly to send normal-priority notification emails at each
     // property's 8am local-time window (ADR 0011).
     const notifSchedules: RecognitionSchedule[] = [
-      { jobName: 'digest-notification', every: 60 * 60 * 1000, label: 'hourly' },
+      { jobName: 'digest-notification', pattern: '0 * * * *', label: 'hourly' },
     ]
-    for (const { jobName, every, label } of notifSchedules) {
+    for (const { jobName, every, pattern, label } of notifSchedules) {
+      const repeat = pattern ? { pattern } : { every: every! }
       container.jobQueue
-        .add(jobName, {}, { repeat: { every }, jobId: `${jobName}-recurring` })
+        .add(jobName, {}, { repeat, jobId: `${jobName}-recurring` })
         .then(() => logger.info({ jobName, label }, 'Job scheduled'))
         .catch((err: unknown) => logger.warn({ err, jobName }, 'Failed to schedule job'))
     }

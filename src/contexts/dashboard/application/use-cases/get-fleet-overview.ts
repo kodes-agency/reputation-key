@@ -45,62 +45,75 @@ export const getFleetOverview =
 
     // Prior period mirrors getAttentionSignals so the rating-drop flag stays
     // consistent with the per-property deep-dive. 'all' has no prior period.
+    // fallow-ignore-next-line code-duplication — prior-period pattern shared across dashboard use cases
     const priorStartDate =
       timeRange === 'all'
         ? startDate
         : new Date(startDate.getTime() - (endDate.getTime() - startDate.getTime()))
     const priorEndDate = timeRange === 'all' ? endDate : new Date(startDate.getTime() - 1)
 
-    const entries = await Promise.all(
-      properties.map(async (p): Promise<FleetEntry> => {
-        // Five parallel queries per property: 4 attention counts + KPIs.
-        // KPIs come via repo.getKPIs (ReviewStatsPort + MetricStatsPort).
-        const [unanswered, newFeedback, escalated, goalsBehindPace, kpis] =
-          await Promise.all([
-            deps.signals.getUnansweredReviewCount(organizationId, p.propertyId, slaHours),
-            deps.signals.getNewInboxItemCount(organizationId, p.propertyId),
-            deps.signals.getEscalatedInboxItemCount(organizationId, p.propertyId),
-            deps.signals.getGoalsBehindPaceCount(organizationId, p.propertyId),
-            deps.repo.getKPIs({
-              organizationId,
-              propertyId: p.propertyId,
-              startDate,
-              endDate,
-              priorStartDate,
-              priorEndDate,
-            }),
-          ])
+    // Process properties in batches of 5 to bound DB connection pool usage.
+    // Each property fires 5 concurrent queries, so a batch of 5 = 25 concurrent
+    // queries — fits a typical pool of 10-20 with minimal queuing.
+    const BATCH_SIZE = 5
+    const entries: FleetEntry[] = []
+    for (let i = 0; i < properties.length; i += BATCH_SIZE) {
+      const batch = properties.slice(i, i + BATCH_SIZE)
+      const batchEntries = await Promise.all(
+        batch.map(async (p): Promise<FleetEntry> => {
+          // Five parallel queries per property: 4 attention counts + KPIs.
+          const [unanswered, newFeedback, escalated, goalsBehindPace, kpis] =
+            await Promise.all([
+              deps.signals.getUnansweredReviewCount(
+                organizationId,
+                p.propertyId,
+                slaHours,
+              ),
+              deps.signals.getNewInboxItemCount(organizationId, p.propertyId),
+              deps.signals.getEscalatedInboxItemCount(organizationId, p.propertyId),
+              deps.signals.getGoalsBehindPaceCount(organizationId, p.propertyId),
+              deps.repo.getKPIs({
+                organizationId,
+                propertyId: p.propertyId,
+                startDate,
+                endDate,
+                priorStartDate,
+                priorEndDate,
+              }),
+            ])
 
-        // Avoid false positives when there is no prior-period data (priorValue 0).
-        const ratingDrop =
-          kpis.avgRating.priorValue > 0 &&
-          kpis.avgRating.priorValue - kpis.avgRating.value >= RATING_DROP_THRESHOLD
+          // Avoid false positives when there is no prior-period data (priorValue 0).
+          const ratingDrop =
+            kpis.avgRating.priorValue > 0 &&
+            kpis.avgRating.priorValue - kpis.avgRating.value >= RATING_DROP_THRESHOLD
 
-        const attentionSignals: AttentionSignals = {
-          unanswered,
-          newFeedback,
-          goalsBehindPace,
-          ratingDrop,
-          escalated,
-        }
-        const totalAttention =
-          unanswered + newFeedback + goalsBehindPace + (ratingDrop ? 1 : 0) + escalated
+          const attentionSignals: AttentionSignals = {
+            unanswered,
+            newFeedback,
+            goalsBehindPace,
+            ratingDrop,
+            escalated,
+          }
+          const totalAttention =
+            unanswered + newFeedback + goalsBehindPace + (ratingDrop ? 1 : 0) + escalated
 
-        return {
-          propertyId: p.propertyId,
-          name: p.name,
-          slug: p.slug,
-          timezone: p.timezone,
-          avgRating: kpis.avgRating.value,
-          avgRatingTrend: kpis.avgRating.trend,
-          reviewCount: kpis.reviews.value,
-          feedbackCount: kpis.feedback.value,
-          scanCount: kpis.scans.value,
-          attentionSignals,
-          totalAttention,
-        }
-      }),
-    )
+          return {
+            propertyId: p.propertyId,
+            name: p.name,
+            slug: p.slug,
+            timezone: p.timezone,
+            avgRating: kpis.avgRating.value,
+            avgRatingTrend: kpis.avgRating.trend,
+            reviewCount: kpis.reviews.value,
+            feedbackCount: kpis.feedback.value,
+            scanCount: kpis.scans.value,
+            attentionSignals,
+            totalAttention,
+          }
+        }),
+      )
+      entries.push(...batchEntries)
+    }
 
     // Most-needing first.
     const sorted = [...entries].sort((a, b) => b.totalAttention - a.totalAttention)

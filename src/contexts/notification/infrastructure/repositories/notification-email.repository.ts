@@ -108,7 +108,7 @@ export const createNotificationEmailRepository = (db: Database) => ({
         ),
       )
       .orderBy(asc(notificationEmailQueue.createdAt))
-
+      .limit(500)
     return rows.map(emailFromRow)
   },
 
