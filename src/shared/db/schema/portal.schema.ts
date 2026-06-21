@@ -49,36 +49,49 @@ export const portals = pgTable(
 
 // ── portal_link_categories ─────────────────────────────────────────
 
-export const portalLinkCategories = pgTable('portal_link_categories', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  portalId: uuid('portal_id')
-    .notNull()
-    .references(() => portals.id, { onDelete: 'cascade' }),
-  organizationId: varchar('organization_id', { length: 255 }).notNull(),
-  title: varchar('title', { length: 100 }).notNull(),
-  sortKey: varchar('sort_key', { length: 50 }).notNull(),
-  createdAt: createdAtColumn(),
-  updatedAt: updatedAtColumn(),
-})
+export const portalLinkCategories = pgTable(
+  'portal_link_categories',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    portalId: uuid('portal_id')
+      .notNull()
+      .references(() => portals.id, { onDelete: 'cascade' }),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    title: varchar('title', { length: 100 }).notNull(),
+    sortKey: varchar('sort_key', { length: 50 }).notNull(),
+    createdAt: createdAtColumn(),
+    updatedAt: updatedAtColumn(),
+  },
+  (t) => ({
+    portalIdx: index('portal_link_categories_portal_idx').on(t.portalId),
+  }),
+)
 
 // ── portal_links ───────────────────────────────────────────────────
 
-export const portalLinks = pgTable('portal_links', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  categoryId: uuid('category_id')
-    .notNull()
-    .references(() => portalLinkCategories.id, { onDelete: 'cascade' }),
-  portalId: uuid('portal_id')
-    .notNull()
-    .references(() => portals.id, { onDelete: 'cascade' }),
-  organizationId: varchar('organization_id', { length: 255 }).notNull(),
-  label: varchar('label', { length: 100 }).notNull(),
-  url: varchar('url', { length: 500 }).notNull(),
-  iconKey: varchar('icon_key', { length: 50 }),
-  sortKey: varchar('sort_key', { length: 50 }).notNull(),
-  createdAt: createdAtColumn(),
-  updatedAt: updatedAtColumn(),
-})
+export const portalLinks = pgTable(
+  'portal_links',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    categoryId: uuid('category_id')
+      .notNull()
+      .references(() => portalLinkCategories.id, { onDelete: 'cascade' }),
+    portalId: uuid('portal_id')
+      .notNull()
+      .references(() => portals.id, { onDelete: 'cascade' }),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    label: varchar('label', { length: 100 }).notNull(),
+    url: varchar('url', { length: 500 }).notNull(),
+    iconKey: varchar('icon_key', { length: 50 }),
+    sortKey: varchar('sort_key', { length: 50 }).notNull(),
+    createdAt: createdAtColumn(),
+    updatedAt: updatedAtColumn(),
+  },
+  (t) => ({
+    portalIdx: index('portal_links_portal_idx').on(t.portalId),
+    categoryIdx: index('portal_links_category_idx').on(t.categoryId),
+  }),
+)
 
 // ── portal_group_members ──────────────────────────────────────────
 // portalGroups table is defined in portal-group.schema.ts

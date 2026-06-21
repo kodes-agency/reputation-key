@@ -54,6 +54,7 @@ export const goals = pgTable(
     index('goals_org_status_idx').on(t.organizationId, t.status),
     index('goals_parent_idx').on(t.parentGoalId),
     index('goals_portal_group_idx').on(t.portalGroupId),
+    index('goals_org_portal_idx').on(t.organizationId, t.portalId),
   ],
 )
 

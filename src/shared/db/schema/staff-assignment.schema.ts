@@ -30,6 +30,11 @@ export const staffAssignments = pgTable(
       t.organizationId,
       t.propertyId,
     ),
+    orgTeamIdx: index('staff_assignments_org_team_idx').on(t.organizationId, t.teamId),
+    orgPortalIdx: index('staff_assignments_org_portal_idx').on(
+      t.organizationId,
+      t.portalId,
+    ),
     orgUserPropertyTeamUnique: uniqueIndex(
       'staff_assignments_org_user_property_team_unique',
     )
