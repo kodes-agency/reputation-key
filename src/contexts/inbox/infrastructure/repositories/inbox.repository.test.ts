@@ -448,7 +448,7 @@ describe('inbox repository — tenant isolation', () => {
     })
     await repo.create(item, ORG_A)
 
-    const found = await repo.findBySource('review', 'rev-iso-001', ORG_B)
+    const found = await repo.findBySource('review', item.sourceId as string, ORG_B)
     expect(found).toBeNull()
   })
 
