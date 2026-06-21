@@ -442,6 +442,7 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
           .insert(goalProgress)
           .values({
             goalId,
+            organizationId,
             currentValue: incDelta,
             currentSum: null,
             currentCount: null,
@@ -474,6 +475,7 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
           .insert(goalProgress)
           .values({
             goalId,
+            organizationId,
             currentValue: delta,
             currentSum: null,
             currentCount: null,
@@ -506,6 +508,7 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
           .insert(goalProgress)
           .values({
             goalId,
+            organizationId,
             currentValue: delta,
             currentSum: delta,
             currentCount: 1,

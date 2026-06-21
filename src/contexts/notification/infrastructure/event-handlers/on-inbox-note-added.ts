@@ -19,6 +19,13 @@ type Deps = Readonly<{
 export const onInboxNoteAdded =
   (deps: Deps) =>
   async (event: InboxNoteAdded): Promise<void> => {
+    if (!event.propertyId) {
+      deps.logger.debug('onInboxNoteAdded: no propertyId, skipping', {
+        eventId: event.eventId,
+      })
+      return
+    }
+
     const recipients = await deps.userLookup.findAssignedManagers(
       event.organizationId,
       event.propertyId,

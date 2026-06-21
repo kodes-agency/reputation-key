@@ -384,13 +384,14 @@ export const createBadgeRepository = (db: Database, clock: Clock): BadgeReposito
     })
   },
 
-  listPortalTargets: async (_orgId, propertyIdValue) => {
+  listPortalTargets: async (orgId, propertyIdValue) => {
     return trace('badge.listPortalTargets', async () => {
       const rows = await db
         .select({ id: portals.id })
         .from(portals)
         .where(
           and(
+            eq(portals.organizationId, unbrand(orgId)),
             eq(portals.propertyId, unbrand(propertyIdValue)),
             isNull(portals.deletedAt),
           ),
@@ -399,13 +400,14 @@ export const createBadgeRepository = (db: Database, clock: Clock): BadgeReposito
     })
   },
 
-  listGroupTargets: async (_orgId, propertyIdValue) => {
+  listGroupTargets: async (orgId, propertyIdValue) => {
     return trace('badge.listGroupTargets', async () => {
       const rows = await db
         .select({ id: portalGroups.id })
         .from(portalGroups)
         .where(
           and(
+            eq(portalGroups.organizationId, unbrand(orgId)),
             eq(portalGroups.propertyId, unbrand(propertyIdValue)),
             isNull(portalGroups.deletedAt),
           ),

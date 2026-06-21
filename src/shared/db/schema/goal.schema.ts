@@ -64,7 +64,7 @@ export const goalProgress = pgTable(
     goalId: uuid('goal_id')
       .notNull()
       .references(() => goals.id, { onDelete: 'cascade' }),
-    organizationId: varchar('organization_id', { length: 255 }),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
     currentValue: real('current_value').notNull().default(0),
     currentSum: real('current_sum'),
     currentCount: integer('current_count'),

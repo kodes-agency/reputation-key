@@ -23,6 +23,13 @@ export const onInboxItemCreated =
       return
     }
 
+    if (!event.propertyId) {
+      deps.logger.debug('onInboxItemCreated: no propertyId, skipping', {
+        eventId: event.eventId,
+      })
+      return
+    }
+
     const recipients = await deps.userLookup.findAssignedManagers(
       event.organizationId,
       event.propertyId,

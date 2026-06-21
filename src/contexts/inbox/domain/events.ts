@@ -18,7 +18,7 @@ export type InboxItemCreated = Readonly<{
   eventId: string
   inboxItemId: InboxItemId
   organizationId: OrganizationId
-  propertyId: PropertyId
+  propertyId: PropertyId | null
   sourceType: SourceType
   sourceId: ReviewId | FeedbackId
   userId: UserId | null
@@ -38,8 +38,8 @@ export const inboxItemCreated = (
   return {
     _tag: 'inbox.inbox_item.created',
     correlationId: null,
-    propertyId: args.propertyId ?? ('' as PropertyId),
-    userId: args.userId ?? ('' as UserId),
+    propertyId: args.propertyId ?? null,
+    userId: args.userId ?? null,
     source: args.source ?? 'web',
     ...args,
   }
@@ -50,8 +50,8 @@ export type InboxItemStatusChanged = Readonly<{
   eventId: string
   inboxItemId: InboxItemId
   organizationId: OrganizationId
-  propertyId: PropertyId
-  userId: UserId
+  propertyId: PropertyId | null
+  userId: UserId | null
   oldStatus: InboxStatus
   newStatus: InboxStatus
   source: 'web' | 'import'
@@ -74,8 +74,8 @@ export const inboxItemStatusChanged = (
   return {
     _tag: 'inbox.inbox_item.status_changed',
     correlationId: null,
-    propertyId: args.propertyId ?? ('' as PropertyId),
-    userId: args.userId ?? ('' as UserId),
+    propertyId: args.propertyId ?? null,
+    userId: args.userId ?? null,
     source: args.source ?? 'web',
     ...args,
   }
@@ -86,7 +86,7 @@ export type InboxItemAssigned = Readonly<{
   eventId: string
   inboxItemId: InboxItemId
   organizationId: OrganizationId
-  propertyId: PropertyId
+  propertyId: PropertyId | null
   userId: UserId
   assignedTo: UserId
   source: 'web' | 'import'
@@ -101,13 +101,12 @@ export const inboxItemAssigned = (
 ): InboxItemAssigned => {
   if (!(args.occurredAt instanceof Date))
     throw inboxError('invalid_input', 'occurredAt must be Date')
-  const resolvedUserId = args.userId ?? ('' as UserId)
-  if (resolvedUserId === '') throw inboxError('invalid_input', 'userId required')
+  if (!args.userId) throw inboxError('invalid_input', 'userId required')
   return {
     _tag: 'inbox.inbox_item.assigned',
     correlationId: null,
-    propertyId: args.propertyId ?? ('' as PropertyId),
-    userId: resolvedUserId,
+    propertyId: args.propertyId ?? null,
+    userId: args.userId,
     source: args.source ?? 'web',
     ...args,
   }
@@ -118,8 +117,8 @@ export type InboxItemUnassigned = Readonly<{
   eventId: string
   inboxItemId: InboxItemId
   organizationId: OrganizationId
-  propertyId: PropertyId
-  userId: UserId
+  propertyId: PropertyId | null
+  userId: UserId | null
   previousAssignee: UserId
   source: 'web' | 'import'
   occurredAt: Date
@@ -136,8 +135,8 @@ export const inboxItemUnassigned = (
   return {
     _tag: 'inbox.inbox_item.unassigned',
     correlationId: null,
-    propertyId: args.propertyId ?? ('' as PropertyId),
-    userId: args.userId ?? ('' as UserId),
+    propertyId: args.propertyId ?? null,
+    userId: args.userId ?? null,
     source: args.source ?? 'web',
     ...args,
   }
@@ -148,8 +147,8 @@ export type InboxItemEscalated = Readonly<{
   eventId: string
   inboxItemId: InboxItemId
   organizationId: OrganizationId
-  propertyId: PropertyId
-  userId: UserId
+  propertyId: PropertyId | null
+  userId: UserId | null
   oldStatus: InboxStatus
   source: 'web' | 'import'
   occurredAt: Date
@@ -166,8 +165,8 @@ export const inboxItemEscalated = (
   return {
     _tag: 'inbox.inbox_item.escalated',
     correlationId: null,
-    propertyId: args.propertyId ?? ('' as PropertyId),
-    userId: args.userId ?? ('' as UserId),
+    propertyId: args.propertyId ?? null,
+    userId: args.userId ?? null,
     source: args.source ?? 'web',
     ...args,
   }
@@ -178,8 +177,8 @@ export type InboxNoteAdded = Readonly<{
   eventId: string
   inboxItemId: InboxItemId
   organizationId: OrganizationId
-  propertyId: PropertyId
-  userId: UserId
+  propertyId: PropertyId | null
+  userId: UserId | null
   noteId: InboxNoteId
   text: string
   source: 'web' | 'import'
@@ -198,8 +197,8 @@ export const inboxNoteAdded = (
   return {
     _tag: 'inbox.inbox_note.added',
     correlationId: null,
-    propertyId: args.propertyId ?? ('' as PropertyId),
-    userId: args.userId ?? ('' as UserId),
+    propertyId: args.propertyId ?? null,
+    userId: args.userId ?? null,
     source: args.source ?? 'web',
     ...args,
   }
@@ -210,8 +209,8 @@ export type InboxItemBulkStatusChanged = Readonly<{
   eventId: string
   inboxItemId: InboxItemId
   organizationId: OrganizationId
-  propertyId: PropertyId
-  userId: UserId
+  propertyId: PropertyId | null
+  userId: UserId | null
   oldStatus: InboxStatus
   newStatus: InboxStatus
   bulkId: string
@@ -235,8 +234,8 @@ export const inboxItemBulkStatusChanged = (
   return {
     _tag: 'inbox.inbox_item.bulk_status_changed',
     correlationId: null,
-    propertyId: args.propertyId ?? ('' as PropertyId),
-    userId: args.userId ?? ('' as UserId),
+    propertyId: args.propertyId ?? null,
+    userId: args.userId ?? null,
     source: args.source ?? 'web',
     ...args,
   }
