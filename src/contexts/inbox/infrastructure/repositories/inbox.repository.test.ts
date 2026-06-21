@@ -55,7 +55,7 @@ function makeInboxItem(overrides: Partial<InboxItem> = {}): InboxItem {
     organizationId: ORG_A,
     propertyId: PROP_A,
     sourceType: 'review',
-    sourceId: reviewId(REVIEW_ID_A),
+    sourceId: reviewId(crypto.randomUUID()),
     status: 'new',
     rating: 4,
     sourceDate: now,
@@ -173,8 +173,8 @@ describe('inbox repository — CRUD', () => {
   })
 
   it('findByIds returns multiple items', async () => {
-    const item1 = makeInboxItem({ sourceId: reviewId('rev-multi-001') })
-    const item2 = makeInboxItem({ sourceId: reviewId('rev-multi-002') })
+    const item1 = makeInboxItem({ sourceId: reviewId(crypto.randomUUID()) })
+    const item2 = makeInboxItem({ sourceId: reviewId(crypto.randomUUID()) })
     await repo.create(item1, ORG_A)
     await repo.create(item2, ORG_A)
 
@@ -183,10 +183,11 @@ describe('inbox repository — CRUD', () => {
   })
 
   it('findBySource finds item by source type + source id', async () => {
-    const item = makeInboxItem({ sourceType: 'feedback', sourceId: feedbackId('fb-001') })
+    const srcId = feedbackId(crypto.randomUUID())
+    const item = makeInboxItem({ sourceType: 'feedback', sourceId: srcId })
     await repo.create(item, ORG_A)
 
-    const found = await repo.findBySource('feedback', 'fb-001', ORG_A)
+    const found = await repo.findBySource('feedback', srcId as string, ORG_A)
     expect(found).not.toBeNull()
     expect(found!.id).toBe(item.id)
   })
@@ -194,11 +195,10 @@ describe('inbox repository — CRUD', () => {
   it('findBySource returns null for wrong source type', async () => {
     const item = makeInboxItem({
       sourceType: 'review',
-      sourceId: reviewId('rev-src-001'),
+      sourceId: reviewId(crypto.randomUUID()),
     })
     await repo.create(item, ORG_A)
-
-    const found = await repo.findBySource('feedback', 'rev-src-001', ORG_A)
+    const found = await repo.findBySource('feedback', item.sourceId as string, ORG_A)
     expect(found).toBeNull()
   })
 })
@@ -253,8 +253,8 @@ describe('inbox repository — status transitions', () => {
   })
 
   it('bulkUpdateStatus updates multiple items', async () => {
-    const item1 = makeInboxItem({ sourceId: reviewId('rev-bulk-001') })
-    const item2 = makeInboxItem({ sourceId: reviewId('rev-bulk-002') })
+    const item1 = makeInboxItem({ sourceId: reviewId(crypto.randomUUID()) })
+    const item2 = makeInboxItem({ sourceId: reviewId(crypto.randomUUID()) })
     await repo.create(item1, ORG_A)
     await repo.create(item2, ORG_A)
 
@@ -298,15 +298,15 @@ describe('inbox repository — count by status', () => {
 
   it('counts items by status', async () => {
     await repo.create(
-      makeInboxItem({ sourceId: reviewId('rev-cnt-001'), status: 'new' }),
+      makeInboxItem({ sourceId: reviewId(crypto.randomUUID()), status: 'new' }),
       ORG_A,
     )
     await repo.create(
-      makeInboxItem({ sourceId: reviewId('rev-cnt-002'), status: 'new' }),
+      makeInboxItem({ sourceId: reviewId(crypto.randomUUID()), status: 'new' }),
       ORG_A,
     )
     await repo.create(
-      makeInboxItem({ sourceId: reviewId('rev-cnt-003'), status: 'addressed' }),
+      makeInboxItem({ sourceId: reviewId(crypto.randomUUID()), status: 'addressed' }),
       ORG_A,
     )
 
@@ -327,7 +327,7 @@ describe('inbox repository — pagination', () => {
       const date = new Date(2026, 0, i + 1) // Jan 1-5, 2026
       await repo.create(
         makeInboxItem({
-          sourceId: reviewId(`rev-page-${i}`),
+          sourceId: reviewId(crypto.randomUUID()),
           sourceDate: date,
         }),
         ORG_A,
@@ -346,10 +346,10 @@ describe('inbox repository — pagination', () => {
   })
 
   it('filters by property', async () => {
-    await repo.create(makeInboxItem({ sourceId: reviewId('rev-fp-001') }), ORG_A)
+    await repo.create(makeInboxItem({ sourceId: reviewId(crypto.randomUUID()) }), ORG_A)
     await repo.create(
       makeInboxItem({
-        sourceId: reviewId('rev-fp-002'),
+        sourceId: reviewId(crypto.randomUUID()),
         propertyId: propertyId('2a000000-0000-0000-0000-000000000099'),
       }),
       ORG_A,
@@ -366,11 +366,11 @@ describe('inbox repository — pagination', () => {
 
   it('filters by status', async () => {
     await repo.create(
-      makeInboxItem({ sourceId: reviewId('rev-fs-001'), status: 'new' }),
+      makeInboxItem({ sourceId: reviewId(crypto.randomUUID()), status: 'new' }),
       ORG_A,
     )
     await repo.create(
-      makeInboxItem({ sourceId: reviewId('rev-fs-002'), status: 'addressed' }),
+      makeInboxItem({ sourceId: reviewId(crypto.randomUUID()), status: 'addressed' }),
       ORG_A,
     )
 
@@ -391,7 +391,7 @@ describe('inbox repository — detail view', () => {
   it('findDetailById returns review source data for review items', async () => {
     const item = makeInboxItem({
       sourceType: 'review',
-      sourceId: reviewId(REVIEW_ID_A),
+      sourceId: reviewId(crypto.randomUUID()),
     })
     await repo.create(item, ORG_A)
 
@@ -444,7 +444,7 @@ describe('inbox repository — tenant isolation', () => {
   it('findBySource returns null for different org', async () => {
     const item = makeInboxItem({
       sourceType: 'review',
-      sourceId: reviewId('rev-iso-001'),
+      sourceId: reviewId(crypto.randomUUID()),
     })
     await repo.create(item, ORG_A)
 
@@ -453,7 +453,7 @@ describe('inbox repository — tenant isolation', () => {
   })
 
   it('findFilteredPaginated returns empty for different org', async () => {
-    await repo.create(makeInboxItem({ sourceId: reviewId('rev-iso-002') }), ORG_A)
+    await repo.create(makeInboxItem({ sourceId: reviewId(crypto.randomUUID()) }), ORG_A)
 
     const result = await repo.findFilteredPaginated({}, ORG_B, undefined, 50)
     expect(result.items).toHaveLength(0)
@@ -471,7 +471,7 @@ describe('inbox repository — tenant isolation', () => {
 
   it('countByStatus returns 0 for different org', async () => {
     await repo.create(
-      makeInboxItem({ sourceId: reviewId('rev-iso-003'), status: 'new' }),
+      makeInboxItem({ sourceId: reviewId(crypto.randomUUID()), status: 'new' }),
       ORG_A,
     )
 
