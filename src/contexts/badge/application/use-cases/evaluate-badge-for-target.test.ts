@@ -3,6 +3,7 @@
 
 import { describe, it, expect, vi } from 'vitest'
 import {
+  evaluateBadgeForTarget,
   evaluateBadgeDefinitionForTarget,
   type EvaluateBadgeForTargetDeps,
 } from './evaluate-badge-for-target'
@@ -21,6 +22,7 @@ import {
   organizationId,
   propertyId,
   portalId,
+  portalGroupId,
   badgeId,
   type PortalId,
 } from '#/shared/domain/ids'
@@ -71,6 +73,7 @@ function createFakeDeps(overrides?: {
   existingAward?: BadgeAward | null
   timezone?: string
   dailyCounts?: ReadonlyMap<string, number>
+  definitions?: readonly BadgeDefinition[]
 }): EvaluateBadgeForTargetDeps {
   const aggregate: MetricReadingsAggregate = {
     sum: overrides?.metricSum ?? 0,
@@ -81,7 +84,7 @@ function createFakeDeps(overrides?: {
   const badgeRepo = {
     seedDefinitions: vi.fn(async (defs: readonly unknown[]) => defs),
     findDefinitionByKey: vi.fn(async () => null),
-    listEnabledDefinitionsForOrg: vi.fn(async () => []),
+    listEnabledDefinitionsForOrg: vi.fn(async () => overrides?.definitions ?? []),
     findDefinition: vi.fn(async () => null),
     listOrgIdsWithBadges: vi.fn(async () => []),
     setOrganizationEnablement: vi.fn(async () => ({})),
@@ -287,5 +290,88 @@ describe('evaluateBadgeDefinitionForTarget', () => {
   it('portal target has correct portalId', () => {
     const target = makePortalTarget()
     expect(getPortalId(target)).toBe(PORTAL)
+  })
+})
+
+// ── Orchestrator: evaluateBadgeForTarget ────────────────────────────
+
+describe('evaluateBadgeForTarget (orchestrator)', () => {
+  it('returns empty array when org has no enabled definitions', async () => {
+    const deps = createFakeDeps()
+    const evaluate = evaluateBadgeForTarget(deps)
+
+    const results = await evaluate({
+      organizationId: ORG,
+      propertyId: PROP,
+      targetType: 'portal',
+      targetId: PORTAL,
+    })
+
+    expect(results).toEqual([])
+  })
+
+  it('evaluates all enabled definitions for the org', async () => {
+    const def1 = makeThresholdDefinition({
+      id: badgeId('00000000-0000-4000-8000-000000000001'),
+      key: 'scan_100',
+      criteria: {
+        type: 'threshold',
+        metricKey: 'portal.scan',
+        operator: '>=',
+        threshold: 100,
+      },
+    })
+    const def2 = makeThresholdDefinition({
+      id: badgeId('00000000-0000-4000-8000-000000000002'),
+      key: 'scan_500',
+      criteria: {
+        type: 'threshold',
+        metricKey: 'portal.scan',
+        operator: '>=',
+        threshold: 500,
+      },
+    })
+
+    const deps = createFakeDeps({ metricSum: 150, definitions: [def1, def2] })
+
+    const evaluate = evaluateBadgeForTarget(deps)
+    const results = await evaluate({
+      organizationId: ORG,
+      propertyId: PROP,
+      targetType: 'portal',
+      targetId: PORTAL,
+    })
+
+    expect(results).toHaveLength(2)
+    // def1 threshold=100, metric=150 → awarded
+    expect(results[0]!.awarded).toBe(true)
+    // def2 threshold=500, metric=150 → not awarded
+    expect(results[1]!.awarded).toBe(false)
+  })
+
+  it('handles portal_group target type', async () => {
+    const def = makeThresholdDefinition({
+      targetScope: 'portal_group',
+      criteria: {
+        type: 'threshold',
+        metricKey: 'portal.scan',
+        operator: '>=',
+        threshold: 50,
+      },
+    })
+    const deps = createFakeDeps({
+      metricSum: 100,
+      definitions: [def],
+    })
+    const evaluate = evaluateBadgeForTarget(deps)
+    const results = await evaluate({
+      organizationId: ORG,
+      propertyId: PROP,
+      targetType: 'portal_group',
+      targetId: portalGroupId('00000000-0000-4000-8000-000000000099'),
+    })
+
+    expect(results).toHaveLength(1)
+    expect(results[0]!.awarded).toBe(true)
   })
 })
