@@ -15,6 +15,7 @@ import {
   TooltipTrigger,
 } from '#/components/ui/tooltip'
 import { Copy, Download } from 'lucide-react'
+import { copyToClipboard } from '#/lib/clipboard'
 
 type QRCodeModalProps = Readonly<{
   open: boolean
@@ -52,12 +53,9 @@ export function QRCodeModal({
   }, [open, guestUrl])
 
   const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(guestUrl)
+    if (await copyToClipboard(guestUrl)) {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
-    } catch {
-      // fallback
     }
   }
 

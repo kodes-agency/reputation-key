@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Button } from '#/components/ui/button'
 import { Copy, QrCode } from 'lucide-react'
 import { QRCodeModal } from './qr-code-modal'
+import { copyToClipboard } from '#/lib/clipboard'
 
 type Props = Readonly<{
   portalSlug: string
@@ -18,12 +19,9 @@ export function PortalShare({ portalSlug, propertySlug }: Props) {
     typeof window !== 'undefined' ? `${window.location.origin}${guestUrl}` : ''
 
   const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(getFullUrl())
+    if (await copyToClipboard(getFullUrl())) {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
-    } catch {
-      // fallback
     }
   }
 
