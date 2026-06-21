@@ -15,6 +15,7 @@ import { RECONCILE_GOAL_JOB_NAME as RECONCILE_JOB_NAME } from '#/contexts/goal/i
 import { SPAWN_RECURRING_JOB_NAME as SPAWN_RECURRING_JOB_NAME } from '#/contexts/goal/infrastructure/jobs/spawn-recurring-instances.job'
 import type { Worker } from 'bullmq'
 
+// fallow-ignore-next-line complexity — worker wires 10+ job schedules, complexity is inherent
 function main() {
   const env = getEnv()
   const logger = getLogger()

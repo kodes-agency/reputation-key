@@ -45,6 +45,7 @@ export const getFleetOverview =
 
     // Prior period mirrors getAttentionSignals so the rating-drop flag stays
     // consistent with the per-property deep-dive. 'all' has no prior period.
+    // fallow-ignore-next-line code-duplication — prior-period pattern shared across dashboard use cases
     const priorStartDate =
       timeRange === 'all'
         ? startDate

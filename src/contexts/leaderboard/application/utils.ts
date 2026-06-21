@@ -13,6 +13,7 @@ export const LEADERBOARD_PERIODS: readonly LeaderboardPeriod[] = [
   'last_90_days',
 ]
 
+// fallow-ignore-next-line code-duplication — mirrors badge/utils.ts periodToRange by design
 export function periodToRange(period: LeaderboardPeriod, now: Date) {
   const end = new Date(now)
   const start = new Date(now)
