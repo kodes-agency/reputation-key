@@ -35,7 +35,8 @@ export const getDashboardData =
 
     const { repo } = deps
 
-    // Fire all queries in parallel
+    // Fire all queries in parallel — engagementFunnel is conditional but still
+    // runs concurrently when portalId is set, avoiding a sequential round-trip.
     const [
       kpis,
       ratingDistribution,
@@ -43,6 +44,7 @@ export const getDashboardData =
       reviewVolume,
       replyPerformance,
       recentReviews,
+      engagementFunnel,
     ] = await Promise.all([
       repo.getKPIs({
         organizationId,
@@ -58,18 +60,16 @@ export const getDashboardData =
       repo.getReviewVolume({ organizationId, propertyId, startDate, endDate }),
       repo.getReplyPerformance({ organizationId, propertyId, startDate, endDate }),
       repo.getRecentReviews({ organizationId, propertyId, limit: 5 }),
+      portalId
+        ? repo.getEngagementFunnel({
+            organizationId,
+            propertyId,
+            portalId,
+            startDate,
+            endDate,
+          })
+        : Promise.resolve(null),
     ])
-
-    // Engagement funnel only when portal is selected
-    const engagementFunnel = portalId
-      ? await repo.getEngagementFunnel({
-          organizationId,
-          propertyId,
-          portalId,
-          startDate,
-          endDate,
-        })
-      : null
 
     return {
       kpis,
