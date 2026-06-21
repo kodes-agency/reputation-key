@@ -36,7 +36,10 @@ function safeMapGoals(rows: ReadonlyArray<typeof goals.$inferSelect>): Goal[] {
   })
 }
 
-export const createGoalRepository = (db: Database): GoalRepository => ({
+export const createGoalRepository = (
+  db: Database,
+  clock: () => Date = () => new Date(),
+): GoalRepository => ({
   // ── Goal CRUD ──────────────────────────────────────────────────────────
 
   insert: async (goal) => {
@@ -446,7 +449,7 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
             currentValue: incDelta,
             currentSum: null,
             currentCount: null,
-            lastComputedAt: new Date(),
+            lastComputedAt: clock(),
             computedSource: 'event_increment',
           })
           .onConflictDoUpdate({
@@ -479,7 +482,7 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
             currentValue: delta,
             currentSum: null,
             currentCount: null,
-            lastComputedAt: new Date(),
+            lastComputedAt: clock(),
             computedSource: 'event_increment',
           })
           .onConflictDoUpdate({
@@ -512,7 +515,7 @@ export const createGoalRepository = (db: Database): GoalRepository => ({
             currentValue: delta,
             currentSum: delta,
             currentCount: 1,
-            lastComputedAt: new Date(),
+            lastComputedAt: clock(),
             computedSource: 'event_increment',
           })
           .onConflictDoUpdate({

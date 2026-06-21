@@ -178,7 +178,7 @@ export const createLeaderboardRepository = (
   const refreshOne = async (
     input: Required<LeaderboardRefreshInput>,
   ): Promise<{ entriesWritten: number }> => {
-    const range = periodToRange(input.period)
+    const range = periodToRange(input.period, clock())
     const targets = await listTargets(
       unbrand(input.organizationId),
       unbrand(input.propertyId),
