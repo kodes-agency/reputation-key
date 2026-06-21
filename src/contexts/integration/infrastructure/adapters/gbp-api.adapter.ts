@@ -2,10 +2,28 @@
 // Per architecture: factory function returning GbpApiPort.
 // Handles account listing, location listing, fetching, and review retrieval.
 
+import { z } from 'zod'
 import type { GbpApiPort, GbpAccount } from '../../application/ports/gbp-api.port'
 import type { GbpLocation } from '../../domain/types'
 import { createGbpApiError } from '../../domain/gbp-api-error'
 import { trace } from '#/shared/observability/trace'
+
+// GBP API response schemas — validate at the external boundary
+const gbpListAccountsResponseSchema = z.object({
+  accounts: z.array(z.record(z.string(), z.unknown())).default([]),
+  nextPageToken: z.string().optional(),
+})
+const gbpListLocationsResponseSchema = z.object({
+  locations: z.array(z.record(z.string(), z.unknown())).default([]),
+  nextPageToken: z.string().optional(),
+})
+const gbpLocationResponseSchema = z.record(z.string(), z.unknown())
+const gbpBatchGetReviewsResponseSchema = z.object({
+  locationReviews: z
+    .array(z.object({ name: z.string(), reviews: z.unknown() }))
+    .default([]),
+  nextPageToken: z.string().optional(),
+})
 
 const GBP_API_BASE = 'https://mybusinessbusinessinformation.googleapis.com/v1'
 
@@ -34,7 +52,7 @@ export const createGbpApiAdapter = (): GbpApiPort => {
         throw createGbpApiError('listAccounts', response.status, errorText)
       }
 
-      const data = await response.json()
+      const data = gbpListAccountsResponseSchema.parse(await response.json())
       const accounts = data.accounts || []
       allAccounts.push(...accounts.map(mapGbpAccount))
       nextPageToken = data.nextPageToken || undefined
@@ -71,7 +89,7 @@ export const createGbpApiAdapter = (): GbpApiPort => {
         throw createGbpApiError('listLocations', response.status, errorText)
       }
 
-      const data = await response.json()
+      const data = gbpListLocationsResponseSchema.parse(await response.json())
       const locations = data.locations || []
       allLocations.push(...locations.map(mapGbpLocation))
       nextPageToken = data.nextPageToken || undefined
@@ -98,7 +116,7 @@ export const createGbpApiAdapter = (): GbpApiPort => {
       throw createGbpApiError('getLocation', response.status, errorText)
     }
 
-    const location = await response.json()
+    const location = gbpLocationResponseSchema.parse(await response.json())
     return mapGbpLocation(location)
   }
 
@@ -127,7 +145,7 @@ export const createGbpApiAdapter = (): GbpApiPort => {
       throw createGbpApiError('batchGetReviews', response.status, errorText)
     }
 
-    const data = await response.json()
+    const data = gbpBatchGetReviewsResponseSchema.parse(await response.json())
     const reviewResponses = data.locationReviews || []
 
     return reviewResponses.map((rr: { name: string; reviews: unknown }) => ({
