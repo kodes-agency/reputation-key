@@ -2,6 +2,7 @@
 // Per architecture: server/ contains TanStack Start server functions.
 
 import { createServerFn } from '@tanstack/react-start'
+import { z } from 'zod'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { headersFromContext } from '#/shared/auth/headers'
 import { requireAuth, resolveTenantContext } from '#/shared/auth/middleware'
@@ -14,6 +15,10 @@ import { throwIdentityError } from './organizations.errors.server'
 import { identityInvitationAccepted, identityInvitationRejected } from '../domain/events'
 import { organizationId, userId, invitationId } from '#/shared/domain/ids'
 import { acceptInvitationInputSchema } from '../application/dto/invitation.dto'
+
+const acceptInvitationResultSchema = z.object({
+  organizationId: z.string(),
+})
 
 // ── Accept invitation ──────────────────────────────────────────────
 // User may not have an active org yet (they're joining), so we only
@@ -29,10 +34,12 @@ export const acceptInvitation = createServerFn({ method: 'POST' })
           const user = await requireAuth(headers)
           const auth = getAuth()
 
-          const result = (await auth.api.acceptInvitation({
-            headers,
-            body: { invitationId: data.invitationId },
-          })) as unknown as { organizationId: string }
+          const result = acceptInvitationResultSchema.parse(
+            await auth.api.acceptInvitation({
+              headers,
+              body: { invitationId: data.invitationId },
+            }),
+          )
 
           const container = getContainer()
           await container.eventBus.emit(

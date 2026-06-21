@@ -2,9 +2,30 @@
 // Per architecture: factory function returning GoogleOAuthPort.
 // Handles code exchange, token refresh, user info fetch, and URL building.
 
+import { z } from 'zod'
 import type { GoogleOAuthPort } from '../../application/ports/google-oauth.port'
 import { integrationError } from '../../domain/errors'
 import { trace } from '#/shared/observability/trace'
+
+const googleTokenResponseSchema = z.object({
+  access_token: z.string(),
+  refresh_token: z.string().optional(),
+  expires_in: z.number(),
+  scope: z.string().optional(),
+  token_type: z.string().optional(),
+})
+const googleUserInfoSchema = z.object({
+  id: z.string(),
+  email: z.string(),
+  verified_email: z.boolean().optional(),
+  name: z.string().optional(),
+})
+const googleTokenRefreshSchema = z.object({
+  access_token: z.string(),
+  expires_in: z.number(),
+  scope: z.string().optional(),
+  token_type: z.string().optional(),
+})
 
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token'
 const GOOGLE_USERINFO_URL = 'https://www.googleapis.com/oauth2/v2/userinfo'
@@ -52,7 +73,7 @@ export const createGoogleOAuthAdapter = (config: {
       )
     }
 
-    const data = await response.json()
+    const data = googleTokenResponseSchema.parse(await response.json())
     const accessToken = data.access_token
     const refreshToken = data.refresh_token
     const expiresIn = data.expires_in
@@ -85,7 +106,7 @@ export const createGoogleOAuthAdapter = (config: {
       )
     }
 
-    const userInfo = await userInfoResponse.json()
+    const userInfo = googleUserInfoSchema.parse(await userInfoResponse.json())
 
     return {
       accessToken,
@@ -123,7 +144,7 @@ export const createGoogleOAuthAdapter = (config: {
       )
     }
 
-    const data = await response.json()
+    const data = googleTokenRefreshSchema.parse(await response.json())
     const accessToken = data.access_token
     const expiresIn = data.expires_in
 

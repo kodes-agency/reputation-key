@@ -1,4 +1,5 @@
 import { and, eq, desc, sql } from 'drizzle-orm'
+import { assertLiteral } from '#/shared/domain/assert'
 import type { Database } from '#/shared/db'
 import { activityLog } from '#/shared/db/schema/activity.schema'
 import type { OrganizationId } from '#/shared/domain/ids'
@@ -16,6 +17,29 @@ import type { ActivityLog } from '../domain/types'
 import type { Role } from '#/shared/domain/roles'
 
 const VALID_ROLES = new Set<string>(['Staff', 'PropertyManager', 'AccountAdmin'])
+
+const VALID_ACTIONS: readonly ActivityLog['action'][] = [
+  'created',
+  'changed',
+  'deleted',
+  'assigned',
+  'unassigned',
+  'published',
+  'rejected',
+  'approved',
+  'submitted',
+  'added',
+  'escalated',
+]
+const VALID_RESOURCE_TYPES: readonly ActivityLog['resourceType'][] = [
+  'inbox_item',
+  'review',
+  'reply',
+  'note',
+  'property',
+  'member',
+]
+const VALID_SOURCES: readonly string[] = ['web', 'import']
 
 /** Deterministic JSON.stringify — sorts object keys at every level. */
 function stableStringify(value: unknown): string {
@@ -36,13 +60,26 @@ const activityFromRow = (row: typeof activityLog.$inferSelect): ActivityLog => (
   actorName: row.actorName,
   actorAvatarUrl: row.actorAvatarUrl,
   actorRole: (VALID_ROLES.has(row.actorRole) ? row.actorRole : 'Staff') as Role,
-  action: row.action as ActivityLog['action'],
-  resourceType: row.resourceType as ActivityLog['resourceType'],
+  action: assertLiteral(
+    row.action,
+    VALID_ACTIONS,
+    'activity.action',
+  ) as ActivityLog['action'],
+  resourceType: assertLiteral(
+    row.resourceType,
+    VALID_RESOURCE_TYPES,
+    'activity.resourceType',
+  ) as ActivityLog['resourceType'],
   resourceId: row.resourceId,
   propertyId: row.propertyId ? toPropertyId(row.propertyId) : null,
   organizationId: toOrgId(row.organizationId),
+  // payload is JSONB — needs a per-action schema for full validation (future enhancement)
   payload: row.payload as ActivityLog['payload'],
-  source: row.source as ActivityLog['source'],
+  source: assertLiteral(
+    row.source,
+    VALID_SOURCES,
+    'activity.source',
+  ) as ActivityLog['source'],
   createdAt: row.createdAt,
 })
 
