@@ -49,8 +49,11 @@ export function createRateLimiter(
 ): RateLimiter {
   return {
     async check(key: string): Promise<RateLimitResult> {
-      // Fail open: if no Redis, allow everything
+      // Fail open: if no Redis, allow everything but warn
       if (!redis) {
+        console.warn(
+          '[rate-limit] Redis unavailable — failing open (all requests allowed)',
+        )
         return {
           allowed: true,
           remaining: opts.maxRequests,
@@ -80,8 +83,9 @@ export function createRateLimiter(
           remaining,
           resetAt,
         }
-      } catch {
-        // Fail open on Redis errors
+      } catch (err) {
+        // Fail open on Redis errors, but log for monitoring
+        console.warn('[rate-limit] Redis error — failing open:', err)
         return {
           allowed: true,
           remaining: opts.maxRequests,

@@ -82,6 +82,25 @@ export async function sendResetPasswordEmail(to: string, url: string): Promise<v
   })
 }
 
+/** Send email verification link */
+export async function sendVerificationEmail(to: string, url: string): Promise<void> {
+  await sendEmail({
+    to,
+    subject: 'Verify your email — Reputation Key',
+    html: verificationEmailHtml(url),
+  })
+}
+
+function verificationEmailHtml(verifyUrl: string): string {
+  return emailShell(
+    `
+      <p>Welcome to Reputation Key! Please verify your email address to activate your account.</p>
+      <a href="${escapeHtml(verifyUrl)}" class="button">Verify Email</a>
+      <p>If you didn't create an account, you can safely ignore this email.</p>`,
+    '<p>This link expires in 24 hours.</p>',
+  )
+}
+
 // ─── Email HTML templates ─────────────────────────────────────────────
 
 function emailShell(bodyHtml: string, footerHtml: string = ''): string {
