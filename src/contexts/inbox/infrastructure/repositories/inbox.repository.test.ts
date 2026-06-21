@@ -17,7 +17,7 @@ import {
   userId,
 } from '#/shared/domain/ids'
 import type { InboxItem } from '../../domain/types'
-import type { Database } from '#/shared/db'
+
 import { Pool } from 'pg'
 import { getEnv } from '#/shared/config/env'
 
@@ -29,7 +29,7 @@ const USER_A = userId('user-inbox-test-aaaa-1111111111111111')
 const REVIEW_ID_A = '11111111-1111-1111-1111-111111111111'
 
 let pool: Pool
-let db: Database
+const db = getDb()
 
 // Stub lookup ports — inbox repo owns the SQL, these just provide enrichment data
 const stubPorts = {
@@ -124,7 +124,6 @@ async function seedReviews(pool: Pool) {
 beforeAll(async () => {
   const env = getEnv()
   pool = new Pool({ connectionString: env.DATABASE_URL, max: 2 })
-  db = getDb()
 
   await seedOrgs(pool, [ORG_A as string, ORG_B as string])
   await seedProperties(pool)
