@@ -26,6 +26,7 @@ const ORG_B = organizationId('org-inbox-test-bbbb-2222222222222222')
 const PROP_A = propertyId('1a000000-0000-0000-0000-000000000001')
 const PROP_B = propertyId('1b000000-0000-0000-0000-000000000002')
 const USER_A = userId('user-inbox-test-aaaa-1111111111111111')
+const REVIEW_ID_A = '11111111-1111-1111-1111-111111111111'
 
 let pool: Pool
 let db: Database
@@ -54,7 +55,7 @@ function makeInboxItem(overrides: Partial<InboxItem> = {}): InboxItem {
     organizationId: ORG_A,
     propertyId: PROP_A,
     sourceType: 'review',
-    sourceId: reviewId('rev-test-0001'),
+    sourceId: reviewId(REVIEW_ID_A),
     status: 'new',
     rating: 4,
     sourceDate: now,
@@ -114,7 +115,7 @@ async function seedReviews(pool: Pool) {
     `INSERT INTO reviews (id, organization_id, property_id, external_id, platform, rating, text, reviewer_name, reviewed_at, expires_at, created_at, updated_at)
      VALUES ($1, $2, $3, 'ext-rev-001', 'google', 4, 'Great service', 'John Doe', NOW(), NOW() + INTERVAL '1 year', NOW(), NOW())
      ON CONFLICT (platform, external_id, organization_id) DO NOTHING`,
-    ['rev-test-0001', ORG_A as string, PROP_A as string],
+    [REVIEW_ID_A, ORG_A as string, PROP_A as string],
   )
 }
 
@@ -391,7 +392,7 @@ describe('inbox repository — detail view', () => {
   it('findDetailById returns review source data for review items', async () => {
     const item = makeInboxItem({
       sourceType: 'review',
-      sourceId: reviewId('rev-test-0001'),
+      sourceId: reviewId(REVIEW_ID_A),
     })
     await repo.create(item, ORG_A)
 
