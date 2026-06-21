@@ -1,4 +1,4 @@
-// Goal context — Drizzle schema for goals & goal_progress tables
+import type { AnyPgColumn } from 'drizzle-orm/pg-core'
 // Per architecture: schemas live in shared/db/schema/ because Drizzle needs a single barrel.
 // snake_case columns, camelCase field names.
 
@@ -43,7 +43,9 @@ export const goals = pgTable(
     periodEnd: timestamp('period_end', { withTimezone: true }),
     recurrenceRule: jsonb('recurrence_rule').$type<{ frequency: string }>(),
     rollingWindowDays: integer('rolling_window_days'),
-    parentGoalId: uuid('parent_goal_id'),
+    parentGoalId: uuid('parent_goal_id').references((): AnyPgColumn => goals.id, {
+      onDelete: 'set null',
+    }),
     completedAt: timestamp('completed_at', { withTimezone: true }),
     createdAt: createdAtColumn(),
     updatedAt: updatedAtColumn(),
