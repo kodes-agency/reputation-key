@@ -10,7 +10,7 @@ export const slaCutoff = (now: Date, slaHours: number): Date =>
 
 /** Convert a time-range preset to concrete start/end dates relative to `now`.
  *  `now` is injected so callers can fast-forward time (ADR 0017). */
-export function timeRangeToDates(preset: TimeRangePreset, now: Date = new Date()) {
+export function timeRangeToDates(preset: TimeRangePreset, now: Date) {
   if (preset === 'all') {
     // No start bound — epoch captures all data
     return { startDate: new Date(0), endDate: now }
