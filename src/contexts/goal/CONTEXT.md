@@ -46,10 +46,9 @@ Property-scoped goals with progress tracking driven by metric events.
 
 ## Events produced
 
-| Tag                     | Payload                                                                                                                                                    | When                    |
-| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
-| `goal.completed`        | goalId, organizationId, propertyId, scope IDs, goalType, metricKey, aggregationFunction, targetValue, completedValue, completedAt, parentGoalId, createdBy | Progress reaches target |
-| `goal.progress_updated` | goalId, organizationId, metricKey, previousValue, currentValue, computedSource, occurredAt                                                                 | Progress recomputed     |
+| Tag              | Payload                                                                                                                                                    | When                    |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
+| `goal.completed` | goalId, organizationId, propertyId, scope IDs, goalType, metricKey, aggregationFunction, targetValue, completedValue, completedAt, parentGoalId, createdBy | Progress reaches target |
 
 ## Events consumed
 
@@ -100,8 +99,8 @@ Exported from `application/public-api.ts`:
 - Types: `CreateGoalInput`, `UpdateGoalInput`, `CancelGoalInput`, `ListGoalsInput`, `GetGoalInput`, `Goal`, `GoalProgress`, `GoalType`, `GoalStatus`, `StaffGoalEntry`, `GoalWithProgress`
 - Functions: `deriveEntityScope`
 - Port types: `GoalRepository`, `GoalListFilter`
-- Event types: `GoalCompleted`, `GoalProgressUpdated`, `GoalEvent`
-- Event constructors: `goalCompleted`, `goalProgressUpdated`
+- Event types: `GoalCompleted`, `GoalEvent`
+- Event constructors: `goalCompleted`
 
 ## Server functions
 
@@ -119,7 +118,7 @@ Exported from `application/public-api.ts`:
 | Permission    | AccountAdmin | PropertyManager | Staff |
 | ------------- | ------------ | --------------- | ----- |
 | `goal.read`   | ✓            | ✓               | ✓     |
-| `goal.create` | ✓            | ✓               | —     |
+| `goal.create` | ✓            | ✓               | ✓     |
 | `goal.update` | ✓            | ✓               | —     |
 | `goal.cancel` | ✓            | ✓               | —     |
 

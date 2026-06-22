@@ -94,14 +94,12 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
       })
       const sentNow = new Date()
       await emailRepo.markSent(emailId, orgId, sentNow, sentNow)
-      // State machine: only 'pending'/'failed' → 'sent'. See domain/constructors-transitions.ts markEmailSent.
-      // The repo WHERE clause enforces this at DB level.
+      // State machine: only 'pending'/'failed' → 'sent'. Enforced at DB level by the repo WHERE clause.
     } catch (err) {
       logger.error({ err, notificationEmailId: emailId }, 'Urgent email send failed')
       const failNow = new Date()
       await emailRepo.markFailed(emailId, orgId, failNow, failNow)
-      // State machine: only 'pending'/'failed' → 'failed'. See domain/constructors-transitions.ts markEmailFailed.
-      // The repo WHERE clause enforces this at DB level.
+      // State machine: only 'pending'/'failed' → 'failed'. Enforced at DB level by the repo WHERE clause.
       throw err // re-throw for BullMQ retry
     }
   }

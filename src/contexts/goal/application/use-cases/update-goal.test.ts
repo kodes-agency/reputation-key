@@ -10,12 +10,22 @@ import {
   userId,
 } from '#/shared/domain/ids'
 import type { RecurrenceRule } from '../../domain/types'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { PropertyId } from '#/shared/domain/ids'
 
 const FIXED_TIME = new Date('2026-06-15T12:00:00Z')
+const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublicApi => ({
+  getAccessiblePropertyIds: async () => accessible,
+  getAssignedPortals: async () => [],
+  countAssignmentsByTeam: async () => 0,
+})
 
 // ── Fake repo ───────────────────────────────────────────────────────────
 
-function createFakeDeps(overrides?: { storedGoals?: Goal[] }) {
+function createFakeDeps(
+  overrides?: { storedGoals?: Goal[] },
+  accessible: ReadonlyArray<PropertyId> | null = null,
+) {
   const stored: Map<string, Goal> = new Map()
   const updatedEntries: Array<{ id: string; data: unknown }> = []
   let idCounter = 0
@@ -103,22 +113,19 @@ function createFakeDeps(overrides?: { storedGoals?: Goal[] }) {
       currentSum: null,
       currentCount: null,
     }),
-    incrementProgress: async () => ({
-      currentValue: 0,
-      currentSum: null,
-      currentCount: null,
-    }),
     markGoalCompleted: async () => {},
-    findAllActive: async () => [],
     findAllActiveRecurring: async () => [],
     findAllActiveGlobal: async () => [],
     findActiveRecurringTemplates: async () => [],
     findLatestInstance: async () => null,
+    cancelTemplateAndInstances: async () => null,
+    createRecurringGoalWithInstance: async () => {},
     createGoalAndProgress: async () => {},
   }
 
   const deps: UpdateGoalDeps = {
     goalRepo,
+    staffPublicApi: staffApiMock(accessible),
     clock: () => FIXED_TIME,
   }
 
@@ -160,6 +167,7 @@ describe('updateGoal', () => {
       const result = await updateGoal(fakes.deps)({
         goalId: goalId('goal-1'),
         organizationId: organizationId('org-1'),
+        userId: userId('user-1'),
         role: 'Staff',
         targetValue: 300,
       })
@@ -177,6 +185,7 @@ describe('updateGoal', () => {
       const result = await updateGoal(fakes.deps)({
         goalId: goalId('goal-1'),
         organizationId: organizationId('org-1'),
+        userId: userId('user-1'),
         role: 'AccountAdmin',
         targetValue: 300,
       })
@@ -191,11 +200,49 @@ describe('updateGoal', () => {
       const result = await updateGoal(fakes.deps)({
         goalId: goalId('goal-1'),
         organizationId: organizationId('org-1'),
+        userId: userId('user-1'),
         role: 'PropertyManager',
         targetValue: 300,
       })
 
       expect(result.isOk()).toBe(true)
+    })
+  })
+
+  // ── Property assignment scoping (D6-001) ─────────────────────────────
+  describe('property assignment scoping', () => {
+    it('rejects PropertyManager without assignment to the goal property', async () => {
+      const goal = makeGoal()
+      const fakes = createFakeDeps({ storedGoals: [goal] }, [])
+
+      const result = await updateGoal(fakes.deps)({
+        goalId: goalId('goal-1'),
+        organizationId: organizationId('org-1'),
+        userId: userId('user-1'),
+        role: 'PropertyManager',
+        targetValue: 300,
+      })
+
+      expect(result.isErr()).toBe(true)
+      expect(result._unsafeUnwrapErr().tag).toBe('forbidden')
+      expect(fakes.updatedEntries).toHaveLength(0)
+    })
+
+    it('allows PropertyManager assigned to the goal property', async () => {
+      const goal = makeGoal()
+      const fakes = createFakeDeps({ storedGoals: [goal] }, [propertyId('prop-1')])
+
+      const result = await updateGoal(fakes.deps)({
+        goalId: goalId('goal-1'),
+        organizationId: organizationId('org-1'),
+        userId: userId('user-1'),
+        role: 'PropertyManager',
+        targetValue: 300,
+      })
+
+      expect(result.isOk()).toBe(true)
+      const updated = result._unsafeUnwrap()
+      expect(updated.targetValue).toBe(300)
     })
   })
 
@@ -206,6 +253,7 @@ describe('updateGoal', () => {
     const result = await updateGoal(fakes.deps)({
       goalId: goalId('goal-1'),
       organizationId: organizationId('org-1'),
+      userId: userId('user-1'),
       role: 'AccountAdmin',
       targetValue: 300,
     })
@@ -227,6 +275,7 @@ describe('updateGoal', () => {
     const result = await updateGoal(fakes.deps)({
       goalId: goalId('goal-1'),
       organizationId: organizationId('org-1'),
+      userId: userId('user-1'),
       role: 'AccountAdmin',
       recurrenceRule: newRule,
     })
@@ -243,6 +292,7 @@ describe('updateGoal', () => {
     const result = await updateGoal(fakes.deps)({
       goalId: goalId('goal-1'),
       organizationId: organizationId('org-1'),
+      userId: userId('user-1'),
       role: 'AccountAdmin',
       recurrenceRule: { frequency: 'monthly' },
     })
@@ -259,6 +309,7 @@ describe('updateGoal', () => {
     const result = await updateGoal(fakes.deps)({
       goalId: goalId('goal-1'),
       organizationId: organizationId('org-1'),
+      userId: userId('user-1'),
       role: 'AccountAdmin',
       targetValue: 300,
     })
@@ -275,6 +326,7 @@ describe('updateGoal', () => {
     const result = await updateGoal(fakes.deps)({
       goalId: goalId('goal-1'),
       organizationId: organizationId('org-1'),
+      userId: userId('user-1'),
       role: 'AccountAdmin',
       targetValue: 300,
     })
@@ -290,6 +342,7 @@ describe('updateGoal', () => {
     const result = await updateGoal(fakes.deps)({
       goalId: goalId('nonexistent'),
       organizationId: organizationId('org-1'),
+      userId: userId('user-1'),
       role: 'AccountAdmin',
       targetValue: 300,
     })

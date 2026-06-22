@@ -1,59 +1,141 @@
-# Notification Context — CONTEXT.md
+# Notification Context
 
-## Responsibility
+## 1. Bounded context
 
-Produces user-facing in-app and email notifications about domain events. Subscribes to events from other contexts, resolves recipients, creates notification rows, and manages email delivery (urgent: immediate, normal: daily digest).
+Produces user-facing in-app and email notifications about domain events. Subscribes to events from other contexts, resolves recipients, creates notification rows, and manages email delivery (urgent: immediate via a dedicated job; normal: daily digest).
 
-## Layer structure
+## 2. Glossary
+
+| Term               | Meaning                                                                          |
+| ------------------ | -------------------------------------------------------------------------------- |
+| Notification       | An in-app notification row (`notifications` table) anchored to a user.           |
+| Notification type  | User-facing type name (e.g. `reply.pending_approval`); distinct from event tags. |
+| Email queue entry  | A row in `notification_email_queue` representing one email to deliver.           |
+| Urgent             | Priority that triggers immediate email delivery (see Q9 urgent types).           |
+| Normal             | Priority batched into the daily digest.                                          |
+| Digest             | Daily job that sends all `pending` normal-priority emails per org.               |
+| Channel preference | Per-user/per-type toggle for in-app and email channels (default: both on).       |
+
+## 3. Relationships
+
+**Within context:**
+
+- `Notification` 1—1 `NotificationEmail` (email queue entry is created per notification when the email channel is enabled).
+- `Notification` N—1 `NotificationPreference` (one preference row per user × type; sparse — absence means default-on).
+
+**Cross-context (consumed via ports / event subscriptions):**
+
+- **Identity** — user email + display name + role lookups via `UserLookupPort`.
+- **Property** — property timezone for digest scheduling (existing property schema).
+- **Staff** — `staff_assignments` joined in `findAssignedManagers()` to resolve property-scoped recipients.
+- **Review / Inbox / Goal / Badge** — event subscriptions (see "Events consumed").
+
+## 4. Invariants
+
+- A notification is always scoped to exactly one `userId` + `organizationId`.
+- `userId` MUST be non-empty (constructor rejects `invalid_input`).
+- `type`, `resourceType`, and `status` MUST be in their allowed sets (constructor + row mapper enforce).
+- Email state machine: a queue entry moves `pending → sent` (success) or `pending/failed → failed` (retry); enforced at DB level by repo WHERE clauses.
+- Urgent priority is derived from type, never set by callers.
+- Preferences are sparse — a missing preference row means both channels enabled.
+
+## 5. Events produced
+
+This context produces **no domain events**. It consumes events and materializes notifications + email-queue rows.
+
+## 6. Events consumed
+
+| `_tag`                        | Source | Handler action                                                     |
+| ----------------------------- | ------ | ------------------------------------------------------------------ |
+| `review.created`              | review | Enqueue `review.created` notification for assigned managers/staff. |
+| `inbox.inbox_item.created`    | inbox  | Enqueue `feedback.created` notification (feedback only).           |
+| `inbox.inbox_item.assigned`   | inbox  | Enqueue `inbox.assigned` notification to assignee.                 |
+| `inbox.inbox_item.escalated`  | inbox  | Enqueue urgent `inbox.escalated` to managers/staff.                |
+| `inbox.inbox_note.added`      | inbox  | Enqueue `inbox_note.added` to assigned managers/staff.             |
+| `review.reply.submitted`      | review | Enqueue urgent `reply.pending_approval` to AccountAdmins.          |
+| `review.reply.approved`       | review | Enqueue `reply.approved` to reply author.                          |
+| `review.reply.rejected`       | review | Enqueue `reply.rejected` to reply author.                          |
+| `review.reply.published`      | review | Enqueue `reply.published` to reply author.                         |
+| `review.reply.publish_failed` | review | Enqueue urgent `reply.publish_failed` to reply author.             |
+| `goal.completed`              | goal   | Enqueue `goal.completed` to assigned managers/staff.               |
+| `badge.awarded`               | badge  | Enqueue `badge.awarded` to assigned managers/staff.                |
+
+## 7. Architecture layers
 
 ```
-server/       → createServerFn wrappers (queries + mutations)
-application/  → use cases, ports, public-api barrel
-domain/       → types, constructors, errors, isUrgent
-infrastructure:
-  event-handlers/  → subscribe to domain events, enqueue BullMQ jobs
-  jobs/            → BullMQ workers (insert-notification, digest, urgent-email)
-  adapters/        → cross-context lookup adapters (user, property)
-  repositories/    → Drizzle implementations of ports
+server/           → createServerFn wrappers (queries + mutations), tenant resolution
+application/      → use cases, ports, public-api barrel
+  use-cases/        insert-notification
+  ports/            repository / user-lookup / email-sender ports
+domain/           → types, constructors, constructors-email, constructors-transitions, constructors-preference, errors
+infrastructure/
+  event-handlers/   subscribe to domain events, enqueue BullMQ jobs
+  jobs/             BullMQ workers (insert-notification, digest, urgent-email)
+  adapters/         cross-context lookups (db-user-lookup, resend-email)
+  repositories/     Drizzle implementations of ports (+ row mapper)
 ```
 
-## Key decisions
+## 8. Use cases
 
-- **BullMQ delivery** (ADR 0011) — handlers enqueue jobs, workers insert rows
-- **Two tables** — `notifications` (in-app) + `notification_email_queue` (email) with separate lifecycles
-- **Title/body pre-rendered** at insertion time (Q19)
-- **Three urgent types**: `reply.pending_approval`, `reply.publish_failed`, `inbox.escalated` (Q9)
-- **No `goal.progress_updated` handler** — only `goal.completed` is notification-worthy (Q14)
-- **Digest keyed by property timezone** (already on properties table), not org timezone (Q8)
-- **Notification type names distinct from event tags** (Q4)
+| Name                 | Input                                                                  | Output                 | Permission                |
+| -------------------- | ---------------------------------------------------------------------- | ---------------------- | ------------------------- |
+| `insertNotification` | `InsertNotificationInput` (userId, orgId, type, resource, title, body) | `Notification \| null` | Internal (event handlers) |
 
-## Notification types (11)
+`insertNotification` is invoked by the insert-notification BullMQ worker, not directly by server functions. Returns `null` when the user has disabled both channels (still persists if email-only) — see Q19.
 
-| Type                     | Event tag                                         | Priority | Resource type |
-| ------------------------ | ------------------------------------------------- | -------- | ------------- |
-| `review.created`         | `review.created`                                  | normal   | `inbox_item`  |
-| `feedback.created`       | `inbox.inbox_item.created` (filtered to feedback) | normal   | `inbox_item`  |
-| `reply.pending_approval` | `review.reply.submitted`                          | urgent   | `reply`       |
-| `reply.approved`         | `review.reply.approved`                           | normal   | `reply`       |
-| `reply.rejected`         | `review.reply.rejected`                           | normal   | `reply`       |
-| `reply.published`        | `review.reply.published`                          | normal   | `reply`       |
-| `reply.publish_failed`   | `review.reply.publish_failed`                     | urgent   | `reply`       |
-| `inbox.escalated`        | `inbox.inbox_item.escalated`                      | urgent   | `inbox_item`  |
-| `inbox.assigned`         | `inbox.inbox_item.assigned`                       | normal   | `inbox_item`  |
-| `inbox_note.added`       | `inbox.inbox_note.added`                          | normal   | `inbox_item`  |
-| `goal.completed`         | `goal.completed`                                  | normal   | `goal`        |
+## 9. Public API
 
-## Cross-context dependencies
+Exported from `application/public-api.ts`:
 
-- **Identity** — user lookup (email, role) via `UserLookupPort`
-- **Property** — property timezone for digest via existing property schema
-- **Staff** — property assignments for recipient resolution via `UserLookupPort`
-- **All event-producing contexts** — event type imports via `public-api.ts`
+- **Types:** `Notification`, `NotificationEmail`, `NotificationPreference`, `NotificationType`, `NotificationPriority`, `NotificationStatus`, `EmailQueueStatus`, `NotificationResourceType`, `CreateNotificationInput`, `CreateNotificationEmailInput`, `CreateNotificationPreferenceInput`, `NotificationError`.
+- **Values:** `isUrgent`, `URGENT_TYPES`, `NOTIFICATION_TYPES` (canonical type list), `notificationError`.
+- **Ports:** `NotificationRepositoryPort`, `NotificationEmailRepositoryPort`, `NotificationPreferenceRepositoryPort`, `UserLookupPort`, `EmailSenderPort`.
+
+The build function (`build.ts`) also exposes `publicApi` query/mutation helpers (`findById`, `getUnreadCount`, `getNotifications`, `markRead`, `markAllRead`, `dismiss`, `getPreferences`, `updatePreference`) consumed by the notification server functions.
+
+## 10. Server functions
+
+| Name                             | Method | Permission            | Route                        |
+| -------------------------------- | ------ | --------------------- | ---------------------------- |
+| `getUnreadNotificationCountFn`   | GET    | `notification.read`   | RPC                          |
+| `getNotificationsFn`             | GET    | `notification.read`   | RPC                          |
+| `markNotificationReadFn`         | POST   | `notification.update` | RPC                          |
+| `markAllNotificationsReadFn`     | POST   | `notification.update` | RPC                          |
+| `dismissNotificationFn`          | POST   | `notification.update` | RPC                          |
+| `getNotificationPreferencesFn`   | GET    | `notification.read`   | RPC (staged — not yet wired) |
+| `updateNotificationPreferenceFn` | POST   | `notification.update` | RPC (staged — not yet wired) |
+
+Server functions resolve tenant context from the authenticated session (never client payload) and verify notification ownership before mutating.
+
+## 11. Permissions
+
+| Permission            | AccountAdmin (owner) | PropertyManager (admin) | Staff (member) |
+| --------------------- | -------------------- | ----------------------- | -------------- |
+| `notification.read`   | ✅                   | ✅                      | ✅             |
+| `notification.update` | ✅                   | ✅                      | ✅             |
+
+Notifications are personal (scoped to the caller's `userId`); all three roles may read their own notifications and update their own notification state/preferences. Defined in `shared/auth/permissions.ts`.
+
+## Background jobs
+
+- **insert-notification** — BullMQ worker that calls `insertNotification`.
+- **urgent-email** — sends urgent-priority email queue entries immediately (pending/failed → sent/failed).
+- **digest-notification** — daily batch that sends all `pending` normal-priority emails, keyed by property timezone (Q8); also sweeps orphaned urgent entries.
 
 ## Ports
 
-- `NotificationRepositoryPort` — CRUD for notifications
-- `NotificationEmailRepositoryPort` — email queue management
-- `NotificationPreferenceRepositoryPort` — preference CRUD
-- `UserLookupPort` — `findByRole()`, `findAssignedManagers()`, `getEmail()`, `getName()`
-- `EmailSenderPort` — wraps Resend `sendEmail()`
+- `NotificationRepositoryPort` — CRUD + count/findByUser for notifications.
+- `NotificationEmailRepositoryPort` — email queue management (findPending, markSent/markFailed).
+- `NotificationPreferenceRepositoryPort` — preference upsert/findByUser/findByUserAndType.
+- `UserLookupPort` — `findByRole()`, `findAssignedManagers()` (managers AND staff), `getEmail()`, `getName()`.
+- `EmailSenderPort` — wraps Resend `sendEmail()`.
+
+## Resolved decisions
+
+- **BullMQ delivery** (ADR 0011) — handlers enqueue jobs, workers insert rows.
+- **Two tables** — `notifications` (in-app) + `notification_email_queue` (email), separate lifecycles.
+- **Title/body pre-rendered** at insertion time (Q19).
+- **Three urgent types**: `reply.pending_approval`, `reply.publish_failed`, `inbox.escalated` (Q9).
+- **`goal.progress_updated` pruned (Q14)** — event removed entirely: no consumer, only `goal.completed` is notification-worthy.
+- **Digest keyed by property timezone** (already on properties table), not org timezone (Q8).
+- **Notification type names distinct from event tags** (Q4).

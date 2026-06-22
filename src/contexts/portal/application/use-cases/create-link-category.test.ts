@@ -6,17 +6,26 @@ import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo
 import { createInMemoryPortalLinkRepo } from '#/shared/testing/in-memory-portal-link-repo'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import { propertyId, type PropertyId } from '#/shared/domain/ids'
 import { isPortalError } from '../../domain/errors'
 
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
 
-const setup = () => {
+const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublicApi => ({
+  getAccessiblePropertyIds: async () => accessible,
+  getAssignedPortals: async () => [],
+  countAssignmentsByTeam: async () => 0,
+})
+
+const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
   const portalRepo = createInMemoryPortalRepo()
   const portalLinkRepo = createInMemoryPortalLinkRepo()
   const events = createCapturingEventBus()
   const deps = {
     portalRepo,
     portalLinkRepo,
+    staffPublicApi: staffApiMock(accessible),
     events,
     idGen: () => 'c0000000-0000-0000-0000-000000000001',
     clock: () => FIXED_TIME,
@@ -44,10 +53,7 @@ describe('createLinkCategory', () => {
 
     await expect(
       useCase({ portalId: 'nonexistent', title: 'Reviews' }, ctx),
-    ).rejects.toSatisfy(
-      (e: unknown) =>
-        isPortalError(e) && (e as { code: string }).code === 'portal_not_found',
-    )
+    ).rejects.toSatisfy((e: unknown) => isPortalError(e) && e.code === 'portal_not_found')
   })
 
   it('rejects empty title', async () => {
@@ -57,8 +63,7 @@ describe('createLinkCategory', () => {
     portalRepo.seed([portal])
 
     await expect(useCase({ portalId: portal.id, title: '' }, ctx)).rejects.toSatisfy(
-      (e: unknown) =>
-        isPortalError(e) && (e as { code: string }).code === 'invalid_title',
+      (e: unknown) => isPortalError(e) && e.code === 'invalid_title',
     )
   })
 
@@ -82,7 +87,32 @@ describe('createLinkCategory', () => {
     portalRepo.seed([portal])
 
     await expect(useCase({ portalId: portal.id, title: 'Links' }, ctx)).rejects.toSatisfy(
-      (e: unknown) => isPortalError(e) && (e as { code: string }).code === 'forbidden',
+      (e: unknown) => isPortalError(e) && e.code === 'forbidden',
     )
+  })
+
+  it('rejects PropertyManager without assignment to the property', async () => {
+    const { useCase, portalRepo } = setup([])
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const portal = buildTestPortal({})
+    portalRepo.seed([portal])
+
+    await expect(
+      useCase({ portalId: portal.id, title: 'Reviews' }, ctx),
+    ).rejects.toSatisfy((e: unknown) => isPortalError(e) && e.code === 'forbidden')
+  })
+
+  it('allows PropertyManager assigned to the property', async () => {
+    const { useCase, portalRepo, portalLinkRepo } = setup([
+      propertyId('a0000000-0000-0000-0000-000000000001'),
+    ])
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const portal = buildTestPortal({})
+    portalRepo.seed([portal])
+
+    const category = await useCase({ portalId: portal.id, title: 'Reviews' }, ctx)
+
+    expect(category.title).toBe('Reviews')
+    expect(portalLinkRepo.allCategories()).toHaveLength(1)
   })
 })

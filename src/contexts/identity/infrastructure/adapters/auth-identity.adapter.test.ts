@@ -321,19 +321,31 @@ describe('createBetterAuthIdentityAdapter', () => {
   })
 
   describe('acceptInvitation', () => {
-    it('calls acceptInvitation API with correct params', async () => {
+    it('calls acceptInvitation API and returns organizationId', async () => {
       // Arrange
-      mockAcceptInvitation.mockResolvedValue(undefined)
+      mockListUserInvitations.mockResolvedValue([
+        {
+          id: 'inv-1',
+          email: 'a@t.com',
+          role: 'member',
+          status: 'pending',
+          propertyIds: '[]',
+          expiresAt: new Date('2026-01-08'),
+          createdAt: new Date('2026-01-01'),
+        },
+      ])
+      mockAcceptInvitation.mockResolvedValue({ organizationId: 'org-1' })
       const headers = new Headers()
 
       // Act
-      await adapter.acceptInvitation(invitationId('inv-1'), headers)
+      const result = await adapter.acceptInvitation(invitationId('inv-1'), headers)
 
       // Assert
       expect(mockAcceptInvitation).toHaveBeenCalledWith({
         headers,
         body: { invitationId: invitationId('inv-1') },
       })
+      expect(result).toEqual({ organizationId: organizationId('org-1'), propertyIds: [] })
     })
   })
 
@@ -371,6 +383,7 @@ describe('createBetterAuthIdentityAdapter', () => {
         email: 'a@t.com',
         role: 'AccountAdmin',
         status: 'pending',
+        propertyIds: [],
         expiresAt: expires,
         createdAt: now,
       })

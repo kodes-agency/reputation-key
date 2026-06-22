@@ -11,3 +11,11 @@ export type { GoogleConnectionStatus, GoogleConnectionVisibility } from '../doma
 export type { GbpLocation } from '../domain/types'
 
 export type { GbpImportJob, GbpImportJobStatus } from '../domain/types'
+export type {
+  IntegrationGoogleAccountConnected,
+  IntegrationGoogleAccountDisconnected,
+} from '../domain/events'
+export {
+  integrationGoogleAccountConnected,
+  integrationGoogleAccountDisconnected,
+} from '../domain/events'

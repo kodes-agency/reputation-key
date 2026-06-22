@@ -1,8 +1,8 @@
 # ADR 0001 — Dynamic Access Control via Better-auth
 
-**Status:** Implemented
+**Status:** Implemented (dynamicAccessControl enabled + `organizationRole` migration applied)
 **Date:** 2026-05-02
-**Implemented:** 2026-05-02 (commits `6e14d50`, `a15e1ca`, `804389f`, `0c637e3`)
+**Last updated:** 2026-06-21 (migration applied: `better-auth_migrations/2026-06-21T18-37-49.995Z.sql`)
 **Context:** Identity & Authorization
 
 ## Decision
@@ -70,6 +70,7 @@ Enable `dynamicAccessControl: { enabled: true }` in the organization plugin. Bet
 ## Implementation Notes
 
 - Enabled via `dynamicAccessControl: { enabled: true }` in `organization()` plugin config (done)
+- `organizationRole` table migration applied (`better-auth_migrations/2026-06-21T18-37-49.995Z.sql`) — creates the table with `organizationId` and `role` indexes for per-org role override lookups
 - The `ac` instance and role definitions passed to both `organization()` (server) and `organizationClient()` (client)
 - Server-side permission checks use `can()` from `shared/domain/permissions` — boundary-compliant
 - Client-side uses `usePermissions()` hook from `shared/hooks/usePermissions` — reads role from route context
@@ -77,5 +78,5 @@ Enable `dynamicAccessControl: { enabled: true }` in the organization plugin. Bet
 - Double-mapping bug fixed — `beforeLoad` no longer calls `toDomainRole()` on already-mapped roles
 - All `canEdit`/`canCreate`/`canDelete` prop drilling replaced with `usePermissions()` or `can()`
 - Phase 4 (Admin UI for custom role management) deferred to future session
-- Phase 15C added `goal.read`, `goal.create`, `goal.update`, `goal.cancel` permissions for the Goal bounded context. `goal.create`, `goal.update`, `goal.cancel` granted to AccountAdmin and PropertyManager; `goal.read` granted to all three roles including Staff.
+- Phase 15C added `goal.read`, `goal.create`, `goal.update`, `goal.cancel` permissions for the Goal bounded context. `goal.read` and `goal.create` granted to all three roles (AccountAdmin, PropertyManager, Staff); `goal.update` and `goal.cancel` granted to AccountAdmin and PropertyManager only.
 - `invitation.list` added to the `invitation` resource actions for listing invitations (previously only `create`, `cancel`, `resend` were defined).

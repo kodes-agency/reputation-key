@@ -28,9 +28,5 @@ export type MetricReadingsAggregate = Readonly<{
 
 export type MetricRepository = Readonly<{
   insertReading(reading: MetricReading): Promise<MetricReading>
-  findByOrganizationId(
-    orgId: OrganizationId,
-    metricKey?: MetricKey,
-  ): Promise<ReadonlyArray<MetricReading>>
   queryAggregate(query: MetricReadingsQuery): Promise<MetricReadingsAggregate>
 }>

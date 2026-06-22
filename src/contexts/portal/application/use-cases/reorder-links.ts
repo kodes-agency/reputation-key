@@ -7,6 +7,9 @@ import type { EventBus } from '#/shared/events/event-bus'
 import { can } from '#/shared/domain/permissions'
 import { portalError } from '../../domain/errors'
 import { portalId, portalLinkId, portalLinkCategoryId } from '#/shared/domain/ids'
+import type { PortalRepository } from '../ports/portal.repository'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import { assertPortalPropertyAccess } from '../assert-property-access'
 
 // fallow-ignore-next-line unused-type
 export type ReorderLinksInput = Readonly<{
@@ -17,7 +20,9 @@ export type ReorderLinksInput = Readonly<{
 
 // fallow-ignore-next-line unused-type
 export type ReorderLinksDeps = Readonly<{
+  portalRepo: PortalRepository
   portalLinkRepo: PortalLinkRepository
+  staffPublicApi: StaffPublicApi
   events: EventBus
   clock: () => Date
 }>
@@ -29,6 +34,13 @@ export const reorderLinks =
     if (!can(ctx.role, 'portal.update')) {
       throw portalError('forbidden', 'this role cannot reorder portal links')
     }
+    // Enforce property-assignment scoping (D6-001.)
+    await assertPortalPropertyAccess(
+      deps.portalRepo,
+      deps.staffPublicApi,
+      ctx,
+      portalId(input.portalId),
+    )
 
     await deps.portalLinkRepo.reorderLinks(
       ctx.organizationId,

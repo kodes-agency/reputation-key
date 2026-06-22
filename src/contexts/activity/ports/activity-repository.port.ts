@@ -6,11 +6,15 @@ export type ActivityFilter = Readonly<{
   resourceType?: string
   resourceId?: string
   propertyId?: PropertyId
+  /** When set (non-null array), restrict results to these properties plus
+   *  system-level entries (propertyId IS NULL). Used by PM/Staff scoping. */
+  propertyIds?: readonly PropertyId[]
 }>
 
 export type Pagination = Readonly<{ limit: number; offset: number }>
 
 export type FindDuplicateInput = Readonly<{
+  eventId: string
   action: ActivityAction
   resourceType: ResourceType
   resourceId: string

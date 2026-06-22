@@ -6,6 +6,8 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import { portalId } from '#/shared/domain/ids'
 import { can } from '#/shared/domain/permissions'
 import { portalError } from '../../domain/errors'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import { assertPropertyAccess } from '../assert-property-access'
 
 // fallow-ignore-next-line unused-type
 export type RequestUploadUrlInput = Readonly<{
@@ -18,6 +20,7 @@ export type RequestUploadUrlInput = Readonly<{
 export type RequestUploadUrlDeps = Readonly<{
   portalRepo: PortalRepository
   storage: StoragePort
+  staffPublicApi: StaffPublicApi
   idGen: () => string
 }>
 
@@ -40,6 +43,8 @@ export const requestUploadUrl =
     if (!portal) {
       throw portalError('portal_not_found', 'portal not found in this organization')
     }
+    // Enforce property-assignment scoping (D6-001.)
+    await assertPropertyAccess(deps.staffPublicApi, ctx, portal.propertyId)
 
     if (!ALLOWED_CONTENT_TYPES.includes(input.contentType)) {
       throw portalError(

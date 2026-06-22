@@ -10,7 +10,12 @@ import type {
 } from '#/contexts/identity/application/ports/identity.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Role } from '#/shared/domain/roles'
-import { invitationId, type InvitationId } from '#/shared/domain/ids'
+import {
+  invitationId,
+  organizationId,
+  type InvitationId,
+  type OrganizationId,
+} from '#/shared/domain/ids'
 
 // fallow-ignore-next-line unused-type
 export type InMemoryIdentityPort = IdentityPort & {
@@ -70,14 +75,21 @@ export function createInMemoryIdentityPort(): InMemoryIdentityPort {
         status: 'pending',
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
         createdAt: new Date(),
+        propertyIds: _propertyIds ?? [],
       })
       return id
     },
-
-    async acceptInvitation(invitationId: string, _headers: Headers): Promise<void> {
+    async acceptInvitation(
+      invitationId: string,
+      _headers: Headers,
+    ): Promise<{ organizationId: OrganizationId; propertyIds: ReadonlyArray<string> }> {
       const inv = invitations.get(invitationId)
       if (inv) {
         invitations.set(invitationId, { ...inv, status: 'accepted' })
+      }
+      return {
+        organizationId: organizationId(inv?.organizationId ?? 'org-test'),
+        propertyIds: inv?.propertyIds ?? [],
       }
     },
     async cancelInvitation(invitationId: string, _headers: Headers): Promise<void> {
@@ -107,6 +119,11 @@ export function createInMemoryIdentityPort(): InMemoryIdentityPort {
     async getActiveOrg(_headers: Headers): Promise<OrganizationRecord | null> {
       const org = organizations.get(DEFAULT_TEST_ORG_ID)
       return org ?? null
+    },
+    async listUserOrganizations(
+      _headers: Headers,
+    ): Promise<ReadonlyArray<OrganizationRecord>> {
+      return Array.from(organizations.values())
     },
 
     async removeMember(_ctx: AuthContext, memberId: string): Promise<void> {

@@ -3,20 +3,23 @@
 // Only validates fields that are changing, using domain rules directly.
 
 import type { TeamRepository } from '../ports/team.repository'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { Team } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { UpdateTeamInput } from '../dto/update-team.dto'
 export type { UpdateTeamInput } from '../dto/update-team.dto'
 import { can } from '#/shared/domain/permissions'
+import { isPropertyAccessible } from '#/shared/domain/property-access'
+import { teamId as toTeamId, userId as toUserId } from '#/shared/domain/ids'
 import { validateTeamName } from '../../domain/rules'
 import { teamError } from '../../domain/errors'
 import { teamUpdated } from '../../domain/events'
-import { teamId as toTeamId } from '#/shared/domain/ids'
 
 // fallow-ignore-next-line unused-type
 export type UpdateTeamDeps = Readonly<{
   teamRepo: TeamRepository
+  staffApi: StaffPublicApi
   events: EventBus
   clock: () => Date
 }>
@@ -36,14 +39,27 @@ export const updateTeam =
       throw teamError('team_not_found', 'team not found')
     }
 
+    // D6-001: PropertyManager/Staff must be assigned to the team's property.
+    const accessible = await isPropertyAccessible(
+      (orgId, uId, role) => deps.staffApi.getAccessiblePropertyIds(orgId, uId, role),
+      ctx.organizationId,
+      ctx.userId,
+      ctx.role,
+      existing.propertyId,
+    )
+    if (!accessible) {
+      throw teamError('forbidden', 'no access to this property')
+    }
+
     // 3. Check uniqueness if name is changing
-    const newName = input.name ?? existing.name
+    let newName = input.name ?? existing.name
     if (input.name && input.name !== existing.name) {
       // 4. Validate only the changed field using domain rules directly
       const nameResult = validateTeamName(input.name)
       if (nameResult.isErr()) {
         throw nameResult.error
       }
+      newName = nameResult.value
 
       if (
         await deps.teamRepo.nameExistsInProperty(
@@ -64,8 +80,8 @@ export const updateTeam =
     const updatedDescription =
       input.description !== undefined ? input.description : existing.description
     const updatedTeamLeadId =
-      input.teamLeadId !== undefined
-        ? (input.teamLeadId as Team['teamLeadId'])
+      input.teamLeadId !== undefined && input.teamLeadId !== null
+        ? toUserId(input.teamLeadId)
         : existing.teamLeadId
 
     const now = deps.clock()
@@ -88,7 +104,6 @@ export const updateTeam =
     // 6. Emit event
     await deps.events.emit(
       teamUpdated({
-        eventId: crypto.randomUUID(),
         teamId: updated.id,
         organizationId: updated.organizationId,
         propertyId: updated.propertyId,

@@ -55,6 +55,9 @@ const makeExpireDeps = (item: InboxItem, decrement = vi.fn(async () => {})) => (
     findBySource: vi.fn(async () => item),
     updateStatus: vi.fn(async () => item),
   } as unknown as InboxRepository,
+  events: {
+    emit: vi.fn(async () => {}),
+  } as unknown as import('#/shared/events/event-bus').EventBus,
   newCounter: { decrement } as unknown as NewCounterPort,
 })
 
@@ -69,6 +72,9 @@ describe('onReviewExpired', () => {
         findBySource: vi.fn(async () => item),
         updateStatus,
       } as unknown as InboxRepository,
+      events: {
+        emit: vi.fn(async () => {}),
+      } as unknown as import('#/shared/events/event-bus').EventBus,
       newCounter: { decrement } as unknown as NewCounterPort,
     }
 
@@ -110,6 +116,9 @@ describe('onReviewExpired', () => {
         findBySource: vi.fn(async () => null),
         updateStatus,
       } as unknown as InboxRepository,
+      events: {
+        emit: vi.fn(async () => {}),
+      } as unknown as import('#/shared/events/event-bus').EventBus,
       newCounter: {} as unknown as NewCounterPort,
     }
 
@@ -124,6 +133,9 @@ describe('onReviewExpired', () => {
           throw new Error('DB down')
         }),
       } as unknown as InboxRepository,
+      events: {
+        emit: vi.fn(async () => {}),
+      } as unknown as import('#/shared/events/event-bus').EventBus,
       newCounter: {} as unknown as NewCounterPort,
     }
 

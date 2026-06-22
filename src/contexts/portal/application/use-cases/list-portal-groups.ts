@@ -7,10 +7,12 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import { can } from '#/shared/domain/permissions'
 import { portalError } from '../../domain/errors'
 import { propertyId } from '#/shared/domain/ids'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 
 // fallow-ignore-next-line unused-type
 export type ListPortalGroupsDeps = Readonly<{
   portalGroupRepo: PortalGroupRepository
+  staffPublicApi: StaffPublicApi
 }>
 
 export const listPortalGroups =
@@ -22,10 +24,21 @@ export const listPortalGroups =
     if (!can(ctx.role, 'portal.read')) {
       throw portalError('forbidden', 'No portal read permission')
     }
-    return deps.portalGroupRepo.listByProperty(
+    // D6-001: scope reads to properties in the caller's staff_assignment.
+    // AccountAdmin bypasses (getAccessiblePropertyIds returns null).
+    const accessible = await deps.staffPublicApi.getAccessiblePropertyIds(
+      ctx.organizationId,
+      ctx.userId,
+      ctx.role,
+    )
+    const groups = await deps.portalGroupRepo.listByProperty(
       ctx.organizationId,
       propertyId(input.propertyId),
     )
+    if (accessible === null) {
+      return groups
+    }
+    return groups.filter((g) => accessible.includes(g.propertyId))
   }
 
 // fallow-ignore-next-line unused-type

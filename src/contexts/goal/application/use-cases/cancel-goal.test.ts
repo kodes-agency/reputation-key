@@ -9,12 +9,22 @@ import {
   goalProgressId,
   userId,
 } from '#/shared/domain/ids'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { PropertyId } from '#/shared/domain/ids'
 
 const FIXED_TIME = new Date('2026-06-15T12:00:00Z')
+const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublicApi => ({
+  getAccessiblePropertyIds: async () => accessible,
+  getAssignedPortals: async () => [],
+  countAssignmentsByTeam: async () => 0,
+})
 
 // ── Fake repo ───────────────────────────────────────────────────────────
 
-function createFakeDeps(overrides?: { storedGoals?: Goal[] }) {
+function createFakeDeps(
+  overrides?: { storedGoals?: Goal[] },
+  accessible: ReadonlyArray<PropertyId> | null = null,
+) {
   const stored: Map<string, Goal> = new Map()
   let cancelledByParentCount = 0
   let idCounter = 0
@@ -104,22 +114,25 @@ function createFakeDeps(overrides?: { storedGoals?: Goal[] }) {
       currentSum: null,
       currentCount: null,
     }),
-    incrementProgress: async () => ({
-      currentValue: 0,
-      currentSum: null,
-      currentCount: null,
-    }),
     markGoalCompleted: async () => {},
-    findAllActive: async () => [],
     findAllActiveRecurring: async () => [],
     findAllActiveGlobal: async () => [],
     findActiveRecurringTemplates: async () => [],
     findLatestInstance: async () => null,
+    cancelTemplateAndInstances: async (gid, _orgId, now) => {
+      const g = stored.get(gid as string)
+      if (!g) return null
+      const updated = { ...g, status: 'cancelled' as const, updatedAt: now }
+      stored.set(gid as string, updated)
+      return updated
+    },
+    createRecurringGoalWithInstance: async () => {},
     createGoalAndProgress: async () => {},
   }
 
   const deps: CancelGoalDeps = {
     goalRepo,
+    staffPublicApi: staffApiMock(accessible),
     clock: () => FIXED_TIME,
   }
 
@@ -161,6 +174,7 @@ describe('cancelGoal', () => {
       const result = await cancelGoal(fakes.deps)({
         goalId: goalId('goal-1'),
         organizationId: organizationId('org-1'),
+        userId: userId('user-1'),
         role: 'Staff',
       })
 
@@ -179,6 +193,7 @@ describe('cancelGoal', () => {
       const result = await cancelGoal(fakes.deps)({
         goalId: goalId('goal-1'),
         organizationId: organizationId('org-1'),
+        userId: userId('user-1'),
         role: 'AccountAdmin',
       })
 
@@ -193,6 +208,43 @@ describe('cancelGoal', () => {
       const result = await cancelGoal(fakes.deps)({
         goalId: goalId('goal-1'),
         organizationId: organizationId('org-1'),
+        userId: userId('user-1'),
+        role: 'PropertyManager',
+      })
+
+      expect(result.isOk()).toBe(true)
+      expect(result._unsafeUnwrap().status).toBe('cancelled')
+    })
+  })
+
+  // ── Property assignment scoping (D6-001) ─────────────────────────────
+  describe('property assignment scoping', () => {
+    it('rejects PropertyManager without assignment to the goal property', async () => {
+      const goal = makeGoal()
+      const fakes = createFakeDeps({ storedGoals: [goal] }, [])
+
+      const result = await cancelGoal(fakes.deps)({
+        goalId: goalId('goal-1'),
+        organizationId: organizationId('org-1'),
+        userId: userId('user-1'),
+        role: 'PropertyManager',
+      })
+
+      expect(result.isErr()).toBe(true)
+      expect(result._unsafeUnwrapErr().tag).toBe('forbidden')
+      // Goal remains active — repo update was never called
+      const stored = fakes.stored.get('goal-1')
+      expect(stored?.status).toBe('active')
+    })
+
+    it('allows PropertyManager assigned to the goal property', async () => {
+      const goal = makeGoal()
+      const fakes = createFakeDeps({ storedGoals: [goal] }, [propertyId('prop-1')])
+
+      const result = await cancelGoal(fakes.deps)({
+        goalId: goalId('goal-1'),
+        organizationId: organizationId('org-1'),
+        userId: userId('user-1'),
         role: 'PropertyManager',
       })
 
@@ -208,6 +260,7 @@ describe('cancelGoal', () => {
     const result = await cancelGoal(fakes.deps)({
       goalId: goalId('goal-1'),
       organizationId: organizationId('org-1'),
+      userId: userId('user-1'),
       role: 'AccountAdmin',
     })
 
@@ -226,14 +279,14 @@ describe('cancelGoal', () => {
     const result = await cancelGoal(fakes.deps)({
       goalId: goalId('goal-1'),
       organizationId: organizationId('org-1'),
+      userId: userId('user-1'),
       role: 'AccountAdmin',
     })
 
     expect(result.isOk()).toBe(true)
     const cancelled = result._unsafeUnwrap()
     expect(cancelled.status).toBe('cancelled')
-    // cancelByParent was called
-    expect(fakes.cancelledByParentCount()).toBe(1)
+    // Template + instances cancelled atomically via cancelTemplateAndInstances
   })
 
   it('returns err when cancelling an already cancelled goal', async () => {
@@ -243,6 +296,7 @@ describe('cancelGoal', () => {
     const result = await cancelGoal(fakes.deps)({
       goalId: goalId('goal-1'),
       organizationId: organizationId('org-1'),
+      userId: userId('user-1'),
       role: 'AccountAdmin',
     })
 
@@ -258,6 +312,7 @@ describe('cancelGoal', () => {
     const result = await cancelGoal(fakes.deps)({
       goalId: goalId('goal-1'),
       organizationId: organizationId('org-1'),
+      userId: userId('user-1'),
       role: 'AccountAdmin',
     })
 
@@ -272,6 +327,7 @@ describe('cancelGoal', () => {
     const result = await cancelGoal(fakes.deps)({
       goalId: goalId('nonexistent'),
       organizationId: organizationId('org-1'),
+      userId: userId('user-1'),
       role: 'AccountAdmin',
     })
 

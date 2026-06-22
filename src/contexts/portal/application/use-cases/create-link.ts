@@ -12,6 +12,9 @@ import type { EventBus } from '#/shared/events/event-bus'
 import { portalId, portalLinkCategoryId, portalLinkId } from '#/shared/domain/ids'
 
 import { isValidExternalUrl } from '../../domain/rules'
+import type { PortalRepository } from '../ports/portal.repository'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import { assertPortalPropertyAccess } from '../assert-property-access'
 
 // fallow-ignore-next-line unused-type
 export type CreateLinkInput = Readonly<{
@@ -24,7 +27,9 @@ export type CreateLinkInput = Readonly<{
 
 // fallow-ignore-next-line unused-type
 export type CreateLinkDeps = Readonly<{
+  portalRepo: PortalRepository
   portalLinkRepo: PortalLinkRepository
+  staffPublicApi: StaffPublicApi
   events: EventBus
   idGen: () => string
   clock: () => Date
@@ -44,6 +49,13 @@ export const createLink =
     if (!category) {
       throw portalError('category_not_found', 'category not found')
     }
+    // Enforce property-assignment scoping for PropertyManager (D6-001.)
+    await assertPortalPropertyAccess(
+      deps.portalRepo,
+      deps.staffPublicApi,
+      ctx,
+      portalId(input.portalId),
+    )
 
     if (!isValidExternalUrl(input.url)) {
       throw portalError('invalid_url', 'link URL must use https:// scheme')

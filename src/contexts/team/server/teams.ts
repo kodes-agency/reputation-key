@@ -17,7 +17,7 @@ import { isTeamError } from '../domain/errors'
 import type { TeamErrorCode } from '../domain/errors'
 import { propertyId as toPropertyId, teamId as toTeamId } from '#/shared/domain/ids'
 
-const teamErrorStatus = (code: TeamErrorCode): number =>
+export const teamErrorStatus = (code: TeamErrorCode): number =>
   match(code)
     .with('forbidden', () => HTTP_STATUS.FORBIDDEN)
     .with('team_not_found', 'property_not_found', () => HTTP_STATUS.NOT_FOUND)

@@ -2,33 +2,48 @@
 
 import { describe, it, expect } from 'vitest'
 import { createLink } from './create-link'
+import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
 import { createInMemoryPortalLinkRepo } from '#/shared/testing/in-memory-portal-link-repo'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
 import {
   buildTestAuthContext,
+  buildTestPortal,
   buildTestPortalLinkCategory,
 } from '#/shared/testing/fixtures'
 import { isPortalError } from '../../domain/errors'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import { propertyId, type PropertyId } from '#/shared/domain/ids'
 
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
 
-const setup = () => {
+const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublicApi => ({
+  getAccessiblePropertyIds: async () => accessible,
+  getAssignedPortals: async () => [],
+  countAssignmentsByTeam: async () => 0,
+})
+
+const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
+  const portalRepo = createInMemoryPortalRepo()
   const portalLinkRepo = createInMemoryPortalLinkRepo()
   const events = createCapturingEventBus()
   const deps = {
+    portalRepo,
     portalLinkRepo,
+    staffPublicApi: staffApiMock(accessible),
     events,
     idGen: () => '10000000-0000-0000-0000-000000000001',
     clock: () => FIXED_TIME,
   }
   const useCase = createLink(deps)
-  return { useCase, portalLinkRepo, events }
+  return { useCase, portalRepo, portalLinkRepo, events }
 }
 
 describe('createLink', () => {
   it('creates a link in an existing category', async () => {
-    const { useCase, portalLinkRepo } = setup()
+    const { useCase, portalRepo, portalLinkRepo } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const portal = buildTestPortal({})
+    portalRepo.seed([portal])
     const category = buildTestPortalLinkCategory({})
     portalLinkRepo.seedCategories([category])
 
@@ -61,14 +76,15 @@ describe('createLink', () => {
         ctx,
       ),
     ).rejects.toSatisfy(
-      (e: unknown) =>
-        isPortalError(e) && (e as { code: string }).code === 'category_not_found',
+      (e: unknown) => isPortalError(e) && e.code === 'category_not_found',
     )
   })
 
   it('rejects empty label', async () => {
-    const { useCase, portalLinkRepo } = setup()
+    const { useCase, portalRepo, portalLinkRepo } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const portal = buildTestPortal({})
+    portalRepo.seed([portal])
     const category = buildTestPortalLinkCategory({})
     portalLinkRepo.seedCategories([category])
 
@@ -82,15 +98,14 @@ describe('createLink', () => {
         },
         ctx,
       ),
-    ).rejects.toSatisfy(
-      (e: unknown) =>
-        isPortalError(e) && (e as { code: string }).code === 'invalid_label',
-    )
+    ).rejects.toSatisfy((e: unknown) => isPortalError(e) && e.code === 'invalid_label')
   })
 
   it('rejects invalid URL', async () => {
-    const { useCase, portalLinkRepo } = setup()
+    const { useCase, portalRepo, portalLinkRepo } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const portal = buildTestPortal({})
+    portalRepo.seed([portal])
     const category = buildTestPortalLinkCategory({})
     portalLinkRepo.seedCategories([category])
 
@@ -104,14 +119,14 @@ describe('createLink', () => {
         },
         ctx,
       ),
-    ).rejects.toSatisfy(
-      (e: unknown) => isPortalError(e) && (e as { code: string }).code === 'invalid_url',
-    )
+    ).rejects.toSatisfy((e: unknown) => isPortalError(e) && e.code === 'invalid_url')
   })
 
   it('emits portal_link.created event', async () => {
-    const { useCase, portalLinkRepo, events } = setup()
+    const { useCase, portalRepo, portalLinkRepo, events } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const portal = buildTestPortal({})
+    portalRepo.seed([portal])
     const category = buildTestPortalLinkCategory({})
     portalLinkRepo.seedCategories([category])
 
@@ -146,8 +161,50 @@ describe('createLink', () => {
         },
         ctx,
       ),
-    ).rejects.toSatisfy(
-      (e: unknown) => isPortalError(e) && (e as { code: string }).code === 'forbidden',
+    ).rejects.toSatisfy((e: unknown) => isPortalError(e) && e.code === 'forbidden')
+  })
+
+  it('rejects PropertyManager without assignment to the property', async () => {
+    const { useCase, portalRepo, portalLinkRepo } = setup([])
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const portal = buildTestPortal({})
+    portalRepo.seed([portal])
+    const category = buildTestPortalLinkCategory({})
+    portalLinkRepo.seedCategories([category])
+
+    await expect(
+      useCase(
+        {
+          categoryId: category.id,
+          portalId: portal.id,
+          label: 'Test',
+          url: 'https://example.com',
+        },
+        ctx,
+      ),
+    ).rejects.toSatisfy((e: unknown) => isPortalError(e) && e.code === 'forbidden')
+  })
+
+  it('allows PropertyManager assigned to the property', async () => {
+    const { useCase, portalRepo, portalLinkRepo } = setup([
+      propertyId('a0000000-0000-0000-0000-000000000001'),
+    ])
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const portal = buildTestPortal({})
+    portalRepo.seed([portal])
+    const category = buildTestPortalLinkCategory({})
+    portalLinkRepo.seedCategories([category])
+
+    const link = await useCase(
+      {
+        categoryId: category.id,
+        portalId: portal.id,
+        label: 'Test',
+        url: 'https://example.com',
+      },
+      ctx,
     )
+
+    expect(link.label).toBe('Test')
   })
 })

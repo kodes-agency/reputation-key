@@ -7,6 +7,7 @@ export {
   identityMemberInvited,
   identityInvitationAccepted,
   identityInvitationRejected,
+  identityInvitationCanceled,
   identityMemberRemoved,
   identityMemberRoleChanged,
 } from '../domain/events'
@@ -15,6 +16,7 @@ export type {
   IdentityMemberInvited,
   IdentityInvitationAccepted,
   IdentityInvitationRejected,
+  IdentityInvitationCanceled,
   IdentityMemberRemoved,
   IdentityMemberRoleChanged,
   IdentityEvent,

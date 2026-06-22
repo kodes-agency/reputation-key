@@ -9,6 +9,7 @@ import type { ReplyRepository } from '../../application/ports/reply.repository'
 import type { ReviewRepository } from '../../application/ports/review.repository'
 import type { GoogleReviewApiPort } from '../../application/ports/google-review-api.port'
 import type { EventBus } from '#/shared/events/event-bus'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { replyId, organizationId } from '#/shared/domain/ids'
 import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
@@ -26,6 +27,10 @@ type PublishHandlerDeps = Readonly<{
   events: EventBus
   clock: () => Date
   idGen: () => ReturnType<typeof replyId>
+  // Job-only mark ops share ReplyDeps (which now carries staffPublicApi for the
+  // user-facing reply ops). The mark ops don't perform access checks themselves
+  // (no authenticated caller), but accept the field to satisfy the shared type.
+  staffPublicApi: StaffPublicApi
 }>
 
 export const createPublishReplyHandler = (deps: PublishHandlerDeps) => {
@@ -39,6 +44,7 @@ export const createPublishReplyHandler = (deps: PublishHandlerDeps) => {
     events: deps.events,
     clock: deps.clock,
     idGen: deps.idGen,
+    staffPublicApi: deps.staffPublicApi,
   })
 
   const doMarkFailed = markReplyPublishFailed({
@@ -48,6 +54,7 @@ export const createPublishReplyHandler = (deps: PublishHandlerDeps) => {
     events: deps.events,
     clock: deps.clock,
     idGen: deps.idGen,
+    staffPublicApi: deps.staffPublicApi,
   })
 
   return async (job: Job<PublishReplyJobData>) => {

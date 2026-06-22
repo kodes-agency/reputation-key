@@ -4,17 +4,20 @@
 
 import type { GoalRepository } from '../ports/goal.repository'
 import type { Goal, GoalProgress } from '../../domain/types'
-import type { GoalId, OrganizationId } from '#/shared/domain/ids'
+import type { GoalId, OrganizationId, UserId } from '#/shared/domain/ids'
 import type { GoalWithProgress } from './list-goals'
 import type { Role } from '#/shared/domain/roles'
 import { can } from '#/shared/domain/permissions'
 import { ok, err, type Result } from '#/shared/domain'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import { isPropertyAccessible } from '#/shared/domain/property-access'
 
 // ── Input type ────────────────────────────────────────────────────────────
 
 export type GetGoalInput = Readonly<{
   goalId: GoalId
   organizationId: OrganizationId
+  userId: UserId
   role: Role
 }>
 
@@ -31,10 +34,9 @@ export type GoalDetail = Readonly<{
 export type GetGoalError = { tag: 'forbidden' } | { tag: 'goal_not_found' }
 
 // ── Dependencies ───────────────────────────────────────────────────────────
-
-// fallow-ignore-next-line unused-type
 export type GetGoalDeps = Readonly<{
   goalRepo: GoalRepository
+  staffPublicApi: StaffPublicApi
 }>
 
 // ── Use case ───────────────────────────────────────────────────────────────
@@ -49,6 +51,19 @@ export const getGoal =
     const goal = await deps.goalRepo.getById(input.goalId, input.organizationId)
     if (!goal) {
       return err({ tag: 'goal_not_found' })
+    }
+
+    // D6-001: PropertyManager/Staff must be assigned to the goal's property.
+    const accessible = await isPropertyAccessible(
+      (orgId, uId, role) =>
+        deps.staffPublicApi.getAccessiblePropertyIds(orgId, uId, role),
+      input.organizationId,
+      input.userId,
+      input.role,
+      goal.propertyId,
+    )
+    if (!accessible) {
+      return err({ tag: 'forbidden' })
     }
 
     const [progressMap] = await Promise.all([

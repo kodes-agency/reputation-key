@@ -2,41 +2,7 @@
 
 import { z } from 'zod/v4'
 
-export const badgeTargetScopeSchema = z.enum(['portal', 'portal_group'])
-export const badgeTargetTypeSchema = z.enum(['portal', 'portal_group'])
-export const badgeCriteriaOperatorSchema = z.enum(['>=', '<='])
-export const badgePeriodPresetSchema = z.enum([
-  'today',
-  'this_week',
-  'this_month',
-  'this_quarter',
-  'all_time',
-  'last_7_days',
-  'last_30_days',
-  'last_90_days',
-])
-
-export const badgeCriteriaSchema = z.object({
-  type: z.enum(['threshold', 'streak', 'milestone']),
-  metricKey: z.string().min(1),
-  operator: badgeCriteriaOperatorSchema,
-  threshold: z.number(),
-  aggregation: z.enum(['sum', 'count', 'avg', 'max']).optional(),
-  period: badgePeriodPresetSchema.optional(),
-  streakDays: z.number().int().positive().optional(),
-  dailyThreshold: z.number().positive().optional(),
-})
-
-export const evaluateBadgeForTargetSchema = z.object({
-  organizationId: z.string().uuid(),
-  propertyId: z.string().uuid(),
-  targetType: badgeTargetTypeSchema,
-  targetId: z.string().uuid(),
-})
-
-export const reconcileBadgeDefinitionsSchema = z.object({
-  organizationId: z.string().uuid().optional(),
-})
+const badgeTargetTypeSchema = z.enum(['portal', 'portal_group'])
 
 export const getVisibleTargetBadgesSchema = z.object({
   propertyId: z.string().uuid(),

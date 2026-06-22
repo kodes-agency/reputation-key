@@ -166,6 +166,17 @@ export function createContainer(options?: {
   const staffRepo = createStaffAssignmentRepository(db)
   const staff = buildStaffContext({
     repo: staffRepo,
+    // Staff is built before portal (portal depends on staff.publicApi).
+    // Late-binding closure: methods resolve portal at call time (runtime),
+    // long after createContainer returns — TDZ-safe.
+    portalLookup: {
+      listPortalIdsByProperty: async (orgId, pid) => {
+        const portals = await portal.internal.repos.portalRepo.listByProperty(orgId, pid)
+        return portals.map((p) => p.id)
+      },
+      getPortalInfo: (orgId, portalId) =>
+        portal.publicApi.portal.getPortalInfo(orgId, portalId),
+    },
     events: eventBus,
     clock,
   })
@@ -213,8 +224,10 @@ export function createContainer(options?: {
     events: eventBus,
     clock,
     propertyApi: property.publicApi,
+    staffPublicApi: staff.publicApi,
     baseUrl: env.BETTER_AUTH_URL ?? 'http://localhost:3000',
     idGen: () => crypto.randomUUID(),
+    queue: infra.jobQueue,
     storageConfig: {
       accessKey: env.AWS_S3_ACCESS_KEY ?? '',
       secretKey: env.AWS_S3_SECRET_ACCESS_KEY ?? '',
@@ -263,6 +276,7 @@ export function createContainer(options?: {
     db,
     events: eventBus,
     clock,
+    staffPublicApi: staff.publicApi,
     googleReviewApi,
     jobQueue: infra.jobQueue,
     logger: getLogger(),
@@ -315,11 +329,16 @@ export function createContainer(options?: {
     metricApi: metricApi.publicApi,
     events: eventBus,
     clock,
+    staffPublicApi: staff.publicApi,
     idGen: () => crypto.randomUUID(),
     getLogger,
     findGroupForPortal: async (orgId, pid) => {
       const group = await portal.publicApi.portalGroup.findGroupForPortal(orgId, pid)
       return group ? { portalGroupId: group.id } : null
+    },
+    portalGroupLookup: {
+      findGroupIdsByPortalIds: (orgId, portalIds) =>
+        portal.publicApi.portalGroup.findGroupIdsByPortalIds(orgId, portalIds),
     },
   })
 
@@ -428,6 +447,7 @@ export function createContainer(options?: {
       deleteReply: review.internal.useCases.deleteReply,
       getReply: review.internal.useCases.getReply,
       retryPublish: review.internal.useCases.retryPublish,
+      getStaffRecentActivity: review.internal.useCases.getStaffRecentActivity,
       ...inbox.internal.useCases,
       getDashboardData: dashboard.publicApi.getDashboardData,
       getPortalAnalytics: dashboard.publicApi.getPortalAnalytics,
@@ -448,9 +468,10 @@ export function createContainer(options?: {
     reviewQueue: review.internal.repos.queue,
     replyQueue: review.internal.repos.replyQueue,
     googleReviewApi,
+    staffPublicApi: staff.publicApi,
     inboxRepo: inbox.internal.repos.inboxRepo,
     inboxNoteRepo: inbox.internal.repos.inboxNoteRepo,
-    unreadCounter: inbox.internal.repos.newCounter,
+    newCounter: inbox.internal.repos.newCounter,
     goalRepo: goal.internal.repos.goalRepo,
     metricPublicApi: metricApi.publicApi,
     activityPublicApi: activity.publicApi,

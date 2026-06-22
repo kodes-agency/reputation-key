@@ -8,6 +8,7 @@ import { getContainer } from '#/composition'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { can } from '#/shared/domain/permissions'
+import { isPropertyAccessible } from '#/shared/domain/property-access'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getDashboardDataDto } from '../application/dto/dashboard.dto'
 import { propertyId, portalId } from '#/shared/domain/ids'
@@ -40,7 +41,21 @@ export const getDashboardDataFn = createServerFn({ method: 'GET' })
               'Insufficient permissions to view dashboard',
             )
           }
-          const { useCases, clock } = getContainer()
+          const { useCases, clock, staffPublicApi } = getContainer()
+          // D6-001: non-admin callers may only read their assigned properties.
+          if (
+            ctx.role !== 'AccountAdmin' &&
+            !(await isPropertyAccessible(
+              (orgId, uId, role) =>
+                staffPublicApi.getAccessiblePropertyIds(orgId, uId, role),
+              ctx.organizationId,
+              ctx.userId,
+              ctx.role,
+              propertyId(data.propertyId),
+            ))
+          ) {
+            throw makeDashboardError('forbidden', 'Property not assigned to caller')
+          }
           const { startDate, endDate } = timeRangeToDates(data.timeRange, clock())
 
           return await useCases.getDashboardData({

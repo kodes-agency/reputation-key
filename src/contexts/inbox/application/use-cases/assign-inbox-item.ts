@@ -11,6 +11,7 @@ import { validateAssignment } from '../../domain/rules'
 import { inboxItemAssigned, inboxItemUnassigned } from '../../domain/events'
 import { inboxError } from '../../domain/errors'
 import { loadInboxItemOrThrow, assertPropertyAccessible } from '../inbox-access'
+import { isPropertyAccessible } from '#/shared/domain/property-access'
 import { can } from '#/shared/domain/permissions'
 
 export type AssignInboxItemInput = Readonly<{
@@ -56,6 +57,25 @@ export const assignInboxItem =
       input.role,
       item.propertyId,
     )
+    // 2b. Verify the ASSIGNEE has access to the item's property (INBOX-04).
+    //     The caller check above is not sufficient — the assignee must also
+    //     be able to access the property to handle the inbox item.
+    if (input.assignedToUserId) {
+      const assigneeCanAccess = await isPropertyAccessible(
+        (orgId, uId, role) =>
+          deps.staffPublicApi.getAccessiblePropertyIds(orgId, uId, role),
+        input.organizationId,
+        input.assignedToUserId,
+        input.role,
+        item.propertyId,
+      )
+      if (!assigneeCanAccess) {
+        throw inboxError('forbidden', 'Assignee does not have access to this property', {
+          assignedToUserId: input.assignedToUserId,
+          propertyId: item.propertyId,
+        })
+      }
+    }
 
     // 3. Update assignment
     const updated = await deps.repo.updateAssignment(
@@ -68,7 +88,6 @@ export const assignInboxItem =
     if (input.assignedToUserId) {
       await deps.events.emit(
         inboxItemAssigned({
-          eventId: crypto.randomUUID(),
           inboxItemId: updated.id,
           organizationId: updated.organizationId,
           propertyId: item.propertyId,
@@ -81,7 +100,6 @@ export const assignInboxItem =
     } else if (item.assignedTo) {
       await deps.events.emit(
         inboxItemUnassigned({
-          eventId: crypto.randomUUID(),
           inboxItemId: updated.id,
           organizationId: updated.organizationId,
           propertyId: item.propertyId,

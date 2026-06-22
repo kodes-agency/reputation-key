@@ -21,7 +21,12 @@ export function createInMemoryInboxRepo(): InboxRepository & { items: InboxItem[
       ) ?? null,
     findFilteredPaginated: async (filters, orgId, cursor, limit = 50) => {
       let filtered = items.filter((i) => i.organizationId === orgId)
-      if (filters.status) filtered = filtered.filter((i) => i.status === filters.status)
+      if (filters.status)
+        filtered = filtered.filter((i) =>
+          Array.isArray(filters.status)
+            ? filters.status.includes(i.status)
+            : i.status === filters.status,
+        )
       if (filters.propertyId)
         filtered = filtered.filter((i) => i.propertyId === filters.propertyId)
       if (filters.propertyIds && filters.propertyIds.length > 0)
@@ -85,8 +90,15 @@ export function createInMemoryInboxRepo(): InboxRepository & { items: InboxItem[
       items[idx] = { ...item, assignedTo, updatedAt: new Date() }
       return items[idx]
     },
-    countByStatus: async (orgId, status) =>
-      items.filter((i) => i.organizationId === orgId && i.status === status).length,
+    countByStatus: async (orgId, status, propertyIds) =>
+      items.filter(
+        (i) =>
+          i.organizationId === orgId &&
+          i.status === status &&
+          (!propertyIds ||
+            propertyIds.length === 0 ||
+            propertyIds.includes(i.propertyId)),
+      ).length,
     syncDenormalizedFields: async () => {},
     findDetailById: async (id, orgId) => {
       const item = items.find((i) => i.id === id && i.organizationId === orgId)

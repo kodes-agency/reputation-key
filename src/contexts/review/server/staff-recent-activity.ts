@@ -12,7 +12,6 @@ import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { can } from '#/shared/domain/permissions'
 import { getContainer } from '#/composition'
 import { propertyId as toPropertyId } from '#/shared/domain/ids'
-import type { StaffRecentReview } from '../application/public-api'
 
 const staffRecentActivitySchema = z.object({
   propertyId: z.string().min(1, 'Property ID is required'),
@@ -37,29 +36,12 @@ export const getStaffRecentActivity = createServerFn({ method: 'GET' })
           const container = getContainer()
           const propertyId = toPropertyId(data.propertyId)
 
-          // Verify the staff member has assignments for this property via staff use case
-          const assignedPortals = await container.useCases.getAssignedPortals(
-            { userId: ctx.userId, propertyId },
-            ctx,
-          )
-
-          if (assignedPortals.length === 0) {
-            return { reviews: [] }
-          }
-
-          // F038: Push LIMIT + ORDER BY to SQL instead of pulling 500 rows and sorting in JS.
-          const recentReviews = await container.reviewRepo.findByPropertyId(
+          const reviews = await container.useCases.getStaffRecentActivity({
             propertyId,
-            ctx.organizationId,
-            { limit: 5 },
-          )
-
-          const reviews: StaffRecentReview[] = recentReviews.map((r) => ({
-            id: r.id as string,
-            rating: r.rating,
-            snippet: r.text ?? '',
-            date: r.reviewedAt.toISOString(),
-          }))
+            organizationId: ctx.organizationId,
+            userId: ctx.userId,
+            role: ctx.role,
+          })
 
           return { reviews }
         } catch (e) {

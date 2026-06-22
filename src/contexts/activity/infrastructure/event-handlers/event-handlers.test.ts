@@ -138,8 +138,7 @@ describe('activity event handlers', () => {
       })
 
       const data = calls[0]!.data as { action: string; resourceType: string }
-      expect(data.action).toBe('submitted')
-      expect(data.resourceType).toBe('inbox_item')
+      expect(data.resourceType).toBe('reply')
     })
   })
 
@@ -165,7 +164,7 @@ describe('activity event handlers', () => {
 
       const data = calls[0]!.data as { action: string; resourceType: string }
       expect(data.action).toBe('approved')
-      expect(data.resourceType).toBe('inbox_item')
+      expect(data.resourceType).toBe('reply')
     })
   })
 

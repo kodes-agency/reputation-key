@@ -10,14 +10,12 @@ import type {
   PortalId,
   PortalGroupId,
 } from '#/shared/domain/ids'
+// METRIC-01: source the valid key set from the shared metric-keys module so
+// goal constructors, server functions, and this constructor all reference a
+// single definition — no duplication drift when MetricKey gains a member.
+import { METRIC_KEYS } from '#/shared/domain/metric-keys'
 import { metricError } from './errors'
-export const VALID_METRIC_KEYS: ReadonlySet<MetricKey> = new Set<MetricKey>([
-  'portal.scan',
-  'portal.rating',
-  'portal.feedback',
-  'portal.review_link_click',
-  'property.review',
-])
+export const VALID_METRIC_KEYS: ReadonlySet<MetricKey> = new Set<MetricKey>(METRIC_KEYS)
 
 type CreateMetricReadingInput = Readonly<{
   id: MetricReadingId
@@ -49,10 +47,7 @@ export const createMetricReading = (input: CreateMetricReadingInput): MetricRead
 
   // metricKey must be from the allowed set
   if (!VALID_METRIC_KEYS.has(input.metricKey)) {
-    throw metricError(
-      'invalid_metric_key',
-      `Invalid metricKey: ${input.metricKey as string}`,
-    )
+    throw metricError('unknown_metric_key', `Invalid metricKey: ${input.metricKey}`)
   }
 
   return {

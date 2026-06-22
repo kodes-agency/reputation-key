@@ -1,6 +1,15 @@
 // Leaderboard context — Drizzle repository implementation
+//
+// ADR 0008 §Decision 2 exception (LB-01):
+// This repository directly queries the `metricReadings` (metric context),
+// `portals` and `portalGroups` (portal context), and `properties` (property
+// context) tables. Per ADR 0008 §Decision 2, cross-context SQL is acceptable in
+// the infrastructure layer when isolated behind port interfaces. The
+// LeaderboardRepository port defines the contract; this Drizzle adapter is the
+// sole implementation. No domain or application layer imports reach across
+// context boundaries.
 
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
   leaderboardEntries,
@@ -12,7 +21,6 @@ import { properties } from '#/shared/db/schema/property.schema'
 import { metricReadings } from '#/shared/db/schema/metric.schema'
 import {
   leaderboardEntryId,
-  leaderboardSnapshotId,
   organizationId,
   portalGroupId,
   portalId,
@@ -20,10 +28,15 @@ import {
   unbrand,
 } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
-import type { EventBus } from '#/shared/events/event-bus'
 import type { Clock } from '#/shared/domain/clock'
-import { leaderboardSnapshotRefreshed } from '../../domain/events'
 import { leaderboardError } from '../../domain/errors'
+import {
+  PORTAL_METRICS,
+  compositeScore,
+  normalize,
+  rank,
+  type ScoredTarget,
+} from '../../domain/scoring'
 import { periodToRange, LEADERBOARD_PERIODS } from '../../application/utils'
 import type { LeaderboardRepository } from '../../application/ports/leaderboard.repository'
 import type {
@@ -37,29 +50,8 @@ import type {
 } from '../../domain/types'
 import { leaderboardEntryFromRow } from '../mappers/leaderboard.mapper'
 
-const PORTAL_METRICS: readonly Exclude<LeaderboardMetricKey, 'overall'>[] = [
-  'portal.rating',
-  'portal.feedback',
-  'portal.scan',
-  'portal.review_link_click',
-]
-
-const OVERALL_WEIGHTS: Readonly<Record<string, number>> = {
-  'portal.rating': 0.4,
-  'portal.feedback': 0.3,
-  'portal.scan': 0.2,
-  'portal.review_link_click': 0.1,
-}
-
-type TargetValue = Readonly<{
-  row: LeaderboardRowInput
-  value: number
-  normalized: number
-}>
-
 export const createLeaderboardRepository = (
   db: Database,
-  events: EventBus,
   clock: Clock,
 ): LeaderboardRepository => {
   const listPropertiesWithMetricEvents = async () => {
@@ -202,27 +194,15 @@ export const createLeaderboardRepository = (
     range: { start?: Date; end?: Date },
     targets: ReadonlyArray<LeaderboardRowInput>,
   ): Promise<{ entriesWritten: number }> => {
-    const componentScores = new Map<string, number>()
+    const componentNormalized = new Map<string, ReadonlyArray<ScoredTarget>>()
 
     for (const metricKey of PORTAL_METRICS) {
       const values = normalize(await queryValues(input, range, targets, metricKey))
-      for (const value of values) {
-        const key = `${value.row.targetType}:${unbrand(value.row.targetId)}`
-        const current = componentScores.get(key) ?? 0
-        componentScores.set(
-          key,
-          current + (OVERALL_WEIGHTS[metricKey] ?? 0) * value.normalized,
-        )
-      }
+      componentNormalized.set(metricKey, values)
     }
 
-    const normalized = targets.map((row) => ({
-      row,
-      value: 0,
-      normalized: componentScores.get(`${row.targetType}:${unbrand(row.targetId)}`) ?? 0,
-    }))
-
-    return writeSnapshot({ ...input, metricKey: 'overall' }, normalized)
+    const scored = compositeScore(targets, componentNormalized)
+    return writeSnapshot({ ...input, metricKey: 'overall' }, scored)
   }
 
   const queryValues = async (
@@ -230,7 +210,7 @@ export const createLeaderboardRepository = (
     range: { start?: Date; end?: Date },
     targets: ReadonlyArray<LeaderboardRowInput>,
     metricKey: Exclude<LeaderboardMetricKey, 'overall'>,
-  ): Promise<ReadonlyArray<TargetValue>> => {
+  ): Promise<ReadonlyArray<ScoredTarget>> => {
     if (targets.length === 0) return []
 
     const isPortal = input.scope === 'portal'
@@ -277,7 +257,7 @@ export const createLeaderboardRepository = (
 
   const writeSnapshot = async (
     input: Required<LeaderboardRefreshInput>,
-    values: ReadonlyArray<TargetValue>,
+    values: ReadonlyArray<ScoredTarget>,
   ): Promise<{ entriesWritten: number }> => {
     const now = clock()
     const scoreKey = input.metricKey === 'overall' ? 'overall' : input.metricKey
@@ -308,11 +288,14 @@ export const createLeaderboardRepository = (
     if (!snapshot) {
       throw leaderboardError('repo_insert_failed', 'Leaderboard snapshot upsert failed')
     }
+
+    // Domain rank() sorts by normalized (desc), then raw value (desc), and
+    // assigns standard competition ranks (equal scores share a rank).
     const ranked = rank(values)
-    const entryRows = ranked.map((value, index) => ({
+    const entryRows = ranked.map((value) => ({
       id: unbrand(leaderboardEntryId(crypto.randomUUID())),
       snapshotId: unbrand(snapshot.id),
-      rank: index + 1,
+      rank: value.rank,
       targetType: value.row.targetType,
       targetId: unbrand(value.row.targetId),
       organizationId: unbrand(value.row.organizationId),
@@ -332,18 +315,6 @@ export const createLeaderboardRepository = (
         await tx.insert(leaderboardEntries).values(entryRows)
       }
     })
-
-    await events.emit(
-      leaderboardSnapshotRefreshed({
-        occurredAt: clock(),
-        organizationId: input.organizationId,
-        propertyId: input.propertyId,
-        period: input.period,
-        scope: input.scope,
-        metricKey: input.metricKey,
-        snapshotId: leaderboardSnapshotId(snapshot.id),
-      }),
-    )
 
     return { entriesWritten: entryRows.length }
   }
@@ -405,7 +376,13 @@ export const createLeaderboardRepository = (
               ),
             ),
           )
-          .orderBy(leaderboardEntries.rank)
+          // LB-07: secondary sort on metricValue/score for display stability
+          // when multiple targets share the same rank.
+          .orderBy(
+            leaderboardEntries.rank,
+            desc(leaderboardEntries.metricValue),
+            desc(leaderboardEntries.score),
+          )
           .limit(input.limit ?? 50)
 
         return rows.map((row) => {
@@ -419,25 +396,4 @@ export const createLeaderboardRepository = (
       })
     },
   }
-}
-
-function normalize(values: ReadonlyArray<TargetValue>): ReadonlyArray<TargetValue> {
-  const max = Math.max(...values.map((value) => value.value), 0)
-  if (max <= 0) {
-    return values.map((value) => ({ ...value, normalized: 0 }))
-  }
-
-  return values.map((value) => ({
-    ...value,
-    normalized: value.value / max,
-  }))
-}
-
-function rank(values: ReadonlyArray<TargetValue>): ReadonlyArray<TargetValue> {
-  return [...values].sort((a, b) => {
-    if (b.normalized !== a.normalized) {
-      return b.normalized - a.normalized
-    }
-    return b.value - a.value
-  })
 }

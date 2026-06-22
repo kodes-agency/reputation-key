@@ -29,7 +29,6 @@ export const trackReviewLinkClick =
       await deps.events.emit(
         guestReviewLinkClicked({
           linkId: input.linkId,
-          eventId: crypto.randomUUID(),
           organizationId: input.organizationId,
           portalId: input.portalId,
           propertyId: input.propertyId,

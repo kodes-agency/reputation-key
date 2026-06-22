@@ -205,7 +205,6 @@ async function createReviews(
       await ctx.container.reviewRepo.upsert(review, ctx.now)
       await ctx.container.eventBus.emit(
         reviewCreated({
-          eventId: crypto.randomUUID(),
           reviewId: rId,
           propertyId: propId,
           organizationId: ctx.orgId,
@@ -281,7 +280,6 @@ async function createGuestData(
       })
       await ctx.container.eventBus.emit(
         guestScanRecorded({
-          eventId: crypto.randomUUID(),
           scanId: sId,
           organizationId: ctx.orgId,
           portalId: pId,
@@ -314,7 +312,6 @@ async function createGuestData(
       })
       await ctx.container.eventBus.emit(
         guestRatingSubmitted({
-          eventId: crypto.randomUUID(),
           ratingId: rId,
           organizationId: ctx.orgId,
           portalId: pId,
@@ -354,7 +351,6 @@ async function createGuestData(
       })
       await ctx.container.eventBus.emit(
         guestFeedbackSubmitted({
-          eventId: crypto.randomUUID(),
           feedbackId: fId,
           organizationId: ctx.orgId,
           portalId: pId,

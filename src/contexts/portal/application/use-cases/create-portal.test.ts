@@ -5,6 +5,7 @@ import { createPortal } from './create-portal'
 import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { isPortalError } from '../../domain/errors'
 import {
   portalId,
@@ -16,7 +17,13 @@ import {
 const FIXED_ID = portalId('portal-00000000-0000-0000-0000-000000000001')
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
 
-const setup = () => {
+const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublicApi => ({
+  getAccessiblePropertyIds: async () => accessible,
+  getAssignedPortals: async () => [],
+  countAssignmentsByTeam: async () => 0,
+})
+
+const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
   const portalRepo = createInMemoryPortalRepo()
   const events = createCapturingEventBus()
   const deps = {
@@ -36,6 +43,7 @@ const setup = () => {
       findExistingGbpPlaceIds: async () => [],
       existsByGbpPlaceId: async () => false,
     },
+    staffPublicApi: staffApiMock(accessible),
     events,
     idGen: () => FIXED_ID,
     clock: () => FIXED_TIME,
@@ -187,5 +195,31 @@ describe('createPortal', () => {
       (e: unknown) =>
         isPortalError(e) && (e as { code: string }).code === 'invalid_threshold',
     )
+  })
+
+  it('rejects PropertyManager without assignment to the property', async () => {
+    const { useCase } = setup([]) // PM not assigned to any property
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+
+    await expect(
+      useCase({ name: 'Test', propertyId: 'a0000000-0000-0000-0000-000000000001' }, ctx),
+    ).rejects.toSatisfy(
+      (e: unknown) => isPortalError(e) && (e as { code: string }).code === 'forbidden',
+    )
+  })
+
+  it('allows PropertyManager assigned to the property', async () => {
+    const { useCase, portalRepo } = setup([
+      propertyId('a0000000-0000-0000-0000-000000000001'),
+    ])
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+
+    const portal = await useCase(
+      { name: 'Test', propertyId: 'a0000000-0000-0000-0000-000000000001' },
+      ctx,
+    )
+
+    expect(portal.name).toBe('Test')
+    expect(portalRepo.all()).toHaveLength(1)
   })
 })

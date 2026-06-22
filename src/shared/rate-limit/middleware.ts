@@ -7,6 +7,7 @@
 // a key with no TTL (permanent lockout).
 
 import type { Redis } from 'ioredis'
+import { getLogger } from '#/shared/observability/logger'
 
 // fallow-ignore-next-line unused-type
 export type RateLimiterOptions = Readonly<{
@@ -51,7 +52,7 @@ export function createRateLimiter(
     async check(key: string): Promise<RateLimitResult> {
       // Fail open: if no Redis, allow everything but warn
       if (!redis) {
-        console.warn(
+        getLogger().warn(
           '[rate-limit] Redis unavailable — failing open (all requests allowed)',
         )
         return {
@@ -85,7 +86,7 @@ export function createRateLimiter(
         }
       } catch (err) {
         // Fail open on Redis errors, but log for monitoring
-        console.warn('[rate-limit] Redis error — failing open:', err)
+        getLogger().warn({ err }, '[rate-limit] Redis error — failing open')
         return {
           allowed: true,
           remaining: opts.maxRequests,

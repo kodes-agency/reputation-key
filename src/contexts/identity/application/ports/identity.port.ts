@@ -27,6 +27,7 @@ export type InvitationRecord = Readonly<{
   createdAt: Date
   organizationId?: OrganizationId
   organizationName?: string
+  propertyIds: ReadonlyArray<string>
 }>
 
 /** Organization record shape returned by the port. */
@@ -36,6 +37,13 @@ export type OrganizationRecord = Readonly<{
   slug: string
   logo: string | null
   createdAt: Date
+  contactEmail: string | null
+  billingCompanyName: string | null
+  billingAddress: string | null
+  billingCity: string | null
+  billingPostalCode: string | null
+  billingCountry: string | null
+  responseSlaHours: number
 }>
 
 /** Port for identity operations — wraps better-auth API calls. */
@@ -57,8 +65,11 @@ export type IdentityPort = Readonly<{
     propertyIds?: ReadonlyArray<string>,
   ) => Promise<InvitationId>
 
-  /** Accept an invitation (may not require active org). */
-  acceptInvitation: (invitationId: InvitationId, headers: Headers) => Promise<void>
+  /** Accept an invitation (may not require active org). Returns the joined org ID and invited property IDs. */
+  acceptInvitation: (
+    invitationId: InvitationId,
+    headers: Headers,
+  ) => Promise<{ organizationId: OrganizationId; propertyIds: ReadonlyArray<string> }>
 
   /** Reject an invitation. */
   /** Cancel a sent invitation. */
@@ -77,6 +88,8 @@ export type IdentityPort = Readonly<{
   removeMember: (ctx: AuthContext, memberId: string) => Promise<void>
 
   /** List organizations the current user belongs to. */
+  listUserOrganizations: (headers: Headers) => Promise<ReadonlyArray<OrganizationRecord>>
+
   /** Get the active organization details for the current session. */
   getActiveOrg: (headers: Headers) => Promise<OrganizationRecord | null>
 

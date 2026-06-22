@@ -8,7 +8,7 @@ import type { EventBus } from '#/shared/events/event-bus'
 import type { getLogger as getLoggerType } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
 import { shouldEmitCompleted } from '../../domain/progress-strategy'
-import { goalProgressUpdated, goalCompleted } from '../../domain/events'
+import { goalCompleted } from '../../domain/events'
 
 // ── Dependencies ──────────────────────────────────────────────────────
 
@@ -70,11 +70,10 @@ export function onMetricRecorded(deps: OnMetricRecordedDeps) {
       if (affectedGoals.length === 0) return
 
       for (const goal of affectedGoals) {
+        // GOAL-01: Skip recurring templates (parentGoalId === null).
+        // Templates aggregate no progress themselves — only instances do.
+        if (goal.goalType === 'recurring' && goal.parentGoalId === null) continue
         try {
-          // Get previous progress value for GoalProgressUpdated
-          const prevProgress = await goalRepo.getProgress(goal.id, goal.organizationId)
-          const previousValue = prevProgress?.currentValue ?? 0
-
           // Increment progress (insert initial row if none exists)
           const result = await goalRepo.upsertProgress(
             goal.id,
@@ -84,19 +83,6 @@ export function onMetricRecorded(deps: OnMetricRecordedDeps) {
           )
 
           const now = clock()
-
-          // Emit GoalProgressUpdated
-          await eventBus.emit(
-            goalProgressUpdated({
-              goalId: goal.id,
-              organizationId: goal.organizationId,
-              metricKey: goal.metricKey,
-              previousValue,
-              currentValue: result.currentValue,
-              computedSource: 'event_increment',
-              occurredAt: now,
-            }),
-          )
 
           // Check completion
           if (result.currentValue >= goal.targetValue && shouldEmitCompleted(goal)) {

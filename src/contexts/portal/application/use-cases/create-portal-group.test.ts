@@ -6,6 +6,7 @@ import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { isPortalError } from '../../domain/errors'
 import {
+  organizationId,
   portalGroupId,
   portalId,
   propertyId,
@@ -15,6 +16,9 @@ import {
 } from '#/shared/domain/ids'
 import type { PortalGroupRepository } from '../ports/portal-group.repository'
 import type { PortalGroup } from '../../domain/types'
+import type { PortalRepository } from '../ports/portal.repository'
+import type { Portal } from '../../domain/types'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 
 const FIXED_ID = portalGroupId('pg-00000000-0000-0000-0000-000000000001')
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
@@ -85,11 +89,46 @@ const createInMemoryPortalGroupRepo = (): PortalGroupRepository & {
   }
 }
 
-const setup = () => {
+const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublicApi => ({
+  getAccessiblePropertyIds: async () => accessible,
+  getAssignedPortals: async () => [],
+  countAssignmentsByTeam: async () => 0,
+})
+
+const TEST_PORTAL_ID = portalId('p-00000000-0000-0000-0000-000000000001')
+const TEST_PROPERTY_ID = propertyId('a0000000-0000-0000-0000-000000000001')
+
+const seedPortal = (): Portal => ({
+  id: TEST_PORTAL_ID,
+  organizationId: organizationId('org-test-create-group-000001'),
+  propertyId: TEST_PROPERTY_ID,
+  entityType: 'property',
+  entityId: TEST_PROPERTY_ID,
+  name: 'Test Portal',
+  slug: 'test-portal',
+  description: null,
+  heroImageUrl: null,
+  theme: { primaryColor: '#000000' },
+  smartRoutingEnabled: false,
+  smartRoutingThreshold: 0,
+  isActive: true,
+  createdAt: FIXED_TIME,
+  updatedAt: FIXED_TIME,
+  deletedAt: null,
+})
+
+const createPortalRepoMock = (portal: Portal | null): PortalRepository =>
+  ({
+    findById: async () => portal,
+  }) as unknown as PortalRepository
+
+const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
   const portalGroupRepo = createInMemoryPortalGroupRepo()
   const events = createCapturingEventBus()
   const deps = {
     portalGroupRepo,
+    portalRepo: createPortalRepoMock(seedPortal()),
+    staffPublicApi: staffApiMock(accessible),
     propertyApi: {
       propertyExists: async (_orgId: OrganizationId, pid: PropertyId) =>
         String(pid) === 'a0000000-0000-0000-0000-000000000001',
@@ -198,5 +237,30 @@ describe('createPortalGroup', () => {
     const emitted = events.capturedByTag('portal_group.created')
     expect(emitted).toHaveLength(1)
     expect(emitted[0].name).toBe('Solo Group')
+  })
+  it('rejects PropertyManager without assignment to the property', async () => {
+    const { useCase } = setup([])
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+
+    await expect(
+      useCase({ name: 'Test', propertyId: 'a0000000-0000-0000-0000-000000000001' }, ctx),
+    ).rejects.toSatisfy(
+      (e: unknown) => isPortalError(e) && (e as { code: string }).code === 'forbidden',
+    )
+  })
+
+  it('allows PropertyManager assigned to the property', async () => {
+    const { useCase, portalGroupRepo } = setup([
+      propertyId('a0000000-0000-0000-0000-000000000001'),
+    ])
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+
+    const group = await useCase(
+      { name: 'Assigned Group', propertyId: 'a0000000-0000-0000-0000-000000000001' },
+      ctx,
+    )
+
+    expect(group.name).toBe('Assigned Group')
+    expect(portalGroupRepo.all()).toHaveLength(1)
   })
 })

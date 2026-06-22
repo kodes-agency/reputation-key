@@ -40,6 +40,12 @@ export const reconcileBadgeDefinitions =
         ? [input.propertyId]
         : await deps.badgeRepo.listPropertiesForOrg(organizationId)
       for (const propertyId of propertyIds) {
+        // Timezone depends only on (org, property), so resolve it once per
+        // property rather than once per (target × definition).
+        const timezone = await deps.badgeRepo.findPropertyTimezone(
+          organizationId,
+          propertyId,
+        )
         const portalTargets = await deps.badgeRepo.listPortalTargets(
           organizationId,
           propertyId,
@@ -56,6 +62,7 @@ export const reconcileBadgeDefinitions =
               definition,
               { organizationId, propertyId, targetType: 'portal', portalId },
               deps,
+              timezone,
             )
             if (result.awarded) {
               awarded += 1
@@ -70,6 +77,7 @@ export const reconcileBadgeDefinitions =
               definition,
               { organizationId, propertyId, targetType: 'portal_group', portalGroupId },
               deps,
+              timezone,
             )
             if (result.awarded) {
               awarded += 1

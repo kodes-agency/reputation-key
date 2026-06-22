@@ -65,7 +65,6 @@ export const removeMember =
       // 3. Emit event
       await deps.events.emit(
         identityMemberRemoved({
-          eventId: crypto.randomUUID(),
           organizationId: ctx.organizationId,
           userId: toUserId(input.memberId),
           removedBy: ctx.userId,

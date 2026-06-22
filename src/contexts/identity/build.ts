@@ -10,6 +10,8 @@ import { updateMemberRole } from './application/use-cases/update-member-role'
 import { removeMember } from './application/use-cases/remove-member'
 import { listInvitations } from './application/use-cases/list-invitations'
 import { resendInvitation } from './application/use-cases/resend-invitation'
+import { acceptInvitation } from './application/use-cases/accept-invitation'
+import { cancelInvitation } from './application/use-cases/cancel-invitation'
 import { registerUserAndOrg } from './application/use-cases/register-user-and-org'
 import { registerUser } from './application/use-cases/register-user'
 import { updateOrganization } from './application/use-cases/update-organization'
@@ -73,6 +75,16 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
       sendEmail: deps.sendEmail,
       getOrganizationName: deps.getOrganizationName,
       baseUrl: deps.baseUrl,
+    }),
+    acceptInvitation: acceptInvitation({
+      identity: deps.identityPort,
+      events: deps.events,
+      clock: deps.clock,
+    }),
+    cancelInvitation: cancelInvitation({
+      identity: deps.identityPort,
+      events: deps.events,
+      clock: deps.clock,
     }),
     registerUserAndOrg: registerUserAndOrg({
       events: deps.events,

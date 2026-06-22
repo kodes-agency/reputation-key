@@ -51,6 +51,7 @@ describe('resendInvitation', () => {
         expiresAt: new Date('2026-05-01T00:00:00Z'),
         createdAt: new Date('2026-04-01T00:00:00Z'),
         organizationId: organizationId(ctx.organizationId),
+        propertyIds: [],
       },
     ])
 
@@ -79,6 +80,7 @@ describe('resendInvitation', () => {
         expiresAt: new Date('2026-05-01T00:00:00Z'),
         createdAt: new Date('2026-04-01T00:00:00Z'),
         organizationId: organizationId(ctx.organizationId),
+        propertyIds: [],
       },
     ])
 

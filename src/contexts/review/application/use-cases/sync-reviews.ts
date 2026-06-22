@@ -26,7 +26,7 @@ import type {
 import type { Review, GoogleReview } from '../../domain/types'
 import type { ReviewError } from '../../domain/errors'
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import { reviewCreated, reviewUpdated } from '../../domain/events'
+import { reviewCreated, reviewUpdated, reviewReplyPublished } from '../../domain/events'
 import { reviewError } from '../../domain/errors'
 import { calculateExpiresAt } from '../../domain/rules'
 import { ok, err, type Result } from '#/shared/domain'
@@ -164,10 +164,11 @@ async function syncOneReview(
   let repliesMirrored = 0
   let hadError = false
   try {
-    if (await mirrorReply(deps, review.id, input.organizationId, gr, now))
+    if (
+      await mirrorReply(deps, review.id, input.organizationId, input.propertyId, gr, now)
+    )
       repliesMirrored = 1
     const eventPayload = {
-      eventId: crypto.randomUUID(),
       reviewId: review.id,
       propertyId: input.propertyId,
       organizationId: input.organizationId,
@@ -203,6 +204,7 @@ async function mirrorReply(
   deps: SyncReviewsDeps,
   reviewId: ReviewId,
   organizationId: OrganizationId,
+  propertyId: PropertyId,
   gr: GoogleReview,
   now: Date,
 ): Promise<boolean> {
@@ -241,9 +243,10 @@ async function mirrorReply(
       )
     } else {
       // Create new google_sync reply
+      const replyId = deps.replyIdGen()
       await deps.replyRepo.upsert(
         {
-          id: deps.replyIdGen(),
+          id: replyId,
           reviewId,
           organizationId,
           text: gr.replyText,
@@ -259,6 +262,20 @@ async function mirrorReply(
           publishedAt: gr.replyUpdatedAt ?? now,
         },
         now,
+      )
+      // R2-001: emit reviewReplyPublished for Google-mirrored replies so
+      // downstream handlers (inbox auto-transition, activity audit) fire.
+      await deps.events.emit(
+        reviewReplyPublished({
+          source: 'import',
+          authorId: null,
+          userId: null,
+          replyId,
+          reviewId,
+          organizationId,
+          propertyId,
+          occurredAt: now,
+        }),
       )
     }
     return true

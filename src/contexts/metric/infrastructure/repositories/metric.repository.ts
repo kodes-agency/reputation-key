@@ -1,16 +1,12 @@
 // Metric context — Drizzle metric repository implementation
 // Per architecture: factory function returning Readonly<{ method }>.
 // Raw metric readings are insert-only (no updates, no deletes).
-//
-// Query limits:
-//   500 — findByOrganizationId: per-request page size. Matches typical query needs
-//         for dashboard charts. Paginate (cursor on recorded_at) if exceeded.
 
-import { eq, and, desc, sql, gte, lte } from 'drizzle-orm'
+import { eq, and, sql, gte, lte } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { metricReadings } from '#/shared/db/schema/metric.schema'
 import type { MetricRepository } from '../../application/ports/metric.repository'
-import type { MetricKey, MetricReading } from '../../domain/types'
+import type { MetricKey } from '../../domain/types'
 import {
   metricReadingId,
   organizationId as orgIdCtor,
@@ -66,26 +62,6 @@ export const createMetricRepository = (db: Database): MetricRepository => ({
       }
 
       return readingFromRow(result[0])
-    })
-  },
-
-  findByOrganizationId: async (orgId, metricKey) => {
-    return trace('metric.findByOrganizationId', async () => {
-      const where = metricKey
-        ? and(
-            eq(metricReadings.organizationId, unbrand(orgId)),
-            eq(metricReadings.metricKey, metricKey),
-          )
-        : eq(metricReadings.organizationId, unbrand(orgId))
-
-      const rows = await db
-        .select()
-        .from(metricReadings)
-        .where(where)
-        .orderBy(desc(metricReadings.occurredAt))
-        .limit(500)
-
-      return rows.map(readingFromRow) satisfies ReadonlyArray<MetricReading>
     })
   },
 

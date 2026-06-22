@@ -18,7 +18,7 @@ export const createPortalInputSchema = z.object({
     })
     .optional(),
   smartRoutingEnabled: z.boolean().optional(),
-  smartRoutingThreshold: z.number().int().min(1).max(4).optional(),
+  smartRoutingThreshold: z.number().int().min(1).max(5).optional(),
 })
 
 export type CreatePortalInput = z.infer<typeof createPortalInputSchema>

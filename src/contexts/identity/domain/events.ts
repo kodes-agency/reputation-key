@@ -1,11 +1,7 @@
 // Identity context — domain events
 // Standards: docs/standards.md §1
-//
-// NOTE: These event types and constructors are defined for future use.
-// They are not currently emitted by any handler in the codebase. When
-// identity flows (invite, role change, member removal) are migrated to
-// the event-driven pattern, the relevant use cases should call these
-// constructors and emit via the event bus.
+// Event envelope: eventId auto-generated in constructor, occurredAt caller-provided,
+// correlationId optional.
 
 import type { OrganizationId, UserId, InvitationId } from '#/shared/domain/ids'
 import type { Role } from '#/shared/domain/roles'
@@ -22,7 +18,7 @@ export type IdentityOrganizationCreated = Readonly<{
   correlationId: string | null
 }>
 export const identityOrganizationCreated = (
-  args: Omit<IdentityOrganizationCreated, '_tag' | 'correlationId'>,
+  args: Omit<IdentityOrganizationCreated, '_tag' | 'eventId' | 'correlationId'>,
 ): IdentityOrganizationCreated => {
   if (!(args.occurredAt instanceof Date))
     throw identityError('validation_error', 'occurredAt must be Date')
@@ -30,6 +26,7 @@ export const identityOrganizationCreated = (
     throw identityError('validation_error', 'organizationName required')
   return {
     _tag: 'identity.organization.created',
+    eventId: crypto.randomUUID(),
     correlationId: null,
     ...args,
   }
@@ -42,19 +39,19 @@ export type IdentityMemberInvited = Readonly<{
   userId: UserId
   email: string
   role: Role
-  invitedBy: UserId
   invitationId: InvitationId
   occurredAt: Date
   correlationId: string | null
 }>
 export const identityMemberInvited = (
-  args: Omit<IdentityMemberInvited, '_tag' | 'correlationId'>,
+  args: Omit<IdentityMemberInvited, '_tag' | 'eventId' | 'correlationId'>,
 ): IdentityMemberInvited => {
   if (!(args.occurredAt instanceof Date))
     throw identityError('validation_error', 'occurredAt must be Date')
   if (args.userId === '') throw identityError('validation_error', 'userId required')
   return {
     _tag: 'identity.member.invited',
+    eventId: crypto.randomUUID(),
     correlationId: null,
     ...args,
   }
@@ -66,16 +63,18 @@ export type IdentityInvitationAccepted = Readonly<{
   invitationId: InvitationId
   organizationId: OrganizationId
   userId: UserId
+  propertyIds: ReadonlyArray<string>
   occurredAt: Date
   correlationId: string | null
 }>
 export const identityInvitationAccepted = (
-  args: Omit<IdentityInvitationAccepted, '_tag' | 'correlationId'>,
+  args: Omit<IdentityInvitationAccepted, '_tag' | 'eventId' | 'correlationId'>,
 ): IdentityInvitationAccepted => {
   if (!(args.occurredAt instanceof Date))
     throw identityError('validation_error', 'occurredAt must be Date')
   return {
     _tag: 'identity.invitation.accepted',
+    eventId: crypto.randomUUID(),
     correlationId: null,
     ...args,
   }
@@ -90,12 +89,34 @@ export type IdentityInvitationRejected = Readonly<{
   correlationId: string | null
 }>
 export const identityInvitationRejected = (
-  args: Omit<IdentityInvitationRejected, '_tag' | 'correlationId'>,
+  args: Omit<IdentityInvitationRejected, '_tag' | 'eventId' | 'correlationId'>,
 ): IdentityInvitationRejected => {
   if (!(args.occurredAt instanceof Date))
     throw identityError('validation_error', 'occurredAt must be Date')
   return {
     _tag: 'identity.invitation.rejected',
+    eventId: crypto.randomUUID(),
+    correlationId: null,
+    ...args,
+  }
+}
+
+export type IdentityInvitationCanceled = Readonly<{
+  _tag: 'identity.invitation.canceled'
+  eventId: string
+  invitationId: InvitationId
+  organizationId: OrganizationId
+  occurredAt: Date
+  correlationId: string | null
+}>
+export const identityInvitationCanceled = (
+  args: Omit<IdentityInvitationCanceled, '_tag' | 'eventId' | 'correlationId'>,
+): IdentityInvitationCanceled => {
+  if (!(args.occurredAt instanceof Date))
+    throw identityError('validation_error', 'occurredAt must be Date')
+  return {
+    _tag: 'identity.invitation.canceled',
+    eventId: crypto.randomUUID(),
     correlationId: null,
     ...args,
   }
@@ -111,13 +132,14 @@ export type IdentityMemberRemoved = Readonly<{
   correlationId: string | null
 }>
 export const identityMemberRemoved = (
-  args: Omit<IdentityMemberRemoved, '_tag' | 'correlationId'>,
+  args: Omit<IdentityMemberRemoved, '_tag' | 'eventId' | 'correlationId'>,
 ): IdentityMemberRemoved => {
   if (!(args.occurredAt instanceof Date))
     throw identityError('validation_error', 'occurredAt must be Date')
   if (args.userId === '') throw identityError('validation_error', 'userId required')
   return {
     _tag: 'identity.member.removed',
+    eventId: crypto.randomUUID(),
     correlationId: null,
     ...args,
   }
@@ -127,15 +149,15 @@ export type IdentityMemberRoleChanged = Readonly<{
   _tag: 'identity.member.role_changed'
   eventId: string
   organizationId: OrganizationId
-  userId: UserId
+  memberUserId: UserId
   previousRole: Role
   newRole: Role
-  changedBy: UserId
+  userId: UserId
   occurredAt: Date
   correlationId: string | null
 }>
 export const identityMemberRoleChanged = (
-  args: Omit<IdentityMemberRoleChanged, '_tag' | 'correlationId'>,
+  args: Omit<IdentityMemberRoleChanged, '_tag' | 'eventId' | 'correlationId'>,
 ): IdentityMemberRoleChanged => {
   if (!(args.occurredAt instanceof Date))
     throw identityError('validation_error', 'occurredAt must be Date')
@@ -146,6 +168,7 @@ export const identityMemberRoleChanged = (
     )
   return {
     _tag: 'identity.member.role_changed',
+    eventId: crypto.randomUUID(),
     correlationId: null,
     ...args,
   }
@@ -156,5 +179,6 @@ export type IdentityEvent =
   | IdentityMemberInvited
   | IdentityInvitationAccepted
   | IdentityInvitationRejected
+  | IdentityInvitationCanceled
   | IdentityMemberRemoved
   | IdentityMemberRoleChanged

@@ -7,26 +7,30 @@ import type { Clock } from '#/shared/domain/clock'
 import { createLeaderboardRepository } from './infrastructure/repositories/leaderboard.repository'
 import { registerLeaderboardEventHandlers } from './infrastructure/event-handlers'
 import type { LeaderboardRepository } from './application/ports/leaderboard.repository'
+import { refreshLeaderboard } from './application/use-cases/refresh-leaderboard'
+import { reconcileLeaderboards } from './application/use-cases/reconcile-leaderboards'
+import { getLeaderboard } from './application/use-cases/get-leaderboard'
 import type {
-  LeaderboardEntryWithTarget,
-  LeaderboardRefreshInput,
-  LeaderboardReconcileResult,
-} from './domain/types'
-import type { GetLeaderboardQuery } from './application/ports/leaderboard.repository'
+  RefreshLeaderboardInput,
+  RefreshLeaderboardReturn,
+} from './application/use-cases/refresh-leaderboard'
+import type { ReconcileLeaderboardsReturn } from './application/use-cases/reconcile-leaderboards'
+import type {
+  GetLeaderboardInput,
+  GetLeaderboardReturn,
+} from './application/use-cases/get-leaderboard'
 
 export type LeaderboardContextApi = Readonly<{
   publicApi: Readonly<{
-    getLeaderboard: (
-      input: GetLeaderboardQuery,
-    ) => Promise<ReadonlyArray<LeaderboardEntryWithTarget>>
+    getLeaderboard: (input: GetLeaderboardInput) => Promise<GetLeaderboardReturn>
   }>
   internal: Readonly<{
     repos: Readonly<{ leaderboardRepo: LeaderboardRepository }>
     useCases: Readonly<{
       refreshLeaderboard: (
-        input: LeaderboardRefreshInput,
-      ) => Promise<LeaderboardReconcileResult>
-      reconcileLeaderboards: () => Promise<LeaderboardReconcileResult>
+        input: RefreshLeaderboardInput,
+      ) => Promise<RefreshLeaderboardReturn>
+      reconcileLeaderboards: () => Promise<ReconcileLeaderboardsReturn>
     }>
   }>
 }>
@@ -40,22 +44,26 @@ export type BuildLeaderboardContextDeps = Readonly<{
 export const buildLeaderboardContext = (
   deps: BuildLeaderboardContextDeps,
 ): LeaderboardContextApi => {
-  const leaderboardRepo = createLeaderboardRepository(deps.db, deps.events, deps.clock)
+  const leaderboardRepo = createLeaderboardRepository(deps.db, deps.clock)
+
+  const refreshLeaderboardFn = refreshLeaderboard({ repo: leaderboardRepo })
+  const reconcileLeaderboardsFn = reconcileLeaderboards({ repo: leaderboardRepo })
+  const getLeaderboardFn = getLeaderboard({ repo: leaderboardRepo })
 
   registerLeaderboardEventHandlers({
     eventBus: deps.events,
-    refreshLeaderboard: leaderboardRepo.refresh,
+    refreshLeaderboard: refreshLeaderboardFn,
   })
 
   return {
     publicApi: {
-      getLeaderboard: leaderboardRepo.getLeaderboard,
+      getLeaderboard: getLeaderboardFn,
     },
     internal: {
       repos: { leaderboardRepo },
       useCases: {
-        refreshLeaderboard: leaderboardRepo.refresh,
-        reconcileLeaderboards: leaderboardRepo.reconcileAll,
+        refreshLeaderboard: refreshLeaderboardFn,
+        reconcileLeaderboards: reconcileLeaderboardsFn,
       },
     },
   }

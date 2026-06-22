@@ -21,7 +21,9 @@ import {
   startPropertyImport,
   getImportStatus,
   importProperty,
+  getGoogleAuthUrl,
 } from './application/use-cases'
+import type { GetGoogleAuthUrl } from './application/use-cases'
 import { createGoogleConnectionRepository } from './infrastructure/repositories/google-connection.repository'
 import { createGbpCacheRepository } from './infrastructure/repositories/gbp-cache.repository'
 import { createGbpImportRepository } from './infrastructure/repositories/gbp-import.repository'
@@ -68,6 +70,7 @@ export type IntegrationContextApi = Readonly<{
       startPropertyImport: ReturnType<typeof startPropertyImport>
       getImportStatus: ReturnType<typeof getImportStatus>
       importProperty: ReturnType<typeof importProperty>
+      getGoogleAuthUrl: GetGoogleAuthUrl
     }>
   }>
 }>
@@ -176,6 +179,7 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       queue: queuePort,
       events: deps.events,
       clock: deps.clock,
+      idGen: () => randomUUID(),
     }),
 
     getImportStatus: getImportStatus({
@@ -186,11 +190,20 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       importRepo,
       propertyRepo: propertyImportRepo,
       events: propertyEventPort,
+      eventBus: deps.events,
       toJobId: gbpImportJobId,
       toOrgId,
       clock: deps.clock,
       hashFn: (input: string) => createHash('sha256').update(input).digest('base64url'),
       logger: deps.logger,
+    }),
+
+    getGoogleAuthUrl: getGoogleAuthUrl({
+      clientId: getEnv().GOOGLE_CLIENT_ID,
+      callbackUrl: `${getEnv().BETTER_AUTH_URL}/api/auth/google/callback`,
+      stateSecret: getEnv().OAUTH_STATE_SECRET,
+      clock: deps.clock,
+      idGen: () => randomUUID(),
     }),
   } as const
 

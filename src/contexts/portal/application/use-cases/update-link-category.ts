@@ -7,6 +7,9 @@ import { portalError } from '../../domain/errors'
 import { validateCategoryTitle } from '../../domain/rules'
 import { can } from '#/shared/domain/permissions'
 import { portalLinkCategoryId } from '#/shared/domain/ids'
+import type { PortalRepository } from '../ports/portal.repository'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import { assertPortalPropertyAccess } from '../assert-property-access'
 
 // fallow-ignore-next-line unused-type
 export type UpdateLinkCategoryInput = Readonly<{
@@ -16,7 +19,9 @@ export type UpdateLinkCategoryInput = Readonly<{
 
 // fallow-ignore-next-line unused-type
 export type UpdateLinkCategoryDeps = Readonly<{
+  portalRepo: PortalRepository
   portalLinkRepo: PortalLinkRepository
+  staffPublicApi: StaffPublicApi
   clock: () => Date
 }>
 
@@ -38,6 +43,13 @@ export const updateLinkCategory =
     if (!existing) {
       throw portalError('category_not_found', 'category not found')
     }
+    // Enforce property-assignment scoping (D6-001.)
+    await assertPortalPropertyAccess(
+      deps.portalRepo,
+      deps.staffPublicApi,
+      ctx,
+      existing.portalId,
+    )
 
     if (input.title !== undefined) {
       const r = validateCategoryTitle(input.title)

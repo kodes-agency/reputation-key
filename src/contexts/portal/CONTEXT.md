@@ -50,6 +50,13 @@ Portal page management — creation, configuration, theming, link management, im
 - **`portal_link_category.reordered`** — portalId, organizationId, occurredAt.
 - **`portal_link.created`** — portalId, linkId, categoryId, organizationId, occurredAt.
 - **`portal_link.reordered`** — portalId, categoryId, organizationId, occurredAt.
+  > **Subscriber status:** `portal.created`, `portal.updated`, and `portal.deleted` are
+  > reserved for future activity-audit handlers. The remaining link/category/group events
+  > (`portal_group.created`, `portal_group.updated`, `portal_group.portal_added`,
+  > `portal_group.portal_removed`, `portal_link_category.created`,
+  > `portal_link_category.reordered`, `portal_link.created`, `portal_link.reordered`) are
+  > **fire-and-forget** — they have no current subscriber but are cheap to emit and may be
+  > needed for real-time UI updates. They are intentionally retained for future extensibility.
 
 ## Events consumed
 
@@ -81,8 +88,8 @@ portal/
     adapters/          s3-storage.adapter.ts
     mappers/           portal.mapper.ts, portal-group.mapper.ts, portal-link.mapper.ts
     jobs/              process-image.job.ts
-  server/              portals.ts, portal-groups.ts, portal-uploads.ts, portal-links.ts,
-                       portal-link-categories.ts, portal-read.ts
+  server/              portals.ts, portal-groups.ts, portal-links.ts,
+                       portal-link-categories.ts
   build.ts             composition root
 ```
 
@@ -118,12 +125,10 @@ Exported from `application/public-api.ts`:
 
 ## Server functions
 
-- **`portals.ts`** — CRUD server functions for portals.
+- **`portals.ts`** — CRUD, read, and image-upload server functions for portals (create/update/list/get/delete portal, request/finalize upload, QR URL).
 - **`portal-links.ts`** — CRUD server functions for portal links and link categories.
 - **`portal-groups.ts`** — CRUD server functions for portal groups and portal membership management.
-- **`portal-uploads.ts`** — Server functions for portal image upload operations.
 - **`portal-link-categories.ts`** — Server functions for portal link category CRUD operations.
-- **`portal-read.ts`** — Read-only server functions for portal data retrieval.
 
 ## Permissions
 

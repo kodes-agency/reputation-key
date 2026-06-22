@@ -5,6 +5,7 @@ import type { EventBus } from '#/shared/events/event-bus'
 import type { CreateInboxItemUseCase } from '../../application/use-cases/create-inbox-item'
 import type { InboxRepository } from '../../application/ports/inbox.repository'
 import type { NewCounterPort } from '../../application/ports/new-counter.port'
+import type { FeedbackLookupPort } from '../../application/ports/feedback-lookup.port'
 import { onReviewCreated } from './on-review-created'
 import { onFeedbackSubmitted } from './on-feedback-submitted'
 import { onReviewUpdated } from './on-review-updated'
@@ -17,6 +18,7 @@ export type RegisterInboxHandlersDeps = Readonly<{
   createInboxItem: CreateInboxItemUseCase
   repo: InboxRepository
   newCounter: NewCounterPort
+  feedbackLookup: FeedbackLookupPort
 }>
 
 export const registerInboxHandlers = (deps: RegisterInboxHandlersDeps): void => {
@@ -26,7 +28,10 @@ export const registerInboxHandlers = (deps: RegisterInboxHandlersDeps): void => 
   )
   deps.events.on(
     'guest.feedback.submitted',
-    onFeedbackSubmitted({ createInboxItem: deps.createInboxItem }),
+    onFeedbackSubmitted({
+      createInboxItem: deps.createInboxItem,
+      feedbackLookup: deps.feedbackLookup,
+    }),
   )
   deps.events.on('review.updated', onReviewUpdated(deps))
   deps.events.on(
@@ -47,6 +52,7 @@ export const registerInboxHandlers = (deps: RegisterInboxHandlersDeps): void => 
     'review.expired',
     onReviewExpired({
       repo: deps.repo,
+      events: deps.events,
       newCounter: deps.newCounter,
     }),
   )

@@ -5,6 +5,7 @@
 import { Pool } from 'pg'
 
 import { getEnv } from '#/shared/config/env'
+import { getLogger } from '#/shared/observability/logger'
 
 let _pool: Pool | undefined
 
@@ -122,9 +123,9 @@ export function getPool(): Pool {
     // it as an unhandled exception, which destabilizes the process and causes
     // cascading 500s. This handler logs and lets the Pool recycle the client.
     _pool.on('error', (err) => {
-      console.warn(
-        '[db] idle pool connection error (Neon recycled connection):',
-        err.message,
+      getLogger().warn(
+        { error: err.message },
+        '[db] idle pool connection error (Neon recycled connection)',
       )
     })
     // Retry transient connection failures (Neon cold-start, recycled

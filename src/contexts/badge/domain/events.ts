@@ -1,6 +1,6 @@
 // Badge context — domain events
 
-import assert from 'node:assert/strict'
+import { assert } from '#/shared/domain/assert'
 import type {
   BadgeId,
   PortalGroupId,

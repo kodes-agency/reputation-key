@@ -85,7 +85,7 @@ async function truncateInbox(pool: Pool) {
 
 async function seedOrgs(pool: Pool, ids: string[]) {
   for (const id of ids) {
-    const slug = 't-' + id.replace(/-/g, '').slice(-12)
+    const slug = 't-' + id.replace(/-/g, '')
     await pool.query(
       `INSERT INTO organization (id, name, slug, "createdAt")
        VALUES ($1, $2, $3, NOW())

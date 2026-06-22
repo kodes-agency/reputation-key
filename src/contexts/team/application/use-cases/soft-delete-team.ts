@@ -5,7 +5,9 @@ import type { AssignmentCheckPort } from '../ports/assignment-check.port'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { TeamId } from '#/shared/domain/ids'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { can } from '#/shared/domain/permissions'
+import { isPropertyAccessible } from '#/shared/domain/property-access'
 import { teamError } from '../../domain/errors'
 import { teamDeleted } from '../../domain/events'
 
@@ -18,6 +20,7 @@ export type SoftDeleteTeamInput = Readonly<{
 // fallow-ignore-next-line unused-type
 export type SoftDeleteTeamDeps = Readonly<{
   teamRepo: TeamRepository
+  staffApi: StaffPublicApi
   assignmentCheck: AssignmentCheckPort
   events: EventBus
   clock: () => Date
@@ -35,6 +38,18 @@ export const softDeleteTeam =
     const team = await deps.teamRepo.findById(ctx.organizationId, input.teamId)
     if (!team) {
       throw teamError('team_not_found', 'team not found')
+    }
+
+    // D6-001: PropertyManager/Staff must be assigned to the team's property.
+    const accessible = await isPropertyAccessible(
+      (orgId, uId, role) => deps.staffApi.getAccessiblePropertyIds(orgId, uId, role),
+      ctx.organizationId,
+      ctx.userId,
+      ctx.role,
+      team.propertyId,
+    )
+    if (!accessible) {
+      throw teamError('forbidden', 'no access to this property')
     }
 
     // 3. Check for active assignments — prevent deletion if team has members
@@ -56,9 +71,9 @@ export const softDeleteTeam =
     // 5. Emit event
     await deps.events.emit(
       teamDeleted({
-        eventId: crypto.randomUUID(),
         teamId: team.id,
         organizationId: team.organizationId,
+        propertyId: team.propertyId,
         occurredAt: deps.clock(),
       }),
     )

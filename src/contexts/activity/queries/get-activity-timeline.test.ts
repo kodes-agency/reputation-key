@@ -20,6 +20,7 @@ function makeEntry(overrides: Partial<ActivityLog> = {}): ActivityLog {
     organizationId: organizationId('org-1'),
     payload: { subject: 'test', from: null, to: null, detail: null },
     source: 'web',
+    eventId: 'test-event-id',
     createdAt: new Date(),
     ...overrides,
   }

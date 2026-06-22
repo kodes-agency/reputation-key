@@ -144,6 +144,7 @@ export async function bootstrap(container: Container): Promise<void> {
     events: container.eventBus,
     clock: container.clock,
     idGen: () => replyId(crypto.randomUUID()),
+    staffPublicApi: container.staffPublicApi,
   })
   container.jobRegistry.register(PUBLISH_REPLY_JOB_NAME, async (job) => {
     await publishReplyHandler(

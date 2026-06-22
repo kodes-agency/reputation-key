@@ -4,6 +4,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { getGoal } from './get-goal'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { GoalRepository } from '../ports/goal.repository'
 import type { Goal, GoalProgress } from '../../domain/types'
 import {
@@ -113,17 +114,13 @@ const createFakeGoalRepo = (state: {
     currentSum: null,
     currentCount: null,
   }),
-  incrementProgress: async () => ({
-    currentValue: 0,
-    currentSum: null,
-    currentCount: null,
-  }),
   markGoalCompleted: async () => {},
-  findAllActive: async () => [],
   findAllActiveRecurring: async () => [],
   findAllActiveGlobal: async () => [],
   findActiveRecurringTemplates: async () => [],
   findLatestInstance: async () => null,
+  cancelTemplateAndInstances: async () => null,
+  createRecurringGoalWithInstance: async () => {},
   createGoalAndProgress: async () => {},
 })
 
@@ -135,11 +132,15 @@ const setup = () => {
     progress: Map<string, GoalProgress>
     instances: Map<string, Goal[]>
   } = { goals: [], progress: new Map(), instances: new Map() }
-
   const goalRepo = createFakeGoalRepo(state)
-  const useCase = getGoal({ goalRepo })
+  const staffPublicApi: StaffPublicApi = {
+    getAccessiblePropertyIds: async () => null,
+    getAssignedPortals: async () => [],
+    countAssignmentsByTeam: async () => 0,
+  }
+  const useCase = getGoal({ goalRepo, staffPublicApi })
 
-  return { state, goalRepo, useCase }
+  return { state, goalRepo, staffPublicApi, useCase }
 }
 
 // ── Tests ──────────────────────────────────────────────────────────────────
@@ -155,6 +156,7 @@ describe('getGoal', () => {
     const result = await useCase({
       goalId: goal.id,
       organizationId: ORG_ID,
+      userId: USER_ID,
       role: 'AccountAdmin',
     })
 
@@ -201,6 +203,7 @@ describe('getGoal', () => {
     const result = await useCase({
       goalId: template.id,
       organizationId: ORG_ID,
+      userId: USER_ID,
       role: 'AccountAdmin',
     })
 
@@ -223,6 +226,7 @@ describe('getGoal', () => {
     const result = await useCase({
       goalId: goalId('nonexistent'),
       organizationId: ORG_ID,
+      userId: USER_ID,
       role: 'AccountAdmin',
     })
 
@@ -238,14 +242,26 @@ describe('getGoal', () => {
     const result = await useCase({
       goalId: goal.id,
       organizationId: OTHER_ORG_ID,
+      userId: USER_ID,
       role: 'AccountAdmin',
     })
 
     expect(result.isErr()).toBe(true)
   })
 
-  it('returns forbidden for role without goal.read permission', async () => {
-    const { state, useCase } = setup()
+  it('returns forbidden when Staff lacks property access', async () => {
+    const state: {
+      goals: Goal[]
+      progress: Map<string, GoalProgress>
+      instances: Map<string, Goal[]>
+    } = { goals: [], progress: new Map(), instances: new Map() }
+    const goalRepo = createFakeGoalRepo(state)
+    const staffPublicApi: StaffPublicApi = {
+      getAccessiblePropertyIds: async () => [],
+      getAssignedPortals: async () => [],
+      countAssignmentsByTeam: async () => 0,
+    }
+    const useCase = getGoal({ goalRepo, staffPublicApi })
 
     const goal = makeGoal({ id: 'g-1' })
     state.goals = [goal]
@@ -253,8 +269,8 @@ describe('getGoal', () => {
     const result = await useCase({
       goalId: goal.id,
       organizationId: ORG_ID,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- intentionally invalid role to test permission guard
-      role: 'Guest' as any,
+      userId: USER_ID,
+      role: 'Staff',
     })
 
     expect(result.isErr()).toBe(true)

@@ -78,6 +78,7 @@ export function wireUseCases(input: WireInput): InboxContextApi['internal']['use
       newCounter: input.newCounter,
       repo: input.inboxRepo,
       logger: input.logger,
+      staffPublicApi: input.staffPublicApi,
     }),
     getInboxItemDetail: getInboxItemDetail({
       repo: input.inboxRepo,
@@ -90,6 +91,7 @@ export function wireUseCases(input: WireInput): InboxContextApi['internal']['use
     }),
     getInboxFolderCounts: getInboxFolderCounts({
       repo: input.inboxRepo,
+      staffPublicApi: input.staffPublicApi,
     }),
   }
 }

@@ -76,6 +76,7 @@ export const createAttentionSignalsAdapter = (
     return trace('dashboard.attention.goalsBehindPace', async () => {
       // Behind pace = current value < pro-rated expected value for elapsed time.
       // Only bounded, active, not-yet-ended goals are pro-ratable.
+      const now = clock()
       const rows = await db
         .select({ count: count() })
         .from(goals)
@@ -93,10 +94,10 @@ export const createAttentionSignalsAdapter = (
             eq(goals.status, 'active'),
             sql`${goals.periodStart} IS NOT NULL`,
             sql`${goals.periodEnd} IS NOT NULL`,
-            sql`${goals.periodEnd} > now()`,
+            sql`${goals.periodEnd} > ${now}`,
             sql`COALESCE(${goalProgress.currentValue}, 0) < ${goals.targetValue} *
               GREATEST(0, LEAST(1,
-                EXTRACT(EPOCH FROM (now() - ${goals.periodStart}))
+                EXTRACT(EPOCH FROM (${now} - ${goals.periodStart}))
                 / NULLIF(EXTRACT(EPOCH FROM (${goals.periodEnd} - ${goals.periodStart})), 0)
               ))`,
           ),

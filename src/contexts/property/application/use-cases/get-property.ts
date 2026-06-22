@@ -3,13 +3,16 @@
 import type { PropertyRepository } from '../ports/property.repository'
 import type { Property } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { propertyError } from '../../domain/errors'
 import { propertyId } from '#/shared/domain/ids'
 import { can } from '#/shared/domain/permissions'
+import { isPropertyAccessible } from '#/shared/domain/property-access'
 
 // fallow-ignore-next-line unused-type
 export type GetPropertyDeps = Readonly<{
   propertyRepo: PropertyRepository
+  staffPublicApi: StaffPublicApi
 }>
 
 // fallow-ignore-next-line unused-type
@@ -23,12 +26,25 @@ export const getProperty =
     if (!can(ctx.role, 'property.read')) {
       throw propertyError('forbidden', 'No property read permission')
     }
-    const property = await deps.propertyRepo.findById(
-      ctx.organizationId,
-      propertyId(input.propertyId),
-    )
+    const pid = propertyId(input.propertyId)
+    const property = await deps.propertyRepo.findById(ctx.organizationId, pid)
     if (!property) {
       throw propertyError('property_not_found', 'property not found')
+    }
+
+    // Enforce property-assignment scoping for PropertyManager (AccountAdmin
+    // bypasses via getAccessiblePropertyIds returning null). Mirrors the
+    // update-property write path. (PROPERTY-001 / D6-001.)
+    const accessible = await isPropertyAccessible(
+      (orgId, userId, role) =>
+        deps.staffPublicApi.getAccessiblePropertyIds(orgId, userId, role),
+      ctx.organizationId,
+      ctx.userId,
+      ctx.role,
+      pid,
+    )
+    if (!accessible) {
+      throw propertyError('forbidden', 'No access to this property', { propertyId: pid })
     }
     return property
   }

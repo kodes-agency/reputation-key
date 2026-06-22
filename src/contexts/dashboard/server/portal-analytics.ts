@@ -8,6 +8,7 @@ import { getContainer } from '#/composition'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { can } from '#/shared/domain/permissions'
+import { isPropertyAccessible } from '#/shared/domain/property-access'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getPortalAnalyticsDto } from '../application/dto/dashboard.dto'
 export type { PortalAnalyticsData } from '../domain/types'
@@ -15,7 +16,7 @@ import { timeRangeToDates } from '../application/utils'
 import { propertyId, portalId } from '#/shared/domain/ids'
 import { isDashboardError } from '../domain/errors'
 import type { DashboardErrorCode } from '../domain/errors'
-import { match } from 'ts-pattern'
+import { standardErrorStatus as dashboardErrorStatus } from '#/shared/http/status'
 
 /** Local error constructor — server must not import domain error constructors. */
 const makeDashboardError = (code: DashboardErrorCode, message: string) => ({
@@ -23,13 +24,6 @@ const makeDashboardError = (code: DashboardErrorCode, message: string) => ({
   code,
   message,
 })
-
-const dashboardErrorStatus = (code: DashboardErrorCode): number =>
-  match(code)
-    .with('forbidden', () => 403)
-    .with('not_found', () => 404)
-    .with('invalid_input', () => 400)
-    .exhaustive()
 
 export const getPortalAnalyticsFn = createServerFn({ method: 'GET' })
   .inputValidator(getPortalAnalyticsDto)
@@ -45,7 +39,21 @@ export const getPortalAnalyticsFn = createServerFn({ method: 'GET' })
               'Insufficient permissions to view dashboard',
             )
           }
-          const { useCases, clock } = getContainer()
+          const { useCases, clock, staffPublicApi } = getContainer()
+          // D6-001: non-admin callers may only read their assigned properties.
+          if (
+            ctx.role !== 'AccountAdmin' &&
+            !(await isPropertyAccessible(
+              (orgId, uId, role) =>
+                staffPublicApi.getAccessiblePropertyIds(orgId, uId, role),
+              ctx.organizationId,
+              ctx.userId,
+              ctx.role,
+              propertyId(data.propertyId),
+            ))
+          ) {
+            throw makeDashboardError('forbidden', 'Property not assigned to caller')
+          }
           const { startDate, endDate } = timeRangeToDates(data.timeRange, clock())
 
           return await useCases.getPortalAnalytics({

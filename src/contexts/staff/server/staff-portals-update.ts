@@ -1,9 +1,10 @@
 // Staff context — staff portals update server function (split from staff-assignments.ts)
+// Portal validation extracted into the updateStaffPortals use case (D8-001).
+// This server fn resolves auth + delegates.
 
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { z } from 'zod/v4'
-import { HTTP_STATUS } from '#/shared/http/status'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
@@ -29,32 +30,8 @@ export const updateStaffPortals = createServerFn({ method: 'POST' })
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
 
-        // F058: Portal validation moved inside try/catch below to prevent unhandled errors
-        // F057 NOTE: Cross-context import of portalRepo is acceptable here — staff context
-        // needs to verify portal ownership before updating assignments.
         try {
-          // Validate portalIds belong to the property
-          const container = getContainer()
-          const propertyPortals = await container.portalRepo.listByProperty(
-            ctx.organizationId,
-            data.propertyId,
-          )
-          const validPortalIds = new Set(propertyPortals.map((p) => p.id))
-          const invalidPortalIds = data.portalIds
-            .map((id) => toPortalId(id))
-            .filter((id) => !validPortalIds.has(id))
-          if (invalidPortalIds.length > 0) {
-            throwContextError(
-              'StaffError',
-              {
-                code: 'invalid_input',
-                message: `Portals not in property: ${invalidPortalIds.join(', ')}`,
-              },
-              HTTP_STATUS.BAD_REQUEST,
-            )
-          }
-
-          const { useCases } = container
+          const { useCases } = getContainer()
           const result = await useCases.updateStaffPortals(
             {
               userId: toUserId(data.userId),

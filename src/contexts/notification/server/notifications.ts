@@ -10,6 +10,8 @@ import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { z } from 'zod'
+import { NOTIFICATION_TYPES } from '../domain/types'
+import { isNotificationError } from '../application/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 
 // Resolve tenant context, tolerating "no active org" (a new user with no
@@ -35,10 +37,10 @@ export const getUnreadNotificationCountFn = createServerFn({ method: 'GET' }).ha
       // No active org → empty result (new user hasn't selected an org yet).
       const ctx = await resolveOptionalTenantContext()
       if (!ctx) return { count: 0 }
-      if (!can(ctx.role, 'inbox.read')) {
+      if (!can(ctx.role, 'notification.read')) {
         throwContextError(
           'AuthError',
-          { code: 'forbidden', message: 'No inbox read permission' },
+          { code: 'forbidden', message: 'No notification read permission' },
           403,
         )
       }
@@ -72,10 +74,10 @@ export const getNotificationsFn = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const ctx = await resolveOptionalTenantContext()
         if (!ctx) return []
-        if (!can(ctx.role, 'inbox.read')) {
+        if (!can(ctx.role, 'notification.read')) {
           throwContextError(
             'AuthError',
-            { code: 'forbidden', message: 'No inbox read permission' },
+            { code: 'forbidden', message: 'No notification read permission' },
             403,
           )
         }
@@ -109,29 +111,24 @@ export const markNotificationReadFn = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'inbox.read')) {
+        if (!can(ctx.role, 'notification.update')) {
           throwContextError(
             'AuthError',
-            { code: 'forbidden', message: 'No inbox read permission' },
+            { code: 'forbidden', message: 'No notification update permission' },
             403,
           )
         }
         try {
           const { notificationPublicApi } = getContainer()
-          // R2-H5: Verify notification belongs to current user before marking read
-          const notification = await notificationPublicApi.findById(
+          return notificationPublicApi.markRead(
             data.notificationId,
             ctx.organizationId,
+            ctx.userId,
           )
-          if (!notification || notification.userId !== ctx.userId) {
-            throwContextError(
-              'AuthError',
-              { code: 'forbidden', message: 'Notification not found or access denied' },
-              403,
-            )
-          }
-          return notificationPublicApi.markRead(data.notificationId, ctx.organizationId)
         } catch (e) {
+          if (isNotificationError(e)) {
+            throwContextError('NotificationError', e, e.code === 'not_found' ? 404 : 500)
+          }
           throw catchUntagged(e)
         }
       },
@@ -147,10 +144,10 @@ export const markAllNotificationsReadFn = createServerFn({ method: 'POST' }).han
     async () => {
       const headers = await headersFromContext()
       const ctx = await resolveTenantContext(headers)
-      if (!can(ctx.role, 'inbox.read')) {
+      if (!can(ctx.role, 'notification.update')) {
         throwContextError(
           'AuthError',
-          { code: 'forbidden', message: 'No inbox read permission' },
+          { code: 'forbidden', message: 'No notification update permission' },
           403,
         )
       }
@@ -179,29 +176,24 @@ export const dismissNotificationFn = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'inbox.read')) {
+        if (!can(ctx.role, 'notification.update')) {
           throwContextError(
             'AuthError',
-            { code: 'forbidden', message: 'No inbox read permission' },
+            { code: 'forbidden', message: 'No notification update permission' },
             403,
           )
         }
         try {
           const { notificationPublicApi } = getContainer()
-          // Verify notification belongs to current user before dismissing
-          const notification = await notificationPublicApi.findById(
+          return notificationPublicApi.dismiss(
             data.notificationId,
             ctx.organizationId,
+            ctx.userId,
           )
-          if (!notification || notification.userId !== ctx.userId) {
-            throwContextError(
-              'AuthError',
-              { code: 'forbidden', message: 'Notification not found or access denied' },
-              403,
-            )
-          }
-          return notificationPublicApi.dismiss(data.notificationId, ctx.organizationId)
         } catch (e) {
+          if (isNotificationError(e)) {
+            throwContextError('NotificationError', e, e.code === 'not_found' ? 404 : 500)
+          }
           throw catchUntagged(e)
         }
       },
@@ -218,10 +210,10 @@ export const getNotificationPreferencesFn = createServerFn({ method: 'GET' }).ha
     async () => {
       const ctx = await resolveOptionalTenantContext()
       if (!ctx) return []
-      if (!can(ctx.role, 'inbox.read')) {
+      if (!can(ctx.role, 'notification.read')) {
         throwContextError(
           'AuthError',
-          { code: 'forbidden', message: 'No inbox read permission' },
+          { code: 'forbidden', message: 'No notification read permission' },
           403,
         )
       }
@@ -239,20 +231,8 @@ export const getNotificationPreferencesFn = createServerFn({ method: 'GET' }).ha
 
 // ── updateNotificationPreferenceFn ────────────────────────────────
 
-const NOTIFICATION_TYPES = [
-  'review.created',
-  'feedback.created',
-  'reply.pending_approval',
-  'reply.approved',
-  'reply.rejected',
-  'reply.published',
-  'reply.publish_failed',
-  'inbox.escalated',
-  'inbox.assigned',
-  'inbox_note.added',
-  'goal.completed',
-  'badge.awarded',
-] as const
+// Notification type literals come from the single source of truth
+// in domain/types.ts (NOTIFICATION_TYPES).
 
 const updateNotificationPreferenceDto = z.object({
   type: z.enum(NOTIFICATION_TYPES),
@@ -268,10 +248,10 @@ export const updateNotificationPreferenceFn = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'inbox.read')) {
+        if (!can(ctx.role, 'notification.update')) {
           throwContextError(
             'AuthError',
-            { code: 'forbidden', message: 'No inbox read permission' },
+            { code: 'forbidden', message: 'No notification update permission' },
             403,
           )
         }

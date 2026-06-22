@@ -51,7 +51,6 @@ export const recordScan =
       await deps.events.emit(
         guestScanRecorded({
           scanId,
-          eventId: crypto.randomUUID(),
           organizationId: input.organizationId,
           portalId: input.portalId,
           propertyId: input.propertyId,

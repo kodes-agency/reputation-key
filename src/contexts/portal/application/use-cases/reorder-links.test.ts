@@ -2,26 +2,47 @@
 
 import { describe, it, expect } from 'vitest'
 import { reorderLinks } from './reorder-links'
+import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
 import { createInMemoryPortalLinkRepo } from '#/shared/testing/in-memory-portal-link-repo'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
-import { buildTestAuthContext, buildTestPortalLink } from '#/shared/testing/fixtures'
-import { portalLinkId } from '#/shared/domain/ids'
+import {
+  buildTestAuthContext,
+  buildTestPortal,
+  buildTestPortalLink,
+} from '#/shared/testing/fixtures'
+import { propertyId, portalLinkId, type PropertyId } from '#/shared/domain/ids'
 import { isPortalError } from '../../domain/errors'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
 
-const setup = () => {
+const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublicApi => ({
+  getAccessiblePropertyIds: async () => accessible,
+  getAssignedPortals: async () => [],
+  countAssignmentsByTeam: async () => 0,
+})
+
+const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
+  const portalRepo = createInMemoryPortalRepo()
   const portalLinkRepo = createInMemoryPortalLinkRepo()
   const events = createCapturingEventBus()
-  const deps = { portalLinkRepo, events, clock: () => FIXED_TIME }
+  const deps = {
+    portalRepo,
+    portalLinkRepo,
+    staffPublicApi: staffApiMock(accessible),
+    events,
+    clock: () => FIXED_TIME,
+  }
   const useCase = reorderLinks(deps)
-  return { useCase, portalLinkRepo, events }
+  return { useCase, portalRepo, portalLinkRepo, events }
 }
 
 describe('reorderLinks', () => {
   it('reorders links with new sort keys', async () => {
-    const { useCase, portalLinkRepo } = setup()
+    const { useCase, portalRepo, portalLinkRepo } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const portal = buildTestPortal({})
+    portalRepo.seed([portal])
     const link1 = buildTestPortalLink({ id: portalLinkId('link-1'), sortKey: 'a0' })
     const link2 = buildTestPortalLink({ id: portalLinkId('link-2'), sortKey: 'a1' })
     portalLinkRepo.seedLinks([link1, link2])
@@ -49,14 +70,14 @@ describe('reorderLinks', () => {
 
     await expect(
       useCase({ categoryId: 'any', portalId: 'any', items: [] }, ctx),
-    ).rejects.toSatisfy(
-      (e: unknown) => isPortalError(e) && (e as { code: string }).code === 'forbidden',
-    )
+    ).rejects.toSatisfy((e: unknown) => isPortalError(e) && e.code === 'forbidden')
   })
 
   it('emits portal_link.reordered event', async () => {
-    const { useCase, portalLinkRepo, events } = setup()
+    const { useCase, portalRepo, portalLinkRepo, events } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const portal = buildTestPortal({})
+    portalRepo.seed([portal])
     const link1 = buildTestPortalLink({ id: portalLinkId('link-1') })
     portalLinkRepo.seedLinks([link1])
 
@@ -71,5 +92,48 @@ describe('reorderLinks', () => {
 
     const emitted = events.capturedByTag('portal_link.reordered')
     expect(emitted).toHaveLength(1)
+  })
+
+  it('rejects PropertyManager without assignment to the property', async () => {
+    const { useCase, portalRepo, portalLinkRepo } = setup([])
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const portal = buildTestPortal({})
+    portalRepo.seed([portal])
+    const link1 = buildTestPortalLink({ id: portalLinkId('link-1') })
+    portalLinkRepo.seedLinks([link1])
+
+    await expect(
+      useCase(
+        {
+          categoryId: 'c0000000-0000-0000-0000-000000000001',
+          portalId: portal.id,
+          items: [{ id: link1.id, sortKey: 'b0' }],
+        },
+        ctx,
+      ),
+    ).rejects.toSatisfy((e: unknown) => isPortalError(e) && e.code === 'forbidden')
+  })
+
+  it('allows PropertyManager assigned to the property', async () => {
+    const { useCase, portalRepo, portalLinkRepo } = setup([
+      propertyId('a0000000-0000-0000-0000-000000000001'),
+    ])
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const portal = buildTestPortal({})
+    portalRepo.seed([portal])
+    const link1 = buildTestPortalLink({ id: portalLinkId('link-1'), sortKey: 'a0' })
+    portalLinkRepo.seedLinks([link1])
+
+    await useCase(
+      {
+        categoryId: 'c0000000-0000-0000-0000-000000000001',
+        portalId: portal.id,
+        items: [{ id: link1.id, sortKey: 'b0' }],
+      },
+      ctx,
+    )
+
+    const updated = portalLinkRepo.allLinks()
+    expect(updated.find((l) => l.id === link1.id)?.sortKey).toBe('b0')
   })
 })

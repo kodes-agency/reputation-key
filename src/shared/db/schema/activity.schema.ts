@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, jsonb, index } from 'drizzle-orm/pg-core'
+import { pgTable, uuid, varchar, text, jsonb, index, unique } from 'drizzle-orm/pg-core'
 import { createdAtColumn } from '../columns'
 
 export const activityLog = pgTable(
@@ -15,6 +15,7 @@ export const activityLog = pgTable(
     propertyId: varchar('property_id', { length: 255 }),
     organizationId: varchar('organization_id', { length: 255 }).notNull(),
     payload: jsonb('payload').notNull().default({}),
+    eventId: varchar('event_id', { length: 255 }),
     source: varchar('source', { length: 20 }).notNull().default('web'),
     createdAt: createdAtColumn(),
   },
@@ -25,6 +26,10 @@ export const activityLog = pgTable(
       t.propertyId,
       t.createdAt,
     ),
+    index('activity_log_event_id_idx').on(t.eventId),
     index('activity_log_actor_idx').on(t.actorId, t.createdAt),
+    // ACT-006: enforce idempotency at the DB level — BullMQ delivers at-least-once,
+    // so a unique constraint on (eventId, organizationId) is the TOCTOU-safe guard.
+    unique('activity_log_event_id_org_uniq').on(t.eventId, t.organizationId),
   ],
 )

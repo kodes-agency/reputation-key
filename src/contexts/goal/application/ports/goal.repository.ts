@@ -45,9 +45,15 @@ export type GoalRepository = Readonly<{
   list(filter: GoalListFilter): Promise<ReadonlyArray<Goal>>
   listInstances(parentGoalId: GoalId, orgId: OrganizationId): Promise<ReadonlyArray<Goal>>
   cancelByParent(parentGoalId: GoalId, orgId: OrganizationId, now: Date): Promise<number>
+  /** Atomically cancel a recurring template and all its active instances.
+   *  Returns the updated template, or null if the template was not found. */
+  cancelTemplateAndInstances(
+    parentGoalId: GoalId,
+    orgId: OrganizationId,
+    now: Date,
+  ): Promise<Goal | null>
 
-  // ── Goal queries (reconciliation & spawner) ───────────────────────────
-  findAllActive(organizationId: OrganizationId): Promise<ReadonlyArray<Goal>>
+  // ── Goal queries (reconciliation and spawner) ──────────────────────────
   /** ⚠️ CROSS-TENANT — background job use only. Returns all active recurring templates across all orgs. */
   findAllActiveRecurring(): Promise<ReadonlyArray<Goal>>
   /** ⚠️ CROSS-TENANT — background job use only. Returns all active goals across all orgs. */
@@ -57,6 +63,14 @@ export type GoalRepository = Readonly<{
   ): Promise<ReadonlyArray<Goal>>
   findLatestInstance(parentGoalId: GoalId, orgId: OrganizationId): Promise<Goal | null>
   createGoalAndProgress(goal: Goal, progress: GoalProgress): Promise<void>
+  /** Atomically persist a recurring template, its first instance, and the
+   *  instance's initial progress in a single transaction. Used by create-goal
+   *  to guarantee all-or-nothing for the template+instance pair. */
+  createRecurringGoalWithInstance(
+    template: Goal,
+    instance: Goal,
+    progress: GoalProgress,
+  ): Promise<void>
 
   // ── Event-driven increment ───────────────────────────────────────────
   findActiveGoalsByMetric(
@@ -66,16 +80,6 @@ export type GoalRepository = Readonly<{
     portalId: PortalId | null,
     portalGroupId: PortalGroupId | null,
   ): Promise<ReadonlyArray<Goal>>
-
-  incrementProgress(
-    goalId: GoalId,
-    aggregation: AggregationFunction,
-    delta: number,
-  ): Promise<{
-    currentValue: number
-    currentSum: number | null
-    currentCount: number | null
-  }>
 
   // Upsert progress — inserts if no row exists, increments otherwise.
   // Used by event-driven handler (onMetricRecorded) where initial row

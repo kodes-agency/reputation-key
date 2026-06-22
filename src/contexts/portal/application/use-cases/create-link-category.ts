@@ -11,6 +11,8 @@ import { generateKeyBetween } from 'fractional-indexing'
 import { portalLinkCategoryCreated } from '../../domain/events'
 import type { EventBus } from '#/shared/events/event-bus'
 import { portalId, portalLinkCategoryId } from '#/shared/domain/ids'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import { assertPropertyAccess } from '../assert-property-access'
 
 // fallow-ignore-next-line unused-type
 export type CreateLinkCategoryInput = Readonly<{
@@ -22,6 +24,7 @@ export type CreateLinkCategoryInput = Readonly<{
 export type CreateLinkCategoryDeps = Readonly<{
   portalRepo: PortalRepository
   portalLinkRepo: PortalLinkRepository
+  staffPublicApi: StaffPublicApi
   events: EventBus
   idGen: () => string
   clock: () => Date
@@ -44,6 +47,8 @@ export const createLinkCategory =
     if (!portal) {
       throw portalError('portal_not_found', 'portal not found in this organization')
     }
+    // Enforce property-assignment scoping (D6-001.)
+    await assertPropertyAccess(deps.staffPublicApi, ctx, portal.propertyId)
 
     const existing = await deps.portalLinkRepo.listCategories(
       ctx.organizationId,

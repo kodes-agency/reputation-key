@@ -14,6 +14,7 @@ import { organization } from 'better-auth/plugins'
 import { tanstackStartCookies } from 'better-auth/tanstack-start'
 import { getEnv } from '#/shared/config/env'
 import { getPool } from '#/shared/db/pool'
+import { getLogger } from '#/shared/observability/logger'
 import {
   sendResetPasswordEmail,
   sendInvitationEmail,
@@ -99,14 +100,13 @@ export function createAuth() {
           admin,
           member: memberRole,
         },
-        // Dynamic per-org roles are disabled: the app uses only the 3 static
-        // roles (owner/admin/member). Enabling this makes better-auth's
-        // hasPermission() query an `organizationRole` table that is never
-        // created, which 500s every internal permission check (e.g. invite).
-        // Re-enable (and run the better-auth migration to add the table) only
-        // if runtime custom roles become a feature.
+        // Dynamic per-org roles enabled. The `organizationRole` table is
+        // provisioned by the better-auth migration (auth:generate / auth:migrate,
+        // Drizzle adapter). Custom-role admin UI is still TBD (ADR 0001 Phase 4);
+        // until then this makes the infrastructure functional, with the 3 static
+        // roles (owner/admin/member) as the built-in fallback.
         dynamicAccessControl: {
-          enabled: false,
+          enabled: true,
         },
         invitationExpiresIn: INVITATION_EXPIRY_SECONDS, // 7 days
         requireEmailVerificationOnInvitation:
@@ -140,7 +140,10 @@ export function createAuth() {
               propertyIds = JSON.parse(raw)
             } catch (err) {
               // F168 FIX: Log parse failure instead of silently returning
-              console.error('[auth] Failed to parse propertyIds from invitation:', err)
+              getLogger().error(
+                { err },
+                '[auth] Failed to parse propertyIds from invitation',
+              )
               return
             }
             if (!Array.isArray(propertyIds) || propertyIds.length === 0) return

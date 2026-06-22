@@ -9,7 +9,6 @@ import {
 } from '@tanstack/react-router'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
-import { hasRole } from '#/shared/domain/roles'
 import { getProperty } from '#/contexts/property/server/properties'
 import { listStaffAssignments } from '#/contexts/staff/server/staff-assignments'
 import { listTeams } from '#/contexts/team/server/teams'
@@ -18,10 +17,9 @@ import { ErrorState } from '#/components/layout/page-states'
 export const Route = createFileRoute('/_authenticated/properties/$propertyId')({
   beforeLoad: ({ context }) => {
     const { role } = context as AuthRouteContext
-    // Property admin surfaces (dashboard, reviews, metrics, …) are manager+.
+    // Property admin shell is a manager surface (property.admin).
     // Staff are scoped to /home, /progress, /leaderboard.
-    if (!hasRole(role, 'PropertyManager')) throw redirect({ to: '/home' })
-    if (!can(role, 'property.read')) throw redirect({ to: '/properties' })
+    if (!can(role, 'property.admin')) throw redirect({ to: '/home' })
   },
   staleTime: 60_000,
   loader: async ({ params: { propertyId } }) => {

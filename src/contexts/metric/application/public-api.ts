@@ -15,7 +15,6 @@ export type { MetricReadingsQuery, MetricReadingsAggregate }
  */
 // ── Event re-exports — cross-context consumers must import events from public-api, not domain/events
 export type { MetricRecorded, MetricEvent } from '../domain/events'
-export { metricRecorded } from '../domain/events'
 
 export type MetricPublicApi = Readonly<{
   /**

@@ -1,35 +1,12 @@
 // Team context — server function tests
-// Imports teamErrorStatus from the server module and verifies error → HTTP status mapping.
+// Tests the real teamErrorStatus function exported from the server module.
 // Per architecture: exhaustive ts-pattern matching ensures new error codes
 // are caught at compile time.
-//
-// Follows the same pattern as organizations.test.ts: tests the error mapping
-// logic and tagged error detection that lives at the server boundary.
 
 import { describe, it, expect } from 'vitest'
 import { teamError } from '#/contexts/team/domain/errors'
-import type { TeamErrorCode } from '#/contexts/team/domain/errors'
 import { throwContextError } from '#/shared/auth/server-errors'
-
-// We need to import the module to test its internal teamErrorStatus function.
-// Since it's not exported, we test the same logic by constructing the mapping
-// and verifying it matches the production code.
-const teamErrorStatus = (code: TeamErrorCode): number => {
-  switch (code) {
-    case 'forbidden':
-      return 403
-    case 'team_not_found':
-      return 404
-    case 'property_not_found':
-      return 404
-    case 'name_taken':
-      return 409
-    case 'invalid_name':
-      return 400
-    case 'team_has_assignments':
-      return 409
-  }
-}
+import { teamErrorStatus } from './teams'
 
 describe('teamErrorStatus (error → HTTP status mapping)', () => {
   it('maps forbidden → 403', () => {

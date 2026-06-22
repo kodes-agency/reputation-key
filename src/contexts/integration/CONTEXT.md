@@ -37,7 +37,7 @@ Manages Google OAuth connections, token lifecycle, GBP API infrastructure, and P
 
 - **`integration.google_account.connected`** — connectionId, organizationId, googleEmail, occurredAt. Emitted when a Google account is connected.
 - **`integration.google_account.disconnected`** — connectionId, organizationId, occurredAt. Emitted when a Google account is disconnected.
-- **`integration.property_import.completed`** — importJobId, organizationId, totalCount, importedCount, skippedCount, failedCount, occurredAt. Emitted when an import job finishes. _(Defined in events.ts but not yet emitted — deferred)_
+- **`integration.property_import.completed`** — importJobId, organizationId, totalCount, importedCount, skippedCount, failedCount, occurredAt. Emitted by the `importProperty` use case when an import job reaches terminal status.
 - **`integration.google_connection.visibility_changed`** — connectionId, organizationId, visibility, occurredAt. Emitted when connection visibility is updated.
 
 ## Events consumed
@@ -90,9 +90,9 @@ integration/
 - **`updateConnectionVisibility`** — Toggle private/organization visibility. Emits `integration.google_connection.visibility_changed`.
 - **`refreshGoogleToken`** — Auto-refresh expired tokens with 5-minute buffer.
 - **`listGbpLocations`** — Fetch GBP locations for a connection (with token refresh).
-- **`startPropertyImport`** — Create import job, enqueue bulk import tasks. Emits `integration.property_import.completed`.
+- **`startPropertyImport`** — Create import job, enqueue bulk import tasks.
 - **`getImportStatus`** — Query import job progress (imported/skipped/failed counts).
-- **`importProperty`** — Process single GBP location into a property. Handles duplicate conflicts.
+- **`importProperty`** — Process single GBP location into a property. Handles duplicate conflicts. Emits `integration.property_import.completed` when the job reaches terminal status.
 - **`handleGbpNotification`** — Process Google Pub/Sub push notifications for real-time review updates.
 
 ## Public API
@@ -108,8 +108,8 @@ Exported from `application/public-api.ts`:
 
 ## Permissions
 
-- `integration.manage` — Connect, disconnect, and manage Google connections.
-- `property.create` — Start property imports from GBP locations. The code in `gbp-import.ts` checks `can(ctx.role, 'property.create')`.
+- `integration.manage` — Connect, disconnect, and manage Google connections. Also gates `listGbpLocations` and `getImportStatus` (checked in both the server fn and use case).
+- `property.create` — Start property imports from GBP locations. Checked by `startPropertyImport` (both the server fn in `gbp-import.ts` and the use case via `can(ctx.role, 'property.create')`).
 
 ## Background jobs
 

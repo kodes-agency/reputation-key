@@ -28,7 +28,7 @@ Team management — creation, updates, soft-deletion within a property.
 
 - **`team.created`** — teamId, organizationId, propertyId, name, occurredAt, eventId, correlationId.
 - **`team.updated`** — teamId, organizationId, propertyId, name, occurredAt, eventId, correlationId.
-- **`team.deleted`** — teamId, organizationId, occurredAt, eventId, correlationId.
+- **`team.deleted`** — teamId, organizationId, propertyId, occurredAt, eventId, correlationId.
 
 ## Events consumed
 
@@ -42,7 +42,7 @@ team/
   application/
     ports/             team.repository.ts, assignment-check.port.ts
     dto/               create-team.dto.ts, update-team.dto.ts
-    use-cases/         create-team.ts, update-team.ts, get-team.ts, list-teams.ts,
+    use-cases/         create-team.ts, update-team.ts, list-teams.ts,
                        soft-delete-team.ts
     public-api.ts      re-exports domain types, event types/constructors
   infrastructure/
@@ -56,8 +56,7 @@ team/
 
 - **`createTeam`** — Create a new team within a property. Validates property exists via PropertyPublicApi.
 - **`updateTeam`** — Update team settings (name, description, team lead).
-- **`getTeam`** — Retrieve a single team by ID with member info via StaffPublicApi.
-- **`listTeams`** — List teams for an org/property with staff count, filtered by accessible properties.
+- **`listTeams`** — List teams for an org/property, filtered by accessible properties.
 - **`softDeleteTeam`** — Soft-delete a team, emits `team.deleted`.
 
 ## Public API
@@ -70,7 +69,7 @@ Exported from `application/public-api.ts`:
 
 ## Server functions
 
-- **`teams.ts`** — CRUD server functions for teams (create, update, list, get, delete).
+- **`teams.ts`** — Server functions for teams (create, update, list, delete).
 
 ## Permissions
 

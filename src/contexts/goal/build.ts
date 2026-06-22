@@ -10,12 +10,18 @@ import type { EventBus } from '#/shared/events/event-bus'
 import type { MetricPublicApi } from '#/contexts/metric/application/public-api'
 import type { GoalRepository } from './application/ports/goal.repository'
 import type { getLogger as getLoggerType } from '#/shared/observability/logger'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { createGoalRepository } from './infrastructure/repositories/goal.repository'
 import { createGoal } from './application/use-cases/create-goal'
 import { updateGoal } from './application/use-cases/update-goal'
 import { cancelGoal } from './application/use-cases/cancel-goal'
 import { listGoals } from './application/use-cases/list-goals'
 import { getGoal } from './application/use-cases/get-goal'
+import {
+  listStaffGoals,
+  type PortalGroupLookupPort,
+  type ListStaffGoals,
+} from './application/use-cases/list-staff-goals'
 import { registerGoalEventHandlers } from './infrastructure/event-handlers'
 
 export type GoalContextBuildInput = Readonly<{
@@ -24,11 +30,14 @@ export type GoalContextBuildInput = Readonly<{
   events: EventBus
   clock: () => Date
   idGen: () => string
+  staffPublicApi: StaffPublicApi
   getLogger: typeof getLoggerType
   findGroupForPortal: (
     orgId: import('#/shared/domain/ids').OrganizationId,
     portalId: import('#/shared/domain/ids').PortalId,
   ) => Promise<{ portalGroupId: import('#/shared/domain/ids').PortalGroupId } | null>
+  /** Resolve portal group IDs for a batch of portal IDs (staff goals visibility). */
+  portalGroupLookup: PortalGroupLookupPort
 }>
 
 export type GoalContextApi = Readonly<{
@@ -49,6 +58,7 @@ export type GoalContextApi = Readonly<{
       cancelGoal: ReturnType<typeof cancelGoal>
       listGoals: ReturnType<typeof listGoals>
       getGoal: ReturnType<typeof getGoal>
+      listStaffGoals: ListStaffGoals
     }>
     events: EventBus
   }>
@@ -60,26 +70,37 @@ export const buildGoalContext = (input: GoalContextBuildInput): GoalContextApi =
   const _createGoal = createGoal({
     goalRepo,
     metricRepo: input.metricApi,
+    staffPublicApi: input.staffPublicApi,
     idGen: input.idGen,
     clock: input.clock,
   })
 
   const _updateGoal = updateGoal({
     goalRepo,
+    staffPublicApi: input.staffPublicApi,
     clock: input.clock,
   })
 
   const _cancelGoal = cancelGoal({
     goalRepo,
+    staffPublicApi: input.staffPublicApi,
     clock: input.clock,
   })
 
   const _listGoals = listGoals({
     goalRepo,
+    staffPublicApi: input.staffPublicApi,
   })
 
   const _getGoal = getGoal({
     goalRepo,
+    staffPublicApi: input.staffPublicApi,
+  })
+
+  const _listStaffGoals = listStaffGoals({
+    goalRepo,
+    staffPublicApi: input.staffPublicApi,
+    portalGroupLookup: input.portalGroupLookup,
   })
 
   // Register event handlers (metric.recorded, portal_group.deleted, etc.)
@@ -110,6 +131,7 @@ export const buildGoalContext = (input: GoalContextBuildInput): GoalContextApi =
         cancelGoal: _cancelGoal,
         listGoals: _listGoals,
         getGoal: _getGoal,
+        listStaffGoals: _listStaffGoals,
       },
       events: input.events,
     },

@@ -53,6 +53,13 @@ export const betterAuthOrganizationSchema = z.object({
   slug: z.string(),
   logo: z.string().nullable().optional(),
   createdAt: z.coerce.date(),
+  contactEmail: z.string().nullable().optional(),
+  billingCompanyName: z.string().nullable().optional(),
+  billingAddress: z.string().nullable().optional(),
+  billingCity: z.string().nullable().optional(),
+  billingPostalCode: z.string().nullable().optional(),
+  billingCountry: z.string().nullable().optional(),
+  responseSlaHours: z.number().nullable().optional(),
 })
 
 // ── Response schemas ────────────────────────────────────────────────
@@ -73,6 +80,11 @@ export const listMembersResponseSchema = z.object({
 
 /** createInvitation response — the invitation object directly. */
 export const createInvitationResponseSchema = betterAuthInvitationSchema
+
+/** acceptInvitation response — { organizationId: string } */
+export const acceptInvitationResponseSchema = z.object({
+  organizationId: z.string(),
+})
 
 /** listInvitations response — array of invitations directly. */
 export const listInvitationsResponseSchema = z.array(betterAuthInvitationSchema)

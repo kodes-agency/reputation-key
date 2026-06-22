@@ -31,7 +31,6 @@ describe('canTransition', () => {
       ['addressed', 'archived'],
       ['addressed', 'escalated'],
       ['archived', 'escalated'],
-      ['archived', 'new'],
       ['archived', 'read'],
     ]
 
@@ -66,9 +65,10 @@ describe('canTransition', () => {
       ['addressed', 'new'],
       ['addressed', 'read'],
       ['addressed', 'addressed'],
-      // archived cannot go to addressed or archived
+      // archived can only go to read or escalated (not new, not addressed, not archived)
       ['archived', 'archived'],
       ['archived', 'addressed'],
+      ['archived', 'new'],
     ]
 
     it.each(invalidCases)('rejects %s → %s', (from, to) => {

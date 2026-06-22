@@ -14,11 +14,14 @@ import { buildPortal } from '../../domain/constructors'
 import { portalError } from '../../domain/errors'
 import { portalCreated } from '../../domain/events'
 import { propertyId } from '#/shared/domain/ids'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import { assertPropertyAccess } from '../assert-property-access'
 
 // fallow-ignore-next-line unused-type
 export type CreatePortalDeps = Readonly<{
   portalRepo: PortalRepository
   propertyApi: PropertyPublicApi
+  staffPublicApi: StaffPublicApi
   events: EventBus
   idGen: () => PortalId
   clock: () => Date
@@ -41,6 +44,9 @@ export const createPortal =
     ) {
       throw portalError('property_not_found', 'property not found in this organization')
     }
+    // Enforce property-assignment scoping for PropertyManager (AccountAdmin
+    // bypasses via getAccessiblePropertyIds returning null). (D6-001.)
+    await assertPropertyAccess(deps.staffPublicApi, ctx, propertyId(input.propertyId))
 
     // 3. Check uniqueness — slug must be unique per org+property
     const candidateSlug = input.slug ?? normalizeSlug(input.name)

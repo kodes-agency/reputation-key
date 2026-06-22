@@ -13,6 +13,11 @@ import {
 } from '#/shared/domain/ids'
 import type { StaffAssignment } from './domain/types'
 
+const mockPortalLookup = {
+  listPortalIdsByProperty: async () => [],
+  getPortalInfo: async () => null,
+}
+
 const seedAssignment = (overrides: Partial<StaffAssignment> = {}): StaffAssignment =>
   ({
     id: staffAssignmentId('staff-1'),
@@ -33,7 +38,12 @@ describe('StaffPublicApi', () => {
     const events = createCapturingEventBus()
     const clock = () => new Date('2025-01-01')
 
-    const { publicApi } = buildStaffContext({ repo, events, clock })
+    const { publicApi } = buildStaffContext({
+      repo,
+      portalLookup: mockPortalLookup,
+      events,
+      clock,
+    })
 
     const result = await publicApi.getAccessiblePropertyIds(
       organizationId('org-1'),
@@ -61,7 +71,12 @@ describe('StaffPublicApi', () => {
     const events = createCapturingEventBus()
     const clock = () => new Date('2025-01-01')
 
-    const { publicApi } = buildStaffContext({ repo, events, clock })
+    const { publicApi } = buildStaffContext({
+      repo,
+      portalLookup: mockPortalLookup,
+      events,
+      clock,
+    })
 
     const result = await publicApi.getAccessiblePropertyIds(
       organizationId('org-1'),

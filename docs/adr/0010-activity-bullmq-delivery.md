@@ -17,10 +17,14 @@ Activity logging is fundamentally different from metric recording: it's an **aud
 **Reverse Q12. Use BullMQ for activity event delivery.**
 
 - Emitting use cases (inbox status change, reply lifecycle, etc.) continue to emit domain events in-process.
-- Activity event handlers subscribe to those events and enqueue jobs to a shared `activity-log` BullMQ queue.
+- Activity event handlers subscribe to those events and enqueue jobs to the shared `default` BullMQ queue (job name `insert-activity-log`), reusing the existing worker infrastructure rather than a dedicated queue.
 - A BullMQ worker consumes jobs and calls the `insertActivityLog` use case.
 - The worker provides automatic retry (3 attempts) and dead-letter queue on persistent failures.
-- Idempotency is enforced via `findDuplicate(resourceType, resourceId, action, organizationId, payload)` in the repository — BullMQ delivers at-least-once.
+- Idempotency is enforced by a DB-level unique constraint on `(eventId, organizationId)` (`activity_log_event_id_org_uniq`), backed by a `findDuplicate(eventId, organizationId)` pre-check for a fast path — BullMQ delivers at-least-once.
+
+### Why the shared `default` queue (not a dedicated `activity-log` queue)?
+
+The original draft specified a dedicated `activity-log` queue. In practice, activity jobs are lightweight single-row inserts with no external I/O (no email, no API calls). The shared `default` queue already serves review sync, reply publishing, and purge jobs. A dedicated queue would add operational overhead (separate Redis key space, separate concurrency tuning, separate dashboard panel) for no benefit. Activity's backpressure is bounded by BullMQ's existing concurrency controls on the shared queue. The job name `insert-activity-log` distinguishes it within the registry.
 
 ### Why not BullMQ everywhere?
 

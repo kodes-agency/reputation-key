@@ -4,6 +4,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { listGoals } from './list-goals'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { GoalRepository } from '../ports/goal.repository'
 import type { Goal, GoalProgress } from '../../domain/types'
 import {
@@ -121,17 +122,13 @@ const createFakeGoalRepo = (state: {
     currentSum: null,
     currentCount: null,
   }),
-  incrementProgress: async () => ({
-    currentValue: 0,
-    currentSum: null,
-    currentCount: null,
-  }),
   markGoalCompleted: async () => {},
-  findAllActive: async () => [],
   findAllActiveRecurring: async () => [],
   findAllActiveGlobal: async () => [],
   findActiveRecurringTemplates: async () => [],
   findLatestInstance: async () => null,
+  cancelTemplateAndInstances: async () => null,
+  createRecurringGoalWithInstance: async () => {},
   createGoalAndProgress: async () => {},
 })
 
@@ -145,9 +142,14 @@ const setup = () => {
   } = { goals: [], progress: new Map(), instances: new Map() }
 
   const goalRepo = createFakeGoalRepo(state)
-  const useCase = listGoals({ goalRepo })
+  const staffPublicApi: StaffPublicApi = {
+    getAccessiblePropertyIds: async () => null,
+    getAssignedPortals: async () => [],
+    countAssignmentsByTeam: async () => 0,
+  }
+  const useCase = listGoals({ goalRepo, staffPublicApi })
 
-  return { state, goalRepo, useCase }
+  return { state, goalRepo, staffPublicApi, useCase }
 }
 
 // ── Tests ──────────────────────────────────────────────────────────────────
@@ -165,6 +167,7 @@ describe('listGoals', () => {
     const result = await useCase({
       organizationId: ORG_ID,
       propertyId: PROP_ID,
+      userId: USER_ID,
       role: 'AccountAdmin',
     })
 
@@ -191,6 +194,7 @@ describe('listGoals', () => {
     const result = await useCase({
       organizationId: ORG_ID,
       propertyId: PROP_ID,
+      userId: USER_ID,
       role: 'AccountAdmin',
       status: 'active',
     })
@@ -211,6 +215,7 @@ describe('listGoals', () => {
     const result = await useCase({
       organizationId: ORG_ID,
       propertyId: PROP_ID,
+      userId: USER_ID,
       role: 'AccountAdmin',
       portalId: PORTAL_ID,
     })
@@ -247,6 +252,7 @@ describe('listGoals', () => {
     const result = await useCase({
       organizationId: ORG_ID,
       propertyId: PROP_ID,
+      userId: USER_ID,
       role: 'AccountAdmin',
     })
 
@@ -281,6 +287,7 @@ describe('listGoals', () => {
     const result = await useCase({
       organizationId: ORG_ID,
       propertyId: PROP_ID,
+      userId: USER_ID,
       role: 'AccountAdmin',
     })
 
@@ -319,6 +326,7 @@ describe('listGoals', () => {
     const result = await useCase({
       organizationId: ORG_ID,
       propertyId: PROP_ID,
+      userId: USER_ID,
       role: 'AccountAdmin',
     })
 
@@ -340,21 +348,33 @@ describe('listGoals', () => {
     const result = await useCase({
       organizationId: ORG_ID,
       propertyId: PROP_ID,
+      userId: USER_ID,
       role: 'AccountAdmin',
     })
 
     expect(result._unsafeUnwrap()).toEqual([])
   })
 
-  it('returns forbidden for role without goal.read permission', async () => {
-    const { state, useCase } = setup()
+  it('returns forbidden when Staff lacks property access', async () => {
+    const state: {
+      goals: Goal[]
+      progress: Map<string, GoalProgress>
+      instances: Map<string, Goal[]>
+    } = { goals: [], progress: new Map(), instances: new Map() }
+    const goalRepo = createFakeGoalRepo(state)
+    const staffPublicApi: StaffPublicApi = {
+      getAccessiblePropertyIds: async () => [],
+      getAssignedPortals: async () => [],
+      countAssignmentsByTeam: async () => 0,
+    }
+    const useCase = listGoals({ goalRepo, staffPublicApi })
     state.goals = [makeGoal({ id: 'g-1' })]
 
     const result = await useCase({
       organizationId: ORG_ID,
       propertyId: PROP_ID,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- intentionally invalid role to test permission guard
-      role: 'Guest' as any,
+      userId: USER_ID,
+      role: 'Staff',
     })
 
     expect(result.isErr()).toBe(true)

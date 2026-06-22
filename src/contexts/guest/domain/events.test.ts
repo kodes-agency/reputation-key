@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { guestScanRecorded, guestRatingSubmitted, guestFeedbackSubmitted } from './events'
+import {
+  guestScanRecorded,
+  guestRatingSubmitted,
+  guestFeedbackSubmitted,
+  guestReviewLinkClicked,
+} from './events'
 import {
   scanEventId,
   organizationId,
@@ -7,10 +12,10 @@ import {
   propertyId,
   ratingId,
   feedbackId,
+  portalLinkId,
 } from '#/shared/domain/ids'
 
 const base = {
-  eventId: 'test-event-1',
   organizationId: organizationId('org-1'),
   portalId: portalId('portal-1'),
   propertyId: propertyId('prop-1'),
@@ -49,5 +54,16 @@ describe('GuestFeedbackSubmitted event', () => {
       ratingId: null,
     })
     expect(event.feedbackId).toBe('fb-1')
+  })
+})
+
+describe('GuestReviewLinkClicked event', () => {
+  it('creates event with valid payload', () => {
+    const event = guestReviewLinkClicked({
+      ...base,
+      linkId: portalLinkId('link-1'),
+    })
+    expect(event.linkId).toBe('link-1')
+    expect(event.eventId).toBeTruthy()
   })
 })

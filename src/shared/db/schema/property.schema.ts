@@ -28,6 +28,10 @@ export const properties = pgTable(
     orgSlugUnique: uniqueIndex('properties_org_slug_unique')
       .on(t.organizationId, t.slug)
       .where(sql`deleted_at IS NULL`),
+    // M-PROP-003: GBP place IDs must be unique within an org (CONTEXT.md invariant).
+    orgGbpPlaceIdUnique: uniqueIndex('properties_org_gbp_place_id_unique')
+      .on(t.organizationId, t.gbpPlaceId)
+      .where(sql`gbp_place_id IS NOT NULL AND deleted_at IS NULL`),
     orgIdx: index('properties_org_idx').on(t.organizationId),
   }),
 )

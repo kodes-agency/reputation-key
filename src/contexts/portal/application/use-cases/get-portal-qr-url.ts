@@ -6,6 +6,8 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import { can } from '#/shared/domain/permissions'
 import { portalId } from '#/shared/domain/ids'
 import { portalError } from '../../domain/errors'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import { assertPortalPropertyAccess } from '../assert-property-access'
 
 export type GetPortalQrUrlInput = Readonly<{
   portalId: string
@@ -13,6 +15,7 @@ export type GetPortalQrUrlInput = Readonly<{
 
 export type GetPortalQrUrlDeps = Readonly<{
   portalRepo: PortalRepository
+  staffPublicApi: StaffPublicApi
   baseUrl: string
 }>
 
@@ -25,6 +28,14 @@ export const getPortalQrUrl =
     if (!can(ctx.role, 'portal.read')) {
       throw portalError('forbidden', 'Insufficient permissions to view portal QR URL')
     }
+
+    // D6-001: verify caller can access this portal's property
+    await assertPortalPropertyAccess(
+      deps.portalRepo,
+      deps.staffPublicApi,
+      ctx,
+      portalId(input.portalId),
+    )
 
     // 1. Load portal QR info (tenant-isolated)
     const info = await deps.portalRepo.getPortalQrInfo(

@@ -37,6 +37,7 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
     }),
     updateProperty: updateProperty({
       propertyRepo: deps.repo,
+      staffPublicApi: deps.staffPublicApi,
       events: deps.events,
       clock: deps.clock,
     }),
@@ -46,6 +47,7 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
     }),
     getProperty: getProperty({
       propertyRepo: deps.repo,
+      staffPublicApi: deps.staffPublicApi,
     }),
     softDeleteProperty: deleteProperty({
       propertyRepo: deps.repo,

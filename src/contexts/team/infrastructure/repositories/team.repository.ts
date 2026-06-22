@@ -20,7 +20,10 @@ type SetValues = {
   deletedAt?: Date | null
 }
 
-export const createTeamRepository = (db: Database): TeamRepository => ({
+export const createTeamRepository = (
+  db: Database,
+  clock: () => Date = () => new Date(),
+): TeamRepository => ({
   findById: async (orgId, id) => {
     return trace('team.findById', async () => {
       const rows = await db
@@ -50,7 +53,7 @@ export const createTeamRepository = (db: Database): TeamRepository => ({
         eq(teams.name, name),
       ]
       if (excludeId) {
-        conditions.push(not(eq(teams.id, excludeId as string)))
+        conditions.push(not(eq(teams.id, unbrand(excludeId))))
       }
 
       const rows = await db
@@ -78,7 +81,8 @@ export const createTeamRepository = (db: Database): TeamRepository => ({
       if (patch.name !== undefined) setValues.name = patch.name
       if (patch.description !== undefined) setValues.description = patch.description
       if (patch.teamLeadId !== undefined)
-        setValues.teamLeadId = patch.teamLeadId as string | null
+        setValues.teamLeadId =
+          patch.teamLeadId !== null ? unbrand(patch.teamLeadId) : null
 
       await db
         .update(teams)
@@ -89,7 +93,7 @@ export const createTeamRepository = (db: Database): TeamRepository => ({
 
   softDelete: async (orgId, id) => {
     return trace('team.softDelete', async () => {
-      const now = new Date()
+      const now = clock()
       await db
         .update(teams)
         .set({ deletedAt: now, updatedAt: now })

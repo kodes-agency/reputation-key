@@ -34,6 +34,8 @@ import {
 } from '../../domain/progress-strategy'
 import { can } from '#/shared/domain/permissions'
 import { ok, err, type Result } from 'neverthrow'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import { isPropertyAccessible } from '#/shared/domain/property-access'
 import {
   goalId as toGoalId,
   goalProgressId as toGoalProgressId,
@@ -72,7 +74,9 @@ export type CreateGoalError =
 
 export type CreateGoalOutput = Readonly<{
   goal: Goal
-  progress: GoalProgress
+  /** Non-null for one-shot/open/rolling goals. Null for recurring templates
+   *  — the template itself has no progress; instances carry their own. */
+  progress: GoalProgress | null
 }>
 
 // ── Deps ────────────────────────────────────────────────────────────────
@@ -80,6 +84,7 @@ export type CreateGoalOutput = Readonly<{
 export type CreateGoalDeps = Readonly<{
   goalRepo: GoalRepository
   metricRepo: MetricPublicApi
+  staffPublicApi: StaffPublicApi
   idGen: () => string
   clock: () => Date
 }>
@@ -90,6 +95,20 @@ export const createGoal =
   (deps: CreateGoalDeps) =>
   async (input: CreateGoalInput): Promise<Result<CreateGoalOutput, CreateGoalError>> => {
     if (!can(input.role, 'goal.create')) {
+      return err({ tag: 'forbidden' })
+    }
+
+    // D6-001: PropertyManager/Staff must be assigned to the target property.
+    // Runs before buildGoal and the recurring branch so no work is done when forbidden.
+    const accessible = await isPropertyAccessible(
+      (orgId, uId, role) =>
+        deps.staffPublicApi.getAccessiblePropertyIds(orgId, uId, role),
+      input.organizationId,
+      input.createdBy,
+      input.role,
+      input.propertyId,
+    )
+    if (!accessible) {
       return err({ tag: 'forbidden' })
     }
 
@@ -160,9 +179,8 @@ async function handleRecurringGoal(
   template: Goal,
   now: Date,
 ): Promise<Result<CreateGoalOutput, CreateGoalError>> {
-  // Persist the template first (instance references it via parentGoalId)
-  await deps.goalRepo.insert(template)
-
+  // Build the first instance before any DB writes so we can persist
+  // template + instance + progress atomically in one transaction.
   const rule = template.recurrenceRule!
   const period = computeCalendarPeriod(now, rule.frequency)
   const instanceId = toGoalId(deps.idGen())
@@ -197,7 +215,7 @@ async function handleRecurringGoal(
 
   const instance = instanceResult.value
 
-  // Persist the instance + progress atomically
+  // Compute the instance's initial progress before the transactional insert
   const progressQueryResult = buildProgressQueryForInstance(
     template,
     period.start,
@@ -214,7 +232,7 @@ async function handleRecurringGoal(
   const progress: GoalProgress = {
     id: toGoalProgressId(deps.idGen()),
     goalId: instance.id,
-    organizationId: template.organizationId,
+    organizationId: instance.organizationId,
     currentValue: progressValue,
     currentSum: template.aggregationFunction === 'avg' ? aggregate.sum : null,
     currentCount: template.aggregationFunction === 'avg' ? aggregate.count : null,
@@ -222,13 +240,11 @@ async function handleRecurringGoal(
     computedSource: 'reconciliation' as ComputedSource,
   }
 
-  await deps.goalRepo.createGoalAndProgress(instance, progress)
+  // Persist template + instance + progress in a single transaction (GOAL-02)
+  await deps.goalRepo.createRecurringGoalWithInstance(template, instance, progress)
 
-  // TODO: The template goal itself also needs to be persisted atomically with
-  // the instance. Currently the template is inserted separately in the caller.
-  // A transactional wrapper or a combined port method would be needed.
-
-  return ok({ goal: template, progress })
+  // The template has no direct progress — only instances do (GOAL-09)
+  return ok({ goal: template, progress: null })
 }
 
 // ── Calendar period computation ─────────────────────────────────────────

@@ -22,6 +22,7 @@ export const onReplyPublished =
       organizationId: event.organizationId,
       userId: event.userId || null,
       source: event.source,
+      eventId: event.eventId,
       payload: { subject: 'reply', from: null, to: null, detail: null },
     }
     await deps.queue.add('insert-activity-log', payload)

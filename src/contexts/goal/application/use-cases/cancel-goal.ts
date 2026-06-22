@@ -8,16 +8,19 @@
 
 import type { GoalRepository } from '../ports/goal.repository'
 import type { Goal } from '../../domain/types'
-import type { GoalId, OrganizationId } from '#/shared/domain/ids'
+import type { GoalId, OrganizationId, UserId } from '#/shared/domain/ids'
 import type { Role } from '#/shared/domain/roles'
 import { can } from '#/shared/domain/permissions'
 import { ok, err, type Result } from '#/shared/domain'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import { isPropertyAccessible } from '#/shared/domain/property-access'
 
 // ── Input type ──────────────────────────────────────────────────────────
 
 export type CancelGoalInput = Readonly<{
   goalId: GoalId
   organizationId: OrganizationId
+  userId: UserId
   role: Role
 }>
 
@@ -32,6 +35,7 @@ export type CancelGoalError =
 
 export type CancelGoalDeps = Readonly<{
   goalRepo: GoalRepository
+  staffPublicApi: StaffPublicApi
   clock: () => Date
 }>
 export type CancelGoal = ReturnType<typeof cancelGoal>
@@ -51,6 +55,19 @@ export const cancelGoal =
       return err({ tag: 'goal_not_found' })
     }
 
+    // D6-001: PropertyManager/Staff must be assigned to the goal's property.
+    const accessible = await isPropertyAccessible(
+      (orgId, uId, role) =>
+        deps.staffPublicApi.getAccessiblePropertyIds(orgId, uId, role),
+      input.organizationId,
+      input.userId,
+      input.role,
+      goal.propertyId,
+    )
+    if (!accessible) {
+      return err({ tag: 'forbidden' })
+    }
+
     // 2. Must be active
     if (goal.status !== 'active') {
       return err({ tag: 'goal_not_active', status: goal.status })
@@ -58,15 +75,13 @@ export const cancelGoal =
 
     const now = deps.clock()
 
-    // 3. Cancel instances + parent atomically for recurring templates
+    // 3. Cancel instances + parent atomically for recurring templates (GOAL-03)
     if (goal.goalType === 'recurring' && goal.parentGoalId === null) {
-      // Cancel all active instances first
-      await deps.goalRepo.cancelByParent(goal.id, input.organizationId, now)
-      // Then cancel the parent template
-      const updated = await deps.goalRepo.update(goal.id, input.organizationId, {
-        status: 'cancelled',
-        updatedAt: now,
-      })
+      const updated = await deps.goalRepo.cancelTemplateAndInstances(
+        goal.id,
+        input.organizationId,
+        now,
+      )
       if (!updated) {
         return err({ tag: 'goal_not_found' })
       }

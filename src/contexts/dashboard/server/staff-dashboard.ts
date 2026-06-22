@@ -7,15 +7,24 @@ import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { getContainer } from '#/composition'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
+import { can } from '#/shared/domain/permissions'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { timeRangePreset } from '../application/dto/dashboard.dto'
 import { timeRangeToDates } from '../application/utils'
 import { propertyId, portalId, userId } from '#/shared/domain/ids'
 import { isDashboardError } from '../application/public-api'
+import type { DashboardErrorCode } from '../application/public-api'
 import { standardErrorStatus } from '#/shared/http/status'
 import { z } from 'zod/v4'
 
 export const staffDashboardErrorStatus = standardErrorStatus
+
+/** Local error constructor — server must not import domain error constructors. */
+const makeDashboardError = (code: DashboardErrorCode, message: string) => ({
+  _tag: 'DashboardError' as const,
+  code,
+  message,
+})
 
 const getStaffDashboardDataDto = z.object({
   propertyId: z.string().uuid(),
@@ -31,6 +40,12 @@ export const getStaffDashboardDataFn = createServerFn({ method: 'GET' })
         try {
           const headers = await headersFromContext()
           const ctx = await resolveTenantContext(headers)
+          if (!can(ctx.role, 'dashboard.read')) {
+            throw makeDashboardError(
+              'forbidden',
+              'Insufficient permissions to view dashboard',
+            )
+          }
           const { useCases, clock } = getContainer()
           const { startDate, endDate } = timeRangeToDates(data.timeRange, clock())
 

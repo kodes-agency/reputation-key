@@ -24,9 +24,7 @@ export const listGoogleConnections =
       )
     }
 
-    const filter: ConnectionVisibilityFilter = can(ctx.role, 'integration.manage')
-      ? { showAll: true }
-      : { showAll: false, userId: ctx.userId }
+    const filter: ConnectionVisibilityFilter = { showAll: true }
 
     return deps.connectionRepo.listByOrganization(ctx.organizationId, filter)
   }

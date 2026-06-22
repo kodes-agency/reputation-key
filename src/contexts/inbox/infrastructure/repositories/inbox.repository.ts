@@ -19,7 +19,7 @@ import type { ReviewLookupPort } from '../../application/ports/review-lookup.por
 import type { FeedbackLookupPort } from '../../application/ports/feedback-lookup.port'
 import type { PropertyLookupPort } from '../../application/ports/property-lookup.port'
 import type { InboxItem, InboxStatus, SourceType } from '../../domain/types'
-import type { InboxItemId, OrganizationId, UserId } from '#/shared/domain/ids'
+import type { InboxItemId, OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
 import { reviewId, feedbackId, propertyId } from '#/shared/domain/ids'
 import { inboxItemFromRow, inboxItemToInsertRow } from '../mappers/inbox.mapper'
 import { trace } from '#/shared/observability/trace'
@@ -271,12 +271,23 @@ export const createInboxRepository = (
     })
   },
 
-  countByStatus: async (orgId: OrganizationId, status: InboxStatus) => {
+  countByStatus: async (
+    orgId: OrganizationId,
+    status: InboxStatus,
+    propertyIds?: ReadonlyArray<PropertyId>,
+  ) => {
     return trace('inbox.countByStatus', async () => {
+      const conditions: SQL[] = [
+        eq(inboxItems.organizationId, orgId),
+        eq(inboxItems.status, status),
+      ]
+      if (propertyIds && propertyIds.length > 0) {
+        conditions.push(inArray(inboxItems.propertyId, [...propertyIds] as string[]))
+      }
       const result = await db
         .select({ count: sql<number>`count(*)` })
         .from(inboxItems)
-        .where(and(eq(inboxItems.organizationId, orgId), eq(inboxItems.status, status)))
+        .where(and(...conditions))
       return Number(result[0]?.count ?? 0)
     })
   },

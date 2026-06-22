@@ -93,17 +93,13 @@ function makeFakeDeps(storedGoals: Goal[] = []) {
       currentSum: null,
       currentCount: null,
     }),
-    incrementProgress: async () => ({
-      currentValue: 0,
-      currentSum: null,
-      currentCount: null,
-    }),
     markGoalCompleted: async () => {},
-    findAllActive: async () => [],
     findAllActiveRecurring: async () => [],
     findAllActiveGlobal: async () => [],
     findActiveRecurringTemplates: async () => [],
     findLatestInstance: async () => null,
+    cancelTemplateAndInstances: async () => null,
+    createRecurringGoalWithInstance: async () => {},
     createGoalAndProgress: async () => {},
   }
 

@@ -25,7 +25,7 @@ export const reviewErrorStatus = (code: ReviewErrorCode): number =>
       'invalid_transition',
       () => HTTP_STATUS.BAD_REQUEST,
     )
-    .with('unauthorized', () => HTTP_STATUS.FORBIDDEN)
+    .with('unauthorized', 'forbidden', () => HTTP_STATUS.FORBIDDEN)
     .with('review_not_found', 'reply_not_found', () => HTTP_STATUS.NOT_FOUND)
     .with('reply_already_exists', () => HTTP_STATUS.CONFLICT)
     .with(

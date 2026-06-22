@@ -12,6 +12,7 @@ import type { ReviewRepository } from './application/ports/review.repository'
 import type { ReplyRepository } from './application/ports/reply.repository'
 import type { ReviewQueuePort } from './application/ports/review-queue.port'
 import type { ReplyQueuePort } from './application/ports/reply-queue.port'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { createReviewRepository } from './infrastructure/repositories/review.repository'
 import { createReplyRepository } from './infrastructure/repositories/reply.repository'
 import { syncReviews } from './application/use-cases/sync-reviews'
@@ -24,6 +25,7 @@ import {
   getReply,
   retryPublish,
 } from './application/use-cases/reply-operations'
+import { getStaffRecentActivity } from './application/use-cases/get-staff-recent-activity'
 import { reviewId, replyId } from '#/shared/domain/ids'
 import { registerReviewHandlers } from './infrastructure/event-handlers'
 
@@ -34,6 +36,7 @@ export type ReviewContextBuildInput = Readonly<{
   googleReviewApi: GoogleReviewApiPort
   jobQueue: Queue | undefined
   logger: LoggerPort
+  staffPublicApi: StaffPublicApi
 }>
 
 export type ReviewContextApi = Readonly<{
@@ -54,6 +57,7 @@ export type ReviewContextApi = Readonly<{
       deleteReply: ReturnType<typeof deleteReply>
       getReply: ReturnType<typeof getReply>
       retryPublish: ReturnType<typeof retryPublish>
+      getStaffRecentActivity: ReturnType<typeof getStaffRecentActivity>
     }>
   }>
 }>
@@ -98,6 +102,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     events: input.events,
     clock: input.clock,
     idGen: () => replyId(crypto.randomUUID()),
+    staffPublicApi: input.staffPublicApi,
   }
 
   registerReviewHandlers({
@@ -123,6 +128,10 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     deleteReply: deleteReply(replyDeps),
     getReply: getReply(replyDeps),
     retryPublish: retryPublish(replyDeps),
+    getStaffRecentActivity: getStaffRecentActivity({
+      reviewRepo,
+      staffPublicApi: input.staffPublicApi,
+    }),
   }
 
   return {

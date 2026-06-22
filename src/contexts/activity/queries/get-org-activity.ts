@@ -10,7 +10,9 @@ import { can } from '#/shared/domain/permissions'
 import type { OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
 
 /** Filter entries to only those within the user's accessible properties.
- *  null accessiblePropertyIds = Admin → see everything. */
+ *  null accessiblePropertyIds = Admin → see everything.
+ *  Used by get-activity-timeline.ts for resource-scoped queries that can't
+ *  push the filter into SQL (the resource is the primary lookup key). */
 export const filterByPropertyAccess = (
   entries: readonly ActivityLog[],
   accessiblePropertyIds: readonly PropertyId[] | null,
@@ -39,16 +41,19 @@ type GetOrgActivityDeps = Readonly<{
 export const getOrgActivity =
   (deps: GetOrgActivityDeps) =>
   async (input: GetOrgActivityInput): Promise<readonly ActivityLog[]> => {
-    const filter: ActivityFilter = input.propertyId
-      ? { propertyId: input.propertyId }
-      : {}
     const pagination: Pagination = {
       limit: input.limit ?? 50,
       offset: input.offset ?? 0,
     }
 
-    // Admins see all org activity
-    if (can(input.role, 'inbox.manage')) {
+    // ACT-004: Use 'organization.update' (AccountAdmin-only) instead of
+    // 'inbox.manage' (AccountAdmin + PropertyManager) — matching
+    // get-activity-timeline.ts (F120). Only AccountAdmin bypasses property
+    // scoping for the org-wide activity feed.
+    if (can(input.role, 'organization.update')) {
+      const filter: ActivityFilter = input.propertyId
+        ? { propertyId: input.propertyId }
+        : {}
       return deps.repo.findByOrganization(input.organizationId, filter, pagination)
     }
 
@@ -59,18 +64,14 @@ export const getOrgActivity =
       input.role,
     )
 
+    // ACT-010: push property-access scoping into SQL (propertyId IN accessible
+    // OR propertyId IS NULL) instead of in-memory filter-then-slice. This
+    // preserves correct pagination without an expanded-limit fetch.
     if (accessiblePropertyIds !== null && accessiblePropertyIds.length > 0) {
-      // F083 NOTE: In-memory pagination — fetches expanded set from DB, filters by
-      // accessible properties in JS, then slices for the requested page.
-      // This is acceptable because PM/Staff activity volumes are bounded by property count.
-      // If per-org activity grows large, push filtering into SQL via a JOIN on staff_assignments.
-      const expandedLimit = pagination.offset + pagination.limit
-      const entries = await deps.repo.findByOrganization(input.organizationId, filter, {
-        limit: expandedLimit,
-        offset: 0,
-      })
-      const filtered = filterByPropertyAccess(entries, accessiblePropertyIds)
-      return filtered.slice(pagination.offset, pagination.offset + pagination.limit)
+      const filter: ActivityFilter = input.propertyId
+        ? { propertyId: input.propertyId }
+        : { propertyIds: accessiblePropertyIds }
+      return deps.repo.findByOrganization(input.organizationId, filter, pagination)
     }
 
     return []

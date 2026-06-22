@@ -1,9 +1,23 @@
 // Portal context — listPortalLinks use case tests
 import { describe, it, expect } from 'vitest'
 import { listPortalLinks } from './list-portal-links'
-import { buildTestAuthContext } from '#/shared/testing/fixtures'
-import { organizationId, portalId, portalLinkCategoryId, portalLinkId } from '#/shared/domain/ids'
+import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
+import {
+  organizationId,
+  portalId,
+  portalLinkCategoryId,
+  portalLinkId,
+} from '#/shared/domain/ids'
 import type { PortalLinkCategory, PortalLink } from '../../domain/types'
+import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { PropertyId } from '#/shared/domain/ids'
+
+const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublicApi => ({
+  getAccessiblePropertyIds: async () => accessible,
+  getAssignedPortals: async () => [],
+  countAssignmentsByTeam: async () => 0,
+})
 
 const ORG_ID = organizationId('org-00000000-0000-0000-0000-000000000001')
 const PORT = portalId('a0000000-0000-4000-8000-000000000001')
@@ -11,13 +25,34 @@ const PORT = portalId('a0000000-0000-4000-8000-000000000001')
 const now = new Date()
 
 const sampleCategories: ReadonlyArray<PortalLinkCategory> = [
-  { id: portalLinkCategoryId('cat-0001'), portalId: PORT, organizationId: ORG_ID, title: 'Social', sortKey: 'a0', createdAt: now, updatedAt: now },
+  {
+    id: portalLinkCategoryId('cat-0001'),
+    portalId: PORT,
+    organizationId: ORG_ID,
+    title: 'Social',
+    sortKey: 'a0',
+    createdAt: now,
+    updatedAt: now,
+  },
 ]
 const sampleLinks: ReadonlyArray<PortalLink> = [
-  { id: portalLinkId('lnk-0001'), categoryId: portalLinkCategoryId('cat-0001'), portalId: PORT, organizationId: ORG_ID, label: 'Twitter', url: 'https://x.com', sortKey: 'a0', iconKey: null, createdAt: now, updatedAt: now },
+  {
+    id: portalLinkId('lnk-0001'),
+    categoryId: portalLinkCategoryId('cat-0001'),
+    portalId: PORT,
+    organizationId: ORG_ID,
+    label: 'Twitter',
+    url: 'https://x.com',
+    sortKey: 'a0',
+    iconKey: null,
+    createdAt: now,
+    updatedAt: now,
+  },
 ]
 
 function setup(categories = sampleCategories, links = sampleLinks) {
+  const portalRepo = createInMemoryPortalRepo()
+  portalRepo.seed([buildTestPortal({ id: 'a0000000-0000-4000-8000-000000000001' })])
   const useCase = listPortalLinks({
     portalLinkRepo: {
       listCategories: async () => categories,
@@ -34,6 +69,8 @@ function setup(categories = sampleCategories, links = sampleLinks) {
       findCategoryById: async () => null,
       findLinkById: async () => null,
     },
+    portalRepo,
+    staffPublicApi: staffApiMock(null),
   })
   return { useCase }
 }

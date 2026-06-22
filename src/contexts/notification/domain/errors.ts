@@ -1,6 +1,7 @@
 // Notification context — domain errors
 
 export type NotificationErrorCode =
+  | 'invalid_input'
   | 'invalid_type'
   | 'invalid_resource_type'
   | 'invalid_title'
@@ -8,6 +9,7 @@ export type NotificationErrorCode =
   | 'invalid_event_id'
   | 'invalid_status'
   | 'insert_failed'
+  | 'not_found'
 
 export type NotificationError = Readonly<{
   _tag: 'NotificationError'
@@ -26,3 +28,9 @@ export const notificationError = (
   message,
   ...(details ? { details } : {}),
 })
+
+export const isNotificationError = (e: unknown): e is NotificationError =>
+  typeof e === 'object' &&
+  e !== null &&
+  '_tag' in e &&
+  (e as { _tag: string })._tag === 'NotificationError'

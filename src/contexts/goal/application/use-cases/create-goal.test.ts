@@ -16,12 +16,17 @@ import {
   userId,
 } from '#/shared/domain/ids'
 import type { MetricKey, AggregationFunction } from '#/shared/domain/metric-keys'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { PropertyId } from '#/shared/domain/ids'
 
 const FIXED_TIME = new Date('2026-06-15T12:00:00Z')
+const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublicApi => ({
+  getAccessiblePropertyIds: async () => accessible,
+  getAssignedPortals: async () => [],
+  countAssignmentsByTeam: async () => 0,
+})
 
-// ── Fake repos ──────────────────────────────────────────────────────────
-
-function createFakeDeps() {
+function createFakeDeps(accessible: ReadonlyArray<PropertyId> | null = null) {
   const goals: Goal[] = []
   const progresses: GoalProgress[] = []
   let idCounter = 0
@@ -100,17 +105,16 @@ function createFakeDeps() {
       currentSum: null,
       currentCount: null,
     }),
-    incrementProgress: async () => ({
-      currentValue: 0,
-      currentSum: null,
-      currentCount: null,
-    }),
     markGoalCompleted: async () => {},
-    findAllActive: async () => [],
     findAllActiveRecurring: async () => [],
     findAllActiveGlobal: async () => [],
     findActiveRecurringTemplates: async () => [],
     findLatestInstance: async () => null,
+    cancelTemplateAndInstances: async () => null,
+    createRecurringGoalWithInstance: async (template, instance, progress) => {
+      goals.push(template, instance)
+      progresses.push(progress)
+    },
     createGoalAndProgress: async (goal, progress) => {
       goals.push(goal)
       progresses.push(progress)
@@ -134,6 +138,7 @@ function createFakeDeps() {
   const deps: CreateGoalDeps = {
     goalRepo,
     metricRepo,
+    staffPublicApi: staffApiMock(accessible),
     idGen: () => nextId(),
     clock: () => FIXED_TIME,
   }
@@ -183,11 +188,11 @@ describe('createGoal', () => {
       expect(goal.organizationId).toBe(organizationId('org-1'))
       expect(goal.propertyId).toBe(propertyId('prop-1'))
 
-      expect(progress.goalId).toBe(goal.id)
-      expect(progress.computedSource).toBe('reconciliation')
-      expect(progress.currentValue).toBe(50) // sum from aggregate
-      expect(progress.currentSum).toBeNull()
-      expect(progress.currentCount).toBeNull()
+      expect(progress!.goalId).toBe(goal.id)
+      expect(progress!.computedSource).toBe('reconciliation')
+      expect(progress!.currentValue).toBe(50) // sum from aggregate
+      expect(progress!.currentSum).toBeNull()
+      expect(progress!.currentCount).toBeNull()
     })
 
     it('queries metric repo with no time filter for open goal', async () => {
@@ -355,9 +360,9 @@ describe('createGoal', () => {
       expect(result.isOk()).toBe(true)
       const { progress } = result._unsafeUnwrap()
 
-      expect(progress.currentValue).toBe(4) // 24 / 6 = 4
-      expect(progress.currentSum).toBe(24)
-      expect(progress.currentCount).toBe(6)
+      expect(progress!.currentValue).toBe(4) // 24 / 6 = 4
+      expect(progress!.currentSum).toBe(24)
+      expect(progress!.currentCount).toBe(6)
     })
   })
 
@@ -401,6 +406,53 @@ describe('createGoal', () => {
     })
   })
 
+  // ── Property assignment scoping (D6-001) ─────────────────────────────
+  describe('property assignment scoping', () => {
+    it('rejects PropertyManager without assignment to the target property', async () => {
+      const fakesUnassigned = createFakeDeps([])
+
+      const result = await createGoal(fakesUnassigned.deps)({
+        ...BASE_INPUT,
+        goalType: 'open',
+        role: 'PropertyManager',
+      })
+
+      expect(result.isErr()).toBe(true)
+      expect(result._unsafeUnwrapErr().tag).toBe('forbidden')
+      expect(fakesUnassigned.goals).toHaveLength(0)
+    })
+
+    it('allows PropertyManager assigned to the target property', async () => {
+      const fakesAssigned = createFakeDeps([propertyId('prop-1')])
+
+      const result = await createGoal(fakesAssigned.deps)({
+        ...BASE_INPUT,
+        goalType: 'open',
+        role: 'PropertyManager',
+      })
+
+      expect(result.isOk()).toBe(true)
+      expect(fakesAssigned.goals).toHaveLength(1)
+    })
+
+    it('runs the access check before the recurring branch', async () => {
+      // Unassigned PM attempting a recurring goal must be rejected before
+      // any template/instance is built or persisted.
+      const fakesUnassigned = createFakeDeps([])
+
+      const result = await createGoal(fakesUnassigned.deps)({
+        ...BASE_INPUT,
+        goalType: 'recurring',
+        recurrenceRule: { frequency: 'monthly' },
+        role: 'PropertyManager',
+      })
+
+      expect(result.isErr()).toBe(true)
+      expect(result._unsafeUnwrapErr().tag).toBe('forbidden')
+      expect(fakesUnassigned.goals).toHaveLength(0)
+    })
+  })
+
   // ── Error cases ──────────────────────────────────────────────────────
   describe('validation errors', () => {
     it('returns err for invalid metric/scope combination', async () => {
@@ -435,6 +487,29 @@ describe('createGoal', () => {
       })
 
       expect(result.isErr()).toBe(true)
+    })
+  })
+  // ── Tenant isolation ──────────────────────────────────────────────
+  describe('tenant isolation', () => {
+    it('scopes metric aggregate query to the input organizationId', async () => {
+      const OTHER_ORG = organizationId('org-isolated')
+      fakes.metricRepo._setAggregate({ sum: 42, count: 42, max: 1 })
+
+      const result = await createGoal(fakes.deps)({
+        ...BASE_INPUT,
+        organizationId: OTHER_ORG,
+        goalType: 'open',
+      })
+
+      expect(result.isOk()).toBe(true)
+      const queries = fakes.metricRepo._getQueries()
+      expect(queries).toHaveLength(1)
+      // The metric query must carry the caller's org — never a default or leaked org
+      expect(queries[0].organizationId).toBe(OTHER_ORG)
+
+      const { goal, progress } = result._unsafeUnwrap()
+      expect(goal.organizationId).toBe(OTHER_ORG)
+      expect(progress!.organizationId).toBe(OTHER_ORG)
     })
   })
 })

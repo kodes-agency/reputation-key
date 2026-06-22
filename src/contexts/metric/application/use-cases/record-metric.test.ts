@@ -28,7 +28,6 @@ const createFakeDeps = (): RecordMetricDeps & {
         readings.push(input)
         return input
       },
-      findByOrganizationId: async () => [],
       queryAggregate: async () => ({ sum: 0, count: 0, max: 0 }),
     },
     events: {

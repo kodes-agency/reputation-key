@@ -32,10 +32,15 @@ const mockEvent: GuestFeedbackSubmitted = {
 }
 
 describe('onFeedbackSubmitted', () => {
-  it('creates inbox item for the feedback', async () => {
-    const createInboxItem = vi.fn(async () => ({}))
-    const deps = { createInboxItem } as unknown as {
-      createInboxItem: CreateInboxItemUseCase
+  const feedbackLookupMock = {
+    getFeedbackSnippetById: async () => ({ comment: 'Great!', ratingValue: 4 }),
+  }
+
+  it('creates inbox item for the feedback with denormalized rating', async () => {
+    const createInboxItem = vi.fn(async () => ({})) as unknown as CreateInboxItemUseCase
+    const deps = {
+      createInboxItem,
+      feedbackLookup: feedbackLookupMock,
     }
 
     await onFeedbackSubmitted(deps)(mockEvent)
@@ -45,12 +50,28 @@ describe('onFeedbackSubmitted', () => {
       propertyId: PROP_ID,
       sourceType: 'feedback',
       sourceId: FEEDBACK_ID,
-      rating: null,
+      rating: 4,
       sourceDate: NOW,
       platform: null,
       snippet: null,
       reviewerName: null,
     })
+  })
+
+  it('creates inbox item with null rating when feedback lookup returns null', async () => {
+    const createInboxItem = vi.fn(async () => ({})) as unknown as CreateInboxItemUseCase
+    const deps = {
+      createInboxItem,
+      feedbackLookup: {
+        getFeedbackSnippetById: async () => null,
+      },
+    }
+
+    await onFeedbackSubmitted(deps)(mockEvent)
+
+    expect(createInboxItem).toHaveBeenCalledWith(
+      expect.objectContaining({ rating: null }),
+    )
   })
 
   it('silently handles already_exists error', async () => {
@@ -63,9 +84,10 @@ describe('onFeedbackSubmitted', () => {
     }
     const createInboxItem = vi.fn(async () => {
       throw alreadyExistsErr
-    })
-    const deps = { createInboxItem } as unknown as {
-      createInboxItem: CreateInboxItemUseCase
+    }) as unknown as CreateInboxItemUseCase
+    const deps = {
+      createInboxItem,
+      feedbackLookup: feedbackLookupMock,
     }
 
     await expect(onFeedbackSubmitted(deps)(mockEvent)).resolves.toBeUndefined()
@@ -74,9 +96,10 @@ describe('onFeedbackSubmitted', () => {
   it('does not throw on generic repo error', async () => {
     const createInboxItem = vi.fn(async () => {
       throw new Error('DB down')
-    })
-    const deps = { createInboxItem } as unknown as {
-      createInboxItem: CreateInboxItemUseCase
+    }) as unknown as CreateInboxItemUseCase
+    const deps = {
+      createInboxItem,
+      feedbackLookup: feedbackLookupMock,
     }
 
     await expect(onFeedbackSubmitted(deps)(mockEvent)).resolves.toBeUndefined()

@@ -40,7 +40,7 @@ metric/
   application/
     ports/             metric.repository.ts
     use-cases/         record-metric.ts
-    public-api.ts      re-exports query types, MetricPublicApi, event types/constructors
+    public-api.ts      re-exports query types, MetricPublicApi, event types
   infrastructure/
     repositories/      metric.repository.ts (Drizzle)
     event-handlers/    on-review-created.ts, on-scan-recorded.ts, on-rating-submitted.ts,
@@ -59,7 +59,6 @@ Exported from `application/public-api.ts`:
 
 - Types: `MetricReadingsQuery`, `MetricReadingsAggregate`, `MetricPublicApi`
 - Event types: `MetricRecorded`, `MetricEvent`
-- Event constructors: `metricRecorded`
 
 ## Server functions
 
@@ -67,9 +66,7 @@ None. Metric is an internal context with no HTTP surface. Metrics are queried th
 
 ## Permissions
 
-- `metrics:read` — View metric readings and aggregates. Granted to AccountAdmin, PropertyManager. Staff cannot view metrics.
-- `metrics:write` — Record a metric reading. System-only (internal event handlers).
-- Metric data is scoped to the organization; cross-org access is forbidden.
+None. Metric is a system-internal context with no HTTP surface and no own permissions. Metric readings are recorded exclusively by internal event handlers. Aggregated metric data is surfaced to users through the dashboard context, gated by `dashboard.read` (and `dashboard.fleet_read` for cross-property fleet views). Organization-level data scoping is enforced at the repository layer via `organizationId` filtering.
 
 ## Background jobs
 

@@ -14,6 +14,7 @@ import {
   INVITATION_EXPIRY_SECONDS,
 } from './auth'
 import { organizationSchema } from './org-schema'
+import { ac } from './permissions'
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL_POOLER ?? process.env.DATABASE_URL,
@@ -38,10 +39,12 @@ const auth = betterAuth({
   },
   plugins: [
     organization({
-      invitationExpiresIn: INVITATION_EXPIRY_SECONDS,
+      ac,
       // MUST mirror auth.ts so auth:generate/auth:migrate manage the same
       // additionalFields (propertyIds, org billing/SLA) as the runtime.
       schema: organizationSchema,
+      dynamicAccessControl: { enabled: true },
+      invitationExpiresIn: INVITATION_EXPIRY_SECONDS,
       async sendInvitationEmail() {
         // CLI config doesn't send real emails
       },

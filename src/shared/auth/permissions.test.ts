@@ -71,6 +71,7 @@ describe('owner role (AccountAdmin)', () => {
     'property.update',
     'property.delete',
     'property.read',
+    'property.admin',
     'team.create',
     'team.update',
     'team.delete',
@@ -95,6 +96,7 @@ describe('owner role (AccountAdmin)', () => {
     'inbox.manage',
     'integration.manage',
     'dashboard.read',
+    'dashboard.fleet_read',
     'goal.read',
     'goal.create',
     'goal.update',
@@ -119,6 +121,7 @@ describe('admin role (PropertyManager)', () => {
     'property.create',
     'property.update',
     'property.read',
+    'property.admin',
     'team.create',
     'team.update',
     'team.read',
@@ -138,6 +141,7 @@ describe('admin role (PropertyManager)', () => {
     'organization.update',
     'integration.manage',
     'dashboard.read',
+    'dashboard.fleet_read',
     'goal.read',
     'goal.create',
     'goal.update',
@@ -223,6 +227,12 @@ describe('memberRole (Staff)', () => {
     expect(can('Staff', 'invitation.create')).toBe(false)
     expect(can('Staff', 'invitation.list')).toBe(false)
     expect(can('Staff', 'invitation.cancel')).toBe(false)
+  })
+
+  it('is denied manager-only surface permissions', () => {
+    expect(can('Staff', 'dashboard.fleet_read')).toBe(false)
+    expect(can('Staff', 'property.admin')).toBe(false)
+    expect(can('Staff', 'inbox.manage')).toBe(false)
   })
 })
 

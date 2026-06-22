@@ -22,6 +22,7 @@ import {
   dismissNotification,
 } from './domain/constructors-transitions'
 import { createNotificationPreference } from './domain/constructors-preference'
+import { notificationError } from './domain/errors'
 import type { NotificationType } from './domain/types'
 import type { UserId, OrganizationId } from '#/shared/domain/ids'
 
@@ -78,9 +79,11 @@ export const buildNotificationContext = (input: BuildInput) => {
       notificationRepo.countUnreadByUser(userId, orgId),
     getNotifications: (userId: string, orgId: string, limit: number, offset: number) =>
       notificationRepo.findByUser(userId, orgId, limit, offset),
-    markRead: async (id: string, orgId: string) => {
+    markRead: async (id: string, orgId: string, userId: UserId) => {
       const n = await notificationRepo.findById(id, orgId)
-      if (!n) return
+      if (!n || n.userId !== userId) {
+        throw notificationError('not_found', 'Notification not found or access denied')
+      }
       const now = input.clock()
       const result = markNotificationRead(n, () => now)
       if (result.isErr()) return // invalid transition, skip
@@ -90,9 +93,11 @@ export const buildNotificationContext = (input: BuildInput) => {
       const now = input.clock()
       return notificationRepo.markAllRead(userId, orgId, now)
     },
-    dismiss: async (id: string, orgId: string) => {
+    dismiss: async (id: string, orgId: string, userId: UserId) => {
       const n = await notificationRepo.findById(id, orgId)
-      if (!n) return
+      if (!n || n.userId !== userId) {
+        throw notificationError('not_found', 'Notification not found or access denied')
+      }
       const now = input.clock()
       const result = dismissNotification(n, () => now)
       if (result.isErr()) return // invalid transition, skip

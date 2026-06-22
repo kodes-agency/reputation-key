@@ -1,6 +1,7 @@
 // Logger — structured logging via pino
 import pino from 'pino'
 import { getEnv } from '#/shared/config/env'
+import { getSpanAttrs } from '#/shared/observability/request-context'
 
 let _logger: pino.Logger | undefined
 
@@ -20,6 +21,11 @@ export function getLogger(): pino.Logger {
     const usePretty = env.NODE_ENV === 'development' && isPrettyTransportAvailable()
     _logger = pino({
       level: env.LOG_LEVEL,
+      // Mixin merges request-scoped span attrs (organizationId/userId/role/
+      // useCase/resource) into every log line — including child loggers.
+      // Read dynamically from ALS at log-call time, so attrs enriched after
+      // logger creation (e.g. after resolveTenantContext) still appear.
+      mixin: () => getSpanAttrs(),
       ...(usePretty
         ? {
             transport: {

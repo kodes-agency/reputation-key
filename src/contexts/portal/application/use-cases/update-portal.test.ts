@@ -6,13 +6,25 @@ import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
 import { isPortalError } from '../../domain/errors'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import { propertyId, type PropertyId } from '#/shared/domain/ids'
 
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
 
-const setup = () => {
+const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublicApi => ({
+  getAccessiblePropertyIds: async () => accessible,
+  getAssignedPortals: async () => [],
+  countAssignmentsByTeam: async () => 0,
+})
+const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
   const portalRepo = createInMemoryPortalRepo()
   const events = createCapturingEventBus()
-  const deps = { portalRepo, events, clock: () => FIXED_TIME }
+  const deps = {
+    portalRepo,
+    staffPublicApi: staffApiMock(accessible),
+    events,
+    clock: () => FIXED_TIME,
+  }
   const useCase = updatePortal(deps)
   return { useCase, portalRepo, events }
 }
@@ -21,7 +33,10 @@ describe('updatePortal', () => {
   it('updates name and theme', async () => {
     const { useCase, portalRepo } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
-    const portal = buildTestPortal({ name: 'Old Name', theme: { primaryColor: '#000000' } })
+    const portal = buildTestPortal({
+      name: 'Old Name',
+      theme: { primaryColor: '#000000' },
+    })
     portalRepo.seed([portal])
 
     const updated = await useCase(
@@ -60,7 +75,8 @@ describe('updatePortal', () => {
     await expect(
       useCase({ portalId: 'nonexistent', name: 'Test' }, ctx),
     ).rejects.toSatisfy(
-      (e: unknown) => isPortalError(e) && (e as { code: string }).code === 'portal_not_found',
+      (e: unknown) =>
+        isPortalError(e) && (e as { code: string }).code === 'portal_not_found',
     )
   })
 
@@ -71,9 +87,7 @@ describe('updatePortal', () => {
     const p2 = buildTestPortal({ id: 'p2', slug: 'slug-b' })
     portalRepo.seed([p1, p2])
 
-    await expect(
-      useCase({ portalId: p2.id, slug: 'slug-a' }, ctx),
-    ).rejects.toSatisfy(
+    await expect(useCase({ portalId: p2.id, slug: 'slug-a' }, ctx)).rejects.toSatisfy(
       (e: unknown) => isPortalError(e) && (e as { code: string }).code === 'slug_taken',
     )
   })
@@ -111,7 +125,8 @@ describe('updatePortal', () => {
     await expect(
       useCase({ portalId: portal.id, theme: { primaryColor: 'bad' } }, ctx),
     ).rejects.toSatisfy(
-      (e: unknown) => isPortalError(e) && (e as { code: string }).code === 'invalid_theme',
+      (e: unknown) =>
+        isPortalError(e) && (e as { code: string }).code === 'invalid_theme',
     )
   })
 
@@ -128,5 +143,28 @@ describe('updatePortal', () => {
 
     expect(result.name).toBe('Same Name')
     expect(events.capturedByTag('portal.updated')).toHaveLength(0)
+  })
+
+  it('rejects PropertyManager without assignment to the property', async () => {
+    const { useCase, portalRepo } = setup([])
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const portal = buildTestPortal({ name: 'Name' })
+    portalRepo.seed([portal])
+
+    await expect(useCase({ portalId: portal.id, name: 'X' }, ctx)).rejects.toSatisfy(
+      (e: unknown) => isPortalError(e) && (e as { code: string }).code === 'forbidden',
+    )
+  })
+
+  it('allows PropertyManager assigned to the property', async () => {
+    const { useCase, portalRepo } = setup([
+      propertyId('a0000000-0000-0000-0000-000000000001'),
+    ])
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const portal = buildTestPortal({ name: 'Old' })
+    portalRepo.seed([portal])
+
+    const updated = await useCase({ portalId: portal.id, name: 'New' }, ctx)
+    expect(updated.name).toBe('New')
   })
 })

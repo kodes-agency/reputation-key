@@ -4,6 +4,14 @@ import { listPortalGroups } from './list-portal-groups'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { organizationId, portalGroupId, propertyId } from '#/shared/domain/ids'
 import type { PortalGroup } from '../../domain/types'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { PropertyId } from '#/shared/domain/ids'
+
+const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublicApi => ({
+  getAccessiblePropertyIds: async () => accessible,
+  getAssignedPortals: async () => [],
+  countAssignmentsByTeam: async () => 0,
+})
 
 const ORG = organizationId('org-00000000-0000-0000-0000-000000000001')
 const PROP = propertyId('a0000000-0000-4000-8000-000000000001')
@@ -31,7 +39,10 @@ const sampleGroups: ReadonlyArray<PortalGroup> = [
   },
 ]
 
-function setup(groups: ReadonlyArray<PortalGroup> = sampleGroups) {
+function setup(
+  groups = sampleGroups,
+  accessible: ReadonlyArray<PropertyId> | null = null,
+) {
   const useCase = listPortalGroups({
     portalGroupRepo: {
       listByProperty: async () => groups,
@@ -46,6 +57,7 @@ function setup(groups: ReadonlyArray<PortalGroup> = sampleGroups) {
       getGroupPortalIds: async () => [],
       findGroupForPortal: async () => null,
     },
+    staffPublicApi: staffApiMock(accessible),
   })
   return { useCase }
 }
@@ -70,6 +82,22 @@ describe('listPortalGroups (use case)', () => {
 
     const result = await useCase(
       { propertyId: 'a0000000-0000-4000-8000-000000000001' },
+      ctx,
+    )
+
+    expect(result).toHaveLength(0)
+  })
+
+  it('scopes groups to accessible properties for PropertyManager', async () => {
+    const propB = propertyId('b0000000-0000-0000-0000-000000000002')
+    const groupsOnPropB = [{ ...sampleGroups[0], propertyId: propB }]
+    const { useCase } = setup(groupsOnPropB, [
+      propertyId('a0000000-0000-0000-0000-000000000001'),
+    ])
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+
+    const result = await useCase(
+      { propertyId: 'b0000000-0000-0000-0000-000000000002' },
       ctx,
     )
 

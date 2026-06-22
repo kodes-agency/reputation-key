@@ -6,13 +6,25 @@ import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
 import { isPortalError } from '../../domain/errors'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { PropertyId } from '#/shared/domain/ids'
 
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
 
-const setup = () => {
+const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublicApi => ({
+  getAccessiblePropertyIds: async () => accessible,
+  getAssignedPortals: async () => [],
+  countAssignmentsByTeam: async () => 0,
+})
+const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
   const portalRepo = createInMemoryPortalRepo()
   const events = createCapturingEventBus()
-  const deps = { portalRepo, events, clock: () => FIXED_TIME }
+  const deps = {
+    portalRepo,
+    staffPublicApi: staffApiMock(accessible),
+    events,
+    clock: () => FIXED_TIME,
+  }
   const useCase = softDeletePortal(deps)
   return { useCase, portalRepo, events }
 }
@@ -57,7 +69,8 @@ describe('softDeletePortal', () => {
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
     await expect(useCase({ portalId: 'nonexistent' }, ctx)).rejects.toSatisfy(
-      (e: unknown) => isPortalError(e) && (e as { code: string }).code === 'portal_not_found',
+      (e: unknown) =>
+        isPortalError(e) && (e as { code: string }).code === 'portal_not_found',
     )
   })
 })

@@ -60,7 +60,6 @@ export const recordMetric =
 
     await deps.events.emit(
       metricRecorded({
-        eventId: crypto.randomUUID(),
         readingId: persisted.id,
         organizationId: persisted.organizationId,
         propertyId: persisted.propertyId,

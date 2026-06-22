@@ -7,7 +7,7 @@ import { match } from 'ts-pattern'
 import { z } from 'zod/v4'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
-import { throwContextError } from '#/shared/auth/server-errors'
+import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getContainer } from '#/composition'
 import { createPortalInputSchema } from '../application/dto/create-portal.dto'
 import { updatePortalInputSchema } from '../application/dto/update-portal.dto'
@@ -71,7 +71,7 @@ export const createPortal = createServerFn({ method: 'POST' })
         } catch (e) {
           if (isPortalError(e))
             throwContextError('PortalError', e, portalErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'POST',
@@ -96,7 +96,7 @@ export const updatePortal = createServerFn({ method: 'POST' })
         } catch (e) {
           if (isPortalError(e))
             throwContextError('PortalError', e, portalErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'POST',
@@ -121,7 +121,7 @@ export const listPortals = createServerFn({ method: 'GET' })
         } catch (e) {
           if (isPortalError(e))
             throwContextError('PortalError', e, portalErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'GET',
@@ -146,7 +146,7 @@ export const getPortal = createServerFn({ method: 'GET' })
         } catch (e) {
           if (isPortalError(e))
             throwContextError('PortalError', e, portalErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'GET',
@@ -171,7 +171,7 @@ export const deletePortal = createServerFn({ method: 'POST' })
         } catch (e) {
           if (isPortalError(e))
             throwContextError('PortalError', e, portalErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'POST',
@@ -272,7 +272,7 @@ export const getPortalForQR = createServerFn({ method: 'GET' })
         } catch (e) {
           if (isPortalError(e))
             throwContextError('PortalError', e, portalErrorStatus(e.code))
-          throw e
+          throw catchUntagged(e)
         }
       },
       'GET',

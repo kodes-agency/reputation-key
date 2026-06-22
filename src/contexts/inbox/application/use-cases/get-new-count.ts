@@ -6,9 +6,10 @@
 
 import type { NewCounterPort } from '../ports/new-counter.port'
 import type { InboxRepository } from '../ports/inbox.repository'
-import type { OrganizationId, UserId } from '#/shared/domain/ids'
+import type { OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
 import type { Role } from '#/shared/domain/roles'
 import type { LoggerPort } from '#/shared/domain/logger.port'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { can } from '#/shared/domain/permissions'
 import { inboxError } from '../../domain/errors'
 
@@ -23,6 +24,7 @@ export type GetNewCountDeps = Readonly<{
   newCounter: NewCounterPort
   repo: InboxRepository
   logger: LoggerPort
+  staffPublicApi: StaffPublicApi
 }>
 
 export const getNewCount =
@@ -42,7 +44,22 @@ export const getNewCount =
     }
 
     // 2. Fallback: count from repo, warm the counter cache
-    const dbCount = await deps.repo.countByStatus(input.organizationId, 'new')
+    // Resolve property scoping for roles without inbox.manage (Staff).
+    let propertyIds: ReadonlyArray<PropertyId> | undefined
+    if (!can(input.role, 'inbox.manage')) {
+      const accessible = await deps.staffPublicApi.getAccessiblePropertyIds(
+        input.organizationId,
+        input.userId,
+        input.role,
+      )
+      propertyIds = accessible ?? undefined
+    }
+
+    const dbCount = await deps.repo.countByStatus(
+      input.organizationId,
+      'new',
+      propertyIds,
+    )
     if (dbCount > 0) {
       try {
         await deps.newCounter.setCount(input.organizationId, dbCount)

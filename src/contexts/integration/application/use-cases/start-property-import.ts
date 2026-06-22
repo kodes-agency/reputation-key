@@ -20,6 +20,7 @@ export type StartPropertyImportDeps = Readonly<{
   queue: GbpQueuePort
   events: EventBus
   clock: () => Date
+  idGen: () => string
 }>
 
 export const startPropertyImport =
@@ -56,7 +57,7 @@ export const startPropertyImport =
     }
 
     // 5. Build import job
-    const importJobId = gbpImportJobId(crypto.randomUUID())
+    const importJobId = gbpImportJobId(deps.idGen())
     const now = deps.clock()
 
     const buildResult = buildGbpImportJob({

@@ -24,10 +24,13 @@ import {
   signUpResponseSchema,
   listMembersResponseSchema,
   createInvitationResponseSchema,
+  acceptInvitationResponseSchema,
   listInvitationsResponseSchema,
   listUserInvitationsResponseSchema,
+  listOrganizationsResponseSchema,
   betterAuthOrganizationSchema,
 } from './better-auth-schemas'
+import { extractResponseSlaHours } from '#/shared/domain/response-sla'
 
 /** Build request headers that carry the better-auth session cookie.
  * Uses dynamic import to avoid @tanstack/react-start/server being part of
@@ -67,6 +70,48 @@ function toMemberRecord(m: {
     role: toDomainRole(m.role),
     image: m.user.image ?? null,
     createdAt: m.createdAt,
+  }
+}
+
+/** Parse the JSON-encoded propertyIds string from an invitation. */
+function parsePropertyIds(raw: string | null | undefined): ReadonlyArray<string> {
+  if (!raw || typeof raw !== 'string') return []
+  try {
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+/** Map a validated better-auth organization to our OrganizationRecord. */
+function toOrganizationRecord(org: {
+  id: string
+  name: string
+  slug: string
+  logo?: string | null | undefined
+  createdAt: Date
+  contactEmail?: string | null | undefined
+  billingCompanyName?: string | null | undefined
+  billingAddress?: string | null | undefined
+  billingCity?: string | null | undefined
+  billingPostalCode?: string | null | undefined
+  billingCountry?: string | null | undefined
+  responseSlaHours?: number | null | undefined
+}): OrganizationRecord {
+  return {
+    id: org.id,
+    name: org.name,
+    slug: org.slug,
+    logo: org.logo ?? null,
+    createdAt: org.createdAt,
+    contactEmail: org.contactEmail ?? null,
+    billingCompanyName: org.billingCompanyName ?? null,
+    billingAddress: org.billingAddress ?? null,
+    billingCity: org.billingCity ?? null,
+    billingPostalCode: org.billingPostalCode ?? null,
+    billingCountry: org.billingCountry ?? null,
+    responseSlaHours: extractResponseSlaHours(org),
   }
 }
 
@@ -151,8 +196,32 @@ export const createBetterAuthIdentityAdapter = (db: Database): IdentityPort => {
       return invitationId(invitation.id)
     },
 
-    async acceptInvitation(id: InvitationId, headers: Headers): Promise<void> {
-      await auth.api.acceptInvitation({ headers, body: { invitationId: id } })
+    async acceptInvitation(
+      id: InvitationId,
+      headers: Headers,
+    ): Promise<{ organizationId: OrganizationId; propertyIds: ReadonlyArray<string> }> {
+      // Fetch propertyIds before accepting — the invitation's status changes after.
+      const listResult = await auth.api.listUserInvitations({ headers })
+      const list = parseBetterAuthResponse(
+        listUserInvitationsResponseSchema,
+        listResult,
+        'org_setup_failed',
+        'listUserInvitations response did not match expected schema',
+      )
+      const inv = list.find((i) => i.id === id)
+      const propertyIds = parsePropertyIds(inv?.propertyIds)
+
+      const result = await auth.api.acceptInvitation({
+        headers,
+        body: { invitationId: id },
+      })
+      const data = parseBetterAuthResponse(
+        acceptInvitationResponseSchema,
+        result,
+        'org_setup_failed',
+        'acceptInvitation response did not match expected schema',
+      )
+      return { organizationId: organizationId(data.organizationId), propertyIds }
     },
 
     async cancelInvitation(id: InvitationId, headers: Headers): Promise<void> {
@@ -177,6 +246,7 @@ export const createBetterAuthIdentityAdapter = (db: Database): IdentityPort => {
           status: inv.status,
           expiresAt: inv.expiresAt,
           createdAt: inv.createdAt,
+          propertyIds: parsePropertyIds(inv.propertyIds),
         }),
       )
     },
@@ -204,6 +274,7 @@ export const createBetterAuthIdentityAdapter = (db: Database): IdentityPort => {
             ? organizationId(inv.organizationId)
             : undefined,
           organizationName: inv.organization?.name,
+          propertyIds: parsePropertyIds(inv.propertyIds),
         }),
       )
     },
@@ -242,7 +313,20 @@ export const createBetterAuthIdentityAdapter = (db: Database): IdentityPort => {
     },
 
     async getActiveOrg(headers: Headers): Promise<OrganizationRecord | null> {
-      const result = await auth.api.getFullOrganization({ headers })
+      let result: unknown
+      try {
+        result = await auth.api.getFullOrganization({ headers })
+      } catch (e) {
+        // No active org is a valid state — return null instead of throwing.
+        if (
+          e instanceof Error &&
+          'code' in e &&
+          (e as { code: string }).code === 'no_active_org'
+        ) {
+          return null
+        }
+        throw e
+      }
       if (!result) return null
       const org = parseBetterAuthResponse(
         betterAuthOrganizationSchema,
@@ -250,13 +334,20 @@ export const createBetterAuthIdentityAdapter = (db: Database): IdentityPort => {
         'org_setup_failed',
         'getFullOrganization response did not match expected schema',
       )
-      return {
-        id: org.id,
-        name: org.name,
-        slug: org.slug,
-        logo: org.logo ?? null,
-        createdAt: org.createdAt,
-      }
+      return toOrganizationRecord(org)
+    },
+
+    async listUserOrganizations(
+      headers: Headers,
+    ): Promise<ReadonlyArray<OrganizationRecord>> {
+      const result = await auth.api.listOrganizations({ headers })
+      const orgs = parseBetterAuthResponse(
+        listOrganizationsResponseSchema,
+        result,
+        'org_setup_failed',
+        'listOrganizations response did not match expected schema',
+      )
+      return orgs.map(toOrganizationRecord)
     },
 
     async setActiveOrganization(headers: Headers, organizationId: string): Promise<void> {

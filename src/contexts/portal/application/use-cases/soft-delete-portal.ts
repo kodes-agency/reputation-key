@@ -7,6 +7,8 @@ import { portalId as toPortalId } from '#/shared/domain/ids'
 import { portalError } from '../../domain/errors'
 import { portalDeleted } from '../../domain/events'
 import type { EventBus } from '#/shared/events/event-bus'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import { assertPropertyAccess } from '../assert-property-access'
 
 // fallow-ignore-next-line unused-type
 export type SoftDeletePortalInput = Readonly<{
@@ -16,6 +18,7 @@ export type SoftDeletePortalInput = Readonly<{
 // fallow-ignore-next-line unused-type
 export type SoftDeletePortalDeps = Readonly<{
   portalRepo: PortalRepository
+  staffPublicApi: StaffPublicApi
   events: EventBus
   clock: () => Date
 }>
@@ -32,6 +35,8 @@ export const softDeletePortal =
     if (!existing) {
       throw portalError('portal_not_found', 'portal not found in this organization')
     }
+    // Enforce property-assignment scoping (D6-001.)
+    await assertPropertyAccess(deps.staffPublicApi, ctx, existing.propertyId)
 
     await deps.portalRepo.softDelete(ctx.organizationId, pid)
 

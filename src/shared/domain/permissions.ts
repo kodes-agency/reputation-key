@@ -26,6 +26,7 @@ export type Permission =
   | 'property.update'
   | 'property.delete'
   | 'property.read'
+  | 'property.admin'
   | 'team.create'
   | 'team.update'
   | 'team.delete'
@@ -47,13 +48,19 @@ export type Permission =
   | 'inbox.read'
   | 'inbox.write'
   | 'inbox.manage'
+  | 'notification.read'
+  | 'notification.update'
   | 'feedback.read' // Reserved for future use — guest/feedback context not yet gated
   | 'feedback.respond' // Reserved for future use — guest/feedback context not yet gated
   | 'integration.manage'
   | 'identity.avatar_upload'
   | 'identity.logo_upload'
+  | 'identity.password.change'
+  | 'identity.profile.update'
+  | 'identity.avatar.set'
   | 'identity.leave_org' // Reserved for future use — leave-org flow not yet permission-gated
   | 'dashboard.read'
+  | 'dashboard.fleet_read'
   | 'badge.read'
   | 'badge.manage'
   | 'leaderboard.read'

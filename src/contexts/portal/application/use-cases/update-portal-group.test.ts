@@ -4,7 +4,13 @@ import { updatePortalGroup } from './update-portal-group'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { isPortalError } from '../../domain/errors'
-import { organizationId, portalGroupId, propertyId } from '#/shared/domain/ids'
+import {
+  organizationId,
+  portalGroupId,
+  propertyId,
+  type PropertyId,
+} from '#/shared/domain/ids'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 
 const FIXED_TIME = new Date('2026-05-30T12:00:00Z')
 const ORG = organizationId('org-00000000-0000-0000-0000-000000000001')
@@ -22,7 +28,13 @@ const existing = {
   deletedAt: null,
 }
 
-function setup(notFound = false) {
+const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublicApi => ({
+  getAccessiblePropertyIds: async () => accessible,
+  getAssignedPortals: async () => [],
+  countAssignmentsByTeam: async () => 0,
+})
+
+function setup(notFound = false, accessible: ReadonlyArray<PropertyId> | null = null) {
   const events = createCapturingEventBus()
   const useCase = updatePortalGroup({
     portalGroupRepo: {
@@ -40,6 +52,7 @@ function setup(notFound = false) {
     },
     events,
     clock: () => FIXED_TIME,
+    staffPublicApi: staffApiMock(accessible),
   })
   return { useCase, events }
 }
@@ -88,5 +101,35 @@ describe('updatePortalGroup (use case)', () => {
       expect(isPortalError(e)).toBe(true)
       if (isPortalError(e)) expect(e.code).toBe('forbidden')
     }
+  })
+  it('rejects PropertyManager without assignment to the property', async () => {
+    const { useCase } = setup(false, [])
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+
+    try {
+      await useCase(
+        { portalGroupId: 'group-0000-0000-4000-8000-000000000001', name: 'New' },
+        ctx,
+      )
+      expect.fail('Expected forbidden')
+    } catch (e) {
+      expect(isPortalError(e)).toBe(true)
+      if (isPortalError(e)) expect(e.code).toBe('forbidden')
+    }
+  })
+
+  it('allows PropertyManager assigned to the property', async () => {
+    const { useCase, events } = setup(false, [
+      propertyId('a0000000-0000-4000-8000-000000000001'),
+    ])
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+
+    const result = await useCase(
+      { portalGroupId: 'group-0000-0000-4000-8000-000000000001', name: 'New Name' },
+      ctx,
+    )
+
+    expect(result.name).toBe('New Name')
+    expect(events.capturedByTag('portal_group.updated')).toHaveLength(1)
   })
 })

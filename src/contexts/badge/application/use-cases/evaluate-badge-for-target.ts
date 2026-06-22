@@ -57,9 +57,16 @@ export const evaluateBadgeForTarget =
       target.organizationId,
     )
 
+    const timezone = await deps.badgeRepo.findPropertyTimezone(
+      target.organizationId,
+      target.propertyId,
+    )
+
     const results: BadgeEvaluationResult[] = []
     for (const definition of definitions) {
-      results.push(await evaluateBadgeDefinitionForTarget(definition, target, deps))
+      results.push(
+        await evaluateBadgeDefinitionForTarget(definition, target, deps, timezone),
+      )
     }
 
     return results
@@ -69,15 +76,12 @@ export async function evaluateBadgeDefinitionForTarget(
   definition: BadgeDefinition,
   target: BadgeEvaluationTarget,
   deps: EvaluateBadgeForTargetDeps,
+  timezone: string,
 ): Promise<BadgeEvaluationResult> {
   if (!definition.enabled) {
     return { awarded: false, reason: 'disabled', definition }
   }
 
-  const timezone = await deps.badgeRepo.findPropertyTimezone(
-    target.organizationId,
-    target.propertyId,
-  )
   const targetId = target.targetType === 'portal' ? target.portalId : target.portalGroupId
   const uniqueKey = `${definition.key}:${definition.criteriaVersion}:${target.targetType}:${targetId}`
   const existing = await deps.badgeRepo.findAwardByUniqueKey(uniqueKey)
@@ -114,7 +118,18 @@ export async function evaluateBadgeDefinitionForTarget(
   }
 
   const inserted = await deps.badgeRepo.insertAward(award)
-  await deps.events.emit(badgeAwarded({ occurredAt: deps.clock(), ...inserted }))
+  await deps.events.emit(
+    badgeAwarded({
+      occurredAt: deps.clock(),
+      badgeDefinitionId: inserted.badgeDefinitionId,
+      criteriaVersion: inserted.criteriaVersion,
+      targetType: inserted.targetType,
+      targetId: inserted.targetId,
+      organizationId: inserted.organizationId,
+      propertyId: inserted.propertyId,
+      awardedAt: inserted.awardedAt,
+    }),
+  )
 
   return { awarded: true, award: inserted, definition }
 }
@@ -186,11 +201,15 @@ async function streakMet(
   })
 
   let consecutive = 0
+  // Anchor to the portal-local calendar date and step whole calendar days in
+  // UTC (always 24h — UTC has no DST) so spring-forward / fall-back transitions
+  // cannot drift the day boundary (B-CTX-006 / invariant #4).
+  const DAY_MS = 24 * 60 * 60 * 1000
+  const nowKey = dayKeyInTimezone(deps.clock(), timezone)
+  const [year, month, day] = nowKey.split('_').map(Number)
+  const baseMs = Date.UTC(year, month - 1, day)
   for (let offset = 0; offset < days; offset += 1) {
-    const date = new Date(deps.clock())
-    date.setUTCHours(0, 0, 0, 0)
-    date.setUTCDate(date.getUTCDate() - offset)
-    const key = dayKeyInTimezone(date, timezone)
+    const key = dayKeyInTimezone(new Date(baseMs - offset * DAY_MS), 'UTC')
     if ((counts.get(key) ?? 0) >= dailyThreshold) {
       consecutive += 1
     } else {

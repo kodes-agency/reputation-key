@@ -13,6 +13,9 @@ type Deps = Readonly<{
 export const onReplyPublishFailed =
   (deps: Deps) =>
   async (event: ReviewReplyPublishFailed): Promise<void> => {
+    // Mirror replies (google_sync) have no human author — no one to notify.
+    if (!event.authorId) return
+
     const data: InsertNotificationJobData = {
       userId: event.authorId,
       organizationId: event.organizationId,

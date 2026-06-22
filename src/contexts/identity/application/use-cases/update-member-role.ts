@@ -81,12 +81,11 @@ export const updateMemberRole =
       // 5. Emit event
       await deps.events.emit(
         identityMemberRoleChanged({
-          eventId: crypto.randomUUID(),
           organizationId: ctx.organizationId,
-          userId: toUserId(targetMember.userId),
+          memberUserId: toUserId(targetMember.userId),
           previousRole: targetMember.role,
           newRole: input.role,
-          changedBy: ctx.userId,
+          userId: ctx.userId,
           occurredAt: deps.clock(),
         }),
       )

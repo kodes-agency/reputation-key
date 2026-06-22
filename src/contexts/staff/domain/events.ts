@@ -24,12 +24,13 @@ export type StaffAssigned = Readonly<{
   correlationId: string | null
 }>
 export const staffAssigned = (
-  args: Omit<StaffAssigned, '_tag' | 'correlationId'>,
+  args: Omit<StaffAssigned, '_tag' | 'eventId' | 'correlationId'>,
 ): StaffAssigned => {
   if (!(args.occurredAt instanceof Date))
     throw staffError('invalid_input', 'occurredAt must be Date')
   return {
     _tag: 'staff.assigned',
+    eventId: crypto.randomUUID(),
     correlationId: null,
     ...args,
   }
@@ -47,12 +48,13 @@ export type StaffUnassigned = Readonly<{
   correlationId: string | null
 }>
 export const staffUnassigned = (
-  args: Omit<StaffUnassigned, '_tag' | 'correlationId'>,
+  args: Omit<StaffUnassigned, '_tag' | 'eventId' | 'correlationId'>,
 ): StaffUnassigned => {
   if (!(args.occurredAt instanceof Date))
     throw staffError('invalid_input', 'occurredAt must be Date')
   return {
     _tag: 'staff.unassigned',
+    eventId: crypto.randomUUID(),
     correlationId: null,
     ...args,
   }

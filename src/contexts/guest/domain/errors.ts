@@ -1,6 +1,7 @@
 export type GuestErrorCode =
   | 'invalid_rating'
   | 'duplicate_rating'
+  | 'duplicate_feedback'
   | 'feedback_too_long'
   | 'feedback_empty'
   | 'portal_not_found'

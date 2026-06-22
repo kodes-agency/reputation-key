@@ -5,7 +5,6 @@ import {
   propertyId as propIdCtor,
   portalId as portalIdCtor,
   metricReadingId,
-  type OrganizationId,
 } from '#/shared/domain/ids'
 
 // In-memory fake for MetricRepository port.
@@ -29,12 +28,6 @@ const createFakeMetricRepository = () => {
         readings.push(reading)
         return reading
       },
-
-      findByOrganizationId: async (orgId: OrganizationId, metricKey?: string) => {
-        return readings.filter(
-          (r) => r.organizationId === orgId && (!metricKey || r.metricKey === metricKey),
-        )
-      },
     },
   }
 }
@@ -50,7 +43,7 @@ describe('MetricRepository', () => {
     fake = createFakeMetricRepository()
   })
 
-  it('inserts a portal scan reading and retrieves it by organization', async () => {
+  it('inserts a portal scan reading and stores it', async () => {
     await fake.repo.insertReading({
       organizationId: ORG_1,
       propertyId: propIdCtor('prop-1'),
@@ -61,12 +54,11 @@ describe('MetricRepository', () => {
       occurredAt: FIXED_TIME,
     })
 
-    const results = await fake.repo.findByOrganizationId(ORG_1)
-    expect(results).toHaveLength(1)
-    expect(results[0].metricKey).toBe('portal.scan')
-    expect(results[0].value).toBe(1)
-    expect(results[0].portalId).toEqual(portalIdCtor('portal-1'))
-    expect(results[0].occurredAt).toEqual(FIXED_TIME)
+    expect(fake.readings).toHaveLength(1)
+    expect(fake.readings[0].metricKey).toBe('portal.scan')
+    expect(fake.readings[0].value).toBe(1)
+    expect(fake.readings[0].portalId).toEqual(portalIdCtor('portal-1'))
+    expect(fake.readings[0].occurredAt).toEqual(FIXED_TIME)
   })
 
   it('inserts a property review reading without portalId', async () => {
@@ -80,14 +72,13 @@ describe('MetricRepository', () => {
       occurredAt: FIXED_TIME,
     })
 
-    const results = await fake.repo.findByOrganizationId(ORG_1)
-    expect(results).toHaveLength(1)
-    expect(results[0].metricKey).toBe('property.review')
-    expect(results[0].value).toBe(4)
-    expect(results[0].portalId).toBeNull()
+    expect(fake.readings).toHaveLength(1)
+    expect(fake.readings[0].metricKey).toBe('property.review')
+    expect(fake.readings[0].value).toBe(4)
+    expect(fake.readings[0].portalId).toBeNull()
   })
 
-  it('filters by metric key', async () => {
+  it('stores multiple readings with distinct metric keys', async () => {
     await fake.repo.insertReading({
       organizationId: ORG_1,
       propertyId: propIdCtor('prop-1'),
@@ -107,12 +98,12 @@ describe('MetricRepository', () => {
       occurredAt: FIXED_TIME,
     })
 
-    const scans = await fake.repo.findByOrganizationId(ORG_1, 'portal.scan')
+    const scans = fake.readings.filter((r) => r.metricKey === 'portal.scan')
     expect(scans).toHaveLength(1)
     expect(scans[0].metricKey).toBe('portal.scan')
   })
 
-  it('isolates tenants — org-2 readings not visible to org-1', async () => {
+  it('isolates tenants — org-2 readings kept distinct from org-1', async () => {
     await fake.repo.insertReading({
       organizationId: ORG_1,
       propertyId: propIdCtor('prop-1'),
@@ -132,8 +123,8 @@ describe('MetricRepository', () => {
       occurredAt: FIXED_TIME,
     })
 
-    const results = await fake.repo.findByOrganizationId(ORG_1)
-    expect(results).toHaveLength(1)
-    expect(results[0].organizationId).toEqual(ORG_1)
+    const org1Readings = fake.readings.filter((r) => r.organizationId === ORG_1)
+    expect(org1Readings).toHaveLength(1)
+    expect(org1Readings[0].organizationId).toEqual(ORG_1)
   })
 })

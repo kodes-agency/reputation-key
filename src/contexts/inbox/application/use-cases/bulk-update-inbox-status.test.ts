@@ -17,6 +17,7 @@ import type { Role } from '#/shared/domain/roles'
 
 const FIXED_TIME = new Date('2026-04-15T12:00:00Z')
 const ORG_ID = organizationId('org-1')
+const OTHER_ORG_ID = organizationId('org-other')
 const USER_ID = userId('user-1')
 
 function seedItem(
@@ -296,5 +297,25 @@ describe('bulkUpdateInboxStatus', () => {
     expect(result.updated).toBe(2)
     expect(repo.items[0].status).toBe('read')
     expect(repo.items[1].status).toBe('read')
+  })
+
+  // ── Tenant isolation ──────────────────────────────────────────────
+  it('does not update items belonging to a different organization', async () => {
+    const { useCase, repo } = setup()
+    repo.items.push(seedItem('ii-1', 'new'))
+    repo.items.push(seedItem('ii-2', 'new'))
+
+    const result = await useCase({
+      inboxItemIds: [inboxItemId('ii-1'), inboxItemId('ii-2')],
+      organizationId: OTHER_ORG_ID,
+      newStatus: 'read',
+      userId: USER_ID,
+      role: 'AccountAdmin' as Role,
+    })
+
+    // Items belong to ORG_ID; caller is in OTHER_ORG_ID — zero updates, items unchanged
+    expect(result.updated).toBe(0)
+    expect(repo.items[0].status).toBe('new')
+    expect(repo.items[1].status).toBe('new')
   })
 })

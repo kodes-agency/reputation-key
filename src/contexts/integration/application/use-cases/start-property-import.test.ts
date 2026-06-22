@@ -27,6 +27,7 @@ const setup = () => {
     queue,
     events,
     clock: () => FIXED_TIME,
+    idGen: () => 'test-import-job-id',
   }
   const useCase = startPropertyImport(deps)
   return { useCase, connectionRepo, importRepo, queue, events }

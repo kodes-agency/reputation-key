@@ -1,6 +1,7 @@
 // Review context — domain events
 // Standards: docs/standards.md §1
 
+import { assert } from '#/shared/domain/assert'
 import type {
   ReviewId,
   ReplyId,
@@ -9,7 +10,6 @@ import type {
   UserId,
 } from '#/shared/domain/ids'
 import type { ReviewPlatform, StarRating } from './types'
-import { reviewError } from './errors'
 
 export type ReviewCreated = Readonly<{
   _tag: 'review.created'
@@ -26,14 +26,16 @@ export type ReviewCreated = Readonly<{
   correlationId: string | null
 }>
 export const reviewCreated = (
-  args: Omit<ReviewCreated, '_tag' | 'correlationId'>,
+  args: Omit<ReviewCreated, '_tag' | 'eventId' | 'correlationId'> & {
+    correlationId?: string | null
+  },
 ): ReviewCreated => {
-  if (!(args.occurredAt instanceof Date))
-    throw reviewError('invalid_rating', 'occurredAt must be Date')
+  assert(args.occurredAt instanceof Date, 'occurredAt must be a Date')
   return {
-    _tag: 'review.created',
-    correlationId: null,
     ...args,
+    _tag: 'review.created',
+    eventId: crypto.randomUUID(),
+    correlationId: args.correlationId ?? null,
   }
 }
 
@@ -52,14 +54,16 @@ export type ReviewUpdated = Readonly<{
   correlationId: string | null
 }>
 export const reviewUpdated = (
-  args: Omit<ReviewUpdated, '_tag' | 'correlationId'>,
+  args: Omit<ReviewUpdated, '_tag' | 'eventId' | 'correlationId'> & {
+    correlationId?: string | null
+  },
 ): ReviewUpdated => {
-  if (!(args.occurredAt instanceof Date))
-    throw reviewError('invalid_rating', 'occurredAt must be Date')
+  assert(args.occurredAt instanceof Date, 'occurredAt must be a Date')
   return {
-    _tag: 'review.updated',
-    correlationId: null,
     ...args,
+    _tag: 'review.updated',
+    eventId: crypto.randomUUID(),
+    correlationId: args.correlationId ?? null,
   }
 }
 
@@ -73,14 +77,16 @@ export type ReviewExpired = Readonly<{
   correlationId: string | null
 }>
 export const reviewExpired = (
-  args: Omit<ReviewExpired, '_tag' | 'correlationId'>,
+  args: Omit<ReviewExpired, '_tag' | 'eventId' | 'correlationId'> & {
+    correlationId?: string | null
+  },
 ): ReviewExpired => {
-  if (!(args.occurredAt instanceof Date))
-    throw reviewError('invalid_rating', 'occurredAt must be Date')
+  assert(args.occurredAt instanceof Date, 'occurredAt must be a Date')
   return {
-    _tag: 'review.expired',
-    correlationId: null,
     ...args,
+    _tag: 'review.expired',
+    eventId: crypto.randomUUID(),
+    correlationId: args.correlationId ?? null,
   }
 }
 
@@ -92,23 +98,24 @@ export type ReviewReplyPublished = Readonly<{
   propertyId: PropertyId
   organizationId: OrganizationId
   userId: UserId | null
-  authorId: UserId
+  authorId: UserId | null
   source: 'web' | 'import'
   occurredAt: Date
   correlationId: string | null
 }>
 export const reviewReplyPublished = (
-  args: Omit<ReviewReplyPublished, '_tag' | 'correlationId' | 'source'> & {
+  args: Omit<ReviewReplyPublished, '_tag' | 'eventId' | 'correlationId' | 'source'> & {
     source?: 'web' | 'import'
+    correlationId?: string | null
   },
 ): ReviewReplyPublished => {
-  if (!(args.occurredAt instanceof Date))
-    throw reviewError('invalid_rating', 'occurredAt must be Date')
+  assert(args.occurredAt instanceof Date, 'occurredAt must be a Date')
   return {
-    _tag: 'review.reply.published',
-    correlationId: null,
-    source: args.source ?? 'web',
     ...args,
+    _tag: 'review.reply.published',
+    eventId: crypto.randomUUID(),
+    correlationId: args.correlationId ?? null,
+    source: args.source ?? 'web',
   }
 }
 
@@ -125,17 +132,18 @@ export type ReviewReplySubmitted = Readonly<{
   correlationId: string | null
 }>
 export const reviewReplySubmitted = (
-  args: Omit<ReviewReplySubmitted, '_tag' | 'correlationId' | 'source'> & {
+  args: Omit<ReviewReplySubmitted, '_tag' | 'eventId' | 'correlationId' | 'source'> & {
     source?: 'web' | 'import'
+    correlationId?: string | null
   },
 ): ReviewReplySubmitted => {
-  if (!(args.occurredAt instanceof Date))
-    throw reviewError('invalid_rating', 'occurredAt must be Date')
+  assert(args.occurredAt instanceof Date, 'occurredAt must be a Date')
   return {
-    _tag: 'review.reply.submitted',
-    correlationId: null,
-    source: args.source ?? 'web',
     ...args,
+    _tag: 'review.reply.submitted',
+    eventId: crypto.randomUUID(),
+    correlationId: args.correlationId ?? null,
+    source: args.source ?? 'web',
   }
 }
 
@@ -147,23 +155,24 @@ export type ReviewReplyApproved = Readonly<{
   propertyId: PropertyId
   organizationId: OrganizationId
   userId: UserId
-  authorId: UserId
+  authorId: UserId | null
   source: 'web' | 'import'
   occurredAt: Date
   correlationId: string | null
 }>
 export const reviewReplyApproved = (
-  args: Omit<ReviewReplyApproved, '_tag' | 'correlationId' | 'source'> & {
+  args: Omit<ReviewReplyApproved, '_tag' | 'eventId' | 'correlationId' | 'source'> & {
     source?: 'web' | 'import'
+    correlationId?: string | null
   },
 ): ReviewReplyApproved => {
-  if (!(args.occurredAt instanceof Date))
-    throw reviewError('invalid_rating', 'occurredAt must be Date')
+  assert(args.occurredAt instanceof Date, 'occurredAt must be a Date')
   return {
-    _tag: 'review.reply.approved',
-    correlationId: null,
-    source: args.source ?? 'web',
     ...args,
+    _tag: 'review.reply.approved',
+    eventId: crypto.randomUUID(),
+    correlationId: args.correlationId ?? null,
+    source: args.source ?? 'web',
   }
 }
 
@@ -175,24 +184,25 @@ export type ReviewReplyRejected = Readonly<{
   propertyId: PropertyId
   organizationId: OrganizationId
   userId: UserId
-  authorId: UserId
+  authorId: UserId | null
   reason: string | null
   source: 'web' | 'import'
   occurredAt: Date
   correlationId: string | null
 }>
 export const reviewReplyRejected = (
-  args: Omit<ReviewReplyRejected, '_tag' | 'correlationId' | 'source'> & {
+  args: Omit<ReviewReplyRejected, '_tag' | 'eventId' | 'correlationId' | 'source'> & {
     source?: 'web' | 'import'
+    correlationId?: string | null
   },
 ): ReviewReplyRejected => {
-  if (!(args.occurredAt instanceof Date))
-    throw reviewError('invalid_rating', 'occurredAt must be Date')
+  assert(args.occurredAt instanceof Date, 'occurredAt must be a Date')
   return {
-    _tag: 'review.reply.rejected',
-    correlationId: null,
-    source: args.source ?? 'web',
     ...args,
+    _tag: 'review.reply.rejected',
+    eventId: crypto.randomUUID(),
+    correlationId: args.correlationId ?? null,
+    source: args.source ?? 'web',
   }
 }
 
@@ -203,19 +213,21 @@ export type ReviewReplyPublishFailed = Readonly<{
   reviewId: ReviewId
   propertyId: PropertyId
   organizationId: OrganizationId
-  authorId: UserId
+  authorId: UserId | null
   occurredAt: Date
   correlationId: string | null
 }>
 export const reviewReplyPublishFailed = (
-  args: Omit<ReviewReplyPublishFailed, '_tag' | 'correlationId'>,
+  args: Omit<ReviewReplyPublishFailed, '_tag' | 'eventId' | 'correlationId'> & {
+    correlationId?: string | null
+  },
 ): ReviewReplyPublishFailed => {
-  if (!(args.occurredAt instanceof Date))
-    throw reviewError('invalid_rating', 'occurredAt must be Date')
+  assert(args.occurredAt instanceof Date, 'occurredAt must be a Date')
   return {
-    _tag: 'review.reply.publish_failed',
-    correlationId: null,
     ...args,
+    _tag: 'review.reply.publish_failed',
+    eventId: crypto.randomUUID(),
+    correlationId: args.correlationId ?? null,
   }
 }
 

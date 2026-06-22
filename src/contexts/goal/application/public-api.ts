@@ -26,8 +26,8 @@ export type { GoalRepository, GoalListFilter } from './ports/goal.repository'
 export type { GoalWithProgress } from './use-cases/list-goals'
 
 // ── Event re-exports — cross-context consumers must import event types from public-api, not domain/events
-export type { GoalCompleted, GoalProgressUpdated, GoalEvent } from '../domain/events'
-export { goalCompleted, goalProgressUpdated } from '../domain/events'
+export type { GoalCompleted, GoalEvent } from '../domain/events'
+export { goalCompleted } from '../domain/events'
 
 // ── Staff type alias — reuses GoalWithProgress for cross-context consumers ──
 export type StaffGoalEntry = GoalWithProgress

@@ -5,8 +5,16 @@ import { requestUploadUrl } from './request-upload-url'
 import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
 import { isPortalError } from '../../domain/errors'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import { propertyId, type PropertyId } from '#/shared/domain/ids'
 
-const setup = () => {
+const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublicApi => ({
+  getAccessiblePropertyIds: async () => accessible,
+  getAssignedPortals: async () => [],
+  countAssignmentsByTeam: async () => 0,
+})
+
+const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
   const portalRepo = createInMemoryPortalRepo()
   const storage = {
     createPresignedUploadUrl: async (
@@ -22,7 +30,12 @@ const setup = () => {
     getPublicUrl: (_key: string) => `https://cdn.example.com/${_key}`,
     putObject: async (_key: string, _body: Buffer, _contentType: string) => {},
   }
-  const deps = { portalRepo, storage, idGen: () => 'test-uuid' }
+  const deps = {
+    portalRepo,
+    storage,
+    staffPublicApi: staffApiMock(accessible),
+    idGen: () => 'test-uuid',
+  }
   const useCase = requestUploadUrl(deps)
   return { useCase, portalRepo }
 }
@@ -87,5 +100,33 @@ describe('requestUploadUrl', () => {
       (e: unknown) =>
         isPortalError(e) && (e as { code: string }).code === 'upload_failed',
     )
+  })
+  it('rejects PropertyManager without assignment to the property', async () => {
+    const { useCase, portalRepo } = setup([])
+    const ctx = buildTestAuthContext()
+    const portal = buildTestPortal({})
+    portalRepo.seed([portal])
+
+    await expect(
+      useCase({ portalId: portal.id, contentType: 'image/png', fileSize: 1024 }, ctx),
+    ).rejects.toSatisfy(
+      (e: unknown) => isPortalError(e) && (e as { code: string }).code === 'forbidden',
+    )
+  })
+
+  it('allows PropertyManager assigned to the property', async () => {
+    const { useCase, portalRepo } = setup([
+      propertyId('a0000000-0000-0000-0000-000000000001'),
+    ])
+    const ctx = buildTestAuthContext()
+    const portal = buildTestPortal({})
+    portalRepo.seed([portal])
+
+    const result = await useCase(
+      { portalId: portal.id, contentType: 'image/png', fileSize: 1024 },
+      ctx,
+    )
+
+    expect(result.uploadUrl).toBe('https://r2.example.com/presigned')
   })
 })

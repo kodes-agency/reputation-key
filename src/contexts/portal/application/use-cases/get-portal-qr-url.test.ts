@@ -3,8 +3,18 @@ import type { PortalRepository } from '../ports/portal.repository'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { getPortalQrUrl } from './get-portal-qr-url'
 import { organizationId, userId } from '#/shared/domain/ids'
+import { buildTestPortal } from '#/shared/testing/fixtures'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { PropertyId } from '#/shared/domain/ids'
+
+const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublicApi => ({
+  getAccessiblePropertyIds: async () => accessible,
+  getAssignedPortals: async () => [],
+  countAssignmentsByTeam: async () => 0,
+})
 
 const fakePortalRepo: PortalRepository = {
+  findById: async () => buildTestPortal({}),
   getPortalQrInfo: async () => ({
     propertySlug: 'my-hotel',
     slug: 'feedback',
@@ -21,6 +31,7 @@ describe('getPortalQrUrl', () => {
   it('builds URL with source=qr', async () => {
     const fn = getPortalQrUrl({
       portalRepo: fakePortalRepo,
+      staffPublicApi: staffApiMock(null),
       baseUrl: 'https://example.com',
     })
 
@@ -29,7 +40,11 @@ describe('getPortalQrUrl', () => {
   })
 
   it('rejects when role lacks portal.read permission', async () => {
-    const useCase = getPortalQrUrl({ portalRepo: fakePortalRepo, baseUrl: 'https://example.com' })
+    const useCase = getPortalQrUrl({
+      portalRepo: fakePortalRepo,
+      staffPublicApi: staffApiMock(null),
+      baseUrl: 'https://example.com',
+    })
     const ctx: AuthContext = {
       userId: userId('u-1'),
       organizationId: organizationId('org-1'),
@@ -37,9 +52,7 @@ describe('getPortalQrUrl', () => {
       role: 'Guest' as any,
     }
 
-    await expect(
-      useCase({ portalId: 'p-1' }, ctx),
-    ).rejects.toSatisfy(
+    await expect(useCase({ portalId: 'p-1' }, ctx)).rejects.toSatisfy(
       (e: unknown) => (e as { code?: string }).code === 'forbidden',
     )
   })

@@ -240,11 +240,20 @@ describe('createPortal input validation', () => {
     expect(result.success).toBe(false)
   })
 
-  it('rejects smartRoutingThreshold above 4', () => {
+  it('accepts smartRoutingThreshold of 5 (max per CONTEXT.md invariant)', () => {
     const result = createPortalInputSchema.safeParse({
       name: 'Test',
       propertyId: 'prop-123',
       smartRoutingThreshold: 5,
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('rejects smartRoutingThreshold above 5', () => {
+    const result = createPortalInputSchema.safeParse({
+      name: 'Test',
+      propertyId: 'prop-123',
+      smartRoutingThreshold: 6,
     })
     expect(result.success).toBe(false)
   })

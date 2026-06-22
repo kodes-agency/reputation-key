@@ -3,7 +3,7 @@
 // returning a Result."
 // Pure — ID and time are inputs, no side effects.
 
-import { Result } from 'neverthrow'
+import { Result } from '#/shared/domain'
 import type {
   Portal,
   PortalId,

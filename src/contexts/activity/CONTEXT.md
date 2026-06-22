@@ -29,7 +29,7 @@ Key entity: `ActivityLog`
 ## Invariants
 
 - Activity records are **immutable** — no `updated_at` column, no update operations.
-- **Idempotency**: BullMQ delivers at-least-once. The `insertActivityLog` use case includes a `findDuplicate` check matching `(resourceType, resourceId, action, organizationId, payload)` to prevent duplicate entries on job retry.
+- **Idempotency**: BullMQ delivers at-least-once. A DB-level unique constraint on `(eventId, organizationId)` (`activity_log_event_id_org_uniq`) is the TOCTOU-safe guard. The repository insert catches Postgres error 23505 and treats it as a successful idempotent no-op. A pre-check `findDuplicate` provides a fast path to avoid constructing the domain object on retry.
 - Actor identity is **denormalized** at write time: `actorId`, `actorName`, `actorAvatarUrl`, `actorRole` are stored on the activity record to avoid cross-context JOINs at query time.
 - Events without a `userId` (truly system-driven) fall back to `actorId: 'system'`.
 - Events without a `propertyId` (organization-level actions) carry `propertyId: null`.
@@ -40,7 +40,7 @@ None. Activity is a pure subscriber context — it only consumes events, never e
 
 ## Events consumed
 
-Events are delivered via **BullMQ**. Each event handler enqueues a job to a shared `activity-log` queue. A BullMQ worker consumes jobs, runs the `insertActivityLog` use case with automatic retry and dead-letter queue.
+Events are delivered via **BullMQ**. Each event handler enqueues a job (name `insert-activity-log`) to the shared `default` queue. A BullMQ worker consumes jobs, runs the `insertActivityLog` use case with automatic retry and dead-letter queue.
 
 Handlers live in `infrastructure/event-handlers/` — one file per event tag:
 

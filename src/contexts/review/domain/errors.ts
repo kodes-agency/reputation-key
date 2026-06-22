@@ -5,6 +5,7 @@ import { createErrorFactory } from '#/shared/domain/errors'
 
 export type ReviewErrorCode =
   | 'unauthorized'
+  | 'forbidden'
   | 'property_not_found'
   | 'connection_not_found'
   | 'connection_inactive'

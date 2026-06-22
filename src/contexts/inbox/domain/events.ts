@@ -29,7 +29,7 @@ export type InboxItemCreated = Readonly<{
 export const inboxItemCreated = (
   args: Omit<
     InboxItemCreated,
-    '_tag' | 'correlationId' | 'userId' | 'source' | 'propertyId'
+    '_tag' | 'correlationId' | 'eventId' | 'userId' | 'source' | 'propertyId'
   > & { userId?: UserId; source?: 'web' | 'import'; propertyId?: PropertyId },
 ): InboxItemCreated => {
   if (!(args.occurredAt instanceof Date))
@@ -37,6 +37,7 @@ export const inboxItemCreated = (
   if (args.inboxItemId === '') throw inboxError('invalid_input', 'inboxItemId required')
   return {
     _tag: 'inbox.inbox_item.created',
+    eventId: crypto.randomUUID(),
     correlationId: null,
     propertyId: args.propertyId ?? null,
     userId: args.userId ?? null,
@@ -61,7 +62,7 @@ export type InboxItemStatusChanged = Readonly<{
 export const inboxItemStatusChanged = (
   args: Omit<
     InboxItemStatusChanged,
-    '_tag' | 'correlationId' | 'userId' | 'source' | 'propertyId'
+    '_tag' | 'correlationId' | 'eventId' | 'userId' | 'source' | 'propertyId'
   > & { userId?: UserId; source?: 'web' | 'import'; propertyId?: PropertyId },
 ): InboxItemStatusChanged => {
   if (!(args.occurredAt instanceof Date))
@@ -73,6 +74,7 @@ export const inboxItemStatusChanged = (
     )
   return {
     _tag: 'inbox.inbox_item.status_changed',
+    eventId: crypto.randomUUID(),
     correlationId: null,
     propertyId: args.propertyId ?? null,
     userId: args.userId ?? null,
@@ -96,7 +98,7 @@ export type InboxItemAssigned = Readonly<{
 export const inboxItemAssigned = (
   args: Omit<
     InboxItemAssigned,
-    '_tag' | 'correlationId' | 'userId' | 'source' | 'propertyId'
+    '_tag' | 'correlationId' | 'eventId' | 'userId' | 'source' | 'propertyId'
   > & { userId?: UserId; source?: 'web' | 'import'; propertyId?: PropertyId },
 ): InboxItemAssigned => {
   if (!(args.occurredAt instanceof Date))
@@ -104,6 +106,7 @@ export const inboxItemAssigned = (
   if (!args.userId) throw inboxError('invalid_input', 'userId required')
   return {
     _tag: 'inbox.inbox_item.assigned',
+    eventId: crypto.randomUUID(),
     correlationId: null,
     propertyId: args.propertyId ?? null,
     userId: args.userId,
@@ -127,13 +130,14 @@ export type InboxItemUnassigned = Readonly<{
 export const inboxItemUnassigned = (
   args: Omit<
     InboxItemUnassigned,
-    '_tag' | 'correlationId' | 'userId' | 'source' | 'propertyId'
+    '_tag' | 'correlationId' | 'eventId' | 'userId' | 'source' | 'propertyId'
   > & { userId?: UserId; source?: 'web' | 'import'; propertyId?: PropertyId },
 ): InboxItemUnassigned => {
   if (!(args.occurredAt instanceof Date))
     throw inboxError('invalid_input', 'occurredAt must be Date')
   return {
     _tag: 'inbox.inbox_item.unassigned',
+    eventId: crypto.randomUUID(),
     correlationId: null,
     propertyId: args.propertyId ?? null,
     userId: args.userId ?? null,
@@ -157,13 +161,14 @@ export type InboxItemEscalated = Readonly<{
 export const inboxItemEscalated = (
   args: Omit<
     InboxItemEscalated,
-    '_tag' | 'correlationId' | 'userId' | 'source' | 'propertyId'
+    '_tag' | 'correlationId' | 'eventId' | 'userId' | 'source' | 'propertyId'
   > & { userId?: UserId; source?: 'web' | 'import'; propertyId?: PropertyId },
 ): InboxItemEscalated => {
   if (!(args.occurredAt instanceof Date))
     throw inboxError('invalid_input', 'occurredAt must be Date')
   return {
     _tag: 'inbox.inbox_item.escalated',
+    eventId: crypto.randomUUID(),
     correlationId: null,
     propertyId: args.propertyId ?? null,
     userId: args.userId ?? null,
@@ -188,7 +193,7 @@ export type InboxNoteAdded = Readonly<{
 export const inboxNoteAdded = (
   args: Omit<
     InboxNoteAdded,
-    '_tag' | 'correlationId' | 'userId' | 'source' | 'propertyId'
+    '_tag' | 'correlationId' | 'eventId' | 'userId' | 'source' | 'propertyId'
   > & { userId?: UserId; source?: 'web' | 'import'; propertyId?: PropertyId },
 ): InboxNoteAdded => {
   if (!(args.occurredAt instanceof Date))
@@ -196,6 +201,7 @@ export const inboxNoteAdded = (
   if (args.text.length === 0) throw inboxError('invalid_input', 'note text required')
   return {
     _tag: 'inbox.inbox_note.added',
+    eventId: crypto.randomUUID(),
     correlationId: null,
     propertyId: args.propertyId ?? null,
     userId: args.userId ?? null,
@@ -221,7 +227,7 @@ export type InboxItemBulkStatusChanged = Readonly<{
 export const inboxItemBulkStatusChanged = (
   args: Omit<
     InboxItemBulkStatusChanged,
-    '_tag' | 'correlationId' | 'userId' | 'source' | 'propertyId'
+    '_tag' | 'correlationId' | 'eventId' | 'userId' | 'source' | 'propertyId'
   > & { userId?: UserId; source?: 'web' | 'import'; propertyId?: PropertyId },
 ): InboxItemBulkStatusChanged => {
   if (!(args.occurredAt instanceof Date))
@@ -233,6 +239,7 @@ export const inboxItemBulkStatusChanged = (
     )
   return {
     _tag: 'inbox.inbox_item.bulk_status_changed',
+    eventId: crypto.randomUUID(),
     correlationId: null,
     propertyId: args.propertyId ?? null,
     userId: args.userId ?? null,

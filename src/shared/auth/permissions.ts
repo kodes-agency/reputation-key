@@ -21,9 +21,9 @@ import type { Role } from '#/shared/domain/roles'
 export const statement = {
   organization: ['update', 'delete'],
   member: ['create', 'list', 'update', 'delete'],
-  dashboard: ['read'],
+  dashboard: ['read', 'fleet_read'],
   invitation: ['create', 'list', 'cancel', 'resend'],
-  property: ['read', 'create', 'update', 'delete'],
+  property: ['read', 'create', 'update', 'delete', 'admin'],
   team: ['read', 'create', 'update', 'delete'],
   staff_assignment: ['read', 'create', 'delete'],
   ac: ['create', 'read', 'update', 'delete'],
@@ -35,8 +35,16 @@ export const statement = {
   badge: ['read', 'manage'],
   leaderboard: ['read'],
   inbox: ['read', 'write', 'manage'],
+  notification: ['read', 'update'],
   integration: ['manage'],
-  identity: ['avatar_upload', 'logo_upload', 'leave_org'],
+  identity: [
+    'avatar_upload',
+    'logo_upload',
+    'leave_org',
+    'password.change',
+    'profile.update',
+    'avatar.set',
+  ],
 } as const
 
 export const ac = createAccessControl(statement)
@@ -49,9 +57,9 @@ export const owner = ac.newRole(statement)
 
 export const admin = ac.newRole({
   member: ['create', 'list'],
-  dashboard: ['read'],
+  dashboard: ['read', 'fleet_read'],
   invitation: ['create', 'list', 'cancel', 'resend'],
-  property: ['read', 'create', 'update'],
+  property: ['read', 'create', 'update', 'admin'],
   team: ['read', 'create', 'update'],
   staff_assignment: ['read', 'create', 'delete'],
   portal: ['read', 'create', 'update'],
@@ -61,10 +69,18 @@ export const admin = ac.newRole({
   badge: ['read', 'manage'],
   leaderboard: ['read'],
   inbox: ['read', 'write', 'manage'],
+  notification: ['read', 'update'],
   organization: ['update'],
   goal: ['read', 'create', 'update', 'cancel'],
   integration: ['manage'],
-  identity: ['avatar_upload', 'logo_upload', 'leave_org'],
+  identity: [
+    'avatar_upload',
+    'logo_upload',
+    'leave_org',
+    'password.change',
+    'profile.update',
+    'avatar.set',
+  ],
 })
 
 export const memberRole = ac.newRole({
@@ -76,9 +92,15 @@ export const memberRole = ac.newRole({
   leaderboard: ['read'],
   portal: ['read'],
   team: ['read'],
-  staff_assignment: ['read'],
   inbox: ['read', 'write'],
-  identity: ['avatar_upload', 'leave_org'],
+  notification: ['read', 'update'],
+  identity: [
+    'avatar_upload',
+    'leave_org',
+    'password.change',
+    'profile.update',
+    'avatar.set',
+  ],
 })
 
 // ── Build and inject the permission table ──────────────────────────

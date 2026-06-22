@@ -8,12 +8,7 @@ import { resolveTenantContext } from '#/shared/auth/middleware'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 
 import { can } from '#/shared/domain/permissions'
-import { getAuth } from '#/shared/auth/auth'
 import { getContainer } from '#/composition'
-import {
-  extractOrgBillingFields,
-  type AuthOrganizationResponse,
-} from './organizations.shared'
 
 // ── Get active organization ────────────────────────────────────────
 
@@ -33,9 +28,9 @@ export const getActiveOrganization = createServerFn({ method: 'GET' }).handler(
             403,
           )
         }
-        const auth = getAuth()
+        const { identityPort } = getContainer()
 
-        const org = await auth.api.getFullOrganization({ headers })
+        const org = await identityPort.getActiveOrg(headers)
 
         if (!org) {
           return { organization: null, role: ctx.role }
@@ -46,9 +41,15 @@ export const getActiveOrganization = createServerFn({ method: 'GET' }).handler(
             id: org.id,
             name: org.name,
             slug: org.slug,
-            logo: org.logo ?? null,
+            logo: org.logo,
             createdAt: org.createdAt,
-            ...extractOrgBillingFields(org),
+            contactEmail: org.contactEmail,
+            billingCompanyName: org.billingCompanyName,
+            billingAddress: org.billingAddress,
+            billingCity: org.billingCity,
+            billingPostalCode: org.billingPostalCode,
+            billingCountry: org.billingCountry,
+            responseSlaHours: org.responseSlaHours,
           },
           role: ctx.role,
         }
@@ -116,21 +117,9 @@ export const listUserOrganizations = createServerFn({ method: 'GET' }).handler(
     async () => {
       try {
         const headers = await headersFromContext()
-        const auth = getAuth()
+        const { identityPort } = getContainer()
 
-        const result = await auth.api.listOrganizations({ headers })
-
-        const rawOrgs = (
-          Array.isArray(result) ? result : []
-        ) as AuthOrganizationResponse[]
-        const organizations = rawOrgs.map((org) => ({
-          id: org.id,
-          name: org.name,
-          slug: org.slug,
-          logo: org.logo ?? null,
-          createdAt: org.createdAt,
-          ...extractOrgBillingFields(org),
-        }))
+        const organizations = await identityPort.listUserOrganizations(headers)
 
         return { organizations }
       } catch (e) {

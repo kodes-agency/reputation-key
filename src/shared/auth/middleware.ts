@@ -10,6 +10,7 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import { toDomainRole } from '#/shared/domain/roles'
 import { organizationId, userId } from '#/shared/domain/ids'
 import { throwContextError } from './server-errors'
+import { enrichSpan } from '#/shared/observability/request-context'
 
 // ── Request-scoped tenant cache ───────────────────────────────
 // Within a single page load, multiple server functions call resolveTenantContext
@@ -131,6 +132,11 @@ export async function resolveTenantContext(headers: Headers): Promise<AuthContex
   if (key) {
     const cached = tenantCache.get(key)
     if (cached && Date.now() - cached.ts < TENANT_CACHE_TTL_MS) {
+      enrichSpan({
+        organizationId: cached.ctx.organizationId,
+        userId: cached.ctx.userId,
+        role: cached.ctx.role,
+      })
       return cached.ctx
     }
   }
@@ -163,5 +169,10 @@ export async function resolveTenantContext(headers: Headers): Promise<AuthContex
     evictOldestIfNeeded()
     tenantCache.set(key, { ctx, ts: Date.now() })
   }
+  enrichSpan({
+    organizationId: ctx.organizationId,
+    userId: ctx.userId,
+    role: ctx.role,
+  })
   return ctx
 }

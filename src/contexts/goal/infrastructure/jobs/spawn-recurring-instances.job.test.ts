@@ -116,18 +116,14 @@ function createFakeDeps(state: {
       currentSum: null,
       currentCount: null,
     }),
-    incrementProgress: async () => ({
-      currentValue: 0,
-      currentSum: null,
-      currentCount: null,
-    }),
     markGoalCompleted: async () => {},
-    findAllActive: async () => state.templates,
     findAllActiveRecurring: async () => state.templates,
     findAllActiveGlobal: async () => [],
     findActiveRecurringTemplates: async () => state.templates,
     findLatestInstance: async (parentId) =>
       state.latestInstance.get(parentId as string) ?? null,
+    cancelTemplateAndInstances: async () => null,
+    createRecurringGoalWithInstance: async () => {},
     createGoalAndProgress: async (goal, progress) => {
       created.push({ goal, progress })
     },

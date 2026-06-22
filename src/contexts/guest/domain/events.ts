@@ -10,6 +10,7 @@ import type {
   PropertyId,
   PortalLinkId,
 } from '#/shared/domain/ids'
+import { assert } from '#/shared/domain/assert'
 import type { ScanSource } from './types'
 import { guestError } from './errors'
 
@@ -26,13 +27,13 @@ export type GuestScanRecorded = Readonly<{
 }>
 
 export const guestScanRecorded = (
-  args: Omit<GuestScanRecorded, '_tag' | 'correlationId'>,
+  args: Omit<GuestScanRecorded, '_tag' | 'eventId' | 'correlationId'>,
 ): GuestScanRecorded => {
-  if (!(args.occurredAt instanceof Date))
-    throw guestError('invalid_source', 'occurredAt must be Date')
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
   if (args.scanId === '') throw guestError('invalid_source', 'scanId required')
   return {
     _tag: 'guest.scan.recorded',
+    eventId: crypto.randomUUID(),
     correlationId: null,
     ...args,
   }
@@ -51,13 +52,13 @@ export type GuestRatingSubmitted = Readonly<{
 }>
 
 export const guestRatingSubmitted = (
-  args: Omit<GuestRatingSubmitted, '_tag' | 'correlationId'>,
+  args: Omit<GuestRatingSubmitted, '_tag' | 'eventId' | 'correlationId'>,
 ): GuestRatingSubmitted => {
-  if (!(args.occurredAt instanceof Date))
-    throw guestError('invalid_rating', 'occurredAt must be Date')
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
   if (args.ratingId === '') throw guestError('invalid_rating', 'ratingId required')
   return {
     _tag: 'guest.rating.submitted',
+    eventId: crypto.randomUUID(),
     correlationId: null,
     ...args,
   }
@@ -76,13 +77,13 @@ export type GuestFeedbackSubmitted = Readonly<{
 }>
 
 export const guestFeedbackSubmitted = (
-  args: Omit<GuestFeedbackSubmitted, '_tag' | 'correlationId'>,
+  args: Omit<GuestFeedbackSubmitted, '_tag' | 'eventId' | 'correlationId'>,
 ): GuestFeedbackSubmitted => {
-  if (!(args.occurredAt instanceof Date))
-    throw guestError('invalid_rating', 'occurredAt must be Date')
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
   if (args.feedbackId === '') throw guestError('invalid_rating', 'feedbackId required')
   return {
     _tag: 'guest.feedback.submitted',
+    eventId: crypto.randomUUID(),
     correlationId: null,
     ...args,
   }
@@ -100,13 +101,13 @@ export type GuestReviewLinkClicked = Readonly<{
 }>
 
 export const guestReviewLinkClicked = (
-  args: Omit<GuestReviewLinkClicked, '_tag' | 'correlationId'>,
+  args: Omit<GuestReviewLinkClicked, '_tag' | 'eventId' | 'correlationId'>,
 ): GuestReviewLinkClicked => {
-  if (!(args.occurredAt instanceof Date))
-    throw guestError('invalid_source', 'occurredAt must be Date')
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
   if (args.linkId === '') throw guestError('invalid_source', 'linkId required')
   return {
     _tag: 'guest.review_link.clicked',
+    eventId: crypto.randomUUID(),
     correlationId: null,
     ...args,
   }

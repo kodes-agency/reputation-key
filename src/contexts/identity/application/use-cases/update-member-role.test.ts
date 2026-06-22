@@ -127,7 +127,7 @@ describe('updateMemberRole', () => {
     const [event] = events.capturedByTag('identity.member.role_changed')
     expect(event.previousRole).toBe('Staff')
     expect(event.newRole).toBe('PropertyManager')
-    expect(event.changedBy).toBe(ctx.userId)
+    expect(event.userId).toBe(ctx.userId)
     expect(event.organizationId).toBe(ctx.organizationId)
   })
 })

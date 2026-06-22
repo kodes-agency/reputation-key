@@ -27,3 +27,12 @@ export function assertLiteral<T extends string>(
   }
   return value as T
 }
+
+/**
+ * Pure runtime assertion. No Node builtins — safe for the domain layer.
+ * Use to guard invariants that the type system cannot express.
+ * Throws a plain Error (not node:assert) so domain code stays portable.
+ */
+export function assert(condition: unknown, message: string): asserts condition {
+  if (!condition) throw new Error(`Assertion failed: ${message}`)
+}

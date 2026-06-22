@@ -18,12 +18,13 @@ export type IntegrationGoogleAccountConnected = Readonly<{
   correlationId: string | null
 }>
 export const integrationGoogleAccountConnected = (
-  args: Omit<IntegrationGoogleAccountConnected, '_tag' | 'correlationId'>,
+  args: Omit<IntegrationGoogleAccountConnected, '_tag' | 'correlationId' | 'eventId'>,
 ): IntegrationGoogleAccountConnected => {
   if (!(args.occurredAt instanceof Date))
     throw integrationError('invalid_cache_entry', 'occurredAt must be Date')
   return {
     _tag: 'integration.google_account.connected',
+    eventId: crypto.randomUUID(),
     correlationId: null,
     ...args,
   }
@@ -38,12 +39,13 @@ export type IntegrationGoogleAccountDisconnected = Readonly<{
   correlationId: string | null
 }>
 export const integrationGoogleAccountDisconnected = (
-  args: Omit<IntegrationGoogleAccountDisconnected, '_tag' | 'correlationId'>,
+  args: Omit<IntegrationGoogleAccountDisconnected, '_tag' | 'correlationId' | 'eventId'>,
 ): IntegrationGoogleAccountDisconnected => {
   if (!(args.occurredAt instanceof Date))
     throw integrationError('invalid_cache_entry', 'occurredAt must be Date')
   return {
     _tag: 'integration.google_account.disconnected',
+    eventId: crypto.randomUUID(),
     correlationId: null,
     ...args,
   }
@@ -62,12 +64,13 @@ export type IntegrationPropertyImportCompleted = Readonly<{
   correlationId: string | null
 }>
 export const integrationPropertyImportCompleted = (
-  args: Omit<IntegrationPropertyImportCompleted, '_tag' | 'correlationId'>,
+  args: Omit<IntegrationPropertyImportCompleted, '_tag' | 'correlationId' | 'eventId'>,
 ): IntegrationPropertyImportCompleted => {
   if (!(args.occurredAt instanceof Date))
     throw integrationError('invalid_cache_entry', 'occurredAt must be Date')
   return {
     _tag: 'integration.property_import.completed',
+    eventId: crypto.randomUUID(),
     correlationId: null,
     ...args,
   }
@@ -83,12 +86,16 @@ export type IntegrationGoogleConnectionVisibilityChanged = Readonly<{
   correlationId: string | null
 }>
 export const integrationGoogleConnectionVisibilityChanged = (
-  args: Omit<IntegrationGoogleConnectionVisibilityChanged, '_tag' | 'correlationId'>,
+  args: Omit<
+    IntegrationGoogleConnectionVisibilityChanged,
+    '_tag' | 'correlationId' | 'eventId'
+  >,
 ): IntegrationGoogleConnectionVisibilityChanged => {
   if (!(args.occurredAt instanceof Date))
     throw integrationError('invalid_cache_entry', 'occurredAt must be Date')
   return {
     _tag: 'integration.google_connection.visibility_changed',
+    eventId: crypto.randomUUID(),
     correlationId: null,
     ...args,
   }

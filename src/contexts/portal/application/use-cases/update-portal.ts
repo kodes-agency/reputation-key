@@ -19,10 +19,13 @@ import { portalError } from '../../domain/errors'
 import { portalUpdated } from '../../domain/events'
 import type { Result } from '#/shared/domain'
 import type { PortalError } from '../../domain/errors'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import { assertPropertyAccess } from '../assert-property-access'
 
 // fallow-ignore-next-line unused-type
 export type UpdatePortalDeps = Readonly<{
   portalRepo: PortalRepository
+  staffPublicApi: StaffPublicApi
   events: EventBus
   clock: () => Date
 }>
@@ -116,6 +119,8 @@ export const updatePortal =
     if (!existing) {
       throw portalError('portal_not_found', 'portal not found in this organization')
     }
+    // Enforce property-assignment scoping (D6-001.)
+    await assertPropertyAccess(deps.staffPublicApi, ctx, existing.propertyId)
 
     const patch = await buildPortalPatch(
       input,

@@ -2,6 +2,7 @@
 // Full 7-step pattern: authorize → validate refs → check uniqueness → build → persist → emit → return
 
 import type { PortalGroupRepository } from '../ports/portal-group.repository'
+import type { PortalRepository } from '../ports/portal.repository'
 import type { PropertyPublicApi } from '#/contexts/property/application/public-api'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { PortalGroup, PortalGroupId } from '../../domain/types'
@@ -12,11 +13,15 @@ import { buildPortalGroup } from '../../domain/constructors'
 import { portalError } from '../../domain/errors'
 import { portalGroupCreated, portalAddedToGroup } from '../../domain/events'
 import { propertyId, portalId } from '#/shared/domain/ids'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import { assertPropertyAccess } from '../assert-property-access'
 
 // fallow-ignore-next-line unused-type
 export type CreatePortalGroupDeps = Readonly<{
   portalGroupRepo: PortalGroupRepository
+  portalRepo: PortalRepository
   propertyApi: PropertyPublicApi
+  staffPublicApi: StaffPublicApi
   events: EventBus
   idGen: () => PortalGroupId
   clock: () => Date
@@ -39,6 +44,8 @@ export const createPortalGroup =
     ) {
       throw portalError('property_not_found', 'property not found in this organization')
     }
+    // Enforce property-assignment scoping for PropertyManager (D6-001.)
+    await assertPropertyAccess(deps.staffPublicApi, ctx, propertyId(input.propertyId))
 
     // 3. Check uniqueness — group name must be unique per org+property
     if (
@@ -92,6 +99,17 @@ export const createPortalGroup =
           throw portalError(
             'portal_already_grouped',
             `portal ${brandedPid} is already in a group`,
+          )
+        }
+        // Verify the portal exists and belongs to the same property as the group.
+        const portal = await deps.portalRepo.findById(ctx.organizationId, brandedPid)
+        if (!portal) {
+          throw portalError('portal_not_found', `portal ${brandedPid} not found`)
+        }
+        if (String(portal.propertyId) !== String(group.propertyId)) {
+          throw portalError(
+            'forbidden',
+            `portal ${brandedPid} must belong to the same property as the group`,
           )
         }
       }

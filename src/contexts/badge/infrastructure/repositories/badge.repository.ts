@@ -335,14 +335,19 @@ export const createBadgeRepository = (db: Database, clock: Clock): BadgeReposito
         return []
       }
 
-      const conditions = [
-        eq(badgeAwards.organizationId, unbrand(input.organizationId)),
-        eq(badgeAwards.propertyId, unbrand(input.propertyId)),
+      // Each award carries exactly one of portalId / portalGroupId (the other
+      // is null), so the portal and group predicates must be OR-combined — an
+      // AND would match no row. orgId/propertyId stay AND-scoped.
+      const targetPredicates = [
         ...(portalIds.length > 0 ? [inArray(badgeAwards.portalId, portalIds)] : []),
         ...(groupIds.length > 0
           ? [inArray(badgeAwards.portalGroupId, unbrandAll(groupIds))]
           : []),
-      ] as const
+      ]
+      const targetMatch =
+        targetPredicates.length > 1
+          ? or(...targetPredicates)
+          : (targetPredicates[0] ?? sql`false`)
 
       const rows = await db
         .select({
@@ -366,7 +371,13 @@ export const createBadgeRepository = (db: Database, clock: Clock): BadgeReposito
         )
         .leftJoin(portals, eq(portals.id, badgeAwards.portalId))
         .leftJoin(portalGroups, eq(portalGroups.id, badgeAwards.portalGroupId))
-        .where(and(...conditions))
+        .where(
+          and(
+            eq(badgeAwards.organizationId, unbrand(input.organizationId)),
+            eq(badgeAwards.propertyId, unbrand(input.propertyId)),
+            targetMatch,
+          ),
+        )
         .orderBy(desc(badgeAwards.awardedAt))
         .limit(input.limit ?? 10)
 

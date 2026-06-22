@@ -35,12 +35,12 @@ export const listGbpLocations =
     input: ListLocationsInput,
     ctx: AuthContext,
   ): Promise<ReadonlyArray<GbpLocation>> => {
-    // Uses property.create because import creates property resources
+    // Uses integration.manage to match the server fn authorization
     // 1. Authorize
-    if (!can(ctx.role, 'property.create')) {
+    if (!can(ctx.role, 'integration.manage')) {
       throw integrationError(
         'forbidden',
-        'You do not have permission to create properties',
+        'Insufficient permissions to manage integrations',
       )
     }
 

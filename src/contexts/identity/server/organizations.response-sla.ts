@@ -12,12 +12,10 @@ import { resolveTenantContext } from '#/shared/auth/middleware'
 import { can } from '#/shared/domain/permissions'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getAuth } from '#/shared/auth/auth'
+import { getContainer } from '#/composition'
 import { isIdentityError } from '../domain/errors'
 import { throwIdentityError } from './organizations.errors.server'
-import {
-  extractResponseSlaHours,
-  DEFAULT_RESPONSE_SLA_HOURS,
-} from './organizations.shared'
+import { DEFAULT_RESPONSE_SLA_HOURS } from './organizations.shared'
 import { updateOrganization as updateOrganizationUseCase } from '../application/use-cases/update-organization'
 
 // ── Read ────────────────────────────────────────────────────────────
@@ -38,10 +36,10 @@ export const getOrgResponseSlaFn = createServerFn({ method: 'GET' }).handler(
             403,
           )
         }
-        const auth = getAuth()
-        const org = await auth.api.getFullOrganization({ headers })
+        const { identityPort } = getContainer()
+        const org = await identityPort.getActiveOrg(headers)
         // No active org is a valid state — fall back to the default SLA.
-        return { responseSlaHours: extractResponseSlaHours(org) }
+        return { responseSlaHours: org?.responseSlaHours ?? DEFAULT_RESPONSE_SLA_HOURS }
       } catch (e) {
         if (
           e instanceof Error &&

@@ -2,7 +2,6 @@
 import { createFileRoute, getRouteApi, redirect } from '@tanstack/react-router'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
-import { hasRole } from '#/shared/domain/roles'
 import { InboxPageV2, inboxSearchSchema } from '#/components/inbox/inbox-page-v2'
 import { bulkUpdateInboxStatusFn } from '#/contexts/inbox/server/inbox'
 
@@ -11,9 +10,9 @@ const authRoute = getRouteApi('/_authenticated')
 export const Route = createFileRoute('/_authenticated/inbox/')({
   beforeLoad: ({ context }) => {
     const { role } = context as AuthRouteContext
-    // Inbox (responding to reviews) is a manager+ surface. Staff are scoped to /home.
-    if (!hasRole(role, 'PropertyManager')) throw redirect({ to: '/home' })
-    if (!can(role, 'inbox.read')) throw redirect({ to: '/properties' })
+    // Inbox triage is a manager surface (inbox.manage).
+    // Staff have inbox.read for counts, not the triage surface.
+    if (!can(role, 'inbox.manage')) throw redirect({ to: '/home' })
   },
   validateSearch: (search) => inboxSearchSchema.parse(search),
   staleTime: 30_000,

@@ -11,6 +11,7 @@ import { duplicateKeyError } from '../ports/property-import-repo.port'
 import type { GbpImportJob } from '../../domain/types'
 import type { PropertyImportRepo } from '../ports/property-import-repo.port'
 import type { PropertyEventPort } from '../ports/property-event.port'
+import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
 
 // ── Helpers ──────────────────────────────────────────────────────
 
@@ -90,12 +91,14 @@ const CONNECTION_ID = 'e0000000-0000-0000-0000-000000000001'
 const setup = () => {
   const importRepo = createInMemoryGbpImportRepo()
   const propertyRepo = makePropertyImportRepo()
+  const eventBus = createCapturingEventBus()
   const events = makeEventPort()
 
   const deps = {
     importRepo,
     propertyRepo,
     events,
+    eventBus,
     toJobId: (id: string) => gbpImportJobId(id),
     toOrgId: (id: string) => organizationId(id),
     clock: () => FIXED_TIME,
@@ -127,6 +130,7 @@ const setup = () => {
       importRepo,
       propertyRepo: propertyRepoOverride,
       events: eventOverride ?? events,
+      eventBus,
       toJobId: (id: string) => gbpImportJobId(id),
       toOrgId: (id: string) => organizationId(id),
       clock: () => FIXED_TIME,

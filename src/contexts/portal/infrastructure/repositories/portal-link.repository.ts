@@ -87,10 +87,10 @@ export const createPortalLinkRepository = (db: Database): PortalLinkRepository =
 
   updateCategory: async (orgId, id, patch) => {
     return trace('portalLink.updateCategory', async () => {
-      const setValues: Record<string, unknown> = {}
+      const setValues: Partial<typeof portalLinkCategories.$inferInsert> = {}
       if (patch.title !== undefined) setValues.title = patch.title
-      if (patch.sortKey !== undefined) setValues.sort_key = patch.sortKey
-      if (patch.updatedAt !== undefined) setValues.updated_at = patch.updatedAt
+      if (patch.sortKey !== undefined) setValues.sortKey = patch.sortKey
+      if (patch.updatedAt !== undefined) setValues.updatedAt = patch.updatedAt
 
       await db
         .update(portalLinkCategories)
@@ -129,12 +129,12 @@ export const createPortalLinkRepository = (db: Database): PortalLinkRepository =
 
   updateLink: async (orgId, id, patch) => {
     return trace('portalLink.updateLink', async () => {
-      const setValues: Record<string, unknown> = {}
+      const setValues: Partial<typeof portalLinks.$inferInsert> = {}
       if (patch.label !== undefined) setValues.label = patch.label
       if (patch.url !== undefined) setValues.url = patch.url
-      if (patch.iconKey !== undefined) setValues.icon_key = patch.iconKey
-      if (patch.sortKey !== undefined) setValues.sort_key = patch.sortKey
-      if (patch.updatedAt !== undefined) setValues.updated_at = patch.updatedAt
+      if (patch.iconKey !== undefined) setValues.iconKey = patch.iconKey
+      if (patch.sortKey !== undefined) setValues.sortKey = patch.sortKey
+      if (patch.updatedAt !== undefined) setValues.updatedAt = patch.updatedAt
 
       await db
         .update(portalLinks)

@@ -24,7 +24,6 @@ import {
   portalGroupId as toPortalGroupId,
   goalId as toGoalId,
 } from '#/shared/domain/ids'
-import type { MetricKey, AggregationFunction } from '#/shared/domain/metric-keys'
 
 // ── Helpers ───────────────────────────────────────────────────────────
 
@@ -90,8 +89,8 @@ export const createGoal = createServerFn({ method: 'POST' })
             description: data.description ?? null,
             createdBy: ctx.userId,
             goalType: data.goalType,
-            aggregationFunction: data.aggregationFunction as AggregationFunction,
-            metricKey: data.metricKey as MetricKey,
+            aggregationFunction: data.aggregationFunction,
+            metricKey: data.metricKey,
             targetValue: data.targetValue,
             periodStart: data.periodStart ? new Date(data.periodStart) : null,
             periodEnd: data.periodEnd ? new Date(data.periodEnd) : null,
@@ -172,6 +171,7 @@ export const updateGoal = createServerFn({ method: 'POST' })
           const result = await useCases.updateGoal({
             goalId: toGoalId(data.goalId),
             organizationId: ctx.organizationId,
+            userId: ctx.userId,
             targetValue: data.targetValue,
             recurrenceRule: data.recurrenceRule ?? undefined,
             role: ctx.role,
@@ -256,6 +256,7 @@ export const cancelGoal = createServerFn({ method: 'POST' })
           const result = await useCases.cancelGoal({
             goalId: toGoalId(data.goalId),
             organizationId: ctx.organizationId,
+            userId: ctx.userId,
             role: ctx.role,
           })
 
@@ -317,6 +318,7 @@ export const listGoals = createServerFn({ method: 'GET' })
           const { useCases } = getContainer()
           const result = await useCases.listGoals({
             organizationId: ctx.organizationId,
+            userId: ctx.userId,
             propertyId: toPropertyId(data.propertyId),
             portalId: data.portalId ? toPortalId(data.portalId) : undefined,
             portalGroupId: data.portalGroupId
@@ -372,6 +374,7 @@ export const getGoal = createServerFn({ method: 'GET' })
           const result = await useCases.getGoal({
             goalId: toGoalId(data.goalId),
             organizationId: ctx.organizationId,
+            userId: ctx.userId,
             role: ctx.role,
           })
 

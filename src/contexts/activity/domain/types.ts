@@ -21,6 +21,9 @@ export type ActivityAction =
   | 'submitted'
   | 'added'
   | 'escalated'
+  | 'invited'
+  | 'connected'
+  | 'disconnected'
 
 export type ResourceType =
   | 'inbox_item'
@@ -29,6 +32,9 @@ export type ResourceType =
   | 'note'
   | 'property'
   | 'member'
+  | 'team'
+  | 'staff_assignment'
+  | 'integration'
 
 export type ActivityPayload = Readonly<{
   subject: string
@@ -51,5 +57,6 @@ export type ActivityLog = Readonly<{
   organizationId: OrganizationId
   payload: ActivityPayload
   source: 'web' | 'import'
+  eventId: string | null
   createdAt: Date
 }>

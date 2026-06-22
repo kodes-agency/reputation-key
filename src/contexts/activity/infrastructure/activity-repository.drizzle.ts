@@ -1,5 +1,6 @@
-import { and, eq, desc, sql } from 'drizzle-orm'
+import { and, eq, desc, inArray, or, isNull } from 'drizzle-orm'
 import { assertLiteral } from '#/shared/domain/assert'
+import { getLogger } from '#/shared/observability/logger'
 import type { Database } from '#/shared/db'
 import { activityLog } from '#/shared/db/schema/activity.schema'
 import type { OrganizationId } from '#/shared/domain/ids'
@@ -16,6 +17,8 @@ import type {
 import type { ActivityLog } from '../domain/types'
 import type { Role } from '#/shared/domain/roles'
 
+const log = getLogger().child({ component: 'activity-repo' })
+
 const VALID_ROLES = new Set<string>(['Staff', 'PropertyManager', 'AccountAdmin'])
 
 const VALID_ACTIONS: readonly ActivityLog['action'][] = [
@@ -30,6 +33,9 @@ const VALID_ACTIONS: readonly ActivityLog['action'][] = [
   'submitted',
   'added',
   'escalated',
+  'invited',
+  'connected',
+  'disconnected',
 ]
 const VALID_RESOURCE_TYPES: readonly ActivityLog['resourceType'][] = [
   'inbox_item',
@@ -38,21 +44,11 @@ const VALID_RESOURCE_TYPES: readonly ActivityLog['resourceType'][] = [
   'note',
   'property',
   'member',
+  'team',
+  'staff_assignment',
+  'integration',
 ]
 const VALID_SOURCES: readonly string[] = ['web', 'import']
-
-/** Deterministic JSON.stringify — sorts object keys at every level. */
-function stableStringify(value: unknown): string {
-  if (value === null || typeof value !== 'object') return JSON.stringify(value)
-  if (Array.isArray(value)) return '[' + value.map(stableStringify).join(',') + ']'
-  const obj = value as Record<string, unknown>
-  const keys = Object.keys(obj).sort()
-  return (
-    '{' +
-    keys.map((k) => JSON.stringify(k) + ':' + stableStringify(obj[k])).join(',') +
-    '}'
-  )
-}
 
 const activityFromRow = (row: typeof activityLog.$inferSelect): ActivityLog => ({
   id: activityLogId(row.id),
@@ -80,26 +76,46 @@ const activityFromRow = (row: typeof activityLog.$inferSelect): ActivityLog => (
     VALID_SOURCES,
     'activity.source',
   ) as ActivityLog['source'],
+  eventId: row.eventId ?? null,
   createdAt: row.createdAt,
 })
 
 export const createActivityRepository = (db: Database): ActivityRepository => ({
   insert: async (entry) => {
-    await db.insert(activityLog).values({
-      id: entry.id as string,
-      actorId: entry.actorId as string,
-      actorName: entry.actorName,
-      actorAvatarUrl: entry.actorAvatarUrl,
-      actorRole: entry.actorRole,
-      action: entry.action,
-      resourceType: entry.resourceType,
-      resourceId: entry.resourceId,
-      propertyId: entry.propertyId as string | null,
-      organizationId: entry.organizationId as string,
-      payload: entry.payload,
-      source: entry.source,
-      createdAt: entry.createdAt,
-    })
+    try {
+      await db.insert(activityLog).values({
+        id: entry.id as string,
+        actorId: entry.actorId as string,
+        actorName: entry.actorName,
+        actorAvatarUrl: entry.actorAvatarUrl,
+        actorRole: entry.actorRole,
+        action: entry.action,
+        resourceType: entry.resourceType,
+        resourceId: entry.resourceId,
+        propertyId: entry.propertyId as string | null,
+        organizationId: entry.organizationId as string,
+        payload: entry.payload,
+        source: entry.source,
+        eventId: entry.eventId,
+        createdAt: entry.createdAt,
+      })
+    } catch (error) {
+      // ACT-006: unique violation on (eventId, organizationId) — the job was
+      // redelivered after a concurrent insert succeeded. Treat as idempotent
+      // no-op so BullMQ doesn't retry a job whose effect already landed.
+      const isPg23505 =
+        error instanceof Error &&
+        'code' in error &&
+        (error as { code: string }).code === '23505'
+      if (isPg23505) {
+        log.info(
+          { eventId: entry.eventId, organizationId: entry.organizationId },
+          'Activity log entry already exists — idempotent no-op',
+        )
+        return
+      }
+      throw error
+    }
   },
 
   findDuplicate: async (input: FindDuplicateInput) => {
@@ -108,13 +124,8 @@ export const createActivityRepository = (db: Database): ActivityRepository => ({
       .from(activityLog)
       .where(
         and(
-          eq(activityLog.resourceType, input.resourceType),
-          eq(activityLog.resourceId, input.resourceId),
-          eq(activityLog.action, input.action),
+          eq(activityLog.eventId, input.eventId),
           eq(activityLog.organizationId, input.organizationId as string),
-          // F133: Stable JSON serialization for deterministic comparison.
-          // Sorts keys to avoid false negatives from differing insertion order.
-          sql`${activityLog.payload} = ${stableStringify(input.payload)}::jsonb`,
         ),
       )
       .limit(1)
@@ -148,6 +159,15 @@ export const createActivityRepository = (db: Database): ActivityRepository => ({
     }
     if (filter.propertyId) {
       conditions.push(eq(activityLog.propertyId, filter.propertyId as string))
+    }
+    // ACT-010: push property-access scoping into SQL instead of in-memory
+    // filter-then-slice. System-level entries (propertyId IS NULL) are always
+    // visible, matching the prior filterByPropertyAccess semantics.
+    if (filter.propertyIds) {
+      const ids = filter.propertyIds.map((p) => p as string)
+      conditions.push(
+        or(isNull(activityLog.propertyId), inArray(activityLog.propertyId, ids))!,
+      )
     }
 
     const rows = await db

@@ -18,6 +18,9 @@ import type { ReviewRepository } from '../ports/review.repository'
 import type { ReplyQueuePort } from '../ports/reply-queue.port'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { Reply, Review } from '../../domain/types'
+import { isReviewError } from '../../domain/errors'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { PropertyId } from '#/shared/domain/ids'
 import {
   reviewId,
   replyId,
@@ -26,6 +29,7 @@ import {
   propertyId,
 } from '#/shared/domain/ids'
 const ORG_ID = organizationId('org-1')
+const OTHER_ORG_ID = organizationId('org-isolated')
 const REVIEW_ID = reviewId('rev-1')
 const REPLY_ID = replyId('reply-1')
 const USER_ID = toUserId('user-1')
@@ -79,6 +83,17 @@ function makeReply(overrides: Partial<Reply> = {}): Reply {
   }
 }
 
+const makeStaffApi = (accessible: ReadonlyArray<PropertyId> | null): StaffPublicApi => ({
+  getAccessiblePropertyIds: async () => accessible,
+  getAssignedPortals: async () => [],
+  countAssignmentsByTeam: async () => 0,
+})
+
+const replyRepoWith = (reply: Reply | null): ReplyRepository => ({
+  ...makeDeps().replyRepo,
+  findInternalByReviewId: vi.fn(async () => reply),
+})
+
 function makeDeps(overrides: Partial<ReplyDeps> = {}): ReplyDeps {
   return {
     replyRepo: {
@@ -99,6 +114,7 @@ function makeDeps(overrides: Partial<ReplyDeps> = {}): ReplyDeps {
     } as unknown as EventBus,
     clock: () => NOW,
     idGen: () => REPLY_ID,
+    staffPublicApi: makeStaffApi(null),
     ...overrides,
   }
 }
@@ -209,6 +225,28 @@ describe('draftReply', () => {
     await expect(
       draftReply(deps)({ ...MANAGER_CTX, reviewId: REVIEW_ID, text: 'Edit' }),
     ).rejects.toThrow()
+  })
+
+  // ── Tenant isolation ──────────────────────────────────────────────
+  it('tags new reply with the caller organizationId (never a leaked org)', async () => {
+    const upsert = vi.fn(async (r: Reply) => r)
+    const deps = makeDeps({
+      replyRepo: {
+        ...makeDeps().replyRepo,
+        upsert,
+      } as unknown as ReplyRepository,
+    })
+
+    await draftReply(deps)({
+      ...MANAGER_CTX,
+      organizationId: OTHER_ORG_ID,
+      reviewId: REVIEW_ID,
+      text: 'Tenant-scoped reply',
+    })
+
+    expect(upsert).toHaveBeenCalledTimes(1)
+    const createdReply = upsert.mock.calls[0]![0] as Reply
+    expect(createdReply.organizationId).toBe(OTHER_ORG_ID)
   })
 })
 
@@ -480,6 +518,25 @@ describe('getReply', () => {
     const deps = makeDeps()
     await expect(getReply(deps)({ ...STAFF_CTX, reviewId: REVIEW_ID })).rejects.toThrow()
   })
+
+  // ── Tenant isolation ──────────────────────────────────────────────
+  it('passes the caller organizationId to the repo (never a leaked org)', async () => {
+    const findInternalByReviewId = vi.fn(async () => null)
+    const deps = makeDeps({
+      replyRepo: {
+        ...makeDeps().replyRepo,
+        findInternalByReviewId,
+      } as unknown as ReplyRepository,
+    })
+
+    await getReply(deps)({
+      ...MANAGER_CTX,
+      organizationId: OTHER_ORG_ID,
+      reviewId: REVIEW_ID,
+    })
+
+    expect(findInternalByReviewId).toHaveBeenCalledWith(REVIEW_ID, OTHER_ORG_ID)
+  })
 })
 
 // ── markReplyPublished ──────────────────────────────────────────────────
@@ -587,5 +644,142 @@ describe('retryPublish', () => {
     await expect(
       retryPublish(deps)({ ...MANAGER_CTX, reviewId: REVIEW_ID }),
     ).rejects.toThrow()
+  })
+})
+
+// ── property-assignment scoping (D6-001) ─────────────────────────────────
+// A PropertyManager may only mutate replies on reviews whose property they
+// are assigned to. AccountAdmin (staffApi → null) bypasses the check.
+
+describe('reply ops — property-assignment scoping (D6-001)', () => {
+  const expectForbidden = (e: unknown) =>
+    isReviewError(e) && (e as { code: string }).code === 'forbidden'
+
+  it('draftReply rejects PM without assignment and does not persist', async () => {
+    const deps = makeDeps({ staffPublicApi: makeStaffApi([]) })
+    await expect(
+      draftReply(deps)({ ...MANAGER_CTX, reviewId: REVIEW_ID, text: 'Hi' }),
+    ).rejects.toSatisfy(expectForbidden)
+    expect(deps.replyRepo.upsert).not.toHaveBeenCalled()
+  })
+
+  it('draftReply allows PM assigned to the property', async () => {
+    const deps = makeDeps({ staffPublicApi: makeStaffApi([PROP_ID]) })
+    const result = await draftReply(deps)({
+      ...MANAGER_CTX,
+      reviewId: REVIEW_ID,
+      text: 'Hi',
+    })
+    expect(result.status).toBe('draft')
+  })
+
+  it('submitReply rejects PM without assignment, allows when assigned', async () => {
+    const unassigned = makeDeps({
+      staffPublicApi: makeStaffApi([]),
+      replyRepo: replyRepoWith(makeReply({ status: 'draft' })),
+    })
+    await expect(
+      submitReply(unassigned)({ ...MANAGER_CTX, reviewId: REVIEW_ID }),
+    ).rejects.toSatisfy(expectForbidden)
+
+    const assigned = makeDeps({
+      staffPublicApi: makeStaffApi([PROP_ID]),
+      replyRepo: replyRepoWith(makeReply({ status: 'draft' })),
+    })
+    const result = await submitReply(assigned)({
+      ...MANAGER_CTX,
+      reviewId: REVIEW_ID,
+    })
+    expect(result.status).toBe('pending_approval')
+  })
+
+  it('approveReply rejects PM without assignment, allows when assigned', async () => {
+    const unassigned = makeDeps({
+      staffPublicApi: makeStaffApi([]),
+      replyRepo: replyRepoWith(makeReply({ status: 'pending_approval' })),
+    })
+    await expect(
+      approveReply(unassigned)({ ...MANAGER_CTX, reviewId: REVIEW_ID }),
+    ).rejects.toSatisfy(expectForbidden)
+
+    const assigned = makeDeps({
+      staffPublicApi: makeStaffApi([PROP_ID]),
+      replyRepo: replyRepoWith(makeReply({ status: 'pending_approval' })),
+    })
+    const result = await approveReply(assigned)({
+      ...MANAGER_CTX,
+      reviewId: REVIEW_ID,
+    })
+    expect(result.status).toBe('approved')
+  })
+
+  it('rejectReply rejects PM without assignment, allows when assigned', async () => {
+    const unassigned = makeDeps({
+      staffPublicApi: makeStaffApi([]),
+      replyRepo: replyRepoWith(makeReply({ status: 'pending_approval' })),
+    })
+    await expect(
+      rejectReply(unassigned)({ ...MANAGER_CTX, reviewId: REVIEW_ID }),
+    ).rejects.toSatisfy(expectForbidden)
+
+    const assigned = makeDeps({
+      staffPublicApi: makeStaffApi([PROP_ID]),
+      replyRepo: replyRepoWith(makeReply({ status: 'pending_approval' })),
+    })
+    const result = await rejectReply(assigned)({
+      ...MANAGER_CTX,
+      reviewId: REVIEW_ID,
+      reason: 'Tone',
+    })
+    expect(result.status).toBe('rejected')
+  })
+
+  it('deleteReply rejects PM without assignment, allows when assigned', async () => {
+    const unassigned = makeDeps({
+      staffPublicApi: makeStaffApi([]),
+      replyRepo: replyRepoWith(makeReply({ status: 'draft' })),
+    })
+    await expect(
+      deleteReply(unassigned)({ ...MANAGER_CTX, reviewId: REVIEW_ID }),
+    ).rejects.toSatisfy(expectForbidden)
+
+    const assigned = makeDeps({
+      staffPublicApi: makeStaffApi([PROP_ID]),
+      replyRepo: replyRepoWith(makeReply({ status: 'draft' })),
+    })
+    await deleteReply(assigned)({ ...MANAGER_CTX, reviewId: REVIEW_ID })
+    expect(assigned.replyRepo.deleteById).toHaveBeenCalledWith(REPLY_ID, ORG_ID)
+  })
+
+  it('retryPublish rejects PM without assignment, allows when assigned', async () => {
+    const unassigned = makeDeps({
+      staffPublicApi: makeStaffApi([]),
+      replyRepo: replyRepoWith(makeReply({ status: 'publish_failed' })),
+    })
+    await expect(
+      retryPublish(unassigned)({ ...MANAGER_CTX, reviewId: REVIEW_ID }),
+    ).rejects.toSatisfy(expectForbidden)
+
+    const assigned = makeDeps({
+      staffPublicApi: makeStaffApi([PROP_ID]),
+      replyRepo: replyRepoWith(makeReply({ status: 'publish_failed' })),
+    })
+    const result = await retryPublish(assigned)({
+      ...MANAGER_CTX,
+      reviewId: REVIEW_ID,
+    })
+    expect(result.status).toBe('approved')
+    expect(assigned.queue.addPublishJob).toHaveBeenCalledTimes(1)
+  })
+
+  it('AccountAdmin bypasses the assignment check (staffApi → null)', async () => {
+    const deps = makeDeps({
+      replyRepo: replyRepoWith(makeReply({ status: 'draft' })),
+    }) // default staffApi returns null = org-wide access
+    const result = await submitReply(deps)({
+      ...ADMIN_CTX,
+      reviewId: REVIEW_ID,
+    })
+    expect(result.status).toBe('pending_approval')
   })
 })

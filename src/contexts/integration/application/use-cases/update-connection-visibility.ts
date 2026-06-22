@@ -61,7 +61,6 @@ export const updateConnectionVisibility =
     // 4. Emit event
     await deps.events.emit(
       integrationGoogleConnectionVisibilityChanged({
-        eventId: crypto.randomUUID(),
         connectionId,
         organizationId: ctx.organizationId,
         visibility: input.visibility,

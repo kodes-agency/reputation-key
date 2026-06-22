@@ -37,14 +37,38 @@ export const createGuestInteractionRepository = (
     if (!rating.organizationId)
       throw guestError('forbidden', 'organizationId is required')
     return trace('guestInteraction.insertRating', async () => {
-      await db.insert(ratings).values(ratingToRow(rating))
+      try {
+        await db.insert(ratings).values(ratingToRow(rating))
+      } catch (err) {
+        const isPg23505 =
+          err instanceof Error &&
+          'code' in err &&
+          (err as { code: string }).code === '23505'
+        if (isPg23505) {
+          throw guestError('duplicate_rating', 'You have already rated this portal')
+        }
+        throw err
+      }
     })
   },
-
   insertFeedback: async (fb) => {
     if (!fb.organizationId) throw guestError('forbidden', 'organizationId is required')
     return trace('guestInteraction.insertFeedback', async () => {
-      await db.insert(feedback).values(feedbackToRow(fb))
+      try {
+        await db.insert(feedback).values(feedbackToRow(fb))
+      } catch (err) {
+        const isPg23505 =
+          err instanceof Error &&
+          'code' in err &&
+          (err as { code: string }).code === '23505'
+        if (isPg23505) {
+          throw guestError(
+            'duplicate_feedback',
+            'You have already submitted feedback for this portal',
+          )
+        }
+        throw err
+      }
     })
   },
 

@@ -1,7 +1,7 @@
 import type { NotificationType } from '#/contexts/notification/application/public-api'
 
 // Display metadata for every notification type the backend recognises.
-// Keep in sync with NOTIFICATION_TYPES in notification/server/notifications.ts.
+// Keep in sync with NOTIFICATION_TYPES in notification/domain/types.ts (single source).
 export const TYPE_ROWS: ReadonlyArray<{
   type: NotificationType
   label: string

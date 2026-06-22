@@ -25,12 +25,13 @@ export type MetricRecorded = Readonly<{
   correlationId: string | null
 }>
 export const metricRecorded = (
-  args: Omit<MetricRecorded, '_tag' | 'correlationId'>,
+  args: Omit<MetricRecorded, '_tag' | 'correlationId' | 'eventId'>,
 ): MetricRecorded => {
   if (!(args.occurredAt instanceof Date))
     throw metricError('invalid_value', 'occurredAt must be Date')
   return {
     _tag: 'metric.recorded',
+    eventId: crypto.randomUUID(),
     correlationId: null,
     ...args,
   }

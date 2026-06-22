@@ -5,10 +5,18 @@ import { listPortals } from './list-portals'
 import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
 import { propertyId } from '#/shared/domain/ids'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { PropertyId } from '#/shared/domain/ids'
 
-const setup = () => {
+const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublicApi => ({
+  getAccessiblePropertyIds: async () => accessible,
+  getAssignedPortals: async () => [],
+  countAssignmentsByTeam: async () => 0,
+})
+
+const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
   const portalRepo = createInMemoryPortalRepo()
-  const useCase = listPortals({ portalRepo })
+  const useCase = listPortals({ portalRepo, staffPublicApi: staffApiMock(accessible) })
   return { useCase, portalRepo }
 }
 
@@ -60,7 +68,8 @@ describe('listPortals', () => {
     const ctx = buildTestAuthContext()
     const otherOrgPortal = buildTestPortal({
       id: 'p-other',
-      organizationId: 'org-00000000-0000-0000-0000-000000000002' as unknown as import('#/shared/domain/ids').OrganizationId,
+      organizationId:
+        'org-00000000-0000-0000-0000-000000000002' as unknown as import('#/shared/domain/ids').OrganizationId,
     })
     const ownPortal = buildTestPortal({ id: 'p-own' })
     portalRepo.seed([otherOrgPortal, ownPortal])
@@ -69,5 +78,21 @@ describe('listPortals', () => {
 
     expect(result).toHaveLength(1)
     expect(result[0].id).toBe(ownPortal.id)
+  })
+
+  it('scopes results to accessible properties for PropertyManager', async () => {
+    const propA = propertyId('a0000000-0000-0000-0000-000000000001')
+    const propB = propertyId('b0000000-0000-0000-0000-000000000002')
+    const { useCase, portalRepo } = setup([propA])
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    portalRepo.seed([
+      buildTestPortal({ id: 'p1', propertyId: propA }),
+      buildTestPortal({ id: 'p2', propertyId: propB }),
+    ])
+
+    const result = await useCase({}, ctx)
+
+    expect(result).toHaveLength(1)
+    expect(result[0].propertyId).toBe(propA)
   })
 })

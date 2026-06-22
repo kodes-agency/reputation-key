@@ -6,13 +6,26 @@ import { createInMemoryPropertyRepo } from '#/shared/testing/in-memory-property-
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
 import { buildTestAuthContext, buildTestProperty } from '#/shared/testing/fixtures'
 import { isPropertyError } from '../../domain/errors'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { PropertyId } from '#/shared/domain/ids'
 
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
 
-const setup = () => {
+const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublicApi => ({
+  getAccessiblePropertyIds: async () => accessible,
+  getAssignedPortals: async () => [],
+  countAssignmentsByTeam: async () => 0,
+})
+
+const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
   const propertyRepo = createInMemoryPropertyRepo()
   const events = createCapturingEventBus()
-  const deps = { propertyRepo, events, clock: () => FIXED_TIME }
+  const deps = {
+    propertyRepo,
+    events,
+    clock: () => FIXED_TIME,
+    staffPublicApi: staffApiMock(accessible),
+  }
   const useCase = updateProperty(deps)
   return { useCase, propertyRepo, events }
 }
@@ -51,6 +64,27 @@ describe('updateProperty', () => {
     await expect(useCase({ propertyId: 'any', name: 'Test' }, ctx)).rejects.toSatisfy(
       (e: unknown) => isPropertyError(e) && (e as { code: string }).code === 'forbidden',
     )
+  })
+
+  it('rejects PropertyManager without assignment to the property', async () => {
+    const { useCase, propertyRepo } = setup([]) // PM not assigned to any property
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const prop = buildTestProperty({ name: 'Name' })
+    propertyRepo.seed([prop])
+
+    await expect(useCase({ propertyId: prop.id, name: 'X' }, ctx)).rejects.toSatisfy(
+      (e: unknown) => isPropertyError(e) && (e as { code: string }).code === 'forbidden',
+    )
+  })
+
+  it('allows PropertyManager assigned to the property', async () => {
+    const prop = buildTestProperty({ name: 'Old' })
+    const { useCase, propertyRepo } = setup([prop.id]) // PM assigned to this property
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    propertyRepo.seed([prop])
+
+    const updated = await useCase({ propertyId: prop.id, name: 'New' }, ctx)
+    expect(updated.name).toBe('New')
   })
 
   it('rejects update to non-existent property', async () => {

@@ -10,7 +10,11 @@ import type { NotificationRepositoryPort } from '../ports/notification-repositor
 import type { NotificationEmailRepositoryPort } from '../ports/notification-email-repository.port'
 import type { NotificationPreferenceRepositoryPort } from '../ports/notification-preference-repository.port'
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import type { NotificationId, NotificationEmailId } from '#/shared/domain/ids'
+import {
+  unbrand,
+  type NotificationId,
+  type NotificationEmailId,
+} from '#/shared/domain/ids'
 import type { Notification as DomainNotification } from '../../domain/types'
 
 // ── Input ───────────────────────────────────────────────────────────
@@ -65,8 +69,8 @@ const enqueueUrgentEmailBestEffort = async (
   if (!deps.enqueueUrgentEmail) return
   try {
     await deps.enqueueUrgentEmail({
-      notificationEmailId: emailId as string,
-      organizationId: notification.organizationId as string,
+      notificationEmailId: unbrand(emailId),
+      organizationId: unbrand(notification.organizationId),
     })
   } catch (enqueueErr) {
     deps.logger.error(

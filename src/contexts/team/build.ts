@@ -10,7 +10,6 @@ import { createTeamRepository } from './infrastructure/repositories/team.reposit
 import { createTeam } from './application/use-cases/create-team'
 import { updateTeam } from './application/use-cases/update-team'
 import { listTeams } from './application/use-cases/list-teams'
-import { getTeam } from './application/use-cases/get-team'
 import { softDeleteTeam } from './application/use-cases/soft-delete-team'
 import type { AssignmentCheckPort } from './application/ports/assignment-check.port'
 import { teamId } from '#/shared/domain/ids'
@@ -25,7 +24,7 @@ type TeamContextDeps = Readonly<{
 }>
 
 export const buildTeamContext = (deps: TeamContextDeps) => {
-  const teamRepo = createTeamRepository(deps.db)
+  const teamRepo = createTeamRepository(deps.db, deps.clock)
   const idGen = () => teamId(randomUUID())
 
   // Anti-corruption: delegate assignment counting to staff context via public API
@@ -37,12 +36,14 @@ export const buildTeamContext = (deps: TeamContextDeps) => {
     createTeam: createTeam({
       teamRepo,
       propertyApi: deps.propertyApi,
+      staffApi: deps.staffApi,
       events: deps.events,
       idGen,
       clock: deps.clock,
     }),
     updateTeam: updateTeam({
       teamRepo,
+      staffApi: deps.staffApi,
       events: deps.events,
       clock: deps.clock,
     }),
@@ -50,12 +51,9 @@ export const buildTeamContext = (deps: TeamContextDeps) => {
       teamRepo,
       staffApi: deps.staffApi,
     }),
-    getTeam: getTeam({
-      teamRepo,
-      staffApi: deps.staffApi,
-    }),
     softDeleteTeam: softDeleteTeam({
       teamRepo,
+      staffApi: deps.staffApi,
       assignmentCheck,
       events: deps.events,
       clock: deps.clock,

@@ -3,6 +3,7 @@
 // Per ADR-0001: the composition root calls this and passes publicApis from upstream contexts.
 
 import type { PropertyPublicApi } from '#/contexts/property/application/public-api'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { PortalPublicApi } from './application/public-api'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { Database } from '#/shared/db'
@@ -36,14 +37,17 @@ import { softDeletePortalGroup } from './application/use-cases/soft-delete-porta
 import { addPortalToGroup } from './application/use-cases/add-portal-to-group'
 import { removePortalFromGroup } from './application/use-cases/remove-portal-from-group'
 import { portalId, portalGroupId } from '#/shared/domain/ids'
+import type { Queue } from 'bullmq'
 
 type PortalContextDeps = Readonly<{
   db: Database
   events: EventBus
   clock: () => Date
   propertyApi: PropertyPublicApi
+  staffPublicApi: StaffPublicApi
   baseUrl: string
   idGen: () => string
+  queue: Queue | undefined
   storageConfig: Readonly<{
     accessKey: string
     secretKey: string
@@ -70,99 +74,139 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     createPortal: createPortal({
       portalRepo,
       propertyApi: deps.propertyApi,
+      staffPublicApi: deps.staffPublicApi,
       events: deps.events,
       idGen: portalIdGen,
       clock: deps.clock,
     }),
     updatePortal: updatePortal({
       portalRepo,
+      staffPublicApi: deps.staffPublicApi,
       events: deps.events,
       clock: deps.clock,
     }),
-    getPortal: getPortal({ portalRepo }),
-    listPortals: listPortals({ portalRepo }),
+    getPortal: getPortal({ portalRepo, staffPublicApi: deps.staffPublicApi }),
+    listPortals: listPortals({ portalRepo, staffPublicApi: deps.staffPublicApi }),
     softDeletePortal: softDeletePortal({
       portalRepo,
+      staffPublicApi: deps.staffPublicApi,
       events: deps.events,
       clock: deps.clock,
     }),
     createLinkCategory: createLinkCategory({
       portalRepo,
       portalLinkRepo,
+      staffPublicApi: deps.staffPublicApi,
       events: deps.events,
       idGen: linkIdGen,
       clock: deps.clock,
     }),
     updateLinkCategory: updateLinkCategory({
+      portalRepo,
       portalLinkRepo,
+      staffPublicApi: deps.staffPublicApi,
       clock: deps.clock,
     }),
-    deleteLinkCategory: deleteLinkCategory({ portalLinkRepo }),
-    reorderCategories: reorderCategories({
+    deleteLinkCategory: deleteLinkCategory({
+      portalRepo,
       portalLinkRepo,
+      staffPublicApi: deps.staffPublicApi,
+    }),
+    reorderCategories: reorderCategories({
+      portalRepo,
+      portalLinkRepo,
+      staffPublicApi: deps.staffPublicApi,
       events: deps.events,
       clock: deps.clock,
     }),
     createLink: createLink({
+      portalRepo,
       portalLinkRepo,
+      staffPublicApi: deps.staffPublicApi,
       events: deps.events,
       idGen: linkIdGen,
       clock: deps.clock,
     }),
-    updateLink: updateLink({ portalLinkRepo, clock: deps.clock }),
-    deleteLink: deleteLink({ portalLinkRepo }),
-    reorderLinks: reorderLinks({
+    updateLink: updateLink({
+      portalRepo,
       portalLinkRepo,
+      staffPublicApi: deps.staffPublicApi,
+      clock: deps.clock,
+    }),
+    deleteLink: deleteLink({
+      portalRepo,
+      portalLinkRepo,
+      staffPublicApi: deps.staffPublicApi,
+    }),
+    reorderLinks: reorderLinks({
+      portalRepo,
+      portalLinkRepo,
+      staffPublicApi: deps.staffPublicApi,
       events: deps.events,
       clock: deps.clock,
     }),
     requestUploadUrl: requestUploadUrl({
       portalRepo,
       storage,
+      staffPublicApi: deps.staffPublicApi,
       idGen: deps.idGen,
     }),
     finalizeUpload: finalizeUpload({
       portalRepo,
       storage,
+      staffPublicApi: deps.staffPublicApi,
       clock: deps.clock,
+      queue: deps.queue,
     }),
     getPortalQrUrl: getPortalQrUrl({
       portalRepo,
+      staffPublicApi: deps.staffPublicApi,
       baseUrl: deps.baseUrl,
     }),
     listPortalLinks: listPortalLinks({
       portalLinkRepo,
+      portalRepo,
+      staffPublicApi: deps.staffPublicApi,
     }),
     createPortalGroup: createPortalGroup({
       portalGroupRepo,
+      portalRepo,
       propertyApi: deps.propertyApi,
+      staffPublicApi: deps.staffPublicApi,
       events: deps.events,
       idGen: portalGroupIdGen,
       clock: deps.clock,
     }),
     updatePortalGroup: updatePortalGroup({
       portalGroupRepo,
+      staffPublicApi: deps.staffPublicApi,
       events: deps.events,
       clock: deps.clock,
     }),
     listPortalGroups: listPortalGroups({
       portalGroupRepo,
+      staffPublicApi: deps.staffPublicApi,
     }),
     getPortalGroup: getPortalGroup({
       portalGroupRepo,
+      staffPublicApi: deps.staffPublicApi,
     }),
     softDeletePortalGroup: softDeletePortalGroup({
       portalGroupRepo,
+      staffPublicApi: deps.staffPublicApi,
       events: deps.events,
       clock: deps.clock,
     }),
     addPortalToGroup: addPortalToGroup({
       portalGroupRepo,
+      portalRepo,
+      staffPublicApi: deps.staffPublicApi,
       events: deps.events,
       clock: deps.clock,
     }),
     removePortalFromGroup: removePortalFromGroup({
       portalGroupRepo,
+      staffPublicApi: deps.staffPublicApi,
       events: deps.events,
       clock: deps.clock,
     }),
@@ -189,6 +233,8 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     },
     getGroupPortalIds: (orgId, groupId) =>
       portalGroupRepo.getGroupPortalIds(orgId, groupId),
+    findGroupIdsByPortalIds: (orgId, portalIds) =>
+      portalRepo.findGroupIdsByPortalIds(orgId, portalIds),
   }
 
   return {

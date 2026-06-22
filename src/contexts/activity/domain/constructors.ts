@@ -28,6 +28,7 @@ export type CreateActivityLogInput = Readonly<{
   organizationId: OrganizationId
   payload: ActivityLog['payload']
   source: ActivityLog['source']
+  eventId: string
 }>
 
 // Validators sync with the ActivityAction/ResourceType/source type unions —
@@ -45,6 +46,9 @@ const ALLOWED_ACTIONS: ReadonlySet<ActivityAction> = new Set([
   'submitted',
   'added',
   'escalated',
+  'invited',
+  'connected',
+  'disconnected',
 ])
 
 const ALLOWED_RESOURCE_TYPES: ReadonlySet<ActivityLog['resourceType']> = new Set([
@@ -54,6 +58,9 @@ const ALLOWED_RESOURCE_TYPES: ReadonlySet<ActivityLog['resourceType']> = new Set
   'note',
   'property',
   'member',
+  'team',
+  'staff_assignment',
+  'integration',
 ])
 
 const ALLOWED_SOURCES: ReadonlySet<ActivityLog['source']> = new Set(['web', 'import'])
@@ -103,6 +110,7 @@ export const createActivityLog = (
     organizationId: input.organizationId,
     payload: input.payload,
     source: input.source,
+    eventId: input.eventId,
     createdAt: clock(),
   })
 }

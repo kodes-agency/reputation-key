@@ -15,6 +15,7 @@ const PENDING_INVITATION: InvitationRecord = {
   status: 'pending',
   expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
   createdAt: new Date(),
+  propertyIds: [],
 }
 
 const setup = () => {

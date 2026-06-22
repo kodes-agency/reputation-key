@@ -85,7 +85,6 @@ export const updateInboxStatus =
     // 5. Emit event
     await deps.events.emit(
       inboxItemStatusChanged({
-        eventId: crypto.randomUUID(),
         inboxItemId: updated.id,
         organizationId: updated.organizationId,
         propertyId: updated.propertyId,
@@ -99,7 +98,6 @@ export const updateInboxStatus =
     if (input.newStatus === 'escalated') {
       await deps.events.emit(
         inboxItemEscalated({
-          eventId: crypto.randomUUID(),
           inboxItemId: updated.id,
           organizationId: updated.organizationId,
           propertyId: updated.propertyId,

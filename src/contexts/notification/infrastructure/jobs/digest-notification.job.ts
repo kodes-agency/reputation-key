@@ -109,8 +109,7 @@ const markEntriesSent = async (
       sentNow,
       sentNow,
     )
-    // State machine: only 'pending' → 'sent'. See domain/constructors-transitions.ts markEmailSent.
-    // The repo WHERE clause (pending-only in findPendingByOrg) enforces this at DB level.
+    // State machine: only 'pending' → 'sent'. Enforced at DB level by the repo's pending-only WHERE clause.
   }
 }
 
@@ -129,8 +128,7 @@ const markEntriesFailed = async (
         failNow,
         failNow,
       )
-      // State machine: only 'pending'/'failed' → 'failed'. See domain/constructors-transitions.ts markEmailFailed.
-      // The repo WHERE clause enforces this at DB level.
+      // State machine: only 'pending'/'failed' → 'failed'. Enforced at DB level by the repo WHERE clause.
     } catch (markErr) {
       deps.logger.error(
         { markErr, notificationEmailId: entry.id },

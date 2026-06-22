@@ -41,7 +41,6 @@ export const createPurgeExpiredReviewsHandler = (deps: PurgeHandlerDeps) => {
           // Emit event BEFORE delete so downstream handlers can still access review data
           await deps.events.emit(
             reviewExpired({
-              eventId: crypto.randomUUID(),
               reviewId: review.id,
               propertyId: review.propertyId,
               organizationId: review.organizationId,

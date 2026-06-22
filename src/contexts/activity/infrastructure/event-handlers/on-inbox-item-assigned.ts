@@ -15,6 +15,7 @@ export const onInboxItemAssigned =
       organizationId: event.organizationId,
       userId: event.userId || null,
       source: event.source,
+      eventId: event.eventId,
       payload: {
         subject: 'inbox_item',
         from: null,

@@ -38,17 +38,6 @@ export type LeaderboardEntry = Readonly<{
   createdAt: Date
 }>
 
-export type LeaderboardSnapshot = Readonly<{
-  id: LeaderboardSnapshotId
-  propertyId: PropertyId
-  period: LeaderboardPeriod
-  scope: LeaderboardScope
-  metricKey: LeaderboardMetricKey
-  scoreKey: string
-  lastUpdatedAt: Date
-  createdAt: Date
-}>
-
 export type LeaderboardEntryWithTarget = LeaderboardEntry &
   Readonly<{
     targetName: string

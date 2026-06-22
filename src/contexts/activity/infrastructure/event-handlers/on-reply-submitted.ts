@@ -16,12 +16,13 @@ export const onReplySubmitted =
 
     const payload: InsertActivityLogInput = {
       action: 'submitted' as const,
-      resourceType: 'inbox_item' as const,
-      resourceId: inboxItemId,
+      resourceType: 'reply' as const,
+      resourceId: event.replyId as string,
       propertyId: event.propertyId || null,
       organizationId: event.organizationId,
       userId: event.userId || null,
       source: event.source,
+      eventId: event.eventId,
       payload: { subject: 'reply', from: null, to: null, detail: null },
     }
     await deps.queue.add('insert-activity-log', payload)

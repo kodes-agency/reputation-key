@@ -8,6 +8,13 @@ import { staffAssignments } from '#/shared/db/schema/staff-assignment.schema'
 import { userId, type UserId, type OrganizationId, unbrand } from '#/shared/domain/ids'
 import { toBetterAuthRole, type Role } from '#/shared/domain/roles'
 
+// Recipients of property-scoped notifications: AccountAdmins, PropertyManagers,
+// AND Staff (root CONTEXT.md: "property managers AND staff"). Derived from the
+// canonical Role union via toBetterAuthRole() so it tracks role changes.
+const PROPERTY_NOTIFY_ROLES = (['AccountAdmin', 'PropertyManager', 'Staff'] as const).map(
+  toBetterAuthRole,
+)
+
 export const createDbUserLookupAdapter = (db: Database) => {
   return {
     /** Find all user IDs in an org that hold the given domain role. */
@@ -22,7 +29,7 @@ export const createDbUserLookupAdapter = (db: Database) => {
       return rows.map((r) => userId(r.userId))
     },
 
-    /** Find user IDs of managers (owner/admin) assigned to a property via staff_assignments. */
+    /** Find user IDs (managers AND staff) assigned to a property via staff_assignments. */
     async findAssignedManagers(
       orgId: OrganizationId,
       propertyId: string,
@@ -42,7 +49,7 @@ export const createDbUserLookupAdapter = (db: Database) => {
             eq(staffAssignments.organizationId, unbrand(orgId)),
             eq(staffAssignments.propertyId, propertyId),
             isNull(staffAssignments.deletedAt),
-            inArray(member.role, ['owner', 'admin']),
+            inArray(member.role, PROPERTY_NOTIFY_ROLES),
           ),
         )
       return rows.map((r) => userId(r.userId))

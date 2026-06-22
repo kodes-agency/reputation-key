@@ -6,6 +6,7 @@ import { userId, propertyId, portalId } from '#/shared/domain/ids'
 import type { UserId, PropertyId, PortalId } from '#/shared/domain/ids'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { DomainEvent } from '#/shared/events/events'
+import type { StaffPublicApi } from '../public-api'
 
 const setup = () => {
   const assignmentRepo = createInMemoryStaffAssignmentRepo()
@@ -25,7 +26,17 @@ const setup = () => {
 
   const useCase = updateStaffPortals({
     assignmentRepo,
+    portalLookup: {
+      // Permissive mock — all test portal IDs are valid for any property
+      listPortalIdsByProperty: async () => [portalA, portalB, portalC],
+      getPortalInfo: async () => null,
+    },
     events: mockEventBus,
+    staffPublicApi: {
+      getAccessiblePropertyIds: async () => null,
+      getAssignedPortals: async () => [],
+      countAssignmentsByTeam: async () => 0,
+    } satisfies StaffPublicApi,
     clock,
     idGen,
   })

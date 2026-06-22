@@ -23,7 +23,7 @@ export type { CreateNotificationPreferenceInput } from '../domain/constructors-p
 
 // ── Error re-exports ──────────────────────────────────────────────────
 export type { NotificationError } from '../domain/errors'
-export { notificationError } from '../domain/errors'
+export { notificationError, isNotificationError } from '../domain/errors'
 
 // ── Port type re-exports ──────────────────────────────────────────────
 export type { NotificationRepositoryPort } from './ports/notification-repository.port'

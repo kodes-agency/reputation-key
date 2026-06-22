@@ -79,7 +79,6 @@ export const addInboxNote =
     // 4. Emit event
     await deps.events.emit(
       inboxNoteAdded({
-        eventId: crypto.randomUUID(),
         inboxItemId: note.inboxItemId,
         organizationId: note.organizationId,
         propertyId: item.propertyId,

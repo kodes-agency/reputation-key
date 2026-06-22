@@ -4,17 +4,13 @@ import { describe, it, expect } from 'vitest'
 // Since the module only re-exports types and a few runtime values,
 // we verify the runtime exports are callable/exist at import time.
 
-import { goalCompleted, goalProgressUpdated } from '../domain/events'
+import { goalCompleted } from '../domain/events'
 import { deriveEntityScope } from './public-api'
 import { goalId, organizationId, propertyId, userId } from '#/shared/domain/ids'
 
 describe('GoalPublicApi', () => {
   it('exports goalCompleted factory', () => {
     expect(typeof goalCompleted).toBe('function')
-  })
-
-  it('exports goalProgressUpdated factory', () => {
-    expect(typeof goalProgressUpdated).toBe('function')
   })
 
   it('exports deriveEntityScope helper', () => {
@@ -38,18 +34,5 @@ describe('GoalPublicApi', () => {
       createdBy: userId('u1'),
     })
     expect(event._tag).toBe('goal.completed')
-  })
-
-  it('goalProgressUpdated creates an event with _tag goal.progress_updated', () => {
-    const event = goalProgressUpdated({
-      goalId: goalId('g1'),
-      organizationId: organizationId('o1'),
-      metricKey: 'portal.scan',
-      previousValue: 5,
-      currentValue: 8,
-      computedSource: 'event_increment',
-      occurredAt: new Date(),
-    })
-    expect(event._tag).toBe('goal.progress_updated')
   })
 })

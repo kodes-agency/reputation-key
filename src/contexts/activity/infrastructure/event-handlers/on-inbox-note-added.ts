@@ -15,6 +15,7 @@ export const onInboxNoteAdded =
       organizationId: event.organizationId,
       userId: event.userId || null,
       source: event.source,
+      eventId: event.eventId,
       payload: {
         subject: 'note',
         from: null,

@@ -5,7 +5,9 @@ import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { getAuth } from '#/shared/auth/auth'
 import { headersFromContext } from '#/shared/auth/headers'
-import { requireAuth } from '#/shared/auth/middleware'
+import { resolveTenantContext } from '#/shared/auth/middleware'
+import { throwContextError } from '#/shared/auth/server-errors'
+import { can } from '#/shared/domain/permissions'
 import { z } from 'zod/v4'
 import { handleAuthError } from './auth-settings.helpers'
 
@@ -22,7 +24,14 @@ export const changePasswordFn = createServerFn({ method: 'POST' })
     tracedHandler(
       async ({ data }) => {
         const headers = await headersFromContext()
-        await requireAuth(headers)
+        const ctx = await resolveTenantContext(headers)
+        if (!can(ctx.role, 'identity.password.change')) {
+          throwContextError(
+            'AuthError',
+            { code: 'forbidden', message: 'Insufficient permissions to change password' },
+            403,
+          )
+        }
         const auth = getAuth()
 
         try {
@@ -62,7 +71,14 @@ export const updateProfileFn = createServerFn({ method: 'POST' })
     tracedHandler(
       async ({ data }) => {
         const headers = await headersFromContext()
-        await requireAuth(headers)
+        const ctx = await resolveTenantContext(headers)
+        if (!can(ctx.role, 'identity.profile.update')) {
+          throwContextError(
+            'AuthError',
+            { code: 'forbidden', message: 'Insufficient permissions to update profile' },
+            403,
+          )
+        }
         const auth = getAuth()
 
         try {
@@ -96,7 +112,14 @@ export const updateUserImageFn = createServerFn({ method: 'POST' })
     tracedHandler(
       async ({ data }) => {
         const headers = await headersFromContext()
-        await requireAuth(headers)
+        const ctx = await resolveTenantContext(headers)
+        if (!can(ctx.role, 'identity.avatar.set')) {
+          throwContextError(
+            'AuthError',
+            { code: 'forbidden', message: 'Insufficient permissions to update avatar' },
+            403,
+          )
+        }
         const auth = getAuth()
 
         try {

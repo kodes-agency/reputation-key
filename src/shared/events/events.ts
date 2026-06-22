@@ -138,8 +138,6 @@ export type {
   GoalEvent,
   // fallow-ignore-next-line unused-type
   GoalCompleted,
-  // fallow-ignore-next-line unused-type
-  GoalProgressUpdated,
 } from '#/contexts/goal/domain/events'
 
 // Metric context events
@@ -158,17 +156,8 @@ export type {
   BadgeAwarded,
 } from '#/contexts/badge/domain/events'
 
-// Leaderboard context events
-export type {
-  // fallow-ignore-next-line unused-type
-  LeaderboardEvent,
-  // fallow-ignore-next-line unused-type
-  LeaderboardSnapshotRefreshed,
-} from '#/contexts/leaderboard/domain/events'
-
 // Master union — adding a new context's events requires extending this.
 import type { BadgeEvent } from '#/contexts/badge/domain/events'
-import type { LeaderboardEvent } from '#/contexts/leaderboard/domain/events'
 import type { IdentityEvent } from '#/contexts/identity/domain/events'
 import type { PropertyEvent } from '#/contexts/property/domain/events'
 import type { TeamEvent } from '#/contexts/team/domain/events'
@@ -194,4 +183,4 @@ export type DomainEvent =
   | GoalEvent
   | MetricEvent
   | BadgeEvent
-  | LeaderboardEvent
+

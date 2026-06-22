@@ -15,7 +15,7 @@ import { z } from 'zod'
 // ── getActivityTimelineFn ───────────────────────────────────────────
 
 const getActivityTimelineDto = z.object({
-  resourceType: z.string(),
+  resourceType: z.enum(['inbox_item', 'review', 'reply', 'note', 'property', 'member']),
   resourceId: z.string(),
   limit: z.coerce.number().min(1).max(100).optional().default(50),
 })

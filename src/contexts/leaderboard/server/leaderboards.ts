@@ -9,9 +9,6 @@ import { getContainer } from '#/composition'
 import { can } from '#/shared/domain/permissions'
 import { getLeaderboardSchema } from '../application/dto/leaderboard.dto'
 import { propertyId } from '#/shared/domain/ids'
-import { standardErrorStatus } from '#/shared/http/status'
-
-export const leaderboardErrorStatus = standardErrorStatus
 
 export const getLeaderboard = createServerFn({ method: 'GET' })
   .inputValidator(getLeaderboardSchema)

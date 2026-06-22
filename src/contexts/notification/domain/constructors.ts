@@ -11,24 +11,11 @@ import type {
 } from './types'
 import type { NotificationId, UserId, OrganizationId } from '#/shared/domain/ids'
 import { notificationError, type NotificationError } from './errors'
-import { isUrgent } from './types'
+import { isUrgent, NOTIFICATION_TYPES } from './types'
 
 // ── Allowed values ──────────────────────────────────────────────────
 
-export const ALLOWED_TYPES: ReadonlySet<NotificationType> = new Set([
-  'review.created',
-  'feedback.created',
-  'reply.pending_approval',
-  'reply.approved',
-  'reply.rejected',
-  'reply.published',
-  'reply.publish_failed',
-  'inbox.escalated',
-  'inbox.assigned',
-  'inbox_note.added',
-  'goal.completed',
-  'badge.awarded',
-])
+export const ALLOWED_TYPES: ReadonlySet<NotificationType> = new Set(NOTIFICATION_TYPES)
 
 export const ALLOWED_RESOURCE_TYPES: ReadonlySet<NotificationResourceType> = new Set([
   'inbox_item',
@@ -61,6 +48,10 @@ export const createNotification = (
   input: CreateNotificationInput,
   clock: () => Date,
 ): Result<Notification, NotificationError> => {
+  if (!input.userId) {
+    return err(notificationError('invalid_input', 'userId is required'))
+  }
+
   if (!ALLOWED_TYPES.has(input.type)) {
     return err(
       notificationError('invalid_type', `Invalid notification type: ${input.type}`, {

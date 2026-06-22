@@ -120,7 +120,7 @@ describe('evaluateBadgeDefinitionForTarget', () => {
     const target = makePortalTarget()
     const deps = createFakeDeps({ metricSum: 5 })
 
-    const result = await evaluateBadgeDefinitionForTarget(definition, target, deps)
+    const result = await evaluateBadgeDefinitionForTarget(definition, target, deps, 'UTC')
 
     expect(result.awarded).toBe(true)
     if (result.awarded) {
@@ -144,7 +144,7 @@ describe('evaluateBadgeDefinitionForTarget', () => {
     const target = makePortalTarget()
     const deps = createFakeDeps({ metricSum: 3 })
 
-    const result = await evaluateBadgeDefinitionForTarget(definition, target, deps)
+    const result = await evaluateBadgeDefinitionForTarget(definition, target, deps, 'UTC')
 
     expect(result.awarded).toBe(false)
     if (!result.awarded) {
@@ -172,7 +172,7 @@ describe('evaluateBadgeDefinitionForTarget', () => {
     }
     const deps = createFakeDeps({ metricSum: 5, existingAward })
 
-    const result = await evaluateBadgeDefinitionForTarget(definition, target, deps)
+    const result = await evaluateBadgeDefinitionForTarget(definition, target, deps, 'UTC')
 
     expect(result.awarded).toBe(false)
     if (!result.awarded) {
@@ -186,7 +186,7 @@ describe('evaluateBadgeDefinitionForTarget', () => {
     const target = makePortalTarget()
     const deps = createFakeDeps({ metricSum: 5 })
 
-    const result = await evaluateBadgeDefinitionForTarget(definition, target, deps)
+    const result = await evaluateBadgeDefinitionForTarget(definition, target, deps, 'UTC')
 
     expect(result.awarded).toBe(false)
     if (!result.awarded) {
@@ -228,7 +228,7 @@ describe('evaluateBadgeDefinitionForTarget', () => {
 
     const deps = createFakeDeps({ dailyCounts })
 
-    const result = await evaluateBadgeDefinitionForTarget(definition, target, deps)
+    const result = await evaluateBadgeDefinitionForTarget(definition, target, deps, 'UTC')
 
     expect(result.awarded).toBe(true)
     expect(deps.badgeRepo.queryDailyCounts).toHaveBeenCalledOnce()
@@ -267,7 +267,7 @@ describe('evaluateBadgeDefinitionForTarget', () => {
 
     const deps = createFakeDeps({ dailyCounts })
 
-    const result = await evaluateBadgeDefinitionForTarget(definition, target, deps)
+    const result = await evaluateBadgeDefinitionForTarget(definition, target, deps, 'UTC')
 
     expect(result.awarded).toBe(false)
     if (!result.awarded) {
@@ -280,7 +280,7 @@ describe('evaluateBadgeDefinitionForTarget', () => {
     const target = makePortalTarget()
     const deps = createFakeDeps({ metricSum: 5 })
 
-    await evaluateBadgeDefinitionForTarget(definition, target, deps)
+    await evaluateBadgeDefinitionForTarget(definition, target, deps, 'UTC')
 
     expect(deps.badgeRepo.findAwardByUniqueKey).toHaveBeenCalledWith(
       `first_review:1:portal:${PORTAL}`,

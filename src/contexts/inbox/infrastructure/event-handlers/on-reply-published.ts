@@ -9,6 +9,7 @@ import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
 import { inboxItemStatusChanged } from '../../domain/events'
 import { unbrand } from '#/shared/domain/ids'
+import { validateTransition } from '../../domain/rules'
 
 export type OnReplyPublishedDeps = Readonly<{
   repo: InboxRepository
@@ -34,9 +35,11 @@ export const onReplyPublished =
           return
         }
 
-        if (inboxItem.status === 'addressed' || inboxItem.status === 'archived') return
-
         const oldStatus = inboxItem.status
+
+        // Route through the domain transition rule so the handler inherits
+        // any future graph changes (INBOX-02) instead of hand-rolling guards.
+        if (validateTransition(oldStatus, 'addressed').isErr()) return
 
         const extraFields: Partial<Record<string, Date>> = {
           addressedAt: event.occurredAt,
@@ -68,7 +71,6 @@ export const onReplyPublished =
         // Emit status changed event
         await deps.events.emit(
           inboxItemStatusChanged({
-            eventId: crypto.randomUUID(),
             inboxItemId: inboxItem.id,
             organizationId: inboxItem.organizationId,
             propertyId: inboxItem.propertyId,

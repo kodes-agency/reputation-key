@@ -23,6 +23,7 @@ export type InsertActivityLogInput = Readonly<{
   organizationId: OrganizationId
   userId: UserId | null
   source: 'web' | 'import'
+  eventId: string
   payload: ActivityPayload
 }>
 
@@ -38,10 +39,12 @@ export const insertActivityLog =
   (deps: InsertActivityLogDeps) =>
   async (input: InsertActivityLogInput): Promise<void> => {
     const { userId, propertyId, ...activityFields } = input
-    const { action, resourceType, resourceId, organizationId, payload } = activityFields
+    const { action, resourceType, resourceId, organizationId, payload, eventId } =
+      activityFields
 
     // 1. Idempotency gate — skip if a duplicate entry already exists
     const duplicate = await deps.repo.findDuplicate({
+      eventId,
       action,
       resourceType,
       resourceId,
@@ -54,6 +57,11 @@ export const insertActivityLog =
     let actorName = 'System'
     let actorAvatarUrl: string | null = null
     let actorRole: Role = 'Staff'
+    // ACT-011: track whether the real user was resolved. When lookup fails,
+    // actorId must be SYSTEM_USER_ID (not the real userId) so the record is
+    // consistently attributed to 'system' — actorName/actorRole already fall
+    // back to system defaults, so actorId should match.
+    let resolvedUserId: UserId | null = userId
 
     if (userId) {
       try {
@@ -69,6 +77,7 @@ export const insertActivityLog =
           { error: e, userId },
           'Activity user lookup failed, using system defaults',
         )
+        resolvedUserId = null
       }
     }
 
@@ -76,7 +85,7 @@ export const insertActivityLog =
     const result = createActivityLog(
       {
         id: deps.idGen(),
-        actorId: userId || SYSTEM_USER_ID,
+        actorId: resolvedUserId || SYSTEM_USER_ID,
         actorName,
         actorAvatarUrl,
         actorRole,

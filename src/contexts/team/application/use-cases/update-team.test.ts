@@ -4,6 +4,7 @@ import { createInMemoryTeamRepo } from '#/shared/testing/in-memory-team-repo'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { buildTestTeam } from '#/shared/testing/fixtures'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { isTeamError } from '../../domain/errors'
 
 const FIXED_TIME = new Date('2026-04-15T12:00:00Z')
@@ -12,8 +13,15 @@ const setup = () => {
   const teamRepo = createInMemoryTeamRepo()
   const events = createCapturingEventBus()
 
+  // AccountAdmin/PM with org-wide access (null = all properties)
+  const staffApi: StaffPublicApi = {
+    getAccessiblePropertyIds: async () => null,
+    getAssignedPortals: async () => [],
+    countAssignmentsByTeam: async () => 0,
+  }
   const deps = {
     teamRepo,
+    staffApi,
     events,
     clock: () => FIXED_TIME,
   }

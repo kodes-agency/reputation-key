@@ -6,7 +6,7 @@ import type { AggregationFunction, MetricKey } from '#/shared/domain/metric-keys
 import type { PropertyId, PortalId, PortalGroupId } from '#/shared/domain/ids'
 import { assertNever } from '#/shared/domain/assert'
 import type { Goal } from './types'
-import { err, ok, type Result } from 'neverthrow'
+import { err, ok, type Result } from '#/shared/domain'
 
 // ── Types ────────────────────────────────────────────────────────────────
 

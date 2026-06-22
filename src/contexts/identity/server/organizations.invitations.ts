@@ -1,24 +1,19 @@
 // Invitation server functions (accept, cancel, resend, list).
 // Per architecture: server/ contains TanStack Start server functions.
+// Business logic (better-auth calls + event emission) extracted into use
+// cases (D8-007). Server fns resolve auth + delegate.
 
 import { createServerFn } from '@tanstack/react-start'
-import { z } from 'zod'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { headersFromContext } from '#/shared/auth/headers'
 import { requireAuth, resolveTenantContext } from '#/shared/auth/middleware'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { can } from '#/shared/domain/permissions'
-import { getAuth } from '#/shared/auth/auth'
 import { getContainer } from '#/composition'
 import { isIdentityError } from '../domain/errors'
 import { throwIdentityError } from './organizations.errors.server'
-import { identityInvitationAccepted, identityInvitationRejected } from '../domain/events'
-import { organizationId, userId, invitationId } from '#/shared/domain/ids'
+import { invitationId, userId } from '#/shared/domain/ids'
 import { acceptInvitationInputSchema } from '../application/dto/invitation.dto'
-
-const acceptInvitationResultSchema = z.object({
-  organizationId: z.string(),
-})
 
 // ── Accept invitation ──────────────────────────────────────────────
 // User may not have an active org yet (they're joining), so we only
@@ -32,25 +27,13 @@ export const acceptInvitation = createServerFn({ method: 'POST' })
         try {
           const headers = await headersFromContext()
           const user = await requireAuth(headers)
-          const auth = getAuth()
 
-          const result = acceptInvitationResultSchema.parse(
-            await auth.api.acceptInvitation({
-              headers,
-              body: { invitationId: data.invitationId },
-            }),
-          )
-
-          const container = getContainer()
-          await container.eventBus.emit(
-            identityInvitationAccepted({
-              eventId: crypto.randomUUID(),
-              organizationId: organizationId(result.organizationId),
-              userId: userId(user.id),
-              invitationId: invitationId(data.invitationId),
-              occurredAt: new Date(),
-            }),
-          )
+          const { useCases } = getContainer()
+          await useCases.acceptInvitation({
+            invitationId: invitationId(data.invitationId),
+            headers,
+            userId: userId(user.id),
+          })
         } catch (e) {
           throw catchUntagged(e)
         }
@@ -81,19 +64,14 @@ export const cancelInvitation = createServerFn({ method: 'POST' })
               403,
             )
           }
-          const { identityPort, eventBus } = getContainer()
 
-          await identityPort.cancelInvitation(invitationId(data.invitationId), headers)
-
-          await eventBus.emit(
-            identityInvitationRejected({
-              eventId: crypto.randomUUID(),
-              organizationId: ctx.organizationId,
-              invitationId: invitationId(data.invitationId),
-              occurredAt: new Date(),
-            }),
+          const { useCases } = getContainer()
+          await useCases.cancelInvitation(
+            { invitationId: invitationId(data.invitationId), headers },
+            ctx,
           )
         } catch (e) {
+          if (isIdentityError(e)) throwIdentityError(e)
           throw catchUntagged(e)
         }
       },

@@ -11,6 +11,7 @@ import {
 } from '#/shared/domain/ids'
 import type { InboxItem } from '../../domain/types'
 import type { NewCounterPort } from '../ports/new-counter.port'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 
 // ── Test data factory (typed, no `any`) ─────────────────────────────
 const ORG_ID = organizationId('org-1')
@@ -63,7 +64,16 @@ const setup = () => {
     invalidate: async () => {},
   }
 
-  const deps = { newCounter, repo, logger: createMockLogger() }
+  const deps = {
+    newCounter,
+    repo,
+    logger: createMockLogger(),
+    staffPublicApi: {
+      getAccessiblePropertyIds: async () => null,
+      getAssignedPortals: async () => [],
+      countAssignmentsByTeam: async () => 0,
+    } as StaffPublicApi,
+  }
   const useCase = getNewCount(deps)
 
   return {

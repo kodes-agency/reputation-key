@@ -8,12 +8,13 @@ import {
   userId as toUserId,
   organizationId as toOrgId,
 } from '#/shared/domain/ids'
-import type {
-  Notification,
-  NotificationType,
-  NotificationPriority,
-  NotificationStatus,
-  NotificationResourceType,
+import {
+  NOTIFICATION_TYPES,
+  type Notification,
+  type NotificationType,
+  type NotificationPriority,
+  type NotificationStatus,
+  type NotificationResourceType,
 } from '../../domain/types'
 
 // ── Row type ───────────────────────────────────────────────────────
@@ -22,20 +23,8 @@ export type NotificationRow = typeof notifications.$inferSelect
 
 // ── Mapper ─────────────────────────────────────────────────────────
 
-const VALID_TYPES: readonly NotificationType[] = [
-  'review.created',
-  'feedback.created',
-  'reply.pending_approval',
-  'reply.approved',
-  'reply.rejected',
-  'reply.published',
-  'reply.publish_failed',
-  'inbox.escalated',
-  'inbox.assigned',
-  'inbox_note.added',
-  'goal.completed',
-  'badge.awarded',
-]
+// Single source: domain/types.ts NOTIFICATION_TYPES.
+const VALID_TYPES: readonly NotificationType[] = NOTIFICATION_TYPES
 
 const VALID_PRIORITIES: readonly NotificationPriority[] = ['urgent', 'normal']
 const VALID_STATUSES: readonly NotificationStatus[] = ['unread', 'read', 'dismissed']

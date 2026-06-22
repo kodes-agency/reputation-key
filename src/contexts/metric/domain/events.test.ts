@@ -11,7 +11,6 @@ import {
 describe('metricRecorded event', () => {
   it('accepts nullable groupId', () => {
     const withGroup = metricRecorded({
-      eventId: 'test-event-1',
       readingId: metricReadingId('mr-1'),
       organizationId: organizationId('org-1'),
       propertyId: propertyId('prop-1'),
@@ -25,7 +24,6 @@ describe('metricRecorded event', () => {
     expect(withGroup.groupId).toBe('group-1')
 
     const withoutGroup = metricRecorded({
-      eventId: 'test-event-2',
       readingId: metricReadingId('mr-2'),
       organizationId: organizationId('org-1'),
       propertyId: propertyId('prop-1'),

@@ -57,12 +57,10 @@ export const inviteMember =
     // 5. Emit event
     await deps.events.emit(
       identityMemberInvited({
-        eventId: crypto.randomUUID(),
         organizationId: ctx.organizationId,
         email: input.email,
         role: input.role,
         userId: ctx.userId,
-        invitedBy: ctx.userId,
         invitationId,
         occurredAt: deps.clock(),
       }),

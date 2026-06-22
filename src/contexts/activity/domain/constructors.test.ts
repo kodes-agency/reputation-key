@@ -24,6 +24,7 @@ describe('createActivityLog', () => {
       detail: 'review',
     },
     source: 'web' as const,
+    eventId: 'test-event-id',
   }
 
   it('constructs a valid activity log entry', () => {
@@ -67,6 +68,9 @@ describe('createActivityLog', () => {
       'submitted',
       'added',
       'escalated',
+      'invited',
+      'connected',
+      'disconnected',
     ]
     for (const action of actions) {
       const result = createActivityLog({ ...validInput, action }, clock)

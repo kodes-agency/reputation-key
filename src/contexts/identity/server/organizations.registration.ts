@@ -6,11 +6,9 @@ import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { headersFromContext } from '#/shared/auth/headers'
 import { requireAuth } from '#/shared/auth/middleware'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
-import { toDomainRole } from '#/shared/domain/roles'
 import { getAuth } from '#/shared/auth/auth'
 import { getContainer } from '#/composition'
 import { isIdentityError } from '../domain/errors'
-import { type AuthInvitationResponse } from './organizations.shared'
 import { throwIdentityError } from './organizations.errors.server'
 import {
   registerUserInputSchema,
@@ -167,23 +165,14 @@ export const listUserInvitations = createServerFn({ method: 'GET' }).handler(
       try {
         const headers = await headersFromContext()
         await requireAuth(headers)
-        const auth = getAuth()
+        const { identityPort } = getContainer()
 
-        const result = await auth.api.listUserInvitations({ headers })
-
-        const rawInvitations = (
-          Array.isArray(result) ? result : []
-        ) as AuthInvitationResponse[]
-        const invitations = rawInvitations.map((inv) => ({
-          id: inv.id,
-          organizationId: inv.organizationId,
-          organizationName: inv.organization?.name ?? 'Unknown Organization',
-          email: inv.email,
-          role: toDomainRole(inv.role),
-          status: inv.status,
-          expiresAt: inv.expiresAt,
-          createdAt: inv.createdAt,
-        }))
+        const invitations = (await identityPort.listUserInvitations(headers)).map(
+          (inv) => ({
+            ...inv,
+            organizationName: inv.organizationName ?? 'Unknown Organization',
+          }),
+        )
 
         return { invitations }
       } catch (e) {

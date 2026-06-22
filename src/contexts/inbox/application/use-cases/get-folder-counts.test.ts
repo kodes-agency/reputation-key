@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { getInboxFolderCounts } from './get-folder-counts'
 import { createInMemoryInboxRepo } from '#/shared/testing/in-memory-inbox-repo'
-import { createMockLogger } from '#/shared/testing/mock-logger'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import {
   organizationId,
   inboxItemId,
@@ -48,7 +48,12 @@ const makeItem = ({
 
 const setup = () => {
   const repo = createInMemoryInboxRepo()
-  const deps = { repo, logger: createMockLogger() }
+  const staffPublicApi: StaffPublicApi = {
+    getAccessiblePropertyIds: async () => null,
+    getAssignedPortals: async () => [],
+    countAssignmentsByTeam: async () => 0,
+  }
+  const deps = { repo, staffPublicApi }
   const useCase = getInboxFolderCounts(deps)
 
   return { useCase, repo }

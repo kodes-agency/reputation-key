@@ -3,15 +3,20 @@
 
 import type { PortalGroupRepository } from '../ports/portal-group.repository'
 import type { AuthContext } from '#/shared/domain/auth-context'
+import type { PortalRepository } from '../ports/portal.repository'
 import { can } from '#/shared/domain/permissions'
 import { portalError } from '../../domain/errors'
 import { portalAddedToGroup } from '../../domain/events'
 import type { EventBus } from '#/shared/events/event-bus'
 import { portalGroupId, portalId } from '#/shared/domain/ids'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import { assertPropertyAccess } from '../assert-property-access'
 
 // fallow-ignore-next-line unused-type
 export type AddPortalToGroupDeps = Readonly<{
   portalGroupRepo: PortalGroupRepository
+  portalRepo: PortalRepository
+  staffPublicApi: StaffPublicApi
   events: EventBus
   clock: () => Date
 }>
@@ -33,7 +38,21 @@ export const addPortalToGroup =
     if (!group) {
       throw portalError('group_not_found', 'portal group not found in this organization')
     }
+    // Enforce property-assignment scoping (D6-001.)
+    await assertPropertyAccess(deps.staffPublicApi, ctx, group.propertyId)
 
+    // Verify the portal exists and belongs to the same property as the group.
+    // This prevents cross-property grouping via a group from one property + portal from another.
+    const portal = await deps.portalRepo.findById(ctx.organizationId, pid)
+    if (!portal) {
+      throw portalError('portal_not_found', 'portal not found in this organization')
+    }
+    if (String(portal.propertyId) !== String(group.propertyId)) {
+      throw portalError(
+        'forbidden',
+        'portal must belong to the same property as the group',
+      )
+    }
     const existingGroupId = await deps.portalGroupRepo.findPortalMembership(
       ctx.organizationId,
       pid,

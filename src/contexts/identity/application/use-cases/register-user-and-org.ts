@@ -10,6 +10,7 @@ import {
   organizationId as toOrganizationId,
   userId as toUserId,
 } from '#/shared/domain/ids'
+import { getLogger } from '#/shared/observability/logger'
 
 // fallow-ignore-next-line unused-type
 export type RegisterUserAndOrgInput = Readonly<{
@@ -85,9 +86,9 @@ export const registerUserAndOrg =
         await deps.deleteUser(userId)
       } catch (cleanupErr) {
         // Compensating transaction failed — orphaned user requires manual cleanup
-        console.error(
-          '[auth] COMPENSATING TX FAILED: orphaned user requires manual cleanup',
+        getLogger().error(
           { orphanedUserId: userId, originalError: e, cleanupError: cleanupErr },
+          '[auth] COMPENSATING TX FAILED: orphaned user requires manual cleanup',
         )
       }
       throw identityError(
@@ -99,7 +100,6 @@ export const registerUserAndOrg =
     // 5. Emit event
     await deps.events.emit(
       identityOrganizationCreated({
-        eventId: crypto.randomUUID(),
         organizationId: toOrganizationId(orgId),
         organizationName: validName,
         slug,

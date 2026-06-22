@@ -3,12 +3,14 @@
 
 import type { GuestFeedbackSubmitted } from '#/contexts/guest/application/public-api'
 import type { CreateInboxItemUseCase } from '../../application/use-cases/create-inbox-item'
+import type { FeedbackLookupPort } from '../../application/ports/feedback-lookup.port'
 import { isInboxError } from '../../domain/errors'
 import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
 
 export type OnFeedbackSubmittedDeps = Readonly<{
   createInboxItem: CreateInboxItemUseCase
+  feedbackLookup: FeedbackLookupPort
 }>
 
 export const onFeedbackSubmitted =
@@ -16,12 +18,17 @@ export const onFeedbackSubmitted =
   async (event: GuestFeedbackSubmitted): Promise<void> => {
     return trace('event.onFeedbackSubmitted', async () => {
       try {
+        // Denormalize the rating value at creation time per ADR 0004 #4.
+        const snippet = await deps.feedbackLookup.getFeedbackSnippetById(
+          event.feedbackId,
+          event.organizationId,
+        )
         await deps.createInboxItem({
           organizationId: event.organizationId,
           propertyId: event.propertyId,
           sourceType: 'feedback',
           sourceId: event.feedbackId,
-          rating: null,
+          rating: snippet?.ratingValue ?? null,
           sourceDate: event.occurredAt,
           platform: null,
           snippet: null,

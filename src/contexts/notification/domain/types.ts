@@ -9,29 +9,35 @@ import type {
   OrganizationId,
 } from '#/shared/domain/ids'
 
-// ── Notification types ──────────────────────────────────────────────
+// ── Notification types (single source of truth) ───────────────────
+// NOTIFICATION_TYPES is the canonical list; NotificationType and every
+// runtime validator (ALLOWED_TYPES, VALID_TYPES, the zod enum) derive
+// from it. Add a type here once and it propagates everywhere.
 // Each type corresponds to a specific domain event subscription.
 // Names are user-facing (for preferences, templates, filtering).
 
-export type NotificationType =
+export const NOTIFICATION_TYPES = [
   // Review events
-  | 'review.created'
+  'review.created',
   // Inbox events (feedback only — reviews use review.created)
-  | 'feedback.created'
+  'feedback.created',
   // Reply lifecycle
-  | 'reply.pending_approval'
-  | 'reply.approved'
-  | 'reply.rejected'
-  | 'reply.published'
-  | 'reply.publish_failed'
+  'reply.pending_approval',
+  'reply.approved',
+  'reply.rejected',
+  'reply.published',
+  'reply.publish_failed',
   // Inbox triage
-  | 'inbox.escalated'
-  | 'inbox.assigned'
-  | 'inbox_note.added'
+  'inbox.escalated',
+  'inbox.assigned',
+  'inbox_note.added',
   // Goal events
-  | 'goal.completed'
+  'goal.completed',
   // Badge events
-  | 'badge.awarded'
+  'badge.awarded',
+] as const
+
+export type NotificationType = (typeof NOTIFICATION_TYPES)[number]
 
 // ── Priority ────────────────────────────────────────────────────────
 // Urgent = immediate email. Normal = digest only.

@@ -7,10 +7,8 @@ export type { LinkResolverPort } from './ports/link-resolver.port'
 
 // Event re-exports — cross-context consumers must import events from public-api, not domain/events
 export type { PortalDeleted, PortalEvent } from '../domain/events'
-export { portalDeleted } from '../domain/events'
 
 export type { PortalGroupDeleted } from '../domain/events'
-export { portalGroupDeleted } from '../domain/events'
 
 import type {
   OrganizationId,
@@ -96,4 +94,9 @@ export type PortalGroupPublicApi = Readonly<{
     orgId: OrganizationId,
     groupId: PortalGroupId,
   ) => Promise<ReadonlyArray<PortalId>>
+  /** Given portal IDs, return the distinct group IDs those portals belong to. */
+  findGroupIdsByPortalIds: (
+    orgId: OrganizationId,
+    portalIds: ReadonlyArray<PortalId>,
+  ) => Promise<ReadonlyArray<PortalGroupId>>
 }>

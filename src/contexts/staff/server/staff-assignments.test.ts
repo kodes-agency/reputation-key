@@ -4,25 +4,8 @@
 
 import { describe, it, expect } from 'vitest'
 import { staffError } from '#/contexts/staff/domain/errors'
-import type { StaffErrorCode } from '#/contexts/staff/domain/errors'
 import { throwContextError } from '#/shared/auth/server-errors'
-
-const staffErrorStatus = (code: StaffErrorCode): number => {
-  switch (code) {
-    case 'forbidden':
-      return 403
-    case 'assignment_not_found':
-      return 404
-    case 'property_not_found':
-      return 404
-    case 'team_not_found':
-      return 404
-    case 'already_assigned':
-      return 409
-    case 'invalid_input':
-      return 400
-  }
-}
+import { staffErrorStatus } from './staff-shared'
 
 describe('staffErrorStatus (error → HTTP status mapping)', () => {
   it('maps forbidden → 403', () => {

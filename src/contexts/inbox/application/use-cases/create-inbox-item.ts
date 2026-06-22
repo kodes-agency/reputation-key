@@ -95,7 +95,6 @@ export const createInboxItem =
     // 5. Emit event
     await deps.events.emit(
       inboxItemCreated({
-        eventId: crypto.randomUUID(),
         inboxItemId: item.id,
         organizationId: item.organizationId,
         propertyId: item.propertyId,

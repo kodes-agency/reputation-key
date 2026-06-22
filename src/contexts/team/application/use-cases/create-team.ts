@@ -3,12 +3,14 @@
 
 import type { TeamRepository } from '../ports/team.repository'
 import type { PropertyPublicApi } from '#/contexts/property/application/public-api'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { Team, TeamId } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { CreateTeamInput } from '../dto/create-team.dto'
 export type { CreateTeamInput } from '../dto/create-team.dto'
 import { can } from '#/shared/domain/permissions'
+import { isPropertyAccessible } from '#/shared/domain/property-access'
 import { propertyId as toPropertyId, userId as toUserId } from '#/shared/domain/ids'
 import { buildTeam } from '../../domain/constructors'
 import { teamError } from '../../domain/errors'
@@ -18,6 +20,7 @@ import { teamCreated } from '../../domain/events'
 export type CreateTeamDeps = Readonly<{
   teamRepo: TeamRepository
   propertyApi: PropertyPublicApi
+  staffApi: StaffPublicApi
   events: EventBus
   idGen: () => TeamId
   clock: () => Date
@@ -30,9 +33,20 @@ export const createTeam =
     if (!can(ctx.role, 'team.create')) {
       throw teamError('forbidden', 'this role cannot create teams')
     }
+    // D6-001: PropertyManager/Staff must be assigned to the target property.
+    const pid = toPropertyId(input.propertyId)
+    const accessible = await isPropertyAccessible(
+      (orgId, uId, role) => deps.staffApi.getAccessiblePropertyIds(orgId, uId, role),
+      ctx.organizationId,
+      ctx.userId,
+      ctx.role,
+      pid,
+    )
+    if (!accessible) {
+      throw teamError('forbidden', 'no access to this property')
+    }
 
     // 2. Validate referenced entity — property must exist in this org
-    const pid = toPropertyId(input.propertyId)
     if (!(await deps.propertyApi.propertyExists(ctx.organizationId, pid))) {
       throw teamError(
         'property_not_found',
@@ -71,7 +85,6 @@ export const createTeam =
     // 6. Emit event
     await deps.events.emit(
       teamCreated({
-        eventId: crypto.randomUUID(),
         teamId: team.id,
         organizationId: team.organizationId,
         propertyId: team.propertyId,

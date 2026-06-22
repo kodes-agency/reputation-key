@@ -5,12 +5,20 @@ import type { ReplyRepository } from '../ports/reply.repository'
 import type { ReviewRepository } from '../ports/review.repository'
 import type { ReplyQueuePort } from '../ports/reply-queue.port'
 import type { EventBus } from '#/shared/events/event-bus'
-import type { ReplyId, ReviewId, OrganizationId, UserId } from '#/shared/domain/ids'
+import type {
+  ReplyId,
+  ReviewId,
+  OrganizationId,
+  PropertyId,
+  UserId,
+} from '#/shared/domain/ids'
 import type { Role } from '#/shared/domain/roles'
 import type { Reply } from '../../domain/types'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { can } from '#/shared/domain/permissions'
-import { canTransitionReply, MAX_REPLY_LENGTH } from '../../domain/rules'
+import { transitionReply, MAX_REPLY_LENGTH } from '../../domain/rules'
 import { reviewError } from '../../domain/errors'
+import { isPropertyAccessible } from '#/shared/domain/property-access'
 import {
   reviewReplyPublished,
   reviewReplySubmitted,
@@ -35,7 +43,29 @@ export type ReplyDeps = Readonly<{
   events: EventBus
   clock: () => Date
   idGen: () => ReplyId
+  staffPublicApi: StaffPublicApi
 }>
+
+/** Enforce property-assignment scoping for reply mutations (D6-001).
+ *  AccountAdmin bypasses (getAccessiblePropertyIds returns null);
+ *  PropertyManager is scoped to assigned properties only. */
+async function assertReplyPropertyAccessible(
+  deps: ReplyDeps,
+  caller: { organizationId: OrganizationId; userId: UserId; role: Role },
+  propertyId: PropertyId,
+): Promise<void> {
+  const accessible = await isPropertyAccessible(
+    (orgId, userId, role) =>
+      deps.staffPublicApi.getAccessiblePropertyIds(orgId, userId, role),
+    caller.organizationId,
+    caller.userId,
+    caller.role,
+    propertyId,
+  )
+  if (!accessible) {
+    throw reviewError('forbidden', 'No access to this property', { propertyId })
+  }
+}
 
 export type DraftReply = ReturnType<typeof draftReply>
 export type SubmitReply = ReturnType<typeof submitReply>
@@ -67,6 +97,13 @@ export const draftReply =
         `Reply text exceeds ${MAX_REPLY_LENGTH} characters`,
       )
     }
+
+    // D6-001: scope reply mutations to the caller's assigned properties.
+    const review = await deps.reviewRepo.findById(input.reviewId, input.organizationId)
+    if (!review) {
+      throw reviewError('review_not_found', 'Review not found')
+    }
+    await assertReplyPropertyAccessible(deps, input, review.propertyId)
 
     const existing = await deps.replyRepo.findInternalByReviewId(
       input.reviewId,
@@ -137,33 +174,31 @@ export const submitReply =
       throw reviewError('reply_not_found', 'No draft reply found for this review')
     }
 
-    if (!canTransitionReply(reply.status, 'pending_approval')) {
-      throw reviewError(
-        'invalid_transition',
-        `Cannot submit reply from ${reply.status} status`,
-      )
+    // D6-001: scope reply mutations to the caller's assigned properties.
+    const review = await deps.reviewRepo.findById(input.reviewId, input.organizationId)
+    if (!review) {
+      throw reviewError('review_not_found', 'Review not found')
     }
+    await assertReplyPropertyAccessible(deps, input, review.propertyId)
 
     const now = deps.clock()
+    const transitioned = transitionReply(reply, 'pending_approval', now)
+    if (transitioned.isErr()) throw transitioned.error
     const submitted = await deps.replyRepo.upsert(
-      { ...reply, status: 'pending_approval', submittedAt: now },
+      { ...transitioned.value, submittedAt: now },
       now,
     )
 
-    const review = await deps.reviewRepo.findById(input.reviewId, input.organizationId)
-    if (review) {
-      await deps.events.emit(
-        reviewReplySubmitted({
-          eventId: crypto.randomUUID(),
-          replyId: submitted.id,
-          reviewId: submitted.reviewId,
-          propertyId: review.propertyId,
-          organizationId: submitted.organizationId,
-          userId: input.userId,
-          occurredAt: now,
-        }),
-      )
-    }
+    await deps.events.emit(
+      reviewReplySubmitted({
+        replyId: submitted.id,
+        reviewId: submitted.reviewId,
+        propertyId: review.propertyId,
+        organizationId: submitted.organizationId,
+        userId: input.userId,
+        occurredAt: now,
+      }),
+    )
 
     return submitted
   }
@@ -190,16 +225,18 @@ export const approveReply =
       throw reviewError('reply_not_found', 'No reply found for this review')
     }
 
-    if (!canTransitionReply(reply.status, 'approved')) {
-      throw reviewError(
-        'invalid_transition',
-        `Cannot approve reply from ${reply.status} status`,
-      )
+    // D6-001: scope reply mutations to the caller's assigned properties.
+    const review = await deps.reviewRepo.findById(input.reviewId, input.organizationId)
+    if (!review) {
+      throw reviewError('review_not_found', 'Review not found')
     }
+    await assertReplyPropertyAccessible(deps, input, review.propertyId)
 
     const now = deps.clock()
+    const transitioned = transitionReply(reply, 'approved', now)
+    if (transitioned.isErr()) throw transitioned.error
     const approved = await deps.replyRepo.upsert(
-      { ...reply, status: 'approved', approvedBy: input.userId, approvedAt: now },
+      { ...transitioned.value, approvedBy: input.userId, approvedAt: now },
       now,
     )
 
@@ -208,21 +245,17 @@ export const approveReply =
       organizationId: approved.organizationId,
     })
 
-    const review = await deps.reviewRepo.findById(input.reviewId, input.organizationId)
-    if (review) {
-      await deps.events.emit(
-        reviewReplyApproved({
-          eventId: crypto.randomUUID(),
-          replyId: approved.id,
-          reviewId: approved.reviewId,
-          propertyId: review.propertyId,
-          organizationId: approved.organizationId,
-          userId: input.userId,
-          authorId: approved.createdBy ?? ('' as UserId),
-          occurredAt: now,
-        }),
-      )
-    }
+    await deps.events.emit(
+      reviewReplyApproved({
+        replyId: approved.id,
+        reviewId: approved.reviewId,
+        propertyId: review.propertyId,
+        organizationId: approved.organizationId,
+        userId: input.userId,
+        authorId: approved.createdBy,
+        occurredAt: now,
+      }),
+    )
 
     return approved
   }
@@ -250,40 +283,37 @@ export const rejectReply =
       throw reviewError('reply_not_found', 'No reply found for this review')
     }
 
-    if (!canTransitionReply(reply.status, 'rejected')) {
-      throw reviewError(
-        'invalid_transition',
-        `Cannot reject reply from ${reply.status} status`,
-      )
+    // D6-001: scope reply mutations to the caller's assigned properties.
+    const review = await deps.reviewRepo.findById(input.reviewId, input.organizationId)
+    if (!review) {
+      throw reviewError('review_not_found', 'Review not found')
     }
+    await assertReplyPropertyAccessible(deps, input, review.propertyId)
 
     const now = deps.clock()
+    const transitioned = transitionReply(reply, 'rejected', now)
+    if (transitioned.isErr()) throw transitioned.error
     const updated = await deps.replyRepo.upsert(
       {
-        ...reply,
-        status: 'rejected',
+        ...transitioned.value,
         rejectedBy: input.userId,
         rejectionReason: input.reason ?? null,
       },
       now,
     )
 
-    const review = await deps.reviewRepo.findById(input.reviewId, input.organizationId)
-    if (review) {
-      await deps.events.emit(
-        reviewReplyRejected({
-          eventId: crypto.randomUUID(),
-          replyId: updated.id,
-          reviewId: updated.reviewId,
-          propertyId: review.propertyId,
-          organizationId: updated.organizationId,
-          userId: input.userId,
-          authorId: updated.createdBy ?? ('' as UserId),
-          reason: input.reason ?? null,
-          occurredAt: now,
-        }),
-      )
-    }
+    await deps.events.emit(
+      reviewReplyRejected({
+        replyId: updated.id,
+        reviewId: updated.reviewId,
+        propertyId: review.propertyId,
+        organizationId: updated.organizationId,
+        userId: input.userId,
+        authorId: updated.createdBy,
+        reason: input.reason ?? null,
+        occurredAt: now,
+      }),
+    )
 
     return updated
   }
@@ -309,6 +339,13 @@ export const deleteReply =
     if (!reply) {
       throw reviewError('reply_not_found', 'No reply found for this review')
     }
+
+    // D6-001: scope reply mutations to the caller's assigned properties.
+    const review = await deps.reviewRepo.findById(input.reviewId, input.organizationId)
+    if (!review) {
+      throw reviewError('review_not_found', 'Review not found')
+    }
+    await assertReplyPropertyAccessible(deps, input, review.propertyId)
 
     if (reply.status !== 'draft' && reply.status !== 'rejected') {
       throw reviewError('invalid_transition', 'Can only delete draft or rejected replies')
@@ -348,33 +385,25 @@ export const markReplyPublished =
       throw reviewError('reply_not_found', 'Reply not found')
     }
 
-    if (!canTransitionReply(reply.status, 'published')) {
-      throw reviewError(
-        'invalid_transition',
-        `Cannot mark reply as published from ${reply.status} status`,
-      )
-    }
+    const now = deps.clock()
+    const transitioned = transitionReply(reply, 'published', now)
+    if (transitioned.isErr()) throw transitioned.error
 
     const review = await deps.reviewRepo.findById(reply.reviewId, input.organizationId)
     if (!review) {
       throw reviewError('review_not_found', 'Review not found for published reply')
     }
 
-    const now = deps.clock()
-    const published = await deps.replyRepo.upsert(
-      { ...reply, status: 'published', publishedAt: now },
-      now,
-    )
+    const published = await deps.replyRepo.upsert(transitioned.value, now)
 
     await deps.events.emit(
       reviewReplyPublished({
-        eventId: crypto.randomUUID(),
         replyId: published.id,
         reviewId: reply.reviewId,
         propertyId: review.propertyId,
         organizationId: reply.organizationId,
         userId: published.createdBy,
-        authorId: published.createdBy ?? ('' as UserId),
+        authorId: published.createdBy,
         occurredAt: now,
       }),
     )
@@ -397,18 +426,10 @@ export const markReplyPublishFailed =
       throw reviewError('reply_not_found', 'Reply not found')
     }
 
-    if (!canTransitionReply(reply.status, 'publish_failed')) {
-      throw reviewError(
-        'invalid_transition',
-        `Cannot mark reply as publish_failed from ${reply.status} status`,
-      )
-    }
-
     const now = deps.clock()
-    const updated = await deps.replyRepo.upsert(
-      { ...reply, status: 'publish_failed' },
-      now,
-    )
+    const transitioned = transitionReply(reply, 'publish_failed', now)
+    if (transitioned.isErr()) throw transitioned.error
+    const updated = await deps.replyRepo.upsert(transitioned.value, now)
 
     // Emit event after status update — failure should not break the update
     try {
@@ -416,12 +437,11 @@ export const markReplyPublishFailed =
       if (review) {
         await deps.events.emit(
           reviewReplyPublishFailed({
-            eventId: crypto.randomUUID(),
             replyId: updated.id,
             reviewId: updated.reviewId,
             propertyId: review.propertyId,
             organizationId: updated.organizationId,
-            authorId: updated.createdBy ?? ('' as UserId),
+            authorId: updated.createdBy,
             occurredAt: now,
           }),
         )
@@ -458,18 +478,17 @@ export const retryPublish =
       throw reviewError('reply_not_found', 'No reply found for this review')
     }
 
-    if (!canTransitionReply(reply.status, 'approved')) {
-      throw reviewError(
-        'invalid_transition',
-        `Cannot retry reply from ${reply.status} status`,
-      )
+    // D6-001: scope reply mutations to the caller's assigned properties.
+    const review = await deps.reviewRepo.findById(input.reviewId, input.organizationId)
+    if (!review) {
+      throw reviewError('review_not_found', 'Review not found')
     }
+    await assertReplyPropertyAccessible(deps, input, review.propertyId)
 
     const now = deps.clock()
-    const backToApproved = await deps.replyRepo.upsert(
-      { ...reply, status: 'approved' },
-      now,
-    )
+    const transitioned = transitionReply(reply, 'approved', now)
+    if (transitioned.isErr()) throw transitioned.error
+    const backToApproved = await deps.replyRepo.upsert(transitioned.value, now)
 
     await deps.queue.addPublishJob({
       replyId: backToApproved.id,

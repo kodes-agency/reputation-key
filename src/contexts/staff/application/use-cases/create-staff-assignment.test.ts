@@ -5,6 +5,7 @@ import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { isStaffError } from '../../domain/errors'
 import type { StaffAssignmentId } from '../../domain/types'
+import type { StaffPublicApi } from '../public-api'
 import { staffAssignmentId } from '#/shared/domain/ids'
 import { userId, propertyId } from '#/shared/domain/ids'
 
@@ -15,13 +16,20 @@ const FIXED_TIME = new Date('2026-04-15T12:00:00Z')
 const FIXED_USER = userId('user-00000000-0000-0000-0000-000000000002')
 const FIXED_PROPERTY = propertyId('a0000000-0000-0000-0000-000000000001')
 
-const setup = () => {
+const allAccessStaffApi: StaffPublicApi = {
+  getAccessiblePropertyIds: async () => null,
+  getAssignedPortals: async () => [],
+  countAssignmentsByTeam: async () => 0,
+}
+
+const setup = (staffApi: StaffPublicApi = allAccessStaffApi) => {
   const assignmentRepo = createInMemoryStaffAssignmentRepo()
   const events = createCapturingEventBus()
 
   const deps = {
     assignmentRepo,
     events,
+    staffPublicApi: staffApi,
     idGen: () => FIXED_ID,
     clock: () => FIXED_TIME,
   }
@@ -104,17 +112,29 @@ describe('createStaffAssignment', () => {
     expect(events.capturedEvents[0]._tag).toBe('staff.assigned')
   })
 
-  it('allows PropertyManager to self-assign', async () => {
+  it('allows AccountAdmin to self-assign, rejects PropertyManager self-assign', async () => {
     const { useCase, assignmentRepo } = setup()
-    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
 
+    // AccountAdmin can self-assign (self-assignment guard bypassed)
+    const adminCtx = buildTestAuthContext({ role: 'AccountAdmin' })
     const assignment = await useCase(
-      { userId: ctx.userId as string, propertyId: FIXED_PROPERTY as string },
-      ctx,
+      { userId: adminCtx.userId as string, propertyId: FIXED_PROPERTY as string },
+      adminCtx,
     )
-
-    expect(assignment.userId).toBe(ctx.userId)
+    expect(assignment.userId).toBe(adminCtx.userId)
     expect(assignmentRepo.all()).toHaveLength(1)
+
+    // PropertyManager cannot self-assign (self-assignment guard enforced — STAFF-01)
+    const pmCtx = buildTestAuthContext({ role: 'PropertyManager' })
+    await expect(
+      useCase(
+        { userId: pmCtx.userId as string, propertyId: FIXED_PROPERTY as string },
+        pmCtx,
+      ),
+    ).rejects.toSatisfy(
+      (e) =>
+        isStaffError(e) && (e.code === 'invalid_input' || e.code === 'already_assigned'),
+    )
   })
 
   it('re-throws non-unique-constraint errors immediately', async () => {
@@ -131,6 +151,7 @@ describe('createStaffAssignment', () => {
     const deps = {
       assignmentRepo: spiedRepo,
       events,
+      staffPublicApi: allAccessStaffApi,
       idGen: () => FIXED_ID,
       clock: () => FIXED_TIME,
     }

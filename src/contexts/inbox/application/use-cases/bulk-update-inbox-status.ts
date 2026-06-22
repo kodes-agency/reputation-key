@@ -107,7 +107,6 @@ const emitBulkStatusEvents = async (
     const oldItem = items.find((i) => i.id === id)
     await deps.events.emit(
       inboxItemBulkStatusChanged({
-        eventId: crypto.randomUUID(),
         inboxItemId: id,
         organizationId: input.organizationId,
         propertyId: oldItem?.propertyId ?? ('' as PropertyId),
@@ -121,7 +120,6 @@ const emitBulkStatusEvents = async (
     if (input.newStatus === 'escalated') {
       await deps.events.emit(
         inboxItemEscalated({
-          eventId: crypto.randomUUID(),
           inboxItemId: id,
           organizationId: input.organizationId,
           propertyId: oldItem?.propertyId ?? ('' as PropertyId),

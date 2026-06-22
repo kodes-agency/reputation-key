@@ -5,10 +5,18 @@ import { getPortal } from './get-portal'
 import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
 import { isPortalError } from '../../domain/errors'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { PropertyId } from '#/shared/domain/ids'
 
-const setup = () => {
+const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublicApi => ({
+  getAccessiblePropertyIds: async () => accessible,
+  getAssignedPortals: async () => [],
+  countAssignmentsByTeam: async () => 0,
+})
+
+const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
   const portalRepo = createInMemoryPortalRepo()
-  const useCase = getPortal({ portalRepo })
+  const useCase = getPortal({ portalRepo, staffPublicApi: staffApiMock(accessible) })
   return { useCase, portalRepo }
 }
 
@@ -29,18 +37,34 @@ describe('getPortal', () => {
     const ctx = buildTestAuthContext()
 
     await expect(useCase({ portalId: 'nonexistent' }, ctx)).rejects.toSatisfy(
-      (e: unknown) => isPortalError(e) && (e as { code: string }).code === 'portal_not_found',
+      (e: unknown) =>
+        isPortalError(e) && (e as { code: string }).code === 'portal_not_found',
     )
   })
 
   it('rejects when portal belongs to another organization', async () => {
     const { useCase, portalRepo } = setup()
-    const ctx = buildTestAuthContext({ organizationId: 'org-00000000-0000-0000-0000-000000000002' as unknown as import('#/shared/domain/ids').OrganizationId })
+    const ctx = buildTestAuthContext({
+      organizationId:
+        'org-00000000-0000-0000-0000-000000000002' as unknown as import('#/shared/domain/ids').OrganizationId,
+    })
     const portal = buildTestPortal({})
     portalRepo.seed([portal])
 
     await expect(useCase({ portalId: portal.id }, ctx)).rejects.toSatisfy(
-      (e: unknown) => isPortalError(e) && (e as { code: string }).code === 'portal_not_found',
+      (e: unknown) =>
+        isPortalError(e) && (e as { code: string }).code === 'portal_not_found',
+    )
+  })
+
+  it('rejects when PropertyManager lacks assignment to portal property', async () => {
+    const { useCase, portalRepo } = setup([])
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const portal = buildTestPortal({})
+    portalRepo.seed([portal])
+
+    await expect(useCase({ portalId: portal.id }, ctx)).rejects.toSatisfy(
+      (e: unknown) => isPortalError(e) && (e as { code: string }).code === 'forbidden',
     )
   })
 })

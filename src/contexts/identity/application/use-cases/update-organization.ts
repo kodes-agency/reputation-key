@@ -4,6 +4,7 @@
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { can } from '#/shared/domain/permissions'
 import { identityError } from '../../domain/errors'
+import { validateSlug, validateOrganizationName } from '../../domain/rules'
 
 export type UpdateOrganizationDeps = Readonly<{
   updateOrg: (data: Record<string, unknown>) => Promise<void>
@@ -33,8 +34,21 @@ export const updateOrganization =
         'Only AccountAdmin or PropertyManager can update organization',
       )
     }
+    // 2. Validate slug/name if provided
+    if (input.slug !== undefined) {
+      const slugResult = validateSlug(input.slug)
+      if (slugResult.isErr()) {
+        throw identityError(slugResult.error.code, slugResult.error.message)
+      }
+    }
+    if (input.name !== undefined) {
+      const nameResult = validateOrganizationName(input.name)
+      if (nameResult.isErr()) {
+        throw identityError(nameResult.error.code, nameResult.error.message)
+      }
+    }
 
-    // 2. Build update payload — convert nulls to undefined for Better Auth
+    // 3. Build update payload — convert nulls to undefined for Better Auth
     const updateData: Record<string, unknown> = {
       ...(input.name && { name: input.name }),
       ...(input.slug && { slug: input.slug }),
@@ -62,7 +76,7 @@ export const updateOrganization =
       }),
     }
 
-    // 3. Delegate to auth provider
+    // 4. Delegate to auth provider
     await deps.updateOrg(updateData)
   }
 

@@ -4,16 +4,19 @@
 
 import type { GoalRepository } from '../ports/goal.repository'
 import type { Goal, RecurrenceRule } from '../../domain/types'
-import type { GoalId, OrganizationId } from '#/shared/domain/ids'
+import type { GoalId, OrganizationId, UserId } from '#/shared/domain/ids'
 import type { Role } from '#/shared/domain/roles'
 import { can } from '#/shared/domain/permissions'
 import { ok, err, type Result } from '#/shared/domain'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import { isPropertyAccessible } from '#/shared/domain/property-access'
 
 // ── Input type ──────────────────────────────────────────────────────────
 
 export type UpdateGoalInput = Readonly<{
   goalId: GoalId
   organizationId: OrganizationId
+  userId: UserId
   targetValue?: number
   recurrenceRule?: RecurrenceRule | null
   role: Role
@@ -32,6 +35,7 @@ export type UpdateGoalError =
 
 export type UpdateGoalDeps = Readonly<{
   goalRepo: GoalRepository
+  staffPublicApi: StaffPublicApi
   clock: () => Date
 }>
 export type UpdateGoal = ReturnType<typeof updateGoal>
@@ -49,6 +53,19 @@ export const updateGoal =
     const goal = await deps.goalRepo.getById(input.goalId, input.organizationId)
     if (!goal) {
       return err({ tag: 'goal_not_found' })
+    }
+
+    // D6-001: PropertyManager/Staff must be assigned to the goal's property.
+    const accessible = await isPropertyAccessible(
+      (orgId, uId, role) =>
+        deps.staffPublicApi.getAccessiblePropertyIds(orgId, uId, role),
+      input.organizationId,
+      input.userId,
+      input.role,
+      goal.propertyId,
+    )
+    if (!accessible) {
+      return err({ tag: 'forbidden' })
     }
 
     // 2. Must be active

@@ -133,6 +133,31 @@ export const createGoalRepository = (
     })
   },
 
+  cancelTemplateAndInstances: async (parentGoalId, orgId, now) => {
+    return trace('goal.cancelTemplateAndInstances', async () => {
+      return db.transaction(async (tx) => {
+        // Cancel all non-completed instances
+        await tx
+          .update(goals)
+          .set({ status: 'cancelled', updatedAt: now })
+          .where(
+            and(
+              eq(goals.parentGoalId, parentGoalId),
+              eq(goals.organizationId, orgId),
+              sql`${goals.status} != 'completed'`,
+            ),
+          )
+        // Cancel the template itself
+        const result = await tx
+          .update(goals)
+          .set({ status: 'cancelled', updatedAt: now })
+          .where(and(eq(goals.id, parentGoalId), eq(goals.organizationId, orgId)))
+          .returning()
+        return result[0] ? goalFromRow(result[0]) : null
+      })
+    })
+  },
+
   // ── Goal Progress ──────────────────────────────────────────────────────
 
   insertProgress: async (progress) => {
@@ -209,15 +234,6 @@ export const createGoalRepository = (
 
   // ── Event-driven increment ──────────────────────────────────────────
 
-  findAllActive: async (organizationId) => {
-    return trace('goal.findAllActive', async () => {
-      const rows = await db
-        .select()
-        .from(goals)
-        .where(and(eq(goals.organizationId, organizationId), eq(goals.status, 'active')))
-      return safeMapGoals(rows)
-    })
-  },
   // ⚠️ CROSS-TENANT by design — background job
   findAllActiveRecurring: async () => {
     return trace('goal.findAllActiveRecurring', async () => {
@@ -274,14 +290,43 @@ export const createGoalRepository = (
   createGoalAndProgress: async (goal, progress) => {
     return trace('goal.createGoalAndProgress', async () => {
       await db.transaction(async (tx) => {
-        await tx.insert(goals).values({
-          ...goalToInsertRow(goal),
-          id: goal.id as string,
-        })
+        // ON CONFLICT DO NOTHING: the goals_parent_period_uniq unique index
+        // on (parent_goal_id, period_start) makes spawn-recurring-instances
+        // idempotent — duplicate instances from a race are silently skipped.
+        // Fresh IDs in create-goal.ts never conflict.
+        const inserted = await tx
+          .insert(goals)
+          .values({
+            ...goalToInsertRow(goal),
+            id: goal.id as string,
+          })
+          .onConflictDoNothing()
+          .returning()
+        if (!inserted[0]) return // Duplicate — skip progress insert
         await tx.insert(goalProgress).values({
           ...goalProgressToInsertRow(progress),
           id: progress.id as string,
           organizationId: goal.organizationId as string,
+        })
+      })
+    })
+  },
+
+  createRecurringGoalWithInstance: async (template, instance, progress) => {
+    return trace('goal.createRecurringGoalWithInstance', async () => {
+      await db.transaction(async (tx) => {
+        await tx.insert(goals).values({
+          ...goalToInsertRow(template),
+          id: template.id as string,
+        })
+        await tx.insert(goals).values({
+          ...goalToInsertRow(instance),
+          id: instance.id as string,
+        })
+        await tx.insert(goalProgress).values({
+          ...goalProgressToInsertRow(progress),
+          id: progress.id as string,
+          organizationId: instance.organizationId as string,
         })
       })
     })
@@ -333,93 +378,6 @@ export const createGoalRepository = (
         'goal findActiveGoalsByMetric complete',
       )
       return safeMapGoals(rows)
-    })
-  },
-
-  incrementProgress: async (goalId, aggregation, delta) => {
-    return trace('goal.incrementProgress', async () => {
-      if (aggregation === 'sum' || aggregation === 'count') {
-        const incDelta = aggregation === 'count' ? 1 : delta
-        const result = await db
-          .update(goalProgress)
-          .set({
-            currentValue: sql`${goalProgress.currentValue} + ${incDelta}`,
-          })
-          .where(eq(goalProgress.goalId, goalId))
-          .returning({
-            currentValue: goalProgress.currentValue,
-            currentSum: goalProgress.currentSum,
-            currentCount: goalProgress.currentCount,
-          })
-        if (!result[0]) {
-          throw goalError(
-            'progress_not_found',
-            `incrementProgress: no progress row for goal ${goalId}`,
-          )
-        }
-        return {
-          currentValue: result[0].currentValue,
-          currentSum: result[0].currentSum,
-          currentCount: result[0].currentCount,
-        }
-      }
-
-      if (aggregation === 'max') {
-        const result = await db
-          .update(goalProgress)
-          .set({
-            currentValue: sql`GREATEST(${goalProgress.currentValue}, ${delta})`,
-          })
-          .where(eq(goalProgress.goalId, goalId))
-          .returning({
-            currentValue: goalProgress.currentValue,
-            currentSum: goalProgress.currentSum,
-            currentCount: goalProgress.currentCount,
-          })
-        if (!result[0]) {
-          throw goalError(
-            'progress_not_found',
-            `incrementProgress: no progress row for goal ${goalId}`,
-          )
-        }
-        return {
-          currentValue: result[0].currentValue,
-          currentSum: result[0].currentSum,
-          currentCount: result[0].currentCount,
-        }
-      }
-
-      if (aggregation === 'avg') {
-        const result = await db
-          .update(goalProgress)
-          .set({
-            currentSum: sql`COALESCE(${goalProgress.currentSum}, 0) + ${delta}`,
-            currentCount: sql`COALESCE(${goalProgress.currentCount}, 0) + 1`,
-            currentValue: sql`(COALESCE(${goalProgress.currentSum}, 0) + ${delta}) / (COALESCE(${goalProgress.currentCount}, 0) + 1)`,
-          })
-          .where(eq(goalProgress.goalId, goalId))
-          .returning({
-            currentValue: goalProgress.currentValue,
-            currentSum: goalProgress.currentSum,
-            currentCount: goalProgress.currentCount,
-          })
-        if (!result[0]) {
-          throw goalError(
-            'progress_not_found',
-            `incrementProgress: no progress row for goal ${goalId}`,
-          )
-        }
-        return {
-          currentValue: result[0].currentValue,
-          currentSum: result[0].currentSum,
-          currentCount: result[0].currentCount,
-        }
-      }
-
-      throw goalError(
-        'unsupported_aggregation',
-        `incrementProgress: unsupported aggregation ${aggregation}`,
-      )
     })
   },
 

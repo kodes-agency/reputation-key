@@ -21,6 +21,7 @@ export const guestErrorStatus = (code: GuestErrorCode): number =>
     .with(
       'invalid_rating',
       'duplicate_rating',
+      'duplicate_feedback',
       'feedback_too_long',
       'feedback_empty',
       'invalid_source',

@@ -97,11 +97,12 @@ function createFakeDeps() {
     list: async () => [],
     listInstances: async () => [],
     cancelByParent: async () => 0,
-    findAllActive: async () => goals.filter((g) => g.status === 'active'),
     findAllActiveRecurring: async () =>
       goals.filter(
         (g) => g.status === 'active' && g.goalType === 'recurring' && !g.parentGoalId,
       ),
+    cancelTemplateAndInstances: async () => null,
+    createRecurringGoalWithInstance: async () => {},
     findAllActiveGlobal: async () =>
       goals.filter(
         (g) => g.status === 'active' && g.portalId === null && g.portalGroupId === null,
@@ -114,11 +115,6 @@ function createFakeDeps() {
     createGoalAndProgress: async () => {},
     findActiveGoalsByMetric: async () => [],
     upsertProgress: async () => ({
-      currentValue: 0,
-      currentSum: null,
-      currentCount: null,
-    }),
-    incrementProgress: async () => ({
       currentValue: 0,
       currentSum: null,
       currentCount: null,

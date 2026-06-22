@@ -4,13 +4,7 @@ import { describe, it, expect } from 'vitest'
 import { createNotification } from './constructors'
 import { createNotificationEmail } from './constructors-email'
 import { createNotificationPreference } from './constructors-preference'
-import {
-  markNotificationRead,
-  dismissNotification,
-  markEmailSent,
-  markEmailFailed,
-  markEmailSkipped,
-} from './constructors-transitions'
+import { markNotificationRead, dismissNotification } from './constructors-transitions'
 import {
   organizationId,
   userId,
@@ -18,11 +12,7 @@ import {
   notificationEmailId,
   notificationPreferenceId,
 } from '#/shared/domain/ids'
-import type {
-  Notification as DomainNotification,
-  NotificationEmail,
-  NotificationType,
-} from './types'
+import type { Notification as DomainNotification, NotificationType } from './types'
 import type { Result } from '#/shared/domain'
 import type { NotificationError } from './errors'
 
@@ -272,18 +262,6 @@ function expectConstructorError(
     expect(result.error.details).toEqual(details)
   }
 }
-
-/** Assert an email transition succeeded and is `sent` at FIXED_DATE; return the narrowed value. */
-function expectEmailSent(
-  result: Result<NotificationEmail, NotificationError>,
-): NotificationEmail {
-  expect(result.isOk()).toBe(true)
-  if (result.isErr()) throw new Error('expected email transition to succeed')
-  expect(result.value.status).toBe('sent')
-  expect(result.value.sentAt).toBe(FIXED_DATE)
-  return result.value
-}
-
 // ── markNotificationRead ────────────────────────────────────────────
 
 describe('markNotificationRead', () => {
@@ -407,118 +385,5 @@ describe('dismissNotification', () => {
 
     const result = dismissNotification(bogus, clock)
     expectInvalidStatus(result)
-  })
-})
-
-// ── markEmailSent ───────────────────────────────────────────────────
-
-describe('markEmailSent', () => {
-  const baseEmail: NotificationEmail = {
-    id: notificationEmailId('e-1'),
-    notificationId: notificationId('n-1'),
-    userId: USER_ID,
-    organizationId: ORG_ID,
-    status: 'pending',
-    priority: 'urgent',
-    sentAt: null,
-    failedAt: null,
-    retryCount: 0,
-    createdAt: FIXED_DATE,
-    updatedAt: FIXED_DATE,
-  }
-
-  it('marks a pending email as sent', () => {
-    const result = markEmailSent(baseEmail, clock)
-    const email = expectEmailSent(result)
-    expect(email.updatedAt).toBe(FIXED_DATE)
-  })
-
-  it('is idempotent when already sent', () => {
-    const sent: NotificationEmail = {
-      ...baseEmail,
-      status: 'sent',
-      sentAt: FIXED_DATE,
-    }
-
-    const result = markEmailSent(sent, clock)
-    expect(result.isOk()).toBe(true)
-    if (result.isOk()) {
-      expect(result.value).toEqual(sent)
-    }
-  })
-
-  it('marks a failed email as sent (retry path)', () => {
-    const failed: NotificationEmail = {
-      ...baseEmail,
-      status: 'failed',
-      failedAt: FIXED_DATE,
-      retryCount: 2,
-    }
-
-    const result = markEmailSent(failed, clock)
-    const email = expectEmailSent(result)
-    expect(email.retryCount).toBe(2) // preserved
-  })
-})
-
-// ── markEmailFailed ─────────────────────────────────────────────────
-
-describe('markEmailFailed', () => {
-  it('increments retryCount and sets failed status', () => {
-    const base: NotificationEmail = {
-      id: notificationEmailId('e-1'),
-      notificationId: notificationId('n-1'),
-      userId: USER_ID,
-      organizationId: ORG_ID,
-      status: 'pending',
-      priority: 'normal',
-      sentAt: null,
-      failedAt: null,
-      retryCount: 2,
-      createdAt: FIXED_DATE,
-      updatedAt: FIXED_DATE,
-    }
-
-    const result = markEmailFailed(base, clock)
-
-    expect(result.isOk()).toBe(true)
-    if (result.isOk()) {
-      expect(result.value.status).toBe('failed')
-      expect(result.value.failedAt).toBe(FIXED_DATE)
-      expect(result.value.retryCount).toBe(3)
-      expect(result.value.updatedAt).toBe(FIXED_DATE)
-    }
-  })
-})
-
-// ── markEmailSkipped ────────────────────────────────────────────────
-
-describe('markEmailSkipped', () => {
-  it('sets status to skipped', () => {
-    const base: NotificationEmail = {
-      id: notificationEmailId('e-1'),
-      notificationId: notificationId('n-1'),
-      userId: USER_ID,
-      organizationId: ORG_ID,
-      status: 'pending',
-      priority: 'normal',
-      sentAt: null,
-      failedAt: null,
-      retryCount: 0,
-      createdAt: FIXED_DATE,
-      updatedAt: FIXED_DATE,
-    }
-
-    const result = markEmailSkipped(base, clock)
-
-    expect(result.isOk()).toBe(true)
-    if (result.isOk()) {
-      expect(result.value.status).toBe('skipped')
-      expect(result.value.updatedAt).toBe(FIXED_DATE)
-      // Does not alter other fields
-      expect(result.value.sentAt).toBeNull()
-      expect(result.value.failedAt).toBeNull()
-      expect(result.value.retryCount).toBe(0)
-    }
   })
 })

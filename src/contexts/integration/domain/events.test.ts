@@ -17,7 +17,6 @@ const now = new Date('2025-06-15T12:00:00Z')
 describe('integrationGoogleAccountConnected', () => {
   it('sets _tag to "google_account.connected"', () => {
     const event = integrationGoogleAccountConnected({
-      eventId: 'test-event-1',
       connectionId: googleConnectionId('conn-1'),
       organizationId: organizationId('org-1'),
       googleEmail: 'user@example.com',
@@ -28,7 +27,6 @@ describe('integrationGoogleAccountConnected', () => {
 
   it('preserves all payload fields', () => {
     const event = integrationGoogleAccountConnected({
-      eventId: 'test-event-2',
       connectionId: googleConnectionId('conn-1'),
       organizationId: organizationId('org-1'),
       googleEmail: 'user@example.com',
@@ -41,7 +39,6 @@ describe('integrationGoogleAccountConnected', () => {
 
   it('sets occurredAt as a Date', () => {
     const event = integrationGoogleAccountConnected({
-      eventId: 'test-event-3',
       connectionId: googleConnectionId('conn-1'),
       organizationId: organizationId('org-1'),
       googleEmail: 'user@example.com',
@@ -57,7 +54,6 @@ describe('integrationGoogleAccountConnected', () => {
 describe('integrationGoogleAccountDisconnected', () => {
   it('sets _tag to "google_account.disconnected"', () => {
     const event = integrationGoogleAccountDisconnected({
-      eventId: 'test-event-4',
       connectionId: googleConnectionId('conn-1'),
       organizationId: organizationId('org-1'),
       occurredAt: now,
@@ -67,7 +63,6 @@ describe('integrationGoogleAccountDisconnected', () => {
 
   it('preserves connectionId and organizationId', () => {
     const event = integrationGoogleAccountDisconnected({
-      eventId: 'test-event-5',
       connectionId: googleConnectionId('conn-2'),
       organizationId: organizationId('org-2'),
       occurredAt: now,
@@ -78,7 +73,6 @@ describe('integrationGoogleAccountDisconnected', () => {
 
   it('sets occurredAt as a Date', () => {
     const event = integrationGoogleAccountDisconnected({
-      eventId: 'test-event-6',
       connectionId: googleConnectionId('conn-1'),
       organizationId: organizationId('org-1'),
       occurredAt: now,
@@ -93,7 +87,6 @@ describe('integrationGoogleAccountDisconnected', () => {
 describe('integrationPropertyImportCompleted', () => {
   it('sets _tag to "property_import.completed"', () => {
     const event = integrationPropertyImportCompleted({
-      eventId: 'test-event-7',
       importJobId: gbpImportJobId('job-1'),
       organizationId: organizationId('org-1'),
       totalCount: 100,
@@ -107,7 +100,6 @@ describe('integrationPropertyImportCompleted', () => {
 
   it('preserves all payload fields including counters', () => {
     const event = integrationPropertyImportCompleted({
-      eventId: 'test-event-8',
       importJobId: gbpImportJobId('job-1'),
       organizationId: organizationId('org-1'),
       totalCount: 100,
@@ -125,7 +117,6 @@ describe('integrationPropertyImportCompleted', () => {
 
   it('sets occurredAt as a Date', () => {
     const event = integrationPropertyImportCompleted({
-      eventId: 'test-event-9',
       importJobId: gbpImportJobId('job-1'),
       organizationId: organizationId('org-1'),
       totalCount: 0,
@@ -143,7 +134,6 @@ describe('integrationPropertyImportCompleted', () => {
 describe('integrationGoogleConnectionVisibilityChanged', () => {
   it('sets _tag to "google_connection.visibility_changed"', () => {
     const event = integrationGoogleConnectionVisibilityChanged({
-      eventId: 'test-event-10',
       connectionId: googleConnectionId('conn-1'),
       organizationId: organizationId('org-1'),
       visibility: 'organization',
@@ -154,7 +144,6 @@ describe('integrationGoogleConnectionVisibilityChanged', () => {
 
   it('preserves all payload fields', () => {
     const event = integrationGoogleConnectionVisibilityChanged({
-      eventId: 'test-event-11',
       connectionId: googleConnectionId('conn-1'),
       organizationId: organizationId('org-1'),
       visibility: 'private',
@@ -167,7 +156,6 @@ describe('integrationGoogleConnectionVisibilityChanged', () => {
 
   it('sets occurredAt as a Date', () => {
     const event = integrationGoogleConnectionVisibilityChanged({
-      eventId: 'test-event-12',
       connectionId: googleConnectionId('conn-1'),
       organizationId: organizationId('org-1'),
       visibility: 'organization',

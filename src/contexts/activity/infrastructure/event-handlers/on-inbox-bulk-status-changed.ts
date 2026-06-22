@@ -15,6 +15,7 @@ export const onInboxBulkStatusChanged =
       organizationId: event.organizationId,
       userId: event.userId || null,
       source: event.source,
+      eventId: event.eventId,
       payload: {
         subject: 'status',
         from: event.oldStatus,

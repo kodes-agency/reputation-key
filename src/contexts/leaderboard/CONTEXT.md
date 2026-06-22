@@ -19,7 +19,6 @@ Read-only ranking of portals and portal groups within a selected property using 
 - LeaderboardEntry → LeaderboardSnapshot (required `snapshotId`, cascading delete).
 - LeaderboardEntry → Portal or PortalGroup (via `targetType` + `targetId`).
 - Leaderboard context **depends on** `MetricPublicApi` for querying metric aggregates.
-- Leaderboard context **emits** `leaderboard.snapshot.refreshed` events (currently unconsumed).
 
 ## Invariants
 
@@ -33,9 +32,7 @@ Read-only ranking of portals and portal groups within a selected property using 
 
 ## Events produced
 
-| Tag                              | Payload                                                                      | When                       |
-| -------------------------------- | ---------------------------------------------------------------------------- | -------------------------- |
-| `leaderboard.snapshot.refreshed` | organizationId, propertyId, period, scope, metricKey, snapshotId, occurredAt | Snapshot refresh completes |
+None. (The `leaderboard.snapshot.refreshed` event was pruned — it had zero subscribers. Snapshot freshness is observable via `leaderboardSnapshots.lastUpdatedAt`.)
 
 ## Events consumed
 
@@ -47,18 +44,18 @@ Read-only ranking of portals and portal groups within a selected property using 
 
 ```
 leaderboard/
-  domain/              types.ts, events.ts, errors.ts
+  domain/              types.ts, events.ts (pruned), errors.ts, scoring.ts
   application/
     ports/             leaderboard.repository.ts
+    use-cases/         refresh-leaderboard.ts, reconcile-leaderboards.ts, get-leaderboard.ts
     dto/               leaderboard.dto.ts (Zod schemas)
     utils.ts           periodToRange, LEADERBOARD_PERIODS
-    public-api.ts      re-exports DTO types, event types/constructors
+    public-api.ts      re-exports DTO types
   infrastructure/
     repositories/      leaderboard.repository.ts (Drizzle)
     mappers/           leaderboard.mapper.ts
   server/              leaderboards.ts
   build.ts             composition root
-```
 
 ## Use cases
 
@@ -72,9 +69,7 @@ leaderboard/
 
 Exported from `application/public-api.ts`:
 
-- Types: `LeaderboardEntry`, `LeaderboardSnapshot`, `LeaderboardEntryWithTarget`, `GetLeaderboardInput`
-- Event types: `LeaderboardSnapshotRefreshed`, `LeaderboardEvent`
-- Event constructors: `leaderboardSnapshotRefreshed`
+- Types: `LeaderboardEntryWithTarget`, `GetLeaderboardInput`
 
 ## Server functions
 
@@ -91,3 +86,4 @@ Exported from `application/public-api.ts`:
 ## Background jobs
 
 - **leaderboard.reconcile** — hourly job that refreshes all snapshots for all properties with metric events. Covers all periods, scopes, and metrics.
+```

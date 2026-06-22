@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import type { GoalProgressId } from '#/shared/domain/ids'
 import { onMetricRecorded, type OnMetricRecordedDeps } from './on-metric-recorded'
 import type { MetricRecorded } from '#/contexts/metric/application/public-api'
-import type { GoalCompleted, GoalProgressUpdated } from '../../domain/events'
+import type { GoalCompleted } from '../../domain/events'
 import type { GoalRepository } from '../../application/ports/goal.repository'
 import type { Goal, GoalProgress } from '../../domain/types'
 import {
@@ -18,7 +18,7 @@ const FIXED_TIME = new Date('2026-06-15T12:00:00Z')
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
-type EmittedEvent = GoalCompleted | GoalProgressUpdated
+type EmittedEvent = GoalCompleted
 
 function makeGoal(overrides: Partial<Goal> & { id: Goal['id'] }): Goal {
   return {
@@ -101,9 +101,6 @@ function makeFakeDeps() {
         currentCount: p.currentCount,
       }
     },
-    incrementProgress: async () => {
-      throw new Error('not used — use upsertProgress instead')
-    },
     insertProgress: async (data) => {
       const p: MutableProgress = {
         id: `progress-${++progressCounter}` as unknown as GoalProgressId,
@@ -168,11 +165,12 @@ function makeFakeDeps() {
         goals[idx] = { ...g, status: 'completed', completedAt }
       }
     },
-    findAllActive: async () => [],
     findAllActiveRecurring: async () => [],
     findAllActiveGlobal: async () => [],
     findActiveRecurringTemplates: async () => [],
     findLatestInstance: async (_parentId, _orgId) => null,
+    cancelTemplateAndInstances: async () => null,
+    createRecurringGoalWithInstance: async () => {},
     createGoalAndProgress: async () => {},
   }
 
@@ -278,26 +276,6 @@ describe('onMetricRecorded', () => {
 
       const progress = fakes.progresses.get('g-sum')!
       expect(progress.currentValue).toBe(60)
-    })
-
-    it('emits GoalProgressUpdated', async () => {
-      const goal = makeGoal({
-        id: goalId('g-sum'),
-        aggregationFunction: 'sum',
-        targetValue: 100,
-      })
-      fakes.addGoalWithProgress(goal, { currentValue: 50 })
-
-      await handler(makeEvent({ value: 10 }))
-
-      const progressEvents = fakes.emittedEvents.filter(
-        (e) => e._tag === 'goal.progress_updated',
-      )
-      expect(progressEvents).toHaveLength(1)
-      const evt = progressEvents[0] as GoalProgressUpdated
-      expect(evt.previousValue).toBe(50)
-      expect(evt.currentValue).toBe(60)
-      expect(evt.computedSource).toBe('event_increment')
     })
 
     it('completes goal when target met', async () => {
@@ -614,12 +592,6 @@ describe('onMetricRecorded', () => {
       const pPortal = fakes.progresses.get('g-portal')!
       expect(pProp.currentValue).toBe(1)
       expect(pPortal.currentValue).toBe(1)
-
-      // Two progress_updated events
-      const progressEvents = fakes.emittedEvents.filter(
-        (e) => e._tag === 'goal.progress_updated',
-      )
-      expect(progressEvents).toHaveLength(2)
     })
 
     it('event without portalId does NOT match portal-scoped goal', async () => {

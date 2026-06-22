@@ -22,6 +22,7 @@ const guestErrorStatus = (code: GuestErrorCode): number =>
     .with(
       'invalid_rating',
       'duplicate_rating',
+      'duplicate_feedback',
       'feedback_too_long',
       'feedback_empty',
       'invalid_source',
@@ -74,6 +75,7 @@ describe('guestErrorStatus (mirrors server module)', () => {
     const codes: GuestErrorCode[] = [
       'invalid_rating',
       'duplicate_rating',
+      'duplicate_feedback',
       'feedback_too_long',
       'feedback_empty',
       'portal_not_found',
@@ -81,6 +83,7 @@ describe('guestErrorStatus (mirrors server module)', () => {
       'rate_limit_exceeded',
       'invalid_source',
       'invalid_session',
+      'forbidden',
     ]
     for (const code of codes) {
       const status = guestErrorStatus(code)

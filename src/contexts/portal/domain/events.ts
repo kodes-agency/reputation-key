@@ -2,7 +2,7 @@
 // Per architecture: "Events are facts, named in the past tense."
 // Events live in their owning context's domain/events.ts.
 
-import assert from 'node:assert/strict'
+import { assert } from '#/shared/domain/assert'
 import type { PortalId } from './types'
 import type {
   OrganizationId,
@@ -277,7 +277,7 @@ export const portalGroupCreated = (
 ): PortalGroupCreated => {
   assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
   if (!args.name || args.name.trim().length === 0) {
-    throw portalError('invalid_label', 'name must be a non-empty string')
+    throw portalError('invalid_name', 'name must be a non-empty string')
   }
   return {
     _tag: 'portal_group.created',
@@ -292,7 +292,7 @@ export const portalGroupUpdated = (
 ): PortalGroupUpdated => {
   assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
   if (!args.name || args.name.trim().length === 0) {
-    throw portalError('invalid_label', 'name must be a non-empty string')
+    throw portalError('invalid_name', 'name must be a non-empty string')
   }
   return {
     _tag: 'portal_group.updated',

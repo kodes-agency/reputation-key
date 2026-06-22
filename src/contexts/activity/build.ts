@@ -9,9 +9,6 @@ import { registerActivityHandlers } from './infrastructure/event-handlers'
 import { getActivityTimeline } from './queries/get-activity-timeline'
 import { getOrgActivity } from './queries/get-org-activity'
 import { createDbInboxItemLookupAdapter } from './infrastructure/adapters/db-inbox-item-lookup.adapter'
-import { createDbUserLookupAdapter } from './infrastructure/adapters/db-user-lookup.adapter'
-import { insertActivityLog } from './application/use-cases/insert-activity-log'
-import { activityLogId } from '#/shared/domain/ids'
 
 type BuildInput = Readonly<{
   db: Database
@@ -25,7 +22,6 @@ type BuildInput = Readonly<{
 export const buildActivityContext = (input: BuildInput) => {
   const repo = createActivityRepository(input.db)
   const inboxItemLookup = createDbInboxItemLookupAdapter(input.db)
-  const userLookup = createDbUserLookupAdapter(input.db)
 
   const timeline = getActivityTimeline({
     repo,
@@ -45,26 +41,18 @@ export const buildActivityContext = (input: BuildInput) => {
     })
   }
 
-  const useCases = {
-    insertActivityLog: insertActivityLog({
-      repo,
-      userLookup,
-      clock: input.clock,
-      logger: input.logger,
-      idGen: () => activityLogId(crypto.randomUUID()),
-    }),
-  } as const
-
   const publicApi: ActivityPublicApi = {
     getActivityTimeline: timeline,
     getOrgActivity: orgActivity,
   }
 
+  // ACT-005: insertActivityLog is NOT constructed here — bootstrap.ts owns the
+  // worker-side instantiation (it has the BullMQ job handler). This build
+  // function is for the web process (query + handler registration only).
   return {
     publicApi,
     internal: {
       repos: { activityRepo: repo },
-      useCases,
     },
   } as const
 }

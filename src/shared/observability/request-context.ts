@@ -11,8 +11,25 @@ import '@tanstack/react-start/server-only'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { randomUUID } from 'node:crypto'
 
+/**
+ * Attributes enriched onto the current request span + every log line.
+ * Set after tenant resolution via `enrichSpan()`. Because the immutable `Span`
+ * (trace.ts) and pino child logger can't be mutated post-creation, these live
+ * on the ALS store and are read dynamically — by the pino `mixin` (logger.ts)
+ * on every log call, and by span-end logging (trace.ts).
+ */
+export interface SpanAttrs {
+  organizationId?: string
+  userId?: string
+  role?: string
+  useCase?: string
+  resource?: string
+}
+
 export interface RequestContext {
   readonly requestId: string
+  /** Mutable span attributes — enriched after tenant resolution. */
+  spanAttrs: SpanAttrs
 }
 
 const asyncLocalStorage = new AsyncLocalStorage<RequestContext>()
@@ -20,9 +37,27 @@ const asyncLocalStorage = new AsyncLocalStorage<RequestContext>()
 export function getRequestContext(): RequestContext | undefined {
   return asyncLocalStorage.getStore()
 }
+/**
+ * Enrich the current request's span attributes. Merges into the ALS store
+ * so every subsequent log line and span-end carries them.
+ *
+ * Called from `resolveTenantContext` (identity attrs) and optionally from
+ * handler bodies (useCase/resource). No-op when called outside a request.
+ */
+export function enrichSpan(attrs: Partial<SpanAttrs>): void {
+  const store = asyncLocalStorage.getStore()
+  if (store) {
+    Object.assign(store.spanAttrs, attrs)
+  }
+}
+
+/** Read the current request's span attributes (for the pino mixin + span-end). */
+export function getSpanAttrs(): SpanAttrs {
+  return asyncLocalStorage.getStore()?.spanAttrs ?? {}
+}
 
 export function runWithContext<T>(requestId: string, fn: () => Promise<T>): Promise<T> {
-  return asyncLocalStorage.run({ requestId }, fn)
+  return asyncLocalStorage.run({ requestId, spanAttrs: {} }, fn)
 }
 
 export function generateRequestId(): string {

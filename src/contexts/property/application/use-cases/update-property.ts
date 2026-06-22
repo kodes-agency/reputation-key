@@ -11,10 +11,13 @@ import { propertyId as toPropertyId } from '#/shared/domain/ids'
 import { validatePropertyName, validateSlug, validateTimezone } from '../../domain/rules'
 import { propertyError } from '../../domain/errors'
 import { propertyUpdated } from '../../domain/events'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import { isPropertyAccessible } from '#/shared/domain/property-access'
 
 // fallow-ignore-next-line unused-type
 export type UpdatePropertyDeps = Readonly<{
   propertyRepo: PropertyRepository
+  staffPublicApi: StaffPublicApi
   events: EventBus
   clock: () => Date
 }>
@@ -77,6 +80,21 @@ export const updateProperty =
   async (input: UpdatePropertyInput, ctx: AuthContext): Promise<Property> => {
     authorize(ctx)
     const { propertyId, existing } = await resolveExisting(deps, ctx, input.propertyId)
+
+    // Enforce property-assignment scoping for PropertyManager (AccountAdmin
+    // bypasses via getAccessiblePropertyIds returning null). Mirrors the
+    // list-properties read path. (D6-001.)
+    const accessible = await isPropertyAccessible(
+      (orgId, userId, role) =>
+        deps.staffPublicApi.getAccessiblePropertyIds(orgId, userId, role),
+      ctx.organizationId,
+      ctx.userId,
+      ctx.role,
+      propertyId,
+    )
+    if (!accessible) {
+      throw propertyError('forbidden', 'No access to this property', { propertyId })
+    }
     const fields = await validateUpdateFields(
       deps,
       input,

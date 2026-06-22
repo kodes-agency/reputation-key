@@ -13,7 +13,11 @@
 // Existing try/catch blocks inside handlers stay — they handle domain-specific error mapping.
 // This wrapper adds ALS + request span + catches anything that slips through as a 500.
 
-import { generateRequestId, runWithContext } from '#/shared/observability/request-context'
+import {
+  enrichSpan,
+  generateRequestId,
+  runWithContext,
+} from '#/shared/observability/request-context'
 import { startRequestSpan } from '#/shared/observability/trace'
 import { ServerFunctionError, catchUntagged } from '#/shared/auth/server-errors'
 import { clearTenantCache } from '#/shared/auth/middleware'
@@ -39,6 +43,10 @@ export function tracedHandler<TInput, TOutput>(
     const start = Date.now()
 
     return runWithContext(requestId, async () => {
+      // Seed the span with the operation name so trace() spans and handler-body
+      // log calls carry it even before resolveTenantContext enriches identity.
+      // Tenant identity (org/user/role) is enriched by resolveTenantContext.
+      enrichSpan({ useCase: name ?? 'serverFn' })
       try {
         const result = await fn(ctx)
         log.info({ duration: Date.now() - start }, 'request complete')

@@ -43,6 +43,31 @@ export const createSpawnRecurringInstancesHandler =
       let spawned = 0
       let failed = 0
 
+      // GOAL-10: Batch-fetch instances for all templates to avoid N+1 queries.
+      // listInstancesBatch is org-scoped, so group by org first.
+      const templatesByOrg = new Map<
+        import('#/shared/domain/ids').OrganizationId,
+        import('../../domain/types').Goal[]
+      >()
+      for (const template of recurringTemplates) {
+        const group = templatesByOrg.get(template.organizationId) ?? []
+        group.push(template)
+        templatesByOrg.set(template.organizationId, group)
+      }
+      const allInstancesMap = new Map<
+        import('#/shared/domain/ids').GoalId,
+        import('../../domain/types').Goal[]
+      >()
+      for (const [orgId, templates] of templatesByOrg) {
+        const batch = await deps.goalRepo.listInstancesBatch(
+          templates.map((t) => t.id),
+          orgId,
+        )
+        for (const [parentId, instances] of batch) {
+          allInstancesMap.set(parentId, instances)
+        }
+      }
+
       for (const template of recurringTemplates) {
         try {
           const rule = template.recurrenceRule
@@ -100,12 +125,11 @@ export const createSpawnRecurringInstancesHandler =
 
           const instance = instanceResult.value
 
-          // Guard against race condition: check if instance already exists for this period
-          // TODO: Replace with a unique DB constraint on (parentGoalId, periodStart) for correctness
-          const instances = await deps.goalRepo.listInstances(
-            template.id,
-            template.organizationId,
-          )
+          // Guard against race condition: check if instance already exists for this period.
+          // The goals_parent_period_uniq unique index is the ultimate safety net
+          // (createGoalAndProgress uses ON CONFLICT DO NOTHING); this in-memory
+          // check avoids unnecessary work in the common case.
+          const instances = allInstancesMap.get(template.id) ?? []
           const duplicate = instances.some(
             (inst) =>
               inst.periodStart &&

@@ -150,7 +150,7 @@ export const createDashboardRepository = (
       const priorAvgRating = priorReviews.avgRating
 
       // Metric sums for current and prior periods across all assigned portals
-      const MetricQuery = (
+      const metricQuery = (
         orgId: OrganizationId,
         propId: PropertyId,
         start: Date,
@@ -161,8 +161,8 @@ export const createDashboardRepository = (
           : metricStats.getSumsByPortals(orgId, propId, portalIds, start, end)
 
       const [currentMetrics, priorMetrics] = await Promise.all([
-        MetricQuery(organizationId, propertyId, startDate, endDate),
-        MetricQuery(organizationId, propertyId, priorStartDate, priorEndDate),
+        metricQuery(organizationId, propertyId, startDate, endDate),
+        metricQuery(organizationId, propertyId, priorStartDate, priorEndDate),
       ])
 
       const toMap = (rows: readonly { metricKey: string; total: number }[]) =>

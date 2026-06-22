@@ -176,7 +176,7 @@ export const createPortalRepository = (db: Database): PortalRepository => ({
           propertyId: portals.propertyId,
         })
         .from(portals)
-        .where(eq(portals.id, unbrand(portalIdParam)))
+        .where(and(eq(portals.id, unbrand(portalIdParam)), isNull(portals.deletedAt)))
         .limit(1)
 
       if (rows.length === 0) return null

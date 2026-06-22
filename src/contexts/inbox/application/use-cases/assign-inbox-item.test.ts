@@ -16,6 +16,7 @@ import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 
 const FIXED_TIME = new Date('2026-04-15T12:00:00Z')
 const ORG_ID = organizationId('org-1')
+const OTHER_ORG_ID = organizationId('org-other')
 const ITEM_ID = inboxItemId('ii-1')
 const ASSIGNEE_ID = userId('user-2')
 const USER_ID = userId('user-1')
@@ -159,7 +160,10 @@ describe('assignInboxItem', () => {
   it('allows PropertyManager to assign item for any property (inbox.manage bypasses property check)', async () => {
     // PropertyManager has inbox.manage, so can() passes and the property access check is skipped
     const staffApi: StaffPublicApi = {
-      getAccessiblePropertyIds: async () => [PROP_OTHER],
+      // Caller (USER_ID) lacks PROP_1 to test inbox.manage bypass;
+      // assignee (ASSIGNEE_ID) has PROP_1 so the INBOX-04 assignee check passes.
+      getAccessiblePropertyIds: async (_orgId, uId) =>
+        uId === ASSIGNEE_ID ? [PROP_1] : [PROP_OTHER],
       getAssignedPortals: async () => [],
       countAssignmentsByTeam: async () => 0,
     }
@@ -216,5 +220,45 @@ describe('assignInboxItem', () => {
     })
 
     expect(updated.assignedTo).toBe(ASSIGNEE_ID)
+  })
+
+  // ── INBOX-04: Assignee property access ──────────────────────────
+  it('rejects assignment when assignee lacks access to the property', async () => {
+    // Caller (PropertyManager) has inbox.manage so caller bypasses;
+    // assignee (ASSIGNEE_ID) is NOT assigned to PROP_1.
+    const staffApi: StaffPublicApi = {
+      getAccessiblePropertyIds: async (_orgId, uId) =>
+        uId === USER_ID ? [PROP_1] : [PROP_OTHER],
+      getAssignedPortals: async () => [],
+      countAssignmentsByTeam: async () => 0,
+    }
+    const { useCase, repo } = setup(staffApi)
+    repo.items.push(seedItem())
+
+    await expect(
+      useCase({
+        inboxItemId: ITEM_ID,
+        organizationId: ORG_ID,
+        assignedToUserId: ASSIGNEE_ID,
+        role: 'PropertyManager' as Role,
+        userId: USER_ID,
+      }),
+    ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'forbidden')
+  })
+
+  // ── Tenant isolation ──────────────────────────────────────────────
+  it('throws not_found when item belongs to a different organization', async () => {
+    const { useCase, repo } = setup()
+    repo.items.push(seedItem()) // ORG_ID item
+
+    await expect(
+      useCase({
+        inboxItemId: ITEM_ID,
+        organizationId: OTHER_ORG_ID,
+        assignedToUserId: ASSIGNEE_ID,
+        role: 'PropertyManager' as Role,
+        userId: USER_ID,
+      }),
+    ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'not_found')
   })
 })

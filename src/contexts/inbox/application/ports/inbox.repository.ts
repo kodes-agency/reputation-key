@@ -70,7 +70,11 @@ export type InboxRepository = Readonly<{
     assignedTo: UserId | null,
     now?: Date,
   ): Promise<InboxItem>
-  countByStatus(orgId: OrganizationId, status: InboxStatus): Promise<number>
+  countByStatus(
+    orgId: OrganizationId,
+    status: InboxStatus,
+    propertyIds?: ReadonlyArray<PropertyId>,
+  ): Promise<number>
   syncDenormalizedFields(
     id: InboxItemId,
     orgId: OrganizationId,

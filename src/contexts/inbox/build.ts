@@ -99,6 +99,7 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
     createInboxItem: useCases.createInboxItem,
     repo: inboxRepo,
     newCounter,
+    feedbackLookup: input.feedbackLookup,
   })
 
   return {

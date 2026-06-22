@@ -22,6 +22,8 @@ import {
 } from '#/shared/domain/ids'
 import { normalizeSlug } from '#/shared/domain/slug'
 import type { LoggerPort } from '#/shared/domain/logger.port'
+import type { EventBus } from '#/shared/events/event-bus'
+import { integrationPropertyImportCompleted } from '../../domain/events'
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -58,6 +60,7 @@ export type ImportPropertyDeps = Readonly<{
   importRepo: GbpImportRepository
   propertyRepo: PropertyImportRepo
   events: PropertyEventPort
+  eventBus: EventBus
   toJobId: (id: string) => GbpImportJobId
   toOrgId: (id: string) => OrganizationId
   clock: () => Date
@@ -195,6 +198,32 @@ export const importProperty =
         : 'failed'
 
       await deps.importRepo.updateStatus(orgId, jobId, finalStatus)
+
+      // 5. Emit integration.property_import.completed
+      const eventCounts = jobRow ?? {
+        totalCount: input.locations.length,
+        importedCount: createdProperties.length,
+        skippedCount: 0,
+        failedCount: 0,
+      }
+      try {
+        await deps.eventBus.emit(
+          integrationPropertyImportCompleted({
+            importJobId: jobId,
+            organizationId: orgId,
+            totalCount: eventCounts.totalCount,
+            importedCount: eventCounts.importedCount,
+            skippedCount: eventCounts.skippedCount,
+            failedCount: eventCounts.failedCount,
+            occurredAt: deps.clock(),
+          }),
+        )
+      } catch (err) {
+        logger.warn(
+          { err, jobId: input.jobId, organizationId: input.organizationId },
+          'Failed to emit integration.property_import.completed event',
+        )
+      }
 
       // 4. Emit property.created events
       for (const prop of createdProperties) {

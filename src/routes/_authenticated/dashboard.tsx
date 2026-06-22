@@ -9,7 +9,7 @@ import {
   useNavigate,
 } from '@tanstack/react-router'
 import { getFleetOverviewFn } from '#/contexts/dashboard/server/fleet-overview'
-import { hasRole } from '#/shared/domain/roles'
+import { can } from '#/shared/domain/permissions'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import {
   FleetOverview,
@@ -22,9 +22,10 @@ const authRoute = getRouteApi('/_authenticated')
 
 export const Route = createFileRoute('/_authenticated/dashboard')({
   beforeLoad: ({ context }) => {
-    // Fleet dashboard is a manager+ surface. Staff are scoped to /home.
+    // Fleet dashboard is a manager surface (dashboard.fleet_read).
+    // Staff have dashboard.read for their own staff dashboard, not the fleet view.
     const { role } = context as AuthRouteContext
-    if (!hasRole(role, 'PropertyManager')) throw redirect({ to: '/home' })
+    if (!can(role, 'dashboard.fleet_read')) throw redirect({ to: '/home' })
   },
   loader: async () => {
     const fleet = await getFleetOverviewFn({ data: { timeRange: '30d' } })
