@@ -292,6 +292,47 @@ export function goalTypeDescription(type: GoalType): string {
   }
 }
 
+/** Target unit adapted to metric + aggregation: ★ for avg/max ratings, "ratings" for counted ratings, else the metric unit. */
+export function targetUnit(
+  metricKey: MetricKey,
+  aggregation: AggregationFunction,
+): string {
+  if (metricKey === 'portal.rating') {
+    return aggregation === 'count' ? 'ratings' : '★'
+  }
+  return METRIC_META[metricKey].unit
+}
+
+/** Plain-language one-line summary of an existing goal, mirroring the create-flow preview.
+ *  e.g. "total scans — target 50 scans — resets monthly". */
+export function describeGoal(goal: Goal): string {
+  const measure =
+    goal.metricKey !== 'portal.rating'
+      ? `total ${METRIC_META[goal.metricKey].label.toLowerCase()}`
+      : goal.aggregationFunction === 'avg'
+        ? 'average rating'
+        : goal.aggregationFunction === 'max'
+          ? 'highest rating'
+          : 'number of ratings'
+  const unit = targetUnit(goal.metricKey, goal.aggregationFunction)
+  const target = `${goal.targetValue.toLocaleString()}${unit ? ` ${unit}` : ''}`
+  const timeframe = (() => {
+    switch (goal.goalType) {
+      case 'one_shot':
+        return formatPeriodDates(goal.periodStart, goal.periodEnd) || 'between two dates'
+      case 'recurring':
+        return `resets ${goal.recurrenceRule?.frequency ?? 'monthly'}`
+      case 'rolling':
+        return goal.rollingWindowDays
+          ? `last ${goal.rollingWindowDays} days`
+          : 'rolling window'
+      case 'open':
+        return 'ongoing'
+    }
+  })()
+  return `${measure} — target ${target} — ${timeframe}`
+}
+
 // ── 13. Color class from color name ───────────────────────────────────
 
 export function progressBarColorClass(color: string): string {
