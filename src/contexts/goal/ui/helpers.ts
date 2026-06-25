@@ -3,7 +3,7 @@
  * No side effects, no DOM, safe for server and client.
  */
 
-import type { Goal, GoalStatus } from '#/contexts/goal/application/public-api'
+import type { Goal, GoalStatus, GoalType } from '#/contexts/goal/application/public-api'
 import type {
   MetricKey,
   AggregationFunction,
@@ -223,6 +223,72 @@ export function aggregationLabel(agg: AggregationFunction): string {
       return 'Max'
     case 'avg':
       return 'Average'
+  }
+}
+
+// ── Friendly metric metadata (plain-language labels for the create flow) ──
+
+export type MetricMeta = Readonly<{
+  label: string
+  description: string
+  /** Unit suffix shown next to the target value, e.g. "scans" or "★". */
+  unit: string
+  /** True when the metric is a count (sum/count are equivalent; aggregation hidden). */
+  isCountMetric: boolean
+}>
+
+export const METRIC_META: Readonly<Record<MetricKey, MetricMeta>> = {
+  'portal.scan': {
+    label: 'Scans',
+    description: 'QR-code scans of your portal',
+    unit: 'scans',
+    isCountMetric: true,
+  },
+  'portal.rating': {
+    label: 'Guest ratings',
+    description: 'Private 1–5 star ratings left by guests',
+    unit: '★',
+    isCountMetric: false,
+  },
+  'portal.feedback': {
+    label: 'Feedback',
+    description: 'Private feedback submissions',
+    unit: 'responses',
+    isCountMetric: true,
+  },
+  'portal.review_link_click': {
+    label: 'Review-link clicks',
+    description: 'Guests who opened your external review link',
+    unit: 'clicks',
+    isCountMetric: true,
+  },
+  'property.review': {
+    label: 'Google reviews',
+    description: 'Public Google reviews for this property',
+    unit: 'reviews',
+    isCountMetric: true,
+  },
+}
+
+export function metricLabel(key: MetricKey): string {
+  return METRIC_META[key].label
+}
+
+export function metricUnit(key: MetricKey): string {
+  return METRIC_META[key].unit
+}
+
+/** Plain-language description of what each goal type means, for the timeframe step. */
+export function goalTypeDescription(type: GoalType): string {
+  switch (type) {
+    case 'open':
+      return 'Ongoing — no end date or reset.'
+    case 'one_shot':
+      return 'Hit the target once, between two dates.'
+    case 'rolling':
+      return 'Always tracked over the last N days.'
+    case 'recurring':
+      return 'Resets on a weekly, monthly, or quarterly cycle.'
   }
 }
 
