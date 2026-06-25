@@ -14,7 +14,7 @@ import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 const FIXED_ID = teamId('team-00000000-0000-0000-0000-000000000001') as TeamId
 const FIXED_TIME = new Date('2026-04-15T12:00:00Z')
 
-const setup = () => {
+const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
   const teamRepo = createInMemoryTeamRepo()
   const propertyRepo = createInMemoryPropertyRepo()
   const events = createCapturingEventBus()
@@ -37,9 +37,9 @@ const setup = () => {
     existsByGbpPlaceId: async () => false,
   }
 
-  // AccountAdmin has org-wide access (null = all properties)
+  // null = AccountAdmin org-wide access; [] = no assigned properties (PM/Staff).
   const staffApi: StaffPublicApi = {
-    getAccessiblePropertyIds: async () => null,
+    getAccessiblePropertyIds: async () => accessible,
     getAssignedPortals: async () => [],
     countAssignmentsByTeam: async () => 0,
   }
@@ -98,6 +98,17 @@ describe('createTeam', () => {
     await expect(useCase({ propertyId: 'any', name: 'Test' }, ctx)).rejects.toSatisfy(
       (e) => isTeamError(e) && e.code === 'forbidden',
     )
+  })
+
+  it('rejects PropertyManager without assignment to the target property (D6-001)', async () => {
+    // PM passes can('team.create') but isPropertyAccessible must still reject:
+    // removing the guard would fall through to propertyExists → a different error.
+    const { useCase } = setup([])
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+
+    await expect(
+      useCase({ propertyId: 'any-property-id', name: 'Restricted Team' }, ctx),
+    ).rejects.toSatisfy((e) => isTeamError(e) && e.code === 'forbidden')
   })
 
   it('rejects when property does not exist', async () => {

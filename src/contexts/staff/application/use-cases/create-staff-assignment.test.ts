@@ -22,6 +22,12 @@ const allAccessStaffApi: StaffPublicApi = {
   countAssignmentsByTeam: async () => 0,
 }
 
+const noAccessStaffApi: StaffPublicApi = {
+  getAccessiblePropertyIds: async () => [],
+  getAssignedPortals: async () => [],
+  countAssignmentsByTeam: async () => 0,
+}
+
 const setup = (staffApi: StaffPublicApi = allAccessStaffApi) => {
   const assignmentRepo = createInMemoryStaffAssignmentRepo()
   const events = createCapturingEventBus()
@@ -73,6 +79,20 @@ describe('createStaffAssignment', () => {
   it('rejects users who cannot manage assignments', async () => {
     const { useCase } = setup()
     const ctx = buildTestAuthContext({ role: 'Staff' })
+
+    await expect(
+      useCase(
+        { userId: FIXED_USER as string, propertyId: FIXED_PROPERTY as string },
+        ctx,
+      ),
+    ).rejects.toSatisfy((e) => isStaffError(e) && e.code === 'forbidden')
+  })
+
+  it('rejects PropertyManager without assignment to the target property (D6-001)', async () => {
+    // PM passes can('staff_assignment.create'); isPropertyAccessible must reject
+    // before any assignment is created.
+    const { useCase } = setup(noAccessStaffApi)
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
 
     await expect(
       useCase(
