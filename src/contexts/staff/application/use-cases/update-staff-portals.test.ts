@@ -7,8 +7,9 @@ import type { UserId, PropertyId, PortalId } from '#/shared/domain/ids'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { DomainEvent } from '#/shared/events/events'
 import type { StaffPublicApi } from '../public-api'
+import { isStaffError } from '../../domain/errors'
 
-const setup = () => {
+const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
   const assignmentRepo = createInMemoryStaffAssignmentRepo()
   const captured: DomainEvent[] = []
   const mockEventBus: EventBus = {
@@ -33,7 +34,7 @@ const setup = () => {
     },
     events: mockEventBus,
     staffPublicApi: {
-      getAccessiblePropertyIds: async () => null,
+      getAccessiblePropertyIds: async () => accessible,
       getAssignedPortals: async () => [],
       countAssignmentsByTeam: async () => 0,
     } satisfies StaffPublicApi,
@@ -258,5 +259,19 @@ describe('updateStaffPortals', () => {
         ctx,
       ),
     ).rejects.toThrow('this role cannot manage staff assignments')
+  })
+
+  it('rejects PropertyManager without assignment to the target property (D6-001)', async () => {
+    // PM passes can('staff_assignment.create'/'delete'); isPropertyAccessible must
+    // reject before any portal assignment is added or removed.
+    const { useCase } = setup([])
+    const ctx = buildTestAuthContext({ userId: actingUser, role: 'PropertyManager' })
+
+    await expect(
+      useCase(
+        { userId: targetUser, propertyId: targetProperty, portalIds: [portalA] },
+        ctx,
+      ),
+    ).rejects.toSatisfy((e) => isStaffError(e) && e.code === 'forbidden')
   })
 })
