@@ -35,8 +35,6 @@ const VALID_AGGREGATIONS: readonly AggregationFunction[] = ['sum', 'count', 'max
 const VALID_METRIC_KEYS: readonly MetricKey[] = [
   'portal.scan',
   'portal.rating',
-  'portal.feedback',
-  'portal.review_link_click',
   'property.review',
 ]
 const VALID_COMPUTED_SOURCES: readonly ComputedSource[] = [

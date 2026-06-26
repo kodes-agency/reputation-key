@@ -30,7 +30,7 @@ export function ProgressBar({
 
   return (
     <div className={cn('space-y-1', className)}>
-      <div className="h-2 w-full rounded-full bg-gray-100">
+      <div className="h-2 w-full rounded-full bg-muted">
         <div
           className={cn('h-2 rounded-full transition-all', colorClass)}
           style={{ width: `${width}%` }}

@@ -52,7 +52,7 @@ function CreateGoalPage() {
   })
 
   return (
-    <PageShell tier="narrow">
+    <PageShell tier="standard">
       <PageHeader
         title="New Goal"
         description="Define a performance goal to track progress."
@@ -65,6 +65,7 @@ function CreateGoalPage() {
       />
       <GoalCreateForm
         propertyId={propertyId}
+        propertyName={property.name}
         mutation={mutation}
         portals={portals}
         portalGroups={portalGroups}

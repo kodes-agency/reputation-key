@@ -43,14 +43,12 @@ export const AGGREGATION_FUNCTIONS: readonly AggregationFunction[] = [
 export const VALID_SCOPE_METRIC_KEYS: Readonly<
   Record<EntityScope, readonly MetricKey[]>
 > = {
-  property: [...METRIC_KEYS],
-  portal: ['portal.scan', 'portal.rating', 'portal.feedback', 'portal.review_link_click'],
-  portal_group: [
-    'portal.scan',
-    'portal.rating',
-    'portal.feedback',
-    'portal.review_link_click',
-  ],
+  // Goal eligibility follows the outcomes-not-levers rule (ADR 0020):
+  // feedback (process) and review-link clicks (lever) are excluded from goals
+  // but remain valid MetricKeys for badges/leaderboard/dashboard.
+  property: ['portal.scan', 'portal.rating', 'property.review'],
+  portal: ['portal.scan', 'portal.rating'],
+  portal_group: ['portal.scan', 'portal.rating'],
 }
 
 /**
@@ -65,7 +63,7 @@ export const VALID_METRIC_AGGREGATIONS: Readonly<
   'portal.rating': ['count', 'max', 'avg'],
   'portal.feedback': ['sum', 'count'],
   'portal.review_link_click': ['sum', 'count'],
-  'property.review': ['sum', 'count'],
+  'property.review': ['count', 'avg', 'max'],
 }
 
 /**
@@ -76,7 +74,7 @@ export const DEFAULT_AGGREGATION: Readonly<Record<MetricKey, AggregationFunction
   'portal.rating': 'avg',
   'portal.feedback': 'sum',
   'portal.review_link_click': 'sum',
-  'property.review': 'sum',
+  'property.review': 'avg',
 }
 
 // ── Validation helpers ───────────────────────────────────────────────────
