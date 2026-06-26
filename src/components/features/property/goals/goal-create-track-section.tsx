@@ -22,6 +22,7 @@ import {
   METRIC_META,
   getMetricKeysForScope,
   getValidAggregationsForKey,
+  targetUnit,
 } from '#/contexts/goal/ui/helpers'
 import type { MetricKey } from '#/shared/domain/metric-keys'
 import type { PortalOption } from './goal-entity-types'
@@ -105,11 +106,7 @@ export function TargetSection({
   const metricKey = (s.metricKey || null) as MetricKey | null
   const isRating = metricKey === 'portal.rating'
   const aggregations = metricKey ? getValidAggregationsForKey(metricKey) : []
-  const targetUnit = (() => {
-    if (!metricKey) return ''
-    if (isRating && (s.aggregation === 'avg' || s.aggregation === 'max')) return '★'
-    return METRIC_META[metricKey].unit
-  })()
+  const unit = metricKey ? targetUnit(metricKey, s.aggregation) : ''
 
   return (
     <SectionCard
@@ -146,11 +143,11 @@ export function TargetSection({
             onChange={(e) => $.targetValue(e.target.value)}
             placeholder={isRating ? 'e.g. 4.5' : 'e.g. 50'}
             aria-invalid={!!s.errors.targetValue}
-            className={cn(targetUnit && 'pr-20')}
+            className={cn(unit && 'pr-20')}
           />
-          {targetUnit && (
+          {unit && (
             <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-muted-foreground">
-              {targetUnit}
+              {unit}
             </span>
           )}
         </div>
