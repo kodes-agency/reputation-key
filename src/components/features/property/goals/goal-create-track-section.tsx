@@ -15,14 +15,15 @@ import {
   METRIC_ICONS,
   SCOPE_ICONS,
   SCOPES,
-  AGG_VERB,
 } from './goal-create-tiles'
 import {
   scopeLabel,
   METRIC_META,
   getMetricKeysForScope,
   getValidAggregationsForKey,
+  isRatingMetric,
   targetUnit,
+  ratingAggOptionLabel,
 } from '#/contexts/goal/ui/helpers'
 import type { MetricKey } from '#/shared/domain/metric-keys'
 import type { PortalOption } from './goal-entity-types'
@@ -104,7 +105,7 @@ export function TargetSection({
   setters: $,
 }: Readonly<{ state: FormState; setters: Setters }>) {
   const metricKey = (s.metricKey || null) as MetricKey | null
-  const isRating = metricKey === 'portal.rating'
+  const isRating = metricKey ? isRatingMetric(metricKey) : false
   const aggregations = metricKey ? getValidAggregationsForKey(metricKey) : []
   const unit = metricKey ? targetUnit(metricKey, s.aggregation) : ''
 
@@ -123,7 +124,7 @@ export function TargetSection({
             <SelectContent>
               {aggregations.map((agg) => (
                 <SelectItem key={agg} value={agg}>
-                  {AGG_VERB[agg]} rating
+                  {ratingAggOptionLabel(metricKey, agg)}
                 </SelectItem>
               ))}
             </SelectContent>

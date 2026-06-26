@@ -245,7 +245,7 @@ export const METRIC_META: Readonly<Record<MetricKey, MetricMeta>> = {
     isCountMetric: true,
   },
   'portal.rating': {
-    label: 'Guest ratings',
+    label: 'Private guest ratings',
     description: 'Private 1–5 star ratings left by guests',
     unit: '★',
     isCountMetric: false,
@@ -266,7 +266,7 @@ export const METRIC_META: Readonly<Record<MetricKey, MetricMeta>> = {
     label: 'Google reviews',
     description: 'Public Google reviews for this property',
     unit: 'reviews',
-    isCountMetric: true,
+    isCountMetric: false,
   },
 }
 
@@ -292,28 +292,64 @@ export function goalTypeDescription(type: GoalType): string {
   }
 }
 
-/** Target unit adapted to metric + aggregation: ★ for avg/max ratings, "ratings" for counted ratings, else the metric unit. */
+/** Metrics whose avg/max is a star rating (★), distinct from their count noun. */
+const RATING_METRICS: ReadonlySet<MetricKey> = new Set([
+  'portal.rating',
+  'property.review',
+])
+
+export function isRatingMetric(key: MetricKey): boolean {
+  return RATING_METRICS.has(key)
+}
+
+/** Plain-language "what's being measured" for a metric + aggregation.
+ *  Shared by the create-flow preview and describeGoal so they never drift. */
+export function measureLabel(
+  metricKey: MetricKey | null,
+  aggregation: AggregationFunction,
+): string {
+  if (!metricKey) return 'Your goal'
+  if (!isRatingMetric(metricKey)) {
+    return `total ${METRIC_META[metricKey].label.toLowerCase()}`
+  }
+  switch (aggregation) {
+    case 'avg':
+      return 'average rating'
+    case 'max':
+      return 'highest rating'
+    case 'count':
+      return `number of ${METRIC_META[metricKey].label.toLowerCase()}`
+    default:
+      return 'rating'
+  }
+}
+
+/** Target unit adapted to metric + aggregation: ★ for avg/max of rating metrics,
+ *  the count noun for counted ratings, else the metric unit. */
 export function targetUnit(
   metricKey: MetricKey,
   aggregation: AggregationFunction,
 ): string {
-  if (metricKey === 'portal.rating') {
-    return aggregation === 'count' ? 'ratings' : '★'
-  }
-  return METRIC_META[metricKey].unit
+  if (!isRatingMetric(metricKey)) return METRIC_META[metricKey].unit
+  if (aggregation === 'count')
+    return metricKey === 'portal.rating' ? 'ratings' : 'reviews'
+  return '★'
+}
+
+/** Dropdown label for a rating metric's aggregation option (the "Measured by" selector). */
+export function ratingAggOptionLabel(
+  metricKey: MetricKey | null,
+  aggregation: AggregationFunction,
+): string {
+  if (aggregation === 'count')
+    return `Number of ${metricKey === 'portal.rating' ? 'ratings' : 'reviews'}`
+  return `${aggregation === 'avg' ? 'Average' : 'Highest'} rating`
 }
 
 /** Plain-language one-line summary of an existing goal, mirroring the create-flow preview.
  *  e.g. "total scans — target 50 scans — resets monthly". */
 export function describeGoal(goal: Goal): string {
-  const measure =
-    goal.metricKey !== 'portal.rating'
-      ? `total ${METRIC_META[goal.metricKey].label.toLowerCase()}`
-      : goal.aggregationFunction === 'avg'
-        ? 'average rating'
-        : goal.aggregationFunction === 'max'
-          ? 'highest rating'
-          : 'number of ratings'
+  const measure = measureLabel(goal.metricKey, goal.aggregationFunction)
   const unit = targetUnit(goal.metricKey, goal.aggregationFunction)
   const target = `${goal.targetValue.toLocaleString()}${unit ? ` ${unit}` : ''}`
   const timeframe = (() => {

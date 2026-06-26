@@ -4,8 +4,13 @@
 import { Target, Sparkles } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '#/components/ui/card'
 import { Badge } from '#/components/ui/badge'
-import { METRIC_META, goalTypeLabel, metricLabel } from '#/contexts/goal/ui/helpers'
-import type { MetricKey, AggregationFunction } from '#/shared/domain/metric-keys'
+import {
+  goalTypeLabel,
+  measureLabel,
+  metricLabel,
+  targetUnit,
+} from '#/contexts/goal/ui/helpers'
+import type { MetricKey } from '#/shared/domain/metric-keys'
 import type { PortalOption } from './goal-entity-types'
 import type { FormState } from './go-create-form-state'
 
@@ -84,22 +89,6 @@ export function GoalCreatePreview({
 
 // ── Summary builders ───────────────────────────────────────────────────────
 
-function measureLabel(metricKey: MetricKey | null, agg: AggregationFunction): string {
-  if (!metricKey) return 'Your goal'
-  if (metricKey !== 'portal.rating')
-    return `total ${METRIC_META[metricKey].label.toLowerCase()}`
-  switch (agg) {
-    case 'avg':
-      return 'average rating'
-    case 'max':
-      return 'highest rating'
-    case 'count':
-      return 'number of ratings'
-    default:
-      return 'rating'
-  }
-}
-
 function whereLabel(
   s: FormState,
   propertyName: string,
@@ -114,15 +103,8 @@ function whereLabel(
 
 function targetLabel(s: FormState, metricKey: MetricKey | null): string {
   if (!s.targetValue) return ''
-  const num = s.targetValue
-  if (
-    metricKey === 'portal.rating' &&
-    (s.aggregation === 'avg' || s.aggregation === 'max')
-  ) {
-    return `${num} ★`
-  }
-  const unit = metricKey ? METRIC_META[metricKey].unit : ''
-  return unit ? `${num} ${unit}` : num
+  const unit = metricKey ? targetUnit(metricKey, s.aggregation) : ''
+  return unit ? `${s.targetValue} ${unit}` : s.targetValue
 }
 
 function timeframeLabel(s: FormState): string {
