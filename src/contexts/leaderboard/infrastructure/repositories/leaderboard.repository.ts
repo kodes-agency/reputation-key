@@ -147,19 +147,39 @@ export const createLeaderboardRepository = (
       const metrics: LeaderboardMetricKey[] = input.metricKey
         ? [input.metricKey]
         : [...LEADERBOARD_METRICS]
+      // listTargets depends only on (org, property, scope) — memoize per scope so the
+      // periods × metrics fan-out doesn't re-query it (cuts ~64 calls → 2 per reconcile).
+      const targetsCache = new Map<LeaderboardScope, ReadonlyArray<LeaderboardRowInput>>()
+      const targetsFor = async (scope: LeaderboardScope) => {
+        if (!targetsCache.has(scope)) {
+          targetsCache.set(
+            scope,
+            await listTargets(
+              unbrand(input.organizationId),
+              unbrand(input.propertyId),
+              scope,
+            ),
+          )
+        }
+        return targetsCache.get(scope)!
+      }
       let snapshotsRefreshed = 0
       let entriesWritten = 0
 
       for (const period of periods) {
         for (const scope of scopes) {
+          const targets = await targetsFor(scope)
           for (const metricKey of metrics) {
-            const result = await refreshOne({
-              organizationId: input.organizationId,
-              propertyId: input.propertyId,
-              period,
-              scope,
-              metricKey,
-            })
+            const result = await refreshOne(
+              {
+                organizationId: input.organizationId,
+                propertyId: input.propertyId,
+                period,
+                scope,
+                metricKey,
+              },
+              targets,
+            )
             snapshotsRefreshed += 1
             entriesWritten += result.entriesWritten
           }
@@ -172,18 +192,12 @@ export const createLeaderboardRepository = (
 
   const refreshOne = async (
     input: Required<LeaderboardRefreshInput>,
+    targets: ReadonlyArray<LeaderboardRowInput>,
   ): Promise<{ entriesWritten: number }> => {
-    const range = periodToRange(input.period, clock())
-    const targets = await listTargets(
-      unbrand(input.organizationId),
-      unbrand(input.propertyId),
-      input.scope,
-    )
-
     if (targets.length === 0) {
       return { entriesWritten: 0 }
     }
-
+    const range = periodToRange(input.period, clock())
     const values = normalize(await queryValues(input, range, targets, input.metricKey))
     return writeSnapshot(input, values)
   }
