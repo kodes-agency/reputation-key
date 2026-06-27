@@ -1,5 +1,12 @@
 import { Link } from '@tanstack/react-router'
-import { LayoutDashboard, MessageSquare, Users, Globe, Target } from 'lucide-react'
+import {
+  LayoutDashboard,
+  MessageSquare,
+  Users,
+  Globe,
+  Target,
+  Trophy,
+} from 'lucide-react'
 import {
   SidebarMenu,
   SidebarMenuButton,
@@ -16,6 +23,7 @@ type Props = Readonly<{
 const navItems: ReadonlyArray<{
   key: string
   label: string
+  useSearch?: boolean
   icon: typeof LayoutDashboard
   to: string
 }> = [
@@ -49,6 +57,13 @@ const navItems: ReadonlyArray<{
     icon: Target,
     to: '/properties/$propertyId/goals',
   },
+  {
+    key: 'leaderboard',
+    label: 'Leaderboard',
+    icon: Trophy,
+    to: '/leaderboard',
+    useSearch: true,
+  },
 ]
 
 export function ManagerNavItems({ propertyId, activeSection }: Props) {
@@ -71,7 +86,12 @@ export function ManagerNavItems({ propertyId, activeSection }: Props) {
         return (
           <SidebarMenuItem key={item.key}>
             <SidebarMenuButton asChild isActive={isActive} tooltip={item.label}>
-              <Link to={item.to} params={{ propertyId }}>
+              <Link
+                to={item.to}
+                {...(item.useSearch
+                  ? { search: { propertyId } }
+                  : { params: { propertyId } })}
+              >
                 <item.icon />
                 <span>{item.label}</span>
               </Link>
