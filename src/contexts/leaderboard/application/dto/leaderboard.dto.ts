@@ -20,14 +20,8 @@ export const getLeaderboardSchema = z.object({
   period: leaderboardPeriodSchema.default('this_month'),
   scope: leaderboardScopeSchema.default('portal'),
   metricKey: z
-    .enum([
-      'overall',
-      'portal.rating',
-      'portal.feedback',
-      'portal.scan',
-      'portal.review_link_click',
-    ])
-    .default('overall'),
+    .enum(['portal.rating', 'portal.feedback', 'portal.scan', 'portal.review_link_click'])
+    .default('portal.rating'),
 })
 
 export type GetLeaderboardInput = z.infer<typeof getLeaderboardSchema>

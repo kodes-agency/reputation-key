@@ -4,10 +4,9 @@ import { describe, it, expect } from 'vitest'
 import {
   normalize,
   rank,
-  compositeScore,
   targetKey,
-  PORTAL_METRICS,
-  OVERALL_WEIGHTS,
+  LEADERBOARD_METRICS,
+  RATING_FLOOR,
   type ScoredTarget,
 } from './scoring'
 import type { LeaderboardRowInput } from './types'
@@ -31,15 +30,16 @@ const scored = (r: LeaderboardRowInput, value: number, normalized = 0): ScoredTa
   normalized,
 })
 
-describe('PORTAL_METRICS and OVERALL_WEIGHTS', () => {
-  it('PORTAL_METRICS lists 4 portal metrics excluding overall', () => {
-    expect(PORTAL_METRICS).toHaveLength(4)
-    expect(PORTAL_METRICS).not.toContain('overall')
+describe('LEADERBOARD_METRICS', () => {
+  it('lists the 4 portal-level ranked metrics', () => {
+    expect(LEADERBOARD_METRICS).toHaveLength(4)
+    expect(LEADERBOARD_METRICS).not.toContain('property.review')
   })
+})
 
-  it('OVERALL_WEIGHTS sums to 1.0', () => {
-    const sum = Object.values(OVERALL_WEIGHTS).reduce((a, b) => a + b, 0)
-    expect(sum).toBeCloseTo(1.0, 10)
+describe('RATING_FLOOR', () => {
+  it('is 5', () => {
+    expect(RATING_FLOOR).toBe(5)
   })
 })
 
@@ -102,37 +102,5 @@ describe('rank', () => {
     expect(result[1].row.targetId).toBe('a')
     expect(result[0].rank).toBe(1)
     expect(result[1].rank).toBe(1)
-  })
-})
-
-describe('compositeScore', () => {
-  it('computes weighted sum of normalized component scores', () => {
-    const targets = [row('a'), row('b')]
-
-    // rating: a=1.0, b=0.5 (weight 0.4)
-    // feedback: a=0.5, b=1.0 (weight 0.3)
-    // Expected: a = 0.4*1.0 + 0.3*0.5 = 0.55; b = 0.4*0.5 + 0.3*1.0 = 0.50
-    const component = new Map<string, ReadonlyArray<ScoredTarget>>([
-      ['portal.rating', [scored(row('a'), 10, 1.0), scored(row('b'), 5, 0.5)]],
-      ['portal.feedback', [scored(row('a'), 5, 0.5), scored(row('b'), 10, 1.0)]],
-    ])
-
-    const result = compositeScore(targets, component)
-    expect(result).toHaveLength(2)
-    expect(result[0].row.targetId).toBe('a')
-    expect(result[0].normalized).toBeCloseTo(0.55, 10)
-    expect(result[1].row.targetId).toBe('b')
-    expect(result[1].normalized).toBeCloseTo(0.5, 10)
-    // Raw value is 0 for composite (no single metric value)
-    expect(result[0].value).toBe(0)
-  })
-
-  it('returns 0 normalized for targets with no component data', () => {
-    const targets = [row('a'), row('b')]
-    const component = new Map<string, ReadonlyArray<ScoredTarget>>([
-      ['portal.rating', [scored(row('a'), 10, 1.0)]],
-    ])
-    const result = compositeScore(targets, component)
-    expect(result[1].normalized).toBe(0)
   })
 })

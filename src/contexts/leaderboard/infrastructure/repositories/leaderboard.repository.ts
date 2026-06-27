@@ -31,8 +31,8 @@ import { trace } from '#/shared/observability/trace'
 import type { Clock } from '#/shared/domain/clock'
 import { leaderboardError } from '../../domain/errors'
 import {
-  PORTAL_METRICS,
-  compositeScore,
+  LEADERBOARD_METRICS,
+  RATING_FLOOR,
   normalize,
   rank,
   type ScoredTarget,
@@ -143,7 +143,7 @@ export const createLeaderboardRepository = (
         : ['portal', 'portal_group']
       const metrics: LeaderboardMetricKey[] = input.metricKey
         ? [input.metricKey]
-        : ['overall', ...PORTAL_METRICS]
+        : [...LEADERBOARD_METRICS]
       let snapshotsRefreshed = 0
       let entriesWritten = 0
 
@@ -181,35 +181,15 @@ export const createLeaderboardRepository = (
       return { entriesWritten: 0 }
     }
 
-    if (input.metricKey === 'overall') {
-      return refreshOverall(input, range, targets)
-    }
-
     const values = normalize(await queryValues(input, range, targets, input.metricKey))
     return writeSnapshot(input, values)
-  }
-
-  const refreshOverall = async (
-    input: Required<LeaderboardRefreshInput>,
-    range: { start?: Date; end?: Date },
-    targets: ReadonlyArray<LeaderboardRowInput>,
-  ): Promise<{ entriesWritten: number }> => {
-    const componentNormalized = new Map<string, ReadonlyArray<ScoredTarget>>()
-
-    for (const metricKey of PORTAL_METRICS) {
-      const values = normalize(await queryValues(input, range, targets, metricKey))
-      componentNormalized.set(metricKey, values)
-    }
-
-    const scored = compositeScore(targets, componentNormalized)
-    return writeSnapshot({ ...input, metricKey: 'overall' }, scored)
   }
 
   const queryValues = async (
     input: Required<LeaderboardRefreshInput>,
     range: { start?: Date; end?: Date },
     targets: ReadonlyArray<LeaderboardRowInput>,
-    metricKey: Exclude<LeaderboardMetricKey, 'overall'>,
+    metricKey: LeaderboardMetricKey,
   ): Promise<ReadonlyArray<ScoredTarget>> => {
     if (targets.length === 0) return []
 
@@ -243,16 +223,22 @@ export const createLeaderboardRepository = (
       }
     }
 
-    return targets.map((target) => {
-      const agg = lookup.get(unbrand(target.targetId)) ?? { sum: 0, count: 0 }
-      const raw =
-        metricKey === 'portal.rating'
-          ? agg.count > 0
-            ? agg.sum / agg.count
-            : 0
-          : agg.sum
-      return { row: target, value: raw, normalized: 0 }
-    })
+    return targets
+      .filter((target) => {
+        if (metricKey !== 'portal.rating') return true
+        const c = lookup.get(unbrand(target.targetId))?.count ?? 0
+        return c >= RATING_FLOOR
+      })
+      .map((target) => {
+        const agg = lookup.get(unbrand(target.targetId)) ?? { sum: 0, count: 0 }
+        const raw =
+          metricKey === 'portal.rating'
+            ? agg.count > 0
+              ? agg.sum / agg.count
+              : 0
+            : agg.sum
+        return { row: target, value: raw, normalized: 0 }
+      })
   }
 
   const writeSnapshot = async (
@@ -260,7 +246,7 @@ export const createLeaderboardRepository = (
     values: ReadonlyArray<ScoredTarget>,
   ): Promise<{ entriesWritten: number }> => {
     const now = clock()
-    const scoreKey = input.metricKey === 'overall' ? 'overall' : input.metricKey
+    const scoreKey = input.metricKey
     const snapshotRows = await db
       .insert(leaderboardSnapshots)
       .values({
@@ -370,10 +356,7 @@ export const createLeaderboardRepository = (
               eq(leaderboardSnapshots.period, input.period),
               eq(leaderboardSnapshots.scope, input.scope),
               eq(leaderboardSnapshots.metricKey, input.metricKey),
-              eq(
-                leaderboardSnapshots.scoreKey,
-                input.metricKey === 'overall' ? 'overall' : input.metricKey,
-              ),
+              eq(leaderboardSnapshots.scoreKey, input.metricKey),
             ),
           )
           // LB-07: secondary sort on metricValue/score for display stability

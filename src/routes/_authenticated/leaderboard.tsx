@@ -22,14 +22,8 @@ const leaderboardSearch = z.object({
     .default('this_month'),
   scope: z.enum(['portal', 'portal_group']).default('portal'),
   metricKey: z
-    .enum([
-      'overall',
-      'portal.rating',
-      'portal.feedback',
-      'portal.scan',
-      'portal.review_link_click',
-    ])
-    .default('overall'),
+    .enum(['portal.rating', 'portal.feedback', 'portal.scan', 'portal.review_link_click'])
+    .default('portal.rating'),
 })
 
 type Period = z.infer<typeof leaderboardSearch>['period']
@@ -48,7 +42,6 @@ const PERIOD_LABELS: Readonly<Record<Period, string>> = {
 }
 
 const METRIC_LABELS: Readonly<Record<MetricKey, string>> = {
-  overall: 'Overall',
   'portal.rating': 'Avg Rating',
   'portal.feedback': 'Feedback',
   'portal.scan': 'Scans',
@@ -119,7 +112,6 @@ function StaffLeaderboardPage() {
     'all_time',
   ]
   const metrics: MetricKey[] = [
-    'overall',
     'portal.rating',
     'portal.feedback',
     'portal.scan',
@@ -198,7 +190,7 @@ function StaffLeaderboardPage() {
                 <th className="px-4 py-2 text-left font-medium">Name</th>
                 <th className="px-4 py-2 text-right font-medium">Score</th>
                 <th className="px-4 py-2 text-right font-medium">
-                  {metricKey === 'overall' ? 'Composite' : METRIC_LABELS[metricKey]}
+                  {METRIC_LABELS[metricKey]}
                 </th>
               </tr>
             </thead>
