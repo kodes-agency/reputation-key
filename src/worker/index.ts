@@ -16,7 +16,7 @@ import { SPAWN_RECURRING_JOB_NAME as SPAWN_RECURRING_JOB_NAME } from '#/contexts
 import type { Worker } from 'bullmq'
 
 // fallow-ignore-next-line complexity — worker wires 10+ job schedules, complexity is inherent
-function main() {
+async function main() {
   const env = getEnv()
   const logger = getLogger()
 
@@ -26,7 +26,7 @@ function main() {
   const container = createContainer({ enableJobs: true })
 
   // Register all event handlers and job handlers
-  bootstrap(container)
+  await bootstrap(container)
 
   // Track the worker for graceful shutdown
   let worker: Worker | undefined
@@ -215,4 +215,7 @@ function main() {
   process.on('SIGINT', () => void shutdown('SIGINT'))
 }
 
-main()
+main().catch((err) => {
+  console.error('Worker failed to start', err)
+  process.exit(1)
+})

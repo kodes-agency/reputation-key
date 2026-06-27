@@ -21,7 +21,7 @@ export type LeaderboardPeriod =
   | 'last_90_days'
 
 export type LeaderboardScope = 'portal' | 'portal_group'
-export type LeaderboardMetricKey = MetricKey | 'overall'
+export type LeaderboardMetricKey = MetricKey
 
 export type LeaderboardEntry = Readonly<{
   id: LeaderboardEntryId

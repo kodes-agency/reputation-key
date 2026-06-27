@@ -1,17 +1,18 @@
 # Leaderboard Context
 
-Read-only ranking of portals and portal groups within a selected property using composite and per-metric scores.
+Read-only ranking of portals and portal groups within a selected property using per-metric scores and a comparison matrix. Internal portal-performance view — external Google reviews are property-scoped and cannot differentiate portals.
 
 ## Glossary
 
-| Term                    | Definition                                                                                                                                |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| **LeaderboardSnapshot** | A materialized view of rankings for a specific property, period, scope, and metric. Refreshed by metric events and hourly reconciliation. |
-| **LeaderboardEntry**    | A single ranked row within a snapshot: rank, target, score, metric value, normalized score.                                               |
-| **LeaderboardScope**    | `'portal'` or `'portal_group'`. Determines which entities are ranked.                                                                     |
-| **LeaderboardPeriod**   | Time window: `today`, `this_week`, `this_month`, `this_quarter`, `all_time`, `last_7_days`, `last_30_days`, `last_90_days`.               |
-| **CompositeScore**      | Weighted blend of normalized component metrics: 40% avg rating, 30% feedback, 20% scans, 10% review-link clicks.                          |
-| **Normalization**       | Property-scoped max-value scaling: each target's raw metric is divided by the max in that property and period.                            |
+| Term                    | Definition                                                                                                                                                                                                                                                         |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **LeaderboardSnapshot** | A materialized view of rankings for a specific property, period, scope, and metric. Refreshed by metric events and hourly reconciliation.                                                                                                                          |
+| **LeaderboardEntry**    | A single ranked row within a snapshot: rank, target, score, metric value, normalized score.                                                                                                                                                                        |
+| **LeaderboardScope**    | `'portal'` or `'portal_group'`. Determines which entities are ranked.                                                                                                                                                                                              |
+| **LeaderboardPeriod**   | Time window: `today`, `this_week`, `this_month`, `this_quarter`, `all_time`, `last_7_days`, `last_30_days`, `last_90_days`.                                                                                                                                        |
+| **Comparison matrix**   | Diagnostic surface: portals as rows, each metric as a column (raw value + per-column rank, color-coded). Default landing view; complements per-metric leaderboards. Serves "pinpoint weak performers".                                                             |
+| **Rating floor**        | Minimum-sample rule for the average-rating metric: a portal needs ≥5 private ratings in the period to be ranked/scored on quality; below that it shows "insufficient data". Counts (scans, feedback, clicks) have no floor — a low count is the signal, not noise. |
+| **Normalization**       | Property-scoped max-value scaling: each target's raw metric is divided by the max in that property and period.                                                                                                                                                     |
 
 ## Relationships
 
@@ -24,7 +25,8 @@ Read-only ranking of portals and portal groups within a selected property using 
 
 - Snapshots are keyed by `(propertyId, period, scope, metricKey, scoreKey)`.
 - Normalization is computed within the selected property and period — portals compete only against peers in the same property.
-- Composite weights are system-defined: 40% rating, 30% feedback, 20% scans, 10% review-link clicks.
+- No composite/overall score. The leaderboard ranks by one metric at a time (per-metric leaderboards) or compares metrics side-by-side (comparison matrix). The former weighted blend of max-normalized metrics was removed as dimensionally meaningless (ADR 0021).
+- The rating metric (average private rating) requires a ≥5-rating floor per period to be ranked; sub-threshold portals are "insufficient data". Other metrics (counts) have no floor.
 - For `portal.rating` metric, the aggregate is average (sum/count), not total.
 - For other metrics, the aggregate is sum.
 - Entries are deleted and re-inserted atomically within a transaction on each refresh.

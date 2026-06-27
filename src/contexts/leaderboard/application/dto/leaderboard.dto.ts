@@ -20,14 +20,16 @@ export const getLeaderboardSchema = z.object({
   period: leaderboardPeriodSchema.default('this_month'),
   scope: leaderboardScopeSchema.default('portal'),
   metricKey: z
-    .enum([
-      'overall',
-      'portal.rating',
-      'portal.feedback',
-      'portal.scan',
-      'portal.review_link_click',
-    ])
-    .default('overall'),
+    .enum(['portal.rating', 'portal.feedback', 'portal.scan', 'portal.review_link_click'])
+    .default('portal.rating'),
 })
 
 export type GetLeaderboardInput = z.infer<typeof getLeaderboardSchema>
+
+export const getComparisonMatrixSchema = z.object({
+  propertyId: z.string().uuid(),
+  period: leaderboardPeriodSchema.default('this_month'),
+  scope: leaderboardScopeSchema.default('portal'),
+})
+
+export type GetComparisonMatrixInput = z.infer<typeof getComparisonMatrixSchema>
