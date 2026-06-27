@@ -5,12 +5,14 @@ import {
   normalize,
   rank,
   targetKey,
+  buildMatrix,
   LEADERBOARD_METRICS,
   RATING_FLOOR,
   type ScoredTarget,
+  type MatrixTarget,
+  type MetricAggregate,
 } from './scoring'
-import type { LeaderboardRowInput } from './types'
-
+import type { LeaderboardRowInput, LeaderboardMetricKey } from './types'
 const row = (
   id: string,
   targetType: 'portal' | 'portal_group' = 'portal',
@@ -102,5 +104,63 @@ describe('rank', () => {
     expect(result[1].row.targetId).toBe('a')
     expect(result[0].rank).toBe(1)
     expect(result[1].rank).toBe(1)
+  })
+})
+
+describe('buildMatrix', () => {
+  const mt = (id: string, name: string): MatrixTarget => ({
+    ...row(id),
+    targetName: name,
+  })
+  const agg = (
+    entries: Array<[LeaderboardMetricKey, MetricAggregate]>,
+  ): ReadonlyMap<LeaderboardMetricKey, MetricAggregate> => new Map(entries)
+
+  it('ranks columns independently, floors rating, sorts worst-first with nulls last', () => {
+    const targets = [mt('a', 'A'), mt('b', 'B'), mt('c', 'C')]
+    // rating: a=4.0 (5 ratings), b=4.0 but 1 rating (insufficient), c=5.0 (5 ratings)
+    // scans:  a=10, b=20, c=5
+    const aggregates = new Map([
+      [
+        'portal:a',
+        agg([
+          ['portal.rating', { sum: 20, count: 5 }],
+          ['portal.scan', { sum: 10, count: 10 }],
+        ]),
+      ],
+      [
+        'portal:b',
+        agg([
+          ['portal.rating', { sum: 4, count: 1 }],
+          ['portal.scan', { sum: 20, count: 20 }],
+        ]),
+      ],
+      [
+        'portal:c',
+        agg([
+          ['portal.rating', { sum: 25, count: 5 }],
+          ['portal.scan', { sum: 5, count: 5 }],
+        ]),
+      ],
+    ])
+    const matrix = buildMatrix(targets, aggregates)
+
+    // rating ranks: c=1 (5.0), a=2 (4.0), b=null (insufficient). Worst-first desc, nulls last.
+    expect(matrix.map((r) => r.target.targetId)).toEqual(['a', 'c', 'b'])
+
+    const cell = (id: string, key: LeaderboardMetricKey) =>
+      matrix
+        .find((r) => r.target.targetId === id)!
+        .cells.find((c) => c.metricKey === key)!
+    expect(cell('b', 'portal.rating').insufficient).toBe(true)
+    expect(cell('b', 'portal.rating').rank).toBeNull()
+    expect(cell('a', 'portal.rating').rank).toBe(2)
+    expect(cell('c', 'portal.rating').rank).toBe(1)
+    // scans ranked independently: b=1 (20), a=2 (10), c=3 (5)
+    expect(cell('a', 'portal.scan').rank).toBe(2)
+    expect(cell('b', 'portal.scan').rank).toBe(1)
+    expect(cell('c', 'portal.scan').rank).toBe(3)
+    // every row has one cell per ranked metric
+    expect(matrix[0].cells).toHaveLength(LEADERBOARD_METRICS.length)
   })
 })

@@ -33,8 +33,11 @@ import { leaderboardError } from '../../domain/errors'
 import {
   LEADERBOARD_METRICS,
   RATING_FLOOR,
+  buildMatrix,
   normalize,
   rank,
+  targetKey,
+  type MatrixTarget,
   type ScoredTarget,
 } from '../../domain/scoring'
 import { periodToRange, LEADERBOARD_PERIODS } from '../../application/utils'
@@ -376,6 +379,88 @@ export const createLeaderboardRepository = (
             targetLabel: row.targetName,
           } satisfies LeaderboardEntryWithTarget
         })
+      })
+    },
+
+    getComparisonMatrix: async (input) => {
+      return trace('leaderboard.getComparisonMatrix', async () => {
+        const range = periodToRange(input.period, clock())
+        const targets = await listTargets(
+          unbrand(input.organizationId),
+          unbrand(input.propertyId),
+          input.scope,
+        )
+        if (targets.length === 0) return []
+
+        const isPortal = input.scope === 'portal'
+        const targetIds = targets.map((t) => unbrand(t.targetId))
+        const targetColumn = isPortal ? metricReadings.portalId : metricReadings.groupId
+        const targetByKey = new Map(targets.map((t) => [unbrand(t.targetId), t]))
+
+        const nameRows = isPortal
+          ? await db
+              .select({ id: portals.id, name: portals.name })
+              .from(portals)
+              .where(
+                and(
+                  eq(portals.organizationId, unbrand(input.organizationId)),
+                  eq(portals.propertyId, unbrand(input.propertyId)),
+                  isNull(portals.deletedAt),
+                  inArray(portals.id, targetIds),
+                ),
+              )
+          : await db
+              .select({ id: portalGroups.id, name: portalGroups.name })
+              .from(portalGroups)
+              .where(
+                and(
+                  eq(portalGroups.organizationId, unbrand(input.organizationId)),
+                  eq(portalGroups.propertyId, unbrand(input.propertyId)),
+                  isNull(portalGroups.deletedAt),
+                  inArray(portalGroups.id, targetIds),
+                ),
+              )
+        const nameMap = new Map(nameRows.map((r) => [r.id, r.name]))
+        const matrixTargets: MatrixTarget[] = targets.map((t) => ({
+          ...t,
+          targetName: nameMap.get(unbrand(t.targetId)) ?? 'Unknown',
+        }))
+
+        const aggregates = new Map<
+          string,
+          Map<LeaderboardMetricKey, { sum: number; count: number }>
+        >()
+        for (const metricKey of LEADERBOARD_METRICS) {
+          const conditions = [
+            eq(metricReadings.organizationId, unbrand(input.organizationId)),
+            eq(metricReadings.propertyId, unbrand(input.propertyId)),
+            eq(metricReadings.metricKey, metricKey),
+            inArray(targetColumn, targetIds),
+            ...(range.start ? [sql`${metricReadings.occurredAt} >= ${range.start}`] : []),
+            ...(range.end ? [sql`${metricReadings.occurredAt} <= ${range.end}`] : []),
+          ]
+          const rows = await db
+            .select({
+              targetId: targetColumn,
+              sum: sql<number>`COALESCE(SUM(${metricReadings.value}), 0)`,
+              count: sql<number>`COUNT(*)::int`,
+            })
+            .from(metricReadings)
+            .where(and(...conditions))
+            .groupBy(targetColumn)
+
+          for (const r of rows) {
+            if (!r.targetId) continue
+            const t = targetByKey.get(r.targetId)
+            if (!t) continue
+            const key = targetKey(t)
+            const m = aggregates.get(key) ?? new Map()
+            m.set(metricKey, { sum: Number(r.sum), count: Number(r.count) })
+            aggregates.set(key, m)
+          }
+        }
+
+        return buildMatrix(matrixTargets, aggregates)
       })
     },
   }

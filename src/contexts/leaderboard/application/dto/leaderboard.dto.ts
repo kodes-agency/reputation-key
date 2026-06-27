@@ -25,3 +25,11 @@ export const getLeaderboardSchema = z.object({
 })
 
 export type GetLeaderboardInput = z.infer<typeof getLeaderboardSchema>
+
+export const getComparisonMatrixSchema = z.object({
+  propertyId: z.string().uuid(),
+  period: leaderboardPeriodSchema.default('this_month'),
+  scope: leaderboardScopeSchema.default('portal'),
+})
+
+export type GetComparisonMatrixInput = z.infer<typeof getComparisonMatrixSchema>
