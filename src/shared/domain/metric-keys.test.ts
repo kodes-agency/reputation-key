@@ -29,25 +29,22 @@ describe('metric-keys', () => {
   })
 
   describe('scope → metric key validation', () => {
-    it('property scope allows all five metric keys', () => {
-      expect(VALID_SCOPE_METRIC_KEYS.property).toEqual(METRIC_KEYS)
-    })
-
-    it('portal scope allows only portal.* keys', () => {
-      expect(VALID_SCOPE_METRIC_KEYS.portal).toEqual([
+    it('property scope allows the three goal-eligible keys', () => {
+      expect(VALID_SCOPE_METRIC_KEYS.property).toEqual([
         'portal.scan',
         'portal.rating',
-        'portal.feedback',
-        'portal.review_link_click',
+        'property.review',
       ])
     })
 
-    it('portal_group scope allows only portal.* keys', () => {
+    it('portal scope allows scans and ratings only', () => {
+      expect(VALID_SCOPE_METRIC_KEYS.portal).toEqual(['portal.scan', 'portal.rating'])
+    })
+
+    it('portal_group scope allows scans and ratings only', () => {
       expect(VALID_SCOPE_METRIC_KEYS.portal_group).toEqual([
         'portal.scan',
         'portal.rating',
-        'portal.feedback',
-        'portal.review_link_click',
       ])
     })
 
@@ -80,8 +77,12 @@ describe('metric-keys', () => {
       ])
     })
 
-    it('property.review allows SUM and COUNT', () => {
-      expect(VALID_METRIC_AGGREGATIONS['property.review']).toEqual(['sum', 'count'])
+    it('property.review allows COUNT, AVG, MAX', () => {
+      expect(VALID_METRIC_AGGREGATIONS['property.review']).toEqual([
+        'count',
+        'avg',
+        'max',
+      ])
     })
 
     it('isValidAggregationForMetric returns true for valid pair', () => {
@@ -98,11 +99,11 @@ describe('metric-keys', () => {
       expect(getDefaultAggregation('portal.scan')).toBe('sum')
       expect(getDefaultAggregation('portal.feedback')).toBe('sum')
       expect(getDefaultAggregation('portal.review_link_click')).toBe('sum')
-      expect(getDefaultAggregation('property.review')).toBe('sum')
     })
 
-    it('defaults to AVG for portal.rating', () => {
+    it('defaults to AVG for rating metrics', () => {
       expect(getDefaultAggregation('portal.rating')).toBe('avg')
+      expect(getDefaultAggregation('property.review')).toBe('avg')
     })
   })
 })

@@ -272,15 +272,9 @@ describe('filterGoalsForPortalGroupView', () => {
 // ── 6. getMetricKeysForScope ───────────────────────────────────────────
 
 describe('getMetricKeysForScope', () => {
-  it('returns all keys for property scope', () => {
+  it('returns goal-eligible keys for property scope', () => {
     const keys = getMetricKeysForScope('property')
-    expect(keys).toEqual([
-      'portal.scan',
-      'portal.rating',
-      'portal.feedback',
-      'portal.review_link_click',
-      'property.review',
-    ])
+    expect(keys).toEqual(['portal.scan', 'portal.rating', 'property.review'])
   })
 
   it('returns portal keys for portal_group scope', () => {
@@ -291,8 +285,7 @@ describe('getMetricKeysForScope', () => {
 
   it('returns portal keys for portal scope', () => {
     const keys = getMetricKeysForScope('portal')
-    expect(keys).not.toContain('property.review')
-    expect(keys.length).toBe(4)
+    expect(keys.length).toBe(2)
   })
 })
 
@@ -307,8 +300,8 @@ describe('getDefaultAggregationForKey', () => {
     expect(getDefaultAggregationForKey('portal.rating')).toBe('avg')
   })
 
-  it('returns sum for property.review', () => {
-    expect(getDefaultAggregationForKey('property.review')).toBe('sum')
+  it('returns avg for property.review', () => {
+    expect(getDefaultAggregationForKey('property.review')).toBe('avg')
   })
 })
 
