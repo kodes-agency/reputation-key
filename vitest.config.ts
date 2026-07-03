@@ -20,14 +20,11 @@ export default defineConfig({
     include: ['src/**/*.test.ts'],
     setupFiles: ['src/test-setup.ts'],
     // Integration tests share a database and can race on TRUNCATE CASCADE.
-    // Run all tests in a single thread so beforeEach truncation doesn't
-    // delete data from a parallel test file.
+    // Run all tests in a single worker (maxWorkers: 1) so beforeEach
+    // truncation doesn't delete data from a parallel test file. (Vitest 4
+    // flattened poolOptions.forks.singleFork into the top-level option.)
     pool: 'forks',
-    poolOptions: {
-      forks: {
-        singleFork: true,
-      },
-    },
+    maxWorkers: 1,
     testTimeout: 30_000,
     env: {
       NODE_ENV: 'test',
