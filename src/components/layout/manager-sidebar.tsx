@@ -25,7 +25,9 @@ function useActiveSection(): string {
   return useRouterState({
     select: (s) => {
       if (s.location.pathname.startsWith('/settings')) return 'settings'
-      if (s.location.pathname === '/inbox' || s.location.pathname.startsWith('/inbox')) return 'inbox'
+      if (s.location.pathname === '/inbox' || s.location.pathname.startsWith('/inbox'))
+        return 'inbox'
+      if (s.location.pathname.startsWith('/leaderboard')) return 'leaderboard'
       if (
         s.location.pathname === '/properties' ||
         s.location.pathname.startsWith('/properties/import')

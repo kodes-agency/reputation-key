@@ -10,6 +10,7 @@ import type { LeaderboardRepository } from './application/ports/leaderboard.repo
 import { refreshLeaderboard } from './application/use-cases/refresh-leaderboard'
 import { reconcileLeaderboards } from './application/use-cases/reconcile-leaderboards'
 import { getLeaderboard } from './application/use-cases/get-leaderboard'
+import { getComparisonMatrix } from './application/use-cases/get-comparison-matrix'
 import type {
   RefreshLeaderboardInput,
   RefreshLeaderboardReturn,
@@ -19,10 +20,17 @@ import type {
   GetLeaderboardInput,
   GetLeaderboardReturn,
 } from './application/use-cases/get-leaderboard'
+import type {
+  GetComparisonMatrixInput,
+  GetComparisonMatrixReturn,
+} from './application/use-cases/get-comparison-matrix'
 
 export type LeaderboardContextApi = Readonly<{
   publicApi: Readonly<{
     getLeaderboard: (input: GetLeaderboardInput) => Promise<GetLeaderboardReturn>
+    getComparisonMatrix: (
+      input: GetComparisonMatrixInput,
+    ) => Promise<GetComparisonMatrixReturn>
   }>
   internal: Readonly<{
     repos: Readonly<{ leaderboardRepo: LeaderboardRepository }>
@@ -49,6 +57,7 @@ export const buildLeaderboardContext = (
   const refreshLeaderboardFn = refreshLeaderboard({ repo: leaderboardRepo })
   const reconcileLeaderboardsFn = reconcileLeaderboards({ repo: leaderboardRepo })
   const getLeaderboardFn = getLeaderboard({ repo: leaderboardRepo })
+  const getComparisonMatrixFn = getComparisonMatrix({ repo: leaderboardRepo })
 
   registerLeaderboardEventHandlers({
     eventBus: deps.events,
@@ -58,6 +67,7 @@ export const buildLeaderboardContext = (
   return {
     publicApi: {
       getLeaderboard: getLeaderboardFn,
+      getComparisonMatrix: getComparisonMatrixFn,
     },
     internal: {
       repos: { leaderboardRepo },
