@@ -202,18 +202,23 @@ export const createLeaderboardRepository = (
     return writeSnapshot(input, values)
   }
 
-  const queryValues = async (
-    input: Required<LeaderboardRefreshInput>,
+  /** Aggregate one metric across targets — groups `metricReadings` by the target
+   *  column and returns sum + count per target id. Shared by the single-metric
+   *  refresh path and the comparison-matrix fan-out (ADR 0021). */
+  const aggregateByTarget = async (
+    input: Pick<
+      Required<LeaderboardRefreshInput>,
+      'organizationId' | 'propertyId' | 'scope'
+    >,
     range: { start?: Date; end?: Date },
-    targets: ReadonlyArray<LeaderboardRowInput>,
+    targets: ReadonlyArray<Pick<LeaderboardRowInput, 'targetId'>>,
     metricKey: LeaderboardMetricKey,
-  ): Promise<ReadonlyArray<ScoredTarget>> => {
-    if (targets.length === 0) return []
+  ): Promise<Map<string, { sum: number; count: number }>> => {
+    if (targets.length === 0) return new Map()
 
-    const isPortal = input.scope === 'portal'
+    const targetColumn =
+      input.scope === 'portal' ? metricReadings.portalId : metricReadings.groupId
     const targetIds = targets.map((t) => unbrand(t.targetId))
-    const targetColumn = isPortal ? metricReadings.portalId : metricReadings.groupId
-
     const conditions = [
       eq(metricReadings.organizationId, unbrand(input.organizationId)),
       eq(metricReadings.propertyId, unbrand(input.propertyId)),
@@ -222,7 +227,6 @@ export const createLeaderboardRepository = (
       ...(range.start ? [sql`${metricReadings.occurredAt} >= ${range.start}`] : []),
       ...(range.end ? [sql`${metricReadings.occurredAt} <= ${range.end}`] : []),
     ]
-
     const rows = await db
       .select({
         targetId: targetColumn,
@@ -239,12 +243,23 @@ export const createLeaderboardRepository = (
         lookup.set(row.targetId, { sum: Number(row.sum), count: Number(row.count) })
       }
     }
+    return lookup
+  }
+
+  const queryValues = async (
+    input: Required<LeaderboardRefreshInput>,
+    range: { start?: Date; end?: Date },
+    targets: ReadonlyArray<LeaderboardRowInput>,
+    metricKey: LeaderboardMetricKey,
+  ): Promise<ReadonlyArray<ScoredTarget>> => {
+    if (targets.length === 0) return []
+
+    const lookup = await aggregateByTarget(input, range, targets, metricKey)
 
     return targets
       .filter((target) => {
         if (metricKey !== 'portal.rating') return true
-        const c = lookup.get(unbrand(target.targetId))?.count ?? 0
-        return c >= RATING_FLOOR
+        return (lookup.get(unbrand(target.targetId))?.count ?? 0) >= RATING_FLOOR
       })
       .map((target) => {
         const agg = lookup.get(unbrand(target.targetId)) ?? { sum: 0, count: 0 }
@@ -406,34 +421,32 @@ export const createLeaderboardRepository = (
         )
         if (targets.length === 0) return []
 
-        const isPortal = input.scope === 'portal'
         const targetIds = targets.map((t) => unbrand(t.targetId))
-        const targetColumn = isPortal ? metricReadings.portalId : metricReadings.groupId
-        const targetByKey = new Map(targets.map((t) => [unbrand(t.targetId), t]))
 
-        const nameRows = isPortal
-          ? await db
-              .select({ id: portals.id, name: portals.name })
-              .from(portals)
-              .where(
-                and(
-                  eq(portals.organizationId, unbrand(input.organizationId)),
-                  eq(portals.propertyId, unbrand(input.propertyId)),
-                  isNull(portals.deletedAt),
-                  inArray(portals.id, targetIds),
-                ),
-              )
-          : await db
-              .select({ id: portalGroups.id, name: portalGroups.name })
-              .from(portalGroups)
-              .where(
-                and(
-                  eq(portalGroups.organizationId, unbrand(input.organizationId)),
-                  eq(portalGroups.propertyId, unbrand(input.propertyId)),
-                  isNull(portalGroups.deletedAt),
-                  inArray(portalGroups.id, targetIds),
-                ),
-              )
+        const nameRows =
+          input.scope === 'portal'
+            ? await db
+                .select({ id: portals.id, name: portals.name })
+                .from(portals)
+                .where(
+                  and(
+                    eq(portals.organizationId, unbrand(input.organizationId)),
+                    eq(portals.propertyId, unbrand(input.propertyId)),
+                    isNull(portals.deletedAt),
+                    inArray(portals.id, targetIds),
+                  ),
+                )
+            : await db
+                .select({ id: portalGroups.id, name: portalGroups.name })
+                .from(portalGroups)
+                .where(
+                  and(
+                    eq(portalGroups.organizationId, unbrand(input.organizationId)),
+                    eq(portalGroups.propertyId, unbrand(input.propertyId)),
+                    isNull(portalGroups.deletedAt),
+                    inArray(portalGroups.id, targetIds),
+                  ),
+                )
         const nameMap = new Map(nameRows.map((r) => [r.id, r.name]))
         const matrixTargets: MatrixTarget[] = targets.map((t) => ({
           ...t,
@@ -445,31 +458,13 @@ export const createLeaderboardRepository = (
           Map<LeaderboardMetricKey, { sum: number; count: number }>
         >()
         for (const metricKey of LEADERBOARD_METRICS) {
-          const conditions = [
-            eq(metricReadings.organizationId, unbrand(input.organizationId)),
-            eq(metricReadings.propertyId, unbrand(input.propertyId)),
-            eq(metricReadings.metricKey, metricKey),
-            inArray(targetColumn, targetIds),
-            ...(range.start ? [sql`${metricReadings.occurredAt} >= ${range.start}`] : []),
-            ...(range.end ? [sql`${metricReadings.occurredAt} <= ${range.end}`] : []),
-          ]
-          const rows = await db
-            .select({
-              targetId: targetColumn,
-              sum: sql<number>`COALESCE(SUM(${metricReadings.value}), 0)`,
-              count: sql<number>`COUNT(*)::int`,
-            })
-            .from(metricReadings)
-            .where(and(...conditions))
-            .groupBy(targetColumn)
-
-          for (const r of rows) {
-            if (!r.targetId) continue
-            const t = targetByKey.get(r.targetId)
-            if (!t) continue
+          const lookup = await aggregateByTarget(input, range, targets, metricKey)
+          for (const t of targets) {
+            const agg = lookup.get(unbrand(t.targetId))
+            if (!agg) continue
             const key = targetKey(t)
             const m = aggregates.get(key) ?? new Map()
-            m.set(metricKey, { sum: Number(r.sum), count: Number(r.count) })
+            m.set(metricKey, agg)
             aggregates.set(key, m)
           }
         }

@@ -101,6 +101,35 @@ export type MatrixRow = Readonly<{
 /** Raw aggregate for one target × one metric, straight from the readings. */
 export type MetricAggregate = Readonly<{ sum: number; count: number }>
 
+/** Per-target raw value + flags for one metric, pulled from the aggregates map.
+ *  Shared by the rankable build and the cell build so the rating-vs-count
+ *  branching lives in exactly one place. */
+const metricValueFor = (
+  metricKey: LeaderboardMetricKey,
+  target: MatrixTarget,
+  aggregates: ReadonlyMap<string, ReadonlyMap<LeaderboardMetricKey, MetricAggregate>>,
+): { value: number; insufficient: boolean; hasData: boolean } => {
+  const isRating = metricKey === 'portal.rating'
+  const agg = aggregates.get(targetKey(target))?.get(metricKey) ?? { sum: 0, count: 0 }
+  return {
+    insufficient: isRating && agg.count < RATING_FLOOR,
+    hasData: isRating ? agg.count > 0 : agg.sum > 0,
+    value: isRating ? (agg.count > 0 ? agg.sum / agg.count : 0) : agg.sum,
+  }
+}
+
+/** Row comparator: worst-first by rating rank (unranked last), then by name. */
+const compareRowsByRating = (a: MatrixRow, b: MatrixRow): number => {
+  const rankOf = (row: MatrixRow): number | null =>
+    row.cells.find((c) => c.metricKey === 'portal.rating')?.rank ?? null
+  const ra = rankOf(a)
+  const rb = rankOf(b)
+  if (ra === null && rb !== null) return 1
+  if (rb === null && ra !== null) return -1
+  if (ra !== null && rb !== null && ra !== rb) return rb - ra
+  return a.target.targetName.localeCompare(b.target.targetName)
+}
+
 /**
  * Build the comparison matrix from raw per-target-per-metric aggregates.
  *
@@ -119,15 +148,9 @@ export function buildMatrix(
   const cellsByTarget = new Map<string, MatrixCell[]>()
 
   for (const metricKey of LEADERBOARD_METRICS) {
-    const isRating = metricKey === 'portal.rating'
-
-    // Rank only targets that have data and (for ratings) meet the floor.
-    const rankable: ReadonlyArray<ScoredTarget> = targets
+    const rankable = targets
       .map((t) => {
-        const agg = aggregates.get(targetKey(t))?.get(metricKey) ?? { sum: 0, count: 0 }
-        const insufficient = isRating && agg.count < RATING_FLOOR
-        const hasData = isRating ? agg.count > 0 : agg.sum > 0
-        const value = isRating ? (agg.count > 0 ? agg.sum / agg.count : 0) : agg.sum
+        const { value, insufficient, hasData } = metricValueFor(metricKey, t, aggregates)
         return { row: t, value, normalized: value, _skip: !hasData || insufficient }
       })
       .filter((s) => !s._skip)
@@ -136,14 +159,14 @@ export function buildMatrix(
     const rankByKey = new Map(rank(rankable).map((r) => [targetKey(r.row), r.rank]))
 
     for (const t of targets) {
-      const agg = aggregates.get(targetKey(t))?.get(metricKey) ?? { sum: 0, count: 0 }
-      const insufficient = isRating && agg.count < RATING_FLOOR
-      const hasData = isRating ? agg.count > 0 : agg.sum > 0
-      const value = isRating ? (agg.count > 0 ? agg.sum / agg.count : 0) : agg.sum
-      const cellRank =
-        hasData && !insufficient ? (rankByKey.get(targetKey(t)) ?? null) : null
+      const { value, insufficient, hasData } = metricValueFor(metricKey, t, aggregates)
       const arr = cellsByTarget.get(targetKey(t)) ?? []
-      arr.push({ metricKey, value, rank: cellRank, insufficient })
+      arr.push({
+        metricKey,
+        value,
+        rank: hasData && !insufficient ? (rankByKey.get(targetKey(t)) ?? null) : null,
+        insufficient,
+      })
       cellsByTarget.set(targetKey(t), arr)
     }
   }
@@ -153,15 +176,5 @@ export function buildMatrix(
     cells: cellsByTarget.get(targetKey(t)) ?? [],
   }))
 
-  const ratingRank = (row: MatrixRow): number | null =>
-    row.cells.find((c) => c.metricKey === 'portal.rating')?.rank ?? null
-
-  return rows.sort((a, b) => {
-    const ra = ratingRank(a)
-    const rb = ratingRank(b)
-    if (ra === null && rb !== null) return 1
-    if (rb === null && ra !== null) return -1
-    if (ra !== null && rb !== null && ra !== rb) return rb - ra
-    return a.target.targetName.localeCompare(b.target.targetName)
-  })
+  return rows.sort(compareRowsByRating)
 }

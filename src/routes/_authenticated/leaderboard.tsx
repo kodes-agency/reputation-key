@@ -240,6 +240,39 @@ function EmptyData() {
   )
 }
 
+const MEDALS: readonly string[] = ['🥇', '🥈', '🥉']
+
+function RankingRow({
+  entry,
+  idx,
+}: Readonly<{ entry: LeaderboardEntryWithTarget; idx: number }>) {
+  return (
+    <tr className={idx % 2 === 0 ? 'bg-background' : 'bg-muted/20'}>
+      <td className="px-4 py-2 font-medium">
+        {entry.rank <= MEDALS.length ? MEDALS[entry.rank - 1] : entry.rank}
+      </td>
+      <td className="px-4 py-2">{entry.targetName}</td>
+      <td className="px-4 py-2 text-right">{(entry.score * 100).toFixed(1)}</td>
+      <td className="px-4 py-2 text-right text-muted-foreground">
+        {entry.metricValue.toFixed(1)}
+      </td>
+    </tr>
+  )
+}
+
+function RankingTableHead({ metricKey }: Readonly<{ metricKey: MetricKey }>) {
+  return (
+    <thead className="bg-muted/50">
+      <tr>
+        <th className="px-4 py-2 text-left font-medium">Rank</th>
+        <th className="px-4 py-2 text-left font-medium">Name</th>
+        <th className="px-4 py-2 text-right font-medium">Score</th>
+        <th className="px-4 py-2 text-right font-medium">{METRIC_LABELS[metricKey]}</th>
+      </tr>
+    </thead>
+  )
+}
+
 function RankingTable({
   entries,
   metricKey,
@@ -247,31 +280,14 @@ function RankingTable({
   return (
     <div className="overflow-hidden rounded-lg border">
       <table className="w-full text-sm">
-        <thead className="bg-muted/50">
-          <tr>
-            <th className="px-4 py-2 text-left font-medium">Rank</th>
-            <th className="px-4 py-2 text-left font-medium">Name</th>
-            <th className="px-4 py-2 text-right font-medium">Score</th>
-            <th className="px-4 py-2 text-right font-medium">
-              {METRIC_LABELS[metricKey]}
-            </th>
-          </tr>
-        </thead>
+        <RankingTableHead metricKey={metricKey} />
         <tbody>
           {entries.map((entry, idx) => (
-            <tr
+            <RankingRow
               key={`${entry.targetType}:${entry.targetId}`}
-              className={idx % 2 === 0 ? 'bg-background' : 'bg-muted/20'}
-            >
-              <td className="px-4 py-2 font-medium">
-                {entry.rank <= 3 ? ['🥇', '🥈', '🥉'][entry.rank - 1] : entry.rank}
-              </td>
-              <td className="px-4 py-2">{entry.targetName}</td>
-              <td className="px-4 py-2 text-right">{(entry.score * 100).toFixed(1)}</td>
-              <td className="px-4 py-2 text-right text-muted-foreground">
-                {entry.metricValue.toFixed(1)}
-              </td>
-            </tr>
+              entry={entry}
+              idx={idx}
+            />
           ))}
         </tbody>
       </table>
