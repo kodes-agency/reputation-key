@@ -11,6 +11,8 @@ import { toDomainRole } from '#/shared/domain/roles'
 import { organizationId, userId } from '#/shared/domain/ids'
 import { throwContextError } from './server-errors'
 import { enrichSpan } from '#/shared/observability/request-context'
+import { getEnv } from '#/shared/config/env'
+import { getLogger } from '#/shared/observability/logger'
 
 // ── Request-scoped tenant cache ───────────────────────────────
 // Within a single page load, multiple server functions call resolveTenantContext
@@ -158,10 +160,31 @@ export async function resolveTenantContext(headers: Headers): Promise<AuthContex
     throwAuthError('forbidden', 'Not a member of the active organization')
   }
 
+  const role = toDomainRole(member.role)
+  if (role === null) {
+    // Non-built-in role (custom or comma-delimited multi-role). Stage 1 fails
+    // closed — the dynamic permission resolver ships in Stage 2 behind
+    // ENABLE_CUSTOM_ROLES. The warn log is the alerting anchor (Sentry/log alert
+    // on the auth.unsupported_member_role token).
+    const env = getEnv()
+    getLogger().warn(
+      {
+        memberRole: member.role,
+        organizationId: activeOrgId,
+        userId: session.user.id,
+        customRolesEnabled: env.ENABLE_CUSTOM_ROLES,
+      },
+      env.ENABLE_CUSTOM_ROLES
+        ? 'auth.unsupported_member_role: dynamic resolver not implemented (ENABLE_CUSTOM_ROLES=true)'
+        : 'auth.unsupported_member_role: custom role rejected while custom roles are disabled',
+    )
+    throwAuthError('forbidden', 'Member role is not supported')
+  }
+
   const ctx: AuthContext = {
     userId: userId(session.user.id),
     organizationId: organizationId(activeOrgId),
-    role: toDomainRole(member.role),
+    role,
   }
 
   // Only cache if we have a valid key (non-empty cookies)

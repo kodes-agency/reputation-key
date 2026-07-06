@@ -223,6 +223,41 @@ describe('resolveTenantContext', () => {
         (e as unknown as Record<string, unknown>).status === 403,
     )
   })
+  it('throws AuthError forbidden when member has a custom (non-built-in) role', async () => {
+    // Arrange
+    mockGetSession.mockResolvedValue({
+      session: { id: 'sess-1', activeOrganizationId: 'org-1' },
+      user: { id: 'u1' },
+    })
+    mockGetActiveMember.mockResolvedValue({ role: 'content-manager' })
+
+    // Act & Assert — Stage 1 fails closed on non-built-in roles (DAC ADR 0001).
+    await expect(resolveTenantContext(makeHeaders())).rejects.toSatisfy(
+      (e: unknown) =>
+        e instanceof Error &&
+        e.name === 'AuthError' &&
+        (e as unknown as Record<string, unknown>).code === 'forbidden' &&
+        (e as unknown as Record<string, unknown>).status === 403,
+    )
+  })
+
+  it('throws AuthError forbidden when member.role is a comma-delimited multi-role', async () => {
+    // Arrange
+    mockGetSession.mockResolvedValue({
+      session: { id: 'sess-1', activeOrganizationId: 'org-1' },
+      user: { id: 'u1' },
+    })
+    mockGetActiveMember.mockResolvedValue({ role: 'owner,admin' })
+
+    // Act & Assert — multi-role strings are non-built-in until Stage 2.
+    await expect(resolveTenantContext(makeHeaders())).rejects.toSatisfy(
+      (e: unknown) =>
+        e instanceof Error &&
+        e.name === 'AuthError' &&
+        (e as unknown as Record<string, unknown>).code === 'forbidden' &&
+        (e as unknown as Record<string, unknown>).status === 403,
+    )
+  })
 })
 
 describe('resolveTenantContext cache', () => {

@@ -15,7 +15,7 @@ import type {
 } from '../../application/ports/identity.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { getAuth } from '#/shared/auth/auth'
-import { toDomainRole, toBetterAuthRole } from '#/shared/domain/roles'
+import { toDomainRoleStrict, toBetterAuthRole, type Role } from '#/shared/domain/roles'
 import { identityError } from '../../domain/errors'
 import { organizationId, invitationId } from '#/shared/domain/ids'
 import type { InvitationId, OrganizationId } from '#/shared/domain/ids'
@@ -67,7 +67,7 @@ function toMemberRecord(m: {
     userId: m.userId,
     email: m.user.email,
     name: m.user.name,
-    role: toDomainRole(m.role),
+    role: toDomainRoleStrict(m.role),
     image: m.user.image ?? null,
     createdAt: m.createdAt,
   }
@@ -185,7 +185,7 @@ export const createBetterAuthIdentityAdapter = (db: Database): IdentityPort => {
         headers,
         body: {
           email,
-          role: toBetterAuthRole(role as ReturnType<typeof toDomainRole>),
+          role: toBetterAuthRole(role as Role),
           propertyIds:
             propertyIds && propertyIds.length > 0
               ? JSON.stringify(propertyIds)
@@ -246,7 +246,7 @@ export const createBetterAuthIdentityAdapter = (db: Database): IdentityPort => {
         (inv): InvitationRecord => ({
           id: inv.id,
           email: inv.email,
-          role: toDomainRole(inv.role),
+          role: toDomainRoleStrict(inv.role),
           status: inv.status,
           expiresAt: inv.expiresAt,
           createdAt: inv.createdAt,
@@ -270,7 +270,7 @@ export const createBetterAuthIdentityAdapter = (db: Database): IdentityPort => {
         (inv): InvitationRecord => ({
           id: inv.id,
           email: inv.email,
-          role: toDomainRole(inv.role),
+          role: toDomainRoleStrict(inv.role),
           status: inv.status,
           expiresAt: inv.expiresAt,
           createdAt: inv.createdAt,
@@ -298,7 +298,7 @@ export const createBetterAuthIdentityAdapter = (db: Database): IdentityPort => {
         headers,
         body: {
           memberId,
-          role: toBetterAuthRole(role as ReturnType<typeof toDomainRole>),
+          role: toBetterAuthRole(role as Role),
         },
       })
     },

@@ -7,7 +7,7 @@
 
 import type { UserLookupPort, UserInfo } from '../../ports/user-lookup.port'
 import type { Database } from '#/shared/db'
-import { toDomainRole, type Role } from '#/shared/domain/roles'
+import { toDomainRoleStrict, type Role } from '#/shared/domain/roles'
 import { and, eq } from 'drizzle-orm'
 import { member, user } from '#/shared/db/schema/auth'
 import { activityError } from '../../domain/errors'
@@ -36,7 +36,7 @@ export const createDbUserLookupAdapter = (db: Database): UserLookupPort => ({
       return {
         name: row.name ?? 'Unknown',
         avatarUrl: row.image ?? null,
-        role: toDomainRole(row.role),
+        role: toDomainRoleStrict(row.role),
       }
     } catch (e) {
       // §13: surface DB failures as a typed error instead of returning the

@@ -59,6 +59,14 @@ const envSchema = z.object({
 
   // Google Pub/Sub webhook audience verification (optional — defaults to /webhooks/gbp path)
   GBP_PUBSUB_AUDIENCE: z.string().optional(),
+  // Dynamic Access Control — Stage 1 safety gate (ADR 0001).
+  // 'true' enables the custom-role model (Stage 2 dynamic resolver). Absent or any
+  // other value = false. Parsed as string→bool to avoid z.coerce.boolean()'s
+  // Boolean("false") === true pitfall.
+  ENABLE_CUSTOM_ROLES: z
+    .string()
+    .optional()
+    .transform((v) => v?.toLowerCase() === 'true'),
 })
 
 // fallow-ignore-next-line unused-type
