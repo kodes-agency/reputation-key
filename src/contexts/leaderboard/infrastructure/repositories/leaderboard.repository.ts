@@ -20,7 +20,7 @@ import { portalGroups } from '#/shared/db/schema/portal-group.schema'
 import { properties } from '#/shared/db/schema/property.schema'
 import { metricReadings } from '#/shared/db/schema/metric.schema'
 import {
-  leaderboardEntryId,
+  type LeaderboardEntryId,
   organizationId,
   portalGroupId,
   portalId,
@@ -53,6 +53,7 @@ import { leaderboardEntryFromRow } from '../mappers/leaderboard.mapper'
 export const createLeaderboardRepository = (
   db: Database,
   clock: Clock,
+  idGen: () => LeaderboardEntryId,
 ): LeaderboardRepository => {
   const listPropertiesWithMetricEvents = async () => {
     return trace('leaderboard.listPropertiesWithMetricEvents', async () => {
@@ -261,40 +262,11 @@ export const createLeaderboardRepository = (
   ): Promise<{ entriesWritten: number }> => {
     const now = clock()
     const scoreKey = input.metricKey === 'overall' ? 'overall' : input.metricKey
-    const snapshotRows = await db
-      .insert(leaderboardSnapshots)
-      .values({
-        propertyId: unbrand(input.propertyId),
-        period: input.period,
-        scope: input.scope,
-        metricKey: input.metricKey,
-        scoreKey,
-        lastUpdatedAt: now,
-        createdAt: now,
-      })
-      .onConflictDoUpdate({
-        target: [
-          leaderboardSnapshots.propertyId,
-          leaderboardSnapshots.period,
-          leaderboardSnapshots.scope,
-          leaderboardSnapshots.metricKey,
-          leaderboardSnapshots.scoreKey,
-        ],
-        set: { lastUpdatedAt: now },
-      })
-      .returning()
-
-    const snapshot = snapshotRows[0]
-    if (!snapshot) {
-      throw leaderboardError('repo_insert_failed', 'Leaderboard snapshot upsert failed')
-    }
-
     // Domain rank() sorts by normalized (desc), then raw value (desc), and
     // assigns standard competition ranks (equal scores share a rank).
     const ranked = rank(values)
     const entryRows = ranked.map((value) => ({
-      id: unbrand(leaderboardEntryId(crypto.randomUUID())),
-      snapshotId: unbrand(snapshot.id),
+      id: unbrand(idGen()),
       rank: value.rank,
       targetType: value.row.targetType,
       targetId: unbrand(value.row.targetId),
@@ -307,12 +279,48 @@ export const createLeaderboardRepository = (
       createdAt: now,
     }))
 
+    // Snapshot upsert + entry replacement must be atomic together (leaderboard
+    // CONTEXT.md invariant). A crash between them would leave lastUpdatedAt
+    // newer than the entries, so both run inside one transaction. Entry ids
+    // come from the injected idGen (deterministic for simulation replay).
     await db.transaction(async (tx) => {
+      const snapshotRows = await tx
+        .insert(leaderboardSnapshots)
+        .values({
+          organizationId: unbrand(input.organizationId),
+          propertyId: unbrand(input.propertyId),
+          period: input.period,
+          scope: input.scope,
+          metricKey: input.metricKey,
+          scoreKey,
+          lastUpdatedAt: now,
+          createdAt: now,
+        })
+        .onConflictDoUpdate({
+          target: [
+            leaderboardSnapshots.organizationId,
+            leaderboardSnapshots.propertyId,
+            leaderboardSnapshots.period,
+            leaderboardSnapshots.scope,
+            leaderboardSnapshots.metricKey,
+            leaderboardSnapshots.scoreKey,
+          ],
+          set: { lastUpdatedAt: now },
+        })
+        .returning()
+
+      const snapshot = snapshotRows[0]
+      if (!snapshot) {
+        throw leaderboardError('repo_insert_failed', 'Leaderboard snapshot upsert failed')
+      }
+
       await tx
         .delete(leaderboardEntries)
         .where(eq(leaderboardEntries.snapshotId, unbrand(snapshot.id)))
       if (entryRows.length > 0) {
-        await tx.insert(leaderboardEntries).values(entryRows)
+        await tx
+          .insert(leaderboardEntries)
+          .values(entryRows.map((row) => ({ ...row, snapshotId: unbrand(snapshot.id) })))
       }
     })
 

@@ -6,7 +6,11 @@
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { headersFromContext } from '#/shared/auth/headers'
-import { requireAuth, resolveTenantContext } from '#/shared/auth/middleware'
+import {
+  requireAuth,
+  resolveTenantContext,
+  resetTenantCache,
+} from '#/shared/auth/middleware'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { can } from '#/shared/domain/permissions'
 import { getContainer } from '#/composition'
@@ -34,6 +38,9 @@ export const acceptInvitation = createServerFn({ method: 'POST' })
             headers,
             userId: userId(user.id),
           })
+          // Invalidate tenant cache — accepting an invitation changes membership,
+          // so any cached AuthContext (role/org) is now stale.
+          resetTenantCache()
         } catch (e) {
           throw catchUntagged(e)
         }

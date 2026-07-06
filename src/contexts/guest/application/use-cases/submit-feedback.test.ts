@@ -20,6 +20,7 @@ function createInMemoryGuestRepo() {
       feedback.push(fb)
     },
     hasRated: async () => false,
+    hasRatedByIpWithin: async () => false,
     getLatestScanBySession: async () => null,
     findFeedbackById: async () => null,
     findRatingById: async () => null,

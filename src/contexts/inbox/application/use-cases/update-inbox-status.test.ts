@@ -8,6 +8,7 @@ import {
   organizationId,
   propertyId,
   reviewId,
+  feedbackId,
   userId,
 } from '#/shared/domain/ids'
 import type { InboxItem, InboxStatus, SourceType } from '../../domain/types'
@@ -224,10 +225,36 @@ describe('updateInboxStatus', () => {
     ).resolves.toBeDefined()
   })
 
-  it('allows PropertyManager to update status for any property (inbox.write bypasses property check)', async () => {
-    // PropertyManager has inbox.write, so can() passes and the property access check is skipped
+  it('scopes PropertyManager to assigned properties (PM is NOT org-wide for inbox)', async () => {
+    // PM holds inbox.manage, but per root CONTEXT.md L72 PM only manages
+    // ASSIGNED properties. assertPropertyAccessible must therefore enforce
+    // the staff_assignment scope for PM, not bypass it.
     const staffApi: StaffPublicApi = {
-      getAccessiblePropertyIds: async () => [propertyId('prop-other')],
+      getAccessiblePropertyIds: async () => [propertyId('prop-assigned')],
+      getAssignedPortals: async () => [],
+      countAssignmentsByTeam: async () => 0,
+    }
+    const { useCase, repo } = setup(staffApi)
+    // Item is on a property PM is NOT assigned to
+    repo.items.push(seedNew({ propertyId: propertyId('prop-other') }))
+
+    await expect(
+      useCase({
+        inboxItemId: ITEM_ID,
+        organizationId: ORG_ID,
+        newStatus: 'read',
+        userId: USER_ID,
+        role: 'PropertyManager' as Role,
+      }),
+    ).rejects.toMatchObject({ _tag: 'InboxError', code: 'forbidden' })
+
+    // Sanity: the item is untouched
+    expect(repo.items[0]!.status).toBe('new')
+  })
+
+  it('allows PropertyManager to update status for an assigned property', async () => {
+    const staffApi: StaffPublicApi = {
+      getAccessiblePropertyIds: async () => [propertyId('prop-1')],
       getAssignedPortals: async () => [],
       countAssignmentsByTeam: async () => 0,
     }
@@ -243,6 +270,43 @@ describe('updateInboxStatus', () => {
     })
 
     expect(updated.status).toBe('read')
+  })
+
+  it('rejects manual "addressed" on a review item (reviews auto-transition via reply.published)', async () => {
+    const { useCase, repo } = setup()
+    repo.items.push(seedNew({ sourceType: 'review' as SourceType }))
+
+    await expect(
+      useCase({
+        inboxItemId: ITEM_ID,
+        organizationId: ORG_ID,
+        newStatus: 'addressed',
+        userId: USER_ID,
+        role: 'AccountAdmin' as Role,
+      }),
+    ).rejects.toMatchObject({
+      _tag: 'InboxError',
+      code: 'invalid_transition',
+    })
+
+    expect(repo.items[0]!.status).toBe('new')
+  })
+
+  it('allows manual "addressed" on a feedback item', async () => {
+    const { useCase, repo } = setup()
+    repo.items.push(
+      seedNew({ sourceType: 'feedback' as SourceType, sourceId: feedbackId('fb-1') }),
+    )
+
+    const updated = await useCase({
+      inboxItemId: ITEM_ID,
+      organizationId: ORG_ID,
+      newStatus: 'addressed',
+      userId: USER_ID,
+      role: 'AccountAdmin' as Role,
+    })
+
+    expect(updated.status).toBe('addressed')
   })
 
   it('skips property check for AccountAdmin role', async () => {

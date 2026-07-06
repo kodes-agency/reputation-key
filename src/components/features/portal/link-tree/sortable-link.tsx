@@ -45,7 +45,12 @@ export function SortableLink({ link, isDeleting, onDelete, onEdit }: Props) {
     >
       <div className="flex items-center gap-2">
         {canEdit && (
-          <button {...attributes} {...listeners} className="cursor-grab">
+          <button
+            {...attributes}
+            {...listeners}
+            className="cursor-grab"
+            aria-label={`Drag link ${link.label}`}
+          >
             <GripVertical className="size-4 text-muted-foreground" />
           </button>
         )}
@@ -54,12 +59,22 @@ export function SortableLink({ link, isDeleting, onDelete, onEdit }: Props) {
       </div>
       {canEdit && (
         <div className="flex items-center gap-1">
-          <Button size="sm" variant="ghost" onClick={() => onEdit(link)}>
+          <Button
+            size="sm"
+            variant="ghost"
+            aria-label={`Edit link ${link.label}`}
+            onClick={() => onEdit(link)}
+          >
             <Pencil className="size-3 text-muted-foreground" />
           </Button>
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button size="sm" variant="ghost" disabled={isDeleting}>
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={isDeleting}
+                aria-label={`Delete link ${link.label}`}
+              >
                 <Trash2 className="size-3 text-muted-foreground" />
               </Button>
             </AlertDialogTrigger>

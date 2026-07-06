@@ -117,6 +117,21 @@ function toOrganizationRecord(org: {
 
 export const createBetterAuthIdentityAdapter = (db: Database): IdentityPort => {
   const auth = getAuth()
+  // Local member lookup — used by getMember, updateMemberRole, and removeMember.
+  // Calling a closure-captured function (not `this.getMember`) keeps these methods
+  // safe to destructure / pass as callbacks, per the functional-style rule.
+  const getMemberImpl = async (memberId: string): Promise<MemberRecord | null> => {
+    const headers = await headersFromRequest()
+    const result = await auth.api.listMembers({ headers })
+    const data = parseBetterAuthResponse(
+      listMembersResponseSchema,
+      result,
+      'org_setup_failed',
+      'listMembers response did not match expected schema',
+    )
+    const member = data.members.find((m) => m.id === memberId)
+    return member ? toMemberRecord(member) : null
+  }
   return {
     async signUp(name: string, email: string, password: string): Promise<string> {
       const result = await auth.api.signUpEmail({
@@ -154,17 +169,7 @@ export const createBetterAuthIdentityAdapter = (db: Database): IdentityPort => {
     // The listMembers call is session-scoped to the active org, so the
     // membership is implicitly verified. No cross-tenant risk in practice.
     async getMember(_ctx: AuthContext, memberId: string): Promise<MemberRecord | null> {
-      const headers = await headersFromRequest()
-      const result = await auth.api.listMembers({ headers })
-
-      const data = parseBetterAuthResponse(
-        listMembersResponseSchema,
-        result,
-        'org_setup_failed',
-        'listMembers response did not match expected schema',
-      )
-      const member = data.members.find((m) => m.id === memberId)
-      return member ? toMemberRecord(member) : null
+      return getMemberImpl(memberId)
     },
 
     // Relies on session-bound organization — better-auth creates the invitation
@@ -195,7 +200,6 @@ export const createBetterAuthIdentityAdapter = (db: Database): IdentityPort => {
       )
       return invitationId(invitation.id)
     },
-
     async acceptInvitation(
       id: InvitationId,
       headers: Headers,
@@ -280,12 +284,12 @@ export const createBetterAuthIdentityAdapter = (db: Database): IdentityPort => {
     },
 
     async updateMemberRole(
-      ctx: AuthContext,
+      _ctx: AuthContext,
       memberId: string,
       role: string,
     ): Promise<void> {
       // Verify member belongs to the current org before mutating
-      const member = await this.getMember(ctx, memberId)
+      const member = await getMemberImpl(memberId)
       if (!member) {
         throw identityError('forbidden', 'Member not found in current organization')
       }
@@ -299,9 +303,9 @@ export const createBetterAuthIdentityAdapter = (db: Database): IdentityPort => {
       })
     },
 
-    async removeMember(ctx: AuthContext, memberId: string): Promise<void> {
+    async removeMember(_ctx: AuthContext, memberId: string): Promise<void> {
       // Verify member belongs to the current org before removing
-      const member = await this.getMember(ctx, memberId)
+      const member = await getMemberImpl(memberId)
       if (!member) {
         throw identityError('forbidden', 'Member not found in current organization')
       }

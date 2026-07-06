@@ -157,11 +157,13 @@ describe('assignInboxItem', () => {
     expect(emitted[0]._tag).toBe('inbox.inbox_item.unassigned')
   })
 
-  it('allows PropertyManager to assign item for any property (inbox.manage bypasses property check)', async () => {
-    // PropertyManager has inbox.manage, so can() passes and the property access check is skipped
+  it('scopes PropertyManager caller to assigned properties (PM is NOT org-wide for inbox)', async () => {
+    // PM holds inbox.manage, but per root CONTEXT.md L72 PM only manages
+    // ASSIGNED properties. The caller check (assertPropertyAccessible) must
+    // enforce the staff_assignment scope for PM, not bypass it.
     const staffApi: StaffPublicApi = {
-      // Caller (USER_ID) lacks PROP_1 to test inbox.manage bypass;
-      // assignee (ASSIGNEE_ID) has PROP_1 so the INBOX-04 assignee check passes.
+      // Caller (USER_ID) lacks PROP_1; assignee (ASSIGNEE_ID) has PROP_1 so
+      // the INBOX-04 assignee check would pass — the CALLER check must reject.
       getAccessiblePropertyIds: async (_orgId, uId) =>
         uId === ASSIGNEE_ID ? [PROP_1] : [PROP_OTHER],
       getAssignedPortals: async () => [],
@@ -170,15 +172,15 @@ describe('assignInboxItem', () => {
     const { useCase, repo } = setup(staffApi)
     repo.items.push(seedItem())
 
-    const updated = await useCase({
-      inboxItemId: ITEM_ID,
-      organizationId: ORG_ID,
-      assignedToUserId: ASSIGNEE_ID,
-      role: 'PropertyManager' as Role,
-      userId: USER_ID,
-    })
-
-    expect(updated.assignedTo).toBe(ASSIGNEE_ID)
+    await expect(
+      useCase({
+        inboxItemId: ITEM_ID,
+        organizationId: ORG_ID,
+        assignedToUserId: ASSIGNEE_ID,
+        role: 'PropertyManager' as Role,
+        userId: USER_ID,
+      }),
+    ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'forbidden')
   })
 
   it('denies access for role without inbox.write permission', async () => {
@@ -224,8 +226,8 @@ describe('assignInboxItem', () => {
 
   // ── INBOX-04: Assignee property access ──────────────────────────
   it('rejects assignment when assignee lacks access to the property', async () => {
-    // Caller (PropertyManager) has inbox.manage so caller bypasses;
-    // assignee (ASSIGNEE_ID) is NOT assigned to PROP_1.
+    // Caller (PropertyManager) is assigned to PROP_1 so the caller check passes;
+    // assignee (ASSIGNEE_ID) is NOT assigned to PROP_1 — INBOX-04 rejects.
     const staffApi: StaffPublicApi = {
       getAccessiblePropertyIds: async (_orgId, uId) =>
         uId === USER_ID ? [PROP_1] : [PROP_OTHER],

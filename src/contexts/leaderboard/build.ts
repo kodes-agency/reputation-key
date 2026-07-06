@@ -4,6 +4,8 @@
 import type { Database } from '#/shared/db'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { Clock } from '#/shared/domain/clock'
+import { leaderboardEntryId } from '#/shared/domain/ids'
+import { randomUUID } from 'crypto'
 import { createLeaderboardRepository } from './infrastructure/repositories/leaderboard.repository'
 import { registerLeaderboardEventHandlers } from './infrastructure/event-handlers'
 import type { LeaderboardRepository } from './application/ports/leaderboard.repository'
@@ -44,7 +46,9 @@ export type BuildLeaderboardContextDeps = Readonly<{
 export const buildLeaderboardContext = (
   deps: BuildLeaderboardContextDeps,
 ): LeaderboardContextApi => {
-  const leaderboardRepo = createLeaderboardRepository(deps.db, deps.clock)
+  const leaderboardRepo = createLeaderboardRepository(deps.db, deps.clock, () =>
+    leaderboardEntryId(randomUUID()),
+  )
 
   const refreshLeaderboardFn = refreshLeaderboard({ repo: leaderboardRepo })
   const reconcileLeaderboardsFn = reconcileLeaderboards({ repo: leaderboardRepo })

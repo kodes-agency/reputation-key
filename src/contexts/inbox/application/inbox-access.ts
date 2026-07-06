@@ -7,7 +7,7 @@ import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { InboxItem } from '../domain/types'
 import type { InboxItemId, OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
 import type { Role } from '#/shared/domain/roles'
-import { can } from '#/shared/domain/permissions'
+import { isPropertyAccessible } from '#/shared/domain/property-access'
 import { inboxError } from '../domain/errors'
 
 /** Finds an inbox item by id, throwing `not_found` when it does not exist. */
@@ -23,9 +23,18 @@ export const loadInboxItemOrThrow = async (
   return item
 }
 
-/** Throws `forbidden` when a role without `inbox.manage` lacks access to the
- *  given property. Roles holding `inbox.manage` (AccountAdmin, PropertyManager)
- *  bypass the check — `getAccessiblePropertyIds` returns `null` for them. */
+/** Throws `forbidden` when the caller lacks access to the given property.
+ *
+ *  Semantics (root CONTEXT.md L72: "PropertyManagers only manage assigned
+ *  properties"; staff public-api contract):
+ *  - AccountAdmin: org-wide access — bypasses the lookup entirely.
+ *  - PropertyManager / Staff: scoped to their `staff_assignment` properties.
+ *
+ *  Note: PropertyManager holds `inbox.manage`, but is NOT org-wide here —
+ *  gating on `can(role,'inbox.manage')` would wrongly grant PM access to every
+ *  property. The shared `isPropertyAccessible` helper resolves the accessible
+ *  set via the staff-assignment lookup, exactly as the assignee check in
+ *  `assignInboxItem` does. */
 export const assertPropertyAccessible = async (
   staffPublicApi: StaffPublicApi,
   organizationId: OrganizationId,
@@ -33,13 +42,17 @@ export const assertPropertyAccessible = async (
   role: Role,
   propertyId: PropertyId,
 ): Promise<void> => {
-  if (can(role, 'inbox.manage')) return
-  const accessible = await staffPublicApi.getAccessiblePropertyIds(
+  // AccountAdmin has org-wide access — skip the lookup entirely.
+  if (role === 'AccountAdmin') return
+  // PropertyManager/Staff: scoped to assigned properties via staff_assignment.
+  const accessible = await isPropertyAccessible(
+    (orgId, uId, r) => staffPublicApi.getAccessiblePropertyIds(orgId, uId, r),
     organizationId,
     userId,
     role,
+    propertyId,
   )
-  if (accessible !== null && !accessible.includes(propertyId)) {
+  if (!accessible) {
     throw inboxError('forbidden', 'No access to this property', { propertyId })
   }
 }

@@ -9,7 +9,6 @@ import { resolveTenantContext } from '#/shared/auth/middleware'
 import { catchUntagged } from '#/shared/auth/server-errors'
 import { getAuth } from '#/shared/auth/auth'
 import { getContainer } from '#/composition'
-import { randomUUID } from 'crypto'
 import { isIdentityError } from '../domain/errors'
 import { MAX_UPLOAD_BYTES } from './organizations.shared'
 import { throwIdentityError } from './organizations.errors.server'
@@ -35,7 +34,7 @@ export const requestOrgLogoUpload = createServerFn({ method: 'POST' })
         const { storage } = getContainer()
         const useCase = requestOrgLogoUploadUseCase({
           storage,
-          idGen: () => randomUUID(),
+          idGen: () => globalThis.crypto.randomUUID(),
         })
         try {
           return await useCase(data, ctx)
@@ -61,18 +60,17 @@ export const finalizeOrgLogoUpload = createServerFn({ method: 'POST' })
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         const { storage } = getContainer()
-        const useCase = finalizeOrgLogoUploadUseCase({ storage })
+        const useCase = finalizeOrgLogoUploadUseCase({
+          storage,
+          // Persist the logo via the auth provider — injected as a closure so the
+          // use case owns the persistence step (mirrors update-organization.ts).
+          updateOrg: async (updateData) => {
+            const auth = getAuth()
+            await auth.api.updateOrganization({ headers, body: { data: updateData } })
+          },
+        })
         try {
-          const result = await useCase(data, ctx)
-
-          // Persist the logo URL on the organization via better-auth
-          const auth = getAuth()
-          await auth.api.updateOrganization({
-            headers,
-            body: { data: { logo: result.logoUrl } },
-          })
-
-          return result
+          return await useCase(data, ctx)
         } catch (e) {
           if (isIdentityError(e)) throwIdentityError(e)
           throw catchUntagged(e)
@@ -100,7 +98,10 @@ export const requestAvatarUpload = createServerFn({ method: 'POST' })
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         const { storage } = getContainer()
-        const useCase = requestAvatarUploadUseCase({ storage, idGen: () => randomUUID() })
+        const useCase = requestAvatarUploadUseCase({
+          storage,
+          idGen: () => globalThis.crypto.randomUUID(),
+        })
         try {
           return await useCase(data, ctx)
         } catch (e) {

@@ -54,13 +54,25 @@ export const updateInboxStatus =
       item.propertyId,
     )
 
-    // 2. Validate transition
+    // 2. Reject manual 'addressed' on review items — reviews auto-transition
+    //    to addressed only via review.reply.published (CONTEXT.md L15).
+    //    Server-authoritative mirror of the bulk path's guard
+    //    (bulk-update-inbox-status.ts) and the UI's hidden button.
+    if (input.newStatus === 'addressed' && item.sourceType === 'review') {
+      throw inboxError(
+        'invalid_transition',
+        "Reviews cannot be manually marked 'addressed'",
+        { inboxItemId: item.id, sourceType: item.sourceType },
+      )
+    }
+
+    // 3. Validate transition
     const transitionResult = validateTransition(item.status, input.newStatus)
     if (transitionResult.isErr()) {
       throw transitionResult.error
     }
 
-    // 3. Update status (timestamp fields derived from the target status)
+    // 4. Update status (timestamp fields derived from the target status)
     const now = deps.clock()
     const updated = await deps.repo.updateStatus(
       input.inboxItemId,
@@ -70,7 +82,7 @@ export const updateInboxStatus =
       now,
     )
 
-    // 4. Decrement new counter if transitioning away from 'new'
+    // 5. Decrement new counter if transitioning away from 'new'
     if (item.status === 'new' && input.newStatus !== 'new') {
       try {
         await deps.newCounter.decrement(input.organizationId)
@@ -82,7 +94,7 @@ export const updateInboxStatus =
       }
     }
 
-    // 5. Emit event
+    // 6. Emit event
     await deps.events.emit(
       inboxItemStatusChanged({
         inboxItemId: updated.id,
@@ -108,7 +120,7 @@ export const updateInboxStatus =
       )
     }
 
-    // 6. Return
+    // 7. Return
     return updated
   }
 

@@ -75,7 +75,7 @@ export function GoalCreateFields({
       <Field>
         <FieldLabel>Entity Scope</FieldLabel>
         <Select value={s.entityScope} onValueChange={(v) => $.entityScope(v)}>
-          <SelectTrigger className="w-full">
+          <SelectTrigger className="w-full" aria-label="Entity scope">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -104,7 +104,7 @@ export function GoalCreateFields({
       <Field>
         <FieldLabel>Goal Type</FieldLabel>
         <Select value={s.goalType} onValueChange={$.goalType}>
-          <SelectTrigger className="w-full">
+          <SelectTrigger className="w-full" aria-label="Goal type">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

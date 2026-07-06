@@ -9,6 +9,7 @@ import {
   updatePortal,
 } from '#/contexts/portal/server/portals'
 import { listPortalLinks } from '#/contexts/portal/server/portal-links'
+import { getPortalAnalyticsFn } from '#/contexts/dashboard/server/portal-analytics'
 import { PortalDetailPage } from '#/components/features/portal'
 import { PortalBadgeSection } from '#/components/features/badges/portal-badge-section'
 import { useMutationAction } from '#/components/hooks/use-mutation-action'
@@ -89,6 +90,7 @@ function PortalDetailRoute() {
         propertySlug={propertySlug}
         requestUploadUrl={requestUploadUrlFn}
         finalizeUpload={finalizeUploadFn}
+        getPortalAnalytics={getPortalAnalyticsFn}
       />
       <PortalBadgeSection badges={badges} />
     </PageShell>

@@ -5,7 +5,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { can } from '#/shared/domain/permissions'
-import { validateNotSelfAssignment, validateRequiredId } from './rules'
+import { validateNotSelfAssignment } from './rules'
 import { userId } from '#/shared/domain/ids'
 import { isStaffError } from './errors'
 
@@ -51,29 +51,5 @@ describe('validateNotSelfAssignment', () => {
       expect(isStaffError(result.error)).toBe(true)
       expect(result.error.code).toBe('invalid_input')
     }
-  })
-})
-
-describe('validateRequiredId', () => {
-  it('returns ok for non-empty string', () => {
-    const result = validateRequiredId('some-id', 'Test Field')
-    expect(result.isOk()).toBe(true)
-    if (result.isOk()) {
-      expect(result.value).toBe('some-id')
-    }
-  })
-
-  it('returns err for empty string', () => {
-    const result = validateRequiredId('', 'Test Field')
-    expect(result.isErr()).toBe(true)
-    if (result.isErr()) {
-      expect(result.error.code).toBe('invalid_input')
-      expect(result.error.message).toContain('Test Field')
-    }
-  })
-
-  it('returns err for whitespace-only string', () => {
-    const result = validateRequiredId('   ', 'User ID')
-    expect(result.isErr()).toBe(true)
   })
 })

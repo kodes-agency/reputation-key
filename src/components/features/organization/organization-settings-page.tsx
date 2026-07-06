@@ -1,7 +1,3 @@
-// NOTE: This component imports 4 server functions from identity/server/organizations
-// (updateOrganization, requestOrgLogoUpload, finalizeOrgLogoUpload, setActiveOrganization).
-// With the upload flow (request + finalize + setActive) this exceeds the 5-mutation
-// threshold in src/components/CONTEXT.md — deliberate documented exception.
 import { useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
@@ -13,7 +9,7 @@ import { putFilePresigned } from '#/components/forms/image-upload-field/put-file
 import { OrganizationSettingsForm } from './organization-settings-form'
 import { OrganizationSwitchList } from './organization-switch-list'
 import { ResponseSlaCard } from './response-sla-card'
-import {
+import type {
   updateOrganization,
   requestOrgLogoUpload,
   finalizeOrgLogoUpload,
@@ -41,6 +37,10 @@ type Props = Readonly<{
     Readonly<{ data: Readonly<{ responseSlaHours: number }> }>,
     { responseSlaHours: number }
   >
+  updateOrganizationFn: typeof updateOrganization
+  requestOrgLogoUploadFn: typeof requestOrgLogoUpload
+  finalizeOrgLogoUploadFn: typeof finalizeOrgLogoUpload
+  setActiveOrganizationFn: typeof setActiveOrganization
 }>
 
 export function OrganizationSettingsPage({
@@ -49,13 +49,17 @@ export function OrganizationSettingsPage({
   activeOrganizationId,
   responseSlaHours,
   updateResponseSla,
+  updateOrganizationFn,
+  requestOrgLogoUploadFn,
+  finalizeOrgLogoUploadFn,
+  setActiveOrganizationFn,
 }: Props) {
   const [logoUrl, setLogoUrl] = useState(organization.logo)
   const navigate = useNavigate()
-  const updateOrg = useAction(useServerFn(updateOrganization))
-  const requestUpload = useServerFn(requestOrgLogoUpload)
-  const finalizeUpload = useServerFn(finalizeOrgLogoUpload)
-  const switchOrg = useAction(useServerFn(setActiveOrganization))
+  const updateOrg = useAction(useServerFn(updateOrganizationFn))
+  const requestUpload = useServerFn(requestOrgLogoUploadFn)
+  const finalizeUpload = useServerFn(finalizeOrgLogoUploadFn)
+  const switchOrg = useAction(useServerFn(setActiveOrganizationFn))
 
   return (
     <div className="space-y-6">

@@ -5,6 +5,7 @@
 // (which the boundary rules allow) without depending on better-auth.
 
 import type { Role } from './roles'
+import { domainError } from './errors'
 
 // ── Permission type ────────────────────────────────────────────────
 // Derived from the canonical statement in shared/auth/permissions.ts.
@@ -94,7 +95,10 @@ export function resetPermissionLookup(): void {
 
 export function can(role: Role, permission: Permission): boolean {
   if (!_lookup) {
-    throw new Error('Permission table not initialized — call initPermissionTable() first')
+    throw domainError(
+      'permissions_not_initialized',
+      'Permission table not initialized — call initPermissionTable() first',
+    )
   }
   return _lookup(role, permission)
 }

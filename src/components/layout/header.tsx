@@ -10,6 +10,7 @@ import {
 } from '#/components/ui/dropdown-menu'
 import { ThemeToggle } from '#/components/layout/theme-toggle'
 import { NotificationPanel } from '#/components/features/notification/notification-panel'
+import type { NotificationServerFns } from '#/components/features/notification/types'
 
 // ── Sub-components ───────────────────────────────────────────────────
 
@@ -67,7 +68,10 @@ function AuthActions({
 
 // ── Main component ───────────────────────────────────────────────────
 
-export function Header({ onSignOut }: Readonly<{ onSignOut: () => void }>) {
+export function Header({
+  onSignOut,
+  notificationFns,
+}: Readonly<{ onSignOut: () => void; notificationFns: NotificationServerFns }>) {
   const { data: session } = authClient.useSession()
   const isLoggedIn = !!session?.user
 
@@ -100,7 +104,7 @@ export function Header({ onSignOut }: Readonly<{ onSignOut: () => void }>) {
           )}
         </div>
         <div className="flex items-center gap-2">
-          {isLoggedIn && <NotificationPanel />}
+          {isLoggedIn && <NotificationPanel notificationFns={notificationFns} />}
           <ThemeToggle />
           <AuthActions isLoggedIn={isLoggedIn} onSignOut={onSignOut} />
         </div>

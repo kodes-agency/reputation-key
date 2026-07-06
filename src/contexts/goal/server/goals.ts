@@ -76,6 +76,13 @@ export const createGoal = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
+        if (!can(ctx.role, 'goal.create')) {
+          throwContextError(
+            'GoalError',
+            makeGoalError('forbidden', 'No goal create permission'),
+            403,
+          )
+        }
         try {
           const { useCases } = getContainer()
           const result = await useCases.createGoal({
@@ -135,7 +142,14 @@ export const createGoal = createServerFn({ method: 'POST' })
               .exhaustive()
           }
 
-          return result._unsafeUnwrap()
+          return result.match(
+            (value) => value,
+            (error) => {
+              throw new Error(
+                `goal.createGoal: unmapped error variant after exhaustive mapping: ${JSON.stringify(error)}`,
+              )
+            },
+          )
         } catch (e) {
           if (isGoalError(e)) throwContextError('GoalError', e, goalErrorStatus(e.code))
           throw catchUntagged(e)
@@ -220,7 +234,15 @@ export const updateGoal = createServerFn({ method: 'POST' })
               .exhaustive()
           }
 
-          return { goal: result._unsafeUnwrap() }
+          const updated = result.match(
+            (value) => value,
+            (error) => {
+              throw new Error(
+                `goal.updateGoal: unmapped error variant after exhaustive mapping: ${JSON.stringify(error)}`,
+              )
+            },
+          )
+          return { goal: updated }
         } catch (e) {
           if (isGoalError(e)) throwContextError('GoalError', e, goalErrorStatus(e.code))
           throw catchUntagged(e)
@@ -286,7 +308,15 @@ export const cancelGoal = createServerFn({ method: 'POST' })
               .exhaustive()
           }
 
-          return { goal: result._unsafeUnwrap() }
+          const cancelled = result.match(
+            (value) => value,
+            (error) => {
+              throw new Error(
+                `goal.cancelGoal: unmapped error variant after exhaustive mapping: ${JSON.stringify(error)}`,
+              )
+            },
+          )
+          return { goal: cancelled }
         } catch (e) {
           if (isGoalError(e)) throwContextError('GoalError', e, goalErrorStatus(e.code))
           throw catchUntagged(e)
@@ -341,7 +371,15 @@ export const listGoals = createServerFn({ method: 'GET' })
               .exhaustive()
           }
 
-          return { goals: result._unsafeUnwrap() }
+          const goals = result.match(
+            (value) => value,
+            (error) => {
+              throw new Error(
+                `goal.listGoals: unmapped error variant after exhaustive mapping: ${JSON.stringify(error)}`,
+              )
+            },
+          )
+          return { goals }
         } catch (e) {
           if (isGoalError(e)) throwContextError('GoalError', e, goalErrorStatus(e.code))
           throw catchUntagged(e)
@@ -397,7 +435,14 @@ export const getGoal = createServerFn({ method: 'GET' })
               .exhaustive()
           }
 
-          return result._unsafeUnwrap()
+          return result.match(
+            (value) => value,
+            (error) => {
+              throw new Error(
+                `goal.getGoal: unmapped error variant after exhaustive mapping: ${JSON.stringify(error)}`,
+              )
+            },
+          )
         } catch (e) {
           if (isGoalError(e)) throwContextError('GoalError', e, goalErrorStatus(e.code))
           throw catchUntagged(e)

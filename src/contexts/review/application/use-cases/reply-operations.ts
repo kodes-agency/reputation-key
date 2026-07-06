@@ -113,22 +113,26 @@ export const draftReply =
     const now = deps.clock()
 
     if (existing) {
-      if (existing.status !== 'draft' && existing.status !== 'rejected') {
-        throw reviewError(
-          'invalid_transition',
-          `Cannot edit reply in ${existing.status} status`,
-        )
-      }
-      return deps.replyRepo.upsert(
+      // Validate the (re-)draft transition through the single authority.
+      // `draft → draft` covers in-place edits; `rejected → draft` covers re-drafts.
+      const transitioned = transitionReply(existing, 'draft', now)
+      if (transitioned.isErr()) throw transitioned.error
+      const redrafted = await deps.replyRepo.conditionalUpdate(
+        existing.id,
+        input.organizationId,
+        [existing.status],
         {
-          ...existing,
-          text: input.text,
           status: 'draft',
+          text: input.text,
           rejectedBy: null,
           rejectionReason: null,
         },
         now,
       )
+      if (!redrafted) {
+        throw reviewError('invalid_transition', 'Reply status changed concurrently')
+      }
+      return redrafted
     }
 
     return deps.replyRepo.upsert(
@@ -184,10 +188,16 @@ export const submitReply =
     const now = deps.clock()
     const transitioned = transitionReply(reply, 'pending_approval', now)
     if (transitioned.isErr()) throw transitioned.error
-    const submitted = await deps.replyRepo.upsert(
-      { ...transitioned.value, submittedAt: now },
+    const submitted = await deps.replyRepo.conditionalUpdate(
+      reply.id,
+      input.organizationId,
+      [reply.status],
+      { status: 'pending_approval', submittedAt: now },
       now,
     )
+    if (!submitted) {
+      throw reviewError('invalid_transition', 'Reply status changed concurrently')
+    }
 
     await deps.events.emit(
       reviewReplySubmitted({
@@ -235,10 +245,16 @@ export const approveReply =
     const now = deps.clock()
     const transitioned = transitionReply(reply, 'approved', now)
     if (transitioned.isErr()) throw transitioned.error
-    const approved = await deps.replyRepo.upsert(
-      { ...transitioned.value, approvedBy: input.userId, approvedAt: now },
+    const approved = await deps.replyRepo.conditionalUpdate(
+      reply.id,
+      input.organizationId,
+      [reply.status],
+      { status: 'approved', approvedBy: input.userId, approvedAt: now },
       now,
     )
+    if (!approved) {
+      throw reviewError('invalid_transition', 'Reply status changed concurrently')
+    }
 
     await deps.queue.addPublishJob({
       replyId: approved.id,
@@ -293,14 +309,20 @@ export const rejectReply =
     const now = deps.clock()
     const transitioned = transitionReply(reply, 'rejected', now)
     if (transitioned.isErr()) throw transitioned.error
-    const updated = await deps.replyRepo.upsert(
+    const updated = await deps.replyRepo.conditionalUpdate(
+      reply.id,
+      input.organizationId,
+      [reply.status],
       {
-        ...transitioned.value,
+        status: 'rejected',
         rejectedBy: input.userId,
         rejectionReason: input.reason ?? null,
       },
       now,
     )
+    if (!updated) {
+      throw reviewError('invalid_transition', 'Reply status changed concurrently')
+    }
 
     await deps.events.emit(
       reviewReplyRejected({
@@ -394,15 +416,26 @@ export const markReplyPublished =
       throw reviewError('review_not_found', 'Review not found for published reply')
     }
 
-    const published = await deps.replyRepo.upsert(transitioned.value, now)
+    const published = await deps.replyRepo.conditionalUpdate(
+      reply.id,
+      input.organizationId,
+      [reply.status],
+      { status: 'published', publishedAt: now },
+      now,
+    )
+    if (!published) {
+      throw reviewError('invalid_transition', 'Reply status changed concurrently')
+    }
 
+    // The publish runs from the publish-reply BullMQ job (no user actor); emit
+    // userId: null (system) keeping authorId as the original reply author.
     await deps.events.emit(
       reviewReplyPublished({
         replyId: published.id,
         reviewId: reply.reviewId,
         propertyId: review.propertyId,
         organizationId: reply.organizationId,
-        userId: published.createdBy,
+        userId: null,
         authorId: published.createdBy,
         occurredAt: now,
       }),
@@ -429,7 +462,16 @@ export const markReplyPublishFailed =
     const now = deps.clock()
     const transitioned = transitionReply(reply, 'publish_failed', now)
     if (transitioned.isErr()) throw transitioned.error
-    const updated = await deps.replyRepo.upsert(transitioned.value, now)
+    const updated = await deps.replyRepo.conditionalUpdate(
+      reply.id,
+      input.organizationId,
+      [reply.status],
+      { status: 'publish_failed' },
+      now,
+    )
+    if (!updated) {
+      throw reviewError('invalid_transition', 'Reply status changed concurrently')
+    }
 
     // Emit event after status update — failure should not break the update
     try {
@@ -488,7 +530,16 @@ export const retryPublish =
     const now = deps.clock()
     const transitioned = transitionReply(reply, 'approved', now)
     if (transitioned.isErr()) throw transitioned.error
-    const backToApproved = await deps.replyRepo.upsert(transitioned.value, now)
+    const backToApproved = await deps.replyRepo.conditionalUpdate(
+      reply.id,
+      input.organizationId,
+      [reply.status],
+      { status: 'approved' },
+      now,
+    )
+    if (!backToApproved) {
+      throw reviewError('invalid_transition', 'Reply status changed concurrently')
+    }
 
     await deps.queue.addPublishJob({
       replyId: backToApproved.id,

@@ -9,6 +9,7 @@ export type NotificationErrorCode =
   | 'invalid_event_id'
   | 'invalid_status'
   | 'insert_failed'
+  | 'email_send_failed'
   | 'not_found'
 
 export type NotificationError = Readonly<{

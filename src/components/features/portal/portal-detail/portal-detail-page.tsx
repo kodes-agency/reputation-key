@@ -4,8 +4,8 @@
 import { useState, useRef } from 'react'
 import { Link, useRouter } from '@tanstack/react-router'
 import { Button } from '#/components/ui/button'
-import { Tabs, TabsList, TabsTrigger } from '#/components/ui/tabs'
-import { ArrowLeft, Eye, Settings, Link2, Share2, BarChart3 } from 'lucide-react'
+import { ArrowLeft, Eye } from 'lucide-react'
+import { PortalDetailTabs } from './portal-detail-tabs'
 import { PortalSettings } from '../portal-settings/portal-settings'
 import { LinkTree } from '../link-tree/link-tree'
 import { PortalShare } from '../portal-share/portal-share'
@@ -15,6 +15,7 @@ import { PortalDetailPreview } from './portal-detail-preview'
 import type { Action } from '#/components/hooks/use-action'
 import type { LinkTreeCategory, LinkTreeLink } from '../link-tree/link-tree-types'
 import type { FormLike, UpdatePortalVariables } from '../shared/types'
+import type { getPortalAnalyticsFn } from '#/contexts/dashboard/server/portal-analytics'
 
 const VALID_TABS = ['settings', 'links', 'share', 'analytics'] as const
 type TabName = (typeof VALID_TABS)[number]
@@ -44,6 +45,7 @@ type Props = Readonly<{
   finalizeUpload: (input: {
     data: { portalId: string; key: string }
   }) => Promise<{ heroImageUrl: string }>
+  getPortalAnalytics: typeof getPortalAnalyticsFn
 }>
 
 export function PortalDetailPage({
@@ -56,6 +58,7 @@ export function PortalDetailPage({
   updateMutation,
   requestUploadUrl,
   finalizeUpload,
+  getPortalAnalytics,
 }: Props) {
   const { previewOpen, setPreviewOpen } = usePreviewToggle(portal.id)
   const [isActive, setIsActive] = useState(portal.isActive)
@@ -104,52 +107,41 @@ export function PortalDetailPage({
         )}
       </div>
 
-      <Tabs value={currentTab} onValueChange={handleTabChange}>
-        <TabsList>
-          <TabsTrigger value="settings" className="gap-1.5">
-            <Settings className="size-3.5" /> Settings
-          </TabsTrigger>
-          <TabsTrigger value="links" className="gap-1.5">
-            <Link2 className="size-3.5" /> Links
-          </TabsTrigger>
-          <TabsTrigger value="share" className="gap-1.5">
-            <Share2 className="size-3.5" /> Share
-          </TabsTrigger>
-          <TabsTrigger value="analytics" className="gap-1.5">
-            <BarChart3 className="size-3.5" /> Analytics
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
+      <PortalDetailTabs value={currentTab} onValueChange={handleTabChange}>
+        {currentTab === 'settings' && (
+          <PortalSettings
+            portal={portal}
+            mutation={updateMutation}
+            primaryColor={primaryColor}
+            onPrimaryColorChange={setPrimaryColor}
+            smartRoutingEnabled={smartRoutingEnabled}
+            onSmartRoutingEnabledChange={setSmartRoutingEnabled}
+            smartRoutingThreshold={smartRoutingThreshold}
+            onSmartRoutingThresholdChange={setSmartRoutingThreshold}
+            isActive={isActive}
+            onIsActiveChange={setIsActive}
+            requestUploadUrl={requestUploadUrl}
+            finalizeUpload={finalizeUpload}
+            formRef={editFormRef}
+          />
+        )}
 
-      {currentTab === 'settings' && (
-        <PortalSettings
-          portal={portal}
-          mutation={updateMutation}
-          primaryColor={primaryColor}
-          onPrimaryColorChange={setPrimaryColor}
-          smartRoutingEnabled={smartRoutingEnabled}
-          onSmartRoutingEnabledChange={setSmartRoutingEnabled}
-          smartRoutingThreshold={smartRoutingThreshold}
-          onSmartRoutingThresholdChange={setSmartRoutingThreshold}
-          isActive={isActive}
-          onIsActiveChange={setIsActive}
-          requestUploadUrl={requestUploadUrl}
-          finalizeUpload={finalizeUpload}
-          formRef={editFormRef}
-        />
-      )}
+        {currentTab === 'links' && (
+          <LinkTree portalId={portal.id} categories={categories} links={links} />
+        )}
 
-      {currentTab === 'links' && (
-        <LinkTree portalId={portal.id} categories={categories} links={links} />
-      )}
+        {currentTab === 'share' && (
+          <PortalShare portalSlug={portal.slug} propertySlug={propertySlug} />
+        )}
 
-      {currentTab === 'share' && (
-        <PortalShare portalSlug={portal.slug} propertySlug={propertySlug} />
-      )}
-
-      {currentTab === 'analytics' && (
-        <PortalAnalyticsTab portalId={portal.id} propertyId={propertyId} />
-      )}
+        {currentTab === 'analytics' && (
+          <PortalAnalyticsTab
+            portalId={portal.id}
+            propertyId={propertyId}
+            getPortalAnalytics={getPortalAnalytics}
+          />
+        )}
+      </PortalDetailTabs>
 
       <PortalDetailPreview
         show={showPreview}

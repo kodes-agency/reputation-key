@@ -78,6 +78,12 @@ export function CreatePortalForm({ propertyId, mutation, onPreviewChange }: Prop
         Renderless subscribe: reads form values and fires side effects
         (preview update, slug auto-generation) only when values actually change.
         Returns null — no DOM output.
+
+        onPreviewChange is deferred to a microtask: calling the parent's setState
+        during this render callback is dropped by React under batched keystrokes,
+        so the live preview never updated. Scheduling it outside the render phase
+        lets the parent re-render reliably. The slug setFieldValue is a TanStack
+        store write (not a React setState), so it stays synchronous.
       */}
       <form.Subscribe
         selector={(state) => ({
@@ -100,7 +106,7 @@ export function CreatePortalForm({ propertyId, mutation, onPreviewChange }: Prop
               primaryColor: values.primaryColor,
             }
             previousPreviewRef.current = next
-            onPreviewChange?.(next)
+            queueMicrotask(() => onPreviewChange?.(next))
           }
 
           // Auto-generate slug from name when name changes

@@ -1,7 +1,6 @@
 // Inbox context — bulk update inbox status use case
 // Batch status change for multiple inbox items.
 
-import { randomUUID } from 'node:crypto'
 import type { InboxRepository } from '../ports/inbox.repository'
 import type { NewCounterPort } from '../ports/new-counter.port'
 import type { EventBus } from '#/shared/events/event-bus'
@@ -138,7 +137,7 @@ export const bulkUpdateInboxStatus =
     if (!can(input.role, 'inbox.write'))
       throw inboxError('forbidden', 'No inbox write permission')
     const now = deps.clock()
-    const bulkId = randomUUID()
+    const bulkId = crypto.randomUUID()
 
     // 1. Resolve accessible-property filter once for the whole batch
     const access = await resolveAccessiblePropertyIds(deps, input)

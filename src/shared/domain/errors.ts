@@ -37,3 +37,46 @@ export function createErrorFactory<Tag extends string>(tag: Tag) {
     ...(context ? { context } : {}),
   })
 }
+
+// ── DomainError — shared/domain invariant & lookup failures ──────────
+// ADR 0005 hybrid pattern (same as contexts/integration/domain/errors.ts):
+// a real Error instance — so `instanceof Error` holds, a stack trace is captured,
+// and log serializers render it correctly — carrying the tagged DomainError shape
+// as enumerable properties. Discriminated at catch sites via `_tag === 'DomainError'`.
+// Used by shared/domain assert/assertLiteral guards and roles/permissions lookups for
+// impossible-state and lookup failures that previously threw plain `new Error()`.
+export type DomainError = Readonly<{
+  _tag: 'DomainError'
+  code: string
+  message: string
+  context?: Readonly<Record<string, unknown>>
+}>
+
+const defineEnumerable = <T>(value: T): PropertyDescriptor => ({
+  value,
+  enumerable: true,
+  writable: false,
+  configurable: false,
+})
+
+/** Build a tagged DomainError that is also a real Error (stack + instanceof). */
+export const domainError = (
+  code: string,
+  message: string,
+  context?: Readonly<Record<string, unknown>>,
+): Error & DomainError => {
+  const err = new Error(message) as Error & DomainError
+  Object.defineProperties(err, {
+    name: defineEnumerable('DomainError'),
+    _tag: defineEnumerable('DomainError'),
+    code: defineEnumerable(code),
+    ...(context ? { context: defineEnumerable(context) } : {}),
+  })
+  if ('captureStackTrace' in Error && typeof Error.captureStackTrace === 'function') {
+    Error.captureStackTrace(err, domainError)
+  }
+  return err
+}
+
+export const isDomainError = (e: unknown): e is DomainError =>
+  typeof e === 'object' && e !== null && '_tag' in e && e._tag === 'DomainError'

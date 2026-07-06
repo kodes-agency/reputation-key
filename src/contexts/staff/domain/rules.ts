@@ -24,17 +24,3 @@ export const validateNotSelfAssignment = (
   }
   return ok(true)
 }
-
-// ── Required ID validation ─────────────────────────────────────────
-
-/** Validate that a required string ID is non-empty. */
-export const validateRequiredId = (
-  id: string,
-  fieldName: string,
-): Result<string, StaffError> => {
-  const trimmed = id.trim()
-  if (trimmed.length === 0) {
-    return err(staffError('invalid_input', `${fieldName} is required`))
-  }
-  return ok(trimmed)
-}

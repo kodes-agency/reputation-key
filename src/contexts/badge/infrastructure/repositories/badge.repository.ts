@@ -385,6 +385,47 @@ export const createBadgeRepository = (db: Database, clock: Clock): BadgeReposito
     })
   },
 
+  resolveStaffVisibility: async (input) => {
+    return trace('badge.resolveStaffVisibility', async () => {
+      // Any non-deleted assignment to (org, user, property) grants property-level
+      // access (PropertyManager). portalId may be null on a property-only
+      // assignment, so we don't require it here — unlike listStaffAwards, which
+      // only wants portal-scoped awards.
+      const assignmentRows = await db
+        .selectDistinct({ portalId: staffAssignments.portalId })
+        .from(staffAssignments)
+        .where(
+          and(
+            eq(staffAssignments.organizationId, unbrand(input.organizationId)),
+            eq(staffAssignments.userId, unbrand(input.userId)),
+            eq(staffAssignments.propertyId, unbrand(input.propertyId)),
+            isNull(staffAssignments.deletedAt),
+          ),
+        )
+
+      const hasPropertyAssignment = assignmentRows.length > 0
+      const portalIds = assignmentRows
+        .map((row) => row.portalId)
+        .filter((id): id is string => !!id)
+
+      // Resolve the portal groups that contain this staff member's assigned
+      // portals — Staff may view badges for those groups too.
+      const groupRows =
+        portalIds.length > 0
+          ? await db
+              .selectDistinct({ portalGroupId: portalGroupMembers.portalGroupId })
+              .from(portalGroupMembers)
+              .where(inArray(portalGroupMembers.portalId, portalIds))
+          : []
+
+      return {
+        hasPropertyAssignment,
+        portalIds: portalIds.map((id) => portalId(id)),
+        groupIds: groupRows.map((row) => portalGroupId(row.portalGroupId)),
+      }
+    })
+  },
+
   listPropertiesForOrg: async (orgId) => {
     return trace('badge.listPropertiesForOrg', async () => {
       const rows = await db

@@ -3,7 +3,7 @@ import { createFileRoute, getRouteApi, redirect } from '@tanstack/react-router'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import { InboxPageV2, inboxSearchSchema } from '#/components/inbox/inbox-page-v2'
-import { bulkUpdateInboxStatusFn } from '#/contexts/inbox/server/inbox'
+import { inboxFns } from '#/routes/_authenticated/-inbox-fns'
 
 const authRoute = getRouteApi('/_authenticated')
 
@@ -32,7 +32,7 @@ function InboxRoute() {
       ctx={ctx}
       search={search}
       properties={parentData.properties}
-      bulkUpdateFn={bulkUpdateInboxStatusFn}
+      inboxFns={inboxFns}
       onNavigate={(opts) =>
         navigate({
           to: opts.to,

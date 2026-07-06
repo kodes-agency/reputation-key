@@ -143,22 +143,84 @@ describe('onReplyPublished', () => {
     expect(deps.repo.updateStatus).not.toHaveBeenCalled()
   })
 
-  it('skips if inbox item already addressed', async () => {
-    const item = makeInboxItem({ status: 'addressed' })
+  it('skips when item is already addressed AND firstReplyPublishedAt is already stamped', async () => {
+    const item = makeInboxItem({
+      status: 'addressed',
+      firstReplyPublishedAt: new Date('2025-05-01T00:00:00Z'),
+    })
     const deps = makeDeps({ repo: { findBySource: vi.fn(async () => item) } })
 
     await onReplyPublished(deps)(mockEvent)
 
+    // Nothing to persist — fully handled already.
     expect(deps.repo.updateStatus).not.toHaveBeenCalled()
+    expect(deps.events.emit).not.toHaveBeenCalled()
   })
 
-  it('skips if inbox item is archived', async () => {
-    const item = makeInboxItem({ status: 'archived' })
+  it('stamps firstReplyPublishedAt on an already-addressed item when the milestone is missing', async () => {
+    // addressed→addressed is not a valid transition, but a published reply
+    // must still record its milestone (the bug this test pins down).
+    const item = makeInboxItem({ status: 'addressed', firstReplyPublishedAt: null })
+    const deps = makeDeps({ repo: { findBySource: vi.fn(async () => item) } })
+
+    await onReplyPublished(deps)(mockEvent)
+
+    expect(deps.repo.updateStatus).toHaveBeenCalledWith(
+      INBOX_ID,
+      ORG_ID,
+      'addressed', // status unchanged (no valid transition)
+      { firstReplyPublishedAt: NOW }, // milestone stamped
+      NOW,
+    )
+    // No status_changed event for a no-op transition.
+    expect(deps.events.emit).not.toHaveBeenCalled()
+  })
+
+  it('stamps firstReplyPublishedAt on an archived item when the milestone is missing', async () => {
+    // archived→addressed is not a valid transition; milestone still stamps.
+    const item = makeInboxItem({ status: 'archived', firstReplyPublishedAt: null })
+    const deps = makeDeps({ repo: { findBySource: vi.fn(async () => item) } })
+
+    await onReplyPublished(deps)(mockEvent)
+
+    expect(deps.repo.updateStatus).toHaveBeenCalledWith(
+      INBOX_ID,
+      ORG_ID,
+      'archived', // status unchanged
+      { firstReplyPublishedAt: NOW },
+      NOW,
+    )
+    expect(deps.events.emit).not.toHaveBeenCalled()
+  })
+
+  it('skips when item is archived AND firstReplyPublishedAt is already stamped', async () => {
+    const item = makeInboxItem({
+      status: 'archived',
+      firstReplyPublishedAt: new Date('2025-05-01T00:00:00Z'),
+    })
     const deps = makeDeps({ repo: { findBySource: vi.fn(async () => item) } })
 
     await onReplyPublished(deps)(mockEvent)
 
     expect(deps.repo.updateStatus).not.toHaveBeenCalled()
+    expect(deps.events.emit).not.toHaveBeenCalled()
+  })
+
+  it('does not overwrite an existing firstReplyPublishedAt when transitioning', async () => {
+    const existing = new Date('2025-05-01T00:00:00Z')
+    const item = makeInboxItem({ status: 'new', firstReplyPublishedAt: existing })
+    const deps = makeDeps({ repo: { findBySource: vi.fn(async () => item) } })
+
+    await onReplyPublished(deps)(mockEvent)
+
+    // Transition new→addressed still happens; milestone is NOT restamped.
+    expect(deps.repo.updateStatus).toHaveBeenCalledWith(
+      INBOX_ID,
+      ORG_ID,
+      'addressed',
+      { addressedAt: NOW },
+      NOW,
+    )
   })
 
   it('does not throw on repo error', async () => {

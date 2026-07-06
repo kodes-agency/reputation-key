@@ -13,7 +13,7 @@ import { Plus } from 'lucide-react'
 import { StaffAssignmentList, AssignStaffForm } from '#/components/features/staff'
 import { EditStaffPortalsModal } from '#/components/features/staff/edit-staff-portals-modal'
 import { useMutationActionSilent } from '#/components/hooks/use-mutation-action'
-import { updateStaffPortals } from '#/contexts/staff/server/staff-assignments'
+import type { updateStaffPortals } from '#/contexts/staff/server/staff-assignments'
 import type { Action } from '#/components/hooks/use-action'
 import type { MemberLike, TeamLike } from '#/lib/lookups'
 import type { PortalOption } from '#/components/features/staff/portal-selector'
@@ -35,6 +35,7 @@ interface StaffTabProps {
   removeMutation: Action<{ data: { assignmentId: string } }>
   assignOpen: boolean
   onAssignOpenChange: (open: boolean) => void
+  updateStaffPortalsFn: typeof updateStaffPortals
 }
 
 export function StaffTab({
@@ -48,10 +49,11 @@ export function StaffTab({
   removeMutation,
   assignOpen,
   onAssignOpenChange,
+  updateStaffPortalsFn,
 }: StaffTabProps) {
   const [editingUserId, setEditingUserId] = useState<string | null>(null)
 
-  const updatePortalsMutation = useMutationActionSilent(updateStaffPortals, {
+  const updatePortalsMutation = useMutationActionSilent(updateStaffPortalsFn, {
     invalidateRoutes: [
       '/_authenticated/properties/$propertyId/people',
       '/_authenticated/properties/$propertyId',

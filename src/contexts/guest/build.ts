@@ -25,6 +25,10 @@ type GuestContextDeps = Readonly<{
   logger: LoggerPort
 }>
 
+// Abuse-detection window: a single source IP may not rate the same portal more
+// than once within this window. Guards against cookie-rotation flooding.
+const GUEST_RATING_IP_DEDUP_WINDOW_SECONDS = 3600 // 1 hour
+
 export const buildGuestContext = (deps: GuestContextDeps) => {
   const guestRepo = createGuestInteractionRepository(deps.db)
   const portalContextResolver = createPortalContextResolver(deps.portalApi)
@@ -43,6 +47,9 @@ export const buildGuestContext = (deps: GuestContextDeps) => {
       events: deps.events,
       idGen: () => ratingId(randomUUID()),
       clock: deps.clock,
+      // 1h window: catches rapid cookie-rotation flooding without permanently
+      // blocking everyone on a shared NAT for the full 24h session lifetime.
+      ipDedupWindowSeconds: GUEST_RATING_IP_DEDUP_WINDOW_SECONDS,
     }),
     submitFeedback: submitFeedback({
       guestRepo,

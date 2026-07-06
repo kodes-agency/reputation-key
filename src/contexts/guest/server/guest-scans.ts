@@ -12,6 +12,7 @@ import { isGuestError } from '../domain/errors'
 import type { GuestErrorCode } from '../domain/errors'
 import { portalId, portalLinkId } from '#/shared/domain/ids'
 import { hashIp } from './hash-ip.server'
+import { resolveGuestSession, guestRateLimitKey } from './guest-session'
 
 // ── Error → HTTP status mapping (exhaustive) ──────────────────────
 
@@ -47,15 +48,27 @@ export const recordScanFn = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const { useCases } = getContainer()
+        const { useCases, rateLimiter } = getContainer()
         const headers = await headersFromContext()
 
         const cookieHeader = headers?.get('cookie') ?? ''
-        const sessionId =
-          cookieHeader.match(/guest_session=([^;]+)/)?.[1] ?? crypto.randomUUID()
-
         const ip = headers?.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
         const ipHash = hashIp(ip)
+        // recordScan is a public unauthenticated write (fires on every portal
+        // page mount), so it gets the same throttling + session-cookie
+        // treatment as rating/feedback to prevent flooding and session minting.
+        const session = resolveGuestSession(cookieHeader)
+
+        const rateResult = await rateLimiter.check(
+          guestRateLimitKey('scan', session, ipHash),
+        )
+        if (!rateResult.allowed) {
+          throwContextError(
+            'GuestError',
+            { code: 'rate_limit_exceeded', message: 'Too many requests' },
+            429,
+          )
+        }
 
         const ctx = await useCases.resolvePortalContext({
           portalId: portalId(data.portalId),
@@ -67,7 +80,7 @@ export const recordScanFn = createServerFn({ method: 'POST' })
             portalId: portalId(data.portalId),
             propertyId: ctx.propertyId,
             source: data.source,
-            sessionId,
+            sessionId: session.sessionId,
             ipHash,
           })
           return { success: true }

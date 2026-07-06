@@ -53,7 +53,12 @@ export function createJobWorker<T>(
 
   worker.on('failed', (job: Job<T> | undefined, err: Error) => {
     logger.error(
-      { jobId: job?.id, queue: name, err: { message: err.message, stack: err.stack } },
+      {
+        jobId: job?.id,
+        queue: name,
+        attemptsMade: job?.attemptsMade,
+        err: { message: err.message, stack: err.stack },
+      },
       'job failed',
     )
   })

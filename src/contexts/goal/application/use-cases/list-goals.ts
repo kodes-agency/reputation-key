@@ -60,7 +60,7 @@ export const listGoals =
     // If a specific propertyId is requested, verify access to it.
     // If no propertyId filter, scope results to accessible properties.
     if (filter.propertyId) {
-      const ok = await isPropertyAccessible(
+      const isAccessible = await isPropertyAccessible(
         (orgId, uId, role) =>
           deps.staffPublicApi.getAccessiblePropertyIds(orgId, uId, role),
         filter.organizationId,
@@ -68,7 +68,7 @@ export const listGoals =
         input.role,
         filter.propertyId,
       )
-      if (!ok) {
+      if (!isAccessible) {
         return err({ tag: 'forbidden' })
       }
     }

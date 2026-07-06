@@ -8,7 +8,7 @@ type Props = Readonly<{
 export function ThemeFieldGroup({ primaryColor, onPrimaryColorChange }: Props) {
   return (
     <div className="space-y-2">
-      <h3 className="font-semibold">Theme</h3>
+      <h2 className="font-semibold">Theme</h2>
       <ThemePresetSelector
         primaryColor={primaryColor}
         onPrimaryColorChange={onPrimaryColorChange}

@@ -170,22 +170,24 @@ describe('getInboxItemDetail', () => {
     ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'forbidden')
   })
 
-  it('allows PropertyManager to access item for any property (inbox.read bypasses property check)', async () => {
-    // PropertyManager has inbox.read, so can() passes and the property access check is skipped
-    const scopedApi = createScopedStaffApi(['other-prop'])
+  it('scopes PropertyManager to assigned properties (PM is NOT org-wide for inbox)', async () => {
+    // PM holds inbox.read + inbox.manage, but per root CONTEXT.md L72 PM only
+    // manages ASSIGNED properties. assertPropertyAccessible must enforce the
+    // staff_assignment scope for PM, not bypass it.
+    const scopedApi = createScopedStaffApi(['other-prop']) // PM lacks PROP_ID
     const { repo, staffApi, setDetail } = setup(scopedApi)
-    const item = makeItem()
+    const item = makeItem() // propertyId = PROP_ID ('prop-1')
     setDetail(makeDetail(item))
 
     const useCase = getInboxItemDetail({ repo, staffPublicApi: staffApi })
-    const result = await useCase({
-      inboxItemId: ITEM_ID,
-      organizationId: ORG_ID,
-      userId: USER_ID,
-      role: 'PropertyManager',
-    })
-
-    expect(result.item.id).toBe(ITEM_ID)
+    await expect(
+      useCase({
+        inboxItemId: ITEM_ID,
+        organizationId: ORG_ID,
+        userId: USER_ID,
+        role: 'PropertyManager',
+      }),
+    ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'forbidden')
   })
 
   it('allows non-admin to access item for accessible property', async () => {

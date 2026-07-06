@@ -6,7 +6,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { useServerFn } from '@tanstack/react-start'
 import { useAction } from '#/components/hooks/use-action'
 import { useMutationAction } from '#/components/hooks/use-mutation-action'
-import {
+import type {
   getInboxItemDetailFn,
   getInboxNotesFn,
   updateInboxStatusFn,
@@ -29,14 +29,19 @@ export type DetailData = Readonly<{
 /** Owns the detail + notes fetch lifecycle. `reload` is stable (reads the
  *  current item from a ref) so callers can safely capture it in long-lived
  *  callbacks (e.g. a mutation's onSuccess). */
-export function useDetailData(item: InboxItem | null, active: boolean): DetailData {
+export function useDetailData(
+  item: InboxItem | null,
+  active: boolean,
+  getInboxItemDetail: typeof getInboxItemDetailFn,
+  getInboxNotes: typeof getInboxNotesFn,
+): DetailData {
   const [detail, setDetail] = useState<InboxItemDetail | null>(null)
   const [notes, setNotes] = useState<ReadonlyArray<InboxNote>>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const detailAction = useAction(useServerFn(getInboxItemDetailFn))
-  const notesAction = useAction(useServerFn(getInboxNotesFn))
+  const detailAction = useAction(useServerFn(getInboxItemDetail))
+  const notesAction = useAction(useServerFn(getInboxNotes))
 
   // Refs keep the latest actions + item so loadDetail can stay stable.
   const refs = useRef({ abort: false, detailAction, notesAction, item })
@@ -88,8 +93,9 @@ export function useAutoMarkRead(
   active: boolean,
   enabled: boolean | undefined,
   onMarkedRead: () => void,
+  updateInboxStatus: typeof updateInboxStatusFn,
 ): string | null {
-  const markReadMutation = useMutationAction(updateInboxStatusFn, {
+  const markReadMutation = useMutationAction(updateInboxStatus, {
     onSuccess: onMarkedRead,
   })
   const markReadRef = useRef(markReadMutation)

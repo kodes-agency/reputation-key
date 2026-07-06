@@ -22,7 +22,9 @@ import type {
   ReconcileBadgeDefinitionsInput,
   ReconcileBadgeDefinitionsResult,
 } from './application/public-api'
-import type { BadgeId, OrganizationId } from '#/shared/domain/ids'
+import { badgeId, type BadgeId, type OrganizationId } from '#/shared/domain/ids'
+import { randomUUID } from 'crypto'
+import type { AuthContext } from '#/shared/domain/auth-context'
 
 export type BadgeContextApi = Readonly<{
   publicApi: Readonly<{
@@ -30,10 +32,14 @@ export type BadgeContextApi = Readonly<{
     getVisibleTargetBadges: BadgeRepository['listTargetAwards']
     getOrganizationBadgeDefinitions: BadgeRepository['listDefinitionsWithEnablement']
     setOrganizationBadgeEnablement: (
-      organizationId: OrganizationId,
-      badgeDefinitionId: BadgeId,
-      enabled: boolean,
+      ctx: AuthContext,
+      input: Readonly<{
+        organizationId: OrganizationId
+        badgeDefinitionId: BadgeId
+        enabled: boolean
+      }>,
     ) => Promise<OrganizationBadgeEnablement>
+    resolveStaffVisibility: BadgeRepository['resolveStaffVisibility']
   }>
   internal: Readonly<{
     repos: Readonly<{ badgeRepo: BadgeRepository }>
@@ -51,6 +57,7 @@ export type BadgeContextApi = Readonly<{
           badgeDefinitionId: BadgeId
           enabled: boolean
         }>,
+        ctx: AuthContext,
       ) => Promise<OrganizationBadgeEnablement>
     }>
   }>
@@ -70,6 +77,7 @@ export const buildBadgeContext = (deps: BuildBadgeContextDeps): BadgeContextApi 
     metricApi: deps.metricApi,
     events: deps.events,
     clock: deps.clock,
+    idGen: () => badgeId(randomUUID()),
   })
   const setEnablement = setOrganizationBadgeEnablement({ badgeRepo })
 
@@ -83,8 +91,8 @@ export const buildBadgeContext = (deps: BuildBadgeContextDeps): BadgeContextApi 
       getStaffVisibleBadges: badgeRepo.listStaffAwards,
       getOrganizationBadgeDefinitions: badgeRepo.listDefinitionsWithEnablement,
       getVisibleTargetBadges: badgeRepo.listTargetAwards,
-      setOrganizationBadgeEnablement: (organizationId, badgeDefinitionId, enabled) =>
-        setEnablement({ organizationId, badgeDefinitionId, enabled }),
+      setOrganizationBadgeEnablement: (ctx, input) => setEnablement(input, ctx),
+      resolveStaffVisibility: badgeRepo.resolveStaffVisibility,
     },
     internal: {
       repos: { badgeRepo },
@@ -96,6 +104,7 @@ export const buildBadgeContext = (deps: BuildBadgeContextDeps): BadgeContextApi 
           metricApi: deps.metricApi,
           events: deps.events,
           clock: deps.clock,
+          idGen: () => badgeId(randomUUID()),
         }),
         setOrganizationBadgeEnablement: setEnablement,
       },

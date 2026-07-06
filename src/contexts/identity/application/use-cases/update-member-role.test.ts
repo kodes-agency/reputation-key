@@ -31,6 +31,26 @@ const PM_MEMBER: MemberRecord = {
   createdAt: new Date('2025-01-01'),
 }
 
+const ADMIN_MEMBER: MemberRecord = {
+  id: 'member-admin',
+  userId: 'user-admin',
+  email: 'admin@test.com',
+  name: 'Admin User',
+  role: 'AccountAdmin',
+  image: null,
+  createdAt: new Date('2025-01-01'),
+}
+
+const ADMIN_MEMBER_2: MemberRecord = {
+  id: 'member-admin-2',
+  userId: 'user-admin-2',
+  email: 'admin2@test.com',
+  name: 'Admin User 2',
+  role: 'AccountAdmin',
+  image: null,
+  createdAt: new Date('2025-01-01'),
+}
+
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
 
 const setup = () => {
@@ -129,5 +149,39 @@ describe('updateMemberRole', () => {
     expect(event.newRole).toBe('PropertyManager')
     expect(event.userId).toBe(ctx.userId)
     expect(event.organizationId).toBe(ctx.organizationId)
+  })
+
+  it('forbids demoting the last AccountAdmin of the organization', async () => {
+    const { useCase, identity } = setup()
+    // Only one admin in the org — the last-admin guard must fire.
+    identity.seedMembers([ADMIN_MEMBER])
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+
+    await expect(
+      useCase({ memberId: 'member-admin', role: 'Staff' }, ctx),
+    ).rejects.toSatisfy((e) => isIdentityError(e) && e.code === 'forbidden')
+
+    // The admin was not demoted.
+    const still = await identity.getMember(ctx, 'member-admin')
+    expect(still?.role).toBe('AccountAdmin')
+  })
+
+  it('rejects demoting an AccountAdmin even with a second admin (role hierarchy guards first)', async () => {
+    const { useCase, identity, events } = setup()
+    identity.seedMembers([ADMIN_MEMBER, ADMIN_MEMBER_2])
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+
+    // The role-hierarchy rule (domain/rules.ts) forbids changing an
+    // equal-or-higher role, so an AccountAdmin cannot demote another
+    // AccountAdmin. The last-admin guard is defense-in-depth for a path the
+    // hierarchy already blocks; its reject branch is exercised by the
+    // "forbids demoting the last AccountAdmin" test above.
+    await expect(
+      useCase({ memberId: 'member-admin', role: 'Staff' }, ctx),
+    ).rejects.toSatisfy((e) => isIdentityError(e) && e.code === 'forbidden')
+
+    const still = await identity.getMember(ctx, 'member-admin')
+    expect(still?.role).toBe('AccountAdmin')
+    expect(events.capturedByTag('identity.member.role_changed')).toHaveLength(0)
   })
 })

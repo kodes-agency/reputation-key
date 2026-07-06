@@ -42,10 +42,18 @@ export const getAttentionSignalsFn = createServerFn({ method: 'GET' })
         try {
           const headers = await headersFromContext()
           const ctx = await resolveTenantContext(headers)
-          if (!can(ctx.role, 'dashboard.read')) {
+          // §9: the fleet route guard requires dashboard.fleet_read (PM+); the
+          // server fn must match so Staff cannot reach the RPC directly. The
+          // attention band carries the 'unanswered' signal (reviews with no
+          // published reply past SLA) — a reply-derived aggregate Staff must
+          // not see.
+          if (
+            !can(ctx.role, 'dashboard.read') ||
+            !can(ctx.role, 'dashboard.fleet_read')
+          ) {
             throw makeDashboardError(
               'forbidden',
-              'Insufficient permissions to view dashboard',
+              'Insufficient permissions to view fleet dashboard',
             )
           }
           // Resolve the org-level response SLA (defaults to 48h when unset/no org).

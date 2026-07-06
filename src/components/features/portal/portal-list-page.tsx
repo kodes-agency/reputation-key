@@ -17,7 +17,7 @@ import {
 } from '#/components/ui/table'
 import { Plus, Globe, Eye } from 'lucide-react'
 import { PortalDeleteButton } from './portal-delete-button'
-import { deletePortal } from '#/contexts/portal/server/portals'
+import type { deletePortal } from '#/contexts/portal/server/portals'
 
 interface Portal {
   id: string
@@ -133,6 +133,7 @@ export function PortalListPage({
                       <Link
                         to="/properties/$propertyId/portals/$portalId"
                         params={{ propertyId, portalId: p.id }}
+                        aria-label={`View ${p.name}`}
                       >
                         <Eye className="size-3.5" />
                       </Link>

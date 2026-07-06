@@ -58,7 +58,7 @@ export const getDashboardDataFn = createServerFn({ method: 'GET' })
           }
           const { startDate, endDate } = timeRangeToDates(data.timeRange, clock())
 
-          return await useCases.getDashboardData({
+          const dashboard = await useCases.getDashboardData({
             organizationId: ctx.organizationId,
             propertyId: propertyId(data.propertyId),
             portalId: data.portalId ? portalId(data.portalId) : null,
@@ -66,6 +66,25 @@ export const getDashboardDataFn = createServerFn({ method: 'GET' })
             endDate,
             timeRange: data.timeRange,
           })
+
+          // §9: reply-derived fields (replyPerformance aggregates + per-review
+          // replyStatus) must not surface to roles lacking reply.manage (Staff).
+          // dashboard.read is granted to Staff, but the Reply glossary restricts
+          // reply state to PM+ roles. Zero the reply metrics and hide per-review
+          // reply state so a Staff caller (via direct RPC) learns nothing about
+          // the reply workflow. The UI is already gated by property.admin (PM+),
+          // so this only affects direct RPC callers.
+          if (!can(ctx.role, 'reply.manage')) {
+            return {
+              ...dashboard,
+              replyPerformance: { replyRate: 0, avgReplyHours: null },
+              recentReviews: dashboard.recentReviews.map((review) => ({
+                ...review,
+                replyStatus: 'none' as const,
+              })),
+            }
+          }
+          return dashboard
         } catch (e) {
           if (isDashboardError(e))
             throwContextError('DashboardError', e, dashboardErrorStatus(e.code))

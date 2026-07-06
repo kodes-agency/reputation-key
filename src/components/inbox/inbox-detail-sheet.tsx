@@ -13,6 +13,7 @@ import type { InboxItem } from '#/contexts/inbox/application/public-api'
 import { getStatusActions } from './inbox-detail-helpers'
 import { InboxStatusBadge } from './inbox-status-badge'
 import type { InboxDetailState } from './use-inbox-detail'
+import type { InboxDetailFns } from './types'
 import { Button } from '#/components/ui/button'
 
 type Props = Readonly<{
@@ -20,9 +21,16 @@ type Props = Readonly<{
   onOpenChange: (open: boolean) => void
   item: InboxItem | null
   detailState: InboxDetailState
+  detailFns: InboxDetailFns
 }>
 
-export function InboxDetailSheet({ open, onOpenChange, item, detailState }: Props) {
+export function InboxDetailSheet({
+  open,
+  onOpenChange,
+  item,
+  detailState,
+  detailFns,
+}: Props) {
   if (!item) return null
 
   const currentItem = detailState.currentItem ?? item
@@ -69,6 +77,7 @@ export function InboxDetailSheet({ open, onOpenChange, item, detailState }: Prop
             notes={detailState.notes}
             onNoteAdded={detailState.refresh}
             statusVersion={detailState.statusVersion}
+            detailFns={detailFns}
           />
         )}
       </SheetContent>

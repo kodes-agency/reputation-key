@@ -4,7 +4,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { headersFromContext } from '#/shared/auth/headers'
-import { resolveTenantContext } from '#/shared/auth/middleware'
+import { resolveTenantContext, resetTenantCache } from '#/shared/auth/middleware'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { can } from '#/shared/domain/permissions'
 import { getContainer } from '#/composition'
@@ -26,7 +26,7 @@ export const inviteMember = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'member.create')) {
+        if (!can(ctx.role, 'invitation.create')) {
           throwContextError(
             'AuthError',
             { code: 'forbidden', message: 'Insufficient permissions to invite members' },
@@ -71,6 +71,9 @@ export const updateMemberRole = createServerFn({ method: 'POST' })
         try {
           const { useCases } = getContainer()
           await useCases.updateMemberRole(data, ctx)
+          // Invalidate tenant cache — a role change mutates AuthContext.role,
+          // so the affected member's cached permissions are now stale.
+          resetTenantCache()
         } catch (e) {
           if (isIdentityError(e)) throwIdentityError(e)
           throw catchUntagged(e)
@@ -102,6 +105,9 @@ export const removeMember = createServerFn({ method: 'POST' })
         try {
           const { useCases } = getContainer()
           await useCases.removeMember(data, ctx)
+          // Invalidate tenant cache — removing a member invalidates their cached
+          // AuthContext (they may still hold a stale role for up to the TTL).
+          resetTenantCache()
         } catch (e) {
           if (isIdentityError(e)) throwIdentityError(e)
           throw catchUntagged(e)

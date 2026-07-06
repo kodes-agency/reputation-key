@@ -1,10 +1,10 @@
 import { Link } from '@tanstack/react-router'
 import { MessageSquare, Star, ScanLine, MessageCircle } from 'lucide-react'
 import { Button } from '#/components/ui/button'
-import { Tabs, TabsList, TabsTrigger } from '#/components/ui/tabs'
+import { cn } from '#/lib/utils'
 import type {
-  DashboardData,
   AttentionSignals,
+  DashboardData,
 } from '#/contexts/dashboard/application/public-api'
 import type { TimeRangePreset } from '#/contexts/dashboard/application/dto/dashboard.dto'
 import { TIME_RANGE_OPTIONS } from '#/contexts/dashboard/application/dto/dashboard.dto'
@@ -47,19 +47,31 @@ export function PropertyDashboard({
           { label: 'Overview' },
         ]}
         actions={
-          <Tabs
-            value={timeRange}
-            onValueChange={(v) => onTimeRangeChange(v as TimeRangePreset)}
-            className="min-w-0 shrink-0"
+          <div
+            role="group"
+            aria-label="Time range"
+            className="inline-flex h-9 min-w-0 shrink-0 flex-wrap items-center justify-center gap-1 rounded-lg bg-muted p-[3px] text-muted-foreground"
           >
-            <TabsList className="flex-wrap">
-              {TIME_RANGE_OPTIONS.map((opt) => (
-                <TabsTrigger key={opt.value} value={opt.value} className="text-xs">
+            {TIME_RANGE_OPTIONS.map((opt) => {
+              const isActive = opt.value === timeRange
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  aria-pressed={isActive}
+                  onClick={() => onTimeRangeChange(opt.value)}
+                  className={cn(
+                    'inline-flex h-[calc(100%-1px)] items-center justify-center rounded-md px-2 py-1 text-xs font-medium whitespace-nowrap transition-all hover:text-foreground',
+                    isActive
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-foreground/60',
+                  )}
+                >
                   {opt.label}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
+                </button>
+              )
+            })}
+          </div>
         }
       />
 

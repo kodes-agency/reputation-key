@@ -37,6 +37,7 @@ export type NotificationRepositoryPort = Readonly<{
 
   markRead(
     id: NotificationId,
+    userId: UserId,
     orgId: OrganizationId,
     readAt: Date,
     updatedAt: Date,
@@ -46,6 +47,7 @@ export type NotificationRepositoryPort = Readonly<{
 
   updateStatus(
     id: NotificationId,
+    userId: UserId,
     orgId: OrganizationId,
     status: NotificationStatus,
     updatedAt: Date,

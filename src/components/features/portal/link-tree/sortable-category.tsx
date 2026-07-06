@@ -73,16 +73,26 @@ export function SortableCategory({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           {canEdit && (
-            <button {...attributes} {...listeners} className="cursor-grab">
+            <button
+              {...attributes}
+              {...listeners}
+              className="cursor-grab"
+              aria-label={`Drag category ${category.title}`}
+            >
               <GripVertical className="size-4 text-muted-foreground" />
             </button>
           )}
-          <h4 className="font-semibold">{category.title}</h4>
+          <h3 className="font-semibold">{category.title}</h3>
         </div>
         <div className="flex items-center gap-2">
           {canEdit && (
             <>
-              <Button size="sm" variant="ghost" onClick={() => onEditCategory(category)}>
+              <Button
+                size="sm"
+                variant="ghost"
+                aria-label={`Edit category ${category.title}`}
+                onClick={() => onEditCategory(category)}
+              >
                 <Pencil className="size-3 text-muted-foreground" />
               </Button>
               <Button size="sm" variant="outline" onClick={() => onAddLink(category.id)}>

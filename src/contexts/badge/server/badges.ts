@@ -69,6 +69,38 @@ export const getVisibleTargetBadges = createServerFn({ method: 'GET' })
               403,
             )
           }
+          // Role-Filtered Badge Visibility (root CONTEXT.md):
+          // AccountAdmin sees the whole org; PropertyManager must manage the
+          // target property; Staff may only view an assigned portal or a group
+          // that contains one of their assigned portals.
+          if (ctx.role === 'Staff' || ctx.role === 'PropertyManager') {
+            const visibility = await getContainer().badgePublicApi.resolveStaffVisibility(
+              {
+                organizationId: toOrgId(ctx.organizationId),
+                userId: ctx.userId,
+                propertyId: propertyId(data.propertyId),
+              },
+            )
+            if (ctx.role === 'Staff') {
+              const allowed =
+                data.targetType === 'portal'
+                  ? visibility.portalIds.some((id) => id === portalId(data.targetId))
+                  : visibility.groupIds.some((id) => id === portalGroupId(data.targetId))
+              if (!allowed) {
+                throwContextError(
+                  'AuthError',
+                  { code: 'forbidden', message: 'Badge target not accessible' },
+                  403,
+                )
+              }
+            } else if (!visibility.hasPropertyAssignment) {
+              throwContextError(
+                'AuthError',
+                { code: 'forbidden', message: 'Property not accessible' },
+                403,
+              )
+            }
+          }
           return (await getContainer().badgePublicApi.getVisibleTargetBadges({
             organizationId: toOrgId(ctx.organizationId),
             propertyId: propertyId(data.propertyId),
@@ -102,11 +134,11 @@ export const setOrganizationBadgeEnablement = createServerFn({ method: 'POST' })
               403,
             )
           }
-          return await getContainer().badgePublicApi.setOrganizationBadgeEnablement(
-            toOrgId(ctx.organizationId),
-            badgeId(data.badgeDefinitionId),
-            data.enabled,
-          )
+          return await getContainer().badgePublicApi.setOrganizationBadgeEnablement(ctx, {
+            organizationId: toOrgId(ctx.organizationId),
+            badgeDefinitionId: badgeId(data.badgeDefinitionId),
+            enabled: data.enabled,
+          })
         } catch (e) {
           throw catchUntagged(e)
         }

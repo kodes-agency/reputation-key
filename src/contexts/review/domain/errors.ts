@@ -17,6 +17,7 @@ export type ReviewErrorCode =
   | 'reply_already_exists'
   | 'invalid_transition'
   | 'reply_publish_failed'
+  | 'invalid_row'
   | 'repo_upsert_failed'
   | 'build_config_error'
 

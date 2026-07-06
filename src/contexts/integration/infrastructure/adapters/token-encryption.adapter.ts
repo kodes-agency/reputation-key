@@ -4,6 +4,7 @@
 
 import { createCipheriv, createDecipheriv, randomBytes } from 'crypto'
 import type { TokenEncryptionPort } from '../../application/ports/token-encryption.port'
+import { integrationError } from '../../domain/errors'
 
 export const createTokenEncryptionAdapter = (
   encryptionKey: string,
@@ -11,7 +12,7 @@ export const createTokenEncryptionAdapter = (
   const key = Buffer.from(encryptionKey, 'hex')
   if (key.length !== 32) {
     // F147: Sanitized error — do not leak encryption key length or format details
-    throw new Error('Invalid encryption key configuration')
+    throw integrationError('encryption_error', 'Invalid encryption key configuration')
   }
 
   const encrypt = (plaintext: string): string => {
@@ -30,7 +31,7 @@ export const createTokenEncryptionAdapter = (
     const parts = ciphertext.split(':')
     if (parts.length !== 3) {
       // F147: Sanitized error — do not reveal expected ciphertext format
-      throw new Error('Invalid ciphertext format')
+      throw integrationError('encryption_error', 'Invalid ciphertext format')
     }
     const [ivBase64, authTagBase64, encryptedBase64] = parts
 

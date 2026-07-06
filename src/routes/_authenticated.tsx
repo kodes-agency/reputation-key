@@ -15,6 +15,8 @@ import {
   setActiveOrganization,
 } from '#/contexts/identity/server/organizations'
 import { listProperties } from '#/contexts/property/server/properties'
+import { getNewCountFn } from '#/contexts/inbox/server/inbox'
+import { notificationFns } from '#/routes/-notification-fns'
 import type { Role } from '#/shared/domain/roles'
 import { SidebarProvider, SidebarInset } from '#/components/ui/sidebar'
 import { ManagerSidebar } from '#/components/layout/manager-sidebar'
@@ -151,7 +153,7 @@ function AuthenticatedLayout() {
       {isInbox ? null : isSettings ? (
         <SettingsSidebar />
       ) : hasRole(ctx.role, 'PropertyManager') ? (
-        <ManagerSidebar properties={properties} />
+        <ManagerSidebar properties={properties} getNewCount={getNewCountFn} />
       ) : (
         <StaffSidebar
           organizations={organizations}
@@ -162,7 +164,7 @@ function AuthenticatedLayout() {
         />
       )}
       <SidebarInset className={`min-w-0 ${isInbox ? 'overflow-hidden' : ''}`}>
-        <AppTopBar user={ctx.user} />
+        <AppTopBar user={ctx.user} notificationFns={notificationFns} />
         <main
           className={`min-w-0 flex-1 ${
             isInbox ? 'overflow-hidden' : 'overflow-auto px-4 py-5 md:px-6 md:py-8'

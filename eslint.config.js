@@ -12,7 +12,7 @@ export default tseslint.config(
       '**/dist/**',
       '**/.output/**',
       '**/dist-worker/**',
-      '**/drizzle/**',
+      '**/storybook-static/**',
       '**/node_modules/**',
       '**/.a5c/**',
       '**/.agents/**',

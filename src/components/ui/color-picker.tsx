@@ -740,6 +740,7 @@ function ColorPickerContent(props: React.ComponentProps<typeof PopoverContent>) 
     return (
       <ContentPrimitive
         data-slot="color-picker-content"
+        aria-label="Color picker"
         {...popoverContentProps}
         className={cn('flex w-[340px] flex-col gap-4 p-4', className)}
       >
@@ -752,6 +753,7 @@ function ColorPickerContent(props: React.ComponentProps<typeof PopoverContent>) 
     <PopoverContent
       data-slot="color-picker-content"
       asChild={asChild}
+      aria-label="Color picker"
       {...popoverContentProps}
       className={cn('flex w-[340px] flex-col gap-4 p-4', className)}
     >
@@ -918,6 +920,7 @@ function ColorPickerHueSlider(props: React.ComponentProps<typeof SliderPrimitive
   return (
     <SliderPrimitive.Root
       data-slot="color-picker-hue-slider"
+      aria-label="Hue"
       {...sliderProps}
       max={360}
       step={1}
@@ -932,7 +935,10 @@ function ColorPickerHueSlider(props: React.ComponentProps<typeof SliderPrimitive
       <SliderPrimitive.Track className="relative h-3 w-full grow overflow-hidden rounded-full bg-[linear-gradient(to_right,#ff0000_0%,#ffff00_16.66%,#00ff00_33.33%,#00ffff_50%,#0000ff_66.66%,#ff00ff_83.33%,#ff0000_100%)]">
         <SliderPrimitive.Range className="absolute h-full" />
       </SliderPrimitive.Track>
-      <SliderPrimitive.Thumb className="block size-4 rounded-full border border-primary/50 bg-background shadow transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50" />
+      <SliderPrimitive.Thumb
+        aria-label="Hue"
+        className="block size-4 rounded-full border border-primary/50 bg-background shadow transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+      />
     </SliderPrimitive.Root>
   )
 }
@@ -964,6 +970,7 @@ function ColorPickerAlphaSlider(
   return (
     <SliderPrimitive.Root
       data-slot="color-picker-alpha-slider"
+      aria-label="Alpha"
       {...sliderProps}
       max={100}
       step={1}
@@ -992,7 +999,10 @@ function ColorPickerAlphaSlider(
         />
         <SliderPrimitive.Range className="absolute h-full" />
       </SliderPrimitive.Track>
-      <SliderPrimitive.Thumb className="block size-4 rounded-full border border-primary/50 bg-background shadow transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50" />
+      <SliderPrimitive.Thumb
+        aria-label="Alpha"
+        className="block size-4 rounded-full border border-primary/50 bg-background shadow transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+      />
     </SliderPrimitive.Root>
   )
 }
@@ -1089,6 +1099,7 @@ function ColorPickerEyeDropper(props: React.ComponentProps<typeof Button>) {
   return (
     <Button
       data-slot="color-picker-eye-dropper"
+      aria-label="Pick color from screen"
       {...buttonProps}
       variant="outline"
       size={size}
@@ -1131,6 +1142,7 @@ function ColorPickerFormatSelect(props: ColorPickerFormatSelectProps) {
     >
       <SelectTrigger
         data-slot="color-picker-format-select-trigger"
+        aria-label="Color format"
         size={size ?? 'sm'}
         className={cn(className)}
       >

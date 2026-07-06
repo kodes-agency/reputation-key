@@ -56,6 +56,8 @@ import { buildGoalContext } from '#/contexts/goal/build'
 import { buildActivityContext } from '#/contexts/activity/build'
 import { buildNotificationContext } from '#/contexts/notification/build'
 import { createStaffAssignmentRepository } from '#/contexts/staff/infrastructure/repositories/staff-assignment.repository'
+import { createStaffAssignmentSystem } from '#/contexts/staff/application/use-cases/create-staff-assignment'
+import { createIdentityMembershipAdapter } from '#/contexts/staff/infrastructure/adapters/identity-membership.adapter'
 import { createGoogleReviewApiAdapter } from '#/contexts/integration/infrastructure/adapters/google-review-api.adapter'
 import { handleGbpNotification } from '#/contexts/integration/application/use-cases'
 import type { PropertyLookupPort } from '#/contexts/integration/application/ports/property-lookup.port'
@@ -166,6 +168,7 @@ export function createContainer(options?: {
   const staffRepo = createStaffAssignmentRepository(db)
   const staff = buildStaffContext({
     repo: staffRepo,
+    identityMembership: createIdentityMembershipAdapter(db),
     // Staff is built before portal (portal depends on staff.publicApi).
     // Late-binding closure: methods resolve portal at call time (runtime),
     // long after createContainer returns — TDZ-safe.
@@ -270,6 +273,7 @@ export function createContainer(options?: {
     connectionRepo: integration.internal.repos.connectionRepo,
     encryption: integration.internal.repos.encryptionPort,
     refreshToken: integration.internal.useCases.refreshGoogleToken,
+    logger: getLogger(),
   })
 
   const review = buildReviewContext({
@@ -321,6 +325,10 @@ export function createContainer(options?: {
     db,
     events: eventBus,
     clock,
+    findGroupForPortal: async (orgId, pid) => {
+      const group = await portal.publicApi.portalGroup.findGroupForPortal(orgId, pid)
+      return group ? { portalGroupId: group.id } : null
+    },
   })
 
   // Goal context — buildGoalContext creates its own repo and cancelGoalFn internally.
@@ -395,17 +403,28 @@ export function createContainer(options?: {
   // The hook creates staff assignments when a member accepts an invite.
   // This is the only cross-context dependency: identity acceptance
   // triggers staff creation. Identity context does NOT import staff.
+  //
+  // Privileged SYSTEM write, not a user action: it bootstraps an
+  // assignment for the invitee. We use createStaffAssignmentSystem (skips
+  // can(), the membership gate, property-access scoping, and the
+  // self-assignment guard BY DESIGN) instead of forging an AccountAdmin
+  // AuthContext to satisfy createStaffAssignment's checks — deep-review §9
+  // (AuthContext forgery). Reachable only here; tagged system-initiated
+  // (no human actor in the audit trail).
+  const createSystemStaffAssignment = createStaffAssignmentSystem({
+    assignmentRepo: staffRepo,
+    events: eventBus,
+    idGen: () => crypto.randomUUID(),
+    clock,
+  })
   setOnAcceptInvitation(async ({ userId, organizationId, propertyIds }) => {
     const uid = toUserId(userId)
     const oid = toOrgId(organizationId)
     for (const pid of propertyIds) {
       try {
-        await staff.internal.useCases.createStaffAssignment(
-          {
-            userId: uid,
-            propertyId: propertyId(pid),
-          },
-          { userId: uid, organizationId: oid, role: 'AccountAdmin' },
+        await createSystemStaffAssignment(
+          { userId: uid, propertyId: propertyId(pid) },
+          { organizationId: oid },
         )
       } catch {
         logger.warn(

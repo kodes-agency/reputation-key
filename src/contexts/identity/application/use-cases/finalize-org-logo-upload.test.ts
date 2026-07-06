@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setPermissionLookup } from '#/shared/domain/permissions'
 import { finalizeOrgLogoUpload } from './finalize-org-logo-upload'
 import { organizationId, userId } from '#/shared/domain/ids'
@@ -29,6 +29,13 @@ const mockStorage = {
   putObject: async () => {},
 }
 
+const mockUpdateOrg = vi.fn().mockResolvedValue(undefined)
+
+const setup = () => ({
+  useCase: finalizeOrgLogoUpload({ storage: mockStorage, updateOrg: mockUpdateOrg }),
+  updateOrg: mockUpdateOrg,
+})
+
 // ── Tests ────────────────────────────────────────────────────────────
 
 describe('finalizeOrgLogoUpload', () => {
@@ -39,7 +46,10 @@ describe('finalizeOrgLogoUpload', () => {
   it('rejects Staff role with forbidden error', async () => {
     setPermissionLookup(() => false)
 
-    const useCase = finalizeOrgLogoUpload({ storage: mockStorage })
+    const useCase = finalizeOrgLogoUpload({
+      storage: mockStorage,
+      updateOrg: mockUpdateOrg,
+    })
 
     try {
       await useCase(
@@ -59,12 +69,14 @@ describe('finalizeOrgLogoUpload', () => {
   it('allows AccountAdmin role past auth guard', async () => {
     setPermissionLookup(() => true)
 
-    const useCase = finalizeOrgLogoUpload({ storage: mockStorage })
+    const { useCase, updateOrg } = setup()
     const result = await useCase(
       { key: `organizations/${adminCtx.organizationId}/logo/logo.png` },
       adminCtx,
     )
 
     expect(result).toHaveProperty('logoUrl')
+    // The use case now owns logo persistence — verify it delegated to updateOrg.
+    expect(updateOrg).toHaveBeenCalledWith({ logo: result.logoUrl })
   })
 })

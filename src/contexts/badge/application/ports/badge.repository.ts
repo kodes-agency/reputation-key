@@ -50,6 +50,14 @@ export type BadgeRepository = Readonly<{
   listStaffAwards: (
     input: StaffBadgeVisibilityFilter,
   ) => Promise<ReadonlyArray<BadgeAwardWithTarget>>
+  /** Resolves the targets a staff/PM user may view badges for within a property.
+   *  `hasPropertyAssignment` covers property-level access (PropertyManager);
+   *  `portalIds`/`groupIds` cover assigned portals + their groups (Staff). */
+  resolveStaffVisibility: (input: StaffBadgeVisibilityFilter) => Promise<{
+    hasPropertyAssignment: boolean
+    portalIds: ReadonlyArray<PortalId>
+    groupIds: ReadonlyArray<PortalGroupId>
+  }>
   listPropertiesForOrg: (orgId: OrganizationId) => Promise<ReadonlyArray<PropertyId>>
   listPortalTargets: (
     orgId: OrganizationId,

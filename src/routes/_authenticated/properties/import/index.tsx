@@ -6,7 +6,10 @@ import {
   getGoogleAuthUrl,
   listGoogleConnections,
 } from '#/contexts/integration/server/google-connections'
-import { startPropertyImport } from '#/contexts/integration/server/gbp-import'
+import {
+  listGbpLocations,
+  startPropertyImport,
+} from '#/contexts/integration/server/gbp-import'
 import {
   ConnectGoogleButton,
   ImportConnectedView,
@@ -73,6 +76,7 @@ function ImportPage() {
           initialConnectionId={search.connectionId}
           getAuthUrl={getAuthUrl}
           importAction={importAction}
+          listGbpLocations={listGbpLocations}
         />
       )}
     </PageShell>

@@ -4,7 +4,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useServerFn } from '@tanstack/react-start'
 import { useAction } from '#/components/hooks/use-action'
-import { getActivityTimelineFn } from '#/contexts/activity/server/activity'
+import type { getActivityTimelineFn } from '#/contexts/activity/server/activity'
 import { Badge } from '#/components/ui/badge'
 import { Skeleton } from '#/components/ui/skeleton'
 import type { ActivityLog } from '#/contexts/activity/application/public-api'
@@ -19,13 +19,16 @@ type InboxActivityTimelineProps = Readonly<{
   inboxItemId: string
   /** Bumped on status change — triggers a re-fetch so timeline updates after mark-as-read. */
   refreshKey?: number
+  /** Raw server fn — wrapped with useServerFn per src/components/CONTEXT.md:55. */
+  getActivityTimeline: typeof getActivityTimelineFn
 }>
 
 export function InboxActivityTimeline({
   inboxItemId,
   refreshKey,
+  getActivityTimeline,
 }: InboxActivityTimelineProps) {
-  const getTimeline = useAction(useServerFn(getActivityTimelineFn))
+  const getTimeline = useAction(useServerFn(getActivityTimeline))
   const [entries, setEntries] = useState<readonly ActivityLog[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)

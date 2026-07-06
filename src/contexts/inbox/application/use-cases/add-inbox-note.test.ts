@@ -150,8 +150,8 @@ describe('addInboxNote', () => {
     ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'forbidden')
   })
 
-  it('denies Staff note for inaccessible property (inbox.manage required for bypass)', async () => {
-    // Staff has inbox.write but NOT inbox.manage, so property access is enforced
+  it('denies Staff note for inaccessible property (Staff is property-scoped)', async () => {
+    // Staff is scoped to assigned properties via staff_assignment
     const staffApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [propertyId('prop-other')],
       getAssignedPortals: async () => [],

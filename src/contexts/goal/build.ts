@@ -8,6 +8,7 @@
 import type { Database } from '#/shared/db'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { MetricPublicApi } from '#/contexts/metric/application/public-api'
+import type { OrganizationId, PortalId, PortalGroupId } from '#/shared/domain/ids'
 import type { GoalRepository } from './application/ports/goal.repository'
 import type { getLogger as getLoggerType } from '#/shared/observability/logger'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
@@ -15,6 +16,7 @@ import { createGoalRepository } from './infrastructure/repositories/goal.reposit
 import { createGoal } from './application/use-cases/create-goal'
 import { updateGoal } from './application/use-cases/update-goal'
 import { cancelGoal } from './application/use-cases/cancel-goal'
+import { systemCancelGoal } from './application/use-cases/system-cancel-goal'
 import { listGoals } from './application/use-cases/list-goals'
 import { getGoal } from './application/use-cases/get-goal'
 import {
@@ -33,9 +35,9 @@ export type GoalContextBuildInput = Readonly<{
   staffPublicApi: StaffPublicApi
   getLogger: typeof getLoggerType
   findGroupForPortal: (
-    orgId: import('#/shared/domain/ids').OrganizationId,
-    portalId: import('#/shared/domain/ids').PortalId,
-  ) => Promise<{ portalGroupId: import('#/shared/domain/ids').PortalGroupId } | null>
+    orgId: OrganizationId,
+    portalId: PortalId,
+  ) => Promise<{ portalGroupId: PortalGroupId } | null>
   /** Resolve portal group IDs for a batch of portal IDs (staff goals visibility). */
   portalGroupLookup: PortalGroupLookupPort
 }>
@@ -87,6 +89,14 @@ export const buildGoalContext = (input: GoalContextBuildInput): GoalContextApi =
     clock: input.clock,
   })
 
+  // System-initiated cancellation — skips the `can()` gate and
+  // property-access self-assignment guard; carries a tagged reason audit marker.
+  const _systemCancelGoal = systemCancelGoal({
+    goalRepo,
+    clock: input.clock,
+    getLogger: input.getLogger,
+  })
+
   const _listGoals = listGoals({
     goalRepo,
     staffPublicApi: input.staffPublicApi,
@@ -109,7 +119,7 @@ export const buildGoalContext = (input: GoalContextBuildInput): GoalContextApi =
   registerGoalEventHandlers({
     eventBus: input.events,
     goalRepo,
-    cancelGoalFn: _cancelGoal,
+    systemCancelGoalFn: _systemCancelGoal,
     clock: input.clock,
     getLogger: input.getLogger,
     findGroupForPortal: input.findGroupForPortal,

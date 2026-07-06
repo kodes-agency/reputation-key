@@ -4,6 +4,7 @@
 
 import type { StaffAssignmentRepository } from './application/ports/staff-assignment.repository'
 import type { StaffPortalLookupPort } from './application/ports/portal-lookup.port'
+import type { IdentityMembershipPort } from './application/ports/identity-membership.port'
 import type { StaffPublicApi } from './application/public-api'
 import type { OrganizationId, UserId } from '#/shared/domain/ids'
 import { hasRole } from '#/shared/domain/roles'
@@ -22,6 +23,12 @@ type StaffContextDeps = Readonly<{
   portalLookup: StaffPortalLookupPort
   events: EventBus
   clock: () => Date
+  /**
+   * Validates that a target userId is a member of ctx.organizationId before
+   * creating a staff assignment (ADR 0006). Wired in the composition root to
+   * an adapter backed by the identity context.
+   */
+  identityMembership: IdentityMembershipPort
 }>
 
 export const buildStaffContext = (deps: StaffContextDeps) => {
@@ -54,6 +61,7 @@ export const buildStaffContext = (deps: StaffContextDeps) => {
       assignmentRepo: deps.repo,
       events: deps.events,
       staffPublicApi: publicApi,
+      identityMembership: deps.identityMembership,
       idGen,
       clock: deps.clock,
     }),

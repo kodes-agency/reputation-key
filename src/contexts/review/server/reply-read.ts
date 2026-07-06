@@ -36,6 +36,7 @@ export const reviewErrorStatus = (code: ReviewErrorCode): number =>
       'reply_publish_failed',
       'repo_upsert_failed',
       'build_config_error',
+      'invalid_row',
       () => 500,
     )
     .exhaustive()

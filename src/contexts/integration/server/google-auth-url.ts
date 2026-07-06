@@ -31,8 +31,11 @@ export const getGoogleAuthUrl = createServerFn({ method: 'GET' })
 
           if (!can(ctx.role, 'integration.manage')) {
             throwContextError(
-              'Forbidden',
-              { code: 'FORBIDDEN', message: 'Insufficient permissions' },
+              'AuthError',
+              {
+                code: 'forbidden',
+                message: 'Insufficient permissions to manage integrations',
+              },
               403,
             )
           }

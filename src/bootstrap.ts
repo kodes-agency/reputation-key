@@ -277,6 +277,7 @@ export async function bootstrap(container: Container): Promise<void> {
     userLookup: notifUserLookup,
     emailSender: notifEmailSender,
     logger: container.logger,
+    clock: container.clock,
   })
   container.jobRegistry.register(URGENT_EMAIL_JOB_NAME, async (job) => {
     await urgentEmailHandler(
@@ -297,6 +298,7 @@ export async function bootstrap(container: Container): Promise<void> {
     userLookup: notifUserLookup,
     emailSender: notifEmailSender,
     logger: container.logger,
+    clock: container.clock,
   })
   container.jobRegistry.register(DIGEST_JOB_NAME, async (job) => {
     await digestHandler(job as import('bullmq').Job<void>)

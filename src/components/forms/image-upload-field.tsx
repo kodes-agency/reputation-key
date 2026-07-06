@@ -115,6 +115,7 @@ export function ImageUploadField({
 
       <input
         ref={fileInputRef}
+        aria-label="Upload image"
         type="file"
         accept={acceptedTypes.join(',')}
         className="sr-only"

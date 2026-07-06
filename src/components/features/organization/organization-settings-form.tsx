@@ -64,9 +64,6 @@ export function OrganizationSettingsForm({
     },
   })
 
-  const currentSlug = form.getFieldValue('slug')
-  const slugChanged = currentSlug !== organization.slug && currentSlug !== ''
-
   return (
     <form
       onSubmit={(e) => {
@@ -87,7 +84,17 @@ export function OrganizationSettingsForm({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <OrgIdentityCard form={form} slugChanged={slugChanged} />
+          {/* Subscribe to slug so slugChanged reactively updates — a plain
+              form.getFieldValue read in the parent doesn't subscribe, so the
+              warning would never re-render when the slug field changes. */}
+          <form.Subscribe selector={(state) => state.values.slug}>
+            {(slug) => (
+              <OrgIdentityCard
+                form={form}
+                slugChanged={slug !== organization.slug && slug !== ''}
+              />
+            )}
+          </form.Subscribe>
         </CardContent>
       </Card>
 

@@ -24,6 +24,8 @@ describe('integrationError', () => {
       'import_not_found',
       'invalid_visibility',
       'encryption_error',
+      'invalid_cache_entry',
+      'invalid_event',
     ] as const
 
     for (const code of codes) {
@@ -46,11 +48,14 @@ describe('integrationError', () => {
     expect(err.recoverable).toBe(true)
   })
 
-  it('returns a plain tagged object', () => {
+  it('returns a real Error carrying the tagged shape (ADR 0005)', () => {
     const err = integrationError('oauth_failed', 'Token exchange failed')
-    expect(typeof err).toBe('object')
+    expect(err).toBeInstanceOf(Error)
+    expect(typeof err.stack).toBe('string')
     expect(err._tag).toBe('IntegrationError')
-    expect(err).not.toBeInstanceOf(Error)
+    // Domain identity props are enumerable so log serializers see them.
+    expect(Object.keys(err)).toContain('code')
+    expect(Object.keys(err)).toContain('recoverable')
   })
 })
 
@@ -64,7 +69,7 @@ describe('isIntegrationError', () => {
     expect(isIntegrationError({ _tag: 'Other' })).toBe(false)
   })
 
-  it('returns false for Error instances', () => {
+  it('returns false for a generic Error (no _tag)', () => {
     expect(isIntegrationError(new Error('nope'))).toBe(false)
   })
 

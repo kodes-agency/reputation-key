@@ -66,9 +66,10 @@ export const getGoal =
       return err({ tag: 'forbidden' })
     }
 
-    const [progressMap] = await Promise.all([
-      deps.goalRepo.getProgressBatch([goal.id], goal.organizationId),
-    ])
+    const progressMap = await deps.goalRepo.getProgressBatch(
+      [goal.id],
+      goal.organizationId,
+    )
     const progress = progressMap.get(goal.id) ?? null
 
     // For recurring templates, load all instances with their progress

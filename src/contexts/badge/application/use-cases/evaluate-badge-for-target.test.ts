@@ -74,6 +74,7 @@ function createFakeDeps(overrides?: {
   timezone?: string
   dailyCounts?: ReadonlyMap<string, number>
   definitions?: readonly BadgeDefinition[]
+  awardId?: string
 }): EvaluateBadgeForTargetDeps {
   const aggregate: MetricReadingsAggregate = {
     sum: overrides?.metricSum ?? 0,
@@ -111,14 +112,23 @@ function createFakeDeps(overrides?: {
     off: vi.fn(),
   } as unknown as EventBus
 
-  return { badgeRepo, metricApi, events, clock: () => FIXED_TIME }
+  return {
+    badgeRepo,
+    metricApi,
+    events,
+    clock: () => FIXED_TIME,
+    idGen: () => badgeId(overrides?.awardId ?? '00000000-0000-4000-8000-0000000000aa'),
+  }
 }
 
 describe('evaluateBadgeDefinitionForTarget', () => {
   it('awards when threshold criteria is met', async () => {
     const definition = makeThresholdDefinition()
     const target = makePortalTarget()
-    const deps = createFakeDeps({ metricSum: 5 })
+    const deps = createFakeDeps({
+      metricSum: 5,
+      awardId: '00000000-0000-4000-8000-0000000000f1',
+    })
 
     const result = await evaluateBadgeDefinitionForTarget(definition, target, deps, 'UTC')
 
@@ -129,6 +139,7 @@ describe('evaluateBadgeDefinitionForTarget', () => {
       expect(result.award.portalId).toBe(PORTAL)
       expect(deps.badgeRepo.insertAward).toHaveBeenCalledOnce()
       expect(deps.events.emit).toHaveBeenCalledOnce()
+      expect(result.award.id).toBe(badgeId('00000000-0000-4000-8000-0000000000f1'))
     }
   })
 

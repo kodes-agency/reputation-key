@@ -31,18 +31,25 @@ export const getActivityTimeline =
       limit,
     )
 
-    // Admins see everything
-    // F120: Use 'organization.update' (AccountAdmin-only) instead of 'inbox.manage'
-    // (AccountAdmin + PropertyManager) — activity timeline should only bypass
-    // property scoping for AccountAdmin, matching the org-wide activity query.
-    if (can(input.role, 'organization.update')) return entries
+    // F120: 'organization.update' bypasses property scoping for the resource
+    // timeline, matching the org-wide activity query (getOrgActivity).
+    let scoped: readonly ActivityLog[]
+    if (can(input.role, 'organization.update')) {
+      scoped = entries
+    } else {
+      // PM/Staff: scope to accessible properties
+      const accessiblePropertyIds = await deps.staffPublicApi.getAccessiblePropertyIds(
+        input.organizationId,
+        input.userId,
+        input.role,
+      )
+      scoped = filterByPropertyAccess(entries, accessiblePropertyIds)
+    }
 
-    // PM/Staff: scope to accessible properties
-    const accessiblePropertyIds = await deps.staffPublicApi.getAccessiblePropertyIds(
-      input.organizationId,
-      input.userId,
-      input.role,
-    )
-
-    return filterByPropertyAccess(entries, accessiblePropertyIds)
+    // §9: strip reply-workflow rows for callers lacking reply.manage (Staff).
+    // The reply lifecycle is PM+ only; inbox.read (held by Staff) must not
+    // expose reply actions or rejection reasons via the resource timeline.
+    return can(input.role, 'reply.manage')
+      ? scoped
+      : scoped.filter((e) => e.resourceType !== 'reply')
   }

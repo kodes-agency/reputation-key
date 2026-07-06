@@ -98,6 +98,21 @@ function makeDeps(overrides: Partial<ReplyDeps> = {}): ReplyDeps {
   return {
     replyRepo: {
       upsert: vi.fn(async (r: Reply) => r),
+      // Default conditionalUpdate applies the delta onto a base reply and returns it,
+      // mirroring the real atomic guard's success path. TOCTOU tests override this to
+      // return null (lost race).
+      conditionalUpdate: vi.fn(
+        async (
+          id: string,
+          _org: unknown,
+          _statuses: unknown,
+          updates: Record<string, unknown>,
+        ) => ({
+          ...makeReply(),
+          id,
+          ...updates,
+        }),
+      ) as unknown as ReplyRepository['conditionalUpdate'],
       findById: vi.fn(async () => null),
       findInternalByReviewId: vi.fn(async () => null),
       deleteById: vi.fn(async () => {}),
@@ -227,6 +242,98 @@ describe('draftReply', () => {
     ).rejects.toThrow()
   })
 
+  it('validates the re-draft transition via transitionReply (not an inline guard)', async () => {
+    // A published reply cannot transition to draft — transitionReply must reject it.
+    const published = makeReply({ status: 'published' })
+    const deps = makeDeps({
+      replyRepo: {
+        ...makeDeps().replyRepo,
+        findInternalByReviewId: vi.fn(async () => published),
+      } as unknown as ReplyRepository,
+    })
+    await expect(
+      draftReply(deps)({ ...MANAGER_CTX, reviewId: REVIEW_ID, text: 'Edit' }),
+    ).rejects.toMatchObject({ code: 'invalid_transition', _tag: 'ReviewError' })
+  })
+
+  it('uses conditionalUpdate (not upsert) when editing an existing draft', async () => {
+    const draft = makeReply({ status: 'draft' })
+    const conditionalUpdate = vi.fn(async (id: string) => ({
+      ...draft,
+      id,
+    })) as unknown as ReplyRepository['conditionalUpdate']
+    const upsert = vi.fn(async (r: Reply) => r)
+    const deps = makeDeps({
+      replyRepo: {
+        ...makeDeps().replyRepo,
+        upsert,
+        conditionalUpdate,
+        findInternalByReviewId: vi.fn(async () => draft),
+      } as unknown as ReplyRepository,
+    })
+    const result = await draftReply(deps)({
+      ...MANAGER_CTX,
+      reviewId: REVIEW_ID,
+      text: 'Edited text',
+    })
+    expect(conditionalUpdate).toHaveBeenCalledWith(
+      REPLY_ID,
+      ORG_ID,
+      ['draft'],
+      expect.objectContaining({ status: 'draft', text: 'Edited text' }),
+      NOW,
+    )
+    expect(upsert).not.toHaveBeenCalled()
+    expect(result.status).toBe('draft')
+  })
+
+  it('uses conditionalUpdate for rejected → draft re-draft with correct expected status', async () => {
+    const rejected = makeReply({ status: 'rejected', rejectionReason: 'Bad tone' })
+    const conditionalUpdate = vi.fn(
+      async (id: string, _o: unknown, _s: unknown, u: Record<string, unknown>) => ({
+        ...rejected,
+        id,
+        ...u,
+      }),
+    ) as unknown as ReplyRepository['conditionalUpdate']
+    const deps = makeDeps({
+      replyRepo: {
+        ...makeDeps().replyRepo,
+        conditionalUpdate,
+        findInternalByReviewId: vi.fn(async () => rejected),
+      } as unknown as ReplyRepository,
+    })
+    await draftReply(deps)({ ...MANAGER_CTX, reviewId: REVIEW_ID, text: 'Improved' })
+    expect(conditionalUpdate).toHaveBeenCalledWith(
+      REPLY_ID,
+      ORG_ID,
+      ['rejected'],
+      expect.objectContaining({
+        status: 'draft',
+        text: 'Improved',
+        rejectedBy: null,
+        rejectionReason: null,
+      }),
+      NOW,
+    )
+  })
+
+  it('treats a lost race on re-draft (conditionalUpdate returns null) as invalid_transition', async () => {
+    const rejected = makeReply({ status: 'rejected' })
+    const deps = makeDeps({
+      replyRepo: {
+        ...makeDeps().replyRepo,
+        findInternalByReviewId: vi.fn(async () => rejected),
+        conditionalUpdate: vi.fn(
+          async () => null,
+        ) as unknown as ReplyRepository['conditionalUpdate'],
+      } as unknown as ReplyRepository,
+    })
+    await expect(
+      draftReply(deps)({ ...MANAGER_CTX, reviewId: REVIEW_ID, text: 'Try again' }),
+    ).rejects.toMatchObject({ code: 'invalid_transition', _tag: 'ReviewError' })
+  })
+
   // ── Tenant isolation ──────────────────────────────────────────────
   it('tags new reply with the caller organizationId (never a leaked org)', async () => {
     const upsert = vi.fn(async (r: Reply) => r)
@@ -319,6 +426,23 @@ describe('submitReply', () => {
     expect(emittedEvent.organizationId).toBe(ORG_ID)
     expect(emittedEvent.userId).toBe(USER_ID)
     expect(emittedEvent.occurredAt).toBe(NOW)
+  })
+
+  it('treats a lost race (conditionalUpdate returns null) as invalid_transition', async () => {
+    const draft = makeReply({ status: 'draft' })
+    const deps = makeDeps({
+      replyRepo: {
+        ...makeDeps().replyRepo,
+        findInternalByReviewId: vi.fn(async () => draft),
+        conditionalUpdate: vi.fn(
+          async () => null,
+        ) as unknown as ReplyRepository['conditionalUpdate'],
+      } as unknown as ReplyRepository,
+    })
+    await expect(
+      submitReply(deps)({ ...MANAGER_CTX, reviewId: REVIEW_ID }),
+    ).rejects.toMatchObject({ code: 'invalid_transition', _tag: 'ReviewError' })
+    expect(deps.events.emit).not.toHaveBeenCalled()
   })
 })
 
@@ -565,6 +689,26 @@ describe('markReplyPublished', () => {
     expect(emittedEvent.propertyId).toBe(PROP_ID)
   })
 
+  it('emits userId: null (system actor) — publish runs from the BullMQ job, not a user', async () => {
+    const approved = makeReply({ status: 'approved', createdBy: USER_ID })
+    const review = makeReview()
+    const deps = makeDeps({
+      replyRepo: {
+        ...makeDeps().replyRepo,
+        findById: vi.fn(async () => approved),
+      } as unknown as ReplyRepository,
+      reviewRepo: {
+        findById: vi.fn(async () => review),
+      } as unknown as ReviewRepository,
+    })
+    await markReplyPublished(deps)({ replyId: REPLY_ID, organizationId: ORG_ID })
+    expect(vi.mocked(deps.events.emit).mock.calls[0][0]).toMatchObject({
+      _tag: 'review.reply.published',
+      userId: null,
+      authorId: USER_ID,
+    })
+  })
+
   it('rejects if reply not in approved status', async () => {
     const draft = makeReply({ status: 'draft' })
     const deps = makeDeps({
@@ -644,6 +788,107 @@ describe('retryPublish', () => {
     await expect(
       retryPublish(deps)({ ...MANAGER_CTX, reviewId: REVIEW_ID }),
     ).rejects.toThrow()
+  })
+})
+
+// ── TOCTOU guard — conditionalUpdate atomicity ─────────────────────────
+// Every transition use case must use conditionalUpdate (not upsert) so that a
+// concurrent status change invalidates the write. A null return = lost race →
+// invalid_transition, and no event/job side-effects must fire.
+
+describe('reply ops — TOCTOU guard (conditionalUpdate returns null → invalid_transition)', () => {
+  const nullConditional = vi.fn(
+    async () => null,
+  ) as unknown as ReplyRepository['conditionalUpdate']
+
+  it('approveReply: lost race throws invalid_transition, no job enqueued, no event', async () => {
+    const pending = makeReply({ status: 'pending_approval' })
+    const deps = makeDeps({
+      replyRepo: {
+        ...makeDeps().replyRepo,
+        findInternalByReviewId: vi.fn(async () => pending),
+        conditionalUpdate: nullConditional,
+      } as unknown as ReplyRepository,
+    })
+    await expect(
+      approveReply(deps)({ ...MANAGER_CTX, reviewId: REVIEW_ID }),
+    ).rejects.toMatchObject({ code: 'invalid_transition', _tag: 'ReviewError' })
+    expect(deps.queue.addPublishJob).not.toHaveBeenCalled()
+    expect(deps.events.emit).not.toHaveBeenCalled()
+  })
+
+  it('rejectReply: lost race throws invalid_transition, no event', async () => {
+    const pending = makeReply({ status: 'pending_approval' })
+    const deps = makeDeps({
+      replyRepo: {
+        ...makeDeps().replyRepo,
+        findInternalByReviewId: vi.fn(async () => pending),
+        conditionalUpdate: nullConditional,
+      } as unknown as ReplyRepository,
+    })
+    await expect(
+      rejectReply(deps)({ ...MANAGER_CTX, reviewId: REVIEW_ID }),
+    ).rejects.toMatchObject({ code: 'invalid_transition', _tag: 'ReviewError' })
+    expect(deps.events.emit).not.toHaveBeenCalled()
+  })
+
+  it('markReplyPublished: lost race throws invalid_transition, no event', async () => {
+    const approved = makeReply({ status: 'approved' })
+    const deps = makeDeps({
+      replyRepo: {
+        ...makeDeps().replyRepo,
+        findById: vi.fn(async () => approved),
+        conditionalUpdate: nullConditional,
+      } as unknown as ReplyRepository,
+    })
+    await expect(
+      markReplyPublished(deps)({ replyId: REPLY_ID, organizationId: ORG_ID }),
+    ).rejects.toMatchObject({ code: 'invalid_transition', _tag: 'ReviewError' })
+    expect(deps.events.emit).not.toHaveBeenCalled()
+  })
+
+  it('markReplyPublishFailed: lost race throws invalid_transition', async () => {
+    const approved = makeReply({ status: 'approved' })
+    const deps = makeDeps({
+      replyRepo: {
+        ...makeDeps().replyRepo,
+        findById: vi.fn(async () => approved),
+        conditionalUpdate: nullConditional,
+      } as unknown as ReplyRepository,
+    })
+    await expect(
+      markReplyPublishFailed(deps)({ replyId: REPLY_ID, organizationId: ORG_ID }),
+    ).rejects.toMatchObject({ code: 'invalid_transition', _tag: 'ReviewError' })
+  })
+
+  it('retryPublish: lost race throws invalid_transition, no job enqueued', async () => {
+    const failed = makeReply({ status: 'publish_failed' })
+    const deps = makeDeps({
+      replyRepo: {
+        ...makeDeps().replyRepo,
+        findInternalByReviewId: vi.fn(async () => failed),
+        conditionalUpdate: nullConditional,
+      } as unknown as ReplyRepository,
+    })
+    await expect(
+      retryPublish(deps)({ ...MANAGER_CTX, reviewId: REVIEW_ID }),
+    ).rejects.toMatchObject({ code: 'invalid_transition', _tag: 'ReviewError' })
+    expect(deps.queue.addPublishJob).not.toHaveBeenCalled()
+  })
+
+  it('submitReply: lost race throws invalid_transition, no event', async () => {
+    const draft = makeReply({ status: 'draft' })
+    const deps = makeDeps({
+      replyRepo: {
+        ...makeDeps().replyRepo,
+        findInternalByReviewId: vi.fn(async () => draft),
+        conditionalUpdate: nullConditional,
+      } as unknown as ReplyRepository,
+    })
+    await expect(
+      submitReply(deps)({ ...MANAGER_CTX, reviewId: REVIEW_ID }),
+    ).rejects.toMatchObject({ code: 'invalid_transition', _tag: 'ReviewError' })
+    expect(deps.events.emit).not.toHaveBeenCalled()
   })
 })
 

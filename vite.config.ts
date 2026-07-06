@@ -15,6 +15,11 @@ const config = defineConfig(({ mode }) => {
   // TanStack Start's dev server middleware from installing, which breaks
   // server function routing and client hydration.
   const isBuild = mode === 'production'
+  // Storybook runs its own Vite — skip the TanStack Start + Nitro + devtools
+  // plugins which assume the full app server and break the Storybook build
+  // (storybook#33747). Keep tailwindcss, tsconfigPaths, and viteReact.
+  const isStorybook =
+    !!process.env.STORYBOOK || process.argv.slice(1).some((a) => a.includes('storybook'))
 
   return {
     build: {
@@ -29,8 +34,10 @@ const config = defineConfig(({ mode }) => {
     },
     resolve: { tsconfigPaths: true },
     plugins: [
-      devtools(),
-      ...(isBuild ? [nitro({ rollupConfig: { external: [/^@sentry\//] } })] : []),
+      ...(isStorybook ? [] : [devtools()]),
+      ...(isBuild && !isStorybook
+        ? [nitro({ rollupConfig: { external: [/^@sentry\//] } })]
+        : []),
       tailwindcss(),
       // Import protection prevents server-only modules (Node builtins, DB
       // drivers, the composition root, API routes, repositories) from leaking
@@ -42,27 +49,31 @@ const config = defineConfig(({ mode }) => {
       // Server functions (src/contexts/*/server/**) are NOT denied: TanStack
       // RPC-stubs them for the client, and that transform strips their
       // server-only imports, so denying them would only break the RPC stubs.
-      tanstackStart({
-        importProtection: {
-          client: {
-            files: [
-              '**/*.server.*',
-              '**/routes/api/**',
-              '**/composition.ts',
-              '**/infrastructure/**',
-              '**/build.ts',
-              '**/shared/db/**',
-              '**/shared/cache/**',
-              '**/shared/jobs/**',
-              '**/shared/observability/**',
-              '**/shared/auth/auth.ts',
-              '**/shared/auth/middleware.ts',
-              '**/shared/auth/server-errors.ts',
-              '**/shared/auth/headers.ts',
-            ],
-          },
-        },
-      }),
+      ...(isStorybook
+        ? []
+        : [
+            tanstackStart({
+              importProtection: {
+                client: {
+                  files: [
+                    '**/*.server.*',
+                    '**/routes/api/**',
+                    '**/composition.ts',
+                    '**/infrastructure/**',
+                    '**/build.ts',
+                    '**/shared/db/**',
+                    '**/shared/cache/**',
+                    '**/shared/jobs/**',
+                    '**/shared/observability/**',
+                    '**/shared/auth/auth.ts',
+                    '**/shared/auth/middleware.ts',
+                    '**/shared/auth/server-errors.ts',
+                    '**/shared/auth/headers.ts',
+                  ],
+                },
+              },
+            }),
+          ]),
       viteReact(),
     ],
   }

@@ -3,6 +3,7 @@
 import { describe, it, expect } from 'vitest'
 import { reviewFromRow, reviewToRow } from './review.mapper'
 import type { reviews } from '#/shared/db/schema/review.schema'
+import { isReviewError } from '../../domain/errors'
 
 type ReviewRow = typeof reviews.$inferSelect
 
@@ -81,6 +82,34 @@ describe('reviewFromRow', () => {
     expect(review.languageCode).toBeNull()
     expect(review.sentimentLabel).toBeNull()
     expect(review.sentimentScore).toBeNull()
+  })
+
+  it('throws a tagged ReviewError (not bare Error) for an invalid platform', () => {
+    const row = { ...sampleRow, platform: 'yelp' as unknown as 'google' }
+    let thrown: unknown
+    try {
+      reviewFromRow(row)
+    } catch (e) {
+      thrown = e
+    }
+    expect(isReviewError(thrown)).toBe(true)
+    if (isReviewError(thrown)) {
+      expect(thrown.code).toBe('invalid_row')
+    }
+  })
+
+  it('throws a tagged ReviewError (not bare Error) for an invalid rating', () => {
+    const row = { ...sampleRow, rating: 0 as unknown as number }
+    let thrown: unknown
+    try {
+      reviewFromRow(row)
+    } catch (e) {
+      thrown = e
+    }
+    expect(isReviewError(thrown)).toBe(true)
+    if (isReviewError(thrown)) {
+      expect(thrown.code).toBe('invalid_row')
+    }
   })
 })
 

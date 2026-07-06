@@ -12,6 +12,8 @@ export type FinalizeOrgLogoUploadInput = Readonly<{
 // fallow-ignore-next-line unused-type
 export type FinalizeOrgLogoUploadDeps = Readonly<{
   storage: StoragePort
+  /** Persist the logo URL on the organization via the auth provider. */
+  updateOrg: (data: Record<string, unknown>) => Promise<void>
 }>
 
 export const finalizeOrgLogoUpload =
@@ -33,6 +35,10 @@ export const finalizeOrgLogoUpload =
     }
 
     const logoUrl = await deps.storage.confirmUpload(input.key)
+
+    // Persist the logo URL on the organization. This is business persistence —
+    // it belongs in the use case, not the server fn (see update-organization.ts).
+    await deps.updateOrg({ logo: logoUrl })
 
     return { logoUrl }
   }

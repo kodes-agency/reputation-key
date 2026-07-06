@@ -33,7 +33,7 @@ import {
   type ProgressQuery,
 } from '../../domain/progress-strategy'
 import { can } from '#/shared/domain/permissions'
-import { ok, err, type Result } from 'neverthrow'
+import { ok, err, type Result } from '#/shared/domain'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { isPropertyAccessible } from '#/shared/domain/property-access'
 import {

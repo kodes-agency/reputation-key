@@ -70,3 +70,111 @@ jobs:
           ENCRYPTION_KEY: aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd
           OAUTH_STATE_SECRET: aabbccddaabbccddaabbccddaabbccdd
         run: pnpm test
+
+  storybook:
+    runs-on: ubuntu-latest
+    # Non-blocking per plan contingency 5.1: build-storybook is the known
+    # Vite-8/Rolldown breakage surface (storybook#33063/#33747). Local builds
+    # are green, but ubuntu-runner stability is unverified; the iframe.html
+    # existence check stays as the regression sentinel. storybook-test below
+    # carries the durable component-coverage signal as a hard gate.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build Storybook
+        run: pnpm build-storybook
+      - name: Verify iframe.html produced
+        run: test -f storybook-static/iframe.html
+
+  storybook-test:
+    runs-on: ubuntu-latest
+    # Component-test coverage: boots Storybook, then runs the test-runner
+    # (render + a11y checks across all stories) — the durable fix for the
+    # codebase's zero-component-coverage gap.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Start Storybook
+        run: |
+          pnpm storybook --ci --quiet &
+          npx --yes wait-on http-get://localhost:6006/iframe.html -t 120000
+      - name: Run storybook tests
+        run: pnpm test-storybook
+
+  e2e:
+    runs-on: ubuntu-latest
+    # Non-blocking: the 9 Playwright specs are the rendered-component proof that
+    # the Phase-1 server-fn refactor preserved runtime behavior. The webServer
+    # block in playwright.config.ts auto-starts `pnpm dev`. Two pre-existing
+    # environmental blockers keep this non-blocking for now: (1) the register
+    # server fn has a runtime failure against the seeded DB, (2) the
+    # "existing credentials" spec needs a seeded test account. Re-enable as a
+    # hard gate once those are resolved.
+    continue-on-error: true
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Push database schema
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://test:test@localhost:5432/test
+          BETTER_AUTH_SECRET: test-secret-at-least-32-characters-long-for-ci
+          BETTER_AUTH_URL: http://localhost:3000
+          GOOGLE_CLIENT_ID: ci-placeholder-client-id
+          GOOGLE_CLIENT_SECRET: ci-placeholder-client-secret
+          ENCRYPTION_KEY: aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd
+          OAUTH_STATE_SECRET: aabbccddaabbccddaabbccddaabbccdd
+        run: echo "y" | pnpm db:push && echo "y" | pnpm auth:migrate
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Run e2e tests
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://test:test@localhost:5432/test
+          BETTER_AUTH_SECRET: test-secret-at-least-32-characters-long-for-ci
+          BETTER_AUTH_URL: http://localhost:3000
+          RESEND_API_KEY: re_ci_test_key_placeholder
+          GOOGLE_CLIENT_ID: ci-placeholder-client-id
+          GOOGLE_CLIENT_SECRET: ci-placeholder-client-secret
+          ENCRYPTION_KEY: aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd
+          OAUTH_STATE_SECRET: aabbccddaabbccddaabbccddaabbccdd
+          E2E_BASE_URL: http://localhost:3000
+        run: pnpm test:e2e

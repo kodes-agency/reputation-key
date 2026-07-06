@@ -3,6 +3,10 @@ node_modules
 dist
 dist-ssr
 dist-worker
+storybook-static
+/test-results/
+/playwright-report/
+/.last-run.json
 *.local
 .env
 .env.local

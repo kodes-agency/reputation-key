@@ -45,12 +45,7 @@ export const getInboxNotes =
         input.userId,
         input.role,
       )
-      if (
-        accessible !== null &&
-        !accessible.includes(
-          item.propertyId as ReturnType<typeof import('#/shared/domain/ids').propertyId>,
-        )
-      ) {
+      if (accessible !== null && !accessible.includes(item.propertyId)) {
         throw inboxError('forbidden', 'No access to this property', {
           propertyId: item.propertyId,
         })

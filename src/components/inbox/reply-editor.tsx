@@ -1,26 +1,26 @@
-// Inbox detail — reply editor component
-//
-// NOTE: This component imports server functions from review/server/reply.
-// This exceeds the 5-mutation threshold in src/components/CONTEXT.md,
-// making it a deliberate exception to the "no server imports in components" rule.
-// Refactoring to prop-drill 7 action hooks through the inbox component tree
-// would create excessive prop drilling with minimal benefit.
-
+// Inbox detail — reply editor component.
+// Receives the getReply server fn as a prop per src/components/CONTEXT.md:55.
 import { useState, useEffect } from 'react'
-import { getReplyFn } from '#/contexts/review/server/reply'
+import { useServerFn } from '@tanstack/react-start'
+import type { getReplyFn } from '#/contexts/review/server/reply'
 import { ReplyEditorInner } from './reply-form'
 import type { ReplyData } from './reply-form'
 
-export type ReplyEditorProps = Readonly<{ reviewId: string }>
+export type ReplyEditorProps = Readonly<{
+  reviewId: string
+  /** Raw server fn — wrapped with useServerFn per src/components/CONTEXT.md:55. */
+  getReply: typeof getReplyFn
+}>
 
-export function ReplyEditor({ reviewId }: ReplyEditorProps) {
+export function ReplyEditor({ reviewId, getReply }: ReplyEditorProps) {
+  const fetchReply = useServerFn(getReply)
   const [reply, setReply] = useState<ReplyData | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     let cancelled = false
     setLoading(true)
-    getReplyFn({ data: { reviewId } })
+    fetchReply({ data: { reviewId } })
       .then((r) => {
         if (!cancelled) setReply(r ?? null)
       })
@@ -33,7 +33,7 @@ export function ReplyEditor({ reviewId }: ReplyEditorProps) {
     return () => {
       cancelled = true
     }
-  }, [reviewId])
+  }, [reviewId, fetchReply])
 
   return (
     <ReplyEditorInner

@@ -43,6 +43,7 @@ export const reviews = pgTable(
     externalLocationId: varchar('external_location_id', { length: 500 }).notNull(),
     googleConnectionId: uuid('google_connection_id').references(
       () => googleConnections.id,
+      { onDelete: 'set null' },
     ),
     reviewerName: varchar('reviewer_name', { length: 255 }),
     reviewerProfilePhotoUrl: varchar('reviewer_profile_photo_url', { length: 1000 }),

@@ -10,6 +10,7 @@ import {
   propertyId,
   googleConnectionId,
 } from '#/shared/domain/ids'
+import { reviewError } from '../../domain/errors'
 
 type ReviewRow = typeof reviews.$inferSelect
 type ReviewInsertRow = typeof reviews.$inferInsert
@@ -20,10 +21,16 @@ const VALID_RATINGS = new Set<number>([1, 2, 3, 4, 5])
 export const reviewFromRow = (row: ReviewRow): Review => {
   // F040: Validate platform and rating from DB rows instead of bare type assertions
   if (!VALID_PLATFORMS.has(row.platform)) {
-    throw new Error(`Invalid review platform from DB: ${row.platform}`)
+    throw reviewError('invalid_row', `Invalid review platform from DB: ${row.platform}`, {
+      field: 'platform',
+      value: row.platform,
+    })
   }
   if (!VALID_RATINGS.has(row.rating)) {
-    throw new Error(`Invalid review rating from DB: ${row.rating}`)
+    throw reviewError('invalid_row', `Invalid review rating from DB: ${row.rating}`, {
+      field: 'rating',
+      value: row.rating,
+    })
   }
 
   return {

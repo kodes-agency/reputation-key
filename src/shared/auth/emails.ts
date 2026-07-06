@@ -2,6 +2,7 @@
 import { Resend } from 'resend'
 import { getEnv } from '#/shared/config/env'
 import { getLogger } from '#/shared/observability/logger'
+import { maskEmail } from '#/shared/observability/pii'
 
 let _resend: Resend | undefined
 
@@ -41,12 +42,6 @@ type SendEmailParams = Readonly<{
   subject: string
   html: string
 }>
-
-function maskEmail(email: string): string {
-  const [local, domain] = email.split('@')
-  if (!local || !domain) return '***'
-  return `${local.slice(0, 1)}***@${domain}`
-}
 
 async function sendEmail({ to, subject, html }: SendEmailParams): Promise<void> {
   const logger = getLogger()

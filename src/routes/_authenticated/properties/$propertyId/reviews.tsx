@@ -4,7 +4,7 @@ import { createFileRoute, getRouteApi, redirect } from '@tanstack/react-router'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import { InboxPageV2, inboxSearchSchema } from '#/components/inbox/inbox-page-v2'
-import { bulkUpdateInboxStatusFn } from '#/contexts/inbox/server/inbox'
+import { inboxFns } from '#/routes/_authenticated/-inbox-fns'
 
 const authRoute = getRouteApi('/_authenticated')
 const propertyRoute = getRouteApi('/_authenticated/properties/$propertyId')
@@ -37,7 +37,7 @@ function PropertyReviewsRoute() {
       search={search}
       activePropertyId={propertyId}
       properties={parentData.properties}
-      bulkUpdateFn={bulkUpdateInboxStatusFn}
+      inboxFns={inboxFns}
       onNavigate={(opts) =>
         navigate({
           to: opts.to,

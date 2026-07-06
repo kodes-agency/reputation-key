@@ -37,27 +37,38 @@ export const onReplyPublished =
 
         const oldStatus = inboxItem.status
 
-        // Route through the domain transition rule so the handler inherits
-        // any future graph changes (INBOX-02) instead of hand-rolling guards.
-        if (validateTransition(oldStatus, 'addressed').isErr()) return
+        // A published reply always records the firstReplyPublishedAt milestone,
+        // even when the item is already `addressed` or `archived` (where the
+        // status graph has no edge into `addressed`). The status transition
+        // itself is still routed through the domain rule so this handler
+        // inherits any future graph changes (INBOX-02).
+        const transitionOk = validateTransition(oldStatus, 'addressed').isOk()
 
-        const extraFields: Partial<Record<string, Date>> = {
-          addressedAt: event.occurredAt,
-        }
+        const extraFields: Partial<Record<string, Date>> = {}
         if (!inboxItem.firstReplyPublishedAt) {
           extraFields.firstReplyPublishedAt = event.occurredAt
         }
+        if (transitionOk) {
+          extraFields.addressedAt = event.occurredAt
+        }
 
+        // Already addressed (or otherwise non-transitionable) AND the
+        // milestone is already stamped — nothing to persist.
+        if (!transitionOk && Object.keys(extraFields).length === 0) return
+
+        // Always persist the milestone (and, when valid, the addressed status).
+        // When no transition is possible we keep the current status so the
+        // item still reflects the published reply via firstReplyPublishedAt.
         await deps.repo.updateStatus(
           inboxItem.id,
           inboxItem.organizationId,
-          'addressed',
+          transitionOk ? 'addressed' : oldStatus,
           extraFields,
           event.occurredAt,
         )
 
-        // Decrement new counter if transitioning away from 'new'
-        if (oldStatus === 'new') {
+        // Decrement new counter only when actually transitioning away from 'new'.
+        if (transitionOk && oldStatus === 'new') {
           try {
             await deps.newCounter.decrement(inboxItem.organizationId)
           } catch (err) {
@@ -68,17 +79,21 @@ export const onReplyPublished =
           }
         }
 
-        // Emit status changed event
-        await deps.events.emit(
-          inboxItemStatusChanged({
-            inboxItemId: inboxItem.id,
-            organizationId: inboxItem.organizationId,
-            propertyId: inboxItem.propertyId,
-            oldStatus,
-            newStatus: 'addressed',
-            occurredAt: event.occurredAt,
-          }),
-        )
+        // Emit status_changed only for a real transition — a no-op status
+        // change would be semantically wrong and downstream consumers key on
+        // oldStatus !== newStatus.
+        if (transitionOk) {
+          await deps.events.emit(
+            inboxItemStatusChanged({
+              inboxItemId: inboxItem.id,
+              organizationId: inboxItem.organizationId,
+              propertyId: inboxItem.propertyId,
+              oldStatus,
+              newStatus: 'addressed',
+              occurredAt: event.occurredAt,
+            }),
+          )
+        }
       } catch (err) {
         getLogger().error(
           { err, replyId: event.replyId },

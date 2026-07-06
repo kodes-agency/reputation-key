@@ -7,6 +7,7 @@ import { createInMemoryIdentityPort } from '#/shared/testing/in-memory-identity-
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { isIdentityError } from '../../domain/errors'
+import { userId } from '#/shared/domain/ids'
 
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
 
@@ -78,5 +79,67 @@ describe('removeMember', () => {
     expect(emitted).toHaveLength(1)
     expect(emitted[0].organizationId).toBe(ctx.organizationId)
     expect(emitted[0].removedBy).toBe(ctx.userId)
+    // Fix #1: the event must carry the removed user's id (targetMember.userId),
+    // NOT the better-auth member-row id (memberId === 'member-1').
+    expect(emitted[0].userId).toBe(userId('user-target'))
+  })
+
+  it('forbids removing the last AccountAdmin of the organization', async () => {
+    const identity = createInMemoryIdentityPort()
+    const events = createCapturingEventBus()
+    const useCase = removeMember({ identity, events, clock: () => FIXED_TIME })
+    // Only one admin in the org — the last-admin guard must fire.
+    identity.seedMembers([
+      {
+        id: 'solo-admin',
+        userId: 'user-solo-admin',
+        email: 'solo@test.com',
+        name: 'Solo Admin',
+        role: 'AccountAdmin',
+        image: null,
+        createdAt: new Date('2026-01-01'),
+      },
+    ])
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+
+    await expect(useCase({ memberId: 'solo-admin' }, ctx)).rejects.toSatisfy(
+      (e) => isIdentityError(e) && e.code === 'forbidden',
+    )
+
+    // The admin was not removed.
+    const still = await identity.getMember(ctx, 'solo-admin')
+    expect(still?.role).toBe('AccountAdmin')
+  })
+
+  it('allows removing an AccountAdmin when a second admin remains', async () => {
+    const identity = createInMemoryIdentityPort()
+    const events = createCapturingEventBus()
+    const useCase = removeMember({ identity, events, clock: () => FIXED_TIME })
+    identity.seedMembers([
+      {
+        id: 'admin-a',
+        userId: 'user-admin-a',
+        email: 'a@test.com',
+        name: 'Admin A',
+        role: 'AccountAdmin',
+        image: null,
+        createdAt: new Date('2026-01-01'),
+      },
+      {
+        id: 'admin-b',
+        userId: 'user-admin-b',
+        email: 'b@test.com',
+        name: 'Admin B',
+        role: 'AccountAdmin',
+        image: null,
+        createdAt: new Date('2026-01-01'),
+      },
+    ])
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+
+    const result = await useCase({ memberId: 'admin-a' }, ctx)
+
+    expect(result.success).toBe(true)
+    expect(events.capturedByTag('identity.member.removed')).toHaveLength(1)
   })
 })

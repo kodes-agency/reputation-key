@@ -93,6 +93,7 @@ export const createNotificationRepository = (db: Database) => ({
 
   markRead: async (
     id: string,
+    userId: string,
     orgId: string,
     readAt: Date,
     updatedAt: Date,
@@ -103,6 +104,7 @@ export const createNotificationRepository = (db: Database) => ({
       .where(
         and(
           eq(notifications.id, id),
+          eq(notifications.userId, userId),
           eq(notifications.organizationId, orgId),
           eq(notifications.status, 'unread'),
         ),
@@ -121,8 +123,10 @@ export const createNotificationRepository = (db: Database) => ({
         ),
       )
   },
+
   updateStatus: async (
     id: string,
+    userId: string,
     orgId: string,
     status: NotificationStatus,
     updatedAt: Date,
@@ -130,7 +134,13 @@ export const createNotificationRepository = (db: Database) => ({
     await db
       .update(notifications)
       .set({ status, updatedAt })
-      .where(and(eq(notifications.id, id), eq(notifications.organizationId, orgId)))
+      .where(
+        and(
+          eq(notifications.id, id),
+          eq(notifications.userId, userId),
+          eq(notifications.organizationId, orgId),
+        ),
+      )
   },
 
   // ── Queries ──────────────────────────────────────────────────────

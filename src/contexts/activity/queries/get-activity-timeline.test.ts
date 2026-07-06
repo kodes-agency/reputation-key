@@ -107,4 +107,48 @@ describe('getActivityTimeline', () => {
     })
     expect(result).toHaveLength(3)
   })
+
+  it('strips reply-workflow entries from Staff (lacks reply.manage)', async () => {
+    const repo = createInMemoryActivityRepo([
+      makeEntry({ id: activityLogId('al-1'), resourceType: 'inbox_item' }),
+      makeEntry({
+        id: activityLogId('al-2'),
+        resourceType: 'reply',
+        action: 'published',
+      }),
+      makeEntry({
+        id: activityLogId('al-3'),
+        resourceType: 'reply',
+        action: 'rejected',
+        payload: {
+          subject: 'reply',
+          from: null,
+          to: null,
+          detail: 'contained a customer name',
+        },
+      }),
+    ])
+    const deps = { repo, staffPublicApi: staffApiAllAccess() }
+    const result = await getActivityTimeline(deps)({ ...baseInput, role: 'Staff' })
+    // Only the inbox_item entry survives; reply rows (incl. rejection reason)
+    // are stripped because Staff lack reply.manage.
+    expect(result.map((e) => e.id)).toEqual(['al-1'])
+  })
+
+  it('keeps reply-workflow entries for PropertyManager (has reply.manage)', async () => {
+    const repo = createInMemoryActivityRepo([
+      makeEntry({ id: activityLogId('al-1'), resourceType: 'inbox_item' }),
+      makeEntry({
+        id: activityLogId('al-2'),
+        resourceType: 'reply',
+        action: 'published',
+      }),
+    ])
+    const deps = { repo, staffPublicApi: staffApiAllAccess() }
+    const result = await getActivityTimeline(deps)({
+      ...baseInput,
+      role: 'PropertyManager' as Role,
+    })
+    expect(result.map((e) => e.id).sort()).toEqual(['al-1', 'al-2'])
+  })
 })

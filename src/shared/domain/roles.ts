@@ -2,6 +2,8 @@
 // Per architecture: "shared/ holds cross-cutting concerns used by multiple contexts."
 // The canonical Role definition and all role-mapping functions live here.
 // Contexts and shared/ modules import from this single source of truth.
+import { assertNever } from './assert'
+import { domainError } from './errors'
 
 /** Our domain roles — mapped from better-auth organization plugin roles. */
 export type Role = 'AccountAdmin' | 'PropertyManager' | 'Staff'
@@ -35,7 +37,9 @@ export function toDomainRole(betterAuthRole: string): Role {
     case 'member':
       return 'Staff'
     default:
-      throw new Error(`Unknown better-auth role: ${betterAuthRole}`)
+      throw domainError('unknown_role', `Unknown better-auth role: ${betterAuthRole}`, {
+        value: betterAuthRole,
+      })
   }
 }
 
@@ -48,9 +52,7 @@ export function toBetterAuthRole(role: Role): BetterAuthRole {
       return 'admin'
     case 'Staff':
       return 'member'
-    default: {
-      const _exhaustive: never = role
-      throw new Error(`Unknown role: ${_exhaustive}`)
-    }
+    default:
+      return assertNever('toBetterAuthRole', role)
   }
 }

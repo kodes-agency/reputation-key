@@ -19,7 +19,7 @@ function ImportProgressPage() {
   const initialData = Route.useLoaderData()
 
   // Delegated to hook — stable interval, error cap, terminal detection
-  const { job, error } = useImportJobPolling(importId, initialData.job)
+  const { job, error } = useImportJobPolling(importId, initialData.job, getImportStatus)
 
   return (
     <PageShell>

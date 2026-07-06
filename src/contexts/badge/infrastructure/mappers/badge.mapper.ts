@@ -21,8 +21,52 @@ import {
   badgeAwards,
   organizationBadgeEnablements,
 } from '#/shared/db/schema/badge.schema'
+import { z } from 'zod/v4'
+import { METRIC_KEYS } from '#/shared/domain/metric-keys'
 
 const VALID_TARGET_SCOPES: readonly string[] = ['portal', 'portal_group']
+
+// The `criteriaJson` column is typed `jsonb.$type<Record<string, unknown>>`
+// (badge.schema.ts); narrow it at the mapper boundary instead of bare-`as`
+// casting so a stale/malformed row fails loudly rather than becoming an
+// invalid BadgeCriteria.
+const badgeCriteriaSchema = z.object({
+  type: z.enum(['threshold', 'streak', 'milestone']),
+  metricKey: z.enum([...METRIC_KEYS] as [string, ...string[]]),
+  operator: z.enum(['>=', '<=']),
+  threshold: z.number(),
+  aggregation: z.enum(['sum', 'count', 'avg', 'max']).optional(),
+  period: z
+    .enum([
+      'today',
+      'this_week',
+      'this_month',
+      'this_quarter',
+      'all_time',
+      'last_7_days',
+      'last_30_days',
+      'last_90_days',
+    ])
+    .optional(),
+  streakDays: z.number().int().positive().optional(),
+  dailyThreshold: z.number().optional(),
+})
+
+function parseBadgeCriteria(raw: unknown): BadgeCriteria {
+  const parsed = badgeCriteriaSchema.safeParse(raw)
+  if (!parsed.success) {
+    throw new Error(`Invalid badge.criteriaJson: ${parsed.error.message}`)
+  }
+  return parsed.data as BadgeCriteria
+}
+
+function targetScopeFromRow(value: string): BadgeDefinition['targetScope'] {
+  return assertLiteral(
+    value,
+    VALID_TARGET_SCOPES,
+    'badge.targetScope',
+  ) as BadgeDefinition['targetScope']
+}
 
 export function badgeDefinitionFromRow(
   row: typeof badgeDefinitions.$inferSelect,
@@ -33,9 +77,9 @@ export function badgeDefinitionFromRow(
     name: row.name,
     description: row.description,
     icon: row.icon,
-    targetScope: row.targetScope as BadgeDefinition['targetScope'],
+    targetScope: targetScopeFromRow(row.targetScope),
     criteriaVersion: row.criteriaVersion,
-    criteria: row.criteriaJson as BadgeCriteria,
+    criteria: parseBadgeCriteria(row.criteriaJson),
     enabled: row.enabled,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -103,13 +147,9 @@ export function badgeAwardWithTargetFromRow(
       name: row.definitionName,
       description: row.definitionDescription,
       icon: row.definitionIcon,
-      targetScope: assertLiteral(
-        row.definitionTargetScope,
-        VALID_TARGET_SCOPES,
-        'badge.targetScope',
-      ) as BadgeDefinition['targetScope'],
+      targetScope: targetScopeFromRow(row.definitionTargetScope),
       criteriaVersion: row.definitionCriteriaVersion,
-      criteria: row.definitionCriteria as BadgeCriteria,
+      criteria: parseBadgeCriteria(row.definitionCriteria),
       enabled: row.definitionEnabled,
       createdAt: row.definitionCreatedAt,
       updatedAt: row.definitionUpdatedAt,

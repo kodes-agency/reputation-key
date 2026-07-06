@@ -26,6 +26,7 @@ export function SmartRoutingConfig({
         </div>
         <input
           type="checkbox"
+          aria-label="Enable smart routing"
           checked={enabled}
           onChange={(e) => onEnabledChange(e.target.checked)}
           className="size-5 cursor-pointer rounded border"
@@ -64,6 +65,7 @@ export function SmartRoutingConfig({
             <p className="text-sm font-medium">Rating threshold: {threshold}+ stars</p>
             <input
               type="range"
+              aria-label="Rating threshold"
               min={1}
               max={4}
               value={threshold}

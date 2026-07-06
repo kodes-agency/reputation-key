@@ -27,6 +27,7 @@ export type InboxFilterValues = Readonly<{
 type Props = Readonly<{
   value: InboxFilterValues
   onChange: (filters: InboxFilterValues) => void
+  properties: ReadonlyArray<{ id: string; name: string }>
 }>
 
 const statuses: Array<{ value: InboxStatus; label: string }> = [
@@ -44,7 +45,7 @@ const sourceTypes: Array<{ value: SourceType; label: string }> = [
 
 const platforms = [{ value: 'google', label: 'Google' }]
 
-export function InboxFilters({ value, onChange }: Props) {
+export function InboxFilters({ value, onChange, properties }: Props) {
   const update = useCallback(
     (patch: Partial<InboxFilterValues>) => {
       onChange({ ...value, ...patch })
@@ -59,6 +60,7 @@ export function InboxFilters({ value, onChange }: Props) {
       <PropertyFilterSelect
         value={value.propertyId}
         onChange={(id) => update({ propertyId: id })}
+        properties={properties}
       />
 
       <Select

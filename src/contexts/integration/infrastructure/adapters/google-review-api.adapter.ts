@@ -4,11 +4,11 @@
 
 import type { GoogleReviewApiPort } from '#/contexts/review/application/public-api'
 import type { GoogleReview, StarRating } from '#/contexts/review/application/public-api'
-import type { OrganizationId, GoogleConnectionId } from '#/shared/domain/ids'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { GoogleConnectionRepository } from '../../application/ports/google-connection.repository'
 import type { TokenEncryptionPort } from '../../application/ports/token-encryption.port'
 import type { RefreshGoogleToken } from '../../application/use-cases/refresh-google-token'
-import { getLogger } from '#/shared/observability/logger'
+import type { OrganizationId, GoogleConnectionId } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 import { integrationError } from '../../domain/errors'
 
@@ -45,6 +45,7 @@ type GoogleReviewApiAdapterDeps = Readonly<{
   connectionRepo: GoogleConnectionRepository
   encryption: TokenEncryptionPort
   refreshToken: RefreshGoogleToken
+  logger: LoggerPort
 }>
 
 export const createGoogleReviewApiAdapter = (
@@ -68,8 +69,13 @@ export const createGoogleReviewApiAdapter = (
     const isRateLimited = status === 429
     throw integrationError(
       isRateLimited ? 'gbp_api_rate_limited' : 'gbp_api_error',
-      `GBP ${operation} failed: ${status} ${body}`,
+      // Fixed client-facing message — the raw upstream body (HTML/JSON error page,
+      // possibly review text or account hints) must not leak through e.message,
+      // which the server boundary serializes to the client (cc-errors §13 BLOCKER).
+      'Failed to reach Google review API',
       isRateLimited,
+      // Server-side diagnostics only — context is not serialized to the client.
+      { operation, status, body },
     )
   }
 
@@ -79,13 +85,12 @@ export const createGoogleReviewApiAdapter = (
     const rating = raw.starRating ? STAR_RATING_MAP[raw.starRating] : undefined
 
     if (!rating) {
-      getLogger().warn(
+      deps.logger.warn(
         { starRating: raw.starRating, reviewId },
         'Unknown star rating, skipping review',
       )
       return null
     }
-
     return {
       reviewName,
       externalId: reviewId,

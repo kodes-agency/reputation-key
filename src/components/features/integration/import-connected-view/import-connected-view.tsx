@@ -3,6 +3,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { GoogleAccountSelector } from '#/components/features/integration/google-account-selector'
 import { ConnectGoogleButton } from '#/components/features/integration/connect-google-button'
 import type { GoogleConnectionDto } from '#/contexts/integration/application/public-api'
+import type { listGbpLocations } from '#/contexts/integration/server/gbp-import'
 import { ImportLocationsSection } from './import-locations-section'
 import { useGbpLocations } from './use-gbp-locations'
 import type { Action } from '#/components/hooks/use-action'
@@ -10,6 +11,7 @@ import type { Action } from '#/components/hooks/use-action'
 type Props = Readonly<{
   connections: ReadonlyArray<GoogleConnectionDto>
   initialConnectionId?: string
+  listGbpLocations: typeof listGbpLocations
   getAuthUrl: (opts: {
     data: { visibility: 'private' | 'organization' }
   }) => Promise<{ url: string }>
@@ -35,6 +37,7 @@ export function ImportConnectedView({
   initialConnectionId,
   getAuthUrl,
   importAction,
+  listGbpLocations,
 }: Props) {
   const navigate = useNavigate()
   const [selectedConnectionId, setSelectedConnectionId] = useState<string | undefined>(
@@ -43,7 +46,10 @@ export function ImportConnectedView({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   // Data fetching delegated to hook — no effects or fetch callbacks in component
-  const { locations, isLoading, error } = useGbpLocations(selectedConnectionId)
+  const { locations, isLoading, error } = useGbpLocations(
+    selectedConnectionId,
+    listGbpLocations,
+  )
 
   const handleImport = async () => {
     if (!selectedConnectionId || selectedIds.size === 0) return

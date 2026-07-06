@@ -66,7 +66,7 @@ export const removeMember =
       await deps.events.emit(
         identityMemberRemoved({
           organizationId: ctx.organizationId,
-          userId: toUserId(input.memberId),
+          userId: toUserId(targetMember.userId),
           removedBy: ctx.userId,
           occurredAt: deps.clock(),
         }),

@@ -1,12 +1,9 @@
 // Inbox state hook — data fetching for the inbox list.
-//
-// NOTE: Imports getInboxItemsFn from server/ per the CONTEXT.md exception
-// for inbox-scoped data-fetching hooks. The hook is only used by the
-// inbox page and its self-contained sub-tree. Pure appliers + navigation
-// sub-hook live in inbox-state-helpers.ts.
+// Receives the getInboxItems server fn as a param per src/components/CONTEXT.md:55.
+// Pure appliers + navigation sub-hook live in inbox-state-helpers.ts.
 import { useServerFn } from '@tanstack/react-start'
 import { useAction } from '#/components/hooks/use-action'
-import { getInboxItemsFn } from '#/contexts/inbox/server/inbox'
+import type { getInboxItemsFn } from '#/contexts/inbox/server/inbox'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import type { InboxFilterValues } from '#/components/inbox/inbox-filters'
 import type {
@@ -28,6 +25,7 @@ export function useInboxState(
   filters: InboxFilterValues,
   selectedId: string | undefined,
   onNavigate: InboxNavigate,
+  getInboxItems: typeof getInboxItemsFn,
 ) {
   const [items, setItems] = useState<ReadonlyArray<InboxItem>>([])
   const [nextCursor, setNextCursor] = useState<Cursor | null>(null)
@@ -35,7 +33,7 @@ export function useInboxState(
   const [error, setError] = useState<string | null>(null)
   const [selectedIds, setSelectedIds] = useState<ReadonlyArray<string>>([])
 
-  const loadAction = useAction(useServerFn(getInboxItemsFn))
+  const loadAction = useAction(useServerFn(getInboxItems))
   // One ref holds both the request-id counter and the live action handle so
   // loadItems reads fresh values without re-creating its callback each render.
   const stateRef = useRef({ requestId: 0, action: loadAction })

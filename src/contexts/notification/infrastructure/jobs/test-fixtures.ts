@@ -64,10 +64,19 @@ export const createFakeUserLookup = (): FakeUserLookup => ({
 })
 
 export type FakeEmailSender = {
-  send: Mock
+  send: Mock<
+    (params: Readonly<{ to: string; subject: string; html: string }>) => Promise<void>
+  >
 }
 
 export const createFakeEmailSender = (): FakeEmailSender => ({ send: vi.fn() })
+
+export type FakeClock = Mock
+
+/** Fixed-date clock for deterministic transition timestamps. */
+export const createFakeClock = (
+  now: Date = new Date('2026-06-10T10:00:00Z'),
+): FakeClock => vi.fn(() => now)
 
 export type FakeJobLogger = LoggerPort
 

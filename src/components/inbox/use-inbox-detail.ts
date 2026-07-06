@@ -1,12 +1,11 @@
-// Shared hook for inbox item detail data fetching
+// Shared hook for inbox item detail data fetching.
 // Used by the inbox page for both the desktop inline panel and the mobile sheet.
-//
-// NOTE: Imports updateInboxStatusFn from server/ per the CONTEXT.md exception
-// for inbox-scoped data-fetching hooks. The hook is only used by the inbox page.
+// Receives server fns as a param per src/components/CONTEXT.md:55.
 // Fetch lifecycle + auto-mark-read live in inbox-detail-hooks.ts.
 import { useState } from 'react'
 import { useMutationAction } from '#/components/hooks/use-mutation-action'
-import { updateInboxStatusFn } from '#/contexts/inbox/server/inbox'
+import type { updateInboxStatusFn } from '#/contexts/inbox/server/inbox'
+import type { InboxServerFns } from './types'
 import type {
   InboxItem,
   InboxItemDetail,
@@ -35,29 +34,41 @@ export type InboxDetailState = Readonly<{
 export function useInboxDetail(
   item: InboxItem | null,
   active: boolean,
+  inboxFns: Pick<
+    InboxServerFns,
+    'getInboxItemDetail' | 'getInboxNotes' | 'updateInboxStatus'
+  >,
   options?: UseInboxDetailOptions,
 ): InboxDetailState {
   const [statusVersion, setStatusVersion] = useState(0)
   const { detail, notes, isLoading, error, reload, setDetail } = useDetailData(
     item,
     active,
+    inboxFns.getInboxItemDetail,
+    inboxFns.getInboxNotes,
   )
 
-  const lastMarkedId = useAutoMarkRead(item, active, options?.autoMarkRead, () => {
-    // Update local state directly — no re-fetch needed.
-    // Avoids triggering isLoading (skeleton flash).
-    setDetail((prev) =>
-      prev?.item
-        ? {
-            ...prev,
-            item: { ...prev.item, status: 'read' as const, updatedAt: new Date() },
-          }
-        : prev,
-    )
-    setStatusVersion((v) => v + 1)
-  })
+  const lastMarkedId = useAutoMarkRead(
+    item,
+    active,
+    options?.autoMarkRead,
+    () => {
+      // Update local state directly — no re-fetch needed.
+      // Avoids triggering isLoading (skeleton flash).
+      setDetail((prev) =>
+        prev?.item
+          ? {
+              ...prev,
+              item: { ...prev.item, status: 'read' as const, updatedAt: new Date() },
+            }
+          : prev,
+      )
+      setStatusVersion((v) => v + 1)
+    },
+    inboxFns.updateInboxStatus,
+  )
 
-  const updateStatus = useMutationAction(updateInboxStatusFn, {
+  const updateStatus = useMutationAction(inboxFns.updateInboxStatus, {
     successMessage: 'Status updated',
     onSuccess: () => {
       void reload().then(() => {

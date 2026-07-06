@@ -1,5 +1,6 @@
-// Reply editor inner form — extracted from reply-editor for line-count compliance
-// Contains mutation hooks and status-based rendering.
+// Server import exception per CONTEXT.md:48 — 6 mutations (draft/submit/
+// approve/reject/delete/retryPublish), above the ≥5 threshold. Value-imports
+// from #/contexts/review/server/reply are deliberate to avoid prop drilling.
 
 import {
   draftReplyFn,

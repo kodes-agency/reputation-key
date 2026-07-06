@@ -10,7 +10,8 @@ import { formatDateTime } from './utils'
 import { getStatusActions } from './inbox-detail-helpers'
 import { InboxDetailSourceContent } from './inbox-detail-source-content'
 import { InboxActivityTimeline } from './inbox-activity-timeline'
-import { updateInboxStatusFn } from '#/contexts/inbox/server/inbox'
+import type { updateInboxStatusFn } from '#/contexts/inbox/server/inbox'
+import type { InboxDetailFns } from './types'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import type {
   InboxItem,
@@ -27,6 +28,7 @@ export type DetailContentProps = Readonly<{
   notes: ReadonlyArray<InboxNote>
   onNoteAdded: () => void
   statusVersion?: number
+  detailFns: InboxDetailFns
 }>
 
 export function InboxDetailContent({
@@ -37,6 +39,7 @@ export function InboxDetailContent({
   notes,
   onNoteAdded,
   statusVersion,
+  detailFns,
 }: DetailContentProps) {
   const { can } = usePermissions()
   const canManageReplies = can('reply.manage')
@@ -87,16 +90,21 @@ export function InboxDetailContent({
       )}
 
       {currentItem.sourceType === 'review' && canManageReplies && (
-        <ReplyEditor reviewId={currentItem.sourceId} />
+        <ReplyEditor reviewId={currentItem.sourceId} getReply={detailFns.getReply} />
       )}
 
-      <InboxActivityTimeline inboxItemId={currentItem.id} refreshKey={statusVersion} />
+      <InboxActivityTimeline
+        inboxItemId={currentItem.id}
+        refreshKey={statusVersion}
+        getActivityTimeline={detailFns.getActivityTimeline}
+      />
 
       <div className="border-t pt-4">
         <InboxNotesThread
           notes={notes}
           inboxItemId={currentItem.id}
           onNoteAdded={onNoteAdded}
+          addInboxNote={detailFns.addInboxNote}
         />
       </div>
     </div>

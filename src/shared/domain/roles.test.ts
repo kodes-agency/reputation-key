@@ -3,6 +3,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { toDomainRole, toBetterAuthRole } from './roles'
+import { isDomainError } from './errors'
 
 describe('toDomainRole', () => {
   it('maps better-auth owner to AccountAdmin', () => {
@@ -21,6 +22,20 @@ describe('toDomainRole', () => {
     expect(() => toDomainRole('unknown')).toThrow('Unknown better-auth role: unknown')
     expect(() => toDomainRole('')).toThrow('Unknown better-auth role: ')
     expect(() => toDomainRole('custom')).toThrow('Unknown better-auth role: custom')
+  })
+
+  it('throws a typed DomainError (not a plain Error) for unknown roles', () => {
+    let caught: unknown
+    try {
+      toDomainRole('owner-x')
+    } catch (e) {
+      caught = e
+    }
+    expect(caught).toBeInstanceOf(Error)
+    expect(isDomainError(caught)).toBe(true)
+    const err = caught as { code: string; context?: Record<string, unknown> }
+    expect(err.code).toBe('unknown_role')
+    expect(err.context?.value).toBe('owner-x')
   })
 })
 

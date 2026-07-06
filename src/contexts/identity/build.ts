@@ -12,9 +12,13 @@ import { listInvitations } from './application/use-cases/list-invitations'
 import { resendInvitation } from './application/use-cases/resend-invitation'
 import { acceptInvitation } from './application/use-cases/accept-invitation'
 import { cancelInvitation } from './application/use-cases/cancel-invitation'
-import { registerUserAndOrg } from './application/use-cases/register-user-and-org'
+import {
+  registerUserAndOrg,
+  type RegisterUserAndOrgLogger,
+} from './application/use-cases/register-user-and-org'
 import { registerUser } from './application/use-cases/register-user'
 import { updateOrganization } from './application/use-cases/update-organization'
+import { getLogger } from '#/shared/observability/logger'
 
 /** Callback invoked after an invitation is accepted.
  * The composition root provides the implementation that creates
@@ -50,6 +54,9 @@ type IdentityContextDeps = Readonly<{
   baseUrl: string
   /** Delete a user (compensating transaction for registration rollback). */
   deleteUser: (userId: string) => Promise<void>
+  /** Logger for the register-user-and-org compensating transaction.
+   * Defaults to the shared pino logger; overridable for tests/simulations. */
+  logger?: RegisterUserAndOrgLogger
 }>
 
 export const buildIdentityContext = (deps: IdentityContextDeps) => {
@@ -93,6 +100,11 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
       setActiveOrg: deps.setActiveOrg,
       clock: deps.clock,
       deleteUser: deps.deleteUser,
+      logger:
+        deps.logger ??
+        ({
+          error: (obj: object, msg?: string) => getLogger().error(obj, msg),
+        } satisfies RegisterUserAndOrgLogger),
     }),
     registerUser: registerUser({ identity: deps.identityPort }),
     updateOrganization: updateOrganization({

@@ -7,7 +7,7 @@ import {
 } from '#/components/inbox/inbox-list-panel-v2'
 import { InboxSidebar } from '#/components/layout/inbox-sidebar'
 import { useInboxPage, type InboxPageNav } from './use-inbox-page'
-import { bulkUpdateInboxStatusFn } from '#/contexts/inbox/server/inbox'
+import type { InboxServerFns } from './types'
 import { useRef, useState } from 'react'
 import { Panel, PanelGroup } from 'react-resizable-panels'
 import {
@@ -33,7 +33,7 @@ export function InboxPageV2({
   search,
   properties,
   onNavigate,
-  bulkUpdateFn,
+  inboxFns,
   onPropertyChange,
   activePropertyId,
 }: {
@@ -41,24 +41,23 @@ export function InboxPageV2({
   search: InboxSearchParams
   properties?: ReadonlyArray<{ id: string; name: string }>
   onNavigate: InboxPageNav
-  bulkUpdateFn: typeof bulkUpdateInboxStatusFn
+  inboxFns: InboxServerFns
   /** Override for the property-switcher dropdown. */
   onPropertyChange?: (propertyId: string | undefined) => void
   /** Active property — from route param on /reviews, from search on /inbox. */
   activePropertyId?: string
 }) {
-  const orgId = ctx.activeOrganization?.id
   const effectivePropertyId = activePropertyId ?? search.propertyId
   const s = useInboxPage(
-    orgId,
+    ctx.activeOrganization?.id,
     { ...search, propertyId: effectivePropertyId },
     onNavigate,
+    inboxFns,
   )
   const listRef = useRef<HTMLDivElement>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const folderLabel = folderLabelFor(s.folder)
 
-  if (!orgId) return <InboxNoOrgState />
+  if (!ctx.activeOrganization?.id) return <InboxNoOrgState />
 
   const handlePropertyChange =
     onPropertyChange ??
@@ -69,7 +68,7 @@ export function InboxPageV2({
       }))
 
   const listPanelProps: InboxListPanelProps = {
-    folderLabel,
+    folderLabel: folderLabelFor(s.folder),
     newCount: s.newCount,
     showTabs: s.folder === undefined,
     activeTab: s.tab,
@@ -91,7 +90,7 @@ export function InboxPageV2({
     onRowClick: s.handleRowClick,
     onLoadMore: s.loadItems,
     onBulkDone: s.handleBulkDone,
-    bulkUpdateFn,
+    bulkUpdateFn: inboxFns.bulkUpdateInboxStatus,
   }
 
   // Mobile: the list fills the viewport. Folders/categories live in a left
@@ -121,6 +120,7 @@ export function InboxPageV2({
                 setSidebarOpen(false)
               }}
               onNavigate={() => setSidebarOpen(false)}
+              getInboxFolderCounts={inboxFns.getInboxFolderCounts}
             />
           </SheetContent>
         </Sheet>
@@ -131,6 +131,7 @@ export function InboxPageV2({
           }}
           item={s.selectedItem}
           detailState={s.detailState}
+          detailFns={inboxFns}
         />
       </div>
     )
@@ -143,6 +144,7 @@ export function InboxPageV2({
           propertyId={effectivePropertyId}
           properties={properties}
           onPropertyChange={handlePropertyChange}
+          getInboxFolderCounts={inboxFns.getInboxFolderCounts}
         />
       </Panel>
       <ResizeHandle />
@@ -155,6 +157,7 @@ export function InboxPageV2({
         detailState={s.detailState}
         isMobile={s.isMobile}
         onClose={s.closeDetail}
+        detailFns={inboxFns}
       />
     </PanelGroup>
   )

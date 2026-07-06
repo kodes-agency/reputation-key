@@ -7,6 +7,7 @@ import { isStaffError } from '../../domain/errors'
 import type { StaffAssignmentId } from '../../domain/types'
 import type { StaffPublicApi } from '../public-api'
 import { staffAssignmentId } from '#/shared/domain/ids'
+import type { IdentityMembershipPort } from '../ports/identity-membership.port'
 import { userId, propertyId } from '#/shared/domain/ids'
 
 const FIXED_ID = staffAssignmentId(
@@ -28,7 +29,12 @@ const noAccessStaffApi: StaffPublicApi = {
   countAssignmentsByTeam: async () => 0,
 }
 
-const setup = (staffApi: StaffPublicApi = allAccessStaffApi) => {
+const allowAllMembership: IdentityMembershipPort = { isMember: async () => true }
+
+const setup = (
+  staffApi: StaffPublicApi = allAccessStaffApi,
+  membership: IdentityMembershipPort = allowAllMembership,
+) => {
   const assignmentRepo = createInMemoryStaffAssignmentRepo()
   const events = createCapturingEventBus()
 
@@ -36,6 +42,7 @@ const setup = (staffApi: StaffPublicApi = allAccessStaffApi) => {
     assignmentRepo,
     events,
     staffPublicApi: staffApi,
+    identityMembership: membership,
     idGen: () => FIXED_ID,
     clock: () => FIXED_TIME,
   }
@@ -172,6 +179,7 @@ describe('createStaffAssignment', () => {
       assignmentRepo: spiedRepo,
       events,
       staffPublicApi: allAccessStaffApi,
+      identityMembership: allowAllMembership,
       idGen: () => FIXED_ID,
       clock: () => FIXED_TIME,
     }
@@ -185,5 +193,38 @@ describe('createStaffAssignment', () => {
         ctx,
       ),
     ).rejects.toThrow('connection refused')
+  })
+})
+
+describe('createStaffAssignment — org-membership validation (ADR 0006)', () => {
+  it('rejects when the target user is not a member of the organization', async () => {
+    // The membership port reports the target user is NOT a member of
+    // ctx.organizationId — the use case must reject before any assignment
+    // row is created, even when the actor has property access.
+    const rejectMembership: IdentityMembershipPort = { isMember: async () => false }
+    const { useCase, assignmentRepo } = setup(allAccessStaffApi, rejectMembership)
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+
+    await expect(
+      useCase(
+        { userId: FIXED_USER as string, propertyId: FIXED_PROPERTY as string },
+        ctx,
+      ),
+    ).rejects.toSatisfy((e) => isStaffError(e) && e.code === 'invalid_input')
+
+    // No dangling row must be persisted for the forged userId.
+    expect(assignmentRepo.all()).toHaveLength(0)
+  })
+
+  it('allows creation when the target user is a member of the organization', async () => {
+    const { useCase, assignmentRepo } = setup(allAccessStaffApi, allowAllMembership)
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+
+    const assignment = await useCase(
+      { userId: FIXED_USER as string, propertyId: FIXED_PROPERTY as string },
+      ctx,
+    )
+    expect(assignment.userId).toBe(FIXED_USER)
+    expect(assignmentRepo.all()).toHaveLength(1)
   })
 })

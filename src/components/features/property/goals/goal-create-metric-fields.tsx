@@ -57,7 +57,7 @@ export function GoalMetricFields({
       <Field>
         <FieldLabel>Metric Key</FieldLabel>
         <Select value={metricKey} onValueChange={$.metricKey}>
-          <SelectTrigger className="w-full">
+          <SelectTrigger className="w-full" aria-label="Metric key">
             <SelectValue placeholder="Select a metric" />
           </SelectTrigger>
           <SelectContent>
@@ -79,7 +79,7 @@ export function GoalMetricFields({
           onValueChange={(v) => $.aggregation(v)}
           disabled={!metricKey}
         >
-          <SelectTrigger className="w-full">
+          <SelectTrigger className="w-full" aria-label="Aggregation">
             <SelectValue
               placeholder={metricKey ? 'Select aggregation' : 'Select a metric first'}
             />

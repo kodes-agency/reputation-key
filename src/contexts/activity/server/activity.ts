@@ -11,11 +11,28 @@ import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { propertyId } from '#/shared/domain/ids'
 import { z } from 'zod'
+import type { ResourceType } from '../domain/types'
 
 // ── getActivityTimelineFn ───────────────────────────────────────────
 
+// Derive accepted resourceType values from the domain ResourceType union so the
+// DTO cannot drift from the domain (ctx-small §6): team / staff_assignment /
+// integration activity was previously rejected with a 400 because the enum
+// listed only 6 of the 9 ResourceTypes that handlers write.
+const RESOURCE_TYPES = [
+  'inbox_item',
+  'review',
+  'reply',
+  'note',
+  'property',
+  'member',
+  'team',
+  'staff_assignment',
+  'integration',
+] as const satisfies readonly ResourceType[]
+
 const getActivityTimelineDto = z.object({
-  resourceType: z.enum(['inbox_item', 'review', 'reply', 'note', 'property', 'member']),
+  resourceType: z.enum(RESOURCE_TYPES),
   resourceId: z.string(),
   limit: z.coerce.number().min(1).max(100).optional().default(50),
 })
