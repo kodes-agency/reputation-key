@@ -2,6 +2,7 @@
 // so Drizzle kit and the DB connection can reference a single entry point.
 
 export * from './auth'
+export * from './dac.schema'
 export * from './audit'
 export * from './property.schema'
 export * from './team.schema'
