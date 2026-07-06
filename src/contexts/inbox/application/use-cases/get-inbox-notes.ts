@@ -10,6 +10,7 @@ import type { Role } from '#/shared/domain/roles'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { can } from '#/shared/domain/permissions'
 import { inboxError } from '../../domain/errors'
+import { assertPropertyAccessible } from '../inbox-access'
 
 export type GetInboxNotesInput = Readonly<{
   inboxItemId: InboxItemId
@@ -39,18 +40,16 @@ export const getInboxNotes =
       })
     }
 
-    if (!can(input.role, 'inbox.manage')) {
-      const accessible = await deps.staffPublicApi.getAccessiblePropertyIds(
-        input.organizationId,
-        input.userId,
-        input.role,
-      )
-      if (accessible !== null && !accessible.includes(item.propertyId)) {
-        throw inboxError('forbidden', 'No access to this property', {
-          propertyId: item.propertyId,
-        })
-      }
-    }
+    // Enforce role-scoped property access via the shared guard.
+    // AccountAdmin bypasses; PropertyManager/Staff are scoped to their
+    // staff_assignment properties (CONTEXT.md L72).
+    await assertPropertyAccessible(
+      deps.staffPublicApi,
+      input.organizationId,
+      input.userId,
+      input.role,
+      item.propertyId,
+    )
 
     return deps.noteRepo.findByInboxItemId(input.inboxItemId, input.organizationId)
   }

@@ -46,14 +46,21 @@ const makeItem = ({
     ...overrides,
   }) satisfies InboxItem
 
-const setup = () => {
+const allAccessStaffApi: StaffPublicApi = {
+  getAccessiblePropertyIds: async () => null,
+  getAssignedPortals: async () => [],
+  countAssignmentsByTeam: async () => 0,
+}
+
+const createScopedStaffApi = (ids: ReadonlyArray<string>): StaffPublicApi => ({
+  getAccessiblePropertyIds: async () => ids.map(propertyId),
+  getAssignedPortals: async () => [],
+  countAssignmentsByTeam: async () => 0,
+})
+
+const setup = (staffApi: StaffPublicApi = allAccessStaffApi) => {
   const repo = createInMemoryInboxRepo()
-  const staffPublicApi: StaffPublicApi = {
-    getAccessiblePropertyIds: async () => null,
-    getAssignedPortals: async () => [],
-    countAssignmentsByTeam: async () => 0,
-  }
-  const deps = { repo, staffPublicApi }
+  const deps = { repo, staffPublicApi: staffApi }
   const useCase = getInboxFolderCounts(deps)
 
   return { useCase, repo }
@@ -120,5 +127,54 @@ describe('getInboxFolderCounts', () => {
         role: 'Guest' as unknown as Role,
       }),
     ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'forbidden')
+  })
+
+  it('scopes PropertyManager to assigned properties (PM is NOT org-wide for inbox)', async () => {
+    // PM holds inbox.manage, but per CONTEXT.md L72 PM only manages ASSIGNED
+    // properties — folder counts must scope PM via staff_assignment.
+    const { useCase, repo } = setup(createScopedStaffApi(['prop-1']))
+    repo.items.push(makeItem({ id: 'ii-1', status: 'new' }))
+    repo.items.push(
+      makeItem({ id: 'ii-2', status: 'new', propertyId: propertyId('prop-2') }),
+    )
+
+    const counts = await useCase({
+      organizationId: ORG_ID,
+      userId: USER_ID,
+      role: 'PropertyManager' as Role,
+    })
+
+    // PM assigned to prop-1 only: counts the assigned item, not the prop-2 one
+    expect(counts.inbox).toBe(1)
+    expect(counts.unaddressed).toBe(1)
+  })
+
+  it('counts zero for PropertyManager with no property assignments', async () => {
+    const { useCase, repo } = setup(createScopedStaffApi([]))
+    repo.items.push(makeItem({ id: 'ii-1', status: 'new' }))
+
+    const counts = await useCase({
+      organizationId: ORG_ID,
+      userId: USER_ID,
+      role: 'PropertyManager' as Role,
+    })
+
+    expect(counts.inbox).toBe(0)
+  })
+
+  it('scopes Staff to assigned properties', async () => {
+    const { useCase, repo } = setup(createScopedStaffApi(['prop-1']))
+    repo.items.push(makeItem({ id: 'ii-1', status: 'new' }))
+    repo.items.push(
+      makeItem({ id: 'ii-2', status: 'new', propertyId: propertyId('prop-2') }),
+    )
+
+    const counts = await useCase({
+      organizationId: ORG_ID,
+      userId: USER_ID,
+      role: 'Staff' as Role,
+    })
+
+    expect(counts.inbox).toBe(1)
   })
 })

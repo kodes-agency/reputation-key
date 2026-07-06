@@ -69,7 +69,7 @@ export function InboxFilters({ value, onChange, properties }: Props) {
           update({ status: v === 'all' ? undefined : (v as InboxStatus) })
         }
       >
-        <SelectTrigger size="sm" className="w-[130px]">
+        <SelectTrigger size="sm" aria-label="Filter by status" className="w-[130px]">
           <SelectValue placeholder="All statuses" />
         </SelectTrigger>
         <SelectContent>
@@ -88,7 +88,7 @@ export function InboxFilters({ value, onChange, properties }: Props) {
           update({ sourceType: v === 'all' ? undefined : (v as SourceType) })
         }
       >
-        <SelectTrigger size="sm" className="w-[130px]">
+        <SelectTrigger size="sm" aria-label="Filter by source" className="w-[130px]">
           <SelectValue placeholder="All sources" />
         </SelectTrigger>
         <SelectContent>
@@ -105,7 +105,7 @@ export function InboxFilters({ value, onChange, properties }: Props) {
         value={value.platform ?? 'all'}
         onValueChange={(v) => update({ platform: v === 'all' ? undefined : v })}
       >
-        <SelectTrigger size="sm" className="w-[150px]">
+        <SelectTrigger size="sm" aria-label="Filter by platform" className="w-[150px]">
           <SelectValue placeholder="All platforms" />
         </SelectTrigger>
         <SelectContent>

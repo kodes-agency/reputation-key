@@ -34,7 +34,18 @@ export const getNewCount =
       throw inboxError('forbidden', 'No inbox read permission')
     }
 
-    // 1. Try counter first
+    // 1. Try counter first.
+    // TODO(counter-key, ccInbox MAJOR): the new counter is keyed by orgId only
+    //    (see NewCounterPort design note), so it holds the ORG-WIDE new count.
+    //    When warm, step 1 returns that org-wide count to ALL roles — including
+    //    PropertyManager/Staff, who must be scoped to their assigned properties.
+    //    Fully scoping them needs a per-(org, accessiblePropertyIds) counter key
+    //    (or per role-scope invalidation), which is a separate piece of work
+    //    tracked as the ccInbox MAJOR finding. Until then, scoped roles only
+    //    receive a correctly-scoped count via the DB-fallback path below (when
+    //    the counter is cold/unavailable). AccountAdmin is correct either way.
+    //    CHANGELOG: when the counter key becomes per-scope, remove this note
+    //    and route PM/Staff through the scoped count unconditionally.
     try {
       const count = await deps.newCounter.getCount(input.organizationId)
       if (count > 0) return count
@@ -43,15 +54,22 @@ export const getNewCount =
       deps.logger.warn({ err: e }, 'New counter unavailable, falling back to repo count')
     }
 
-    // 2. Fallback: count from repo, warm the counter cache
-    // Resolve property scoping for roles without inbox.manage (Staff).
+    // 2. Fallback: count from repo, warm the counter cache.
+    // Resolve property scoping: AccountAdmin sees org-wide; PropertyManager/Staff
+    // are scoped to their staff_assignment properties.
+    // (PM holds inbox.manage but is NOT org-wide — CONTEXT.md L72.)
     let propertyIds: ReadonlyArray<PropertyId> | undefined
-    if (!can(input.role, 'inbox.manage')) {
+    if (input.role !== 'AccountAdmin') {
       const accessible = await deps.staffPublicApi.getAccessiblePropertyIds(
         input.organizationId,
         input.userId,
         input.role,
       )
+      // No assignments → no visible new items. The repo treats propertyIds=[]
+      // as "no filter" (org-wide), so short-circuit to 0 to avoid leaking
+      // org-wide counts to a scoped user with no property assignments.
+      // (The warm-counter path above is still org-wide — see ccInbox MAJOR TODO.)
+      if (accessible !== null && accessible.length === 0) return 0
       propertyIds = accessible ?? undefined
     }
 

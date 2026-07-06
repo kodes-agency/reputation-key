@@ -36,9 +36,10 @@ export const getInboxItems =
 
     let propertyIds: ReadonlyArray<ReturnType<typeof toPropertyId>> | undefined
 
-    // Property scoping: users with inbox.manage see all properties;
-    // others are scoped to their accessible properties
-    if (!can(input.role, 'inbox.manage')) {
+    // Property scoping: AccountAdmin sees all properties org-wide;
+    // PropertyManager/Staff are scoped to their staff_assignment properties.
+    // (PM holds inbox.manage but is NOT org-wide — CONTEXT.md L72.)
+    if (input.role !== 'AccountAdmin') {
       const accessible = await deps.staffPublicApi.getAccessiblePropertyIds(
         input.organizationId,
         input.userId,

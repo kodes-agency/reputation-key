@@ -489,6 +489,9 @@ export default tseslint.config(
       'src/components/features/team/team-members/team-member-list.tsx',
       'src/components/layout/manager-sidebar.tsx',
       'src/components/layout/staff-sidebar.tsx',
+      // Story files are fixtures (many variants), not components — not subject to the monolith limit.
+      'src/**/*.stories.tsx',
+      'src/**/*.stories.ts',
     ],
     files: ['src/components/**/*.{ts,tsx}'],
     rules: {

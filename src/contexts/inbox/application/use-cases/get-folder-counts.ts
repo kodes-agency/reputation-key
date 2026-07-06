@@ -36,15 +36,22 @@ export const getInboxFolderCounts =
       throw inboxError('forbidden', 'No inbox read permission')
     }
 
-    // Resolve property scoping for roles without inbox.manage (Staff).
-    // AccountAdmin/PropertyManager (inbox.manage) see org-wide counts.
+    // Resolve property scoping: AccountAdmin sees org-wide counts;
+    // PropertyManager/Staff are scoped to their staff_assignment properties.
+    // (PM holds inbox.manage but is NOT org-wide — CONTEXT.md L72.)
     let propertyIds: ReadonlyArray<PropertyId> | undefined
-    if (!can(input.role, 'inbox.manage')) {
+    if (input.role !== 'AccountAdmin') {
       const accessible = await deps.staffPublicApi.getAccessiblePropertyIds(
         input.organizationId,
         input.userId,
         input.role,
       )
+      // No assignments → no visible items. The repo treats propertyIds=[] as
+      // "no filter" (org-wide), so short-circuit to zeros to avoid leaking
+      // org-wide counts to a scoped user with no property assignments.
+      if (accessible !== null && accessible.length === 0) {
+        return { inbox: 0, unaddressed: 0, escalated: 0, addressed: 0, archived: 0 }
+      }
       propertyIds = accessible ?? undefined
     }
 

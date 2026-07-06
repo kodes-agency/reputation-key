@@ -27,13 +27,6 @@ const adminStaffApi: StaffPublicApi = {
   countAssignmentsByTeam: async () => 0,
 }
 
-// Mock: PropertyManager gets null (all access — PM has inbox.manage)
-const pmStaffApi: StaffPublicApi = {
-  getAccessiblePropertyIds: async () => null,
-  getAssignedPortals: async () => [],
-  countAssignmentsByTeam: async () => 0,
-}
-
 // Mock: Staff gets specific property IDs (scoped)
 const createScopedStaffApi = (ids: ReadonlyArray<string>): StaffPublicApi => ({
   getAccessiblePropertyIds: async () => ids.map(propertyId),
@@ -220,7 +213,7 @@ describe('getInboxItems', () => {
 
   // ── Property scoping tests (F-14 fix) ──────────────────────────────
 
-  it('AccountAdmin sees all properties (has inbox.manage)', async () => {
+  it('AccountAdmin sees all properties (org-wide role bypass)', async () => {
     const { useCase, repo } = setup(adminStaffApi)
     repo.items.push(seedItem({ id: 'ii-1', propertyId: PROP_ID }))
     repo.items.push(seedItem({ id: 'ii-2', propertyId: OTHER_PROP_ID }))
@@ -234,8 +227,11 @@ describe('getInboxItems', () => {
     expect(result.items).toHaveLength(2)
   })
 
-  it('PropertyManager sees all properties (has inbox.manage)', async () => {
-    const { useCase, repo } = setup(pmStaffApi)
+  it('scopes PropertyManager to assigned properties (PM is NOT org-wide for inbox)', async () => {
+    // PM holds inbox.manage, but per root CONTEXT.md L72 PM only manages
+    // ASSIGNED properties — the read path must scope PM via staff_assignment.
+    const scopedApi = createScopedStaffApi(['prop-1'])
+    const { useCase, repo } = setup(scopedApi)
     repo.items.push(seedItem({ id: 'ii-1', propertyId: PROP_ID }))
     repo.items.push(seedItem({ id: 'ii-2', propertyId: OTHER_PROP_ID }))
 
@@ -245,7 +241,38 @@ describe('getInboxItems', () => {
       filters: {},
     })
 
-    expect(result.items).toHaveLength(2)
+    // Only the assigned property's item is visible
+    expect(result.items).toHaveLength(1)
+    expect(result.items[0].propertyId).toBe(PROP_ID)
+  })
+
+  it('allows PropertyManager to filter by an assigned property', async () => {
+    const scopedApi = createScopedStaffApi(['prop-1'])
+    const { useCase, repo } = setup(scopedApi)
+    repo.items.push(seedItem({ id: 'ii-1', propertyId: PROP_ID }))
+
+    const result = await useCase({
+      organizationId: ORG_ID,
+      ...pmInput,
+      filters: { propertyId: PROP_ID },
+    })
+
+    expect(result.items).toHaveLength(1)
+    expect(result.items[0].propertyId).toBe(PROP_ID)
+  })
+
+  it('denies PropertyManager when filtering by an unassigned property', async () => {
+    const scopedApi = createScopedStaffApi(['prop-1'])
+    const { useCase, repo } = setup(scopedApi)
+    repo.items.push(seedItem({ id: 'ii-1', propertyId: PROP_ID }))
+
+    await expect(
+      useCase({
+        organizationId: ORG_ID,
+        ...pmInput,
+        filters: { propertyId: OTHER_PROP_ID },
+      }),
+    ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'forbidden')
   })
 
   it('Staff is property-scoped to accessible properties only', async () => {

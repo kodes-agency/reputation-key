@@ -274,6 +274,52 @@ describe('bulkUpdateInboxStatus', () => {
     expectItemStatuses(repo, 'read', 'new')
   })
 
+  it('scopes PropertyManager to assigned properties (PM is NOT org-wide for inbox)', async () => {
+    // PM holds inbox.manage, but per CONTEXT.md L72 PM only manages ASSIGNED
+    // properties — the bulk path must filter PM via staff_assignment.
+    const staffApi: StaffPublicApi = {
+      getAccessiblePropertyIds: async () => [propertyId('prop-1')],
+      getAssignedPortals: async () => [],
+      countAssignmentsByTeam: async () => 0,
+    }
+    const { useCase, repo } = setup(staffApi)
+    repo.items.push(seedItem('ii-1', 'new', 'prop-1'))
+    repo.items.push(seedItem('ii-2', 'new', 'prop-2'))
+
+    const result = await useCase({
+      inboxItemIds: [inboxItemId('ii-1'), inboxItemId('ii-2')],
+      organizationId: ORG_ID,
+      newStatus: 'read',
+      userId: USER_ID,
+      role: 'PropertyManager' as Role,
+    })
+
+    // Only the assigned property's item transitions
+    expect(result.updated).toBe(1)
+    expectItemStatuses(repo, 'read', 'new')
+  })
+
+  it('skips all items for PropertyManager with no property assignments', async () => {
+    const staffApi: StaffPublicApi = {
+      getAccessiblePropertyIds: async () => [],
+      getAssignedPortals: async () => [],
+      countAssignmentsByTeam: async () => 0,
+    }
+    const { useCase, repo } = setup(staffApi)
+    repo.items.push(seedItem('ii-1', 'new', 'prop-1'))
+
+    const result = await useCase({
+      inboxItemIds: [inboxItemId('ii-1')],
+      organizationId: ORG_ID,
+      newStatus: 'read',
+      userId: USER_ID,
+      role: 'PropertyManager' as Role,
+    })
+
+    expect(result.updated).toBe(0)
+    expect(repo.items[0].status).toBe('new')
+  })
+
   it('processes all items for AccountAdmin', async () => {
     const staffApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => {

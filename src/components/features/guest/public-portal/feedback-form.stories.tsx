@@ -84,3 +84,23 @@ export const Success: Story = {
     expect(await canvas.findByText(/thank you for your feedback/i)).toBeInTheDocument()
   },
 }
+
+// Honeypot-tripped submission: the server signals `{ success: true, blocked:
+// true }`. The component's blocked branch silently resolves to the same
+// thank-you confirmation a legit submission shows — bots get no signal that
+// they were caught. Covers the branch the regular Success path skips.
+export const HoneypotBlocked: Story = {
+  args: {
+    portalId: 'portal-1',
+    source: 'direct',
+    submitFeedback: mockServerFn<FeedbackInput, { success: true; blocked: true }>(
+      async () => ({ success: true, blocked: true }),
+    ),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.type(canvas.getByRole('textbox'), 'spam payload')
+    await userEvent.click(canvas.getByRole('button', { name: /send feedback/i }))
+    expect(await canvas.findByText(/thank you for your feedback/i)).toBeInTheDocument()
+  },
+}

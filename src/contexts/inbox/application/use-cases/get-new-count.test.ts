@@ -46,7 +46,19 @@ const makeItem = ({
     ...overrides,
   }) satisfies InboxItem
 
-const setup = () => {
+const allAccessStaffApi: StaffPublicApi = {
+  getAccessiblePropertyIds: async () => null,
+  getAssignedPortals: async () => [],
+  countAssignmentsByTeam: async () => 0,
+}
+
+const scopedStaffApi = (ids: ReadonlyArray<string>): StaffPublicApi => ({
+  getAccessiblePropertyIds: async () => ids.map(propertyId),
+  getAssignedPortals: async () => [],
+  countAssignmentsByTeam: async () => 0,
+})
+
+const setup = (staffApi: StaffPublicApi = allAccessStaffApi) => {
   const repo = createInMemoryInboxRepo()
 
   let counterValue = 0
@@ -68,11 +80,7 @@ const setup = () => {
     newCounter,
     repo,
     logger: createMockLogger(),
-    staffPublicApi: {
-      getAccessiblePropertyIds: async () => null,
-      getAssignedPortals: async () => [],
-      countAssignmentsByTeam: async () => 0,
-    } as StaffPublicApi,
+    staffPublicApi: staffApi,
   }
   const useCase = getNewCount(deps)
 
@@ -146,5 +154,52 @@ describe('getNewCount', () => {
     })
 
     expect(count).toBe(0)
+  })
+
+  it('scopes PropertyManager to assigned properties on DB fallback (PM is NOT org-wide)', async () => {
+    // Counter returns 0 → forces the DB fallback, which applies the PM scope.
+    // (When the counter is warm it returns org-wide — see the ccInbox MAJOR
+    //  TODO in get-new-count.ts; the counter-key change is tracked separately.)
+    const { useCase, repo, setCounterValue } = setup(scopedStaffApi(['prop-1']))
+    setCounterValue(0)
+    repo.items.push(makeItem({ id: 'ii-1' })) // prop-1 (assigned)
+    repo.items.push(makeItem({ id: 'ii-2', propertyId: propertyId('prop-2') }))
+
+    const count = await useCase({
+      organizationId: ORG_ID,
+      userId: USER_ID,
+      role: 'PropertyManager',
+    })
+
+    expect(count).toBe(1) // only the assigned property's new item
+  })
+
+  it('returns 0 for PropertyManager with no assignments on DB fallback', async () => {
+    const { useCase, repo, setCounterValue } = setup(scopedStaffApi([]))
+    setCounterValue(0)
+    repo.items.push(makeItem({ id: 'ii-1' }))
+
+    const count = await useCase({
+      organizationId: ORG_ID,
+      userId: USER_ID,
+      role: 'PropertyManager',
+    })
+
+    expect(count).toBe(0)
+  })
+
+  it('scopes Staff to assigned properties on DB fallback', async () => {
+    const { useCase, repo, setCounterValue } = setup(scopedStaffApi(['prop-1']))
+    setCounterValue(0)
+    repo.items.push(makeItem({ id: 'ii-1' }))
+    repo.items.push(makeItem({ id: 'ii-2', propertyId: propertyId('prop-2') }))
+
+    const count = await useCase({
+      organizationId: ORG_ID,
+      userId: USER_ID,
+      role: 'Staff',
+    })
+
+    expect(count).toBe(1)
   })
 })

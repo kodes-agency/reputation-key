@@ -156,12 +156,38 @@ describe('getInboxNotes', () => {
     ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'forbidden')
   })
 
-  it('allows PropertyManager to access notes for any property (inbox.read bypasses property check)', async () => {
-    // PropertyManager has inbox.read, so can() passes and the property access check is skipped
+  it('scopes PropertyManager to assigned properties (PM is NOT org-wide for inbox)', async () => {
+    // PM holds inbox.read/inbox.manage, but per CONTEXT.md L72 PM only manages
+    // ASSIGNED properties — assertPropertyAccessible enforces the scope.
     const noteRepo = createInMemoryNoteRepo()
     const scopedApi = createScopedStaffApi(['other-prop'])
     const repo = createInMemoryInboxRepo()
-    repo.items.push(makeItem())
+    repo.items.push(makeItem()) // item is on PROP_ID (prop-1); PM NOT assigned
+
+    const useCase = getInboxNotes({ noteRepo, repo, staffPublicApi: scopedApi })
+    await expect(
+      useCase({
+        inboxItemId: ITEM_ID,
+        organizationId: ORG_ID,
+        userId: USER_ID,
+        role: 'PropertyManager',
+      }),
+    ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'forbidden')
+  })
+
+  it('allows PropertyManager to read notes for an assigned property', async () => {
+    const noteRepo = createInMemoryNoteRepo()
+    noteRepo.notes.push({
+      id: inboxNoteId('note-1'),
+      inboxItemId: ITEM_ID,
+      organizationId: ORG_ID,
+      userId: USER_ID,
+      text: 'PM-visible note',
+      createdAt: FIXED_TIME,
+    })
+    const scopedApi = createScopedStaffApi(['prop-1']) // PM assigned to prop-1
+    const repo = createInMemoryInboxRepo()
+    repo.items.push(makeItem()) // item on prop-1
 
     const useCase = getInboxNotes({ noteRepo, repo, staffPublicApi: scopedApi })
     const result = await useCase({
@@ -171,7 +197,7 @@ describe('getInboxNotes', () => {
       role: 'PropertyManager',
     })
 
-    // No forbidden error — PropertyManager has inbox.read
-    expect(result).toHaveLength(0)
+    expect(result).toHaveLength(1)
+    expect(result[0]!.text).toBe('PM-visible note')
   })
 })

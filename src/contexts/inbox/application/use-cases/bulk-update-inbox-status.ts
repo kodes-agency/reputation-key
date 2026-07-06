@@ -32,9 +32,10 @@ export type BulkUpdateInboxStatusDeps = Readonly<{
   logger: LoggerPort
 }>
 
-// `accessible` is null for roles holding inbox.manage (no filtering); an
-// explicit list for scoped roles. `ok: false` means access resolution failed
-// and the whole operation must no-op.
+// `accessible` is null for AccountAdmin (no filtering); an explicit list for
+// PropertyManager/Staff (scoped). `ok: false` means access resolution failed
+// and the whole operation must no-op. (PM holds inbox.manage but is NOT
+// org-wide — CONTEXT.md L72.)
 type AccessResolution = Readonly<
   { ok: true; accessible: ReadonlyArray<PropertyId> | null } | { ok: false }
 >
@@ -45,7 +46,7 @@ const resolveAccessiblePropertyIds = async (
   deps: BulkUpdateInboxStatusDeps,
   input: BulkUpdateInboxStatusInput,
 ): Promise<AccessResolution> => {
-  if (can(input.role, 'inbox.manage')) return { ok: true, accessible: null }
+  if (input.role === 'AccountAdmin') return { ok: true, accessible: null }
   try {
     return {
       ok: true,
