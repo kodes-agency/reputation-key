@@ -6,6 +6,7 @@ import type { IdentityPort } from './application/ports/identity.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { EventBus } from '#/shared/events/event-bus'
 import { inviteMember } from './application/use-cases/invite-member'
+import { createCustomRole } from './application/use-cases/create-custom-role'
 import { updateMemberRole } from './application/use-cases/update-member-role'
 import { removeMember } from './application/use-cases/remove-member'
 import { listInvitations } from './application/use-cases/list-invitations'
@@ -110,6 +111,7 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     updateOrganization: updateOrganization({
       updateOrg: deps.updateOrg,
     }),
+    createCustomRole: createCustomRole({ identity: deps.identityPort }),
   } as const
 
   return { publicApi: {} as const, internal: { repos: {} as const, useCases } } as const

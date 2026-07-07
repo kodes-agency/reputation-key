@@ -5,8 +5,13 @@
 
 import type { Database } from '#/shared/db'
 import { eq, sql } from 'drizzle-orm'
-import { user as userTable } from '#/shared/db/schema/auth'
+import { organizationRole, user as userTable } from '#/shared/db/schema/auth'
 import { getLogger } from '#/shared/observability/logger'
+import { organizationRolePolicy } from '#/shared/db/schema/dac.schema'
+import { buildPermissionStatement } from '#/shared/auth/permission-catalogue'
+import { randomUUID } from 'crypto'
+import type { Permission } from '#/shared/domain/permissions'
+import type { DataScope } from '#/shared/domain/data-scope'
 import type {
   IdentityPort,
   MemberRecord,
@@ -372,6 +377,37 @@ export const createBetterAuthIdentityAdapter = (db: Database): IdentityPort => {
     async deleteUser(userId: string): Promise<void> {
       await db.delete(userTable).where(eq(userTable.id, userId))
     },
+
+    async createCustomRole(
+      ctx: AuthContext,
+      input: Readonly<{
+        role: string
+        permissions: ReadonlyArray<Permission>
+        dataScope: DataScope
+      }>,
+    ): Promise<void> {
+      const role = input.role.trim().toLowerCase()
+      try {
+        await db.transaction(async (tx) => {
+          await tx.insert(organizationRole).values({
+            id: randomUUID(),
+            organizationId: ctx.organizationId as string,
+            role,
+            permission: JSON.stringify(buildPermissionStatement(input.permissions)),
+          })
+          await tx.insert(organizationRolePolicy).values({
+            organizationId: ctx.organizationId as string,
+            role,
+            dataScope: input.dataScope,
+          })
+        })
+      } catch (e) {
+        if (isUniqueViolation(e)) {
+          throw identityError('already_exists', `Role "${role}" already exists`)
+        }
+        throw e
+      }
+    },
   }
 }
 
@@ -381,4 +417,14 @@ function hashStringToInteger(str: string): number {
     hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0
   }
   return Math.abs(hash)
+}
+
+/** True when a Postgres unique-constraint violation (SQLSTATE 23505) caused the error. */
+function isUniqueViolation(e: unknown): boolean {
+  return (
+    typeof e === 'object' &&
+    e !== null &&
+    'code' in e &&
+    (e as { code: unknown }).code === '23505'
+  )
 }

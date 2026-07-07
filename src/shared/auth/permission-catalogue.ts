@@ -84,3 +84,22 @@ export function parsePermissionStatement(
   }
   return result
 }
+
+/**
+ * Inverse of parsePermissionStatement: group a permission set into the `{ resource: action[] }`
+ * statement shape stored on organizationRole.permission. A permission splits on its FIRST
+ * dot (resource . action) so actions that themselves contain dots (e.g. password.change)
+ * stay intact. Used by the app-owned role-write services.
+ */
+export function buildPermissionStatement(
+  perms: ReadonlyArray<Permission>,
+): Readonly<Record<string, string[]>> {
+  const stmt: Record<string, string[]> = {}
+  for (const p of perms) {
+    const dot = p.indexOf('.')
+    const resource = dot === -1 ? p : p.slice(0, dot)
+    const action = dot === -1 ? '' : p.slice(dot + 1)
+    ;(stmt[resource] ??= []).push(action)
+  }
+  return stmt
+}

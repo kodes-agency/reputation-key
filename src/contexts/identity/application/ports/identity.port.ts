@@ -3,6 +3,8 @@
 // The implementation lives in infrastructure/. The use case depends only on the type."
 
 import type { Role } from '#/shared/domain/roles'
+import type { Permission } from '#/shared/domain/permissions'
+import type { DataScope } from '#/shared/domain/data-scope'
 import type { OrganizationId, InvitationId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
 
@@ -98,6 +100,19 @@ export type IdentityPort = Readonly<{
 
   /** Execute fn with an advisory lock for the given organization. Prevents concurrent last-admin mutations. */
   withOrgLock: <T>(organizationId: OrganizationId, fn: () => Promise<T>) => Promise<T>
+  /**
+   * Create a custom role definition (organizationRole + organization_role_policy) in one
+   * atomic transaction. App-owned write path — the raw BA create-role endpoint is blocked.
+   * Throws `already_exists` on a duplicate (case-insensitive) role name in the org.
+   */
+  createCustomRole: (
+    ctx: AuthContext,
+    input: Readonly<{
+      role: string
+      permissions: ReadonlyArray<Permission>
+      dataScope: DataScope
+    }>,
+  ) => Promise<void>
   /** Delete a user by ID. Used as compensating transaction when org setup fails. */
   deleteUser: (userId: string) => Promise<void>
 }>

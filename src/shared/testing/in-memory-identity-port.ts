@@ -10,6 +10,9 @@ import type {
 } from '#/contexts/identity/application/ports/identity.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Role } from '#/shared/domain/roles'
+import type { Permission } from '#/shared/domain/permissions'
+import type { DataScope } from '#/shared/domain/data-scope'
+import { identityError } from '#/contexts/identity/domain/errors'
 import {
   invitationId,
   organizationId,
@@ -41,6 +44,7 @@ export function createInMemoryIdentityPort(): InMemoryIdentityPort {
   const members = new Map<string, StoredMember>()
   const invitations = new Map<string, InvitationRecord>()
   const organizations = new Map<string, OrganizationRecord>()
+  const customRoles = new Map<string, { role: string }>()
 
   return {
     async signUp(_name: string, _email: string, _password: string): Promise<string> {
@@ -144,6 +148,22 @@ export function createInMemoryIdentityPort(): InMemoryIdentityPort {
 
     async deleteUser(_userId: string): Promise<void> {
       // Test fake — no-op
+    },
+
+    async createCustomRole(
+      ctx: AuthContext,
+      input: Readonly<{
+        role: string
+        permissions: ReadonlyArray<Permission>
+        dataScope: DataScope
+      }>,
+    ): Promise<void> {
+      const role = input.role.trim().toLowerCase()
+      const key = `${ctx.organizationId as string}:${role}`
+      if (customRoles.has(key)) {
+        throw identityError('already_exists', `Role "${role}" already exists`)
+      }
+      customRoles.set(key, { role })
     },
 
     // ── Test-only helpers ─────────────────────────────────────────────
