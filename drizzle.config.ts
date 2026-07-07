@@ -18,6 +18,8 @@ export default defineConfig({
   // would try to drop them since they're not in the business schema.
   tablesFilter: [
     'properties',
+    'permission_version',
+    'organization_role_policy',
     'teams',
     'staff_assignments',
     'audit_logs',

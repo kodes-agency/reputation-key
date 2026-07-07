@@ -12,7 +12,7 @@ import { createdAtColumn, updatedAtColumn, deletedAtColumn } from '../columns'
 export const staffAssignments = pgTable(
   'staff_assignments',
   {
-    id: uuid('id').primaryKey(),
+    id: uuid('id').primaryKey().defaultRandom(),
     organizationId: varchar('organization_id', { length: 255 }).notNull(),
     userId: varchar('user_id', { length: 255 }).notNull(),
     propertyId: uuid('property_id')

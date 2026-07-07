@@ -1,44 +1,19 @@
--- DAC Stage 2 schema — permission_version + organization_role_policy + triggers.
+-- DAC Stage 2 — permission-version triggers + organizationRole index + last-owner.
 -- ADR 0001 / docs/adr/0001-dynamic-access-control.md
 --
--- Apply AFTER `pnpm auth:migrate` (creates the BA tables this references) and
--- independent of drizzle-kit (these tables follow the auth-table pattern:
--- Drizzle pgTable definitions exist in src/shared/db/schema/dac.schema.ts for typed
--- queries, but are excluded from drizzle.config tablesFilter and created here).
+-- The permission_version + organization_role_policy TABLES are Drizzle-managed
+-- (src/shared/db/schema/dac.schema.ts, in drizzle.config tablesFilter) and created
+-- by `pnpm db:migrate`. This file holds ONLY what Drizzle cannot express:
+--   - a unique index on Better Auth's "organizationRole" table (Drizzle can't own BA DDL), and
+--   - triggers / trigger functions / the last-owner backstop (no ORM DSL for CREATE FUNCTION/TRIGGER).
 --
--- Idempotent: safe to re-run. Apply with:
+-- Apply AFTER `pnpm auth:migrate` AND `pnpm db:migrate` (both tables must exist first):
 --   psql "$DATABASE_URL" -f scripts/migrations/2026-07-06-permission-version-triggers.sql
+-- Idempotent (IF NOT EXISTS / CREATE OR REPLACE / DROP TRIGGER IF EXISTS). Safe to re-run.
 --
 -- Casing verified against the live BA tables (\d on Neon, 2026-07-06):
 --   member("organizationId","role","userId",...)  organizationRole("organizationId","role",...)
 --   staff_assignments(organization_id,...)  invitation("role" NULLABLE, ...)
-
--- ── 1. App-owned tables ──────────────────────────────────────────────────────
-
-CREATE TABLE IF NOT EXISTS permission_version (
-  organization_id text PRIMARY KEY,
-  version bigint NOT NULL DEFAULT 0,
-  updated_at timestamptz NOT NULL DEFAULT now()
-);
-
-CREATE TABLE IF NOT EXISTS organization_role_policy (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  organization_id text NOT NULL,
-  role text NOT NULL,
-  data_scope text NOT NULL,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT organization_role_policy_data_scope_check
-    CHECK (data_scope IN ('organization', 'assigned-properties', 'none')),
-  CONSTRAINT organization_role_policy_role_format_check
-    CHECK (role ~ '^[a-z][a-z0-9-]{1,62}[a-z0-9]$'),
-  CONSTRAINT organization_role_policy_role_no_comma_check
-    CHECK (position(',' in role) = 0),
-  CONSTRAINT organization_role_policy_role_not_reserved_check
-    CHECK (role NOT IN ('owner', 'admin', 'member')),
-  CONSTRAINT organization_role_policy_org_role_unique
-    UNIQUE (organization_id, role)
-);
 
 -- ── 2. Case-insensitive unique index on BA's organizationRole ────────────────
 -- BA's own migration ships only non-unique indexes + an app-level count() check,
