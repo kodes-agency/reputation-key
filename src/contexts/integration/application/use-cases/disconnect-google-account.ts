@@ -11,7 +11,7 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import type { DisconnectGoogleInput } from '../dto/disconnect-google.dto'
 export type { DisconnectGoogleInput as DisconnectGoogleAccountInput } from '../dto/disconnect-google.dto'
 import { can } from '#/shared/domain/permissions'
-import { googleConnectionId } from '#/shared/domain/ids'
+import { googleConnectionId, type OrganizationId } from '#/shared/domain/ids'
 import { integrationError } from '../../domain/errors'
 import { integrationGoogleAccountDisconnected } from '../../domain/events'
 import type { LoggerPort } from '#/shared/domain/logger.port'
@@ -24,6 +24,14 @@ export type DisconnectGoogleAccountDeps = Readonly<{
   events: EventBus
   clock: () => Date
   logger: LoggerPort
+  /**
+   * Best-effort hook to unsubscribe from GBP notifications before the token is
+   * revoked (Pub/Sub lifecycle step 3 — token is still valid at this point).
+   */
+  unsubscribeFromNotifications?: (
+    organizationId: OrganizationId,
+    connectionId: string,
+  ) => Promise<void>
 }>
 
 export const disconnectGoogleAccount =
@@ -52,6 +60,17 @@ export const disconnectGoogleAccount =
       return connection
     }
 
+    // GBP Pub/Sub lifecycle: unsubscribe before the token is revoked (still valid).
+    if (deps.unsubscribeFromNotifications) {
+      try {
+        await deps.unsubscribeFromNotifications(ctx.organizationId, input.connectionId)
+      } catch (e) {
+        deps.logger.warn(
+          { connectionId: input.connectionId, err: e },
+          'GBP notifications unsubscribe failed — disconnecting anyway',
+        )
+      }
+    }
     // 3. Revoke token with Google (best-effort)
     try {
       const refreshToken = deps.encryption.decrypt(connection.encryptedRefreshToken)

@@ -1,6 +1,10 @@
 // Integration context — handle GBP notification use case
-// Steps: lookup property by gbpPlaceId → validate connection → enqueue review sync job
+// Steps: lookup property by gbpPlaceId → validate connection → enqueue review sync
 // This is the business logic extracted from the webhook route.
+//
+// This is layer 1 of the imported-properties scoping (Pub/Sub lifecycle): inbound
+// notifications for non-imported/deleted locations resolve to no property here and
+// are dropped (property_not_found) before any review sync is enqueued.
 
 import type { PropertyLookupPort } from '../ports/property-lookup.port'
 import type { ReviewQueuePort } from '#/contexts/review/application/public-api'
