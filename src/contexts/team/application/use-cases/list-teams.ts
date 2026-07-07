@@ -7,7 +7,7 @@ import type { Team } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { PropertyId } from '#/shared/domain/ids'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { teamError } from '../../domain/errors'
 
 // ── Input type ────────────────────────────────────────────────────────────
@@ -25,7 +25,7 @@ export type ListTeamsDeps = Readonly<{
 export const listTeams =
   (deps: ListTeamsDeps) =>
   async (input: ListTeamsInput, ctx: AuthContext): Promise<ReadonlyArray<Team>> => {
-    if (!can(ctx.role, 'team.read')) {
+    if (!canForContext(ctx, 'team.read')) {
       throw teamError('forbidden', 'Insufficient permissions to list teams')
     }
 

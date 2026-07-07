@@ -7,7 +7,7 @@ import type { IdentityPort } from '../ports/identity.port'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { InvitationId } from '#/shared/domain/ids'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { identityError } from '../../domain/errors'
 import { identityInvitationCanceled } from '../../domain/events'
 
@@ -40,7 +40,7 @@ export const cancelInvitation =
   (deps: CancelInvitationDeps): CancelInvitation =>
   async (input, ctx) => {
     // 1. Authorize
-    if (!can(ctx.role, 'invitation.cancel')) {
+    if (!canForContext(ctx, 'invitation.cancel')) {
       throw identityError('forbidden', 'Insufficient role to cancel invitations')
     }
 

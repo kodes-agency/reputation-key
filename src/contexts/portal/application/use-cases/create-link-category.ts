@@ -4,7 +4,7 @@ import type { PortalRepository } from '../ports/portal.repository'
 import type { PortalLinkRepository } from '../ports/portal-link.repository'
 import type { PortalLinkCategory } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { portalError } from '../../domain/errors'
 import { buildPortalLinkCategory } from '../../domain/constructors'
 import { generateKeyBetween } from 'fractional-indexing'
@@ -36,7 +36,7 @@ export const createLinkCategory =
     input: CreateLinkCategoryInput,
     ctx: AuthContext,
   ): Promise<PortalLinkCategory> => {
-    if (!can(ctx.role, 'portal.update')) {
+    if (!canForContext(ctx, 'portal.update')) {
       throw portalError('forbidden', 'Insufficient permissions to create link categories')
     }
 

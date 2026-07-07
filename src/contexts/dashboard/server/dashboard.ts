@@ -7,7 +7,7 @@ import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { getContainer } from '#/composition'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getDashboardDataDto } from '../application/dto/dashboard.dto'
@@ -35,7 +35,7 @@ export const getDashboardDataFn = createServerFn({ method: 'GET' })
         try {
           const headers = await headersFromContext()
           const ctx = await resolveTenantContext(headers)
-          if (!can(ctx.role, 'dashboard.read')) {
+          if (!canForContext(ctx, 'dashboard.read')) {
             throw makeDashboardError(
               'forbidden',
               'Insufficient permissions to view dashboard',
@@ -72,7 +72,7 @@ export const getDashboardDataFn = createServerFn({ method: 'GET' })
           // reply state so a Staff caller (via direct RPC) learns nothing about
           // the reply workflow. The UI is already gated by property.admin (PM+),
           // so this only affects direct RPC callers.
-          if (!can(ctx.role, 'reply.manage')) {
+          if (!canForContext(ctx, 'reply.manage')) {
             return {
               ...dashboard,
               replyPerformance: { replyRate: 0, avgReplyHours: null },

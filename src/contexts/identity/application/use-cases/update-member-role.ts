@@ -8,7 +8,7 @@
 import type { IdentityPort } from '../ports/identity.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { EventBus } from '#/shared/events/event-bus'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { ADMIN_ROLE } from '#/shared/domain/roles'
 import { canChangeRole } from '../../domain/rules'
 import { identityError } from '../../domain/errors'
@@ -46,7 +46,7 @@ export const updateMemberRole =
     ctx: AuthContext,
   ): Promise<UpdateMemberRoleOutput> => {
     // 1. Authorize — permission check + role hierarchy
-    if (!can(ctx.role, 'member.update')) {
+    if (!canForContext(ctx, 'member.update')) {
       throw identityError('forbidden', 'Insufficient role to change member roles')
     }
 

@@ -11,7 +11,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import { match } from 'ts-pattern'
 import { HTTP_STATUS } from '#/shared/http/status'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { isInboxError } from '../domain/errors'
 import type { InboxErrorCode } from '../domain/errors'
 import { inboxItemId, propertyId } from '#/shared/domain/ids'
@@ -35,7 +35,7 @@ const inboxErrorStatus = (code: InboxErrorCode): number =>
 
 export {
   createServerFn,
-  can,
+  canForContext,
   isInboxError,
   inboxErrorStatus,
   inboxItemId,

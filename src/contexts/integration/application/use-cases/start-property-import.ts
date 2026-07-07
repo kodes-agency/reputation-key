@@ -9,7 +9,7 @@ import type { GbpImportJob } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { ImportPropertiesInput } from '../dto/import-properties.dto'
 export type { ImportPropertiesInput as StartPropertyImportInput } from '../dto/import-properties.dto'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { googleConnectionId, gbpImportJobId } from '#/shared/domain/ids'
 import { buildGbpImportJob } from '../../domain/constructors'
 import { integrationError } from '../../domain/errors'
@@ -28,7 +28,7 @@ export const startPropertyImport =
   async (input: ImportPropertiesInput, ctx: AuthContext): Promise<GbpImportJob> => {
     // Uses property.create because import creates property resources
     // 1. Authorize
-    if (!can(ctx.role, 'property.create')) {
+    if (!canForContext(ctx, 'property.create')) {
       throw integrationError(
         'forbidden',
         'You do not have permission to create properties',

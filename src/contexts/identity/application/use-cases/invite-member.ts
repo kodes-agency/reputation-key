@@ -6,7 +6,7 @@
 import type { IdentityPort } from '../ports/identity.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { EventBus } from '#/shared/events/event-bus'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { canInviteWithRole } from '../../domain/rules'
 import { identityError } from '../../domain/errors'
 import { identityMemberInvited } from '../../domain/events'
@@ -36,7 +36,7 @@ export const inviteMember =
   (deps: InviteMemberDeps) =>
   async (input: InviteMemberInput, ctx: AuthContext): Promise<void> => {
     // 1. Authorize — permission check + role hierarchy
-    if (!can(ctx.role, 'invitation.create')) {
+    if (!canForContext(ctx, 'invitation.create')) {
       throw identityError('forbidden', 'Insufficient role to invite members')
     }
 

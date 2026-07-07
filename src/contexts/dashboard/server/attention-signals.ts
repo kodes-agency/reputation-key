@@ -8,7 +8,7 @@ import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { getContainer } from '#/composition'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getAuth } from '#/shared/auth/auth'
@@ -48,8 +48,8 @@ export const getAttentionSignalsFn = createServerFn({ method: 'GET' })
           // published reply past SLA) — a reply-derived aggregate Staff must
           // not see.
           if (
-            !can(ctx.role, 'dashboard.read') ||
-            !can(ctx.role, 'dashboard.fleet_read')
+            !canForContext(ctx, 'dashboard.read') ||
+            !canForContext(ctx, 'dashboard.fleet_read')
           ) {
             throw makeDashboardError(
               'forbidden',

@@ -7,7 +7,7 @@ import type { Property } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { propertyError } from '../../domain/errors'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 
 // fallow-ignore-next-line unused-type
 export type ListPropertiesDeps = Readonly<{
@@ -18,7 +18,7 @@ export type ListPropertiesDeps = Readonly<{
 export const listProperties =
   (deps: ListPropertiesDeps) =>
   async (ctx: AuthContext): Promise<ReadonlyArray<Property>> => {
-    if (!can(ctx.role, 'property.read')) {
+    if (!canForContext(ctx, 'property.read')) {
       throw propertyError('forbidden', 'No property read permission')
     }
     const accessibleIds = await deps.staffApi.getAccessiblePropertyIds(

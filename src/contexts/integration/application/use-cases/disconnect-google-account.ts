@@ -10,7 +10,7 @@ import type { GoogleConnection } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { DisconnectGoogleInput } from '../dto/disconnect-google.dto'
 export type { DisconnectGoogleInput as DisconnectGoogleAccountInput } from '../dto/disconnect-google.dto'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { googleConnectionId, type OrganizationId } from '#/shared/domain/ids'
 import { integrationError } from '../../domain/errors'
 import { integrationGoogleAccountDisconnected } from '../../domain/events'
@@ -38,7 +38,7 @@ export const disconnectGoogleAccount =
   (deps: DisconnectGoogleAccountDeps) =>
   async (input: DisconnectGoogleInput, ctx: AuthContext): Promise<GoogleConnection> => {
     // 1. Authorize
-    if (!can(ctx.role, 'integration.manage')) {
+    if (!canForContext(ctx, 'integration.manage')) {
       throw integrationError(
         'forbidden',
         'You do not have permission to manage integrations',

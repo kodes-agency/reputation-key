@@ -2,7 +2,7 @@
 
 import {
   createServerFn,
-  can,
+  canForContext,
   isInboxError,
   inboxErrorStatus,
   inboxItemId,
@@ -24,7 +24,7 @@ export const assignInboxItemFn = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'inbox.write')) {
+        if (!canForContext(ctx, 'inbox.write')) {
           throwContextError(
             'AuthError',
             { code: 'forbidden', message: 'No inbox update permission' },
@@ -62,7 +62,7 @@ export const addInboxNoteFn = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'inbox.write')) {
+        if (!canForContext(ctx, 'inbox.write')) {
           throwContextError(
             'AuthError',
             { code: 'forbidden', message: 'No inbox update permission' },

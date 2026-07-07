@@ -7,7 +7,7 @@ import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { getContainer } from '#/composition'
 
 // ── Get active organization ────────────────────────────────────────
@@ -18,7 +18,7 @@ export const getActiveOrganization = createServerFn({ method: 'GET' }).handler(
       try {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'dashboard.read')) {
+        if (!canForContext(ctx, 'dashboard.read')) {
           throwContextError(
             'AuthError',
             {
@@ -81,7 +81,7 @@ export const listMembers = createServerFn({ method: 'GET' }).handler(
       try {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'member.list')) {
+        if (!canForContext(ctx, 'member.list')) {
           throwContextError(
             'AuthError',
             { code: 'forbidden', message: 'Insufficient permissions to list members' },

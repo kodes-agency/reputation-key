@@ -12,7 +12,7 @@ import {
   resetTenantCache,
 } from '#/shared/auth/middleware'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { getContainer } from '#/composition'
 import { isIdentityError } from '../domain/errors'
 import { throwIdentityError } from './organizations.errors.server'
@@ -61,7 +61,7 @@ export const cancelInvitation = createServerFn({ method: 'POST' })
         try {
           const headers = await headersFromContext()
           const ctx = await resolveTenantContext(headers)
-          if (!can(ctx.role, 'invitation.cancel')) {
+          if (!canForContext(ctx, 'invitation.cancel')) {
             throwContextError(
               'AuthError',
               {
@@ -96,7 +96,7 @@ export const resendInvitation = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'invitation.resend')) {
+        if (!canForContext(ctx, 'invitation.resend')) {
           throwContextError(
             'AuthError',
             {
@@ -127,7 +127,7 @@ export const listInvitations = createServerFn({ method: 'GET' }).handler(
     async () => {
       const headers = await headersFromContext()
       const ctx = await resolveTenantContext(headers)
-      if (!can(ctx.role, 'invitation.list')) {
+      if (!canForContext(ctx, 'invitation.list')) {
         throwContextError(
           'AuthError',
           { code: 'forbidden', message: 'Insufficient permissions to list invitations' },

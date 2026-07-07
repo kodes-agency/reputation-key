@@ -6,7 +6,7 @@ import type { EventBus } from '#/shared/events/event-bus'
 import type { PortalGroup } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { UpdatePortalGroupInput } from '../dto/update-portal-group.dto'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { portalError } from '../../domain/errors'
 import { portalGroupUpdated } from '../../domain/events'
 import { portalGroupId } from '#/shared/domain/ids'
@@ -25,7 +25,7 @@ export const updatePortalGroup =
   (deps: UpdatePortalGroupDeps) =>
   async (input: UpdatePortalGroupInput, ctx: AuthContext): Promise<PortalGroup> => {
     // 1. Authorize
-    if (!can(ctx.role, 'portal.update')) {
+    if (!canForContext(ctx, 'portal.update')) {
       throw portalError('forbidden', 'this role cannot update portal groups')
     }
 

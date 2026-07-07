@@ -5,7 +5,7 @@ import type { Portal } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { portalError } from '../../domain/errors'
 import { portalId } from '#/shared/domain/ids'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { assertPropertyAccess } from '../assert-property-access'
 
@@ -23,7 +23,7 @@ export type GetPortalDeps = Readonly<{
 export const getPortal =
   (deps: GetPortalDeps) =>
   async (input: GetPortalInput, ctx: AuthContext): Promise<Portal> => {
-    if (!can(ctx.role, 'portal.read')) {
+    if (!canForContext(ctx, 'portal.read')) {
       throw portalError('forbidden', 'Insufficient permissions to view portal')
     }
     const pid = portalId(input.portalId)

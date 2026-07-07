@@ -7,7 +7,7 @@ import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { getContainer } from '#/composition'
 import { listLocationsInputSchema } from '../application/dto/list-locations.dto'
 import { importPropertiesInputSchema } from '../application/dto/import-properties.dto'
@@ -24,7 +24,7 @@ export const listGbpLocations = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'integration.manage')) {
+        if (!canForContext(ctx, 'integration.manage')) {
           throwContextError(
             'AuthError',
             {
@@ -59,7 +59,7 @@ export const startPropertyImport = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'property.create')) {
+        if (!canForContext(ctx, 'property.create')) {
           throwContextError(
             'AuthError',
             {
@@ -94,7 +94,7 @@ export const getImportStatus = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'integration.manage')) {
+        if (!canForContext(ctx, 'integration.manage')) {
           throwContextError(
             'AuthError',
             {

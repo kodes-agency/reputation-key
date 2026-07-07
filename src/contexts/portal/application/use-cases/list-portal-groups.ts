@@ -4,7 +4,7 @@
 import type { PortalGroupRepository } from '../ports/portal-group.repository'
 import type { PortalGroup } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { portalError } from '../../domain/errors'
 import { propertyId } from '#/shared/domain/ids'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
@@ -21,7 +21,7 @@ export const listPortalGroups =
     input: { propertyId: string },
     ctx: AuthContext,
   ): Promise<ReadonlyArray<PortalGroup>> => {
-    if (!can(ctx.role, 'portal.read')) {
+    if (!canForContext(ctx, 'portal.read')) {
       throw portalError('forbidden', 'No portal read permission')
     }
     // D6-001: scope reads to properties in the caller's staff_assignment.

@@ -9,7 +9,7 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import type { ListLocationsInput } from '../dto/list-locations.dto'
 export type { ListLocationsInput as ListGbpLocationsInput } from '../dto/list-locations.dto'
 import type { PropertyPublicApi } from '#/contexts/property/application/public-api'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { googleConnectionId, type OrganizationId } from '#/shared/domain/ids'
 import { integrationError } from '../../domain/errors'
 import type { GbpApiError, GbpApiErrorKind } from '../../domain/gbp-api-error'
@@ -37,7 +37,7 @@ export const listGbpLocations =
   ): Promise<ReadonlyArray<GbpLocation>> => {
     // Uses integration.manage to match the server fn authorization
     // 1. Authorize
-    if (!can(ctx.role, 'integration.manage')) {
+    if (!canForContext(ctx, 'integration.manage')) {
       throw integrationError(
         'forbidden',
         'Insufficient permissions to manage integrations',

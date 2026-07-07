@@ -5,7 +5,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { getContainer } from '#/composition'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
@@ -37,7 +37,7 @@ export const getUnreadNotificationCountFn = createServerFn({ method: 'GET' }).ha
       // No active org → empty result (new user hasn't selected an org yet).
       const ctx = await resolveOptionalTenantContext()
       if (!ctx) return { count: 0 }
-      if (!can(ctx.role, 'notification.read')) {
+      if (!canForContext(ctx, 'notification.read')) {
         throwContextError(
           'AuthError',
           { code: 'forbidden', message: 'No notification read permission' },
@@ -74,7 +74,7 @@ export const getNotificationsFn = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const ctx = await resolveOptionalTenantContext()
         if (!ctx) return []
-        if (!can(ctx.role, 'notification.read')) {
+        if (!canForContext(ctx, 'notification.read')) {
           throwContextError(
             'AuthError',
             { code: 'forbidden', message: 'No notification read permission' },
@@ -111,7 +111,7 @@ export const markNotificationReadFn = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'notification.update')) {
+        if (!canForContext(ctx, 'notification.update')) {
           throwContextError(
             'AuthError',
             { code: 'forbidden', message: 'No notification update permission' },
@@ -144,7 +144,7 @@ export const markAllNotificationsReadFn = createServerFn({ method: 'POST' }).han
     async () => {
       const headers = await headersFromContext()
       const ctx = await resolveTenantContext(headers)
-      if (!can(ctx.role, 'notification.update')) {
+      if (!canForContext(ctx, 'notification.update')) {
         throwContextError(
           'AuthError',
           { code: 'forbidden', message: 'No notification update permission' },
@@ -176,7 +176,7 @@ export const dismissNotificationFn = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'notification.update')) {
+        if (!canForContext(ctx, 'notification.update')) {
           throwContextError(
             'AuthError',
             { code: 'forbidden', message: 'No notification update permission' },
@@ -210,7 +210,7 @@ export const getNotificationPreferencesFn = createServerFn({ method: 'GET' }).ha
     async () => {
       const ctx = await resolveOptionalTenantContext()
       if (!ctx) return []
-      if (!can(ctx.role, 'notification.read')) {
+      if (!canForContext(ctx, 'notification.read')) {
         throwContextError(
           'AuthError',
           { code: 'forbidden', message: 'No notification read permission' },
@@ -248,7 +248,7 @@ export const updateNotificationPreferenceFn = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'notification.update')) {
+        if (!canForContext(ctx, 'notification.update')) {
           throwContextError(
             'AuthError',
             { code: 'forbidden', message: 'No notification update permission' },

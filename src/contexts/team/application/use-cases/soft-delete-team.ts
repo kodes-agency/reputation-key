@@ -6,7 +6,7 @@ import type { EventBus } from '#/shared/events/event-bus'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { TeamId } from '#/shared/domain/ids'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
 import { teamError } from '../../domain/errors'
 import { teamDeleted } from '../../domain/events'
@@ -30,7 +30,7 @@ export const softDeleteTeam =
   (deps: SoftDeleteTeamDeps) =>
   async (input: SoftDeleteTeamInput, ctx: AuthContext): Promise<void> => {
     // 1. Authorize
-    if (!can(ctx.role, 'team.delete')) {
+    if (!canForContext(ctx, 'team.delete')) {
       throw teamError('forbidden', 'this role cannot delete teams')
     }
 

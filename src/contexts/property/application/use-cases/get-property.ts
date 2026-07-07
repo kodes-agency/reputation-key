@@ -6,7 +6,7 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { propertyError } from '../../domain/errors'
 import { propertyId } from '#/shared/domain/ids'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
 
 // fallow-ignore-next-line unused-type
@@ -23,7 +23,7 @@ export type GetPropertyInput = Readonly<{
 export const getProperty =
   (deps: GetPropertyDeps) =>
   async (input: GetPropertyInput, ctx: AuthContext): Promise<Property> => {
-    if (!can(ctx.role, 'property.read')) {
+    if (!canForContext(ctx, 'property.read')) {
       throw propertyError('forbidden', 'No property read permission')
     }
     const pid = propertyId(input.propertyId)

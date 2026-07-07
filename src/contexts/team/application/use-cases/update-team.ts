@@ -9,7 +9,7 @@ import type { Team } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { UpdateTeamInput } from '../dto/update-team.dto'
 export type { UpdateTeamInput } from '../dto/update-team.dto'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
 import { teamId as toTeamId, userId as toUserId } from '#/shared/domain/ids'
 import { validateTeamName } from '../../domain/rules'
@@ -28,7 +28,7 @@ export const updateTeam =
   (deps: UpdateTeamDeps) =>
   async (input: UpdateTeamInput, ctx: AuthContext): Promise<Team> => {
     // 1. Authorize
-    if (!can(ctx.role, 'team.update')) {
+    if (!canForContext(ctx, 'team.update')) {
       throw teamError('forbidden', 'this role cannot edit teams')
     }
 

@@ -10,7 +10,7 @@ import type { GoogleConnection } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { ConnectGoogleInput } from '../dto/connect-google.dto'
 export type { ConnectGoogleInput as ConnectGoogleAccountInput } from '../dto/connect-google.dto'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { googleConnectionId } from '#/shared/domain/ids'
 import { buildGoogleConnection } from '../../domain/constructors'
 import { integrationError } from '../../domain/errors'
@@ -30,7 +30,7 @@ export const connectGoogleAccount =
   (deps: ConnectGoogleAccountDeps) =>
   async (input: ConnectGoogleInput, ctx: AuthContext): Promise<GoogleConnection> => {
     // 1. Authorize
-    if (!can(ctx.role, 'integration.manage')) {
+    if (!canForContext(ctx, 'integration.manage')) {
       throw integrationError(
         'forbidden',
         'You do not have permission to manage integrations',

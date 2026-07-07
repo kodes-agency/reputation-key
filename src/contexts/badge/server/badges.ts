@@ -6,7 +6,7 @@ import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getContainer } from '#/composition'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import {
   getStaffVisibleBadgesSchema,
   getVisibleTargetBadgesSchema,
@@ -32,7 +32,7 @@ export const getStaffVisibleBadges = createServerFn({ method: 'GET' })
         try {
           const headers = await headersFromContext()
           const ctx = await resolveTenantContext(headers)
-          if (!can(ctx.role, 'badge.read')) {
+          if (!canForContext(ctx, 'badge.read')) {
             throwContextError(
               'AuthError',
               { code: 'forbidden', message: 'No badge read permission' },
@@ -62,7 +62,7 @@ export const getVisibleTargetBadges = createServerFn({ method: 'GET' })
         try {
           const headers = await headersFromContext()
           const ctx = await resolveTenantContext(headers)
-          if (!can(ctx.role, 'badge.read')) {
+          if (!canForContext(ctx, 'badge.read')) {
             throwContextError(
               'AuthError',
               { code: 'forbidden', message: 'No badge read permission' },
@@ -127,7 +127,7 @@ export const setOrganizationBadgeEnablement = createServerFn({ method: 'POST' })
         try {
           const headers = await headersFromContext()
           const ctx = await resolveTenantContext(headers)
-          if (!can(ctx.role, 'badge.manage')) {
+          if (!canForContext(ctx, 'badge.manage')) {
             throwContextError(
               'AuthError',
               { code: 'forbidden', message: 'No badge manage permission' },
@@ -157,7 +157,7 @@ export const getOrganizationBadgeDefinitionsFn = createServerFn({
     async () => {
       const headers = await headersFromContext()
       const ctx = await resolveTenantContext(headers)
-      if (!can(ctx.role, 'badge.read')) {
+      if (!canForContext(ctx, 'badge.read')) {
         throwContextError(
           'AuthError',
           { code: 'forbidden', message: 'No badge read permission' },

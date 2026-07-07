@@ -7,7 +7,7 @@ import { match } from 'ts-pattern'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { getContainer } from '#/composition'
 import {
   createGoalSchema,
@@ -76,7 +76,7 @@ export const createGoal = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'goal.create')) {
+        if (!canForContext(ctx, 'goal.create')) {
           throwContextError(
             'GoalError',
             makeGoalError('forbidden', 'No goal create permission'),
@@ -169,7 +169,7 @@ export const updateGoal = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'goal.update')) {
+        if (!canForContext(ctx, 'goal.update')) {
           throwContextError(
             'GoalError',
             makeGoalError(
@@ -262,7 +262,7 @@ export const cancelGoal = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'goal.cancel')) {
+        if (!canForContext(ctx, 'goal.cancel')) {
           throwContextError(
             'GoalError',
             makeGoalError(
@@ -336,7 +336,7 @@ export const listGoals = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'goal.read')) {
+        if (!canForContext(ctx, 'goal.read')) {
           throwContextError(
             'GoalError',
             makeGoalError('forbidden', 'No goal read permission'),
@@ -399,7 +399,7 @@ export const getGoal = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'goal.read')) {
+        if (!canForContext(ctx, 'goal.read')) {
           throwContextError(
             'GoalError',
             makeGoalError('forbidden', 'No goal read permission'),

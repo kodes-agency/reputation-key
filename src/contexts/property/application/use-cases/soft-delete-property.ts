@@ -3,7 +3,7 @@
 import type { PropertyRepository } from '../ports/property.repository'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { EventBus } from '#/shared/events/event-bus'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { propertyId as toPropertyId } from '#/shared/domain/ids'
 import { propertyError } from '../../domain/errors'
 import { propertyDeleted } from '../../domain/events'
@@ -24,7 +24,7 @@ export const deleteProperty =
   (deps: DeletePropertyDeps) =>
   async (input: DeletePropertyInput, ctx: AuthContext): Promise<void> => {
     // 1. Authorize — only AccountAdmin can delete
-    if (!can(ctx.role, 'property.delete')) {
+    if (!canForContext(ctx, 'property.delete')) {
       throw propertyError('forbidden', 'only AccountAdmin can delete properties')
     }
 

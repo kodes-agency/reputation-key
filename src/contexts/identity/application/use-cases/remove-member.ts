@@ -6,7 +6,7 @@
 import type { IdentityPort } from '../ports/identity.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { EventBus } from '#/shared/events/event-bus'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { ADMIN_ROLE } from '#/shared/domain/roles'
 import { identityError } from '../../domain/errors'
 import { identityMemberRemoved } from '../../domain/events'
@@ -37,7 +37,7 @@ export const removeMember =
   (deps: RemoveMemberDeps) =>
   async (input: RemoveMemberInput, ctx: AuthContext): Promise<RemoveMemberOutput> => {
     // 1. Authorize — domain permission check
-    if (!can(ctx.role, 'member.delete')) {
+    if (!canForContext(ctx, 'member.delete')) {
       throw identityError('forbidden', 'Insufficient role to remove members')
     }
     return deps.identity.withOrgLock(ctx.organizationId, async () => {

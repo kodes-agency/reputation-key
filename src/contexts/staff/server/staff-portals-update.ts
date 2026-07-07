@@ -10,7 +10,7 @@ import { resolveTenantContext } from '#/shared/auth/middleware'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getContainer } from '#/composition'
 import { portalId as toPortalId } from '#/shared/domain/ids'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { propertyId as toPropertyId, userId as toUserId } from '#/shared/domain/ids'
 import { isStaffError } from '../application/public-api'
 import { staffErrorStatus } from './staff-shared'
@@ -32,7 +32,7 @@ export const updateStaffPortals = createServerFn({ method: 'POST' })
         const ctx = await resolveTenantContext(headers)
         // Defense-in-depth authz gate (siblings do the same) — the use case
         // also enforces this, but every staff server fn guards before delegating.
-        if (!can(ctx.role, 'staff_assignment.create')) {
+        if (!canForContext(ctx, 'staff_assignment.create')) {
           throwContextError(
             'AuthError',
             { code: 'forbidden', message: 'No staff assignment create permission' },

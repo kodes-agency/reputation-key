@@ -7,7 +7,7 @@ import type { GoogleConnection } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { UpdateConnectionVisibilityInput } from '../dto/update-connection-visibility.dto'
 export type { UpdateConnectionVisibilityInput } from '../dto/update-connection-visibility.dto'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { googleConnectionId } from '#/shared/domain/ids'
 import { integrationError } from '../../domain/errors'
 import { integrationGoogleConnectionVisibilityChanged } from '../../domain/events'
@@ -25,7 +25,7 @@ export const updateConnectionVisibility =
     ctx: AuthContext,
   ): Promise<GoogleConnection> => {
     // 1. Authorize
-    if (!can(ctx.role, 'integration.manage')) {
+    if (!canForContext(ctx, 'integration.manage')) {
       throw integrationError(
         'forbidden',
         'You do not have permission to manage integrations',

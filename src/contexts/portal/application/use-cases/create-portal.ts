@@ -8,7 +8,7 @@ import type { Portal, PortalId } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { CreatePortalInput } from '../dto/create-portal.dto'
 export type { CreatePortalInput }
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { normalizeSlug } from '../../domain/rules'
 import { buildPortal } from '../../domain/constructors'
 import { portalError } from '../../domain/errors'
@@ -31,7 +31,7 @@ export const createPortal =
   (deps: CreatePortalDeps) =>
   async (input: CreatePortalInput, ctx: AuthContext): Promise<Portal> => {
     // 1. Authorize
-    if (!can(ctx.role, 'portal.create')) {
+    if (!canForContext(ctx, 'portal.create')) {
       throw portalError('forbidden', 'this role cannot create portals')
     }
 

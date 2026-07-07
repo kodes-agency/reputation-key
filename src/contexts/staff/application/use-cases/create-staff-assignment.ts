@@ -8,7 +8,7 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import type { CreateStaffAssignmentInput } from '../dto/staff-assignment.dto'
 export type { CreateStaffAssignmentInput } from '../dto/staff-assignment.dto'
 import type { StaffPublicApi } from '../public-api'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { hasRole } from '#/shared/domain/roles'
 import { buildStaffAssignment } from '../../domain/constructors'
 import { staffError } from '../../domain/errors'
@@ -148,7 +148,7 @@ export const createStaffAssignment =
     ctx: AuthContext,
   ): Promise<StaffAssignment> => {
     // 1. Authorize
-    if (!can(ctx.role, 'staff_assignment.create')) {
+    if (!canForContext(ctx, 'staff_assignment.create')) {
       throw staffError('forbidden', 'this role cannot manage staff assignments')
     }
 

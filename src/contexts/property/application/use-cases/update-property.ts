@@ -6,7 +6,7 @@ import type { Property } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { UpdatePropertyInput } from '../dto/update-property.dto'
 export type { UpdatePropertyInput } from '../dto/update-property.dto'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { propertyId as toPropertyId } from '#/shared/domain/ids'
 import { validatePropertyName, validateSlug, validateTimezone } from '../../domain/rules'
 import { propertyError } from '../../domain/errors'
@@ -23,7 +23,7 @@ export type UpdatePropertyDeps = Readonly<{
 }>
 
 function authorize(ctx: AuthContext): void {
-  if (!can(ctx.role, 'property.update')) {
+  if (!canForContext(ctx, 'property.update')) {
     throw propertyError('forbidden', 'this role cannot edit properties')
   }
 }

@@ -6,7 +6,7 @@ import type { Portal, PortalTheme } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { UpdatePortalInput } from '../dto/update-portal.dto'
 export type { UpdatePortalInput }
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { portalId as toPortalId, type OrganizationId } from '#/shared/domain/ids'
 import {
   validatePortalName,
@@ -110,7 +110,7 @@ function buildUpdatedPortal(
 export const updatePortal =
   (deps: UpdatePortalDeps) =>
   async (input: UpdatePortalInput, ctx: AuthContext): Promise<Portal> => {
-    if (!can(ctx.role, 'portal.update')) {
+    if (!canForContext(ctx, 'portal.update')) {
       throw portalError('forbidden', 'this role cannot edit portals')
     }
 

@@ -3,7 +3,7 @@
 
 import type { PortalRepository } from '../ports/portal.repository'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { portalId } from '#/shared/domain/ids'
 import { portalError } from '../../domain/errors'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
@@ -25,7 +25,7 @@ export const getPortalQrUrl =
     input: GetPortalQrUrlInput,
     ctx: AuthContext,
   ): Promise<{ portalUrl: string; slug: string }> => {
-    if (!can(ctx.role, 'portal.read')) {
+    if (!canForContext(ctx, 'portal.read')) {
       throw portalError('forbidden', 'Insufficient permissions to view portal QR URL')
     }
 

@@ -4,7 +4,7 @@ import type { StaffAssignmentRepository } from '../ports/staff-assignment.reposi
 import type { EventBus } from '#/shared/events/event-bus'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { StaffAssignmentId } from '../../domain/types'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { staffError } from '../../domain/errors'
 import { staffUnassigned } from '../../domain/events'
 
@@ -25,7 +25,7 @@ export const removeStaffAssignment =
   (deps: RemoveStaffAssignmentDeps) =>
   async (input: RemoveStaffAssignmentInput, ctx: AuthContext): Promise<void> => {
     // 1. Authorize
-    if (!can(ctx.role, 'staff_assignment.delete')) {
+    if (!canForContext(ctx, 'staff_assignment.delete')) {
       throw staffError('forbidden', 'this role cannot manage staff assignments')
     }
 

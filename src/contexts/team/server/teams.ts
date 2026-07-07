@@ -7,7 +7,7 @@ import { match } from 'ts-pattern'
 import { HTTP_STATUS } from '#/shared/http/status'
 import { z } from 'zod/v4'
 import { headersFromContext } from '#/shared/auth/headers'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getContainer } from '#/composition'
@@ -43,7 +43,7 @@ export const createTeam = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'team.create')) {
+        if (!canForContext(ctx, 'team.create')) {
           throwContextError(
             'AuthError',
             { code: 'forbidden', message: 'No team create permission' },
@@ -74,7 +74,7 @@ export const updateTeam = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'team.update')) {
+        if (!canForContext(ctx, 'team.update')) {
           throwContextError(
             'AuthError',
             { code: 'forbidden', message: 'No team update permission' },
@@ -105,7 +105,7 @@ export const listTeams = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'team.read')) {
+        if (!canForContext(ctx, 'team.read')) {
           throwContextError(
             'AuthError',
             { code: 'forbidden', message: 'No team read permission' },
@@ -139,7 +139,7 @@ export const deleteTeam = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'team.delete')) {
+        if (!canForContext(ctx, 'team.delete')) {
           throwContextError(
             'AuthError',
             { code: 'forbidden', message: 'No team delete permission' },

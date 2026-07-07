@@ -4,7 +4,7 @@
 import type { PortalGroupRepository } from '../ports/portal-group.repository'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { PortalRepository } from '../ports/portal.repository'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { portalError } from '../../domain/errors'
 import { portalAddedToGroup } from '../../domain/events'
 import type { EventBus } from '#/shared/events/event-bus'
@@ -27,7 +27,7 @@ export const addPortalToGroup =
     input: { portalGroupId: string; portalId: string },
     ctx: AuthContext,
   ): Promise<void> => {
-    if (!can(ctx.role, 'portal.update')) {
+    if (!canForContext(ctx, 'portal.update')) {
       throw portalError('forbidden', 'this role cannot manage portal group membership')
     }
 

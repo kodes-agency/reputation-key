@@ -9,7 +9,7 @@ import type { Team, TeamId } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { CreateTeamInput } from '../dto/create-team.dto'
 export type { CreateTeamInput } from '../dto/create-team.dto'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
 import { propertyId as toPropertyId, userId as toUserId } from '#/shared/domain/ids'
 import { buildTeam } from '../../domain/constructors'
@@ -30,7 +30,7 @@ export const createTeam =
   (deps: CreateTeamDeps) =>
   async (input: CreateTeamInput, ctx: AuthContext): Promise<Team> => {
     // 1. Authorize
-    if (!can(ctx.role, 'team.create')) {
+    if (!canForContext(ctx, 'team.create')) {
       throw teamError('forbidden', 'this role cannot create teams')
     }
     // D6-001: PropertyManager/Staff must be assigned to the target property.

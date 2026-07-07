@@ -8,7 +8,7 @@ import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { getContainer } from '#/composition'
 import { propertyId as toPropertyId } from '#/shared/domain/ids'
 
@@ -29,7 +29,7 @@ export const listStaffGoals = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'goal.read')) {
+        if (!canForContext(ctx, 'goal.read')) {
           throwContextError(
             'AuthError',
             { code: 'forbidden', message: 'No goal read permission' },

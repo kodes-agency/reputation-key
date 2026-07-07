@@ -2,7 +2,7 @@
 
 import {
   createServerFn,
-  can,
+  canForContext,
   isInboxError,
   inboxErrorStatus,
   propertyId,
@@ -28,7 +28,7 @@ export const getInboxItemsFn = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'inbox.read')) {
+        if (!canForContext(ctx, 'inbox.read')) {
           throwContextError(
             'AuthError',
             { code: 'forbidden', message: 'No inbox read permission' },
@@ -102,7 +102,7 @@ export const getNewCountFn = createServerFn({ method: 'GET' })
       async ({ data: _data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'inbox.read')) {
+        if (!canForContext(ctx, 'inbox.read')) {
           throwContextError(
             'AuthError',
             { code: 'forbidden', message: 'No inbox read permission' },
@@ -137,7 +137,7 @@ export const getInboxFolderCountsFn = createServerFn({ method: 'GET' })
         void _data
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'inbox.read')) {
+        if (!canForContext(ctx, 'inbox.read')) {
           throwContextError(
             'AuthError',
             { code: 'forbidden', message: 'No inbox read permission' },

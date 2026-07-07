@@ -5,7 +5,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { getContainer } from '#/composition'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
@@ -44,7 +44,7 @@ export const getActivityTimelineFn = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'inbox.read')) {
+        if (!canForContext(ctx, 'inbox.read')) {
           throwContextError(
             'AuthError',
             { code: 'forbidden', message: 'No inbox read permission' },
@@ -85,7 +85,7 @@ export const getOrgActivityFn = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'inbox.read')) {
+        if (!canForContext(ctx, 'inbox.read')) {
           throwContextError(
             'AuthError',
             { code: 'forbidden', message: 'No inbox read permission' },

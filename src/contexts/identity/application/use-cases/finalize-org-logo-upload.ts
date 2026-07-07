@@ -3,7 +3,7 @@
 import type { StoragePort } from '#/contexts/portal/application/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { identityError } from '../../domain/errors'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 
 export type FinalizeOrgLogoUploadInput = Readonly<{
   key: string
@@ -22,7 +22,7 @@ export const finalizeOrgLogoUpload =
     input: FinalizeOrgLogoUploadInput,
     ctx: AuthContext,
   ): Promise<{ logoUrl: string }> => {
-    if (!can(ctx.role, 'identity.logo_upload')) {
+    if (!canForContext(ctx, 'identity.logo_upload')) {
       throw identityError(
         'forbidden',
         'Insufficient permissions to finalize organization logo upload',

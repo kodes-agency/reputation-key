@@ -7,7 +7,7 @@ import { getAuth } from '#/shared/auth/auth'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { throwContextError } from '#/shared/auth/server-errors'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { z } from 'zod/v4'
 import { handleAuthError } from './auth-settings.helpers'
 
@@ -25,7 +25,7 @@ export const changePasswordFn = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'identity.password.change')) {
+        if (!canForContext(ctx, 'identity.password.change')) {
           throwContextError(
             'AuthError',
             { code: 'forbidden', message: 'Insufficient permissions to change password' },
@@ -72,7 +72,7 @@ export const updateProfileFn = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'identity.profile.update')) {
+        if (!canForContext(ctx, 'identity.profile.update')) {
           throwContextError(
             'AuthError',
             { code: 'forbidden', message: 'Insufficient permissions to update profile' },
@@ -113,7 +113,7 @@ export const updateUserImageFn = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'identity.avatar.set')) {
+        if (!canForContext(ctx, 'identity.avatar.set')) {
           throwContextError(
             'AuthError',
             { code: 'forbidden', message: 'Insufficient permissions to update avatar' },

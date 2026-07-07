@@ -4,7 +4,7 @@ import type { PortalRepository } from '../ports/portal.repository'
 import type { StoragePort } from '../ports/storage.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { portalId } from '#/shared/domain/ids'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { portalError } from '../../domain/errors'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { assertPropertyAccess } from '../assert-property-access'
@@ -33,7 +33,7 @@ export const requestUploadUrl =
     input: RequestUploadUrlInput,
     ctx: AuthContext,
   ): Promise<{ uploadUrl: string; key: string }> => {
-    if (!can(ctx.role, 'portal.update')) {
+    if (!canForContext(ctx, 'portal.update')) {
       throw portalError('forbidden', 'Insufficient permissions to upload portal images')
     }
     const portal = await deps.portalRepo.findById(

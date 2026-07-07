@@ -6,7 +6,7 @@ import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext, resetTenantCache } from '#/shared/auth/middleware'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { getContainer } from '#/composition'
 import { isIdentityError } from '../domain/errors'
 import { throwIdentityError } from './organizations.errors.server'
@@ -26,7 +26,7 @@ export const inviteMember = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'invitation.create')) {
+        if (!canForContext(ctx, 'invitation.create')) {
           throwContextError(
             'AuthError',
             { code: 'forbidden', message: 'Insufficient permissions to invite members' },
@@ -57,7 +57,7 @@ export const updateMemberRole = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'member.update')) {
+        if (!canForContext(ctx, 'member.update')) {
           throwContextError(
             'AuthError',
             {
@@ -94,7 +94,7 @@ export const removeMember = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'member.delete')) {
+        if (!canForContext(ctx, 'member.delete')) {
           throwContextError(
             'AuthError',
             { code: 'forbidden', message: 'Insufficient permissions to remove members' },

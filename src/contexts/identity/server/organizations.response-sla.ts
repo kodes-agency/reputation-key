@@ -9,7 +9,7 @@ import { z } from 'zod/v4'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getAuth } from '#/shared/auth/auth'
 import { getContainer } from '#/composition'
@@ -26,7 +26,7 @@ export const getOrgResponseSlaFn = createServerFn({ method: 'GET' }).handler(
       try {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'dashboard.read')) {
+        if (!canForContext(ctx, 'dashboard.read')) {
           throwContextError(
             'AuthError',
             {

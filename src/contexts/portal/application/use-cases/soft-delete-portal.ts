@@ -2,7 +2,7 @@
 
 import type { PortalRepository } from '../ports/portal.repository'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { portalId as toPortalId } from '#/shared/domain/ids'
 import { portalError } from '../../domain/errors'
 import { portalDeleted } from '../../domain/events'
@@ -26,7 +26,7 @@ export type SoftDeletePortalDeps = Readonly<{
 export const softDeletePortal =
   (deps: SoftDeletePortalDeps) =>
   async (input: SoftDeletePortalInput, ctx: AuthContext): Promise<void> => {
-    if (!can(ctx.role, 'portal.delete')) {
+    if (!canForContext(ctx, 'portal.delete')) {
       throw portalError('forbidden', 'this role cannot delete portals')
     }
 

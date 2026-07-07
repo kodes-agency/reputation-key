@@ -5,7 +5,7 @@
 
 import type { IdentityPort } from '../ports/identity.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { identityError } from '../../domain/errors'
 import type { AcceptInvitationInput } from '../dto/invitation.dto'
 export type ResendInvitationInput = AcceptInvitationInput
@@ -50,7 +50,7 @@ export const resendInvitation =
     ctx: AuthContext,
   ): Promise<ResendInvitationOutput> => {
     // 1. Authorize — permission check
-    if (!can(ctx.role, 'invitation.resend')) {
+    if (!canForContext(ctx, 'invitation.resend')) {
       throw identityError('forbidden', 'Insufficient role to resend invitations')
     }
 
