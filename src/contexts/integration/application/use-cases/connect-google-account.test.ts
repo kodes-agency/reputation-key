@@ -11,6 +11,7 @@ import {
   buildTestGoogleConnection,
 } from '#/shared/testing/fixtures'
 import { isIntegrationError } from '../../domain/errors'
+import { organizationId } from '#/shared/domain/ids'
 
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
 
@@ -97,6 +98,29 @@ describe('connectGoogleAccount', () => {
     const emitted = events.capturedByTag('integration.google_account.connected')
     expect(emitted).toHaveLength(1)
     expect(emitted[0].connectionId).toBe(existing.id)
+  })
+
+  it('rejects when the Google account is already connected in another org', async () => {
+    const { useCase, connectionRepo } = setup()
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+
+    // Same google account, DIFFERENT org → global-uniqueness boundary.
+    const claimedElsewhere = buildTestGoogleConnection({
+      googleAccountId: 'google-account-123',
+      googleEmail: 'test@gmail.com',
+      organizationId: organizationId('org-other'),
+    })
+    connectionRepo.seed([claimedElsewhere])
+
+    await expect(
+      useCase({ code: 'valid-auth-code', visibility: 'private' }, ctx),
+    ).rejects.toSatisfy(
+      (e: unknown) =>
+        isIntegrationError(e) &&
+        (e as { code: string }).code === 'account_already_connected',
+    )
+    // No new connection created in this org.
+    expect(connectionRepo.all()).toHaveLength(1)
   })
 
   it('calculates token expiry from OAuth result expiresIn', async () => {

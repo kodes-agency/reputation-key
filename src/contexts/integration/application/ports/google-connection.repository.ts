@@ -24,12 +24,13 @@ export const uniqueViolationError = (message: string): UniqueViolationError => (
 })
 
 export const isUniqueViolationError = (e: unknown): e is UniqueViolationError =>
-  typeof e === 'object' && e !== null && (e as UniqueViolationError)._tag === 'UniqueViolationError'
+  typeof e === 'object' &&
+  e !== null &&
+  (e as UniqueViolationError)._tag === 'UniqueViolationError'
 
 /** Pre-computed visibility filter — the use case decides this, not the repo. */
 export type ConnectionVisibilityFilter = Readonly<
-  | { showAll: true }
-  | { showAll: false; userId: UserId }
+  { showAll: true } | { showAll: false; userId: UserId }
 >
 
 export type GoogleConnectionRepository = Readonly<{
@@ -39,6 +40,11 @@ export type GoogleConnectionRepository = Readonly<{
   ) => Promise<GoogleConnection | null>
   findByGoogleAccountId: (
     orgId: OrganizationId,
+    googleAccountId: string,
+  ) => Promise<GoogleConnection | null>
+  // Global lookup (cross-tenant) — used to enforce the one-account-one-org
+  // invariant on connect. Deliberately NOT org-scoped.
+  findByGoogleAccountIdGlobal: (
     googleAccountId: string,
   ) => Promise<GoogleConnection | null>
   listByOrganization: (

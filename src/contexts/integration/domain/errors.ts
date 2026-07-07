@@ -7,6 +7,7 @@ export type IntegrationErrorCode =
   | 'connection_not_found'
   | 'connection_inactive'
   | 'connection_disconnected'
+  | 'account_already_connected'
   | 'oauth_failed'
   | 'oauth_denied'
   | 'token_refresh_failed'
