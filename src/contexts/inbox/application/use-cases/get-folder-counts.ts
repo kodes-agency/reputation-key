@@ -44,7 +44,7 @@ export const getInboxFolderCounts =
       const accessible = await deps.staffPublicApi.getAccessiblePropertyIds(
         input.organizationId,
         input.userId,
-        input.role,
+        false,
       )
       // No assignments → no visible items. The repo treats propertyIds=[] as
       // "no filter" (org-wide), so short-circuit to zeros to avoid leaking

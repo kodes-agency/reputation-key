@@ -32,7 +32,7 @@ export const listTeams =
     const accessibleIds = await deps.staffApi.getAccessiblePropertyIds(
       ctx.organizationId,
       ctx.userId,
-      ctx.role,
+      ctx.role === 'AccountAdmin',
     )
 
     // null means AccountAdmin — all properties accessible

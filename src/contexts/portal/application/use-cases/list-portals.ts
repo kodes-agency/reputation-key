@@ -29,7 +29,7 @@ export const listPortals =
     const accessible = await deps.staffPublicApi.getAccessiblePropertyIds(
       ctx.organizationId,
       ctx.userId,
-      ctx.role,
+      ctx.role === 'AccountAdmin',
     )
     const results = input.propertyId
       ? await deps.portalRepo.listByProperty(ctx.organizationId, input.propertyId)

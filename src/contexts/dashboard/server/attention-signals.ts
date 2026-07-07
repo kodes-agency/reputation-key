@@ -9,7 +9,7 @@ import { getContainer } from '#/composition'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { can } from '#/shared/domain/permissions'
-import { isPropertyAccessible } from '#/shared/domain/property-access'
+import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getAuth } from '#/shared/auth/auth'
 import { timeRangePreset } from '../application/dto/dashboard.dto'
@@ -63,13 +63,11 @@ export const getAttentionSignalsFn = createServerFn({ method: 'GET' })
           const { useCases, clock, staffPublicApi } = getContainer()
           // D6-001: non-admin callers may only read their assigned properties.
           if (
-            ctx.role !== 'AccountAdmin' &&
-            !(await isPropertyAccessible(
-              (orgId, uId, role) =>
-                staffPublicApi.getAccessiblePropertyIds(orgId, uId, role),
-              ctx.organizationId,
-              ctx.userId,
-              ctx.role,
+            !(await isPropertyAccessibleForPermission(
+              (orgId, uId, orgWide) =>
+                staffPublicApi.getAccessiblePropertyIds(orgId, uId, orgWide),
+              ctx,
+              'dashboard.read',
               propertyId(data.propertyId),
             ))
           ) {

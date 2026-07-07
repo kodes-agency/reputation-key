@@ -61,11 +61,11 @@ export const listGoals =
     // If no propertyId filter, scope results to accessible properties.
     if (filter.propertyId) {
       const isAccessible = await isPropertyAccessible(
-        (orgId, uId, role) =>
-          deps.staffPublicApi.getAccessiblePropertyIds(orgId, uId, role),
+        (orgId, uId, orgWide) =>
+          deps.staffPublicApi.getAccessiblePropertyIds(orgId, uId, orgWide),
         filter.organizationId,
         input.userId,
-        input.role,
+        input.role === 'AccountAdmin',
         filter.propertyId,
       )
       if (!isAccessible) {
@@ -80,7 +80,7 @@ export const listGoals =
       const accessible = await deps.staffPublicApi.getAccessiblePropertyIds(
         filter.organizationId,
         input.userId,
-        input.role,
+        input.role === 'AccountAdmin',
       )
       if (accessible !== null) {
         const allowed = new Set(accessible)

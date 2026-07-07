@@ -12,7 +12,7 @@ import { validatePropertyName, validateSlug, validateTimezone } from '../../doma
 import { propertyError } from '../../domain/errors'
 import { propertyUpdated } from '../../domain/events'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
-import { isPropertyAccessible } from '#/shared/domain/property-access'
+import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
 
 // fallow-ignore-next-line unused-type
 export type UpdatePropertyDeps = Readonly<{
@@ -84,12 +84,11 @@ export const updateProperty =
     // Enforce property-assignment scoping for PropertyManager (AccountAdmin
     // bypasses via getAccessiblePropertyIds returning null). Mirrors the
     // list-properties read path. (D6-001.)
-    const accessible = await isPropertyAccessible(
-      (orgId, userId, role) =>
-        deps.staffPublicApi.getAccessiblePropertyIds(orgId, userId, role),
-      ctx.organizationId,
-      ctx.userId,
-      ctx.role,
+    const accessible = await isPropertyAccessibleForPermission(
+      (orgId, userId, orgWide) =>
+        deps.staffPublicApi.getAccessiblePropertyIds(orgId, userId, orgWide),
+      ctx,
+      'property.update',
       propertyId,
     )
     if (!accessible) {

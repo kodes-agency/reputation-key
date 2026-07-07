@@ -7,7 +7,7 @@ import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { propertyError } from '../../domain/errors'
 import { propertyId } from '#/shared/domain/ids'
 import { can } from '#/shared/domain/permissions'
-import { isPropertyAccessible } from '#/shared/domain/property-access'
+import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
 
 // fallow-ignore-next-line unused-type
 export type GetPropertyDeps = Readonly<{
@@ -35,12 +35,11 @@ export const getProperty =
     // Enforce property-assignment scoping for PropertyManager (AccountAdmin
     // bypasses via getAccessiblePropertyIds returning null). Mirrors the
     // update-property write path. (PROPERTY-001 / D6-001.)
-    const accessible = await isPropertyAccessible(
-      (orgId, userId, role) =>
-        deps.staffPublicApi.getAccessiblePropertyIds(orgId, userId, role),
-      ctx.organizationId,
-      ctx.userId,
-      ctx.role,
+    const accessible = await isPropertyAccessibleForPermission(
+      (orgId, userId, orgWide) =>
+        deps.staffPublicApi.getAccessiblePropertyIds(orgId, userId, orgWide),
+      ctx,
+      'property.read',
       pid,
     )
     if (!accessible) {

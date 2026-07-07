@@ -29,7 +29,7 @@ export const listPortalGroups =
     const accessible = await deps.staffPublicApi.getAccessiblePropertyIds(
       ctx.organizationId,
       ctx.userId,
-      ctx.role,
+      ctx.role === 'AccountAdmin',
     )
     const groups = await deps.portalGroupRepo.listByProperty(
       ctx.organizationId,

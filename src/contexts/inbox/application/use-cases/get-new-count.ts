@@ -61,7 +61,7 @@ export const getNewCount =
       const accessible = await deps.staffPublicApi.getAccessiblePropertyIds(
         input.organizationId,
         input.userId,
-        input.role,
+        false,
       )
       // No assignments → no visible new items. propertyIds=[] would mean "no
       // filter" (org-wide) at the repo, so short-circuit to 0 to avoid leaking

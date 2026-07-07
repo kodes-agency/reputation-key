@@ -55,11 +55,11 @@ export const getGoal =
 
     // D6-001: PropertyManager/Staff must be assigned to the goal's property.
     const accessible = await isPropertyAccessible(
-      (orgId, uId, role) =>
-        deps.staffPublicApi.getAccessiblePropertyIds(orgId, uId, role),
+      (orgId, uId, orgWide) =>
+        deps.staffPublicApi.getAccessiblePropertyIds(orgId, uId, orgWide),
       input.organizationId,
       input.userId,
-      input.role,
+      input.role === 'AccountAdmin',
       goal.propertyId,
     )
     if (!accessible) {

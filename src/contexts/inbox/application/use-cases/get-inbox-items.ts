@@ -43,7 +43,7 @@ export const getInboxItems =
       const accessible = await deps.staffPublicApi.getAccessiblePropertyIds(
         input.organizationId,
         input.userId,
-        input.role,
+        false,
       )
 
       if (accessible !== null) {

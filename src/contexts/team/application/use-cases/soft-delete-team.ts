@@ -7,7 +7,7 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import type { TeamId } from '#/shared/domain/ids'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { can } from '#/shared/domain/permissions'
-import { isPropertyAccessible } from '#/shared/domain/property-access'
+import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
 import { teamError } from '../../domain/errors'
 import { teamDeleted } from '../../domain/events'
 
@@ -41,11 +41,11 @@ export const softDeleteTeam =
     }
 
     // D6-001: PropertyManager/Staff must be assigned to the team's property.
-    const accessible = await isPropertyAccessible(
-      (orgId, uId, role) => deps.staffApi.getAccessiblePropertyIds(orgId, uId, role),
-      ctx.organizationId,
-      ctx.userId,
-      ctx.role,
+    const accessible = await isPropertyAccessibleForPermission(
+      (orgId, uId, orgWide) =>
+        deps.staffApi.getAccessiblePropertyIds(orgId, uId, orgWide),
+      ctx,
+      'team.delete',
       team.propertyId,
     )
     if (!accessible) {

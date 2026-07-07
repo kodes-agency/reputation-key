@@ -41,7 +41,7 @@ export const getActivityTimeline =
       const accessiblePropertyIds = await deps.staffPublicApi.getAccessiblePropertyIds(
         input.organizationId,
         input.userId,
-        input.role,
+        input.role === 'AccountAdmin',
       )
       scoped = filterByPropertyAccess(entries, accessiblePropertyIds)
     }

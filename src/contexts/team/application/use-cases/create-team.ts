@@ -10,7 +10,7 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import type { CreateTeamInput } from '../dto/create-team.dto'
 export type { CreateTeamInput } from '../dto/create-team.dto'
 import { can } from '#/shared/domain/permissions'
-import { isPropertyAccessible } from '#/shared/domain/property-access'
+import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
 import { propertyId as toPropertyId, userId as toUserId } from '#/shared/domain/ids'
 import { buildTeam } from '../../domain/constructors'
 import { teamError } from '../../domain/errors'
@@ -35,11 +35,11 @@ export const createTeam =
     }
     // D6-001: PropertyManager/Staff must be assigned to the target property.
     const pid = toPropertyId(input.propertyId)
-    const accessible = await isPropertyAccessible(
-      (orgId, uId, role) => deps.staffApi.getAccessiblePropertyIds(orgId, uId, role),
-      ctx.organizationId,
-      ctx.userId,
-      ctx.role,
+    const accessible = await isPropertyAccessibleForPermission(
+      (orgId, uId, orgWide) =>
+        deps.staffApi.getAccessiblePropertyIds(orgId, uId, orgWide),
+      ctx,
+      'team.create',
       pid,
     )
     if (!accessible) {

@@ -101,11 +101,11 @@ export const createGoal =
     // D6-001: PropertyManager/Staff must be assigned to the target property.
     // Runs before buildGoal and the recurring branch so no work is done when forbidden.
     const accessible = await isPropertyAccessible(
-      (orgId, uId, role) =>
-        deps.staffPublicApi.getAccessiblePropertyIds(orgId, uId, role),
+      (orgId, uId, orgWide) =>
+        deps.staffPublicApi.getAccessiblePropertyIds(orgId, uId, orgWide),
       input.organizationId,
       input.createdBy,
-      input.role,
+      input.role === 'AccountAdmin',
       input.propertyId,
     )
     if (!accessible) {

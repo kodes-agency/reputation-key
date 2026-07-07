@@ -65,7 +65,7 @@ export const getOrgActivity =
       const accessiblePropertyIds = await deps.staffPublicApi.getAccessiblePropertyIds(
         input.organizationId,
         input.userId,
-        input.role,
+        input.role === 'AccountAdmin',
       )
 
       // ACT-010: push property-access scoping into SQL (propertyId IN accessible

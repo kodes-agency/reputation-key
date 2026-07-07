@@ -19,10 +19,11 @@ export async function assertPropertyAccess(
   propertyId: PropertyId,
 ): Promise<void> {
   const accessible = await isPropertyAccessible(
-    (orgId, userId, role) => staffPublicApi.getAccessiblePropertyIds(orgId, userId, role),
+    (orgId, userId, orgWide) =>
+      staffPublicApi.getAccessiblePropertyIds(orgId, userId, orgWide),
     ctx.organizationId,
     ctx.userId,
-    ctx.role,
+    ctx.role === 'AccountAdmin',
     propertyId,
   )
   if (!accessible) {

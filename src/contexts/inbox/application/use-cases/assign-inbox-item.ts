@@ -62,11 +62,11 @@ export const assignInboxItem =
     //     be able to access the property to handle the inbox item.
     if (input.assignedToUserId) {
       const assigneeCanAccess = await isPropertyAccessible(
-        (orgId, uId, role) =>
-          deps.staffPublicApi.getAccessiblePropertyIds(orgId, uId, role),
+        (orgId, uId, orgWide) =>
+          deps.staffPublicApi.getAccessiblePropertyIds(orgId, uId, orgWide),
         input.organizationId,
         input.assignedToUserId,
-        input.role,
+        input.role === 'AccountAdmin',
         item.propertyId,
       )
       if (!assigneeCanAccess) {

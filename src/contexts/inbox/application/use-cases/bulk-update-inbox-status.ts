@@ -53,7 +53,7 @@ const resolveAccessiblePropertyIds = async (
       accessible: await deps.staffPublicApi.getAccessiblePropertyIds(
         input.organizationId,
         input.userId,
-        input.role,
+        false,
       ),
     }
   } catch (err) {

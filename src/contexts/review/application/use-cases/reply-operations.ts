@@ -55,11 +55,11 @@ async function assertReplyPropertyAccessible(
   propertyId: PropertyId,
 ): Promise<void> {
   const accessible = await isPropertyAccessible(
-    (orgId, userId, role) =>
-      deps.staffPublicApi.getAccessiblePropertyIds(orgId, userId, role),
+    (orgId, userId, orgWide) =>
+      deps.staffPublicApi.getAccessiblePropertyIds(orgId, userId, orgWide),
     caller.organizationId,
     caller.userId,
-    caller.role,
+    caller.role === 'AccountAdmin',
     propertyId,
   )
   if (!accessible) {

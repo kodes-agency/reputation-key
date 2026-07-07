@@ -14,7 +14,7 @@ import { hasRole } from '#/shared/domain/roles'
 import { staffError } from '../../domain/errors'
 import { staffAssigned, staffUnassigned } from '../../domain/events'
 import { buildStaffAssignment } from '../../domain/constructors'
-import { isPropertyAccessible } from '#/shared/domain/property-access'
+import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
 import { staffAssignmentId } from '#/shared/domain/ids'
 
 // fallow-ignore-next-line unused-type
@@ -50,12 +50,11 @@ export const updateStaffPortals =
 
     // 1b. Property-access scoping (D6-001):
     // AccountAdmin bypasses; PropertyManager/Staff must be assigned to the target property.
-    const accessible = await isPropertyAccessible(
-      (orgId, uId, role) =>
-        deps.staffPublicApi.getAccessiblePropertyIds(orgId, uId, role),
-      ctx.organizationId,
-      ctx.userId,
-      ctx.role,
+    const accessible = await isPropertyAccessibleForPermission(
+      (orgId, uId, orgWide) =>
+        deps.staffPublicApi.getAccessiblePropertyIds(orgId, uId, orgWide),
+      ctx,
+      'staff_assignment.create',
       input.propertyId,
     )
     if (!accessible) {

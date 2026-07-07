@@ -53,7 +53,7 @@ describe('StaffPublicApi', () => {
     const result = await publicApi.getAccessiblePropertyIds(
       organizationId('org-1'),
       userId('user-1'),
-      'AccountAdmin',
+      true,
     )
 
     expect(result).toBeNull()
@@ -87,7 +87,7 @@ describe('StaffPublicApi', () => {
     const result = await publicApi.getAccessiblePropertyIds(
       organizationId('org-1'),
       userId('user-1'),
-      'PropertyManager',
+      false,
     )
 
     expect(result).not.toBeNull()

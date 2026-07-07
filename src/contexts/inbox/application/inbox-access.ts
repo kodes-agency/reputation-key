@@ -42,14 +42,14 @@ export const assertPropertyAccessible = async (
   role: Role,
   propertyId: PropertyId,
 ): Promise<void> => {
-  // AccountAdmin has org-wide access — skip the lookup entirely.
+  // AccountAdmin (org-wide) bypasses — skip the lookup entirely.
   if (role === 'AccountAdmin') return
   // PropertyManager/Staff: scoped to assigned properties via staff_assignment.
   const accessible = await isPropertyAccessible(
-    (orgId, uId, r) => staffPublicApi.getAccessiblePropertyIds(orgId, uId, r),
+    (orgId, uId, orgWide) => staffPublicApi.getAccessiblePropertyIds(orgId, uId, orgWide),
     organizationId,
     userId,
-    role,
+    false,
     propertyId,
   )
   if (!accessible) {

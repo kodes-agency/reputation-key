@@ -7,8 +7,6 @@ import type { StaffPortalLookupPort } from './application/ports/portal-lookup.po
 import type { IdentityMembershipPort } from './application/ports/identity-membership.port'
 import type { StaffPublicApi } from './application/public-api'
 import type { OrganizationId, UserId } from '#/shared/domain/ids'
-import { hasRole } from '#/shared/domain/roles'
-import type { Role } from '#/shared/domain/roles'
 import type { EventBus } from '#/shared/events/event-bus'
 import { createStaffAssignment } from './application/use-cases/create-staff-assignment'
 import { removeStaffAssignment } from './application/use-cases/remove-staff-assignment'
@@ -44,9 +42,9 @@ export const buildStaffContext = (deps: StaffContextDeps) => {
     getAccessiblePropertyIds: async (
       orgId: OrganizationId,
       userId: UserId,
-      role: Role,
+      orgWide: boolean,
     ) => {
-      if (hasRole(role, 'AccountAdmin')) return null
+      if (orgWide) return null
       return deps.repo.getAccessiblePropertyIds(orgId, userId)
     },
     getAssignedPortals: getAssignedPortalsUC,

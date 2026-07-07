@@ -32,7 +32,7 @@ export const getStaffRecentActivity =
       deps.staffPublicApi.getAccessiblePropertyIds,
       input.organizationId,
       input.userId,
-      input.role,
+      input.role === 'AccountAdmin',
       input.propertyId,
     )
     if (!accessible) return []
