@@ -7,7 +7,7 @@ Auth tables and their custom columns are managed by the **better-auth CLI**, nev
 
 **Auth-managed tables (better-auth CLI):** `user`, `session`, `account`, `verification`, `organization`, `member`, `invitation`, and ALL `additionalFields` on them.
 
-**Business tables (Drizzle):** only the tables in `drizzle.config.ts` `tablesFilter` (`properties`, `reviews`, `portals`, …). Use `pnpm db:generate` / `db:migrate`. Drizzle's filter deliberately excludes auth tables — `db:push` will not and must not touch them.
+**Business tables (Drizzle):** only the tables in `drizzle.config.ts` `tablesFilter` (`properties`, `reviews`, `portals`, …). Migrate-based: `pnpm db:generate` then **commit `drizzle/`** (it is version-controlled); `pnpm db:migrate` is the deploy path. Do NOT use `db:push` on business tables — it desyncs the journal (root cause of the prior schema drift). Drizzle's filter deliberately excludes auth tables — neither `db:push` nor `db:migrate` will touch them.
 
 **Single source of truth for auth additionalFields:** `src/shared/auth/org-schema.ts` — imported by BOTH `src/shared/auth/auth.ts` (runtime) and `src/shared/auth/auth-cli.ts` (migration CLI). Edit it ONCE; both configs see the change. Never re-declare additionalFields inline in either file.
 

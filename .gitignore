@@ -17,8 +17,8 @@ storybook-static
 .vinxi
 __unconfig*
 
-# Drizzle migrations output
-drizzle/
+# Drizzle migrations ARE committed (migrate-based workflow).
+# `pnpm db:generate` -> commit drizzle/ -> `pnpm db:migrate` is the deploy path.
 
 # Test coverage
 coverage/

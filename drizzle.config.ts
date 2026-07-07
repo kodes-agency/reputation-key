@@ -12,10 +12,15 @@ export default defineConfig({
   dbCredentials: {
     url: process.env.DATABASE_URL,
   },
-  // Only manage business tables. Auth tables (user, session, account,
-  // verification, organization, member, invitation) are managed by
-  // `pnpm auth:migrate` (Better Auth CLI). Without this filter, db:push
-  // would try to drop them since they're not in the business schema.
+  // Drizzle manages business + DAC tables only. Auth tables (user, session,
+  // account, verification, organization, member, invitation, organizationRole)
+  // are managed by `pnpm auth:migrate` (Better Auth CLI) and are excluded here.
+  // Migrate-based workflow: edit schema -> `pnpm db:generate` -> commit drizzle/
+  // -> `pnpm db:migrate` (deploy). Do NOT use db:push on business tables — it
+  // bypasses the journal and was the root cause of the prior schema drift.
+  // Deploy apply order: `pnpm auth:migrate` -> `pnpm db:migrate` -> raw-SQL
+  // sidecars in scripts/migrations/ (materialized views; DAC triggers /
+  // organizationRole index / last-owner — objects Drizzle cannot express).
   tablesFilter: [
     'properties',
     'permission_version',
