@@ -7,6 +7,8 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import type { EventBus } from '#/shared/events/event-bus'
 import { inviteMember } from './application/use-cases/invite-member'
 import { createCustomRole } from './application/use-cases/create-custom-role'
+import { updateCustomRole } from './application/use-cases/update-custom-role'
+import { deleteCustomRole } from './application/use-cases/delete-custom-role'
 import { updateMemberRole } from './application/use-cases/update-member-role'
 import { removeMember } from './application/use-cases/remove-member'
 import { listInvitations } from './application/use-cases/list-invitations'
@@ -112,6 +114,8 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
       updateOrg: deps.updateOrg,
     }),
     createCustomRole: createCustomRole({ identity: deps.identityPort }),
+    updateCustomRole: updateCustomRole({ identity: deps.identityPort }),
+    deleteCustomRole: deleteCustomRole({ identity: deps.identityPort }),
   } as const
 
   return { publicApi: {} as const, internal: { repos: {} as const, useCases } } as const

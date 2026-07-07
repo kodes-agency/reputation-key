@@ -4,7 +4,7 @@
 // remain testable with in-memory fakes.
 
 import type { Database } from '#/shared/db'
-import { eq, sql } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { organizationRole, user as userTable } from '#/shared/db/schema/auth'
 import { getLogger } from '#/shared/observability/logger'
 import { organizationRolePolicy } from '#/shared/db/schema/dac.schema'
@@ -407,6 +407,60 @@ export const createBetterAuthIdentityAdapter = (db: Database): IdentityPort => {
         }
         throw e
       }
+    },
+
+    async updateCustomRole(
+      ctx: AuthContext,
+      role: string,
+      input: Readonly<{
+        permissions: ReadonlyArray<Permission>
+        dataScope: DataScope
+      }>,
+    ): Promise<void> {
+      const r = role.trim().toLowerCase()
+      const permission = JSON.stringify(buildPermissionStatement(input.permissions))
+      await db.transaction(async (tx) => {
+        await tx
+          .update(organizationRole)
+          .set({ permission, updatedAt: new Date() })
+          .where(
+            and(
+              eq(organizationRole.organizationId, ctx.organizationId as string),
+              eq(organizationRole.role, r),
+            ),
+          )
+        await tx
+          .update(organizationRolePolicy)
+          .set({ dataScope: input.dataScope, updatedAt: new Date() })
+          .where(
+            and(
+              eq(organizationRolePolicy.organizationId, ctx.organizationId as string),
+              eq(organizationRolePolicy.role, r),
+            ),
+          )
+      })
+    },
+
+    async deleteCustomRole(ctx: AuthContext, role: string): Promise<void> {
+      const r = role.trim().toLowerCase()
+      await db.transaction(async (tx) => {
+        await tx
+          .delete(organizationRole)
+          .where(
+            and(
+              eq(organizationRole.organizationId, ctx.organizationId as string),
+              eq(organizationRole.role, r),
+            ),
+          )
+        await tx
+          .delete(organizationRolePolicy)
+          .where(
+            and(
+              eq(organizationRolePolicy.organizationId, ctx.organizationId as string),
+              eq(organizationRolePolicy.role, r),
+            ),
+          )
+      })
     },
   }
 }

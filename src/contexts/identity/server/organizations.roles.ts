@@ -10,7 +10,11 @@ import { canForContext } from '#/shared/domain/permissions'
 import { getContainer } from '#/composition'
 import { isIdentityError } from '../domain/errors'
 import { throwIdentityError } from './organizations.errors.server'
-import { createCustomRoleInputSchema } from '../application/dto/custom-role.dto'
+import {
+  createCustomRoleInputSchema,
+  updateCustomRoleInputSchema,
+  deleteCustomRoleInputSchema,
+} from '../application/dto/custom-role.dto'
 
 // ── Create custom role ────────────────────────────────────────────
 
@@ -40,5 +44,59 @@ export const createCustomRole = createServerFn({ method: 'POST' })
       },
       'POST',
       'identity.createCustomRole',
+    ),
+  )
+
+export const updateCustomRole = createServerFn({ method: 'POST' })
+  .inputValidator(updateCustomRoleInputSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const headers = await headersFromContext()
+        const ctx = await resolveTenantContext(headers)
+        if (!canForContext(ctx, 'member.update')) {
+          throwContextError(
+            'AuthError',
+            { code: 'forbidden', message: 'Insufficient permissions to manage roles' },
+            403,
+          )
+        }
+        try {
+          const { useCases } = getContainer()
+          await useCases.updateCustomRole(data, ctx)
+        } catch (e) {
+          if (isIdentityError(e)) throwIdentityError(e)
+          throw catchUntagged(e)
+        }
+      },
+      'POST',
+      'identity.updateCustomRole',
+    ),
+  )
+
+export const deleteCustomRole = createServerFn({ method: 'POST' })
+  .inputValidator(deleteCustomRoleInputSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const headers = await headersFromContext()
+        const ctx = await resolveTenantContext(headers)
+        if (!canForContext(ctx, 'member.update')) {
+          throwContextError(
+            'AuthError',
+            { code: 'forbidden', message: 'Insufficient permissions to manage roles' },
+            403,
+          )
+        }
+        try {
+          const { useCases } = getContainer()
+          await useCases.deleteCustomRole(data, ctx)
+        } catch (e) {
+          if (isIdentityError(e)) throwIdentityError(e)
+          throw catchUntagged(e)
+        }
+      },
+      'POST',
+      'identity.deleteCustomRole',
     ),
   )

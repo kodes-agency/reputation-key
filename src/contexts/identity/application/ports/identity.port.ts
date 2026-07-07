@@ -113,6 +113,21 @@ export type IdentityPort = Readonly<{
       dataScope: DataScope
     }>,
   ) => Promise<void>
+  /** Update a custom role's permissions + data scope (atomic). App-owned write path. */
+  updateCustomRole: (
+    ctx: AuthContext,
+    role: string,
+    input: Readonly<{
+      permissions: ReadonlyArray<Permission>
+      dataScope: DataScope
+    }>,
+  ) => Promise<void>
+  /**
+   * Delete a custom role definition (organizationRole + organization_role_policy, atomic).
+   * Members still holding the role become permissionless via the resolver's fail-closed
+   * path (missing role definition → no permissions). App-owned write path.
+   */
+  deleteCustomRole: (ctx: AuthContext, role: string) => Promise<void>
   /** Delete a user by ID. Used as compensating transaction when org setup fails. */
   deleteUser: (userId: string) => Promise<void>
 }>

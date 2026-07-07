@@ -166,6 +166,21 @@ export function createInMemoryIdentityPort(): InMemoryIdentityPort {
       customRoles.set(key, { role })
     },
 
+    async updateCustomRole(
+      ctx: AuthContext,
+      role: string,
+      _input: Readonly<{ permissions: ReadonlyArray<Permission>; dataScope: DataScope }>,
+    ): Promise<void> {
+      // Idempotent in-memory update; mirrors the adapter (no existence check).
+      customRoles.set(`${ctx.organizationId as string}:${role.trim().toLowerCase()}`, {
+        role: role.trim().toLowerCase(),
+      })
+    },
+
+    async deleteCustomRole(ctx: AuthContext, role: string): Promise<void> {
+      customRoles.delete(`${ctx.organizationId as string}:${role.trim().toLowerCase()}`)
+    },
+
     // ── Test-only helpers ─────────────────────────────────────────────
 
     seedMembers(ms: ReadonlyArray<MemberRecord>): void {
