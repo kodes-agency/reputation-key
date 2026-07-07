@@ -495,8 +495,9 @@ export default tseslint.config(
     ],
     files: ['src/components/**/*.{ts,tsx}'],
     rules: {
-      // Max file length to prevent monolith components
-      'max-lines': ['error', { max: 150, skipBlankLines: true, skipComments: true }],
+      // Max file length to prevent monolith components. 200 (not 150): JSX is
+      // verbose, and normal list/dashboard pages legitimately run 150–190 lines.
+      'max-lines': ['error', { max: 200, skipBlankLines: true, skipComments: true }],
     },
   },
 )
