@@ -157,9 +157,8 @@ describe('getNewCount', () => {
   })
 
   it('scopes PropertyManager to assigned properties on DB fallback (PM is NOT org-wide)', async () => {
-    // Counter returns 0 → forces the DB fallback, which applies the PM scope.
-    // (When the counter is warm it returns org-wide — see the ccInbox MAJOR
-    //  TODO in get-new-count.ts; the counter-key change is tracked separately.)
+    // PM is never org-wide, so it always uses the scoped DB count (the counter
+    // is AccountAdmin-only — see the warm-counter-bypass test below).
     const { useCase, repo, setCounterValue } = setup(scopedStaffApi(['prop-1']))
     setCounterValue(0)
     repo.items.push(makeItem({ id: 'ii-1' })) // prop-1 (assigned)
@@ -172,6 +171,23 @@ describe('getNewCount', () => {
     })
 
     expect(count).toBe(1) // only the assigned property's new item
+  })
+
+  it('ignores the warm org-wide counter for PropertyManager (scopes to assigned)', async () => {
+    // Regression: a warm org-wide counter used to overcount PM/Staff. PM/Staff
+    // now bypass the counter and always read the scoped DB count.
+    const { useCase, repo, setCounterValue } = setup(scopedStaffApi(['prop-1']))
+    setCounterValue(5) // warm org-wide counter — must be ignored for PM
+    repo.items.push(makeItem({ id: 'ii-1' })) // prop-1 (assigned)
+    repo.items.push(makeItem({ id: 'ii-2', propertyId: propertyId('prop-2') }))
+
+    const count = await useCase({
+      organizationId: ORG_ID,
+      userId: USER_ID,
+      role: 'PropertyManager',
+    })
+
+    expect(count).toBe(1) // scoped, not the org-wide 5
   })
 
   it('returns 0 for PropertyManager with no assignments on DB fallback', async () => {

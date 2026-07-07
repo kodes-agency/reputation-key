@@ -1,8 +1,10 @@
 // Inbox context — get new count use case
-// Returns the new count for an org, with fallback to repo count.
+// Returns the new count for the caller: org-wide (cached) for AccountAdmin,
+// scoped to assigned properties (DB) for PropertyManager/Staff.
 //
-// Design note: New count is org-level (see NewCounterPort for rationale).
-// userId is NOT part of the counter scope.
+// Design note: the counter is org-wide (see NewCounterPort). Only AccountAdmin
+// is org-scoped, so only they use the cached counter; PM/Staff bypass it (the
+// org-wide value would overcount for them) and read the scoped DB count.
 
 import type { NewCounterPort } from '../ports/new-counter.port'
 import type { InboxRepository } from '../ports/inbox.repository'
@@ -34,41 +36,36 @@ export const getNewCount =
       throw inboxError('forbidden', 'No inbox read permission')
     }
 
-    // 1. Try counter first.
-    // TODO(counter-key, ccInbox MAJOR): the new counter is keyed by orgId only
-    //    (see NewCounterPort design note), so it holds the ORG-WIDE new count.
-    //    When warm, step 1 returns that org-wide count to ALL roles — including
-    //    PropertyManager/Staff, who must be scoped to their assigned properties.
-    //    Fully scoping them needs a per-(org, accessiblePropertyIds) counter key
-    //    (or per role-scope invalidation), which is a separate piece of work
-    //    tracked as the ccInbox MAJOR finding. Until then, scoped roles only
-    //    receive a correctly-scoped count via the DB-fallback path below (when
-    //    the counter is cold/unavailable). AccountAdmin is correct either way.
-    //    CHANGELOG: when the counter key becomes per-scope, remove this note
-    //    and route PM/Staff through the scoped count unconditionally.
-    try {
-      const count = await deps.newCounter.getCount(input.organizationId)
-      if (count > 0) return count
-    } catch (e) {
-      // Counter unavailable, fall through to repo
-      deps.logger.warn({ err: e }, 'New counter unavailable, falling back to repo count')
+    const isOrgWide = input.role === 'AccountAdmin'
+
+    // 1. AccountAdmin fast path: the org-wide counter is correct for the only
+    //    org-scoped role. PM/Staff MUST skip it — it holds the org-wide count,
+    //    which would overcount them (their new items are scoped to their
+    //    staff_assignment properties). They go straight to the scoped repo below.
+    if (isOrgWide) {
+      try {
+        const count = await deps.newCounter.getCount(input.organizationId)
+        if (count > 0) return count
+      } catch (e) {
+        deps.logger.warn(
+          { err: e },
+          'New counter unavailable, falling back to repo count',
+        )
+      }
     }
 
-    // 2. Fallback: count from repo, warm the counter cache.
-    // Resolve property scoping: AccountAdmin sees org-wide; PropertyManager/Staff
-    // are scoped to their staff_assignment properties.
-    // (PM holds inbox.manage but is NOT org-wide — CONTEXT.md L72.)
+    // 2. Scoped repo count (always for PM/Staff; fallback for AccountAdmin).
+    // PM holds inbox.manage but is NOT org-wide (CONTEXT.md L72).
     let propertyIds: ReadonlyArray<PropertyId> | undefined
-    if (input.role !== 'AccountAdmin') {
+    if (!isOrgWide) {
       const accessible = await deps.staffPublicApi.getAccessiblePropertyIds(
         input.organizationId,
         input.userId,
         input.role,
       )
-      // No assignments → no visible new items. The repo treats propertyIds=[]
-      // as "no filter" (org-wide), so short-circuit to 0 to avoid leaking
-      // org-wide counts to a scoped user with no property assignments.
-      // (The warm-counter path above is still org-wide — see ccInbox MAJOR TODO.)
+      // No assignments → no visible new items. propertyIds=[] would mean "no
+      // filter" (org-wide) at the repo, so short-circuit to 0 to avoid leaking
+      // org-wide counts to a scoped user with no assignments.
       if (accessible !== null && accessible.length === 0) return 0
       propertyIds = accessible ?? undefined
     }
@@ -78,7 +75,10 @@ export const getNewCount =
       'new',
       propertyIds,
     )
-    if (dbCount > 0) {
+
+    // Warm the org-wide counter ONLY for AccountAdmin — a scoped dbCount must
+    // not pollute the org-wide key (it would undercount the next admin read).
+    if (isOrgWide && dbCount > 0) {
       try {
         await deps.newCounter.setCount(input.organizationId, dbCount)
       } catch (err) {
