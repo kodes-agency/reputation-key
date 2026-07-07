@@ -17,6 +17,10 @@ import { can, type Permission } from '#/shared/domain/permissions'
 import type { DataScope } from '#/shared/domain/data-scope'
 import { VALID_PERMISSIONS } from './permission-catalogue'
 import { BUILT_IN_ROLE_SCOPE } from './resolve-permissions'
+import { resolvePermissions } from './resolve-permissions'
+import { builtInPermissionsForRole } from './role-definitions'
+import { fetchRoleDefinitions } from '#/shared/db/role-definitions'
+import { getDb } from '#/shared/db'
 
 // ── Request-scoped tenant cache ───────────────────────────────
 // Within a single page load, multiple server functions call resolveTenantContext
@@ -75,7 +79,12 @@ export function resetTenantCache(): void {
 
 type AuthError = Readonly<{
   _tag: 'AuthError'
-  code: 'unauthorized' | 'session_expired' | 'forbidden' | 'no_active_org'
+  code:
+    | 'unauthorized'
+    | 'session_expired'
+    | 'forbidden'
+    | 'no_active_org'
+    | 'authorization_unavailable'
   message: string
 }>
 
@@ -84,6 +93,7 @@ const authErrorStatus = (code: AuthError['code']): number =>
     .with('unauthorized', 'session_expired', () => 401)
     .with('forbidden', () => 403)
     .with('no_active_org', () => 400)
+    .with('authorization_unavailable', () => 503)
     .exhaustive()
 
 function throwAuthError(code: AuthError['code'], message: string): never {
@@ -165,41 +175,64 @@ export async function resolveTenantContext(headers: Headers): Promise<AuthContex
   }
 
   const role = toDomainRole(member.role)
-  if (role === null) {
-    // Non-built-in role (custom or comma-delimited multi-role). Stage 1 fails
-    // closed — the dynamic permission resolver ships in Stage 2 behind
-    // ENABLE_CUSTOM_ROLES. The warn log is the alerting anchor (Sentry/log alert
-    // on the auth.unsupported_member_role token).
-    const env = getEnv()
+  const env = getEnv()
+
+  if (role === null && !env.ENABLE_CUSTOM_ROLES) {
+    // Stage 1 fail-closed: a non-built-in role (custom or comma-delimited multi-role)
+    // while custom roles are disabled. The warn log is the alerting anchor.
     getLogger().warn(
-      {
-        memberRole: member.role,
-        organizationId: activeOrgId,
-        userId: session.user.id,
-        customRolesEnabled: env.ENABLE_CUSTOM_ROLES,
-      },
-      env.ENABLE_CUSTOM_ROLES
-        ? 'auth.unsupported_member_role: dynamic resolver not implemented (ENABLE_CUSTOM_ROLES=true)'
-        : 'auth.unsupported_member_role: custom role rejected while custom roles are disabled',
+      { memberRole: member.role, organizationId: activeOrgId, userId: session.user.id },
+      'auth.unsupported_member_role: custom role rejected while custom roles are disabled',
     )
     throwAuthError('forbidden', 'Member role is not supported')
   }
 
-  // Populate the dynamic-resolver fields for built-in roles (Stage 1: no DB needed —
-  // built-in roles carry fixed scopes). Stage 2 (ENABLE_CUSTOM_ROLES) will resolve
-  // custom/multi roles via resolvePermissions + a DB fetch + a permission_version-keyed cache.
-  const builtInScope: DataScope = BUILT_IN_ROLE_SCOPE[member.role] ?? 'none'
-  const effectivePermissions = new Set<Permission>(
-    VALID_PERMISSIONS.filter((p) => can(role, p)),
-  )
-  const scopeByPermission = new Map<Permission, DataScope>(
-    [...effectivePermissions].map((p) => [p, builtInScope] as const),
-  )
+  let effectivePermissions: ReadonlySet<Permission>
+  let scopeByPermission: ReadonlyMap<Permission, DataScope>
+
+  if (env.ENABLE_CUSTOM_ROLES) {
+    // Stage 2: resolve via the dynamic resolver (built-in + custom/multi roles; per-
+    // permission scope, no widening). Fail-closed with 503 if role definitions can't load.
+    try {
+      const { customRoles, policies } = await fetchRoleDefinitions(getDb(), activeOrgId)
+      const resolved = resolvePermissions({
+        roleNames: member.role.split(','),
+        customRoles,
+        policies,
+        builtInPermissions: builtInPermissionsForRole,
+      })
+      effectivePermissions = resolved.effectivePermissions
+      scopeByPermission = resolved.scopeByPermission
+    } catch (err) {
+      getLogger().error(
+        {
+          err,
+          organizationId: activeOrgId,
+          userId: session.user.id,
+          memberRole: member.role,
+        },
+        'auth.authorization_unavailable: dynamic resolver failed; fail-closed',
+      )
+      throwAuthError('authorization_unavailable', 'Authorization resolution failed')
+    }
+  } else {
+    // Stage 1: built-in role, flag off — fixed scopes, no DB.
+    const builtInScope: DataScope = BUILT_IN_ROLE_SCOPE[member.role] ?? 'none'
+    effectivePermissions = new Set<Permission>(
+      VALID_PERMISSIONS.filter((p) => can(role!, p)),
+    )
+    scopeByPermission = new Map<Permission, DataScope>(
+      [...effectivePermissions].map((p) => [p, builtInScope] as const),
+    )
+  }
 
   const ctx: AuthContext = {
     userId: userId(session.user.id),
     organizationId: organizationId(activeOrgId),
-    role,
+    // Custom-only members have no built-in Role; 'Staff' is a lowest-privilege placeholder —
+    // effectivePermissions/scopeByPermission are authoritative (all checks route through
+    // canForContext/scopeForPermission, never ctx.role directly).
+    role: role ?? 'Staff',
     effectivePermissions,
     scopeByPermission,
   }

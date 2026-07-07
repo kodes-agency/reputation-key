@@ -7,6 +7,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 // Mock getAuth before importing the module under test
 const mockGetSession = vi.fn()
 const mockGetActiveMember = vi.fn()
+const mockDbSelect = vi.fn()
 
 vi.mock('./auth', () => ({
   getAuth: () => ({
@@ -17,6 +18,10 @@ vi.mock('./auth', () => ({
   }),
 }))
 
+vi.mock('#/shared/db', () => ({
+  getDb: () => ({ select: mockDbSelect }),
+}))
+
 import {
   getUserFromHeaders,
   getSessionFromHeaders,
@@ -24,6 +29,7 @@ import {
   resolveTenantContext,
   resetTenantCache,
 } from './middleware'
+import { resetEnv } from '#/shared/config/env'
 
 const makeHeaders = (extra: Record<string, string> = {}): Headers => {
   const h = new Headers()
@@ -36,11 +42,13 @@ const makeHeaders = (extra: Record<string, string> = {}): Headers => {
 beforeEach(() => {
   mockGetSession.mockReset()
   mockGetActiveMember.mockReset()
+  mockDbSelect.mockReset()
   resetTenantCache()
 })
 
 afterEach(() => {
   vi.useRealTimers()
+  resetEnv()
 })
 
 describe('getUserFromHeaders', () => {
@@ -258,6 +266,67 @@ describe('resolveTenantContext', () => {
         (e as unknown as Record<string, unknown>).status === 403,
     )
   })
+})
+
+it('resolves a custom role via the dynamic resolver when ENABLE_CUSTOM_ROLES is on', async () => {
+  process.env.ENABLE_CUSTOM_ROLES = 'true'
+  resetEnv()
+  mockGetSession.mockResolvedValue({
+    session: { id: 'sess-1', activeOrganizationId: 'org-1' },
+    user: { id: 'u1' },
+  })
+  mockGetActiveMember.mockResolvedValue({ role: 'content-manager' })
+
+  // fetchRoleDefinitions runs two selects — organizationRole {role, permission} and
+  // organization_role_policy {role, dataScope}. Distinguish by the selected columns.
+  mockDbSelect.mockImplementation((cols: Record<string, unknown>) => ({
+    from: () => ({
+      where: () =>
+        Promise.resolve(
+          'permission' in cols
+            ? [
+                {
+                  role: 'content-manager',
+                  permission: JSON.stringify({ portal: ['read', 'update'] }),
+                },
+              ]
+            : [{ role: 'content-manager', dataScope: 'assigned-properties' }],
+        ),
+    }),
+  }))
+
+  const ctx = await resolveTenantContext(makeHeaders())
+
+  // Custom-only member → Staff placeholder; the scope map is authoritative.
+  expect(ctx.role).toBe('Staff')
+  expect(ctx.effectivePermissions?.has('portal.read')).toBe(true)
+  expect(ctx.effectivePermissions?.has('portal.update')).toBe(true)
+  expect(ctx.scopeByPermission?.get('portal.read')).toBe('assigned-properties')
+
+  delete process.env.ENABLE_CUSTOM_ROLES
+})
+
+it('fails closed with 503 when the dynamic resolver throws (ENABLE_CUSTOM_ROLES on)', async () => {
+  process.env.ENABLE_CUSTOM_ROLES = 'true'
+  resetEnv()
+  mockGetSession.mockResolvedValue({
+    session: { id: 'sess-1', activeOrganizationId: 'org-1' },
+    user: { id: 'u1' },
+  })
+  mockGetActiveMember.mockResolvedValue({ role: 'content-manager' })
+  mockDbSelect.mockImplementation(() => ({
+    from: () => ({ where: () => Promise.reject(new Error('db down')) }),
+  }))
+
+  await expect(resolveTenantContext(makeHeaders())).rejects.toSatisfy(
+    (e: unknown) =>
+      e instanceof Error &&
+      e.name === 'AuthError' &&
+      (e as unknown as Record<string, unknown>).code === 'authorization_unavailable' &&
+      (e as unknown as Record<string, unknown>).status === 503,
+  )
+
+  delete process.env.ENABLE_CUSTOM_ROLES
 })
 
 describe('resolveTenantContext cache', () => {
