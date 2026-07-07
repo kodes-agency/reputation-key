@@ -13,6 +13,10 @@ import { throwContextError } from './server-errors'
 import { enrichSpan } from '#/shared/observability/request-context'
 import { getEnv } from '#/shared/config/env'
 import { getLogger } from '#/shared/observability/logger'
+import { can, type Permission } from '#/shared/domain/permissions'
+import type { DataScope } from '#/shared/domain/data-scope'
+import { VALID_PERMISSIONS } from './permission-catalogue'
+import { BUILT_IN_ROLE_SCOPE } from './resolve-permissions'
 
 // ── Request-scoped tenant cache ───────────────────────────────
 // Within a single page load, multiple server functions call resolveTenantContext
@@ -181,10 +185,23 @@ export async function resolveTenantContext(headers: Headers): Promise<AuthContex
     throwAuthError('forbidden', 'Member role is not supported')
   }
 
+  // Populate the dynamic-resolver fields for built-in roles (Stage 1: no DB needed —
+  // built-in roles carry fixed scopes). Stage 2 (ENABLE_CUSTOM_ROLES) will resolve
+  // custom/multi roles via resolvePermissions + a DB fetch + a permission_version-keyed cache.
+  const builtInScope: DataScope = BUILT_IN_ROLE_SCOPE[member.role] ?? 'none'
+  const effectivePermissions = new Set<Permission>(
+    VALID_PERMISSIONS.filter((p) => can(role, p)),
+  )
+  const scopeByPermission = new Map<Permission, DataScope>(
+    [...effectivePermissions].map((p) => [p, builtInScope] as const),
+  )
+
   const ctx: AuthContext = {
     userId: userId(session.user.id),
     organizationId: organizationId(activeOrgId),
     role,
+    effectivePermissions,
+    scopeByPermission,
   }
 
   // Only cache if we have a valid key (non-empty cookies)

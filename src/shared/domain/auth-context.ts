@@ -8,10 +8,25 @@
 
 import type { OrganizationId, UserId } from './ids'
 import type { Role } from './roles'
+import type { Permission } from './permissions'
+import type { DataScope } from './data-scope'
 
 /** Auth context attached to every authenticated request. */
 export type AuthContext = Readonly<{
   userId: UserId
   organizationId: OrganizationId
   role: Role
+  /**
+   * Effective permission set from the dynamic resolver (ADR 0001). When present,
+   * `canForContext` prefers it over the static `role` table so custom/multi roles
+   * resolve correctly. Absent (Stage 1 fallback) → `canForContext` falls back to
+   * `can(ctx.role, p)`. Populated by resolveTenantContext.
+   */
+  effectivePermissions?: ReadonlySet<Permission>
+  /**
+   * Per-permission data scope from the dynamic resolver. A permission's scope governs
+   * ONLY that permission's records — no generic widening. Absent → `scopeForPermission`
+   * falls back to the built-in role's fixed scope. Populated by resolveTenantContext.
+   */
+  scopeByPermission?: ReadonlyMap<Permission, DataScope>
 }>
