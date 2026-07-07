@@ -25,7 +25,7 @@ export const identityErrorStatus = (code: IdentityErrorCode): number =>
       () => HTTP_STATUS.BAD_REQUEST,
     )
     .with('registration_failed', () => HTTP_STATUS.BAD_REQUEST)
-    .with('org_setup_failed', 'already_exists', () => HTTP_STATUS.CONFLICT)
+    .with('org_setup_failed', 'already_exists', 'last_owner', () => HTTP_STATUS.CONFLICT)
     .with('member_not_found', 'invitation_not_found', () => HTTP_STATUS.NOT_FOUND)
     .exhaustive()
 

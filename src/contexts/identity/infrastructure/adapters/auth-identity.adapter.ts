@@ -5,7 +5,7 @@
 
 import type { Database } from '#/shared/db'
 import { and, eq, sql } from 'drizzle-orm'
-import { organizationRole, user as userTable } from '#/shared/db/schema/auth'
+import { member, organizationRole, user as userTable } from '#/shared/db/schema/auth'
 import { getLogger } from '#/shared/observability/logger'
 import { organizationRolePolicy } from '#/shared/db/schema/dac.schema'
 import { buildPermissionStatement } from '#/shared/auth/permission-catalogue'
@@ -289,15 +289,20 @@ export const createBetterAuthIdentityAdapter = (db: Database): IdentityPort => {
     },
 
     async updateMemberRole(
-      _ctx: AuthContext,
+      ctx: AuthContext,
       memberId: string,
       role: string,
     ): Promise<void> {
       // Verify member belongs to the current org before mutating
-      const member = await getMemberImpl(memberId)
-      if (!member) {
+      const memberRow = await getMemberImpl(memberId)
+      if (!memberRow) {
         throw identityError('forbidden', 'Member not found in current organization')
       }
+      // Last-owner guard: block demoting the sole owner. The DB BEFORE-trigger is the
+      // concurrency backstop for direct-DB; this is the app-path UX guard (§4).
+      const wouldRemoveOwner =
+        isOwnerToken(memberRow.role) && !isOwnerToken(toBetterAuthRole(role as Role))
+      await assertNotLastOwner(db, ctx.organizationId as string, wouldRemoveOwner)
       const headers = await headersFromRequest()
       await auth.api.updateMemberRole({
         headers,
@@ -308,12 +313,17 @@ export const createBetterAuthIdentityAdapter = (db: Database): IdentityPort => {
       })
     },
 
-    async removeMember(_ctx: AuthContext, memberId: string): Promise<void> {
+    async removeMember(ctx: AuthContext, memberId: string): Promise<void> {
       // Verify member belongs to the current org before removing
-      const member = await getMemberImpl(memberId)
-      if (!member) {
+      const memberRow = await getMemberImpl(memberId)
+      if (!memberRow) {
         throw identityError('forbidden', 'Member not found in current organization')
       }
+      await assertNotLastOwner(
+        db,
+        ctx.organizationId as string,
+        isOwnerToken(memberRow.role),
+      )
       const headers = await headersFromRequest()
       await auth.api.removeMember({
         headers,
@@ -481,4 +491,39 @@ function isUniqueViolation(e: unknown): boolean {
     'code' in e &&
     (e as { code: unknown }).code === '23505'
   )
+}
+
+/** True when a member's (possibly multi-role, comma-delimited) role string grants owner. */
+function isOwnerToken(role: string): boolean {
+  return role
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .includes('owner')
+}
+
+/**
+ * Last-owner guard (§4). When `wouldRemoveOwner`, counts org owners under an advisory
+ * lock and throws `last_owner` if the change would leave zero. The DB BEFORE-trigger is
+ * the concurrency backstop for direct-DB writes; this is the app-path guard.
+ */
+async function assertNotLastOwner(
+  db: Database,
+  orgId: string,
+  wouldRemoveOwner: boolean,
+): Promise<void> {
+  if (!wouldRemoveOwner) return
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(${hashStringToInteger(orgId)})`)
+    const rows = await tx
+      .select({ role: member.role })
+      .from(member)
+      .where(eq(member.organizationId, orgId))
+    const owners = rows.filter((r) => isOwnerToken(r.role)).length
+    if (owners <= 1) {
+      throw identityError(
+        'last_owner',
+        'Cannot remove the last owner of the organization',
+      )
+    }
+  })
 }
