@@ -7,6 +7,7 @@ import { eq } from 'drizzle-orm'
 import type { Database } from './index'
 import { organizationRole } from './schema/auth'
 import { organizationRolePolicy } from './schema/dac.schema'
+import { permissionVersion } from './schema/dac.schema'
 import { mapRoleDefinitions } from '#/shared/auth/role-definitions'
 import type { CustomRoleDef, RolePolicy } from '#/shared/auth/resolve-permissions'
 
@@ -29,4 +30,20 @@ export async function fetchRoleDefinitions(
       .where(eq(organizationRolePolicy.organizationId, orgId)),
   ])
   return mapRoleDefinitions(roleDefRows, policyRows)
+}
+/**
+ * Read the current per-org permission version (the resolver cache invalidation
+ * signal — bumped by Postgres triggers on member/role/policy/assignment changes).
+ * Returns 0 if no row exists yet (no mutations have occurred for this org).
+ */
+export async function fetchPermissionVersion(
+  db: Database,
+  orgId: string,
+): Promise<number> {
+  const rows = await db
+    .select({ version: permissionVersion.version })
+    .from(permissionVersion)
+    .where(eq(permissionVersion.organizationId, orgId))
+    .limit(1)
+  return rows[0]?.version ?? 0
 }

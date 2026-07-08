@@ -283,23 +283,28 @@ it('resolves a custom role via the dynamic resolver when ENABLE_CUSTOM_ROLES is 
   })
   mockGetActiveMember.mockResolvedValue({ role: 'content-manager' })
 
-  // fetchRoleDefinitions runs two selects — organizationRole {role, permission} and
-  // organization_role_policy {role, dataScope}. Distinguish by the selected columns.
-  mockDbSelect.mockImplementation((cols: Record<string, unknown>) => ({
-    from: () => ({
-      where: () =>
-        Promise.resolve(
-          'permission' in cols
-            ? [
-                {
-                  role: 'content-manager',
-                  permission: JSON.stringify({ portal: ['read', 'update'] }),
-                },
-              ]
-            : [{ role: 'content-manager', dataScope: 'assigned-properties' }],
-        ),
-    }),
-  }))
+  // fetchPermissionVersion + fetchRoleDefinitions run selects distinguished by the
+  // selected columns: {version} → permission_version, {permission} → organizationRole,
+  // {dataScope} → organization_role_policy. The where() result is a thenable that also
+  // supports .limit() (drizzle chains synchronously before await).
+  mockDbSelect.mockImplementation((cols: Record<string, unknown>) => {
+    const rows =
+      'version' in cols
+        ? [{ version: 1 }]
+        : 'permission' in cols
+          ? [
+              {
+                role: 'content-manager',
+                permission: JSON.stringify({ portal: ['read', 'update'] }),
+              },
+            ]
+          : [{ role: 'content-manager', dataScope: 'assigned-properties' }]
+    const chainable = {
+      limit: () => chainable,
+      then: (resolve: (v: unknown) => void) => Promise.resolve(rows).then(resolve),
+    }
+    return { from: () => ({ where: () => chainable }) }
+  })
 
   const ctx = await resolveTenantContext(makeHeaders())
 

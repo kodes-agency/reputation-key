@@ -19,7 +19,10 @@ import { VALID_PERMISSIONS } from './permission-catalogue'
 import { BUILT_IN_ROLE_SCOPE } from './resolve-permissions'
 import { resolvePermissions } from './resolve-permissions'
 import { builtInPermissionsForRole } from './role-definitions'
-import { fetchRoleDefinitions } from '#/shared/db/role-definitions'
+import {
+  fetchRoleDefinitions,
+  fetchPermissionVersion,
+} from '#/shared/db/role-definitions'
 import { getDb } from '#/shared/db'
 
 // ── Request-scoped tenant cache ───────────────────────────────
@@ -34,7 +37,10 @@ const TENANT_CACHE_TTL_MS = 5_000 // 5 seconds — covers a single page load
 // and the browser reloads on switch. If stale-cache issues arise, consider
 // calling resetTenantCache() from the org-switch handler.
 const TENANT_CACHE_MAX_SIZE = 100 // Evict oldest entry when full
-const tenantCache = new Map<string, { ctx: AuthContext; ts: number }>()
+const tenantCache = new Map<
+  string,
+  { ctx: AuthContext; ts: number; version: number | null }
+>()
 
 function tenantCacheKey(headers: Headers): string | null {
   const cookie = headers.get('cookie')
@@ -148,12 +154,38 @@ export async function resolveTenantContext(headers: Headers): Promise<AuthContex
   if (key) {
     const cached = tenantCache.get(key)
     if (cached && Date.now() - cached.ts < TENANT_CACHE_TTL_MS) {
-      enrichSpan({
-        organizationId: cached.ctx.organizationId,
-        userId: cached.ctx.userId,
-        role: cached.ctx.role,
-      })
-      return cached.ctx
+      // Stage 2 (DAC): verify the permission_version hasn't bumped since we cached.
+      // A bump means roles/policies/assignments changed and the cached ctx is stale;
+      // delete + fall through to a full re-resolve. A read failure is treated the
+      // same (can't prove freshness → re-resolve, which 503s if the DB is down).
+      if (cached.version !== null) {
+        try {
+          const current = await fetchPermissionVersion(
+            getDb(),
+            cached.ctx.organizationId as unknown as string,
+          )
+          if (current !== cached.version) {
+            tenantCache.delete(key)
+          } else {
+            enrichSpan({
+              organizationId: cached.ctx.organizationId,
+              userId: cached.ctx.userId,
+              role: cached.ctx.role,
+            })
+            return cached.ctx
+          }
+        } catch {
+          tenantCache.delete(key)
+        }
+      } else {
+        // Stage 1: TTL-only (built-in roles, no version table).
+        enrichSpan({
+          organizationId: cached.ctx.organizationId,
+          userId: cached.ctx.userId,
+          role: cached.ctx.role,
+        })
+        return cached.ctx
+      }
     }
   }
 
@@ -189,12 +221,15 @@ export async function resolveTenantContext(headers: Headers): Promise<AuthContex
 
   let effectivePermissions: ReadonlySet<Permission>
   let scopeByPermission: ReadonlyMap<Permission, DataScope>
+  let resolvedVersion: number | null = null
 
   if (env.ENABLE_CUSTOM_ROLES) {
     // Stage 2: resolve via the dynamic resolver (built-in + custom/multi roles; per-
     // permission scope, no widening). Fail-closed with 503 if role definitions can't load.
     try {
-      const { customRoles, policies } = await fetchRoleDefinitions(getDb(), activeOrgId)
+      const db = getDb()
+      resolvedVersion = await fetchPermissionVersion(db, activeOrgId)
+      const { customRoles, policies } = await fetchRoleDefinitions(db, activeOrgId)
       const resolved = resolvePermissions({
         roleNames: member.role.split(','),
         customRoles,
@@ -240,7 +275,7 @@ export async function resolveTenantContext(headers: Headers): Promise<AuthContex
   // Only cache if we have a valid key (non-empty cookies)
   if (key) {
     evictOldestIfNeeded()
-    tenantCache.set(key, { ctx, ts: Date.now() })
+    tenantCache.set(key, { ctx, ts: Date.now(), version: resolvedVersion })
   }
   enrichSpan({
     organizationId: ctx.organizationId,
