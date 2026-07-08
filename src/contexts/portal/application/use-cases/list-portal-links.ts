@@ -37,7 +37,13 @@ export const listPortalLinks =
     }
     const pid = portalId(input.portalId)
     // D6-001: verify caller can access this portal's property
-    await assertPortalPropertyAccess(deps.portalRepo, deps.staffPublicApi, ctx, pid)
+    await assertPortalPropertyAccess(
+      deps.portalRepo,
+      deps.staffPublicApi,
+      ctx,
+      'portal.read',
+      pid,
+    )
     const [categories, links] = await Promise.all([
       deps.portalLinkRepo.listCategories(ctx.organizationId, pid),
       deps.portalLinkRepo.listAllLinks(ctx.organizationId, pid),

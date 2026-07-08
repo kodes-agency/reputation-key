@@ -37,7 +37,12 @@ export const removePortalFromGroup =
       throw portalError('group_not_found', 'portal group not found in this organization')
     }
     // Enforce property-assignment scoping (D6-001.)
-    await assertPropertyAccess(deps.staffPublicApi, ctx, group.propertyId)
+    await assertPropertyAccess(
+      deps.staffPublicApi,
+      ctx,
+      'portal.update',
+      group.propertyId,
+    )
 
     const removed = await deps.portalGroupRepo.removePortal(ctx.organizationId, gid, pid)
     if (!removed) {

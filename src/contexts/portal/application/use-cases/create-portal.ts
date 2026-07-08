@@ -46,7 +46,12 @@ export const createPortal =
     }
     // Enforce property-assignment scoping for PropertyManager (AccountAdmin
     // bypasses via getAccessiblePropertyIds returning null). (D6-001.)
-    await assertPropertyAccess(deps.staffPublicApi, ctx, propertyId(input.propertyId))
+    await assertPropertyAccess(
+      deps.staffPublicApi,
+      ctx,
+      'portal.create',
+      propertyId(input.propertyId),
+    )
 
     // 3. Check uniqueness — slug must be unique per org+property
     const candidateSlug = input.slug ?? normalizeSlug(input.name)

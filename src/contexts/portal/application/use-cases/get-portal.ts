@@ -32,7 +32,7 @@ export const getPortal =
       throw portalError('portal_not_found', 'portal not found in this organization')
     }
     // D6-001: verify caller's staff_assignment includes this portal's property
-    await assertPropertyAccess(deps.staffPublicApi, ctx, portal.propertyId)
+    await assertPropertyAccess(deps.staffPublicApi, ctx, 'portal.read', portal.propertyId)
     return portal
   }
 

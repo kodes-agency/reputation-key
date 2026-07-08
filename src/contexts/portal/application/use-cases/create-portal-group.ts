@@ -45,7 +45,12 @@ export const createPortalGroup =
       throw portalError('property_not_found', 'property not found in this organization')
     }
     // Enforce property-assignment scoping for PropertyManager (D6-001.)
-    await assertPropertyAccess(deps.staffPublicApi, ctx, propertyId(input.propertyId))
+    await assertPropertyAccess(
+      deps.staffPublicApi,
+      ctx,
+      'portal.create',
+      propertyId(input.propertyId),
+    )
 
     // 3. Check uniqueness — group name must be unique per org+property
     if (

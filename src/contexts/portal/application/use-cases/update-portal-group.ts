@@ -36,7 +36,12 @@ export const updatePortalGroup =
       throw portalError('group_not_found', 'portal group not found in this organization')
     }
     // Enforce property-assignment scoping (D6-001.)
-    await assertPropertyAccess(deps.staffPublicApi, ctx, existing.propertyId)
+    await assertPropertyAccess(
+      deps.staffPublicApi,
+      ctx,
+      'portal.update',
+      existing.propertyId,
+    )
 
     // 3. Check name uniqueness if name is changing
     const newName = input.name ?? existing.name

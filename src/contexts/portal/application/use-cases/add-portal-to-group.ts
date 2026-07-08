@@ -39,7 +39,12 @@ export const addPortalToGroup =
       throw portalError('group_not_found', 'portal group not found in this organization')
     }
     // Enforce property-assignment scoping (D6-001.)
-    await assertPropertyAccess(deps.staffPublicApi, ctx, group.propertyId)
+    await assertPropertyAccess(
+      deps.staffPublicApi,
+      ctx,
+      'portal.update',
+      group.propertyId,
+    )
 
     // Verify the portal exists and belongs to the same property as the group.
     // This prevents cross-property grouping via a group from one property + portal from another.

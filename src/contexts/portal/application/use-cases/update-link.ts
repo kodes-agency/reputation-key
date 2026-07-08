@@ -47,6 +47,7 @@ export const updateLink =
       deps.portalRepo,
       deps.staffPublicApi,
       ctx,
+      'portal.update',
       existing.portalId,
     )
 

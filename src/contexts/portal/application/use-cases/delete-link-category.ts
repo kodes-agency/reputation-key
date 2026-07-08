@@ -41,6 +41,7 @@ export const deleteLinkCategory =
       deps.portalRepo,
       deps.staffPublicApi,
       ctx,
+      'portal.update',
       existing.portalId,
     )
 

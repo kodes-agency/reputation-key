@@ -34,6 +34,7 @@ export const getPortalQrUrl =
       deps.portalRepo,
       deps.staffPublicApi,
       ctx,
+      'portal.read',
       portalId(input.portalId),
     )
 

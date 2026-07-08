@@ -54,6 +54,7 @@ export const createLink =
       deps.portalRepo,
       deps.staffPublicApi,
       ctx,
+      'portal.update',
       portalId(input.portalId),
     )
 

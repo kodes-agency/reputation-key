@@ -48,6 +48,7 @@ export const updateLinkCategory =
       deps.portalRepo,
       deps.staffPublicApi,
       ctx,
+      'portal.update',
       existing.portalId,
     )
 

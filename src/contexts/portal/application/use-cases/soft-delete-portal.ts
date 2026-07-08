@@ -36,7 +36,12 @@ export const softDeletePortal =
       throw portalError('portal_not_found', 'portal not found in this organization')
     }
     // Enforce property-assignment scoping (D6-001.)
-    await assertPropertyAccess(deps.staffPublicApi, ctx, existing.propertyId)
+    await assertPropertyAccess(
+      deps.staffPublicApi,
+      ctx,
+      'portal.delete',
+      existing.propertyId,
+    )
 
     await deps.portalRepo.softDelete(ctx.organizationId, pid)
 

@@ -38,6 +38,7 @@ export const reorderCategories =
       deps.portalRepo,
       deps.staffPublicApi,
       ctx,
+      'portal.update',
       portalId(input.portalId),
     )
 

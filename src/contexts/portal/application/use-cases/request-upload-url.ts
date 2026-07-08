@@ -44,7 +44,12 @@ export const requestUploadUrl =
       throw portalError('portal_not_found', 'portal not found in this organization')
     }
     // Enforce property-assignment scoping (D6-001.)
-    await assertPropertyAccess(deps.staffPublicApi, ctx, portal.propertyId)
+    await assertPropertyAccess(
+      deps.staffPublicApi,
+      ctx,
+      'portal.update',
+      portal.propertyId,
+    )
 
     if (!ALLOWED_CONTENT_TYPES.includes(input.contentType)) {
       throw portalError(

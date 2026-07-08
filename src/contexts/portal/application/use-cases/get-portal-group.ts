@@ -29,7 +29,7 @@ export const getPortalGroup =
       throw portalError('group_not_found', 'portal group not found in this organization')
     }
     // D6-001: verify caller's staff_assignment includes this group's property
-    await assertPropertyAccess(deps.staffPublicApi, ctx, group.propertyId)
+    await assertPropertyAccess(deps.staffPublicApi, ctx, 'portal.read', group.propertyId)
     return group
   }
 

@@ -5,6 +5,7 @@ import type { PortalGroupRepository } from '../ports/portal-group.repository'
 import type { PortalGroup } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { canForContext } from '#/shared/domain/permissions'
+import { getAccessiblePropertyIdsForPermission } from '#/shared/domain/property-access'
 import { portalError } from '../../domain/errors'
 import { propertyId } from '#/shared/domain/ids'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
@@ -26,10 +27,11 @@ export const listPortalGroups =
     }
     // D6-001: scope reads to properties in the caller's staff_assignment.
     // AccountAdmin bypasses (getAccessiblePropertyIds returns null).
-    const accessible = await deps.staffPublicApi.getAccessiblePropertyIds(
-      ctx.organizationId,
-      ctx.userId,
-      ctx.role === 'AccountAdmin',
+    const accessible = await getAccessiblePropertyIdsForPermission(
+      (orgId, userId, orgWide) =>
+        deps.staffPublicApi.getAccessiblePropertyIds(orgId, userId, orgWide),
+      ctx,
+      'portal.read',
     )
     const groups = await deps.portalGroupRepo.listByProperty(
       ctx.organizationId,
