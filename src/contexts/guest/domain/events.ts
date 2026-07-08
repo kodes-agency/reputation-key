@@ -1,6 +1,7 @@
 // Guest context — domain events
 // Standards: docs/standards.md §1
 
+import { newEventId } from '#/shared/domain/event-id'
 import type {
   ScanEventId,
   RatingId,
@@ -33,7 +34,7 @@ export const guestScanRecorded = (
   if (args.scanId === '') throw guestError('invalid_source', 'scanId required')
   return {
     _tag: 'guest.scan.recorded',
-    eventId: crypto.randomUUID(),
+    eventId: newEventId(),
     correlationId: null,
     ...args,
   }
@@ -58,7 +59,7 @@ export const guestRatingSubmitted = (
   if (args.ratingId === '') throw guestError('invalid_rating', 'ratingId required')
   return {
     _tag: 'guest.rating.submitted',
-    eventId: crypto.randomUUID(),
+    eventId: newEventId(),
     correlationId: null,
     ...args,
   }
@@ -83,7 +84,7 @@ export const guestFeedbackSubmitted = (
   if (args.feedbackId === '') throw guestError('invalid_rating', 'feedbackId required')
   return {
     _tag: 'guest.feedback.submitted',
-    eventId: crypto.randomUUID(),
+    eventId: newEventId(),
     correlationId: null,
     ...args,
   }
@@ -107,7 +108,7 @@ export const guestReviewLinkClicked = (
   if (args.linkId === '') throw guestError('invalid_source', 'linkId required')
   return {
     _tag: 'guest.review_link.clicked',
-    eventId: crypto.randomUUID(),
+    eventId: newEventId(),
     correlationId: null,
     ...args,
   }

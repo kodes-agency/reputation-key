@@ -1,6 +1,7 @@
 // Staff context — domain events
 // Standards: docs/standards.md §1
 
+import { newEventId } from '#/shared/domain/event-id'
 import type { StaffAssignmentId } from './types'
 import type {
   OrganizationId,
@@ -30,7 +31,7 @@ export const staffAssigned = (
     throw staffError('invalid_input', 'occurredAt must be Date')
   return {
     _tag: 'staff.assigned',
-    eventId: crypto.randomUUID(),
+    eventId: newEventId(),
     correlationId: null,
     ...args,
   }
@@ -54,7 +55,7 @@ export const staffUnassigned = (
     throw staffError('invalid_input', 'occurredAt must be Date')
   return {
     _tag: 'staff.unassigned',
-    eventId: crypto.randomUUID(),
+    eventId: newEventId(),
     correlationId: null,
     ...args,
   }

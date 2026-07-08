@@ -1,5 +1,6 @@
 // Badge context — domain events
 
+import { newEventId } from '#/shared/domain/event-id'
 import { assert } from '#/shared/domain/assert'
 import type {
   BadgeId,
@@ -34,7 +35,7 @@ export const badgeAwarded = (
   assert(args.occurredAt instanceof Date, 'occurredAt must be a Date')
   return {
     _tag: 'badge.awarded',
-    eventId: crypto.randomUUID(),
+    eventId: newEventId(),
     correlationId: null,
     ...args,
   }
