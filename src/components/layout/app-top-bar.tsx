@@ -72,7 +72,12 @@ export function AppTopBar({ user, notificationFns }: Props) {
       <NotificationPanel notificationFns={notificationFns} />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon-sm" className="rounded-full">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="rounded-full"
+            aria-label="Account menu"
+          >
             {user.image ? (
               <img src={user.image} alt="" className="size-7 rounded-full object-cover" />
             ) : (

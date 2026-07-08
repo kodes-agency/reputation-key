@@ -43,6 +43,7 @@ export function DropZone({
       onDragLeave={onDragLeave}
       onDrop={onDrop}
       onClick={onClick}
+      aria-disabled={disabled || uploading}
       className={cn(
         'relative flex items-center justify-center overflow-hidden border-2 border-dashed transition-colors',
         dragOver ? 'border-primary bg-primary/5' : 'border-border',
@@ -71,7 +72,7 @@ export function DropZone({
 
       {dragOver && (
         <div className="absolute inset-0 flex items-center justify-center bg-primary/10">
-          <p className="font-medium text-primary">Drop image here</p>
+          <p className="font-medium text-link">Drop image here</p>
         </div>
       )}
     </div>

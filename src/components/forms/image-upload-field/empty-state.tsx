@@ -34,7 +34,7 @@ export function EmptyState({
         <>
           <ImageIcon className="size-8" />
           <p className="text-sm">
-            <span className="font-medium text-primary">Click to upload</span> or drag and
+            <span className="font-medium text-link">Click to upload</span> or drag and
             drop
           </p>
           <p className="text-xs">{label}</p>

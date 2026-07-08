@@ -23,7 +23,7 @@ function SuccessView() {
       <div className="text-center">
         <Link
           to="/dashboard"
-          className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+          className="text-sm font-medium text-link underline-offset-4 hover:underline"
         >
           Go to dashboard
         </Link>

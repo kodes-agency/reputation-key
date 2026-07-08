@@ -93,7 +93,7 @@ export function PortalListPage({
           </TableHeader>
           <TableBody>
             {portals.map((p) => (
-              <TableRow key={p.id} className={p.isActive ? '' : 'opacity-50'}>
+              <TableRow key={p.id}>
                 <TableCell>
                   <Link
                     to="/properties/$propertyId/portals/$portalId"

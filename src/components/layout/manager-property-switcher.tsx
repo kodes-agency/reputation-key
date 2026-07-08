@@ -26,7 +26,7 @@ export function ManagerPropertySwitcher({ properties, propertyId, onSwitch }: Pr
           <DropdownMenuTrigger asChild>
             <SidebarMenuButton size="lg">
               <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary/10">
-                <Building2 className="size-4 text-primary" />
+                <Building2 className="size-4 text-link" />
               </div>
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-semibold">

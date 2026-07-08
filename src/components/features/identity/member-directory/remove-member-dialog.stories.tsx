@@ -3,7 +3,7 @@
 // portals to document.body, so confirm-state assertions query the document
 // rather than the story canvas.
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, fn, userEvent, within } from 'storybook/test'
+import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { AuthedRouterDecorator } from '../../../../../.storybook/AuthedRouterDecorator'
 import { RemoveMemberDialog } from './remove-member-dialog'
 
@@ -37,6 +37,9 @@ export const ConfirmRemoval: Story = {
     })
     await userEvent.click(within(dialog).getByRole('button', { name: /remove member/i }))
     expect(removeSpy).toHaveBeenCalledTimes(1)
+    await waitFor(() => {
+      expect(within(document.body).queryByRole('alertdialog')).toBeNull()
+    })
   },
 }
 

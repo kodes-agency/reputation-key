@@ -24,7 +24,7 @@ export function MemberTableRow({
       <TableCell className="font-medium">
         {memberName}
         {isLead && (
-          <span className="ml-2 rounded bg-primary/10 px-1.5 py-0.5 text-xs font-medium text-primary">
+          <span className="ml-2 rounded bg-primary/10 px-1.5 py-0.5 text-xs font-medium text-link">
             Lead
           </span>
         )}

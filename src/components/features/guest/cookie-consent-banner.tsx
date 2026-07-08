@@ -28,7 +28,12 @@ export function CookieConsentBanner() {
           We use a session cookie to prevent duplicate ratings. No personal data is
           collected.
         </p>
-        <Button variant="ghost" size="sm" onClick={handleDismiss}>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleDismiss}
+          aria-label="Dismiss cookie notice"
+        >
           <X className="size-4" />
         </Button>
       </div>

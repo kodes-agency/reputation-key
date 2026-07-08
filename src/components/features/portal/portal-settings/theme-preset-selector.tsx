@@ -80,7 +80,7 @@ export function ThemePresetSelector({
               className={cn(
                 'flex items-center gap-1.5 px-3 py-2 rounded-md border text-sm transition-colors',
                 activePreset === preset.id
-                  ? 'border-primary bg-primary/5 text-primary'
+                  ? 'border-primary bg-primary/5 text-link'
                   : 'border-border hover:bg-muted',
                 disabled && 'opacity-50 cursor-not-allowed',
               )}
@@ -97,7 +97,7 @@ export function ThemePresetSelector({
           className={cn(
             'flex items-center gap-1.5 px-3 py-2 rounded-md border text-sm transition-colors',
             activePreset === 'custom'
-              ? 'border-primary bg-primary/5 text-primary'
+              ? 'border-primary bg-primary/5 text-link'
               : 'border-border hover:bg-muted',
             disabled && 'opacity-50 cursor-not-allowed',
           )}

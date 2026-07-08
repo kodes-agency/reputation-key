@@ -34,14 +34,12 @@ const preview: Preview = {
     },
     a11y: {
       // test='error' makes `test-storybook` fail on violations. color-contrast
-      // is disabled: --primary (oklch(0.62 0.18 290)) vs --primary-foreground =
-      // 3.87:1 < WCAG AA 4.5:1 — a real design-token issue across the whole app
-      // (every primary button), tracked for a separate brand decision. The
+      // is enabled: the dark-theme --primary was darkened (oklch(0.62 → 0.56
+      // 0.18 290), same hue/chroma) to clear WCAG AA at 5.00:1. The
       // landmark/heading/region rules don't apply to isolated component stories.
       test: 'error',
       config: {
         rules: [
-          { id: 'color-contrast', enabled: false },
           { id: 'landmark-one-main', enabled: false },
           { id: 'page-has-heading-one', enabled: false },
           { id: 'region', enabled: false },
