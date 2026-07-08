@@ -25,11 +25,16 @@ When working on UI components (`src/components/**`):
   `get-documentation-for-story`, `get-storybook-story-instructions`,
   `preview-stories`, `run-story-tests`. `run-story-tests` runs stories in
   headless Chromium via `@storybook/addon-vitest` (the `storybook` vitest
-  project in `vitest.config.ts`) and reports component + accessibility results;
-  it is the primary verification path. For focused runs pass
-  `{ stories: [{ storyId }] }`. CLI equivalents: `pnpm test:storybook` (the
-  vitest storybook project, scoped via `--project='storybook:**'`) and
-  `pnpm test-storybook` (legacy Playwright test-runner fallback).
+  project in `vitest.config.ts`) — the fast dev/agent loop (render + play fns).
+  For focused runs pass `{ stories: [{ storyId }] }`.
+- **Two CLI test paths with distinct roles** (both are kept deliberately):
+  `pnpm test-storybook` (Playwright `@storybook/test-runner`) is the
+  **a11y-enforcing gate** — it FAILS the suite on axe violations and is what CI
+  runs in the `storybook-test` job. `pnpm test:storybook` (`VITEST_STORYBOOK=true
+vitest run --project='storybook:**'`) is the vitest equivalent of
+  `run-story-tests` — fast render/interaction checks that REPORT a11y but do not
+  fail on it. When you change UI, run `pnpm test-storybook` to catch real a11y
+  regressions; use `run-story-tests` / `pnpm test:storybook` for quick loops.
 - For new or updated stories, fetch current conventions with
   `get-storybook-story-instructions` before writing.
 - Story files are CSF, co-located as `*.stories.tsx` next to the component
