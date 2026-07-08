@@ -5,7 +5,12 @@
 
 import type { Database } from '#/shared/db'
 import { and, eq, sql } from 'drizzle-orm'
-import { member, organizationRole, user as userTable } from '#/shared/db/schema/auth'
+import {
+  invitation,
+  member,
+  organizationRole,
+  user as userTable,
+} from '#/shared/db/schema/auth'
 import { getLogger } from '#/shared/observability/logger'
 import { organizationRolePolicy } from '#/shared/db/schema/dac.schema'
 import { buildPermissionStatement } from '#/shared/auth/permission-catalogue'
@@ -13,13 +18,13 @@ import { randomUUID } from 'crypto'
 import type { Permission } from '#/shared/domain/permissions'
 import type { DataScope } from '#/shared/domain/data-scope'
 import type {
-  IdentityPort,
   MemberRecord,
+  IdentityPort,
   InvitationRecord,
   OrganizationRecord,
 } from '../../application/ports/identity.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import { getAuth } from '#/shared/auth/auth'
+import { getAuth, getOnAcceptInvitation } from '#/shared/auth/auth'
 import { toDomainRoleStrict, toBetterAuthRole, type Role } from '#/shared/domain/roles'
 import { identityError } from '../../domain/errors'
 import { organizationId, invitationId } from '#/shared/domain/ids'
@@ -29,7 +34,6 @@ import {
   signUpResponseSchema,
   listMembersResponseSchema,
   createInvitationResponseSchema,
-  acceptInvitationResponseSchema,
   listInvitationsResponseSchema,
   listUserInvitationsResponseSchema,
   listOrganizationsResponseSchema,
@@ -209,28 +213,122 @@ export const createBetterAuthIdentityAdapter = (db: Database): IdentityPort => {
       id: InvitationId,
       headers: Headers,
     ): Promise<{ organizationId: OrganizationId; propertyIds: ReadonlyArray<string> }> {
-      // Fetch propertyIds before accepting — the invitation's status changes after.
-      const listResult = await auth.api.listUserInvitations({ headers })
-      const list = parseBetterAuthResponse(
-        listUserInvitationsResponseSchema,
-        listResult,
-        'org_setup_failed',
-        'listUserInvitations response did not match expected schema',
-      )
-      const inv = list.find((i) => i.id === id)
-      const propertyIds = parsePropertyIds(inv?.propertyIds)
+      // App-owned direct transaction (§3) — replaces auth.api.acceptInvitation so the
+      // invitation's role is re-validated atomically and BA's afterAcceptInvitation hook
+      // is invoked explicitly. The FOR UPDATE row lock serializes concurrent accepts.
+      const session = await auth.api.getSession({ headers })
+      if (!session) {
+        throw identityError('forbidden', 'No active session')
+      }
+      const acceptorEmail = session.user.email.toLowerCase()
+      const acceptorUserId = session.user.id
+      const now = new Date()
 
-      const result = await auth.api.acceptInvitation({
-        headers,
-        body: { invitationId: id },
+      const result = await db.transaction(async (tx) => {
+        // 1. Lock + load the invitation.
+        const rows = await tx
+          .select()
+          .from(invitation)
+          .where(eq(invitation.id, id as string))
+          .for('update')
+        const inv = rows[0]
+        if (!inv) {
+          throw identityError('invitation_not_found', 'Invitation not found')
+        }
+
+        // 2. Email-match invariant — only the invitee may accept (privilege boundary).
+        if (inv.email.toLowerCase() !== acceptorEmail) {
+          throw identityError('forbidden', 'Invitation is not addressed to this user')
+        }
+
+        // 3. Lifecycle gate.
+        if (inv.status !== 'pending') {
+          throw identityError(
+            'invitation_not_found',
+            `Invitation is no longer pending (status: ${inv.status})`,
+          )
+        }
+        if (inv.expiresAt <= now) {
+          throw identityError('invitation_not_found', 'Invitation has expired')
+        }
+
+        // 4. Re-validate the role at acceptance. Built-in roles always resolve; a custom
+        //    role must still exist as organizationRole + policy, else the member would be
+        //    created with an orphan role. Mark the invitation rejected so it can't retry.
+        const role = (inv.role ?? 'member').trim().toLowerCase()
+        if (!['owner', 'admin', 'member'].includes(role)) {
+          const [roleDefs, policies] = await Promise.all([
+            tx
+              .select({ id: organizationRole.id })
+              .from(organizationRole)
+              .where(
+                and(
+                  eq(organizationRole.organizationId, inv.organizationId),
+                  eq(organizationRole.role, role),
+                ),
+              ),
+            tx
+              .select({ id: organizationRolePolicy.id })
+              .from(organizationRolePolicy)
+              .where(
+                and(
+                  eq(organizationRolePolicy.organizationId, inv.organizationId),
+                  eq(organizationRolePolicy.role, role),
+                ),
+              ),
+          ])
+          if (roleDefs.length === 0 || policies.length === 0) {
+            await tx
+              .update(invitation)
+              .set({ status: 'rejected' })
+              .where(eq(invitation.id, inv.id))
+            throw identityError('forbidden', 'Invitation role is no longer available')
+          }
+        }
+
+        // 5. Create the membership with the canonical role.
+        await tx.insert(member).values({
+          id: randomUUID(),
+          organizationId: inv.organizationId,
+          userId: acceptorUserId,
+          role,
+          createdAt: now,
+        })
+
+        // 6. Mark the invitation accepted (member_ver_ins trigger bumps permission_version).
+        await tx
+          .update(invitation)
+          .set({ status: 'accepted' })
+          .where(eq(invitation.id, inv.id))
+
+        return {
+          organizationId: inv.organizationId,
+          propertyIds: parsePropertyIds(inv.propertyIds),
+        }
       })
-      const data = parseBetterAuthResponse(
-        acceptInvitationResponseSchema,
-        result,
-        'org_setup_failed',
-        'acceptInvitation response did not match expected schema',
-      )
-      return { organizationId: organizationId(data.organizationId), propertyIds }
+
+      // 7. Post-commit side effect — auto-create staff assignments for the invited
+      //    properties (replaces BA's afterAcceptInvitation hook, which no longer fires).
+      const handler = getOnAcceptInvitation()
+      if (handler && result.propertyIds.length > 0) {
+        try {
+          await handler({
+            userId: acceptorUserId,
+            organizationId: result.organizationId,
+            propertyIds: result.propertyIds,
+          })
+        } catch (e) {
+          getLogger().warn(
+            { err: e, userId: acceptorUserId },
+            'Failed to auto-assign property on invitation acceptance',
+          )
+        }
+      }
+
+      return {
+        organizationId: organizationId(result.organizationId),
+        propertyIds: result.propertyIds,
+      }
     },
 
     async cancelInvitation(id: InvitationId, headers: Headers): Promise<void> {

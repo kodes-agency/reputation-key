@@ -46,6 +46,12 @@ export function setOnAcceptInvitation(handler: AcceptInvitationHandler): void {
   _onAcceptInvitation = handler
 }
 
+/** The currently-registered post-acceptance handler (or undefined). The app-owned
+ * acceptInvitation txn calls this directly since it bypasses BA's afterAcceptInvitation hook. */
+export function getOnAcceptInvitation(): AcceptInvitationHandler | undefined {
+  return _onAcceptInvitation
+}
+
 export function createAuth() {
   const env = getEnv()
   const pool = getPool()

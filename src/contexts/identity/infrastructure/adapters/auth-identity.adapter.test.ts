@@ -6,12 +6,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { organizationId, userId, invitationId } from '#/shared/domain/ids'
+import { isIdentityError } from '../../domain/errors'
 
 // Mock getAuth with controllable API surface
 const mockSignUpEmail = vi.fn()
 const mockListMembers = vi.fn()
 const mockCreateInvitation = vi.fn()
 const mockAcceptInvitation = vi.fn()
+const mockGetSession = vi.fn()
+const mockOnAcceptInvitation = vi.fn().mockResolvedValue(undefined)
 const mockRejectInvitation = vi.fn()
 const mockListInvitations = vi.fn()
 const mockListUserInvitations = vi.fn()
@@ -34,8 +37,10 @@ vi.mock('#/shared/auth/auth', () => ({
       removeMember: mockRemoveMember,
       listOrganizations: mockListOrganizations,
       setActiveOrganization: mockSetActiveOrganization,
+      getSession: mockGetSession,
     },
   }),
+  getOnAcceptInvitation: () => mockOnAcceptInvitation,
 }))
 
 // Mock getRequest to return null (no request context in tests)
@@ -46,10 +51,35 @@ vi.mock('@tanstack/react-start/server', () => ({
 // Mock auth schema (adapter imports user table)
 vi.mock('#/shared/db/schema/auth', () => ({
   user: { id: 'id' },
+  invitation: { __table: 'invitation' },
+  member: { __table: 'member' },
+  organizationRole: { __table: 'organizationRole' },
+}))
+
+vi.mock('#/shared/db/schema/dac.schema', () => ({
+  organizationRolePolicy: { __table: 'organizationRolePolicy' },
 }))
 
 // Mock db for createBetterAuthIdentityAdapter
-const mockTx = { execute: vi.fn().mockResolvedValue(undefined) }
+// Per-test fixture data keyed by table marker; the mock tx returns it from select chains.
+let tableData: Record<string, unknown[]> = {}
+const mockTx = {
+  execute: vi.fn().mockResolvedValue(undefined),
+  select: vi.fn(() => ({
+    from: vi.fn((table: { __table?: string }) => {
+      const data = tableData[table.__table ?? ''] ?? []
+      // `.where()` is awaitable (yields the rows) AND carries `.for()` (FOR UPDATE).
+      const whereResult = Object.assign(Promise.resolve(data), {
+        for: vi.fn(() => Promise.resolve(data)),
+      })
+      return { where: vi.fn(() => whereResult) }
+    }),
+  })),
+  insert: vi.fn(() => ({ values: vi.fn().mockResolvedValue(undefined) })),
+  update: vi.fn(() => ({
+    set: vi.fn(() => ({ where: vi.fn().mockResolvedValue(undefined) })),
+  })),
+}
 const db = {
   transaction: vi.fn((fn: (tx: typeof mockTx) => Promise<unknown>) => fn(mockTx)),
   delete: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) }),
@@ -65,8 +95,8 @@ const testCtx: AuthContext = {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  tableData = {}
 })
-
 describe('createBetterAuthIdentityAdapter', () => {
   const adapter = createBetterAuthIdentityAdapter(db)
 
@@ -321,31 +351,100 @@ describe('createBetterAuthIdentityAdapter', () => {
   })
 
   describe('acceptInvitation', () => {
-    it('calls acceptInvitation API and returns organizationId', async () => {
-      // Arrange
-      mockListUserInvitations.mockResolvedValue([
+    const acceptor = { id: 'user-1', email: 'invitee@test.com' }
+    const future = new Date('2027-01-08')
+    const past = new Date('2020-01-01')
+
+    const seedInvitation = (
+      overrides: Partial<{
+        email: string
+        role: string | null
+        status: string
+        expiresAt: Date
+        propertyIds: string
+      }> = {},
+    ) => {
+      tableData.invitation = [
         {
           id: 'inv-1',
-          email: 'a@t.com',
+          organizationId: 'org-1',
+          email: 'invitee@test.com',
           role: 'member',
           status: 'pending',
-          propertyIds: '[]',
-          expiresAt: new Date('2026-01-08'),
+          expiresAt: future,
+          propertyIds: JSON.stringify(['prop-1']),
           createdAt: new Date('2026-01-01'),
+          ...overrides,
         },
-      ])
-      mockAcceptInvitation.mockResolvedValue({ organizationId: 'org-1' })
-      const headers = new Headers()
+      ]
+    }
 
-      // Act
-      const result = await adapter.acceptInvitation(invitationId('inv-1'), headers)
+    beforeEach(() => {
+      mockGetSession.mockResolvedValue({ user: acceptor, session: {} })
+    })
 
-      // Assert
-      expect(mockAcceptInvitation).toHaveBeenCalledWith({
-        headers,
-        body: { invitationId: invitationId('inv-1') },
+    it('creates the member, marks accepted, and invokes the property-assignment hook', async () => {
+      seedInvitation()
+      const result = await adapter.acceptInvitation(invitationId('inv-1'), new Headers())
+
+      expect(result).toEqual({
+        organizationId: organizationId('org-1'),
+        propertyIds: ['prop-1'],
       })
-      expect(result).toEqual({ organizationId: organizationId('org-1'), propertyIds: [] })
+      expect(mockOnAcceptInvitation).toHaveBeenCalledWith({
+        userId: 'user-1',
+        organizationId: 'org-1',
+        propertyIds: ['prop-1'],
+      })
+    })
+
+    it('rejects when the acceptor email does not match the invitation', async () => {
+      seedInvitation({ email: 'other@test.com' })
+      await expect(
+        adapter.acceptInvitation(invitationId('inv-1'), new Headers()),
+      ).rejects.toSatisfy((e: unknown) => isIdentityError(e) && e.code === 'forbidden')
+      expect(mockOnAcceptInvitation).not.toHaveBeenCalled()
+    })
+
+    it('rejects an expired invitation', async () => {
+      seedInvitation({ expiresAt: past })
+      await expect(
+        adapter.acceptInvitation(invitationId('inv-1'), new Headers()),
+      ).rejects.toSatisfy(
+        (e: unknown) => isIdentityError(e) && e.code === 'invitation_not_found',
+      )
+    })
+
+    it('rejects an already-accepted invitation', async () => {
+      seedInvitation({ status: 'accepted' })
+      await expect(
+        adapter.acceptInvitation(invitationId('inv-1'), new Headers()),
+      ).rejects.toSatisfy(
+        (e: unknown) => isIdentityError(e) && e.code === 'invitation_not_found',
+      )
+    })
+
+    it('rejects when the custom role no longer exists (marks invitation rejected)', async () => {
+      seedInvitation({ role: 'content-manager' })
+      // organizationRole + policy fixtures stay empty → role is "deleted"
+      await expect(
+        adapter.acceptInvitation(invitationId('inv-1'), new Headers()),
+      ).rejects.toSatisfy((e: unknown) => isIdentityError(e) && e.code === 'forbidden')
+      expect(mockOnAcceptInvitation).not.toHaveBeenCalled()
+    })
+
+    it('accepts when the custom role still exists as orgRole + policy', async () => {
+      seedInvitation({ role: 'content-manager' })
+      tableData.organizationRole = [{ id: 'r1' }]
+      tableData.organizationRolePolicy = [{ id: 'p1' }]
+      const result = await adapter.acceptInvitation(invitationId('inv-1'), new Headers())
+
+      expect(result.organizationId).toEqual(organizationId('org-1'))
+      expect(mockOnAcceptInvitation).toHaveBeenCalledWith({
+        userId: 'user-1',
+        organizationId: 'org-1',
+        propertyIds: ['prop-1'],
+      })
     })
   })
 
