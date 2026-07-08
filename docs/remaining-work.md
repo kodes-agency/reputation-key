@@ -64,20 +64,13 @@ Pick it up by priority; items within a priority tier are independent unless note
 
 ## P2 — Code debt / cleanup (no behavioral impact)
 
-### 6. Repo-wide `eventId` IdGenerator
+### 6. Repo-wide `eventId` IdGenerator — ✅ DONE
 
-**Status:** ~11 `domain/events.ts` files call `crypto.randomUUID()` directly for `eventId`.
-**Why it matters:** Inconsistent with the injected-`idGen` pattern used for entity IDs. Makes event IDs non-deterministic in tests (harder snapshot/assertion). Low urgency — events are append-only.
-**Action:** Codemod: inject an `eventIdGen` (or reuse the context's `idGen`) into event factory functions across all contexts, replacing `crypto.randomUUID()`. Cross-context change.
-**Verify:** `grep -rn 'crypto.randomUUID' src/contexts/*/domain/events.ts` → 0.
+**Status:** Resolved. `crypto.randomUUID()` centralized into `newEventId()` (`src/shared/domain/event-id.ts`) across all 11 `domain/events.ts` files (50 call sites, commit `cff1ee4`). Single mockable source; no direct crypto in domain code.
 
-### 7. Materialized views are not Drizzle-managed
+### 7. Materialized views are not Drizzle-managed — ✅ DONE (provisioned, not Drizzle)
 
-**Status:** 3 materialized views live only in `scripts/migrations/add-materialized-views-and-gbp-index.sql` (raw SQL). Several other raw-SQL migration files in `scripts/migrations/` are also outside Drizzle's purview.
-**Why it matters:** These aren't tracked by `db:generate`/`db:migrate`, so a fresh DB won't have them unless the SQL is applied manually. Drift risk.
-**Note:** Drizzle's matview support is limited; raw SQL may genuinely be necessary here. At minimum, document the apply order in the provisioning runbook (depends on item 2).
-**Action:** Either (a) add Drizzle `pgMaterializedView` defs where supported, or (b) fold the raw-SQL files into a documented bootstrap step in the fresh-DB provisioning runbook.
-**Verify:** Fresh DB has the matviews after provisioning; `db:migrate` doesn't drop them.
+**Status:** Resolved via provisioning, not Drizzle. `pnpm db:matviews` applies the 3 matviews + unique indexes + GBP place-id partial index (idempotent). Added as step 4 of the fresh-DB runbook in `docs/auth-migrations.md`. Raw SQL is necessary: the aggregations (`COALESCE`/`date_trunc`/`FILTER`/casts) can't be cleanly expressed in Drizzle's matview DSL, and adding to `tablesFilter` risks the destructive drift that blocked the DAC tables. Verified idempotent on Neon.
 
 ### 8. Goal completion-policy layering
 
@@ -86,12 +79,9 @@ Pick it up by priority; items within a priority tier are independent unless note
 **Action:** Define + test the completion policy in the goal domain; add an integration suite.
 **Dependency:** Goal integration test suite (does not yet exist as a dedicated suite).
 
-### 9. `replies` partial-unique "must be raw SQL" comment
+### 9. `replies` partial-unique "must be raw SQL" comment — ✅ DONE (no-op)
 
-**Status:** Stale/inaccurate comment (per session notes).
-**Why it matters:** A comment claims a partial unique index "must be raw SQL" — Drizzle can express partial uniques. Misleads future maintainers.
-**Action:** Verify Drizzle can express it; if so, move it into the schema + remove the stale comment; if not, clarify _why_ raw SQL is necessary.
-**Verify:** Comment accuracy; schema matches DB.
+**Status:** No stale comment found (grep across `src/contexts/review`, `src/shared/db`, `drizzle` found nothing). Already removed or misremembered. No action needed.
 
 ---
 
