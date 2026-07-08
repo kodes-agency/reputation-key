@@ -30,13 +30,10 @@ export const rejectReplyFn = createServerFn({ method: 'POST' })
         }
         const { useCases } = getContainer()
         try {
-          return await useCases.rejectReply({
-            reviewId: reviewId(data.reviewId),
-            organizationId: ctx.organizationId,
-            reason: data.reason,
-            userId: ctx.userId,
-            role: ctx.role,
-          })
+          return await useCases.rejectReply(
+            { reviewId: reviewId(data.reviewId), reason: data.reason },
+            ctx,
+          )
         } catch (e) {
           if (isReviewError(e))
             throwContextError('ReviewError', e, reviewErrorStatus(e.code))
@@ -66,12 +63,7 @@ export const deleteReplyFn = createServerFn({ method: 'POST' })
         }
         const { useCases } = getContainer()
         try {
-          await useCases.deleteReply({
-            reviewId: reviewId(data.reviewId),
-            organizationId: ctx.organizationId,
-            userId: ctx.userId,
-            role: ctx.role,
-          })
+          await useCases.deleteReply({ reviewId: reviewId(data.reviewId) }, ctx)
           return { success: true }
         } catch (e) {
           if (isReviewError(e))
@@ -102,12 +94,7 @@ export const retryPublishFn = createServerFn({ method: 'POST' })
         }
         const { useCases } = getContainer()
         try {
-          return await useCases.retryPublish({
-            reviewId: reviewId(data.reviewId),
-            organizationId: ctx.organizationId,
-            userId: ctx.userId,
-            role: ctx.role,
-          })
+          return await useCases.retryPublish({ reviewId: reviewId(data.reviewId) }, ctx)
         } catch (e) {
           if (isReviewError(e))
             throwContextError('ReviewError', e, reviewErrorStatus(e.code))

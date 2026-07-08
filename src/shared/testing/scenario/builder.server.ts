@@ -5,6 +5,7 @@
 // so the simulation controls the time dimension (ADR 0017).
 
 import type { Container } from '#/composition'
+import type { AuthContext } from '#/shared/domain/auth-context'
 import {
   reviewId,
   propertyId,
@@ -224,25 +225,17 @@ async function createReviews(
 
     if (spec.reply) {
       try {
-        await ctx.container.useCases.draftReply({
-          reviewId: rId,
-          organizationId: ctx.orgId,
-          text: 'Thank you!',
-          userId: ctx.simUserId,
-          role: 'AccountAdmin',
-        })
-        await ctx.container.useCases.submitReply({
-          reviewId: rId,
+        const replyCtx = {
           organizationId: ctx.orgId,
           userId: ctx.simUserId,
           role: 'AccountAdmin',
-        })
-        await ctx.container.useCases.approveReply({
-          reviewId: rId,
-          organizationId: ctx.orgId,
-          userId: ctx.simUserId,
-          role: 'AccountAdmin',
-        })
+        } as AuthContext
+        await ctx.container.useCases.draftReply(
+          { reviewId: rId, text: 'Thank you!' },
+          replyCtx,
+        )
+        await ctx.container.useCases.submitReply({ reviewId: rId }, replyCtx)
+        await ctx.container.useCases.approveReply({ reviewId: rId }, replyCtx)
         replies++
       } catch (err) {
         ctx.container.logger.warn(

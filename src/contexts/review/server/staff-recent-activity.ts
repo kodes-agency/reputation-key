@@ -36,12 +36,10 @@ export const getStaffRecentActivity = createServerFn({ method: 'GET' })
           const container = getContainer()
           const propertyId = toPropertyId(data.propertyId)
 
-          const reviews = await container.useCases.getStaffRecentActivity({
-            propertyId,
-            organizationId: ctx.organizationId,
-            userId: ctx.userId,
-            role: ctx.role,
-          })
+          const reviews = await container.useCases.getStaffRecentActivity(
+            { propertyId },
+            ctx,
+          )
 
           return { reviews }
         } catch (e) {

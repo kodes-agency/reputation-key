@@ -151,11 +151,10 @@ const STAFF_CTX = { role: 'Staff' as const, userId: USER_ID, organizationId: ORG
 describe('draftReply', () => {
   it('creates a new draft reply', async () => {
     const deps = makeDeps()
-    const result = await draftReply(deps)({
-      ...MANAGER_CTX,
-      reviewId: REVIEW_ID,
-      text: 'Thank you!',
-    })
+    const result = await draftReply(deps)(
+      { reviewId: REVIEW_ID, text: 'Thank you!' },
+      MANAGER_CTX,
+    )
     expect(result.status).toBe('draft')
     expect(result.text).toBe('Thank you!')
     expect(result.source).toBe('internal')
@@ -171,11 +170,10 @@ describe('draftReply', () => {
         findInternalByReviewId: vi.fn(async () => existing),
       } as unknown as ReplyRepository,
     })
-    const result = await draftReply(deps)({
-      ...MANAGER_CTX,
-      reviewId: REVIEW_ID,
-      text: 'Updated reply',
-    })
+    const result = await draftReply(deps)(
+      { reviewId: REVIEW_ID, text: 'Updated reply' },
+      MANAGER_CTX,
+    )
     expect(result.text).toBe('Updated reply')
     expect(result.status).toBe('draft')
   })
@@ -188,11 +186,10 @@ describe('draftReply', () => {
         findInternalByReviewId: vi.fn(async () => rejected),
       } as unknown as ReplyRepository,
     })
-    const result = await draftReply(deps)({
-      ...MANAGER_CTX,
-      reviewId: REVIEW_ID,
-      text: 'Improved reply',
-    })
+    const result = await draftReply(deps)(
+      { reviewId: REVIEW_ID, text: 'Improved reply' },
+      MANAGER_CTX,
+    )
     expect(result.status).toBe('draft')
     expect(result.rejectionReason).toBeNull()
     expect(result.rejectedBy).toBeNull()
@@ -201,31 +198,30 @@ describe('draftReply', () => {
   it('rejects empty text', async () => {
     const deps = makeDeps()
     await expect(
-      draftReply(deps)({ ...MANAGER_CTX, reviewId: REVIEW_ID, text: '' }),
+      draftReply(deps)({ reviewId: REVIEW_ID, text: '' }, MANAGER_CTX),
     ).rejects.toThrow()
   })
 
   it('rejects text exceeding max length', async () => {
     const deps = makeDeps()
     await expect(
-      draftReply(deps)({ ...MANAGER_CTX, reviewId: REVIEW_ID, text: 'x'.repeat(4097) }),
+      draftReply(deps)({ reviewId: REVIEW_ID, text: 'x'.repeat(4097) }, MANAGER_CTX),
     ).rejects.toThrow()
   })
 
   it('blocks staff role', async () => {
     const deps = makeDeps()
     await expect(
-      draftReply(deps)({ ...STAFF_CTX, reviewId: REVIEW_ID, text: 'Hi' }),
+      draftReply(deps)({ reviewId: REVIEW_ID, text: 'Hi' }, STAFF_CTX),
     ).rejects.toThrow()
   })
 
   it('allows AccountAdmin role', async () => {
     const deps = makeDeps()
-    const result = await draftReply(deps)({
-      ...ADMIN_CTX,
-      reviewId: REVIEW_ID,
-      text: 'Admin reply',
-    })
+    const result = await draftReply(deps)(
+      { reviewId: REVIEW_ID, text: 'Admin reply' },
+      ADMIN_CTX,
+    )
     expect(result.status).toBe('draft')
   })
 
@@ -238,7 +234,7 @@ describe('draftReply', () => {
       } as unknown as ReplyRepository,
     })
     await expect(
-      draftReply(deps)({ ...MANAGER_CTX, reviewId: REVIEW_ID, text: 'Edit' }),
+      draftReply(deps)({ reviewId: REVIEW_ID, text: 'Edit' }, MANAGER_CTX),
     ).rejects.toThrow()
   })
 
@@ -252,7 +248,7 @@ describe('draftReply', () => {
       } as unknown as ReplyRepository,
     })
     await expect(
-      draftReply(deps)({ ...MANAGER_CTX, reviewId: REVIEW_ID, text: 'Edit' }),
+      draftReply(deps)({ reviewId: REVIEW_ID, text: 'Edit' }, MANAGER_CTX),
     ).rejects.toMatchObject({ code: 'invalid_transition', _tag: 'ReviewError' })
   })
 
@@ -271,11 +267,10 @@ describe('draftReply', () => {
         findInternalByReviewId: vi.fn(async () => draft),
       } as unknown as ReplyRepository,
     })
-    const result = await draftReply(deps)({
-      ...MANAGER_CTX,
-      reviewId: REVIEW_ID,
-      text: 'Edited text',
-    })
+    const result = await draftReply(deps)(
+      { reviewId: REVIEW_ID, text: 'Edited text' },
+      MANAGER_CTX,
+    )
     expect(conditionalUpdate).toHaveBeenCalledWith(
       REPLY_ID,
       ORG_ID,
@@ -303,7 +298,7 @@ describe('draftReply', () => {
         findInternalByReviewId: vi.fn(async () => rejected),
       } as unknown as ReplyRepository,
     })
-    await draftReply(deps)({ ...MANAGER_CTX, reviewId: REVIEW_ID, text: 'Improved' })
+    await draftReply(deps)({ reviewId: REVIEW_ID, text: 'Improved' }, MANAGER_CTX)
     expect(conditionalUpdate).toHaveBeenCalledWith(
       REPLY_ID,
       ORG_ID,
@@ -330,7 +325,7 @@ describe('draftReply', () => {
       } as unknown as ReplyRepository,
     })
     await expect(
-      draftReply(deps)({ ...MANAGER_CTX, reviewId: REVIEW_ID, text: 'Try again' }),
+      draftReply(deps)({ reviewId: REVIEW_ID, text: 'Try again' }, MANAGER_CTX),
     ).rejects.toMatchObject({ code: 'invalid_transition', _tag: 'ReviewError' })
   })
 
@@ -344,12 +339,10 @@ describe('draftReply', () => {
       } as unknown as ReplyRepository,
     })
 
-    await draftReply(deps)({
-      ...MANAGER_CTX,
-      organizationId: OTHER_ORG_ID,
-      reviewId: REVIEW_ID,
-      text: 'Tenant-scoped reply',
-    })
+    await draftReply(deps)(
+      { reviewId: REVIEW_ID, text: 'Tenant-scoped reply' },
+      { ...MANAGER_CTX, organizationId: OTHER_ORG_ID },
+    )
 
     expect(upsert).toHaveBeenCalledTimes(1)
     const createdReply = upsert.mock.calls[0]![0] as Reply
@@ -368,7 +361,7 @@ describe('submitReply', () => {
         findInternalByReviewId: vi.fn(async () => draft),
       } as unknown as ReplyRepository,
     })
-    const result = await submitReply(deps)({ ...MANAGER_CTX, reviewId: REVIEW_ID })
+    const result = await submitReply(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX)
     expect(result.status).toBe('pending_approval')
   })
 
@@ -380,14 +373,14 @@ describe('submitReply', () => {
         findInternalByReviewId: vi.fn(async () => draft),
       } as unknown as ReplyRepository,
     })
-    const result = await submitReply(deps)({ ...MANAGER_CTX, reviewId: REVIEW_ID })
+    const result = await submitReply(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX)
     expect(result.submittedAt).toBe(NOW)
   })
 
   it('rejects if no reply exists', async () => {
     const deps = makeDeps()
     await expect(
-      submitReply(deps)({ ...MANAGER_CTX, reviewId: REVIEW_ID }),
+      submitReply(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX),
     ).rejects.toThrow()
   })
 
@@ -400,7 +393,7 @@ describe('submitReply', () => {
       } as unknown as ReplyRepository,
     })
     await expect(
-      submitReply(deps)({ ...MANAGER_CTX, reviewId: REVIEW_ID }),
+      submitReply(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX),
     ).rejects.toThrow()
   })
 
@@ -416,7 +409,7 @@ describe('submitReply', () => {
         findById: vi.fn(async () => review),
       } as unknown as ReviewRepository,
     })
-    await submitReply(deps)({ ...MANAGER_CTX, reviewId: REVIEW_ID })
+    await submitReply(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX)
     expect(deps.events.emit).toHaveBeenCalledTimes(1)
     const emittedEvent = (deps.events.emit as ReturnType<typeof vi.fn>).mock.calls[0][0]
     expect(emittedEvent._tag).toBe('review.reply.submitted')
@@ -440,7 +433,7 @@ describe('submitReply', () => {
       } as unknown as ReplyRepository,
     })
     await expect(
-      submitReply(deps)({ ...MANAGER_CTX, reviewId: REVIEW_ID }),
+      submitReply(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX),
     ).rejects.toMatchObject({ code: 'invalid_transition', _tag: 'ReviewError' })
     expect(deps.events.emit).not.toHaveBeenCalled()
   })
@@ -457,10 +450,7 @@ describe('approveReply', () => {
         findInternalByReviewId: vi.fn(async () => pending),
       } as unknown as ReplyRepository,
     })
-    const result = await approveReply(deps)({
-      ...MANAGER_CTX,
-      reviewId: REVIEW_ID,
-    })
+    const result = await approveReply(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX)
     expect(result.status).toBe('approved')
     expect(result.approvedBy).toBe(USER_ID)
     expect(deps.queue.addPublishJob).toHaveBeenCalledWith({
@@ -477,10 +467,7 @@ describe('approveReply', () => {
         findInternalByReviewId: vi.fn(async () => pending),
       } as unknown as ReplyRepository,
     })
-    const result = await approveReply(deps)({
-      ...MANAGER_CTX,
-      reviewId: REVIEW_ID,
-    })
+    const result = await approveReply(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX)
     expect(result.approvedAt).toBe(NOW)
   })
 
@@ -493,7 +480,7 @@ describe('approveReply', () => {
       } as unknown as ReplyRepository,
     })
     await expect(
-      approveReply(deps)({ ...MANAGER_CTX, reviewId: REVIEW_ID }),
+      approveReply(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX),
     ).rejects.toThrow()
   })
 
@@ -509,7 +496,7 @@ describe('approveReply', () => {
         findById: vi.fn(async () => review),
       } as unknown as ReviewRepository,
     })
-    await approveReply(deps)({ ...MANAGER_CTX, reviewId: REVIEW_ID })
+    await approveReply(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX)
     expect(deps.events.emit).toHaveBeenCalledTimes(1)
     const emittedEvent = (deps.events.emit as ReturnType<typeof vi.fn>).mock.calls[0][0]
     expect(emittedEvent._tag).toBe('review.reply.approved')
@@ -533,11 +520,10 @@ describe('rejectReply', () => {
         findInternalByReviewId: vi.fn(async () => pending),
       } as unknown as ReplyRepository,
     })
-    const result = await rejectReply(deps)({
-      ...MANAGER_CTX,
-      reviewId: REVIEW_ID,
-      reason: 'Tone too aggressive',
-    })
+    const result = await rejectReply(deps)(
+      { reviewId: REVIEW_ID, reason: 'Tone too aggressive' },
+      MANAGER_CTX,
+    )
     expect(result.status).toBe('rejected')
     expect(result.rejectedBy).toBe(USER_ID)
     expect(result.rejectionReason).toBe('Tone too aggressive')
@@ -551,10 +537,7 @@ describe('rejectReply', () => {
         findInternalByReviewId: vi.fn(async () => pending),
       } as unknown as ReplyRepository,
     })
-    const result = await rejectReply(deps)({
-      ...MANAGER_CTX,
-      reviewId: REVIEW_ID,
-    })
+    const result = await rejectReply(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX)
     expect(result.rejectionReason).toBeNull()
   })
 
@@ -570,11 +553,10 @@ describe('rejectReply', () => {
         findById: vi.fn(async () => review),
       } as unknown as ReviewRepository,
     })
-    await rejectReply(deps)({
-      ...MANAGER_CTX,
-      reviewId: REVIEW_ID,
-      reason: 'Tone too aggressive',
-    })
+    await rejectReply(deps)(
+      { reviewId: REVIEW_ID, reason: 'Tone too aggressive' },
+      MANAGER_CTX,
+    )
     expect(deps.events.emit).toHaveBeenCalledTimes(1)
     const emittedEvent = (deps.events.emit as ReturnType<typeof vi.fn>).mock.calls[0][0]
     expect(emittedEvent._tag).toBe('review.reply.rejected')
@@ -599,7 +581,7 @@ describe('deleteReply', () => {
         findInternalByReviewId: vi.fn(async () => draft),
       } as unknown as ReplyRepository,
     })
-    await deleteReply(deps)({ ...MANAGER_CTX, reviewId: REVIEW_ID })
+    await deleteReply(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX)
     expect(deps.replyRepo.deleteById).toHaveBeenCalledWith(REPLY_ID, ORG_ID)
   })
 
@@ -612,7 +594,7 @@ describe('deleteReply', () => {
       } as unknown as ReplyRepository,
     })
     await expect(
-      deleteReply(deps)({ ...MANAGER_CTX, reviewId: REVIEW_ID }),
+      deleteReply(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX),
     ).rejects.toThrow()
   })
 })
@@ -628,19 +610,19 @@ describe('getReply', () => {
         findInternalByReviewId: vi.fn(async () => reply),
       } as unknown as ReplyRepository,
     })
-    const result = await getReply(deps)({ ...MANAGER_CTX, reviewId: REVIEW_ID })
+    const result = await getReply(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX)
     expect(result).toEqual(reply)
   })
 
   it('returns null when no reply exists', async () => {
     const deps = makeDeps()
-    const result = await getReply(deps)({ ...MANAGER_CTX, reviewId: REVIEW_ID })
+    const result = await getReply(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX)
     expect(result).toBeNull()
   })
 
   it('blocks staff role', async () => {
     const deps = makeDeps()
-    await expect(getReply(deps)({ ...STAFF_CTX, reviewId: REVIEW_ID })).rejects.toThrow()
+    await expect(getReply(deps)({ reviewId: REVIEW_ID }, STAFF_CTX)).rejects.toThrow()
   })
 
   // ── Tenant isolation ──────────────────────────────────────────────
@@ -653,11 +635,10 @@ describe('getReply', () => {
       } as unknown as ReplyRepository,
     })
 
-    await getReply(deps)({
-      ...MANAGER_CTX,
-      organizationId: OTHER_ORG_ID,
-      reviewId: REVIEW_ID,
-    })
+    await getReply(deps)(
+      { reviewId: REVIEW_ID },
+      { ...MANAGER_CTX, organizationId: OTHER_ORG_ID },
+    )
 
     expect(findInternalByReviewId).toHaveBeenCalledWith(REVIEW_ID, OTHER_ORG_ID)
   })
@@ -769,10 +750,7 @@ describe('retryPublish', () => {
         findInternalByReviewId: vi.fn(async () => failed),
       } as unknown as ReplyRepository,
     })
-    const result = await retryPublish(deps)({
-      ...MANAGER_CTX,
-      reviewId: REVIEW_ID,
-    })
+    const result = await retryPublish(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX)
     expect(result.status).toBe('approved')
     expect(deps.queue.addPublishJob).toHaveBeenCalledTimes(1)
   })
@@ -786,7 +764,7 @@ describe('retryPublish', () => {
       } as unknown as ReplyRepository,
     })
     await expect(
-      retryPublish(deps)({ ...MANAGER_CTX, reviewId: REVIEW_ID }),
+      retryPublish(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX),
     ).rejects.toThrow()
   })
 })
@@ -811,7 +789,7 @@ describe('reply ops — TOCTOU guard (conditionalUpdate returns null → invalid
       } as unknown as ReplyRepository,
     })
     await expect(
-      approveReply(deps)({ ...MANAGER_CTX, reviewId: REVIEW_ID }),
+      approveReply(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX),
     ).rejects.toMatchObject({ code: 'invalid_transition', _tag: 'ReviewError' })
     expect(deps.queue.addPublishJob).not.toHaveBeenCalled()
     expect(deps.events.emit).not.toHaveBeenCalled()
@@ -827,7 +805,7 @@ describe('reply ops — TOCTOU guard (conditionalUpdate returns null → invalid
       } as unknown as ReplyRepository,
     })
     await expect(
-      rejectReply(deps)({ ...MANAGER_CTX, reviewId: REVIEW_ID }),
+      rejectReply(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX),
     ).rejects.toMatchObject({ code: 'invalid_transition', _tag: 'ReviewError' })
     expect(deps.events.emit).not.toHaveBeenCalled()
   })
@@ -871,7 +849,7 @@ describe('reply ops — TOCTOU guard (conditionalUpdate returns null → invalid
       } as unknown as ReplyRepository,
     })
     await expect(
-      retryPublish(deps)({ ...MANAGER_CTX, reviewId: REVIEW_ID }),
+      retryPublish(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX),
     ).rejects.toMatchObject({ code: 'invalid_transition', _tag: 'ReviewError' })
     expect(deps.queue.addPublishJob).not.toHaveBeenCalled()
   })
@@ -886,7 +864,7 @@ describe('reply ops — TOCTOU guard (conditionalUpdate returns null → invalid
       } as unknown as ReplyRepository,
     })
     await expect(
-      submitReply(deps)({ ...MANAGER_CTX, reviewId: REVIEW_ID }),
+      submitReply(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX),
     ).rejects.toMatchObject({ code: 'invalid_transition', _tag: 'ReviewError' })
     expect(deps.events.emit).not.toHaveBeenCalled()
   })
@@ -903,18 +881,17 @@ describe('reply ops — property-assignment scoping (D6-001)', () => {
   it('draftReply rejects PM without assignment and does not persist', async () => {
     const deps = makeDeps({ staffPublicApi: makeStaffApi([]) })
     await expect(
-      draftReply(deps)({ ...MANAGER_CTX, reviewId: REVIEW_ID, text: 'Hi' }),
+      draftReply(deps)({ reviewId: REVIEW_ID, text: 'Hi' }, MANAGER_CTX),
     ).rejects.toSatisfy(expectForbidden)
     expect(deps.replyRepo.upsert).not.toHaveBeenCalled()
   })
 
   it('draftReply allows PM assigned to the property', async () => {
     const deps = makeDeps({ staffPublicApi: makeStaffApi([PROP_ID]) })
-    const result = await draftReply(deps)({
-      ...MANAGER_CTX,
-      reviewId: REVIEW_ID,
-      text: 'Hi',
-    })
+    const result = await draftReply(deps)(
+      { reviewId: REVIEW_ID, text: 'Hi' },
+      MANAGER_CTX,
+    )
     expect(result.status).toBe('draft')
   })
 
@@ -924,17 +901,14 @@ describe('reply ops — property-assignment scoping (D6-001)', () => {
       replyRepo: replyRepoWith(makeReply({ status: 'draft' })),
     })
     await expect(
-      submitReply(unassigned)({ ...MANAGER_CTX, reviewId: REVIEW_ID }),
+      submitReply(unassigned)({ reviewId: REVIEW_ID }, MANAGER_CTX),
     ).rejects.toSatisfy(expectForbidden)
 
     const assigned = makeDeps({
       staffPublicApi: makeStaffApi([PROP_ID]),
       replyRepo: replyRepoWith(makeReply({ status: 'draft' })),
     })
-    const result = await submitReply(assigned)({
-      ...MANAGER_CTX,
-      reviewId: REVIEW_ID,
-    })
+    const result = await submitReply(assigned)({ reviewId: REVIEW_ID }, MANAGER_CTX)
     expect(result.status).toBe('pending_approval')
   })
 
@@ -944,17 +918,14 @@ describe('reply ops — property-assignment scoping (D6-001)', () => {
       replyRepo: replyRepoWith(makeReply({ status: 'pending_approval' })),
     })
     await expect(
-      approveReply(unassigned)({ ...MANAGER_CTX, reviewId: REVIEW_ID }),
+      approveReply(unassigned)({ reviewId: REVIEW_ID }, MANAGER_CTX),
     ).rejects.toSatisfy(expectForbidden)
 
     const assigned = makeDeps({
       staffPublicApi: makeStaffApi([PROP_ID]),
       replyRepo: replyRepoWith(makeReply({ status: 'pending_approval' })),
     })
-    const result = await approveReply(assigned)({
-      ...MANAGER_CTX,
-      reviewId: REVIEW_ID,
-    })
+    const result = await approveReply(assigned)({ reviewId: REVIEW_ID }, MANAGER_CTX)
     expect(result.status).toBe('approved')
   })
 
@@ -964,18 +935,17 @@ describe('reply ops — property-assignment scoping (D6-001)', () => {
       replyRepo: replyRepoWith(makeReply({ status: 'pending_approval' })),
     })
     await expect(
-      rejectReply(unassigned)({ ...MANAGER_CTX, reviewId: REVIEW_ID }),
+      rejectReply(unassigned)({ reviewId: REVIEW_ID }, MANAGER_CTX),
     ).rejects.toSatisfy(expectForbidden)
 
     const assigned = makeDeps({
       staffPublicApi: makeStaffApi([PROP_ID]),
       replyRepo: replyRepoWith(makeReply({ status: 'pending_approval' })),
     })
-    const result = await rejectReply(assigned)({
-      ...MANAGER_CTX,
-      reviewId: REVIEW_ID,
-      reason: 'Tone',
-    })
+    const result = await rejectReply(assigned)(
+      { reviewId: REVIEW_ID, reason: 'Tone' },
+      MANAGER_CTX,
+    )
     expect(result.status).toBe('rejected')
   })
 
@@ -985,14 +955,14 @@ describe('reply ops — property-assignment scoping (D6-001)', () => {
       replyRepo: replyRepoWith(makeReply({ status: 'draft' })),
     })
     await expect(
-      deleteReply(unassigned)({ ...MANAGER_CTX, reviewId: REVIEW_ID }),
+      deleteReply(unassigned)({ reviewId: REVIEW_ID }, MANAGER_CTX),
     ).rejects.toSatisfy(expectForbidden)
 
     const assigned = makeDeps({
       staffPublicApi: makeStaffApi([PROP_ID]),
       replyRepo: replyRepoWith(makeReply({ status: 'draft' })),
     })
-    await deleteReply(assigned)({ ...MANAGER_CTX, reviewId: REVIEW_ID })
+    await deleteReply(assigned)({ reviewId: REVIEW_ID }, MANAGER_CTX)
     expect(assigned.replyRepo.deleteById).toHaveBeenCalledWith(REPLY_ID, ORG_ID)
   })
 
@@ -1002,17 +972,14 @@ describe('reply ops — property-assignment scoping (D6-001)', () => {
       replyRepo: replyRepoWith(makeReply({ status: 'publish_failed' })),
     })
     await expect(
-      retryPublish(unassigned)({ ...MANAGER_CTX, reviewId: REVIEW_ID }),
+      retryPublish(unassigned)({ reviewId: REVIEW_ID }, MANAGER_CTX),
     ).rejects.toSatisfy(expectForbidden)
 
     const assigned = makeDeps({
       staffPublicApi: makeStaffApi([PROP_ID]),
       replyRepo: replyRepoWith(makeReply({ status: 'publish_failed' })),
     })
-    const result = await retryPublish(assigned)({
-      ...MANAGER_CTX,
-      reviewId: REVIEW_ID,
-    })
+    const result = await retryPublish(assigned)({ reviewId: REVIEW_ID }, MANAGER_CTX)
     expect(result.status).toBe('approved')
     expect(assigned.queue.addPublishJob).toHaveBeenCalledTimes(1)
   })
@@ -1021,10 +988,7 @@ describe('reply ops — property-assignment scoping (D6-001)', () => {
     const deps = makeDeps({
       replyRepo: replyRepoWith(makeReply({ status: 'draft' })),
     }) // default staffApi returns null = org-wide access
-    const result = await submitReply(deps)({
-      ...ADMIN_CTX,
-      reviewId: REVIEW_ID,
-    })
+    const result = await submitReply(deps)({ reviewId: REVIEW_ID }, ADMIN_CTX)
     expect(result.status).toBe('pending_approval')
   })
 })

@@ -29,13 +29,10 @@ export const draftReplyFn = createServerFn({ method: 'POST' })
         }
         const { useCases } = getContainer()
         try {
-          return await useCases.draftReply({
-            reviewId: reviewId(data.reviewId),
-            organizationId: ctx.organizationId,
-            text: data.text,
-            userId: ctx.userId,
-            role: ctx.role,
-          })
+          return await useCases.draftReply(
+            { reviewId: reviewId(data.reviewId), text: data.text },
+            ctx,
+          )
         } catch (e) {
           if (isReviewError(e))
             throwContextError('ReviewError', e, reviewErrorStatus(e.code))
@@ -65,12 +62,7 @@ export const submitReplyFn = createServerFn({ method: 'POST' })
         }
         const { useCases } = getContainer()
         try {
-          return await useCases.submitReply({
-            reviewId: reviewId(data.reviewId),
-            organizationId: ctx.organizationId,
-            userId: ctx.userId,
-            role: ctx.role,
-          })
+          return await useCases.submitReply({ reviewId: reviewId(data.reviewId) }, ctx)
         } catch (e) {
           if (isReviewError(e))
             throwContextError('ReviewError', e, reviewErrorStatus(e.code))
@@ -100,12 +92,7 @@ export const approveReplyFn = createServerFn({ method: 'POST' })
         }
         const { useCases } = getContainer()
         try {
-          return await useCases.approveReply({
-            reviewId: reviewId(data.reviewId),
-            organizationId: ctx.organizationId,
-            userId: ctx.userId,
-            role: ctx.role,
-          })
+          return await useCases.approveReply({ reviewId: reviewId(data.reviewId) }, ctx)
         } catch (e) {
           if (isReviewError(e))
             throwContextError('ReviewError', e, reviewErrorStatus(e.code))

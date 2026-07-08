@@ -73,12 +73,7 @@ export const getReplyFn = createServerFn({ method: 'GET' })
         }
         const { useCases } = getContainer()
         try {
-          return await useCases.getReply({
-            reviewId: reviewId(data.reviewId),
-            organizationId: ctx.organizationId,
-            userId: ctx.userId,
-            role: ctx.role,
-          })
+          return await useCases.getReply({ reviewId: reviewId(data.reviewId) }, ctx)
         } catch (e) {
           if (isReviewError(e))
             throwContextError('ReviewError', e, reviewErrorStatus(e.code))
