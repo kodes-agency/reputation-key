@@ -35,94 +35,95 @@ import type {
 import type { getActivityTimelineFn } from '#/contexts/activity/server/activity'
 import type { getReplyFn } from '#/contexts/review/server/reply'
 import type { InboxServerFns } from '#/components/inbox/types'
+import type { AuthContext } from '#/shared/domain/auth-context'
 
 type InboxContainer = ReturnType<typeof createInboxContainer>
 
 export function makeInboxFns(container: InboxContainer): InboxServerFns {
   const { ORG, USER, role } = inboxTestIds
+  const ctx = { organizationId: ORG, userId: USER, role } as AuthContext
 
   return {
     getInboxItems: (async ({ data }: { data: z.infer<typeof getInboxItemsDto> }) =>
-      container.useCases.getInboxItems({
-        organizationId: ORG,
-        userId: USER,
-        role,
-        filters: {
-          propertyId: data.propertyId ? propertyId(data.propertyId) : undefined,
-          status: data.status,
-          sourceType: data.sourceType,
-          platform: data.platform,
-          ratingMin: data.ratingMin,
-          ratingMax: data.ratingMax,
-          q: data.q,
-          sourceDateFrom: data.sourceDateFrom,
-          sourceDateTo: data.sourceDateTo,
+      container.useCases.getInboxItems(
+        {
+          filters: {
+            propertyId: data.propertyId ? propertyId(data.propertyId) : undefined,
+            status: data.status,
+            sourceType: data.sourceType,
+            platform: data.platform,
+            ratingMin: data.ratingMin,
+            ratingMax: data.ratingMax,
+            q: data.q,
+            sourceDateFrom: data.sourceDateFrom,
+            sourceDateTo: data.sourceDateTo,
+          },
+          limit: data.limit,
+          // Cursor replication is out-of-scope: prod base64-encodes/validates the
+          // cursor in the server fn before the use-case sees it; no story paginates.
+          cursor: undefined,
         },
-        limit: data.limit,
-        // Cursor replication is out-of-scope: prod base64-encodes/validates the
-        // cursor in the server fn before the use-case sees it; no story paginates.
-        cursor: undefined,
-      })) as unknown as typeof getInboxItemsFn,
+        ctx,
+      )) as unknown as typeof getInboxItemsFn,
 
     getInboxItemDetail: (async ({
       data,
     }: {
       data: z.infer<typeof getInboxItemDetailDto>
     }) =>
-      container.useCases.getInboxItemDetail({
-        organizationId: ORG,
-        userId: USER,
-        role,
-        inboxItemId: inboxItemId(data.inboxItemId),
-      })) as unknown as typeof getInboxItemDetailFn,
+      container.useCases.getInboxItemDetail(
+        {
+          inboxItemId: inboxItemId(data.inboxItemId),
+        },
+        ctx,
+      )) as unknown as typeof getInboxItemDetailFn,
 
     getInboxNotes: (async ({ data }: { data: z.infer<typeof getInboxNotesDto> }) =>
-      container.useCases.getInboxNotes({
-        organizationId: ORG,
-        userId: USER,
-        role,
-        inboxItemId: inboxItemId(data.inboxItemId),
-      })) as unknown as typeof getInboxNotesFn,
+      container.useCases.getInboxNotes(
+        {
+          inboxItemId: inboxItemId(data.inboxItemId),
+        },
+        ctx,
+      )) as unknown as typeof getInboxNotesFn,
 
     // Folder counts are org-wide (no filters in the DTO); the real use-case
     // computes the per-folder tally over the seeded repo.
     getInboxFolderCounts: (async () =>
-      container.useCases.getInboxFolderCounts({
-        organizationId: ORG,
-        userId: USER,
-        role,
-      })) as unknown as typeof getInboxFolderCountsFn,
+      container.useCases.getInboxFolderCounts(
+        {},
+        ctx,
+      )) as unknown as typeof getInboxFolderCountsFn,
 
     updateInboxStatus: (async ({ data }: { data: z.infer<typeof updateStatusDto> }) =>
-      container.useCases.updateInboxStatus({
-        organizationId: ORG,
-        userId: USER,
-        role,
-        inboxItemId: inboxItemId(data.inboxItemId),
-        newStatus: data.status,
-      })) as unknown as typeof updateInboxStatusFn,
+      container.useCases.updateInboxStatus(
+        {
+          inboxItemId: inboxItemId(data.inboxItemId),
+          newStatus: data.status,
+        },
+        ctx,
+      )) as unknown as typeof updateInboxStatusFn,
 
     addInboxNote: (async ({ data }: { data: z.infer<typeof addInboxNoteDto> }) =>
-      container.useCases.addInboxNote({
-        organizationId: ORG,
-        userId: USER,
-        role,
-        inboxItemId: inboxItemId(data.inboxItemId),
-        text: data.text,
-      })) as unknown as typeof addInboxNoteFn,
+      container.useCases.addInboxNote(
+        {
+          inboxItemId: inboxItemId(data.inboxItemId),
+          text: data.text,
+        },
+        ctx,
+      )) as unknown as typeof addInboxNoteFn,
 
     bulkUpdateInboxStatus: (async ({
       data,
     }: {
       data: z.infer<typeof bulkUpdateStatusDto>
     }) =>
-      container.useCases.bulkUpdateInboxStatus({
-        organizationId: ORG,
-        userId: USER,
-        role,
-        inboxItemIds: data.inboxItemIds.map((id) => inboxItemId(id)),
-        newStatus: data.status,
-      })) as unknown as typeof bulkUpdateInboxStatusFn,
+      container.useCases.bulkUpdateInboxStatus(
+        {
+          inboxItemIds: data.inboxItemIds.map((id) => inboxItemId(id)),
+          newStatus: data.status,
+        },
+        ctx,
+      )) as unknown as typeof bulkUpdateInboxStatusFn,
 
     // Cross-context — no in-browser container; honor the real return contracts
     // so the detail pane (mounted on item selection) renders gracefully empty

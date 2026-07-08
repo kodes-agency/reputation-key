@@ -32,12 +32,12 @@ export const getInboxItemDetailFn = createServerFn({ method: 'GET' })
         }
         const { useCases } = getContainer()
         try {
-          return await useCases.getInboxItemDetail({
-            inboxItemId: inboxItemId(data.inboxItemId),
-            organizationId: ctx.organizationId,
-            userId: ctx.userId,
-            role: ctx.role,
-          })
+          return await useCases.getInboxItemDetail(
+            {
+              inboxItemId: inboxItemId(data.inboxItemId),
+            },
+            ctx,
+          )
         } catch (e) {
           if (isInboxError(e))
             throwContextError('InboxError', e, inboxErrorStatus(e.code))
@@ -67,12 +67,12 @@ export const getInboxNotesFn = createServerFn({ method: 'GET' })
         }
         const { useCases } = getContainer()
         try {
-          return await useCases.getInboxNotes({
-            inboxItemId: inboxItemId(data.inboxItemId),
-            organizationId: ctx.organizationId,
-            userId: ctx.userId,
-            role: ctx.role,
-          })
+          return await useCases.getInboxNotes(
+            {
+              inboxItemId: inboxItemId(data.inboxItemId),
+            },
+            ctx,
+          )
         } catch (e) {
           if (isInboxError(e))
             throwContextError('InboxError', e, inboxErrorStatus(e.code))

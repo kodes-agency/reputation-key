@@ -4,22 +4,20 @@
 import type { InboxRepository } from '../ports/inbox.repository'
 import type { NewCounterPort } from '../ports/new-counter.port'
 import type { EventBus } from '#/shared/events/event-bus'
-import type { InboxItemId, OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
+import type { InboxItemId, PropertyId } from '#/shared/domain/ids'
 import type { InboxItem, InboxStatus } from '../../domain/types'
-import type { Role } from '#/shared/domain/roles'
+import type { AuthContext } from '#/shared/domain/auth-context'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { validateTransition, timestampFieldsForStatus } from '../../domain/rules'
 import { inboxError } from '../../domain/errors'
 import { inboxItemBulkStatusChanged, inboxItemEscalated } from '../../domain/events'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
+import { getAccessiblePropertyIdsForPermission } from '#/shared/domain/property-access'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 
 export type BulkUpdateInboxStatusInput = Readonly<{
   inboxItemIds: ReadonlyArray<InboxItemId>
-  organizationId: OrganizationId
   newStatus: InboxStatus
-  userId: UserId
-  role: Role
 }>
 
 // fallow-ignore-next-line unused-type
@@ -32,9 +30,9 @@ export type BulkUpdateInboxStatusDeps = Readonly<{
   logger: LoggerPort
 }>
 
-// `accessible` is null for AccountAdmin (no filtering); an explicit list for
-// PropertyManager/Staff (scoped). `ok: false` means access resolution failed
-// and the whole operation must no-op. (PM holds inbox.manage but is NOT
+// `accessible` is null for an org-wide caller (no filtering); an explicit list
+// for an assigned-scope caller (PM/Staff). `ok: false` means access resolution
+// failed and the whole operation must no-op. (PM holds inbox.manage but is NOT
 // org-wide — CONTEXT.md L72.)
 type AccessResolution = Readonly<
   { ok: true; accessible: ReadonlyArray<PropertyId> | null } | { ok: false }
@@ -44,21 +42,21 @@ type AccessResolution = Readonly<
  *  failure, fails safe (`ok: false`) so the caller updates nothing. */
 const resolveAccessiblePropertyIds = async (
   deps: BulkUpdateInboxStatusDeps,
-  input: BulkUpdateInboxStatusInput,
+  ctx: AuthContext,
 ): Promise<AccessResolution> => {
-  if (input.role === 'AccountAdmin') return { ok: true, accessible: null }
   try {
     return {
       ok: true,
-      accessible: await deps.staffPublicApi.getAccessiblePropertyIds(
-        input.organizationId,
-        input.userId,
-        false,
+      accessible: await getAccessiblePropertyIdsForPermission(
+        (orgId, uId, orgWide) =>
+          deps.staffPublicApi.getAccessiblePropertyIds(orgId, uId, orgWide),
+        ctx,
+        'inbox.write',
       ),
     }
   } catch (err) {
     deps.logger.warn(
-      { err, organizationId: input.organizationId },
+      { err, organizationId: ctx.organizationId },
       'Access check for property IDs failed, treating as no access',
     )
     return { ok: false }
@@ -100,6 +98,7 @@ const emitBulkStatusEvents = async (
   validIds: ReadonlyArray<InboxItemId>,
   oldStatuses: ReadonlyMap<InboxItemId, InboxStatus>,
   input: BulkUpdateInboxStatusInput,
+  ctx: AuthContext,
   bulkId: string,
   now: Date,
 ): Promise<void> => {
@@ -108,12 +107,12 @@ const emitBulkStatusEvents = async (
     await deps.events.emit(
       inboxItemBulkStatusChanged({
         inboxItemId: id,
-        organizationId: input.organizationId,
+        organizationId: ctx.organizationId,
         propertyId: oldItem?.propertyId ?? ('' as PropertyId),
         oldStatus: oldStatuses.get(id)!,
         newStatus: input.newStatus,
         bulkId,
-        userId: input.userId,
+        userId: ctx.userId,
         occurredAt: now,
       }),
     )
@@ -121,10 +120,10 @@ const emitBulkStatusEvents = async (
       await deps.events.emit(
         inboxItemEscalated({
           inboxItemId: id,
-          organizationId: input.organizationId,
+          organizationId: ctx.organizationId,
           propertyId: oldItem?.propertyId ?? ('' as PropertyId),
           oldStatus: oldStatuses.get(id)!,
-          userId: input.userId,
+          userId: ctx.userId,
           occurredAt: now,
         }),
       )
@@ -134,18 +133,21 @@ const emitBulkStatusEvents = async (
 
 export const bulkUpdateInboxStatus =
   (deps: BulkUpdateInboxStatusDeps) =>
-  async (input: BulkUpdateInboxStatusInput): Promise<{ updated: number }> => {
-    if (!can(input.role, 'inbox.write'))
+  async (
+    input: BulkUpdateInboxStatusInput,
+    ctx: AuthContext,
+  ): Promise<{ updated: number }> => {
+    if (!canForContext(ctx, 'inbox.write'))
       throw inboxError('forbidden', 'No inbox write permission')
     const now = deps.clock()
     const bulkId = crypto.randomUUID()
 
     // 1. Resolve accessible-property filter once for the whole batch
-    const access = await resolveAccessiblePropertyIds(deps, input)
+    const access = await resolveAccessiblePropertyIds(deps, ctx)
     if (!access.ok) return { updated: 0 }
 
     // 2. Batch-fetch all items (eliminates N+1) and select valid candidates
-    const items = await deps.repo.findByIds(input.inboxItemIds, input.organizationId)
+    const items = await deps.repo.findByIds(input.inboxItemIds, ctx.organizationId)
     const { validIds, oldStatuses } = selectValidBulkItems(
       items,
       input.inboxItemIds,
@@ -157,7 +159,7 @@ export const bulkUpdateInboxStatus =
     // 3. Bulk update
     const result = await deps.repo.bulkUpdateStatus(
       validIds,
-      input.organizationId,
+      ctx.organizationId,
       input.newStatus,
       timestampFieldsForStatus(input.newStatus, now),
       now,
@@ -169,10 +171,10 @@ export const bulkUpdateInboxStatus =
       const newCount = validIds.filter((id) => oldStatuses.get(id) === 'new').length
       if (newCount > 0) {
         try {
-          await deps.newCounter.decrementBy(input.organizationId, newCount)
+          await deps.newCounter.decrementBy(ctx.organizationId, newCount)
         } catch (err) {
           deps.logger.warn(
-            { err, organizationId: input.organizationId },
+            { err, organizationId: ctx.organizationId },
             'New counter bulk decrement failed, DB is source of truth',
           )
         }
@@ -180,7 +182,16 @@ export const bulkUpdateInboxStatus =
     }
 
     // 5. Emit per-item events
-    await emitBulkStatusEvents(deps, items, validIds, oldStatuses, input, bulkId, now)
+    await emitBulkStatusEvents(
+      deps,
+      items,
+      validIds,
+      oldStatuses,
+      input,
+      ctx,
+      bulkId,
+      now,
+    )
 
     return result
   }

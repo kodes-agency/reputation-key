@@ -11,11 +11,15 @@ import {
 } from '#/shared/domain/ids'
 import type { InboxItem } from '../../domain/types'
 import { isInboxError } from '../../domain/errors'
+import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Role } from '#/shared/domain/roles'
 
 // ── Test data factory (typed, no `any`) ─────────────────────────────
 const ORG_ID = organizationId('org-1')
 const USER_ID = userId('user-1')
+
+const ctxFor = (role: Role): AuthContext =>
+  ({ organizationId: ORG_ID, userId: USER_ID, role }) as AuthContext
 
 const makeItem = ({
   id,
@@ -82,11 +86,7 @@ describe('getInboxFolderCounts', () => {
       makeItem({ id: 'ii-9', status: 'archived' }),
     )
 
-    const counts = await useCase({
-      organizationId: ORG_ID,
-      userId: USER_ID,
-      role: 'AccountAdmin',
-    })
+    const counts = await useCase({}, ctxFor('AccountAdmin'))
 
     expect(counts).toEqual({
       inbox: 9,
@@ -100,11 +100,7 @@ describe('getInboxFolderCounts', () => {
   it('returns all zeros when organization has no items', async () => {
     const { useCase } = setup()
 
-    const counts = await useCase({
-      organizationId: ORG_ID,
-      userId: USER_ID,
-      role: 'AccountAdmin',
-    })
+    const counts = await useCase({}, ctxFor('AccountAdmin'))
 
     expect(counts).toEqual({
       inbox: 0,
@@ -120,13 +116,9 @@ describe('getInboxFolderCounts', () => {
 
     // All current domain roles have inbox.read, so we cast a fictional role
     // to verify the permission gate is active and would block an unauthorized role.
-    await expect(
-      useCase({
-        organizationId: ORG_ID,
-        userId: USER_ID,
-        role: 'Guest' as unknown as Role,
-      }),
-    ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'forbidden')
+    await expect(useCase({}, ctxFor('Guest' as unknown as Role))).rejects.toSatisfy(
+      (e: unknown) => isInboxError(e) && e.code === 'forbidden',
+    )
   })
 
   it('scopes PropertyManager to assigned properties (PM is NOT org-wide for inbox)', async () => {
@@ -138,11 +130,7 @@ describe('getInboxFolderCounts', () => {
       makeItem({ id: 'ii-2', status: 'new', propertyId: propertyId('prop-2') }),
     )
 
-    const counts = await useCase({
-      organizationId: ORG_ID,
-      userId: USER_ID,
-      role: 'PropertyManager' as Role,
-    })
+    const counts = await useCase({}, ctxFor('PropertyManager'))
 
     // PM assigned to prop-1 only: counts the assigned item, not the prop-2 one
     expect(counts.inbox).toBe(1)
@@ -153,11 +141,7 @@ describe('getInboxFolderCounts', () => {
     const { useCase, repo } = setup(createScopedStaffApi([]))
     repo.items.push(makeItem({ id: 'ii-1', status: 'new' }))
 
-    const counts = await useCase({
-      organizationId: ORG_ID,
-      userId: USER_ID,
-      role: 'PropertyManager' as Role,
-    })
+    const counts = await useCase({}, ctxFor('PropertyManager'))
 
     expect(counts.inbox).toBe(0)
   })
@@ -169,11 +153,7 @@ describe('getInboxFolderCounts', () => {
       makeItem({ id: 'ii-2', status: 'new', propertyId: propertyId('prop-2') }),
     )
 
-    const counts = await useCase({
-      organizationId: ORG_ID,
-      userId: USER_ID,
-      role: 'Staff' as Role,
-    })
+    const counts = await useCase({}, ctxFor('Staff'))
 
     expect(counts.inbox).toBe(1)
   })

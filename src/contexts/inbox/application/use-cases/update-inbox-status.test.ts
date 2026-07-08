@@ -15,11 +15,15 @@ import type { InboxItem, InboxStatus, SourceType } from '../../domain/types'
 import type { NewCounterPort } from '../ports/new-counter.port'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { Role } from '#/shared/domain/roles'
+import type { AuthContext } from '#/shared/domain/auth-context'
 
 const FIXED_TIME = new Date('2026-04-15T12:00:00Z')
 const ORG_ID = organizationId('org-1')
 const ITEM_ID = inboxItemId('ii-1')
 const USER_ID = userId('user-1')
+
+const ctxFor = (role: Role): AuthContext =>
+  ({ organizationId: ORG_ID, userId: USER_ID, role }) as AuthContext
 
 function seedNew(overrides?: Partial<InboxItem>): InboxItem {
   return {
@@ -92,13 +96,10 @@ describe('updateInboxStatus', () => {
     const { useCase, repo } = setup()
     repo.items.push(seedNew())
 
-    const updated = await useCase({
-      inboxItemId: ITEM_ID,
-      organizationId: ORG_ID,
-      newStatus: 'read',
-      userId: USER_ID,
-      role: 'AccountAdmin' as Role,
-    })
+    const updated = await useCase(
+      { inboxItemId: ITEM_ID, newStatus: 'read' },
+      ctxFor('AccountAdmin'),
+    )
 
     expect(updated.status).toBe('read')
     expect(updated.readAt).toBe(FIXED_TIME)
@@ -110,13 +111,7 @@ describe('updateInboxStatus', () => {
     repo.items.push(seedNew({ status: 'new' }))
 
     await expect(
-      useCase({
-        inboxItemId: ITEM_ID,
-        organizationId: ORG_ID,
-        newStatus: 'new',
-        userId: USER_ID,
-        role: 'AccountAdmin' as Role,
-      }),
+      useCase({ inboxItemId: ITEM_ID, newStatus: 'new' }, ctxFor('AccountAdmin')),
     ).rejects.toSatisfy(
       (e: unknown) => isInboxError(e) && e.code === 'invalid_transition',
     )
@@ -126,13 +121,7 @@ describe('updateInboxStatus', () => {
     const { useCase } = setup()
 
     await expect(
-      useCase({
-        inboxItemId: ITEM_ID,
-        organizationId: ORG_ID,
-        newStatus: 'read',
-        userId: USER_ID,
-        role: 'AccountAdmin' as Role,
-      }),
+      useCase({ inboxItemId: ITEM_ID, newStatus: 'read' }, ctxFor('AccountAdmin')),
     ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'not_found')
   })
 
@@ -140,13 +129,7 @@ describe('updateInboxStatus', () => {
     const { useCase, repo, decrements } = setup()
     repo.items.push(seedNew())
 
-    await useCase({
-      inboxItemId: ITEM_ID,
-      organizationId: ORG_ID,
-      newStatus: 'read',
-      userId: USER_ID,
-      role: 'AccountAdmin' as Role,
-    })
+    await useCase({ inboxItemId: ITEM_ID, newStatus: 'read' }, ctxFor('AccountAdmin'))
 
     expect(decrements).toHaveLength(1)
     expect(decrements[0].orgId).toBe(ORG_ID as string)
@@ -156,13 +139,10 @@ describe('updateInboxStatus', () => {
     const { useCase, repo, decrements } = setup()
     repo.items.push(seedNew())
 
-    await useCase({
-      inboxItemId: ITEM_ID,
-      organizationId: ORG_ID,
-      newStatus: 'escalated',
-      userId: USER_ID,
-      role: 'AccountAdmin' as Role,
-    })
+    await useCase(
+      { inboxItemId: ITEM_ID, newStatus: 'escalated' },
+      ctxFor('AccountAdmin'),
+    )
 
     expect(decrements).toHaveLength(1)
   })
@@ -171,13 +151,7 @@ describe('updateInboxStatus', () => {
     const { useCase, repo, events } = setup()
     repo.items.push(seedNew())
 
-    await useCase({
-      inboxItemId: ITEM_ID,
-      organizationId: ORG_ID,
-      newStatus: 'read',
-      userId: USER_ID,
-      role: 'AccountAdmin' as Role,
-    })
+    await useCase({ inboxItemId: ITEM_ID, newStatus: 'read' }, ctxFor('AccountAdmin'))
 
     const emitted = events.capturedEvents
     expect(emitted).toHaveLength(1)
@@ -195,13 +169,10 @@ describe('updateInboxStatus', () => {
     repo.items.push(seedNew())
 
     await expect(
-      useCase({
-        inboxItemId: ITEM_ID,
-        organizationId: ORG_ID,
-        newStatus: 'read',
-        userId: USER_ID,
-        role: 'Guest' as unknown as Role,
-      }),
+      useCase(
+        { inboxItemId: ITEM_ID, newStatus: 'read' },
+        ctxFor('Guest' as unknown as Role),
+      ),
     ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'forbidden')
   })
 
@@ -215,13 +186,7 @@ describe('updateInboxStatus', () => {
     repo.items.push(seedNew())
 
     await expect(
-      useCase({
-        inboxItemId: ITEM_ID,
-        organizationId: ORG_ID,
-        newStatus: 'read',
-        userId: USER_ID,
-        role: 'PropertyManager' as Role,
-      }),
+      useCase({ inboxItemId: ITEM_ID, newStatus: 'read' }, ctxFor('PropertyManager')),
     ).resolves.toBeDefined()
   })
 
@@ -239,13 +204,7 @@ describe('updateInboxStatus', () => {
     repo.items.push(seedNew({ propertyId: propertyId('prop-other') }))
 
     await expect(
-      useCase({
-        inboxItemId: ITEM_ID,
-        organizationId: ORG_ID,
-        newStatus: 'read',
-        userId: USER_ID,
-        role: 'PropertyManager' as Role,
-      }),
+      useCase({ inboxItemId: ITEM_ID, newStatus: 'read' }, ctxFor('PropertyManager')),
     ).rejects.toMatchObject({ _tag: 'InboxError', code: 'forbidden' })
 
     // Sanity: the item is untouched
@@ -261,13 +220,10 @@ describe('updateInboxStatus', () => {
     const { useCase, repo } = setup(staffApi)
     repo.items.push(seedNew())
 
-    const updated = await useCase({
-      inboxItemId: ITEM_ID,
-      organizationId: ORG_ID,
-      newStatus: 'read',
-      userId: USER_ID,
-      role: 'PropertyManager' as Role,
-    })
+    const updated = await useCase(
+      { inboxItemId: ITEM_ID, newStatus: 'read' },
+      ctxFor('PropertyManager'),
+    )
 
     expect(updated.status).toBe('read')
   })
@@ -277,13 +233,7 @@ describe('updateInboxStatus', () => {
     repo.items.push(seedNew({ sourceType: 'review' as SourceType }))
 
     await expect(
-      useCase({
-        inboxItemId: ITEM_ID,
-        organizationId: ORG_ID,
-        newStatus: 'addressed',
-        userId: USER_ID,
-        role: 'AccountAdmin' as Role,
-      }),
+      useCase({ inboxItemId: ITEM_ID, newStatus: 'addressed' }, ctxFor('AccountAdmin')),
     ).rejects.toMatchObject({
       _tag: 'InboxError',
       code: 'invalid_transition',
@@ -298,13 +248,10 @@ describe('updateInboxStatus', () => {
       seedNew({ sourceType: 'feedback' as SourceType, sourceId: feedbackId('fb-1') }),
     )
 
-    const updated = await useCase({
-      inboxItemId: ITEM_ID,
-      organizationId: ORG_ID,
-      newStatus: 'addressed',
-      userId: USER_ID,
-      role: 'AccountAdmin' as Role,
-    })
+    const updated = await useCase(
+      { inboxItemId: ITEM_ID, newStatus: 'addressed' },
+      ctxFor('AccountAdmin'),
+    )
 
     expect(updated.status).toBe('addressed')
   })
@@ -321,13 +268,7 @@ describe('updateInboxStatus', () => {
     repo.items.push(seedNew())
 
     await expect(
-      useCase({
-        inboxItemId: ITEM_ID,
-        organizationId: ORG_ID,
-        newStatus: 'read',
-        userId: USER_ID,
-        role: 'AccountAdmin' as Role,
-      }),
+      useCase({ inboxItemId: ITEM_ID, newStatus: 'read' }, ctxFor('AccountAdmin')),
     ).resolves.toBeDefined()
   })
 
@@ -335,13 +276,10 @@ describe('updateInboxStatus', () => {
     const { useCase, repo, events } = setup()
     repo.items.push(seedNew())
 
-    await useCase({
-      inboxItemId: ITEM_ID,
-      organizationId: ORG_ID,
-      newStatus: 'escalated',
-      userId: USER_ID,
-      role: 'AccountAdmin' as Role,
-    })
+    await useCase(
+      { inboxItemId: ITEM_ID, newStatus: 'escalated' },
+      ctxFor('AccountAdmin'),
+    )
 
     const emitted = events.capturedEvents
     expect(emitted).toHaveLength(2)

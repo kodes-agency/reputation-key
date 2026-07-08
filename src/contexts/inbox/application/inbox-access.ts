@@ -5,9 +5,10 @@
 import type { InboxRepository } from './ports/inbox.repository'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { InboxItem } from '../domain/types'
-import type { InboxItemId, OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
-import type { Role } from '#/shared/domain/roles'
-import { isPropertyAccessible } from '#/shared/domain/property-access'
+import type { InboxItemId, OrganizationId, PropertyId } from '#/shared/domain/ids'
+import type { AuthContext } from '#/shared/domain/auth-context'
+import type { Permission } from '#/shared/domain/permissions'
+import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
 import { inboxError } from '../domain/errors'
 
 /** Finds an inbox item by id, throwing `not_found` when it does not exist. */
@@ -25,31 +26,22 @@ export const loadInboxItemOrThrow = async (
 
 /** Throws `forbidden` when the caller lacks access to the given property.
  *
- *  Semantics (root CONTEXT.md L72: "PropertyManagers only manage assigned
- *  properties"; staff public-api contract):
- *  - AccountAdmin: org-wide access — bypasses the lookup entirely.
- *  - PropertyManager / Staff: scoped to their `staff_assignment` properties.
- *
- *  Note: PropertyManager holds `inbox.manage`, but is NOT org-wide here —
- *  gating on `can(role,'inbox.manage')` would wrongly grant PM access to every
- *  property. The shared `isPropertyAccessible` helper resolves the accessible
- *  set via the staff-assignment lookup, exactly as the assignee check in
- *  `assignInboxItem` does. */
+ *  Scope is resolved PER PERMISSION via scopeForPermission: org-wide scope
+ *  (AccountAdmin) → all accessible; assigned scope (PropertyManager/Staff) →
+ *  the caller's staff_assignment properties. Note: PM holds `inbox.manage`
+ *  but inbox visibility is governed by inbox.read/inbox.write scope, which is
+ *  assigned for PM — so gating on `can(role,'inbox.manage')` would wrongly
+ *  grant PM org-wide access (CONTEXT.md L72). */
 export const assertPropertyAccessible = async (
   staffPublicApi: StaffPublicApi,
-  organizationId: OrganizationId,
-  userId: UserId,
-  role: Role,
+  ctx: AuthContext,
+  permission: Permission,
   propertyId: PropertyId,
 ): Promise<void> => {
-  // AccountAdmin (org-wide) bypasses — skip the lookup entirely.
-  if (role === 'AccountAdmin') return
-  // PropertyManager/Staff: scoped to assigned properties via staff_assignment.
-  const accessible = await isPropertyAccessible(
+  const accessible = await isPropertyAccessibleForPermission(
     (orgId, uId, orgWide) => staffPublicApi.getAccessiblePropertyIds(orgId, uId, orgWide),
-    organizationId,
-    userId,
-    false,
+    ctx,
+    permission,
     propertyId,
   )
   if (!accessible) {

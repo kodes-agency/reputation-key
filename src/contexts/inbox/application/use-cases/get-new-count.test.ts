@@ -9,6 +9,8 @@ import {
   reviewId,
   userId,
 } from '#/shared/domain/ids'
+import type { AuthContext } from '#/shared/domain/auth-context'
+import type { Role } from '#/shared/domain/roles'
 import type { InboxItem } from '../../domain/types'
 import type { NewCounterPort } from '../ports/new-counter.port'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
@@ -16,6 +18,9 @@ import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 // ── Test data factory (typed, no `any`) ─────────────────────────────
 const ORG_ID = organizationId('org-1')
 const USER_ID = userId('user-1')
+
+const ctxFor = (role: Role): AuthContext =>
+  ({ organizationId: ORG_ID, userId: USER_ID, role }) as AuthContext
 
 const makeItem = ({
   id,
@@ -101,11 +106,7 @@ describe('getNewCount', () => {
     const { useCase, setCounterValue } = setup()
     setCounterValue(5)
 
-    const count = await useCase({
-      organizationId: ORG_ID,
-      userId: USER_ID,
-      role: 'AccountAdmin',
-    })
+    const count = await useCase({}, ctxFor('AccountAdmin'))
 
     expect(count).toBe(5)
   })
@@ -119,11 +120,7 @@ describe('getNewCount', () => {
       makeItem({ id: 'ii-2', rating: 3 }),
     )
 
-    const count = await useCase({
-      organizationId: ORG_ID,
-      userId: USER_ID,
-      role: 'AccountAdmin',
-    })
+    const count = await useCase({}, ctxFor('AccountAdmin'))
 
     expect(count).toBe(2)
   })
@@ -134,11 +131,7 @@ describe('getNewCount', () => {
 
     repo.items.push(makeItem({ id: 'ii-1', rating: 4 }))
 
-    const count = await useCase({
-      organizationId: ORG_ID,
-      userId: USER_ID,
-      role: 'AccountAdmin',
-    })
+    const count = await useCase({}, ctxFor('AccountAdmin'))
 
     expect(count).toBe(1)
   })
@@ -147,11 +140,7 @@ describe('getNewCount', () => {
     const { useCase, setCounterValue } = setup()
     setCounterValue(0)
 
-    const count = await useCase({
-      organizationId: ORG_ID,
-      userId: USER_ID,
-      role: 'AccountAdmin',
-    })
+    const count = await useCase({}, ctxFor('AccountAdmin'))
 
     expect(count).toBe(0)
   })
@@ -164,11 +153,7 @@ describe('getNewCount', () => {
     repo.items.push(makeItem({ id: 'ii-1' })) // prop-1 (assigned)
     repo.items.push(makeItem({ id: 'ii-2', propertyId: propertyId('prop-2') }))
 
-    const count = await useCase({
-      organizationId: ORG_ID,
-      userId: USER_ID,
-      role: 'PropertyManager',
-    })
+    const count = await useCase({}, ctxFor('PropertyManager'))
 
     expect(count).toBe(1) // only the assigned property's new item
   })
@@ -181,11 +166,7 @@ describe('getNewCount', () => {
     repo.items.push(makeItem({ id: 'ii-1' })) // prop-1 (assigned)
     repo.items.push(makeItem({ id: 'ii-2', propertyId: propertyId('prop-2') }))
 
-    const count = await useCase({
-      organizationId: ORG_ID,
-      userId: USER_ID,
-      role: 'PropertyManager',
-    })
+    const count = await useCase({}, ctxFor('PropertyManager'))
 
     expect(count).toBe(1) // scoped, not the org-wide 5
   })
@@ -195,11 +176,7 @@ describe('getNewCount', () => {
     setCounterValue(0)
     repo.items.push(makeItem({ id: 'ii-1' }))
 
-    const count = await useCase({
-      organizationId: ORG_ID,
-      userId: USER_ID,
-      role: 'PropertyManager',
-    })
+    const count = await useCase({}, ctxFor('PropertyManager'))
 
     expect(count).toBe(0)
   })
@@ -210,11 +187,7 @@ describe('getNewCount', () => {
     repo.items.push(makeItem({ id: 'ii-1' }))
     repo.items.push(makeItem({ id: 'ii-2', propertyId: propertyId('prop-2') }))
 
-    const count = await useCase({
-      organizationId: ORG_ID,
-      userId: USER_ID,
-      role: 'Staff',
-    })
+    const count = await useCase({}, ctxFor('Staff'))
 
     expect(count).toBe(1)
   })

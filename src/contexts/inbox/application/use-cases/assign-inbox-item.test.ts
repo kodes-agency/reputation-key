@@ -13,6 +13,7 @@ import {
 import type { InboxItem, InboxStatus, SourceType } from '../../domain/types'
 import type { Role } from '#/shared/domain/roles'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { AuthContext } from '#/shared/domain/auth-context'
 
 const FIXED_TIME = new Date('2026-04-15T12:00:00Z')
 const ORG_ID = organizationId('org-1')
@@ -22,6 +23,9 @@ const ASSIGNEE_ID = userId('user-2')
 const USER_ID = userId('user-1')
 const PROP_1 = propertyId('prop-1')
 const PROP_OTHER = propertyId('prop-other')
+
+const ctxFor = (role: Role, orgId = ORG_ID): AuthContext =>
+  ({ organizationId: orgId, userId: USER_ID, role }) as AuthContext
 
 const seedItem = (): InboxItem => ({
   id: ITEM_ID,
@@ -66,13 +70,13 @@ describe('assignInboxItem', () => {
     const { useCase, repo } = setup()
     repo.items.push(seedItem())
 
-    const updated = await useCase({
-      inboxItemId: ITEM_ID,
-      organizationId: ORG_ID,
-      assignedToUserId: ASSIGNEE_ID,
-      role: 'PropertyManager' as Role,
-      userId: USER_ID,
-    })
+    const updated = await useCase(
+      {
+        inboxItemId: ITEM_ID,
+        assignedToUserId: ASSIGNEE_ID,
+      },
+      ctxFor('PropertyManager'),
+    )
 
     expect(updated.assignedTo).toBe(ASSIGNEE_ID)
   })
@@ -81,13 +85,13 @@ describe('assignInboxItem', () => {
     const { useCase, repo } = setup()
     repo.items.push(seedItem())
 
-    const updated = await useCase({
-      inboxItemId: ITEM_ID,
-      organizationId: ORG_ID,
-      assignedToUserId: ASSIGNEE_ID,
-      role: 'AccountAdmin' as Role,
-      userId: USER_ID,
-    })
+    const updated = await useCase(
+      {
+        inboxItemId: ITEM_ID,
+        assignedToUserId: ASSIGNEE_ID,
+      },
+      ctxFor('AccountAdmin'),
+    )
 
     expect(updated.assignedTo).toBe(ASSIGNEE_ID)
   })
@@ -97,13 +101,13 @@ describe('assignInboxItem', () => {
     repo.items.push(seedItem())
 
     await expect(
-      useCase({
-        inboxItemId: ITEM_ID,
-        organizationId: ORG_ID,
-        assignedToUserId: ASSIGNEE_ID,
-        role: 'Staff' as Role,
-        userId: USER_ID,
-      }),
+      useCase(
+        {
+          inboxItemId: ITEM_ID,
+          assignedToUserId: ASSIGNEE_ID,
+        },
+        ctxFor('Staff'),
+      ),
     ).rejects.toSatisfy(
       (e: unknown) => isInboxError(e) && e.code === 'assignment_not_allowed',
     )
@@ -113,13 +117,13 @@ describe('assignInboxItem', () => {
     const { useCase } = setup()
 
     await expect(
-      useCase({
-        inboxItemId: ITEM_ID,
-        organizationId: ORG_ID,
-        assignedToUserId: ASSIGNEE_ID,
-        role: 'PropertyManager' as Role,
-        userId: USER_ID,
-      }),
+      useCase(
+        {
+          inboxItemId: ITEM_ID,
+          assignedToUserId: ASSIGNEE_ID,
+        },
+        ctxFor('PropertyManager'),
+      ),
     ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'not_found')
   })
 
@@ -127,13 +131,13 @@ describe('assignInboxItem', () => {
     const { useCase, repo, events } = setup()
     repo.items.push(seedItem())
 
-    await useCase({
-      inboxItemId: ITEM_ID,
-      organizationId: ORG_ID,
-      assignedToUserId: ASSIGNEE_ID,
-      role: 'PropertyManager' as Role,
-      userId: USER_ID,
-    })
+    await useCase(
+      {
+        inboxItemId: ITEM_ID,
+        assignedToUserId: ASSIGNEE_ID,
+      },
+      ctxFor('PropertyManager'),
+    )
 
     const emitted = events.capturedEvents
     expect(emitted).toHaveLength(1)
@@ -144,13 +148,13 @@ describe('assignInboxItem', () => {
     const { useCase, repo, events } = setup()
     repo.items.push({ ...seedItem(), assignedTo: ASSIGNEE_ID })
 
-    await useCase({
-      inboxItemId: ITEM_ID,
-      organizationId: ORG_ID,
-      assignedToUserId: null,
-      role: 'PropertyManager' as Role,
-      userId: USER_ID,
-    })
+    await useCase(
+      {
+        inboxItemId: ITEM_ID,
+        assignedToUserId: null,
+      },
+      ctxFor('PropertyManager'),
+    )
 
     const emitted = events.capturedEvents
     expect(emitted).toHaveLength(1)
@@ -173,13 +177,13 @@ describe('assignInboxItem', () => {
     repo.items.push(seedItem())
 
     await expect(
-      useCase({
-        inboxItemId: ITEM_ID,
-        organizationId: ORG_ID,
-        assignedToUserId: ASSIGNEE_ID,
-        role: 'PropertyManager' as Role,
-        userId: USER_ID,
-      }),
+      useCase(
+        {
+          inboxItemId: ITEM_ID,
+          assignedToUserId: ASSIGNEE_ID,
+        },
+        ctxFor('PropertyManager'),
+      ),
     ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'forbidden')
   })
 
@@ -194,13 +198,13 @@ describe('assignInboxItem', () => {
     repo.items.push(seedItem())
 
     await expect(
-      useCase({
-        inboxItemId: ITEM_ID,
-        organizationId: ORG_ID,
-        assignedToUserId: ASSIGNEE_ID,
-        role: 'Guest' as unknown as Role,
-        userId: USER_ID,
-      }),
+      useCase(
+        {
+          inboxItemId: ITEM_ID,
+          assignedToUserId: ASSIGNEE_ID,
+        },
+        ctxFor('Guest' as unknown as Role),
+      ),
     ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'forbidden')
   })
 
@@ -213,13 +217,13 @@ describe('assignInboxItem', () => {
     const { useCase, repo } = setup(staffApi)
     repo.items.push(seedItem())
 
-    const updated = await useCase({
-      inboxItemId: ITEM_ID,
-      organizationId: ORG_ID,
-      assignedToUserId: ASSIGNEE_ID,
-      role: 'PropertyManager' as Role,
-      userId: USER_ID,
-    })
+    const updated = await useCase(
+      {
+        inboxItemId: ITEM_ID,
+        assignedToUserId: ASSIGNEE_ID,
+      },
+      ctxFor('PropertyManager'),
+    )
 
     expect(updated.assignedTo).toBe(ASSIGNEE_ID)
   })
@@ -238,13 +242,13 @@ describe('assignInboxItem', () => {
     repo.items.push(seedItem())
 
     await expect(
-      useCase({
-        inboxItemId: ITEM_ID,
-        organizationId: ORG_ID,
-        assignedToUserId: ASSIGNEE_ID,
-        role: 'PropertyManager' as Role,
-        userId: USER_ID,
-      }),
+      useCase(
+        {
+          inboxItemId: ITEM_ID,
+          assignedToUserId: ASSIGNEE_ID,
+        },
+        ctxFor('PropertyManager'),
+      ),
     ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'forbidden')
   })
 
@@ -254,13 +258,13 @@ describe('assignInboxItem', () => {
     repo.items.push(seedItem()) // ORG_ID item
 
     await expect(
-      useCase({
-        inboxItemId: ITEM_ID,
-        organizationId: OTHER_ORG_ID,
-        assignedToUserId: ASSIGNEE_ID,
-        role: 'PropertyManager' as Role,
-        userId: USER_ID,
-      }),
+      useCase(
+        {
+          inboxItemId: ITEM_ID,
+          assignedToUserId: ASSIGNEE_ID,
+        },
+        ctxFor('PropertyManager', OTHER_ORG_ID),
+      ),
     ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'not_found')
   })
 })

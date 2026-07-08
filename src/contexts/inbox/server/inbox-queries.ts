@@ -37,51 +37,51 @@ export const getInboxItemsFn = createServerFn({ method: 'GET' })
         }
         const { useCases } = getContainer()
         try {
-          return await useCases.getInboxItems({
-            organizationId: ctx.organizationId,
-            userId: ctx.userId,
-            role: ctx.role,
-            filters: {
-              propertyId: data.propertyId ? propertyId(data.propertyId) : undefined,
-              status: data.status,
-              sourceType: data.sourceType,
-              platform: data.platform,
-              ratingMin: data.ratingMin,
-              ratingMax: data.ratingMax,
-              sourceDateFrom: data.sourceDateFrom,
-              sourceDateTo: data.sourceDateTo,
-              q: data.q,
-            },
-            cursor: data.cursor
-              ? (() => {
-                  try {
-                    const parsed = JSON.parse(
-                      Buffer.from(data.cursor, 'base64').toString('utf-8'),
-                    )
-                    // F134: Validate cursor shape — must have sourceDate (string) and id (string)
-                    if (
-                      !parsed ||
-                      typeof parsed.sourceDate !== 'string' ||
-                      typeof parsed.id !== 'string'
-                    ) {
+          return await useCases.getInboxItems(
+            {
+              filters: {
+                propertyId: data.propertyId ? propertyId(data.propertyId) : undefined,
+                status: data.status,
+                sourceType: data.sourceType,
+                platform: data.platform,
+                ratingMin: data.ratingMin,
+                ratingMax: data.ratingMax,
+                sourceDateFrom: data.sourceDateFrom,
+                sourceDateTo: data.sourceDateTo,
+                q: data.q,
+              },
+              cursor: data.cursor
+                ? (() => {
+                    try {
+                      const parsed = JSON.parse(
+                        Buffer.from(data.cursor, 'base64').toString('utf-8'),
+                      )
+                      // F134: Validate cursor shape — must have sourceDate (string) and id (string)
+                      if (
+                        !parsed ||
+                        typeof parsed.sourceDate !== 'string' ||
+                        typeof parsed.id !== 'string'
+                      ) {
+                        getLogger().warn(
+                          { cursor: data.cursor },
+                          'inbox: malformed cursor shape, treating as first page',
+                        )
+                        return undefined
+                      }
+                      return parsed
+                    } catch {
                       getLogger().warn(
                         { cursor: data.cursor },
-                        'inbox: malformed cursor shape, treating as first page',
+                        'inbox: malformed cursor encoding, treating as first page',
                       )
                       return undefined
                     }
-                    return parsed
-                  } catch {
-                    getLogger().warn(
-                      { cursor: data.cursor },
-                      'inbox: malformed cursor encoding, treating as first page',
-                    )
-                    return undefined
-                  }
-                })()
-              : undefined,
-            limit: data.limit,
-          })
+                  })()
+                : undefined,
+              limit: data.limit,
+            },
+            ctx,
+          )
         } catch (e) {
           if (isInboxError(e))
             throwContextError('InboxError', e, inboxErrorStatus(e.code))
@@ -111,11 +111,7 @@ export const getNewCountFn = createServerFn({ method: 'GET' })
         }
         const { useCases } = getContainer()
         try {
-          return await useCases.getNewCount({
-            organizationId: ctx.organizationId,
-            userId: ctx.userId,
-            role: ctx.role,
-          })
+          return await useCases.getNewCount({}, ctx)
         } catch (e) {
           if (isInboxError(e))
             throwContextError('InboxError', e, inboxErrorStatus(e.code))
@@ -146,11 +142,7 @@ export const getInboxFolderCountsFn = createServerFn({ method: 'GET' })
         }
         const { useCases } = getContainer()
         try {
-          return await useCases.getInboxFolderCounts({
-            organizationId: ctx.organizationId,
-            userId: ctx.userId,
-            role: ctx.role,
-          })
+          return await useCases.getInboxFolderCounts({}, ctx)
         } catch (e) {
           if (isInboxError(e))
             throwContextError('InboxError', e, inboxErrorStatus(e.code))

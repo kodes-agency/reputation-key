@@ -37,7 +37,8 @@ export const isPropertyAccessibleForPermission = async (
   propertyId: PropertyId,
 ): Promise<boolean> => {
   const orgWide = scopeForPermission(ctx, permission) === 'organization'
-  const accessible = await lookup(ctx.organizationId, ctx.userId, orgWide)
+  if (orgWide) return true
+  const accessible = await lookup(ctx.organizationId, ctx.userId, false)
   return accessible === null || accessible.includes(propertyId)
 }
 

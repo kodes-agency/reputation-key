@@ -5,12 +5,12 @@
 import type { InboxRepository } from '../ports/inbox.repository'
 import type { NewCounterPort } from '../ports/new-counter.port'
 import type { EventBus } from '#/shared/events/event-bus'
-import type { InboxItemId, OrganizationId, UserId } from '#/shared/domain/ids'
+import type { InboxItemId } from '#/shared/domain/ids'
 import type { InboxStatus, InboxItem } from '../../domain/types'
-import type { Role } from '#/shared/domain/roles'
+import type { AuthContext } from '#/shared/domain/auth-context'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { validateTransition, timestampFieldsForStatus } from '../../domain/rules'
 import { inboxItemStatusChanged, inboxItemEscalated } from '../../domain/events'
 import { inboxError } from '../../domain/errors'
@@ -18,10 +18,7 @@ import { loadInboxItemOrThrow, assertPropertyAccessible } from '../inbox-access'
 
 export type UpdateInboxStatusInput = Readonly<{
   inboxItemId: InboxItemId
-  organizationId: OrganizationId
   newStatus: InboxStatus
-  userId: UserId
-  role: Role
 }>
 
 // fallow-ignore-next-line unused-type
@@ -36,21 +33,20 @@ export type UpdateInboxStatusDeps = Readonly<{
 
 export const updateInboxStatus =
   (deps: UpdateInboxStatusDeps) =>
-  async (input: UpdateInboxStatusInput): Promise<InboxItem> => {
-    if (!can(input.role, 'inbox.write'))
+  async (input: UpdateInboxStatusInput, ctx: AuthContext): Promise<InboxItem> => {
+    if (!canForContext(ctx, 'inbox.write'))
       throw inboxError('forbidden', 'No inbox write permission')
 
     // 1. Find item + enforce role-scoped property access
     const item = await loadInboxItemOrThrow(
       deps.repo,
       input.inboxItemId,
-      input.organizationId,
+      ctx.organizationId,
     )
     await assertPropertyAccessible(
       deps.staffPublicApi,
-      input.organizationId,
-      input.userId,
-      input.role,
+      ctx,
+      'inbox.write',
       item.propertyId,
     )
 
@@ -59,11 +55,7 @@ export const updateInboxStatus =
     //    Server-authoritative mirror of the bulk path's guard
     //    (bulk-update-inbox-status.ts) and the UI's hidden button.
     if (input.newStatus === 'addressed' && item.sourceType === 'review') {
-      throw inboxError(
-        'invalid_transition',
-        "Reviews cannot be manually marked 'addressed'",
-        { inboxItemId: item.id, sourceType: item.sourceType },
-      )
+      throw inboxError('invalid_transition', 'Review items cannot be manually addressed')
     }
 
     // 3. Validate transition
@@ -76,7 +68,7 @@ export const updateInboxStatus =
     const now = deps.clock()
     const updated = await deps.repo.updateStatus(
       input.inboxItemId,
-      input.organizationId,
+      ctx.organizationId,
       input.newStatus,
       timestampFieldsForStatus(input.newStatus, now),
       now,
@@ -85,11 +77,11 @@ export const updateInboxStatus =
     // 5. Decrement new counter if transitioning away from 'new'
     if (item.status === 'new' && input.newStatus !== 'new') {
       try {
-        await deps.newCounter.decrement(input.organizationId)
+        await deps.newCounter.decrement(ctx.organizationId)
       } catch (err) {
         deps.logger.warn(
-          { err, organizationId: input.organizationId },
-          'New counter decrement failed, DB is source of truth',
+          { err, organizationId: ctx.organizationId },
+          'New counter decrement failed — DB is source of truth',
         )
       }
     }
@@ -99,10 +91,10 @@ export const updateInboxStatus =
       inboxItemStatusChanged({
         inboxItemId: updated.id,
         organizationId: updated.organizationId,
-        propertyId: updated.propertyId,
+        propertyId: item.propertyId,
         oldStatus: item.status,
-        newStatus: updated.status,
-        userId: input.userId,
+        newStatus: input.newStatus,
+        userId: ctx.userId,
         occurredAt: now,
       }),
     )
@@ -112,9 +104,9 @@ export const updateInboxStatus =
         inboxItemEscalated({
           inboxItemId: updated.id,
           organizationId: updated.organizationId,
-          propertyId: updated.propertyId,
+          propertyId: item.propertyId,
           oldStatus: item.status,
-          userId: input.userId,
+          userId: ctx.userId,
           occurredAt: now,
         }),
       )

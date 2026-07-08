@@ -12,6 +12,7 @@ import {
 import type { InboxNote, InboxItem, InboxStatus, SourceType } from '../../domain/types'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { Role } from '#/shared/domain/roles'
+import type { AuthContext } from '#/shared/domain/auth-context'
 import { isInboxError } from '../../domain/errors'
 
 const ORG_ID = organizationId('org-1')
@@ -70,10 +71,8 @@ function createInMemoryNoteRepo() {
   return { ...noteRepo, notes }
 }
 
-const adminInput = {
-  userId: USER_ID,
-  role: 'AccountAdmin' as const,
-}
+const ctxFor = (role: Role): AuthContext =>
+  ({ organizationId: ORG_ID, userId: USER_ID, role }) as AuthContext
 
 describe('getInboxNotes', () => {
   it('returns notes for an inbox item', async () => {
@@ -90,11 +89,7 @@ describe('getInboxNotes', () => {
     repo.items.push(makeItem())
 
     const useCase = getInboxNotes({ noteRepo, repo, staffPublicApi: adminStaffApi })
-    const result = await useCase({
-      inboxItemId: ITEM_ID,
-      organizationId: ORG_ID,
-      ...adminInput,
-    })
+    const result = await useCase({ inboxItemId: ITEM_ID }, ctxFor('AccountAdmin'))
 
     expect(result).toHaveLength(1)
     expect(result[0].text).toBe('Test note')
@@ -106,11 +101,7 @@ describe('getInboxNotes', () => {
     repo.items.push(makeItem())
 
     const useCase = getInboxNotes({ noteRepo, repo, staffPublicApi: adminStaffApi })
-    const result = await useCase({
-      inboxItemId: ITEM_ID,
-      organizationId: ORG_ID,
-      ...adminInput,
-    })
+    const result = await useCase({ inboxItemId: ITEM_ID }, ctxFor('AccountAdmin'))
 
     expect(result).toHaveLength(0)
   })
@@ -129,11 +120,7 @@ describe('getInboxNotes', () => {
     repo.items.push(makeItem())
 
     const useCase = getInboxNotes({ noteRepo, repo, staffPublicApi: adminStaffApi })
-    const result = await useCase({
-      inboxItemId: ITEM_ID,
-      organizationId: ORG_ID,
-      ...adminInput,
-    })
+    const result = await useCase({ inboxItemId: ITEM_ID }, ctxFor('AccountAdmin'))
 
     expect(result).toHaveLength(0)
   })
@@ -147,12 +134,7 @@ describe('getInboxNotes', () => {
 
     const useCase = getInboxNotes({ noteRepo, repo, staffPublicApi: scopedApi })
     await expect(
-      useCase({
-        inboxItemId: ITEM_ID,
-        organizationId: ORG_ID,
-        userId: USER_ID,
-        role: 'Guest' as unknown as Role,
-      }),
+      useCase({ inboxItemId: ITEM_ID }, ctxFor('Guest' as unknown as Role)),
     ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'forbidden')
   })
 
@@ -166,12 +148,7 @@ describe('getInboxNotes', () => {
 
     const useCase = getInboxNotes({ noteRepo, repo, staffPublicApi: scopedApi })
     await expect(
-      useCase({
-        inboxItemId: ITEM_ID,
-        organizationId: ORG_ID,
-        userId: USER_ID,
-        role: 'PropertyManager',
-      }),
+      useCase({ inboxItemId: ITEM_ID }, ctxFor('PropertyManager')),
     ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'forbidden')
   })
 
@@ -190,12 +167,7 @@ describe('getInboxNotes', () => {
     repo.items.push(makeItem()) // item on prop-1
 
     const useCase = getInboxNotes({ noteRepo, repo, staffPublicApi: scopedApi })
-    const result = await useCase({
-      inboxItemId: ITEM_ID,
-      organizationId: ORG_ID,
-      userId: USER_ID,
-      role: 'PropertyManager',
-    })
+    const result = await useCase({ inboxItemId: ITEM_ID }, ctxFor('PropertyManager'))
 
     expect(result).toHaveLength(1)
     expect(result[0]!.text).toBe('PM-visible note')

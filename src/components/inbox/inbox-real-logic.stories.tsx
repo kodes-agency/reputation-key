@@ -8,6 +8,7 @@ import {
   makeInboxItem,
   inboxTestIds,
 } from '../../../.storybook/in-memory/inbox-container'
+import type { AuthContext } from '#/shared/domain/auth-context'
 
 type Counts = { all: number; new: number; escalated: number }
 
@@ -24,25 +25,26 @@ function InboxRealLogic() {
       makeInboxItem({ id: '5', sourceType: 'feedback', status: 'escalated' }),
     ])
     const { ORG, USER, role } = inboxTestIds
+    const ctx = { organizationId: ORG, userId: USER, role } as AuthContext
     void Promise.all([
-      container.useCases.getInboxItems({
-        organizationId: ORG,
-        userId: USER,
-        role,
-        filters: {},
-      }),
-      container.useCases.getInboxItems({
-        organizationId: ORG,
-        userId: USER,
-        role,
-        filters: { status: 'new' },
-      }),
-      container.useCases.getInboxItems({
-        organizationId: ORG,
-        userId: USER,
-        role,
-        filters: { status: 'escalated' },
-      }),
+      container.useCases.getInboxItems(
+        {
+          filters: {},
+        },
+        ctx,
+      ),
+      container.useCases.getInboxItems(
+        {
+          filters: { status: 'new' },
+        },
+        ctx,
+      ),
+      container.useCases.getInboxItems(
+        {
+          filters: { status: 'escalated' },
+        },
+        ctx,
+      ),
     ]).then(([all, onlyNew, onlyEscalated]) => {
       setCounts({
         all: all.items.length,

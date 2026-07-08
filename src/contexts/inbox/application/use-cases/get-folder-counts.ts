@@ -3,10 +3,11 @@
 // Uses repository's countByStatus for each relevant status.
 
 import type { InboxRepository } from '../ports/inbox.repository'
-import type { OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
-import type { Role } from '#/shared/domain/roles'
+import type { PropertyId } from '#/shared/domain/ids'
+import type { AuthContext } from '#/shared/domain/auth-context'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
+import { getAccessiblePropertyIdsForPermission } from '#/shared/domain/property-access'
 import { inboxError } from '../../domain/errors'
 
 export type InboxFolderCounts = Readonly<{
@@ -17,11 +18,7 @@ export type InboxFolderCounts = Readonly<{
   archived: number
 }>
 
-export type GetInboxFolderCountsInput = Readonly<{
-  organizationId: OrganizationId
-  userId: UserId
-  role: Role
-}>
+export type GetInboxFolderCountsInput = Readonly<Record<string, never>>
 
 // fallow-ignore-next-line unused-type
 export type GetInboxFolderCountsDeps = Readonly<{
@@ -31,36 +28,41 @@ export type GetInboxFolderCountsDeps = Readonly<{
 
 export const getInboxFolderCounts =
   (deps: GetInboxFolderCountsDeps) =>
-  async (input: GetInboxFolderCountsInput): Promise<InboxFolderCounts> => {
-    if (!can(input.role, 'inbox.read')) {
+  async (
+    _input: GetInboxFolderCountsInput,
+    ctx: AuthContext,
+  ): Promise<InboxFolderCounts> => {
+    if (!canForContext(ctx, 'inbox.read')) {
       throw inboxError('forbidden', 'No inbox read permission')
     }
 
-    // Resolve property scoping: AccountAdmin sees org-wide counts;
-    // PropertyManager/Staff are scoped to their staff_assignment properties.
-    // (PM holds inbox.manage but is NOT org-wide — CONTEXT.md L72.)
+    // Resolve property scoping per-permission: org-wide scope (AccountAdmin) →
+    // null (all); assigned scope (PM/Staff) → their staff_assignment set.
+    // (PM holds inbox.manage but inbox.read scope is assigned — CONTEXT.md L72.)
+    const accessible = await getAccessiblePropertyIdsForPermission(
+      (orgId, uId, orgWide) =>
+        deps.staffPublicApi.getAccessiblePropertyIds(orgId, uId, orgWide),
+      ctx,
+      'inbox.read',
+    )
+
     let propertyIds: ReadonlyArray<PropertyId> | undefined
-    if (input.role !== 'AccountAdmin') {
-      const accessible = await deps.staffPublicApi.getAccessiblePropertyIds(
-        input.organizationId,
-        input.userId,
-        false,
-      )
+    if (accessible !== null) {
       // No assignments → no visible items. The repo treats propertyIds=[] as
       // "no filter" (org-wide), so short-circuit to zeros to avoid leaking
       // org-wide counts to a scoped user with no property assignments.
-      if (accessible !== null && accessible.length === 0) {
+      if (accessible.length === 0) {
         return { inbox: 0, unaddressed: 0, escalated: 0, addressed: 0, archived: 0 }
       }
-      propertyIds = accessible ?? undefined
+      propertyIds = accessible
     }
 
     const [newCount, readCount, escalated, addressed, archived] = await Promise.all([
-      deps.repo.countByStatus(input.organizationId, 'new', propertyIds),
-      deps.repo.countByStatus(input.organizationId, 'read', propertyIds),
-      deps.repo.countByStatus(input.organizationId, 'escalated', propertyIds),
-      deps.repo.countByStatus(input.organizationId, 'addressed', propertyIds),
-      deps.repo.countByStatus(input.organizationId, 'archived', propertyIds),
+      deps.repo.countByStatus(ctx.organizationId, 'new', propertyIds),
+      deps.repo.countByStatus(ctx.organizationId, 'read', propertyIds),
+      deps.repo.countByStatus(ctx.organizationId, 'escalated', propertyIds),
+      deps.repo.countByStatus(ctx.organizationId, 'addressed', propertyIds),
+      deps.repo.countByStatus(ctx.organizationId, 'archived', propertyIds),
     ])
 
     const unaddressed = newCount + readCount

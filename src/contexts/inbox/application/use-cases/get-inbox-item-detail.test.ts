@@ -16,6 +16,7 @@ import type {
 import type { InboxRepository } from '../ports/inbox.repository'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { Role } from '#/shared/domain/roles'
+import type { AuthContext } from '#/shared/domain/auth-context'
 import { isInboxError } from '../../domain/errors'
 
 const FIXED_TIME = new Date('2026-04-15T12:00:00Z')
@@ -103,10 +104,8 @@ const setup = (staffApi: StaffPublicApi = adminStaffApi) => {
   }
 }
 
-const adminInput = {
-  userId: USER_ID,
-  role: 'AccountAdmin' as const,
-}
+const ctxFor = (role: Role): AuthContext =>
+  ({ organizationId: ORG_ID, userId: USER_ID, role }) as AuthContext
 
 describe('getInboxItemDetail', () => {
   it('returns detail for a valid inbox item', async () => {
@@ -116,11 +115,7 @@ describe('getInboxItemDetail', () => {
     setDetail(detail)
 
     const useCase = getInboxItemDetail({ repo, staffPublicApi: staffApi })
-    const result = await useCase({
-      inboxItemId: ITEM_ID,
-      organizationId: ORG_ID,
-      ...adminInput,
-    })
+    const result = await useCase({ inboxItemId: ITEM_ID }, ctxFor('AccountAdmin'))
 
     expect(result.item.id).toBe(ITEM_ID)
     expect(result.item.reviewerName).toBe('Test Reviewer')
@@ -132,11 +127,7 @@ describe('getInboxItemDetail', () => {
     const useCase = getInboxItemDetail({ repo, staffPublicApi: staffApi })
 
     await expect(
-      useCase({
-        inboxItemId: inboxItemId('nonexistent'),
-        organizationId: ORG_ID,
-        ...adminInput,
-      }),
+      useCase({ inboxItemId: inboxItemId('nonexistent') }, ctxFor('AccountAdmin')),
     ).rejects.toThrow('Inbox item not found')
   })
 
@@ -148,7 +139,7 @@ describe('getInboxItemDetail', () => {
     const useCase = getInboxItemDetail({ repo, staffPublicApi: staffApi })
 
     await expect(
-      useCase({ inboxItemId: ITEM_ID, organizationId: ORG_ID, ...adminInput }),
+      useCase({ inboxItemId: ITEM_ID }, ctxFor('AccountAdmin')),
     ).rejects.toThrow('Inbox item not found')
   })
 
@@ -161,12 +152,7 @@ describe('getInboxItemDetail', () => {
 
     const useCase = getInboxItemDetail({ repo, staffPublicApi: staffApi })
     await expect(
-      useCase({
-        inboxItemId: ITEM_ID,
-        organizationId: ORG_ID,
-        userId: USER_ID,
-        role: 'Guest' as unknown as Role,
-      }),
+      useCase({ inboxItemId: ITEM_ID }, ctxFor('Guest' as unknown as Role)),
     ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'forbidden')
   })
 
@@ -181,12 +167,7 @@ describe('getInboxItemDetail', () => {
 
     const useCase = getInboxItemDetail({ repo, staffPublicApi: staffApi })
     await expect(
-      useCase({
-        inboxItemId: ITEM_ID,
-        organizationId: ORG_ID,
-        userId: USER_ID,
-        role: 'PropertyManager',
-      }),
+      useCase({ inboxItemId: ITEM_ID }, ctxFor('PropertyManager')),
     ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'forbidden')
   })
 
@@ -197,12 +178,7 @@ describe('getInboxItemDetail', () => {
     setDetail(makeDetail(item))
 
     const useCase = getInboxItemDetail({ repo, staffPublicApi: staffApi })
-    const result = await useCase({
-      inboxItemId: ITEM_ID,
-      organizationId: ORG_ID,
-      userId: USER_ID,
-      role: 'PropertyManager',
-    })
+    const result = await useCase({ inboxItemId: ITEM_ID }, ctxFor('PropertyManager'))
 
     expect(result.item.id).toBe(ITEM_ID)
   })
