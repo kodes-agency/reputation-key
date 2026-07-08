@@ -12,6 +12,7 @@ const PENDING_INVITATION: InvitationRecord = {
   id: 'inv-1',
   email: 'new@test.com',
   role: 'Staff',
+  rawRole: 'member',
   status: 'pending',
   expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
   createdAt: new Date(),

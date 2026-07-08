@@ -71,7 +71,7 @@ export const insertActivityLog =
         )
         actorName = user.name
         actorAvatarUrl = user.avatarUrl
-        actorRole = user.role
+        actorRole = user.role ?? 'Staff'
       } catch (e) {
         deps.logger.warn(
           { error: e, userId },

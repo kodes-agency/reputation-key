@@ -62,15 +62,13 @@ describe('verifyPubSubJwt', () => {
 
     await verifyPubSubJwt(TOKEN, AUDIENCE)
 
-    expect(mockJwtVerify).toHaveBeenCalledWith(
-      TOKEN,
-      expect.any(Object),
-      {
-        issuer: 'https://accounts.google.com',
-        audience: AUDIENCE,
-        clockTolerance: '30s',
-      },
-    )
+    expect(mockJwtVerify).toHaveBeenCalledWith(TOKEN, expect.any(Object), {
+      issuer: 'https://accounts.google.com',
+      audience: AUDIENCE,
+      algorithms: ['RS256'],
+      clockTolerance: '30s',
+      maxTokenAge: '300s',
+    })
   })
 
   it('uses defaults for missing payload fields', async () => {
@@ -110,7 +108,9 @@ describe('verifyPubSubJwt', () => {
 
     mockJwtVerify.mockRejectedValueOnce(new Error('unexpected "aud" claim'))
 
-    await expect(verifyPubSubJwt(TOKEN, 'wrong-audience')).rejects.toThrow('unexpected "aud" claim')
+    await expect(verifyPubSubJwt(TOKEN, 'wrong-audience')).rejects.toThrow(
+      'unexpected "aud" claim',
+    )
   })
 
   it('propagates jwtVerify errors (wrong issuer)', async () => {
@@ -118,7 +118,9 @@ describe('verifyPubSubJwt', () => {
 
     mockJwtVerify.mockRejectedValueOnce(new Error('unexpected "iss" claim'))
 
-    await expect(verifyPubSubJwt(TOKEN, AUDIENCE)).rejects.toThrow('unexpected "iss" claim')
+    await expect(verifyPubSubJwt(TOKEN, AUDIENCE)).rejects.toThrow(
+      'unexpected "iss" claim',
+    )
   })
 
   it('caches JWKS and reuses it within TTL', async () => {

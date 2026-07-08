@@ -7,7 +7,7 @@ import type { IdentityPort } from '../ports/identity.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { EventBus } from '#/shared/events/event-bus'
 import { canForContext } from '#/shared/domain/permissions'
-import { ADMIN_ROLE } from '#/shared/domain/roles'
+import { isOwnerToken } from '#/shared/domain/roles'
 import { identityError } from '../../domain/errors'
 import { identityMemberRemoved } from '../../domain/events'
 import { userId as toUserId } from '#/shared/domain/ids'
@@ -47,11 +47,12 @@ export const removeMember =
         throw identityError('member_not_found', 'Member not found in this organization')
       }
 
-      // 1c. Last-admin guard — cannot remove the last AccountAdmin
-      if (targetMember.role === ADMIN_ROLE) {
+      // 1c. Last-owner guard — cannot remove the last owner. Detected via the raw
+      // role string so a multi-role owner ('owner,editor') still counts as an owner.
+      if (isOwnerToken(targetMember.rawRole)) {
         const members = await deps.identity.listMembers(ctx)
-        const adminCount = members.filter((m) => m.role === ADMIN_ROLE).length
-        if (adminCount <= 1) {
+        const ownerCount = members.filter((m) => isOwnerToken(m.rawRole)).length
+        if (ownerCount <= 1) {
           throw identityError(
             'forbidden',
             'Cannot remove the last admin of the organization',

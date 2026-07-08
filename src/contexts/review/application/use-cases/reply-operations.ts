@@ -364,6 +364,13 @@ export const getReply =
   (deps: ReplyDeps) =>
   async (input: GetReplyInput, ctx: AuthContext): Promise<Reply | null> => {
     requireManager(ctx)
+    // D6-001: scope the reply read to the caller's assigned properties — same guard
+    // the mutations use. Without it a PropertyManager could read other properties' drafts.
+    const review = await deps.reviewRepo.findById(input.reviewId, ctx.organizationId)
+    if (!review) {
+      throw reviewError('review_not_found', 'Review not found')
+    }
+    await assertReplyPropertyAccessible(deps, ctx, review.propertyId)
     return deps.replyRepo.findInternalByReviewId(input.reviewId, ctx.organizationId)
   }
 

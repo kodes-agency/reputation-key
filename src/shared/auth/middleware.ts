@@ -28,21 +28,20 @@ import { getDb } from '#/shared/db'
 // ── Request-scoped tenant cache ───────────────────────────────
 // Within a single page load, multiple server functions call resolveTenantContext
 // with identical sessions. This cache deduplicates the getActiveMember() DB call.
-// Keyed by session cookie value only — ignores non-session cookies and ordering.
-// Max-size eviction prevents unbounded memory growth under high concurrency.
+// Keyed per (session cookie, active org) so an org switch resolves a fresh entry
+// rather than serving the prior org's context. Max-size eviction prevents
+// unbounded memory growth under high concurrency.
 
 const TENANT_CACHE_TTL_MS = 5_000 // 5 seconds — covers a single page load
-// NOTE(F161): After an org switch, the cached tenant context may be stale for
-// up to TENANT_CACHE_TTL_MS. This is acceptable because org switches are rare
-// and the browser reloads on switch. If stale-cache issues arise, consider
-// calling resetTenantCache() from the org-switch handler.
+// Keyed on (session cookie, orgId): after an org switch A→B the new request uses a
+// different key, so the cache never leaks org A's AuthContext into B's resolution.
 const TENANT_CACHE_MAX_SIZE = 100 // Evict oldest entry when full
 const tenantCache = new Map<
   string,
   { ctx: AuthContext; ts: number; version: number | null }
 >()
 
-function tenantCacheKey(headers: Headers): string | null {
+function tenantCacheKey(headers: Headers, activeOrgId: string): string | null {
   const cookie = headers.get('cookie')
   if (!cookie || cookie.trim() === '') {
     return null // Skip cache for empty cookies — prevents collision
@@ -54,7 +53,8 @@ function tenantCacheKey(headers: Headers): string | null {
     .split(';')
     .map((c) => c.trim())
     .find((c) => c.startsWith('better-auth.session_token='))
-  return sessionCookie ?? null
+  // Combine with the active org so an org switch resolves under a fresh key.
+  return sessionCookie ? `${sessionCookie}|${activeOrgId}` : null
 }
 
 function evictOldestIfNeeded(): void {
@@ -149,8 +149,22 @@ export async function requireAuth(headers: Headers): Promise<AuthUser> {
  * Throws if user is not authenticated or has no active organization.
  */
 export async function resolveTenantContext(headers: Headers): Promise<AuthContext> {
-  // Check cache first
-  const key = tenantCacheKey(headers)
+  // Parse the session before the cache lookup so the key can include the active org.
+  // getSessionFromHeaders is a JWT verify (no DB); the cache dedupes the expensive
+  // getActiveMember() call + permission resolution, not the session decode.
+  const session = await getSessionFromHeaders(headers)
+  if (!session) {
+    throwAuthError('unauthorized', 'Valid session required')
+  }
+
+  const activeOrgId = session.session.activeOrganizationId
+  if (!activeOrgId) {
+    throwAuthError('no_active_org', 'No active organization selected')
+  }
+
+  // Key per (session, org) so an org switch A→B resolves a fresh entry instead of
+  // serving the prior org's context for up to TENANT_CACHE_TTL_MS.
+  const key = tenantCacheKey(headers, activeOrgId)
   if (key) {
     const cached = tenantCache.get(key)
     if (cached && Date.now() - cached.ts < TENANT_CACHE_TTL_MS) {
@@ -187,16 +201,6 @@ export async function resolveTenantContext(headers: Headers): Promise<AuthContex
         return cached.ctx
       }
     }
-  }
-
-  const session = await getSessionFromHeaders(headers)
-  if (!session) {
-    throwAuthError('unauthorized', 'Valid session required')
-  }
-
-  const activeOrgId = session.session.activeOrganizationId
-  if (!activeOrgId) {
-    throwAuthError('no_active_org', 'No active organization selected')
   }
 
   // Find the member record for this user in the active org
@@ -268,9 +272,14 @@ export async function resolveTenantContext(headers: Headers): Promise<AuthContex
     // effectivePermissions/scopeByPermission are authoritative (all checks route through
     // canForContext/scopeForPermission, never ctx.role directly).
     role: role ?? 'Staff',
-    effectivePermissions,
-    scopeByPermission,
+    effectivePermissions: Object.freeze(effectivePermissions),
+    scopeByPermission: Object.freeze(scopeByPermission),
   }
+  // Freeze ctx so a caller can't reassign a field and poison the shared cache entry —
+  // the same object is returned to other callers within the TTL. The Set/Map fields are
+  // frozen above; ReadonlySet/Map give type-level immutability, Object.freeze adds
+  // runtime protection against property reassignment on the shared instance.
+  Object.freeze(ctx)
 
   // Only cache if we have a valid key (non-empty cookies)
   if (key) {

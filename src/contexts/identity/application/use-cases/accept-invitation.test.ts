@@ -44,6 +44,7 @@ describe('acceptInvitation', () => {
         id: invId as string,
         email: 'joiner@test.com',
         role: 'Staff',
+        rawRole: 'member',
         status: 'pending',
         expiresAt: new Date(Date.now() + 86_400_000),
         createdAt: new Date(),

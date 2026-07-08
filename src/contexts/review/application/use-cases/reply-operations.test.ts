@@ -991,4 +991,26 @@ describe('reply ops — property-assignment scoping (D6-001)', () => {
     const result = await submitReply(deps)({ reviewId: REVIEW_ID }, ADMIN_CTX)
     expect(result.status).toBe('pending_approval')
   })
+  it('getReply rejects PM without assignment — no cross-property read (M1)', async () => {
+    // A PropertyManager assigned to no properties could previously read ANY property's
+    // draft reply. getReply now enforces the same property-access guard as the mutations.
+    const unassigned = makeDeps({
+      staffPublicApi: makeStaffApi([]),
+      replyRepo: replyRepoWith(makeReply({ status: 'draft' })),
+    })
+    await expect(
+      getReply(unassigned)({ reviewId: REVIEW_ID }, MANAGER_CTX),
+    ).rejects.toSatisfy(expectForbidden)
+    // The reply is never fetched when access is missing.
+    expect(unassigned.replyRepo.findInternalByReviewId).not.toHaveBeenCalled()
+  })
+
+  it('getReply allows PM assigned to the property', async () => {
+    const assigned = makeDeps({
+      staffPublicApi: makeStaffApi([PROP_ID]),
+      replyRepo: replyRepoWith(makeReply({ status: 'draft' })),
+    })
+    const result = await getReply(assigned)({ reviewId: REVIEW_ID }, MANAGER_CTX)
+    expect(result?.status).toBe('draft')
+  })
 })

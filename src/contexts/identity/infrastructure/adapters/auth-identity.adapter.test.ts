@@ -170,11 +170,62 @@ describe('createBetterAuthIdentityAdapter', () => {
         email: 'alice@test.com',
         name: 'Alice',
         role: 'AccountAdmin',
+        rawRole: 'owner',
         image: null,
         createdAt,
       })
       expect(members[1].role).toBe('Staff')
       expect(members[1].image).toBe('img.png')
+    })
+    it('tolerates custom and multi roles without throwing (H2)', async () => {
+      // Arrange — a comma-multi owner role and a custom-only role. Both must map to
+      // role: null (no built-in Role) while preserving the raw string for display /
+      // owner detection. Previously toDomainRoleStrict threw 'unknown_role' here.
+      const createdAt = new Date('2026-01-01')
+      mockListMembers.mockResolvedValue({
+        members: [
+          {
+            id: 'm-multi',
+            userId: 'u-1',
+            role: 'owner,editor',
+            createdAt,
+            user: { id: 'u-1', email: 'multi@test.com', name: 'Multi', image: null },
+          },
+          {
+            id: 'm-custom',
+            userId: 'u-2',
+            role: 'editor',
+            createdAt,
+            user: { id: 'u-2', email: 'custom@test.com', name: 'Custom', image: null },
+          },
+        ],
+      })
+
+      // Act
+      const members = await adapter.listMembers(testCtx)
+
+      // Assert — no throw; both carry role: null + their raw role string.
+      expect(members).toHaveLength(2)
+      expect(members[0]).toEqual({
+        id: 'm-multi',
+        userId: 'u-1',
+        email: 'multi@test.com',
+        name: 'Multi',
+        role: null,
+        rawRole: 'owner,editor',
+        image: null,
+        createdAt,
+      })
+      expect(members[1]).toEqual({
+        id: 'm-custom',
+        userId: 'u-2',
+        email: 'custom@test.com',
+        name: 'Custom',
+        role: null,
+        rawRole: 'editor',
+        image: null,
+        createdAt,
+      })
     })
 
     it('returns empty array when no members', async () => {
@@ -481,6 +532,7 @@ describe('createBetterAuthIdentityAdapter', () => {
         id: 'inv-1',
         email: 'a@t.com',
         role: 'AccountAdmin',
+        rawRole: 'owner',
         status: 'pending',
         propertyIds: [],
         expiresAt: expires,

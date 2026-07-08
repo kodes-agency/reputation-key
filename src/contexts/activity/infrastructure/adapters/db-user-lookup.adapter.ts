@@ -7,7 +7,7 @@
 
 import type { UserLookupPort, UserInfo } from '../../ports/user-lookup.port'
 import type { Database } from '#/shared/db'
-import { toDomainRoleStrict, type Role } from '#/shared/domain/roles'
+import { toDomainRole, type Role } from '#/shared/domain/roles'
 import { and, eq } from 'drizzle-orm'
 import { member, user } from '#/shared/db/schema/auth'
 import { activityError } from '../../domain/errors'
@@ -16,6 +16,7 @@ const FALLBACK_USER: UserInfo = Object.freeze({
   name: 'System',
   avatarUrl: null,
   role: 'Staff' as Role,
+  rawRole: 'member',
 })
 
 export const createDbUserLookupAdapter = (db: Database): UserLookupPort => ({
@@ -36,7 +37,8 @@ export const createDbUserLookupAdapter = (db: Database): UserLookupPort => ({
       return {
         name: row.name ?? 'Unknown',
         avatarUrl: row.image ?? null,
-        role: toDomainRoleStrict(row.role),
+        role: toDomainRole(row.role),
+        rawRole: row.role,
       }
     } catch (e) {
       // §13: surface DB failures as a typed error instead of returning the

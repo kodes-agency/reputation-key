@@ -76,6 +76,7 @@ export function createInMemoryIdentityPort(): InMemoryIdentityPort {
         id,
         email,
         role: role as Role,
+        rawRole: role,
         status: 'pending',
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
         createdAt: new Date(),
@@ -117,7 +118,7 @@ export function createInMemoryIdentityPort(): InMemoryIdentityPort {
     ): Promise<void> {
       const member = members.get(memberId)
       if (member) {
-        members.set(memberId, { ...member, role: role as Role })
+        members.set(memberId, { ...member, role: role as Role, rawRole: role })
       }
     },
     async getActiveOrg(_headers: Headers): Promise<OrganizationRecord | null> {

@@ -96,6 +96,7 @@ export const listMembers = createServerFn({ method: 'GET' }).handler(
           id: m.id,
           userId: m.userId,
           role: m.role,
+          rawRole: m.rawRole,
           email: m.email,
           name: m.name,
           image: m.image,

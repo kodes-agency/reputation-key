@@ -25,7 +25,12 @@ import type {
 } from '../../application/ports/identity.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { getAuth, getOnAcceptInvitation } from '#/shared/auth/auth'
-import { toDomainRoleStrict, toBetterAuthRole, type Role } from '#/shared/domain/roles'
+import {
+  toDomainRole,
+  toBetterAuthRole,
+  isOwnerToken,
+  type Role,
+} from '#/shared/domain/roles'
 import { identityError } from '../../domain/errors'
 import { organizationId, invitationId } from '#/shared/domain/ids'
 import type { InvitationId, OrganizationId } from '#/shared/domain/ids'
@@ -76,7 +81,8 @@ function toMemberRecord(m: {
     userId: m.userId,
     email: m.user.email,
     name: m.user.name,
-    role: toDomainRoleStrict(m.role),
+    role: toDomainRole(m.role),
+    rawRole: m.role,
     image: m.user.image ?? null,
     createdAt: m.createdAt,
   }
@@ -349,7 +355,8 @@ export const createBetterAuthIdentityAdapter = (db: Database): IdentityPort => {
         (inv): InvitationRecord => ({
           id: inv.id,
           email: inv.email,
-          role: toDomainRoleStrict(inv.role),
+          role: toDomainRole(inv.role),
+          rawRole: inv.role,
           status: inv.status,
           expiresAt: inv.expiresAt,
           createdAt: inv.createdAt,
@@ -373,7 +380,8 @@ export const createBetterAuthIdentityAdapter = (db: Database): IdentityPort => {
         (inv): InvitationRecord => ({
           id: inv.id,
           email: inv.email,
-          role: toDomainRoleStrict(inv.role),
+          role: toDomainRole(inv.role),
+          rawRole: inv.role,
           status: inv.status,
           expiresAt: inv.expiresAt,
           createdAt: inv.createdAt,
@@ -399,7 +407,7 @@ export const createBetterAuthIdentityAdapter = (db: Database): IdentityPort => {
       // Last-owner guard: block demoting the sole owner. The DB BEFORE-trigger is the
       // concurrency backstop for direct-DB; this is the app-path UX guard (§4).
       const wouldRemoveOwner =
-        isOwnerToken(memberRow.role) && !isOwnerToken(toBetterAuthRole(role as Role))
+        isOwnerToken(memberRow.rawRole) && !isOwnerToken(toBetterAuthRole(role as Role))
       await assertNotLastOwner(db, ctx.organizationId as string, wouldRemoveOwner)
       const headers = await headersFromRequest()
       await auth.api.updateMemberRole({
@@ -420,7 +428,7 @@ export const createBetterAuthIdentityAdapter = (db: Database): IdentityPort => {
       await assertNotLastOwner(
         db,
         ctx.organizationId as string,
-        isOwnerToken(memberRow.role),
+        isOwnerToken(memberRow.rawRole),
       )
       const headers = await headersFromRequest()
       await auth.api.removeMember({
@@ -589,14 +597,6 @@ function isUniqueViolation(e: unknown): boolean {
     'code' in e &&
     (e as { code: unknown }).code === '23505'
   )
-}
-
-/** True when a member's (possibly multi-role, comma-delimited) role string grants owner. */
-function isOwnerToken(role: string): boolean {
-  return role
-    .split(',')
-    .map((s) => s.trim().toLowerCase())
-    .includes('owner')
 }
 
 /**

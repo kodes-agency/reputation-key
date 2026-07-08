@@ -67,6 +67,18 @@ export function toDomainRoleStrict(betterAuthRole: string): Role {
   return role
 }
 
+/**
+ * True when a (possibly multi-role, comma-delimited) better-auth role string grants owner.
+ * Owner detection must operate on the RAW role string: a multi-role member like
+ * 'owner,editor' maps to a null built-in Role but is still an owner for last-owner guards.
+ */
+export function isOwnerToken(betterAuthRole: string): boolean {
+  return betterAuthRole
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .includes('owner')
+}
+
 /** Map our domain Role back to a better-auth role string. */
 export function toBetterAuthRole(role: Role): BetterAuthRole {
   switch (role) {

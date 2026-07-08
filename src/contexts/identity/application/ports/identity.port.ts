@@ -14,7 +14,10 @@ export type MemberRecord = Readonly<{
   userId: string
   email: string
   name: string
-  role: Role
+  /** Built-in domain Role, or null when the member has a custom-only / multi role. */
+  role: Role | null
+  /** Raw better-auth role string (may be multi-role or custom) — for display + owner detection. */
+  rawRole: string
   image: string | null
   createdAt: Date
 }>
@@ -23,7 +26,9 @@ export type MemberRecord = Readonly<{
 export type InvitationRecord = Readonly<{
   id: string
   email: string
-  role: Role
+  role: Role | null
+  /** Raw better-auth role string — for display + owner detection. */
+  rawRole: string
   status: 'pending' | 'accepted' | 'rejected' | 'canceled'
   expiresAt: Date
   createdAt: Date

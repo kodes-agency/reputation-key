@@ -42,6 +42,7 @@ describe('cancelInvitation', () => {
         id: invId as string,
         email: 'pending@test.com',
         role: 'Staff',
+        rawRole: 'member',
         status: 'pending',
         expiresAt: new Date(Date.now() + 86_400_000),
         createdAt: new Date(),

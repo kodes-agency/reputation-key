@@ -24,7 +24,8 @@ export interface MemberRow {
   userId: string
   name: string
   email: string
-  role: import('#/shared/domain/roles').Role
+  role: import('#/shared/domain/roles').Role | null
+  rawRole: string
 }
 
 type Props = Readonly<{
@@ -90,7 +91,7 @@ export function MemberTable({
                   isPending={updateRoleAction.isPending}
                 />
               ) : (
-                <RoleBadge role={member.role} />
+                <RoleBadge role={member.role} rawRole={member.rawRole} />
               )}
             </TableCell>
             <TableCell className="text-right">

@@ -9,7 +9,7 @@ import type { IdentityPort } from '../ports/identity.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { EventBus } from '#/shared/events/event-bus'
 import { canForContext } from '#/shared/domain/permissions'
-import { ADMIN_ROLE } from '#/shared/domain/roles'
+import { ADMIN_ROLE, isOwnerToken } from '#/shared/domain/roles'
 import { canChangeRole } from '../../domain/rules'
 import { identityError } from '../../domain/errors'
 import { identityMemberRoleChanged } from '../../domain/events'
@@ -58,16 +58,18 @@ export const updateMemberRole =
       }
 
       // 3. Check business invariants — role hierarchy with actual current role
-      const authResult = canChangeRole(ctx.role, targetMember.role, input.role)
+      const authResult = canChangeRole(ctx.role, targetMember.role ?? 'Staff', input.role)
       if (authResult.isErr()) {
         throw identityError(authResult.error.code, authResult.error.message)
       }
 
-      // 3b. Last-admin guard — cannot demote the last AccountAdmin
-      if (targetMember.role === ADMIN_ROLE && input.role !== ADMIN_ROLE) {
+      // 3b. Last-owner guard — cannot demote the last owner. Detected via the raw role
+      // string so a multi-role owner ('owner,editor') still counts as an owner even
+      // though its built-in Role is null.
+      if (isOwnerToken(targetMember.rawRole) && input.role !== ADMIN_ROLE) {
         const members = await deps.identity.listMembers(ctx)
-        const adminCount = members.filter((m) => m.role === ADMIN_ROLE).length
-        if (adminCount <= 1) {
+        const ownerCount = members.filter((m) => isOwnerToken(m.rawRole)).length
+        if (ownerCount <= 1) {
           throw identityError(
             'forbidden',
             'Cannot demote the last admin of the organization',
@@ -83,7 +85,7 @@ export const updateMemberRole =
         identityMemberRoleChanged({
           organizationId: ctx.organizationId,
           memberUserId: toUserId(targetMember.userId),
-          previousRole: targetMember.role,
+          previousRole: targetMember.role ?? 'Staff',
           newRole: input.role,
           userId: ctx.userId,
           occurredAt: deps.clock(),
