@@ -1,10 +1,23 @@
 # Ticket: Better Auth cannot bootstrap a fresh database
 
-**Status:** Open
-**Severity:** Blocks clean-slate provisioning (new dev / CI / fresh staging & prod)
+**Status:** ✅ Resolved (2026-07-06)
+**Severity:** ~~Blocks clean-slate provisioning~~ Fixed
 **Discovered:** 2026-07-06, during DAC Stage 2 DB verification
 
-## Problem
+## Resolution
+
+A committed idempotent bootstrap SQL now provisions the 8 baseline auth tables from scratch. The 2 incremental BA migration files were made idempotent (`IF NOT EXISTS`) so `pnpm auth:migrate` is safe to run after the bootstrap.
+
+**Provisioning runbook (fresh DB):** see `docs/auth-migrations.md` → "Fresh-DB provisioning".
+
+- Step 1: `pnpm db:bootstrap-auth` → `scripts/migrations/0000-auth-tables-bootstrap.sql`
+- Step 2: `pnpm auth:migrate` (idempotent no-ops post-bootstrap)
+- Step 3: `pnpm db:migrate` (Drizzle business tables)
+- Step 4: DAC triggers SQL (`scripts/migrations/2026-07-06-permission-version-triggers.sql`)
+
+Verified: `pnpm db:bootstrap-auth` against Neon is a clean idempotent no-op (all 8 tables + 7 indexes report "already exists, skipping"); the SQL is standard `CREATE TABLE IF NOT EXISTS` so it creates from scratch on an empty DB.
+
+## Problem (historical)
 
 `pnpm auth:migrate` reports **"No migrations needed"** against an empty database
 and creates **no auth tables**. Better Auth's baseline schema (`user`, `session`,

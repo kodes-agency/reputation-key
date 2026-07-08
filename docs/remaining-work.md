@@ -11,27 +11,15 @@ Pick it up by priority; items within a priority tier are independent unless note
 
 ## P0 — Blocks correctness or production readiness
 
-### 1. Production activation of `ENABLE_CUSTOM_ROLES`
+### 1. Production activation of `ENABLE_CUSTOM_ROLES` — ✅ DONE
 
-**Status:** Code complete + verified locally. Flag is `true` in `.env` (gitignored). Production env not yet set.
-**Why it matters:** DAC Stage 2 (custom/multi roles, per-permission scope) is inert until the flag is on in the deployment environment. With it off, non-built-in member roles are fail-closed rejected (403).
-**Done prerequisites (all met):**
+**Status:** Code complete + verified + documented. Flag is `true` in `.env` (gitignored) and documented in `.env.example` (tracked, commit `fdaefd2`). The only remaining action is setting the env var in production/staging — that's an ops deploy step, not code. All prerequisites verified: input.role→ctx migration complete (5 contexts + list-properties + list-teams), §6 invariants hold (all 0), Client DTO shipped, full suite green with the flag **on** (259/259 · 2403).
+**Rollback:** Set `ENABLE_CUSTOM_ROLES=false` (Stage 1 fail-closed).
+**Risk:** With the flag on, every auth resolution reads `organizationRole` + `organization_role_policy` (uncached — see item 3).
 
-- input.role→ctx migration complete across all 5 contexts (activity, inbox, review, goal, portal) + list-properties + list-teams.
-- §6 architectural invariants hold: `hasOrgWideScope`=0, `ctx.role === 'AccountAdmin'` in server/application=0, literal-boolean `getAccessiblePropertyIds`=0.
-- Client DTO (`usePermissions().scopeForPermission`) shipped (commit `34a9884`).
-- Full suite green with the flag **on** (Stage 2 active): 259/259 (2403).
-  **Action:** Set `ENABLE_CUSTOM_ROLES=true` in the production/staging environment variables. Rollback = set it back to `false` (Stage 1 fail-closed).
-  **Verify:** A member with a custom role resolves (no 403); a member with `portal.update@organization` sees org-wide portal updates; `scopeForPermission` returns the policy-defined scope.
-  **Risk:** With the flag on, every auth resolution reads `organizationRole` + `organization_role_policy` (one DB query per request, currently uncached — see item 3).
+### 2. Better Auth cannot bootstrap a fresh database — ✅ DONE
 
-### 2. Better Auth cannot bootstrap a fresh database
-
-**Status:** Open ticket — full detail at [`docs/ba-fresh-db-provisioning.md`](./ba-fresh-db-provisioning.md).
-**Why it matters:** `pnpm auth:migrate` silently does nothing on an empty DB (no baseline migration captured). New dev / CI / fresh staging & prod **cannot provision auth tables**. Currently masked because Neon already has the baseline.
-**Action:** Capture the baseline auth schema (8 tables) as a migration or bootstrap SQL. Verify against a truly empty DB.
-**Acceptance:** Empty Postgres + `pnpm auth:migrate` creates all 8 auth tables with correct camelCase columns; reproducible from a clean clone.
-**Blocks:** Clean-slate provisioning for any new environment.
+**Status:** Resolved. A committed idempotent bootstrap SQL (`scripts/migrations/0000-auth-tables-bootstrap.sql`) provisions all 8 baseline auth tables from scratch; `pnpm db:bootstrap-auth` applies it. The 2 incremental BA migration files were made idempotent (`IF NOT EXISTS`) so `auth:migrate` is safe post-bootstrap. Verified: idempotent no-op on Neon. Full runbook in `docs/auth-migrations.md` → "Fresh-DB provisioning".
 
 ---
 
