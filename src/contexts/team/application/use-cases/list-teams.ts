@@ -8,6 +8,7 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import type { PropertyId } from '#/shared/domain/ids'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { canForContext } from '#/shared/domain/permissions'
+import { getAccessiblePropertyIdsForPermission } from '#/shared/domain/property-access'
 import { teamError } from '../../domain/errors'
 
 // ── Input type ────────────────────────────────────────────────────────────
@@ -29,10 +30,11 @@ export const listTeams =
       throw teamError('forbidden', 'Insufficient permissions to list teams')
     }
 
-    const accessibleIds = await deps.staffApi.getAccessiblePropertyIds(
-      ctx.organizationId,
-      ctx.userId,
-      ctx.role === 'AccountAdmin',
+    const accessibleIds = await getAccessiblePropertyIdsForPermission(
+      (orgId, userId, orgWide) =>
+        deps.staffApi.getAccessiblePropertyIds(orgId, userId, orgWide),
+      ctx,
+      'team.read',
     )
 
     // null means AccountAdmin — all properties accessible
