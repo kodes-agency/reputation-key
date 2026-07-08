@@ -136,6 +136,12 @@ describe('requireAuth', () => {
 })
 
 describe('resolveTenantContext', () => {
+  // Stage 1 tests: custom roles disabled. Pin the flag so these tests are
+  // hermetic w.r.t. the .env default (which may be true in dev).
+  beforeEach(() => {
+    process.env.ENABLE_CUSTOM_ROLES = 'false'
+    resetEnv()
+  })
   it('returns AuthContext with userId, organizationId, and role', async () => {
     // Arrange
     mockGetSession.mockResolvedValue({
