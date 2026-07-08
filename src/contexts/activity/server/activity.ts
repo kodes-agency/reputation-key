@@ -53,14 +53,14 @@ export const getActivityTimelineFn = createServerFn({ method: 'GET' })
         }
         try {
           const { activityPublicApi } = getContainer()
-          return activityPublicApi.getActivityTimeline({
-            resourceType: data.resourceType,
-            resourceId: data.resourceId,
-            organizationId: ctx.organizationId,
-            userId: ctx.userId,
-            role: ctx.role,
-            limit: data.limit,
-          })
+          return activityPublicApi.getActivityTimeline(
+            {
+              resourceType: data.resourceType,
+              resourceId: data.resourceId,
+              limit: data.limit,
+            },
+            ctx,
+          )
         } catch (e) {
           throw catchUntagged(e)
         }
@@ -94,14 +94,14 @@ export const getOrgActivityFn = createServerFn({ method: 'GET' })
         }
         try {
           const { activityPublicApi } = getContainer()
-          return activityPublicApi.getOrgActivity({
-            organizationId: ctx.organizationId,
-            userId: ctx.userId,
-            role: ctx.role,
-            propertyId: data.propertyId ? propertyId(data.propertyId) : undefined,
-            limit: data.limit,
-            offset: data.offset,
-          })
+          return activityPublicApi.getOrgActivity(
+            {
+              propertyId: data.propertyId ? propertyId(data.propertyId) : undefined,
+              limit: data.limit,
+              offset: data.offset,
+            },
+            ctx,
+          )
         } catch (e) {
           throw catchUntagged(e)
         }

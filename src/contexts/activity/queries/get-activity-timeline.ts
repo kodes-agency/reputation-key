@@ -1,17 +1,13 @@
 import type { ActivityRepository } from '../ports/activity-repository.port'
 import type { ActivityLog } from '../domain/types'
-import type { Role } from '#/shared/domain/roles'
+import type { AuthContext } from '#/shared/domain/auth-context'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
-import type { OrganizationId, UserId } from '#/shared/domain/ids'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { filterByPropertyAccess } from './get-org-activity'
 
 type GetTimelineInput = Readonly<{
   resourceType: string
   resourceId: string
-  organizationId: OrganizationId
-  userId: UserId
-  role: Role
   limit?: number
 }>
 
@@ -22,34 +18,31 @@ type GetTimelineDeps = Readonly<{
 
 export const getActivityTimeline =
   (deps: GetTimelineDeps) =>
-  async (input: GetTimelineInput): Promise<readonly ActivityLog[]> => {
+  async (input: GetTimelineInput, ctx: AuthContext): Promise<readonly ActivityLog[]> => {
     const limit = input.limit ?? 50
     const entries = await deps.repo.findByResource(
-      input.organizationId,
+      ctx.organizationId,
       input.resourceType,
       input.resourceId,
       limit,
     )
 
-    // F120: 'organization.update' bypasses property scoping for the resource
-    // timeline, matching the org-wide activity query (getOrgActivity).
+    // Org-wide bypass mirrors the original action check (organization.update) — PM holds
+    // it and sees the full timeline; Staff are scoped to assigned properties.
     let scoped: readonly ActivityLog[]
-    if (can(input.role, 'organization.update')) {
+    if (canForContext(ctx, 'organization.update')) {
       scoped = entries
     } else {
-      // PM/Staff: scope to accessible properties
       const accessiblePropertyIds = await deps.staffPublicApi.getAccessiblePropertyIds(
-        input.organizationId,
-        input.userId,
-        input.role === 'AccountAdmin',
+        ctx.organizationId,
+        ctx.userId,
+        false,
       )
       scoped = filterByPropertyAccess(entries, accessiblePropertyIds)
     }
 
-    // §9: strip reply-workflow rows for callers lacking reply.manage (Staff).
-    // The reply lifecycle is PM+ only; inbox.read (held by Staff) must not
-    // expose reply actions or rejection reasons via the resource timeline.
-    return can(input.role, 'reply.manage')
+    // §9: strip reply-workflow rows for callers lacking reply.manage.
+    return canForContext(ctx, 'reply.manage')
       ? scoped
       : scoped.filter((e) => e.resourceType !== 'reply')
   }

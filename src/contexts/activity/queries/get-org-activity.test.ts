@@ -5,6 +5,7 @@ import type { ActivityRepository } from '../ports/activity-repository.port'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { Role } from '#/shared/domain/roles'
 import { activityLogId, userId, propertyId, organizationId } from '#/shared/domain/ids'
+import type { AuthContext } from '#/shared/domain/auth-context'
 
 function makeEntry(overrides: Partial<ActivityLog> = {}): ActivityLog {
   return {
@@ -69,11 +70,10 @@ function staffApiLimited(ids: string[]): StaffPublicApi {
 }
 
 describe('getOrgActivity', () => {
-  const baseInput = {
-    organizationId: organizationId('org-1'),
-    userId: userId('user-1'),
-    role: 'Staff' as Role,
-  }
+  const ORG_ID = organizationId('org-1')
+  const USER_ID = userId('user-1')
+  const ctxFor = (role: Role) =>
+    ({ organizationId: ORG_ID, userId: USER_ID, role }) as AuthContext
 
   it('returns reply entries for AccountAdmin (has reply.manage)', async () => {
     const repo = createInMemoryActivityRepo([
@@ -85,10 +85,7 @@ describe('getOrgActivity', () => {
       }),
     ])
     const deps = { repo, staffPublicApi: staffApiAllAccess() }
-    const result = await getOrgActivity(deps)({
-      ...baseInput,
-      role: 'AccountAdmin' as Role,
-    })
+    const result = await getOrgActivity(deps)({}, ctxFor('AccountAdmin'))
     expect(result.map((e) => e.id).sort()).toEqual(['al-1', 'al-2'])
   })
 
@@ -108,7 +105,7 @@ describe('getOrgActivity', () => {
       }),
     ])
     const deps = { repo, staffPublicApi: staffApiLimited(['prop-1']) }
-    const result = await getOrgActivity(deps)({ ...baseInput, role: 'Staff' })
+    const result = await getOrgActivity(deps)({}, ctxFor('Staff'))
     // The reply row (carrying the rejection reason) must not surface to Staff.
     expect(result.map((e) => e.id)).toEqual(['al-1'])
   })
@@ -123,10 +120,7 @@ describe('getOrgActivity', () => {
       }),
     ])
     const deps = { repo, staffPublicApi: staffApiAllAccess() }
-    const result = await getOrgActivity(deps)({
-      ...baseInput,
-      role: 'PropertyManager' as Role,
-    })
+    const result = await getOrgActivity(deps)({}, ctxFor('PropertyManager'))
     expect(result.map((e) => e.id).sort()).toEqual(['al-1', 'al-2'])
   })
 
@@ -150,7 +144,7 @@ describe('getOrgActivity', () => {
       }),
     ])
     const deps = { repo, staffPublicApi: staffApiLimited(['prop-1']) }
-    const result = await getOrgActivity(deps)({ ...baseInput, role: 'Staff' })
+    const result = await getOrgActivity(deps)({}, ctxFor('Staff'))
     // prop-1 inbox_item kept; prop-1 reply stripped; prop-2 out of scope.
     expect(result.map((e) => e.id)).toEqual(['al-1'])
   })
@@ -160,7 +154,7 @@ describe('getOrgActivity', () => {
       makeEntry({ id: activityLogId('al-1'), resourceType: 'inbox_item' }),
     ])
     const deps = { repo, staffPublicApi: staffApiLimited([]) }
-    const result = await getOrgActivity(deps)({ ...baseInput, role: 'Staff' })
+    const result = await getOrgActivity(deps)({}, ctxFor('Staff'))
     expect(result).toHaveLength(0)
   })
 })
