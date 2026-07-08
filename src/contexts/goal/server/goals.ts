@@ -85,26 +85,26 @@ export const createGoal = createServerFn({ method: 'POST' })
         }
         try {
           const { useCases } = getContainer()
-          const result = await useCases.createGoal({
-            organizationId: ctx.organizationId,
-            propertyId: toPropertyId(data.propertyId),
-            portalId: data.portalId ? toPortalId(data.portalId) : null,
-            portalGroupId: data.portalGroupId
-              ? toPortalGroupId(data.portalGroupId)
-              : null,
-            name: data.name,
-            description: data.description ?? null,
-            createdBy: ctx.userId,
-            goalType: data.goalType,
-            aggregationFunction: data.aggregationFunction,
-            metricKey: data.metricKey,
-            targetValue: data.targetValue,
-            periodStart: data.periodStart ? new Date(data.periodStart) : null,
-            periodEnd: data.periodEnd ? new Date(data.periodEnd) : null,
-            recurrenceRule: data.recurrenceRule ?? null,
-            rollingWindowDays: data.rollingWindowDays ?? null,
-            role: ctx.role,
-          })
+          const result = await useCases.createGoal(
+            {
+              propertyId: toPropertyId(data.propertyId),
+              portalId: data.portalId ? toPortalId(data.portalId) : null,
+              portalGroupId: data.portalGroupId
+                ? toPortalGroupId(data.portalGroupId)
+                : null,
+              name: data.name,
+              description: data.description ?? null,
+              goalType: data.goalType,
+              aggregationFunction: data.aggregationFunction,
+              metricKey: data.metricKey,
+              targetValue: data.targetValue,
+              periodStart: data.periodStart ? new Date(data.periodStart) : null,
+              periodEnd: data.periodEnd ? new Date(data.periodEnd) : null,
+              recurrenceRule: data.recurrenceRule ?? null,
+              rollingWindowDays: data.rollingWindowDays ?? null,
+            },
+            ctx,
+          )
 
           if (result.isErr()) {
             match(result.error)
@@ -182,14 +182,14 @@ export const updateGoal = createServerFn({ method: 'POST' })
 
         try {
           const { useCases } = getContainer()
-          const result = await useCases.updateGoal({
-            goalId: toGoalId(data.goalId),
-            organizationId: ctx.organizationId,
-            userId: ctx.userId,
-            targetValue: data.targetValue,
-            recurrenceRule: data.recurrenceRule ?? undefined,
-            role: ctx.role,
-          })
+          const result = await useCases.updateGoal(
+            {
+              goalId: toGoalId(data.goalId),
+              targetValue: data.targetValue,
+              recurrenceRule: data.recurrenceRule ?? undefined,
+            },
+            ctx,
+          )
 
           if (result.isErr()) {
             match(result.error)
@@ -275,12 +275,7 @@ export const cancelGoal = createServerFn({ method: 'POST' })
 
         try {
           const { useCases } = getContainer()
-          const result = await useCases.cancelGoal({
-            goalId: toGoalId(data.goalId),
-            organizationId: ctx.organizationId,
-            userId: ctx.userId,
-            role: ctx.role,
-          })
+          const result = await useCases.cancelGoal({ goalId: toGoalId(data.goalId) }, ctx)
 
           if (result.isErr()) {
             match(result.error)
@@ -346,18 +341,19 @@ export const listGoals = createServerFn({ method: 'GET' })
 
         try {
           const { useCases } = getContainer()
-          const result = await useCases.listGoals({
-            organizationId: ctx.organizationId,
-            userId: ctx.userId,
-            propertyId: toPropertyId(data.propertyId),
-            portalId: data.portalId ? toPortalId(data.portalId) : undefined,
-            portalGroupId: data.portalGroupId
-              ? toPortalGroupId(data.portalGroupId)
-              : undefined,
-            status: data.status,
-            goalType: data.goalType,
-            role: ctx.role,
-          })
+          const result = await useCases.listGoals(
+            {
+              organizationId: ctx.organizationId,
+              propertyId: toPropertyId(data.propertyId),
+              portalId: data.portalId ? toPortalId(data.portalId) : undefined,
+              portalGroupId: data.portalGroupId
+                ? toPortalGroupId(data.portalGroupId)
+                : undefined,
+              status: data.status,
+              goalType: data.goalType,
+            },
+            ctx,
+          )
 
           if (result.isErr()) {
             match(result.error)
@@ -409,12 +405,7 @@ export const getGoal = createServerFn({ method: 'GET' })
 
         try {
           const { useCases } = getContainer()
-          const result = await useCases.getGoal({
-            goalId: toGoalId(data.goalId),
-            organizationId: ctx.organizationId,
-            userId: ctx.userId,
-            role: ctx.role,
-          })
+          const result = await useCases.getGoal({ goalId: toGoalId(data.goalId) }, ctx)
 
           if (result.isErr()) {
             match(result.error)

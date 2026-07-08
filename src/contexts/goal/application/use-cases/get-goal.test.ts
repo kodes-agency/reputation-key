@@ -14,6 +14,8 @@ import {
   goalProgressId,
   userId,
 } from '#/shared/domain/ids'
+import type { AuthContext } from '#/shared/domain/auth-context'
+import type { Role } from '#/shared/domain/roles'
 
 // ── Test fixtures ──────────────────────────────────────────────────────────
 
@@ -23,6 +25,8 @@ const PROP_ID = propertyId('prop-001')
 const USER_ID = userId('user-001')
 
 const d = (iso: string) => new Date(iso)
+const ctxFor = (role: Role): AuthContext =>
+  ({ organizationId: ORG_ID, userId: USER_ID, role }) as AuthContext
 
 const makeGoal = (
   overrides: {
@@ -153,12 +157,7 @@ describe('getGoal', () => {
     state.goals = [goal]
     state.progress.set('g-1', makeProgress('g-1', { currentValue: 7 }))
 
-    const result = await useCase({
-      goalId: goal.id,
-      organizationId: ORG_ID,
-      userId: USER_ID,
-      role: 'AccountAdmin',
-    })
+    const result = await useCase({ goalId: goal.id }, ctxFor('AccountAdmin'))
 
     expect(result.isOk()).toBe(true)
     const detail = result._unsafeUnwrap()
@@ -200,12 +199,7 @@ describe('getGoal', () => {
     state.progress.set('g-inst-1', makeProgress('g-inst-1', { currentValue: 10 }))
     state.progress.set('g-inst-2', makeProgress('g-inst-2', { currentValue: 20 }))
 
-    const result = await useCase({
-      goalId: template.id,
-      organizationId: ORG_ID,
-      userId: USER_ID,
-      role: 'AccountAdmin',
-    })
+    const result = await useCase({ goalId: template.id }, ctxFor('AccountAdmin'))
 
     expect(result.isOk()).toBe(true)
     const detail = result._unsafeUnwrap()
@@ -223,12 +217,10 @@ describe('getGoal', () => {
   it('returns err when goal does not exist', async () => {
     const { useCase } = setup()
 
-    const result = await useCase({
-      goalId: goalId('nonexistent'),
-      organizationId: ORG_ID,
-      userId: USER_ID,
-      role: 'AccountAdmin',
-    })
+    const result = await useCase(
+      { goalId: goalId('nonexistent') },
+      ctxFor('AccountAdmin'),
+    )
 
     expect(result.isErr()).toBe(true)
   })
@@ -239,12 +231,10 @@ describe('getGoal', () => {
     const goal = makeGoal({ id: 'g-1' })
     state.goals = [goal]
 
-    const result = await useCase({
-      goalId: goal.id,
-      organizationId: OTHER_ORG_ID,
-      userId: USER_ID,
-      role: 'AccountAdmin',
-    })
+    const result = await useCase(
+      { goalId: goal.id },
+      { ...ctxFor('AccountAdmin'), organizationId: OTHER_ORG_ID },
+    )
 
     expect(result.isErr()).toBe(true)
   })
@@ -266,12 +256,7 @@ describe('getGoal', () => {
     const goal = makeGoal({ id: 'g-1' })
     state.goals = [goal]
 
-    const result = await useCase({
-      goalId: goal.id,
-      organizationId: ORG_ID,
-      userId: USER_ID,
-      role: 'Staff',
-    })
+    const result = await useCase({ goalId: goal.id }, ctxFor('Staff'))
 
     expect(result.isErr()).toBe(true)
     expect(result._unsafeUnwrapErr()).toEqual({ tag: 'forbidden' })

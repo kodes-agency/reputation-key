@@ -15,6 +15,8 @@ import {
   goalProgressId,
   userId,
 } from '#/shared/domain/ids'
+import type { AuthContext } from '#/shared/domain/auth-context'
+import type { Role } from '#/shared/domain/roles'
 
 // ── Test fixtures ──────────────────────────────────────────────────────────
 
@@ -24,6 +26,8 @@ const PORTAL_ID = portalId('portal-001')
 const USER_ID = userId('user-001')
 
 const d = (iso: string) => new Date(iso)
+const ctxFor = (role: Role): AuthContext =>
+  ({ organizationId: ORG_ID, userId: USER_ID, role }) as AuthContext
 
 const makeGoal = (
   overrides: {
@@ -164,12 +168,10 @@ describe('listGoals', () => {
     state.progress.set('g-1', makeProgress('g-1', { currentValue: 3 }))
     state.progress.set('g-2', makeProgress('g-2', { currentValue: 7 }))
 
-    const result = await useCase({
-      organizationId: ORG_ID,
-      propertyId: PROP_ID,
-      userId: USER_ID,
-      role: 'AccountAdmin',
-    })
+    const result = await useCase(
+      { organizationId: ORG_ID, propertyId: PROP_ID },
+      ctxFor('AccountAdmin'),
+    )
 
     const goals = result._unsafeUnwrap()
     expect(goals).toHaveLength(2)
@@ -191,13 +193,10 @@ describe('listGoals', () => {
       makeGoal({ id: 'g-completed', status: 'completed' }),
     ]
 
-    const result = await useCase({
-      organizationId: ORG_ID,
-      propertyId: PROP_ID,
-      userId: USER_ID,
-      role: 'AccountAdmin',
-      status: 'active',
-    })
+    const result = await useCase(
+      { organizationId: ORG_ID, propertyId: PROP_ID, status: 'active' },
+      ctxFor('AccountAdmin'),
+    )
 
     const goals = result._unsafeUnwrap()
     expect(goals).toHaveLength(1)
@@ -212,13 +211,10 @@ describe('listGoals', () => {
       makeGoal({ id: 'g-no-portal', portalId: null }),
     ]
 
-    const result = await useCase({
-      organizationId: ORG_ID,
-      propertyId: PROP_ID,
-      userId: USER_ID,
-      role: 'AccountAdmin',
-      portalId: PORTAL_ID,
-    })
+    const result = await useCase(
+      { organizationId: ORG_ID, propertyId: PROP_ID, portalId: PORTAL_ID },
+      ctxFor('AccountAdmin'),
+    )
 
     const goals = result._unsafeUnwrap()
     expect(goals).toHaveLength(1)
@@ -249,12 +245,10 @@ describe('listGoals', () => {
     state.instances.set('g-template', [instance])
     state.progress.set('g-instance', makeProgress('g-instance', { currentValue: 42 }))
 
-    const result = await useCase({
-      organizationId: ORG_ID,
-      propertyId: PROP_ID,
-      userId: USER_ID,
-      role: 'AccountAdmin',
-    })
+    const result = await useCase(
+      { organizationId: ORG_ID, propertyId: PROP_ID },
+      ctxFor('AccountAdmin'),
+    )
 
     const goals = result._unsafeUnwrap()
     expect(goals).toHaveLength(1)
@@ -284,12 +278,10 @@ describe('listGoals', () => {
 
     state.goals = [cancelled, completed, active]
 
-    const result = await useCase({
-      organizationId: ORG_ID,
-      propertyId: PROP_ID,
-      userId: USER_ID,
-      role: 'AccountAdmin',
-    })
+    const result = await useCase(
+      { organizationId: ORG_ID, propertyId: PROP_ID },
+      ctxFor('AccountAdmin'),
+    )
 
     const goals = result._unsafeUnwrap()
     const statuses = goals.map((r) => r.goal.status)
@@ -323,12 +315,10 @@ describe('listGoals', () => {
 
     state.goals = [activeOld, activeNew, completedOld, completedNew]
 
-    const result = await useCase({
-      organizationId: ORG_ID,
-      propertyId: PROP_ID,
-      userId: USER_ID,
-      role: 'AccountAdmin',
-    })
+    const result = await useCase(
+      { organizationId: ORG_ID, propertyId: PROP_ID },
+      ctxFor('AccountAdmin'),
+    )
 
     const goals = result._unsafeUnwrap()
     const ids = goals.map((r) => r.goal.id as string)
@@ -345,12 +335,10 @@ describe('listGoals', () => {
     const { state, useCase } = setup()
     state.goals = []
 
-    const result = await useCase({
-      organizationId: ORG_ID,
-      propertyId: PROP_ID,
-      userId: USER_ID,
-      role: 'AccountAdmin',
-    })
+    const result = await useCase(
+      { organizationId: ORG_ID, propertyId: PROP_ID },
+      ctxFor('AccountAdmin'),
+    )
 
     expect(result._unsafeUnwrap()).toEqual([])
   })
@@ -370,12 +358,10 @@ describe('listGoals', () => {
     const useCase = listGoals({ goalRepo, staffPublicApi })
     state.goals = [makeGoal({ id: 'g-1' })]
 
-    const result = await useCase({
-      organizationId: ORG_ID,
-      propertyId: PROP_ID,
-      userId: USER_ID,
-      role: 'Staff',
-    })
+    const result = await useCase(
+      { organizationId: ORG_ID, propertyId: PROP_ID },
+      ctxFor('Staff'),
+    )
 
     expect(result.isErr()).toBe(true)
     expect(result._unsafeUnwrapErr()).toEqual({ tag: 'forbidden' })

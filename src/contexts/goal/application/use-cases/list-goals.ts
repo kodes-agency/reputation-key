@@ -5,16 +5,19 @@
 
 import type { GoalRepository, GoalListFilter } from '../ports/goal.repository'
 import type { Goal, GoalProgress } from '../../domain/types'
-import type { GoalId, UserId } from '#/shared/domain/ids'
-import type { Role } from '#/shared/domain/roles'
-import { can } from '#/shared/domain/permissions'
+import type { GoalId } from '#/shared/domain/ids'
+import type { AuthContext } from '#/shared/domain/auth-context'
+import { canForContext } from '#/shared/domain/permissions'
 import { err, ok, type Result } from '#/shared/domain'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
-import { isPropertyAccessible } from '#/shared/domain/property-access'
+import {
+  isPropertyAccessibleForPermission,
+  getAccessiblePropertyIdsForPermission,
+} from '#/shared/domain/property-access'
 
 // ── Input type ────────────────────────────────────────────────────────────
 
-type ListGoalsInput = Readonly<GoalListFilter & { userId: UserId; role: Role }>
+type ListGoalsInput = Readonly<GoalListFilter>
 
 // ── Return types ───────────────────────────────────────────────────────────
 
@@ -49,23 +52,23 @@ export const listGoals =
   (deps: ListGoalsDeps) =>
   async (
     input: ListGoalsInput,
+    ctx: AuthContext,
   ): Promise<Result<ReadonlyArray<GoalWithProgress>, ListGoalsError>> => {
-    if (!can(input.role, 'goal.read')) {
+    if (!canForContext(ctx, 'goal.read')) {
       return err({ tag: 'forbidden' })
     }
 
-    const { role: _role, userId: _userId, ...filter } = input
+    const filter = input
 
     // D6-001: PropertyManager/Staff are scoped to their assigned properties.
     // If a specific propertyId is requested, verify access to it.
     // If no propertyId filter, scope results to accessible properties.
     if (filter.propertyId) {
-      const isAccessible = await isPropertyAccessible(
+      const isAccessible = await isPropertyAccessibleForPermission(
         (orgId, uId, orgWide) =>
           deps.staffPublicApi.getAccessiblePropertyIds(orgId, uId, orgWide),
-        filter.organizationId,
-        input.userId,
-        input.role === 'AccountAdmin',
+        ctx,
+        'goal.read',
         filter.propertyId,
       )
       if (!isAccessible) {
@@ -77,10 +80,11 @@ export const listGoals =
 
     // For PM/Staff without a propertyId filter, narrow to accessible properties
     if (!filter.propertyId) {
-      const accessible = await deps.staffPublicApi.getAccessiblePropertyIds(
-        filter.organizationId,
-        input.userId,
-        input.role === 'AccountAdmin',
+      const accessible = await getAccessiblePropertyIdsForPermission(
+        (orgId, uId, orgWide) =>
+          deps.staffPublicApi.getAccessiblePropertyIds(orgId, uId, orgWide),
+        ctx,
+        'goal.read',
       )
       if (accessible !== null) {
         const allowed = new Set(accessible)

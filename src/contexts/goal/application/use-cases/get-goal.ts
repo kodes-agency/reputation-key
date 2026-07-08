@@ -4,21 +4,18 @@
 
 import type { GoalRepository } from '../ports/goal.repository'
 import type { Goal, GoalProgress } from '../../domain/types'
-import type { GoalId, OrganizationId, UserId } from '#/shared/domain/ids'
+import type { GoalId } from '#/shared/domain/ids'
+import type { AuthContext } from '#/shared/domain/auth-context'
 import type { GoalWithProgress } from './list-goals'
-import type { Role } from '#/shared/domain/roles'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { ok, err, type Result } from '#/shared/domain'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
-import { isPropertyAccessible } from '#/shared/domain/property-access'
+import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
 
 // ── Input type ────────────────────────────────────────────────────────────
 
 export type GetGoalInput = Readonly<{
   goalId: GoalId
-  organizationId: OrganizationId
-  userId: UserId
-  role: Role
 }>
 
 // ── Return types ───────────────────────────────────────────────────────────
@@ -43,23 +40,26 @@ export type GetGoalDeps = Readonly<{
 
 export const getGoal =
   (deps: GetGoalDeps) =>
-  async (input: GetGoalInput): Promise<Result<GoalDetail, GetGoalError>> => {
-    if (!can(input.role, 'goal.read')) {
+  async (
+    input: GetGoalInput,
+    ctx: AuthContext,
+  ): Promise<Result<GoalDetail, GetGoalError>> => {
+    if (!canForContext(ctx, 'goal.read')) {
       return err({ tag: 'forbidden' })
     }
 
-    const goal = await deps.goalRepo.getById(input.goalId, input.organizationId)
+    const goal = await deps.goalRepo.getById(input.goalId, ctx.organizationId)
     if (!goal) {
       return err({ tag: 'goal_not_found' })
     }
 
     // D6-001: PropertyManager/Staff must be assigned to the goal's property.
-    const accessible = await isPropertyAccessible(
+    // Scope resolved per-permission (goal.read): org-wide → all; assigned → set.
+    const accessible = await isPropertyAccessibleForPermission(
       (orgId, uId, orgWide) =>
         deps.staffPublicApi.getAccessiblePropertyIds(orgId, uId, orgWide),
-      input.organizationId,
-      input.userId,
-      input.role === 'AccountAdmin',
+      ctx,
+      'goal.read',
       goal.propertyId,
     )
     if (!accessible) {

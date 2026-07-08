@@ -8,20 +8,17 @@
 
 import type { GoalRepository } from '../ports/goal.repository'
 import type { Goal } from '../../domain/types'
-import type { GoalId, OrganizationId, UserId } from '#/shared/domain/ids'
-import type { Role } from '#/shared/domain/roles'
-import { can } from '#/shared/domain/permissions'
+import type { GoalId } from '#/shared/domain/ids'
+import type { AuthContext } from '#/shared/domain/auth-context'
+import { canForContext } from '#/shared/domain/permissions'
 import { ok, err, type Result } from '#/shared/domain'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
-import { isPropertyAccessible } from '#/shared/domain/property-access'
+import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
 
 // ── Input type ──────────────────────────────────────────────────────────
 
 export type CancelGoalInput = Readonly<{
   goalId: GoalId
-  organizationId: OrganizationId
-  userId: UserId
-  role: Role
 }>
 
 // ── Error types ─────────────────────────────────────────────────────────
@@ -44,24 +41,27 @@ export type CancelGoal = ReturnType<typeof cancelGoal>
 
 export const cancelGoal =
   (deps: CancelGoalDeps) =>
-  async (input: CancelGoalInput): Promise<Result<Goal, CancelGoalError>> => {
-    if (!can(input.role, 'goal.cancel')) {
+  async (
+    input: CancelGoalInput,
+    ctx: AuthContext,
+  ): Promise<Result<Goal, CancelGoalError>> => {
+    if (!canForContext(ctx, 'goal.cancel')) {
       return err({ tag: 'forbidden' })
     }
 
     // 1. Load goal
-    const goal = await deps.goalRepo.getById(input.goalId, input.organizationId)
+    const goal = await deps.goalRepo.getById(input.goalId, ctx.organizationId)
     if (!goal) {
       return err({ tag: 'goal_not_found' })
     }
 
     // D6-001: PropertyManager/Staff must be assigned to the goal's property.
-    const accessible = await isPropertyAccessible(
+    // Scope resolved per-permission (goal.cancel): org-wide → all; assigned → set.
+    const accessible = await isPropertyAccessibleForPermission(
       (orgId, uId, orgWide) =>
         deps.staffPublicApi.getAccessiblePropertyIds(orgId, uId, orgWide),
-      input.organizationId,
-      input.userId,
-      input.role === 'AccountAdmin',
+      ctx,
+      'goal.cancel',
       goal.propertyId,
     )
     if (!accessible) {
@@ -79,7 +79,7 @@ export const cancelGoal =
     if (goal.goalType === 'recurring' && goal.parentGoalId === null) {
       const updated = await deps.goalRepo.cancelTemplateAndInstances(
         goal.id,
-        input.organizationId,
+        ctx.organizationId,
         now,
       )
       if (!updated) {
@@ -89,7 +89,7 @@ export const cancelGoal =
     }
 
     // 4. Non-recurring: just update status to cancelled
-    const updated = await deps.goalRepo.update(input.goalId, input.organizationId, {
+    const updated = await deps.goalRepo.update(input.goalId, ctx.organizationId, {
       status: 'cancelled',
       updatedAt: now,
     })

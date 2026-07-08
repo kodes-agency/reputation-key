@@ -12,8 +12,15 @@ import {
 import type { RecurrenceRule } from '../../domain/types'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { PropertyId } from '#/shared/domain/ids'
+import type { AuthContext } from '#/shared/domain/auth-context'
+import type { Role } from '#/shared/domain/roles'
 
 const FIXED_TIME = new Date('2026-06-15T12:00:00Z')
+const ORG_ID = organizationId('org-1')
+const USER_ID = userId('user-1')
+const ctxFor = (role: Role): AuthContext =>
+  ({ organizationId: ORG_ID, userId: USER_ID, role }) as AuthContext
+
 const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublicApi => ({
   getAccessiblePropertyIds: async () => accessible,
   getAssignedPortals: async () => [],
@@ -164,13 +171,10 @@ describe('updateGoal', () => {
       const goal = makeGoal()
       const fakes = createFakeDeps({ storedGoals: [goal] })
 
-      const result = await updateGoal(fakes.deps)({
-        goalId: goalId('goal-1'),
-        organizationId: organizationId('org-1'),
-        userId: userId('user-1'),
-        role: 'Staff',
-        targetValue: 300,
-      })
+      const result = await updateGoal(fakes.deps)(
+        { goalId: goalId('goal-1'), targetValue: 300 },
+        ctxFor('Staff'),
+      )
 
       expect(result.isErr()).toBe(true)
       const error = result._unsafeUnwrapErr()
@@ -182,13 +186,10 @@ describe('updateGoal', () => {
       const goal = makeGoal()
       const fakes = createFakeDeps({ storedGoals: [goal] })
 
-      const result = await updateGoal(fakes.deps)({
-        goalId: goalId('goal-1'),
-        organizationId: organizationId('org-1'),
-        userId: userId('user-1'),
-        role: 'AccountAdmin',
-        targetValue: 300,
-      })
+      const result = await updateGoal(fakes.deps)(
+        { goalId: goalId('goal-1'), targetValue: 300 },
+        ctxFor('AccountAdmin'),
+      )
 
       expect(result.isOk()).toBe(true)
     })
@@ -197,13 +198,10 @@ describe('updateGoal', () => {
       const goal = makeGoal()
       const fakes = createFakeDeps({ storedGoals: [goal] })
 
-      const result = await updateGoal(fakes.deps)({
-        goalId: goalId('goal-1'),
-        organizationId: organizationId('org-1'),
-        userId: userId('user-1'),
-        role: 'PropertyManager',
-        targetValue: 300,
-      })
+      const result = await updateGoal(fakes.deps)(
+        { goalId: goalId('goal-1'), targetValue: 300 },
+        ctxFor('PropertyManager'),
+      )
 
       expect(result.isOk()).toBe(true)
     })
@@ -215,13 +213,10 @@ describe('updateGoal', () => {
       const goal = makeGoal()
       const fakes = createFakeDeps({ storedGoals: [goal] }, [])
 
-      const result = await updateGoal(fakes.deps)({
-        goalId: goalId('goal-1'),
-        organizationId: organizationId('org-1'),
-        userId: userId('user-1'),
-        role: 'PropertyManager',
-        targetValue: 300,
-      })
+      const result = await updateGoal(fakes.deps)(
+        { goalId: goalId('goal-1'), targetValue: 300 },
+        ctxFor('PropertyManager'),
+      )
 
       expect(result.isErr()).toBe(true)
       expect(result._unsafeUnwrapErr().tag).toBe('forbidden')
@@ -232,13 +227,10 @@ describe('updateGoal', () => {
       const goal = makeGoal()
       const fakes = createFakeDeps({ storedGoals: [goal] }, [propertyId('prop-1')])
 
-      const result = await updateGoal(fakes.deps)({
-        goalId: goalId('goal-1'),
-        organizationId: organizationId('org-1'),
-        userId: userId('user-1'),
-        role: 'PropertyManager',
-        targetValue: 300,
-      })
+      const result = await updateGoal(fakes.deps)(
+        { goalId: goalId('goal-1'), targetValue: 300 },
+        ctxFor('PropertyManager'),
+      )
 
       expect(result.isOk()).toBe(true)
       const updated = result._unsafeUnwrap()
@@ -250,13 +242,10 @@ describe('updateGoal', () => {
     const goal = makeGoal()
     const fakes = createFakeDeps({ storedGoals: [goal] })
 
-    const result = await updateGoal(fakes.deps)({
-      goalId: goalId('goal-1'),
-      organizationId: organizationId('org-1'),
-      userId: userId('user-1'),
-      role: 'AccountAdmin',
-      targetValue: 300,
-    })
+    const result = await updateGoal(fakes.deps)(
+      { goalId: goalId('goal-1'), targetValue: 300 },
+      ctxFor('AccountAdmin'),
+    )
 
     expect(result.isOk()).toBe(true)
     const updated = result._unsafeUnwrap()
@@ -272,13 +261,10 @@ describe('updateGoal', () => {
     const fakes = createFakeDeps({ storedGoals: [goal] })
 
     const newRule: RecurrenceRule = { frequency: 'weekly' }
-    const result = await updateGoal(fakes.deps)({
-      goalId: goalId('goal-1'),
-      organizationId: organizationId('org-1'),
-      userId: userId('user-1'),
-      role: 'AccountAdmin',
-      recurrenceRule: newRule,
-    })
+    const result = await updateGoal(fakes.deps)(
+      { goalId: goalId('goal-1'), recurrenceRule: newRule },
+      ctxFor('AccountAdmin'),
+    )
 
     expect(result.isOk()).toBe(true)
     const updated = result._unsafeUnwrap()
@@ -289,13 +275,10 @@ describe('updateGoal', () => {
     const goal = makeGoal({ goalType: 'open' })
     const fakes = createFakeDeps({ storedGoals: [goal] })
 
-    const result = await updateGoal(fakes.deps)({
-      goalId: goalId('goal-1'),
-      organizationId: organizationId('org-1'),
-      userId: userId('user-1'),
-      role: 'AccountAdmin',
-      recurrenceRule: { frequency: 'monthly' },
-    })
+    const result = await updateGoal(fakes.deps)(
+      { goalId: goalId('goal-1'), recurrenceRule: { frequency: 'monthly' } },
+      ctxFor('AccountAdmin'),
+    )
 
     expect(result.isErr()).toBe(true)
     const error = result._unsafeUnwrapErr()
@@ -306,13 +289,10 @@ describe('updateGoal', () => {
     const goal = makeGoal({ status: 'cancelled' })
     const fakes = createFakeDeps({ storedGoals: [goal] })
 
-    const result = await updateGoal(fakes.deps)({
-      goalId: goalId('goal-1'),
-      organizationId: organizationId('org-1'),
-      userId: userId('user-1'),
-      role: 'AccountAdmin',
-      targetValue: 300,
-    })
+    const result = await updateGoal(fakes.deps)(
+      { goalId: goalId('goal-1'), targetValue: 300 },
+      ctxFor('AccountAdmin'),
+    )
 
     expect(result.isErr()).toBe(true)
     const error = result._unsafeUnwrapErr()
@@ -323,13 +303,10 @@ describe('updateGoal', () => {
     const goal = makeGoal({ status: 'completed' })
     const fakes = createFakeDeps({ storedGoals: [goal] })
 
-    const result = await updateGoal(fakes.deps)({
-      goalId: goalId('goal-1'),
-      organizationId: organizationId('org-1'),
-      userId: userId('user-1'),
-      role: 'AccountAdmin',
-      targetValue: 300,
-    })
+    const result = await updateGoal(fakes.deps)(
+      { goalId: goalId('goal-1'), targetValue: 300 },
+      ctxFor('AccountAdmin'),
+    )
 
     expect(result.isErr()).toBe(true)
     const error = result._unsafeUnwrapErr()
@@ -339,13 +316,10 @@ describe('updateGoal', () => {
   it('returns err when goal is not found', async () => {
     const fakes = createFakeDeps()
 
-    const result = await updateGoal(fakes.deps)({
-      goalId: goalId('nonexistent'),
-      organizationId: organizationId('org-1'),
-      userId: userId('user-1'),
-      role: 'AccountAdmin',
-      targetValue: 300,
-    })
+    const result = await updateGoal(fakes.deps)(
+      { goalId: goalId('nonexistent'), targetValue: 300 },
+      ctxFor('AccountAdmin'),
+    )
 
     expect(result.isErr()).toBe(true)
     const error = result._unsafeUnwrapErr()
