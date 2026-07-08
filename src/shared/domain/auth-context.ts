@@ -30,3 +30,29 @@ export type AuthContext = Readonly<{
    */
   scopeByPermission?: ReadonlyMap<Permission, DataScope>
 }>
+
+/**
+ * JSON-serializable authorization snapshot for the client (ADR 0001 §7). Serialized from
+ * AuthContext by getActiveOrganization + beforeLoad so usePermissions() can gate UI
+ * affordances without a round-trip. Only granted keys appear; a missing key → 'none'.
+ */
+export type ClientAuthz = Readonly<{
+  effectivePermissions: ReadonlyArray<Permission>
+  scopeByPermission: Readonly<Partial<Record<Permission, DataScope>>>
+}>
+
+/** Empty authz — for the no-active-org / unresolved state. */
+export const EMPTY_CLIENT_AUTHZ: ClientAuthz = Object.freeze({
+  effectivePermissions: [],
+  scopeByPermission: {},
+})
+
+/** Serialize an AuthContext's dynamic fields into the client-safe ClientAuthz shape. */
+export function serializeClientAuthz(ctx: AuthContext): ClientAuthz {
+  return {
+    effectivePermissions: ctx.effectivePermissions ? [...ctx.effectivePermissions] : [],
+    scopeByPermission: ctx.scopeByPermission
+      ? Object.fromEntries(ctx.scopeByPermission)
+      : {},
+  }
+}

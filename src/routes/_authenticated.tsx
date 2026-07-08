@@ -18,6 +18,8 @@ import { listProperties } from '#/contexts/property/server/properties'
 import { getNewCountFn } from '#/contexts/inbox/server/inbox'
 import { notificationFns } from '#/routes/-notification-fns'
 import type { Role } from '#/shared/domain/roles'
+import type { ClientAuthz } from '#/shared/domain/auth-context'
+import { EMPTY_CLIENT_AUTHZ } from '#/shared/domain/auth-context'
 import { SidebarProvider, SidebarInset } from '#/components/ui/sidebar'
 import { ManagerSidebar } from '#/components/layout/manager-sidebar'
 import { StaffSidebar } from '#/components/layout/staff-sidebar'
@@ -34,6 +36,7 @@ export type AuthRouteContext = Readonly<{
     image: string | null
   }
   role: Role
+  authz: ClientAuthz
   activeOrganization: {
     id: string
     name: string
@@ -58,6 +61,7 @@ export const Route = createFileRoute('/_authenticated')({
     }
 
     let role: Role = 'Staff'
+    let authz: ClientAuthz = EMPTY_CLIENT_AUTHZ
     let activeOrganization: {
       id: string
       name: string
@@ -81,6 +85,7 @@ export const Route = createFileRoute('/_authenticated')({
       if (org.role) {
         role = org.role as Role
       }
+      authz = org.authz
       if (org.organization) {
         activeOrganization = {
           id: org.organization.id,
@@ -118,6 +123,7 @@ export const Route = createFileRoute('/_authenticated')({
         image: session.user.image ?? null,
       },
       role,
+      authz,
       activeOrganization,
     } satisfies AuthRouteContext
   },

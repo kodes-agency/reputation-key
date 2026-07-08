@@ -8,6 +8,7 @@ import { resolveTenantContext } from '#/shared/auth/middleware'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 
 import { canForContext } from '#/shared/domain/permissions'
+import { serializeClientAuthz, EMPTY_CLIENT_AUTHZ } from '#/shared/domain/auth-context'
 import { getContainer } from '#/composition'
 
 // ── Get active organization ────────────────────────────────────────
@@ -33,7 +34,7 @@ export const getActiveOrganization = createServerFn({ method: 'GET' }).handler(
         const org = await identityPort.getActiveOrg(headers)
 
         if (!org) {
-          return { organization: null, role: ctx.role }
+          return { organization: null, role: ctx.role, authz: serializeClientAuthz(ctx) }
         }
 
         return {
@@ -52,6 +53,7 @@ export const getActiveOrganization = createServerFn({ method: 'GET' }).handler(
             responseSlaHours: org.responseSlaHours,
           },
           role: ctx.role,
+          authz: serializeClientAuthz(ctx),
         }
       } catch (e) {
         // No active organization is a valid state (new user, or org not yet
@@ -63,7 +65,7 @@ export const getActiveOrganization = createServerFn({ method: 'GET' }).handler(
           'code' in e &&
           (e as { code: string }).code === 'no_active_org'
         ) {
-          return { organization: null, role: 'Staff' as const }
+          return { organization: null, role: 'Staff' as const, authz: EMPTY_CLIENT_AUTHZ }
         }
         throw catchUntagged(e)
       }
