@@ -2,10 +2,15 @@
 
 import { describe, it, expect } from 'vitest'
 import { createBadgeDefinition, normalizeBadgeCriteria } from './constructors'
+import { badgeId } from '#/shared/domain/ids'
 import type { BadgeCriteria, BadgeSeedDefinitionInput } from './types'
 
 const fixedDate = new Date('2026-06-15T12:00:00Z')
 const clock = () => fixedDate
+
+const FIXED_BADGE_ID = badgeId('00000000-0000-4000-8000-000000000099')
+// DI test seam: createBadgeDefinition now takes an injected id generator.
+const idGen = () => FIXED_BADGE_ID
 
 const validCriteria: BadgeCriteria = {
   type: 'threshold',
@@ -25,7 +30,7 @@ const validInput: BadgeSeedDefinitionInput = {
 
 describe('createBadgeDefinition', () => {
   it('creates a badge definition with required fields', () => {
-    const badge = createBadgeDefinition(validInput, clock)
+    const badge = createBadgeDefinition(validInput, clock, idGen)
 
     expect(badge.key).toBe('scan_master')
     expect(badge.name).toBe('Scan Master')
@@ -35,34 +40,38 @@ describe('createBadgeDefinition', () => {
     expect(badge.criteria).toEqual(validCriteria)
   })
 
-  it('assigns a UUID id', () => {
-    const badge = createBadgeDefinition(validInput, clock)
-    expect(badge.id).toBeTruthy()
+  it('uses the injected idGen for the id (no inline crypto)', () => {
+    const badge = createBadgeDefinition(validInput, clock, idGen)
+    expect(badge.id).toBe(FIXED_BADGE_ID)
     expect(typeof badge.id).toBe('string')
   })
 
   it('defaults criteriaVersion to 1 when not provided', () => {
-    const badge = createBadgeDefinition(validInput, clock)
+    const badge = createBadgeDefinition(validInput, clock, idGen)
     expect(badge.criteriaVersion).toBe(1)
   })
 
   it('uses provided criteriaVersion when given', () => {
-    const badge = createBadgeDefinition({ ...validInput, criteriaVersion: 3 }, clock)
+    const badge = createBadgeDefinition(
+      { ...validInput, criteriaVersion: 3 },
+      clock,
+      idGen,
+    )
     expect(badge.criteriaVersion).toBe(3)
   })
 
   it('defaults enabled to true when not provided', () => {
-    const badge = createBadgeDefinition(validInput, clock)
+    const badge = createBadgeDefinition(validInput, clock, idGen)
     expect(badge.enabled).toBe(true)
   })
 
   it('uses provided enabled when given', () => {
-    const badge = createBadgeDefinition({ ...validInput, enabled: false }, clock)
+    const badge = createBadgeDefinition({ ...validInput, enabled: false }, clock, idGen)
     expect(badge.enabled).toBe(false)
   })
 
   it('uses clock() for createdAt and updatedAt', () => {
-    const badge = createBadgeDefinition(validInput, clock)
+    const badge = createBadgeDefinition(validInput, clock, idGen)
     expect(badge.createdAt).toEqual(fixedDate)
     expect(badge.updatedAt).toEqual(fixedDate)
   })
@@ -71,6 +80,7 @@ describe('createBadgeDefinition', () => {
     const badge = createBadgeDefinition(
       { ...validInput, targetScope: 'portal_group' },
       clock,
+      idGen,
     )
     expect(badge.targetScope).toBe('portal_group')
   })

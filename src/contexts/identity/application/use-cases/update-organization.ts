@@ -2,7 +2,7 @@
 // Moves authorization from server function into the use case layer.
 
 import type { AuthContext } from '#/shared/domain/auth-context'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { identityError } from '../../domain/errors'
 import { validateSlug, validateOrganizationName } from '../../domain/rules'
 
@@ -28,7 +28,7 @@ export const updateOrganization =
   (deps: UpdateOrganizationDeps) =>
   async (input: UpdateOrganizationInput, ctx: AuthContext): Promise<void> => {
     // 1. Authorize
-    if (!can(ctx.role, 'organization.update')) {
+    if (!canForContext(ctx, 'organization.update')) {
       throw identityError(
         'forbidden',
         'Only AccountAdmin or PropertyManager can update organization',

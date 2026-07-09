@@ -4,7 +4,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import type { GbpLocation } from '#/contexts/integration/application/public-api'
-import { listGbpLocations } from '#/contexts/integration/server/gbp-import'
+import type { listGbpLocations } from '#/contexts/integration/server/gbp-import'
 
 type State = Readonly<{
   locations: readonly GbpLocation[]
@@ -14,7 +14,10 @@ type State = Readonly<{
 
 const INITIAL_STATE: State = { locations: [], isLoading: false, error: null }
 
-export function useGbpLocations(connectionId: string | undefined): State {
+export function useGbpLocations(
+  connectionId: string | undefined,
+  listLocations: typeof listGbpLocations,
+): State {
   const [state, setState] = useState<State>(INITIAL_STATE)
   const abortRef = useRef<AbortController | null>(null)
   const lastFetchedId = useRef<string | undefined>(undefined)
@@ -28,7 +31,7 @@ export function useGbpLocations(connectionId: string | undefined): State {
     setState((prev) => ({ ...prev, isLoading: true, error: null }))
 
     try {
-      const result = await listGbpLocations({ data: { connectionId: id } })
+      const result = await listLocations({ data: { connectionId: id } })
       if (!controller.signal.aborted) {
         setState({ locations: result.locations, isLoading: false, error: null })
       }

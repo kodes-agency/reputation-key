@@ -1,8 +1,8 @@
 import type { PortalPublicApi } from '#/contexts/portal/application/public-api'
 import type { PublicPortalLookup } from '../../application/ports/public-portal-lookup.port'
 import { guestError } from '../../domain/errors'
+import { isPortalError } from '#/contexts/portal/domain/errors'
 import { trace } from '#/shared/observability/trace'
-
 export const createPublicPortalLookup = (
   portalApi: PortalPublicApi,
 ): PublicPortalLookup => ({
@@ -15,13 +15,11 @@ export const createPublicPortalLookup = (
         const result = await portalApi.findPublicPortalBySlug(propertySlug, portalSlug)
         return result
       } catch (err) {
-        // Re-throw domain errors from the portal public API
-        if (
-          err &&
-          typeof err === 'object' &&
-          '_tag' in err &&
-          (err as { _tag: string })._tag === 'portal_inactive'
-        ) {
+        // The portal repo throws portalError('portal_inactive', …) whose _tag
+        // is 'PortalError' (the inactive case is a *code*, not the _tag).
+        // Map it to a GuestError so the server fn surfaces a 410 instead of a
+        // 500 (the old _tag comparison never matched and fell through).
+        if (isPortalError(err) && err.code === 'portal_inactive') {
           throw guestError('portal_inactive', 'Portal is inactive')
         }
         throw err

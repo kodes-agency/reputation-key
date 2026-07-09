@@ -4,7 +4,8 @@ import type { PortalRepository } from '../ports/portal.repository'
 import type { Portal } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { portalError } from '../../domain/errors'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
+import { getAccessiblePropertyIdsForPermission } from '#/shared/domain/property-access'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 
 // fallow-ignore-next-line unused-type
@@ -21,15 +22,16 @@ export type ListPortalsDeps = Readonly<{
 export const listPortals =
   (deps: ListPortalsDeps) =>
   async (input: ListPortalsInput, ctx: AuthContext): Promise<ReadonlyArray<Portal>> => {
-    if (!can(ctx.role, 'portal.read')) {
+    if (!canForContext(ctx, 'portal.read')) {
       throw portalError('forbidden', 'No portal read permission')
     }
     // D6-001: scope reads to properties in the caller's staff_assignment.
     // AccountAdmin bypasses (getAccessiblePropertyIds returns null).
-    const accessible = await deps.staffPublicApi.getAccessiblePropertyIds(
-      ctx.organizationId,
-      ctx.userId,
-      ctx.role,
+    const accessible = await getAccessiblePropertyIdsForPermission(
+      (orgId, userId, orgWide) =>
+        deps.staffPublicApi.getAccessiblePropertyIds(orgId, userId, orgWide),
+      ctx,
+      'portal.read',
     )
     const results = input.propertyId
       ? await deps.portalRepo.listByProperty(ctx.organizationId, input.propertyId)

@@ -50,6 +50,17 @@ export const createGoogleConnectionRepository = (
     })
   },
 
+  findByGoogleAccountIdGlobal: async (googleAccountId) => {
+    return trace('googleConnection.findByGoogleAccountIdGlobal', async () => {
+      const rows = await db
+        .select()
+        .from(googleConnections)
+        .where(eq(googleConnections.googleAccountId, googleAccountId))
+        .limit(1)
+      return rows[0] ? googleConnectionFromRow(rows[0]) : null
+    })
+  },
+
   listByOrganization: async (orgId, filter: ConnectionVisibilityFilter) => {
     return trace('googleConnection.listByOrganization', async () => {
       const whereClause =

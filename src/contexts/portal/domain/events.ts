@@ -2,6 +2,7 @@
 // Per architecture: "Events are facts, named in the past tense."
 // Events live in their owning context's domain/events.ts.
 
+import { newEventId } from '#/shared/domain/event-id'
 import { assert } from '#/shared/domain/assert'
 import type { PortalId } from './types'
 import type {
@@ -186,7 +187,7 @@ export const portalCreated = (
   }
   return {
     _tag: 'portal.created',
-    eventId: crypto.randomUUID(),
+    eventId: newEventId(),
     correlationId: null,
     ...args,
   }
@@ -204,7 +205,7 @@ export const portalUpdated = (
   }
   return {
     _tag: 'portal.updated',
-    eventId: crypto.randomUUID(),
+    eventId: newEventId(),
     correlationId: null,
     ...args,
   }
@@ -216,7 +217,7 @@ export const portalDeleted = (
   assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
   return {
     _tag: 'portal.deleted',
-    eventId: crypto.randomUUID(),
+    eventId: newEventId(),
     correlationId: null,
     ...args,
   }
@@ -228,7 +229,7 @@ export const portalLinkCategoryCreated = (
   assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
   return {
     _tag: 'portal_link_category.created',
-    eventId: crypto.randomUUID(),
+    eventId: newEventId(),
     correlationId: null,
     ...args,
   }
@@ -240,7 +241,7 @@ export const portalLinkCategoryReordered = (
   assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
   return {
     _tag: 'portal_link_category.reordered',
-    eventId: crypto.randomUUID(),
+    eventId: newEventId(),
     correlationId: null,
     ...args,
   }
@@ -252,7 +253,7 @@ export const portalLinkCreated = (
   assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
   return {
     _tag: 'portal_link.created',
-    eventId: crypto.randomUUID(),
+    eventId: newEventId(),
     correlationId: null,
     ...args,
   }
@@ -264,7 +265,7 @@ export const portalLinkReordered = (
   assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
   return {
     _tag: 'portal_link.reordered',
-    eventId: crypto.randomUUID(),
+    eventId: newEventId(),
     correlationId: null,
     ...args,
   }
@@ -281,7 +282,7 @@ export const portalGroupCreated = (
   }
   return {
     _tag: 'portal_group.created',
-    eventId: crypto.randomUUID(),
+    eventId: newEventId(),
     correlationId: null,
     ...args,
   }
@@ -296,7 +297,7 @@ export const portalGroupUpdated = (
   }
   return {
     _tag: 'portal_group.updated',
-    eventId: crypto.randomUUID(),
+    eventId: newEventId(),
     correlationId: null,
     ...args,
   }
@@ -308,7 +309,7 @@ export const portalGroupDeleted = (
   assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
   return {
     _tag: 'portal_group.deleted',
-    eventId: crypto.randomUUID(),
+    eventId: newEventId(),
     correlationId: null,
     ...args,
   }
@@ -320,7 +321,7 @@ export const portalAddedToGroup = (
   assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
   return {
     _tag: 'portal_group.portal_added',
-    eventId: crypto.randomUUID(),
+    eventId: newEventId(),
     correlationId: null,
     ...args,
   }
@@ -332,7 +333,7 @@ export const portalRemovedFromGroup = (
   assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
   return {
     _tag: 'portal_group.portal_removed',
-    eventId: crypto.randomUUID(),
+    eventId: newEventId(),
     correlationId: null,
     ...args,
   }

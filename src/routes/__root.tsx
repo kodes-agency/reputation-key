@@ -10,6 +10,7 @@ import { Header } from '#/components/layout/header'
 import { authClient } from '#/shared/auth/auth-client'
 import { Toaster } from '#/components/ui/sonner'
 import appCss from '#/styles.css?url'
+import { notificationFns } from '#/routes/-notification-fns'
 
 const THEME_INIT_SCRIPT = `(function(){try{var stored=window.localStorage.getItem('theme');var mode=(stored==='light'||stored==='dark'||stored==='auto')?stored:'auto';var prefersDark=window.matchMedia('(prefers-color-scheme: dark)').matches;var resolved=mode==='auto'?(prefersDark?'dark':'light'):mode;var root=document.documentElement;root.classList.remove('light','dark');root.classList.add(resolved);root.style.colorScheme=resolved;}catch(e){}})();`
 
@@ -47,7 +48,10 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       <body className="font-sans antialiased [overflow-wrap:anywhere] selection:bg-[oklch(0.42_0.18_290/0.25)]">
         {showChrome ? (
           <>
-            <Header onSignOut={() => authClient.signOut()} />
+            <Header
+              onSignOut={() => authClient.signOut()}
+              notificationFns={notificationFns}
+            />
             <main>{children}</main>
             <Footer />
           </>

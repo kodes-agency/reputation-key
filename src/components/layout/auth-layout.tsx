@@ -63,10 +63,7 @@ export function AuthFooterLink({ message, linkText, to }: AuthFooterLinkProps) {
   return (
     <p className="mt-6 text-center text-sm text-muted-foreground">
       {message}{' '}
-      <Link
-        to={to}
-        className="font-medium text-primary underline-offset-4 hover:underline"
-      >
+      <Link to={to} className="font-medium text-link underline-offset-4 hover:underline">
         {linkText}
       </Link>
     </p>

@@ -4,25 +4,14 @@
 
 import type { PortalGroupDeleted } from '#/contexts/portal/application/public-api'
 import type { GoalRepository } from '../../application/ports/goal.repository'
-import type { Goal } from '../../domain/types'
-import type { GoalId, OrganizationId, UserId } from '#/shared/domain/ids'
-import { userId } from '#/shared/domain/ids'
-import type { Role } from '#/shared/domain/roles'
-import type { Result } from 'neverthrow'
+import type { SystemCancelGoalFn } from './index'
 import type { getLogger as getLoggerType } from '#/shared/observability/logger'
 
 // ── Dependencies ──────────────────────────────────────────────────────
 
 export type OnPortalGroupDeletedDeps = Readonly<{
   goalRepo: GoalRepository
-  cancelGoalFn: (
-    input: Readonly<{
-      goalId: GoalId
-      organizationId: OrganizationId
-      userId: UserId
-      role: Role
-    }>,
-  ) => Promise<Result<Goal, unknown>>
+  systemCancelGoalFn: SystemCancelGoalFn
   getLogger: typeof getLoggerType
 }>
 
@@ -39,11 +28,10 @@ export const onPortalGroupDeleted =
       })
 
       for (const goal of goals) {
-        const result = await deps.cancelGoalFn({
+        const result = await deps.systemCancelGoalFn({
           goalId: goal.id,
           organizationId: event.organizationId,
-          userId: userId('system'),
-          role: 'AccountAdmin',
+          reason: 'portal_group_deleted',
         })
         if (result.isErr()) {
           deps

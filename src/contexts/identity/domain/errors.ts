@@ -12,6 +12,8 @@ export type IdentityErrorCode =
   | 'member_not_found'
   | 'invitation_not_found'
   | 'registration_failed'
+  | 'already_exists'
+  | 'last_owner'
   | 'org_setup_failed'
 
 export type IdentityError = Readonly<{

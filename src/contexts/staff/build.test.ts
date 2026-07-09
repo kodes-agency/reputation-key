@@ -18,6 +18,10 @@ const mockPortalLookup = {
   getPortalInfo: async () => null,
 }
 
+const mockIdentityMembership = {
+  isMember: async () => true,
+}
+
 const seedAssignment = (overrides: Partial<StaffAssignment> = {}): StaffAssignment =>
   ({
     id: staffAssignmentId('staff-1'),
@@ -43,12 +47,13 @@ describe('StaffPublicApi', () => {
       portalLookup: mockPortalLookup,
       events,
       clock,
+      identityMembership: mockIdentityMembership,
     })
 
     const result = await publicApi.getAccessiblePropertyIds(
       organizationId('org-1'),
       userId('user-1'),
-      'AccountAdmin',
+      true,
     )
 
     expect(result).toBeNull()
@@ -76,12 +81,13 @@ describe('StaffPublicApi', () => {
       portalLookup: mockPortalLookup,
       events,
       clock,
+      identityMembership: mockIdentityMembership,
     })
 
     const result = await publicApi.getAccessiblePropertyIds(
       organizationId('org-1'),
       userId('user-1'),
-      'PropertyManager',
+      false,
     )
 
     expect(result).not.toBeNull()

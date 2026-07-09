@@ -9,7 +9,7 @@ import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { getContainer } from '#/composition'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getAuth } from '#/shared/auth/auth'
 import { timeRangePreset } from '../application/dto/dashboard.dto'
@@ -41,10 +41,17 @@ export const getFleetOverviewFn = createServerFn({ method: 'GET' })
         try {
           const headers = await headersFromContext()
           const ctx = await resolveTenantContext(headers)
-          if (!can(ctx.role, 'dashboard.read')) {
+          // §9: the fleet route guard (_authenticated/dashboard.tsx) requires
+          // dashboard.fleet_read (PM+); the server fn must match so Staff
+          // (who hold dashboard.read but not fleet_read) cannot reach the RPC
+          // directly and read cross-property reply-derived aggregates.
+          if (
+            !canForContext(ctx, 'dashboard.read') ||
+            !canForContext(ctx, 'dashboard.fleet_read')
+          ) {
             throw makeDashboardError(
               'forbidden',
-              'Insufficient permissions to view dashboard',
+              'Insufficient permissions to view fleet dashboard',
             )
           }
 

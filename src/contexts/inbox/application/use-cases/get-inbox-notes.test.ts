@@ -12,6 +12,7 @@ import {
 import type { InboxNote, InboxItem, InboxStatus, SourceType } from '../../domain/types'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { Role } from '#/shared/domain/roles'
+import type { AuthContext } from '#/shared/domain/auth-context'
 import { isInboxError } from '../../domain/errors'
 
 const ORG_ID = organizationId('org-1')
@@ -70,10 +71,8 @@ function createInMemoryNoteRepo() {
   return { ...noteRepo, notes }
 }
 
-const adminInput = {
-  userId: USER_ID,
-  role: 'AccountAdmin' as const,
-}
+const ctxFor = (role: Role): AuthContext =>
+  ({ organizationId: ORG_ID, userId: USER_ID, role }) as AuthContext
 
 describe('getInboxNotes', () => {
   it('returns notes for an inbox item', async () => {
@@ -90,11 +89,7 @@ describe('getInboxNotes', () => {
     repo.items.push(makeItem())
 
     const useCase = getInboxNotes({ noteRepo, repo, staffPublicApi: adminStaffApi })
-    const result = await useCase({
-      inboxItemId: ITEM_ID,
-      organizationId: ORG_ID,
-      ...adminInput,
-    })
+    const result = await useCase({ inboxItemId: ITEM_ID }, ctxFor('AccountAdmin'))
 
     expect(result).toHaveLength(1)
     expect(result[0].text).toBe('Test note')
@@ -106,11 +101,7 @@ describe('getInboxNotes', () => {
     repo.items.push(makeItem())
 
     const useCase = getInboxNotes({ noteRepo, repo, staffPublicApi: adminStaffApi })
-    const result = await useCase({
-      inboxItemId: ITEM_ID,
-      organizationId: ORG_ID,
-      ...adminInput,
-    })
+    const result = await useCase({ inboxItemId: ITEM_ID }, ctxFor('AccountAdmin'))
 
     expect(result).toHaveLength(0)
   })
@@ -129,11 +120,7 @@ describe('getInboxNotes', () => {
     repo.items.push(makeItem())
 
     const useCase = getInboxNotes({ noteRepo, repo, staffPublicApi: adminStaffApi })
-    const result = await useCase({
-      inboxItemId: ITEM_ID,
-      organizationId: ORG_ID,
-      ...adminInput,
-    })
+    const result = await useCase({ inboxItemId: ITEM_ID }, ctxFor('AccountAdmin'))
 
     expect(result).toHaveLength(0)
   })
@@ -147,31 +134,42 @@ describe('getInboxNotes', () => {
 
     const useCase = getInboxNotes({ noteRepo, repo, staffPublicApi: scopedApi })
     await expect(
-      useCase({
-        inboxItemId: ITEM_ID,
-        organizationId: ORG_ID,
-        userId: USER_ID,
-        role: 'Guest' as unknown as Role,
-      }),
+      useCase({ inboxItemId: ITEM_ID }, ctxFor('Guest' as unknown as Role)),
     ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'forbidden')
   })
 
-  it('allows PropertyManager to access notes for any property (inbox.read bypasses property check)', async () => {
-    // PropertyManager has inbox.read, so can() passes and the property access check is skipped
+  it('scopes PropertyManager to assigned properties (PM is NOT org-wide for inbox)', async () => {
+    // PM holds inbox.read/inbox.manage, but per CONTEXT.md L72 PM only manages
+    // ASSIGNED properties — assertPropertyAccessible enforces the scope.
     const noteRepo = createInMemoryNoteRepo()
     const scopedApi = createScopedStaffApi(['other-prop'])
     const repo = createInMemoryInboxRepo()
-    repo.items.push(makeItem())
+    repo.items.push(makeItem()) // item is on PROP_ID (prop-1); PM NOT assigned
 
     const useCase = getInboxNotes({ noteRepo, repo, staffPublicApi: scopedApi })
-    const result = await useCase({
+    await expect(
+      useCase({ inboxItemId: ITEM_ID }, ctxFor('PropertyManager')),
+    ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'forbidden')
+  })
+
+  it('allows PropertyManager to read notes for an assigned property', async () => {
+    const noteRepo = createInMemoryNoteRepo()
+    noteRepo.notes.push({
+      id: inboxNoteId('note-1'),
       inboxItemId: ITEM_ID,
       organizationId: ORG_ID,
       userId: USER_ID,
-      role: 'PropertyManager',
+      text: 'PM-visible note',
+      createdAt: FIXED_TIME,
     })
+    const scopedApi = createScopedStaffApi(['prop-1']) // PM assigned to prop-1
+    const repo = createInMemoryInboxRepo()
+    repo.items.push(makeItem()) // item on prop-1
 
-    // No forbidden error — PropertyManager has inbox.read
-    expect(result).toHaveLength(0)
+    const useCase = getInboxNotes({ noteRepo, repo, staffPublicApi: scopedApi })
+    const result = await useCase({ inboxItemId: ITEM_ID }, ctxFor('PropertyManager'))
+
+    expect(result).toHaveLength(1)
+    expect(result[0]!.text).toBe('PM-visible note')
   })
 })

@@ -7,7 +7,7 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import type { ImportStatusInput } from '../dto/import-status.dto'
 export type { ImportStatusInput as GetImportStatusInput } from '../dto/import-status.dto'
 import { gbpImportJobId } from '#/shared/domain/ids'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { integrationError } from '../../domain/errors'
 
 export type GetImportStatusDeps = Readonly<{
@@ -18,7 +18,7 @@ export const getImportStatus =
   (deps: GetImportStatusDeps) =>
   async (input: ImportStatusInput, ctx: AuthContext): Promise<GbpImportJob> => {
     // Uses integration.manage to match the server fn authorization
-    if (!can(ctx.role, 'integration.manage')) {
+    if (!canForContext(ctx, 'integration.manage')) {
       throw integrationError(
         'forbidden',
         'Insufficient permissions to view import status',

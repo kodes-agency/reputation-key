@@ -52,7 +52,6 @@ function makeEvent(overrides: Partial<PortalGroupDeleted> = {}): PortalGroupDele
     correlationId: null,
     portalGroupId: portalGroupId('pg-1'),
     organizationId: organizationId('org-1'),
-    propertyId: propertyId('prop-1'),
     occurredAt: FIXED_TIME,
     ...overrides,
   } as PortalGroupDeleted
@@ -60,6 +59,7 @@ function makeEvent(overrides: Partial<PortalGroupDeleted> = {}): PortalGroupDele
 
 function makeFakeDeps(storedGoals: Goal[] = []) {
   const cancelledGoalIds: string[] = []
+  const cancelledReasons: string[] = []
 
   const goalRepo: GoalRepository = {
     insert: async () => {
@@ -113,13 +113,14 @@ function makeFakeDeps(storedGoals: Goal[] = []) {
     createGoalAndProgress: async () => {},
   }
 
-  type CancelGoalFn = OnPortalGroupDeletedDeps['cancelGoalFn']
+  type SystemCancelFn = OnPortalGroupDeletedDeps['systemCancelGoalFn']
 
-  const cancelGoalFn: CancelGoalFn = async (input) => {
+  const systemCancelGoalFn: SystemCancelFn = async (input) => {
     cancelledGoalIds.push(input.goalId as string)
+    cancelledReasons.push(input.reason)
     return ok(makeGoal({ id: input.goalId, status: 'cancelled' as const }))
   }
-  const cancelGoalFnMock = vi.fn(cancelGoalFn)
+  const systemCancelGoalFnMock = vi.fn(systemCancelGoalFn)
 
   const logger = {
     error: vi.fn(),
@@ -130,12 +131,20 @@ function makeFakeDeps(storedGoals: Goal[] = []) {
 
   const deps: OnPortalGroupDeletedDeps = {
     goalRepo,
-    cancelGoalFn: cancelGoalFnMock,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    getLogger: () => logger as any,
+    systemCancelGoalFn: systemCancelGoalFnMock,
+    getLogger: () =>
+      logger as unknown as OnPortalGroupDeletedDeps['getLogger'] extends () => infer R
+        ? R
+        : never,
   }
 
-  return { deps, cancelGoalFn: cancelGoalFnMock, cancelledGoalIds, logger }
+  return {
+    deps,
+    systemCancelGoalFn: systemCancelGoalFnMock,
+    cancelledGoalIds,
+    cancelledReasons,
+    logger,
+  }
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────
@@ -158,7 +167,7 @@ describe('onPortalGroupDeleted', () => {
 
     await handler(makeEvent())
 
-    expect(fakes.cancelGoalFn).toHaveBeenCalledTimes(2)
+    expect(fakes.systemCancelGoalFn).toHaveBeenCalledTimes(2)
     expect(fakes.cancelledGoalIds).toContain('g-1')
     expect(fakes.cancelledGoalIds).toContain('g-2')
   })
@@ -180,7 +189,7 @@ describe('onPortalGroupDeleted', () => {
 
     await handler(makeEvent())
 
-    expect(fakes.cancelGoalFn).toHaveBeenCalledTimes(1)
+    expect(fakes.systemCancelGoalFn).toHaveBeenCalledTimes(1)
     expect(fakes.cancelledGoalIds).toContain('g-match')
     expect(fakes.cancelledGoalIds).not.toContain('g-other')
   })
@@ -191,7 +200,28 @@ describe('onPortalGroupDeleted', () => {
 
     await handler(makeEvent())
 
-    expect(fakes.cancelGoalFn).not.toHaveBeenCalled()
+    expect(fakes.systemCancelGoalFn).not.toHaveBeenCalled()
+  })
+
+  it('passes the portal_group_deleted reason tag to systemCancelGoalFn', async () => {
+    const g1 = makeGoal({
+      id: goalId('g-1'),
+      portalGroupId: portalGroupId('pg-1'),
+      status: 'active',
+    })
+
+    const fakes = makeFakeDeps([g1])
+    const handler = onPortalGroupDeleted(fakes.deps)
+
+    await handler(makeEvent())
+
+    expect(fakes.systemCancelGoalFn).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: 'portal_group_deleted' }),
+    )
+    // No masquerade — the handler must NOT pass a userId or role.
+    const callArg = fakes.systemCancelGoalFn.mock.calls[0]![0]
+    expect(callArg).not.toHaveProperty('userId')
+    expect(callArg).not.toHaveProperty('role')
   })
 
   it('logs error but does not throw when cancel fails', async () => {
@@ -202,7 +232,7 @@ describe('onPortalGroupDeleted', () => {
     })
 
     const fakes = makeFakeDeps([g1])
-    fakes.cancelGoalFn.mockResolvedValueOnce(err({ tag: 'goal_not_found' }))
+    fakes.systemCancelGoalFn.mockResolvedValueOnce(err({ tag: 'goal_not_found' }))
 
     const handler = onPortalGroupDeleted(fakes.deps)
 
@@ -229,7 +259,7 @@ describe('onPortalGroupDeleted', () => {
 
     const fakes = makeFakeDeps([g1, g2])
     // First call fails, second succeeds
-    fakes.cancelGoalFn.mockResolvedValueOnce(
+    fakes.systemCancelGoalFn.mockResolvedValueOnce(
       err({ tag: 'goal_not_active', status: 'completed' }),
     )
 
@@ -237,7 +267,7 @@ describe('onPortalGroupDeleted', () => {
     await handler(makeEvent())
 
     // Both goals were attempted
-    expect(fakes.cancelGoalFn).toHaveBeenCalledTimes(2)
+    expect(fakes.systemCancelGoalFn).toHaveBeenCalledTimes(2)
     // Error was logged for the failed one
     expect(fakes.logger.error).toHaveBeenCalledWith(
       expect.objectContaining({ goalId: g1.id }),
@@ -263,7 +293,7 @@ describe('onPortalGroupDeleted', () => {
     await expect(handler(makeEvent())).resolves.toBeUndefined()
   })
 
-  it('logs error when cancelGoalFn throws (not returns Err)', async () => {
+  it('logs error when systemCancelGoalFn throws (not returns Err)', async () => {
     const throwingCancel = async () => {
       throw new Error('cancel exploded')
     }
@@ -274,7 +304,10 @@ describe('onPortalGroupDeleted', () => {
     })
 
     const fakes = makeFakeDeps([g1])
-    const handler = onPortalGroupDeleted({ ...fakes.deps, cancelGoalFn: throwingCancel })
+    const handler = onPortalGroupDeleted({
+      ...fakes.deps,
+      systemCancelGoalFn: throwingCancel,
+    })
 
     // Should NOT throw
     await expect(handler(makeEvent())).resolves.toBeUndefined()

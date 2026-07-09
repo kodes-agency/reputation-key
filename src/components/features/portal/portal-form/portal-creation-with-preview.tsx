@@ -87,7 +87,7 @@ export function PortalCreationWithPreview({
 
       {showPreview && (
         <div className="w-[400px] shrink-0 hidden lg:block">
-          <div className="sticky top-8 bg-gray-100 rounded-lg p-4">
+          <div className="sticky top-8 bg-muted rounded-lg p-4">
             <p className="text-xs text-muted-foreground text-center mb-2">Live Preview</p>
             <div className="bg-white rounded-lg shadow-lg overflow-hidden max-h-[80vh] overflow-y-auto">
               <PublicPortalContent

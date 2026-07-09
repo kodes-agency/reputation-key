@@ -1,7 +1,7 @@
 // Badge context — evaluate badge for a target
 
 import {
-  badgeId,
+  type BadgeId,
   type PortalId,
   type PortalGroupId,
   type OrganizationId,
@@ -9,6 +9,7 @@ import {
 } from '#/shared/domain/ids'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { MetricPublicApi } from '#/contexts/metric/application/public-api'
+import type { Clock } from '#/shared/domain/clock'
 import { badgeAwarded } from '../../domain/events'
 import { dayKeyInTimezone, periodToRange } from '../../application/utils'
 import type { BadgeRepository } from '../ports/badge.repository'
@@ -23,7 +24,8 @@ export type EvaluateBadgeForTargetDeps = Readonly<{
   badgeRepo: BadgeRepository
   metricApi: MetricPublicApi
   events: EventBus
-  clock: () => Date
+  idGen: () => BadgeId
+  clock: Clock
 }>
 
 export type EvaluateBadgeForTargetInput = Readonly<{
@@ -103,7 +105,7 @@ export async function evaluateBadgeDefinitionForTarget(
     portalGroupId = target.portalGroupId
   }
   const award: BadgeAward = {
-    id: badgeId(crypto.randomUUID()),
+    id: deps.idGen(),
     badgeDefinitionId: definition.id,
     criteriaVersion: definition.criteriaVersion,
     targetType: target.targetType,

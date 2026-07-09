@@ -22,6 +22,7 @@ import {
   getImportStatus,
   importProperty,
   getGoogleAuthUrl,
+  manageNotifications,
 } from './application/use-cases'
 import type { GetGoogleAuthUrl } from './application/use-cases'
 import { createGoogleConnectionRepository } from './infrastructure/repositories/google-connection.repository'
@@ -31,6 +32,7 @@ import { createPropertyImportRepository } from './infrastructure/repositories/pr
 import { createGoogleOAuthAdapter } from './infrastructure/adapters/google-oauth.adapter'
 import { createTokenEncryptionAdapter } from './infrastructure/adapters/token-encryption.adapter'
 import { createGbpApiAdapter } from './infrastructure/adapters/gbp-api.adapter'
+import { createMyBusinessNotificationsAdapter } from './infrastructure/adapters/mybusiness-notifications.adapter'
 import { createPropertyEventAdapter } from './infrastructure/adapters/property-event.adapter'
 import { getEnv } from '#/shared/config/env'
 import type { PropertyLookupPort } from './application/ports/property-lookup.port'
@@ -105,6 +107,7 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
   })
   const encryptionPort = createTokenEncryptionAdapter(getEnv().ENCRYPTION_KEY)
   const gbpApiPort = createGbpApiAdapter()
+  const notificationsPort = createMyBusinessNotificationsAdapter()
   const propertyImportRepo = createPropertyImportRepository(deps.propertyApi)
   const propertyEventPort = createPropertyEventAdapter(deps.events)
 
@@ -130,6 +133,18 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
     clock: deps.clock,
   })
 
+  const manageNotificationsUseCase = manageNotifications({
+    connectionRepo,
+    gbpApi: gbpApiPort,
+    encryption: encryptionPort,
+    refreshGoogleToken: refreshGoogleTokenUseCase,
+    notifications: notificationsPort,
+    pubsubTopic: getEnv().GBP_PUBSUB_TOPIC,
+    notificationTypes: getEnv().GBP_PUBSUB_NOTIFICATION_TYPES.split(',').filter(Boolean),
+    clock: deps.clock,
+    logger: deps.logger,
+  })
+
   const useCases = {
     connectGoogleAccount: connectGoogleAccount({
       connectionRepo,
@@ -149,6 +164,7 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       events: deps.events,
       clock: deps.clock,
       logger: deps.logger,
+      unsubscribeFromNotifications: manageNotificationsUseCase.unsubscribe,
     }),
 
     listGoogleConnections: listGoogleConnections({
@@ -196,6 +212,7 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       clock: deps.clock,
       hashFn: (input: string) => createHash('sha256').update(input).digest('base64url'),
       logger: deps.logger,
+      onFirstPropertyImported: manageNotificationsUseCase.subscribe,
     }),
 
     getGoogleAuthUrl: getGoogleAuthUrl({

@@ -3,6 +3,7 @@
 
 import type { InboxItem } from '#/contexts/inbox/application/public-api'
 import type { InboxDetailState } from './use-inbox-detail'
+import type { InboxDetailFns } from './types'
 import { InboxDetailPanel } from '#/components/inbox/inbox-detail-panel'
 import { InboxDetailSheet } from '#/components/inbox/inbox-detail-sheet'
 import { PageShell } from '#/components/layout/page-shell'
@@ -53,6 +54,7 @@ type InboxDetailPaneProps = Readonly<{
   detailState: InboxDetailState
   isMobile: boolean
   onClose: () => void
+  detailFns: InboxDetailFns
 }>
 
 export function InboxDetailPane({
@@ -60,6 +62,7 @@ export function InboxDetailPane({
   detailState,
   isMobile,
   onClose,
+  detailFns,
 }: InboxDetailPaneProps) {
   return (
     <>
@@ -69,6 +72,7 @@ export function InboxDetailPane({
             selectedItem={selectedItem}
             detailState={detailState}
             onClose={onClose}
+            detailFns={detailFns}
           />
         ) : (
           <EmptyDetailPlaceholder />
@@ -81,6 +85,7 @@ export function InboxDetailPane({
         }}
         item={selectedItem}
         detailState={detailState}
+        detailFns={detailFns}
       />
     </>
   )

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 // Notification context — digest-notification job handler tests
 
 import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest'
@@ -17,6 +16,7 @@ import {
   createFakeUserLookup,
   createFakeEmailSender,
   createFakeJobLogger,
+  createFakeClock,
 } from './test-fixtures'
 import type {
   FakeEmailRepo,
@@ -24,6 +24,7 @@ import type {
   FakeUserLookup,
   FakeEmailSender,
   FakeJobLogger,
+  FakeClock,
 } from './test-fixtures'
 
 const ORG_ID_1 = 'org-1'
@@ -105,6 +106,7 @@ export type FakeDigestDeps = {
   userLookup: FakeUserLookup
   emailSender: FakeEmailSender
   logger: FakeJobLogger
+  clock: FakeClock
 }
 
 function createFakeDeps(): FakeDigestDeps {
@@ -115,6 +117,7 @@ function createFakeDeps(): FakeDigestDeps {
     userLookup: createFakeUserLookup(),
     emailSender: createFakeEmailSender(),
     logger: createFakeJobLogger(),
+    clock: createFakeClock(FIXED_DATE),
   }
 }
 
@@ -182,7 +185,9 @@ describe('createDigestNotificationJobHandler', () => {
   it('queries properties table for org + timezone pairs', async () => {
     deps.pool.query.mockResolvedValue({ rows: [] })
 
-    const handler = createDigestNotificationJobHandler(deps as any)
+    const handler = createDigestNotificationJobHandler(
+      deps as unknown as Parameters<typeof createDigestNotificationJobHandler>[0],
+    )
     await handler(createFakeJob())
 
     expect(deps.pool.query).toHaveBeenCalledTimes(1)
@@ -194,7 +199,9 @@ describe('createDigestNotificationJobHandler', () => {
   it('does nothing when no properties exist', async () => {
     deps.pool.query.mockResolvedValue({ rows: [] })
 
-    const handler = createDigestNotificationJobHandler(deps as any)
+    const handler = createDigestNotificationJobHandler(
+      deps as unknown as Parameters<typeof createDigestNotificationJobHandler>[0],
+    )
     await handler(createFakeJob())
 
     expectNoDigestActivity(deps)
@@ -205,7 +212,9 @@ describe('createDigestNotificationJobHandler', () => {
 
     setupPendingEntry(deps)
 
-    const handler = createDigestNotificationJobHandler(deps as any)
+    const handler = createDigestNotificationJobHandler(
+      deps as unknown as Parameters<typeof createDigestNotificationJobHandler>[0],
+    )
     await handler(createFakeJob())
 
     // At least one timezone from ALL_HOUR_TIMEZONES will be hour 8
@@ -244,11 +253,13 @@ describe('createDigestNotificationJobHandler', () => {
         : Promise.resolve('user2@example.com'),
     )
 
-    const handler = createDigestNotificationJobHandler(deps as any)
+    const handler = createDigestNotificationJobHandler(
+      deps as unknown as Parameters<typeof createDigestNotificationJobHandler>[0],
+    )
     await handler(createFakeJob())
 
     expect(deps.emailSender.send.mock.calls.length).toBe(2)
-    const subjects = deps.emailSender.send.mock.calls.map((c: any[]) => c[0].subject)
+    const subjects = deps.emailSender.send.mock.calls.map((c) => c[0].subject)
     expect(subjects).toEqual([
       'Your daily digest — Reputation Key',
       'Your daily digest — Reputation Key',
@@ -260,7 +271,9 @@ describe('createDigestNotificationJobHandler', () => {
 
     setupPendingEntry(deps, { email: null })
 
-    const handler = createDigestNotificationJobHandler(deps as any)
+    const handler = createDigestNotificationJobHandler(
+      deps as unknown as Parameters<typeof createDigestNotificationJobHandler>[0],
+    )
     await handler(createFakeJob())
 
     expect(deps.emailSender.send).not.toHaveBeenCalled()
@@ -272,7 +285,9 @@ describe('createDigestNotificationJobHandler', () => {
 
     setupPendingEntry(deps, { notification: null })
 
-    const handler = createDigestNotificationJobHandler(deps as any)
+    const handler = createDigestNotificationJobHandler(
+      deps as unknown as Parameters<typeof createDigestNotificationJobHandler>[0],
+    )
     await handler(createFakeJob())
 
     expect(deps.emailSender.send).not.toHaveBeenCalled()
@@ -284,7 +299,9 @@ describe('createDigestNotificationJobHandler', () => {
     setupPendingEntry(deps)
     deps.emailSender.send.mockRejectedValue(new Error('SES down'))
 
-    const handler = createDigestNotificationJobHandler(deps as any)
+    const handler = createDigestNotificationJobHandler(
+      deps as unknown as Parameters<typeof createDigestNotificationJobHandler>[0],
+    )
     await handler(createFakeJob())
 
     expect(deps.emailRepo.markFailed).toHaveBeenCalledWith(
@@ -306,7 +323,9 @@ describe('createDigestNotificationJobHandler', () => {
       rows: [{ organization_id: ORG_ID_1, timezone: 'Invalid/Timezone' }],
     })
 
-    const handler = createDigestNotificationJobHandler(deps as any)
+    const handler = createDigestNotificationJobHandler(
+      deps as unknown as Parameters<typeof createDigestNotificationJobHandler>[0],
+    )
     await handler(createFakeJob())
 
     expectNoDigestActivity(deps)
@@ -316,7 +335,9 @@ describe('createDigestNotificationJobHandler', () => {
     setupDigestMocks(deps)
     deps.emailRepo.findPendingByOrg.mockResolvedValue([]) // no pending
 
-    const handler = createDigestNotificationJobHandler(deps as any)
+    const handler = createDigestNotificationJobHandler(
+      deps as unknown as Parameters<typeof createDigestNotificationJobHandler>[0],
+    )
     await handler(createFakeJob())
 
     expect(deps.emailSender.send).not.toHaveBeenCalled()
@@ -329,7 +350,9 @@ describe('createDigestNotificationJobHandler', () => {
     deps.emailSender.send.mockRejectedValue(new Error('SES down'))
     deps.emailRepo.markFailed.mockRejectedValue(new Error('markFailed also broke'))
 
-    const handler = createDigestNotificationJobHandler(deps as any)
+    const handler = createDigestNotificationJobHandler(
+      deps as unknown as Parameters<typeof createDigestNotificationJobHandler>[0],
+    )
     // Should not throw — inner catch handles markFailed errors
     await handler(createFakeJob())
 
@@ -367,10 +390,34 @@ describe('createDigestNotificationJobHandler', () => {
     )
     deps.emailSender.send.mockResolvedValue(undefined)
 
-    const handler = createDigestNotificationJobHandler(deps as any)
+    const handler = createDigestNotificationJobHandler(
+      deps as unknown as Parameters<typeof createDigestNotificationJobHandler>[0],
+    )
     await handler(createFakeJob())
 
     // Both orgs should have findPendingByOrg called
     expect(deps.emailRepo.findPendingByOrg.mock.calls.length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('uses injected clock for markSent/markFailed timestamps, not new Date()', async () => {
+    const clockDate = new Date('2026-07-04T08:00:00Z')
+    deps.clock = vi.fn(() => clockDate)
+    setupDigestMocks(deps)
+    setupPendingEntry(deps)
+
+    const handler = createDigestNotificationJobHandler(
+      deps as unknown as Parameters<typeof createDigestNotificationJobHandler>[0],
+    )
+    await handler(createFakeJob())
+
+    // markSent must receive the clock's timestamp, proving the job uses
+    // deps.clock() rather than constructing `new Date()` inline.
+    expect(deps.clock).toHaveBeenCalled()
+    expect(deps.emailRepo.markSent).toHaveBeenCalledWith(
+      notificationEmailId(EMAIL_ID_1),
+      organizationId(ORG_ID_1),
+      clockDate,
+      clockDate,
+    )
   })
 })

@@ -2,8 +2,13 @@
 import { createFileRoute, getRouteApi, redirect } from '@tanstack/react-router'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
-import { listStaffAssignments } from '#/contexts/staff/server/staff-assignments'
-import { listTeams } from '#/contexts/team/server/teams'
+import {
+  listStaffAssignments,
+  createStaffAssignment,
+  removeStaffAssignment,
+  updateStaffPortals,
+} from '#/contexts/staff/server/staff-assignments'
+import { listTeams, createTeam, deleteTeam } from '#/contexts/team/server/teams'
 import { listMembers } from '#/contexts/identity/server/organizations'
 import { listPortals } from '#/contexts/portal/server/portals'
 import {
@@ -49,6 +54,11 @@ function PeopleRoute() {
       portals={portals}
       tab={search.tab}
       onTabChange={(t) => navigate({ search: { tab: t } })}
+      createStaffAssignmentFn={createStaffAssignment}
+      removeStaffAssignmentFn={removeStaffAssignment}
+      createTeamFn={createTeam}
+      deleteTeamFn={deleteTeam}
+      updateStaffPortalsFn={updateStaffPortals}
     />
   )
 }

@@ -6,7 +6,22 @@ import { z } from 'zod'
 import type { GbpApiPort, GbpAccount } from '../../application/ports/gbp-api.port'
 import type { GbpLocation } from '../../domain/types'
 import { createGbpApiError } from '../../domain/gbp-api-error'
+import type { GbpApiErrorKind } from '../../domain/gbp-api-error'
 import { trace } from '#/shared/observability/trace'
+
+/**
+ * Classifies a raw GBP HTTP status into a domain-level error kind.
+ * The HTTP status never crosses into the domain/application layers (cc-errors §13).
+ * 401 → auth_failed, 403 → permission_denied, 429 → rate_limited, everything else
+ * (5xx, unexpected 4xx) → upstream_error. `parse_error` is produced separately when
+ * a response body fails schema validation.
+ */
+const classifyHttpStatus = (status: number): GbpApiErrorKind => {
+  if (status === 401) return 'auth_failed'
+  if (status === 403) return 'permission_denied'
+  if (status === 429) return 'rate_limited'
+  return 'upstream_error'
+}
 
 // GBP API response schemas — validate at the external boundary
 const gbpListAccountsResponseSchema = z.object({
@@ -46,10 +61,13 @@ export const createGbpApiAdapter = (): GbpApiPort => {
           },
         }),
       )
-
       if (!response.ok) {
         const errorText = await response.text()
-        throw createGbpApiError('listAccounts', response.status, errorText)
+        throw createGbpApiError(
+          'listAccounts',
+          classifyHttpStatus(response.status),
+          errorText,
+        )
       }
 
       const data = gbpListAccountsResponseSchema.parse(await response.json())
@@ -83,10 +101,13 @@ export const createGbpApiAdapter = (): GbpApiPort => {
           },
         }),
       )
-
       if (!response.ok) {
         const errorText = await response.text()
-        throw createGbpApiError('listLocations', response.status, errorText)
+        throw createGbpApiError(
+          'listLocations',
+          classifyHttpStatus(response.status),
+          errorText,
+        )
       }
 
       const data = gbpListLocationsResponseSchema.parse(await response.json())
@@ -110,10 +131,13 @@ export const createGbpApiAdapter = (): GbpApiPort => {
         },
       }),
     )
-
     if (!response.ok) {
       const errorText = await response.text()
-      throw createGbpApiError('getLocation', response.status, errorText)
+      throw createGbpApiError(
+        'getLocation',
+        classifyHttpStatus(response.status),
+        errorText,
+      )
     }
 
     const location = gbpLocationResponseSchema.parse(await response.json())
@@ -139,10 +163,13 @@ export const createGbpApiAdapter = (): GbpApiPort => {
         }),
       }),
     )
-
     if (!response.ok) {
       const errorText = await response.text()
-      throw createGbpApiError('batchGetReviews', response.status, errorText)
+      throw createGbpApiError(
+        'batchGetReviews',
+        classifyHttpStatus(response.status),
+        errorText,
+      )
     }
 
     const data = gbpBatchGetReviewsResponseSchema.parse(await response.json())
@@ -164,21 +191,25 @@ export const createGbpApiAdapter = (): GbpApiPort => {
 
 function mapGbpAccount(account: unknown): GbpAccount {
   if (!account || typeof account !== 'object') {
-    throw createGbpApiError('mapAccount', 500, 'Invalid GBP account data')
+    throw createGbpApiError('mapAccount', 'parse_error', 'Invalid GBP account data')
   }
 
   const acc = account as Record<string, unknown>
   const name = acc.name as string | undefined
 
   if (!name) {
-    throw createGbpApiError('mapAccount', 500, 'GBP account missing required field: name')
+    throw createGbpApiError(
+      'mapAccount',
+      'parse_error',
+      'GBP account missing required field: name',
+    )
   }
 
   const accountName = name.split('/')[1]
   if (!accountName) {
     throw createGbpApiError(
       'mapAccount',
-      500,
+      'parse_error',
       `GBP account has invalid name format: ${name}`,
     )
   }
@@ -200,7 +231,7 @@ function parseLocationName(loc: Record<string, unknown>): {
   if (!name) {
     throw createGbpApiError(
       'mapLocation',
-      500,
+      'parse_error',
       'GBP location missing required field: name',
     )
   }
@@ -208,7 +239,7 @@ function parseLocationName(loc: Record<string, unknown>): {
   if (!gbpPlaceId) {
     throw createGbpApiError(
       'mapLocation',
-      500,
+      'parse_error',
       `GBP location has invalid name format: ${name}`,
     )
   }
@@ -243,7 +274,7 @@ function parseCoordinates(loc: Record<string, unknown>): {
 
 function mapGbpLocation(location: unknown): GbpLocation {
   if (!location || typeof location !== 'object') {
-    throw createGbpApiError('mapLocation', 500, 'Invalid GBP location data')
+    throw createGbpApiError('mapLocation', 'parse_error', 'Invalid GBP location data')
   }
 
   const loc = location as Record<string, unknown>

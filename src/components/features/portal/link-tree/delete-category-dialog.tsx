@@ -22,7 +22,12 @@ export function DeleteCategoryDialog({ categoryTitle, isDeleting, onDelete }: Pr
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
-        <Button size="sm" variant="ghost" disabled={isDeleting}>
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={isDeleting}
+          aria-label={`Delete category ${categoryTitle}`}
+        >
           <Trash2 className="size-3 text-muted-foreground" />
         </Button>
       </AlertDialogTrigger>

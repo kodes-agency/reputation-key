@@ -9,16 +9,16 @@ import {
 import type { Role } from '#/shared/domain/roles'
 
 type Props = Readonly<{
-  role: Role
+  role: Role | null
   onRoleChange: (role: 'AccountAdmin' | 'PropertyManager' | 'Staff') => void
   isPending: boolean
 }>
 
 export function RoleSelect({ role, onRoleChange, isPending }: Props) {
   return (
-    <Select value={role} onValueChange={onRoleChange} disabled={isPending}>
+    <Select value={role ?? undefined} onValueChange={onRoleChange} disabled={isPending}>
       <SelectTrigger className="w-[160px]">
-        <SelectValue />
+        <SelectValue placeholder="Custom role" />
       </SelectTrigger>
       <SelectContent>
         <SelectGroup>

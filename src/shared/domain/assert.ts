@@ -1,5 +1,6 @@
 // Exhaustive-never assertion for switch/match exhaustiveness checking.
 // Use in default branches where TypeScript should prove the value is `never`.
+import { domainError } from './errors'
 
 export class UnreachableError extends Error {
   constructor(location: string, value: never) {
@@ -23,7 +24,11 @@ export function assertLiteral<T extends string>(
   label: string,
 ): T {
   if (!valid.includes(value as T)) {
-    throw new Error(`Invalid ${label}: ${value}`)
+    throw domainError('invalid_literal', `Invalid ${label}: ${value}`, {
+      value,
+      label,
+      valid: [...valid],
+    })
   }
   return value as T
 }
@@ -31,8 +36,10 @@ export function assertLiteral<T extends string>(
 /**
  * Pure runtime assertion. No Node builtins — safe for the domain layer.
  * Use to guard invariants that the type system cannot express.
- * Throws a plain Error (not node:assert) so domain code stays portable.
+ * Throws a typed DomainError (not node:assert) so domain code stays portable
+ * while preserving a stack trace and the tagged-error contract.
  */
 export function assert(condition: unknown, message: string): asserts condition {
-  if (!condition) throw new Error(`Assertion failed: ${message}`)
+  if (!condition)
+    throw domainError('assertion_failed', `Assertion failed: ${message}`, { message })
 }

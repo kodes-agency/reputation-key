@@ -7,8 +7,8 @@ import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { getContainer } from '#/composition'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
-import { can } from '#/shared/domain/permissions'
-import { isPropertyAccessible } from '#/shared/domain/property-access'
+import { canForContext } from '#/shared/domain/permissions'
+import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getPortalAnalyticsDto } from '../application/dto/dashboard.dto'
 export type { PortalAnalyticsData } from '../domain/types'
@@ -33,7 +33,7 @@ export const getPortalAnalyticsFn = createServerFn({ method: 'GET' })
         try {
           const headers = await headersFromContext()
           const ctx = await resolveTenantContext(headers)
-          if (!can(ctx.role, 'dashboard.read')) {
+          if (!canForContext(ctx, 'dashboard.read')) {
             throw makeDashboardError(
               'forbidden',
               'Insufficient permissions to view dashboard',
@@ -42,13 +42,11 @@ export const getPortalAnalyticsFn = createServerFn({ method: 'GET' })
           const { useCases, clock, staffPublicApi } = getContainer()
           // D6-001: non-admin callers may only read their assigned properties.
           if (
-            ctx.role !== 'AccountAdmin' &&
-            !(await isPropertyAccessible(
-              (orgId, uId, role) =>
-                staffPublicApi.getAccessiblePropertyIds(orgId, uId, role),
-              ctx.organizationId,
-              ctx.userId,
-              ctx.role,
+            !(await isPropertyAccessibleForPermission(
+              (orgId, uId, orgWide) =>
+                staffPublicApi.getAccessiblePropertyIds(orgId, uId, orgWide),
+              ctx,
+              'dashboard.read',
               propertyId(data.propertyId),
             ))
           ) {

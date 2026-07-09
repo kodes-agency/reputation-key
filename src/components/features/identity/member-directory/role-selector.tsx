@@ -35,7 +35,7 @@ export function RoleSelector({ field, allowedRoles }: Props) {
         value={field.state.value}
         onValueChange={(value) => field.handleChange(value as Role)}
       >
-        <SelectTrigger aria-invalid={isInvalid}>
+        <SelectTrigger aria-invalid={isInvalid} aria-label="Role">
           <SelectValue placeholder="Select a role" />
         </SelectTrigger>
         <SelectContent>

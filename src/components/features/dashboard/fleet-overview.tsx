@@ -58,7 +58,7 @@ export function FleetOverviewEmpty() {
           reputation.
         </p>
         <Button asChild>
-          <Link to="/properties/import">
+          <Link to="/import">
             <Plus />
             Create Property
           </Link>

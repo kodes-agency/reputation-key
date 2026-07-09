@@ -1,5 +1,6 @@
 // Goal context — domain events
 
+import { newEventId } from '#/shared/domain/event-id'
 import { assert } from '#/shared/domain/assert'
 import type {
   GoalId,
@@ -47,7 +48,7 @@ export const goalCompleted = (
   }
   return {
     _tag: 'goal.completed',
-    eventId: crypto.randomUUID(),
+    eventId: newEventId(),
     correlationId: null,
     ...args,
   }

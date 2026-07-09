@@ -34,24 +34,30 @@ const ListItemRow = React.memo(function ListItemRow({
 
   return (
     <div
-      className={`group flex items-start gap-3 border-b cursor-pointer transition-colors hover:bg-surface/50 px-4 py-3
+      role="listitem"
+      className={`group flex items-start gap-3 border-b cursor-default transition-colors hover:bg-surface/50 px-4 py-3
         ${isSelected ? 'bg-surface-elevated' : ''}
         ${isNew ? 'border-l-2 border-l-primary rounded-l-sm' : 'border-l-2 border-l-transparent'}`}
-      onClick={() => onRowClick(item)}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') onRowClick(item)
-      }}
-      role="option"
-      aria-selected={isSelected}
     >
       <Checkbox
         className="mt-1"
         checked={isSelected}
         onCheckedChange={() => onToggleSelect(item.id)}
-        onClick={(e) => e.stopPropagation()}
         aria-label={`Select item from ${item.reviewerName ?? 'unknown'}`}
       />
-      <div className="min-w-0 flex-1">
+      <div
+        role="button"
+        tabIndex={0}
+        aria-label={`Open review from ${item.reviewerName ?? 'Anonymous'}`}
+        className="min-w-0 flex-1 cursor-pointer rounded-sm outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        onClick={() => onRowClick(item)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            onRowClick(item)
+          }
+        }}
+      >
         {/* Row 1: Reviewer name + date + stars */}
         <div className="flex items-center justify-between gap-2">
           <span className={`text-sm truncate ${isNew ? 'font-semibold' : 'font-medium'}`}>
@@ -108,9 +114,11 @@ export function InboxListV2({
   const allSelected = items.length > 0 && items.every((item) => selectedSet.has(item.id))
 
   return (
-    // FE-17 FIX: Add ARIA listbox role for accessibility
-    <div className="flex flex-col" role="listbox" aria-label="Inbox items">
-      {/* Select-all checkbox row */}
+    // List (not listbox): rows navigate on click, selection is via the
+    // per-row checkbox — so list/listitem semantics fit better than listbox
+    // option and avoid nested-interactive (checkbox was inside role=option).
+    <div className="flex flex-col">
+      {/* Select-all header — kept outside the list so it isn't a listitem */}
       <div className="flex items-center gap-3 border-b px-4 py-2">
         <Checkbox
           checked={allSelected}
@@ -127,15 +135,17 @@ export function InboxListV2({
         </span>
       </div>
 
-      {items.map((item) => (
-        <ListItemRow
-          key={item.id}
-          item={item}
-          isSelected={selectedSet.has(item.id)}
-          onToggleSelect={onToggleSelect}
-          onRowClick={onRowClick}
-        />
-      ))}
+      <div role="list" aria-label="Inbox items" className="flex flex-col">
+        {items.map((item) => (
+          <ListItemRow
+            key={item.id}
+            item={item}
+            isSelected={selectedSet.has(item.id)}
+            onToggleSelect={onToggleSelect}
+            onRowClick={onRowClick}
+          />
+        ))}
+      </div>
     </div>
   )
 }

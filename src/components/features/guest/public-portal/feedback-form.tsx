@@ -104,7 +104,7 @@ export function FeedbackForm({ portalId, source, submitFeedback }: Props) {
         className="resize-none"
       />
       <div className="flex justify-between items-center">
-        <span className="text-xs text-gray-400">{comment.length}/1000</span>
+        <span className="text-xs text-inherit">{comment.length}/1000</span>
         <Button type="submit" disabled={isSubmitting || comment.trim().length === 0}>
           {isSubmitting ? 'Sending...' : 'Send Feedback'}
         </Button>

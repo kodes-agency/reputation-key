@@ -1,7 +1,7 @@
 // Integration context — import-property use case tests
 
-import { describe, it, expect } from 'vitest'
-import { importProperty } from './import-property'
+import { describe, it, expect, vi } from 'vitest'
+import { importProperty, type ImportPropertyDeps } from './import-property'
 import { createInMemoryGbpImportRepo } from '#/shared/testing/in-memory-gbp-import-repo'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { buildTestGbpImportJob } from '#/shared/testing/fixtures'
@@ -18,6 +18,7 @@ import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
 function makePropertyImportRepo(options?: {
   throwDuplicate?: boolean
   existingIds?: string[]
+  connectionPropertyCount?: number
 }) {
   const existing = new Set<string>(options?.existingIds ?? [])
   let autoCounter = 1
@@ -47,6 +48,7 @@ function makePropertyImportRepo(options?: {
         createdAt: null,
       }
     },
+    countByGoogleConnectionId: async () => options?.connectionPropertyCount ?? 0,
   } satisfies PropertyImportRepo
 }
 
@@ -59,6 +61,7 @@ function makeFailingPropertyImportRepo(error: Error): PropertyImportRepo {
     insertProperty: async () => {
       throw error
     },
+    countByGoogleConnectionId: async () => 0,
   }
 }
 
@@ -125,6 +128,7 @@ const setup = () => {
   const buildUseCase = (
     propertyRepoOverride: PropertyImportRepo,
     eventOverride?: PropertyEventPort,
+    onFirstPropertyImported?: ImportPropertyDeps['onFirstPropertyImported'],
   ) =>
     importProperty({
       importRepo,
@@ -136,6 +140,7 @@ const setup = () => {
       clock: () => FIXED_TIME,
       hashFn: (input: string) => createHash('sha256').update(input).digest('base64url'),
       logger: createMockLogger(),
+      onFirstPropertyImported,
     })
 
   return { useCase, importRepo, propertyRepo, events, seedJob, buildUseCase }
@@ -229,6 +234,7 @@ describe('importProperty', () => {
       insertProperty: async () => {
         throw duplicateKeyError('duplicate key')
       },
+      countByGoogleConnectionId: async () => 0,
     } satisfies PropertyImportRepo
 
     const useCase = buildUseCase(dupRepo)
@@ -265,6 +271,7 @@ describe('importProperty', () => {
       insertProperty: async () => {
         throw duplicateKeyError('duplicate key')
       },
+      countByGoogleConnectionId: async () => 0,
     } satisfies PropertyImportRepo
 
     const useCase = buildUseCase(dupFailRepo)
@@ -299,6 +306,7 @@ describe('importProperty', () => {
       insertProperty: async () => {
         throw new Error('DB connection lost')
       },
+      countByGoogleConnectionId: async () => 0,
     } satisfies PropertyImportRepo
 
     const useCase = buildUseCase(errorRepo)
@@ -418,5 +426,57 @@ describe('importProperty', () => {
     // Slugs should start with the normalized business name
     expect(result.created[0].slug).toMatch(/^my-business-/)
     expect(result.created[1].slug).toMatch(/^my-business-/)
+  })
+  it('fires onFirstPropertyImported when the connection imports its first property (0→1)', async () => {
+    const { seedJob, buildUseCase } = setup()
+    seedJob({ totalCount: 1 })
+    const hook = vi.fn()
+    const useCase = buildUseCase(
+      makePropertyImportRepo({ connectionPropertyCount: 0 }),
+      undefined,
+      hook,
+    )
+
+    await useCase({
+      jobId: JOB_ID,
+      organizationId: ORG_ID,
+      connectionId: CONNECTION_ID,
+      locations: [
+        {
+          gbpPlaceId: 'ChIJ-first',
+          businessName: 'First',
+          gbpLocationName: 'accounts/1/locations/f',
+        },
+      ],
+    })
+
+    expect(hook).toHaveBeenCalledTimes(1)
+    expect(hook).toHaveBeenCalledWith(organizationId(ORG_ID), CONNECTION_ID)
+  })
+
+  it('does not fire onFirstPropertyImported when the connection already has properties', async () => {
+    const { seedJob, buildUseCase } = setup()
+    seedJob({ totalCount: 1 })
+    const hook = vi.fn()
+    const useCase = buildUseCase(
+      makePropertyImportRepo({ connectionPropertyCount: 2 }),
+      undefined,
+      hook,
+    )
+
+    await useCase({
+      jobId: JOB_ID,
+      organizationId: ORG_ID,
+      connectionId: CONNECTION_ID,
+      locations: [
+        {
+          gbpPlaceId: 'ChIJ-second',
+          businessName: 'Second',
+          gbpLocationName: 'accounts/1/locations/s',
+        },
+      ],
+    })
+
+    expect(hook).not.toHaveBeenCalled()
   })
 })

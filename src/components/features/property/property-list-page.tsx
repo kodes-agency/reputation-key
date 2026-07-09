@@ -37,7 +37,7 @@ export function PropertyListPage({ properties, deleteAction }: PropertyListPageP
         actions={
           can('property.create') ? (
             <Button asChild>
-              <Link to="/properties/import">
+              <Link to="/import">
                 <Plus />
                 Import Properties
               </Link>

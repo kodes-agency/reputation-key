@@ -10,6 +10,7 @@ import type { GoogleReviewApiPort } from '../ports/google-review-api.port'
 import type { EventBus } from '#/shared/events/event-bus'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import type { Review, GoogleReview, Reply } from '../../domain/types'
+import { MAX_REPLY_LENGTH } from '../../domain/rules'
 import {
   organizationId,
   propertyId,
@@ -350,6 +351,48 @@ describe('syncReviews', () => {
         (r) => r.source === 'google_sync',
       )!
       expect(reply.text).toBe('Updated reply text')
+    })
+
+    it('clamps mirrored reply text to MAX_REPLY_LENGTH (new reply)', async () => {
+      const longText = 'A'.repeat(MAX_REPLY_LENGTH + 100)
+      const env = createTestEnv([
+        makeGoogleReview({
+          externalId: 'ext-1',
+          rating: 5,
+          replyText: longText,
+          replyUpdatedAt: new Date('2025-05-30T10:00:00.000Z'),
+        }),
+      ])
+
+      const result = await env.sync(defaultInput)
+
+      expect(result.isOk()).toBe(true)
+      const reply = Array.from(env.replyStore.values())[0]
+      expect(reply.text.length).toBe(MAX_REPLY_LENGTH)
+    })
+
+    it('clamps mirrored reply text to MAX_REPLY_LENGTH (existing reply update)', async () => {
+      const revId = reviewId('rev-existing')
+      const rplId = replyId('reply-existing')
+      const longText = 'B'.repeat(MAX_REPLY_LENGTH + 50)
+      const env = createTestEnv([
+        makeGoogleReview({
+          externalId: 'ext-1',
+          rating: 5,
+          replyText: longText,
+          replyUpdatedAt: new Date('2025-05-31T10:00:00.000Z'),
+        }),
+      ])
+      env.seedReview(makeReview({ id: revId, externalId: 'ext-1' }))
+      env.seedReply(makeReply({ id: rplId, reviewId: revId, text: 'Short' }))
+
+      const result = await env.sync(defaultInput)
+
+      expect(result.isOk()).toBe(true)
+      const reply = Array.from(env.replyStore.values()).find(
+        (r) => r.source === 'google_sync',
+      )!
+      expect(reply.text.length).toBe(MAX_REPLY_LENGTH)
     })
 
     it('Google has no reply, existing google_sync → deletes it', async () => {

@@ -2,7 +2,7 @@
 
 import {
   createServerFn,
-  can,
+  canForContext,
   isInboxError,
   inboxErrorStatus,
   inboxItemId,
@@ -24,7 +24,7 @@ export const assignInboxItemFn = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'inbox.write')) {
+        if (!canForContext(ctx, 'inbox.write')) {
           throwContextError(
             'AuthError',
             { code: 'forbidden', message: 'No inbox update permission' },
@@ -33,15 +33,15 @@ export const assignInboxItemFn = createServerFn({ method: 'POST' })
         }
         const { useCases } = getContainer()
         try {
-          return await useCases.assignInboxItem({
-            inboxItemId: inboxItemId(data.inboxItemId),
-            organizationId: ctx.organizationId,
-            assignedToUserId: data.assignedToUserId
-              ? toUserId(data.assignedToUserId)
-              : null,
-            role: ctx.role,
-            userId: ctx.userId,
-          })
+          return await useCases.assignInboxItem(
+            {
+              inboxItemId: inboxItemId(data.inboxItemId),
+              assignedToUserId: data.assignedToUserId
+                ? toUserId(data.assignedToUserId)
+                : null,
+            },
+            ctx,
+          )
         } catch (e) {
           if (isInboxError(e))
             throwContextError('InboxError', e, inboxErrorStatus(e.code))
@@ -62,7 +62,7 @@ export const addInboxNoteFn = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'inbox.write')) {
+        if (!canForContext(ctx, 'inbox.write')) {
           throwContextError(
             'AuthError',
             { code: 'forbidden', message: 'No inbox update permission' },
@@ -71,13 +71,13 @@ export const addInboxNoteFn = createServerFn({ method: 'POST' })
         }
         const { useCases } = getContainer()
         try {
-          return await useCases.addInboxNote({
-            inboxItemId: inboxItemId(data.inboxItemId),
-            organizationId: ctx.organizationId,
-            userId: ctx.userId,
-            text: data.text,
-            role: ctx.role,
-          })
+          return await useCases.addInboxNote(
+            {
+              inboxItemId: inboxItemId(data.inboxItemId),
+              text: data.text,
+            },
+            ctx,
+          )
         } catch (e) {
           if (isInboxError(e))
             throwContextError('InboxError', e, inboxErrorStatus(e.code))

@@ -1,6 +1,7 @@
 // Inbox context — domain events
 // Standards: docs/standards.md §1
 
+import { newEventId } from '#/shared/domain/event-id'
 import type {
   InboxItemId,
   InboxNoteId,
@@ -37,7 +38,7 @@ export const inboxItemCreated = (
   if (args.inboxItemId === '') throw inboxError('invalid_input', 'inboxItemId required')
   return {
     _tag: 'inbox.inbox_item.created',
-    eventId: crypto.randomUUID(),
+    eventId: newEventId(),
     correlationId: null,
     propertyId: args.propertyId ?? null,
     userId: args.userId ?? null,
@@ -74,7 +75,7 @@ export const inboxItemStatusChanged = (
     )
   return {
     _tag: 'inbox.inbox_item.status_changed',
-    eventId: crypto.randomUUID(),
+    eventId: newEventId(),
     correlationId: null,
     propertyId: args.propertyId ?? null,
     userId: args.userId ?? null,
@@ -106,7 +107,7 @@ export const inboxItemAssigned = (
   if (!args.userId) throw inboxError('invalid_input', 'userId required')
   return {
     _tag: 'inbox.inbox_item.assigned',
-    eventId: crypto.randomUUID(),
+    eventId: newEventId(),
     correlationId: null,
     propertyId: args.propertyId ?? null,
     userId: args.userId,
@@ -137,7 +138,7 @@ export const inboxItemUnassigned = (
     throw inboxError('invalid_input', 'occurredAt must be Date')
   return {
     _tag: 'inbox.inbox_item.unassigned',
-    eventId: crypto.randomUUID(),
+    eventId: newEventId(),
     correlationId: null,
     propertyId: args.propertyId ?? null,
     userId: args.userId ?? null,
@@ -168,7 +169,7 @@ export const inboxItemEscalated = (
     throw inboxError('invalid_input', 'occurredAt must be Date')
   return {
     _tag: 'inbox.inbox_item.escalated',
-    eventId: crypto.randomUUID(),
+    eventId: newEventId(),
     correlationId: null,
     propertyId: args.propertyId ?? null,
     userId: args.userId ?? null,
@@ -201,7 +202,7 @@ export const inboxNoteAdded = (
   if (args.text.length === 0) throw inboxError('invalid_input', 'note text required')
   return {
     _tag: 'inbox.inbox_note.added',
-    eventId: crypto.randomUUID(),
+    eventId: newEventId(),
     correlationId: null,
     propertyId: args.propertyId ?? null,
     userId: args.userId ?? null,
@@ -239,7 +240,7 @@ export const inboxItemBulkStatusChanged = (
     )
   return {
     _tag: 'inbox.inbox_item.bulk_status_changed',
-    eventId: crypto.randomUUID(),
+    eventId: newEventId(),
     correlationId: null,
     propertyId: args.propertyId ?? null,
     userId: args.userId ?? null,

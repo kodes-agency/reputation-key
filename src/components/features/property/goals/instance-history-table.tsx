@@ -1,5 +1,5 @@
 import { Badge } from '#/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '#/components/ui/card'
+import { Card, CardContent, CardHeader } from '#/components/ui/card'
 import {
   Table,
   TableBody,
@@ -27,7 +27,7 @@ export function InstanceHistoryTable({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Instance History</CardTitle>
+        <h2 className="font-semibold leading-none">Instance History</h2>
       </CardHeader>
       <CardContent>
         <Table>

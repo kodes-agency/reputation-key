@@ -106,7 +106,7 @@ export function SecuritySettingsForm({ changePassword }: Props) {
         </Card>
       </form>
 
-      <Card className="opacity-60">
+      <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
             <Shield className="size-4 text-muted-foreground" />

@@ -129,4 +129,31 @@ describe('disconnectGoogleAccount', () => {
     const emitted = events.capturedByTag('integration.google_account.disconnected')
     expect(emitted).toHaveLength(1)
   })
+  it('unsubscribes from GBP notifications before revoking the token', async () => {
+    const { connectionRepo, oauth, encryption, cacheRepo, events } = setup()
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+    const connection = buildTestGoogleConnection({ status: 'active' })
+    connectionRepo.seed([connection])
+
+    const order: string[] = []
+    ;(oauth as Record<string, unknown>).revokeToken = async () => {
+      order.push('revoke')
+    }
+    const useCase = disconnectGoogleAccount({
+      connectionRepo,
+      oauth,
+      encryption,
+      cacheRepo,
+      events,
+      clock: () => FIXED_TIME,
+      logger: createMockLogger(),
+      unsubscribeFromNotifications: async () => {
+        order.push('unsubscribe')
+      },
+    })
+
+    await useCase({ connectionId: connection.id as string }, ctx)
+
+    expect(order).toEqual(['unsubscribe', 'revoke'])
+  })
 })

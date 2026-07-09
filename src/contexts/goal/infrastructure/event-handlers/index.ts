@@ -5,10 +5,10 @@
 import type { EventBus } from '#/shared/events/event-bus'
 import type { GoalRepository } from '../../application/ports/goal.repository'
 import type { Goal } from '../../domain/types'
-import type { GoalId, OrganizationId, UserId } from '#/shared/domain/ids'
-import type { Role } from '#/shared/domain/roles'
+import type { GoalId, OrganizationId, PortalId, PortalGroupId } from '#/shared/domain/ids'
 import type { getLogger as getLoggerType } from '#/shared/observability/logger'
-import type { Result } from 'neverthrow'
+import type { Result } from '#/shared/domain'
+import type { SystemCancelReason } from '../../application/use-cases/system-cancel-goal'
 
 import { onMetricRecorded } from './on-metric-recorded'
 import { onPortalDeleted } from './on-portal-deleted'
@@ -16,12 +16,16 @@ import { onPortalGroupDeleted } from './on-portal-group-deleted'
 
 // ── Shared deps for entity removal handlers ───────────────────────────
 
-export type CancelGoalFn = (
+/**
+ * System-initiated goal cancellation — skips the `can()` gate and
+ * property-access self-assignment guard (system actions are not
+ * impersonating a staff member) and carries a tagged `reason` audit marker.
+ */
+export type SystemCancelGoalFn = (
   input: Readonly<{
     goalId: GoalId
     organizationId: OrganizationId
-    userId: UserId
-    role: Role
+    reason: SystemCancelReason
   }>,
 ) => Promise<Result<Goal, unknown>>
 
@@ -29,14 +33,14 @@ export type CancelGoalFn = (
 
 export type RegisterGoalHandlersDeps = Readonly<{
   goalRepo: GoalRepository
-  cancelGoalFn: CancelGoalFn
+  systemCancelGoalFn: SystemCancelGoalFn
   eventBus: EventBus
   clock: () => Date
   getLogger: typeof getLoggerType
   findGroupForPortal: (
-    orgId: import('#/shared/domain/ids').OrganizationId,
-    portalId: import('#/shared/domain/ids').PortalId,
-  ) => Promise<{ portalGroupId: import('#/shared/domain/ids').PortalGroupId } | null>
+    orgId: OrganizationId,
+    portalId: PortalId,
+  ) => Promise<{ portalGroupId: PortalGroupId } | null>
 }>
 
 // ── Registration ──────────────────────────────────────────────────────

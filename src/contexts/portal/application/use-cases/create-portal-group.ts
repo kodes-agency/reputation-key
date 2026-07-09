@@ -8,7 +8,7 @@ import type { EventBus } from '#/shared/events/event-bus'
 import type { PortalGroup, PortalGroupId } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { CreatePortalGroupInput } from '../dto/create-portal-group.dto'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { buildPortalGroup } from '../../domain/constructors'
 import { portalError } from '../../domain/errors'
 import { portalGroupCreated, portalAddedToGroup } from '../../domain/events'
@@ -31,7 +31,7 @@ export const createPortalGroup =
   (deps: CreatePortalGroupDeps) =>
   async (input: CreatePortalGroupInput, ctx: AuthContext): Promise<PortalGroup> => {
     // 1. Authorize
-    if (!can(ctx.role, 'portal.create')) {
+    if (!canForContext(ctx, 'portal.create')) {
       throw portalError('forbidden', 'this role cannot create portal groups')
     }
 
@@ -45,7 +45,12 @@ export const createPortalGroup =
       throw portalError('property_not_found', 'property not found in this organization')
     }
     // Enforce property-assignment scoping for PropertyManager (D6-001.)
-    await assertPropertyAccess(deps.staffPublicApi, ctx, propertyId(input.propertyId))
+    await assertPropertyAccess(
+      deps.staffPublicApi,
+      ctx,
+      'portal.create',
+      propertyId(input.propertyId),
+    )
 
     // 3. Check uniqueness — group name must be unique per org+property
     if (

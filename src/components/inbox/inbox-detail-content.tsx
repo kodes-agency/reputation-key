@@ -10,23 +10,25 @@ import { formatDateTime } from './utils'
 import { getStatusActions } from './inbox-detail-helpers'
 import { InboxDetailSourceContent } from './inbox-detail-source-content'
 import { InboxActivityTimeline } from './inbox-activity-timeline'
-import { updateInboxStatusFn } from '#/contexts/inbox/server/inbox'
+import type { updateInboxStatusFn } from '#/contexts/inbox/server/inbox'
+import type { InboxDetailFns } from './types'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import type {
   InboxItem,
-  InboxItemDetail,
+  InboxItemDetailResult,
   InboxNote,
 } from '#/contexts/inbox/application/public-api'
 import type { useMutationAction } from '#/components/hooks/use-mutation-action'
 
 export type DetailContentProps = Readonly<{
   currentItem: InboxItem
-  detail: InboxItemDetail | null
+  detail: InboxItemDetailResult | null
   statusActions: ReturnType<typeof getStatusActions>
   updateStatus: ReturnType<typeof useMutationAction<typeof updateInboxStatusFn>>
   notes: ReadonlyArray<InboxNote>
   onNoteAdded: () => void
   statusVersion?: number
+  detailFns: InboxDetailFns
 }>
 
 export function InboxDetailContent({
@@ -37,6 +39,7 @@ export function InboxDetailContent({
   notes,
   onNoteAdded,
   statusVersion,
+  detailFns,
 }: DetailContentProps) {
   const { can } = usePermissions()
   const canManageReplies = can('reply.manage')
@@ -87,16 +90,25 @@ export function InboxDetailContent({
       )}
 
       {currentItem.sourceType === 'review' && canManageReplies && (
-        <ReplyEditor reviewId={currentItem.sourceId} />
+        <ReplyEditor
+          reviewId={currentItem.sourceId}
+          initialReply={detail?.reply ?? null}
+          loading={!detail}
+        />
       )}
 
-      <InboxActivityTimeline inboxItemId={currentItem.id} refreshKey={statusVersion} />
+      <InboxActivityTimeline
+        inboxItemId={currentItem.id}
+        refreshKey={statusVersion}
+        getActivityTimeline={detailFns.getActivityTimeline}
+      />
 
       <div className="border-t pt-4">
         <InboxNotesThread
           notes={notes}
           inboxItemId={currentItem.id}
           onNoteAdded={onNoteAdded}
+          addInboxNote={detailFns.addInboxNote}
         />
       </div>
     </div>

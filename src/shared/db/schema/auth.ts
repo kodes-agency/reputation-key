@@ -84,3 +84,32 @@ export const organization = pgTable('organization', {
   billingCountry: text('billingCountry'),
   responseSlaHours: integer('responseSlaHours'),
 })
+
+// Custom role definitions (Better Auth organizationRole). Read-only Drizzle mirror —
+// migrations are managed by `pnpm auth:migrate`, not drizzle-kit. `permission` holds the
+// JSON permission statement ({ resource: action[] }); the app pairs each role with its
+// data_scope via organization_role_policy (dac.schema.ts) to resolve effective permissions.
+export const organizationRole = pgTable('organizationRole', {
+  id: text('id').primaryKey(),
+  organizationId: text('organizationId').notNull(),
+  role: text('role').notNull(),
+  permission: text('permission'),
+  createdAt: timestamp('createdAt').notNull().defaultNow(),
+  updatedAt: timestamp('updatedAt').notNull().defaultNow(),
+})
+
+// Organization invitations (Better Auth). Read-only Drizzle mirror — migrations managed
+// by `pnpm auth:migrate`. `role` is nullable (custom roles); `propertyIds` is a
+// JSON-stringified array consumed on accept. Used by the app-owned acceptInvitation txn.
+export const invitation = pgTable('invitation', {
+  id: text('id').primaryKey(),
+  organizationId: text('organizationId').notNull(),
+  email: text('email').notNull(),
+  role: text('role'),
+  status: text('status').notNull(),
+  expiresAt: timestamp('expiresAt').notNull(),
+  propertyIds: text('propertyIds'),
+  inviterId: text('inviterId'),
+  teamId: text('teamId'),
+  createdAt: timestamp('createdAt').notNull().defaultNow(),
+})

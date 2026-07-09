@@ -38,9 +38,9 @@ export const googleConnections = pgTable(
     updatedAt: updatedAtColumn(),
   },
   (t) => [
-    uniqueIndex('google_connections_org_account_idx').on(
-      t.organizationId,
-      t.googleAccountId,
-    ),
+    // One Google account belongs to exactly one org: GBP's notificationSetting is
+    // per-account, so an account spread across orgs would share one notification
+    // config. Global uniqueness enforces the 1:1 account↔org invariant.
+    uniqueIndex('google_connections_google_account_idx').on(t.googleAccountId),
   ],
 )

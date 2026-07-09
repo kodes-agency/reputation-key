@@ -7,8 +7,8 @@ import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { getContainer } from '#/composition'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
-import { can } from '#/shared/domain/permissions'
-import { isPropertyAccessible } from '#/shared/domain/property-access'
+import { canForContext } from '#/shared/domain/permissions'
+import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getDashboardDataDto } from '../application/dto/dashboard.dto'
 import { propertyId, portalId } from '#/shared/domain/ids'
@@ -35,7 +35,7 @@ export const getDashboardDataFn = createServerFn({ method: 'GET' })
         try {
           const headers = await headersFromContext()
           const ctx = await resolveTenantContext(headers)
-          if (!can(ctx.role, 'dashboard.read')) {
+          if (!canForContext(ctx, 'dashboard.read')) {
             throw makeDashboardError(
               'forbidden',
               'Insufficient permissions to view dashboard',
@@ -44,13 +44,11 @@ export const getDashboardDataFn = createServerFn({ method: 'GET' })
           const { useCases, clock, staffPublicApi } = getContainer()
           // D6-001: non-admin callers may only read their assigned properties.
           if (
-            ctx.role !== 'AccountAdmin' &&
-            !(await isPropertyAccessible(
-              (orgId, uId, role) =>
-                staffPublicApi.getAccessiblePropertyIds(orgId, uId, role),
-              ctx.organizationId,
-              ctx.userId,
-              ctx.role,
+            !(await isPropertyAccessibleForPermission(
+              (orgId, uId, orgWide) =>
+                staffPublicApi.getAccessiblePropertyIds(orgId, uId, orgWide),
+              ctx,
+              'dashboard.read',
               propertyId(data.propertyId),
             ))
           ) {
@@ -58,7 +56,7 @@ export const getDashboardDataFn = createServerFn({ method: 'GET' })
           }
           const { startDate, endDate } = timeRangeToDates(data.timeRange, clock())
 
-          return await useCases.getDashboardData({
+          const dashboard = await useCases.getDashboardData({
             organizationId: ctx.organizationId,
             propertyId: propertyId(data.propertyId),
             portalId: data.portalId ? portalId(data.portalId) : null,
@@ -66,6 +64,25 @@ export const getDashboardDataFn = createServerFn({ method: 'GET' })
             endDate,
             timeRange: data.timeRange,
           })
+
+          // §9: reply-derived fields (replyPerformance aggregates + per-review
+          // replyStatus) must not surface to roles lacking reply.manage (Staff).
+          // dashboard.read is granted to Staff, but the Reply glossary restricts
+          // reply state to PM+ roles. Zero the reply metrics and hide per-review
+          // reply state so a Staff caller (via direct RPC) learns nothing about
+          // the reply workflow. The UI is already gated by property.admin (PM+),
+          // so this only affects direct RPC callers.
+          if (!canForContext(ctx, 'reply.manage')) {
+            return {
+              ...dashboard,
+              replyPerformance: { replyRate: 0, avgReplyHours: null },
+              recentReviews: dashboard.recentReviews.map((review) => ({
+                ...review,
+                replyStatus: 'none' as const,
+              })),
+            }
+          }
+          return dashboard
         } catch (e) {
           if (isDashboardError(e))
             throwContextError('DashboardError', e, dashboardErrorStatus(e.code))

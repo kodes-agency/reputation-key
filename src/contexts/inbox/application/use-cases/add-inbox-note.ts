@@ -3,28 +3,20 @@
 
 import type { InboxRepository } from '../ports/inbox.repository'
 import type { InboxNoteRepository } from '../ports/inbox-note.repository'
-import type {
-  InboxItemId,
-  InboxNoteId,
-  OrganizationId,
-  UserId,
-} from '#/shared/domain/ids'
+import type { InboxItemId, InboxNoteId } from '#/shared/domain/ids'
 import type { InboxNote } from '../../domain/types'
-import type { Role } from '#/shared/domain/roles'
+import type { AuthContext } from '#/shared/domain/auth-context'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { EventBus } from '#/shared/events/event-bus'
 import { createInboxNote } from '../../domain/constructors'
 import { inboxError } from '../../domain/errors'
 import { loadInboxItemOrThrow, assertPropertyAccessible } from '../inbox-access'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { inboxNoteAdded } from '../../domain/events'
 
 export type AddInboxNoteInput = Readonly<{
   inboxItemId: InboxItemId
-  organizationId: OrganizationId
-  userId: UserId
   text: string
-  role: Role
 }>
 
 // fallow-ignore-next-line unused-type
@@ -39,21 +31,20 @@ export type AddInboxNoteDeps = Readonly<{
 
 export const addInboxNote =
   (deps: AddInboxNoteDeps) =>
-  async (input: AddInboxNoteInput): Promise<InboxNote> => {
-    if (!can(input.role, 'inbox.write')) {
+  async (input: AddInboxNoteInput, ctx: AuthContext): Promise<InboxNote> => {
+    if (!canForContext(ctx, 'inbox.write')) {
       throw inboxError('forbidden', 'No inbox write permission')
     }
     // 1. Find item + enforce role-scoped property access
     const item = await loadInboxItemOrThrow(
       deps.repo,
       input.inboxItemId,
-      input.organizationId,
+      ctx.organizationId,
     )
     await assertPropertyAccessible(
       deps.staffPublicApi,
-      input.organizationId,
-      input.userId,
-      input.role,
+      ctx,
+      'inbox.write',
       item.propertyId,
     )
 
@@ -61,8 +52,8 @@ export const addInboxNote =
     const result = createInboxNote({
       id: deps.idGen(),
       inboxItemId: input.inboxItemId,
-      organizationId: input.organizationId,
-      userId: input.userId,
+      organizationId: ctx.organizationId,
+      userId: ctx.userId,
       text: input.text,
       clock: deps.clock,
     })
@@ -74,7 +65,7 @@ export const addInboxNote =
     const note = result.value
 
     // 3. Persist
-    await deps.noteRepo.create(note, input.organizationId)
+    await deps.noteRepo.create(note, ctx.organizationId)
 
     // 4. Emit event
     await deps.events.emit(

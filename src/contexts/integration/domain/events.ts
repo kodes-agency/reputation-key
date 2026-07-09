@@ -1,6 +1,7 @@
 // Integration context — domain events
 // Standards: docs/standards.md §1
 
+import { newEventId } from '#/shared/domain/event-id'
 import type {
   GoogleConnectionId,
   GbpImportJobId,
@@ -21,10 +22,10 @@ export const integrationGoogleAccountConnected = (
   args: Omit<IntegrationGoogleAccountConnected, '_tag' | 'correlationId' | 'eventId'>,
 ): IntegrationGoogleAccountConnected => {
   if (!(args.occurredAt instanceof Date))
-    throw integrationError('invalid_cache_entry', 'occurredAt must be Date')
+    throw integrationError('invalid_event', 'occurredAt must be Date')
   return {
     _tag: 'integration.google_account.connected',
-    eventId: crypto.randomUUID(),
+    eventId: newEventId(),
     correlationId: null,
     ...args,
   }
@@ -42,10 +43,10 @@ export const integrationGoogleAccountDisconnected = (
   args: Omit<IntegrationGoogleAccountDisconnected, '_tag' | 'correlationId' | 'eventId'>,
 ): IntegrationGoogleAccountDisconnected => {
   if (!(args.occurredAt instanceof Date))
-    throw integrationError('invalid_cache_entry', 'occurredAt must be Date')
+    throw integrationError('invalid_event', 'occurredAt must be Date')
   return {
     _tag: 'integration.google_account.disconnected',
-    eventId: crypto.randomUUID(),
+    eventId: newEventId(),
     correlationId: null,
     ...args,
   }
@@ -67,10 +68,10 @@ export const integrationPropertyImportCompleted = (
   args: Omit<IntegrationPropertyImportCompleted, '_tag' | 'correlationId' | 'eventId'>,
 ): IntegrationPropertyImportCompleted => {
   if (!(args.occurredAt instanceof Date))
-    throw integrationError('invalid_cache_entry', 'occurredAt must be Date')
+    throw integrationError('invalid_event', 'occurredAt must be Date')
   return {
     _tag: 'integration.property_import.completed',
-    eventId: crypto.randomUUID(),
+    eventId: newEventId(),
     correlationId: null,
     ...args,
   }
@@ -92,10 +93,10 @@ export const integrationGoogleConnectionVisibilityChanged = (
   >,
 ): IntegrationGoogleConnectionVisibilityChanged => {
   if (!(args.occurredAt instanceof Date))
-    throw integrationError('invalid_cache_entry', 'occurredAt must be Date')
+    throw integrationError('invalid_event', 'occurredAt must be Date')
   return {
     _tag: 'integration.google_connection.visibility_changed',
-    eventId: crypto.randomUUID(),
+    eventId: newEventId(),
     correlationId: null,
     ...args,
   }

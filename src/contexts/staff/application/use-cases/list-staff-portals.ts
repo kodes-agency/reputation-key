@@ -8,7 +8,7 @@ import type { StaffAssignmentRepository } from '../ports/staff-assignment.reposi
 import type { StaffPortalEntry } from '../public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { PortalId, PropertyId, UserId } from '#/shared/domain/ids'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { staffError } from '../../domain/errors'
 
 export type ListStaffPortalsDeps = Readonly<{
@@ -44,7 +44,7 @@ export const listStaffPortals =
   (deps: ListStaffPortalsDeps): ListStaffPortals =>
   async (input, ctx) => {
     // 1. Authorize
-    if (!can(ctx.role, 'staff_assignment.read')) {
+    if (!canForContext(ctx, 'staff_assignment.read')) {
       throw staffError('forbidden', 'No staff assignment read permission')
     }
 

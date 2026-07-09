@@ -19,7 +19,7 @@ Staff assignment management — linking users to properties (directly or via tea
 ## Invariants
 
 - A user cannot assign themselves to a property/team (`validateNotSelfAssignment`).
-- Duplicate assignments (same user + property + team) are forbidden (`already_assigned` error).
+- Duplicate assignments (same user + property + team + portal) are forbidden (`already_assigned` error). Portal-scoped rows are intentionally distinct from property-level rows (no team/portal).
 - Only PM+ roles can create/remove assignments (enforced by centralized permission system).
 
 ## Events produced

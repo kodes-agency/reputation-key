@@ -21,7 +21,7 @@ export const scanEvents = pgTable(
     organizationId: varchar('organization_id', { length: 255 }).notNull(),
     portalId: uuid('portal_id')
       .notNull()
-      .references(() => portals.id),
+      .references(() => portals.id, { onDelete: 'restrict' }),
     propertyId: varchar('property_id', { length: 255 }).notNull(),
     source: varchar('source', { length: 10 }).notNull(),
     sessionId: varchar('session_id', { length: 255 }).notNull(),
@@ -41,7 +41,7 @@ export const ratings = pgTable(
     organizationId: varchar('organization_id', { length: 255 }).notNull(),
     portalId: uuid('portal_id')
       .notNull()
-      .references(() => portals.id),
+      .references(() => portals.id, { onDelete: 'restrict' }),
     propertyId: varchar('property_id', { length: 255 }).notNull(),
     sessionId: varchar('session_id', { length: 255 }).notNull(),
     value: integer('value').notNull(),
@@ -65,10 +65,10 @@ export const feedback = pgTable(
     organizationId: varchar('organization_id', { length: 255 }).notNull(),
     portalId: uuid('portal_id')
       .notNull()
-      .references(() => portals.id),
+      .references(() => portals.id, { onDelete: 'restrict' }),
     propertyId: varchar('property_id', { length: 255 }).notNull(),
     sessionId: varchar('session_id', { length: 255 }).notNull(),
-    ratingId: uuid('rating_id').references(() => ratings.id),
+    ratingId: uuid('rating_id').references(() => ratings.id, { onDelete: 'set null' }),
     comment: text('comment').notNull(),
     source: varchar('source', { length: 10 }).notNull(),
     ipHash: text('ip_hash').notNull(),

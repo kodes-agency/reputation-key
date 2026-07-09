@@ -4,10 +4,10 @@ import type {
   Pagination,
 } from '../ports/activity-repository.port'
 import type { ActivityLog } from '../domain/types'
-import type { Role } from '#/shared/domain/roles'
+import type { AuthContext } from '#/shared/domain/auth-context'
+import type { PropertyId } from '#/shared/domain/ids'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
-import { can } from '#/shared/domain/permissions'
-import type { OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
+import { canForContext } from '#/shared/domain/permissions'
 
 /** Filter entries to only those within the user's accessible properties.
  *  null accessiblePropertyIds = Admin → see everything.
@@ -25,9 +25,6 @@ export const filterByPropertyAccess = (
 }
 
 type GetOrgActivityInput = Readonly<{
-  organizationId: OrganizationId
-  userId: UserId
-  role: Role
   propertyId?: PropertyId
   limit?: number
   offset?: number
@@ -40,39 +37,46 @@ type GetOrgActivityDeps = Readonly<{
 
 export const getOrgActivity =
   (deps: GetOrgActivityDeps) =>
-  async (input: GetOrgActivityInput): Promise<readonly ActivityLog[]> => {
+  async (
+    input: GetOrgActivityInput,
+    ctx: AuthContext,
+  ): Promise<readonly ActivityLog[]> => {
     const pagination: Pagination = {
       limit: input.limit ?? 50,
       offset: input.offset ?? 0,
     }
 
-    // ACT-004: Use 'organization.update' (AccountAdmin-only) instead of
-    // 'inbox.manage' (AccountAdmin + PropertyManager) — matching
-    // get-activity-timeline.ts (F120). Only AccountAdmin bypasses property
-    // scoping for the org-wide activity feed.
-    if (can(input.role, 'organization.update')) {
+    // Org-wide bypass mirrors the original action check (organization.update) — PM holds
+    // it and sees the full feed; Staff (and assigned-scoped callers) are scoped.
+    let entries: readonly ActivityLog[]
+    if (canForContext(ctx, 'organization.update')) {
       const filter: ActivityFilter = input.propertyId
         ? { propertyId: input.propertyId }
         : {}
-      return deps.repo.findByOrganization(input.organizationId, filter, pagination)
+      entries = await deps.repo.findByOrganization(ctx.organizationId, filter, pagination)
+    } else {
+      const accessiblePropertyIds = await deps.staffPublicApi.getAccessiblePropertyIds(
+        ctx.organizationId,
+        ctx.userId,
+        false,
+      )
+
+      if (accessiblePropertyIds !== null && accessiblePropertyIds.length > 0) {
+        const filter: ActivityFilter = input.propertyId
+          ? { propertyId: input.propertyId }
+          : { propertyIds: accessiblePropertyIds }
+        entries = await deps.repo.findByOrganization(
+          ctx.organizationId,
+          filter,
+          pagination,
+        )
+      } else {
+        entries = []
+      }
     }
 
-    // PM/Staff: scope to accessible properties
-    const accessiblePropertyIds = await deps.staffPublicApi.getAccessiblePropertyIds(
-      input.organizationId,
-      input.userId,
-      input.role,
-    )
-
-    // ACT-010: push property-access scoping into SQL (propertyId IN accessible
-    // OR propertyId IS NULL) instead of in-memory filter-then-slice. This
-    // preserves correct pagination without an expanded-limit fetch.
-    if (accessiblePropertyIds !== null && accessiblePropertyIds.length > 0) {
-      const filter: ActivityFilter = input.propertyId
-        ? { propertyId: input.propertyId }
-        : { propertyIds: accessiblePropertyIds }
-      return deps.repo.findByOrganization(input.organizationId, filter, pagination)
-    }
-
-    return []
+    // §9: strip reply-workflow rows for callers lacking reply.manage.
+    return canForContext(ctx, 'reply.manage')
+      ? entries
+      : entries.filter((e) => e.resourceType !== 'reply')
   }

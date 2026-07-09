@@ -8,7 +8,7 @@ import { InboxBulkActions } from '#/components/inbox/inbox-bulk-actions'
 import { EmptyState } from '#/components/ui/empty-state'
 import { Skeleton } from '#/components/ui/skeleton'
 import { Button } from '#/components/ui/button'
-import { bulkUpdateInboxStatusFn } from '#/contexts/inbox/server/inbox'
+import type { bulkUpdateInboxStatusFn } from '#/contexts/inbox/server/inbox'
 import { Inbox, Loader2 } from 'lucide-react'
 import type { ReactNode, RefObject } from 'react'
 

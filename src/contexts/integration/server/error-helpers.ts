@@ -17,8 +17,14 @@ export const integrationErrorStatus = (code: IntegrationErrorCode): number =>
       'invalid_visibility',
       'encryption_error',
       'invalid_cache_entry',
+      'invalid_event',
       () => 400,
     )
     .with('gbp_api_rate_limited', () => 429)
-    .with('connection_disconnected', 'connection_inactive', () => HTTP_STATUS.CONFLICT)
+    .with(
+      'connection_disconnected',
+      'connection_inactive',
+      'account_already_connected',
+      () => HTTP_STATUS.CONFLICT,
+    )
     .exhaustive()

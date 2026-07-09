@@ -9,12 +9,12 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import type { UserId, PropertyId, PortalId } from '#/shared/domain/ids'
 import type { StaffAssignment } from '../../domain/types'
 import type { StaffPublicApi } from '../public-api'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { hasRole } from '#/shared/domain/roles'
 import { staffError } from '../../domain/errors'
 import { staffAssigned, staffUnassigned } from '../../domain/events'
 import { buildStaffAssignment } from '../../domain/constructors'
-import { isPropertyAccessible } from '#/shared/domain/property-access'
+import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
 import { staffAssignmentId } from '#/shared/domain/ids'
 
 // fallow-ignore-next-line unused-type
@@ -42,20 +42,19 @@ export const updateStaffPortals =
   ): Promise<{ added: number; removed: number }> => {
     // 1. Authorize — update is create + delete combined
     if (
-      !can(ctx.role, 'staff_assignment.create') ||
-      !can(ctx.role, 'staff_assignment.delete')
+      !canForContext(ctx, 'staff_assignment.create') ||
+      !canForContext(ctx, 'staff_assignment.delete')
     ) {
       throw staffError('forbidden', 'this role cannot manage staff assignments')
     }
 
     // 1b. Property-access scoping (D6-001):
     // AccountAdmin bypasses; PropertyManager/Staff must be assigned to the target property.
-    const accessible = await isPropertyAccessible(
-      (orgId, uId, role) =>
-        deps.staffPublicApi.getAccessiblePropertyIds(orgId, uId, role),
-      ctx.organizationId,
-      ctx.userId,
-      ctx.role,
+    const accessible = await isPropertyAccessibleForPermission(
+      (orgId, uId, orgWide) =>
+        deps.staffPublicApi.getAccessiblePropertyIds(orgId, uId, orgWide),
+      ctx,
+      'staff_assignment.create',
       input.propertyId,
     )
     if (!accessible) {

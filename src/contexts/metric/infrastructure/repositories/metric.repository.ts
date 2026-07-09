@@ -38,7 +38,10 @@ function readingFromRow(row: typeof metricReadings.$inferSelect) {
   })
 }
 
-export const createMetricRepository = (db: Database): MetricRepository => ({
+export const createMetricRepository = (
+  db: Database,
+  clock: () => Date,
+): MetricRepository => ({
   insertReading: async (reading) => {
     return trace('metric.insertReading', async () => {
       const result = await db
@@ -86,14 +89,13 @@ export const createMetricRepository = (db: Database): MetricRepository => ({
         conditions.push(lte(metricReadings.occurredAt, query.periodEnd))
       }
       // F118: rollingWindowDays overrides periodEnd — compute rolling start
-      // from NOW() and use it as the sole lower-bound (replaces periodEnd).
+      // from the injected Clock (NOT DB NOW()) so seeded/simulated scenarios
+      // produce time-stable results (ADR 0017 / ADR 0019).
       if (query.rollingWindowDays) {
-        conditions.push(
-          gte(
-            metricReadings.occurredAt,
-            sql`NOW() - INTERVAL '1 day' * ${query.rollingWindowDays}`,
-          ),
+        const windowStart = new Date(
+          clock().getTime() - query.rollingWindowDays * 24 * 60 * 60 * 1000,
         )
+        conditions.push(gte(metricReadings.occurredAt, windowStart))
       }
 
       const row = await db

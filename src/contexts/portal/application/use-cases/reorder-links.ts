@@ -4,7 +4,7 @@ import type { PortalLinkRepository } from '../ports/portal-link.repository'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { portalLinkReordered } from '../../domain/events'
 import type { EventBus } from '#/shared/events/event-bus'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { portalError } from '../../domain/errors'
 import { portalId, portalLinkId, portalLinkCategoryId } from '#/shared/domain/ids'
 import type { PortalRepository } from '../ports/portal.repository'
@@ -31,7 +31,7 @@ export const reorderLinks =
   (deps: ReorderLinksDeps) =>
   async (input: ReorderLinksInput, ctx: AuthContext): Promise<void> => {
     // 1. Authorize
-    if (!can(ctx.role, 'portal.update')) {
+    if (!canForContext(ctx, 'portal.update')) {
       throw portalError('forbidden', 'this role cannot reorder portal links')
     }
     // Enforce property-assignment scoping (D6-001.)
@@ -39,6 +39,7 @@ export const reorderLinks =
       deps.portalRepo,
       deps.staffPublicApi,
       ctx,
+      'portal.update',
       portalId(input.portalId),
     )
 

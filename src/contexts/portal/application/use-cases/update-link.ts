@@ -5,7 +5,7 @@ import type { PortalLink } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { portalError } from '../../domain/errors'
 import { validateLinkLabel, isValidExternalUrl } from '../../domain/rules'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { portalLinkId } from '#/shared/domain/ids'
 import type { PortalRepository } from '../ports/portal.repository'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
@@ -31,7 +31,7 @@ export const updateLink =
   (deps: UpdateLinkDeps) =>
   async (input: UpdateLinkInput, ctx: AuthContext): Promise<PortalLink> => {
     // 1. Authorize
-    if (!can(ctx.role, 'portal.update')) {
+    if (!canForContext(ctx, 'portal.update')) {
       throw portalError('forbidden', 'this role cannot update portal links')
     }
 
@@ -47,6 +47,7 @@ export const updateLink =
       deps.portalRepo,
       deps.staffPublicApi,
       ctx,
+      'portal.update',
       existing.portalId,
     )
 

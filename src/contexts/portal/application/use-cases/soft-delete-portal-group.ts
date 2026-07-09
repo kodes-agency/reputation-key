@@ -3,7 +3,7 @@
 
 import type { PortalGroupRepository } from '../ports/portal-group.repository'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { portalError } from '../../domain/errors'
 import { portalGroupDeleted } from '../../domain/events'
 import type { EventBus } from '#/shared/events/event-bus'
@@ -22,7 +22,7 @@ export type SoftDeletePortalGroupDeps = Readonly<{
 export const softDeletePortalGroup =
   (deps: SoftDeletePortalGroupDeps) =>
   async (input: { portalGroupId: string }, ctx: AuthContext): Promise<void> => {
-    if (!can(ctx.role, 'portal.delete')) {
+    if (!canForContext(ctx, 'portal.delete')) {
       throw portalError('forbidden', 'this role cannot delete portal groups')
     }
 
@@ -32,7 +32,12 @@ export const softDeletePortalGroup =
       throw portalError('group_not_found', 'portal group not found in this organization')
     }
     // Enforce property-assignment scoping (D6-001.)
-    await assertPropertyAccess(deps.staffPublicApi, ctx, existing.propertyId)
+    await assertPropertyAccess(
+      deps.staffPublicApi,
+      ctx,
+      'portal.delete',
+      existing.propertyId,
+    )
 
     await deps.portalGroupRepo.softDelete(ctx.organizationId, gid)
 

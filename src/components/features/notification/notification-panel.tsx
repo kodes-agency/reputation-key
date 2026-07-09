@@ -11,6 +11,7 @@ import {
   useMarkAllNotificationsRead,
   useDismissNotification,
 } from './notification-queries'
+import type { NotificationServerFns } from './types'
 import { getNotificationUrl } from './notification-utils'
 import { NotificationPopoverContent } from './notification-popover-content'
 import type { Notification } from '#/contexts/notification/application/public-api'
@@ -46,10 +47,12 @@ function NotificationAriaLive({ count }: Readonly<{ count: number }>) {
 }
 
 // Owns panel state + mutation handlers so the component stays declarative.
-function useNotificationPanel() {
+function useNotificationPanel(notificationFns: NotificationServerFns) {
   const [open, setOpen] = useState(false)
   const navigate = useNavigate()
-  const { count, refetch: refetchCount } = useUnreadNotificationCount()
+  const { count, refetch: refetchCount } = useUnreadNotificationCount(
+    notificationFns.getUnreadCount,
+  )
   const {
     notifications,
     isLoading,
@@ -58,10 +61,10 @@ function useNotificationPanel() {
     hasMore,
     refetch: refetchList,
     loadMore,
-  } = useNotifications(20)
-  const markRead = useMarkNotificationRead()
-  const markAllRead = useMarkAllNotificationsRead()
-  const dismiss = useDismissNotification()
+  } = useNotifications(notificationFns.getList, 20)
+  const markRead = useMarkNotificationRead(notificationFns.markRead)
+  const markAllRead = useMarkAllNotificationsRead(notificationFns.markAllRead)
+  const dismiss = useDismissNotification(notificationFns.dismiss)
 
   const refresh = () => Promise.all([refetchList(), refetchCount()])
 
@@ -109,8 +112,10 @@ function useNotificationPanel() {
   }
 }
 
-export function NotificationPanel() {
-  const panel = useNotificationPanel()
+export function NotificationPanel({
+  notificationFns,
+}: Readonly<{ notificationFns: NotificationServerFns }>) {
+  const panel = useNotificationPanel(notificationFns)
 
   return (
     <Popover open={panel.open} onOpenChange={panel.handleOpenChange}>

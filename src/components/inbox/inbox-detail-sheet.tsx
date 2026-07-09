@@ -13,6 +13,7 @@ import type { InboxItem } from '#/contexts/inbox/application/public-api'
 import { getStatusActions } from './inbox-detail-helpers'
 import { InboxStatusBadge } from './inbox-status-badge'
 import type { InboxDetailState } from './use-inbox-detail'
+import type { InboxDetailFns } from './types'
 import { Button } from '#/components/ui/button'
 
 type Props = Readonly<{
@@ -20,9 +21,16 @@ type Props = Readonly<{
   onOpenChange: (open: boolean) => void
   item: InboxItem | null
   detailState: InboxDetailState
+  detailFns: InboxDetailFns
 }>
 
-export function InboxDetailSheet({ open, onOpenChange, item, detailState }: Props) {
+export function InboxDetailSheet({
+  open,
+  onOpenChange,
+  item,
+  detailState,
+  detailFns,
+}: Props) {
   if (!item) return null
 
   const currentItem = detailState.currentItem ?? item
@@ -54,7 +62,9 @@ export function InboxDetailSheet({ open, onOpenChange, item, detailState }: Prop
               Retry
             </Button>
           </div>
-        ) : detailState.isLoading || !detailState.currentItem ? (
+        ) : detailState.isLoading ||
+          !detailState.currentItem ||
+          detailState.detail?.item.id !== detailState.currentItem.id ? (
           <div className="space-y-4 p-4">
             <Skeleton className="h-6 w-3/4" />
             <Skeleton className="h-20 w-full" />
@@ -67,8 +77,9 @@ export function InboxDetailSheet({ open, onOpenChange, item, detailState }: Prop
             statusActions={statusActions}
             updateStatus={detailState.updateStatus}
             notes={detailState.notes}
-            onNoteAdded={detailState.refresh}
+            onNoteAdded={detailState.onNoteAdded}
             statusVersion={detailState.statusVersion}
+            detailFns={detailFns}
           />
         )}
       </SheetContent>

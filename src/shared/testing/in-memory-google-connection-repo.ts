@@ -1,7 +1,10 @@
 // In-memory GoogleConnectionRepository fake — for use in use case tests.
 // Implements the same port interface so use cases can't tell the difference.
 
-import type { GoogleConnectionRepository, ConnectionVisibilityFilter } from '#/contexts/integration/application/ports/google-connection.repository'
+import type {
+  GoogleConnectionRepository,
+  ConnectionVisibilityFilter,
+} from '#/contexts/integration/application/ports/google-connection.repository'
 import type { GoogleConnection } from '#/contexts/integration/domain/types'
 import type { OrganizationId } from '#/shared/domain/ids'
 
@@ -27,6 +30,14 @@ export const createInMemoryGoogleConnectionRepo = (): InMemoryGoogleConnectionRe
     findByGoogleAccountId: async (orgId, googleAccountId) => {
       for (const connection of store.values()) {
         if (byOrg(orgId)(connection) && connection.googleAccountId === googleAccountId) {
+          return connection
+        }
+      }
+      return null
+    },
+    findByGoogleAccountIdGlobal: async (googleAccountId) => {
+      for (const connection of store.values()) {
+        if (connection.googleAccountId === googleAccountId) {
           return connection
         }
       }

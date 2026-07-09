@@ -11,8 +11,15 @@ import {
 } from '#/shared/domain/ids'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { PropertyId } from '#/shared/domain/ids'
+import type { AuthContext } from '#/shared/domain/auth-context'
+import type { Role } from '#/shared/domain/roles'
 
 const FIXED_TIME = new Date('2026-06-15T12:00:00Z')
+const ORG_ID = organizationId('org-1')
+const USER_ID = userId('user-1')
+const ctxFor = (role: Role): AuthContext =>
+  ({ organizationId: ORG_ID, userId: USER_ID, role }) as AuthContext
+
 const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublicApi => ({
   getAccessiblePropertyIds: async () => accessible,
   getAssignedPortals: async () => [],
@@ -171,12 +178,10 @@ describe('cancelGoal', () => {
       const goal = makeGoal()
       const fakes = createFakeDeps({ storedGoals: [goal] })
 
-      const result = await cancelGoal(fakes.deps)({
-        goalId: goalId('goal-1'),
-        organizationId: organizationId('org-1'),
-        userId: userId('user-1'),
-        role: 'Staff',
-      })
+      const result = await cancelGoal(fakes.deps)(
+        { goalId: goalId('goal-1') },
+        ctxFor('Staff'),
+      )
 
       expect(result.isErr()).toBe(true)
       const error = result._unsafeUnwrapErr()
@@ -190,12 +195,10 @@ describe('cancelGoal', () => {
       const goal = makeGoal()
       const fakes = createFakeDeps({ storedGoals: [goal] })
 
-      const result = await cancelGoal(fakes.deps)({
-        goalId: goalId('goal-1'),
-        organizationId: organizationId('org-1'),
-        userId: userId('user-1'),
-        role: 'AccountAdmin',
-      })
+      const result = await cancelGoal(fakes.deps)(
+        { goalId: goalId('goal-1') },
+        ctxFor('AccountAdmin'),
+      )
 
       expect(result.isOk()).toBe(true)
       expect(result._unsafeUnwrap().status).toBe('cancelled')
@@ -205,12 +208,10 @@ describe('cancelGoal', () => {
       const goal = makeGoal()
       const fakes = createFakeDeps({ storedGoals: [goal] })
 
-      const result = await cancelGoal(fakes.deps)({
-        goalId: goalId('goal-1'),
-        organizationId: organizationId('org-1'),
-        userId: userId('user-1'),
-        role: 'PropertyManager',
-      })
+      const result = await cancelGoal(fakes.deps)(
+        { goalId: goalId('goal-1') },
+        ctxFor('PropertyManager'),
+      )
 
       expect(result.isOk()).toBe(true)
       expect(result._unsafeUnwrap().status).toBe('cancelled')
@@ -223,12 +224,10 @@ describe('cancelGoal', () => {
       const goal = makeGoal()
       const fakes = createFakeDeps({ storedGoals: [goal] }, [])
 
-      const result = await cancelGoal(fakes.deps)({
-        goalId: goalId('goal-1'),
-        organizationId: organizationId('org-1'),
-        userId: userId('user-1'),
-        role: 'PropertyManager',
-      })
+      const result = await cancelGoal(fakes.deps)(
+        { goalId: goalId('goal-1') },
+        ctxFor('PropertyManager'),
+      )
 
       expect(result.isErr()).toBe(true)
       expect(result._unsafeUnwrapErr().tag).toBe('forbidden')
@@ -241,12 +240,10 @@ describe('cancelGoal', () => {
       const goal = makeGoal()
       const fakes = createFakeDeps({ storedGoals: [goal] }, [propertyId('prop-1')])
 
-      const result = await cancelGoal(fakes.deps)({
-        goalId: goalId('goal-1'),
-        organizationId: organizationId('org-1'),
-        userId: userId('user-1'),
-        role: 'PropertyManager',
-      })
+      const result = await cancelGoal(fakes.deps)(
+        { goalId: goalId('goal-1') },
+        ctxFor('PropertyManager'),
+      )
 
       expect(result.isOk()).toBe(true)
       expect(result._unsafeUnwrap().status).toBe('cancelled')
@@ -257,12 +254,10 @@ describe('cancelGoal', () => {
     const goal = makeGoal()
     const fakes = createFakeDeps({ storedGoals: [goal] })
 
-    const result = await cancelGoal(fakes.deps)({
-      goalId: goalId('goal-1'),
-      organizationId: organizationId('org-1'),
-      userId: userId('user-1'),
-      role: 'AccountAdmin',
-    })
+    const result = await cancelGoal(fakes.deps)(
+      { goalId: goalId('goal-1') },
+      ctxFor('AccountAdmin'),
+    )
 
     expect(result.isOk()).toBe(true)
     const cancelled = result._unsafeUnwrap()
@@ -276,12 +271,10 @@ describe('cancelGoal', () => {
     })
     const fakes = createFakeDeps({ storedGoals: [goal] })
 
-    const result = await cancelGoal(fakes.deps)({
-      goalId: goalId('goal-1'),
-      organizationId: organizationId('org-1'),
-      userId: userId('user-1'),
-      role: 'AccountAdmin',
-    })
+    const result = await cancelGoal(fakes.deps)(
+      { goalId: goalId('goal-1') },
+      ctxFor('AccountAdmin'),
+    )
 
     expect(result.isOk()).toBe(true)
     const cancelled = result._unsafeUnwrap()
@@ -293,12 +286,10 @@ describe('cancelGoal', () => {
     const goal = makeGoal({ status: 'cancelled' })
     const fakes = createFakeDeps({ storedGoals: [goal] })
 
-    const result = await cancelGoal(fakes.deps)({
-      goalId: goalId('goal-1'),
-      organizationId: organizationId('org-1'),
-      userId: userId('user-1'),
-      role: 'AccountAdmin',
-    })
+    const result = await cancelGoal(fakes.deps)(
+      { goalId: goalId('goal-1') },
+      ctxFor('AccountAdmin'),
+    )
 
     expect(result.isErr()).toBe(true)
     const error = result._unsafeUnwrapErr()
@@ -309,12 +300,10 @@ describe('cancelGoal', () => {
     const goal = makeGoal({ status: 'completed' })
     const fakes = createFakeDeps({ storedGoals: [goal] })
 
-    const result = await cancelGoal(fakes.deps)({
-      goalId: goalId('goal-1'),
-      organizationId: organizationId('org-1'),
-      userId: userId('user-1'),
-      role: 'AccountAdmin',
-    })
+    const result = await cancelGoal(fakes.deps)(
+      { goalId: goalId('goal-1') },
+      ctxFor('AccountAdmin'),
+    )
 
     expect(result.isErr()).toBe(true)
     const error = result._unsafeUnwrapErr()
@@ -324,12 +313,10 @@ describe('cancelGoal', () => {
   it('returns err when goal is not found', async () => {
     const fakes = createFakeDeps()
 
-    const result = await cancelGoal(fakes.deps)({
-      goalId: goalId('nonexistent'),
-      organizationId: organizationId('org-1'),
-      userId: userId('user-1'),
-      role: 'AccountAdmin',
-    })
+    const result = await cancelGoal(fakes.deps)(
+      { goalId: goalId('nonexistent') },
+      ctxFor('AccountAdmin'),
+    )
 
     expect(result.isErr()).toBe(true)
     const error = result._unsafeUnwrapErr()

@@ -12,7 +12,7 @@ export default tseslint.config(
       '**/dist/**',
       '**/.output/**',
       '**/dist-worker/**',
-      '**/drizzle/**',
+      '**/storybook-static/**',
       '**/node_modules/**',
       '**/.a5c/**',
       '**/.agents/**',
@@ -489,11 +489,15 @@ export default tseslint.config(
       'src/components/features/team/team-members/team-member-list.tsx',
       'src/components/layout/manager-sidebar.tsx',
       'src/components/layout/staff-sidebar.tsx',
+      // Story files are fixtures (many variants), not components — not subject to the monolith limit.
+      'src/**/*.stories.tsx',
+      'src/**/*.stories.ts',
     ],
     files: ['src/components/**/*.{ts,tsx}'],
     rules: {
-      // Max file length to prevent monolith components
-      'max-lines': ['error', { max: 150, skipBlankLines: true, skipComments: true }],
+      // Max file length to prevent monolith components. 200 (not 150): JSX is
+      // verbose, and normal list/dashboard pages legitimately run 150–190 lines.
+      'max-lines': ['error', { max: 200, skipBlankLines: true, skipComments: true }],
     },
   },
 )

@@ -45,7 +45,7 @@ function LoginPage() {
       <div className="mt-2 text-right">
         <Link
           to="/reset-password"
-          className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+          className="text-sm font-medium text-link underline-offset-4 hover:underline"
         >
           Forgot password?
         </Link>

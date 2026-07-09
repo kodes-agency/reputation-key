@@ -12,6 +12,13 @@ export type SubmitRatingDeps = Readonly<{
   events: EventBus
   idGen: () => RatingId
   clock: () => Date
+  /**
+   * Window (seconds) for ipHash-based abuse dedup. A single source IP may not
+   * rate the same portal more than once within this window — guards against
+   * cookie-rotation flooding while staying short enough to avoid over-blocking
+   * shared NATs (cafés, offices).
+   */
+  ipDedupWindowSeconds: number
 }>
 
 export type SubmitRatingInput = Readonly<{
@@ -33,6 +40,20 @@ export const submitRating =
       input.portalId,
     )
     if (alreadyRated) {
+      throw guestError('duplicate_rating', 'You have already rated this portal')
+    }
+
+    // Abuse-detection guard: a client that rotates the guest_session cookie
+    // gets a fresh sessionId (and thus bypasses hasRated + the session/portal
+    // unique constraint) on every request. Reject when the same source IP has
+    // already rated this portal within the dedup window.
+    const ipDuplicate = await deps.guestRepo.hasRatedByIpWithin(
+      input.organizationId,
+      input.ipHash,
+      input.portalId,
+      deps.ipDedupWindowSeconds,
+    )
+    if (ipDuplicate) {
       throw guestError('duplicate_rating', 'You have already rated this portal')
     }
 

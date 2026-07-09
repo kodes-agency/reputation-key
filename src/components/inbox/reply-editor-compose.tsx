@@ -29,7 +29,7 @@ export function ReplyCompose({
   return (
     <div className="space-y-3 border-t pt-4">
       <div className="flex items-center gap-2">
-        <h4 className="text-sm font-medium">Reply</h4>
+        <h2 className="text-sm font-medium">Reply</h2>
         {onDelete && <Badge variant="secondary">Draft</Badge>}
       </div>
       <Textarea

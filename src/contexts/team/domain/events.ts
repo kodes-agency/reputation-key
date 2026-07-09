@@ -1,6 +1,7 @@
 // Team context — domain events
 // Standards: docs/standards.md §1
 
+import { newEventId } from '#/shared/domain/event-id'
 import { assert } from '#/shared/domain/assert'
 import type { TeamId } from './types'
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
@@ -21,7 +22,7 @@ export const teamCreated = (
   assert(args.occurredAt instanceof Date, 'occurredAt must be a Date')
   return {
     _tag: 'team.created',
-    eventId: crypto.randomUUID(),
+    eventId: newEventId(),
     correlationId: null,
     ...args,
   }
@@ -43,7 +44,7 @@ export const teamUpdated = (
   assert(args.occurredAt instanceof Date, 'occurredAt must be a Date')
   return {
     _tag: 'team.updated',
-    eventId: crypto.randomUUID(),
+    eventId: newEventId(),
     correlationId: null,
     ...args,
   }
@@ -64,7 +65,7 @@ export const teamDeleted = (
   assert(args.occurredAt instanceof Date, 'occurredAt must be a Date')
   return {
     _tag: 'team.deleted',
-    eventId: crypto.randomUUID(),
+    eventId: newEventId(),
     correlationId: null,
     ...args,
   }

@@ -104,6 +104,7 @@ export function PublicPortalContent({
                       key={link.id}
                       href={`/api/public/click/${link.id}`}
                       className="block p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+                      style={{ color: 'inherit' }}
                     >
                       {link.label}
                     </a>

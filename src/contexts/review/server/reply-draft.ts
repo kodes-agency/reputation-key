@@ -9,7 +9,7 @@ import { resolveTenantContext } from '#/shared/auth/middleware'
 import { isReviewError } from '../domain/errors'
 import { reviewId } from '#/shared/domain/ids'
 import { reviewErrorStatus, reviewIdDto, draftReplyDto } from './reply-read'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 
 // ── draftReply ───────────────────────────────────────────────────────
 
@@ -20,7 +20,7 @@ export const draftReplyFn = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'reply.manage')) {
+        if (!canForContext(ctx, 'reply.manage')) {
           throwContextError(
             'AuthError',
             { code: 'unauthorized', message: 'No reply manage permission' },
@@ -29,13 +29,10 @@ export const draftReplyFn = createServerFn({ method: 'POST' })
         }
         const { useCases } = getContainer()
         try {
-          return await useCases.draftReply({
-            reviewId: reviewId(data.reviewId),
-            organizationId: ctx.organizationId,
-            text: data.text,
-            userId: ctx.userId,
-            role: ctx.role,
-          })
+          return await useCases.draftReply(
+            { reviewId: reviewId(data.reviewId), text: data.text },
+            ctx,
+          )
         } catch (e) {
           if (isReviewError(e))
             throwContextError('ReviewError', e, reviewErrorStatus(e.code))
@@ -56,7 +53,7 @@ export const submitReplyFn = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'reply.manage')) {
+        if (!canForContext(ctx, 'reply.manage')) {
           throwContextError(
             'AuthError',
             { code: 'unauthorized', message: 'No reply manage permission' },
@@ -65,12 +62,7 @@ export const submitReplyFn = createServerFn({ method: 'POST' })
         }
         const { useCases } = getContainer()
         try {
-          return await useCases.submitReply({
-            reviewId: reviewId(data.reviewId),
-            organizationId: ctx.organizationId,
-            userId: ctx.userId,
-            role: ctx.role,
-          })
+          return await useCases.submitReply({ reviewId: reviewId(data.reviewId) }, ctx)
         } catch (e) {
           if (isReviewError(e))
             throwContextError('ReviewError', e, reviewErrorStatus(e.code))
@@ -91,7 +83,7 @@ export const approveReplyFn = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'reply.manage')) {
+        if (!canForContext(ctx, 'reply.manage')) {
           throwContextError(
             'AuthError',
             { code: 'unauthorized', message: 'No reply manage permission' },
@@ -100,12 +92,7 @@ export const approveReplyFn = createServerFn({ method: 'POST' })
         }
         const { useCases } = getContainer()
         try {
-          return await useCases.approveReply({
-            reviewId: reviewId(data.reviewId),
-            organizationId: ctx.organizationId,
-            userId: ctx.userId,
-            role: ctx.role,
-          })
+          return await useCases.approveReply({ reviewId: reviewId(data.reviewId) }, ctx)
         } catch (e) {
           if (isReviewError(e))
             throwContextError('ReviewError', e, reviewErrorStatus(e.code))

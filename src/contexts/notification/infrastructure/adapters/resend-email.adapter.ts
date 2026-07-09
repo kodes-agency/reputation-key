@@ -3,12 +3,8 @@
 import { Resend } from 'resend'
 import { getEnv } from '#/shared/config/env'
 import { getLogger } from '#/shared/observability/logger'
-
-function maskEmail(email: string): string {
-  const [local, domain] = email.split('@')
-  if (!local || !domain) return '***'
-  return `${local.slice(0, 1)}***@${domain}`
-}
+import { maskEmail } from '#/shared/observability/pii'
+import { notificationError } from '../../domain/errors'
 
 export const createResendEmailAdapter = () => {
   let resend: Resend | undefined
@@ -38,7 +34,13 @@ export const createResendEmailAdapter = () => {
           { error, toPrefix: maskEmail(params.to), subject: params.subject },
           `Failed to send email: ${params.subject}`,
         )
-        throw new Error(`Failed to send email: ${error.message}`)
+        throw notificationError(
+          'email_send_failed',
+          'Email provider rejected the message',
+          {
+            subject: params.subject,
+          },
+        )
       }
 
       logger.info(

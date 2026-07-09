@@ -15,7 +15,7 @@ const JWKS_CACHE_TTL = 24 * 60 * 60 * 1000 // 24 hours
 
 const getJwks = () => {
   const now = Date.now()
-  if (!jwks || (now - jwksCreatedAt) > JWKS_CACHE_TTL) {
+  if (!jwks || now - jwksCreatedAt > JWKS_CACHE_TTL) {
     jwks = createRemoteJWKSet(new URL(JWKS_URI))
     jwksCreatedAt = now
   }
@@ -37,13 +37,18 @@ export const verifyPubSubJwt = async (
   const { payload } = await jwtVerify(token, getJwks(), {
     issuer: GOOGLE_ISSUER,
     audience: expectedAudience,
+    // Pin RS256 (Google JWKS keys are RS256) — defends against algorithm-confusion.
+    algorithms: ['RS256'],
     clockTolerance: '30s',
+    // Bound replay to the token lifetime (Pub/Sub push tokens are short-lived).
+    // Full messageId-dedupe is the handler's responsibility; this caps the window.
+    maxTokenAge: '300s',
   })
 
   return {
     sub: payload.sub ?? '',
-    email: payload.email as string ?? '',
-    aud: payload.aud as string ?? '',
+    email: (payload.email as string) ?? '',
+    aud: (payload.aud as string) ?? '',
     iat: payload.iat ?? 0,
     exp: payload.exp ?? 0,
   }

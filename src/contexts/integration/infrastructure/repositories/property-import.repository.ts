@@ -55,4 +55,14 @@ export const createPropertyImportRepository = (
       return propertyApi.existsByGbpPlaceId(toOrgId(organizationId), gbpPlaceId)
     })
   },
+
+  countByGoogleConnectionId: async (organizationId, connectionId) => {
+    return trace('propertyImport.countByGoogleConnectionId', async () => {
+      const ids = await propertyApi.findIdsByGoogleConnection(
+        toConnId(connectionId),
+        toOrgId(organizationId),
+      )
+      return ids.length
+    })
+  },
 })

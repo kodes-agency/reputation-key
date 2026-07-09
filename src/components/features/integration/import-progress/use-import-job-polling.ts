@@ -7,7 +7,7 @@ import type {
   GbpImportJob,
   GbpImportJobStatus,
 } from '#/contexts/integration/application/public-api'
-import { getImportStatus } from '#/contexts/integration/server/gbp-import'
+import type { getImportStatus } from '#/contexts/integration/server/gbp-import'
 
 const POLL_INTERVAL_MS = 2000
 const MAX_CONSECUTIVE_ERRORS = 5
@@ -25,6 +25,7 @@ function isTerminalStatus(status: GbpImportJobStatus): boolean {
 export function useImportJobPolling(
   importId: string,
   initialJob: GbpImportJob,
+  getJobStatus: typeof getImportStatus,
 ): Readonly<{ job: GbpImportJob; error: Error | null }> {
   const [job, setJob] = useState<GbpImportJob>(initialJob)
   const [error, setError] = useState<Error | null>(null)
@@ -39,7 +40,7 @@ export function useImportJobPolling(
 
     const intervalId = setInterval(async () => {
       try {
-        const result = await getImportStatus({ data: { importId } })
+        const result = await getJobStatus({ data: { importId } })
         if (result.job) {
           statusRef.current = result.job.status
           setJob(result.job)

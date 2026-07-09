@@ -50,7 +50,7 @@ export const registerNotificationHandlers = (
   events.on('review.reply.published', onReplyPublished({ queue }))
   events.on('review.reply.publish_failed', onReplyPublishFailed({ queue }))
   // Goal events
-  events.on('goal.completed', onGoalCompleted({ queue }))
+  events.on('goal.completed', onGoalCompleted({ queue, userLookup, logger }))
 
   // Badge events
   events.on('badge.awarded', onBadgeAwarded({ queue, userLookup, logger }))

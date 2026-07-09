@@ -5,7 +5,6 @@ import { listProperties } from './list-properties'
 import { createInMemoryPropertyRepo } from '#/shared/testing/in-memory-property-repo'
 import { buildTestAuthContext, buildTestProperty } from '#/shared/testing/fixtures'
 import type { PropertyId, OrganizationId, UserId } from '#/shared/domain/ids'
-import type { Role } from '#/shared/domain/roles'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 
 /** Create a staffApi stub that returns null for AccountAdmin, specific IDs otherwise. */
@@ -15,9 +14,9 @@ const createTestStaffApi = (
   getAccessiblePropertyIds: async (
     _orgId: OrganizationId,
     userId: UserId,
-    role: Role,
+    orgWide: boolean,
   ) => {
-    if (role === 'AccountAdmin') return null // all accessible
+    if (orgWide) return null // all accessible
     return assignments.get(userId as string) ?? []
   },
   getAssignedPortals: async () => [],

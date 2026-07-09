@@ -6,7 +6,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { useServerFn } from '@tanstack/react-start'
 import { useAction } from '#/components/hooks/use-action'
 import { useMutationActionSilent } from '#/components/hooks/use-mutation-action'
-import {
+import type {
   getUnreadNotificationCountFn,
   getNotificationsFn,
   markNotificationReadFn,
@@ -19,8 +19,10 @@ import type { Notification } from '#/contexts/notification/application/public-ap
 
 const POLL_INTERVAL = 30_000
 
-export function useUnreadNotificationCount() {
-  const rawAction = useAction(useServerFn(getUnreadNotificationCountFn))
+export function useUnreadNotificationCount(
+  getUnreadCount: typeof getUnreadNotificationCountFn,
+) {
+  const rawAction = useAction(useServerFn(getUnreadCount))
   const [count, setCount] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const actionRef = useRef(rawAction)
@@ -49,8 +51,8 @@ export function useUnreadNotificationCount() {
 
 // ── Notification list ───────────────────────────────────────────────
 
-export function useNotifications(limit = 20) {
-  const rawAction = useAction(useServerFn(getNotificationsFn))
+export function useNotifications(getList: typeof getNotificationsFn, limit = 20) {
+  const rawAction = useAction(useServerFn(getList))
   const [notifications, setNotifications] = useState<readonly Notification[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
@@ -111,18 +113,20 @@ export function useNotifications(limit = 20) {
 
 // ── Mark single notification read ───────────────────────────────────
 
-export function useMarkNotificationRead() {
-  return useMutationActionSilent(markNotificationReadFn)
+export function useMarkNotificationRead(markRead: typeof markNotificationReadFn) {
+  return useMutationActionSilent(markRead)
 }
 
 // ── Mark all notifications read ─────────────────────────────────────
 
-export function useMarkAllNotificationsRead() {
-  return useMutationActionSilent(markAllNotificationsReadFn)
+export function useMarkAllNotificationsRead(
+  markAllRead: typeof markAllNotificationsReadFn,
+) {
+  return useMutationActionSilent(markAllRead)
 }
 
 // ── Dismiss notification ────────────────────────────────────────────
 
-export function useDismissNotification() {
-  return useMutationActionSilent(dismissNotificationFn)
+export function useDismissNotification(dismiss: typeof dismissNotificationFn) {
+  return useMutationActionSilent(dismiss)
 }

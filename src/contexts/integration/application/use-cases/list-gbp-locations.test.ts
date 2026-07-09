@@ -12,6 +12,7 @@ import {
 } from '#/shared/testing/fixtures'
 import { isIntegrationError } from '../../domain/errors'
 import { createGbpApiError } from '../../domain/gbp-api-error'
+import type { GbpApiErrorKind } from '../../domain/gbp-api-error'
 import type { PropertyPublicApi } from '#/contexts/property/application/public-api'
 
 const FIXED_NOW = new Date('2026-06-01T12:00:00Z')
@@ -48,7 +49,14 @@ const setup = () => {
     encryption,
     clock: () => FIXED_NOW,
     refreshGoogleToken,
-    logger: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {}, trace: () => {}, fatal: () => {} } as never,
+    logger: {
+      info: () => {},
+      warn: () => {},
+      error: () => {},
+      debug: () => {},
+      trace: () => {},
+      fatal: () => {},
+    } as never,
     propertyApi,
   }
   const useCase = listGbpLocations(deps)
@@ -86,13 +94,14 @@ const createAccount = (name: string, overrides: Record<string, string> = {}) => 
   ...overrides,
 })
 
-/** Predicate: true when the value is a GbpApiError with the given HTTP status. */
-const isGbpApiErrorWithStatus = (expectedStatus: number) => (e: unknown) =>
-  typeof e === 'object' &&
-  e !== null &&
-  '_tag' in e &&
-  (e as unknown as { _tag: string })._tag === 'GbpApiError' &&
-  (e as unknown as { status: number }).status === expectedStatus
+/** Predicate: true when the value is a GbpApiError with the given domain kind. */
+const isGbpApiErrorWithKind =
+  (expectedKind: GbpApiErrorKind) =>
+  (e: unknown): boolean => {
+    if (typeof e !== 'object' || e === null || !('_tag' in e) || !('kind' in e))
+      return false
+    return e._tag === 'GbpApiError' && e.kind === expectedKind
+  }
 
 // --- Tests -------------------------------------------------------------------
 
@@ -222,10 +231,10 @@ describe('listGbpLocations', () => {
       gbpPlaceId: 'ChIJ-wildcard-retry',
       businessName: 'Wildcard Biz',
     })
-    // listAccounts throws a 500 (retryable) → falls back to wildcard
+    // listAccounts throws an upstream error (retryable) → falls back to wildcard
     gbpApi.setError(
       'listAccounts',
-      createGbpApiError('listAccounts', 500, 'Server Error'),
+      createGbpApiError('listAccounts', 'upstream_error', 'Server Error'),
     )
     gbpApi.setLocations('-', [wildcardLoc])
 
@@ -237,47 +246,50 @@ describe('listGbpLocations', () => {
     expect(result[0].gbpPlaceId).toBe('ChIJ-wildcard-retry')
   })
 
-  it('propagates non-retryable GbpApiError (401)', async () => {
+  it('propagates non-retryable GbpApiError (auth_failed)', async () => {
     const { useCase, connectionRepo, gbpApi } = setup()
     const { ctx, conn } = seedActiveConnection({ connectionRepo })
 
     gbpApi.setError(
       'listAccounts',
-      createGbpApiError('listAccounts', 401, 'Unauthorized'),
+      createGbpApiError('listAccounts', 'auth_failed', 'Unauthorized'),
     )
 
     await withFixedNow(async () => {
       await expect(useCase({ connectionId: conn.id as string }, ctx)).rejects.toSatisfy(
-        isGbpApiErrorWithStatus(401),
+        isGbpApiErrorWithKind('auth_failed'),
       )
     })
   })
 
-  it('propagates non-retryable GbpApiError (403)', async () => {
-    const { useCase, connectionRepo, gbpApi } = setup()
-    const { ctx, conn } = seedActiveConnection({ connectionRepo })
-
-    gbpApi.setError('listAccounts', createGbpApiError('listAccounts', 403, 'Forbidden'))
-
-    await withFixedNow(async () => {
-      await expect(useCase({ connectionId: conn.id as string }, ctx)).rejects.toSatisfy(
-        isGbpApiErrorWithStatus(403),
-      )
-    })
-  })
-
-  it('propagates non-retryable GbpApiError (429)', async () => {
+  it('propagates non-retryable GbpApiError (permission_denied)', async () => {
     const { useCase, connectionRepo, gbpApi } = setup()
     const { ctx, conn } = seedActiveConnection({ connectionRepo })
 
     gbpApi.setError(
       'listAccounts',
-      createGbpApiError('listAccounts', 429, 'Rate Limited'),
+      createGbpApiError('listAccounts', 'permission_denied', 'Forbidden'),
     )
 
     await withFixedNow(async () => {
       await expect(useCase({ connectionId: conn.id as string }, ctx)).rejects.toSatisfy(
-        isGbpApiErrorWithStatus(429),
+        isGbpApiErrorWithKind('permission_denied'),
+      )
+    })
+  })
+
+  it('propagates non-retryable GbpApiError (rate_limited)', async () => {
+    const { useCase, connectionRepo, gbpApi } = setup()
+    const { ctx, conn } = seedActiveConnection({ connectionRepo })
+
+    gbpApi.setError(
+      'listAccounts',
+      createGbpApiError('listAccounts', 'rate_limited', 'Rate Limited'),
+    )
+
+    await withFixedNow(async () => {
+      await expect(useCase({ connectionId: conn.id as string }, ctx)).rejects.toSatisfy(
+        isGbpApiErrorWithKind('rate_limited'),
       )
     })
   })
@@ -317,16 +329,31 @@ describe('listGbpLocations', () => {
       gbpApi,
       encryption,
       clock: () => FIXED_NOW,
-      refreshGoogleToken: async () => { throw new Error('not used') },
-      logger: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {}, trace: () => {}, fatal: () => {} } as never,
+      refreshGoogleToken: async () => {
+        throw new Error('not used')
+      },
+      logger: {
+        info: () => {},
+        warn: () => {},
+        error: () => {},
+        debug: () => {},
+        trace: () => {},
+        fatal: () => {},
+      } as never,
       propertyApi,
     }
     const useCase = listGbpLocations(deps)
 
     const { ctx, conn } = seedActiveConnection({ connectionRepo })
 
-    const imported = buildTestGbpLocation({ gbpPlaceId: 'ChIJ-already-imported', businessName: 'Imported Biz' })
-    const fresh = buildTestGbpLocation({ gbpPlaceId: 'ChIJ-fresh', businessName: 'Fresh Biz' })
+    const imported = buildTestGbpLocation({
+      gbpPlaceId: 'ChIJ-already-imported',
+      businessName: 'Imported Biz',
+    })
+    const fresh = buildTestGbpLocation({
+      gbpPlaceId: 'ChIJ-fresh',
+      businessName: 'Fresh Biz',
+    })
 
     gbpApi.setAccounts([])
     gbpApi.setLocations('-', [imported, fresh])

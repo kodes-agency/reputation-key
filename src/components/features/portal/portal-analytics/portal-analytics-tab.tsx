@@ -2,13 +2,12 @@
 
 import { useState, useEffect } from 'react'
 import { useServerFn } from '@tanstack/react-start'
-import { getPortalAnalyticsFn } from '#/contexts/dashboard/server/portal-analytics'
-import type { PortalAnalyticsData } from '#/contexts/dashboard/server/portal-analytics'
-import {
-  TIME_RANGE_OPTIONS,
-  type TimeRangePreset,
-} from '#/contexts/dashboard/application/dto/dashboard.dto'
-import { Tabs, TabsList, TabsTrigger } from '#/components/ui/tabs'
+import type {
+  PortalAnalyticsData,
+  getPortalAnalyticsFn,
+} from '#/contexts/dashboard/server/portal-analytics'
+import type { TimeRangePreset } from '#/contexts/dashboard/application/dto/dashboard.dto'
+import { TimeRangePicker } from './portal-analytics-time-range-picker'
 import { KPICard } from '#/components/features/property/property-dashboard-helpers'
 import { ScanLine, Star, MessageCircle, MousePointerClick, BarChart3 } from 'lucide-react'
 import {
@@ -21,11 +20,12 @@ import {
 type Props = Readonly<{
   portalId: string
   propertyId: string
+  getPortalAnalytics: typeof getPortalAnalyticsFn
 }>
 
 const TIME_RANGE_KEY = 'portal-analytics-time-range'
 
-export function PortalAnalyticsTab({ portalId, propertyId }: Props) {
+export function PortalAnalyticsTab({ portalId, propertyId, getPortalAnalytics }: Props) {
   const [timeRange, setTimeRange] = useState<TimeRangePreset>(() => {
     if (typeof window === 'undefined') return 'all'
     return (localStorage.getItem(TIME_RANGE_KEY) as TimeRangePreset) ?? 'all'
@@ -34,7 +34,7 @@ export function PortalAnalyticsTab({ portalId, propertyId }: Props) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const analyticsFn = useServerFn(getPortalAnalyticsFn)
+  const analyticsFn = useServerFn(getPortalAnalytics)
 
   useEffect(() => {
     localStorage.setItem(TIME_RANGE_KEY, timeRange)
@@ -140,28 +140,6 @@ export function PortalAnalyticsTab({ portalId, propertyId }: Props) {
           </ChartCard>
         )}
       </div>
-    </div>
-  )
-}
-
-function TimeRangePicker({
-  timeRange,
-  onChange,
-}: {
-  timeRange: TimeRangePreset
-  onChange: (v: string) => void
-}) {
-  return (
-    <div className="flex justify-end">
-      <Tabs value={timeRange} onValueChange={onChange} className="min-w-0 shrink-0">
-        <TabsList className="flex-wrap">
-          {TIME_RANGE_OPTIONS.map((opt) => (
-            <TabsTrigger key={opt.value} value={opt.value} className="text-xs">
-              {opt.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-      </Tabs>
     </div>
   )
 }

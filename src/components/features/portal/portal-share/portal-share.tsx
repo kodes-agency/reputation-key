@@ -37,7 +37,12 @@ export function PortalShare({ portalSlug, propertySlug }: Props) {
             <Copy className="size-3.5" />
             {copied ? 'Copied!' : 'Copy'}
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setQrOpen(true)}>
+          <Button
+            variant="outline"
+            size="sm"
+            aria-label="Show QR code"
+            onClick={() => setQrOpen(true)}
+          >
             <QrCode className="size-3.5" />
           </Button>
         </div>

@@ -59,6 +59,20 @@ const envSchema = z.object({
 
   // Google Pub/Sub webhook audience verification (optional — defaults to /webhooks/gbp path)
   GBP_PUBSUB_AUDIENCE: z.string().optional(),
+  // GBP Pub/Sub notification lifecycle (ADR-deferred item #2). One shared topic; empty
+  // = notifications disabled (manage-notifications no-ops). `business.manage` covers
+  // updateNotificationSetting; topic/subscription/grant are GCP infra, not app code.
+  GBP_PUBSUB_TOPIC: z.string().optional().default(''),
+  // Comma-separated GBP notification types to subscribe to (default: NEW_REVIEW only).
+  GBP_PUBSUB_NOTIFICATION_TYPES: z.string().default('NEW_REVIEW'),
+  // Dynamic Access Control — Stage 1 safety gate (ADR 0001).
+  // 'true' enables the custom-role model (Stage 2 dynamic resolver). Absent or any
+  // other value = false. Parsed as string→bool to avoid z.coerce.boolean()'s
+  // Boolean("false") === true pitfall.
+  ENABLE_CUSTOM_ROLES: z
+    .string()
+    .optional()
+    .transform((v) => v?.toLowerCase() === 'true'),
 })
 
 // fallow-ignore-next-line unused-type

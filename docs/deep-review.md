@@ -8,12 +8,13 @@ A set of review prompts covering the codebase end-to-end. Each prompt is self-co
 2. **Scope the review.** Pass the prompt one directory at a time (one bounded context, one feature, one PR diff). Whole-repo passes dilute findings.
 3. **Demand evidence.** Every finding must cite `path:line` and quote a short snippet. Reject any finding that cannot.
 4. **Severity discipline.** Use the four-level scheme defined in the shared rubric below; do not invent new severities.
+5. **Pre-read gate.** If any file listed under "Pre-read" is missing or unreadable, say so and STOP — do not review against an assumed `CONTEXT.md`. A stale pre-read silently degrades the whole review.
 
 ---
 
 ## Shared rubric (paste into any prompt that doesn't redefine it)
 
-```
+````
 Severity:
   BLOCKER   — Violates an explicit rule in CONTEXT.md, breaks a layer
               boundary, leaks tenants/secrets, or is a correctness bug.
@@ -41,7 +42,13 @@ Hard constraints on the reviewer:
   - If the diff/scope is empty or unreadable, say so and stop.
   - End with a one-paragraph summary: counts per severity + the single
     most important thing to fix first.
-```
+  - Mark each finding `[ran]` (you reproduced it — ran the test, build,
+    story, or MCP tool) or `[static]` (read-only inference). Do not dress
+    an inference up as a confirmed bug.
+  - If a finding also violates another prompt's rules, tag it
+    `[also: §N]` (e.g. `[also: §11]` for multi-tenancy) so a sweep can
+    dedupe across prompts.
+````
 
 ---
 
@@ -67,7 +74,7 @@ Hard constraints on the reviewer:
 >
 > 1. `domain/` imports nothing from `application/`, `infrastructure/`, `server/`, `routes/`, `components/`, `shared/auth/`, or any framework (React, TanStack, better-auth, Drizzle/Prisma, GCP SDKs, fetch).
 > 2. `application/` imports nothing from `infrastructure/`, `server/`, `routes/`, or `components/`. It may import `domain/` and `shared/domain/`.
-> 3. `infrastructure/` imports `domain/` and `application/` *only* to implement ports. It does not import other contexts' `infrastructure/`.
+> 3. `infrastructure/` imports `domain/` and `application/` _only_ to implement ports. It does not import other contexts' `infrastructure/`.
 > 4. `server/` files are thin: they validate input, resolve the tenant/auth context, instantiate or receive a use case, call it, map the result. No business rules in `server/`.
 > 5. Cross-context calls must go through a published application API of the target context — never reach into another context's `domain/` or `infrastructure/`.
 > 6. The only place that wires concrete adapters to ports is `src/composition.ts`. Use cases never `new` an infrastructure class.
@@ -342,6 +349,29 @@ Hard constraints on the reviewer:
 > - Inconsistent component naming (`UserCard` vs `userCard.tsx`).
 >
 > End with: components reviewed, top 3 with most findings, and a list of any prop interfaces that smell like leaked server concerns.
+>
+> **Storybook — component verification (this project's component test surface):**
+>
+> Stories are co-located as `*.stories.tsx` next to the component and run as tests via the `storybook` vitest project (headless Chromium) plus `@storybook/addon-a11y`. They are not decoration — they are the component test.
+>
+> **BLOCKER:**
+>
+> - A non-presentational component (state, error, loading, validation, or permission-gated UI) with no co-located `*.stories.tsx`.
+> - A story that value-imports from `#/contexts/*/server/**` (enforced by `scripts/check-component-boundaries.mjs`; `import type` is the only allowed form — needed for `Action`/`mutation` prop typing).
+> - A story that calls a real server function or raw `fetch` instead of constructing a mock `Action`/`useServerFn` wrapper with controllable `isPending`/`error`/`isSuccess` (canonical pattern: `makeAction` in `src/components/features/identity/login/login-form.stories.tsx`).
+>
+> **MAJOR:**
+>
+> - A story file rendering only the happy-path variant — must cover `idle / pending / error / validation-failure / success` for any component that has those states.
+> - A component needing router/auth context whose story re-declares providers instead of using `RouterDecorator` / `AuthedRouterDecorator` from `.storybook/`.
+> - A story whose `play` function asserts on implementation details (private method calls) instead of observable DOM (`userEvent` + `expect` from `storybook/test`).
+> - A story reaching for a server-leaking module not covered by a `.storybook/stubs/*` alias in `.storybook/main.ts` `viteFinal` — that is a preview crash waiting to happen.
+>
+> **MINOR:**
+>
+> - Story title not namespaced by feature (`Identity/LoginForm`, not `LoginForm`); missing `tags: ['autodocs']`.
+>
+> End with the component table extended: `component | has story? | covers 5 states? | a11y clean (addon-a11y)? | play function?`.
 
 ---
 
@@ -357,11 +387,11 @@ Hard constraints on the reviewer:
 >
 > **The three APIs and where each is allowed:**
 >
-> | API | Allowed only in |
-> |---|---|
-> | `can(role, permission)` | Server functions, route `beforeLoad` guards |
-> | `usePermissions()` | React components |
-> | `hasRole(role, requiredRole)` | Sidebar visibility, domain hierarchy rules |
+> | API                           | Allowed only in                             |
+> | ----------------------------- | ------------------------------------------- |
+> | `can(role, permission)`       | Server functions, route `beforeLoad` guards |
+> | `usePermissions()`            | React components                            |
+> | `hasRole(role, requiredRole)` | Sidebar visibility, domain hierarchy rules  |
 >
 > **Forbidden, per CONTEXT.md:**
 >
@@ -369,19 +399,20 @@ Hard constraints on the reviewer:
 > 2. Using `hasRole()` for permission checks — only for hierarchy.
 > 3. Calling `toDomainRole()` on an already-mapped domain role — `resolveTenantContext()` already returns domain roles.
 >
-> Review `<SCOPE>` and flag every breach as **BLOCKER**.
+> Review `<SCOPE>`. The three forbidden API misuses above (boolean perm props, `hasRole()` for gating, `toDomainRole()` on a mapped role) are **MAJOR** convention drift — **BLOCKER** only when the misuse is the sole authorization on a path (i.e. no effective server-side check exists behind it).
 >
-> **Also BLOCKER:**
+> **BLOCKER (authz bypass / data exposure — these are security bugs):**
 >
-> - Permission strings hard-coded as bare literals (`'portal.create'`) instead of referencing the permission constant/enum in `shared/auth/permissions.ts`.
-> - A role check that uses string equality (`role === 'AccountAdmin'`) when a permission would express intent (`can(role, 'role.manage')`). Roles are who you are; permissions are what you can do.
 > - PropertyManager actions on a property that do not verify a `staff_assignment` for that property. Per CONTEXT.md: "PropertyManagers only manage assigned properties." Quote the file/line and confirm an assignment lookup precedes the mutation.
 > - Replies surfaced to Staff role anywhere in the UI or API. CONTEXT.md: "Only PM+ roles can manage replies; Staff cannot view or manage them."
 > - AccountAdmin-only operations (anything under `ac.*`, including role management) accessible by lower roles.
 > - Permission check on the client without a matching server-side check. The client-side check is an affordance, never a guard.
 >
-> **MAJOR:**
+> **MAJOR (convention / hygiene — fix fast, not a vuln):**
 >
+> - Permission strings hard-coded as bare literals (`'portal.create'`) instead of referencing the permission constant/enum in `shared/auth/permissions.ts`.
+> - A role check that uses string equality (`role === 'AccountAdmin'`) when a permission would express intent (`can(role, 'role.manage')`). Roles are who you are; permissions are what you can do.
+> - The three forbidden API misuses (boolean perm props / `hasRole()` for gating / `toDomainRole()` on a mapped role) when a server-side check does backstop them.
 > - Permission added in `shared/auth/permissions.ts` but no role grants it (dead permission), or granted to a role with no use case enforcing it.
 > - New permission introduced without an ADR note when it crosses an existing role boundary (e.g. giving Staff a write permission).
 > - `AuthContext` constructed anywhere outside `resolveTenantContext()`.
@@ -591,11 +622,125 @@ Hard constraints on the reviewer:
 > - Inconsistent `describe`/`it` phrasing.
 > - Helpers in the same file as tests when a sibling `__fixtures__` would serve.
 >
+> **Component tests live in Storybook (cross-ref §8):**
+>
+> - A component with state, error, loading, validation, or permission-gated UI and no co-located `*.stories.tsx` is a BLOCKER — stories _are_ the component test surface here.
+> - A story file rendering only the happy path (no `idle / pending / error / validation / success` variants where the component has those states) is MAJOR.
+> - A story `play` function is the interaction test; it runs in the `storybook` vitest project (headless Chromium). A component with logic and no `play` function is MAJOR.
+> - a11y findings come from `@storybook/addon-a11y` via `run-story-tests` (or `pnpm test:storybook`), not reviewer opinion. Unresolved violations are MAJOR; BLOCKER when color or interaction is the sole signal.
+> - Do NOT flag "missing vitest unit test for component X" — that is intentionally covered by the story. Only flag if the story is missing or shallow.
+>
+> **Testing infrastructure (cross-ref ADR 0019, root `CONTEXT.md` "Key Files"):**
+>
+> - BLOCKER: a claimed "invariant enforced" (per §3) that is not exercised by a test in `src/shared/testing/invariants/` — the invariant harness is the authority, not the reviewer's say-so.
+> - BLOCKER: the simulation harness (`simulation-container.ts`, `in-memory-queue.ts`, `scenario/builder.ts`, `scripts/seed.ts`) changed without a test that the simulation still produces deterministic outputs (clock, queue, ids all injected).
+> - MAJOR: a new testing helper in `src/shared/testing/` with no test of its own and no consumer in the same PR — dead test infra.
+>
 > End with: a layer-by-layer coverage estimate (domain / application / infra / server / route / component) for the scope, and a list of the three code paths most urgently needing tests.
 
 ---
 
-# 16. Per-Context Deep Dive (template — instantiate per context)
+# 16. Schema & Migrations
+
+**When to run:** every PR adding a table/column/index, or touching a migration or a tenant-owned table.
+
+**Pre-read:** root `CONTEXT.md` (Architecture, Client/Server Boundary), `src/shared/CONTEXT.md`, the project's migration directory convention.
+
+**Prompt:**
+
+> Review the schema changes and migrations in `<SCOPE>`. Flag:
+>
+> **BLOCKER:**
+>
+> - A new tenant-owned table without an `organizationId` (or equivalent scoping) column. [also: §11]
+> - A migration that is not idempotent — re-running it must not throw or double-apply (`IF NOT EXISTS` / guards on data backfills).
+> - A destructive migration (`DROP`, a type `ALTER` that loses data, a column removal) without a reversible companion migration or a documented backfill plan.
+> - A `NOT NULL` column added to a non-empty table without a default or a backfill step.
+> - SQL string interpolation with user input in any migration or repo query. Parameterized only.
+>
+> **MAJOR:**
+>
+> - Missing index on the tenant column, or on any column used in a `WHERE`/`ORDER BY`/`JOIN` of a hot query. Enumerate the access patterns and call out the missing index.
+> - Foreign key without an explicit `ON DELETE`/`ON UPDATE` policy — the default is silent and usually wrong; pick `CASCADE`/`RESTRICT`/`SET NULL` deliberately and say why.
+> - A status/state column typed as free `string`/`text` when the domain defines a finite set (Reply, InboxItem statuses per ADR 0004) — use a checked enum or a constraint.
+> - A generated/derived column whose formula drifts from the domain rule that computes the same value in code.
+> - A column the domain invariant requires but the schema leaves nullable.
+> - A type change on a zero-downtime path without a two-step expand/contract plan (add new → backfill → switch reads → drop old).
+>
+> **MINOR:**
+>
+> - Inconsistent naming between the migration file, the table, and the entity.
+> - Migration filename not monotonic with merge order.
+>
+> End with: tables changed, per-table `(tenant-scoped? | index coverage | FK policy | idempotent migration? | reversible?)`, and any access pattern with no supporting index.
+
+---
+
+# 17. Composition Root & Bootstrap
+
+**When to run:** every PR touching `src/composition.ts`, `src/bootstrap.ts`, or adding/renaming a port or adapter; on any PR that wires a new context.
+
+**Pre-read:** root `CONTEXT.md` (Architecture, Key Files), `src/contexts/CONTEXT.md`, ADR 0018 (injectable container).
+
+**Prompt:**
+
+> The composition root (`src/composition.ts`) is the _only_ place concrete adapters are bound to ports; bootstrap (`src/bootstrap.ts`) owns startup order. Review `<SCOPE>` and flag:
+>
+> **BLOCKER:**
+>
+> - A use case, server function, or route that `new`s an infrastructure adapter directly instead of receiving it via the composition root. (Restate of §1 rule 6 — cite the specific call site.)
+> - A port bound to two concrete adapters in the same scope (ambiguous resolution), or a port with no binding that is resolved at runtime.
+> - Bootstrap performing side effects at import time (top-level `await`, module-scope `init()`/`connect()` calls). Side effects begin in an explicit `start()`/`bootstrap()` entry point.
+> - Bootstrap order that violates a real dependency (cache started after the first read, migrations not run before traffic). State the required order and quote the line that breaks it.
+>
+> **MAJOR:**
+>
+> - A new port added in domain/application with no adapter wired in `composition.ts`, or an adapter written but never bound.
+> - Lifecycle mismatch: an adapter holding a connection/pool with no teardown registered with bootstrap.
+> - The composition root branching on `process.env.NODE_ENV` in a way that hides a production adapter from the test/sim harness — wire via the injectable container (ADR 0018) instead.
+>
+> **MINOR:**
+>
+> - Adapter bindings not grouped by context in the composition file.
+>
+> End with: a binding table — `port | adapter | bound in composition.ts? | lifecycle (create/teardown) | used by which use cases`. Flag any port with no adapter or any adapter with no binding.
+
+---
+
+# 18. Shared Infrastructure (`shared/`)
+
+**When to run:** every PR touching anything under `src/shared/` (auth, cache, db, jobs, observability, domain, testing). Changes here have repo-wide blast radius.
+
+**Pre-read:** `src/shared/CONTEXT.md`, root `CONTEXT.md` (Client/Server Boundary, Key Files), ADR 0015 (import protection), ADR 0017/0018/0019 (injectable clock/container, simulation harness).
+
+**Prompt:**
+
+> `shared/` is depended on by every context; a regression here is a regression everywhere. Review `<SCOPE>` and flag:
+>
+> **BLOCKER:**
+>
+> - A change to `shared/domain/permissions.ts` or `shared/domain/roles.ts` that alters what a role can do, without an ADR note and without updating every call site of `can()`/`usePermissions()`/`hasRole()`. [also: §9]
+> - A change to `shared/auth/middleware.ts` (`resolveTenantContext`, tenant cache) that changes the `AuthContext` shape or cache TTL without updating every consumer.
+> - A change to `shared/observability/traced-server-fn.ts` that drops canonical span attributes or breaks the wrapper contract relied on by §6's 7-step shape.
+> - New code under `shared/` that imports a framework or a concrete context's internals — `shared/` depends inward only on `shared/domain`.
+> - Server-only code (Node builtins, `pg`, `drizzle-orm`, `bullmq`) newly reachable from a client bundle path. [also: root CONTEXT.md Client/Server Boundary; ADR 0015]
+> - A cache key or TTL change in `shared/cache` without considering cross-tenant leakage (key must include `organizationId`). [also: §11]
+>
+> **MAJOR:**
+>
+> - A public export added/removed from `shared/` without updating the barrel and every importer — list the importers.
+> - A change to the simulation/testing harness (`shared/testing/*`) that changes the determinism contract (clock, ids, queue) without updating tests that rely on it. [also: ADR 0019, §15]
+> - A helper duplicated between `shared/` and a context's local code — the shared version is canonical.
+>
+> **MINOR:**
+>
+> - Inconsistent error-translation policy at a `shared/` boundary.
+>
+> End with: the `shared/` modules changed, and for each, every consuming context/file. Any module whose change is not reflected in a consumer is a top-priority fix.
+
+---
+
+# 19. Per-Context Deep Dive (template — instantiate per context)
 
 **When to run:** ahead of a release that materially changes a single bounded context, or when onboarding to that context.
 
@@ -612,7 +757,7 @@ Hard constraints on the reviewer:
 > 3. **Ports vs adapters** — for each port, name the adapter(s); flag ports without adapters and adapters without bindings in `composition.ts`.
 > 4. **Server functions** — for each, verify the 7-step shape from the Server Functions prompt.
 > 5. **Routes / loaders / mutations** — verify guards and key consistency.
-> 6. **Components specific to this context** — verify they use `usePermissions()` and not boolean prop drilling.
+> 6. **Components specific to this context** — verify they use `usePermissions()` and not boolean prop drilling; verify each feature component has a co-located `*.stories.tsx` covering its states, with `play` functions that exercise the permission-gated paths (cross-ref §8, §9).
 > 7. **Cross-context interactions** — list each, classify as `via application API` / `via domain event` / `direct import (BLOCKER)`.
 > 8. **ADR compliance** — for each ADR that names this context, quote the rule and confirm the code complies; flag drift.
 >
@@ -631,7 +776,7 @@ Hard constraints on the reviewer:
 
 ---
 
-# 17. ADR & Documentation Compliance
+# 20. ADR & Documentation Compliance
 
 **When to run:** monthly, and whenever an ADR is added or amended.
 
@@ -646,6 +791,8 @@ Hard constraints on the reviewer:
 > - A rule stated in any `CONTEXT.md` or ADR that the code violates. Quote the rule, cite the violating file.
 > - An ADR marked "Accepted" whose decision is not reflected anywhere in the code.
 > - Two `CONTEXT.md` files contradicting each other.
+> - No ADR exists for a load-bearing frontend testing decision: "stories are the component test surface" and the `.storybook/stubs/*` server-leak stubbing strategy (stubs exist because real server modules crash the browser preview — rationale currently only in `.storybook/main.ts` code comments). Cite the ADR if it exists; absent → BLOCKER, require one.
+> - Root `CONTEXT.md` "Key Files" omits Storybook-critical entries: `.storybook/main.ts`, `scripts/check-component-boundaries.mjs`, and the story-test command (`pnpm test:storybook` / `run-story-tests`). Doc drift — flag it.
 >
 > **MAJOR:**
 >
@@ -665,9 +812,10 @@ Hard constraints on the reviewer:
 
 ## Suggested cadence
 
-| Cadence | Prompts to run |
-|---|---|
-| Every PR | 1 (if cross-layer), the layer prompt(s) for changed files, 9 (if auth/permission touched), 14, 15 |
-| Weekly | 1, 2, 11 as sweeps |
-| Per release | 16 for any context with significant change, 17 |
-| Quarterly | Full 1, 2, 9, 11, 12 sweeps across the whole repo |
+| Cadence               | Prompts to run                                                                                                                                    |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Every PR              | 1 (if cross-layer), the layer prompt(s) for changed files, 8 + story tests (if `src/components/` touched), 9 (if auth/permission touched), 14, 15 |
+| Every PR (structural) | 16 (if schema/migrations touched), 17 (if `composition.ts`/`bootstrap.ts` touched), 18 (if anything under `src/shared/` touched)                  |
+| Weekly                | 1, 2, 11 as sweeps                                                                                                                                |
+| Per release           | 19 for any context with significant change, 20                                                                                                    |
+| Quarterly             | Full 1, 2, 9, 11, 12, 18 sweeps across the whole repo                                                                                             |

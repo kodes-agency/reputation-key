@@ -6,37 +6,42 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { useServerFn } from '@tanstack/react-start'
 import { useAction } from '#/components/hooks/use-action'
 import { useMutationAction } from '#/components/hooks/use-mutation-action'
-import {
+import type {
   getInboxItemDetailFn,
   getInboxNotesFn,
   updateInboxStatusFn,
 } from '#/contexts/inbox/server/inbox'
 import type {
   InboxItem,
-  InboxItemDetail,
+  InboxItemDetailResult,
   InboxNote,
 } from '#/contexts/inbox/application/public-api'
 
 export type DetailData = Readonly<{
-  detail: InboxItemDetail | null
+  detail: InboxItemDetailResult | null
   notes: ReadonlyArray<InboxNote>
   isLoading: boolean
   error: string | null
   reload: () => Promise<void>
-  setDetail: React.Dispatch<React.SetStateAction<InboxItemDetail | null>>
+  setDetail: React.Dispatch<React.SetStateAction<InboxItemDetailResult | null>>
 }>
 
 /** Owns the detail + notes fetch lifecycle. `reload` is stable (reads the
  *  current item from a ref) so callers can safely capture it in long-lived
  *  callbacks (e.g. a mutation's onSuccess). */
-export function useDetailData(item: InboxItem | null, active: boolean): DetailData {
-  const [detail, setDetail] = useState<InboxItemDetail | null>(null)
+export function useDetailData(
+  item: InboxItem | null,
+  active: boolean,
+  getInboxItemDetail: typeof getInboxItemDetailFn,
+  getInboxNotes: typeof getInboxNotesFn,
+): DetailData {
+  const [detail, setDetail] = useState<InboxItemDetailResult | null>(null)
   const [notes, setNotes] = useState<ReadonlyArray<InboxNote>>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const detailAction = useAction(useServerFn(getInboxItemDetailFn))
-  const notesAction = useAction(useServerFn(getInboxNotesFn))
+  const detailAction = useAction(useServerFn(getInboxItemDetail))
+  const notesAction = useAction(useServerFn(getInboxNotes))
 
   // Refs keep the latest actions + item so loadDetail can stay stable.
   const refs = useRef({ abort: false, detailAction, notesAction, item })
@@ -88,8 +93,12 @@ export function useAutoMarkRead(
   active: boolean,
   enabled: boolean | undefined,
   onMarkedRead: () => void,
+  updateInboxStatus: typeof updateInboxStatusFn,
 ): string | null {
-  const markReadMutation = useMutationAction(updateInboxStatusFn, {
+  // invalidate: false — inbox list updates optimistically via statusVersion;
+  // the inbox route has no loader, so full router.invalidate() is pure waste.
+  const markReadMutation = useMutationAction(updateInboxStatus, {
+    invalidate: false,
     onSuccess: onMarkedRead,
   })
   const markReadRef = useRef(markReadMutation)

@@ -10,12 +10,13 @@ import type { Database } from '#/shared/db'
 import { toDomainRole, type Role } from '#/shared/domain/roles'
 import { and, eq } from 'drizzle-orm'
 import { member, user } from '#/shared/db/schema/auth'
-import { getLogger } from '#/shared/observability/logger'
+import { activityError } from '../../domain/errors'
 
 const FALLBACK_USER: UserInfo = Object.freeze({
   name: 'System',
   avatarUrl: null,
   role: 'Staff' as Role,
+  rawRole: 'member',
 })
 
 export const createDbUserLookupAdapter = (db: Database): UserLookupPort => ({
@@ -37,13 +38,20 @@ export const createDbUserLookupAdapter = (db: Database): UserLookupPort => ({
         name: row.name ?? 'Unknown',
         avatarUrl: row.image ?? null,
         role: toDomainRole(row.role),
+        rawRole: row.role,
       }
     } catch (e) {
-      getLogger().warn(
-        { err: e, userId: uid, orgId },
-        'DB user lookup failed, returning fallback user',
-      )
-      return FALLBACK_USER
+      // §13: surface DB failures as a typed error instead of returning the
+      // FALLBACK_USER sentinel, which silently mis-attributes actions to a
+      // Staff-shaped 'System' user during a DB outage. The caller
+      // (insertActivityLog) catches this and decides whether to write the row
+      // with system defaults — the not-found case (empty result) still returns
+      // FALLBACK_USER above; only a thrown DB error reaches here.
+      throw activityError('lookup_failed', 'User lookup failed', {
+        userId: uid,
+        orgId,
+        cause: e instanceof Error ? e.message : String(e),
+      })
     }
   },
 })

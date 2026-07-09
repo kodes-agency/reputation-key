@@ -64,7 +64,7 @@ export function PropertyAssignmentSelector({
       {/* Add property dropdown */}
       {availableProperties.length > 0 && (
         <Select onValueChange={onToggleProperty}>
-          <SelectTrigger>
+          <SelectTrigger aria-label="Add a property">
             <SelectValue placeholder="Add a property…" />
           </SelectTrigger>
           <SelectContent>

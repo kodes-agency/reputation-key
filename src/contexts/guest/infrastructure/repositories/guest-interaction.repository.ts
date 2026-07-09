@@ -1,4 +1,4 @@
-import { and, eq, desc } from 'drizzle-orm'
+import { and, eq, desc, gte } from 'drizzle-orm'
 import { guestError } from '../../domain/errors'
 import type { Database } from '#/shared/db'
 import { scanEvents, ratings, feedback } from '#/shared/db/schema/guest.schema'
@@ -82,6 +82,25 @@ export const createGuestInteractionRepository = (
             eq(ratings.organizationId, unbrand(organizationId)),
             eq(ratings.sessionId, sessionId),
             eq(ratings.portalId, unbrand(portalId)),
+          ),
+        )
+        .limit(1)
+      return rows.length > 0
+    })
+  },
+
+  hasRatedByIpWithin: async (organizationId, ipHash, portalId, withinSeconds) => {
+    return trace('guestInteraction.hasRatedByIpWithin', async () => {
+      const since = new Date(Date.now() - withinSeconds * 1000)
+      const rows = await db
+        .select({ id: ratings.id })
+        .from(ratings)
+        .where(
+          and(
+            eq(ratings.organizationId, unbrand(organizationId)),
+            eq(ratings.ipHash, ipHash),
+            eq(ratings.portalId, unbrand(portalId)),
+            gte(ratings.createdAt, since),
           ),
         )
         .limit(1)

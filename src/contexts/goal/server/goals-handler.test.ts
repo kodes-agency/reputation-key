@@ -69,10 +69,10 @@ describe('getGoal handler (executable)', () => {
     // The handler converts the raw string goalId to a branded ID and
     // passes the caller's organizationId + role to the use case
     expect(mocks.getGoal).toHaveBeenCalledTimes(1)
-    const input = mocks.getGoal.mock.calls[0]![0]
+    const [input, ctx] = mocks.getGoal.mock.calls[0]!
     expect(input.goalId).toBeTruthy()
-    expect(input.organizationId).toBe('org-test-aaaa')
-    expect(input.role).toBe('AccountAdmin')
+    expect(ctx.organizationId).toBe('org-test-aaaa')
+    expect(ctx.role).toBe('AccountAdmin')
   })
 
   it('throws a 404 ServerFunctionError when the use case returns goal_not_found', async () => {

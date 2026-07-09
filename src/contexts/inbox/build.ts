@@ -13,6 +13,7 @@ import type { NewCounterPort } from './application/ports/new-counter.port'
 import type { ReviewLookupPort } from './application/ports/review-lookup.port'
 import type { FeedbackLookupPort } from './application/ports/feedback-lookup.port'
 import type { PropertyLookupPort } from './application/ports/property-lookup.port'
+import type { ReplyLookupPort } from './application/ports/reply-lookup.port'
 import type { createInboxItem as createInboxItemFn } from './application/use-cases/create-inbox-item'
 import type { updateInboxStatus as updateInboxStatusFn } from './application/use-cases/update-inbox-status'
 import type { bulkUpdateInboxStatus as bulkUpdateFn } from './application/use-cases/bulk-update-inbox-status'
@@ -38,6 +39,7 @@ export type InboxContextBuildInput = Readonly<{
   reviewLookup: ReviewLookupPort
   feedbackLookup: FeedbackLookupPort
   propertyLookup: PropertyLookupPort
+  replyLookup: ReplyLookupPort
   logger: LoggerPort
 }>
 
@@ -90,6 +92,7 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
     events: input.events,
     staffPublicApi: input.staffPublicApi,
     logger: input.logger,
+    replyLookup: input.replyLookup,
     clock: input.clock,
   })
 

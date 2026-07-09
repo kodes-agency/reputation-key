@@ -3,7 +3,7 @@
 import type { StoragePort } from '#/contexts/portal/application/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { identityError } from '../../domain/errors'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 
 export type RequestOrgLogoUploadInput = Readonly<{
   contentType: string
@@ -25,7 +25,7 @@ export const requestOrgLogoUpload =
     input: RequestOrgLogoUploadInput,
     ctx: AuthContext,
   ): Promise<{ uploadUrl: string; key: string }> => {
-    if (!can(ctx.role, 'identity.logo_upload')) {
+    if (!canForContext(ctx, 'identity.logo_upload')) {
       throw identityError(
         'forbidden',
         'Insufficient permissions to upload organization logo',

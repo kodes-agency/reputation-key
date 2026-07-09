@@ -8,8 +8,8 @@ import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { getContainer } from '#/composition'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
-import { can } from '#/shared/domain/permissions'
-import { isPropertyAccessible } from '#/shared/domain/property-access'
+import { canForContext } from '#/shared/domain/permissions'
+import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getAuth } from '#/shared/auth/auth'
 import { timeRangePreset } from '../application/dto/dashboard.dto'
@@ -42,10 +42,18 @@ export const getAttentionSignalsFn = createServerFn({ method: 'GET' })
         try {
           const headers = await headersFromContext()
           const ctx = await resolveTenantContext(headers)
-          if (!can(ctx.role, 'dashboard.read')) {
+          // §9: the fleet route guard requires dashboard.fleet_read (PM+); the
+          // server fn must match so Staff cannot reach the RPC directly. The
+          // attention band carries the 'unanswered' signal (reviews with no
+          // published reply past SLA) — a reply-derived aggregate Staff must
+          // not see.
+          if (
+            !canForContext(ctx, 'dashboard.read') ||
+            !canForContext(ctx, 'dashboard.fleet_read')
+          ) {
             throw makeDashboardError(
               'forbidden',
-              'Insufficient permissions to view dashboard',
+              'Insufficient permissions to view fleet dashboard',
             )
           }
           // Resolve the org-level response SLA (defaults to 48h when unset/no org).
@@ -55,13 +63,11 @@ export const getAttentionSignalsFn = createServerFn({ method: 'GET' })
           const { useCases, clock, staffPublicApi } = getContainer()
           // D6-001: non-admin callers may only read their assigned properties.
           if (
-            ctx.role !== 'AccountAdmin' &&
-            !(await isPropertyAccessible(
-              (orgId, uId, role) =>
-                staffPublicApi.getAccessiblePropertyIds(orgId, uId, role),
-              ctx.organizationId,
-              ctx.userId,
-              ctx.role,
+            !(await isPropertyAccessibleForPermission(
+              (orgId, uId, orgWide) =>
+                staffPublicApi.getAccessiblePropertyIds(orgId, uId, orgWide),
+              ctx,
+              'dashboard.read',
               propertyId(data.propertyId),
             ))
           ) {

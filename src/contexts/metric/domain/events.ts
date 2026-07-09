@@ -1,6 +1,7 @@
 // Metric context — domain events
 // Standards: docs/standards.md §1
 
+import { newEventId } from '#/shared/domain/event-id'
 import type {
   MetricReadingId,
   OrganizationId,
@@ -31,7 +32,7 @@ export const metricRecorded = (
     throw metricError('invalid_value', 'occurredAt must be Date')
   return {
     _tag: 'metric.recorded',
-    eventId: crypto.randomUUID(),
+    eventId: newEventId(),
     correlationId: null,
     ...args,
   }

@@ -27,6 +27,7 @@ export type InboxFilterValues = Readonly<{
 type Props = Readonly<{
   value: InboxFilterValues
   onChange: (filters: InboxFilterValues) => void
+  properties: ReadonlyArray<{ id: string; name: string }>
 }>
 
 const statuses: Array<{ value: InboxStatus; label: string }> = [
@@ -44,7 +45,7 @@ const sourceTypes: Array<{ value: SourceType; label: string }> = [
 
 const platforms = [{ value: 'google', label: 'Google' }]
 
-export function InboxFilters({ value, onChange }: Props) {
+export function InboxFilters({ value, onChange, properties }: Props) {
   const update = useCallback(
     (patch: Partial<InboxFilterValues>) => {
       onChange({ ...value, ...patch })
@@ -59,6 +60,7 @@ export function InboxFilters({ value, onChange }: Props) {
       <PropertyFilterSelect
         value={value.propertyId}
         onChange={(id) => update({ propertyId: id })}
+        properties={properties}
       />
 
       <Select
@@ -67,7 +69,7 @@ export function InboxFilters({ value, onChange }: Props) {
           update({ status: v === 'all' ? undefined : (v as InboxStatus) })
         }
       >
-        <SelectTrigger size="sm" className="w-[130px]">
+        <SelectTrigger size="sm" aria-label="Filter by status" className="w-[130px]">
           <SelectValue placeholder="All statuses" />
         </SelectTrigger>
         <SelectContent>
@@ -86,7 +88,7 @@ export function InboxFilters({ value, onChange }: Props) {
           update({ sourceType: v === 'all' ? undefined : (v as SourceType) })
         }
       >
-        <SelectTrigger size="sm" className="w-[130px]">
+        <SelectTrigger size="sm" aria-label="Filter by source" className="w-[130px]">
           <SelectValue placeholder="All sources" />
         </SelectTrigger>
         <SelectContent>
@@ -103,7 +105,7 @@ export function InboxFilters({ value, onChange }: Props) {
         value={value.platform ?? 'all'}
         onValueChange={(v) => update({ platform: v === 'all' ? undefined : v })}
       >
-        <SelectTrigger size="sm" className="w-[150px]">
+        <SelectTrigger size="sm" aria-label="Filter by platform" className="w-[150px]">
           <SelectValue placeholder="All platforms" />
         </SelectTrigger>
         <SelectContent>

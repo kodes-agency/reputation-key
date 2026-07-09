@@ -4,18 +4,33 @@
 // remain testable with in-memory fakes.
 
 import type { Database } from '#/shared/db'
-import { eq, sql } from 'drizzle-orm'
-import { user as userTable } from '#/shared/db/schema/auth'
+import { and, eq, sql } from 'drizzle-orm'
+import {
+  invitation,
+  member,
+  organizationRole,
+  user as userTable,
+} from '#/shared/db/schema/auth'
 import { getLogger } from '#/shared/observability/logger'
+import { organizationRolePolicy } from '#/shared/db/schema/dac.schema'
+import { buildPermissionStatement } from '#/shared/auth/permission-catalogue'
+import { randomUUID } from 'crypto'
+import type { Permission } from '#/shared/domain/permissions'
+import type { DataScope } from '#/shared/domain/data-scope'
 import type {
-  IdentityPort,
   MemberRecord,
+  IdentityPort,
   InvitationRecord,
   OrganizationRecord,
 } from '../../application/ports/identity.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import { getAuth } from '#/shared/auth/auth'
-import { toDomainRole, toBetterAuthRole } from '#/shared/domain/roles'
+import { getAuth, getOnAcceptInvitation } from '#/shared/auth/auth'
+import {
+  toDomainRole,
+  toBetterAuthRole,
+  isOwnerToken,
+  type Role,
+} from '#/shared/domain/roles'
 import { identityError } from '../../domain/errors'
 import { organizationId, invitationId } from '#/shared/domain/ids'
 import type { InvitationId, OrganizationId } from '#/shared/domain/ids'
@@ -24,7 +39,6 @@ import {
   signUpResponseSchema,
   listMembersResponseSchema,
   createInvitationResponseSchema,
-  acceptInvitationResponseSchema,
   listInvitationsResponseSchema,
   listUserInvitationsResponseSchema,
   listOrganizationsResponseSchema,
@@ -68,6 +82,7 @@ function toMemberRecord(m: {
     email: m.user.email,
     name: m.user.name,
     role: toDomainRole(m.role),
+    rawRole: m.role,
     image: m.user.image ?? null,
     createdAt: m.createdAt,
   }
@@ -117,6 +132,21 @@ function toOrganizationRecord(org: {
 
 export const createBetterAuthIdentityAdapter = (db: Database): IdentityPort => {
   const auth = getAuth()
+  // Local member lookup — used by getMember, updateMemberRole, and removeMember.
+  // Calling a closure-captured function (not `this.getMember`) keeps these methods
+  // safe to destructure / pass as callbacks, per the functional-style rule.
+  const getMemberImpl = async (memberId: string): Promise<MemberRecord | null> => {
+    const headers = await headersFromRequest()
+    const result = await auth.api.listMembers({ headers })
+    const data = parseBetterAuthResponse(
+      listMembersResponseSchema,
+      result,
+      'org_setup_failed',
+      'listMembers response did not match expected schema',
+    )
+    const member = data.members.find((m) => m.id === memberId)
+    return member ? toMemberRecord(member) : null
+  }
   return {
     async signUp(name: string, email: string, password: string): Promise<string> {
       const result = await auth.api.signUpEmail({
@@ -154,17 +184,7 @@ export const createBetterAuthIdentityAdapter = (db: Database): IdentityPort => {
     // The listMembers call is session-scoped to the active org, so the
     // membership is implicitly verified. No cross-tenant risk in practice.
     async getMember(_ctx: AuthContext, memberId: string): Promise<MemberRecord | null> {
-      const headers = await headersFromRequest()
-      const result = await auth.api.listMembers({ headers })
-
-      const data = parseBetterAuthResponse(
-        listMembersResponseSchema,
-        result,
-        'org_setup_failed',
-        'listMembers response did not match expected schema',
-      )
-      const member = data.members.find((m) => m.id === memberId)
-      return member ? toMemberRecord(member) : null
+      return getMemberImpl(memberId)
     },
 
     // Relies on session-bound organization — better-auth creates the invitation
@@ -180,7 +200,7 @@ export const createBetterAuthIdentityAdapter = (db: Database): IdentityPort => {
         headers,
         body: {
           email,
-          role: toBetterAuthRole(role as ReturnType<typeof toDomainRole>),
+          role: toBetterAuthRole(role as Role),
           propertyIds:
             propertyIds && propertyIds.length > 0
               ? JSON.stringify(propertyIds)
@@ -195,33 +215,126 @@ export const createBetterAuthIdentityAdapter = (db: Database): IdentityPort => {
       )
       return invitationId(invitation.id)
     },
-
     async acceptInvitation(
       id: InvitationId,
       headers: Headers,
     ): Promise<{ organizationId: OrganizationId; propertyIds: ReadonlyArray<string> }> {
-      // Fetch propertyIds before accepting — the invitation's status changes after.
-      const listResult = await auth.api.listUserInvitations({ headers })
-      const list = parseBetterAuthResponse(
-        listUserInvitationsResponseSchema,
-        listResult,
-        'org_setup_failed',
-        'listUserInvitations response did not match expected schema',
-      )
-      const inv = list.find((i) => i.id === id)
-      const propertyIds = parsePropertyIds(inv?.propertyIds)
+      // App-owned direct transaction (§3) — replaces auth.api.acceptInvitation so the
+      // invitation's role is re-validated atomically and BA's afterAcceptInvitation hook
+      // is invoked explicitly. The FOR UPDATE row lock serializes concurrent accepts.
+      const session = await auth.api.getSession({ headers })
+      if (!session) {
+        throw identityError('forbidden', 'No active session')
+      }
+      const acceptorEmail = session.user.email.toLowerCase()
+      const acceptorUserId = session.user.id
+      const now = new Date()
 
-      const result = await auth.api.acceptInvitation({
-        headers,
-        body: { invitationId: id },
+      const result = await db.transaction(async (tx) => {
+        // 1. Lock + load the invitation.
+        const rows = await tx
+          .select()
+          .from(invitation)
+          .where(eq(invitation.id, id as string))
+          .for('update')
+        const inv = rows[0]
+        if (!inv) {
+          throw identityError('invitation_not_found', 'Invitation not found')
+        }
+
+        // 2. Email-match invariant — only the invitee may accept (privilege boundary).
+        if (inv.email.toLowerCase() !== acceptorEmail) {
+          throw identityError('forbidden', 'Invitation is not addressed to this user')
+        }
+
+        // 3. Lifecycle gate.
+        if (inv.status !== 'pending') {
+          throw identityError(
+            'invitation_not_found',
+            `Invitation is no longer pending (status: ${inv.status})`,
+          )
+        }
+        if (inv.expiresAt <= now) {
+          throw identityError('invitation_not_found', 'Invitation has expired')
+        }
+
+        // 4. Re-validate the role at acceptance. Built-in roles always resolve; a custom
+        //    role must still exist as organizationRole + policy, else the member would be
+        //    created with an orphan role. Mark the invitation rejected so it can't retry.
+        const role = (inv.role ?? 'member').trim().toLowerCase()
+        if (!['owner', 'admin', 'member'].includes(role)) {
+          const [roleDefs, policies] = await Promise.all([
+            tx
+              .select({ id: organizationRole.id })
+              .from(organizationRole)
+              .where(
+                and(
+                  eq(organizationRole.organizationId, inv.organizationId),
+                  eq(organizationRole.role, role),
+                ),
+              ),
+            tx
+              .select({ id: organizationRolePolicy.id })
+              .from(organizationRolePolicy)
+              .where(
+                and(
+                  eq(organizationRolePolicy.organizationId, inv.organizationId),
+                  eq(organizationRolePolicy.role, role),
+                ),
+              ),
+          ])
+          if (roleDefs.length === 0 || policies.length === 0) {
+            await tx
+              .update(invitation)
+              .set({ status: 'rejected' })
+              .where(eq(invitation.id, inv.id))
+            throw identityError('forbidden', 'Invitation role is no longer available')
+          }
+        }
+
+        // 5. Create the membership with the canonical role.
+        await tx.insert(member).values({
+          id: randomUUID(),
+          organizationId: inv.organizationId,
+          userId: acceptorUserId,
+          role,
+          createdAt: now,
+        })
+
+        // 6. Mark the invitation accepted (member_ver_ins trigger bumps permission_version).
+        await tx
+          .update(invitation)
+          .set({ status: 'accepted' })
+          .where(eq(invitation.id, inv.id))
+
+        return {
+          organizationId: inv.organizationId,
+          propertyIds: parsePropertyIds(inv.propertyIds),
+        }
       })
-      const data = parseBetterAuthResponse(
-        acceptInvitationResponseSchema,
-        result,
-        'org_setup_failed',
-        'acceptInvitation response did not match expected schema',
-      )
-      return { organizationId: organizationId(data.organizationId), propertyIds }
+
+      // 7. Post-commit side effect — auto-create staff assignments for the invited
+      //    properties (replaces BA's afterAcceptInvitation hook, which no longer fires).
+      const handler = getOnAcceptInvitation()
+      if (handler && result.propertyIds.length > 0) {
+        try {
+          await handler({
+            userId: acceptorUserId,
+            organizationId: result.organizationId,
+            propertyIds: result.propertyIds,
+          })
+        } catch (e) {
+          getLogger().warn(
+            { err: e, userId: acceptorUserId },
+            'Failed to auto-assign property on invitation acceptance',
+          )
+        }
+      }
+
+      return {
+        organizationId: organizationId(result.organizationId),
+        propertyIds: result.propertyIds,
+      }
     },
 
     async cancelInvitation(id: InvitationId, headers: Headers): Promise<void> {
@@ -243,6 +356,7 @@ export const createBetterAuthIdentityAdapter = (db: Database): IdentityPort => {
           id: inv.id,
           email: inv.email,
           role: toDomainRole(inv.role),
+          rawRole: inv.role,
           status: inv.status,
           expiresAt: inv.expiresAt,
           createdAt: inv.createdAt,
@@ -267,6 +381,7 @@ export const createBetterAuthIdentityAdapter = (db: Database): IdentityPort => {
           id: inv.id,
           email: inv.email,
           role: toDomainRole(inv.role),
+          rawRole: inv.role,
           status: inv.status,
           expiresAt: inv.expiresAt,
           createdAt: inv.createdAt,
@@ -285,26 +400,36 @@ export const createBetterAuthIdentityAdapter = (db: Database): IdentityPort => {
       role: string,
     ): Promise<void> {
       // Verify member belongs to the current org before mutating
-      const member = await this.getMember(ctx, memberId)
-      if (!member) {
+      const memberRow = await getMemberImpl(memberId)
+      if (!memberRow) {
         throw identityError('forbidden', 'Member not found in current organization')
       }
+      // Last-owner guard: block demoting the sole owner. The DB BEFORE-trigger is the
+      // concurrency backstop for direct-DB; this is the app-path UX guard (§4).
+      const wouldRemoveOwner =
+        isOwnerToken(memberRow.rawRole) && !isOwnerToken(toBetterAuthRole(role as Role))
+      await assertNotLastOwner(db, ctx.organizationId as string, wouldRemoveOwner)
       const headers = await headersFromRequest()
       await auth.api.updateMemberRole({
         headers,
         body: {
           memberId,
-          role: toBetterAuthRole(role as ReturnType<typeof toDomainRole>),
+          role: toBetterAuthRole(role as Role),
         },
       })
     },
 
     async removeMember(ctx: AuthContext, memberId: string): Promise<void> {
       // Verify member belongs to the current org before removing
-      const member = await this.getMember(ctx, memberId)
-      if (!member) {
+      const memberRow = await getMemberImpl(memberId)
+      if (!memberRow) {
         throw identityError('forbidden', 'Member not found in current organization')
       }
+      await assertNotLastOwner(
+        db,
+        ctx.organizationId as string,
+        isOwnerToken(memberRow.rawRole),
+      )
       const headers = await headersFromRequest()
       await auth.api.removeMember({
         headers,
@@ -368,6 +493,91 @@ export const createBetterAuthIdentityAdapter = (db: Database): IdentityPort => {
     async deleteUser(userId: string): Promise<void> {
       await db.delete(userTable).where(eq(userTable.id, userId))
     },
+
+    async createCustomRole(
+      ctx: AuthContext,
+      input: Readonly<{
+        role: string
+        permissions: ReadonlyArray<Permission>
+        dataScope: DataScope
+      }>,
+    ): Promise<void> {
+      const role = input.role.trim().toLowerCase()
+      try {
+        await db.transaction(async (tx) => {
+          await tx.insert(organizationRole).values({
+            id: randomUUID(),
+            organizationId: ctx.organizationId as string,
+            role,
+            permission: JSON.stringify(buildPermissionStatement(input.permissions)),
+          })
+          await tx.insert(organizationRolePolicy).values({
+            organizationId: ctx.organizationId as string,
+            role,
+            dataScope: input.dataScope,
+          })
+        })
+      } catch (e) {
+        if (isUniqueViolation(e)) {
+          throw identityError('already_exists', `Role "${role}" already exists`)
+        }
+        throw e
+      }
+    },
+
+    async updateCustomRole(
+      ctx: AuthContext,
+      role: string,
+      input: Readonly<{
+        permissions: ReadonlyArray<Permission>
+        dataScope: DataScope
+      }>,
+    ): Promise<void> {
+      const r = role.trim().toLowerCase()
+      const permission = JSON.stringify(buildPermissionStatement(input.permissions))
+      await db.transaction(async (tx) => {
+        await tx
+          .update(organizationRole)
+          .set({ permission, updatedAt: new Date() })
+          .where(
+            and(
+              eq(organizationRole.organizationId, ctx.organizationId as string),
+              eq(organizationRole.role, r),
+            ),
+          )
+        await tx
+          .update(organizationRolePolicy)
+          .set({ dataScope: input.dataScope, updatedAt: new Date() })
+          .where(
+            and(
+              eq(organizationRolePolicy.organizationId, ctx.organizationId as string),
+              eq(organizationRolePolicy.role, r),
+            ),
+          )
+      })
+    },
+
+    async deleteCustomRole(ctx: AuthContext, role: string): Promise<void> {
+      const r = role.trim().toLowerCase()
+      await db.transaction(async (tx) => {
+        await tx
+          .delete(organizationRole)
+          .where(
+            and(
+              eq(organizationRole.organizationId, ctx.organizationId as string),
+              eq(organizationRole.role, r),
+            ),
+          )
+        await tx
+          .delete(organizationRolePolicy)
+          .where(
+            and(
+              eq(organizationRolePolicy.organizationId, ctx.organizationId as string),
+              eq(organizationRolePolicy.role, r),
+            ),
+          )
+      })
+    },
   }
 }
 
@@ -377,4 +587,41 @@ function hashStringToInteger(str: string): number {
     hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0
   }
   return Math.abs(hash)
+}
+
+/** True when a Postgres unique-constraint violation (SQLSTATE 23505) caused the error. */
+function isUniqueViolation(e: unknown): boolean {
+  return (
+    typeof e === 'object' &&
+    e !== null &&
+    'code' in e &&
+    (e as { code: unknown }).code === '23505'
+  )
+}
+
+/**
+ * Last-owner guard (§4). When `wouldRemoveOwner`, counts org owners under an advisory
+ * lock and throws `last_owner` if the change would leave zero. The DB BEFORE-trigger is
+ * the concurrency backstop for direct-DB writes; this is the app-path guard.
+ */
+async function assertNotLastOwner(
+  db: Database,
+  orgId: string,
+  wouldRemoveOwner: boolean,
+): Promise<void> {
+  if (!wouldRemoveOwner) return
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(${hashStringToInteger(orgId)})`)
+    const rows = await tx
+      .select({ role: member.role })
+      .from(member)
+      .where(eq(member.organizationId, orgId))
+    const owners = rows.filter((r) => isOwnerToken(r.role)).length
+    if (owners <= 1) {
+      throw identityError(
+        'last_owner',
+        'Cannot remove the last owner of the organization',
+      )
+    }
+  })
 }

@@ -10,7 +10,7 @@ import type { GoogleConnection } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { ConnectGoogleInput } from '../dto/connect-google.dto'
 export type { ConnectGoogleInput as ConnectGoogleAccountInput } from '../dto/connect-google.dto'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { googleConnectionId } from '#/shared/domain/ids'
 import { buildGoogleConnection } from '../../domain/constructors'
 import { integrationError } from '../../domain/errors'
@@ -30,7 +30,7 @@ export const connectGoogleAccount =
   (deps: ConnectGoogleAccountDeps) =>
   async (input: ConnectGoogleInput, ctx: AuthContext): Promise<GoogleConnection> => {
     // 1. Authorize
-    if (!can(ctx.role, 'integration.manage')) {
+    if (!canForContext(ctx, 'integration.manage')) {
       throw integrationError(
         'forbidden',
         'You do not have permission to manage integrations',
@@ -46,14 +46,22 @@ export const connectGoogleAccount =
     const encryptedAccessToken = deps.encryption.encrypt(oauthResult.accessToken)
     const encryptedRefreshToken = deps.encryption.encrypt(oauthResult.refreshToken)
 
-    // 4. Check if connection already exists
-    const existingConnection = await deps.connectionRepo.findByGoogleAccountId(
-      ctx.organizationId,
+    // 4. Check if connection already exists (GLOBAL — one Google account belongs
+    //    to exactly one org per the global-uniqueness invariant).
+    const existingConnection = await deps.connectionRepo.findByGoogleAccountIdGlobal(
       oauthResult.googleAccountId,
     )
 
     if (existingConnection) {
-      // Reactivate, update tokens, and apply new visibility — single atomic write
+      if (existingConnection.organizationId !== ctx.organizationId) {
+        // Account is claimed by another org — hard reject; the user must disconnect
+        // it there first. Global uniqueness makes this a hard boundary.
+        throw integrationError(
+          'account_already_connected',
+          'This Google account is already connected in another organization',
+        )
+      }
+      // Same org → reactivate, update tokens, apply new visibility (atomic write).
       await deps.connectionRepo.updateReconnection(
         ctx.organizationId,
         existingConnection.id,
@@ -117,12 +125,17 @@ export const connectGoogleAccount =
     } catch (err) {
       if (!isUniqueViolationError(err)) throw err
 
-      // Another request created the connection concurrently — fetch and return it
-      const concurrentConnection = await deps.connectionRepo.findByGoogleAccountId(
-        ctx.organizationId,
+      // Concurrent insert raced past the check — fetch globally and decide by org.
+      const concurrentConnection = await deps.connectionRepo.findByGoogleAccountIdGlobal(
         oauthResult.googleAccountId,
       )
       if (!concurrentConnection) throw err
+      if (concurrentConnection.organizationId !== ctx.organizationId) {
+        throw integrationError(
+          'account_already_connected',
+          'This Google account is already connected in another organization',
+        )
+      }
 
       return concurrentConnection
     }

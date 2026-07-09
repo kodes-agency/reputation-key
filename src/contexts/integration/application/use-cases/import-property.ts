@@ -66,6 +66,14 @@ export type ImportPropertyDeps = Readonly<{
   clock: () => Date
   hashFn: (input: string) => string
   logger: LoggerPort
+  /**
+   * Best-effort hook fired once when the connection's first property is imported
+   * (Pub/Sub lifecycle step 3 — subscribes the GBP account to review notifications).
+   */
+  onFirstPropertyImported?: (
+    organizationId: OrganizationId,
+    connectionId: string,
+  ) => Promise<void>
 }>
 
 // ── Helpers ────────────────────────────────────────────────────────
@@ -109,6 +117,12 @@ export const importProperty =
     const createdProperties: CreatedProperty[] = []
 
     try {
+      // Pre-count for Pub/Sub 0→1 detection (subscribe on the connection's first property).
+      const hadPriorProperties =
+        (await deps.propertyRepo.countByGoogleConnectionId(
+          input.organizationId,
+          input.connectionId,
+        )) > 0
       // 1. Resolve which GBP place IDs already exist as properties
       const gbpPlaceIds = input.locations.map((loc) => loc.gbpPlaceId)
       const existingGbpPlaceIds = new Set(
@@ -247,6 +261,25 @@ export const importProperty =
         }
       }
 
+      // Pub/Sub lifecycle: subscribe on the connection's first imported property (0→1).
+      if (
+        !hadPriorProperties &&
+        createdProperties.length > 0 &&
+        deps.onFirstPropertyImported
+      ) {
+        try {
+          await deps.onFirstPropertyImported(orgId, input.connectionId)
+        } catch (err) {
+          logger.warn(
+            {
+              err,
+              organizationId: input.organizationId,
+              connectionId: input.connectionId,
+            },
+            'onFirstPropertyImported hook failed — continuing',
+          )
+        }
+      }
       return { created: createdProperties, status: finalStatus }
     } catch (err) {
       logger.error(

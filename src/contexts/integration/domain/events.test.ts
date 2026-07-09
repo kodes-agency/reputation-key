@@ -2,6 +2,7 @@
 // Per architecture: "Events are facts, named in the past tense."
 
 import { describe, it, expect } from 'vitest'
+import { isIntegrationError } from './errors'
 import {
   integrationGoogleAccountConnected,
   integrationGoogleAccountDisconnected,
@@ -162,5 +163,45 @@ describe('integrationGoogleConnectionVisibilityChanged', () => {
       occurredAt: now,
     })
     expect(event.occurredAt).toBeInstanceOf(Date)
+  })
+})
+
+// ── occurredAt validation (invalid_event) ────────────────────────────────────────
+
+describe('event constructors validate occurredAt', () => {
+  // All four constructors share the same guard; exercising one is sufficient since
+  // the throw site + code are identical across them.
+  it('throws an Error & IntegrationError with code "invalid_event" when occurredAt is not a Date', () => {
+    let caught: unknown
+    try {
+      integrationGoogleAccountConnected({
+        connectionId: googleConnectionId('conn-1'),
+        organizationId: organizationId('org-1'),
+        googleEmail: 'user@example.com',
+        occurredAt: '2025-06-15' as unknown as Date,
+      })
+    } catch (e) {
+      caught = e
+    }
+    expect(caught).toBeInstanceOf(Error)
+    if (isIntegrationError(caught)) {
+      expect(caught.code).toBe('invalid_event')
+    } else {
+      expect.fail('expected an IntegrationError')
+    }
+  })
+
+  it('rejects a null occurredAt across the import-completed constructor', () => {
+    expect(() =>
+      integrationPropertyImportCompleted({
+        importJobId: gbpImportJobId('job-1'),
+        organizationId: organizationId('org-1'),
+        totalCount: 0,
+        importedCount: 0,
+        skippedCount: 0,
+        failedCount: 0,
+        occurredAt: null as unknown as Date,
+      }),
+    ).toThrow()
   })
 })

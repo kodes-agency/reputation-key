@@ -1,6 +1,7 @@
 // Review context — domain events
 // Standards: docs/standards.md §1
 
+import { newEventId } from '#/shared/domain/event-id'
 import { assert } from '#/shared/domain/assert'
 import type {
   ReviewId,
@@ -34,7 +35,7 @@ export const reviewCreated = (
   return {
     ...args,
     _tag: 'review.created',
-    eventId: crypto.randomUUID(),
+    eventId: newEventId(),
     correlationId: args.correlationId ?? null,
   }
 }
@@ -62,7 +63,7 @@ export const reviewUpdated = (
   return {
     ...args,
     _tag: 'review.updated',
-    eventId: crypto.randomUUID(),
+    eventId: newEventId(),
     correlationId: args.correlationId ?? null,
   }
 }
@@ -85,7 +86,7 @@ export const reviewExpired = (
   return {
     ...args,
     _tag: 'review.expired',
-    eventId: crypto.randomUUID(),
+    eventId: newEventId(),
     correlationId: args.correlationId ?? null,
   }
 }
@@ -113,7 +114,7 @@ export const reviewReplyPublished = (
   return {
     ...args,
     _tag: 'review.reply.published',
-    eventId: crypto.randomUUID(),
+    eventId: newEventId(),
     correlationId: args.correlationId ?? null,
     source: args.source ?? 'web',
   }
@@ -141,7 +142,7 @@ export const reviewReplySubmitted = (
   return {
     ...args,
     _tag: 'review.reply.submitted',
-    eventId: crypto.randomUUID(),
+    eventId: newEventId(),
     correlationId: args.correlationId ?? null,
     source: args.source ?? 'web',
   }
@@ -170,7 +171,7 @@ export const reviewReplyApproved = (
   return {
     ...args,
     _tag: 'review.reply.approved',
-    eventId: crypto.randomUUID(),
+    eventId: newEventId(),
     correlationId: args.correlationId ?? null,
     source: args.source ?? 'web',
   }
@@ -200,7 +201,7 @@ export const reviewReplyRejected = (
   return {
     ...args,
     _tag: 'review.reply.rejected',
-    eventId: crypto.randomUUID(),
+    eventId: newEventId(),
     correlationId: args.correlationId ?? null,
     source: args.source ?? 'web',
   }
@@ -226,7 +227,7 @@ export const reviewReplyPublishFailed = (
   return {
     ...args,
     _tag: 'review.reply.publish_failed',
-    eventId: crypto.randomUUID(),
+    eventId: newEventId(),
     correlationId: args.correlationId ?? null,
   }
 }

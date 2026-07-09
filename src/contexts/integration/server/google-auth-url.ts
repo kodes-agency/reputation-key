@@ -7,7 +7,7 @@ import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { z } from 'zod/v4'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getContainer } from '#/composition'
 
@@ -29,10 +29,13 @@ export const getGoogleAuthUrl = createServerFn({ method: 'GET' })
           const headers = await headersFromContext()
           const ctx = await resolveTenantContext(headers)
 
-          if (!can(ctx.role, 'integration.manage')) {
+          if (!canForContext(ctx, 'integration.manage')) {
             throwContextError(
-              'Forbidden',
-              { code: 'FORBIDDEN', message: 'Insufficient permissions' },
+              'AuthError',
+              {
+                code: 'forbidden',
+                message: 'Insufficient permissions to manage integrations',
+              },
               403,
             )
           }

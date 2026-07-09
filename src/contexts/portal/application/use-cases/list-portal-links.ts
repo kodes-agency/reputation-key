@@ -5,7 +5,7 @@
 import type { PortalLinkRepository } from '../ports/portal-link.repository'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { portalError } from '../../domain/errors'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { portalId } from '#/shared/domain/ids'
 import type { PortalRepository } from '../ports/portal.repository'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
@@ -32,12 +32,18 @@ export const listPortalLinks =
     categories: Awaited<ReturnType<PortalLinkRepository['listCategories']>>
     links: Awaited<ReturnType<PortalLinkRepository['listAllLinks']>>
   }> => {
-    if (!can(ctx.role, 'portal.read')) {
+    if (!canForContext(ctx, 'portal.read')) {
       throw portalError('forbidden', 'No portal read permission')
     }
     const pid = portalId(input.portalId)
     // D6-001: verify caller can access this portal's property
-    await assertPortalPropertyAccess(deps.portalRepo, deps.staffPublicApi, ctx, pid)
+    await assertPortalPropertyAccess(
+      deps.portalRepo,
+      deps.staffPublicApi,
+      ctx,
+      'portal.read',
+      pid,
+    )
     const [categories, links] = await Promise.all([
       deps.portalLinkRepo.listCategories(ctx.organizationId, pid),
       deps.portalLinkRepo.listAllLinks(ctx.organizationId, pid),

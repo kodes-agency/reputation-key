@@ -10,7 +10,7 @@ import {
 } from '#/components/ui/sidebar'
 import { useServerFn } from '@tanstack/react-start'
 import { useAction } from '#/components/hooks/use-action'
-import { getInboxFolderCountsFn } from '#/contexts/inbox/server/inbox'
+import type { getInboxFolderCountsFn } from '#/contexts/inbox/server/inbox'
 import { PropertyFilterSelect } from '#/components/inbox/property-filter-select'
 import { FolderItem, CategoryItem, folders, categories } from './inbox-sidebar-items'
 import { useState, useEffect } from 'react'
@@ -28,6 +28,7 @@ interface InboxSidebarProps {
   onPropertyChange: (propertyId: string | undefined) => void
   /** Called after a folder/category navigation. Used to close the mobile drawer. */
   onNavigate?: () => void
+  getInboxFolderCounts: typeof getInboxFolderCountsFn
 }
 
 export function InboxSidebar({
@@ -35,11 +36,12 @@ export function InboxSidebar({
   properties,
   onPropertyChange,
   onNavigate,
+  getInboxFolderCounts,
 }: InboxSidebarProps) {
   const activeFolder = useInboxFolder()
   const activePlatform = useInboxPlatform()
   const [counts, setCounts] = useState<InboxFolderCounts>(DEFAULT_COUNTS)
-  const fetchCounts = useAction(useServerFn(getInboxFolderCountsFn))
+  const fetchCounts = useAction(useServerFn(getInboxFolderCounts))
   const n = useNavigate()
 
   useEffect(() => {
@@ -84,7 +86,7 @@ export function InboxSidebar({
         </SidebarMenu>
         <PropertyFilterSelect
           value={propertyId}
-          properties={properties}
+          properties={properties ?? []}
           onChange={onPropertyChange}
           className="w-full"
         />

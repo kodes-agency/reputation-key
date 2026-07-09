@@ -8,10 +8,51 @@
 
 import type { OrganizationId, UserId } from './ids'
 import type { Role } from './roles'
+import type { Permission } from './permissions'
+import type { DataScope } from './data-scope'
 
 /** Auth context attached to every authenticated request. */
 export type AuthContext = Readonly<{
   userId: UserId
   organizationId: OrganizationId
   role: Role
+  /**
+   * Effective permission set from the dynamic resolver (ADR 0001). When present,
+   * `canForContext` prefers it over the static `role` table so custom/multi roles
+   * resolve correctly. Absent (Stage 1 fallback) → `canForContext` falls back to
+   * `can(ctx.role, p)`. Populated by resolveTenantContext.
+   */
+  effectivePermissions?: ReadonlySet<Permission>
+  /**
+   * Per-permission data scope from the dynamic resolver. A permission's scope governs
+   * ONLY that permission's records — no generic widening. Absent → `scopeForPermission`
+   * falls back to the built-in role's fixed scope. Populated by resolveTenantContext.
+   */
+  scopeByPermission?: ReadonlyMap<Permission, DataScope>
 }>
+
+/**
+ * JSON-serializable authorization snapshot for the client (ADR 0001 §7). Serialized from
+ * AuthContext by getActiveOrganization + beforeLoad so usePermissions() can gate UI
+ * affordances without a round-trip. Only granted keys appear; a missing key → 'none'.
+ */
+export type ClientAuthz = Readonly<{
+  effectivePermissions: ReadonlyArray<Permission>
+  scopeByPermission: Readonly<Partial<Record<Permission, DataScope>>>
+}>
+
+/** Empty authz — for the no-active-org / unresolved state. */
+export const EMPTY_CLIENT_AUTHZ: ClientAuthz = Object.freeze({
+  effectivePermissions: [],
+  scopeByPermission: {},
+})
+
+/** Serialize an AuthContext's dynamic fields into the client-safe ClientAuthz shape. */
+export function serializeClientAuthz(ctx: AuthContext): ClientAuthz {
+  return {
+    effectivePermissions: ctx.effectivePermissions ? [...ctx.effectivePermissions] : [],
+    scopeByPermission: ctx.scopeByPermission
+      ? Object.fromEntries(ctx.scopeByPermission)
+      : {},
+  }
+}

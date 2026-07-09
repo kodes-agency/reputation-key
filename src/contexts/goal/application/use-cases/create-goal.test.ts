@@ -9,7 +9,6 @@ import type { GoalRepository } from '../ports/goal.repository'
 import {
   organizationId,
   propertyId,
-  portalId,
   portalGroupId,
   goalId,
   goalProgressId,
@@ -17,7 +16,9 @@ import {
 } from '#/shared/domain/ids'
 import type { MetricKey, AggregationFunction } from '#/shared/domain/metric-keys'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
-import type { PropertyId } from '#/shared/domain/ids'
+import type { PropertyId, PortalId, PortalGroupId } from '#/shared/domain/ids'
+import type { AuthContext } from '#/shared/domain/auth-context'
+import type { Role } from '#/shared/domain/roles'
 
 const FIXED_TIME = new Date('2026-06-15T12:00:00Z')
 const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublicApi => ({
@@ -26,7 +27,20 @@ const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublic
   countAssignmentsByTeam: async () => 0,
 })
 
-function createFakeDeps(accessible: ReadonlyArray<PropertyId> | null = null) {
+interface FakeMetricRepo {
+  queryAggregate: (query: MetricReadingsQuery) => Promise<MetricReadingsAggregate>
+  _setAggregate: (agg: MetricReadingsAggregate) => void
+  _getQueries: () => MetricReadingsQuery[]
+}
+
+interface Fakes {
+  deps: CreateGoalDeps
+  goals: Goal[]
+  progresses: GoalProgress[]
+  metricRepo: FakeMetricRepo
+}
+
+function createFakeDeps(accessible: ReadonlyArray<PropertyId> | null = null): Fakes {
   const goals: Goal[] = []
   const progresses: GoalProgress[] = []
   let idCounter = 0
@@ -124,7 +138,7 @@ function createFakeDeps(accessible: ReadonlyArray<PropertyId> | null = null) {
   let aggregateResponse: MetricReadingsAggregate = { sum: 0, count: 0, max: 0 }
   const queries: MetricReadingsQuery[] = []
 
-  const metricRepo = {
+  const metricRepo: FakeMetricRepo = {
     queryAggregate: async (query: MetricReadingsQuery) => {
       queries.push(query)
       return aggregateResponse
@@ -146,22 +160,25 @@ function createFakeDeps(accessible: ReadonlyArray<PropertyId> | null = null) {
   return { deps, goals, progresses, metricRepo }
 }
 
+const ORG_ID = organizationId('org-1')
+const USER_ID = userId('user-1')
+
+const ctxFor = (role: Role): AuthContext =>
+  ({ organizationId: ORG_ID, userId: USER_ID, role }) as AuthContext
+
 const BASE_INPUT = {
-  organizationId: organizationId('org-1'),
   propertyId: propertyId('prop-1'),
-  portalId: null as ReturnType<typeof portalId> | null,
-  portalGroupId: null as ReturnType<typeof portalGroupId> | null,
+  portalId: null as PortalId | null,
+  portalGroupId: null as PortalGroupId | null,
   name: 'Get 200 scans',
   description: null as string | null,
-  createdBy: userId('user-1'),
   metricKey: 'portal.scan' as MetricKey,
   aggregationFunction: 'sum' as AggregationFunction,
   targetValue: 200,
-  role: 'AccountAdmin' as const,
 }
 
 describe('createGoal', () => {
-  let fakes: ReturnType<typeof createFakeDeps>
+  let fakes: Fakes
 
   beforeEach(() => {
     fakes = createFakeDeps()
@@ -172,10 +189,13 @@ describe('createGoal', () => {
     it('creates an open goal at property scope and inserts goal + progress', async () => {
       fakes.metricRepo._setAggregate({ sum: 50, count: 50, max: 1 })
 
-      const result = await createGoal(fakes.deps)({
-        ...BASE_INPUT,
-        goalType: 'open',
-      })
+      const result = await createGoal(fakes.deps)(
+        {
+          ...BASE_INPUT,
+          goalType: 'open',
+        },
+        ctxFor('AccountAdmin'),
+      )
 
       expect(result.isOk()).toBe(true)
       const { goal, progress } = result._unsafeUnwrap()
@@ -196,10 +216,13 @@ describe('createGoal', () => {
     })
 
     it('queries metric repo with no time filter for open goal', async () => {
-      await createGoal(fakes.deps)({
-        ...BASE_INPUT,
-        goalType: 'open',
-      })
+      await createGoal(fakes.deps)(
+        {
+          ...BASE_INPUT,
+          goalType: 'open',
+        },
+        ctxFor('AccountAdmin'),
+      )
 
       const queries = fakes.metricRepo._getQueries()
       expect(queries).toHaveLength(1)
@@ -213,12 +236,15 @@ describe('createGoal', () => {
   // ── One-shot goal ────────────────────────────────────────────────────
   describe('one-shot goal', () => {
     it('creates a one-shot goal with period dates', async () => {
-      const result = await createGoal(fakes.deps)({
-        ...BASE_INPUT,
-        goalType: 'one_shot',
-        periodStart: new Date('2026-06-01'),
-        periodEnd: new Date('2026-06-30'),
-      })
+      const result = await createGoal(fakes.deps)(
+        {
+          ...BASE_INPUT,
+          goalType: 'one_shot',
+          periodStart: new Date('2026-06-01'),
+          periodEnd: new Date('2026-06-30'),
+        },
+        ctxFor('AccountAdmin'),
+      )
 
       expect(result.isOk()).toBe(true)
       const { goal } = result._unsafeUnwrap()
@@ -229,12 +255,15 @@ describe('createGoal', () => {
     })
 
     it('queries metric repo with period bounds', async () => {
-      await createGoal(fakes.deps)({
-        ...BASE_INPUT,
-        goalType: 'one_shot',
-        periodStart: new Date('2026-06-01'),
-        periodEnd: new Date('2026-06-30'),
-      })
+      await createGoal(fakes.deps)(
+        {
+          ...BASE_INPUT,
+          goalType: 'one_shot',
+          periodStart: new Date('2026-06-01'),
+          periodEnd: new Date('2026-06-30'),
+        },
+        ctxFor('AccountAdmin'),
+      )
 
       const queries = fakes.metricRepo._getQueries()
       expect(queries).toHaveLength(1)
@@ -246,11 +275,14 @@ describe('createGoal', () => {
   // ── Rolling goal ─────────────────────────────────────────────────────
   describe('rolling goal', () => {
     it('creates a rolling goal with rollingWindowDays', async () => {
-      const result = await createGoal(fakes.deps)({
-        ...BASE_INPUT,
-        goalType: 'rolling',
-        rollingWindowDays: 30,
-      })
+      const result = await createGoal(fakes.deps)(
+        {
+          ...BASE_INPUT,
+          goalType: 'rolling',
+          rollingWindowDays: 30,
+        },
+        ctxFor('AccountAdmin'),
+      )
 
       expect(result.isOk()).toBe(true)
       const { goal } = result._unsafeUnwrap()
@@ -261,11 +293,14 @@ describe('createGoal', () => {
     })
 
     it('queries metric repo with rollingWindowDays', async () => {
-      await createGoal(fakes.deps)({
-        ...BASE_INPUT,
-        goalType: 'rolling',
-        rollingWindowDays: 30,
-      })
+      await createGoal(fakes.deps)(
+        {
+          ...BASE_INPUT,
+          goalType: 'rolling',
+          rollingWindowDays: 30,
+        },
+        ctxFor('AccountAdmin'),
+      )
 
       const queries = fakes.metricRepo._getQueries()
       expect(queries).toHaveLength(1)
@@ -278,11 +313,14 @@ describe('createGoal', () => {
     it('creates template + first instance + instance progress', async () => {
       fakes.metricRepo._setAggregate({ sum: 10, count: 5, max: 4 })
 
-      const result = await createGoal(fakes.deps)({
-        ...BASE_INPUT,
-        goalType: 'recurring',
-        recurrenceRule: { frequency: 'monthly' },
-      })
+      const result = await createGoal(fakes.deps)(
+        {
+          ...BASE_INPUT,
+          goalType: 'recurring',
+          recurrenceRule: { frequency: 'monthly' },
+        },
+        ctxFor('AccountAdmin'),
+      )
 
       expect(result.isOk()).toBe(true)
       const { goal: template } = result._unsafeUnwrap()
@@ -314,11 +352,14 @@ describe('createGoal', () => {
 
     it('computes weekly calendar period for recurring weekly', async () => {
       // FIXED_TIME is Monday 2026-06-15
-      const result = await createGoal(fakes.deps)({
-        ...BASE_INPUT,
-        goalType: 'recurring',
-        recurrenceRule: { frequency: 'weekly' },
-      })
+      const result = await createGoal(fakes.deps)(
+        {
+          ...BASE_INPUT,
+          goalType: 'recurring',
+          recurrenceRule: { frequency: 'weekly' },
+        },
+        ctxFor('AccountAdmin'),
+      )
 
       expect(result.isOk()).toBe(true)
       const instances = fakes.goals.filter((g) => g.parentGoalId !== null)
@@ -329,11 +370,14 @@ describe('createGoal', () => {
     })
 
     it('computes quarterly calendar period for recurring quarterly', async () => {
-      const result = await createGoal(fakes.deps)({
-        ...BASE_INPUT,
-        goalType: 'recurring',
-        recurrenceRule: { frequency: 'quarterly' },
-      })
+      const result = await createGoal(fakes.deps)(
+        {
+          ...BASE_INPUT,
+          goalType: 'recurring',
+          recurrenceRule: { frequency: 'quarterly' },
+        },
+        ctxFor('AccountAdmin'),
+      )
 
       expect(result.isOk()).toBe(true)
       const instances = fakes.goals.filter((g) => g.parentGoalId !== null)
@@ -349,13 +393,16 @@ describe('createGoal', () => {
     it('stores currentSum and currentCount for AVG', async () => {
       fakes.metricRepo._setAggregate({ sum: 24, count: 6, max: 5 })
 
-      const result = await createGoal(fakes.deps)({
-        ...BASE_INPUT,
-        goalType: 'open',
-        metricKey: 'portal.rating',
-        aggregationFunction: 'avg',
-        targetValue: 4.5,
-      })
+      const result = await createGoal(fakes.deps)(
+        {
+          ...BASE_INPUT,
+          goalType: 'open',
+          metricKey: 'portal.rating',
+          aggregationFunction: 'avg',
+          targetValue: 4.5,
+        },
+        ctxFor('AccountAdmin'),
+      )
 
       expect(result.isOk()).toBe(true)
       const { progress } = result._unsafeUnwrap()
@@ -371,11 +418,13 @@ describe('createGoal', () => {
     it('allows Staff to create a goal', async () => {
       fakes.metricRepo._setAggregate({ sum: 0, count: 0, max: 0 })
 
-      const result = await createGoal(fakes.deps)({
-        ...BASE_INPUT,
-        goalType: 'open',
-        role: 'Staff',
-      })
+      const result = await createGoal(fakes.deps)(
+        {
+          ...BASE_INPUT,
+          goalType: 'open',
+        },
+        ctxFor('Staff'),
+      )
 
       expect(result.isOk()).toBe(true)
       expect(fakes.goals).toHaveLength(1)
@@ -384,11 +433,13 @@ describe('createGoal', () => {
     it('allows AccountAdmin to create a goal', async () => {
       fakes.metricRepo._setAggregate({ sum: 0, count: 0, max: 0 })
 
-      const result = await createGoal(fakes.deps)({
-        ...BASE_INPUT,
-        goalType: 'open',
-        role: 'AccountAdmin',
-      })
+      const result = await createGoal(fakes.deps)(
+        {
+          ...BASE_INPUT,
+          goalType: 'open',
+        },
+        ctxFor('AccountAdmin'),
+      )
 
       expect(result.isOk()).toBe(true)
     })
@@ -396,11 +447,13 @@ describe('createGoal', () => {
     it('allows PropertyManager to create a goal', async () => {
       fakes.metricRepo._setAggregate({ sum: 0, count: 0, max: 0 })
 
-      const result = await createGoal(fakes.deps)({
-        ...BASE_INPUT,
-        goalType: 'open',
-        role: 'PropertyManager',
-      })
+      const result = await createGoal(fakes.deps)(
+        {
+          ...BASE_INPUT,
+          goalType: 'open',
+        },
+        ctxFor('PropertyManager'),
+      )
 
       expect(result.isOk()).toBe(true)
     })
@@ -411,11 +464,13 @@ describe('createGoal', () => {
     it('rejects PropertyManager without assignment to the target property', async () => {
       const fakesUnassigned = createFakeDeps([])
 
-      const result = await createGoal(fakesUnassigned.deps)({
-        ...BASE_INPUT,
-        goalType: 'open',
-        role: 'PropertyManager',
-      })
+      const result = await createGoal(fakesUnassigned.deps)(
+        {
+          ...BASE_INPUT,
+          goalType: 'open',
+        },
+        ctxFor('PropertyManager'),
+      )
 
       expect(result.isErr()).toBe(true)
       expect(result._unsafeUnwrapErr().tag).toBe('forbidden')
@@ -425,11 +480,13 @@ describe('createGoal', () => {
     it('allows PropertyManager assigned to the target property', async () => {
       const fakesAssigned = createFakeDeps([propertyId('prop-1')])
 
-      const result = await createGoal(fakesAssigned.deps)({
-        ...BASE_INPUT,
-        goalType: 'open',
-        role: 'PropertyManager',
-      })
+      const result = await createGoal(fakesAssigned.deps)(
+        {
+          ...BASE_INPUT,
+          goalType: 'open',
+        },
+        ctxFor('PropertyManager'),
+      )
 
       expect(result.isOk()).toBe(true)
       expect(fakesAssigned.goals).toHaveLength(1)
@@ -440,12 +497,14 @@ describe('createGoal', () => {
       // any template/instance is built or persisted.
       const fakesUnassigned = createFakeDeps([])
 
-      const result = await createGoal(fakesUnassigned.deps)({
-        ...BASE_INPUT,
-        goalType: 'recurring',
-        recurrenceRule: { frequency: 'monthly' },
-        role: 'PropertyManager',
-      })
+      const result = await createGoal(fakesUnassigned.deps)(
+        {
+          ...BASE_INPUT,
+          goalType: 'recurring',
+          recurrenceRule: { frequency: 'monthly' },
+        },
+        ctxFor('PropertyManager'),
+      )
 
       expect(result.isErr()).toBe(true)
       expect(result._unsafeUnwrapErr().tag).toBe('forbidden')
@@ -456,35 +515,44 @@ describe('createGoal', () => {
   // ── Error cases ──────────────────────────────────────────────────────
   describe('validation errors', () => {
     it('returns err for invalid metric/scope combination', async () => {
-      const result = await createGoal(fakes.deps)({
-        ...BASE_INPUT,
-        goalType: 'open',
-        portalGroupId: portalGroupId('pg-1'),
-        metricKey: 'property.review',
-      })
+      const result = await createGoal(fakes.deps)(
+        {
+          ...BASE_INPUT,
+          goalType: 'open',
+          portalGroupId: portalGroupId('pg-1'),
+          metricKey: 'property.review',
+        },
+        ctxFor('AccountAdmin'),
+      )
 
       expect(result.isErr()).toBe(true)
       expect(fakes.goals).toHaveLength(0)
     })
 
     it('returns err for invalid aggregation/metric combination', async () => {
-      const result = await createGoal(fakes.deps)({
-        ...BASE_INPUT,
-        goalType: 'open',
-        metricKey: 'portal.scan',
-        aggregationFunction: 'avg',
-      })
+      const result = await createGoal(fakes.deps)(
+        {
+          ...BASE_INPUT,
+          goalType: 'open',
+          metricKey: 'portal.scan',
+          aggregationFunction: 'avg',
+        },
+        ctxFor('AccountAdmin'),
+      )
 
       expect(result.isErr()).toBe(true)
       expect(fakes.goals).toHaveLength(0)
     })
 
     it('returns err for empty name', async () => {
-      const result = await createGoal(fakes.deps)({
-        ...BASE_INPUT,
-        goalType: 'open',
-        name: '   ',
-      })
+      const result = await createGoal(fakes.deps)(
+        {
+          ...BASE_INPUT,
+          goalType: 'open',
+          name: '   ',
+        },
+        ctxFor('AccountAdmin'),
+      )
 
       expect(result.isErr()).toBe(true)
     })
@@ -495,11 +563,13 @@ describe('createGoal', () => {
       const OTHER_ORG = organizationId('org-isolated')
       fakes.metricRepo._setAggregate({ sum: 42, count: 42, max: 1 })
 
-      const result = await createGoal(fakes.deps)({
-        ...BASE_INPUT,
-        organizationId: OTHER_ORG,
-        goalType: 'open',
-      })
+      const result = await createGoal(fakes.deps)(
+        {
+          ...BASE_INPUT,
+          goalType: 'open',
+        },
+        { ...ctxFor('AccountAdmin'), organizationId: OTHER_ORG },
+      )
 
       expect(result.isOk()).toBe(true)
       const queries = fakes.metricRepo._getQueries()

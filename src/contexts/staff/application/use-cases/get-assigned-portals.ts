@@ -4,7 +4,7 @@ import type { StaffAssignmentRepository } from '../ports/staff-assignment.reposi
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { PortalId, PropertyId, UserId } from '#/shared/domain/ids'
 import { staffError } from '../../domain/errors'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 
 // fallow-ignore-next-line unused-type
 export type GetAssignedPortalsInput = Readonly<{
@@ -23,7 +23,7 @@ export const getAssignedPortals =
     input: GetAssignedPortalsInput,
     ctx: AuthContext,
   ): Promise<ReadonlyArray<PortalId>> => {
-    if (!can(ctx.role, 'staff_assignment.read')) {
+    if (!canForContext(ctx, 'staff_assignment.read')) {
       throw staffError('forbidden', 'No staff assignment read permission')
     }
 

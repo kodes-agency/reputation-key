@@ -17,7 +17,9 @@ export const duplicateKeyError = (message: string): DuplicateKeyError => ({
 })
 
 export const isDuplicateKeyError = (e: unknown): e is DuplicateKeyError =>
-  typeof e === 'object' && e !== null && (e as DuplicateKeyError)._tag === 'DuplicateKeyError'
+  typeof e === 'object' &&
+  e !== null &&
+  (e as DuplicateKeyError)._tag === 'DuplicateKeyError'
 
 export type PropertyImportRepo = Readonly<{
   /** Insert a new property and return it with its generated id. */
@@ -44,4 +46,12 @@ export type PropertyImportRepo = Readonly<{
 
   /** Check if a property with this gbpPlaceId exists (for race-condition recovery). */
   existsByGbpPlaceId: (organizationId: string, gbpPlaceId: string) => Promise<boolean>
+  /**
+   * Count non-deleted properties linked to a Google connection (for Pub/Sub
+   * lifecycle 0→1 detection — subscribe on the connection's first property).
+   */
+  countByGoogleConnectionId: (
+    organizationId: string,
+    connectionId: string,
+  ) => Promise<number>
 }>

@@ -1,6 +1,6 @@
 import { Badge } from '#/components/ui/badge'
 import { Button } from '#/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '#/components/ui/card'
+import { Card, CardContent, CardHeader } from '#/components/ui/card'
 import { Separator } from '#/components/ui/separator'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
@@ -73,7 +73,7 @@ export function GoalDetailPage({
 
       <Card>
         <CardHeader>
-          <CardTitle>Details</CardTitle>
+          <h2 className="font-semibold leading-none">Details</h2>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">

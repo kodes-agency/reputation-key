@@ -4,6 +4,7 @@
 import type { InboxRepository } from './application/ports/inbox.repository'
 import type { InboxNoteRepository } from './application/ports/inbox-note.repository'
 import type { NewCounterPort } from './application/ports/new-counter.port'
+import type { ReplyLookupPort } from './application/ports/reply-lookup.port'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { EventBus } from '#/shared/events/event-bus'
@@ -26,6 +27,7 @@ type WireInput = Readonly<{
   newCounter: NewCounterPort
   events: EventBus
   staffPublicApi: StaffPublicApi
+  replyLookup: ReplyLookupPort
   logger: LoggerPort
   clock: () => Date
 }>
@@ -83,6 +85,7 @@ export function wireUseCases(input: WireInput): InboxContextApi['internal']['use
     getInboxItemDetail: getInboxItemDetail({
       repo: input.inboxRepo,
       staffPublicApi: input.staffPublicApi,
+      replyLookup: input.replyLookup,
     }),
     getInboxNotes: getInboxNotes({
       noteRepo: input.inboxNoteRepo,

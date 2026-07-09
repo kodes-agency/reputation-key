@@ -3,6 +3,7 @@
 import {
   createFileRoute,
   Outlet,
+  notFound,
   redirect,
   useNavigate,
   useRouterState,
@@ -15,11 +16,20 @@ import { listTeams } from '#/contexts/team/server/teams'
 import { ErrorState } from '#/components/layout/page-states'
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId')({
-  beforeLoad: ({ context }) => {
+  beforeLoad: ({ context, params }) => {
     const { role } = context as AuthRouteContext
     // Property admin shell is a manager surface (property.admin).
     // Staff are scoped to /home, /progress, /leaderboard.
     if (!can(role, 'property.admin')) throw redirect({ to: '/home' })
+    // Reject non-UUID segments (e.g. stale /properties/import bookmarks) with
+    // a clean 404 instead of letting an invalid-uuid query 500.
+    if (
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        params.propertyId,
+      )
+    ) {
+      throw notFound()
+    }
   },
   staleTime: 60_000,
   loader: async ({ params: { propertyId } }) => {

@@ -54,12 +54,14 @@ Note: `inbox.inbox_item.created` has no `userId` — it's emitted by sync pipeli
 
 ## Events consumed
 
-| Tag                        | Source context | Handler action                            |
-| -------------------------- | -------------- | ----------------------------------------- |
-| `review.created`           | review         | Create inbox item for new review          |
-| `review.updated`           | review         | Update denormalized fields on inbox item  |
-| `guest.feedback.submitted` | guest          | Create inbox item for new feedback        |
-| `review.reply.published`   | review         | Auto-transition inbox item to `addressed` |
+| Tag                        | Source context | Handler action                                        |
+| -------------------------- | -------------- | ----------------------------------------------------- |
+| `review.created`           | review         | Create inbox item for new review                      |
+| `review.updated`           | review         | Update denormalized fields on inbox item              |
+| `guest.feedback.submitted` | guest          | Create inbox item for new feedback                    |
+| `review.reply.published`   | review         | Auto-transition inbox item to `addressed`             |
+| `review.reply.submitted`   | review         | Stamp `firstReplySubmittedAt` milestone on inbox item |
+| `review.expired`           | review         | Archive orphaned inbox items (no reply by expiry)     |
 
 ## Architecture layers
 

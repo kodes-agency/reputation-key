@@ -11,22 +11,37 @@ import { toDomainRole } from '#/shared/domain/roles'
 import { organizationId, userId } from '#/shared/domain/ids'
 import { throwContextError } from './server-errors'
 import { enrichSpan } from '#/shared/observability/request-context'
+import { getEnv } from '#/shared/config/env'
+import { getLogger } from '#/shared/observability/logger'
+import { can, type Permission } from '#/shared/domain/permissions'
+import type { DataScope } from '#/shared/domain/data-scope'
+import { VALID_PERMISSIONS } from './permission-catalogue'
+import { BUILT_IN_ROLE_SCOPE } from './resolve-permissions'
+import { resolvePermissions } from './resolve-permissions'
+import { builtInPermissionsForRole } from './role-definitions'
+import {
+  fetchRoleDefinitions,
+  fetchPermissionVersion,
+} from '#/shared/db/role-definitions'
+import { getDb } from '#/shared/db'
 
 // ── Request-scoped tenant cache ───────────────────────────────
 // Within a single page load, multiple server functions call resolveTenantContext
 // with identical sessions. This cache deduplicates the getActiveMember() DB call.
-// Keyed by session cookie value only — ignores non-session cookies and ordering.
-// Max-size eviction prevents unbounded memory growth under high concurrency.
+// Keyed per (session cookie, active org) so an org switch resolves a fresh entry
+// rather than serving the prior org's context. Max-size eviction prevents
+// unbounded memory growth under high concurrency.
 
 const TENANT_CACHE_TTL_MS = 5_000 // 5 seconds — covers a single page load
-// NOTE(F161): After an org switch, the cached tenant context may be stale for
-// up to TENANT_CACHE_TTL_MS. This is acceptable because org switches are rare
-// and the browser reloads on switch. If stale-cache issues arise, consider
-// calling resetTenantCache() from the org-switch handler.
+// Keyed on (session cookie, orgId): after an org switch A→B the new request uses a
+// different key, so the cache never leaks org A's AuthContext into B's resolution.
 const TENANT_CACHE_MAX_SIZE = 100 // Evict oldest entry when full
-const tenantCache = new Map<string, { ctx: AuthContext; ts: number }>()
+const tenantCache = new Map<
+  string,
+  { ctx: AuthContext; ts: number; version: number | null }
+>()
 
-function tenantCacheKey(headers: Headers): string | null {
+function tenantCacheKey(headers: Headers, activeOrgId: string): string | null {
   const cookie = headers.get('cookie')
   if (!cookie || cookie.trim() === '') {
     return null // Skip cache for empty cookies — prevents collision
@@ -38,7 +53,8 @@ function tenantCacheKey(headers: Headers): string | null {
     .split(';')
     .map((c) => c.trim())
     .find((c) => c.startsWith('better-auth.session_token='))
-  return sessionCookie ?? null
+  // Combine with the active org so an org switch resolves under a fresh key.
+  return sessionCookie ? `${sessionCookie}|${activeOrgId}` : null
 }
 
 function evictOldestIfNeeded(): void {
@@ -69,7 +85,12 @@ export function resetTenantCache(): void {
 
 type AuthError = Readonly<{
   _tag: 'AuthError'
-  code: 'unauthorized' | 'session_expired' | 'forbidden' | 'no_active_org'
+  code:
+    | 'unauthorized'
+    | 'session_expired'
+    | 'forbidden'
+    | 'no_active_org'
+    | 'authorization_unavailable'
   message: string
 }>
 
@@ -78,6 +99,7 @@ const authErrorStatus = (code: AuthError['code']): number =>
     .with('unauthorized', 'session_expired', () => 401)
     .with('forbidden', () => 403)
     .with('no_active_org', () => 400)
+    .with('authorization_unavailable', () => 503)
     .exhaustive()
 
 function throwAuthError(code: AuthError['code'], message: string): never {
@@ -127,20 +149,9 @@ export async function requireAuth(headers: Headers): Promise<AuthUser> {
  * Throws if user is not authenticated or has no active organization.
  */
 export async function resolveTenantContext(headers: Headers): Promise<AuthContext> {
-  // Check cache first
-  const key = tenantCacheKey(headers)
-  if (key) {
-    const cached = tenantCache.get(key)
-    if (cached && Date.now() - cached.ts < TENANT_CACHE_TTL_MS) {
-      enrichSpan({
-        organizationId: cached.ctx.organizationId,
-        userId: cached.ctx.userId,
-        role: cached.ctx.role,
-      })
-      return cached.ctx
-    }
-  }
-
+  // Parse the session before the cache lookup so the key can include the active org.
+  // getSessionFromHeaders is a JWT verify (no DB); the cache dedupes the expensive
+  // getActiveMember() call + permission resolution, not the session decode.
   const session = await getSessionFromHeaders(headers)
   if (!session) {
     throwAuthError('unauthorized', 'Valid session required')
@@ -151,6 +162,47 @@ export async function resolveTenantContext(headers: Headers): Promise<AuthContex
     throwAuthError('no_active_org', 'No active organization selected')
   }
 
+  // Key per (session, org) so an org switch A→B resolves a fresh entry instead of
+  // serving the prior org's context for up to TENANT_CACHE_TTL_MS.
+  const key = tenantCacheKey(headers, activeOrgId)
+  if (key) {
+    const cached = tenantCache.get(key)
+    if (cached && Date.now() - cached.ts < TENANT_CACHE_TTL_MS) {
+      // Stage 2 (DAC): verify the permission_version hasn't bumped since we cached.
+      // A bump means roles/policies/assignments changed and the cached ctx is stale;
+      // delete + fall through to a full re-resolve. A read failure is treated the
+      // same (can't prove freshness → re-resolve, which 503s if the DB is down).
+      if (cached.version !== null) {
+        try {
+          const current = await fetchPermissionVersion(
+            getDb(),
+            cached.ctx.organizationId as unknown as string,
+          )
+          if (current !== cached.version) {
+            tenantCache.delete(key)
+          } else {
+            enrichSpan({
+              organizationId: cached.ctx.organizationId,
+              userId: cached.ctx.userId,
+              role: cached.ctx.role,
+            })
+            return cached.ctx
+          }
+        } catch {
+          tenantCache.delete(key)
+        }
+      } else {
+        // Stage 1: TTL-only (built-in roles, no version table).
+        enrichSpan({
+          organizationId: cached.ctx.organizationId,
+          userId: cached.ctx.userId,
+          role: cached.ctx.role,
+        })
+        return cached.ctx
+      }
+    }
+  }
+
   // Find the member record for this user in the active org
   const auth = getAuth()
   const member = await auth.api.getActiveMember({ headers })
@@ -158,16 +210,81 @@ export async function resolveTenantContext(headers: Headers): Promise<AuthContex
     throwAuthError('forbidden', 'Not a member of the active organization')
   }
 
+  const role = toDomainRole(member.role)
+  const env = getEnv()
+
+  if (role === null && !env.ENABLE_CUSTOM_ROLES) {
+    // Stage 1 fail-closed: a non-built-in role (custom or comma-delimited multi-role)
+    // while custom roles are disabled. The warn log is the alerting anchor.
+    getLogger().warn(
+      { memberRole: member.role, organizationId: activeOrgId, userId: session.user.id },
+      'auth.unsupported_member_role: custom role rejected while custom roles are disabled',
+    )
+    throwAuthError('forbidden', 'Member role is not supported')
+  }
+
+  let effectivePermissions: ReadonlySet<Permission>
+  let scopeByPermission: ReadonlyMap<Permission, DataScope>
+  let resolvedVersion: number | null = null
+
+  if (env.ENABLE_CUSTOM_ROLES) {
+    // Stage 2: resolve via the dynamic resolver (built-in + custom/multi roles; per-
+    // permission scope, no widening). Fail-closed with 503 if role definitions can't load.
+    try {
+      const db = getDb()
+      resolvedVersion = await fetchPermissionVersion(db, activeOrgId)
+      const { customRoles, policies } = await fetchRoleDefinitions(db, activeOrgId)
+      const resolved = resolvePermissions({
+        roleNames: member.role.split(','),
+        customRoles,
+        policies,
+        builtInPermissions: builtInPermissionsForRole,
+      })
+      effectivePermissions = resolved.effectivePermissions
+      scopeByPermission = resolved.scopeByPermission
+    } catch (err) {
+      getLogger().error(
+        {
+          err,
+          organizationId: activeOrgId,
+          userId: session.user.id,
+          memberRole: member.role,
+        },
+        'auth.authorization_unavailable: dynamic resolver failed; fail-closed',
+      )
+      throwAuthError('authorization_unavailable', 'Authorization resolution failed')
+    }
+  } else {
+    // Stage 1: built-in role, flag off — fixed scopes, no DB.
+    const builtInScope: DataScope = BUILT_IN_ROLE_SCOPE[member.role] ?? 'none'
+    effectivePermissions = new Set<Permission>(
+      VALID_PERMISSIONS.filter((p) => can(role!, p)),
+    )
+    scopeByPermission = new Map<Permission, DataScope>(
+      [...effectivePermissions].map((p) => [p, builtInScope] as const),
+    )
+  }
+
   const ctx: AuthContext = {
     userId: userId(session.user.id),
     organizationId: organizationId(activeOrgId),
-    role: toDomainRole(member.role),
+    // Custom-only members have no built-in Role; 'Staff' is a lowest-privilege placeholder —
+    // effectivePermissions/scopeByPermission are authoritative (all checks route through
+    // canForContext/scopeForPermission, never ctx.role directly).
+    role: role ?? 'Staff',
+    effectivePermissions: Object.freeze(effectivePermissions),
+    scopeByPermission: Object.freeze(scopeByPermission),
   }
+  // Freeze ctx so a caller can't reassign a field and poison the shared cache entry —
+  // the same object is returned to other callers within the TTL. The Set/Map fields are
+  // frozen above; ReadonlySet/Map give type-level immutability, Object.freeze adds
+  // runtime protection against property reassignment on the shared instance.
+  Object.freeze(ctx)
 
   // Only cache if we have a valid key (non-empty cookies)
   if (key) {
     evictOldestIfNeeded()
-    tenantCache.set(key, { ctx, ts: Date.now() })
+    tenantCache.set(key, { ctx, ts: Date.now(), version: resolvedVersion })
   }
   enrichSpan({
     organizationId: ctx.organizationId,

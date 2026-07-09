@@ -7,7 +7,8 @@ import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
+import { serializeClientAuthz, EMPTY_CLIENT_AUTHZ } from '#/shared/domain/auth-context'
 import { getContainer } from '#/composition'
 
 // ── Get active organization ────────────────────────────────────────
@@ -18,7 +19,7 @@ export const getActiveOrganization = createServerFn({ method: 'GET' }).handler(
       try {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'dashboard.read')) {
+        if (!canForContext(ctx, 'dashboard.read')) {
           throwContextError(
             'AuthError',
             {
@@ -33,7 +34,7 @@ export const getActiveOrganization = createServerFn({ method: 'GET' }).handler(
         const org = await identityPort.getActiveOrg(headers)
 
         if (!org) {
-          return { organization: null, role: ctx.role }
+          return { organization: null, role: ctx.role, authz: serializeClientAuthz(ctx) }
         }
 
         return {
@@ -52,6 +53,7 @@ export const getActiveOrganization = createServerFn({ method: 'GET' }).handler(
             responseSlaHours: org.responseSlaHours,
           },
           role: ctx.role,
+          authz: serializeClientAuthz(ctx),
         }
       } catch (e) {
         // No active organization is a valid state (new user, or org not yet
@@ -63,7 +65,7 @@ export const getActiveOrganization = createServerFn({ method: 'GET' }).handler(
           'code' in e &&
           (e as { code: string }).code === 'no_active_org'
         ) {
-          return { organization: null, role: 'Staff' as const }
+          return { organization: null, role: 'Staff' as const, authz: EMPTY_CLIENT_AUTHZ }
         }
         throw catchUntagged(e)
       }
@@ -81,7 +83,7 @@ export const listMembers = createServerFn({ method: 'GET' }).handler(
       try {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'member.list')) {
+        if (!canForContext(ctx, 'member.list')) {
           throwContextError(
             'AuthError',
             { code: 'forbidden', message: 'Insufficient permissions to list members' },
@@ -94,6 +96,7 @@ export const listMembers = createServerFn({ method: 'GET' }).handler(
           id: m.id,
           userId: m.userId,
           role: m.role,
+          rawRole: m.rawRole,
           email: m.email,
           name: m.name,
           image: m.image,

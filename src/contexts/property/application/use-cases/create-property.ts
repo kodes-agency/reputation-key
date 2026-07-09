@@ -7,7 +7,7 @@ import type { Property, PropertyId } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { CreatePropertyInput } from '../dto/create-property.dto'
 export type { CreatePropertyInput } from '../dto/create-property.dto'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { normalizeSlug } from '../../domain/rules'
 import { buildProperty } from '../../domain/constructors'
 import { propertyError } from '../../domain/errors'
@@ -25,7 +25,7 @@ export const createProperty =
   (deps: CreatePropertyDeps) =>
   async (input: CreatePropertyInput, ctx: AuthContext): Promise<Property> => {
     // 1. Authorize
-    if (!can(ctx.role, 'property.create')) {
+    if (!canForContext(ctx, 'property.create')) {
       throw propertyError('forbidden', 'this role cannot create properties')
     }
 

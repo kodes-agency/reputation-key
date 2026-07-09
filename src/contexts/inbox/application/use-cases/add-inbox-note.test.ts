@@ -16,6 +16,7 @@ import type { InboxItem } from '../../domain/types'
 import type { InboxNoteRepository } from '../ports/inbox-note.repository'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { Role } from '#/shared/domain/roles'
+import type { AuthContext } from '#/shared/domain/auth-context'
 
 function createInMemoryNoteRepo(): InboxNoteRepository & { notes: InboxNote[] } {
   const notes: InboxNote[] = []
@@ -35,6 +36,9 @@ const FIXED_TIME = new Date('2026-04-15T12:00:00Z')
 const ORG_ID = organizationId('org-1')
 const ITEM_ID = inboxItemId('ii-1')
 const USER_ID = userId('user-1')
+
+const ctxFor = (role: Role): AuthContext =>
+  ({ organizationId: ORG_ID, userId: USER_ID, role }) as AuthContext
 
 const seedItem = (): InboxItem => ({
   id: ITEM_ID,
@@ -86,13 +90,10 @@ describe('addInboxNote', () => {
     const { useCase, repo, noteRepo } = setup()
     repo.items.push(seedItem())
 
-    const note = await useCase({
-      inboxItemId: ITEM_ID,
-      organizationId: ORG_ID,
-      userId: USER_ID,
-      text: '  This is a note  ',
-      role: 'AccountAdmin' as Role,
-    })
+    const note = await useCase(
+      { inboxItemId: ITEM_ID, text: '  This is a note  ' },
+      ctxFor('AccountAdmin'),
+    )
 
     expect(note.id).toBe(FIXED_ID)
     expect(note.text).toBe('This is a note') // trimmed
@@ -105,13 +106,7 @@ describe('addInboxNote', () => {
     repo.items.push(seedItem())
 
     await expect(
-      useCase({
-        inboxItemId: ITEM_ID,
-        organizationId: ORG_ID,
-        userId: USER_ID,
-        text: '   ',
-        role: 'AccountAdmin' as Role,
-      }),
+      useCase({ inboxItemId: ITEM_ID, text: '   ' }, ctxFor('AccountAdmin')),
     ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'invalid_input')
   })
 
@@ -119,13 +114,7 @@ describe('addInboxNote', () => {
     const { useCase } = setup()
 
     await expect(
-      useCase({
-        inboxItemId: ITEM_ID,
-        organizationId: ORG_ID,
-        userId: USER_ID,
-        text: 'A note',
-        role: 'AccountAdmin' as Role,
-      }),
+      useCase({ inboxItemId: ITEM_ID, text: 'A note' }, ctxFor('AccountAdmin')),
     ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'not_found')
   })
 
@@ -140,18 +129,15 @@ describe('addInboxNote', () => {
     repo.items.push(seedItem())
 
     await expect(
-      useCase({
-        inboxItemId: ITEM_ID,
-        organizationId: ORG_ID,
-        userId: USER_ID,
-        text: 'test note',
-        role: 'Guest' as unknown as Role,
-      }),
+      useCase(
+        { inboxItemId: ITEM_ID, text: 'test note' },
+        ctxFor('Guest' as unknown as Role),
+      ),
     ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'forbidden')
   })
 
-  it('denies Staff note for inaccessible property (inbox.manage required for bypass)', async () => {
-    // Staff has inbox.write but NOT inbox.manage, so property access is enforced
+  it('denies Staff note for inaccessible property (Staff is property-scoped)', async () => {
+    // Staff is scoped to assigned properties via staff_assignment
     const staffApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [propertyId('prop-other')],
       getAssignedPortals: async () => [],
@@ -161,13 +147,7 @@ describe('addInboxNote', () => {
     repo.items.push(seedItem())
 
     await expect(
-      useCase({
-        inboxItemId: ITEM_ID,
-        organizationId: ORG_ID,
-        userId: USER_ID,
-        text: 'test note',
-        role: 'Staff' as Role,
-      }),
+      useCase({ inboxItemId: ITEM_ID, text: 'test note' }, ctxFor('Staff')),
     ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'forbidden')
   })
 
@@ -180,13 +160,10 @@ describe('addInboxNote', () => {
     const { useCase, repo, noteRepo } = setup(staffApi)
     repo.items.push(seedItem())
 
-    const note = await useCase({
-      inboxItemId: ITEM_ID,
-      organizationId: ORG_ID,
-      userId: USER_ID,
-      text: 'test note',
-      role: 'Staff' as Role,
-    })
+    const note = await useCase(
+      { inboxItemId: ITEM_ID, text: 'test note' },
+      ctxFor('Staff'),
+    )
 
     expect(note.text).toBe('test note')
     expect(noteRepo.notes).toHaveLength(1)
@@ -196,13 +173,7 @@ describe('addInboxNote', () => {
     const { useCase, repo, deps } = setup()
     repo.items.push(seedItem())
 
-    await useCase({
-      inboxItemId: ITEM_ID,
-      organizationId: ORG_ID,
-      userId: USER_ID,
-      text: 'hello',
-      role: 'AccountAdmin' as Role,
-    })
+    await useCase({ inboxItemId: ITEM_ID, text: 'hello' }, ctxFor('AccountAdmin'))
 
     expect(deps.events.capturedEvents[0]._tag).toBe('inbox.inbox_note.added')
   })

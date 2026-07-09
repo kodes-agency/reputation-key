@@ -2,7 +2,7 @@
 // Resolves assigned portals for a staff user and queries KPIs across those portals.
 // Per architecture: application use case owns authorization.
 
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { dashboardError } from '../../domain/errors'
 import type { DashboardRepository } from '../ports/dashboard.repository'
 import type { StaffPortalResolverPort } from '../ports/staff-portal-resolver.port'
@@ -40,7 +40,7 @@ export const getStaffDashboardData =
     input: GetStaffDashboardDataInput,
     ctx: AuthContext,
   ): Promise<StaffDashboardData> => {
-    if (!can(ctx.role, 'dashboard.read')) {
+    if (!canForContext(ctx, 'dashboard.read')) {
       throw dashboardError('forbidden', 'Insufficient permissions to view dashboard')
     }
 

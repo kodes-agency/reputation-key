@@ -7,7 +7,7 @@ import { match } from 'ts-pattern'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { getContainer } from '#/composition'
 import {
   createGoalSchema,
@@ -76,28 +76,35 @@ export const createGoal = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
+        if (!canForContext(ctx, 'goal.create')) {
+          throwContextError(
+            'GoalError',
+            makeGoalError('forbidden', 'No goal create permission'),
+            403,
+          )
+        }
         try {
           const { useCases } = getContainer()
-          const result = await useCases.createGoal({
-            organizationId: ctx.organizationId,
-            propertyId: toPropertyId(data.propertyId),
-            portalId: data.portalId ? toPortalId(data.portalId) : null,
-            portalGroupId: data.portalGroupId
-              ? toPortalGroupId(data.portalGroupId)
-              : null,
-            name: data.name,
-            description: data.description ?? null,
-            createdBy: ctx.userId,
-            goalType: data.goalType,
-            aggregationFunction: data.aggregationFunction,
-            metricKey: data.metricKey,
-            targetValue: data.targetValue,
-            periodStart: data.periodStart ? new Date(data.periodStart) : null,
-            periodEnd: data.periodEnd ? new Date(data.periodEnd) : null,
-            recurrenceRule: data.recurrenceRule ?? null,
-            rollingWindowDays: data.rollingWindowDays ?? null,
-            role: ctx.role,
-          })
+          const result = await useCases.createGoal(
+            {
+              propertyId: toPropertyId(data.propertyId),
+              portalId: data.portalId ? toPortalId(data.portalId) : null,
+              portalGroupId: data.portalGroupId
+                ? toPortalGroupId(data.portalGroupId)
+                : null,
+              name: data.name,
+              description: data.description ?? null,
+              goalType: data.goalType,
+              aggregationFunction: data.aggregationFunction,
+              metricKey: data.metricKey,
+              targetValue: data.targetValue,
+              periodStart: data.periodStart ? new Date(data.periodStart) : null,
+              periodEnd: data.periodEnd ? new Date(data.periodEnd) : null,
+              recurrenceRule: data.recurrenceRule ?? null,
+              rollingWindowDays: data.rollingWindowDays ?? null,
+            },
+            ctx,
+          )
 
           if (result.isErr()) {
             match(result.error)
@@ -135,7 +142,14 @@ export const createGoal = createServerFn({ method: 'POST' })
               .exhaustive()
           }
 
-          return result._unsafeUnwrap()
+          return result.match(
+            (value) => value,
+            (error) => {
+              throw new Error(
+                `goal.createGoal: unmapped error variant after exhaustive mapping: ${JSON.stringify(error)}`,
+              )
+            },
+          )
         } catch (e) {
           if (isGoalError(e)) throwContextError('GoalError', e, goalErrorStatus(e.code))
           throw catchUntagged(e)
@@ -155,7 +169,7 @@ export const updateGoal = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'goal.update')) {
+        if (!canForContext(ctx, 'goal.update')) {
           throwContextError(
             'GoalError',
             makeGoalError(
@@ -168,14 +182,14 @@ export const updateGoal = createServerFn({ method: 'POST' })
 
         try {
           const { useCases } = getContainer()
-          const result = await useCases.updateGoal({
-            goalId: toGoalId(data.goalId),
-            organizationId: ctx.organizationId,
-            userId: ctx.userId,
-            targetValue: data.targetValue,
-            recurrenceRule: data.recurrenceRule ?? undefined,
-            role: ctx.role,
-          })
+          const result = await useCases.updateGoal(
+            {
+              goalId: toGoalId(data.goalId),
+              targetValue: data.targetValue,
+              recurrenceRule: data.recurrenceRule ?? undefined,
+            },
+            ctx,
+          )
 
           if (result.isErr()) {
             match(result.error)
@@ -220,7 +234,15 @@ export const updateGoal = createServerFn({ method: 'POST' })
               .exhaustive()
           }
 
-          return { goal: result._unsafeUnwrap() }
+          const updated = result.match(
+            (value) => value,
+            (error) => {
+              throw new Error(
+                `goal.updateGoal: unmapped error variant after exhaustive mapping: ${JSON.stringify(error)}`,
+              )
+            },
+          )
+          return { goal: updated }
         } catch (e) {
           if (isGoalError(e)) throwContextError('GoalError', e, goalErrorStatus(e.code))
           throw catchUntagged(e)
@@ -240,7 +262,7 @@ export const cancelGoal = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'goal.cancel')) {
+        if (!canForContext(ctx, 'goal.cancel')) {
           throwContextError(
             'GoalError',
             makeGoalError(
@@ -253,12 +275,7 @@ export const cancelGoal = createServerFn({ method: 'POST' })
 
         try {
           const { useCases } = getContainer()
-          const result = await useCases.cancelGoal({
-            goalId: toGoalId(data.goalId),
-            organizationId: ctx.organizationId,
-            userId: ctx.userId,
-            role: ctx.role,
-          })
+          const result = await useCases.cancelGoal({ goalId: toGoalId(data.goalId) }, ctx)
 
           if (result.isErr()) {
             match(result.error)
@@ -286,7 +303,15 @@ export const cancelGoal = createServerFn({ method: 'POST' })
               .exhaustive()
           }
 
-          return { goal: result._unsafeUnwrap() }
+          const cancelled = result.match(
+            (value) => value,
+            (error) => {
+              throw new Error(
+                `goal.cancelGoal: unmapped error variant after exhaustive mapping: ${JSON.stringify(error)}`,
+              )
+            },
+          )
+          return { goal: cancelled }
         } catch (e) {
           if (isGoalError(e)) throwContextError('GoalError', e, goalErrorStatus(e.code))
           throw catchUntagged(e)
@@ -306,7 +331,7 @@ export const listGoals = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'goal.read')) {
+        if (!canForContext(ctx, 'goal.read')) {
           throwContextError(
             'GoalError',
             makeGoalError('forbidden', 'No goal read permission'),
@@ -316,18 +341,19 @@ export const listGoals = createServerFn({ method: 'GET' })
 
         try {
           const { useCases } = getContainer()
-          const result = await useCases.listGoals({
-            organizationId: ctx.organizationId,
-            userId: ctx.userId,
-            propertyId: toPropertyId(data.propertyId),
-            portalId: data.portalId ? toPortalId(data.portalId) : undefined,
-            portalGroupId: data.portalGroupId
-              ? toPortalGroupId(data.portalGroupId)
-              : undefined,
-            status: data.status,
-            goalType: data.goalType,
-            role: ctx.role,
-          })
+          const result = await useCases.listGoals(
+            {
+              organizationId: ctx.organizationId,
+              propertyId: toPropertyId(data.propertyId),
+              portalId: data.portalId ? toPortalId(data.portalId) : undefined,
+              portalGroupId: data.portalGroupId
+                ? toPortalGroupId(data.portalGroupId)
+                : undefined,
+              status: data.status,
+              goalType: data.goalType,
+            },
+            ctx,
+          )
 
           if (result.isErr()) {
             match(result.error)
@@ -341,7 +367,15 @@ export const listGoals = createServerFn({ method: 'GET' })
               .exhaustive()
           }
 
-          return { goals: result._unsafeUnwrap() }
+          const goals = result.match(
+            (value) => value,
+            (error) => {
+              throw new Error(
+                `goal.listGoals: unmapped error variant after exhaustive mapping: ${JSON.stringify(error)}`,
+              )
+            },
+          )
+          return { goals }
         } catch (e) {
           if (isGoalError(e)) throwContextError('GoalError', e, goalErrorStatus(e.code))
           throw catchUntagged(e)
@@ -361,7 +395,7 @@ export const getGoal = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'goal.read')) {
+        if (!canForContext(ctx, 'goal.read')) {
           throwContextError(
             'GoalError',
             makeGoalError('forbidden', 'No goal read permission'),
@@ -371,12 +405,7 @@ export const getGoal = createServerFn({ method: 'GET' })
 
         try {
           const { useCases } = getContainer()
-          const result = await useCases.getGoal({
-            goalId: toGoalId(data.goalId),
-            organizationId: ctx.organizationId,
-            userId: ctx.userId,
-            role: ctx.role,
-          })
+          const result = await useCases.getGoal({ goalId: toGoalId(data.goalId) }, ctx)
 
           if (result.isErr()) {
             match(result.error)
@@ -397,7 +426,14 @@ export const getGoal = createServerFn({ method: 'GET' })
               .exhaustive()
           }
 
-          return result._unsafeUnwrap()
+          return result.match(
+            (value) => value,
+            (error) => {
+              throw new Error(
+                `goal.getGoal: unmapped error variant after exhaustive mapping: ${JSON.stringify(error)}`,
+              )
+            },
+          )
         } catch (e) {
           if (isGoalError(e)) throwContextError('GoalError', e, goalErrorStatus(e.code))
           throw catchUntagged(e)

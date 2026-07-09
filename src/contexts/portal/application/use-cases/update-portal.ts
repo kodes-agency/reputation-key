@@ -6,7 +6,7 @@ import type { Portal, PortalTheme } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { UpdatePortalInput } from '../dto/update-portal.dto'
 export type { UpdatePortalInput }
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { portalId as toPortalId, type OrganizationId } from '#/shared/domain/ids'
 import {
   validatePortalName,
@@ -110,7 +110,7 @@ function buildUpdatedPortal(
 export const updatePortal =
   (deps: UpdatePortalDeps) =>
   async (input: UpdatePortalInput, ctx: AuthContext): Promise<Portal> => {
-    if (!can(ctx.role, 'portal.update')) {
+    if (!canForContext(ctx, 'portal.update')) {
       throw portalError('forbidden', 'this role cannot edit portals')
     }
 
@@ -120,7 +120,12 @@ export const updatePortal =
       throw portalError('portal_not_found', 'portal not found in this organization')
     }
     // Enforce property-assignment scoping (D6-001.)
-    await assertPropertyAccess(deps.staffPublicApi, ctx, existing.propertyId)
+    await assertPropertyAccess(
+      deps.staffPublicApi,
+      ctx,
+      'portal.update',
+      existing.propertyId,
+    )
 
     const patch = await buildPortalPatch(
       input,

@@ -6,6 +6,10 @@ import { can } from '#/shared/domain/permissions'
 import {
   getActiveOrganization,
   listUserOrganizations,
+  updateOrganization,
+  requestOrgLogoUpload,
+  finalizeOrgLogoUpload,
+  setActiveOrganization,
 } from '#/contexts/identity/server/organizations'
 import {
   getOrgResponseSlaFn,
@@ -60,6 +64,10 @@ function OrganizationSettingsRoute() {
           activeOrganizationId={activeOrganizationId}
           responseSlaHours={responseSlaHours}
           updateResponseSla={updateResponseSla}
+          updateOrganizationFn={updateOrganization}
+          requestOrgLogoUploadFn={requestOrgLogoUpload}
+          finalizeOrgLogoUploadFn={finalizeOrgLogoUpload}
+          setActiveOrganizationFn={setActiveOrganization}
         />
       ) : (
         <div className="text-center text-sm text-muted-foreground py-12">

@@ -42,9 +42,12 @@ const createFakeStaffApi = (
     getAccessiblePropertyIds: async (
       _orgId: AuthContext['organizationId'],
       _uid: AuthContext['userId'],
-      role: AuthContext['role'],
+      orgWide: boolean,
     ) => {
-      return responses.get(role) ?? null
+      // orgWide (AccountAdmin) → the admin response; else the assigned-set response.
+      return orgWide
+        ? (responses.get('AccountAdmin') ?? null)
+        : (responses.get('PropertyManager') ?? responses.get('Staff') ?? null)
     },
   }) as StaffPublicApi
 
@@ -211,9 +214,7 @@ describe('listTeams', () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- intentionally invalid role to test permission guard
     const ctx = buildTestAuthContext({ role: 'Guest' as any })
 
-    await expect(
-      useCase({ propertyId: propertyId('prop-1') }, ctx),
-    ).rejects.toSatisfy(
+    await expect(useCase({ propertyId: propertyId('prop-1') }, ctx)).rejects.toSatisfy(
       (e: unknown) => isTeamError(e) && (e as { code: string }).code === 'forbidden',
     )
   })

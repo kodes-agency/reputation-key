@@ -37,7 +37,7 @@ export function EntityPicker({
           <Link
             to="/properties/$propertyId/portals/new"
             params={{ propertyId }}
-            className="inline-flex items-center gap-1 text-sm font-medium text-primary underline-offset-4 hover:underline"
+            className="inline-flex items-center gap-1 text-sm font-medium text-link underline-offset-4 hover:underline"
           >
             <Plus className="size-3" />
             Create a portal

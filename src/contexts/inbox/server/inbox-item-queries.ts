@@ -2,7 +2,7 @@
 
 import {
   createServerFn,
-  can,
+  canForContext,
   isInboxError,
   inboxErrorStatus,
   inboxItemId,
@@ -23,7 +23,7 @@ export const getInboxItemDetailFn = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'inbox.read')) {
+        if (!canForContext(ctx, 'inbox.read')) {
           throwContextError(
             'AuthError',
             { code: 'forbidden', message: 'No inbox read permission' },
@@ -32,12 +32,12 @@ export const getInboxItemDetailFn = createServerFn({ method: 'GET' })
         }
         const { useCases } = getContainer()
         try {
-          return await useCases.getInboxItemDetail({
-            inboxItemId: inboxItemId(data.inboxItemId),
-            organizationId: ctx.organizationId,
-            userId: ctx.userId,
-            role: ctx.role,
-          })
+          return await useCases.getInboxItemDetail(
+            {
+              inboxItemId: inboxItemId(data.inboxItemId),
+            },
+            ctx,
+          )
         } catch (e) {
           if (isInboxError(e))
             throwContextError('InboxError', e, inboxErrorStatus(e.code))
@@ -58,7 +58,7 @@ export const getInboxNotesFn = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'inbox.read')) {
+        if (!canForContext(ctx, 'inbox.read')) {
           throwContextError(
             'AuthError',
             { code: 'forbidden', message: 'No inbox read permission' },
@@ -67,12 +67,12 @@ export const getInboxNotesFn = createServerFn({ method: 'GET' })
         }
         const { useCases } = getContainer()
         try {
-          return await useCases.getInboxNotes({
-            inboxItemId: inboxItemId(data.inboxItemId),
-            organizationId: ctx.organizationId,
-            userId: ctx.userId,
-            role: ctx.role,
-          })
+          return await useCases.getInboxNotes(
+            {
+              inboxItemId: inboxItemId(data.inboxItemId),
+            },
+            ctx,
+          )
         } catch (e) {
           if (isInboxError(e))
             throwContextError('InboxError', e, inboxErrorStatus(e.code))

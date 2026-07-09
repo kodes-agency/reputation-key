@@ -2,7 +2,7 @@
 
 import {
   createServerFn,
-  can,
+  canForContext,
   isInboxError,
   inboxErrorStatus,
   inboxItemId,
@@ -23,7 +23,7 @@ export const updateInboxStatusFn = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'inbox.write')) {
+        if (!canForContext(ctx, 'inbox.write')) {
           throwContextError(
             'AuthError',
             { code: 'forbidden', message: 'No inbox update permission' },
@@ -32,13 +32,13 @@ export const updateInboxStatusFn = createServerFn({ method: 'POST' })
         }
         const { useCases } = getContainer()
         try {
-          return await useCases.updateInboxStatus({
-            inboxItemId: inboxItemId(data.inboxItemId),
-            organizationId: ctx.organizationId,
-            newStatus: data.status,
-            userId: ctx.userId,
-            role: ctx.role,
-          })
+          return await useCases.updateInboxStatus(
+            {
+              inboxItemId: inboxItemId(data.inboxItemId),
+              newStatus: data.status,
+            },
+            ctx,
+          )
         } catch (e) {
           if (isInboxError(e))
             throwContextError('InboxError', e, inboxErrorStatus(e.code))
@@ -59,7 +59,7 @@ export const bulkUpdateInboxStatusFn = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'inbox.write')) {
+        if (!canForContext(ctx, 'inbox.write')) {
           throwContextError(
             'AuthError',
             { code: 'forbidden', message: 'No inbox update permission' },
@@ -68,13 +68,13 @@ export const bulkUpdateInboxStatusFn = createServerFn({ method: 'POST' })
         }
         const { useCases } = getContainer()
         try {
-          return await useCases.bulkUpdateInboxStatus({
-            inboxItemIds: data.inboxItemIds.map((id) => inboxItemId(id)),
-            organizationId: ctx.organizationId,
-            newStatus: data.status,
-            userId: ctx.userId,
-            role: ctx.role,
-          })
+          return await useCases.bulkUpdateInboxStatus(
+            {
+              inboxItemIds: data.inboxItemIds.map((id) => inboxItemId(id)),
+              newStatus: data.status,
+            },
+            ctx,
+          )
         } catch (e) {
           if (isInboxError(e))
             throwContextError('InboxError', e, inboxErrorStatus(e.code))

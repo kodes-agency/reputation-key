@@ -6,6 +6,7 @@ import { useInboxKeyboardShortcuts } from '#/components/inbox/use-inbox-keyboard
 import type { InboxFilterValues } from '#/components/inbox/inbox-filters'
 import type { InboxSearchParams } from './inbox-search-schema'
 import { folderToStatus } from './inbox-search-schema'
+import type { InboxServerFns } from './types'
 
 export type InboxPageNav = (o: {
   to: '.'
@@ -28,6 +29,7 @@ export function useInboxPage(
   orgId: string | undefined,
   search: InboxSearchParams,
   onNavigate: InboxPageNav,
+  inboxFns: InboxServerFns,
 ) {
   const { itemId: _, folder, tab, ...rest } = search
   const isMobile = useIsMobile()
@@ -68,7 +70,7 @@ export function useInboxPage(
     handleRowClick,
     closeDetail,
     handleBulkDone,
-  } = useInboxState(orgId, filters, search.itemId, onNavigate)
+  } = useInboxState(orgId, filters, search.itemId, onNavigate, inboxFns.getInboxItems)
 
   // Stable reference — only recomputes when a different item is selected,
   // NOT when the same item's status/fields update (detail panel uses detailState.currentItem).
@@ -78,7 +80,9 @@ export function useInboxPage(
     () => (selectedItemId ? (items.find((i) => i.id === selectedItemId) ?? null) : null),
     [selectedItemId, foundItemId],
   )
-  const detailState = useInboxDetail(selectedItem, !!selectedItem, { autoMarkRead: true })
+  const detailState = useInboxDetail(selectedItem, !!selectedItem, inboxFns, {
+    autoMarkRead: true,
+  })
 
   useEffect(() => {
     if (detailState.statusVersion > 0 && detailState.currentItem) {

@@ -5,6 +5,7 @@ import type { ActivityRepository } from '../ports/activity-repository.port'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { Role } from '#/shared/domain/roles'
 import { activityLogId, userId, propertyId, organizationId } from '#/shared/domain/ids'
+import type { AuthContext } from '#/shared/domain/auth-context'
 
 function makeEntry(overrides: Partial<ActivityLog> = {}): ActivityLog {
   return {
@@ -52,12 +53,13 @@ function staffApiLimited(ids: string[]): StaffPublicApi {
 }
 
 describe('getActivityTimeline', () => {
+  const ORG_ID = organizationId('org-1')
+  const USER_ID = userId('user-1')
+  const ctxFor = (role: Role) =>
+    ({ organizationId: ORG_ID, userId: USER_ID, role }) as AuthContext
   const baseInput = {
     resourceType: 'inbox_item',
     resourceId: 'ii-1',
-    organizationId: organizationId('org-1'),
-    userId: userId('user-1'),
-    role: 'Staff' as Role,
   }
 
   it('returns all entries for admin users', async () => {
@@ -66,10 +68,7 @@ describe('getActivityTimeline', () => {
       makeEntry({ id: activityLogId('al-2'), propertyId: propertyId('prop-2') }),
     ])
     const deps = { repo, staffPublicApi: staffApiAllAccess() }
-    const result = await getActivityTimeline(deps)({
-      ...baseInput,
-      role: 'AccountAdmin' as Role,
-    })
+    const result = await getActivityTimeline(deps)(baseInput, ctxFor('AccountAdmin'))
     expect(result).toHaveLength(2)
   })
 
@@ -80,7 +79,7 @@ describe('getActivityTimeline', () => {
       makeEntry({ id: activityLogId('al-3'), propertyId: null }),
     ])
     const deps = { repo, staffPublicApi: staffApiLimited(['prop-1']) }
-    const result = await getActivityTimeline(deps)(baseInput)
+    const result = await getActivityTimeline(deps)(baseInput, ctxFor('Staff'))
     expect(result.map((e) => e.id).sort()).toEqual(['al-1', 'al-3'])
   })
 
@@ -90,7 +89,7 @@ describe('getActivityTimeline', () => {
       makeEntry({ id: activityLogId('al-2'), propertyId: propertyId('prop-2') }),
     ])
     const deps = { repo, staffPublicApi: staffApiLimited([]) }
-    const result = await getActivityTimeline(deps)(baseInput)
+    const result = await getActivityTimeline(deps)(baseInput, ctxFor('Staff'))
     expect(result).toHaveLength(0)
   })
 
@@ -100,11 +99,51 @@ describe('getActivityTimeline', () => {
     )
     const repo = createInMemoryActivityRepo(entries)
     const deps = { repo, staffPublicApi: staffApiAllAccess() }
-    const result = await getActivityTimeline(deps)({
-      ...baseInput,
-      role: 'AccountAdmin' as Role,
-      limit: 3,
-    })
+    const result = await getActivityTimeline(deps)(
+      { ...baseInput, limit: 3 },
+      ctxFor('AccountAdmin'),
+    )
     expect(result).toHaveLength(3)
+  })
+
+  it('strips reply-workflow entries from Staff (lacks reply.manage)', async () => {
+    const repo = createInMemoryActivityRepo([
+      makeEntry({ id: activityLogId('al-1'), resourceType: 'inbox_item' }),
+      makeEntry({
+        id: activityLogId('al-2'),
+        resourceType: 'reply',
+        action: 'published',
+      }),
+      makeEntry({
+        id: activityLogId('al-3'),
+        resourceType: 'reply',
+        action: 'rejected',
+        payload: {
+          subject: 'reply',
+          from: null,
+          to: null,
+          detail: 'contained a customer name',
+        },
+      }),
+    ])
+    const deps = { repo, staffPublicApi: staffApiAllAccess() }
+    const result = await getActivityTimeline(deps)(baseInput, ctxFor('Staff'))
+    // Only the inbox_item entry survives; reply rows (incl. rejection reason)
+    // are stripped because Staff lack reply.manage.
+    expect(result.map((e) => e.id)).toEqual(['al-1'])
+  })
+
+  it('keeps reply-workflow entries for PropertyManager (has reply.manage)', async () => {
+    const repo = createInMemoryActivityRepo([
+      makeEntry({ id: activityLogId('al-1'), resourceType: 'inbox_item' }),
+      makeEntry({
+        id: activityLogId('al-2'),
+        resourceType: 'reply',
+        action: 'published',
+      }),
+    ])
+    const deps = { repo, staffPublicApi: staffApiAllAccess() }
+    const result = await getActivityTimeline(deps)(baseInput, ctxFor('PropertyManager'))
+    expect(result.map((e) => e.id).sort()).toEqual(['al-1', 'al-2'])
   })
 })

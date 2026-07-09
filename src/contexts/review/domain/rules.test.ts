@@ -62,6 +62,10 @@ describe('canTransitionReply', () => {
     expect(canTransitionReply('draft', 'pending_approval')).toBe(true)
   })
 
+  it('allows draft → draft (in-place edit of an existing draft)', () => {
+    expect(canTransitionReply('draft', 'draft')).toBe(true)
+  })
+
   it('allows pending_approval → approved', () => {
     expect(canTransitionReply('pending_approval', 'approved')).toBe(true)
   })

@@ -76,6 +76,11 @@ export {
 
 export { type PropertyImportRepo } from '../ports/property-import-repo.port'
 export {
+  manageNotifications,
+  type ManageNotificationsDeps,
+  type ManageNotificationsApi,
+} from './manage-notifications'
+export {
   getGoogleAuthUrl,
   type GetGoogleAuthUrlDeps,
   type GetGoogleAuthUrl,

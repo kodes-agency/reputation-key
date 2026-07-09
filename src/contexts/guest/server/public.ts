@@ -13,6 +13,7 @@ export type { PublicPortalLoaderData } from '../application/dto/public-portal.dt
 import { portalId, ratingId } from '#/shared/domain/ids'
 import { guestErrorStatus } from './guest-scans'
 import { hashIp } from './hash-ip.server'
+import { resolveGuestSession, guestRateLimitKey } from './guest-session'
 
 // ── submitRating ───────────────────────────────────────────────────
 
@@ -25,13 +26,20 @@ export const submitRatingFn = createServerFn({ method: 'POST' })
         const headers = await headersFromContext()
 
         const cookieHeader = headers?.get('cookie') ?? ''
-        // F065 NOTE: sessionId is extracted from cookie or generated. The generated
-        // ID is used for rate limiting and analytics but is NOT set as a response cookie
-        // here — that's handled by the guest-scans server function where session init happens.
-        const sessionId =
-          cookieHeader.match(/guest_session=([^;]+)/)?.[1] ?? crypto.randomUUID()
+        // Resolve the guest session: reuse the cookie if present, otherwise mint
+        // a fresh id AND set it as an HttpOnly cookie so the client carries it on
+        // subsequent requests (cannot be done client-side; HttpOnly is required by
+        // the guest CONTEXT.md invariant).
+        const ip = headers?.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+        const ipHash = hashIp(ip)
+        const session = resolveGuestSession(cookieHeader)
 
-        const rateResult = await rateLimiter.check(`rating:${sessionId}`)
+        // Key on the session id when the cookie is present; fall back to the IP
+        // hash when cookieless so omitting the cookie cannot yield a fresh,
+        // unthrottled bucket on every request.
+        const rateResult = await rateLimiter.check(
+          guestRateLimitKey('rating', session, ipHash),
+        )
         if (!rateResult.allowed) {
           throwContextError(
             'GuestError',
@@ -39,9 +47,6 @@ export const submitRatingFn = createServerFn({ method: 'POST' })
             429,
           )
         }
-
-        const ip = headers?.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
-        const ipHash = hashIp(ip)
 
         const ctx = await useCases.resolvePortalContext({
           portalId: portalId(data.portalId),
@@ -52,7 +57,7 @@ export const submitRatingFn = createServerFn({ method: 'POST' })
             organizationId: ctx.organizationId,
             portalId: portalId(data.portalId),
             propertyId: ctx.propertyId,
-            sessionId,
+            sessionId: session.sessionId,
             value: data.value,
             source: data.source,
             ipHash,
@@ -85,10 +90,17 @@ export const submitFeedbackFn = createServerFn({ method: 'POST' })
         const headers = await headersFromContext()
 
         const cookieHeader = headers?.get('cookie') ?? ''
-        const sessionId =
-          cookieHeader.match(/guest_session=([^;]+)/)?.[1] ?? crypto.randomUUID()
+        const ip = headers?.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+        const ipHash = hashIp(ip)
+        // Reuse the cookie session if present, otherwise mint a fresh id AND
+        // set it as an HttpOnly cookie (see submitRating for full rationale).
+        const session = resolveGuestSession(cookieHeader)
 
-        const rateResult = await rateLimiter.check(`feedback:${sessionId}`)
+        // Session-keyed when the cookie is present; IP-hash fallback when
+        // cookieless so omitting the cookie cannot bypass throttling.
+        const rateResult = await rateLimiter.check(
+          guestRateLimitKey('feedback', session, ipHash),
+        )
         if (!rateResult.allowed) {
           throwContextError(
             'GuestError',
@@ -96,9 +108,6 @@ export const submitFeedbackFn = createServerFn({ method: 'POST' })
             429,
           )
         }
-
-        const ip = headers?.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
-        const ipHash = hashIp(ip)
 
         const ctx = await useCases.resolvePortalContext({
           portalId: portalId(data.portalId),
@@ -109,7 +118,7 @@ export const submitFeedbackFn = createServerFn({ method: 'POST' })
             organizationId: ctx.organizationId,
             portalId: portalId(data.portalId),
             propertyId: ctx.propertyId,
-            sessionId,
+            sessionId: session.sessionId,
             comment: data.comment,
             source: data.source,
             ipHash,

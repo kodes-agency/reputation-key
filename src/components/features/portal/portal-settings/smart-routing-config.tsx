@@ -26,6 +26,7 @@ export function SmartRoutingConfig({
         </div>
         <input
           type="checkbox"
+          aria-label="Enable smart routing"
           checked={enabled}
           onChange={(e) => onEnabledChange(e.target.checked)}
           className="size-5 cursor-pointer rounded border"
@@ -39,22 +40,26 @@ export function SmartRoutingConfig({
             <div
               className={cn(
                 'rounded-lg border p-3 text-center text-sm',
-                'border-amber-200 bg-amber-50',
+                'border-amber-200 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10',
               )}
             >
-              <p className="font-medium text-amber-800">Below {threshold} stars</p>
-              <p className="text-xs text-amber-600 mt-1">
+              <p className="font-medium text-amber-800 dark:text-amber-300">
+                Below {threshold} stars
+              </p>
+              <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
                 Guest sees feedback form prominently
               </p>
             </div>
             <div
               className={cn(
                 'rounded-lg border p-3 text-center text-sm',
-                'border-green-200 bg-green-50',
+                'border-green-200 bg-green-50 dark:border-green-500/30 dark:bg-green-500/10',
               )}
             >
-              <p className="font-medium text-green-800">{threshold}+ stars</p>
-              <p className="text-xs text-green-600 mt-1">
+              <p className="font-medium text-green-800 dark:text-green-400">
+                {threshold}+ stars
+              </p>
+              <p className="text-xs text-green-600 dark:text-green-400 mt-1">
                 Guest sees review site links prominently
               </p>
             </div>
@@ -64,6 +69,7 @@ export function SmartRoutingConfig({
             <p className="text-sm font-medium">Rating threshold: {threshold}+ stars</p>
             <input
               type="range"
+              aria-label="Rating threshold"
               min={1}
               max={4}
               value={threshold}

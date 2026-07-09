@@ -5,20 +5,14 @@ import type { ReplyRepository } from '../ports/reply.repository'
 import type { ReviewRepository } from '../ports/review.repository'
 import type { ReplyQueuePort } from '../ports/reply-queue.port'
 import type { EventBus } from '#/shared/events/event-bus'
-import type {
-  ReplyId,
-  ReviewId,
-  OrganizationId,
-  PropertyId,
-  UserId,
-} from '#/shared/domain/ids'
-import type { Role } from '#/shared/domain/roles'
+import type { ReplyId, ReviewId, OrganizationId, PropertyId } from '#/shared/domain/ids'
+import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Reply } from '../../domain/types'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { transitionReply, MAX_REPLY_LENGTH } from '../../domain/rules'
 import { reviewError } from '../../domain/errors'
-import { isPropertyAccessible } from '#/shared/domain/property-access'
+import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
 import {
   reviewReplyPublished,
   reviewReplySubmitted,
@@ -30,8 +24,8 @@ import { getLogger } from '#/shared/observability/logger'
 
 // ── Shared ────────────────────────────────────────────────────────────
 
-function requireManager(role: Role) {
-  if (!can(role, 'reply.manage')) {
+function requireManager(ctx: AuthContext) {
+  if (!canForContext(ctx, 'reply.manage')) {
     throw reviewError('unauthorized', 'Only managers and admins can manage replies')
   }
 }
@@ -47,19 +41,18 @@ export type ReplyDeps = Readonly<{
 }>
 
 /** Enforce property-assignment scoping for reply mutations (D6-001).
- *  AccountAdmin bypasses (getAccessiblePropertyIds returns null);
- *  PropertyManager is scoped to assigned properties only. */
+ *  Scope resolved per-permission (reply.manage): org-wide scope (AccountAdmin)
+ *  → all accessible; assigned scope (PropertyManager) → assigned properties. */
 async function assertReplyPropertyAccessible(
   deps: ReplyDeps,
-  caller: { organizationId: OrganizationId; userId: UserId; role: Role },
+  ctx: AuthContext,
   propertyId: PropertyId,
 ): Promise<void> {
-  const accessible = await isPropertyAccessible(
-    (orgId, userId, role) =>
-      deps.staffPublicApi.getAccessiblePropertyIds(orgId, userId, role),
-    caller.organizationId,
-    caller.userId,
-    caller.role,
+  const accessible = await isPropertyAccessibleForPermission(
+    (orgId, userId, orgWide) =>
+      deps.staffPublicApi.getAccessiblePropertyIds(orgId, userId, orgWide),
+    ctx,
+    'reply.manage',
     propertyId,
   )
   if (!accessible) {
@@ -77,16 +70,13 @@ export type RetryPublish = ReturnType<typeof retryPublish>
 
 export type DraftReplyInput = Readonly<{
   reviewId: ReviewId
-  organizationId: OrganizationId
   text: string
-  userId: UserId
-  role: Role
 }>
 
 export const draftReply =
   (deps: ReplyDeps) =>
-  async (input: DraftReplyInput): Promise<Reply> => {
-    requireManager(input.role)
+  async (input: DraftReplyInput, ctx: AuthContext): Promise<Reply> => {
+    requireManager(ctx)
 
     if (!input.text.trim()) {
       throw reviewError('invalid_reply', 'Reply text cannot be empty')
@@ -99,47 +89,51 @@ export const draftReply =
     }
 
     // D6-001: scope reply mutations to the caller's assigned properties.
-    const review = await deps.reviewRepo.findById(input.reviewId, input.organizationId)
+    const review = await deps.reviewRepo.findById(input.reviewId, ctx.organizationId)
     if (!review) {
       throw reviewError('review_not_found', 'Review not found')
     }
-    await assertReplyPropertyAccessible(deps, input, review.propertyId)
+    await assertReplyPropertyAccessible(deps, ctx, review.propertyId)
 
     const existing = await deps.replyRepo.findInternalByReviewId(
       input.reviewId,
-      input.organizationId,
+      ctx.organizationId,
     )
 
     const now = deps.clock()
 
     if (existing) {
-      if (existing.status !== 'draft' && existing.status !== 'rejected') {
-        throw reviewError(
-          'invalid_transition',
-          `Cannot edit reply in ${existing.status} status`,
-        )
-      }
-      return deps.replyRepo.upsert(
+      // Validate the (re-)draft transition through the single authority.
+      // `draft → draft` covers in-place edits; `rejected → draft` covers re-drafts.
+      const transitioned = transitionReply(existing, 'draft', now)
+      if (transitioned.isErr()) throw transitioned.error
+      const redrafted = await deps.replyRepo.conditionalUpdate(
+        existing.id,
+        ctx.organizationId,
+        [existing.status],
         {
-          ...existing,
-          text: input.text,
           status: 'draft',
+          text: input.text,
           rejectedBy: null,
           rejectionReason: null,
         },
         now,
       )
+      if (!redrafted) {
+        throw reviewError('invalid_transition', 'Reply status changed concurrently')
+      }
+      return redrafted
     }
 
     return deps.replyRepo.upsert(
       {
         id: deps.idGen(),
         reviewId: input.reviewId,
-        organizationId: input.organizationId,
+        organizationId: ctx.organizationId,
         text: input.text,
         status: 'draft',
         source: 'internal',
-        createdBy: input.userId,
+        createdBy: ctx.userId,
         approvedBy: null,
         rejectedBy: null,
         rejectionReason: null,
@@ -156,38 +150,41 @@ export const draftReply =
 
 export type SubmitReplyInput = Readonly<{
   reviewId: ReviewId
-  organizationId: OrganizationId
-  userId: UserId
-  role: Role
 }>
 
 export const submitReply =
   (deps: ReplyDeps) =>
-  async (input: SubmitReplyInput): Promise<Reply> => {
-    requireManager(input.role)
+  async (input: SubmitReplyInput, ctx: AuthContext): Promise<Reply> => {
+    requireManager(ctx)
 
     const reply = await deps.replyRepo.findInternalByReviewId(
       input.reviewId,
-      input.organizationId,
+      ctx.organizationId,
     )
     if (!reply) {
       throw reviewError('reply_not_found', 'No draft reply found for this review')
     }
 
     // D6-001: scope reply mutations to the caller's assigned properties.
-    const review = await deps.reviewRepo.findById(input.reviewId, input.organizationId)
+    const review = await deps.reviewRepo.findById(input.reviewId, ctx.organizationId)
     if (!review) {
       throw reviewError('review_not_found', 'Review not found')
     }
-    await assertReplyPropertyAccessible(deps, input, review.propertyId)
+    await assertReplyPropertyAccessible(deps, ctx, review.propertyId)
 
     const now = deps.clock()
     const transitioned = transitionReply(reply, 'pending_approval', now)
     if (transitioned.isErr()) throw transitioned.error
-    const submitted = await deps.replyRepo.upsert(
-      { ...transitioned.value, submittedAt: now },
+    const submitted = await deps.replyRepo.conditionalUpdate(
+      reply.id,
+      ctx.organizationId,
+      [reply.status],
+      { status: 'pending_approval', submittedAt: now },
       now,
     )
+    if (!submitted) {
+      throw reviewError('invalid_transition', 'Reply status changed concurrently')
+    }
 
     await deps.events.emit(
       reviewReplySubmitted({
@@ -195,7 +192,7 @@ export const submitReply =
         reviewId: submitted.reviewId,
         propertyId: review.propertyId,
         organizationId: submitted.organizationId,
-        userId: input.userId,
+        userId: ctx.userId,
         occurredAt: now,
       }),
     )
@@ -207,38 +204,41 @@ export const submitReply =
 
 export type ApproveReplyInput = Readonly<{
   reviewId: ReviewId
-  organizationId: OrganizationId
-  userId: UserId
-  role: Role
 }>
 
 export const approveReply =
   (deps: ReplyDeps) =>
-  async (input: ApproveReplyInput): Promise<Reply> => {
-    requireManager(input.role)
+  async (input: ApproveReplyInput, ctx: AuthContext): Promise<Reply> => {
+    requireManager(ctx)
 
     const reply = await deps.replyRepo.findInternalByReviewId(
       input.reviewId,
-      input.organizationId,
+      ctx.organizationId,
     )
     if (!reply) {
       throw reviewError('reply_not_found', 'No reply found for this review')
     }
 
     // D6-001: scope reply mutations to the caller's assigned properties.
-    const review = await deps.reviewRepo.findById(input.reviewId, input.organizationId)
+    const review = await deps.reviewRepo.findById(input.reviewId, ctx.organizationId)
     if (!review) {
       throw reviewError('review_not_found', 'Review not found')
     }
-    await assertReplyPropertyAccessible(deps, input, review.propertyId)
+    await assertReplyPropertyAccessible(deps, ctx, review.propertyId)
 
     const now = deps.clock()
     const transitioned = transitionReply(reply, 'approved', now)
     if (transitioned.isErr()) throw transitioned.error
-    const approved = await deps.replyRepo.upsert(
-      { ...transitioned.value, approvedBy: input.userId, approvedAt: now },
+    const approved = await deps.replyRepo.conditionalUpdate(
+      reply.id,
+      ctx.organizationId,
+      [reply.status],
+      { status: 'approved', approvedBy: ctx.userId, approvedAt: now },
       now,
     )
+    if (!approved) {
+      throw reviewError('invalid_transition', 'Reply status changed concurrently')
+    }
 
     await deps.queue.addPublishJob({
       replyId: approved.id,
@@ -251,7 +251,7 @@ export const approveReply =
         reviewId: approved.reviewId,
         propertyId: review.propertyId,
         organizationId: approved.organizationId,
-        userId: input.userId,
+        userId: ctx.userId,
         authorId: approved.createdBy,
         occurredAt: now,
       }),
@@ -264,43 +264,46 @@ export const approveReply =
 
 export type RejectReplyInput = Readonly<{
   reviewId: ReviewId
-  organizationId: OrganizationId
   reason?: string
-  userId: UserId
-  role: Role
 }>
 
 export const rejectReply =
   (deps: ReplyDeps) =>
-  async (input: RejectReplyInput): Promise<Reply> => {
-    requireManager(input.role)
+  async (input: RejectReplyInput, ctx: AuthContext): Promise<Reply> => {
+    requireManager(ctx)
 
     const reply = await deps.replyRepo.findInternalByReviewId(
       input.reviewId,
-      input.organizationId,
+      ctx.organizationId,
     )
     if (!reply) {
       throw reviewError('reply_not_found', 'No reply found for this review')
     }
 
     // D6-001: scope reply mutations to the caller's assigned properties.
-    const review = await deps.reviewRepo.findById(input.reviewId, input.organizationId)
+    const review = await deps.reviewRepo.findById(input.reviewId, ctx.organizationId)
     if (!review) {
       throw reviewError('review_not_found', 'Review not found')
     }
-    await assertReplyPropertyAccessible(deps, input, review.propertyId)
+    await assertReplyPropertyAccessible(deps, ctx, review.propertyId)
 
     const now = deps.clock()
     const transitioned = transitionReply(reply, 'rejected', now)
     if (transitioned.isErr()) throw transitioned.error
-    const updated = await deps.replyRepo.upsert(
+    const updated = await deps.replyRepo.conditionalUpdate(
+      reply.id,
+      ctx.organizationId,
+      [reply.status],
       {
-        ...transitioned.value,
-        rejectedBy: input.userId,
+        status: 'rejected',
+        rejectedBy: ctx.userId,
         rejectionReason: input.reason ?? null,
       },
       now,
     )
+    if (!updated) {
+      throw reviewError('invalid_transition', 'Reply status changed concurrently')
+    }
 
     await deps.events.emit(
       reviewReplyRejected({
@@ -308,7 +311,7 @@ export const rejectReply =
         reviewId: updated.reviewId,
         propertyId: review.propertyId,
         organizationId: updated.organizationId,
-        userId: input.userId,
+        userId: ctx.userId,
         authorId: updated.createdBy,
         reason: input.reason ?? null,
         occurredAt: now,
@@ -322,52 +325,53 @@ export const rejectReply =
 
 export type DeleteReplyInput = Readonly<{
   reviewId: ReviewId
-  organizationId: OrganizationId
-  userId: UserId
-  role: Role
 }>
 
 export const deleteReply =
   (deps: ReplyDeps) =>
-  async (input: DeleteReplyInput): Promise<void> => {
-    requireManager(input.role)
+  async (input: DeleteReplyInput, ctx: AuthContext): Promise<void> => {
+    requireManager(ctx)
 
     const reply = await deps.replyRepo.findInternalByReviewId(
       input.reviewId,
-      input.organizationId,
+      ctx.organizationId,
     )
     if (!reply) {
       throw reviewError('reply_not_found', 'No reply found for this review')
     }
 
     // D6-001: scope reply mutations to the caller's assigned properties.
-    const review = await deps.reviewRepo.findById(input.reviewId, input.organizationId)
+    const review = await deps.reviewRepo.findById(input.reviewId, ctx.organizationId)
     if (!review) {
       throw reviewError('review_not_found', 'Review not found')
     }
-    await assertReplyPropertyAccessible(deps, input, review.propertyId)
+    await assertReplyPropertyAccessible(deps, ctx, review.propertyId)
 
     if (reply.status !== 'draft' && reply.status !== 'rejected') {
       throw reviewError('invalid_transition', 'Can only delete draft or rejected replies')
     }
 
-    await deps.replyRepo.deleteById(reply.id, input.organizationId)
+    await deps.replyRepo.deleteById(reply.id, ctx.organizationId)
   }
 
 // ── Get reply for review ──────────────────────────────────────────────
 
 export type GetReplyInput = Readonly<{
   reviewId: ReviewId
-  organizationId: OrganizationId
-  userId: UserId
-  role: Role
 }>
 
 export const getReply =
   (deps: ReplyDeps) =>
-  async (input: GetReplyInput): Promise<Reply | null> => {
-    requireManager(input.role)
-    return deps.replyRepo.findInternalByReviewId(input.reviewId, input.organizationId)
+  async (input: GetReplyInput, ctx: AuthContext): Promise<Reply | null> => {
+    requireManager(ctx)
+    // D6-001: scope the reply read to the caller's assigned properties — same guard
+    // the mutations use. Without it a PropertyManager could read other properties' drafts.
+    const review = await deps.reviewRepo.findById(input.reviewId, ctx.organizationId)
+    if (!review) {
+      throw reviewError('review_not_found', 'Review not found')
+    }
+    await assertReplyPropertyAccessible(deps, ctx, review.propertyId)
+    return deps.replyRepo.findInternalByReviewId(input.reviewId, ctx.organizationId)
   }
 
 // ── Mark published (called by publish job on success) ─────────────────
@@ -394,15 +398,26 @@ export const markReplyPublished =
       throw reviewError('review_not_found', 'Review not found for published reply')
     }
 
-    const published = await deps.replyRepo.upsert(transitioned.value, now)
+    const published = await deps.replyRepo.conditionalUpdate(
+      reply.id,
+      input.organizationId,
+      [reply.status],
+      { status: 'published', publishedAt: now },
+      now,
+    )
+    if (!published) {
+      throw reviewError('invalid_transition', 'Reply status changed concurrently')
+    }
 
+    // The publish runs from the publish-reply BullMQ job (no user actor); emit
+    // userId: null (system) keeping authorId as the original reply author.
     await deps.events.emit(
       reviewReplyPublished({
         replyId: published.id,
         reviewId: reply.reviewId,
         propertyId: review.propertyId,
         organizationId: reply.organizationId,
-        userId: published.createdBy,
+        userId: null,
         authorId: published.createdBy,
         occurredAt: now,
       }),
@@ -429,7 +444,16 @@ export const markReplyPublishFailed =
     const now = deps.clock()
     const transitioned = transitionReply(reply, 'publish_failed', now)
     if (transitioned.isErr()) throw transitioned.error
-    const updated = await deps.replyRepo.upsert(transitioned.value, now)
+    const updated = await deps.replyRepo.conditionalUpdate(
+      reply.id,
+      input.organizationId,
+      [reply.status],
+      { status: 'publish_failed' },
+      now,
+    )
+    if (!updated) {
+      throw reviewError('invalid_transition', 'Reply status changed concurrently')
+    }
 
     // Emit event after status update — failure should not break the update
     try {
@@ -460,35 +484,41 @@ export const markReplyPublishFailed =
 
 export type RetryPublishInput = Readonly<{
   reviewId: ReviewId
-  organizationId: OrganizationId
-  userId: UserId
-  role: Role
 }>
 
 export const retryPublish =
   (deps: ReplyDeps) =>
-  async (input: RetryPublishInput): Promise<Reply> => {
-    requireManager(input.role)
+  async (input: RetryPublishInput, ctx: AuthContext): Promise<Reply> => {
+    requireManager(ctx)
 
     const reply = await deps.replyRepo.findInternalByReviewId(
       input.reviewId,
-      input.organizationId,
+      ctx.organizationId,
     )
     if (!reply) {
       throw reviewError('reply_not_found', 'No reply found for this review')
     }
 
     // D6-001: scope reply mutations to the caller's assigned properties.
-    const review = await deps.reviewRepo.findById(input.reviewId, input.organizationId)
+    const review = await deps.reviewRepo.findById(input.reviewId, ctx.organizationId)
     if (!review) {
       throw reviewError('review_not_found', 'Review not found')
     }
-    await assertReplyPropertyAccessible(deps, input, review.propertyId)
+    await assertReplyPropertyAccessible(deps, ctx, review.propertyId)
 
     const now = deps.clock()
     const transitioned = transitionReply(reply, 'approved', now)
     if (transitioned.isErr()) throw transitioned.error
-    const backToApproved = await deps.replyRepo.upsert(transitioned.value, now)
+    const backToApproved = await deps.replyRepo.conditionalUpdate(
+      reply.id,
+      ctx.organizationId,
+      [reply.status],
+      { status: 'approved' },
+      now,
+    )
+    if (!backToApproved) {
+      throw reviewError('invalid_transition', 'Reply status changed concurrently')
+    }
 
     await deps.queue.addPublishJob({
       replyId: backToApproved.id,

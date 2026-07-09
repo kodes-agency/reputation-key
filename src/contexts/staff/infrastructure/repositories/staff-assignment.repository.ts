@@ -40,7 +40,7 @@ export const createStaffAssignmentRepository = (
         .where(
           and(
             ...baseWhere(staffAssignments, orgId),
-            eq(staffAssignments.userId, userId as string),
+            eq(staffAssignments.userId, unbrand(userId)),
           ),
         )
       return rows.map(staffAssignmentFromRow)
@@ -55,7 +55,7 @@ export const createStaffAssignmentRepository = (
         .where(
           and(
             ...baseWhere(staffAssignments, orgId),
-            eq(staffAssignments.propertyId, propertyId as string),
+            eq(staffAssignments.propertyId, unbrand(propertyId)),
           ),
         )
       return rows.map(staffAssignmentFromRow)
@@ -70,7 +70,7 @@ export const createStaffAssignmentRepository = (
         .where(
           and(
             ...baseWhere(staffAssignments, orgId),
-            eq(staffAssignments.teamId, teamId as string),
+            eq(staffAssignments.teamId, unbrand(teamId)),
           ),
         )
       return rows.map(staffAssignmentFromRow)
@@ -85,8 +85,8 @@ export const createStaffAssignmentRepository = (
         .where(
           and(
             ...baseWhere(staffAssignments, orgId),
-            eq(staffAssignments.userId, userId as string),
-            eq(staffAssignments.propertyId, propertyId as string),
+            eq(staffAssignments.userId, unbrand(userId)),
+            eq(staffAssignments.propertyId, unbrand(propertyId)),
           ),
         )
       return rows.map(staffAssignmentFromRow)
@@ -97,18 +97,18 @@ export const createStaffAssignmentRepository = (
     return trace('staffAssignment.assignmentExists', async () => {
       const conditions = [
         ...baseWhere(staffAssignments, orgId),
-        eq(staffAssignments.userId, userId as string),
-        eq(staffAssignments.propertyId, propertyId as string),
+        eq(staffAssignments.userId, unbrand(userId)),
+        eq(staffAssignments.propertyId, unbrand(propertyId)),
       ]
       // Must distinguish NULL teamId (direct assignment) from non-null (team assignment).
       if (teamId) {
-        conditions.push(eq(staffAssignments.teamId, teamId as string))
+        conditions.push(eq(staffAssignments.teamId, unbrand(teamId)))
       } else {
         conditions.push(isNull(staffAssignments.teamId))
       }
       // Must distinguish NULL portalId from non-null
       if (portalId) {
-        conditions.push(eq(staffAssignments.portalId, portalId as string))
+        conditions.push(eq(staffAssignments.portalId, unbrand(portalId)))
       } else {
         conditions.push(isNull(staffAssignments.portalId))
       }
@@ -154,7 +154,7 @@ export const createStaffAssignmentRepository = (
         .where(
           and(
             ...baseWhere(staffAssignments, orgId),
-            eq(staffAssignments.userId, userId as string),
+            eq(staffAssignments.userId, unbrand(userId)),
           ),
         )
       return rows.map((r) => propertyId(r.propertyId))

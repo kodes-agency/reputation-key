@@ -4,22 +4,19 @@
 
 import type { GoalRepository } from '../ports/goal.repository'
 import type { Goal, RecurrenceRule } from '../../domain/types'
-import type { GoalId, OrganizationId, UserId } from '#/shared/domain/ids'
-import type { Role } from '#/shared/domain/roles'
-import { can } from '#/shared/domain/permissions'
+import type { GoalId } from '#/shared/domain/ids'
+import type { AuthContext } from '#/shared/domain/auth-context'
+import { canForContext } from '#/shared/domain/permissions'
 import { ok, err, type Result } from '#/shared/domain'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
-import { isPropertyAccessible } from '#/shared/domain/property-access'
+import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
 
 // ── Input type ──────────────────────────────────────────────────────────
 
 export type UpdateGoalInput = Readonly<{
   goalId: GoalId
-  organizationId: OrganizationId
-  userId: UserId
   targetValue?: number
   recurrenceRule?: RecurrenceRule | null
-  role: Role
 }>
 
 // ── Error types ─────────────────────────────────────────────────────────
@@ -44,24 +41,27 @@ export type UpdateGoal = ReturnType<typeof updateGoal>
 
 export const updateGoal =
   (deps: UpdateGoalDeps) =>
-  async (input: UpdateGoalInput): Promise<Result<Goal, UpdateGoalError>> => {
-    if (!can(input.role, 'goal.update')) {
+  async (
+    input: UpdateGoalInput,
+    ctx: AuthContext,
+  ): Promise<Result<Goal, UpdateGoalError>> => {
+    if (!canForContext(ctx, 'goal.update')) {
       return err({ tag: 'forbidden' })
     }
 
     // 1. Load goal
-    const goal = await deps.goalRepo.getById(input.goalId, input.organizationId)
+    const goal = await deps.goalRepo.getById(input.goalId, ctx.organizationId)
     if (!goal) {
       return err({ tag: 'goal_not_found' })
     }
 
     // D6-001: PropertyManager/Staff must be assigned to the goal's property.
-    const accessible = await isPropertyAccessible(
-      (orgId, uId, role) =>
-        deps.staffPublicApi.getAccessiblePropertyIds(orgId, uId, role),
-      input.organizationId,
-      input.userId,
-      input.role,
+    // Scope resolved per-permission (goal.update): org-wide → all; assigned → set.
+    const accessible = await isPropertyAccessibleForPermission(
+      (orgId, uId, orgWide) =>
+        deps.staffPublicApi.getAccessiblePropertyIds(orgId, uId, orgWide),
+      ctx,
+      'goal.update',
       goal.propertyId,
     )
     if (!accessible) {
@@ -104,11 +104,7 @@ export const updateGoal =
     }
 
     // 5. Persist
-    const updated = await deps.goalRepo.update(
-      input.goalId,
-      input.organizationId,
-      updates,
-    )
+    const updated = await deps.goalRepo.update(input.goalId, ctx.organizationId, updates)
 
     // Repo returns null if not found (shouldn't happen since we just checked)
     if (!updated) {

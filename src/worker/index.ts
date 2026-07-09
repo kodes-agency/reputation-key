@@ -25,7 +25,9 @@ async function main() {
   // Build the dependency container
   const container = createContainer({ enableJobs: true })
 
-  // Register all event handlers and job handlers
+  // Register all event handlers and job handlers BEFORE starting the BullMQ
+  // worker — otherwise early jobs (badge/leaderboard reconciliation fire
+  // immediately) arrive with no handler registered yet.
   await bootstrap(container)
 
   // Track the worker for graceful shutdown

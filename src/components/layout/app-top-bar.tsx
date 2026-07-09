@@ -12,11 +12,13 @@ import {
 import { authClient } from '#/shared/auth/auth-client'
 import { useEffect, useState } from 'react'
 import { NotificationPanel } from '#/components/features/notification/notification-panel'
+import type { NotificationServerFns } from '#/components/features/notification/types'
 
 type ThemeMode = 'light' | 'dark' | 'auto'
 
 type Props = Readonly<{
   user: { id: string; name: string; email: string; image: string | null }
+  notificationFns: NotificationServerFns
 }>
 
 function useThemeMode() {
@@ -45,7 +47,7 @@ function useThemeMode() {
   return { mode, applyMode } as const
 }
 
-export function AppTopBar({ user }: Props) {
+export function AppTopBar({ user, notificationFns }: Props) {
   const navigate = useNavigate()
   const { mode, applyMode } = useThemeMode()
 
@@ -67,10 +69,15 @@ export function AppTopBar({ user }: Props) {
       <div className="flex-1" />
 
       {/* Notifications + User menu */}
-      <NotificationPanel />
+      <NotificationPanel notificationFns={notificationFns} />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon-sm" className="rounded-full">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="rounded-full"
+            aria-label="Account menu"
+          >
             {user.image ? (
               <img src={user.image} alt="" className="size-7 rounded-full object-cover" />
             ) : (

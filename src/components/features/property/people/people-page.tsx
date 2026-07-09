@@ -1,19 +1,14 @@
 // People page component — staff, teams, and directory management
-//
-// NOTE: This component imports 7 server functions across 3 contexts
-// (staff, team, identity). This exceeds the 5-mutation threshold in
-// src/components/CONTEXT.md — deliberate exception. Prop-drilling
-// 7 action hooks through the route would create excessive boilerplate.
-
 import { useState } from 'react'
 import { z } from 'zod'
-import {
+import type {
   listStaffAssignments,
   createStaffAssignment,
   removeStaffAssignment,
+  updateStaffPortals,
 } from '#/contexts/staff/server/staff-assignments'
-import { listTeams, createTeam, deleteTeam } from '#/contexts/team/server/teams'
-import { listMembers } from '#/contexts/identity/server/organizations'
+import type { listTeams, createTeam, deleteTeam } from '#/contexts/team/server/teams'
+import type { listMembers } from '#/contexts/identity/server/organizations'
 import { Tabs, TabsList, TabsTrigger } from '#/components/ui/tabs'
 import {
   useMutationAction,
@@ -25,7 +20,7 @@ import { TeamsTab } from '#/components/features/property/people/teams-tab'
 import { DirectoryTab } from '#/components/features/property/people/directory-tab'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
-import { listPortals } from '#/contexts/portal/server/portals'
+import type { listPortals } from '#/contexts/portal/server/portals'
 
 export const peopleSearchSchema = z.object({
   tab: z.string().optional(),
@@ -40,6 +35,11 @@ interface PeoplePageProps {
   portals: Awaited<ReturnType<typeof listPortals>>['portals']
   tab: string | undefined
   onTabChange: (tab: string) => void
+  createStaffAssignmentFn: typeof createStaffAssignment
+  removeStaffAssignmentFn: typeof removeStaffAssignment
+  createTeamFn: typeof createTeam
+  deleteTeamFn: typeof deleteTeam
+  updateStaffPortalsFn: typeof updateStaffPortals
 }
 
 export function PeoplePage({
@@ -51,6 +51,11 @@ export function PeoplePage({
   portals,
   tab,
   onTabChange,
+  createStaffAssignmentFn,
+  removeStaffAssignmentFn,
+  createTeamFn,
+  deleteTeamFn,
+  updateStaffPortalsFn,
 }: PeoplePageProps) {
   const defaultTab = tab ?? 'staff'
   const [assignOpen, setAssignOpen] = useState(false)
@@ -66,21 +71,21 @@ export function PeoplePage({
     '/_authenticated/properties/$propertyId',
   ] as const
 
-  const assignMutation = useMutationActionSilent(createStaffAssignment, {
+  const assignMutation = useMutationActionSilent(createStaffAssignmentFn, {
     invalidateRoutes: [...invalidateRoutes],
   })
-  const removeMutation = useMutationAction(removeStaffAssignment, {
+  const removeMutation = useMutationAction(removeStaffAssignmentFn, {
     successMessage: 'Staff member unassigned',
     invalidateRoutes: [...invalidateRoutes],
   })
-  const createTeamMutation = useMutationAction(createTeam, {
+  const createTeamMutation = useMutationAction(createTeamFn, {
     successMessage: 'Team created',
     invalidateRoutes: [...invalidateRoutes],
     onSuccess: async () => {
       setCreateTeamOpen(false)
     },
   })
-  const deleteTeamMutation = useMutationAction(deleteTeam, {
+  const deleteTeamMutation = useMutationAction(deleteTeamFn, {
     successMessage: 'Team deleted',
     invalidateRoutes: [...invalidateRoutes],
   })
@@ -115,6 +120,7 @@ export function PeoplePage({
           removeMutation={removeMutation}
           assignOpen={assignOpen}
           onAssignOpenChange={setAssignOpen}
+          updateStaffPortalsFn={updateStaffPortalsFn}
         />
         <TeamsTab
           propertyId={propertyId}

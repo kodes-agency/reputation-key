@@ -6,7 +6,7 @@ import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getContainer } from '#/composition'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import {
   getStaffVisibleBadgesSchema,
   getVisibleTargetBadgesSchema,
@@ -32,7 +32,7 @@ export const getStaffVisibleBadges = createServerFn({ method: 'GET' })
         try {
           const headers = await headersFromContext()
           const ctx = await resolveTenantContext(headers)
-          if (!can(ctx.role, 'badge.read')) {
+          if (!canForContext(ctx, 'badge.read')) {
             throwContextError(
               'AuthError',
               { code: 'forbidden', message: 'No badge read permission' },
@@ -62,12 +62,44 @@ export const getVisibleTargetBadges = createServerFn({ method: 'GET' })
         try {
           const headers = await headersFromContext()
           const ctx = await resolveTenantContext(headers)
-          if (!can(ctx.role, 'badge.read')) {
+          if (!canForContext(ctx, 'badge.read')) {
             throwContextError(
               'AuthError',
               { code: 'forbidden', message: 'No badge read permission' },
               403,
             )
+          }
+          // Role-Filtered Badge Visibility (root CONTEXT.md):
+          // AccountAdmin sees the whole org; PropertyManager must manage the
+          // target property; Staff may only view an assigned portal or a group
+          // that contains one of their assigned portals.
+          if (ctx.role === 'Staff' || ctx.role === 'PropertyManager') {
+            const visibility = await getContainer().badgePublicApi.resolveStaffVisibility(
+              {
+                organizationId: toOrgId(ctx.organizationId),
+                userId: ctx.userId,
+                propertyId: propertyId(data.propertyId),
+              },
+            )
+            if (ctx.role === 'Staff') {
+              const allowed =
+                data.targetType === 'portal'
+                  ? visibility.portalIds.some((id) => id === portalId(data.targetId))
+                  : visibility.groupIds.some((id) => id === portalGroupId(data.targetId))
+              if (!allowed) {
+                throwContextError(
+                  'AuthError',
+                  { code: 'forbidden', message: 'Badge target not accessible' },
+                  403,
+                )
+              }
+            } else if (!visibility.hasPropertyAssignment) {
+              throwContextError(
+                'AuthError',
+                { code: 'forbidden', message: 'Property not accessible' },
+                403,
+              )
+            }
           }
           return (await getContainer().badgePublicApi.getVisibleTargetBadges({
             organizationId: toOrgId(ctx.organizationId),
@@ -95,18 +127,18 @@ export const setOrganizationBadgeEnablement = createServerFn({ method: 'POST' })
         try {
           const headers = await headersFromContext()
           const ctx = await resolveTenantContext(headers)
-          if (!can(ctx.role, 'badge.manage')) {
+          if (!canForContext(ctx, 'badge.manage')) {
             throwContextError(
               'AuthError',
               { code: 'forbidden', message: 'No badge manage permission' },
               403,
             )
           }
-          return await getContainer().badgePublicApi.setOrganizationBadgeEnablement(
-            toOrgId(ctx.organizationId),
-            badgeId(data.badgeDefinitionId),
-            data.enabled,
-          )
+          return await getContainer().badgePublicApi.setOrganizationBadgeEnablement(ctx, {
+            organizationId: toOrgId(ctx.organizationId),
+            badgeDefinitionId: badgeId(data.badgeDefinitionId),
+            enabled: data.enabled,
+          })
         } catch (e) {
           throw catchUntagged(e)
         }
@@ -125,7 +157,7 @@ export const getOrganizationBadgeDefinitionsFn = createServerFn({
     async () => {
       const headers = await headersFromContext()
       const ctx = await resolveTenantContext(headers)
-      if (!can(ctx.role, 'badge.read')) {
+      if (!canForContext(ctx, 'badge.read')) {
         throwContextError(
           'AuthError',
           { code: 'forbidden', message: 'No badge read permission' },

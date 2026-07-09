@@ -15,6 +15,18 @@ export type GuestInteractionRepository = Readonly<{
     sessionId: string,
     portalId: PortalId,
   ): Promise<boolean>
+  /**
+   * Abuse-detection dedup: has this ipHash already rated this portal within the
+   * given window? Guards against cookie-rotation abuse where each request mints
+   * a fresh session (and thus bypasses the sessionId-keyed `hasRated` + the
+   * session/portal unique constraint). Organization-scoped for tenant isolation.
+   */
+  hasRatedByIpWithin(
+    organizationId: OrganizationId,
+    ipHash: string,
+    portalId: PortalId,
+    withinSeconds: number,
+  ): Promise<boolean>
   getLatestScanBySession(
     organizationId: OrganizationId,
     sessionId: string,

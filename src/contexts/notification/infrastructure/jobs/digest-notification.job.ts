@@ -26,6 +26,7 @@ type DigestDeps = Readonly<{
   userLookup: UserLookupPort
   emailSender: EmailSenderPort
   logger: LoggerPort
+  clock: () => Date
 }>
 
 /** Get current hour (0–23) in the given IANA timezone. */
@@ -101,7 +102,7 @@ const markEntriesSent = async (
   organizationId: OrganizationId,
   entries: readonly NotificationEmail[],
 ): Promise<void> => {
-  const sentNow = new Date()
+  const sentNow = deps.clock()
   for (const entry of entries) {
     await deps.emailRepo.markSent(
       notificationEmailId(entry.id as string),
@@ -119,7 +120,7 @@ const markEntriesFailed = async (
   organizationId: OrganizationId,
   entries: readonly NotificationEmail[],
 ): Promise<void> => {
-  const failNow = new Date()
+  const failNow = deps.clock()
   for (const entry of entries) {
     try {
       await deps.emailRepo.markFailed(

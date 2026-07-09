@@ -30,7 +30,7 @@ export function ReplyPendingApproval({
   return (
     <div className="space-y-3 border-t pt-4">
       <div className="flex items-center gap-2">
-        <h4 className="text-sm font-medium">Reply</h4>
+        <h2 className="text-sm font-medium">Reply</h2>
         <Badge variant="outline">Awaiting Approval</Badge>
       </div>
       <div className="rounded-md border bg-muted/30 p-3">
@@ -86,7 +86,7 @@ export function ReplyPublishFailed({ reply, isSaving, onRetry }: FailedProps) {
   return (
     <div className="space-y-3 border-t pt-4">
       <div className="flex items-center gap-2">
-        <h4 className="text-sm font-medium">Reply</h4>
+        <h2 className="text-sm font-medium">Reply</h2>
         <Badge variant="destructive">Publish Failed</Badge>
       </div>
       <div className="rounded-md border bg-muted/30 p-3">
@@ -115,7 +115,7 @@ export function ReviewReplyRejected({ reply, isSaving, onEditResubmit }: Rejecte
   return (
     <div className="space-y-3 border-t pt-4">
       <div className="flex items-center gap-2">
-        <h4 className="text-sm font-medium">Reply</h4>
+        <h2 className="text-sm font-medium">Reply</h2>
         <Badge variant="destructive">Rejected</Badge>
       </div>
       <div className="rounded-md border bg-muted/30 p-3">

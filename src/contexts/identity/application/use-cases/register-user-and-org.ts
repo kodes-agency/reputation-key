@@ -10,7 +10,12 @@ import {
   organizationId as toOrganizationId,
   userId as toUserId,
 } from '#/shared/domain/ids'
-import { getLogger } from '#/shared/observability/logger'
+/** Minimal logger surface this use case needs for compensating-transaction
+ * diagnostics. Injected (not imported from shared/observability) so the
+ * application layer stays free of infrastructure dependencies. */
+export type RegisterUserAndOrgLogger = {
+  error: (obj: object, message?: string) => void
+}
 
 // fallow-ignore-next-line unused-type
 export type RegisterUserAndOrgInput = Readonly<{
@@ -38,6 +43,8 @@ export type RegisterUserAndOrgDeps = Readonly<{
   clock: () => Date
   /** Delete a user (compensating transaction for registration rollback). */
   deleteUser: (userId: string) => Promise<void>
+  /** Logger for compensating-transaction diagnostics (injected, not imported). */
+  logger: RegisterUserAndOrgLogger
 }>
 
 /**
@@ -86,7 +93,7 @@ export const registerUserAndOrg =
         await deps.deleteUser(userId)
       } catch (cleanupErr) {
         // Compensating transaction failed — orphaned user requires manual cleanup
-        getLogger().error(
+        deps.logger.error(
           { orphanedUserId: userId, originalError: e, cleanupError: cleanupErr },
           '[auth] COMPENSATING TX FAILED: orphaned user requires manual cleanup',
         )

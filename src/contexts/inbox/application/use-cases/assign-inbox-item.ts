@@ -3,23 +3,19 @@
 
 import type { InboxRepository } from '../ports/inbox.repository'
 import type { EventBus } from '#/shared/events/event-bus'
-import type { InboxItemId, OrganizationId, UserId } from '#/shared/domain/ids'
+import type { InboxItemId, UserId } from '#/shared/domain/ids'
 import type { InboxItem } from '../../domain/types'
-import type { Role } from '#/shared/domain/roles'
+import type { AuthContext } from '#/shared/domain/auth-context'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
-import { validateAssignment } from '../../domain/rules'
+import { canForContext, scopeForPermission } from '#/shared/domain/permissions'
+import { isPropertyAccessible } from '#/shared/domain/property-access'
 import { inboxItemAssigned, inboxItemUnassigned } from '../../domain/events'
 import { inboxError } from '../../domain/errors'
 import { loadInboxItemOrThrow, assertPropertyAccessible } from '../inbox-access'
-import { isPropertyAccessible } from '#/shared/domain/property-access'
-import { can } from '#/shared/domain/permissions'
 
 export type AssignInboxItemInput = Readonly<{
   inboxItemId: InboxItemId
-  organizationId: OrganizationId
   assignedToUserId: UserId | null
-  role: Role
-  userId: UserId
 }>
 
 // fallow-ignore-next-line unused-type
@@ -32,41 +28,41 @@ export type AssignInboxItemDeps = Readonly<{
 
 export const assignInboxItem =
   (deps: AssignInboxItemDeps) =>
-  async (input: AssignInboxItemInput): Promise<InboxItem> => {
+  async (input: AssignInboxItemInput, ctx: AuthContext): Promise<InboxItem> => {
     // 0. Auth gate
-    if (!can(input.role, 'inbox.write')) {
+    if (!canForContext(ctx, 'inbox.write')) {
       throw inboxError('forbidden', 'No inbox write permission')
     }
 
-    // 1. Validate assignment eligibility (PM+ only)
-    const assignmentResult = validateAssignment(input.role)
-    if (assignmentResult.isErr()) {
-      throw assignmentResult.error
+    // 1. Validate assignment eligibility (inbox.manage — PM+ for built-in roles)
+    if (!canForContext(ctx, 'inbox.manage')) {
+      throw inboxError('assignment_not_allowed', 'Cannot assign inbox items')
     }
 
     // 2. Find item + enforce role-scoped property access
     const item = await loadInboxItemOrThrow(
       deps.repo,
       input.inboxItemId,
-      input.organizationId,
+      ctx.organizationId,
     )
     await assertPropertyAccessible(
       deps.staffPublicApi,
-      input.organizationId,
-      input.userId,
-      input.role,
+      ctx,
+      'inbox.write',
       item.propertyId,
     )
+
     // 2b. Verify the ASSIGNEE has access to the item's property (INBOX-04).
     //     The caller check above is not sufficient — the assignee must also
-    //     be able to access the property to handle the inbox item.
+    //     be able to access the property to handle the inbox item. The org-wide
+    //     flag mirrors the caller's scope (admin trusts the assignee).
     if (input.assignedToUserId) {
       const assigneeCanAccess = await isPropertyAccessible(
-        (orgId, uId, role) =>
-          deps.staffPublicApi.getAccessiblePropertyIds(orgId, uId, role),
-        input.organizationId,
+        (orgId, uId, orgWide) =>
+          deps.staffPublicApi.getAccessiblePropertyIds(orgId, uId, orgWide),
+        ctx.organizationId,
         input.assignedToUserId,
-        input.role,
+        scopeForPermission(ctx, 'inbox.write') === 'organization',
         item.propertyId,
       )
       if (!assigneeCanAccess) {
@@ -80,7 +76,7 @@ export const assignInboxItem =
     // 3. Update assignment
     const updated = await deps.repo.updateAssignment(
       input.inboxItemId,
-      input.organizationId,
+      ctx.organizationId,
       input.assignedToUserId,
     )
 
@@ -91,7 +87,7 @@ export const assignInboxItem =
           inboxItemId: updated.id,
           organizationId: updated.organizationId,
           propertyId: item.propertyId,
-          userId: input.userId,
+          userId: ctx.userId,
           assignedTo: input.assignedToUserId,
           source: 'web',
           occurredAt: deps.clock(),
@@ -103,7 +99,7 @@ export const assignInboxItem =
           inboxItemId: updated.id,
           organizationId: updated.organizationId,
           propertyId: item.propertyId,
-          userId: input.userId,
+          userId: ctx.userId,
           previousAssignee: item.assignedTo,
           source: 'web',
           occurredAt: deps.clock(),

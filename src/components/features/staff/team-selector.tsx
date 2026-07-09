@@ -27,7 +27,7 @@ export function TeamSelector({ field, teams }: Props) {
         value={field.state.value ?? '__none__'}
         onValueChange={(value) => field.handleChange(value === '__none__' ? null : value)}
       >
-        <SelectTrigger>
+        <SelectTrigger aria-label="Team">
           <SelectValue placeholder="No team" />
         </SelectTrigger>
         <SelectContent>

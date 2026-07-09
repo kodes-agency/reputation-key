@@ -6,7 +6,7 @@ import type { EventBus } from '#/shared/events/event-bus'
 import type { PortalGroup } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { UpdatePortalGroupInput } from '../dto/update-portal-group.dto'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { portalError } from '../../domain/errors'
 import { portalGroupUpdated } from '../../domain/events'
 import { portalGroupId } from '#/shared/domain/ids'
@@ -25,7 +25,7 @@ export const updatePortalGroup =
   (deps: UpdatePortalGroupDeps) =>
   async (input: UpdatePortalGroupInput, ctx: AuthContext): Promise<PortalGroup> => {
     // 1. Authorize
-    if (!can(ctx.role, 'portal.update')) {
+    if (!canForContext(ctx, 'portal.update')) {
       throw portalError('forbidden', 'this role cannot update portal groups')
     }
 
@@ -36,7 +36,12 @@ export const updatePortalGroup =
       throw portalError('group_not_found', 'portal group not found in this organization')
     }
     // Enforce property-assignment scoping (D6-001.)
-    await assertPropertyAccess(deps.staffPublicApi, ctx, existing.propertyId)
+    await assertPropertyAccess(
+      deps.staffPublicApi,
+      ctx,
+      'portal.update',
+      existing.propertyId,
+    )
 
     // 3. Check name uniqueness if name is changing
     const newName = input.name ?? existing.name

@@ -6,7 +6,10 @@ import {
   getGoogleAuthUrl,
   listGoogleConnections,
 } from '#/contexts/integration/server/google-connections'
-import { startPropertyImport } from '#/contexts/integration/server/gbp-import'
+import {
+  listGbpLocations,
+  startPropertyImport,
+} from '#/contexts/integration/server/gbp-import'
 import {
   ConnectGoogleButton,
   ImportConnectedView,
@@ -16,7 +19,7 @@ import { useAction } from '#/components/hooks/use-action'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
 
-export const Route = createFileRoute('/_authenticated/properties/import/')({
+export const Route = createFileRoute('/_authenticated/import/')({
   beforeLoad: ({ context }) => {
     const { role } = context as AuthRouteContext
     if (!can(role, 'integration.manage')) throw redirect({ to: '/properties' })
@@ -73,6 +76,7 @@ function ImportPage() {
           initialConnectionId={search.connectionId}
           getAuthUrl={getAuthUrl}
           importAction={importAction}
+          listGbpLocations={listGbpLocations}
         />
       )}
     </PageShell>

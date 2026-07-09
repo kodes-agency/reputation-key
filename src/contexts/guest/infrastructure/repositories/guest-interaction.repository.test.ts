@@ -9,7 +9,13 @@ import {
   buildTestRating,
   buildTestFeedback,
 } from '#/shared/testing/fixtures'
-import { organizationId, portalId, propertyId } from '#/shared/domain/ids'
+import {
+  organizationId,
+  portalId,
+  propertyId,
+  ratingId,
+  feedbackId,
+} from '#/shared/domain/ids'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { Pool } from 'pg'
 import { getEnv } from '#/shared/config/env'
@@ -140,6 +146,132 @@ describe('guestInteractionRepository (integration)', () => {
 
       const result = await repo.hasRated(ORG_B, sessionId, PORTAL_A)
       expect(result).toBe(false)
+    })
+  })
+  describe('findRatingById', () => {
+    it('returns the rating for the owning org and null for a different org (tenant isolation)', async () => {
+      const db = getDb()
+      const repo = createGuestInteractionRepository(db)
+      const rid = crypto.randomUUID()
+      await repo.insertRating(
+        buildTestRating({
+          id: rid as never,
+          organizationId: ORG_A,
+          portalId: PORTAL_A,
+          propertyId: PROP_A,
+          sessionId: crypto.randomUUID(),
+          value: 3,
+        }),
+      )
+
+      expect(await repo.findRatingById(ratingId(rid), ORG_A)).not.toBeNull()
+      // A dropped eq(...organizationId) filter would surface ORG_A's row here.
+      expect(await repo.findRatingById(ratingId(rid), ORG_B)).toBeNull()
+    })
+  })
+
+  describe('findFeedbackById', () => {
+    it('returns the feedback for the owning org and null for a different org (tenant isolation)', async () => {
+      const db = getDb()
+      const repo = createGuestInteractionRepository(db)
+      const fid = crypto.randomUUID()
+      await repo.insertFeedback(
+        buildTestFeedback({
+          id: fid as never,
+          organizationId: ORG_A,
+          portalId: PORTAL_A,
+          propertyId: PROP_A,
+          sessionId: crypto.randomUUID(),
+          comment: 'Tenant isolation check',
+          ratingId: null,
+        }),
+      )
+
+      expect(await repo.findFeedbackById(feedbackId(fid), ORG_A)).not.toBeNull()
+      expect(await repo.findFeedbackById(feedbackId(fid), ORG_B)).toBeNull()
+    })
+  })
+
+  describe('getLatestScanBySession', () => {
+    it('returns the scan for the owning org and null for a different org (tenant isolation)', async () => {
+      const db = getDb()
+      const repo = createGuestInteractionRepository(db)
+      const sessionId = crypto.randomUUID()
+      await repo.recordScan(
+        buildTestScanEvent({
+          id: crypto.randomUUID() as never,
+          organizationId: ORG_A,
+          portalId: PORTAL_A,
+          propertyId: PROP_A,
+          sessionId,
+        }),
+      )
+
+      expect(await repo.getLatestScanBySession(ORG_A, sessionId)).not.toBeNull()
+      expect(await repo.getLatestScanBySession(ORG_B, sessionId)).toBeNull()
+    })
+  })
+
+  describe('hasRatedByIpWithin', () => {
+    it('returns true when the same ipHash rated this portal within the window', async () => {
+      const db = getDb()
+      const repo = createGuestInteractionRepository(db)
+      const ipHash = 'ip-dedup-' + crypto.randomUUID()
+      await repo.insertRating(
+        buildTestRating({
+          id: crypto.randomUUID() as never,
+          organizationId: ORG_A,
+          portalId: PORTAL_A,
+          propertyId: PROP_A,
+          sessionId: crypto.randomUUID(),
+          value: 5,
+          ipHash,
+          createdAt: new Date(),
+        }),
+      )
+
+      expect(await repo.hasRatedByIpWithin(ORG_A, ipHash, PORTAL_A, 3600)).toBe(true)
+    })
+
+    it('returns false when the only matching rating is older than the window', async () => {
+      const db = getDb()
+      const repo = createGuestInteractionRepository(db)
+      const ipHash = 'ip-dedup-old-' + crypto.randomUUID()
+      // Backdate to 2h ago — outside a 1h window.
+      await repo.insertRating(
+        buildTestRating({
+          id: crypto.randomUUID() as never,
+          organizationId: ORG_A,
+          portalId: PORTAL_A,
+          propertyId: PROP_A,
+          sessionId: crypto.randomUUID(),
+          value: 5,
+          ipHash,
+          createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+        }),
+      )
+
+      expect(await repo.hasRatedByIpWithin(ORG_A, ipHash, PORTAL_A, 3600)).toBe(false)
+    })
+
+    it('returns false for a different org (tenant isolation)', async () => {
+      const db = getDb()
+      const repo = createGuestInteractionRepository(db)
+      const ipHash = 'ip-dedup-org-' + crypto.randomUUID()
+      await repo.insertRating(
+        buildTestRating({
+          id: crypto.randomUUID() as never,
+          organizationId: ORG_A,
+          portalId: PORTAL_A,
+          propertyId: PROP_A,
+          sessionId: crypto.randomUUID(),
+          value: 5,
+          ipHash,
+          createdAt: new Date(),
+        }),
+      )
+
+      expect(await repo.hasRatedByIpWithin(ORG_B, ipHash, PORTAL_A, 3600)).toBe(false)
     })
   })
 })

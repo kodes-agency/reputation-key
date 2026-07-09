@@ -3,7 +3,7 @@
 import type { PortalRepository } from '../ports/portal.repository'
 import type { StoragePort } from '../ports/storage.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { portalId, unbrand } from '#/shared/domain/ids'
 import { portalError } from '../../domain/errors'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
@@ -32,7 +32,7 @@ export const finalizeUpload =
     input: FinalizeUploadInput,
     ctx: AuthContext,
   ): Promise<{ heroImageUrl: string }> => {
-    if (!can(ctx.role, 'portal.update')) {
+    if (!canForContext(ctx, 'portal.update')) {
       throw portalError(
         'forbidden',
         'Insufficient permissions to finalize portal uploads',
@@ -47,7 +47,12 @@ export const finalizeUpload =
       throw portalError('portal_not_found', 'portal not found in this organization')
     }
     // Enforce property-assignment scoping (D6-001.)
-    await assertPropertyAccess(deps.staffPublicApi, ctx, portal.propertyId)
+    await assertPropertyAccess(
+      deps.staffPublicApi,
+      ctx,
+      'portal.update',
+      portal.propertyId,
+    )
 
     const publicUrl = await deps.storage.confirmUpload(input.key)
 

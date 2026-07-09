@@ -9,8 +9,8 @@ import type { Team } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { UpdateTeamInput } from '../dto/update-team.dto'
 export type { UpdateTeamInput } from '../dto/update-team.dto'
-import { can } from '#/shared/domain/permissions'
-import { isPropertyAccessible } from '#/shared/domain/property-access'
+import { canForContext } from '#/shared/domain/permissions'
+import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
 import { teamId as toTeamId, userId as toUserId } from '#/shared/domain/ids'
 import { validateTeamName } from '../../domain/rules'
 import { teamError } from '../../domain/errors'
@@ -28,7 +28,7 @@ export const updateTeam =
   (deps: UpdateTeamDeps) =>
   async (input: UpdateTeamInput, ctx: AuthContext): Promise<Team> => {
     // 1. Authorize
-    if (!can(ctx.role, 'team.update')) {
+    if (!canForContext(ctx, 'team.update')) {
       throw teamError('forbidden', 'this role cannot edit teams')
     }
 
@@ -40,11 +40,11 @@ export const updateTeam =
     }
 
     // D6-001: PropertyManager/Staff must be assigned to the team's property.
-    const accessible = await isPropertyAccessible(
-      (orgId, uId, role) => deps.staffApi.getAccessiblePropertyIds(orgId, uId, role),
-      ctx.organizationId,
-      ctx.userId,
-      ctx.role,
+    const accessible = await isPropertyAccessibleForPermission(
+      (orgId, uId, orgWide) =>
+        deps.staffApi.getAccessiblePropertyIds(orgId, uId, orgWide),
+      ctx,
+      'team.update',
       existing.propertyId,
     )
     if (!accessible) {

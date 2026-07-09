@@ -24,7 +24,14 @@ export const Route = createFileRoute('/accept-invitation')({
   loader: async () => {
     const { invitations } = await listUserInvitations()
     return {
-      invitations: invitations.filter((inv) => inv.status === 'pending'),
+      invitations: invitations
+        .filter((inv) => inv.status === 'pending')
+        .map((inv) => ({
+          id: inv.id,
+          organizationName: inv.organizationName ?? 'Unknown Organization',
+          role: inv.role ?? inv.rawRole,
+          expiresAt: inv.expiresAt,
+        })),
     }
   },
   component: AcceptInvitationRoute,

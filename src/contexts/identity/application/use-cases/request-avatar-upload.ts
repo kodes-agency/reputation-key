@@ -3,7 +3,7 @@
 
 import type { IdentityStoragePort } from '../ports/identity.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { identityError } from '../../domain/errors'
 export type RequestAvatarUploadInput = Readonly<{
   contentType: string
@@ -25,7 +25,7 @@ export const requestAvatarUpload =
     input: RequestAvatarUploadInput,
     ctx: AuthContext,
   ): Promise<{ uploadUrl: string; key: string }> => {
-    if (!can(ctx.role, 'identity.avatar_upload')) {
+    if (!canForContext(ctx, 'identity.avatar_upload')) {
       throw identityError('forbidden', 'Insufficient permissions to upload avatar')
     }
 

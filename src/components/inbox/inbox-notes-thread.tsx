@@ -1,9 +1,8 @@
 // Inbox notes thread — displays notes and add-note form within the detail panel
 import { useState, useMemo } from 'react'
 import { useMutationAction } from '#/components/hooks/use-mutation-action'
-// exception: server fn used directly — component is 3 levels deep (route → sheet → content → notes),
-// prop drilling >2 levels is worse than direct server fn import here
-import { addInboxNoteFn } from '#/contexts/inbox/server/inbox'
+// Receives addInboxNote server fn as a prop per src/components/CONTEXT.md:55.
+import type { addInboxNoteFn } from '#/contexts/inbox/server/inbox'
 import { Button } from '#/components/ui/button'
 import { Textarea } from '#/components/ui/textarea'
 import { Send, Clock, User } from 'lucide-react'
@@ -14,6 +13,7 @@ type Props = Readonly<{
   inboxItemId: string
   currentUserId?: string
   onNoteAdded: () => void
+  addInboxNote: typeof addInboxNoteFn
 }>
 
 function formatRelativeTime(date: Date): string {
@@ -41,11 +41,15 @@ export function InboxNotesThread({
   inboxItemId,
   currentUserId,
   onNoteAdded,
+  addInboxNote,
 }: Props) {
   const [noteText, setNoteText] = useState('')
 
-  const addNote = useMutationAction(addInboxNoteFn, {
+  // invalidate: false — onNoteAdded refreshes detail + bumps statusVersion
+  // (which refreshes the activity timeline); the inbox route has no loader.
+  const addNote = useMutationAction(addInboxNote, {
     successMessage: 'Note added',
+    invalidate: false,
     onSuccess: () => {
       setNoteText('')
       onNoteAdded()
@@ -75,7 +79,7 @@ export function InboxNotesThread({
 
   return (
     <div className="flex flex-col gap-3">
-      <h4 className="text-sm font-medium text-foreground">Notes ({notes.length})</h4>
+      <h3 className="text-sm font-medium text-foreground">Notes ({notes.length})</h3>
 
       {/* Notes list */}
       {sortedNotes.length === 0 ? (

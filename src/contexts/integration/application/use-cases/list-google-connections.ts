@@ -7,7 +7,7 @@ import type {
 } from '../ports/google-connection.repository'
 import type { GoogleConnection } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { integrationError } from '../../domain/errors'
 
 export type ListGoogleConnectionsDeps = Readonly<{
@@ -17,7 +17,7 @@ export type ListGoogleConnectionsDeps = Readonly<{
 export const listGoogleConnections =
   (deps: ListGoogleConnectionsDeps) =>
   async (ctx: AuthContext): Promise<ReadonlyArray<GoogleConnection>> => {
-    if (!can(ctx.role, 'integration.manage')) {
+    if (!canForContext(ctx, 'integration.manage')) {
       throw integrationError(
         'forbidden',
         'Insufficient permissions to manage integrations',

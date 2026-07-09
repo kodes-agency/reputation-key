@@ -21,9 +21,12 @@ export const calculateExpiresAt = (reviewedAt: Date, now: Date): Date => {
   return remainingRetention > 0 ? new Date(now.getTime() + remainingRetention) : now
 }
 
-/** Valid reply status transitions. Keys are current status, values are allowed next statuses. */
+/** Valid reply status transitions. Keys are current status, values are allowed next statuses.
+ *  `draft → draft` is an explicit self-transition covering in-place edits of an existing draft
+ *  (text changes without a status change), so `transitionReply` is the single authority for
+ *  every reply write — including edits. */
 const REPLY_TRANSITIONS: Readonly<Record<ReplyStatus, ReadonlyArray<ReplyStatus>>> = {
-  draft: ['pending_approval'],
+  draft: ['draft', 'pending_approval'],
   pending_approval: ['approved', 'rejected'],
   approved: ['published', 'publish_failed'],
   published: [],

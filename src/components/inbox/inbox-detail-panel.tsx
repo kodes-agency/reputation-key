@@ -6,6 +6,7 @@ import { InboxStatusBadge } from '#/components/inbox/inbox-status-badge'
 import { getStatusActions } from '#/components/inbox/inbox-detail-helpers'
 import type { InboxItem } from '#/contexts/inbox/application/public-api'
 import type { useInboxDetail } from '#/components/inbox/use-inbox-detail'
+import type { InboxDetailFns } from './types'
 
 type DetailState = ReturnType<typeof useInboxDetail>
 
@@ -13,12 +14,14 @@ interface InboxDetailPanelProps {
   selectedItem: InboxItem
   detailState: DetailState
   onClose: () => void
+  detailFns: InboxDetailFns
 }
 
 export function InboxDetailPanel({
   selectedItem,
   detailState,
   onClose,
+  detailFns,
 }: InboxDetailPanelProps) {
   const currentItem = detailState.currentItem ?? selectedItem
   const statusActions = currentItem
@@ -42,7 +45,13 @@ export function InboxDetailPanel({
           </div>
           {currentItem && <InboxStatusBadge status={currentItem.status} />}
         </div>
-        <Button variant="ghost" size="icon" className="size-8 shrink-0" onClick={onClose}>
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Close detail"
+          className="size-8 shrink-0"
+          onClick={onClose}
+        >
           <X className="size-4" />
         </Button>
       </div>
@@ -59,7 +68,9 @@ export function InboxDetailPanel({
               Retry
             </Button>
           </div>
-        ) : detailState.isLoading || !currentItem ? (
+        ) : detailState.isLoading ||
+          !currentItem ||
+          detailState.detail?.item.id !== currentItem.id ? (
           <div className="space-y-4 p-4">
             <Skeleton className="h-6 w-3/4" />
             <Skeleton className="h-20 w-full" />
@@ -72,8 +83,9 @@ export function InboxDetailPanel({
             statusActions={statusActions}
             updateStatus={detailState.updateStatus}
             notes={detailState.notes}
-            onNoteAdded={() => void detailState.refresh()}
+            onNoteAdded={detailState.onNoteAdded}
             statusVersion={detailState.statusVersion}
+            detailFns={detailFns}
           />
         )}
       </div>

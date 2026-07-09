@@ -102,6 +102,7 @@ export function TeamsTab({
                     <Button
                       variant="ghost"
                       size="icon"
+                      aria-label={`Delete team ${team.name}`}
                       className="text-muted-foreground hover:text-destructive"
                     >
                       <Trash2 className="size-4" />

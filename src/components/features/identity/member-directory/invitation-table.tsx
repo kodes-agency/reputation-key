@@ -33,7 +33,8 @@ import type { Role } from '#/shared/domain/roles'
 export interface InvitationRow {
   id: string
   email: string
-  role: Role
+  role: Role | null
+  rawRole: string
   status: string
 }
 
@@ -43,11 +44,7 @@ type Props = Readonly<{
   cancelAction: Action<{ data: { invitationId: string } }>
 }>
 
-export function InvitationTable({
-  invitations,
-  resendAction,
-  cancelAction,
-}: Props) {
+export function InvitationTable({ invitations, resendAction, cancelAction }: Props) {
   const { can } = usePermissions()
   const canManage = can('invitation.cancel')
 
@@ -71,7 +68,7 @@ export function InvitationTable({
             <TableRow key={inv.id}>
               <TableCell className="font-medium">{inv.email}</TableCell>
               <TableCell>
-                <RoleBadge role={inv.role} />
+                <RoleBadge role={inv.role} rawRole={inv.rawRole} />
               </TableCell>
               <TableCell>
                 <Badge variant="outline">{inv.status}</Badge>

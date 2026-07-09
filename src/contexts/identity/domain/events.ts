@@ -3,6 +3,7 @@
 // Event envelope: eventId auto-generated in constructor, occurredAt caller-provided,
 // correlationId optional.
 
+import { newEventId } from '#/shared/domain/event-id'
 import type { OrganizationId, UserId, InvitationId } from '#/shared/domain/ids'
 import type { Role } from '#/shared/domain/roles'
 import { identityError } from './errors'
@@ -26,7 +27,7 @@ export const identityOrganizationCreated = (
     throw identityError('validation_error', 'organizationName required')
   return {
     _tag: 'identity.organization.created',
-    eventId: crypto.randomUUID(),
+    eventId: newEventId(),
     correlationId: null,
     ...args,
   }
@@ -51,7 +52,7 @@ export const identityMemberInvited = (
   if (args.userId === '') throw identityError('validation_error', 'userId required')
   return {
     _tag: 'identity.member.invited',
-    eventId: crypto.randomUUID(),
+    eventId: newEventId(),
     correlationId: null,
     ...args,
   }
@@ -74,7 +75,7 @@ export const identityInvitationAccepted = (
     throw identityError('validation_error', 'occurredAt must be Date')
   return {
     _tag: 'identity.invitation.accepted',
-    eventId: crypto.randomUUID(),
+    eventId: newEventId(),
     correlationId: null,
     ...args,
   }
@@ -95,7 +96,7 @@ export const identityInvitationRejected = (
     throw identityError('validation_error', 'occurredAt must be Date')
   return {
     _tag: 'identity.invitation.rejected',
-    eventId: crypto.randomUUID(),
+    eventId: newEventId(),
     correlationId: null,
     ...args,
   }
@@ -116,7 +117,7 @@ export const identityInvitationCanceled = (
     throw identityError('validation_error', 'occurredAt must be Date')
   return {
     _tag: 'identity.invitation.canceled',
-    eventId: crypto.randomUUID(),
+    eventId: newEventId(),
     correlationId: null,
     ...args,
   }
@@ -139,7 +140,7 @@ export const identityMemberRemoved = (
   if (args.userId === '') throw identityError('validation_error', 'userId required')
   return {
     _tag: 'identity.member.removed',
-    eventId: crypto.randomUUID(),
+    eventId: newEventId(),
     correlationId: null,
     ...args,
   }
@@ -168,7 +169,7 @@ export const identityMemberRoleChanged = (
     )
   return {
     _tag: 'identity.member.role_changed',
-    eventId: crypto.randomUUID(),
+    eventId: newEventId(),
     correlationId: null,
     ...args,
   }

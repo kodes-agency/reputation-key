@@ -16,6 +16,7 @@ import {
   createFakeUserLookup,
   createFakeEmailSender,
   createFakeJobLogger,
+  createFakeClock,
 } from './test-fixtures'
 import type {
   FakeEmailRepo,
@@ -23,6 +24,7 @@ import type {
   FakeUserLookup,
   FakeEmailSender,
   FakeJobLogger,
+  FakeClock,
 } from './test-fixtures'
 
 const EMAIL_ENTRY_ID = notificationEmailId('email-entry-1')
@@ -75,6 +77,7 @@ export type FakeUrgentDeps = {
   userLookup: FakeUserLookup
   emailSender: FakeEmailSender
   logger: FakeJobLogger
+  clock: FakeClock
 }
 
 function createFakeDeps(): FakeUrgentDeps {
@@ -84,6 +87,7 @@ function createFakeDeps(): FakeUrgentDeps {
     userLookup: createFakeUserLookup(),
     emailSender: createFakeEmailSender(),
     logger: createFakeJobLogger(),
+    clock: createFakeClock(FIXED_DATE),
   }
 }
 
@@ -280,5 +284,23 @@ describe('createUrgentEmailJobHandler', () => {
     const html = deps.emailSender.send.mock.calls[0][0].html
     expect(html).not.toContain('<script>')
     expect(html).not.toContain('<b>')
+  })
+
+  it('uses injected clock for transition timestamps, not new Date()', async () => {
+    const clockDate = new Date('2026-07-04T12:00:00Z')
+    deps.clock = vi.fn(() => clockDate)
+    setupHappyPathMocks(deps, { entry: createFakeEmailEntry({ status: 'pending' }) })
+
+    await runUrgentHandler(deps)
+
+    // markSent must receive the clock's timestamp, proving the job uses
+    // deps.clock() rather than constructing `new Date()` inline.
+    expect(deps.clock).toHaveBeenCalled()
+    expect(deps.emailRepo.markSent).toHaveBeenCalledWith(
+      EMAIL_ENTRY_ID,
+      'org-1',
+      clockDate,
+      clockDate,
+    )
   })
 })

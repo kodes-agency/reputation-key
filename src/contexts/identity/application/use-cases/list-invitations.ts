@@ -4,7 +4,7 @@
 
 import type { IdentityPort, InvitationRecord } from '../ports/identity.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { identityError } from '../../domain/errors'
 
 export type ListInvitationsInput = void
@@ -31,7 +31,7 @@ export const listInvitations =
     ctx: AuthContext,
   ): Promise<ListInvitationsOutput> => {
     // 1. Authorize
-    if (!can(ctx.role, 'invitation.list')) {
+    if (!canForContext(ctx, 'invitation.list')) {
       throw identityError('forbidden', 'Insufficient role to view invitations')
     }
 

@@ -28,7 +28,7 @@ import type { ReviewError } from '../../domain/errors'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { reviewCreated, reviewUpdated, reviewReplyPublished } from '../../domain/events'
 import { reviewError } from '../../domain/errors'
-import { calculateExpiresAt } from '../../domain/rules'
+import { calculateExpiresAt, MAX_REPLY_LENGTH } from '../../domain/rules'
 import { ok, err, type Result } from '#/shared/domain'
 
 export type SyncReviewsDeps = Readonly<{
@@ -219,6 +219,11 @@ async function mirrorReply(
   )
 
   if (gr.replyText) {
+    // Clamp mirrored Google reply text to MAX_REPLY_LENGTH at the adapter boundary.
+    // google_sync replies bypass buildReply (ADR 0003 decision 6); enforce the same
+    // length invariant here so a Google reply longer than 4096 chars is truncated, not
+    // persisted unvalidated.
+    const mirroredText = gr.replyText.slice(0, MAX_REPLY_LENGTH)
     // Google has a reply → upsert google_sync reply
     if (existingGoogleReply) {
       // Update existing google_sync reply text
@@ -227,7 +232,7 @@ async function mirrorReply(
           id: existingGoogleReply.id,
           reviewId,
           organizationId,
-          text: gr.replyText,
+          text: mirroredText,
           status: existingGoogleReply.status,
           source: 'google_sync',
           createdBy: existingGoogleReply.createdBy,
@@ -249,7 +254,7 @@ async function mirrorReply(
           id: replyId,
           reviewId,
           organizationId,
-          text: gr.replyText,
+          text: mirroredText,
           status: 'published',
           source: 'google_sync',
           createdBy: null,

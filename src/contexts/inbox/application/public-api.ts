@@ -10,6 +10,10 @@ export type {
   InboxStatus,
   SourceType,
 } from '../domain/types'
+
+// Application-layer detail result (includes the review reply) — used by the
+// client detail state. See get-inbox-item-detail use case.
+export type { InboxItemDetailResult } from './use-cases/get-inbox-item-detail'
 export type { InboxError, InboxErrorCode } from '../domain/errors'
 export { isInboxError } from '../domain/errors'
 export type { Cursor } from './ports/inbox.repository'

@@ -3,19 +3,20 @@
 // to query staff assignment data. Per ADR-0001.
 
 import type { OrganizationId, PortalId, PropertyId, UserId } from '#/shared/domain/ids'
-import type { Role } from '#/shared/domain/roles'
 import type { AuthContext } from '#/shared/domain/auth-context'
 
 export type StaffPublicApi = Readonly<{
   /**
-   * Get property IDs accessible to a user based on their role and assignments.
-   * Returns null for AccountAdmin (meaning "all properties in org").
-   * Returns specific IDs for PropertyManager/Staff (from staff_assignments).
+   * Get property IDs accessible to a user for a permission's scope.
+   * `orgWide=true` → null (all properties in the org). `orgWide=false` → the user's
+   * assigned-property set (from staff_assignments). The orgWide flag is resolved by
+   * the caller via scopeForPermission(ctx, permission) — this method never inspects
+   * the role, so custom/multi roles resolve correctly (ADR 0001).
    */
   getAccessiblePropertyIds: (
     orgId: OrganizationId,
     userId: UserId,
-    role: Role,
+    orgWide: boolean,
   ) => Promise<ReadonlyArray<PropertyId> | null>
 
   /**

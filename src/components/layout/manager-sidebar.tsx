@@ -16,9 +16,11 @@ import {
 import { usePropertyId } from '#/components/hooks/use-property-id'
 import { ManagerNavItems } from './manager-nav-items'
 import { ManagerPropertySwitcher } from './manager-property-switcher'
+import type { getNewCountFn } from '#/contexts/inbox/server/inbox'
 
 type Props = Readonly<{
   properties: ReadonlyArray<{ id: string; name: string; slug: string }>
+  getNewCount: typeof getNewCountFn
 }>
 
 function useActiveSection(): string {
@@ -30,7 +32,7 @@ function useActiveSection(): string {
       if (s.location.pathname.startsWith('/leaderboard')) return 'leaderboard'
       if (
         s.location.pathname === '/properties' ||
-        s.location.pathname.startsWith('/properties/import')
+        s.location.pathname.startsWith('/import')
       )
         return ''
       const m = s.location.pathname.match(/\/properties\/[^/]+(?:\/([^/]+))?/)
@@ -44,7 +46,7 @@ function useActiveSection(): string {
   })
 }
 
-export function ManagerSidebar({ properties }: Props) {
+export function ManagerSidebar({ properties, getNewCount }: Props) {
   const propertyId = usePropertyId()
   const activeSection = useActiveSection()
   const navigate = useNavigate()
@@ -72,6 +74,7 @@ export function ManagerSidebar({ properties }: Props) {
             <ManagerNavItems
               propertyId={propertyId ?? undefined}
               activeSection={activeSection}
+              getNewCount={getNewCount}
             />
           </SidebarGroupContent>
         </SidebarGroup>

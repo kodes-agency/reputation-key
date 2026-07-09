@@ -12,6 +12,7 @@ const componentsDir = join(__dirname, '..', 'src', 'components')
 
 const KEBAB_CASE = /^[a-z][a-z0-9-]*\.(ts|tsx)$/
 const HOOK_PATTERN = /^use-[a-z][a-zA-Z0-9-]*\.ts$/
+const STORY_PATTERN = /^[a-z][a-z0-9-]*\.stories\.(ts|tsx)$/
 
 function walk(dir, relativePath = '') {
   const entries = readdirSync(dir, { withFileTypes: true })
@@ -39,6 +40,8 @@ for (const file of files) {
 
   // Hooks are allowed to use camelCase with use- prefix
   if (file.includes('hooks') && HOOK_PATTERN.test(name)) continue
+  // Story files (Component.stories.tsx) co-locate with components
+  if (STORY_PATTERN.test(name)) continue
 
   if (!KEBAB_CASE.test(name)) {
     violations.push(file)

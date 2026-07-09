@@ -87,7 +87,7 @@ export const buildNotificationContext = (input: BuildInput) => {
       const now = input.clock()
       const result = markNotificationRead(n, () => now)
       if (result.isErr()) return // invalid transition, skip
-      await notificationRepo.markRead(id, orgId, now, now)
+      await notificationRepo.markRead(id, userId, orgId, now, now)
     },
     markAllRead: (userId: string, orgId: string) => {
       const now = input.clock()
@@ -101,7 +101,7 @@ export const buildNotificationContext = (input: BuildInput) => {
       const now = input.clock()
       const result = dismissNotification(n, () => now)
       if (result.isErr()) return // invalid transition, skip
-      await notificationRepo.updateStatus(id, orgId, 'dismissed', now)
+      await notificationRepo.updateStatus(id, userId, orgId, 'dismissed', now)
     },
     getPreferences: (userId: string, orgId: string) => prefRepo.findByUser(userId, orgId),
     updatePreference: (

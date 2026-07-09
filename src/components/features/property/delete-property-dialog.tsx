@@ -32,6 +32,7 @@ export function DeletePropertyDialog({ propertyId, propertyName, deleteAction }:
         <Button
           variant="ghost"
           size="icon"
+          aria-label={`Delete ${propertyName}`}
           className="size-8 text-muted-foreground hover:text-destructive"
         >
           <Trash2 className="size-4" />

@@ -5,9 +5,9 @@
 
 import type { ReviewRepository } from '../ports/review.repository'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
-import { isPropertyAccessible } from '#/shared/domain/property-access'
-import type { OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
-import type { Role } from '#/shared/domain/roles'
+import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
+import type { PropertyId } from '#/shared/domain/ids'
+import type { AuthContext } from '#/shared/domain/auth-context'
 import type { StaffRecentReview } from '../public-api'
 
 export type GetStaffRecentActivityDeps = Readonly<{
@@ -16,23 +16,23 @@ export type GetStaffRecentActivityDeps = Readonly<{
 }>
 
 export type GetStaffRecentActivityInput = Readonly<{
-  organizationId: OrganizationId
-  userId: UserId
-  role: Role
   propertyId: PropertyId
   limit?: number
 }>
 
 export const getStaffRecentActivity =
   (deps: GetStaffRecentActivityDeps) =>
-  async (input: GetStaffRecentActivityInput): Promise<StaffRecentReview[]> => {
+  async (
+    input: GetStaffRecentActivityInput,
+    ctx: AuthContext,
+  ): Promise<StaffRecentReview[]> => {
     // Authorization gate: verify the caller has access to this property.
-    // AccountAdmin → org-wide (lookup returns null); PM/Staff → assigned set.
-    const accessible = await isPropertyAccessible(
+    // Scope resolved per-permission (review.read): org-wide (AccountAdmin) →
+    // all accessible; assigned scope (PM/Staff) → assigned set.
+    const accessible = await isPropertyAccessibleForPermission(
       deps.staffPublicApi.getAccessiblePropertyIds,
-      input.organizationId,
-      input.userId,
-      input.role,
+      ctx,
+      'review.read',
       input.propertyId,
     )
     if (!accessible) return []
@@ -40,7 +40,7 @@ export const getStaffRecentActivity =
     const limit = input.limit ?? 5
     const recentReviews = await deps.reviewRepo.findByPropertyId(
       input.propertyId,
-      input.organizationId,
+      ctx.organizationId,
       { limit },
     )
     return recentReviews.map((r) => ({

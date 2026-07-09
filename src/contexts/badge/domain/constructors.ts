@@ -1,14 +1,16 @@
 // Badge context — smart constructors
 
+import type { BadgeId } from '#/shared/domain/ids'
 import type { BadgeCriteria, BadgeDefinition, BadgeSeedDefinitionInput } from './types'
 
 export function createBadgeDefinition(
   input: BadgeSeedDefinitionInput,
   clock: () => Date,
+  idGen: () => BadgeId,
 ): BadgeDefinition {
   const now = clock()
   return {
-    id: crypto.randomUUID() as import('#/shared/domain/ids').BadgeId,
+    id: idGen(),
     key: input.key,
     name: input.name,
     description: input.description,

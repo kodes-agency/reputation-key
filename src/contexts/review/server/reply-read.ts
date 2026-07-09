@@ -12,7 +12,7 @@ import { resolveTenantContext } from '#/shared/auth/middleware'
 import { isReviewError } from '../domain/errors'
 import type { ReviewErrorCode } from '../domain/errors'
 import { reviewId } from '#/shared/domain/ids'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { MAX_REPLY_LENGTH } from '../domain/rules'
 
 // ── Error → HTTP status mapping ──────────────────────────────────────
@@ -36,6 +36,7 @@ export const reviewErrorStatus = (code: ReviewErrorCode): number =>
       'reply_publish_failed',
       'repo_upsert_failed',
       'build_config_error',
+      'invalid_row',
       () => 500,
     )
     .exhaustive()
@@ -63,7 +64,7 @@ export const getReplyFn = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!can(ctx.role, 'reply.manage')) {
+        if (!canForContext(ctx, 'reply.manage')) {
           throwContextError(
             'AuthError',
             { code: 'unauthorized', message: 'No reply manage permission' },
@@ -72,12 +73,7 @@ export const getReplyFn = createServerFn({ method: 'GET' })
         }
         const { useCases } = getContainer()
         try {
-          return await useCases.getReply({
-            reviewId: reviewId(data.reviewId),
-            organizationId: ctx.organizationId,
-            userId: ctx.userId,
-            role: ctx.role,
-          })
+          return await useCases.getReply({ reviewId: reviewId(data.reviewId) }, ctx)
         } catch (e) {
           if (isReviewError(e))
             throwContextError('ReviewError', e, reviewErrorStatus(e.code))

@@ -3,6 +3,10 @@ node_modules
 dist
 dist-ssr
 dist-worker
+storybook-static
+/test-results/
+/playwright-report/
+/.last-run.json
 *.local
 .env
 .env.local
@@ -13,8 +17,8 @@ dist-worker
 .vinxi
 __unconfig*
 
-# Drizzle migrations output
-drizzle/
+# Drizzle migrations ARE committed (migrate-based workflow).
+# `pnpm db:generate` -> commit drizzle/ -> `pnpm db:migrate` is the deploy path.
 
 # Test coverage
 coverage/
@@ -61,3 +65,4 @@ skills-lock.json
 
 # Historical AI review output (regenerable; never commit)
 docs/reviews/
+drizzle.bak/

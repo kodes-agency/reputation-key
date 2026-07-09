@@ -5,7 +5,7 @@ import type { StaffAssignment } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { PropertyId, TeamId, UserId } from '#/shared/domain/ids'
 import { staffError } from '../../domain/errors'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 
 // ── Input type ────────────────────────────────────────────────────────────
 
@@ -26,7 +26,7 @@ export const listStaffAssignments =
     input: ListStaffAssignmentsInput,
     ctx: AuthContext,
   ): Promise<ReadonlyArray<StaffAssignment>> => {
-    if (!can(ctx.role, 'staff_assignment.read')) {
+    if (!canForContext(ctx, 'staff_assignment.read')) {
       throw staffError('forbidden', 'No staff assignment read permission')
     }
     if (input.teamId) {

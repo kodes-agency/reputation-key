@@ -9,10 +9,10 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import type { ListLocationsInput } from '../dto/list-locations.dto'
 export type { ListLocationsInput as ListGbpLocationsInput } from '../dto/list-locations.dto'
 import type { PropertyPublicApi } from '#/contexts/property/application/public-api'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { googleConnectionId, type OrganizationId } from '#/shared/domain/ids'
 import { integrationError } from '../../domain/errors'
-import type { GbpApiError } from '../../domain/gbp-api-error'
+import type { GbpApiError, GbpApiErrorKind } from '../../domain/gbp-api-error'
 import { TOKEN_EXPIRY_BUFFER_MS } from '../constants'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 
@@ -37,7 +37,7 @@ export const listGbpLocations =
   ): Promise<ReadonlyArray<GbpLocation>> => {
     // Uses integration.manage to match the server fn authorization
     // 1. Authorize
-    if (!can(ctx.role, 'integration.manage')) {
+    if (!canForContext(ctx, 'integration.manage')) {
       throw integrationError(
         'forbidden',
         'Insufficient permissions to manage integrations',
@@ -76,18 +76,20 @@ export const listGbpLocations =
     }
 
     // 5. List locations — try each account, fall back to wildcard
-    //    Only retry on permission/account-scope errors — propagate auth and rate-limit errors.
-    const isGbpApiError = (err: unknown): err is GbpApiError =>
-      typeof err === 'object' &&
-      err !== null &&
-      '_tag' in err &&
-      (err as GbpApiError)._tag === 'GbpApiError'
+    //    Only retry on parse/upstream errors — propagate auth, permission, and
+    //    rate-limit errors (classified into `kind` at the adapter boundary, never
+    //    the raw HTTP status — cc-errors §13).
+    const isGbpApiError = (err: unknown): err is GbpApiError => {
+      if (typeof err !== 'object' || err === null || !('_tag' in err)) return false
+      return err._tag === 'GbpApiError'
+    }
 
-    const isRetryableError = (err: unknown): boolean => {
-      if (isGbpApiError(err)) {
-        if ([401, 403, 429].includes(err.status)) return false
-      }
-      return true
+    // auth_failed (401), permission_denied (403), rate_limited (429) are not retryable;
+    // upstream_error (5xx) and parse_error (bad response shape) allow a wildcard fallback.
+    const NON_RETRYABLE_KIND: Partial<Record<GbpApiErrorKind, true>> = {
+      auth_failed: true,
+      permission_denied: true,
+      rate_limited: true,
     }
 
     let locations: ReadonlyArray<GbpLocation>
@@ -118,7 +120,8 @@ export const listGbpLocations =
         locations = await deps.gbpApi.listLocations(accessToken, '-')
       }
     } catch (originalErr) {
-      if (!isRetryableError(originalErr)) throw originalErr
+      if (isGbpApiError(originalErr) && NON_RETRYABLE_KIND[originalErr.kind])
+        throw originalErr
 
       try {
         locations = await deps.gbpApi.listLocations(accessToken, '-')

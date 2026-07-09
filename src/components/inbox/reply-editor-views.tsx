@@ -13,7 +13,7 @@ export function ReviewReplyApproved({ reply }: Readonly<{ reply: ReplyView }>) {
   return (
     <div className="space-y-3 border-t pt-4">
       <div className="flex items-center gap-2">
-        <h4 className="text-sm font-medium">Reply</h4>
+        <h2 className="text-sm font-medium">Reply</h2>
         <Badge variant="outline">Publishing...</Badge>
       </div>
       <div className="rounded-md border bg-muted/30 p-3">
@@ -27,7 +27,7 @@ export function ReviewReplyPublished({ reply }: Readonly<{ reply: ReplyView }>) 
   return (
     <div className="space-y-3 border-t pt-4">
       <div className="flex items-center gap-2">
-        <h4 className="text-sm font-medium">Reply</h4>
+        <h2 className="text-sm font-medium">Reply</h2>
         <Badge className="bg-green-100 text-green-800">Published</Badge>
       </div>
       <div className="rounded-md border bg-muted/30 p-3">

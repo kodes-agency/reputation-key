@@ -3,7 +3,7 @@
 import type { PortalLinkRepository } from '../ports/portal-link.repository'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { portalError } from '../../domain/errors'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import { portalLinkId } from '#/shared/domain/ids'
 import type { PortalRepository } from '../ports/portal.repository'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
@@ -25,7 +25,7 @@ export const deleteLink =
   (deps: DeleteLinkDeps) =>
   async (input: DeleteLinkInput, ctx: AuthContext): Promise<void> => {
     // 1. Authorize
-    if (!can(ctx.role, 'portal.update')) {
+    if (!canForContext(ctx, 'portal.update')) {
       throw portalError('forbidden', 'this role cannot delete portal links')
     }
 
@@ -41,6 +41,7 @@ export const deleteLink =
       deps.portalRepo,
       deps.staffPublicApi,
       ctx,
+      'portal.update',
       existing.portalId,
     )
 

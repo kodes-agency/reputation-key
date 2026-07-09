@@ -8,7 +8,7 @@ export type UserLookupPort = Readonly<{
   /** Find all user IDs in an org that hold the given domain role. */
   findByRole(orgId: OrganizationId, role: Role): Promise<readonly UserId[]>
 
-  /** Find user IDs of managers (owner/admin) assigned to a property via staff_assignments. */
+  /** Find user IDs of AccountAdmins, PropertyManagers, and Staff assigned to a property via staff_assignments. */
   findAssignedManagers(
     orgId: OrganizationId,
     propertyId: string,

@@ -35,7 +35,7 @@ export function TeamLeadSelect({
         value={field.state.value || '__none__'}
         onValueChange={(value) => field.handleChange(value === '__none__' ? '' : value)}
       >
-        <SelectTrigger aria-invalid={isInvalid}>
+        <SelectTrigger aria-invalid={isInvalid} aria-label="Team lead">
           <SelectValue placeholder="No team lead" />
         </SelectTrigger>
         <SelectContent>

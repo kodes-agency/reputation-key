@@ -31,7 +31,7 @@ import type {
 } from '#/contexts/review/application/public-api'
 import { INSERT_NOTIFICATION_JOB_NAME } from '../jobs/insert-notification.job'
 
-export type FakeJob = Readonly<{ name: string; data: unknown }>
+export type FakeJob = Readonly<{ name: string; data: unknown; opts?: unknown }>
 
 /** Maps every method of a port to a vitest Mock, exposing `.mockResolvedValue(...)` etc. */
 type MockedPort<T> = Readonly<{ [K in keyof T]: Mock }>
@@ -48,8 +48,8 @@ export type FakeEventHandlerDeps = Readonly<{
 /** In-memory fake BullMQ queue that records every `add()` as a job. */
 const createFakeQueue = (): Pick<FakeEventHandlerDeps, 'queue' | 'addMock' | 'jobs'> => {
   const jobs: FakeJob[] = []
-  const addMock = vi.fn(async (name: string, data: unknown) => {
-    jobs.push({ name, data })
+  const addMock = vi.fn(async (name: string, data: unknown, opts?: unknown) => {
+    jobs.push({ name, data, opts })
   })
   return { queue: { add: addMock } as unknown as Queue, addMock, jobs }
 }

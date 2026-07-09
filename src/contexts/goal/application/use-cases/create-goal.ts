@@ -16,15 +16,9 @@ import type {
   RecurrenceRule,
   ComputedSource,
 } from '../../domain/types'
-import type {
-  OrganizationId,
-  PropertyId,
-  PortalId,
-  PortalGroupId,
-  UserId,
-} from '#/shared/domain/ids'
+import type { PropertyId, PortalId, PortalGroupId } from '#/shared/domain/ids'
 import type { MetricKey, AggregationFunction } from '#/shared/domain/metric-keys'
-import type { Role } from '#/shared/domain/roles'
+import type { AuthContext } from '#/shared/domain/auth-context'
 import { buildGoal } from '../../domain/constructors'
 import type { GoalError } from '../../domain/errors'
 import {
@@ -32,10 +26,10 @@ import {
   buildProgressQueryForInstance,
   type ProgressQuery,
 } from '../../domain/progress-strategy'
-import { can } from '#/shared/domain/permissions'
-import { ok, err, type Result } from 'neverthrow'
+import { canForContext } from '#/shared/domain/permissions'
+import { ok, err, type Result } from '#/shared/domain'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
-import { isPropertyAccessible } from '#/shared/domain/property-access'
+import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
 import {
   goalId as toGoalId,
   goalProgressId as toGoalProgressId,
@@ -44,13 +38,11 @@ import {
 // ── Input type ──────────────────────────────────────────────────────────
 
 type CreateGoalInput = Readonly<{
-  organizationId: OrganizationId
   propertyId: PropertyId
   portalId: PortalId | null
   portalGroupId: PortalGroupId | null
   name: string
   description: string | null
-  createdBy: UserId
   goalType: GoalType
   aggregationFunction: AggregationFunction
   metricKey: MetricKey
@@ -59,7 +51,6 @@ type CreateGoalInput = Readonly<{
   periodEnd?: Date | null
   recurrenceRule?: RecurrenceRule | null
   rollingWindowDays?: number | null
-  role: Role
 }>
 
 // ── Error types ─────────────────────────────────────────────────────────
@@ -93,19 +84,21 @@ export type CreateGoalDeps = Readonly<{
 
 export const createGoal =
   (deps: CreateGoalDeps) =>
-  async (input: CreateGoalInput): Promise<Result<CreateGoalOutput, CreateGoalError>> => {
-    if (!can(input.role, 'goal.create')) {
+  async (
+    input: CreateGoalInput,
+    ctx: AuthContext,
+  ): Promise<Result<CreateGoalOutput, CreateGoalError>> => {
+    if (!canForContext(ctx, 'goal.create')) {
       return err({ tag: 'forbidden' })
     }
 
     // D6-001: PropertyManager/Staff must be assigned to the target property.
     // Runs before buildGoal and the recurring branch so no work is done when forbidden.
-    const accessible = await isPropertyAccessible(
-      (orgId, uId, role) =>
-        deps.staffPublicApi.getAccessiblePropertyIds(orgId, uId, role),
-      input.organizationId,
-      input.createdBy,
-      input.role,
+    const accessible = await isPropertyAccessibleForPermission(
+      (orgId, uId, orgWide) =>
+        deps.staffPublicApi.getAccessiblePropertyIds(orgId, uId, orgWide),
+      ctx,
+      'goal.create',
       input.propertyId,
     )
     if (!accessible) {
@@ -118,13 +111,13 @@ export const createGoal =
     // 1. Build the goal via domain constructor
     const buildResult = buildGoal({
       id: goalId,
-      organizationId: input.organizationId,
+      organizationId: ctx.organizationId,
       propertyId: input.propertyId,
       portalId: input.portalId,
       portalGroupId: input.portalGroupId,
       name: input.name,
       description: input.description,
-      createdBy: input.createdBy,
+      createdBy: ctx.userId,
       goalType: input.goalType,
       aggregationFunction: input.aggregationFunction,
       metricKey: input.metricKey,
