@@ -37,6 +37,28 @@ function DefaultErrorComponent({ error }: { error: Error }) {
     </div>
   )
 }
+/** Default 404 component — shown when no route matches or a loader throws notFound(). */
+function DefaultNotFoundComponent() {
+  const router = useRouter()
+
+  return (
+    <div className="page-wrap px-4 pb-8 pt-14">
+      <Alert>
+        <AlertCircle />
+        <AlertDescription>
+          The page you&apos;re looking for doesn&apos;t exist or may have moved.
+        </AlertDescription>
+      </Alert>
+      <Button
+        variant="outline"
+        className="mt-4"
+        onClick={() => router.navigate({ to: '/' })}
+      >
+        Go home
+      </Button>
+    </div>
+  )
+}
 
 export function getRouter() {
   const router = createTanStackRouter({
@@ -62,6 +84,7 @@ export function getRouter() {
     defaultPendingMinMs: 0,
     defaultPendingComponent: DefaultPendingComponent,
     defaultErrorComponent: DefaultErrorComponent,
+    defaultNotFoundComponent: DefaultNotFoundComponent,
   })
 
   return router

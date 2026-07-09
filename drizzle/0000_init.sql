@@ -390,22 +390,46 @@ CREATE TABLE "goals" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "activity_log" (
+CREATE TABLE "notification_email_queue" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"actor_id" varchar(255) NOT NULL,
-	"actor_name" varchar(255) NOT NULL,
-	"actor_avatar_url" text,
-	"actor_role" varchar(50) NOT NULL,
-	"action" varchar(50) NOT NULL,
+	"notification_id" uuid NOT NULL,
+	"user_id" varchar(255) NOT NULL,
+	"organization_id" varchar(255) NOT NULL,
+	"status" varchar(16) DEFAULT 'pending' NOT NULL,
+	"priority" varchar(16) DEFAULT 'normal' NOT NULL,
+	"sent_at" timestamp with time zone,
+	"failed_at" timestamp with time zone,
+	"retry_count" integer DEFAULT 0 NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "notification_preferences" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"user_id" varchar(255) NOT NULL,
+	"organization_id" varchar(255) NOT NULL,
+	"type" varchar(64) NOT NULL,
+	"email_enabled" boolean DEFAULT true NOT NULL,
+	"in_app_enabled" boolean DEFAULT true NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "notifications" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"user_id" varchar(255) NOT NULL,
+	"organization_id" varchar(255) NOT NULL,
+	"type" varchar(64) NOT NULL,
+	"priority" varchar(16) DEFAULT 'normal' NOT NULL,
+	"status" varchar(16) DEFAULT 'unread' NOT NULL,
 	"resource_type" varchar(50) NOT NULL,
 	"resource_id" varchar(255) NOT NULL,
-	"property_id" varchar(255),
-	"organization_id" varchar(255) NOT NULL,
-	"payload" jsonb DEFAULT '{}'::jsonb NOT NULL,
-	"event_id" varchar(255),
-	"source" varchar(20) DEFAULT 'web' NOT NULL,
+	"event_id" varchar(255) NOT NULL,
+	"title" varchar(255) NOT NULL,
+	"body" text,
+	"read_at" timestamp with time zone,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "activity_log_event_id_org_uniq" UNIQUE("event_id","organization_id")
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "organization_role_policy" (
@@ -492,7 +516,7 @@ CREATE UNIQUE INDEX "ratings_session_portal_unique" ON "ratings" USING btree ("s
 CREATE INDEX "ratings_portal_idx" ON "ratings" USING btree ("portal_id");--> statement-breakpoint
 CREATE INDEX "scan_events_session_idx" ON "scan_events" USING btree ("session_id");--> statement-breakpoint
 CREATE INDEX "scan_events_portal_idx" ON "scan_events" USING btree ("portal_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "google_connections_org_account_idx" ON "google_connections" USING btree ("organization_id","google_account_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "google_connections_google_account_idx" ON "google_connections" USING btree ("google_account_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "gbp_cache_org_property_type_unique" ON "gbp_cache" USING btree ("organization_id","property_id","data_type");--> statement-breakpoint
 CREATE INDEX "gbp_import_jobs_org_idx" ON "gbp_import_jobs" USING btree ("organization_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "replies_review_source_unique" ON "replies" USING btree ("review_id","source","organization_id");--> statement-breakpoint
@@ -540,8 +564,11 @@ CREATE INDEX "goals_org_status_idx" ON "goals" USING btree ("organization_id","s
 CREATE INDEX "goals_parent_idx" ON "goals" USING btree ("parent_goal_id");--> statement-breakpoint
 CREATE INDEX "goals_portal_group_idx" ON "goals" USING btree ("portal_group_id");--> statement-breakpoint
 CREATE INDEX "goals_org_portal_idx" ON "goals" USING btree ("organization_id","portal_id");--> statement-breakpoint
-CREATE INDEX "activity_log_resource_idx" ON "activity_log" USING btree ("resource_type","resource_id","created_at");--> statement-breakpoint
-CREATE INDEX "activity_log_org_property_idx" ON "activity_log" USING btree ("organization_id","property_id","created_at");--> statement-breakpoint
-CREATE INDEX "activity_log_event_id_idx" ON "activity_log" USING btree ("event_id");--> statement-breakpoint
-CREATE INDEX "activity_log_actor_idx" ON "activity_log" USING btree ("actor_id","created_at");--> statement-breakpoint
+CREATE INDEX "email_queue_status_priority_idx" ON "notification_email_queue" USING btree ("status","priority","organization_id");--> statement-breakpoint
+CREATE INDEX "email_queue_urgent_idx" ON "notification_email_queue" USING btree ("status","priority","created_at");--> statement-breakpoint
+CREATE UNIQUE INDEX "email_queue_notification_unique" ON "notification_email_queue" USING btree ("notification_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "notification_prefs_user_type_unique" ON "notification_preferences" USING btree ("user_id","organization_id","type");--> statement-breakpoint
+CREATE UNIQUE INDEX "notifications_user_event_unique" ON "notifications" USING btree ("user_id","type","resource_id","event_id");--> statement-breakpoint
+CREATE INDEX "notifications_user_status_idx" ON "notifications" USING btree ("user_id","status","created_at");--> statement-breakpoint
+CREATE INDEX "notifications_org_idx" ON "notifications" USING btree ("organization_id","created_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "organization_role_policy_org_role_unique" ON "organization_role_policy" USING btree ("organization_id","role");

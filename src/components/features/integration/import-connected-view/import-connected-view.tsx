@@ -70,7 +70,7 @@ export function ImportConnectedView({
     })
 
     navigate({
-      to: '/properties/import/$importId',
+      to: '/import/$importId',
       params: { importId: job.job.id },
     })
   }

@@ -57,7 +57,7 @@ export function ManagerPropertySwitcher({ properties, propertyId, onSwitch }: Pr
               <Building2 className="mr-2 size-4" />
               View all properties
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => navigate({ to: '/properties/import' })}>
+            <DropdownMenuItem onClick={() => navigate({ to: '/import' })}>
               <Plus className="mr-2 size-4" />
               Import property
             </DropdownMenuItem>

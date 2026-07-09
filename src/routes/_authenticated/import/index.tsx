@@ -19,7 +19,7 @@ import { useAction } from '#/components/hooks/use-action'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
 
-export const Route = createFileRoute('/_authenticated/properties/import/')({
+export const Route = createFileRoute('/_authenticated/import/')({
   beforeLoad: ({ context }) => {
     const { role } = context as AuthRouteContext
     if (!can(role, 'integration.manage')) throw redirect({ to: '/properties' })

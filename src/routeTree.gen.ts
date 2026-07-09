@@ -26,6 +26,7 @@ import { Route as ApiHealthIndexRouteImport } from './routes/api/health/index'
 import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authenticated/settings/index'
 import { Route as AuthenticatedPropertiesIndexRouteImport } from './routes/_authenticated/properties/index'
 import { Route as AuthenticatedInboxIndexRouteImport } from './routes/_authenticated/inbox/index'
+import { Route as AuthenticatedImportIndexRouteImport } from './routes/_authenticated/import/index'
 import { Route as PPropertySlugPortalSlugRouteImport } from './routes/p/$propertySlug/$portalSlug'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as AuthenticatedSettingsSecurityRouteImport } from './routes/_authenticated/settings/security'
@@ -37,13 +38,12 @@ import { Route as AuthenticatedSettingsNotificationsRouteImport } from './routes
 import { Route as AuthenticatedSettingsMembersRouteImport } from './routes/_authenticated/settings/members'
 import { Route as AuthenticatedSettingsIntegrationsRouteImport } from './routes/_authenticated/settings/integrations'
 import { Route as AuthenticatedPropertiesPropertyIdRouteImport } from './routes/_authenticated/properties/$propertyId'
-import { Route as AuthenticatedPropertiesImportIndexRouteImport } from './routes/_authenticated/properties/import/index'
+import { Route as AuthenticatedImportImportIdRouteImport } from './routes/_authenticated/import/$importId'
 import { Route as AuthenticatedPropertiesPropertyIdIndexRouteImport } from './routes/_authenticated/properties/$propertyId/index'
 import { Route as ApiWebhooksGbpNotificationsRouteImport } from './routes/api/webhooks/gbp/notifications'
 import { Route as ApiPublicClickLinkIdRouteImport } from './routes/api/public/click/$linkId'
 import { Route as ApiPortalsIdQrRouteImport } from './routes/api/portals/$id/qr'
 import { Route as ApiAuthGoogleCallbackRouteImport } from './routes/api/auth/google/callback'
-import { Route as AuthenticatedPropertiesImportImportIdRouteImport } from './routes/_authenticated/properties/import/$importId'
 import { Route as AuthenticatedPropertiesPropertyIdReviewsRouteImport } from './routes/_authenticated/properties/$propertyId/reviews'
 import { Route as AuthenticatedPropertiesPropertyIdPeopleRouteImport } from './routes/_authenticated/properties/$propertyId/people'
 import { Route as AuthenticatedPropertiesPropertyIdMetricsRouteImport } from './routes/_authenticated/properties/$propertyId/metrics'
@@ -107,12 +107,11 @@ const AuthenticatedProgressRoute = AuthenticatedProgressRouteImport.update({
   path: '/progress',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
-const AuthenticatedLeaderboardRoute =
-  AuthenticatedLeaderboardRouteImport.update({
-    id: '/leaderboard',
-    path: '/leaderboard',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
+const AuthenticatedLeaderboardRoute = AuthenticatedLeaderboardRouteImport.update({
+  id: '/leaderboard',
+  path: '/leaderboard',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedHomeRoute = AuthenticatedHomeRouteImport.update({
   id: '/home',
   path: '/home',
@@ -128,21 +127,24 @@ const ApiHealthIndexRoute = ApiHealthIndexRouteImport.update({
   path: '/api/health/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedSettingsIndexRoute =
-  AuthenticatedSettingsIndexRouteImport.update({
-    id: '/',
-    path: '/',
-    getParentRoute: () => AuthenticatedSettingsRoute,
-  } as any)
-const AuthenticatedPropertiesIndexRoute =
-  AuthenticatedPropertiesIndexRouteImport.update({
-    id: '/properties/',
-    path: '/properties/',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
+const AuthenticatedSettingsIndexRoute = AuthenticatedSettingsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthenticatedSettingsRoute,
+} as any)
+const AuthenticatedPropertiesIndexRoute = AuthenticatedPropertiesIndexRouteImport.update({
+  id: '/properties/',
+  path: '/properties/',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedInboxIndexRoute = AuthenticatedInboxIndexRouteImport.update({
   id: '/inbox/',
   path: '/inbox/',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedImportIndexRoute = AuthenticatedImportIndexRouteImport.update({
+  id: '/import/',
+  path: '/import/',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const PPropertySlugPortalSlugRoute = PPropertySlugPortalSlugRouteImport.update({
@@ -167,12 +169,11 @@ const AuthenticatedSettingsRecognitionRoute =
     path: '/recognition',
     getParentRoute: () => AuthenticatedSettingsRoute,
   } as any)
-const AuthenticatedSettingsProfileRoute =
-  AuthenticatedSettingsProfileRouteImport.update({
-    id: '/profile',
-    path: '/profile',
-    getParentRoute: () => AuthenticatedSettingsRoute,
-  } as any)
+const AuthenticatedSettingsProfileRoute = AuthenticatedSettingsProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => AuthenticatedSettingsRoute,
+} as any)
 const AuthenticatedSettingsPreferencesRoute =
   AuthenticatedSettingsPreferencesRouteImport.update({
     id: '/preferences',
@@ -191,12 +192,11 @@ const AuthenticatedSettingsNotificationsRoute =
     path: '/notifications',
     getParentRoute: () => AuthenticatedSettingsRoute,
   } as any)
-const AuthenticatedSettingsMembersRoute =
-  AuthenticatedSettingsMembersRouteImport.update({
-    id: '/members',
-    path: '/members',
-    getParentRoute: () => AuthenticatedSettingsRoute,
-  } as any)
+const AuthenticatedSettingsMembersRoute = AuthenticatedSettingsMembersRouteImport.update({
+  id: '/members',
+  path: '/members',
+  getParentRoute: () => AuthenticatedSettingsRoute,
+} as any)
 const AuthenticatedSettingsIntegrationsRoute =
   AuthenticatedSettingsIntegrationsRouteImport.update({
     id: '/integrations',
@@ -209,24 +209,22 @@ const AuthenticatedPropertiesPropertyIdRoute =
     path: '/properties/$propertyId',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
-const AuthenticatedPropertiesImportIndexRoute =
-  AuthenticatedPropertiesImportIndexRouteImport.update({
-    id: '/properties/import/',
-    path: '/properties/import/',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
+const AuthenticatedImportImportIdRoute = AuthenticatedImportImportIdRouteImport.update({
+  id: '/import/$importId',
+  path: '/import/$importId',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedPropertiesPropertyIdIndexRoute =
   AuthenticatedPropertiesPropertyIdIndexRouteImport.update({
     id: '/',
     path: '/',
     getParentRoute: () => AuthenticatedPropertiesPropertyIdRoute,
   } as any)
-const ApiWebhooksGbpNotificationsRoute =
-  ApiWebhooksGbpNotificationsRouteImport.update({
-    id: '/api/webhooks/gbp/notifications',
-    path: '/api/webhooks/gbp/notifications',
-    getParentRoute: () => rootRouteImport,
-  } as any)
+const ApiWebhooksGbpNotificationsRoute = ApiWebhooksGbpNotificationsRouteImport.update({
+  id: '/api/webhooks/gbp/notifications',
+  path: '/api/webhooks/gbp/notifications',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicClickLinkIdRoute = ApiPublicClickLinkIdRouteImport.update({
   id: '/api/public/click/$linkId',
   path: '/api/public/click/$linkId',
@@ -242,12 +240,6 @@ const ApiAuthGoogleCallbackRoute = ApiAuthGoogleCallbackRouteImport.update({
   path: '/api/auth/google/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedPropertiesImportImportIdRoute =
-  AuthenticatedPropertiesImportImportIdRouteImport.update({
-    id: '/properties/import/$importId',
-    path: '/properties/import/$importId',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
 const AuthenticatedPropertiesPropertyIdReviewsRoute =
   AuthenticatedPropertiesPropertyIdReviewsRouteImport.update({
     id: '/reviews',
@@ -340,6 +332,7 @@ export interface FileRoutesByFullPath {
   '/progress': typeof AuthenticatedProgressRoute
   '/settings': typeof AuthenticatedSettingsRouteWithChildren
   '/team': typeof AuthenticatedTeamRoute
+  '/import/$importId': typeof AuthenticatedImportImportIdRoute
   '/properties/$propertyId': typeof AuthenticatedPropertiesPropertyIdRouteWithChildren
   '/settings/integrations': typeof AuthenticatedSettingsIntegrationsRoute
   '/settings/members': typeof AuthenticatedSettingsMembersRoute
@@ -351,6 +344,7 @@ export interface FileRoutesByFullPath {
   '/settings/security': typeof AuthenticatedSettingsSecurityRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/p/$propertySlug/$portalSlug': typeof PPropertySlugPortalSlugRoute
+  '/import/': typeof AuthenticatedImportIndexRoute
   '/inbox/': typeof AuthenticatedInboxIndexRoute
   '/properties/': typeof AuthenticatedPropertiesIndexRoute
   '/settings/': typeof AuthenticatedSettingsIndexRoute
@@ -359,13 +353,11 @@ export interface FileRoutesByFullPath {
   '/properties/$propertyId/metrics': typeof AuthenticatedPropertiesPropertyIdMetricsRoute
   '/properties/$propertyId/people': typeof AuthenticatedPropertiesPropertyIdPeopleRoute
   '/properties/$propertyId/reviews': typeof AuthenticatedPropertiesPropertyIdReviewsRoute
-  '/properties/import/$importId': typeof AuthenticatedPropertiesImportImportIdRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
   '/api/portals/$id/qr': typeof ApiPortalsIdQrRoute
   '/api/public/click/$linkId': typeof ApiPublicClickLinkIdRoute
   '/api/webhooks/gbp/notifications': typeof ApiWebhooksGbpNotificationsRoute
   '/properties/$propertyId/': typeof AuthenticatedPropertiesPropertyIdIndexRoute
-  '/properties/import/': typeof AuthenticatedPropertiesImportIndexRoute
   '/properties/$propertyId/goals/$goalId': typeof AuthenticatedPropertiesPropertyIdGoalsGoalIdRoute
   '/properties/$propertyId/goals/new': typeof AuthenticatedPropertiesPropertyIdGoalsNewRoute
   '/properties/$propertyId/portals/$portalId': typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute
@@ -388,6 +380,7 @@ export interface FileRoutesByTo {
   '/leaderboard': typeof AuthenticatedLeaderboardRoute
   '/progress': typeof AuthenticatedProgressRoute
   '/team': typeof AuthenticatedTeamRoute
+  '/import/$importId': typeof AuthenticatedImportImportIdRoute
   '/settings/integrations': typeof AuthenticatedSettingsIntegrationsRoute
   '/settings/members': typeof AuthenticatedSettingsMembersRoute
   '/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
@@ -398,6 +391,7 @@ export interface FileRoutesByTo {
   '/settings/security': typeof AuthenticatedSettingsSecurityRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/p/$propertySlug/$portalSlug': typeof PPropertySlugPortalSlugRoute
+  '/import': typeof AuthenticatedImportIndexRoute
   '/inbox': typeof AuthenticatedInboxIndexRoute
   '/properties': typeof AuthenticatedPropertiesIndexRoute
   '/settings': typeof AuthenticatedSettingsIndexRoute
@@ -405,13 +399,11 @@ export interface FileRoutesByTo {
   '/properties/$propertyId/metrics': typeof AuthenticatedPropertiesPropertyIdMetricsRoute
   '/properties/$propertyId/people': typeof AuthenticatedPropertiesPropertyIdPeopleRoute
   '/properties/$propertyId/reviews': typeof AuthenticatedPropertiesPropertyIdReviewsRoute
-  '/properties/import/$importId': typeof AuthenticatedPropertiesImportImportIdRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
   '/api/portals/$id/qr': typeof ApiPortalsIdQrRoute
   '/api/public/click/$linkId': typeof ApiPublicClickLinkIdRoute
   '/api/webhooks/gbp/notifications': typeof ApiWebhooksGbpNotificationsRoute
   '/properties/$propertyId': typeof AuthenticatedPropertiesPropertyIdIndexRoute
-  '/properties/import': typeof AuthenticatedPropertiesImportIndexRoute
   '/properties/$propertyId/goals/$goalId': typeof AuthenticatedPropertiesPropertyIdGoalsGoalIdRoute
   '/properties/$propertyId/goals/new': typeof AuthenticatedPropertiesPropertyIdGoalsNewRoute
   '/properties/$propertyId/portals/$portalId': typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute
@@ -436,6 +428,7 @@ export interface FileRoutesById {
   '/_authenticated/progress': typeof AuthenticatedProgressRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRouteWithChildren
   '/_authenticated/team': typeof AuthenticatedTeamRoute
+  '/_authenticated/import/$importId': typeof AuthenticatedImportImportIdRoute
   '/_authenticated/properties/$propertyId': typeof AuthenticatedPropertiesPropertyIdRouteWithChildren
   '/_authenticated/settings/integrations': typeof AuthenticatedSettingsIntegrationsRoute
   '/_authenticated/settings/members': typeof AuthenticatedSettingsMembersRoute
@@ -447,6 +440,7 @@ export interface FileRoutesById {
   '/_authenticated/settings/security': typeof AuthenticatedSettingsSecurityRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/p/$propertySlug/$portalSlug': typeof PPropertySlugPortalSlugRoute
+  '/_authenticated/import/': typeof AuthenticatedImportIndexRoute
   '/_authenticated/inbox/': typeof AuthenticatedInboxIndexRoute
   '/_authenticated/properties/': typeof AuthenticatedPropertiesIndexRoute
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
@@ -455,13 +449,11 @@ export interface FileRoutesById {
   '/_authenticated/properties/$propertyId/metrics': typeof AuthenticatedPropertiesPropertyIdMetricsRoute
   '/_authenticated/properties/$propertyId/people': typeof AuthenticatedPropertiesPropertyIdPeopleRoute
   '/_authenticated/properties/$propertyId/reviews': typeof AuthenticatedPropertiesPropertyIdReviewsRoute
-  '/_authenticated/properties/import/$importId': typeof AuthenticatedPropertiesImportImportIdRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
   '/api/portals/$id/qr': typeof ApiPortalsIdQrRoute
   '/api/public/click/$linkId': typeof ApiPublicClickLinkIdRoute
   '/api/webhooks/gbp/notifications': typeof ApiWebhooksGbpNotificationsRoute
   '/_authenticated/properties/$propertyId/': typeof AuthenticatedPropertiesPropertyIdIndexRoute
-  '/_authenticated/properties/import/': typeof AuthenticatedPropertiesImportIndexRoute
   '/_authenticated/properties/$propertyId/goals/$goalId': typeof AuthenticatedPropertiesPropertyIdGoalsGoalIdRoute
   '/_authenticated/properties/$propertyId/goals/new': typeof AuthenticatedPropertiesPropertyIdGoalsNewRoute
   '/_authenticated/properties/$propertyId/portals/$portalId': typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute
@@ -487,6 +479,7 @@ export interface FileRouteTypes {
     | '/progress'
     | '/settings'
     | '/team'
+    | '/import/$importId'
     | '/properties/$propertyId'
     | '/settings/integrations'
     | '/settings/members'
@@ -498,6 +491,7 @@ export interface FileRouteTypes {
     | '/settings/security'
     | '/api/auth/$'
     | '/p/$propertySlug/$portalSlug'
+    | '/import/'
     | '/inbox/'
     | '/properties/'
     | '/settings/'
@@ -506,13 +500,11 @@ export interface FileRouteTypes {
     | '/properties/$propertyId/metrics'
     | '/properties/$propertyId/people'
     | '/properties/$propertyId/reviews'
-    | '/properties/import/$importId'
     | '/api/auth/google/callback'
     | '/api/portals/$id/qr'
     | '/api/public/click/$linkId'
     | '/api/webhooks/gbp/notifications'
     | '/properties/$propertyId/'
-    | '/properties/import/'
     | '/properties/$propertyId/goals/$goalId'
     | '/properties/$propertyId/goals/new'
     | '/properties/$propertyId/portals/$portalId'
@@ -535,6 +527,7 @@ export interface FileRouteTypes {
     | '/leaderboard'
     | '/progress'
     | '/team'
+    | '/import/$importId'
     | '/settings/integrations'
     | '/settings/members'
     | '/settings/notifications'
@@ -545,6 +538,7 @@ export interface FileRouteTypes {
     | '/settings/security'
     | '/api/auth/$'
     | '/p/$propertySlug/$portalSlug'
+    | '/import'
     | '/inbox'
     | '/properties'
     | '/settings'
@@ -552,13 +546,11 @@ export interface FileRouteTypes {
     | '/properties/$propertyId/metrics'
     | '/properties/$propertyId/people'
     | '/properties/$propertyId/reviews'
-    | '/properties/import/$importId'
     | '/api/auth/google/callback'
     | '/api/portals/$id/qr'
     | '/api/public/click/$linkId'
     | '/api/webhooks/gbp/notifications'
     | '/properties/$propertyId'
-    | '/properties/import'
     | '/properties/$propertyId/goals/$goalId'
     | '/properties/$propertyId/goals/new'
     | '/properties/$propertyId/portals/$portalId'
@@ -582,6 +574,7 @@ export interface FileRouteTypes {
     | '/_authenticated/progress'
     | '/_authenticated/settings'
     | '/_authenticated/team'
+    | '/_authenticated/import/$importId'
     | '/_authenticated/properties/$propertyId'
     | '/_authenticated/settings/integrations'
     | '/_authenticated/settings/members'
@@ -593,6 +586,7 @@ export interface FileRouteTypes {
     | '/_authenticated/settings/security'
     | '/api/auth/$'
     | '/p/$propertySlug/$portalSlug'
+    | '/_authenticated/import/'
     | '/_authenticated/inbox/'
     | '/_authenticated/properties/'
     | '/_authenticated/settings/'
@@ -601,13 +595,11 @@ export interface FileRouteTypes {
     | '/_authenticated/properties/$propertyId/metrics'
     | '/_authenticated/properties/$propertyId/people'
     | '/_authenticated/properties/$propertyId/reviews'
-    | '/_authenticated/properties/import/$importId'
     | '/api/auth/google/callback'
     | '/api/portals/$id/qr'
     | '/api/public/click/$linkId'
     | '/api/webhooks/gbp/notifications'
     | '/_authenticated/properties/$propertyId/'
-    | '/_authenticated/properties/import/'
     | '/_authenticated/properties/$propertyId/goals/$goalId'
     | '/_authenticated/properties/$propertyId/goals/new'
     | '/_authenticated/properties/$propertyId/portals/$portalId'
@@ -757,6 +749,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedInboxIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/import/': {
+      id: '/_authenticated/import/'
+      path: '/import'
+      fullPath: '/import/'
+      preLoaderRoute: typeof AuthenticatedImportIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/p/$propertySlug/$portalSlug': {
       id: '/p/$propertySlug/$portalSlug'
       path: '/p/$propertySlug/$portalSlug'
@@ -834,11 +833,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/properties/import/': {
-      id: '/_authenticated/properties/import/'
-      path: '/properties/import'
-      fullPath: '/properties/import/'
-      preLoaderRoute: typeof AuthenticatedPropertiesImportIndexRouteImport
+    '/_authenticated/import/$importId': {
+      id: '/_authenticated/import/$importId'
+      path: '/import/$importId'
+      fullPath: '/import/$importId'
+      preLoaderRoute: typeof AuthenticatedImportImportIdRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/properties/$propertyId/': {
@@ -875,13 +874,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/auth/google/callback'
       preLoaderRoute: typeof ApiAuthGoogleCallbackRouteImport
       parentRoute: typeof rootRouteImport
-    }
-    '/_authenticated/properties/import/$importId': {
-      id: '/_authenticated/properties/import/$importId'
-      path: '/properties/import/$importId'
-      fullPath: '/properties/import/$importId'
-      preLoaderRoute: typeof AuthenticatedPropertiesImportImportIdRouteImport
-      parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/properties/$propertyId/reviews': {
       id: '/_authenticated/properties/$propertyId/reviews'
@@ -990,13 +982,10 @@ interface AuthenticatedSettingsRouteChildren {
 }
 
 const AuthenticatedSettingsRouteChildren: AuthenticatedSettingsRouteChildren = {
-  AuthenticatedSettingsIntegrationsRoute:
-    AuthenticatedSettingsIntegrationsRoute,
+  AuthenticatedSettingsIntegrationsRoute: AuthenticatedSettingsIntegrationsRoute,
   AuthenticatedSettingsMembersRoute: AuthenticatedSettingsMembersRoute,
-  AuthenticatedSettingsNotificationsRoute:
-    AuthenticatedSettingsNotificationsRoute,
-  AuthenticatedSettingsOrganizationRoute:
-    AuthenticatedSettingsOrganizationRoute,
+  AuthenticatedSettingsNotificationsRoute: AuthenticatedSettingsNotificationsRoute,
+  AuthenticatedSettingsOrganizationRoute: AuthenticatedSettingsOrganizationRoute,
   AuthenticatedSettingsPreferencesRoute: AuthenticatedSettingsPreferencesRoute,
   AuthenticatedSettingsProfileRoute: AuthenticatedSettingsProfileRoute,
   AuthenticatedSettingsRecognitionRoute: AuthenticatedSettingsRecognitionRoute,
@@ -1005,9 +994,7 @@ const AuthenticatedSettingsRouteChildren: AuthenticatedSettingsRouteChildren = {
 }
 
 const AuthenticatedSettingsRouteWithChildren =
-  AuthenticatedSettingsRoute._addFileChildren(
-    AuthenticatedSettingsRouteChildren,
-  )
+  AuthenticatedSettingsRoute._addFileChildren(AuthenticatedSettingsRouteChildren)
 
 interface AuthenticatedPropertiesPropertyIdGoalsRouteChildren {
   AuthenticatedPropertiesPropertyIdGoalsGoalIdRoute: typeof AuthenticatedPropertiesPropertyIdGoalsGoalIdRoute
@@ -1094,11 +1081,11 @@ interface AuthenticatedRouteChildren {
   AuthenticatedProgressRoute: typeof AuthenticatedProgressRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRouteWithChildren
   AuthenticatedTeamRoute: typeof AuthenticatedTeamRoute
+  AuthenticatedImportImportIdRoute: typeof AuthenticatedImportImportIdRoute
   AuthenticatedPropertiesPropertyIdRoute: typeof AuthenticatedPropertiesPropertyIdRouteWithChildren
+  AuthenticatedImportIndexRoute: typeof AuthenticatedImportIndexRoute
   AuthenticatedInboxIndexRoute: typeof AuthenticatedInboxIndexRoute
   AuthenticatedPropertiesIndexRoute: typeof AuthenticatedPropertiesIndexRoute
-  AuthenticatedPropertiesImportImportIdRoute: typeof AuthenticatedPropertiesImportImportIdRoute
-  AuthenticatedPropertiesImportIndexRoute: typeof AuthenticatedPropertiesImportIndexRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
@@ -1108,14 +1095,12 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedProgressRoute: AuthenticatedProgressRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRouteWithChildren,
   AuthenticatedTeamRoute: AuthenticatedTeamRoute,
+  AuthenticatedImportImportIdRoute: AuthenticatedImportImportIdRoute,
   AuthenticatedPropertiesPropertyIdRoute:
     AuthenticatedPropertiesPropertyIdRouteWithChildren,
+  AuthenticatedImportIndexRoute: AuthenticatedImportIndexRoute,
   AuthenticatedInboxIndexRoute: AuthenticatedInboxIndexRoute,
   AuthenticatedPropertiesIndexRoute: AuthenticatedPropertiesIndexRoute,
-  AuthenticatedPropertiesImportImportIdRoute:
-    AuthenticatedPropertiesImportImportIdRoute,
-  AuthenticatedPropertiesImportIndexRoute:
-    AuthenticatedPropertiesImportIndexRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(

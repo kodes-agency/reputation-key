@@ -5,15 +5,15 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1783424429204,
-      "tag": "0000_boring_spacker_dave",
+      "when": 1783547668314,
+      "tag": "0000_init",
       "breakpoints": true
     },
     {
       "idx": 1,
       "version": "7",
-      "when": 1783433184885,
-      "tag": "0001_elite_professor_monster",
+      "when": 1783602170370,
+      "tag": "0001_add-activity-log",
       "breakpoints": true
     }
   ]

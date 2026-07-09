@@ -31,7 +31,7 @@ function useActiveSection(): string {
         return 'inbox'
       if (
         s.location.pathname === '/properties' ||
-        s.location.pathname.startsWith('/properties/import')
+        s.location.pathname.startsWith('/import')
       )
         return ''
       const m = s.location.pathname.match(/\/properties\/[^/]+(?:\/([^/]+))?/)

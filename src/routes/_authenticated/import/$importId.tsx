@@ -5,7 +5,7 @@ import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
 import { ErrorState } from '#/components/layout/page-states'
 
-export const Route = createFileRoute('/_authenticated/properties/import/$importId')({
+export const Route = createFileRoute('/_authenticated/import/$importId')({
   staleTime: 0,
   loader: async ({ params: { importId } }) => {
     const result = await getImportStatus({ data: { importId } })
@@ -27,10 +27,10 @@ function ImportProgressPage() {
         title="Import Progress"
         breadcrumbs={[
           { label: 'Properties', to: '/properties' },
-          { label: 'Import Properties', to: '/properties/import' },
+          { label: 'Import Properties', to: '/import' },
           { label: 'Progress' },
         ]}
-        backTo={{ to: '/properties/import', label: 'Back to Import' }}
+        backTo={{ to: '/import', label: 'Back to Import' }}
       />
 
       {!job ? (

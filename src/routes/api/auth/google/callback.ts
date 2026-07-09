@@ -21,7 +21,7 @@ import { trace } from '#/shared/observability/trace'
 const redirectWithError = (env: ReturnType<typeof getEnv>, errorParam: string) =>
   new Response(null, {
     status: 302,
-    headers: { Location: `${env.BETTER_AUTH_URL}/properties/import?error=${errorParam}` },
+    headers: { Location: `${env.BETTER_AUTH_URL}/import?error=${errorParam}` },
   })
 
 type ValidatedState = {
@@ -147,7 +147,7 @@ export const Route = createFileRoute('/api/auth/google/callback')({
               ctx,
             )
 
-            const importUrl = new URL('/properties/import', env.BETTER_AUTH_URL)
+            const importUrl = new URL('/import', env.BETTER_AUTH_URL)
             importUrl.searchParams.set('connectionId', connection.id)
             return new Response(null, {
               status: 302,

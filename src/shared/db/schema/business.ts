@@ -5,6 +5,7 @@
 // managed by Better Auth CLI.
 
 export * from './audit'
+export * from './activity.schema'
 export * from './property.schema'
 export * from './team.schema'
 export * from './staff-assignment.schema'
@@ -20,5 +21,5 @@ export * from './badge.schema'
 export * from './leaderboard.schema'
 export * from './metric.schema'
 export * from './goal.schema'
-export * from './activity.schema'
+export * from './notification.schema'
 export * from './dac.schema'
