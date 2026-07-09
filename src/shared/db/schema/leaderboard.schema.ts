@@ -22,9 +22,6 @@ export const leaderboardSnapshots = pgTable(
     propertyId: uuid('property_id')
       .notNull()
       .references(() => properties.id, { onDelete: 'cascade' }),
-    // Defense-in-depth tenant column (cc-schema F-SCH-3): every other tenant-owned
-    // table carries a direct organization_id. Backfill from properties.organization_id.
-    organizationId: varchar('organization_id', { length: 255 }).notNull(),
     period: varchar('period', { length: 30 }).notNull(),
     scope: varchar('scope', { length: 20 }).notNull(),
     metricKey: varchar('metric_key', { length: 100 }).notNull(),
@@ -34,7 +31,6 @@ export const leaderboardSnapshots = pgTable(
   },
   (t) => [
     uniqueIndex('leaderboard_snapshots_key_unique').on(
-      t.organizationId,
       t.propertyId,
       t.period,
       t.scope,
@@ -42,7 +38,6 @@ export const leaderboardSnapshots = pgTable(
       t.scoreKey,
     ),
     index('leaderboard_snapshots_property_idx').on(t.propertyId),
-    index('leaderboard_snapshots_org_idx').on(t.organizationId),
   ],
 )
 
@@ -69,6 +64,5 @@ export const leaderboardEntries = pgTable(
   (t) => [
     index('leaderboard_entries_snapshot_rank_idx').on(t.snapshotId, t.rank),
     index('leaderboard_entries_target_idx').on(t.targetType, t.targetId),
-    index('leaderboard_entries_org_idx').on(t.organizationId),
   ],
 )

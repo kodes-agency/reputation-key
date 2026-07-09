@@ -1,28 +1,24 @@
 // Leaderboard context — domain scoring functions
 //
-// Pure functions for normalization, ranking, and composite score computation.
-// Extracted from the repository so domain logic lives in the domain layer, not
-// infrastructure (LB-02). The repository queries raw metric rows and delegates
-// all scoring math to these functions.
+// Pure functions for normalization and ranking. Extracted from the repository
+// so domain logic lives in the domain layer, not infrastructure (LB-02). The
+// repository queries raw metric rows and delegates all scoring math here.
 
 import type { LeaderboardMetricKey, LeaderboardRowInput } from './types'
 
-/** Metrics that compose the "overall" score (all portal-level metrics except 'overall'). */
-export const PORTAL_METRICS: readonly Exclude<LeaderboardMetricKey, 'overall'>[] = [
+/** The portal-level metrics the leaderboard ranks. Property-scoped metrics
+ *  (e.g. property.review) cannot differentiate portals and are excluded. */
+export const LEADERBOARD_METRICS: readonly LeaderboardMetricKey[] = [
   'portal.rating',
   'portal.feedback',
   'portal.scan',
   'portal.review_link_click',
 ]
 
-/** Composite weights for the "overall" score (must sum to 1.0).
- *  System-defined per CONTEXT.md invariant: 40% rating, 30% feedback, 20% scans, 10% clicks. */
-export const OVERALL_WEIGHTS: Readonly<Record<string, number>> = {
-  'portal.rating': 0.4,
-  'portal.feedback': 0.3,
-  'portal.scan': 0.2,
-  'portal.review_link_click': 0.1,
-}
+/** Minimum private ratings a target must collect in a period to be ranked on
+ *  the average-rating metric. Below this the average is statistically unstable
+ *  (a single 5★ would otherwise top the board). Count metrics have no floor. */
+export const RATING_FLOOR = 5
 
 /** A target with a raw metric value and a normalized score (0..1). */
 export type ScoredTarget = Readonly<{
@@ -53,35 +49,6 @@ export const normalize = (
 }
 
 /**
- * Compute composite "overall" scores from per-metric normalized scores.
- * Each target's overall score is the weighted sum of its normalized component
- * scores using OVERALL_WEIGHTS. (CONTEXT.md invariant.)
- *
- * @param targets - All targets in the scope (order preserved in output).
- * @param componentNormalized - Map from PORTAL_METRIC key → normalized scored targets.
- */
-export const compositeScore = (
-  targets: ReadonlyArray<LeaderboardRowInput>,
-  componentNormalized: ReadonlyMap<string, ReadonlyArray<ScoredTarget>>,
-): ReadonlyArray<ScoredTarget> => {
-  const targetScores = new Map<string, number>()
-
-  for (const [metricKey, scored] of componentNormalized) {
-    const weight = OVERALL_WEIGHTS[metricKey] ?? 0
-    for (const s of scored) {
-      const key = targetKey(s.row)
-      targetScores.set(key, (targetScores.get(key) ?? 0) + weight * s.normalized)
-    }
-  }
-
-  return targets.map((row) => ({
-    row,
-    value: 0,
-    normalized: targetScores.get(targetKey(row)) ?? 0,
-  }))
-}
-
-/**
  * Sort targets by normalized score (desc), then by raw metric value (desc) for
  * display stability, and assign standard competition ranks: equal normalized
  * scores share the same rank; the next rank skips (1,1,3,3,5).
@@ -107,4 +74,107 @@ export const rank = (
     }
     return { ...value, rank: currentRank }
   })
+}
+
+// ── Comparison matrix ───────────────────────────────────────────────────
+
+/** One cell in the comparison matrix: a single target × a single metric. */
+export type MatrixCell = Readonly<{
+  metricKey: LeaderboardMetricKey
+  /** Raw value: average for rating (even if insufficient), sum for counts. */
+  value: number
+  /** Per-column competition rank (1 = best); null when insufficient or no data. */
+  rank: number | null
+  /** True only for portal.rating with fewer than RATING_FLOOR samples. */
+  insufficient: boolean
+}>
+
+/** A target (portal or portal group) with its display name. */
+export type MatrixTarget = LeaderboardRowInput & Readonly<{ targetName: string }>
+
+/** A matrix row: the target plus one cell per ranked metric. */
+export type MatrixRow = Readonly<{
+  target: MatrixTarget
+  cells: ReadonlyArray<MatrixCell>
+}>
+
+/** Raw aggregate for one target × one metric, straight from the readings. */
+export type MetricAggregate = Readonly<{ sum: number; count: number }>
+
+/** Per-target raw value + flags for one metric, pulled from the aggregates map.
+ *  Shared by the rankable build and the cell build so the rating-vs-count
+ *  branching lives in exactly one place. */
+const metricValueFor = (
+  metricKey: LeaderboardMetricKey,
+  target: MatrixTarget,
+  aggregates: ReadonlyMap<string, ReadonlyMap<LeaderboardMetricKey, MetricAggregate>>,
+): { value: number; insufficient: boolean; hasData: boolean } => {
+  const isRating = metricKey === 'portal.rating'
+  const agg = aggregates.get(targetKey(target))?.get(metricKey) ?? { sum: 0, count: 0 }
+  return {
+    insufficient: isRating && agg.count < RATING_FLOOR,
+    hasData: isRating ? agg.count > 0 : agg.sum > 0,
+    value: isRating ? (agg.count > 0 ? agg.sum / agg.count : 0) : agg.sum,
+  }
+}
+
+/** Row comparator: worst-first by rating rank (unranked last), then by name. */
+const compareRowsByRating = (a: MatrixRow, b: MatrixRow): number => {
+  const rankOf = (row: MatrixRow): number | null =>
+    row.cells.find((c) => c.metricKey === 'portal.rating')?.rank ?? null
+  const ra = rankOf(a)
+  const rb = rankOf(b)
+  if (ra === null && rb !== null) return 1
+  if (rb === null && ra !== null) return -1
+  if (ra !== null && rb !== null && ra !== rb) return rb - ra
+  return a.target.targetName.localeCompare(b.target.targetName)
+}
+
+/**
+ * Build the comparison matrix from raw per-target-per-metric aggregates.
+ *
+ * - portal.rating value is the average; targets with < RATING_FLOOR samples are
+ *   "insufficient" (rank null, shown as "—"). Count metrics use the sum and are
+ *   never insufficient.
+ * - Each metric column is ranked independently by raw value (desc), standard
+ *   competition ranking. Insufficient / no-data cells get rank null.
+ * - Rows sort by the rating column rank ascending (worst-first); targets with no
+ *   rankable rating sort last, then by name.
+ */
+export function buildMatrix(
+  targets: ReadonlyArray<MatrixTarget>,
+  aggregates: ReadonlyMap<string, ReadonlyMap<LeaderboardMetricKey, MetricAggregate>>,
+): ReadonlyArray<MatrixRow> {
+  const cellsByTarget = new Map<string, MatrixCell[]>()
+
+  for (const metricKey of LEADERBOARD_METRICS) {
+    const rankable = targets
+      .map((t) => {
+        const { value, insufficient, hasData } = metricValueFor(metricKey, t, aggregates)
+        return { row: t, value, normalized: value, _skip: !hasData || insufficient }
+      })
+      .filter((s) => !s._skip)
+      .map(({ _skip, ...rest }) => rest)
+
+    const rankByKey = new Map(rank(rankable).map((r) => [targetKey(r.row), r.rank]))
+
+    for (const t of targets) {
+      const { value, insufficient, hasData } = metricValueFor(metricKey, t, aggregates)
+      const arr = cellsByTarget.get(targetKey(t)) ?? []
+      arr.push({
+        metricKey,
+        value,
+        rank: hasData && !insufficient ? (rankByKey.get(targetKey(t)) ?? null) : null,
+        insufficient,
+      })
+      cellsByTarget.set(targetKey(t), arr)
+    }
+  }
+
+  const rows: MatrixRow[] = targets.map((t) => ({
+    target: t,
+    cells: cellsByTarget.get(targetKey(t)) ?? [],
+  }))
+
+  return rows.sort(compareRowsByRating)
 }

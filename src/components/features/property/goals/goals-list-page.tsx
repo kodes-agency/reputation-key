@@ -12,6 +12,8 @@ import {
   statusLabel,
   scopeLabel,
   goalTypeLabel,
+  metricLabel,
+  targetUnit,
   formatPeriodDates,
   STATUS_ORDER,
   type GoalWithProgress,
@@ -82,7 +84,7 @@ export function GoalsListPage({ goals, propertyId, propertyName }: GoalsListPage
                       </CardTitle>
                       <div className="flex flex-wrap items-center gap-2">
                         <Badge variant="outline">{scopeLabel(scope)}</Badge>
-                        <Badge variant="outline">{goal.metricKey}</Badge>
+                        <Badge variant="outline">{metricLabel(goal.metricKey)}</Badge>
                         <Badge variant="outline">{goalTypeLabel(goal.goalType)}</Badge>
                       </div>
                     </div>
@@ -104,7 +106,10 @@ export function GoalsListPage({ goals, propertyId, propertyName }: GoalsListPage
                         ? 'Current instance'
                         : formatPeriodDates(goal.periodStart, goal.periodEnd) || '—'}
                     </span>
-                    <span>Target: {goal.targetValue.toLocaleString()}</span>
+                    <span>
+                      Target: {goal.targetValue.toLocaleString()}{' '}
+                      {targetUnit(goal.metricKey, goal.aggregationFunction)}
+                    </span>
                   </div>
                 </CardContent>
               </Card>

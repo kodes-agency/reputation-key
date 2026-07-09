@@ -71,11 +71,6 @@ function defaultScenario(orgId: string): ScenarioSpec {
         guest: { scans: 10, ratings: 5, feedback: 3, overDays: 30 },
         goals: [
           { name: '100 Scans This Month', metricKey: 'portal.scan', targetValue: 100 },
-          {
-            name: '10 Feedback Responses',
-            metricKey: 'portal.feedback',
-            targetValue: 10,
-          },
         ],
       },
       {

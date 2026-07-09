@@ -7,6 +7,7 @@ import type {
   LeaderboardRefreshInput,
   LeaderboardReconcileResult,
 } from '../../domain/types'
+import { LEADERBOARD_METRICS } from '../../domain/scoring'
 
 export type RegisterLeaderboardHandlersDeps = Readonly<{
   eventBus: EventBus
@@ -20,27 +21,16 @@ export const registerLeaderboardEventHandlers = (
 ): void => {
   deps.eventBus.on('metric.recorded', async (event) => {
     // Only refresh the current period — full hourly reconcile catches the rest.
-    // A portal-scoped reading refreshes the portal leaderboard AND, when the
-    // portal belongs to a group (event.groupId, resolved by the metric
-    // handler), the portal_group leaderboard. A group-scoped reading with no
-    // specific portal refreshes portal_group only. Property-level readings
-    // (portalId and groupId both null, e.g. property.review) don't participate
-    // in portal/group leaderboards — skip; the hourly reconcile covers them.
-    const tasks: Promise<unknown>[] = []
-    const base = {
-      organizationId: event.organizationId,
-      propertyId: event.propertyId,
-      period: 'this_month' as const,
-      metricKey: 'overall' as const,
-    }
-    if (event.portalId) {
-      tasks.push(deps.refreshLeaderboard({ ...base, scope: 'portal' }))
-      if (event.groupId) {
-        tasks.push(deps.refreshLeaderboard({ ...base, scope: 'portal_group' }))
-      }
-    } else if (event.groupId) {
-      tasks.push(deps.refreshLeaderboard({ ...base, scope: 'portal_group' }))
-    }
-    await Promise.allSettled(tasks)
+    // Skip metrics the leaderboard doesn't rank (e.g. property-scoped reviews).
+    if (!LEADERBOARD_METRICS.includes(event.metricKey)) return
+    await Promise.allSettled([
+      deps.refreshLeaderboard({
+        organizationId: event.organizationId,
+        propertyId: event.propertyId,
+        period: 'this_month',
+        scope: event.portalId ? 'portal' : 'portal_group',
+        metricKey: event.metricKey,
+      }),
+    ])
   })
 }

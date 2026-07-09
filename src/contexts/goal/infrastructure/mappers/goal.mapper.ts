@@ -10,7 +10,7 @@ import type {
   RecurrenceFrequency,
   ComputedSource,
 } from '../../domain/types'
-import { METRIC_KEYS, type AggregationFunction } from '#/shared/domain/metric-keys'
+import type { MetricKey, AggregationFunction } from '#/shared/domain/metric-keys'
 import {
   goalId,
   goalProgressId,
@@ -32,6 +32,11 @@ const VALID_STATUSES: readonly GoalStatus[] = [
   'cancelled',
 ]
 const VALID_AGGREGATIONS: readonly AggregationFunction[] = ['sum', 'count', 'max', 'avg']
+const VALID_METRIC_KEYS: readonly MetricKey[] = [
+  'portal.scan',
+  'portal.rating',
+  'property.review',
+]
 const VALID_COMPUTED_SOURCES: readonly ComputedSource[] = [
   'event_increment',
   'reconciliation',
@@ -63,7 +68,7 @@ export const goalFromRow = (row: GoalRow): Goal => ({
     VALID_AGGREGATIONS,
     'aggregationFunction',
   ),
-  metricKey: assertLiteral(row.metricKey, METRIC_KEYS, 'metricKey'),
+  metricKey: assertLiteral(row.metricKey, VALID_METRIC_KEYS, 'metricKey'),
   targetValue: row.targetValue,
   status: assertLiteral(row.status, VALID_STATUSES, 'status'),
   periodStart: row.periodStart,

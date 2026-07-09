@@ -3,7 +3,7 @@
  * No side effects, no DOM, safe for server and client.
  */
 
-import type { Goal, GoalStatus } from '#/contexts/goal/application/public-api'
+import type { Goal, GoalStatus, GoalType } from '#/contexts/goal/application/public-api'
 import type {
   MetricKey,
   AggregationFunction,
@@ -224,6 +224,149 @@ export function aggregationLabel(agg: AggregationFunction): string {
     case 'avg':
       return 'Average'
   }
+}
+
+// ── Friendly metric metadata (plain-language labels for the create flow) ──
+
+export type MetricMeta = Readonly<{
+  label: string
+  description: string
+  /** Unit suffix shown next to the target value, e.g. "scans" or "★". */
+  unit: string
+  /** True when the metric is a count (sum/count are equivalent; aggregation hidden). */
+  isCountMetric: boolean
+}>
+
+export const METRIC_META: Readonly<Record<MetricKey, MetricMeta>> = {
+  'portal.scan': {
+    label: 'Scans',
+    description: 'QR-code scans of your portal',
+    unit: 'scans',
+    isCountMetric: true,
+  },
+  'portal.rating': {
+    label: 'Private guest ratings',
+    description: 'Private 1–5 star ratings left by guests',
+    unit: '★',
+    isCountMetric: false,
+  },
+  'portal.feedback': {
+    label: 'Feedback',
+    description: 'Private feedback submissions',
+    unit: 'responses',
+    isCountMetric: true,
+  },
+  'portal.review_link_click': {
+    label: 'Review-link clicks',
+    description: 'Guests who opened your external review link',
+    unit: 'clicks',
+    isCountMetric: true,
+  },
+  'property.review': {
+    label: 'Google reviews',
+    description: 'Public Google reviews for this property',
+    unit: 'reviews',
+    isCountMetric: false,
+  },
+}
+
+export function metricLabel(key: MetricKey): string {
+  return METRIC_META[key].label
+}
+
+export function metricUnit(key: MetricKey): string {
+  return METRIC_META[key].unit
+}
+
+/** Plain-language description of what each goal type means, for the timeframe step. */
+export function goalTypeDescription(type: GoalType): string {
+  switch (type) {
+    case 'open':
+      return 'Ongoing — no end date or reset.'
+    case 'one_shot':
+      return 'Hit the target once, between two dates.'
+    case 'rolling':
+      return 'Always tracked over the last N days.'
+    case 'recurring':
+      return 'Resets on a weekly, monthly, or quarterly cycle.'
+  }
+}
+
+/** Metrics whose avg/max is a star rating (★), distinct from their count noun. */
+const RATING_METRICS: ReadonlySet<MetricKey> = new Set([
+  'portal.rating',
+  'property.review',
+])
+
+export function isRatingMetric(key: MetricKey): boolean {
+  return RATING_METRICS.has(key)
+}
+
+/** Plain-language "what's being measured" for a metric + aggregation.
+ *  Shared by the create-flow preview and describeGoal so they never drift. */
+export function measureLabel(
+  metricKey: MetricKey | null,
+  aggregation: AggregationFunction,
+): string {
+  if (!metricKey) return 'Your goal'
+  if (!isRatingMetric(metricKey)) {
+    return `total ${METRIC_META[metricKey].label.toLowerCase()}`
+  }
+  switch (aggregation) {
+    case 'avg':
+      return 'average rating'
+    case 'max':
+      return 'highest rating'
+    case 'count':
+      return `number of ${METRIC_META[metricKey].label.toLowerCase()}`
+    default:
+      return 'rating'
+  }
+}
+
+/** Target unit adapted to metric + aggregation: ★ for avg/max of rating metrics,
+ *  the count noun for counted ratings, else the metric unit. */
+export function targetUnit(
+  metricKey: MetricKey,
+  aggregation: AggregationFunction,
+): string {
+  if (!isRatingMetric(metricKey)) return METRIC_META[metricKey].unit
+  if (aggregation === 'count')
+    return metricKey === 'portal.rating' ? 'ratings' : 'reviews'
+  return '★'
+}
+
+/** Dropdown label for a rating metric's aggregation option (the "Measured by" selector). */
+export function ratingAggOptionLabel(
+  metricKey: MetricKey | null,
+  aggregation: AggregationFunction,
+): string {
+  if (aggregation === 'count')
+    return `Number of ${metricKey === 'portal.rating' ? 'ratings' : 'reviews'}`
+  return `${aggregation === 'avg' ? 'Average' : 'Highest'} rating`
+}
+
+/** Plain-language one-line summary of an existing goal, mirroring the create-flow preview.
+ *  e.g. "total scans — target 50 scans — resets monthly". */
+export function describeGoal(goal: Goal): string {
+  const measure = measureLabel(goal.metricKey, goal.aggregationFunction)
+  const unit = targetUnit(goal.metricKey, goal.aggregationFunction)
+  const target = `${goal.targetValue.toLocaleString()}${unit ? ` ${unit}` : ''}`
+  const timeframe = (() => {
+    switch (goal.goalType) {
+      case 'one_shot':
+        return formatPeriodDates(goal.periodStart, goal.periodEnd) || 'between two dates'
+      case 'recurring':
+        return `resets ${goal.recurrenceRule?.frequency ?? 'monthly'}`
+      case 'rolling':
+        return goal.rollingWindowDays
+          ? `last ${goal.rollingWindowDays} days`
+          : 'rolling window'
+      case 'open':
+        return 'ongoing'
+    }
+  })()
+  return `${measure} — target ${target} — ${timeframe}`
 }
 
 // ── 13. Color class from color name ───────────────────────────────────

@@ -6,12 +6,16 @@ import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
 import { ProgressBar } from './progress-bar'
 import { InstanceHistoryTable } from './instance-history-table'
+import { Target } from 'lucide-react'
 import {
   statusBadgeVariant,
   statusLabel,
   scopeLabel,
   goalTypeLabel,
   aggregationLabel,
+  metricLabel,
+  targetUnit,
+  describeGoal,
   formatPeriodDates,
   formatDate,
   daysRemaining,
@@ -62,6 +66,11 @@ export function GoalDetailPage({
         }
       />
 
+      <div className="flex items-center gap-3 rounded-lg border bg-muted/30 p-4">
+        <Target className="size-4 shrink-0 text-primary" />
+        <p className="text-sm font-medium">{describeGoal(goal)}</p>
+      </div>
+
       <Card>
         <CardHeader>
           <h2 className="font-semibold leading-none">Details</h2>
@@ -81,8 +90,11 @@ export function GoalDetailPage({
                 </Badge>
               }
             />
-            <Detail label="Metric Key" value={goal.metricKey} />
-            <Detail label="Target Value" value={goal.targetValue.toLocaleString()} />
+            <Detail label="Metric" value={metricLabel(goal.metricKey)} />
+            <Detail
+              label="Target"
+              value={`${goal.targetValue.toLocaleString()} ${targetUnit(goal.metricKey, goal.aggregationFunction)}`}
+            />
             {hasPeriod && (
               <>
                 <Detail

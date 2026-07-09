@@ -4,14 +4,15 @@ import { describe, it, expect } from 'vitest'
 import {
   normalize,
   rank,
-  compositeScore,
   targetKey,
-  PORTAL_METRICS,
-  OVERALL_WEIGHTS,
+  buildMatrix,
+  LEADERBOARD_METRICS,
+  RATING_FLOOR,
   type ScoredTarget,
+  type MatrixTarget,
+  type MetricAggregate,
 } from './scoring'
-import type { LeaderboardRowInput } from './types'
-
+import type { LeaderboardRowInput, LeaderboardMetricKey } from './types'
 const row = (
   id: string,
   targetType: 'portal' | 'portal_group' = 'portal',
@@ -31,15 +32,16 @@ const scored = (r: LeaderboardRowInput, value: number, normalized = 0): ScoredTa
   normalized,
 })
 
-describe('PORTAL_METRICS and OVERALL_WEIGHTS', () => {
-  it('PORTAL_METRICS lists 4 portal metrics excluding overall', () => {
-    expect(PORTAL_METRICS).toHaveLength(4)
-    expect(PORTAL_METRICS).not.toContain('overall')
+describe('LEADERBOARD_METRICS', () => {
+  it('lists the 4 portal-level ranked metrics', () => {
+    expect(LEADERBOARD_METRICS).toHaveLength(4)
+    expect(LEADERBOARD_METRICS).not.toContain('property.review')
   })
+})
 
-  it('OVERALL_WEIGHTS sums to 1.0', () => {
-    const sum = Object.values(OVERALL_WEIGHTS).reduce((a, b) => a + b, 0)
-    expect(sum).toBeCloseTo(1.0, 10)
+describe('RATING_FLOOR', () => {
+  it('is 5', () => {
+    expect(RATING_FLOOR).toBe(5)
   })
 })
 
@@ -105,34 +107,60 @@ describe('rank', () => {
   })
 })
 
-describe('compositeScore', () => {
-  it('computes weighted sum of normalized component scores', () => {
-    const targets = [row('a'), row('b')]
-
-    // rating: a=1.0, b=0.5 (weight 0.4)
-    // feedback: a=0.5, b=1.0 (weight 0.3)
-    // Expected: a = 0.4*1.0 + 0.3*0.5 = 0.55; b = 0.4*0.5 + 0.3*1.0 = 0.50
-    const component = new Map<string, ReadonlyArray<ScoredTarget>>([
-      ['portal.rating', [scored(row('a'), 10, 1.0), scored(row('b'), 5, 0.5)]],
-      ['portal.feedback', [scored(row('a'), 5, 0.5), scored(row('b'), 10, 1.0)]],
-    ])
-
-    const result = compositeScore(targets, component)
-    expect(result).toHaveLength(2)
-    expect(result[0].row.targetId).toBe('a')
-    expect(result[0].normalized).toBeCloseTo(0.55, 10)
-    expect(result[1].row.targetId).toBe('b')
-    expect(result[1].normalized).toBeCloseTo(0.5, 10)
-    // Raw value is 0 for composite (no single metric value)
-    expect(result[0].value).toBe(0)
+describe('buildMatrix', () => {
+  const mt = (id: string, name: string): MatrixTarget => ({
+    ...row(id),
+    targetName: name,
   })
+  const agg = (
+    entries: Array<[LeaderboardMetricKey, MetricAggregate]>,
+  ): ReadonlyMap<LeaderboardMetricKey, MetricAggregate> => new Map(entries)
 
-  it('returns 0 normalized for targets with no component data', () => {
-    const targets = [row('a'), row('b')]
-    const component = new Map<string, ReadonlyArray<ScoredTarget>>([
-      ['portal.rating', [scored(row('a'), 10, 1.0)]],
+  it('ranks columns independently, floors rating, sorts worst-first with nulls last', () => {
+    const targets = [mt('a', 'A'), mt('b', 'B'), mt('c', 'C')]
+    // rating: a=4.0 (5 ratings), b=4.0 but 1 rating (insufficient), c=5.0 (5 ratings)
+    // scans:  a=10, b=20, c=5
+    const aggregates = new Map([
+      [
+        'portal:a',
+        agg([
+          ['portal.rating', { sum: 20, count: 5 }],
+          ['portal.scan', { sum: 10, count: 10 }],
+        ]),
+      ],
+      [
+        'portal:b',
+        agg([
+          ['portal.rating', { sum: 4, count: 1 }],
+          ['portal.scan', { sum: 20, count: 20 }],
+        ]),
+      ],
+      [
+        'portal:c',
+        agg([
+          ['portal.rating', { sum: 25, count: 5 }],
+          ['portal.scan', { sum: 5, count: 5 }],
+        ]),
+      ],
     ])
-    const result = compositeScore(targets, component)
-    expect(result[1].normalized).toBe(0)
+    const matrix = buildMatrix(targets, aggregates)
+
+    // rating ranks: c=1 (5.0), a=2 (4.0), b=null (insufficient). Worst-first desc, nulls last.
+    expect(matrix.map((r) => r.target.targetId)).toEqual(['a', 'c', 'b'])
+
+    const cell = (id: string, key: LeaderboardMetricKey) =>
+      matrix
+        .find((r) => r.target.targetId === id)!
+        .cells.find((c) => c.metricKey === key)!
+    expect(cell('b', 'portal.rating').insufficient).toBe(true)
+    expect(cell('b', 'portal.rating').rank).toBeNull()
+    expect(cell('a', 'portal.rating').rank).toBe(2)
+    expect(cell('c', 'portal.rating').rank).toBe(1)
+    // scans ranked independently: b=1 (20), a=2 (10), c=3 (5)
+    expect(cell('a', 'portal.scan').rank).toBe(2)
+    expect(cell('b', 'portal.scan').rank).toBe(1)
+    expect(cell('c', 'portal.scan').rank).toBe(3)
+    // every row has one cell per ranked metric
+    expect(matrix[0].cells).toHaveLength(LEADERBOARD_METRICS.length)
   })
 })

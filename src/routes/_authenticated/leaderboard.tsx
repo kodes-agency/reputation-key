@@ -1,10 +1,24 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { z } from 'zod/v4'
-import { getLeaderboard } from '#/contexts/leaderboard/server/leaderboards'
+import {
+  getLeaderboard,
+  getComparisonMatrix,
+} from '#/contexts/leaderboard/server/leaderboards'
 import { StaffEmptyState } from '#/components/features/staff/staff-empty-state'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
-import type { LeaderboardEntryWithTarget } from '#/contexts/leaderboard/application/public-api'
+import type {
+  LeaderboardEntryWithTarget,
+  MatrixRow,
+  MatrixCell,
+} from '#/contexts/leaderboard/application/public-api'
+
+const METRICS = [
+  'portal.rating',
+  'portal.feedback',
+  'portal.scan',
+  'portal.review_link_click',
+] as const
 
 const leaderboardSearch = z.object({
   propertyId: z.string().uuid().optional(),
@@ -22,19 +36,15 @@ const leaderboardSearch = z.object({
     .default('this_month'),
   scope: z.enum(['portal', 'portal_group']).default('portal'),
   metricKey: z
-    .enum([
-      'overall',
-      'portal.rating',
-      'portal.feedback',
-      'portal.scan',
-      'portal.review_link_click',
-    ])
-    .default('overall'),
+    .enum(['portal.rating', 'portal.feedback', 'portal.scan', 'portal.review_link_click'])
+    .default('portal.rating'),
+  view: z.enum(['matrix', 'leaderboard']).default('matrix'),
 })
 
 type Period = z.infer<typeof leaderboardSearch>['period']
 type Scope = z.infer<typeof leaderboardSearch>['scope']
 type MetricKey = z.infer<typeof leaderboardSearch>['metricKey']
+type View = z.infer<typeof leaderboardSearch>['view']
 
 const PERIOD_LABELS: Readonly<Record<Period, string>> = {
   today: 'Today',
@@ -48,7 +58,6 @@ const PERIOD_LABELS: Readonly<Record<Period, string>> = {
 }
 
 const METRIC_LABELS: Readonly<Record<MetricKey, string>> = {
-  overall: 'Overall',
   'portal.rating': 'Avg Rating',
   'portal.feedback': 'Feedback',
   'portal.scan': 'Scans',
@@ -62,25 +71,34 @@ export const Route = createFileRoute('/_authenticated/leaderboard')({
     period: search.period,
     scope: search.scope,
     metricKey: search.metricKey,
+    view: search.view,
   }),
-  loader: async ({ deps: { propertyId, period, scope, metricKey } }) => {
+  loader: async ({ deps: { propertyId, period, scope, metricKey, view } }) => {
     if (!propertyId) {
-      return { entries: [] as LeaderboardEntryWithTarget[] }
+      return { view, matrix: null, entries: null }
+    }
+    if (view === 'matrix') {
+      const matrix = await getComparisonMatrix({ data: { propertyId, period, scope } })
+      return { view, matrix: matrix as MatrixRow[], entries: null }
     }
     const entries = await getLeaderboard({
       data: { propertyId, period, scope, metricKey },
     })
-    return { entries: entries as LeaderboardEntryWithTarget[] }
+    return {
+      view,
+      matrix: null,
+      entries: entries as LeaderboardEntryWithTarget[],
+    }
   },
   component: StaffLeaderboardPage,
 })
 
 function StaffLeaderboardPage() {
-  const { entries } = Route.useLoaderData()
+  const { view, matrix, entries } = Route.useLoaderData()
   const { propertyId: searchPropertyId, period, scope, metricKey } = Route.useSearch()
   const navigate = useNavigate()
   const updateSearch = (
-    patch: Partial<{ period: Period; scope: Scope; metricKey: MetricKey }>,
+    patch: Partial<{ period: Period; scope: Scope; metricKey: MetricKey; view: View }>,
   ) => {
     navigate({
       to: '/leaderboard',
@@ -89,13 +107,13 @@ function StaffLeaderboardPage() {
         period,
         scope,
         metricKey,
+        view,
         ...patch,
       },
       replace: true,
     })
   }
 
-  // No property selected — the sidebar defaults ?propertyId= on first load.
   if (!searchPropertyId) {
     return (
       <PageShell>
@@ -118,20 +136,30 @@ function StaffLeaderboardPage() {
     'last_90_days',
     'all_time',
   ]
-  const metrics: MetricKey[] = [
-    'overall',
-    'portal.rating',
-    'portal.feedback',
-    'portal.scan',
-    'portal.review_link_click',
-  ]
 
   return (
     <PageShell>
       <PageHeader
         title="Leaderboard"
-        description="See how your portals and groups compare."
+        description="Portal performance across activity and quality. Compare side-by-side or rank by one metric."
       />
+
+      {/* View toggle */}
+      <div className="flex gap-2">
+        {(['matrix', 'leaderboard'] as const).map((v) => (
+          <button
+            key={v}
+            onClick={() => updateSearch({ view: v })}
+            className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+              view === v
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-muted text-muted-foreground hover:bg-muted/80'
+            }`}
+          >
+            {v === 'matrix' ? 'Comparison' : 'Ranking'}
+          </button>
+        ))}
+      </div>
 
       {/* Period selector */}
       <div className="flex flex-wrap gap-2">
@@ -167,63 +195,163 @@ function StaffLeaderboardPage() {
         ))}
       </div>
 
-      {/* Metric tabs */}
-      <div className="flex flex-wrap gap-2">
-        {metrics.map((m) => (
-          <button
-            key={m}
-            onClick={() => updateSearch({ metricKey: m })}
-            className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-              metricKey === m
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-muted text-muted-foreground hover:bg-muted/80'
-            }`}
-          >
-            {METRIC_LABELS[m]}
-          </button>
-        ))}
-      </div>
+      {view === 'leaderboard' && (
+        <>
+          {/* Metric tabs */}
+          <div className="flex flex-wrap gap-2">
+            {METRICS.map((m) => (
+              <button
+                key={m}
+                onClick={() => updateSearch({ metricKey: m })}
+                className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                  metricKey === m
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                }`}
+              >
+                {METRIC_LABELS[m]}
+              </button>
+            ))}
+          </div>
 
-      {/* Leaderboard table */}
-      {entries.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-          No leaderboard data for this period yet. Data refreshes hourly.
-        </div>
-      ) : (
-        <div className="overflow-hidden rounded-lg border">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/50">
-              <tr>
-                <th className="px-4 py-2 text-left font-medium">Rank</th>
-                <th className="px-4 py-2 text-left font-medium">Name</th>
-                <th className="px-4 py-2 text-right font-medium">Score</th>
-                <th className="px-4 py-2 text-right font-medium">
-                  {metricKey === 'overall' ? 'Composite' : METRIC_LABELS[metricKey]}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {entries.map((entry, idx) => (
-                <tr
-                  key={`${entry.targetType}:${entry.targetId}`}
-                  className={idx % 2 === 0 ? 'bg-background' : 'bg-muted/20'}
-                >
-                  <td className="px-4 py-2 font-medium">
-                    {entry.rank <= 3 ? ['🥇', '🥈', '🥉'][entry.rank - 1] : entry.rank}
-                  </td>
-                  <td className="px-4 py-2">{entry.targetName}</td>
-                  <td className="px-4 py-2 text-right">
-                    {(entry.score * 100).toFixed(1)}
-                  </td>
-                  <td className="px-4 py-2 text-right text-muted-foreground">
-                    {entry.metricValue.toFixed(1)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+          {entries && entries.length === 0 ? (
+            <EmptyData />
+          ) : (
+            entries && <RankingTable entries={entries} metricKey={metricKey} />
+          )}
+        </>
       )}
+
+      {view === 'matrix' &&
+        (matrix && matrix.length === 0 ? (
+          <EmptyData />
+        ) : (
+          matrix && <MatrixTable rows={matrix} />
+        ))}
     </PageShell>
+  )
+}
+
+function EmptyData() {
+  return (
+    <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
+      No leaderboard data for this period yet. Data refreshes hourly.
+    </div>
+  )
+}
+
+const MEDALS: readonly string[] = ['🥇', '🥈', '🥉']
+
+function RankingRow({
+  entry,
+  idx,
+}: Readonly<{ entry: LeaderboardEntryWithTarget; idx: number }>) {
+  return (
+    <tr className={idx % 2 === 0 ? 'bg-background' : 'bg-muted/20'}>
+      <td className="px-4 py-2 font-medium">
+        {entry.rank <= MEDALS.length ? MEDALS[entry.rank - 1] : entry.rank}
+      </td>
+      <td className="px-4 py-2">{entry.targetName}</td>
+      <td className="px-4 py-2 text-right">{(entry.score * 100).toFixed(1)}</td>
+      <td className="px-4 py-2 text-right text-muted-foreground">
+        {entry.metricValue.toFixed(1)}
+      </td>
+    </tr>
+  )
+}
+
+function RankingTableHead({ metricKey }: Readonly<{ metricKey: MetricKey }>) {
+  return (
+    <thead className="bg-muted/50">
+      <tr>
+        <th className="px-4 py-2 text-left font-medium">Rank</th>
+        <th className="px-4 py-2 text-left font-medium">Name</th>
+        <th className="px-4 py-2 text-right font-medium">Score</th>
+        <th className="px-4 py-2 text-right font-medium">{METRIC_LABELS[metricKey]}</th>
+      </tr>
+    </thead>
+  )
+}
+
+function RankingTable({
+  entries,
+  metricKey,
+}: Readonly<{ entries: LeaderboardEntryWithTarget[]; metricKey: MetricKey }>) {
+  return (
+    <div className="overflow-hidden rounded-lg border">
+      <table className="w-full text-sm">
+        <RankingTableHead metricKey={metricKey} />
+        <tbody>
+          {entries.map((entry, idx) => (
+            <RankingRow
+              key={`${entry.targetType}:${entry.targetId}`}
+              entry={entry}
+              idx={idx}
+            />
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+/** Comparison matrix: portals × metrics, raw value + per-column rank, color-coded.
+ *  Rows arrive pre-sorted worst-first by rating (insufficient/unranked last). */
+function MatrixTable({ rows }: Readonly<{ rows: MatrixRow[] }>) {
+  const maxRankFor = (key: MetricKey): number =>
+    Math.max(1, ...rows.map((r) => r.cells.find((c) => c.metricKey === key)?.rank ?? 0))
+
+  const cellStyle = (cell: MatrixCell | undefined, key: MetricKey) => {
+    if (!cell || cell.rank === null) return undefined
+    const top = maxRankFor(key)
+    const score = top <= 1 ? 1 : 1 - (cell.rank - 1) / (top - 1) // 1 = best, 0 = worst
+    return { backgroundColor: `hsl(${Math.round(score * 120)}, 60%, 92%)` }
+  }
+
+  const cellText = (cell: MatrixCell | undefined): string => {
+    if (!cell || cell.insufficient || cell.rank === null) return '—'
+    return cell.metricKey === 'portal.rating'
+      ? cell.value.toFixed(1)
+      : cell.value.toLocaleString()
+  }
+
+  return (
+    <div className="overflow-x-auto rounded-lg border">
+      <table className="w-full text-sm">
+        <thead className="bg-muted/50">
+          <tr>
+            <th className="px-4 py-2 text-left font-medium">Name</th>
+            {METRICS.map((m) => (
+              <th key={m} className="px-4 py-2 text-right font-medium">
+                {METRIC_LABELS[m]}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={`${row.target.targetType}:${row.target.targetId}`}>
+              <td className="px-4 py-2 font-medium">{row.target.targetName}</td>
+              {METRICS.map((m) => {
+                const cell = row.cells.find((c) => c.metricKey === m)
+                const muted = !cell || cell.insufficient || cell.rank === null
+                return (
+                  <td key={m} className="px-4 py-2 text-right" style={cellStyle(cell, m)}>
+                    <span className={muted ? 'text-muted-foreground' : ''}>
+                      {cellText(cell)}
+                    </span>
+                    {cell && cell.rank !== null && (
+                      <span className="ml-1 text-[10px] text-muted-foreground">
+                        #{cell.rank}
+                      </span>
+                    )}
+                  </td>
+                )
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   )
 }
