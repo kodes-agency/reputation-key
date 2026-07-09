@@ -15,6 +15,13 @@
       "when": 1783602170370,
       "tag": "0001_add-activity-log",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1783624704025,
+      "tag": "0002_leaderboard-rework-schema",
+      "breakpoints": true
     }
   ]
 }
