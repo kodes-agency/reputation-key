@@ -1,9 +1,15 @@
 // Shared hook for inbox item detail data fetching.
 // Used by the inbox page for both the desktop inline panel and the mobile sheet.
-// Receives server fns as a param per src/components/CONTEXT.md:55.
-// Fetch lifecycle + auto-mark-read live in inbox-detail-hooks.ts.
-import { useState } from 'react'
+//
+// Reads via TanStack Query; mutations invalidate inboxKeys.detail(id) — a PREFIX
+// of notes/activity — so one invalidate refreshes all three. The async BullMQ
+// activity row (inserted ~2s after a status change) is caught by a delayed
+// re-invalidate of the activity query. No statusVersion / refreshKey / manual
+// refetch orchestration — Query owns cache, dedup, and cancellation.
+import { useCallback } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMutationAction } from '#/components/hooks/use-mutation-action'
+import { inboxKeys } from '#/shared/queries/query-keys'
 import type { updateInboxStatusFn } from '#/contexts/inbox/server/inbox'
 import type { InboxServerFns } from './types'
 import type {
@@ -11,27 +17,28 @@ import type {
   InboxItemDetailResult,
   InboxNote,
 } from '#/contexts/inbox/application/public-api'
-import { useDetailData, useAutoMarkRead } from './inbox-detail-hooks'
+import { useAutoMarkRead } from './inbox-detail-hooks'
 
 export type UseInboxDetailOptions = Readonly<{
   autoMarkRead?: boolean
+  /** Called with the updated item after a status change (mark-read / escalate /
+   *  archive). The inbox page wires it to the optimistic list sync (instant UI
+   *  update + drop-from-filter), replacing the old statusVersion effect. */
+  onItemStatusChanged?: (updated: InboxItem) => void
 }>
 
 export type InboxDetailState = Readonly<{
   detail: InboxItemDetailResult | null
+  /** Retry on error — refetches detail + notes via Query. */
+  refetch: () => void
   notes: ReadonlyArray<InboxNote>
   isLoading: boolean
   currentItem: InboxItem | null
   updateStatus: ReturnType<typeof useMutationAction<typeof updateInboxStatusFn>>
-  refresh: () => void
-  /** Called after a note is added: re-fetches detail/notes and bumps
-   *  statusVersion so the activity timeline refreshes (refreshKey = statusVersion). */
+  /** Called after a note is added — refreshes notes + activity. */
   onNoteAdded: () => void
   error: string | null
   lastMarkedId: string | null
-  /** Bumped every time a status update completes and detail reloads.
-   *  Parent can watch this + currentItem to sync the list. */
-  statusVersion: number
 }>
 
 export function useInboxDetail(
@@ -43,56 +50,68 @@ export function useInboxDetail(
   >,
   options?: UseInboxDetailOptions,
 ): InboxDetailState {
-  const [statusVersion, setStatusVersion] = useState(0)
-  const { detail, notes, isLoading, error, reload, setDetail } = useDetailData(
-    item,
-    active,
-    inboxFns.getInboxItemDetail,
-    inboxFns.getInboxNotes,
+  const qc = useQueryClient()
+  const { autoMarkRead, onItemStatusChanged } = options ?? {}
+  const id = item?.id ?? ''
+  const enabled = active && !!item
+
+  const detailQuery = useQuery({
+    queryKey: inboxKeys.detail(id),
+    queryFn: () => inboxFns.getInboxItemDetail({ data: { inboxItemId: id } }),
+    enabled,
+    staleTime: 0,
+  })
+  const notesQuery = useQuery({
+    queryKey: inboxKeys.notes(id),
+    queryFn: () => inboxFns.getInboxNotes({ data: { inboxItemId: id } }),
+    enabled,
+    staleTime: 0,
+  })
+
+  // Invalidate detail (prefix → notes + activity) and re-invalidate activity on
+  // a delay to catch the BullMQ-inserted row (~2s). Notify the list for the
+  // optimistic sync. Targeted — never router.invalidate().
+  const handleStatusChanged = useCallback(
+    (updated: InboxItem) => {
+      qc.invalidateQueries({ queryKey: inboxKeys.detail(id) })
+      setTimeout(() => qc.invalidateQueries({ queryKey: inboxKeys.activity(id) }), 2500)
+      onItemStatusChanged?.(updated)
+    },
+    [qc, id, onItemStatusChanged],
   )
 
   const lastMarkedId = useAutoMarkRead(
     item,
     active,
-    options?.autoMarkRead,
-    () => {
-      // Update local state directly — no re-fetch needed.
-      // Avoids triggering isLoading (skeleton flash).
-      setDetail((prev) =>
-        prev?.item
-          ? {
-              ...prev,
-              item: { ...prev.item, status: 'read' as const, updatedAt: new Date() },
-            }
-          : prev,
-      )
-      setStatusVersion((v) => v + 1)
-    },
+    autoMarkRead,
+    handleStatusChanged,
     inboxFns.updateInboxStatus,
   )
 
   const updateStatus = useMutationAction(inboxFns.updateInboxStatus, {
     successMessage: 'Status updated',
     invalidate: false,
-    onSuccess: () => {
-      void reload().then(() => {
-        setStatusVersion((v) => v + 1)
-      })
-    },
+    onSuccess: handleStatusChanged,
   })
+
+  const detail = detailQuery.data ?? null
+  const notes = notesQuery.data ?? []
 
   return {
     detail,
     notes,
-    isLoading,
+    isLoading: detailQuery.isLoading || notesQuery.isLoading,
     currentItem: detail?.item ?? item,
     updateStatus,
-    refresh: reload,
-    onNoteAdded: () => {
-      void reload().then(() => setStatusVersion((v) => v + 1))
+    refetch: () => {
+      void detailQuery.refetch()
+      void notesQuery.refetch()
     },
-    error,
+    onNoteAdded: () => {
+      qc.invalidateQueries({ queryKey: inboxKeys.notes(id) })
+      setTimeout(() => qc.invalidateQueries({ queryKey: inboxKeys.activity(id) }), 2500)
+    },
+    error: detailQuery.error ? 'Failed to load detail. Try again.' : null,
     lastMarkedId,
-    statusVersion,
   }
 }

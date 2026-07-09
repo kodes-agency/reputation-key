@@ -1,102 +1,25 @@
 // Inbox detail sub-hooks — split from use-inbox-detail.ts for line-count
-// compliance. useDetailData owns the fetch lifecycle; useAutoMarkRead owns
-// the debounced mark-as-read effect.
+// compliance. useDetailData is gone (reads now live in use-inbox-detail via
+// TanStack Query); this file owns the debounced mark-as-read effect.
 
-import { useEffect, useState, useCallback, useRef } from 'react'
-import { useServerFn } from '@tanstack/react-start'
-import { useAction } from '#/components/hooks/use-action'
+import { useEffect, useRef } from 'react'
 import { useMutationAction } from '#/components/hooks/use-mutation-action'
-import type {
-  getInboxItemDetailFn,
-  getInboxNotesFn,
-  updateInboxStatusFn,
-} from '#/contexts/inbox/server/inbox'
-import type {
-  InboxItem,
-  InboxItemDetailResult,
-  InboxNote,
-} from '#/contexts/inbox/application/public-api'
-
-export type DetailData = Readonly<{
-  detail: InboxItemDetailResult | null
-  notes: ReadonlyArray<InboxNote>
-  isLoading: boolean
-  error: string | null
-  reload: () => Promise<void>
-  setDetail: React.Dispatch<React.SetStateAction<InboxItemDetailResult | null>>
-}>
-
-/** Owns the detail + notes fetch lifecycle. `reload` is stable (reads the
- *  current item from a ref) so callers can safely capture it in long-lived
- *  callbacks (e.g. a mutation's onSuccess). */
-export function useDetailData(
-  item: InboxItem | null,
-  active: boolean,
-  getInboxItemDetail: typeof getInboxItemDetailFn,
-  getInboxNotes: typeof getInboxNotesFn,
-): DetailData {
-  const [detail, setDetail] = useState<InboxItemDetailResult | null>(null)
-  const [notes, setNotes] = useState<ReadonlyArray<InboxNote>>([])
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const detailAction = useAction(useServerFn(getInboxItemDetail))
-  const notesAction = useAction(useServerFn(getInboxNotes))
-
-  // Refs keep the latest actions + item so loadDetail can stay stable.
-  const refs = useRef({ abort: false, detailAction, notesAction, item })
-  refs.current.detailAction = detailAction
-  refs.current.notesAction = notesAction
-  refs.current.item = item
-
-  const loadDetail = useCallback(async () => {
-    const current = refs.current.item
-    if (!current) return
-    refs.current.abort = false
-    setError(null)
-    setIsLoading(true)
-    try {
-      const [detailResult, notesResult] = await Promise.all([
-        refs.current.detailAction({ data: { inboxItemId: current.id } }),
-        refs.current.notesAction({ data: { inboxItemId: current.id } }),
-      ])
-      if (!refs.current.abort) {
-        if (detailResult) setDetail(detailResult)
-        if (notesResult) setNotes(notesResult)
-      }
-    } catch {
-      if (!refs.current.abort) setError('Failed to load detail. Try again.')
-    } finally {
-      if (!refs.current.abort) setIsLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    if (active && item) {
-      loadDetail()
-    } else {
-      setDetail(null)
-      setNotes([])
-    }
-    return () => {
-      refs.current.abort = true
-    }
-  }, [active, item?.id, loadDetail])
-
-  return { detail, notes, isLoading, error, reload: loadDetail, setDetail }
-}
+import type { updateInboxStatusFn } from '#/contexts/inbox/server/inbox'
+import type { InboxItem } from '#/contexts/inbox/application/public-api'
 
 /** Debounced auto-mark-as-read for newly-opened 'new' items. Calls
- *  `onMarkedRead` (updates local detail + bumps statusVersion) on success. */
+ *  `onMarkedRead(updatedItem)` on success — the caller wires it to Query
+ *  invalidation (detail/notes/activity) + the optimistic list sync. */
 export function useAutoMarkRead(
   item: InboxItem | null,
   active: boolean,
   enabled: boolean | undefined,
-  onMarkedRead: () => void,
+  onMarkedRead: (updatedItem: InboxItem) => void,
   updateInboxStatus: typeof updateInboxStatusFn,
 ): string | null {
-  // invalidate: false — inbox list updates optimistically via statusVersion;
-  // the inbox route has no loader, so full router.invalidate() is pure waste.
+  // invalidate: false — detail/list refresh via Query invalidation in the
+  // caller's onMarkedRead; the inbox route has no loader, so full
+  // router.invalidate() is pure waste.
   const markReadMutation = useMutationAction(updateInboxStatus, {
     invalidate: false,
     onSuccess: onMarkedRead,

@@ -109,7 +109,6 @@ export const ReviewAsPropertyManager: Story = {
     updateStatus: makeStatusAction(),
     notes,
     onNoteAdded: () => {},
-    statusVersion: 0,
     detailFns,
   },
 }
@@ -124,7 +123,6 @@ export const ReviewAsStaff: Story = {
     updateStatus: makeStatusAction(),
     notes,
     onNoteAdded: () => {},
-    statusVersion: 0,
     detailFns,
   },
 }
@@ -139,7 +137,6 @@ export const FeedbackDetail: Story = {
     updateStatus: makeStatusAction(),
     notes: [],
     onNoteAdded: () => {},
-    statusVersion: 0,
     detailFns,
   },
 }
@@ -155,7 +152,6 @@ export const StatusUpdating: Story = {
     updateStatus: makeStatusAction({ isPending: true }),
     notes,
     onNoteAdded: () => {},
-    statusVersion: 0,
     detailFns,
   },
 }

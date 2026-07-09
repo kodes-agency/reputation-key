@@ -1,6 +1,6 @@
 // Notification query hooks — data fetching + mutations.
 // Uses useAction/useMutationAction pattern consistent with codebase.
-// Polling for unread count via setInterval (codebase has no TanStack Query).
+// Polling for unread count via setInterval (not yet migrated to TanStack Query — see routes/CONTEXT.md; this predates the Query integration).
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useServerFn } from '@tanstack/react-start'

@@ -27,7 +27,6 @@ export type DetailContentProps = Readonly<{
   updateStatus: ReturnType<typeof useMutationAction<typeof updateInboxStatusFn>>
   notes: ReadonlyArray<InboxNote>
   onNoteAdded: () => void
-  statusVersion?: number
   detailFns: InboxDetailFns
 }>
 
@@ -38,7 +37,6 @@ export function InboxDetailContent({
   updateStatus,
   notes,
   onNoteAdded,
-  statusVersion,
   detailFns,
 }: DetailContentProps) {
   const { can } = usePermissions()
@@ -99,7 +97,6 @@ export function InboxDetailContent({
 
       <InboxActivityTimeline
         inboxItemId={currentItem.id}
-        refreshKey={statusVersion}
         getActivityTimeline={detailFns.getActivityTimeline}
       />
 

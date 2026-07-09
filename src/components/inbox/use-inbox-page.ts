@@ -7,6 +7,7 @@ import type { InboxFilterValues } from '#/components/inbox/inbox-filters'
 import type { InboxSearchParams } from './inbox-search-schema'
 import { folderToStatus } from './inbox-search-schema'
 import type { InboxServerFns } from './types'
+import type { InboxItem } from '#/contexts/inbox/application/public-api'
 
 export type InboxPageNav = (o: {
   to: '.'
@@ -80,18 +81,13 @@ export function useInboxPage(
     () => (selectedItemId ? (items.find((i) => i.id === selectedItemId) ?? null) : null),
     [selectedItemId, foundItemId],
   )
-  const detailState = useInboxDetail(selectedItem, !!selectedItem, inboxFns, {
-    autoMarkRead: true,
-  })
-
-  useEffect(() => {
-    if (detailState.statusVersion > 0 && detailState.currentItem) {
-      const u = detailState.currentItem
+  // Optimistic list sync after a detail status change (mark-read / escalate /
+  // archive): patch the item's status in-place, or drop it if it no longer
+  // matches the active filter. Replaces the old statusVersion effect — the
+  // detail hook calls this directly with the mutation's updated item.
+  const handleItemStatusChanged = useCallback(
+    (u: InboxItem) => {
       setItems((p) => {
-        // FE-3: after a status change, drop the item from the current view
-        // when its new status no longer matches the active filter (e.g.
-        // marking as 'addressed' while viewing the 'new' tab). The selected-
-        // detail auto-close effect in useInboxState then clears itemId.
         const visible = !filters.status
           ? true
           : typeof filters.status !== 'string'
@@ -102,8 +98,14 @@ export function useInboxPage(
           i.id === u.id ? { ...i, status: u.status, updatedAt: u.updatedAt } : i,
         )
       })
-    }
-  }, [detailState.statusVersion, detailState.currentItem, filters.status])
+    },
+    [filters.status, setItems],
+  )
+
+  const detailState = useInboxDetail(selectedItem, !!selectedItem, inboxFns, {
+    autoMarkRead: true,
+    onItemStatusChanged: handleItemStatusChanged,
+  })
 
   useInboxKeyboardShortcuts({
     items,
