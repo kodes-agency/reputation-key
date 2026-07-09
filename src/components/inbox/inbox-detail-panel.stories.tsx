@@ -12,7 +12,6 @@ import type { Action } from '#/components/hooks/use-action'
 import type { InboxDetailState } from './use-inbox-detail'
 import type { addInboxNoteFn } from '#/contexts/inbox/server/inbox'
 import type { getActivityTimelineFn } from '#/contexts/activity/server/activity'
-import type { getReplyFn } from '#/contexts/review/server/reply'
 
 type StatusInput = { data: { inboxItemId: string; status: string } }
 
@@ -35,7 +34,6 @@ const detailFns = {
   addInboxNote: mockServerFn(async () => ({
     ok: true,
   })) as unknown as typeof addInboxNoteFn,
-  getReply: mockServerFn(async () => null) as unknown as typeof getReplyFn,
 }
 
 const item = makeInboxItem({
@@ -85,6 +83,7 @@ export const Populated: Story = {
         reviewerProfilePhotoUrl: null,
         feedbackComment: null,
         feedbackRatingValue: null,
+        reply: null,
       },
       notes: [],
     }),

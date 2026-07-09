@@ -62,7 +62,9 @@ export function InboxDetailSheet({
               Retry
             </Button>
           </div>
-        ) : detailState.isLoading || !detailState.currentItem ? (
+        ) : detailState.isLoading ||
+          !detailState.currentItem ||
+          detailState.detail?.item.id !== detailState.currentItem.id ? (
           <div className="space-y-4 p-4">
             <Skeleton className="h-6 w-3/4" />
             <Skeleton className="h-20 w-full" />
@@ -75,7 +77,7 @@ export function InboxDetailSheet({
             statusActions={statusActions}
             updateStatus={detailState.updateStatus}
             notes={detailState.notes}
-            onNoteAdded={detailState.refresh}
+            onNoteAdded={detailState.onNoteAdded}
             statusVersion={detailState.statusVersion}
             detailFns={detailFns}
           />

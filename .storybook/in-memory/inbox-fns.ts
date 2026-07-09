@@ -4,10 +4,10 @@
 //
 // Each fn bridges the server-fn contract ({ data } payload + tenant context
 // injected from auth headers in the real app) to the real use-case, supplying
-// the container's test org/user/role. The two cross-context fns
-// (getActivityTimeline → activity ctx, getReply → review ctx) have no
-// in-browser container, so they resolve the real empty contract (an empty
-// array / null) — the detail pane renders gracefully, not as live logic.
+// the container's test org/user/role. The cross-context fn
+// (getActivityTimeline → activity ctx) has no in-browser container, so it
+// resolves the real empty contract (an empty array) — the detail pane renders
+// gracefully, not as live logic.
 //
 // server-fn types carry createServerFn metadata the component never reads; the
 // double cast bridges that unexpressible brand (same justification as the
@@ -33,7 +33,6 @@ import type {
   bulkUpdateInboxStatusFn,
 } from '#/contexts/inbox/server/inbox'
 import type { getActivityTimelineFn } from '#/contexts/activity/server/activity'
-import type { getReplyFn } from '#/contexts/review/server/reply'
 import type { InboxServerFns } from '#/components/inbox/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 
@@ -127,9 +126,8 @@ export function makeInboxFns(container: InboxContainer): InboxServerFns {
 
     // Cross-context — no in-browser container; honor the real return contracts
     // so the detail pane (mounted on item selection) renders gracefully empty
-    // rather than crashing. getActivityTimeline returns a bare array; getReply
-    // returns the reply or null. Both are type-checked against the real fns.
+    // rather than crashing. getActivityTimeline returns a bare array, type-
+    // checked against the real fn.
     getActivityTimeline: (async () => []) as unknown as typeof getActivityTimelineFn,
-    getReply: (async () => null) as unknown as typeof getReplyFn,
   }
 }

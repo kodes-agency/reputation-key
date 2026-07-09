@@ -12,10 +12,9 @@ import { withRole } from '../../../.storybook/AuthedRouterDecorator'
 import type { Action } from '#/components/hooks/use-action'
 import type { addInboxNoteFn } from '#/contexts/inbox/server/inbox'
 import type { getActivityTimelineFn } from '#/contexts/activity/server/activity'
-import type { getReplyFn } from '#/contexts/review/server/reply'
 import type {
   InboxItem,
-  InboxItemDetail,
+  InboxItemDetailResult,
   InboxNote,
 } from '#/contexts/inbox/application/public-api'
 
@@ -32,20 +31,22 @@ const feedbackItem: InboxItem = makeInboxItem({
   rating: 3,
 })
 
-const reviewDetail: InboxItemDetail = {
+const reviewDetail: InboxItemDetailResult = {
   item: reviewItem,
   reviewText: 'Wonderful stay — the front desk went above and beyond!',
   reviewerProfilePhotoUrl: null,
   feedbackComment: null,
   feedbackRatingValue: null,
+  reply: null,
 }
 
-const feedbackDetail: InboxItemDetail = {
+const feedbackDetail: InboxItemDetailResult = {
   item: feedbackItem,
   reviewText: null,
   reviewerProfilePhotoUrl: null,
   feedbackComment: 'Loved the breakfast spread.',
   feedbackRatingValue: 5,
+  reply: null,
 }
 
 const notes: ReadonlyArray<InboxNote> = [
@@ -67,7 +68,6 @@ const detailFns = {
   addInboxNote: mockServerFn(async () => ({
     ok: true,
   })) as unknown as typeof addInboxNoteFn,
-  getReply: mockServerFn(async () => null) as unknown as typeof getReplyFn,
 }
 
 // Mirrors the server fn's { data } payload + status enum (no 'new' — nothing

@@ -1,20 +1,16 @@
-// Reply editor fetcher stories.
+// Reply editor stories.
 //
-// ReplyEditor wraps the raw `getReply` server fn with useServerFn, fetches on
-// mount, and feeds the result to ReplyEditorInner. Stories inject a mock server
-// fn (mockServerFn cast to the real fn type — the inbox-bulk-actions pattern)
-// to reach loading / loaded-with-reply / fetch-error without RPC.
+// ReplyEditor now receives the reply as a prop (folded into getInboxItemDetail)
+// rather than fetching via getReply. Stories supply a reply fixture / loading
+// flag directly — no mock server fn needed.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, within } from 'storybook/test'
 import { organizationId, replyId, reviewId, userId } from '#/shared/domain/ids'
-import type { getReplyFn } from '#/contexts/review/server/reply'
 import { ReplyEditor } from './reply-editor'
 import type { ReplyData } from './reply-form'
 import { withRole } from '../../../.storybook/AuthedRouterDecorator'
-import { mockServerFn } from '../../../.storybook/mocks/mock-action'
 
 type Reply = NonNullable<ReplyData>
-type GetReplyInput = { data: { reviewId: string } }
 
 const NOW = new Date('2025-01-15T10:00:00Z')
 const REVIEW_ID = '11111111-1111-4111-8111-111111111111'
@@ -41,23 +37,7 @@ function makeReply(overrides: Partial<Reply> = {}): Reply {
   }
 }
 
-// A reply awaiting approval — proves the fetch → inner → pending_approval wiring.
 const pendingReply = makeReply({ status: 'pending_approval' })
-
-// never resolves → ReplyEditor stays in its loading state.
-const loadingGetReply = mockServerFn(
-  () => Promise.withResolvers<Reply | null>().promise,
-) as unknown as typeof getReplyFn
-
-const loadedGetReply = mockServerFn(
-  async (_input: GetReplyInput): Promise<Reply | null> => pendingReply,
-) as unknown as typeof getReplyFn
-
-// rejects → ReplyEditor's .catch swallows it and falls back to the empty
-// composer (graceful degradation, no crash).
-const errorGetReply = mockServerFn(async (): Promise<Reply | null> => {
-  throw new Error('reply_not_found')
-}) as unknown as typeof getReplyFn
 
 const meta: Meta<typeof ReplyEditor> = {
   title: 'Inbox/ReplyEditor',
@@ -70,27 +50,27 @@ const meta: Meta<typeof ReplyEditor> = {
 export default meta
 type Story = StoryObj<typeof ReplyEditor>
 
-// getReply never settles → "Loading reply..." stays on screen.
+// loading=true → "Loading reply..." stays on screen (detail still loading).
 export const Loading: Story = {
-  args: { getReply: loadingGetReply },
+  args: { loading: true, initialReply: null },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(canvas.getByText(/loading reply/i)).toBeInTheDocument()
   },
 }
 
-// getReply resolves the pending-approval reply → its text renders.
+// initialReply is the pending-approval reply → its text renders.
 export const LoadedWithReply: Story = {
-  args: { getReply: loadedGetReply },
+  args: { loading: false, initialReply: pendingReply },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(await canvas.findByText(/thanks for reaching out/i)).toBeInTheDocument()
   },
 }
 
-// getReply rejects → the editor falls back to the empty composer (no error UI).
-export const FetchError: Story = {
-  args: { getReply: errorGetReply },
+// No reply yet → the empty composer (no error UI, no fetch).
+export const NoReply: Story = {
+  args: { loading: false, initialReply: null },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(await canvas.findByPlaceholderText(/write a reply/i)).toBeInTheDocument()

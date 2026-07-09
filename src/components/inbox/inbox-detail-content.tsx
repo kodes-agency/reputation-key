@@ -15,14 +15,14 @@ import type { InboxDetailFns } from './types'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import type {
   InboxItem,
-  InboxItemDetail,
+  InboxItemDetailResult,
   InboxNote,
 } from '#/contexts/inbox/application/public-api'
 import type { useMutationAction } from '#/components/hooks/use-mutation-action'
 
 export type DetailContentProps = Readonly<{
   currentItem: InboxItem
-  detail: InboxItemDetail | null
+  detail: InboxItemDetailResult | null
   statusActions: ReturnType<typeof getStatusActions>
   updateStatus: ReturnType<typeof useMutationAction<typeof updateInboxStatusFn>>
   notes: ReadonlyArray<InboxNote>
@@ -90,7 +90,11 @@ export function InboxDetailContent({
       )}
 
       {currentItem.sourceType === 'review' && canManageReplies && (
-        <ReplyEditor reviewId={currentItem.sourceId} getReply={detailFns.getReply} />
+        <ReplyEditor
+          reviewId={currentItem.sourceId}
+          initialReply={detail?.reply ?? null}
+          loading={!detail}
+        />
       )}
 
       <InboxActivityTimeline

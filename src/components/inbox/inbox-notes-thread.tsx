@@ -45,8 +45,11 @@ export function InboxNotesThread({
 }: Props) {
   const [noteText, setNoteText] = useState('')
 
+  // invalidate: false — onNoteAdded refreshes detail + bumps statusVersion
+  // (which refreshes the activity timeline); the inbox route has no loader.
   const addNote = useMutationAction(addInboxNote, {
     successMessage: 'Note added',
+    invalidate: false,
     onSuccess: () => {
       setNoteText('')
       onNoteAdded()

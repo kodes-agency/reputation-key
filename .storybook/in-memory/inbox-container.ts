@@ -19,6 +19,7 @@ import {
 } from '#/shared/domain/ids'
 import type { InboxNoteRepository } from '#/contexts/inbox/application/ports/inbox-note.repository'
 import type { NewCounterPort } from '#/contexts/inbox/application/ports/new-counter.port'
+import type { ReplyLookupPort } from '#/contexts/inbox/application/ports/reply-lookup.port'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { InboxItem, InboxNote } from '#/contexts/inbox/domain/types'
@@ -104,6 +105,10 @@ const noopNewCounter: NewCounterPort = {
   invalidate: async () => {},
 }
 
+const noopReplyLookup: ReplyLookupPort = {
+  getReplyByReviewId: async () => null,
+}
+
 export function createInboxContainer() {
   const inboxRepo = createInMemoryInboxRepo()
   const inboxNoteRepo = createInMemoryNoteRepo()
@@ -118,6 +123,7 @@ export function createInboxContainer() {
     staffPublicApi: noopStaffApi,
     logger: noopLogger,
     clock: () => clockNow,
+    replyLookup: noopReplyLookup,
   })
 
   return {

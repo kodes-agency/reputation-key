@@ -3,7 +3,8 @@
 // Enforces role-scoped property access.
 
 import type { InboxRepository } from '../ports/inbox.repository'
-import type { InboxItemId } from '#/shared/domain/ids'
+import type { ReplyLookupPort, ReplyView } from '../ports/reply-lookup.port'
+import type { InboxItemId, ReviewId } from '#/shared/domain/ids'
 import type { InboxItemDetail } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
@@ -19,11 +20,24 @@ export type GetInboxItemDetailInput = Readonly<{
 export type GetInboxItemDetailDeps = Readonly<{
   repo: InboxRepository
   staffPublicApi: StaffPublicApi
+  replyLookup: ReplyLookupPort
 }>
+
+/** Detail result with the review's reply attached (review items only).
+ *  The reply is filled in the use case — not the repo — because only the use
+ *  case has the AuthContext to permission-gate it (reply.manage). Intentional
+ *  asymmetry with the review/feedback/property lookups, which enrich inside
+ *  the repo (no auth needed for snippets). */
+export type InboxItemDetailResult = Readonly<
+  InboxItemDetail & { reply: ReplyView | null }
+>
 
 export const getInboxItemDetail =
   (deps: GetInboxItemDetailDeps) =>
-  async (input: GetInboxItemDetailInput, ctx: AuthContext): Promise<InboxItemDetail> => {
+  async (
+    input: GetInboxItemDetailInput,
+    ctx: AuthContext,
+  ): Promise<InboxItemDetailResult> => {
     if (!canForContext(ctx, 'inbox.read')) {
       throw inboxError('forbidden', 'No inbox read permission')
     }
@@ -41,7 +55,19 @@ export const getInboxItemDetail =
       detail.item.propertyId,
     )
 
-    return detail
+    // Attach the review's internal reply. Primary authorization is inbox.read
+    // (above); reply.manage is a field-level scope so Staff (who lack it) never
+    // receive reply data. Mild tension with ADR 0009 §6 ("each use case maps to
+    // exactly one permission") — justified by mandatory leak prevention.
+    let reply: ReplyView | null = null
+    if (detail.item.sourceType === 'review' && canForContext(ctx, 'reply.manage')) {
+      reply = await deps.replyLookup.getReplyByReviewId(
+        detail.item.sourceId as ReviewId,
+        ctx.organizationId,
+      )
+    }
+
+    return { ...detail, reply }
   }
 
 // fallow-ignore-next-line unused-type

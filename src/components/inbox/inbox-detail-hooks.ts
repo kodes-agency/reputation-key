@@ -13,17 +13,17 @@ import type {
 } from '#/contexts/inbox/server/inbox'
 import type {
   InboxItem,
-  InboxItemDetail,
+  InboxItemDetailResult,
   InboxNote,
 } from '#/contexts/inbox/application/public-api'
 
 export type DetailData = Readonly<{
-  detail: InboxItemDetail | null
+  detail: InboxItemDetailResult | null
   notes: ReadonlyArray<InboxNote>
   isLoading: boolean
   error: string | null
   reload: () => Promise<void>
-  setDetail: React.Dispatch<React.SetStateAction<InboxItemDetail | null>>
+  setDetail: React.Dispatch<React.SetStateAction<InboxItemDetailResult | null>>
 }>
 
 /** Owns the detail + notes fetch lifecycle. `reload` is stable (reads the
@@ -35,7 +35,7 @@ export function useDetailData(
   getInboxItemDetail: typeof getInboxItemDetailFn,
   getInboxNotes: typeof getInboxNotesFn,
 ): DetailData {
-  const [detail, setDetail] = useState<InboxItemDetail | null>(null)
+  const [detail, setDetail] = useState<InboxItemDetailResult | null>(null)
   const [notes, setNotes] = useState<ReadonlyArray<InboxNote>>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -95,7 +95,10 @@ export function useAutoMarkRead(
   onMarkedRead: () => void,
   updateInboxStatus: typeof updateInboxStatusFn,
 ): string | null {
+  // invalidate: false — inbox list updates optimistically via statusVersion;
+  // the inbox route has no loader, so full router.invalidate() is pure waste.
   const markReadMutation = useMutationAction(updateInboxStatus, {
+    invalidate: false,
     onSuccess: onMarkedRead,
   })
   const markReadRef = useRef(markReadMutation)

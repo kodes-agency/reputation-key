@@ -1,46 +1,27 @@
 // Inbox detail — reply editor component.
-// Receives the getReply server fn as a prop per src/components/CONTEXT.md:55.
-import { useState, useEffect } from 'react'
-import { useServerFn } from '@tanstack/react-start'
-import type { getReplyFn } from '#/contexts/review/server/reply'
+// Receives the reply as a prop (folded into getInboxItemDetail) — the client no
+// longer calls review.getReply. Per src/components/CONTEXT.md:55, server fns are
+// passed as props; the reply mutations still come from server/ (5+ mutations).
+import { useState } from 'react'
 import { ReplyEditorInner } from './reply-form'
 import type { ReplyData } from './reply-form'
 
 export type ReplyEditorProps = Readonly<{
   reviewId: string
-  /** Raw server fn — wrapped with useServerFn per src/components/CONTEXT.md:55. */
-  getReply: typeof getReplyFn
+  /** Reply from the detail payload (getInboxItemDetail); null if none / Staff. */
+  initialReply: ReplyData | null
+  loading: boolean
 }>
 
-export function ReplyEditor({ reviewId, getReply }: ReplyEditorProps) {
-  const fetchReply = useServerFn(getReply)
-  const [reply, setReply] = useState<ReplyData | null>(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    let cancelled = false
-    setLoading(true)
-    fetchReply({ data: { reviewId } })
-      .then((r) => {
-        if (!cancelled) setReply(r ?? null)
-      })
-      .catch(() => {
-        if (!cancelled) setReply(null)
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [reviewId, fetchReply])
+export function ReplyEditor({ reviewId, initialReply, loading }: ReplyEditorProps) {
+  const [reply, setReply] = useState<ReplyData | null>(initialReply)
 
   return (
     <ReplyEditorInner
       reviewId={reviewId}
       reply={reply}
       loading={loading}
-      onReplyChanged={(r) => setReply(r)}
+      onReplyChanged={setReply}
     />
   )
 }

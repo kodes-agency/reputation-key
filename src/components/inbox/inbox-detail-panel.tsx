@@ -68,7 +68,9 @@ export function InboxDetailPanel({
               Retry
             </Button>
           </div>
-        ) : detailState.isLoading || !currentItem ? (
+        ) : detailState.isLoading ||
+          !currentItem ||
+          detailState.detail?.item.id !== currentItem.id ? (
           <div className="space-y-4 p-4">
             <Skeleton className="h-6 w-3/4" />
             <Skeleton className="h-20 w-full" />
@@ -81,7 +83,7 @@ export function InboxDetailPanel({
             statusActions={statusActions}
             updateStatus={detailState.updateStatus}
             notes={detailState.notes}
-            onNoteAdded={() => void detailState.refresh()}
+            onNoteAdded={detailState.onNoteAdded}
             statusVersion={detailState.statusVersion}
             detailFns={detailFns}
           />

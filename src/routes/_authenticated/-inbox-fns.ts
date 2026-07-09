@@ -11,7 +11,6 @@ import {
   bulkUpdateInboxStatusFn,
 } from '#/contexts/inbox/server/inbox'
 import { getActivityTimelineFn } from '#/contexts/activity/server/activity'
-import { getReplyFn } from '#/contexts/review/server/reply'
 import type { InboxServerFns } from '#/components/inbox/types'
 
 export const inboxFns: InboxServerFns = {
@@ -22,6 +21,5 @@ export const inboxFns: InboxServerFns = {
   getInboxFolderCounts: getInboxFolderCountsFn,
   updateInboxStatus: updateInboxStatusFn,
   addInboxNote: addInboxNoteFn,
-  getReply: getReplyFn,
   bulkUpdateInboxStatus: bulkUpdateInboxStatusFn,
 }

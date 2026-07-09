@@ -64,6 +64,7 @@ import type { PropertyLookupPort } from '#/contexts/integration/application/port
 import { createReviewLookupAdapter } from '#/contexts/inbox/infrastructure/adapters/review-lookup.adapter'
 import { createFeedbackLookupAdapter } from '#/contexts/inbox/infrastructure/adapters/feedback-lookup.adapter'
 import { createPropertyLookupAdapter } from '#/contexts/inbox/infrastructure/adapters/property-lookup.adapter'
+import { createReplyLookupAdapter } from '#/contexts/inbox/infrastructure/adapters/reply-lookup.adapter'
 import {
   propertyId,
   organizationId as toOrgId,
@@ -309,6 +310,11 @@ export function createContainer(options?: {
     getPropertyNames: (orgId, pids) => property.publicApi.getPropertyNames(orgId, pids),
   })
 
+  const replyLookup = createReplyLookupAdapter({
+    findInternalByReviewId: (id, orgId) =>
+      review.internal.repos.replyRepo.findInternalByReviewId(id, orgId),
+  })
+
   const inbox = buildInboxContext({
     db,
     events: eventBus,
@@ -318,6 +324,7 @@ export function createContainer(options?: {
     reviewLookup,
     feedbackLookup,
     propertyLookup: inboxPropertyLookup,
+    replyLookup,
     logger: getLogger(),
   })
 

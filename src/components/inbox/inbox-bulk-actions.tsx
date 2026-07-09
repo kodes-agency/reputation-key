@@ -18,8 +18,11 @@ type Props = Readonly<{
 }>
 
 export function InboxBulkActions({ selectedIds, items, onDone, bulkUpdateFn }: Props) {
+  // invalidate: false — onDone refreshes the list explicitly (loadItems);
+  // the inbox route has no loader.
   const bulkMutation = useMutationAction(bulkUpdateFn, {
     successMessage: 'Items updated',
+    invalidate: false,
     onSuccess: onDone,
   })
 

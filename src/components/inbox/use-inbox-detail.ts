@@ -8,7 +8,7 @@ import type { updateInboxStatusFn } from '#/contexts/inbox/server/inbox'
 import type { InboxServerFns } from './types'
 import type {
   InboxItem,
-  InboxItemDetail,
+  InboxItemDetailResult,
   InboxNote,
 } from '#/contexts/inbox/application/public-api'
 import { useDetailData, useAutoMarkRead } from './inbox-detail-hooks'
@@ -18,12 +18,15 @@ export type UseInboxDetailOptions = Readonly<{
 }>
 
 export type InboxDetailState = Readonly<{
-  detail: InboxItemDetail | null
+  detail: InboxItemDetailResult | null
   notes: ReadonlyArray<InboxNote>
   isLoading: boolean
   currentItem: InboxItem | null
   updateStatus: ReturnType<typeof useMutationAction<typeof updateInboxStatusFn>>
   refresh: () => void
+  /** Called after a note is added: re-fetches detail/notes and bumps
+   *  statusVersion so the activity timeline refreshes (refreshKey = statusVersion). */
+  onNoteAdded: () => void
   error: string | null
   lastMarkedId: string | null
   /** Bumped every time a status update completes and detail reloads.
@@ -70,6 +73,7 @@ export function useInboxDetail(
 
   const updateStatus = useMutationAction(inboxFns.updateInboxStatus, {
     successMessage: 'Status updated',
+    invalidate: false,
     onSuccess: () => {
       void reload().then(() => {
         setStatusVersion((v) => v + 1)
@@ -84,6 +88,9 @@ export function useInboxDetail(
     currentItem: detail?.item ?? item,
     updateStatus,
     refresh: reload,
+    onNoteAdded: () => {
+      void reload().then(() => setStatusVersion((v) => v + 1))
+    },
     error,
     lastMarkedId,
     statusVersion,

@@ -1,7 +1,7 @@
 // Inbox activity timeline — displays chronological activity log for an inbox item.
 // Built with shadcn primitives instead of ReUI (ReUI registry is inaccessible via CLI).
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useServerFn } from '@tanstack/react-start'
 import { useAction } from '#/components/hooks/use-action'
 import type { getActivityTimelineFn } from '#/contexts/activity/server/activity'
@@ -56,13 +56,31 @@ export function InboxActivityTimeline({
     loadTimeline()
   }, [loadTimeline])
 
-  // When refreshKey changes (status change, note added), the BullMQ pipeline
-  // (event → handler → job → worker → DB insert) takes ~1-2s.
-  // Schedule a delayed re-fetch to pick up the new activity row.
+  // After a status change (auto-mark-read, escalate, archive), BullMQ inserts
+  // the activity row asynchronously (event → handler → job → worker → DB),
+  // which takes 2-4s and races any fixed-delay refetch. Stagger two refetches so
+  // a slow pipeline still surfaces the "opened" / "escalated" row.
+  //
+  // Gated on `refreshKey > 0` (i.e. statusVersion was bumped): statusVersion
+  // starts at 0 and only bumps on a real status change, so re-opening an
+  // already-read item (no mark-read, refreshKey stays 0) polls nothing — one
+  // initial load only. This also fixes the mark-read-before-mount race: if the
+  // timeline mounts only after the (slow) detail load, statusVersion may already
+  // be > 0 at mount, and this still fires. prevRefreshKey dedups no-op re-renders.
+  const prevRefreshKey = useRef(0)
   useEffect(() => {
-    if (refreshKey === undefined) return
-    const timer = setTimeout(loadTimeline, 2000)
-    return () => clearTimeout(timer)
+    if (!refreshKey || prevRefreshKey.current === refreshKey) return
+    prevRefreshKey.current = refreshKey
+    let cancelled = false
+    const timers = [2000, 4000].map((d) =>
+      setTimeout(() => {
+        if (!cancelled) void loadTimeline()
+      }, d),
+    )
+    return () => {
+      cancelled = true
+      timers.forEach(clearTimeout)
+    }
   }, [loadTimeline, refreshKey])
 
   if (isLoading) return <TimelineSkeleton />
