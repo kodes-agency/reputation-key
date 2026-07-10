@@ -1,5 +1,7 @@
 import { createRouter as createTanStackRouter, useRouter } from '@tanstack/react-router'
 import { routeTree } from './routeTree.gen'
+import { QueryClient } from '@tanstack/react-query'
+import { setupRouterSsrQueryIntegration } from '@tanstack/react-router-ssr-query'
 
 import { Skeleton } from '#/components/ui/skeleton'
 import { Alert, AlertDescription } from '#/components/ui/alert'
@@ -61,14 +63,22 @@ function DefaultNotFoundComponent() {
 }
 
 export function getRouter() {
+  // TanStack Query client cache. The ssr-query integration handles per-request
+  // dehydration/hydration + streaming during SSR, and auto-wraps the app in
+  // QueryClientProvider (no manual provider needed in the root component).
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { staleTime: 30_000, retry: 1 },
+    },
+  })
+
   const router = createTanStackRouter({
     routeTree,
+    // Expose the QueryClient via router context so route loaders can
+    // prefetchQuery / ensureQueryData.
+    context: { queryClient },
     scrollRestoration: true,
     // ── Caching ─────────────────────────────────────────────────────────
-    // Remove defaultStaleTime — fall back to TanStack default (0).
-    // Each route opts into its own staleTime based on data volatility.
-    // After mutations we call router.invalidate() which forces a refresh
-    // regardless of staleTime.
     defaultPreloadStaleTime: 30_000,
     // Garbage-collect unused loader data after 30 minutes (TanStack default).
     defaultGcTime: 30 * 60 * 1000,
@@ -86,6 +96,10 @@ export function getRouter() {
     defaultErrorComponent: DefaultErrorComponent,
     defaultNotFoundComponent: DefaultNotFoundComponent,
   })
+
+  // Wire SSR dehydration/hydration + streaming between Router and Query.
+  // By default this also wraps the router output in <QueryClientProvider>.
+  setupRouterSsrQueryIntegration({ router, queryClient })
 
   return router
 }

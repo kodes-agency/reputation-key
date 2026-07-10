@@ -216,25 +216,27 @@ See `docs/adr/` for formal ADRs. Key ADRs:
 
 ## Key Files
 
-| Area                        | Path                                               |
-| --------------------------- | -------------------------------------------------- |
-| Permission definitions      | `src/shared/auth/permissions.ts`                   |
-| Permission type + `can()`   | `src/shared/domain/permissions.ts`                 |
-| Role types + `hasRole()`    | `src/shared/domain/roles.ts`                       |
-| Client permission hook      | `src/shared/hooks/usePermissions.ts`               |
-| Auth context type           | `src/shared/domain/auth-context.ts`                |
-| Auth middleware             | `src/shared/auth/middleware.ts`                    |
-| Better-auth config          | `src/shared/auth/auth.ts`                          |
-| Better-auth client          | `src/shared/auth/auth-client.ts`                   |
-| Authenticated route         | `src/routes/_authenticated.tsx`                    |
-| Composition root            | `src/composition.ts`                               |
-| Bootstrap                   | `src/bootstrap.ts`                                 |
-| Request tracing             | `src/shared/observability/traced-server-fn.ts`     |
-| Tenant cache                | `src/shared/auth/middleware.ts`                    |
-| Import protection deny list | `vite.config.ts` (`importProtection.client.files`) |
-| Clock type                  | `src/shared/domain/clock.ts`                       |
-| Simulation container        | `src/shared/testing/simulation-container.ts`       |
-| In-memory queue             | `src/shared/testing/in-memory-queue.ts`            |
-| Invariant harness           | `src/shared/testing/invariants/`                   |
-| Scenario builder            | `src/shared/testing/scenario/builder.ts`           |
-| Seed/simulate script        | `scripts/seed.ts` (`pnpm seed`)                    |
+| Area                        | Path                                                                |
+| --------------------------- | ------------------------------------------------------------------- |
+| Permission definitions      | `src/shared/auth/permissions.ts`                                    |
+| Permission type + `can()`   | `src/shared/domain/permissions.ts`                                  |
+| Role types + `hasRole()`    | `src/shared/domain/roles.ts`                                        |
+| Client permission hook      | `src/shared/hooks/usePermissions.ts`                                |
+| Auth context type           | `src/shared/domain/auth-context.ts`                                 |
+| Auth middleware             | `src/shared/auth/middleware.ts`                                     |
+| Better-auth config          | `src/shared/auth/auth.ts`                                           |
+| Better-auth client          | `src/shared/auth/auth-client.ts`                                    |
+| Authenticated route         | `src/routes/_authenticated.tsx`                                     |
+| Composition root            | `src/composition.ts`                                                |
+| Bootstrap                   | `src/bootstrap.ts`                                                  |
+| Client query cache (Query)  | `src/router.tsx` (`QueryClient` + `setupRouterSsrQueryIntegration`) |
+| Query-key factories         | `src/shared/queries/query-keys.ts`                                  |
+| Request tracing             | `src/shared/observability/traced-server-fn.ts`                      |
+| Tenant cache                | `src/shared/auth/middleware.ts`                                     |
+| Import protection deny list | `vite.config.ts` (`importProtection.client.files`)                  |
+| Clock type                  | `src/shared/domain/clock.ts`                                        |
+| Simulation container        | `src/shared/testing/simulation-container.ts`                        |
+| In-memory queue             | `src/shared/testing/in-memory-queue.ts`                             |
+| Invariant harness           | `src/shared/testing/invariants/`                                    |
+| Scenario builder            | `src/shared/testing/scenario/builder.ts`                            |
+| Seed/simulate script        | `scripts/seed.ts` (`pnpm seed`)                                     |

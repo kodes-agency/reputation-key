@@ -1,13 +1,15 @@
 // Inbox activity timeline — displays chronological activity log for an inbox item.
-// Built with shadcn primitives instead of ReUI (ReUI registry is inaccessible via CLI).
+//
+// Reads via TanStack Query. Refreshed by invalidating inboxKeys.activity(id) —
+// a descendant of inboxKeys.detail(id), so any detail invalidation refreshes it.
+// The async BullMQ activity row (inserted ~2s after a status change) is caught by
+// the delayed re-invalidate scheduled in useInboxDetail — no hand-rolled timers.
 
-import { useEffect, useState, useCallback, useRef } from 'react'
-import { useServerFn } from '@tanstack/react-start'
-import { useAction } from '#/components/hooks/use-action'
+import { useQuery } from '@tanstack/react-query'
 import type { getActivityTimelineFn } from '#/contexts/activity/server/activity'
 import { Badge } from '#/components/ui/badge'
 import { Skeleton } from '#/components/ui/skeleton'
-import type { ActivityLog } from '#/contexts/activity/application/public-api'
+import { inboxKeys } from '#/shared/queries/query-keys'
 import {
   actionIcon,
   actionLabel,
@@ -17,75 +19,30 @@ import {
 
 type InboxActivityTimelineProps = Readonly<{
   inboxItemId: string
-  /** Bumped on status change — triggers a re-fetch so timeline updates after mark-as-read. */
-  refreshKey?: number
-  /** Raw server fn — wrapped with useServerFn per src/components/CONTEXT.md:55. */
+  /** Raw server fn — called directly in the queryFn (TanStack Start RPC-stubs it). */
   getActivityTimeline: typeof getActivityTimelineFn
 }>
 
 export function InboxActivityTimeline({
   inboxItemId,
-  refreshKey,
   getActivityTimeline,
 }: InboxActivityTimelineProps) {
-  const getTimeline = useAction(useServerFn(getActivityTimeline))
-  const [entries, setEntries] = useState<readonly ActivityLog[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  const loadTimeline = useCallback(async () => {
-    if (!inboxItemId) return
-    setIsLoading(true)
-    setError(null)
-    try {
-      const result = await getTimeline({
+  const {
+    data: entries,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: inboxKeys.activity(inboxItemId),
+    queryFn: () =>
+      getActivityTimeline({
         data: { resourceType: 'inbox_item', resourceId: inboxItemId },
-      })
-      if (result) setEntries(result)
-    } catch {
-      setError('Failed to load activity')
-    } finally {
-      setIsLoading(false)
-    }
-  }, [inboxItemId])
-
-  // F122: Fixed double fetch — initial load and refreshKey-triggered load are
-  // separated into distinct effects. Previously, loadTimeline was in deps
-  // causing it to re-run whenever inboxItemId changed even when refreshKey didn't.
-  useEffect(() => {
-    loadTimeline()
-  }, [loadTimeline])
-
-  // After a status change (auto-mark-read, escalate, archive), BullMQ inserts
-  // the activity row asynchronously (event → handler → job → worker → DB),
-  // which takes 2-4s and races any fixed-delay refetch. Stagger two refetches so
-  // a slow pipeline still surfaces the "opened" / "escalated" row.
-  //
-  // Gated on `refreshKey > 0` (i.e. statusVersion was bumped): statusVersion
-  // starts at 0 and only bumps on a real status change, so re-opening an
-  // already-read item (no mark-read, refreshKey stays 0) polls nothing — one
-  // initial load only. This also fixes the mark-read-before-mount race: if the
-  // timeline mounts only after the (slow) detail load, statusVersion may already
-  // be > 0 at mount, and this still fires. prevRefreshKey dedups no-op re-renders.
-  const prevRefreshKey = useRef(0)
-  useEffect(() => {
-    if (!refreshKey || prevRefreshKey.current === refreshKey) return
-    prevRefreshKey.current = refreshKey
-    let cancelled = false
-    const timers = [2000, 4000].map((d) =>
-      setTimeout(() => {
-        if (!cancelled) void loadTimeline()
-      }, d),
-    )
-    return () => {
-      cancelled = true
-      timers.forEach(clearTimeout)
-    }
-  }, [loadTimeline, refreshKey])
+      }),
+    staleTime: 0,
+  })
 
   if (isLoading) return <TimelineSkeleton />
-  if (error) return <TimelineError message={error} />
-  if (entries.length === 0) return <TimelineEmpty />
+  if (error) return <TimelineError message="Failed to load activity" />
+  if (!entries || entries.length === 0) return <TimelineEmpty />
 
   let lastDate = ''
 

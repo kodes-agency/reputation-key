@@ -77,7 +77,7 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId')({
 
 - **Route `loader` runs on SSR** and blocks client navigation until data is ready
 - **Components read via `Route.useLoaderData()`** — instant, cached by the router
-- **Never use `useQuery` for route-scoped data** — route loaders provide SSR, caching, and preloading
+- **Route data:** loaders `context.queryClient.prefetchQuery(...)` into the shared TanStack Query cache; components read via `useSuspenseQuery` (see TanStack Query below). The legacy `loader`-return + `Route.useLoaderData()` pattern still works for un-migrated routes.
 
 ### Reading parent layout data
 
@@ -95,6 +95,22 @@ const { property } = parentLoader.useLoaderData()
 | Organizations, properties | 5 min (layout level) | Structural data, rarely changes |
 | Property detail           | 60s                  | Moderate freshness needed       |
 | Active sub-routes         | 30s                  | Most dynamic                    |
+
+### TanStack Query (client server-state cache)
+
+TanStack Query is wired app-wide (`QueryClient` in `router.tsx` via `setupRouterSsrQueryIntegration`, exposed through the router context + auto-`<QueryClientProvider>`). It owns fetch/cache/dedupe/refetch/invalidation so components don't hand-roll `useState`+`useEffect` fetch lifecycles.
+
+| Data class                                                | Pattern                                                                                                                                      |
+| --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Route data** (SSR-critical)                             | `loader: ({ context }) => context.queryClient.prefetchQuery(opts)` + component reads `useSuspenseQuery(opts)` (suspends; streams during SSR) |
+| **Interactive / component data** (fetched on user action) | `useQuery({ queryKey, queryFn })` directly in the component                                                                                  |
+
+- **Query keys** live in `src/shared/queries/query-keys.ts` as hierarchical factories (parent keys are prefixes of children), so `invalidateQueries(parentKey)` refreshes all descendants — **targeted**, never `router.invalidate()`.
+- **Mutations** use `useMutation` + `onSuccess: () => qc.invalidateQueries(...)` (or `useMutationAction` with `invalidate: false` + an invalidating `onSuccess`). Never the whole-app `router.invalidate()` sledgehammer.
+- **SSR:** `useSuspenseQuery` runs on the server and streams; `useQuery` runs client-side only.
+- **Reference implementations:** inbox detail (`src/components/inbox/use-inbox-detail.ts` — `useQuery`) + inbox list (`src/components/inbox/use-inbox-state.ts` — `useInfiniteQuery` for cursor pagination, debounced filter key, `setQueryData` for optimistic updates). Other features migrate opportunistically.
+
+> Replaces the old "never `useQuery`" rule. Manual `useState`+`useEffect` fetching and whole-app `router.invalidate()` are anti-patterns — use Query's cache + targeted invalidation.
 
 ## Mutation pattern
 

@@ -120,6 +120,7 @@ const config = { count: { label: 'Count', color: 'var(--chart-1)' } } satisfies 
 ## Anti-patterns
 
 - Passing `canEdit`/`canCreate` booleans as props — use `usePermissions()` in the component
-- Fetching route data inside components with `useQuery` — route loaders handle data fetching
+- Fetching **route** data with `useQuery` instead of a route loader (`prefetchQuery` + `useSuspenseQuery`) — see `routes/CONTEXT.md`. For interactive/component data, `useQuery` with a query-key factory (`src/shared/queries/query-keys.ts`) is the correct pattern.
+- Hand-rolled `useState`+`useEffect` fetch lifecycles — use TanStack Query (`useQuery`/`useSuspenseQuery`) instead; it handles cache/dedupe/invalidation.
 - Calling server functions directly without `useServerFn`
 - Defining server function hooks inside components — dependency rules forbid importing `server/` from `components/` (except for high-mutation components, see dependency rules above)

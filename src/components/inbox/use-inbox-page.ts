@@ -7,6 +7,7 @@ import type { InboxFilterValues } from '#/components/inbox/inbox-filters'
 import type { InboxSearchParams } from './inbox-search-schema'
 import { folderToStatus } from './inbox-search-schema'
 import type { InboxServerFns } from './types'
+import type { InboxItem } from '#/contexts/inbox/application/public-api'
 
 export type InboxPageNav = (o: {
   to: '.'
@@ -59,14 +60,15 @@ export function useInboxPage(
 
   const {
     items,
-    setItems,
     nextCursor,
     isLoading,
     error,
     selectedIds,
     setSelectedIds,
     loadAction,
-    loadItems,
+    loadMore,
+    refetch,
+    patchItem,
     handleRowClick,
     closeDetail,
     handleBulkDone,
@@ -80,30 +82,15 @@ export function useInboxPage(
     () => (selectedItemId ? (items.find((i) => i.id === selectedItemId) ?? null) : null),
     [selectedItemId, foundItemId],
   )
+  // Optimistic list sync after a detail status change (mark-read / escalate /
+  // archive): delegates to useInboxState.patchItem, which patches the cached
+  // infinite-query pages (update status in-place, or drop if it leaves the filter).
+  const handleItemStatusChanged = useCallback((u: InboxItem) => patchItem(u), [patchItem])
+
   const detailState = useInboxDetail(selectedItem, !!selectedItem, inboxFns, {
     autoMarkRead: true,
+    onItemStatusChanged: handleItemStatusChanged,
   })
-
-  useEffect(() => {
-    if (detailState.statusVersion > 0 && detailState.currentItem) {
-      const u = detailState.currentItem
-      setItems((p) => {
-        // FE-3: after a status change, drop the item from the current view
-        // when its new status no longer matches the active filter (e.g.
-        // marking as 'addressed' while viewing the 'new' tab). The selected-
-        // detail auto-close effect in useInboxState then clears itemId.
-        const visible = !filters.status
-          ? true
-          : typeof filters.status !== 'string'
-            ? filters.status.includes(u.status)
-            : filters.status === u.status
-        if (!visible) return p.filter((i) => i.id !== u.id)
-        return p.map((i) =>
-          i.id === u.id ? { ...i, status: u.status, updatedAt: u.updatedAt } : i,
-        )
-      })
-    }
-  }, [detailState.statusVersion, detailState.currentItem, filters.status])
 
   useInboxKeyboardShortcuts({
     items,
@@ -133,14 +120,14 @@ export function useInboxPage(
     search,
     filters,
     items,
-    setItems,
     nextCursor,
     isLoading,
     error,
     selectedIds,
     setSelectedIds,
     loadAction,
-    loadItems,
+    loadMore,
+    refetch,
     handleRowClick,
     closeDetail,
     handleBulkDone,
