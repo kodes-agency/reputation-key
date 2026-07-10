@@ -1,13 +1,15 @@
 // Notification panel — single row component extracted for line-count compliance.
 
 import { X } from 'lucide-react'
+import { cn } from '#/lib/utils'
 import { getNotificationIcon, formatRelativeTime, truncate } from './notification-utils'
 import type { Notification } from '#/contexts/notification/application/public-api'
 
 // Left-accent + background reflect urgency and read state.
 const rowClassName = (isUrgent: boolean, isUnread: boolean): string => {
-  if (isUrgent) return 'border-l-destructive bg-destructive/5'
-  return `border-l-transparent ${isUnread ? 'bg-accent/20' : ''}`
+  if (isUrgent && isUnread) return 'border-l-destructive bg-destructive/5'
+  if (isUnread) return 'border-l-transparent bg-accent/20'
+  return 'border-l-transparent'
 }
 
 // Urgent flag + unread dot, rendered inline with the title.
@@ -59,7 +61,12 @@ function NotificationRowContent({
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          <p className="truncate text-sm font-medium leading-tight">
+          <p
+            className={cn(
+              'truncate text-sm leading-tight',
+              isUnread ? 'font-semibold' : 'font-normal text-muted-foreground',
+            )}
+          >
             {notification.title}
           </p>
           <NotificationRowBadges

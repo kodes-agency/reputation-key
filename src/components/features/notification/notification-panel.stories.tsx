@@ -56,14 +56,32 @@ const notifications: Notification[] = [
     id: notificationId('n-1'),
     type: 'reply.pending_approval',
     priority: 'urgent',
+    status: 'unread',
     title: 'Reply needs approval',
     body: 'A drafted reply is awaiting your approval.',
   }),
   makeNotification({
     id: notificationId('n-2'),
     type: 'goal.completed',
+    status: 'unread',
     title: 'Monthly goal reached',
     body: null,
+  }),
+  makeNotification({
+    id: notificationId('n-3'),
+    type: 'review.created',
+    status: 'read',
+    title: 'New review',
+    body: 'A customer left a 5-star review.',
+    readAt: new Date(Date.now() - 60 * 60_000),
+  }),
+  makeNotification({
+    id: notificationId('n-4'),
+    type: 'badge.awarded',
+    status: 'read',
+    title: 'Badge earned',
+    body: 'You earned the "Response Champ" badge.',
+    readAt: new Date(Date.now() - 3 * 60 * 60_000),
   }),
 ]
 
@@ -161,11 +179,13 @@ function MarkingAllReadHarness() {
         isLoadingMore={false}
         error={null}
         hasMore={false}
-        unreadCount={notifications.length}
+        unreadCount={2}
         isMarkingAllRead={pending}
+        isClearingAll={false}
         onRetry={noop}
         onLoadMore={noop}
         onMarkAllRead={() => setPending(true)}
+        onClearAll={noop}
         onDismiss={noop}
         onMarkRead={noop}
         onNotificationClick={noop}
@@ -184,11 +204,13 @@ export const Default: Story = {
         isLoadingMore={false}
         error={null}
         hasMore={false}
-        unreadCount={notifications.length}
+        unreadCount={2}
         isMarkingAllRead={false}
+        isClearingAll={false}
         onRetry={noop}
         onLoadMore={noop}
         onMarkAllRead={noop}
+        onClearAll={noop}
         onDismiss={noop}
         onMarkRead={noop}
         onNotificationClick={noop}
@@ -198,6 +220,8 @@ export const Default: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(canvas.getByText(/reply needs approval/i)).toBeInTheDocument()
+    expect(canvas.getByText(/^New$/)).toBeInTheDocument()
+    expect(canvas.getByText(/^Earlier$/)).toBeInTheDocument()
   },
 }
 
@@ -225,9 +249,11 @@ export const ErrorState: Story = {
         hasMore={false}
         unreadCount={0}
         isMarkingAllRead={false}
+        isClearingAll={false}
         onRetry={noop}
         onLoadMore={noop}
         onMarkAllRead={noop}
+        onClearAll={noop}
         onDismiss={noop}
         onMarkRead={noop}
         onNotificationClick={noop}
@@ -253,9 +279,11 @@ export const Empty: Story = {
         hasMore={false}
         unreadCount={0}
         isMarkingAllRead={false}
+        isClearingAll={false}
         onRetry={noop}
         onLoadMore={noop}
         onMarkAllRead={noop}
+        onClearAll={noop}
         onDismiss={noop}
         onMarkRead={noop}
         onNotificationClick={noop}
@@ -264,7 +292,7 @@ export const Empty: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    expect(canvas.getByText(/no notifications/i)).toBeInTheDocument()
+    expect(canvas.getByText(/you're all caught up/i)).toBeInTheDocument()
   },
 }
 

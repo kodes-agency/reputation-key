@@ -12,6 +12,7 @@ import {
   useMarkNotificationRead,
   useMarkAllNotificationsRead,
   useDismissNotification,
+  useDismissAllNotifications,
 } from './notification-queries'
 import type { NotificationServerFns } from './types'
 import { getNotificationUrl } from './notification-utils'
@@ -47,6 +48,7 @@ function useNotificationPanel(notificationFns: NotificationServerFns) {
   const markRead = useMarkNotificationRead(notificationFns.markRead)
   const markAllRead = useMarkAllNotificationsRead(notificationFns.markAllRead)
   const dismiss = useDismissNotification(notificationFns.dismiss)
+  const dismissAll = useDismissAllNotifications(notificationFns.dismissAll)
 
   const refresh = () => qc.invalidateQueries({ queryKey: notificationKeys.all })
 
@@ -74,6 +76,10 @@ function useNotificationPanel(notificationFns: NotificationServerFns) {
     await dismiss({ data: { notificationId: id } })
     await refresh()
   }
+  const handleClearAll = async () => {
+    await dismissAll({ data: undefined })
+    await refresh()
+  }
 
   return {
     open,
@@ -84,6 +90,7 @@ function useNotificationPanel(notificationFns: NotificationServerFns) {
     error,
     hasMore,
     isMarkingAllRead: markAllRead.isPending,
+    isClearingAll: dismissAll.isPending,
     refetchList,
     loadMore,
     handleOpenChange,
@@ -91,6 +98,7 @@ function useNotificationPanel(notificationFns: NotificationServerFns) {
     handleMarkAllRead,
     handleMarkRead,
     handleDismiss,
+    handleClearAll,
   }
 }
 
@@ -126,9 +134,11 @@ export function NotificationPanel({
           hasMore={panel.hasMore}
           unreadCount={panel.count}
           isMarkingAllRead={panel.isMarkingAllRead}
+          isClearingAll={panel.isClearingAll}
           onRetry={() => void panel.refetchList()}
           onLoadMore={() => void panel.loadMore()}
           onMarkAllRead={() => void panel.handleMarkAllRead()}
+          onClearAll={() => void panel.handleClearAll()}
           onMarkRead={(id) => void panel.handleMarkRead(id)}
           onDismiss={(id) => void panel.handleDismiss(id)}
           onNotificationClick={panel.handleNotificationClick}

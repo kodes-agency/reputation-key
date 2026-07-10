@@ -1,6 +1,7 @@
-// Notification popover content — header (title + mark-all-read) and list body.
+// Notification popover content — header (title + mark-all-read + clear-all)
+// and list body.
 
-import { CheckCheck } from 'lucide-react'
+import { CheckCheck, Trash2 } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { Separator } from '#/components/ui/separator'
 import { NotificationListBody } from './notification-list-body'
@@ -14,9 +15,11 @@ export function NotificationPopoverContent({
   hasMore,
   unreadCount,
   isMarkingAllRead,
+  isClearingAll,
   onRetry,
   onLoadMore,
   onMarkAllRead,
+  onClearAll,
   onDismiss,
   onMarkRead,
   onNotificationClick,
@@ -28,9 +31,11 @@ export function NotificationPopoverContent({
   hasMore: boolean
   unreadCount: number
   isMarkingAllRead: boolean
+  isClearingAll: boolean
   onRetry: () => void
   onLoadMore: () => void
   onMarkAllRead: () => void
+  onClearAll: () => void
   onDismiss: (id: string) => void
   onMarkRead: (id: string) => void
   onNotificationClick: (n: Notification) => void
@@ -39,17 +44,29 @@ export function NotificationPopoverContent({
     <>
       <div className="flex items-center justify-between px-4 py-3">
         <h3 className="text-sm font-semibold">Notifications</h3>
-        {unreadCount > 0 && (
-          <Button
-            variant="ghost"
-            size="xs"
-            onClick={onMarkAllRead}
-            disabled={isMarkingAllRead}
-            className="text-xs text-muted-foreground"
-          >
-            <CheckCheck className="size-3" />
-            Mark all read
-          </Button>
+        {notifications.length > 0 && (
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="xs"
+              onClick={onMarkAllRead}
+              disabled={isMarkingAllRead || unreadCount === 0}
+              className="text-xs text-muted-foreground"
+            >
+              <CheckCheck className="size-3" />
+              Mark all read
+            </Button>
+            <Button
+              variant="ghost"
+              size="xs"
+              onClick={onClearAll}
+              disabled={isClearingAll}
+              className="text-xs text-muted-foreground"
+            >
+              <Trash2 className="size-3" />
+              Clear all
+            </Button>
+          </div>
         )}
       </div>
       <Separator />

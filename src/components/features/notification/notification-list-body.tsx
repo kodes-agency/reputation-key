@@ -50,17 +50,24 @@ function NotificationLoadingState() {
   )
 }
 
-function NotificationList({
+function NotificationSection({
+  label,
   notifications,
-  isLoadingMore,
-  hasMore,
-  onLoadMore,
   onDismiss,
   onMarkRead,
   onNotificationClick,
-}: ListStateProps) {
+}: Readonly<{
+  label: string
+  notifications: readonly Notification[]
+  onDismiss: (id: string) => void
+  onMarkRead: (id: string) => void
+  onNotificationClick: (n: Notification) => void
+}>) {
   return (
-    <div className="flex flex-col py-1">
+    <div className="flex flex-col">
+      <p className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+        {label}
+      </p>
       {notifications.map((n) => (
         <NotificationRow
           key={n.id}
@@ -70,6 +77,42 @@ function NotificationList({
           onClick={onNotificationClick}
         />
       ))}
+    </div>
+  )
+}
+
+function NotificationList({
+  notifications,
+  isLoadingMore,
+  hasMore,
+  onLoadMore,
+  onDismiss,
+  onMarkRead,
+  onNotificationClick,
+}: ListStateProps) {
+  const unread = notifications.filter((n) => n.status === 'unread')
+  const read = notifications.filter((n) => n.status === 'read')
+
+  return (
+    <div className="flex flex-col py-1">
+      {unread.length > 0 && (
+        <NotificationSection
+          label="New"
+          notifications={unread}
+          onDismiss={onDismiss}
+          onMarkRead={onMarkRead}
+          onNotificationClick={onNotificationClick}
+        />
+      )}
+      {read.length > 0 && (
+        <NotificationSection
+          label="Earlier"
+          notifications={read}
+          onDismiss={onDismiss}
+          onMarkRead={onMarkRead}
+          onNotificationClick={onNotificationClick}
+        />
+      )}
       {hasMore && (
         <div className="px-3 py-2">
           <Button
@@ -101,7 +144,7 @@ export function NotificationListBody(props: ListStateProps) {
   if (props.notifications.length === 0) {
     return (
       <div className="py-6">
-        <EmptyState icon={Inbox} title="No notifications" />
+        <EmptyState icon={Inbox} title="You're all caught up" />
       </div>
     )
   }

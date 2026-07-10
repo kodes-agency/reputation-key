@@ -1,6 +1,7 @@
-// Notification popover content — header (title + "mark all read") and the list
-// body. Pure presentational wrapper; stories vary the header's mark-all-read
-// affordance (visible when unread, disabled while marking) and the body state.
+// Notification popover content — header (title + mark-all-read + clear-all) and
+// the list body. Pure presentational wrapper; stories vary the header's action
+// affordances (visible when notifications exist, disabled while pending) and
+// the body state.
 import type { Meta, StoryObj } from '@storybook/react'
 import { notificationId, organizationId, userId } from '#/shared/domain/ids'
 import type { Notification } from '#/contexts/notification/application/public-api'
@@ -50,14 +51,24 @@ const notifications: Notification[] = [
     id: notificationId('n-1'),
     type: 'reply.pending_approval',
     priority: 'urgent',
+    status: 'unread',
     title: 'Reply needs approval',
     body: 'A drafted reply is awaiting your approval.',
   }),
   makeNotification({
     id: notificationId('n-2'),
     type: 'goal.completed',
+    status: 'unread',
     title: 'Monthly goal reached',
     body: null,
+  }),
+  makeNotification({
+    id: notificationId('n-3'),
+    type: 'review.created',
+    status: 'read',
+    title: 'New review',
+    body: 'A customer left a 4-star review.',
+    readAt: new Date(Date.now() - 2 * 60 * 60_000),
   }),
 ]
 
@@ -71,9 +82,11 @@ export const Loading: Story = {
     hasMore: false,
     unreadCount: 0,
     isMarkingAllRead: false,
+    isClearingAll: false,
     onRetry: noop,
     onLoadMore: noop,
     onMarkAllRead: noop,
+    onClearAll: noop,
     onDismiss: noop,
     onMarkRead: noop,
     onNotificationClick: noop,
@@ -89,9 +102,11 @@ export const ErrorState: Story = {
     hasMore: false,
     unreadCount: 0,
     isMarkingAllRead: false,
+    isClearingAll: false,
     onRetry: noop,
     onLoadMore: noop,
     onMarkAllRead: noop,
+    onClearAll: noop,
     onDismiss: noop,
     onMarkRead: noop,
     onNotificationClick: noop,
@@ -108,9 +123,11 @@ export const ListWithUnread: Story = {
     hasMore: false,
     unreadCount: 2,
     isMarkingAllRead: false,
+    isClearingAll: false,
     onRetry: noop,
     onLoadMore: noop,
     onMarkAllRead: noop,
+    onClearAll: noop,
     onDismiss: noop,
     onMarkRead: noop,
     onNotificationClick: noop,
@@ -127,16 +144,18 @@ export const MarkingAllRead: Story = {
     hasMore: false,
     unreadCount: 2,
     isMarkingAllRead: true,
+    isClearingAll: false,
     onRetry: noop,
     onLoadMore: noop,
     onMarkAllRead: noop,
+    onClearAll: noop,
     onDismiss: noop,
     onMarkRead: noop,
     onNotificationClick: noop,
   },
 }
 
-// All read → mark-all-read control hidden.
+// All read → both action buttons still visible (Clear all remains useful).
 export const AllRead: Story = {
   args: {
     notifications: [
@@ -152,9 +171,11 @@ export const AllRead: Story = {
     hasMore: false,
     unreadCount: 0,
     isMarkingAllRead: false,
+    isClearingAll: false,
     onRetry: noop,
     onLoadMore: noop,
     onMarkAllRead: noop,
+    onClearAll: noop,
     onDismiss: noop,
     onMarkRead: noop,
     onNotificationClick: noop,

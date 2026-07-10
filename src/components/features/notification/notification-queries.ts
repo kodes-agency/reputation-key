@@ -81,5 +81,5 @@ export function useDismissNotification(dismiss: typeof dismissNotificationFn) {
 // ── Dismiss all notifications (Clear-all) ───────────────────────────
 
 export function useDismissAllNotifications(dismissAll: typeof dismissAllNotificationsFn) {
-  return useMutationActionSilent(dismissAll)
+  return useMutationActionSilent(dismissAll, { invalidate: false })
 }
