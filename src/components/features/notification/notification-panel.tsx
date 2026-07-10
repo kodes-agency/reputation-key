@@ -4,6 +4,8 @@ import { useNavigate } from '@tanstack/react-router'
 import { Bell } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '#/components/ui/popover'
+import { useQueryClient } from '@tanstack/react-query'
+import { notificationKeys } from '#/shared/queries/query-keys'
 import {
   useUnreadNotificationCount,
   useNotifications,
@@ -50,9 +52,8 @@ function NotificationAriaLive({ count }: Readonly<{ count: number }>) {
 function useNotificationPanel(notificationFns: NotificationServerFns) {
   const [open, setOpen] = useState(false)
   const navigate = useNavigate()
-  const { count, refetch: refetchCount } = useUnreadNotificationCount(
-    notificationFns.getUnreadCount,
-  )
+  const qc = useQueryClient()
+  const { count } = useUnreadNotificationCount(notificationFns.getUnreadCount)
   const {
     notifications,
     isLoading,
@@ -66,7 +67,7 @@ function useNotificationPanel(notificationFns: NotificationServerFns) {
   const markAllRead = useMarkAllNotificationsRead(notificationFns.markAllRead)
   const dismiss = useDismissNotification(notificationFns.dismiss)
 
-  const refresh = () => Promise.all([refetchList(), refetchCount()])
+  const refresh = () => qc.invalidateQueries({ queryKey: notificationKeys.all })
 
   const handleOpenChange = (nextOpen: boolean) => {
     setOpen(nextOpen)
