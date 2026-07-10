@@ -163,6 +163,32 @@ export const markAllNotificationsReadFn = createServerFn({ method: 'POST' }).han
   ),
 )
 
+// ── dismissAllNotificationsFn ─────────────────────────────────────
+
+export const dismissAllNotificationsFn = createServerFn({ method: 'POST' }).handler(
+  tracedHandler(
+    async () => {
+      const headers = await headersFromContext()
+      const ctx = await resolveTenantContext(headers)
+      if (!canForContext(ctx, 'notification.update')) {
+        throwContextError(
+          'AuthError',
+          { code: 'forbidden', message: 'No notification update permission' },
+          403,
+        )
+      }
+      try {
+        const { notificationPublicApi } = getContainer()
+        return notificationPublicApi.dismissAll(ctx.userId, ctx.organizationId)
+      } catch (e) {
+        throw catchUntagged(e)
+      }
+    },
+    'POST',
+    'notification.dismissAll',
+  ),
+)
+
 // ── dismissNotificationFn ─────────────────────────────────────────
 
 const dismissNotificationDto = z.object({

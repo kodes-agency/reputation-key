@@ -14,6 +14,7 @@ import { createNotificationRepository } from './infrastructure/repositories/noti
 import { createNotificationEmailRepository } from './infrastructure/repositories/notification-email.repository'
 import { createNotificationPreferenceRepository } from './infrastructure/repositories/notification-preference.repository'
 import { createDbUserLookupAdapter } from './infrastructure/adapters/db-user-lookup.adapter'
+import { createInboxItemLookupAdapter } from './infrastructure/adapters/inbox-item-lookup.adapter'
 import { registerNotificationHandlers } from './infrastructure/event-handlers'
 import { insertNotification } from './application/use-cases/insert-notification'
 import { URGENT_EMAIL_JOB_NAME } from './infrastructure/jobs/urgent-email.job'
@@ -39,6 +40,7 @@ export const buildNotificationContext = (input: BuildInput) => {
   const emailRepo = createNotificationEmailRepository(input.db)
   const prefRepo = createNotificationPreferenceRepository(input.db)
   const userLookup = createDbUserLookupAdapter(input.db)
+  const inboxItemLookup = createInboxItemLookupAdapter(input.db)
 
   // Register event handlers that enqueue BullMQ jobs
   if (input.queue) {
@@ -46,6 +48,7 @@ export const buildNotificationContext = (input: BuildInput) => {
       events: input.events,
       queue: input.queue,
       userLookup,
+      inboxItemLookup,
       logger: input.logger,
     })
   }
@@ -92,6 +95,10 @@ export const buildNotificationContext = (input: BuildInput) => {
     markAllRead: (userId: string, orgId: string) => {
       const now = input.clock()
       return notificationRepo.markAllRead(userId, orgId, now)
+    },
+    dismissAll: (userId: string, orgId: string) => {
+      const now = input.clock()
+      return notificationRepo.markAllDismissed(userId, orgId, now)
     },
     dismiss: async (id: string, orgId: string, userId: UserId) => {
       const n = await notificationRepo.findById(id, orgId)

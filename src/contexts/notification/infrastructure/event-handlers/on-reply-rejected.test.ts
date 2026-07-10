@@ -28,8 +28,8 @@ describe('onReplyRejected (notification)', () => {
       buildExpectedJob({
         userId: NOTIF_TEST_IDS.authorId,
         type: 'reply.rejected',
-        resourceType: 'reply',
-        resourceId: NOTIF_TEST_IDS.replyId,
+        resourceType: 'inbox_item',
+        resourceId: NOTIF_TEST_IDS.inboxItemId,
         title: 'Reply rejected',
         body: 'Rejected: Tone too aggressive',
       }),
@@ -51,5 +51,13 @@ describe('onReplyRejected (notification)', () => {
     await expect(onReplyRejected(deps)(rejectedEvent)).rejects.toThrow(
       'Queue unavailable',
     )
+  })
+
+  it('skips when the review has no inbox item', async () => {
+    deps.inboxItemLookup.findInboxItemByReviewId.mockResolvedValue(null)
+
+    await onReplyRejected(deps)(rejectedEvent)
+
+    expect(deps.jobs).toHaveLength(0)
   })
 })

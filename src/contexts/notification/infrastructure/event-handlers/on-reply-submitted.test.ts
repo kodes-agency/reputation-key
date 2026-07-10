@@ -33,8 +33,8 @@ describe('onReplySubmitted (notification)', () => {
       buildExpectedJob({
         userId: NOTIF_TEST_IDS.admin1,
         type: 'reply.pending_approval',
-        resourceType: 'reply',
-        resourceId: NOTIF_TEST_IDS.replyId,
+        resourceType: 'inbox_item',
+        resourceId: NOTIF_TEST_IDS.inboxItemId,
         title: 'Reply pending approval',
         body: 'A reply is awaiting your approval',
       }),
@@ -43,8 +43,8 @@ describe('onReplySubmitted (notification)', () => {
       buildExpectedJob({
         userId: NOTIF_TEST_IDS.admin2,
         type: 'reply.pending_approval',
-        resourceType: 'reply',
-        resourceId: NOTIF_TEST_IDS.replyId,
+        resourceType: 'inbox_item',
+        resourceId: NOTIF_TEST_IDS.inboxItemId,
         title: 'Reply pending approval',
         body: 'A reply is awaiting your approval',
       }),
@@ -104,5 +104,14 @@ describe('onReplySubmitted (notification)', () => {
     await expect(onReplySubmitted(deps)(submittedEvent)).rejects.toThrow(
       'Queue unavailable',
     )
+  })
+
+  it('skips when the review has no inbox item', async () => {
+    deps.userLookup.findByRole.mockResolvedValue([NOTIF_TEST_IDS.admin1])
+    deps.inboxItemLookup.findInboxItemByReviewId.mockResolvedValue(null)
+
+    await onReplySubmitted(deps)(submittedEvent)
+
+    expect(deps.queue.add).not.toHaveBeenCalled()
   })
 })

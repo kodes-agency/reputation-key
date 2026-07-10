@@ -4,6 +4,7 @@
 import { vi, expect, type Mock } from 'vitest'
 import type { Queue } from 'bullmq'
 import type { UserLookupPort } from '../../application/ports/user-lookup.port'
+import type { InboxItemLookupPort } from '../../application/ports/inbox-item-lookup.port'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { NotificationType } from '../../domain/types'
 import {
@@ -42,6 +43,7 @@ export type FakeEventHandlerDeps = Readonly<{
   addMock: Mock
   jobs: FakeJob[]
   userLookup: MockedPort<UserLookupPort>
+  inboxItemLookup: MockedPort<InboxItemLookupPort>
   logger: MockedPort<LoggerPort>
 }>
 
@@ -73,11 +75,19 @@ const createFakeLogger = (): MockedPort<LoggerPort> =>
     child: vi.fn().mockReturnThis(),
   }) as unknown as MockedPort<LoggerPort>
 
+/** Fake InboxItemLookupPort — default resolves the standard inbox item so
+ *  existing reply-handler tests proceed; tests override to null for skip cases. */
+const createFakeInboxItemLookup = (): MockedPort<InboxItemLookupPort> =>
+  ({
+    findInboxItemByReviewId: vi.fn(async () => inboxItemId('item-1')),
+  }) as unknown as MockedPort<InboxItemLookupPort>
+
 /** Build the full deps record used by notification event-handler tests. */
 export const createEventHandlerDeps = (): FakeEventHandlerDeps => ({
   ...createFakeQueue(),
   userLookup: createFakeUserLookup(),
   logger: createFakeLogger(),
+  inboxItemLookup: createFakeInboxItemLookup(),
 })
 
 // ── Shared id constants ──────────────────────────────────────────────
@@ -115,6 +125,8 @@ export const buildInboxItemCreatedEvent = (
   propertyId: NOTIF_TEST_IDS.propId,
   sourceType: 'feedback',
   sourceId: NOTIF_TEST_IDS.reviewId,
+  rating: null,
+  snippet: null,
   userId: null,
   source: 'web',
   occurredAt: NOTIF_TEST_IDS.now,

@@ -27,6 +27,7 @@ function makeNotificationFns(count: number): NotificationServerFns {
     markAllRead: (async () =>
       undefined) as unknown as NotificationServerFns['markAllRead'],
     dismiss: (async () => undefined) as unknown as NotificationServerFns['dismiss'],
+    dismissAll: (async () => undefined) as unknown as NotificationServerFns['dismissAll'],
   }
 }
 

@@ -100,6 +100,8 @@ export const createInboxItem =
         propertyId: item.propertyId,
         sourceType: item.sourceType,
         sourceId: item.sourceId,
+        rating: item.rating,
+        snippet: item.snippet,
         occurredAt: item.createdAt,
       }),
     )

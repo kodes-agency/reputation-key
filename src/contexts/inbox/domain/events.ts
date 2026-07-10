@@ -22,6 +22,8 @@ export type InboxItemCreated = Readonly<{
   propertyId: PropertyId | null
   sourceType: SourceType
   sourceId: ReviewId | FeedbackId
+  rating: number | null
+  snippet: string | null
   userId: UserId | null
   source: 'web' | 'import'
   occurredAt: Date

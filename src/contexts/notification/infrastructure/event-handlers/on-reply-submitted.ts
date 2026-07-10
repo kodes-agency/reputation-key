@@ -3,6 +3,7 @@
 
 import type { ReviewReplySubmitted } from '#/contexts/review/application/public-api'
 import type { UserLookupPort } from '../../application/ports/user-lookup.port'
+import type { InboxItemLookupPort } from '../../application/ports/inbox-item-lookup.port'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { InsertNotificationJobData } from '../jobs/insert-notification.job'
 import { INSERT_NOTIFICATION_JOB_NAME } from '../jobs/insert-notification.job'
@@ -11,6 +12,7 @@ import type { Queue } from 'bullmq'
 type Deps = Readonly<{
   queue: Queue
   userLookup: UserLookupPort
+  inboxItemLookup: InboxItemLookupPort
   logger: LoggerPort
 }>
 
@@ -30,12 +32,19 @@ export const onReplySubmitted =
       return
     }
 
+    // Resolve the review to its inbox item (ADR 0022); skip if it's gone.
+    const inboxItemId = await deps.inboxItemLookup.findInboxItemByReviewId(
+      event.reviewId,
+      event.organizationId,
+    )
+    if (!inboxItemId) return
+
     const jobs: InsertNotificationJobData[] = recipients.map((userId) => ({
       userId,
       organizationId: event.organizationId,
       type: 'reply.pending_approval' as const,
-      resourceType: 'reply' as const,
-      resourceId: event.replyId,
+      resourceType: 'inbox_item' as const,
+      resourceId: inboxItemId,
       eventId: event.eventId,
       title: 'Reply pending approval',
       body: 'A reply is awaiting your approval',

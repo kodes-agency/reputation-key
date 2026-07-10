@@ -63,23 +63,39 @@ describe('onInboxItemCreated (notification)', () => {
     )
   })
 
-  it('skips non-feedback sources', async () => {
-    const reviewSourceEvent = { ...itemCreatedEvent, sourceType: 'review' as const }
+  it('enqueues review.created notifications for review source', async () => {
+    deps.userLookup.findAssignedManagers.mockResolvedValue([NOTIF_TEST_IDS.manager1])
+    const reviewSourceEvent = buildInboxItemCreatedEvent({
+      sourceType: 'review',
+      rating: 4,
+    })
 
     await onInboxItemCreated(deps)(reviewSourceEvent)
 
-    expect(deps.queue.add).not.toHaveBeenCalled()
-    expect(deps.userLookup.findAssignedManagers).not.toHaveBeenCalled()
+    expectJobsEnqueued(deps, 1)
+    expect(deps.jobs[0]).toEqual(
+      buildExpectedJob({
+        userId: NOTIF_TEST_IDS.manager1,
+        type: 'review.created',
+        resourceType: 'inbox_item',
+        resourceId: NOTIF_TEST_IDS.inboxItemId,
+        title: 'New review',
+        body: '4-star review received',
+      }),
+    )
   })
 
-  it('logs debug for non-feedback sources', async () => {
-    const reviewSourceEvent = { ...itemCreatedEvent, sourceType: 'review' as const }
+  it('logs debug for unknown source types', async () => {
+    const unknownSourceEvent = {
+      ...itemCreatedEvent,
+      sourceType: 'goal' as typeof itemCreatedEvent.sourceType,
+    }
 
-    await onInboxItemCreated(deps)(reviewSourceEvent)
+    await onInboxItemCreated(deps)(unknownSourceEvent)
 
     expect(deps.logger.debug).toHaveBeenCalledWith(
-      'onInboxItemCreated: skipping non-feedback source',
-      { sourceType: 'review' },
+      'onInboxItemCreated: skipping unknown source',
+      { sourceType: 'goal' },
     )
   })
 
@@ -98,7 +114,7 @@ describe('onInboxItemCreated (notification)', () => {
 
     expect(deps.logger.warn).toHaveBeenCalledWith(
       { propertyId: NOTIF_TEST_IDS.propId, eventId: NOTIF_TEST_IDS.eventId },
-      'onInboxItemCreated: no recipients found for feedback notification',
+      'onInboxItemCreated: no recipients found',
     )
   })
 

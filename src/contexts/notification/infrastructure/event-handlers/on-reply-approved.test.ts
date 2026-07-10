@@ -27,8 +27,8 @@ describe('onReplyApproved (notification)', () => {
       buildExpectedJob({
         userId: NOTIF_TEST_IDS.authorId,
         type: 'reply.approved',
-        resourceType: 'reply',
-        resourceId: NOTIF_TEST_IDS.replyId,
+        resourceType: 'inbox_item',
+        resourceId: NOTIF_TEST_IDS.inboxItemId,
         title: 'Reply approved',
         body: 'Your reply has been approved',
       }),
@@ -41,5 +41,13 @@ describe('onReplyApproved (notification)', () => {
     await expect(onReplyApproved(deps)(approvedEvent)).rejects.toThrow(
       'Queue unavailable',
     )
+  })
+
+  it('skips when the review has no inbox item', async () => {
+    deps.inboxItemLookup.findInboxItemByReviewId.mockResolvedValue(null)
+
+    await onReplyApproved(deps)(approvedEvent)
+
+    expect(deps.jobs).toHaveLength(0)
   })
 })

@@ -47,20 +47,19 @@ This context produces **no domain events**. It consumes events and materializes 
 
 ## 6. Events consumed
 
-| `_tag`                        | Source | Handler action                                                     |
-| ----------------------------- | ------ | ------------------------------------------------------------------ |
-| `review.created`              | review | Enqueue `review.created` notification for assigned managers/staff. |
-| `inbox.inbox_item.created`    | inbox  | Enqueue `feedback.created` notification (feedback only).           |
-| `inbox.inbox_item.assigned`   | inbox  | Enqueue `inbox.assigned` notification to assignee.                 |
-| `inbox.inbox_item.escalated`  | inbox  | Enqueue urgent `inbox.escalated` to managers/staff.                |
-| `inbox.inbox_note.added`      | inbox  | Enqueue `inbox_note.added` to assigned managers/staff.             |
-| `review.reply.submitted`      | review | Enqueue urgent `reply.pending_approval` to AccountAdmins.          |
-| `review.reply.approved`       | review | Enqueue `reply.approved` to reply author.                          |
-| `review.reply.rejected`       | review | Enqueue `reply.rejected` to reply author.                          |
-| `review.reply.published`      | review | Enqueue `reply.published` to reply author.                         |
-| `review.reply.publish_failed` | review | Enqueue urgent `reply.publish_failed` to reply author.             |
-| `goal.completed`              | goal   | Enqueue `goal.completed` to assigned managers/staff.               |
-| `badge.awarded`               | badge  | Enqueue `badge.awarded` to assigned managers/staff.                |
+| `_tag`                        | Source | Handler action                                                                                                                  |
+| ----------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| `inbox.inbox_item.created`    | inbox  | Enqueue `review.created` (review) or `feedback.created` (feedback) to assigned managers; `resourceId` = inboxItemId (ADR 0022). |
+| `inbox.inbox_item.assigned`   | inbox  | Enqueue `inbox.assigned` notification to assignee.                                                                              |
+| `inbox.inbox_item.escalated`  | inbox  | Enqueue urgent `inbox.escalated` to managers/staff.                                                                             |
+| `inbox.inbox_note.added`      | inbox  | Enqueue `inbox_note.added` to assigned managers/staff.                                                                          |
+| `review.reply.submitted`      | review | Enqueue urgent `reply.pending_approval` to AccountAdmins.                                                                       |
+| `review.reply.approved`       | review | Enqueue `reply.approved` to reply author.                                                                                       |
+| `review.reply.rejected`       | review | Enqueue `reply.rejected` to reply author.                                                                                       |
+| `review.reply.published`      | review | Enqueue `reply.published` to reply author.                                                                                      |
+| `review.reply.publish_failed` | review | Enqueue urgent `reply.publish_failed` to reply author.                                                                          |
+| `goal.completed`              | goal   | Enqueue `goal.completed` to assigned managers/staff.                                                                            |
+| `badge.awarded`               | badge  | Enqueue `badge.awarded` to assigned managers/staff.                                                                             |
 
 ## 7. Architecture layers
 
@@ -104,6 +103,7 @@ The build function (`build.ts`) also exposes `publicApi` query/mutation helpers 
 | `markNotificationReadFn`         | POST   | `notification.update` | RPC                          |
 | `markAllNotificationsReadFn`     | POST   | `notification.update` | RPC                          |
 | `dismissNotificationFn`          | POST   | `notification.update` | RPC                          |
+| `dismissAllNotificationsFn`      | POST   | `notification.update` | RPC                          |
 | `getNotificationPreferencesFn`   | GET    | `notification.read`   | RPC (staged — not yet wired) |
 | `updateNotificationPreferenceFn` | POST   | `notification.update` | RPC (staged — not yet wired) |
 

@@ -8,6 +8,7 @@ import type {
   markNotificationReadFn,
   markAllNotificationsReadFn,
   dismissNotificationFn,
+  dismissAllNotificationsFn,
 } from '#/contexts/notification/server/notifications'
 
 export type NotificationServerFns = Readonly<{
@@ -16,4 +17,5 @@ export type NotificationServerFns = Readonly<{
   markRead: typeof markNotificationReadFn
   markAllRead: typeof markAllNotificationsReadFn
   dismiss: typeof dismissNotificationFn
+  dismissAll: typeof dismissAllNotificationsFn
 }>
