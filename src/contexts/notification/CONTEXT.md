@@ -6,15 +6,17 @@ Produces user-facing in-app and email notifications about domain events. Subscri
 
 ## 2. Glossary
 
-| Term               | Meaning                                                                          |
-| ------------------ | -------------------------------------------------------------------------------- |
-| Notification       | An in-app notification row (`notifications` table) anchored to a user.           |
-| Notification type  | User-facing type name (e.g. `reply.pending_approval`); distinct from event tags. |
-| Email queue entry  | A row in `notification_email_queue` representing one email to deliver.           |
-| Urgent             | Priority that triggers immediate email delivery (see Q9 urgent types).           |
-| Normal             | Priority batched into the daily digest.                                          |
-| Digest             | Daily job that sends all `pending` normal-priority emails per org.               |
-| Channel preference | Per-user/per-type toggle for in-app and email channels (default: both on).       |
+| Term               | Meaning                                                                                                                                                                                      |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Notification       | An in-app notification row (`notifications` table) anchored to a user.                                                                                                                       |
+| Notification type  | User-facing type name (e.g. `reply.pending_approval`); distinct from event tags.                                                                                                             |
+| Resource           | The domain thing a notification is about (`resourceType` + `resourceId`). For action-oriented types the resource is the **inbox item** (resolved at creation), so clicking opens its detail. |
+| New / Earlier      | The two read-state sections of the list: **New** = unread, **Earlier** = read. Dismissed items are excluded entirely.                                                                        |
+| Email queue entry  | A row in `notification_email_queue` representing one email to deliver.                                                                                                                       |
+| Urgent             | Priority that triggers immediate email delivery (see Q9 urgent types).                                                                                                                       |
+| Normal             | Priority batched into the daily digest.                                                                                                                                                      |
+| Digest             | Daily job that sends all `pending` normal-priority emails per org.                                                                                                                           |
+| Channel preference | Per-user/per-type toggle for in-app and email channels (default: both on).                                                                                                                   |
 
 ## 3. Relationships
 
@@ -138,4 +140,8 @@ Notifications are personal (scoped to the caller's `userId`); all three roles ma
 - **Three urgent types**: `reply.pending_approval`, `reply.publish_failed`, `inbox.escalated` (Q9).
 - **`goal.progress_updated` pruned (Q14)** — event removed entirely: no consumer, only `goal.completed` is notification-worthy.
 - **Digest keyed by property timezone** (already on properties table), not org timezone (Q8).
+- **Review notification sources `inbox.inbox_item.created`** (2026-07 design) — the `review.created` notification subscribes to `inbox.inbox_item.created` (carries the `inboxItemId`, fires _after_ the item exists → no race), branching on `sourceType` (review vs feedback). That event is enriched with `rating`/`snippet` so the body derives fully. `resourceId` is the **inbox-item id**, making deep-links honest. (Replaces the old `review.created` subscription that stamped a `reviewId` under `resourceType: 'inbox_item'`.)
+- **Reply notifications resolve via `InboxItemLookupPort`** (2026-07 design) — reply-lifecycle handlers (`submitted/approved/rejected/published/publish_failed`) resolve `reviewId → inboxItemId` through a new `InboxItemLookupPort` (`findInboxItemByReviewId`) and stamp `resourceType: 'inbox_item'` / `resourceId: inboxItemId`. No race (the inbox item always exists by reply time). If the lookup returns null (item hard-deleted) the notification is **skipped**. Result: every action-oriented notification is uniformly `inbox_item`-keyed, so `getNotificationUrl` has one honest branch: `/inbox?itemId=<id>`.
+- **List excludes `dismissed`; header has both Mark-all-read and Clear-all** (2026-07 design) — `findByUser` now filters `status != 'dismissed'` (was returning all, so the per-item dismiss was a visual no-op). The popover header exposes two actions: **Mark all read** (existing → items move New→Earlier) and **Clear all** (new `dismissAll` use case + server fn → everything dismissed, list empties). No undo in v1 (rows persist in the DB, just hidden).
+- **At most one unread per `(userId, type, resourceId)`** (2026-07 design) — `insertNotification` dedups: if an _unread_ row already exists for that key, it **bumps** it (refresh `updatedAt`/body) instead of inserting; if the existing row is read/dismissed, a fresh unread row is created (so the user is re-notified). Prevents the duplicate-stacking seen for re-escalations / re-submitted replies. Replaces one-row-per-event.
 - **Notification type names distinct from event tags** (Q4).
