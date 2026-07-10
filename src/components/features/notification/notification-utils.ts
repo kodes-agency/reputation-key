@@ -29,8 +29,9 @@ export function getNotificationUrl(
     case 'inbox_item':
       return `/inbox?itemId=${resourceId}`
     case 'reply':
-      // Replies are surfaced from an inbox item thread; deep-link to that item.
-      return `/inbox?itemId=${resourceId}`
+      // Legacy reply notifications carry a stale replyId that won't match an
+      // inbox item; fall back to the inbox list rather than a broken deep link.
+      return '/inbox'
     case 'goal':
       // Goal resourceId is the property the goal belongs to.
       return `/properties/${resourceId}`
