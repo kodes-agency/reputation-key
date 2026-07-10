@@ -18,3 +18,10 @@ export const inboxKeys = {
   notes: (id: string) => [...inboxKeys.detail(id), 'notes'] as const,
   activity: (id: string) => [...inboxKeys.detail(id), 'activity'] as const,
 }
+
+export const notificationKeys = {
+  all: ['notifications'] as const,
+  count: () => [...notificationKeys.all, 'count'] as const,
+  lists: () => [...notificationKeys.all, 'list'] as const,
+  list: (limit: number) => [...notificationKeys.lists(), { limit }] as const,
+}
