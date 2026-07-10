@@ -10,6 +10,7 @@ import { useState } from 'react'
 import { notificationId, organizationId, userId } from '#/shared/domain/ids'
 import type { Notification } from '#/contexts/notification/application/public-api'
 import type {
+  dismissAllNotificationsFn,
   dismissNotificationFn,
   getNotificationsFn,
   getUnreadNotificationCountFn,
@@ -72,6 +73,8 @@ const noopMarkRead = (async () => undefined) as unknown as typeof markNotificati
 const noopMarkAll = (async () =>
   undefined) as unknown as typeof markAllNotificationsReadFn
 const noopDismiss = (async () => undefined) as unknown as typeof dismissNotificationFn
+const noopDismissAll = (async () =>
+  undefined) as unknown as typeof dismissAllNotificationsFn
 
 // Loaded bundle: 2 unread, list resolves immediately.
 const loadedFns: NotificationServerFns = {
@@ -82,6 +85,7 @@ const loadedFns: NotificationServerFns = {
   markRead: noopMarkRead,
   markAllRead: noopMarkAll,
   dismiss: noopDismiss,
+  dismissAll: noopDismissAll,
 }
 
 // Never-settling reads → list stays on its loading skeleton, count stays 0.
@@ -95,6 +99,7 @@ const loadingFns: NotificationServerFns = {
   markRead: noopMarkRead,
   markAllRead: noopMarkAll,
   dismiss: noopDismiss,
+  dismissAll: noopDismissAll,
 }
 
 // getList rejects → the list error state + Retry control render.
@@ -108,6 +113,7 @@ const errorFns: NotificationServerFns = {
   markRead: noopMarkRead,
   markAllRead: noopMarkAll,
   dismiss: noopDismiss,
+  dismissAll: noopDismissAll,
 }
 
 const emptyFns: NotificationServerFns = {
@@ -118,6 +124,7 @@ const emptyFns: NotificationServerFns = {
   markRead: noopMarkRead,
   markAllRead: noopMarkAll,
   dismiss: noopDismiss,
+  dismissAll: noopDismissAll,
 }
 
 // markAllRead never resolves → once clicked, the button holds its pending state.

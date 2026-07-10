@@ -27,8 +27,8 @@ describe('onReplyPublished (notification)', () => {
       buildExpectedJob({
         userId: NOTIF_TEST_IDS.authorId,
         type: 'reply.published',
-        resourceType: 'reply',
-        resourceId: NOTIF_TEST_IDS.replyId,
+        resourceType: 'inbox_item',
+        resourceId: NOTIF_TEST_IDS.inboxItemId,
         title: 'Reply published',
         body: 'Your reply has been published to Google',
       }),
@@ -41,5 +41,13 @@ describe('onReplyPublished (notification)', () => {
     await expect(onReplyPublished(deps)(publishedEvent)).rejects.toThrow(
       'Queue unavailable',
     )
+  })
+
+  it('skips when the review has no inbox item', async () => {
+    deps.inboxItemLookup.findInboxItemByReviewId.mockResolvedValue(null)
+
+    await onReplyPublished(deps)(publishedEvent)
+
+    expect(deps.jobs).toHaveLength(0)
   })
 })

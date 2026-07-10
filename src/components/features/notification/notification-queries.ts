@@ -15,6 +15,7 @@ import type {
   markNotificationReadFn,
   markAllNotificationsReadFn,
   dismissNotificationFn,
+  dismissAllNotificationsFn,
 } from '#/contexts/notification/server/notifications'
 
 // ── Polling unread count ────────────────────────────────────────────
@@ -75,4 +76,10 @@ export function useMarkAllNotificationsRead(
 
 export function useDismissNotification(dismiss: typeof dismissNotificationFn) {
   return useMutationActionSilent(dismiss, { invalidate: false })
+}
+
+// ── Dismiss all notifications (Clear-all) ───────────────────────────
+
+export function useDismissAllNotifications(dismissAll: typeof dismissAllNotificationsFn) {
+  return useMutationActionSilent(dismissAll)
 }

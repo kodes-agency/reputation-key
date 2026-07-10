@@ -27,8 +27,8 @@ describe('onReplyPublishFailed (notification)', () => {
       buildExpectedJob({
         userId: NOTIF_TEST_IDS.authorId,
         type: 'reply.publish_failed',
-        resourceType: 'reply',
-        resourceId: NOTIF_TEST_IDS.replyId,
+        resourceType: 'inbox_item',
+        resourceId: NOTIF_TEST_IDS.inboxItemId,
         title: 'Reply publish failed',
         body: 'Failed to publish your reply to Google. Please retry.',
       }),
@@ -41,5 +41,13 @@ describe('onReplyPublishFailed (notification)', () => {
     await expect(onReplyPublishFailed(deps)(publishFailedEvent)).rejects.toThrow(
       'Queue unavailable',
     )
+  })
+
+  it('skips when the review has no inbox item', async () => {
+    deps.inboxItemLookup.findInboxItemByReviewId.mockResolvedValue(null)
+
+    await onReplyPublishFailed(deps)(publishFailedEvent)
+
+    expect(deps.jobs).toHaveLength(0)
   })
 })

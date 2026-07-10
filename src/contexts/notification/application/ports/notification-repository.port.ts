@@ -4,7 +4,11 @@
 // TypeScript structural typing makes `string` assignable to branded types.
 // Brands serve as documentation of intent, not runtime enforcement.
 
-import type { Notification, NotificationStatus } from '../../domain/types'
+import type {
+  Notification,
+  NotificationStatus,
+  NotificationType,
+} from '../../domain/types'
 import type { NotificationId, UserId, OrganizationId } from '#/shared/domain/ids'
 
 export type NotificationRepositoryPort = Readonly<{
@@ -44,6 +48,27 @@ export type NotificationRepositoryPort = Readonly<{
   ): Promise<void>
 
   markAllRead(userId: UserId, orgId: OrganizationId, updatedAt: Date): Promise<void>
+
+  /** Find a user's existing unread notification for a type+resource (dedup). */
+  findUnreadByUserTypeResource(
+    userId: UserId,
+    orgId: OrganizationId,
+    type: NotificationType,
+    resourceId: string,
+  ): Promise<Notification | null>
+
+  /** Bump an existing unread notification (refresh title/body/updatedAt). */
+  refreshUnread(
+    id: NotificationId,
+    userId: UserId,
+    orgId: OrganizationId,
+    title: string,
+    body: string | null,
+    updatedAt: Date,
+  ): Promise<void>
+
+  /** Dismiss every non-dismissed notification for the user (Clear-all). */
+  markAllDismissed(userId: UserId, orgId: OrganizationId, updatedAt: Date): Promise<void>
 
   updateStatus(
     id: NotificationId,

@@ -139,6 +139,30 @@ export const insertNotification =
       return null
     }
 
+    // 2b. Dedup: at most one unread per (user, type, resource). If an unread row
+    // already exists, bump it (refresh title/body/updatedAt) instead of stacking
+    // a duplicate. No new email — the original entry stands. (in-app only.)
+    if (inAppEnabled) {
+      const existing = await deps.notificationRepo.findUnreadByUserTypeResource(
+        input.userId,
+        input.organizationId,
+        input.type,
+        input.resourceId,
+      )
+      if (existing) {
+        const now = deps.clock()
+        await deps.notificationRepo.refreshUnread(
+          existing.id,
+          input.userId,
+          input.organizationId,
+          input.title,
+          input.body,
+          now,
+        )
+        return { ...existing, title: input.title, body: input.body, updatedAt: now }
+      }
+    }
+
     // 3. Persist the notification row (in-app anchor + email FK)
     const inserted = await deps.notificationRepo.insert(result.value)
 

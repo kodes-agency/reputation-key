@@ -7,6 +7,7 @@ import {
   markNotificationReadFn,
   markAllNotificationsReadFn,
   dismissNotificationFn,
+  dismissAllNotificationsFn,
 } from '#/contexts/notification/server/notifications'
 import type { NotificationServerFns } from '#/components/features/notification/types'
 
@@ -16,4 +17,5 @@ export const notificationFns: NotificationServerFns = {
   markRead: markNotificationReadFn,
   markAllRead: markAllNotificationsReadFn,
   dismiss: dismissNotificationFn,
+  dismissAll: dismissAllNotificationsFn,
 }

@@ -1,7 +1,7 @@
 // Notification context — Drizzle repository adapter for notifications
 // Per architecture: factory pattern `createXxxRepository(db)` returning port interface.
 
-import { and, eq, desc, inArray, sql } from 'drizzle-orm'
+import { and, eq, desc, inArray, ne, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { notifications } from '#/shared/db/schema/notification.schema'
 import { unbrand } from '#/shared/domain/ids'
@@ -22,7 +22,8 @@ const notOptedOutInApp = sql`NOT EXISTS (
 )`
 
 // Paginated, newest-first read of a user's visible notifications.
-// `status` narrows to a single state (e.g. 'unread'); null returns all.
+// `status` narrows to a single state (e.g. 'unread'); null = the visible list,
+// which excludes 'dismissed' (dismissed rows are hidden, not deleted).
 const selectUserNotifications = (
   db: Database,
   userId: string,
@@ -37,6 +38,7 @@ const selectUserNotifications = (
     notOptedOutInApp,
   ]
   if (status) conditions.push(eq(notifications.status, status))
+  else conditions.push(ne(notifications.status, 'dismissed'))
   return db
     .select()
     .from(notifications)
@@ -139,6 +141,69 @@ export const createNotificationRepository = (db: Database) => ({
           eq(notifications.id, id),
           eq(notifications.userId, userId),
           eq(notifications.organizationId, orgId),
+        ),
+      )
+  },
+
+  // ── Dedup: at most one unread per (user, type, resource) ──────────
+  findUnreadByUserTypeResource: async (
+    userId: string,
+    orgId: string,
+    type: string,
+    resourceId: string,
+  ): Promise<Notification | null> => {
+    const rows = await db
+      .select()
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.userId, userId),
+          eq(notifications.organizationId, orgId),
+          eq(notifications.type, type),
+          eq(notifications.resourceId, resourceId),
+          eq(notifications.status, 'unread'),
+        ),
+      )
+      .limit(1)
+    return rows[0] ? notificationFromRow(rows[0]) : null
+  },
+
+  // Bump an existing unread notification (refresh title/body/updatedAt) instead
+  // of stacking a duplicate. Used by insertNotification's dedup path.
+  refreshUnread: async (
+    id: string,
+    userId: string,
+    orgId: string,
+    title: string,
+    body: string | null,
+    updatedAt: Date,
+  ): Promise<void> => {
+    await db
+      .update(notifications)
+      .set({ title, body, updatedAt })
+      .where(
+        and(
+          eq(notifications.id, id),
+          eq(notifications.userId, userId),
+          eq(notifications.organizationId, orgId),
+        ),
+      )
+  },
+
+  // Clear-all: dismiss every non-dismissed notification for the user.
+  markAllDismissed: async (
+    userId: string,
+    orgId: string,
+    updatedAt: Date,
+  ): Promise<void> => {
+    await db
+      .update(notifications)
+      .set({ status: 'dismissed', updatedAt })
+      .where(
+        and(
+          eq(notifications.userId, userId),
+          eq(notifications.organizationId, orgId),
+          ne(notifications.status, 'dismissed'),
         ),
       )
   },

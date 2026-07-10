@@ -7,6 +7,7 @@ import type {
   InsertNotificationDeps,
 } from './insert-notification'
 import { buildFakeInsertNotificationDeps as createFakeDeps } from './test-fixtures'
+import type { Notification } from '../../domain/types'
 import {
   organizationId,
   userId,
@@ -300,5 +301,43 @@ describe('insertNotification', () => {
     // Notification still created despite enqueue failure
     expect(result).not.toBeNull()
     expect(freshDeps.logger.error).toHaveBeenCalled()
+  })
+
+  it('dedups — bumps an existing unread instead of inserting', async () => {
+    const existing: Notification = {
+      id: NOTIF_ID,
+      userId: USER_ID,
+      organizationId: ORG_ID,
+      type: 'review.created',
+      priority: 'normal',
+      status: 'unread',
+      resourceType: 'inbox_item',
+      resourceId: 'res-1',
+      eventId: 'evt-1',
+      title: 'Stale title',
+      body: 'Stale body',
+      readAt: null,
+      createdAt: FIXED_DATE,
+      updatedAt: FIXED_DATE,
+    }
+    vi.mocked(deps.notificationRepo.findUnreadByUserTypeResource).mockResolvedValue(
+      existing,
+    )
+
+    const result = await insertNotification(deps)(validInput)
+
+    expect(deps.notificationRepo.refreshUnread).toHaveBeenCalledTimes(1)
+    expect(deps.notificationRepo.insert).not.toHaveBeenCalled()
+    expect(result?.title).toBe(validInput.title)
+    expect(result?.body).toBe(validInput.body)
+  })
+
+  it('inserts when no existing unread', async () => {
+    vi.mocked(deps.notificationRepo.findUnreadByUserTypeResource).mockResolvedValue(null)
+
+    await insertNotification(deps)(validInput)
+
+    expect(deps.notificationRepo.insert).toHaveBeenCalledTimes(1)
+    expect(deps.notificationRepo.refreshUnread).not.toHaveBeenCalled()
   })
 })
