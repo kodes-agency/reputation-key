@@ -11,6 +11,8 @@ export const inboxKeys = {
   lists: () => [...inboxKeys.all, 'list'] as const,
   list: (filters: Readonly<Record<string, unknown>>) =>
     [...inboxKeys.lists(), filters] as const,
+  counts: () => [...inboxKeys.all, 'counts'] as const,
+  newCount: () => [...inboxKeys.all, 'new-count'] as const,
   details: () => [...inboxKeys.all, 'item'] as const,
   detail: (id: string) => [...inboxKeys.details(), id] as const,
   notes: (id: string) => [...inboxKeys.detail(id), 'notes'] as const,

@@ -8,14 +8,12 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from '#/components/ui/sidebar'
-import { useServerFn } from '@tanstack/react-start'
-import { useAction } from '#/components/hooks/use-action'
+import { useQuery } from '@tanstack/react-query'
+import { inboxKeys } from '#/shared/queries/query-keys'
 import type { getInboxFolderCountsFn } from '#/contexts/inbox/server/inbox'
 import { PropertyFilterSelect } from '#/components/inbox/property-filter-select'
 import { FolderItem, CategoryItem, folders, categories } from './inbox-sidebar-items'
-import { useState, useEffect } from 'react'
 import {
-  type InboxFolderCounts,
   DEFAULT_COUNTS,
   useInboxFolder,
   useInboxPlatform,
@@ -40,18 +38,13 @@ export function InboxSidebar({
 }: InboxSidebarProps) {
   const activeFolder = useInboxFolder()
   const activePlatform = useInboxPlatform()
-  const [counts, setCounts] = useState<InboxFolderCounts>(DEFAULT_COUNTS)
-  const fetchCounts = useAction(useServerFn(getInboxFolderCounts))
+  const countsQuery = useQuery({
+    queryKey: inboxKeys.counts(),
+    queryFn: () => getInboxFolderCounts({ data: {} }),
+    staleTime: 0,
+  })
+  const counts = countsQuery.data ?? DEFAULT_COUNTS
   const n = useNavigate()
-
-  useEffect(() => {
-    fetchCounts({ data: {} })
-      .then((result) => {
-        const data = result as InboxFolderCounts | undefined
-        if (data) setCounts(data)
-      })
-      .catch(() => {})
-  }, [fetchCounts])
 
   const nav = (s: Record<string, unknown>) => {
     if (propertyId) {

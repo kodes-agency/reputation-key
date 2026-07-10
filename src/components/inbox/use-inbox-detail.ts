@@ -37,6 +37,8 @@ export type InboxDetailState = Readonly<{
   updateStatus: ReturnType<typeof useMutationAction<typeof updateInboxStatusFn>>
   /** Called after a note is added — refreshes notes + activity. */
   onNoteAdded: () => void
+  /** Called after a reply mutation — writes the new reply into the detail cache. */
+  onReplyMutated: (reply: InboxItemDetailResult['reply']) => void
   error: string | null
   lastMarkedId: string | null
 }>
@@ -75,9 +77,31 @@ export function useInboxDetail(
     (updated: InboxItem) => {
       qc.invalidateQueries({ queryKey: inboxKeys.detail(id) })
       setTimeout(() => qc.invalidateQueries({ queryKey: inboxKeys.activity(id) }), 2500)
+      // A status change moves the item between folders → sibling list caches,
+      // folder-count badges, and the global new-count badge are all stale.
+      qc.invalidateQueries({ queryKey: inboxKeys.lists() })
+      qc.invalidateQueries({ queryKey: inboxKeys.counts() })
+      qc.invalidateQueries({ queryKey: inboxKeys.newCount() })
       onItemStatusChanged?.(updated)
     },
     [qc, id, onItemStatusChanged],
+  )
+
+  // A reply mutation (submit/approve/reject/etc.) writes the new reply straight
+  // into the detail cache so revisiting the item shows it without a refetch —
+  // the mutation output is authoritative. Keeps the optimistic local state + cache in sync.
+  const onReplyMutated = useCallback(
+    (reply: InboxItemDetailResult['reply']) => {
+      // Optimistic: write the new reply into the detail cache so the active view
+      // reflects it instantly. Then invalidate so the server (source of truth)
+      // repopulates the whole detail incl. reply — guarantees a revisit shows it
+      // even when the query isn't otherwise refetched.
+      qc.setQueryData<InboxItemDetailResult>(inboxKeys.detail(id), (old) =>
+        old ? { ...old, reply } : old,
+      )
+      qc.invalidateQueries({ queryKey: inboxKeys.detail(id) })
+    },
+    [qc, id],
   )
 
   const lastMarkedId = useAutoMarkRead(
@@ -111,6 +135,7 @@ export function useInboxDetail(
       qc.invalidateQueries({ queryKey: inboxKeys.notes(id) })
       setTimeout(() => qc.invalidateQueries({ queryKey: inboxKeys.activity(id) }), 2500)
     },
+    onReplyMutated,
     error: detailQuery.error ? 'Failed to load detail. Try again.' : null,
     lastMarkedId,
   }

@@ -120,6 +120,8 @@ export function useInboxState(
   const handleBulkDone = useCallback(() => {
     setSelectedIds([])
     qc.invalidateQueries({ queryKey: inboxKeys.lists() })
+    qc.invalidateQueries({ queryKey: inboxKeys.counts() })
+    qc.invalidateQueries({ queryKey: inboxKeys.newCount() })
     if (selectedId) closeDetail()
   }, [selectedId, qc, closeDetail])
 

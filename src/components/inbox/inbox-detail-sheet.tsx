@@ -76,6 +76,7 @@ export function InboxDetailSheet({
             updateStatus={detailState.updateStatus}
             notes={detailState.notes}
             onNoteAdded={detailState.onNoteAdded}
+            onReplyMutated={detailState.onReplyMutated}
             detailFns={detailFns}
           />
         )}
