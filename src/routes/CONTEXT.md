@@ -108,7 +108,7 @@ TanStack Query is wired app-wide (`QueryClient` in `router.tsx` via `setupRouter
 - **Query keys** live in `src/shared/queries/query-keys.ts` as hierarchical factories (parent keys are prefixes of children), so `invalidateQueries(parentKey)` refreshes all descendants — **targeted**, never `router.invalidate()`.
 - **Mutations** use `useMutation` + `onSuccess: () => qc.invalidateQueries(...)` (or `useMutationAction` with `invalidate: false` + an invalidating `onSuccess`). Never the whole-app `router.invalidate()` sledgehammer.
 - **SSR:** `useSuspenseQuery` runs on the server and streams; `useQuery` runs client-side only.
-- **Reference implementation:** the inbox detail subsystem (`src/components/inbox/use-inbox-detail.ts`). Other features migrate opportunistically.
+- **Reference implementations:** inbox detail (`src/components/inbox/use-inbox-detail.ts` — `useQuery`) + inbox list (`src/components/inbox/use-inbox-state.ts` — `useInfiniteQuery` for cursor pagination, debounced filter key, `setQueryData` for optimistic updates). Other features migrate opportunistically.
 
 > Replaces the old "never `useQuery`" rule. Manual `useState`+`useEffect` fetching and whole-app `router.invalidate()` are anti-patterns — use Query's cache + targeted invalidation.
 

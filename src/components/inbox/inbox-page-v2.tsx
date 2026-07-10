@@ -77,7 +77,7 @@ export function InboxPageV2({
     selectedIds: s.selectedIds,
     isLoading: s.isLoading,
     error: s.error,
-    onRetry: s.loadItems,
+    onRetry: s.refetch,
     nextCursor: s.nextCursor,
     loadAction: s.loadAction,
     listRef,
@@ -88,7 +88,7 @@ export function InboxPageV2({
     onSelectAll: s.handleSelectAll,
     onDeselectAll: s.handleDeselectAll,
     onRowClick: s.handleRowClick,
-    onLoadMore: s.loadItems,
+    onLoadMore: s.loadMore,
     onBulkDone: s.handleBulkDone,
     bulkUpdateFn: inboxFns.bulkUpdateInboxStatus,
   }

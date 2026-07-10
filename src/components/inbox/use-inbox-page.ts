@@ -60,14 +60,15 @@ export function useInboxPage(
 
   const {
     items,
-    setItems,
     nextCursor,
     isLoading,
     error,
     selectedIds,
     setSelectedIds,
     loadAction,
-    loadItems,
+    loadMore,
+    refetch,
+    patchItem,
     handleRowClick,
     closeDetail,
     handleBulkDone,
@@ -82,25 +83,9 @@ export function useInboxPage(
     [selectedItemId, foundItemId],
   )
   // Optimistic list sync after a detail status change (mark-read / escalate /
-  // archive): patch the item's status in-place, or drop it if it no longer
-  // matches the active filter. Replaces the old statusVersion effect — the
-  // detail hook calls this directly with the mutation's updated item.
-  const handleItemStatusChanged = useCallback(
-    (u: InboxItem) => {
-      setItems((p) => {
-        const visible = !filters.status
-          ? true
-          : typeof filters.status !== 'string'
-            ? filters.status.includes(u.status)
-            : filters.status === u.status
-        if (!visible) return p.filter((i) => i.id !== u.id)
-        return p.map((i) =>
-          i.id === u.id ? { ...i, status: u.status, updatedAt: u.updatedAt } : i,
-        )
-      })
-    },
-    [filters.status, setItems],
-  )
+  // archive): delegates to useInboxState.patchItem, which patches the cached
+  // infinite-query pages (update status in-place, or drop if it leaves the filter).
+  const handleItemStatusChanged = useCallback((u: InboxItem) => patchItem(u), [patchItem])
 
   const detailState = useInboxDetail(selectedItem, !!selectedItem, inboxFns, {
     autoMarkRead: true,
@@ -135,14 +120,14 @@ export function useInboxPage(
     search,
     filters,
     items,
-    setItems,
     nextCursor,
     isLoading,
     error,
     selectedIds,
     setSelectedIds,
     loadAction,
-    loadItems,
+    loadMore,
+    refetch,
     handleRowClick,
     closeDetail,
     handleBulkDone,
