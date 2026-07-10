@@ -18,25 +18,6 @@ import { getNotificationUrl } from './notification-utils'
 import { NotificationPopoverContent } from './notification-popover-content'
 import type { Notification } from '#/contexts/notification/application/public-api'
 
-// Bell trigger + unread count badge.
-function NotificationBell({ count }: Readonly<{ count: number }>) {
-  return (
-    <Button
-      variant="ghost"
-      size="icon-sm"
-      className="relative"
-      aria-label={`Notifications${count > 0 ? `, ${count} unread` : ''}`}
-    >
-      <Bell className="size-4" />
-      {count > 0 && (
-        <span className="absolute -top-0.5 -right-0.5 flex size-4 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-primary-foreground">
-          {count > 9 ? '9+' : count}
-        </span>
-      )}
-    </Button>
-  )
-}
-
 // Screen-reader live region announcing the unread count.
 function NotificationAriaLive({ count }: Readonly<{ count: number }>) {
   return (
@@ -121,7 +102,19 @@ export function NotificationPanel({
   return (
     <Popover open={panel.open} onOpenChange={panel.handleOpenChange}>
       <PopoverTrigger asChild>
-        <NotificationBell count={panel.count} />
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="relative"
+          aria-label={`Notifications${panel.count > 0 ? `, ${panel.count} unread` : ''}`}
+        >
+          <Bell className="size-4" />
+          {panel.count > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 flex size-4 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-primary-foreground">
+              {panel.count > 9 ? '9+' : panel.count}
+            </span>
+          )}
+        </Button>
       </PopoverTrigger>
       <NotificationAriaLive count={panel.count} />
       <PopoverContent align="end" className="w-80 p-0">
