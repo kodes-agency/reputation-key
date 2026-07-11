@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { queryOptions, useQuery } from '@tanstack/react-query'
+import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
 import { z } from 'zod/v4'
 import { listStaffGoals } from '#/contexts/goal/server/staff-goals'
 import { getStaffVisibleBadges } from '#/contexts/badge/server/badges'
@@ -105,25 +105,20 @@ export const Route = createFileRoute('/_authenticated/home')({
 function StaffHomePage() {
   const { propertyId: searchPropertyId, portalId: searchPortalId } = Route.useSearch()
 
-  const { data: goalsData } = useQuery({
+  const { data: goalsData } = useSuspenseQuery({
     ...staffGoalsQuery(searchPropertyId ?? ''),
-    enabled: !!searchPropertyId,
   })
-  const { data: dashboardData } = useQuery({
+  const { data: dashboardData } = useSuspenseQuery({
     ...staffDashboardQuery(searchPropertyId ?? '', searchPortalId),
-    enabled: !!searchPropertyId,
   })
-  const { data: portalsData } = useQuery({
+  const { data: portalsData } = useSuspenseQuery({
     ...staffPortalsQuery(searchPropertyId ?? ''),
-    enabled: !!searchPropertyId,
   })
-  const { data: activityData } = useQuery({
+  const { data: activityData } = useSuspenseQuery({
     ...staffActivityQuery(searchPropertyId ?? ''),
-    enabled: !!searchPropertyId,
   })
-  const { data: badgesData } = useQuery({
+  const { data: badgesData } = useSuspenseQuery({
     ...staffBadgesQuery(searchPropertyId ?? ''),
-    enabled: !!searchPropertyId,
   })
 
   const goals = goalsData?.goals ?? []

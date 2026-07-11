@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { queryOptions, useQuery } from '@tanstack/react-query'
+import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
 import { z } from 'zod/v4'
 import { listStaffGoals } from '#/contexts/goal/server/staff-goals'
 import { goalKeys } from '#/shared/queries/query-keys'
@@ -37,9 +37,8 @@ export const Route = createFileRoute('/_authenticated/progress')({
 
 function StaffProgressPage() {
   const { propertyId: searchPropertyId } = Route.useSearch()
-  const { data } = useQuery({
+  const { data } = useSuspenseQuery({
     ...staffGoalsQuery(searchPropertyId ?? ''),
-    enabled: !!searchPropertyId,
   })
   const goals = data?.goals ?? []
   // No property selected — the sidebar defaults ?propertyId= on first load.
