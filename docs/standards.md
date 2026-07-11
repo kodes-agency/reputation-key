@@ -179,6 +179,7 @@ type ContextApi<T> = Readonly<{
   internal: Readonly<{
     repos: { ... }          // Repositories for adapter wiring in composition.ts
     useCases: { ... }       // Use cases for server function wiring in composition.ts
+    // Additional context-specific keys (e.g. storage, events) allowed if consumed by composition.ts only
   }>
 }>
 ```

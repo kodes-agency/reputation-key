@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { resolveLinkAndTrack } from '#/contexts/guest/server/public'
 import { getLogger } from '#/shared/observability/logger'
-import { isValidExternalUrl } from '#/contexts/portal/server/portal-links'
+import { isValidExternalUrl } from '#/contexts/portal/application/public-api'
 
 export const Route = createFileRoute('/api/public/click/$linkId')({
   server: {

@@ -36,6 +36,7 @@ const staffGoalsQuery = (propertyId: string) =>
   queryOptions({
     queryKey: goalKeys.staff(propertyId),
     queryFn: () => listStaffGoals({ data: { propertyId } }),
+    staleTime: 60 * 1000,
   })
 
 const staffDashboardQuery = (propertyId: string, portalId: string | undefined) =>
@@ -43,24 +44,28 @@ const staffDashboardQuery = (propertyId: string, portalId: string | undefined) =
     queryKey: dashboardKeys.staff({ propertyId, portalId }),
     queryFn: () =>
       getStaffDashboardDataFn({ data: { propertyId, portalId, timeRange: '30d' } }),
+    staleTime: 60 * 1000,
   })
 
 const staffPortalsQuery = (propertyId: string) =>
   queryOptions({
     queryKey: staffKeys.portals(propertyId),
     queryFn: () => listStaffPortals({ data: { propertyId } }),
+    staleTime: 60 * 1000,
   })
 
 const staffActivityQuery = (propertyId: string) =>
   queryOptions({
     queryKey: reviewKeys.staffActivity(propertyId),
     queryFn: () => getStaffRecentActivity({ data: { propertyId } }),
+    staleTime: 60 * 1000,
   })
 
 const staffBadgesQuery = (propertyId: string) =>
   queryOptions({
     queryKey: badgeKeys.staffVisible(propertyId),
     queryFn: () => getStaffVisibleBadges({ data: { propertyId, limit: 6 } }),
+    staleTime: 60 * 1000,
   })
 
 export const Route = createFileRoute('/_authenticated/home')({

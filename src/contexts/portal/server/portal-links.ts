@@ -17,7 +17,6 @@ import { isPortalError } from '../domain/errors'
 import { portalErrorStatus } from './portals'
 
 // Re-export domain rules for route-layer consumption (boundary compliance)
-export { isValidExternalUrl } from '../domain/rules'
 
 // ── Link CRUD ──────────────────────────────────────────────────────
 

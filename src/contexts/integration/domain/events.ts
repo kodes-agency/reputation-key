@@ -2,12 +2,12 @@
 // Standards: docs/standards.md §1
 
 import { newEventId } from '#/shared/domain/event-id'
+import { assert } from '#/shared/domain/assert'
 import type {
   GoogleConnectionId,
   GbpImportJobId,
   OrganizationId,
 } from '#/shared/domain/ids'
-import { integrationError } from './errors'
 
 export type IntegrationGoogleAccountConnected = Readonly<{
   _tag: 'integration.google_account.connected'
@@ -21,8 +21,7 @@ export type IntegrationGoogleAccountConnected = Readonly<{
 export const integrationGoogleAccountConnected = (
   args: Omit<IntegrationGoogleAccountConnected, '_tag' | 'correlationId' | 'eventId'>,
 ): IntegrationGoogleAccountConnected => {
-  if (!(args.occurredAt instanceof Date))
-    throw integrationError('invalid_event', 'occurredAt must be Date')
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
   return {
     _tag: 'integration.google_account.connected',
     eventId: newEventId(),
@@ -42,8 +41,7 @@ export type IntegrationGoogleAccountDisconnected = Readonly<{
 export const integrationGoogleAccountDisconnected = (
   args: Omit<IntegrationGoogleAccountDisconnected, '_tag' | 'correlationId' | 'eventId'>,
 ): IntegrationGoogleAccountDisconnected => {
-  if (!(args.occurredAt instanceof Date))
-    throw integrationError('invalid_event', 'occurredAt must be Date')
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
   return {
     _tag: 'integration.google_account.disconnected',
     eventId: newEventId(),
@@ -67,8 +65,7 @@ export type IntegrationPropertyImportCompleted = Readonly<{
 export const integrationPropertyImportCompleted = (
   args: Omit<IntegrationPropertyImportCompleted, '_tag' | 'correlationId' | 'eventId'>,
 ): IntegrationPropertyImportCompleted => {
-  if (!(args.occurredAt instanceof Date))
-    throw integrationError('invalid_event', 'occurredAt must be Date')
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
   return {
     _tag: 'integration.property_import.completed',
     eventId: newEventId(),
@@ -92,8 +89,7 @@ export const integrationGoogleConnectionVisibilityChanged = (
     '_tag' | 'correlationId' | 'eventId'
   >,
 ): IntegrationGoogleConnectionVisibilityChanged => {
-  if (!(args.occurredAt instanceof Date))
-    throw integrationError('invalid_event', 'occurredAt must be Date')
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
   return {
     _tag: 'integration.google_connection.visibility_changed',
     eventId: newEventId(),

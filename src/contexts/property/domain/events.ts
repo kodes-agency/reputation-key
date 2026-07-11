@@ -4,7 +4,7 @@
 import type { PropertyId } from './types'
 import type { OrganizationId, GoogleConnectionId } from '#/shared/domain/ids'
 import { newEventId } from '#/shared/domain/event-id'
-import { propertyError } from './errors'
+import { assert } from '#/shared/domain/assert'
 
 export type PropertyCreated = Readonly<{
   _tag: 'property.created'
@@ -26,8 +26,7 @@ export type PropertyCreated = Readonly<{
 export const propertyCreated = (
   args: Omit<PropertyCreated, '_tag' | 'eventId' | 'correlationId'>,
 ): PropertyCreated => {
-  if (!(args.occurredAt instanceof Date))
-    throw propertyError('invalid_name', 'occurredAt must be Date')
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
   return {
     _tag: 'property.created',
     eventId: newEventId(),
@@ -49,8 +48,7 @@ export type PropertyUpdated = Readonly<{
 export const propertyUpdated = (
   args: Omit<PropertyUpdated, '_tag' | 'eventId' | 'correlationId'>,
 ): PropertyUpdated => {
-  if (!(args.occurredAt instanceof Date))
-    throw propertyError('invalid_name', 'occurredAt must be Date')
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
   return {
     _tag: 'property.updated',
     eventId: newEventId(),
@@ -70,8 +68,7 @@ export type PropertyDeleted = Readonly<{
 export const propertyDeleted = (
   args: Omit<PropertyDeleted, '_tag' | 'eventId' | 'correlationId'>,
 ): PropertyDeleted => {
-  if (!(args.occurredAt instanceof Date))
-    throw propertyError('invalid_name', 'occurredAt must be Date')
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
   return {
     _tag: 'property.deleted',
     eventId: newEventId(),

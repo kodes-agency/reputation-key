@@ -17,6 +17,7 @@ const staffGoalsQuery = (propertyId: string) =>
   queryOptions({
     queryKey: goalKeys.staff(propertyId),
     queryFn: () => listStaffGoals({ data: { propertyId } }),
+    staleTime: 60 * 1000,
   })
 
 export const Route = createFileRoute('/_authenticated/progress')({

@@ -2,6 +2,7 @@
 // Standards: docs/standards.md §1
 
 import { newEventId } from '#/shared/domain/event-id'
+import { assert } from '#/shared/domain/assert'
 import type {
   InboxItemId,
   InboxNoteId,
@@ -12,7 +13,6 @@ import type {
   FeedbackId,
 } from '#/shared/domain/ids'
 import type { InboxStatus, SourceType } from './types'
-import { inboxError } from './errors'
 
 export type InboxItemCreated = Readonly<{
   _tag: 'inbox.inbox_item.created'
@@ -35,9 +35,8 @@ export const inboxItemCreated = (
     '_tag' | 'correlationId' | 'eventId' | 'userId' | 'source' | 'propertyId'
   > & { userId?: UserId; source?: 'web' | 'import'; propertyId?: PropertyId },
 ): InboxItemCreated => {
-  if (!(args.occurredAt instanceof Date))
-    throw inboxError('invalid_input', 'occurredAt must be Date')
-  if (args.inboxItemId === '') throw inboxError('invalid_input', 'inboxItemId required')
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  assert(args.inboxItemId !== '', 'inboxItemId required')
   return {
     _tag: 'inbox.inbox_item.created',
     eventId: newEventId(),
@@ -68,13 +67,11 @@ export const inboxItemStatusChanged = (
     '_tag' | 'correlationId' | 'eventId' | 'userId' | 'source' | 'propertyId'
   > & { userId?: UserId; source?: 'web' | 'import'; propertyId?: PropertyId },
 ): InboxItemStatusChanged => {
-  if (!(args.occurredAt instanceof Date))
-    throw inboxError('invalid_input', 'occurredAt must be Date')
-  if (args.oldStatus === args.newStatus)
-    throw inboxError(
-      'invalid_transition',
-      'Status change must transition to different status',
-    )
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  assert(
+    args.oldStatus !== args.newStatus,
+    'Status change must transition to different status',
+  )
   return {
     _tag: 'inbox.inbox_item.status_changed',
     eventId: newEventId(),
@@ -104,9 +101,8 @@ export const inboxItemAssigned = (
     '_tag' | 'correlationId' | 'eventId' | 'userId' | 'source' | 'propertyId'
   > & { userId?: UserId; source?: 'web' | 'import'; propertyId?: PropertyId },
 ): InboxItemAssigned => {
-  if (!(args.occurredAt instanceof Date))
-    throw inboxError('invalid_input', 'occurredAt must be Date')
-  if (!args.userId) throw inboxError('invalid_input', 'userId required')
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  assert(args.userId, 'userId required')
   return {
     _tag: 'inbox.inbox_item.assigned',
     eventId: newEventId(),
@@ -136,8 +132,7 @@ export const inboxItemUnassigned = (
     '_tag' | 'correlationId' | 'eventId' | 'userId' | 'source' | 'propertyId'
   > & { userId?: UserId; source?: 'web' | 'import'; propertyId?: PropertyId },
 ): InboxItemUnassigned => {
-  if (!(args.occurredAt instanceof Date))
-    throw inboxError('invalid_input', 'occurredAt must be Date')
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
   return {
     _tag: 'inbox.inbox_item.unassigned',
     eventId: newEventId(),
@@ -167,8 +162,7 @@ export const inboxItemEscalated = (
     '_tag' | 'correlationId' | 'eventId' | 'userId' | 'source' | 'propertyId'
   > & { userId?: UserId; source?: 'web' | 'import'; propertyId?: PropertyId },
 ): InboxItemEscalated => {
-  if (!(args.occurredAt instanceof Date))
-    throw inboxError('invalid_input', 'occurredAt must be Date')
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
   return {
     _tag: 'inbox.inbox_item.escalated',
     eventId: newEventId(),
@@ -199,9 +193,8 @@ export const inboxNoteAdded = (
     '_tag' | 'correlationId' | 'eventId' | 'userId' | 'source' | 'propertyId'
   > & { userId?: UserId; source?: 'web' | 'import'; propertyId?: PropertyId },
 ): InboxNoteAdded => {
-  if (!(args.occurredAt instanceof Date))
-    throw inboxError('invalid_input', 'occurredAt must be Date')
-  if (args.text.length === 0) throw inboxError('invalid_input', 'note text required')
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  assert(args.text.length > 0, 'note text required')
   return {
     _tag: 'inbox.inbox_note.added',
     eventId: newEventId(),
@@ -233,13 +226,11 @@ export const inboxItemBulkStatusChanged = (
     '_tag' | 'correlationId' | 'eventId' | 'userId' | 'source' | 'propertyId'
   > & { userId?: UserId; source?: 'web' | 'import'; propertyId?: PropertyId },
 ): InboxItemBulkStatusChanged => {
-  if (!(args.occurredAt instanceof Date))
-    throw inboxError('invalid_input', 'occurredAt must be Date')
-  if (args.oldStatus === args.newStatus)
-    throw inboxError(
-      'invalid_transition',
-      'Bulk status change must transition to different status',
-    )
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  assert(
+    args.oldStatus !== args.newStatus,
+    'Bulk status change must transition to different status',
+  )
   return {
     _tag: 'inbox.inbox_item.bulk_status_changed',
     eventId: newEventId(),

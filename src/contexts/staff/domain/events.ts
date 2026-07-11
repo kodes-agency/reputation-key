@@ -2,6 +2,7 @@
 // Standards: docs/standards.md §1
 
 import { newEventId } from '#/shared/domain/event-id'
+import { assert } from '#/shared/domain/assert'
 import type { StaffAssignmentId } from './types'
 import type {
   OrganizationId,
@@ -10,7 +11,6 @@ import type {
   TeamId,
   UserId,
 } from '#/shared/domain/ids'
-import { staffError } from './errors'
 
 export type StaffAssigned = Readonly<{
   _tag: 'staff.assigned'
@@ -27,8 +27,7 @@ export type StaffAssigned = Readonly<{
 export const staffAssigned = (
   args: Omit<StaffAssigned, '_tag' | 'eventId' | 'correlationId'>,
 ): StaffAssigned => {
-  if (!(args.occurredAt instanceof Date))
-    throw staffError('invalid_input', 'occurredAt must be Date')
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
   return {
     _tag: 'staff.assigned',
     eventId: newEventId(),
@@ -51,8 +50,7 @@ export type StaffUnassigned = Readonly<{
 export const staffUnassigned = (
   args: Omit<StaffUnassigned, '_tag' | 'eventId' | 'correlationId'>,
 ): StaffUnassigned => {
-  if (!(args.occurredAt instanceof Date))
-    throw staffError('invalid_input', 'occurredAt must be Date')
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
   return {
     _tag: 'staff.unassigned',
     eventId: newEventId(),

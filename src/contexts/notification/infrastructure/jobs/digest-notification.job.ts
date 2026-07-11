@@ -30,8 +30,8 @@ type DigestDeps = Readonly<{
 }>
 
 /** Get current hour (0–23) in the given IANA timezone. */
-const currentHourInTz = (tz: string): number => {
-  const s = new Date().toLocaleString('en-US', {
+const currentHourInTz = (clock: () => Date, tz: string): number => {
+  const s = clock().toLocaleString('en-US', {
     timeZone: tz,
     hour: 'numeric',
     hour12: false,
@@ -50,11 +50,14 @@ const fetchOrgTimezones = async (pool: Pool): Promise<OrgTimezoneRow[]> => {
 }
 
 /** Orgs whose local hour is the digest window (8am). */
-const selectDigestOrgs = (rows: readonly OrgTimezoneRow[]): Set<string> => {
+const selectDigestOrgs = (
+  clock: () => Date,
+  rows: readonly OrgTimezoneRow[],
+): Set<string> => {
   const qualifyingOrgIds = new Set<string>()
   for (const row of rows) {
     try {
-      if (currentHourInTz(row.timezone) === 8) {
+      if (currentHourInTz(clock, row.timezone) === 8) {
         qualifyingOrgIds.add(row.organization_id)
       }
     } catch {
@@ -201,7 +204,7 @@ export const createDigestNotificationJobHandler = (deps: DigestDeps) => {
     const rows = await fetchOrgTimezones(deps.pool)
 
     // 2. Orgs currently in their 8am digest window
-    const qualifyingOrgIds = selectDigestOrgs(rows)
+    const qualifyingOrgIds = selectDigestOrgs(deps.clock, rows)
     if (qualifyingOrgIds.size === 0) return
 
     // 3. Send each qualifying org's digests.

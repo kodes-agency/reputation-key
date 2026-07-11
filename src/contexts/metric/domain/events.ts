@@ -2,6 +2,7 @@
 // Standards: docs/standards.md §1
 
 import { newEventId } from '#/shared/domain/event-id'
+import { assert } from '#/shared/domain/assert'
 import type {
   MetricReadingId,
   OrganizationId,
@@ -10,7 +11,6 @@ import type {
   PortalGroupId,
 } from '#/shared/domain/ids'
 import type { MetricKey } from './types'
-import { metricError } from './errors'
 
 export type MetricRecorded = Readonly<{
   _tag: 'metric.recorded'
@@ -28,8 +28,7 @@ export type MetricRecorded = Readonly<{
 export const metricRecorded = (
   args: Omit<MetricRecorded, '_tag' | 'correlationId' | 'eventId'>,
 ): MetricRecorded => {
-  if (!(args.occurredAt instanceof Date))
-    throw metricError('invalid_value', 'occurredAt must be Date')
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
   return {
     _tag: 'metric.recorded',
     eventId: newEventId(),
