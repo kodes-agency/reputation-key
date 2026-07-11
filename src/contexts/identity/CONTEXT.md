@@ -74,25 +74,21 @@ identity/
 
 ## Use cases
 
-| Name                    | Input                                                      | Output               | Permission               |
-| ----------------------- | ---------------------------------------------------------- | -------------------- | ------------------------ |
-| `registerUser`          | `name`, `email`, `password`                                | `User`               | public                   |
-| `registerUserAndOrg`    | `name`, `email`, `password`, `organizationName`, `orgSlug` | `{ user, org }`      | public                   |
-| `inviteMember`          | `email`, `role`, `organizationId`                          | `Invitation`         | `invitation.create`      |
-| `acceptInvitation`      | `invitationId`, `organizationId`                           | `{ user, org }`      | authenticated            |
-| `cancelInvitation`      | `invitationId`, `organizationId`                           | `void`               | `invitation.cancel`      |
-| `resendInvitation`      | `invitationId`, `organizationId`                           | `Invitation`         | `invitation.resend`      |
-| `listInvitations`       | `organizationId`                                           | `Invitation[]`       | `invitation.list`        |
-| `removeMember`          | `memberId`, `organizationId`                               | `void`               | `member.delete`          |
-| `updateMemberRole`      | `memberId`, `newRole`, `organizationId`                    | `Member`             | `member.update`          |
-| `createCustomRole`      | `organizationId`, `name`, `permissions`                    | `CustomRole`         | `member.update`          |
-| `updateCustomRole`      | `organizationId`, `roleId`, `name?`, `permissions?`        | `CustomRole`         | `member.update`          |
-| `deleteCustomRole`      | `organizationId`, `roleId`                                 | `void`               | `member.update`          |
-| `updateOrganization`    | `organizationId`, `name?`, `slug?`, `logo?`                | `Organization`       | `organization.update`    |
-| `requestOrgLogoUpload`  | `contentType`, `fileSize`                                  | `{ uploadUrl, key }` | `identity.logo_upload`   |
-| `finalizeOrgLogoUpload` | `key`                                                      | `{ logoUrl }`        | `identity.logo_upload`   |
-| `requestAvatarUpload`   | `contentType`, `fileSize`                                  | `{ uploadUrl, key }` | `identity.avatar_upload` |
-| `finalizeAvatarUpload`  | `key`                                                      | `{ avatarUrl }`      | `identity.avatar_upload` |
+| Name                 | Input                                                      | Output          | Permission            |
+| -------------------- | ---------------------------------------------------------- | --------------- | --------------------- |
+| `registerUser`       | `name`, `email`, `password`                                | `User`          | public                |
+| `registerUserAndOrg` | `name`, `email`, `password`, `organizationName`, `orgSlug` | `{ user, org }` | public                |
+| `inviteMember`       | `email`, `role`, `organizationId`                          | `Invitation`    | `invitation.create`   |
+| `acceptInvitation`   | `invitationId`, `organizationId`                           | `{ user, org }` | authenticated         |
+| `cancelInvitation`   | `invitationId`, `organizationId`                           | `void`          | `invitation.cancel`   |
+| `resendInvitation`   | `invitationId`, `organizationId`                           | `Invitation`    | `invitation.resend`   |
+| `listInvitations`    | `organizationId`                                           | `Invitation[]`  | `invitation.list`     |
+| `removeMember`       | `memberId`, `organizationId`                               | `void`          | `member.delete`       |
+| `updateMemberRole`   | `memberId`, `newRole`, `organizationId`                    | `Member`        | `member.update`       |
+| `createCustomRole`   | `organizationId`, `name`, `permissions`                    | `CustomRole`    | `member.update`       |
+| `updateCustomRole`   | `organizationId`, `roleId`, `name?`, `permissions?`        | `CustomRole`    | `member.update`       |
+| `deleteCustomRole`   | `organizationId`, `roleId`                                 | `void`          | `member.update`       |
+| `updateOrganization` | `organizationId`, `name?`, `slug?`, `logo?`                | `Organization`  | `organization.update` |
 
 ## Public API
 

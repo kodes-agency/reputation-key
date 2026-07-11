@@ -85,13 +85,15 @@ goal/
 
 ## Use cases
 
-| Use case     | Input                                                                                                                                                                                                            | Output   | Permission    |
-| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------------- |
-| `createGoal` | organizationId, propertyId, portalId?, portalGroupId?, name, description?, goalType, aggregationFunction, metricKey, targetValue, periodStart?, periodEnd?, recurrenceRule?, rollingWindowDays?, createdBy, role | `Goal`   | `goal.create` |
-| `updateGoal` | goalId, organizationId, targetValue?, recurrenceRule?, role                                                                                                                                                      | `Goal`   | `goal.update` |
-| `cancelGoal` | goalId, organizationId, role                                                                                                                                                                                     | `Goal`   | `goal.cancel` |
-| `listGoals`  | organizationId, propertyId, portalId?, portalGroupId?, status?, goalType?, role                                                                                                                                  | `Goal[]` | `goal.read`   |
-| `getGoal`    | goalId, organizationId, role                                                                                                                                                                                     | `Goal`   | `goal.read`   |
+| Use case           | Input                                                                                                                                                                                                            | Output             | Permission    |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ | ------------- |
+| `createGoal`       | organizationId, propertyId, portalId?, portalGroupId?, name, description?, goalType, aggregationFunction, metricKey, targetValue, periodStart?, periodEnd?, recurrenceRule?, rollingWindowDays?, createdBy, role | `Goal`             | `goal.create` |
+| `updateGoal`       | goalId, organizationId, targetValue?, recurrenceRule?, role                                                                                                                                                      | `Goal`             | `goal.update` |
+| `cancelGoal`       | goalId, organizationId, role                                                                                                                                                                                     | `Goal`             | `goal.cancel` |
+| `listGoals`        | organizationId, propertyId, portalId?, portalGroupId?, status?, goalType?, role                                                                                                                                  | `Goal[]`           | `goal.read`   |
+| `getGoal`          | goalId, organizationId, role                                                                                                                                                                                     | `Goal`             | `goal.read`   |
+| `listStaffGoals`   | organizationId, userId, role                                                                                                                                                                                     | `StaffGoalEntry[]` | `goal.read`   |
+| `systemCancelGoal` | goalId, organizationId                                                                                                                                                                                           | `Goal`             | (system)      |
 
 ## Public API
 
