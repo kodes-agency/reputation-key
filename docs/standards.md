@@ -151,6 +151,8 @@ export type AddInboxNote = ReturnType<typeof addInboxNote>
 
 **Shared deps:** Multiple use cases in the same file MAY share a single deps type if all dependencies are identical. Example: `ReplyDeps` for 6 reply operations.
 
+**Error contracts:** Prefer returning `Result<T, E>` (neverthrow) for fallible use cases (those that can fail with domain errors). Throw only for unexpected. Update call sites (server fns) to handle `.match()`. This standardizes over mixed throw/Result. See ERR-01 from review.
+
 ### 2.2 Steps in order
 
 ```

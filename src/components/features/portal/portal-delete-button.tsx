@@ -1,5 +1,6 @@
 // Portal delete button with confirmation dialog
-// Receives deletePortal server fn as prop per src/components/CONTEXT.md.
+// Receives wrapped delete action (from route) per QRY-04/05 + routes/CONTEXT.md.
+// Component does not call useActionMutation; route owns the mutation.
 
 import {
   AlertDialog,
@@ -14,26 +15,19 @@ import {
 } from '#/components/ui/alert-dialog'
 import { Button } from '#/components/ui/button'
 import { Trash2 } from 'lucide-react'
-import { useActionMutation } from '#/components/hooks/use-action-mutation'
-import { portalKeys } from '#/shared/queries/query-keys'
-import type { deletePortal } from '#/contexts/portal/server/portals'
+import type { Action } from '#/components/hooks/use-action'
 
 interface PortalDeleteButtonProps {
   portalId: string
   portalName: string
-  deletePortalFn: typeof deletePortal
+  deleteMutation: Action<{ data: { portalId: string } }>
 }
 
 export function PortalDeleteButton({
   portalId,
   portalName,
-  deletePortalFn,
+  deleteMutation,
 }: PortalDeleteButtonProps) {
-  const deleteMutation = useActionMutation(deletePortalFn, {
-    successMessage: 'Portal deleted',
-    invalidateKeys: [portalKeys.all],
-  })
-
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>

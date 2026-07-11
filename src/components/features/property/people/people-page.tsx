@@ -1,17 +1,10 @@
 // People page component — staff, teams, and directory management
 import { useState } from 'react'
 import { z } from 'zod'
-import type {
-  listStaffAssignments,
-  createStaffAssignment,
-  removeStaffAssignment,
-  updateStaffPortals,
-} from '#/contexts/staff/server/staff-assignments'
-import type { listTeams, createTeam, deleteTeam } from '#/contexts/team/server/teams'
+import type { listStaffAssignments } from '#/contexts/staff/server/staff-assignments'
+import type { listTeams } from '#/contexts/team/server/teams'
 import type { listMembers } from '#/contexts/identity/server/organizations'
 import { Tabs, TabsList, TabsTrigger } from '#/components/ui/tabs'
-import { useActionMutation } from '#/components/hooks/use-action-mutation'
-import { staffKeys, teamKeys, propertyKeys } from '#/shared/queries/query-keys'
 import { toMemberOptions, toTeamOptions } from '#/lib/lookups'
 import { StaffTab } from '#/components/features/property/people/staff-tab'
 import { TeamsTab } from '#/components/features/property/people/teams-tab'
@@ -19,6 +12,9 @@ import { DirectoryTab } from '#/components/features/property/people/directory-ta
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
 import type { listPortals } from '#/contexts/portal/server/portals'
+import type { Action } from '#/components/hooks/use-action'
+import type { CreateStaffAssignmentInput } from '#/contexts/staff/application/dto/staff-assignment.dto'
+import type { CreateTeamInput } from '#/contexts/team/application/dto/create-team.dto'
 
 export const peopleSearchSchema = z.object({
   tab: z.string().optional(),
@@ -33,11 +29,13 @@ interface PeoplePageProps {
   portals: Awaited<ReturnType<typeof listPortals>>['portals']
   tab: string | undefined
   onTabChange: (tab: string) => void
-  createStaffAssignmentFn: typeof createStaffAssignment
-  removeStaffAssignmentFn: typeof removeStaffAssignment
-  createTeamFn: typeof createTeam
-  deleteTeamFn: typeof deleteTeam
-  updateStaffPortalsFn: typeof updateStaffPortals
+  assignMutation: Action<{ data: CreateStaffAssignmentInput }>
+  removeMutation: Action<{ data: { assignmentId: string } }>
+  createTeamMutation: Action<{ data: CreateTeamInput }>
+  deleteTeamMutation: Action<{ data: { teamId: string } }>
+  updatePortalsMutation: Action<{
+    data: { userId: string; propertyId: string; portalIds: string[] }
+  }>
 }
 
 export function PeoplePage({
@@ -49,11 +47,11 @@ export function PeoplePage({
   portals,
   tab,
   onTabChange,
-  createStaffAssignmentFn,
-  removeStaffAssignmentFn,
-  createTeamFn,
-  deleteTeamFn,
-  updateStaffPortalsFn,
+  assignMutation,
+  removeMutation,
+  createTeamMutation,
+  deleteTeamMutation,
+  updatePortalsMutation,
 }: PeoplePageProps) {
   const defaultTab = tab ?? 'staff'
   const [assignOpen, setAssignOpen] = useState(false)
@@ -63,31 +61,6 @@ export function PeoplePage({
   const teamOptions = toTeamOptions(teams)
   const portalOptions = portals.map((p) => ({ id: String(p.id), name: p.name }))
   const assignedUserIds = new Set(assignments.map((a) => a.userId))
-
-  const invalidateKeys = [
-    staffKeys.assignments(propertyId),
-    teamKeys.list(propertyId),
-    propertyKeys.detail(propertyId),
-  ]
-
-  const assignMutation = useActionMutation(createStaffAssignmentFn, {
-    invalidateKeys,
-  })
-  const removeMutation = useActionMutation(removeStaffAssignmentFn, {
-    successMessage: 'Staff member unassigned',
-    invalidateKeys,
-  })
-  const createTeamMutation = useActionMutation(createTeamFn, {
-    successMessage: 'Team created',
-    invalidateKeys,
-    onSuccess: async () => {
-      setCreateTeamOpen(false)
-    },
-  })
-  const deleteTeamMutation = useActionMutation(deleteTeamFn, {
-    successMessage: 'Team deleted',
-    invalidateKeys,
-  })
 
   return (
     <PageShell>
@@ -119,7 +92,7 @@ export function PeoplePage({
           removeMutation={removeMutation}
           assignOpen={assignOpen}
           onAssignOpenChange={setAssignOpen}
-          updateStaffPortalsFn={updateStaffPortalsFn}
+          updatePortalsMutation={updatePortalsMutation}
         />
         <TeamsTab
           propertyId={propertyId}

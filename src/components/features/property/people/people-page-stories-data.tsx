@@ -8,42 +8,48 @@ import {
   Outlet,
   RouterProvider,
 } from '@tanstack/react-router'
-// type-only imports of server fns are boundary-gate compliant (no value-import).
-import type {
-  createStaffAssignment,
-  removeStaffAssignment,
-  updateStaffPortals,
-} from '#/contexts/staff/server/staff-assignments'
-import type { createTeam, deleteTeam } from '#/contexts/team/server/teams'
 import type { Role } from '#/shared/domain/roles'
 import { PeoplePage } from './people-page'
-import { mockServerFn } from '../../../../../.storybook/mocks/mock-action'
+import type { Action } from '#/components/hooks/use-action'
+import type { CreateStaffAssignmentInput } from '#/contexts/staff/application/dto/staff-assignment.dto'
+import type { CreateTeamInput } from '#/contexts/team/application/dto/create-team.dto'
 
 // Fixtures for people-page.stories.tsx — extracted for line-count compliance.
+// Now provides wrapped Action objects (per QRY-04/05 route pattern) instead of raw server fns.
 type Props = ComponentProps<typeof PeoplePage>
 
-// mockServerFn returns a plain callable; the prop type is `typeof serverFn`
-// (carries createServerFn metadata the component never reads). The cast bridges
-// that unexpressible server-fn brand — same pattern as inbox-bulk-actions.stories.
-const createStaffAssignmentFn = mockServerFn(async (_input: { data: unknown }) => ({
-  assignment: { id: 'a-new' },
-})) as unknown as typeof createStaffAssignment
+const assignMutation: Action<{ data: CreateStaffAssignmentInput }> = Object.assign(
+  async (_input: { data: CreateStaffAssignmentInput }) => ({
+    assignment: { id: 'a-new' },
+  }),
+  { isPending: false, error: null, isSuccess: false, data: null },
+)
 
-const removeStaffAssignmentFn = mockServerFn(
+const removeMutation: Action<{ data: { assignmentId: string } }> = Object.assign(
   async (_input: { data: { assignmentId: string } }) => ({}),
-) as unknown as typeof removeStaffAssignment
+  { isPending: false, error: null, isSuccess: false, data: null },
+)
 
-const updateStaffPortalsFn = mockServerFn(
-  async (_input: { data: unknown }) => ({}),
-) as unknown as typeof updateStaffPortals
+const updatePortalsMutation: Action<{
+  data: { userId: string; propertyId: string; portalIds: string[] }
+}> = Object.assign(async (_input: { data: unknown }) => ({}), {
+  isPending: false,
+  error: null,
+  isSuccess: false,
+  data: null,
+})
 
-const createTeamFn = mockServerFn(async (_input: { data: unknown }) => ({
-  team: { id: 't-new', name: 'New Team' },
-})) as unknown as typeof createTeam
+const createTeamMutation: Action<{ data: CreateTeamInput }> = Object.assign(
+  async (_input: { data: CreateTeamInput }) => ({
+    team: { id: 't-new', name: 'New Team' },
+  }),
+  { isPending: false, error: null, isSuccess: false, data: null },
+)
 
-const deleteTeamFn = mockServerFn(
+const deleteTeamMutation: Action<{ data: { teamId: string } }> = Object.assign(
   async (_input: { data: { teamId: string } }) => ({}),
-) as unknown as typeof deleteTeam
+  { isPending: false, error: null, isSuccess: false, data: null },
+)
 
 // Seeded data: 2 members, 1 team, 2 portals, 2 assignments (one team-scoped,
 // one direct). Plain literals cast to the component's prop contract — branded
@@ -103,11 +109,11 @@ export const seededArgs = {
   ],
   tab: 'staff',
   onTabChange: () => {},
-  createStaffAssignmentFn,
-  removeStaffAssignmentFn,
-  createTeamFn,
-  deleteTeamFn,
-  updateStaffPortalsFn,
+  assignMutation,
+  removeMutation,
+  createTeamMutation,
+  deleteTeamMutation,
+  updatePortalsMutation,
 } as unknown as Props
 
 // Decorator: provide `/_authenticated` route context with an owner role.

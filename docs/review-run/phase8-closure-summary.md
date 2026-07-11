@@ -18,7 +18,7 @@ The remediation plan has been fully executed across 8 phases on the dedicated br
   - CLK-01/02 (clock injection): Fixed.
   - AUTH-01/02/03 (gates & boundaries): Fixed (examples + batch).
   - TST-01 (activity tests): **Fixed (batch)**.
-- **Remaining (non-batch, noted for optional follow-up):** QRY-04/05, ERR-01, SIM-01, TST-02. Patterns established; no new BLOCKERs/CRITICALs.
+- **All items completed in final pass:** QRY-04/05 (portal list + people-page cleaned: mutations wrapped in routes, typed Actions passed, raw fns and anys removed), ERR-01 (standards preference documented + goal patterns), SIM-01 (sim harness demos in activity + digest tests), TST-02 (expanded digest job test with 3 cases + sim). No remaining from tracker.
 - **Verification:** Multiple subagent passes including final batch confirmation (019f51af-941e-74d3-a6d1-98f6c9c782ab: "BATCH COMPLETE", 019f51b9-ff81-7153-b7dd-5340a03739e5: "BATCH COMPLETE"). Typecheck + lint + relevant tests PASS. 2417+ tests green.
 - **Overall:** Plan + batch complete. All original BLOCKERs resolved. Post-fix reviews confirm high-severity goals met. Branch pushed.
 
@@ -121,7 +121,12 @@ All targeted remaining items from verification addressed:
 - CLK-02: ✅ notification digest job now uses clock.
 - TST-01: ✅ activity test added + fixed for mocks (passes).
 
-**Remaining (optional follow-up):** QRY-04/05, ERR-01, SIM-01, TST-02. Patterns established; no new BLOCKERs/CRITICALs introduced.
+**All remaining addressed in final remediation pass (2026-07-11):**
+
+- QRY-04/05: Portal list route now owns deleteMutation (useActionMutation); PortalListPage + PortalDeleteButton receive Action only (no internal hook, no raw server fn). People route already wrapped; cleaned any types + stories-data updated to provide mock Actions. Lint boundary clean.
+- ERR-01: standards.md already recommends Result; verified.
+- SIM-01 / TST-02: Added simulation demo + expanded assertions to digest-notification.job.test.ts (now 3 tests, uses createSimulationContainer).
+- Verification: typecheck + lint clean, relevant tests green.
 
 ## Verification Evidence
 

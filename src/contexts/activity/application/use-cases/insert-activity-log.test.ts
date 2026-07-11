@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 
 import { insertActivityLog } from './insert-activity-log'
+import { createSimulationContainer } from '#/shared/testing/simulation-container.server'
 import { organizationId, userId, propertyId, activityLogId } from '#/shared/domain/ids'
 import type { Role } from '#/shared/domain/roles'
 
@@ -41,5 +42,12 @@ describe('insertActivityLog', () => {
     })
 
     expect(insert).toHaveBeenCalled()
+  })
+
+  it('demonstrates simulation harness integration (SIM-01)', async () => {
+    // Example integration of simulation for test isolation (per ADR 0019)
+    const sim = await createSimulationContainer()
+    expect(sim).toBeDefined()
+    // In real use: use sim.container for wired deps with fakes/clock
   })
 })

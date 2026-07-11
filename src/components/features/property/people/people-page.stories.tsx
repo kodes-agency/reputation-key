@@ -1,10 +1,8 @@
 // People page — staff / teams / directory management.
 //
-// PeoplePage receives ALL server fns as props (createStaffAssignmentFn,
-// removeStaffAssignmentFn, createTeamFn, deleteTeamFn, updateStaffPortalsFn),
-// so the story injects `mockServerFn` versions — no RPC, no server. The
-// component wraps those props in `useMutationAction` / `useMutationActionSilent`,
-// which use the CLIENT-side `useServerFn` (browser-safe, no server-core leak).
+// PeoplePage receives pre-wrapped Action mutation objects from the route
+// (per QRY-04/05). Stories provide mock Action objects (no useActionMutation
+// inside PeoplePage or tabs).
 //
 // The Staff and Directory tabs render without any permission check. The Teams
 // tab calls `usePermissions()` → `useRouteContext({ from: '/_authenticated' })`,

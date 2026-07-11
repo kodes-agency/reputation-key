@@ -5,6 +5,7 @@ import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import { listPortals, deletePortal } from '#/contexts/portal/server/portals'
 import { PortalListPage } from '#/components/features/portal/portal-list-page'
+import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { portalKeys } from '#/shared/queries/query-keys'
 import { propertiesQuery } from '#/shared/queries/route-queries'
 
@@ -42,13 +43,19 @@ function PortalListRoute() {
   const property = properties?.find((p) => p.id === propertyId)
   const propertySlug = property?.slug ?? ''
   const propertyName = property?.name ?? ''
+
+  const deleteMutation = useActionMutation(deletePortal, {
+    successMessage: 'Portal deleted',
+    invalidateKeys: [portalKeys.list(propertyId), portalKeys.all],
+  })
+
   return (
     <PortalListPage
       portals={portals}
       propertyId={propertyId}
       propertyName={propertyName}
       propertySlug={propertySlug}
-      deletePortalFn={deletePortal}
+      deleteMutation={deleteMutation}
     />
   )
 }

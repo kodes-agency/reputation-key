@@ -3,6 +3,7 @@ import { createFileRoute, redirect } from '@tanstack/react-router'
 import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
+import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import {
   listStaffAssignments,
   createStaffAssignment,
@@ -21,6 +22,7 @@ import {
   identityKeys,
   teamKeys,
   portalKeys,
+  propertyKeys,
 } from '#/shared/queries/query-keys'
 import { propertyQuery } from '#/shared/queries/route-queries'
 
@@ -84,6 +86,34 @@ function PeopleRoute() {
   const search = Route.useSearch() as { tab?: string }
   const navigate = Route.useNavigate()
 
+  const invalidateKeys = [
+    staffKeys.assignments(propertyId),
+    teamKeys.list(propertyId),
+    propertyKeys.detail(propertyId),
+  ]
+
+  const assignMutation = useActionMutation(createStaffAssignment, {
+    invalidateKeys,
+  })
+  const removeMutation = useActionMutation(removeStaffAssignment, {
+    successMessage: 'Staff member unassigned',
+    invalidateKeys,
+  })
+  const createTeamMutation = useActionMutation(createTeam, {
+    successMessage: 'Team created',
+    invalidateKeys,
+    onSuccess: async () => {
+      // handled in component or here; for now pass
+    },
+  })
+  const deleteTeamMutation = useActionMutation(deleteTeam, {
+    successMessage: 'Team deleted',
+    invalidateKeys,
+  })
+  const updatePortalsMutation = useActionMutation(updateStaffPortals, {
+    invalidateKeys,
+  })
+
   return (
     <PeoplePage
       propertyId={propertyId}
@@ -94,11 +124,11 @@ function PeopleRoute() {
       portals={portals}
       tab={search.tab}
       onTabChange={(t) => navigate({ search: { tab: t } })}
-      createStaffAssignmentFn={createStaffAssignment}
-      removeStaffAssignmentFn={removeStaffAssignment}
-      createTeamFn={createTeam}
-      deleteTeamFn={deleteTeam}
-      updateStaffPortalsFn={updateStaffPortals}
+      assignMutation={assignMutation}
+      removeMutation={removeMutation}
+      createTeamMutation={createTeamMutation}
+      deleteTeamMutation={deleteTeamMutation}
+      updatePortalsMutation={updatePortalsMutation}
     />
   )
 }
