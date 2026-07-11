@@ -3,13 +3,14 @@
 
 import type { PropertyId } from './types'
 import type { OrganizationId, GoogleConnectionId } from '#/shared/domain/ids'
+import { newEventId } from '#/shared/domain/event-id'
 import { propertyError } from './errors'
 
 export type PropertyCreated = Readonly<{
   _tag: 'property.created'
   eventId: string
-  propertyId: PropertyId
   organizationId: OrganizationId
+  propertyId: PropertyId
   name: string
   slug: string
   // F063 NOTE: gbpPlaceId and gbpLocationName are optional because
@@ -23,12 +24,13 @@ export type PropertyCreated = Readonly<{
   correlationId: string | null
 }>
 export const propertyCreated = (
-  args: Omit<PropertyCreated, '_tag' | 'correlationId'>,
+  args: Omit<PropertyCreated, '_tag' | 'eventId' | 'correlationId'>,
 ): PropertyCreated => {
   if (!(args.occurredAt instanceof Date))
     throw propertyError('invalid_name', 'occurredAt must be Date')
   return {
     _tag: 'property.created',
+    eventId: newEventId(),
     correlationId: null,
     ...args,
   }
@@ -37,20 +39,21 @@ export const propertyCreated = (
 export type PropertyUpdated = Readonly<{
   _tag: 'property.updated'
   eventId: string
-  propertyId: PropertyId
   organizationId: OrganizationId
+  propertyId: PropertyId
   name: string
   slug: string
   occurredAt: Date
   correlationId: string | null
 }>
 export const propertyUpdated = (
-  args: Omit<PropertyUpdated, '_tag' | 'correlationId'>,
+  args: Omit<PropertyUpdated, '_tag' | 'eventId' | 'correlationId'>,
 ): PropertyUpdated => {
   if (!(args.occurredAt instanceof Date))
     throw propertyError('invalid_name', 'occurredAt must be Date')
   return {
     _tag: 'property.updated',
+    eventId: newEventId(),
     correlationId: null,
     ...args,
   }
@@ -59,18 +62,19 @@ export const propertyUpdated = (
 export type PropertyDeleted = Readonly<{
   _tag: 'property.deleted'
   eventId: string
-  propertyId: PropertyId
   organizationId: OrganizationId
+  propertyId: PropertyId
   occurredAt: Date
   correlationId: string | null
 }>
 export const propertyDeleted = (
-  args: Omit<PropertyDeleted, '_tag' | 'correlationId'>,
+  args: Omit<PropertyDeleted, '_tag' | 'eventId' | 'correlationId'>,
 ): PropertyDeleted => {
   if (!(args.occurredAt instanceof Date))
     throw propertyError('invalid_name', 'occurredAt must be Date')
   return {
     _tag: 'property.deleted',
+    eventId: newEventId(),
     correlationId: null,
     ...args,
   }

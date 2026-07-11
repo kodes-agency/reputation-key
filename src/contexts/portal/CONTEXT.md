@@ -142,9 +142,3 @@ Exported from `application/public-api.ts`:
 ## Background jobs
 
 - **process-image** — Resizes and converts uploaded portal hero images to multiple variants.
-
-## Errors
-
-Closed union of 20 error codes (`PortalErrorCode`):
-
-`forbidden`, `invalid_slug`, `invalid_name`, `invalid_description`, `invalid_theme`, `invalid_threshold`, `invalid_url`, `invalid_label`, `invalid_title`, `slug_taken`, `portal_not_found`, `category_not_found`, `link_not_found`, `property_not_found`, `group_not_found`, `group_name_taken`, `portal_already_grouped`, `portal_not_in_group`, `portal_inactive`, `upload_failed`

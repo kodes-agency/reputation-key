@@ -68,9 +68,9 @@ function targetScopeFromRow(value: string): BadgeDefinition['targetScope'] {
   ) as BadgeDefinition['targetScope']
 }
 
-export function badgeDefinitionFromRow(
+export const badgeDefinitionFromRow = (
   row: typeof badgeDefinitions.$inferSelect,
-): BadgeDefinition {
+): BadgeDefinition => {
   return {
     id: badgeId(row.id),
     key: row.key,
