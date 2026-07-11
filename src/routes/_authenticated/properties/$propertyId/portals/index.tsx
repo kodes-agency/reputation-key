@@ -1,11 +1,19 @@
 // Portal list — shows all portals for a property
-import { createFileRoute, getRouteApi, redirect } from '@tanstack/react-router'
+import { createFileRoute, redirect } from '@tanstack/react-router'
+import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import { listPortals, deletePortal } from '#/contexts/portal/server/portals'
 import { PortalListPage } from '#/components/features/portal/portal-list-page'
+import { portalKeys } from '#/shared/queries/query-keys'
+import { propertiesQuery } from '#/shared/queries/route-queries'
 
-const authRoute = getRouteApi('/_authenticated')
+const portalsQuery = (propertyId: string) =>
+  queryOptions({
+    queryKey: portalKeys.list(propertyId),
+    queryFn: () => listPortals({ data: { propertyId } }),
+    staleTime: 30_000,
+  })
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/portals/')({
   beforeLoad: ({ context }) => {
@@ -13,10 +21,10 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/por
     if (!can(role, 'portal.read')) throw redirect({ to: '/properties' })
   },
   staleTime: 30_000,
-  loader: async ({ params }) => {
-    const { portals } = await listPortals({
-      data: { propertyId: params.propertyId },
-    })
+  loader: async ({ params, context }) => {
+    const { portals } = await context.queryClient.ensureQueryData(
+      portalsQuery(params.propertyId),
+    )
     return {
       portals,
       propertyId: params.propertyId,
@@ -27,8 +35,10 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/por
 
 function PortalListRoute() {
   const { propertyId } = Route.useParams()
-  const { portals } = Route.useLoaderData()
-  const { properties } = authRoute.useLoaderData()
+  const { data: portalsData } = useSuspenseQuery(portalsQuery(propertyId))
+  const { data: propsData } = useSuspenseQuery(propertiesQuery)
+  const { portals } = portalsData
+  const { properties } = propsData
   const property = properties?.find((p) => p.id === propertyId)
   const propertySlug = property?.slug ?? ''
   const propertyName = property?.name ?? ''

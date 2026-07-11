@@ -6,16 +6,14 @@
 
 import { useState } from 'react'
 import { createFileRoute, getRouteApi, redirect } from '@tanstack/react-router'
+import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
 import { Plus } from 'lucide-react'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import { hasRole } from '#/shared/domain/roles'
 import type { Role } from '#/shared/domain/roles'
 import { PageHeader } from '#/components/layout/page-header'
-import {
-  useMutationAction,
-  useMutationActionSilent,
-} from '#/components/hooks/use-mutation-action'
+import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { Button } from '#/components/ui/button'
 import {
@@ -40,8 +38,21 @@ import {
   MemberTable,
   InvitationTable,
 } from '#/components/features/identity'
+import { identityKeys } from '#/shared/queries/query-keys'
+import { propertiesQuery } from '#/shared/queries/route-queries'
 
 const authRoute = getRouteApi('/_authenticated')
+const membersQuery = queryOptions({
+  queryKey: identityKeys.members(),
+  queryFn: () => listMembers(),
+  staleTime: 30_000,
+})
+
+const invitationsQuery = queryOptions({
+  queryKey: identityKeys.invitations(),
+  queryFn: () => listInvitations(),
+  staleTime: 30_000,
+})
 
 export const Route = createFileRoute('/_authenticated/settings/members')({
   beforeLoad: ({ context }) => {
@@ -51,8 +62,8 @@ export const Route = createFileRoute('/_authenticated/settings/members')({
   loader: async ({ context }) => {
     const { role } = context as AuthRouteContext
     const [memberResult, invitationsResult] = await Promise.all([
-      listMembers(),
-      listInvitations(),
+      context.queryClient.ensureQueryData(membersQuery),
+      context.queryClient.ensureQueryData(invitationsQuery),
     ])
     // An inviter may only assign roles at or below their own privilege level.
     const allowedRoles: ReadonlyArray<Role> = hasRole(role, 'AccountAdmin')
@@ -70,32 +81,35 @@ export const Route = createFileRoute('/_authenticated/settings/members')({
 })
 
 function MembersSettingsRoute() {
-  const { members, invitations, allowedRoles } = Route.useLoaderData()
+  const { allowedRoles } = Route.useLoaderData()
+  const { data: memberResult } = useSuspenseQuery(membersQuery)
+  const { data: invitationsResult } = useSuspenseQuery(invitationsQuery)
+  const members = memberResult.members
+  const invitations = invitationsResult.invitations
   const { user } = authRoute.useRouteContext()
-  const { properties } = authRoute.useLoaderData()
+  const { data: propsData } = useSuspenseQuery(propertiesQuery)
+  const properties = propsData.properties
   const { can: canDo } = usePermissions()
   const [inviteOpen, setInviteOpen] = useState(false)
 
-  const invalidateRoutes = ['/_authenticated/settings/members'] as const
-
-  const inviteMutation = useMutationAction(inviteMember, {
+  const inviteMutation = useActionMutation(inviteMember, {
     successMessage: 'Invitation sent',
-    invalidateRoutes: [...invalidateRoutes],
+    invalidateKeys: [identityKeys.members(), identityKeys.invitations()],
     onSuccess: async () => setInviteOpen(false),
   })
-  const updateRoleMutation = useMutationAction(updateMemberRole, {
+  const updateRoleMutation = useActionMutation(updateMemberRole, {
     successMessage: 'Role updated',
-    invalidateRoutes: [...invalidateRoutes],
+    invalidateKeys: [identityKeys.members(), identityKeys.invitations()],
   })
-  const removeMemberMutation = useMutationAction(removeMember, {
+  const removeMemberMutation = useActionMutation(removeMember, {
     successMessage: 'Member removed',
-    invalidateRoutes: [...invalidateRoutes],
+    invalidateKeys: [identityKeys.members(), identityKeys.invitations()],
   })
-  const resendMutation = useMutationActionSilent(resendInvitation, {
-    invalidateRoutes: [...invalidateRoutes],
+  const resendMutation = useActionMutation(resendInvitation, {
+    invalidateKeys: [identityKeys.members(), identityKeys.invitations()],
   })
-  const cancelMutation = useMutationActionSilent(cancelInvitation, {
-    invalidateRoutes: [...invalidateRoutes],
+  const cancelMutation = useActionMutation(cancelInvitation, {
+    invalidateKeys: [identityKeys.members(), identityKeys.invitations()],
   })
 
   const propertyOptions = properties.map((p) => ({ id: String(p.id), name: p.name }))

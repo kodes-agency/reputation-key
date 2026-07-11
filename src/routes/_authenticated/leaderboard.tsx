@@ -1,9 +1,11 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { queryOptions, useQuery } from '@tanstack/react-query'
 import { z } from 'zod/v4'
 import {
   getLeaderboard,
   getComparisonMatrix,
 } from '#/contexts/leaderboard/server/leaderboards'
+import { leaderboardKeys } from '#/shared/queries/query-keys'
 import { StaffEmptyState } from '#/components/features/staff/staff-empty-state'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
@@ -64,6 +66,23 @@ const METRIC_LABELS: Readonly<Record<MetricKey, string>> = {
   'portal.review_link_click': 'Link Clicks',
 }
 
+const comparisonMatrixQuery = (propertyId: string, period: Period, scope: Scope) =>
+  queryOptions({
+    queryKey: leaderboardKeys.matrix({ propertyId, period, scope }),
+    queryFn: () => getComparisonMatrix({ data: { propertyId, period, scope } }),
+  })
+
+const leaderboardQuery = (
+  propertyId: string,
+  period: Period,
+  scope: Scope,
+  metricKey: MetricKey,
+) =>
+  queryOptions({
+    queryKey: leaderboardKeys.board({ propertyId, period, scope, metricKey }),
+    queryFn: () => getLeaderboard({ data: { propertyId, period, scope, metricKey } }),
+  })
+
 export const Route = createFileRoute('/_authenticated/leaderboard')({
   validateSearch: leaderboardSearch,
   loaderDeps: ({ search }) => ({
@@ -73,17 +92,19 @@ export const Route = createFileRoute('/_authenticated/leaderboard')({
     metricKey: search.metricKey,
     view: search.view,
   }),
-  loader: async ({ deps: { propertyId, period, scope, metricKey, view } }) => {
+  loader: async ({ context, deps: { propertyId, period, scope, metricKey, view } }) => {
     if (!propertyId) {
       return { view, matrix: null, entries: null }
     }
     if (view === 'matrix') {
-      const matrix = await getComparisonMatrix({ data: { propertyId, period, scope } })
+      const matrix = await context.queryClient.ensureQueryData(
+        comparisonMatrixQuery(propertyId, period, scope),
+      )
       return { view, matrix: matrix as MatrixRow[], entries: null }
     }
-    const entries = await getLeaderboard({
-      data: { propertyId, period, scope, metricKey },
-    })
+    const entries = await context.queryClient.ensureQueryData(
+      leaderboardQuery(propertyId, period, scope, metricKey),
+    )
     return {
       view,
       matrix: null,
@@ -94,8 +115,25 @@ export const Route = createFileRoute('/_authenticated/leaderboard')({
 })
 
 function StaffLeaderboardPage() {
-  const { view, matrix, entries } = Route.useLoaderData()
-  const { propertyId: searchPropertyId, period, scope, metricKey } = Route.useSearch()
+  const {
+    propertyId: searchPropertyId,
+    period,
+    scope,
+    metricKey,
+    view,
+  } = Route.useSearch()
+
+  const { data: matrixData } = useQuery({
+    ...comparisonMatrixQuery(searchPropertyId ?? '', period, scope),
+    enabled: !!searchPropertyId && view === 'matrix',
+  })
+  const { data: entriesData } = useQuery({
+    ...leaderboardQuery(searchPropertyId ?? '', period, scope, metricKey),
+    enabled: !!searchPropertyId && view !== 'matrix',
+  })
+
+  const matrix = (matrixData ?? null) as MatrixRow[] | null
+  const entries = (entriesData ?? null) as LeaderboardEntryWithTarget[] | null
   const navigate = useNavigate()
   const updateSearch = (
     patch: Partial<{ period: Period; scope: Scope; metricKey: MetricKey; view: View }>,

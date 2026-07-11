@@ -75,17 +75,17 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId')({
 })
 ```
 
-- **Route `loader` runs on SSR** and blocks client navigation until data is ready
-- **Components read via `Route.useLoaderData()`** — instant, cached by the router
-- **Route data:** loaders `context.queryClient.prefetchQuery(...)` into the shared TanStack Query cache; components read via `useSuspenseQuery` (see TanStack Query below). The legacy `loader`-return + `Route.useLoaderData()` pattern still works for un-migrated routes.
+- **Route `loader` primes the shared TanStack Query cache** via `context.queryClient.ensureQueryData(opts)` (runs on SSR) and still returns the data for `head()`/cutover safety.
+- **Components read via `useSuspenseQuery(opts)`** — the SAME `queryOptions` the loader used, so it resolves from the primed cache with zero extra fetch. Route data no longer flows through `Route.useLoaderData()` (only loader-computed derived values like `allowedRoles` still do).
 
 ### Reading parent layout data
 
-Child routes read parent layout data via `getRouteApi()` instead of re-fetching:
+Parent layout data (orgs, properties, property) lives in the shared Query cache via cross-cutting query options in `src/shared/queries/route-queries.ts` (`organizationsQuery`, `propertiesQuery`, `propertyQuery(propertyId)`). The parent loaders `ensureQueryData` these (SSR prime); every consumer reads the same options — no `getRouteApi().useLoaderData()`:
 
 ```tsx
-const parentLoader = getRouteApi('/_authenticated/properties/$propertyId')
-const { property } = parentLoader.useLoaderData()
+import { propertyQuery } from '#/shared/queries/route-queries'
+const { data } = useSuspenseQuery(propertyQuery(propertyId))
+const property = data.property
 ```
 
 ### StaleTime strategy
@@ -100,13 +100,13 @@ const { property } = parentLoader.useLoaderData()
 
 TanStack Query is wired app-wide (`QueryClient` in `router.tsx` via `setupRouterSsrQueryIntegration`, exposed through the router context + auto-`<QueryClientProvider>`). It owns fetch/cache/dedupe/refetch/invalidation so components don't hand-roll `useState`+`useEffect` fetch lifecycles.
 
-| Data class                                                | Pattern                                                                                                                                      |
-| --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Route data** (SSR-critical)                             | `loader: ({ context }) => context.queryClient.prefetchQuery(opts)` + component reads `useSuspenseQuery(opts)` (suspends; streams during SSR) |
-| **Interactive / component data** (fetched on user action) | `useQuery({ queryKey, queryFn })` directly in the component                                                                                  |
+| Data class                                                | Pattern                                                                                                                                        |
+| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Route data** (SSR-critical)                             | `loader: ({ context }) => context.queryClient.ensureQueryData(opts)` + component reads `useSuspenseQuery(opts)` (suspends; streams during SSR) |
+| **Interactive / component data** (fetched on user action) | `useQuery({ queryKey, queryFn })` directly in the component                                                                                    |
 
 - **Query keys** live in `src/shared/queries/query-keys.ts` as hierarchical factories (parent keys are prefixes of children), so `invalidateQueries(parentKey)` refreshes all descendants — **targeted**, never `router.invalidate()`.
-- **Mutations** use `useMutation` + `onSuccess: () => qc.invalidateQueries(...)` (or `useMutationAction` with `invalidate: false` + an invalidating `onSuccess`). Never the whole-app `router.invalidate()` sledgehammer.
+- **Mutations** use `useActionMutation` (`src/components/hooks/use-action-mutation.ts`) with `invalidateKeys: QueryKey[]` for targeted invalidation. Never the whole-app `router.invalidate()` sledgehammer.
 - **SSR:** `useSuspenseQuery` runs on the server and streams; `useQuery` runs client-side only.
 - **Reference implementations:** inbox detail (`src/components/inbox/use-inbox-detail.ts` — `useQuery`) + inbox list (`src/components/inbox/use-inbox-state.ts` — `useInfiniteQuery` for cursor pagination, debounced filter key, `setQueryData` for optimistic updates). Other features migrate opportunistically.
 
@@ -114,37 +114,33 @@ TanStack Query is wired app-wide (`QueryClient` in `router.tsx` via `setupRouter
 
 ## Mutation pattern
 
-### `useMutationAction` — the standard hook
+### `useActionMutation` — the Query-native hook
 
 ```tsx
-const deleteAction = useMutationAction(deleteProperty, {
+const deleteAction = useActionMutation(deleteProperty, {
   successMessage: 'Property deleted',
-  invalidateRoutes: ['/_authenticated/properties'],
-  navigateTo: '/properties',
+  invalidateKeys: [identityKeys.organizations(), propertyKeys.list()],
 })
 ```
 
-Combines `useServerFn` + router invalidation + toast + optional navigation. Returns `Action<TInput, TOutput>` compatible with all form components.
+Wraps `useMutation` and returns the SAME `Action<TInput, TOutput>` shape form components already consume (callable + `isPending`/`error`/`data`). Invalidation is **targeted Query keys** (`invalidateKeys`), never `router.invalidate()`. The callable is `mutateAsync`, so `await action({ data })` and `.then()` chains work.
 
-Options:
+Options (`src/components/hooks/use-action-mutation.ts`):
 
-- `successMessage` — auto-toasts on success (default: `'Saved'`)
-- `invalidate: false` — skip router invalidation
-- `invalidateRoutes` — targeted invalidation of specific route IDs instead of full `router.invalidate()`
-- `navigateTo` — navigate after success
-- `onSuccess` — custom callback
-
-`useMutationActionSilent` — same but no toast (for inline mutations).
+- `successMessage` — auto-toasts on success (omit for a silent mutation, the old `useMutationActionSilent`)
+- `invalidateKeys` — Query keys to invalidate on success (targeted; never `router.invalidate()`)
+- `onSuccess(output, input)` — runs after invalidation + toast
+- `navigateTo` — `{ to, params?: (output) => Record<string, string> }` navigate after success
 
 ### For forms — pass action as prop
 
-The `useServerFn` (or `useMutationAction`) instance is defined in the **route file** and passed to the form component as a prop. Components never import server functions directly.
+The `useActionMutation` instance is defined in the **route file** and passed to the form component as a prop. Components never import server functions directly.
 
 ```tsx
 // route file
-const createAction = useMutationAction(createPortal, {
+const createAction = useActionMutation(createPortal, {
   successMessage: 'Portal created',
-  navigateTo: `/properties/${propertyId}/portals`,
+  invalidateKeys: [portalKeys.all],
 })
 
 return <CreatePortalForm action={createAction} propertyId={propertyId} />

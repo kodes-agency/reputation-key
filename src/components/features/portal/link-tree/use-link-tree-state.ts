@@ -17,7 +17,7 @@ export function useLinkTreeState(
   const [deletingCategoryId, setDeletingCategoryId] = useState<string | null>(null)
   const [deletingLinkId, setDeletingLinkIdState] = useState<string | null>(null)
 
-  const mutations = useLinkTreeMutations()
+  const mutations = useLinkTreeMutations(portalId)
 
   const handleAddCategory = async (title: string) => {
     const result = await mutations.createCategoryMutation({ data: { portalId, title } })

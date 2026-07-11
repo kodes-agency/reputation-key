@@ -1,7 +1,7 @@
 // Aggregated type of every server fn the InboxPageV2 subtree consumes.
 //
 // Routes construct this object and pass it as `inboxFns`; child components and
-// hooks receive the relevant fn and wrap it with useServerFn/useMutationAction.
+// hooks receive the relevant fn and wrap it with useServerFn/useActionMutation.
 // This is the compliant prop channel per src/components/CONTEXT.md:55 —
 // components never value-import from contexts/*/server. These imports are
 // type-only (used in `typeof` positions), which the boundary gate allows.

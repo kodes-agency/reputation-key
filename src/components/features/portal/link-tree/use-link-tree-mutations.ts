@@ -1,9 +1,7 @@
 // Link tree mutations hook
 
-import {
-  useMutationAction,
-  useMutationActionSilent,
-} from '#/components/hooks/use-mutation-action'
+import { useActionMutation } from '#/components/hooks/use-action-mutation'
+import { portalKeys } from '#/shared/queries/query-keys'
 import {
   createLinkCategory,
   reorderCategories,
@@ -15,22 +13,34 @@ import {
   reorderLinks,
 } from '#/contexts/portal/server/portal-links'
 
-export function useLinkTreeMutations() {
-  const createCategoryMutation = useMutationAction(createLinkCategory, {
+export function useLinkTreeMutations(portalId: string) {
+  const createCategoryMutation = useActionMutation(createLinkCategory, {
     successMessage: 'Category created',
+    invalidateKeys: [portalKeys.links(portalId)],
   })
-  const createLinkMutation = useMutationAction(createLink, {
+  const createLinkMutation = useActionMutation(createLink, {
     successMessage: 'Link created',
+    invalidateKeys: [portalKeys.links(portalId)],
   })
-  const deleteCategoryMutation = useMutationActionSilent(deleteLinkCategory)
-  const deleteLinkMutation = useMutationActionSilent(deleteLink)
-  const reorderCategoriesMutation = useMutationActionSilent(reorderCategories)
-  const reorderLinksMutation = useMutationActionSilent(reorderLinks)
-  const updateLinkMutation = useMutationAction(updateLink, {
+  const deleteCategoryMutation = useActionMutation(deleteLinkCategory, {
+    invalidateKeys: [portalKeys.links(portalId)],
+  })
+  const deleteLinkMutation = useActionMutation(deleteLink, {
+    invalidateKeys: [portalKeys.links(portalId)],
+  })
+  const reorderCategoriesMutation = useActionMutation(reorderCategories, {
+    invalidateKeys: [portalKeys.links(portalId)],
+  })
+  const reorderLinksMutation = useActionMutation(reorderLinks, {
+    invalidateKeys: [portalKeys.links(portalId)],
+  })
+  const updateLinkMutation = useActionMutation(updateLink, {
     successMessage: 'Link updated',
+    invalidateKeys: [portalKeys.links(portalId)],
   })
-  const updateCategoryMutation = useMutationAction(updateLinkCategory, {
+  const updateCategoryMutation = useActionMutation(updateLinkCategory, {
     successMessage: 'Category updated',
+    invalidateKeys: [portalKeys.links(portalId)],
   })
 
   return {

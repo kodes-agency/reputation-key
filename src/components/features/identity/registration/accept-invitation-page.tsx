@@ -4,7 +4,6 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useRouter } from '@tanstack/react-router'
 import { useAction } from '#/components/hooks/use-action'
 import { Skeleton } from '#/components/ui/skeleton'
 import { AuthCard, AuthFooterLink, ErrorBanner } from '#/components/layout/auth-layout'
@@ -61,7 +60,6 @@ export function AcceptInvitationPage({
   invitations,
   acceptInvitation,
 }: Props) {
-  const router = useRouter()
   const [accepted, setAccepted] = useState(false)
   const [accepting, setAccepting] = useState(false)
   const [autoAcceptError, setAutoAcceptError] = useState<string | null>(null)
@@ -78,7 +76,6 @@ export function AcceptInvitationPage({
       setAutoAcceptError(null)
       try {
         await accept({ data: { invitationId: invId } })
-        await router.invalidate()
         setAccepted(true)
       } catch (err) {
         setAutoAcceptError(
@@ -88,7 +85,7 @@ export function AcceptInvitationPage({
         setAccepting(false)
       }
     },
-    [accept, router],
+    [accept],
   )
 
   // Auto-accept when arriving with ?id= query param — useEffect, not render-body.

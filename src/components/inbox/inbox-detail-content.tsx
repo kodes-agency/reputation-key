@@ -18,13 +18,16 @@ import type {
   InboxItemDetailResult,
   InboxNote,
 } from '#/contexts/inbox/application/public-api'
-import type { useMutationAction } from '#/components/hooks/use-mutation-action'
+import type { Action } from '#/components/hooks/use-action'
 
 export type DetailContentProps = Readonly<{
   currentItem: InboxItem
   detail: InboxItemDetailResult | null
   statusActions: ReturnType<typeof getStatusActions>
-  updateStatus: ReturnType<typeof useMutationAction<typeof updateInboxStatusFn>>
+  updateStatus: Action<
+    Parameters<typeof updateInboxStatusFn>[0],
+    Awaited<ReturnType<typeof updateInboxStatusFn>>
+  >
   notes: ReadonlyArray<InboxNote>
   onNoteAdded: () => void
   onReplyMutated: (reply: InboxItemDetailResult['reply']) => void

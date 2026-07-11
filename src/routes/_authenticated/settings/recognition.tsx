@@ -1,6 +1,7 @@
 import { createFileRoute, redirect } from '@tanstack/react-router'
+import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
 import { PageHeader } from '#/components/layout/page-header'
-import { useMutationAction } from '#/components/hooks/use-mutation-action'
+import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { can } from '#/shared/domain/permissions'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import {
@@ -10,6 +11,13 @@ import {
 import { RecognitionSettingsPage } from '#/components/features/settings'
 import { EmptyState } from '#/components/ui/empty-state'
 import { Award } from 'lucide-react'
+import { badgeKeys } from '#/shared/queries/query-keys'
+
+const badgeDefinitionsQuery = queryOptions({
+  queryKey: badgeKeys.orgDefinitions(),
+  queryFn: () => getOrganizationBadgeDefinitionsFn(),
+  staleTime: 60_000,
+})
 
 export const Route = createFileRoute('/_authenticated/settings/recognition')({
   beforeLoad: ({ context }) => {
@@ -18,8 +26,8 @@ export const Route = createFileRoute('/_authenticated/settings/recognition')({
       throw redirect({ to: '/settings/profile' })
     }
   },
-  loader: async () => {
-    const badges = await getOrganizationBadgeDefinitionsFn()
+  loader: async ({ context }) => {
+    const badges = await context.queryClient.ensureQueryData(badgeDefinitionsQuery)
     return { badges }
   },
   staleTime: 60_000,
@@ -27,10 +35,10 @@ export const Route = createFileRoute('/_authenticated/settings/recognition')({
 })
 
 function RecognitionSettings() {
-  const { badges } = Route.useLoaderData()
-  const toggleBadge = useMutationAction(setOrganizationBadgeEnablement, {
+  const { data: badges } = useSuspenseQuery(badgeDefinitionsQuery)
+  const toggleBadge = useActionMutation(setOrganizationBadgeEnablement, {
     successMessage: 'Badge setting updated',
-    invalidateRoutes: ['/_authenticated/settings/recognition'],
+    invalidateKeys: [badgeKeys.orgDefinitions()],
   })
 
   return (

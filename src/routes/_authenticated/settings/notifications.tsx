@@ -1,15 +1,23 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
 import { PageHeader } from '#/components/layout/page-header'
-import { useMutationAction } from '#/components/hooks/use-mutation-action'
+import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import {
   getNotificationPreferencesFn,
   updateNotificationPreferenceFn,
 } from '#/contexts/notification/server/notifications'
 import { NotificationsSettingsPage } from '#/components/features/settings'
+import { notificationKeys } from '#/shared/queries/query-keys'
+
+const preferencesQuery = queryOptions({
+  queryKey: notificationKeys.preferences(),
+  queryFn: () => getNotificationPreferencesFn(),
+  staleTime: 60_000,
+})
 
 export const Route = createFileRoute('/_authenticated/settings/notifications')({
-  loader: async () => {
-    const preferences = await getNotificationPreferencesFn()
+  loader: async ({ context }) => {
+    const preferences = await context.queryClient.ensureQueryData(preferencesQuery)
     return { preferences }
   },
   // Preferences change only on explicit mutation; refetch on invalidation.
@@ -18,10 +26,10 @@ export const Route = createFileRoute('/_authenticated/settings/notifications')({
 })
 
 function NotificationsSettings() {
-  const { preferences } = Route.useLoaderData()
-  const updatePreference = useMutationAction(updateNotificationPreferenceFn, {
+  const { data: preferences } = useSuspenseQuery(preferencesQuery)
+  const updatePreference = useActionMutation(updateNotificationPreferenceFn, {
     successMessage: 'Preference updated',
-    invalidateRoutes: ['/_authenticated/settings/notifications'],
+    invalidateKeys: [notificationKeys.preferences()],
   })
 
   return (

@@ -54,7 +54,7 @@ Components must **never** import from:
 All forms use **TanStack Form + Zod v4 + shadcn/ui**. No React Hook Form, Formik, or plain `useState` forms.
 
 1. **Schema source** — Zod schemas live in `contexts/<ctx>/application/dto/`. Forms derive their schema using `.required()`, `.extend()`, `.omit()`, or use the DTO directly. Never duplicate validation rules.
-2. **Submission** — every form goes through `useServerFn` wrapping a server function. The route passes the server-function reference as a prop; the component wraps it with `useServerFn` via the sanctioned `useAction` / `useMutationAction` hooks (`components/hooks/use-action.ts`, `components/hooks/use-mutation-action.ts`). Never call a server function directly without that wrapping.
+2. **Submission** — every form goes through a sanctioned action hook. The route defines the mutation with `useActionMutation` (`components/hooks/use-action-mutation.ts`) and passes the resulting `Action` to the form component as a prop; fire-and-forget (non-form) actions use `useAction` (`components/hooks/use-action.ts`). Never call a server function directly from a component without that wrapping.
 3. **Validation trigger** — `validators.onSubmit` (not `onChange`). TanStack Form v1 handles Zod schemas natively — pass the schema directly, no adapter needed.
 4. **State** — `useServerFn` state (`isPending`, `error`, `status`) drives submit button and error display. Never manage `isSubmitting` manually.
 
@@ -66,12 +66,12 @@ All forms use **TanStack Form + Zod v4 + shadcn/ui**. No React Hook Form, Formik
 
 ## Shared hooks (`components/hooks/`)
 
-| Hook                  | Purpose                                                                                                                                                                                                                |
-| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `use-action`          | Wraps `useServerFn` for fire-and-forget actions (non-form mutations)                                                                                                                                                   |
-| `use-mutation-action` | Combines `useServerFn` + router invalidation + toast in one call. Supports `invalidateRoutes` for targeted invalidation instead of full `router.invalidate()`. Also available as `useMutationActionSilent` (no toast). |
-| `use-property-id`     | Extracts `propertyId` from route params. Use in any property-scoped component.                                                                                                                                         |
-| `use-mobile`          | Responsive breakpoint hook                                                                                                                                                                                             |
+| Hook                  | Purpose                                                                                                                                                                                                |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `use-action`          | Wraps `useServerFn` for fire-and-forget actions (non-form mutations)                                                                                                                                   |
+| `use-action-mutation` | Query-native mutation hook (`useMutation` + `Action` shape). Toasts on success + targeted Query-key invalidation (`invalidateKeys`). Replaces the old `useMutationAction` / `useMutationActionSilent`. |
+| `use-property-id`     | Extracts `propertyId` from route params. Use in any property-scoped component.                                                                                                                         |
+| `use-mobile`          | Responsive breakpoint hook                                                                                                                                                                             |
 
 ## Charts
 

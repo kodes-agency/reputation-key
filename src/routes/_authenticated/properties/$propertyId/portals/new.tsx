@@ -1,19 +1,15 @@
 // Create portal — route defines mutation, renders form component.
-import {
-  createFileRoute,
-  useNavigate,
-  getRouteApi,
-  redirect,
-} from '@tanstack/react-router'
+import { createFileRoute, useNavigate, redirect } from '@tanstack/react-router'
+import { useSuspenseQuery } from '@tanstack/react-query'
 import { createPortal } from '#/contexts/portal/server/portals'
 import { PortalCreationWithPreview } from '#/components/features/portal'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
-import { useMutationAction } from '#/components/hooks/use-mutation-action'
+import { useActionMutation } from '#/components/hooks/use-action-mutation'
+import { portalKeys } from '#/shared/queries/query-keys'
+import { propertyQuery } from '#/shared/queries/route-queries'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
-
-const propertyRoute = getRouteApi('/_authenticated/properties/$propertyId')
 
 export const Route = createFileRoute(
   '/_authenticated/properties/$propertyId/portals/new',
@@ -29,12 +25,13 @@ export const Route = createFileRoute(
 
 function CreatePortalPage() {
   const { propertyId } = Route.useParams()
-  const { property } = propertyRoute.useLoaderData()
+  const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
+  const { property } = propData
   const navigate = useNavigate()
 
-  const mutation = useMutationAction(createPortal, {
+  const mutation = useActionMutation(createPortal, {
     successMessage: 'Portal created',
-    invalidateRoutes: ['/_authenticated/properties/$propertyId/portals/'],
+    invalidateKeys: [portalKeys.all],
     onSuccess: async (output) => {
       await navigate({
         to: '/properties/$propertyId/portals/$portalId',

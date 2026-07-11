@@ -1,4 +1,5 @@
 import { createFileRoute, notFound } from '@tanstack/react-router'
+import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
 import { useEffect } from 'react'
 import {
   getPublicPortal,
@@ -10,6 +11,7 @@ import { PortalUnavailable } from '#/components/features/guest'
 import { PublicPortalContent } from '#/components/features/guest'
 import { CookieConsentBanner } from '#/components/features/guest'
 import type { PublicPortalLoaderData } from '#/contexts/guest/server/public'
+import { guestKeys } from '#/shared/queries/query-keys'
 import { useServerFn } from '@tanstack/react-start'
 import { useAction } from '#/components/hooks/use-action'
 
@@ -20,18 +22,28 @@ function parseSource(raw: string | null): ScanSource {
   return raw && VALID_SOURCES.has(raw) ? (raw as ScanSource) : 'direct'
 }
 
+// Shared query options factory — slugs are route params, so the options are
+// built per-request. The loader (ensureQueryData) and component
+// (useSuspenseQuery) reference the SAME factory so keys match.
+const publicPortalQuery = (propertySlug: string, portalSlug: string) =>
+  queryOptions({
+    queryKey: guestKeys.publicPortal({ propertySlug, portalSlug }),
+    queryFn: () =>
+      getPublicPortal({
+        data: { propertySlug, portalSlug },
+      }),
+    staleTime: 5 * 60 * 1000,
+  })
+
 export const Route = createFileRoute('/p/$propertySlug/$portalSlug')({
   validateSearch: (search: Record<string, string>) => ({
     source: search.source,
   }),
   staleTime: 5 * 60 * 1000,
-  loader: async ({ params }): Promise<PublicPortalLoaderData> => {
-    const portalData = await getPublicPortal({
-      data: {
-        propertySlug: params.propertySlug,
-        portalSlug: params.portalSlug,
-      },
-    })
+  loader: async ({ context, params }): Promise<PublicPortalLoaderData> => {
+    const portalData = await context.queryClient.ensureQueryData(
+      publicPortalQuery(params.propertySlug, params.portalSlug),
+    )
 
     // getPublicPortal throws on server errors (500, network, etc.).
     // A null return means the portal was not found — convert to notFound()
@@ -58,7 +70,10 @@ export const Route = createFileRoute('/p/$propertySlug/$portalSlug')({
 })
 
 function PublicPortalPage() {
-  const data = Route.useLoaderData()
+  const { propertySlug, portalSlug } = Route.useParams()
+  const { data } = useSuspenseQuery(publicPortalQuery(propertySlug, portalSlug))
+  // data is non-null — the loader throws notFound() for null portals.
+  if (!data) throw notFound()
   const search = Route.useSearch()
   const source = parseSource(search.source ?? null)
 

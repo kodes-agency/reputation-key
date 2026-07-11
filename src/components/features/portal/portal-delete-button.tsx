@@ -14,7 +14,8 @@ import {
 } from '#/components/ui/alert-dialog'
 import { Button } from '#/components/ui/button'
 import { Trash2 } from 'lucide-react'
-import { useMutationAction } from '#/components/hooks/use-mutation-action'
+import { useActionMutation } from '#/components/hooks/use-action-mutation'
+import { portalKeys } from '#/shared/queries/query-keys'
 import type { deletePortal } from '#/contexts/portal/server/portals'
 
 interface PortalDeleteButtonProps {
@@ -28,9 +29,9 @@ export function PortalDeleteButton({
   portalName,
   deletePortalFn,
 }: PortalDeleteButtonProps) {
-  const deleteMutation = useMutationAction(deletePortalFn, {
+  const deleteMutation = useActionMutation(deletePortalFn, {
     successMessage: 'Portal deleted',
-    invalidateRoutes: ['/_authenticated/properties/$propertyId/portals/'],
+    invalidateKeys: [portalKeys.all],
   })
 
   return (

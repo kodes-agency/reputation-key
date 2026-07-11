@@ -5,7 +5,7 @@
 import type { InboxItem } from '#/contexts/inbox/application/public-api'
 import { Button } from '#/components/ui/button'
 import { CheckCircle, Archive, AlertTriangle } from 'lucide-react'
-import { useMutationAction } from '#/components/hooks/use-mutation-action'
+import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import type { bulkUpdateInboxStatusFn } from '#/contexts/inbox/server/inbox'
 
 type BulkStatus = 'addressed' | 'archived' | 'escalated'
@@ -20,9 +20,8 @@ type Props = Readonly<{
 export function InboxBulkActions({ selectedIds, items, onDone, bulkUpdateFn }: Props) {
   // invalidate: false — onDone refreshes the list explicitly (loadItems);
   // the inbox route has no loader.
-  const bulkMutation = useMutationAction(bulkUpdateFn, {
+  const bulkMutation = useActionMutation(bulkUpdateFn, {
     successMessage: 'Items updated',
-    invalidate: false,
     onSuccess: onDone,
   })
 

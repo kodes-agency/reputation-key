@@ -12,7 +12,8 @@ import {
 import { Plus } from 'lucide-react'
 import { StaffAssignmentList, AssignStaffForm } from '#/components/features/staff'
 import { EditStaffPortalsModal } from '#/components/features/staff/edit-staff-portals-modal'
-import { useMutationActionSilent } from '#/components/hooks/use-mutation-action'
+import { useActionMutation } from '#/components/hooks/use-action-mutation'
+import { staffKeys, propertyKeys } from '#/shared/queries/query-keys'
 import type { updateStaffPortals } from '#/contexts/staff/server/staff-assignments'
 import type { Action } from '#/components/hooks/use-action'
 import type { MemberLike, TeamLike } from '#/lib/lookups'
@@ -53,11 +54,8 @@ export function StaffTab({
 }: StaffTabProps) {
   const [editingUserId, setEditingUserId] = useState<string | null>(null)
 
-  const updatePortalsMutation = useMutationActionSilent(updateStaffPortalsFn, {
-    invalidateRoutes: [
-      '/_authenticated/properties/$propertyId/people',
-      '/_authenticated/properties/$propertyId',
-    ],
+  const updatePortalsMutation = useActionMutation(updateStaffPortalsFn, {
+    invalidateKeys: [staffKeys.assignments(propertyId), propertyKeys.detail(propertyId)],
     onSuccess: () => {
       setEditingUserId(null)
     },

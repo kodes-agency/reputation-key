@@ -2,12 +2,12 @@
 //
 // Reads: useUnreadNotificationCount polls via Query's refetchInterval (replaces
 // the manual setInterval); useNotifications paginates via useInfiniteQuery
-// (replaces the manual offsetRef). Mutations stay on useMutationActionSilent but
-// with invalidate:false — the panel does targeted notificationKeys invalidation
+// (replaces the manual offsetRef). Mutations use useActionMutation (silent — no
+// successMessage) with targeted notificationKeys invalidation
 // (never router.invalidate()). See routes/CONTEXT.md (TanStack Query section).
 
 import { useQuery, useInfiniteQuery } from '@tanstack/react-query'
-import { useMutationActionSilent } from '#/components/hooks/use-mutation-action'
+import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { notificationKeys } from '#/shared/queries/query-keys'
 import type {
   getUnreadNotificationCountFn,
@@ -65,21 +65,21 @@ export function useNotifications(getList: typeof getNotificationsFn, limit = 20)
 // ── Mutations (silent; panel invalidates notificationKeys on success) ──
 
 export function useMarkNotificationRead(markRead: typeof markNotificationReadFn) {
-  return useMutationActionSilent(markRead, { invalidate: false })
+  return useActionMutation(markRead)
 }
 
 export function useMarkAllNotificationsRead(
   markAllRead: typeof markAllNotificationsReadFn,
 ) {
-  return useMutationActionSilent(markAllRead, { invalidate: false })
+  return useActionMutation(markAllRead)
 }
 
 export function useDismissNotification(dismiss: typeof dismissNotificationFn) {
-  return useMutationActionSilent(dismiss, { invalidate: false })
+  return useActionMutation(dismiss)
 }
 
 // ── Dismiss all notifications (Clear-all) ───────────────────────────
 
 export function useDismissAllNotifications(dismissAll: typeof dismissAllNotificationsFn) {
-  return useMutationActionSilent(dismissAll, { invalidate: false })
+  return useActionMutation(dismissAll)
 }
