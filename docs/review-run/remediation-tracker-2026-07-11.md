@@ -109,3 +109,12 @@
 ---
 
 _This tracker is the single source of truth for the remediation on this branch. Update it as work progresses._
+
+**Phase 8 Executed (2026-07-11):**
+
+- Verification subagent (019f5159...) run.
+- typecheck/lint/unit tests: PASS.
+- Key fixes verified: DOC-01/04/05/06, EVT-01, QRY-01, CLK-01, AUTH-01 example.
+- Remaining noted in verification report (EVT-02 systemic, DOC-02/03, QRY-02+, etc.).
+- Plan fully executed per phases 0-8 with subagent gates, commits on branch, and post-fix review.
+- See subagent output for full details and recommendations for batch completion of remaining.
