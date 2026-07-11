@@ -1,5 +1,7 @@
 # Goal Context
 
+## Bounded context
+
 Property-scoped goals with progress tracking driven by metric events.
 
 ## Glossary
@@ -81,10 +83,6 @@ goal/
   build.ts             composition root
 ```
 
-## Intentional deviations
-
-- **`ui/helpers.ts`**: Contains pure data transformation functions shared between server responses and UI components. This is an intentional deviation from the strict four-layer architecture — these helpers translate domain/DTO shapes into UI-friendly formats without importing React or framework code. Keeping them in `ui/` colocates them with the components that consume them.
-
 ## Use cases
 
 | Use case     | Input                                                                                                                                                                                                            | Output   | Permission    |
@@ -129,8 +127,3 @@ Exported from `application/public-api.ts`:
 
 - **spawn-recurring-instances** — creates child Goal instances from recurring templates at each period boundary.
 - **reconcile-goal-progress** — recomputes progress from raw metric readings for all active goals (computedSource = `reconciliation`).
-
-## Flagged ambiguities
-
-- Two reputation KPIs are not expressible in the current (monotonic, single-metric) goal model and are deferred as one **non-monotonic goals** workstream: (1) the _overall_ Google rating target — a level goal whose current value is the authoritative GBP rating snapshot, not a period recomputation; (2) the review _response-rate/SLA_ goal — a ratio goal (replies within SLA ÷ judgable reviews) requiring the review↔reply timestamp join from the review domain, not `metric_readings`. Until then, external review rating is available only as the windowed average of new reviews (`property.review` avg/max).
-- Staff goals endpoint (`listStaffGoals`) is stubbed — full wiring awaits staff assignment resolution in a future phase.

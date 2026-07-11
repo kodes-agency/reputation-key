@@ -1,5 +1,7 @@
 # Leaderboard Context
 
+## Bounded context
+
 Read-only ranking of portals and portal groups within a selected property using per-metric scores and a comparison matrix. Internal portal-performance view — external Google reviews are property-scoped and cannot differentiate portals.
 
 ## Glossary

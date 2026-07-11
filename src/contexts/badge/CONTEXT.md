@@ -1,5 +1,7 @@
 # Badge Context
 
+## Bounded context
+
 Metric-driven recognition awards earned by portals and portal groups when criteria are met.
 
 ## Glossary

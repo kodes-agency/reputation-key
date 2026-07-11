@@ -1,10 +1,10 @@
 # Notification Context
 
-## 1. Bounded context
+## Bounded context
 
 Produces user-facing in-app and email notifications about domain events. Subscribes to events from other contexts, resolves recipients, creates notification rows, and manages email delivery (urgent: immediate via a dedicated job; normal: daily digest).
 
-## 2. Glossary
+## Glossary
 
 | Term               | Meaning                                                                                                                                                                                      |
 | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

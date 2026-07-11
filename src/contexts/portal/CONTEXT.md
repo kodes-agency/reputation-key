@@ -1,5 +1,7 @@
 # Portal Context
 
+## Bounded context
+
 Portal page management — creation, configuration, theming, link management, image uploads, and portal groups.
 
 ## Glossary
