@@ -20,7 +20,7 @@ describe('getDashboardData (use case)', () => {
     const now = new Date()
     const startDate = new Date(now.getTime() - 30 * MS_PER_DAY)
     const repo = createInMemoryDashboardRepository()
-    const getDashboard = getDashboardData({ repo })
+    const getDashboard = getDashboardData({ repo, clock: () => new Date() })
 
     const result = await getDashboard({
       organizationId: ORG_A,
@@ -56,7 +56,7 @@ describe('getDashboardData (use case)', () => {
     const now = new Date()
     const startDate = new Date(now.getTime() - 30 * MS_PER_DAY)
     const repo = createInMemoryDashboardRepository()
-    const getDashboard = getDashboardData({ repo })
+    const getDashboard = getDashboardData({ repo, clock: () => new Date() })
 
     const result = await getDashboard({
       organizationId: ORG_A,

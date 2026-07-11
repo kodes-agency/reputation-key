@@ -32,6 +32,7 @@ export type GetFleetOverviewInput = Readonly<{
 export type GetFleetOverviewDeps = Readonly<{
   signals: AttentionSignalsPort
   repo: DashboardRepository
+  clock: () => Date
 }>
 
 export type GetFleetOverview = (

@@ -98,7 +98,7 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
   // ── Repositories ─────────────────────────────────────────────────
   const connectionRepo = createGoogleConnectionRepository(deps.db, propertyFkCleanup)
   const cacheRepo = createGbpCacheRepository(deps.db, propertyQuery)
-  const importRepo = createGbpImportRepository(deps.db)
+  const importRepo = createGbpImportRepository(deps.db, deps.clock)
 
   // ── Adapters ──────────────────────────────────────────────────────
   const oauthPort = createGoogleOAuthAdapter({

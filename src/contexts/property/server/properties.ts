@@ -16,6 +16,7 @@ import { getContainer } from '#/composition'
 import { createPropertyInputSchema } from '../application/dto/create-property.dto'
 import { updatePropertyInputSchema } from '../application/dto/update-property.dto'
 import { isPropertyError } from '../domain/errors'
+import { canForContext } from '#/shared/domain/permissions'
 
 // ── createProperty ─────────────────────────────────────────────────
 
@@ -26,6 +27,14 @@ export const createProperty = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
+
+        if (!canForContext(ctx, 'property.create')) {
+          throwContextError(
+            'AuthError',
+            { code: 'forbidden', message: 'No property create permission' },
+            403,
+          )
+        }
 
         try {
           const { useCases } = getContainer()
@@ -51,6 +60,14 @@ export const updateProperty = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
+
+        if (!canForContext(ctx, 'property.update')) {
+          throwContextError(
+            'AuthError',
+            { code: 'forbidden', message: 'No property update permission' },
+            403,
+          )
+        }
 
         try {
           const { useCases } = getContainer()

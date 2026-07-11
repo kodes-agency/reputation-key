@@ -143,17 +143,7 @@ Inbox defines cross-context lookup ports (per ADR-0008):
 
 All ports are implemented by adapters from their respective contexts, wired at composition time.
 
-## Resolved decisions
 
-- **Auto-transition on reply published**: Inbox items auto-transition to `addressed` when a reply is published (via `review.reply.published` event handler). Managers can still manually mark items as addressed.
-- **Auto-transition `new→read` on open**: When a user opens an inbox item detail, the item auto-transitions from `new` to `read` after a 500ms debounce. This makes `new` an ephemeral pulse state. `autoMarkRead: true` in `useInboxDetail`.
-- **Unaddressed tab**: The secondary list tab filters to `status IN ('new', 'read')` — everything needing attention. Replaces the previous "Unread" tab which filtered only `status = 'new'`.
-- **Action buttons**: Detail panel shows Escalate + Archive universally. "Mark as Addressed" only appears for feedback items (reviews auto-transition via `review.reply.published`). Bulk actions: Escalate + Mark Addressed (feedback-only, silently skips reviews) + Archive. "Mark Read" removed everywhere — auto `new→read` on open makes it redundant.
-- **Transition graph update**: Added `new → addressed` and `read → archived` to the transition graph. Full graph: `new→{read, addressed, archived, escalated}`, `read→{addressed, escalated, archived}`, `escalated→{addressed, archived}`, `addressed→{archived, escalated}`, `archived→{read, escalated}`.
-- **"Unread" → "New" rename**: Glossary term, use case, server function, port, adapter all renamed: `getUnreadCount` → `getNewCount`, `UnreadCounterPort` → `NewCounterPort`, `redis-unread-counter` → `redis-new-counter`, `getUnreadCountFn` → `getNewCountFn`. Execute during implementation.
-- **Status filter supports arrays**: `InboxFilters.status` changed from `InboxStatus` to `InboxStatus | InboxStatus[]`. Enables "Unaddressed" tab (`['new', 'read']`) and future multi-status filters. Repository handles array → SQL `IN (...)`.
-- **Sidebar "Inbox" folder badge**: Shows unaddressed count (`new + read`), not just `new`. Renamed `InboxFolderCounts.unread` → `InboxFolderCounts.unaddressed`. The ephemeral "New" badge lives on the top-level nav icon, not the sidebar folder.
-- **DTO updates**: `getInboxItemsDto.status` accepts `InboxStatus | InboxStatus[]` (Zod union). `bulkUpdateStatusDto.status` narrowed to `['addressed', 'archived', 'escalated']` — `'read'` removed (no bulk mark-read). `updateStatusDto.status` stays as-is (single target status, source-type constraints enforced by UI).
 - **Timestamp display**: `readAt` timestamp relabelled from "Read" to "Opened" in the detail panel. Auto-transition makes "Read" misleading — "Opened" is honest about what happened. The domain field stays `readAt`; only the display label changes. Status badge for `read` also changes from "Read" to "Opened".
 - **List row styling**: `new` items render bold with a subtle dot indicator. `read` items render normal weight — no badge. `escalated`, `addressed`, `archived` items get their colored status badges. Gmail pattern.
 - **Bulk "Mark Addressed" review guard**: Defense-in-depth. Use case skips reviews in the per-item validation loop (`sourceType === 'review' && newStatus === 'addressed'` → skip). UI filters selected IDs to only feedback items before calling bulk action.

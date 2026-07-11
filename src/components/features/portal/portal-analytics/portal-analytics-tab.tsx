@@ -1,11 +1,8 @@
 // Portal analytics tab — KPI cards + charts for portal-scoped metrics
 
 import { useState, useEffect } from 'react'
-import { useServerFn } from '@tanstack/react-start'
-import type {
-  PortalAnalyticsData,
-  getPortalAnalyticsFn,
-} from '#/contexts/dashboard/server/portal-analytics'
+import { useQuery } from '@tanstack/react-query'
+import type { getPortalAnalyticsFn } from '#/contexts/dashboard/server/portal-analytics'
 import type { TimeRangePreset } from '#/contexts/dashboard/application/dto/dashboard.dto'
 import { TimeRangePicker } from './portal-analytics-time-range-picker'
 import { KPICard } from '#/components/features/property/property-dashboard-helpers'
@@ -30,39 +27,23 @@ export function PortalAnalyticsTab({ portalId, propertyId, getPortalAnalytics }:
     if (typeof window === 'undefined') return 'all'
     return (localStorage.getItem(TIME_RANGE_KEY) as TimeRangePreset) ?? 'all'
   })
-  const [data, setData] = useState<PortalAnalyticsData | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  const analyticsFn = useServerFn(getPortalAnalytics)
 
   useEffect(() => {
     localStorage.setItem(TIME_RANGE_KEY, timeRange)
   }, [timeRange])
 
-  useEffect(() => {
-    let cancelled = false
-    setLoading(true)
-    setError(null)
+  const {
+    data,
+    isLoading: loading,
+    error: queryError,
+  } = useQuery({
+    queryKey: ['portal-analytics', propertyId, portalId, timeRange],
+    queryFn: () => getPortalAnalytics({ data: { propertyId, portalId, timeRange } }),
+  })
 
-    analyticsFn({ data: { propertyId, portalId, timeRange } })
-      .then((result) => {
-        if (!cancelled) {
-          setData(result)
-          setLoading(false)
-        }
-      })
-      .catch((e) => {
-        if (!cancelled) {
-          setError(e?.message ?? 'Failed to load analytics')
-          setLoading(false)
-        }
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [propertyId, portalId, timeRange])
+  const error = queryError
+    ? ((queryError as Error).message ?? 'Failed to load analytics')
+    : null
 
   if (loading) {
     return (

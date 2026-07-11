@@ -22,7 +22,7 @@ type SetValues = {
 
 export const createTeamRepository = (
   db: Database,
-  clock: () => Date = () => new Date(),
+  clock: () => Date,
 ): TeamRepository => ({
   findById: async (orgId, id) => {
     return trace('team.findById', async () => {

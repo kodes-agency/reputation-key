@@ -373,6 +373,7 @@ export function createContainer(options?: {
     portalMetrics,
     attentionSignals,
     staffPortalResolver,
+    clock,
   })
 
   // ── Activity context ────────────────────────────────────────────

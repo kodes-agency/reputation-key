@@ -22,6 +22,7 @@ export type DashboardContextBuildInput = Readonly<{
   portalMetrics: PortalMetricsPort
   staffPortalResolver: StaffPortalResolverPort
   attentionSignals: AttentionSignalsPort
+  clock: () => Date
 }>
 
 export type DashboardContextApi = Readonly<{
@@ -51,26 +52,31 @@ export const buildDashboardContext = (
 
   const getDashboard = getDashboardData({
     repo: dashboardRepo,
+    clock: input.clock,
   })
 
   const getPortal = getPortalAnalytics({
     repo: dashboardRepo,
     portalMetrics: input.portalMetrics,
+    clock: input.clock,
   })
 
   const getStaffDashboard = getStaffDashboardData({
     repo: dashboardRepo,
     staffPortalResolver: input.staffPortalResolver,
+    clock: input.clock,
   })
 
   const getAttention = getAttentionSignals({
     repo: dashboardRepo,
     signals: input.attentionSignals,
+    clock: input.clock,
   })
 
   const getFleet = getFleetOverview({
     repo: dashboardRepo,
     signals: input.attentionSignals,
+    clock: input.clock,
   })
 
   return {

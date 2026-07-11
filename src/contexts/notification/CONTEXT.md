@@ -132,12 +132,6 @@ Notifications are personal (scoped to the caller's `userId`); all three roles ma
 - `UserLookupPort` — `findByRole()`, `findAssignedManagers()` (managers AND staff), `getEmail()`, `getName()`.
 - `EmailSenderPort` — wraps Resend `sendEmail()`.
 
-## Resolved decisions
-
-- **BullMQ delivery** (ADR 0011) — handlers enqueue jobs, workers insert rows.
-- **Two tables** — `notifications` (in-app) + `notification_email_queue` (email), separate lifecycles.
-- **Title/body pre-rendered** at insertion time (Q19).
-- **Three urgent types**: `reply.pending_approval`, `reply.publish_failed`, `inbox.escalated` (Q9).
 - **`goal.progress_updated` pruned (Q14)** — event removed entirely: no consumer, only `goal.completed` is notification-worthy.
 - **Digest keyed by property timezone** (already on properties table), not org timezone (Q8).
 - **Review notification sources `inbox.inbox_item.created`** (2026-07 design) — the `review.created` notification subscribes to `inbox.inbox_item.created` (carries the `inboxItemId`, fires _after_ the item exists → no race), branching on `sourceType` (review vs feedback). That event is enriched with `rating`/`snippet` so the body derives fully. `resourceId` is the **inbox-item id**, making deep-links honest. (Replaces the old `review.created` subscription that stamped a `reviewId` under `resourceType: 'inbox_item'`.)
