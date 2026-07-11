@@ -5,7 +5,8 @@ import {
   removeStaffAssignment,
 } from '#/contexts/staff/server/staff-assignments'
 import { TeamMemberList } from '#/components/features/team'
-import { useMutationAction } from '#/components/hooks/use-mutation-action'
+import { useActionMutation } from '#/components/hooks/use-action-mutation'
+import { teamKeys, identityKeys, staffKeys } from '#/shared/queries/query-keys'
 import { useTeamLayout } from '../$teamId'
 
 export const Route = createFileRoute(
@@ -17,13 +18,21 @@ export const Route = createFileRoute(
 function TeamMembersPage() {
   const { team, memberOptions, assignments, propertyId, teamId } = useTeamLayout()
 
-  const addMemberMutation = useMutationAction(createStaffAssignment, {
+  const addMemberMutation = useActionMutation(createStaffAssignment, {
     successMessage: 'Member added to team',
-    invalidateRoutes: ['/_authenticated/properties/$propertyId/teams/$teamId'],
+    invalidateKeys: [
+      teamKeys.list(propertyId),
+      identityKeys.members(),
+      staffKeys.assignments(propertyId),
+    ],
   })
-  const removeMemberMutation = useMutationAction(removeStaffAssignment, {
+  const removeMemberMutation = useActionMutation(removeStaffAssignment, {
     successMessage: 'Member removed from team',
-    invalidateRoutes: ['/_authenticated/properties/$propertyId/teams/$teamId'],
+    invalidateKeys: [
+      teamKeys.list(propertyId),
+      identityKeys.members(),
+      staffKeys.assignments(propertyId),
+    ],
   })
 
   return (

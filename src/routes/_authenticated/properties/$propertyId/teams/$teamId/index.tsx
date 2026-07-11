@@ -3,7 +3,8 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { updateTeam } from '#/contexts/team/server/teams'
 import { EditTeamForm } from '#/components/features/team'
 import { useTeamLayout } from '../$teamId'
-import { useMutationAction } from '#/components/hooks/use-mutation-action'
+import { useActionMutation } from '#/components/hooks/use-action-mutation'
+import { teamKeys, identityKeys } from '#/shared/queries/query-keys'
 
 export const Route = createFileRoute(
   '/_authenticated/properties/$propertyId/teams/$teamId/',
@@ -15,9 +16,9 @@ function TeamSettingsPage() {
   const { team, memberOptions, propertyId } = useTeamLayout()
   const navigate = useNavigate()
 
-  const mutation = useMutationAction(updateTeam, {
+  const mutation = useActionMutation(updateTeam, {
     successMessage: 'Team updated',
-    invalidateRoutes: ['/_authenticated/properties/$propertyId/teams/$teamId'],
+    invalidateKeys: [teamKeys.list(propertyId), identityKeys.members()],
   })
 
   return (

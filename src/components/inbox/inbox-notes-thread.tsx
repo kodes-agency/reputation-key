@@ -1,6 +1,6 @@
 // Inbox notes thread — displays notes and add-note form within the detail panel
 import { useState, useMemo } from 'react'
-import { useMutationAction } from '#/components/hooks/use-mutation-action'
+import { useActionMutation } from '#/components/hooks/use-action-mutation'
 // Receives addInboxNote server fn as a prop per src/components/CONTEXT.md:55.
 import type { addInboxNoteFn } from '#/contexts/inbox/server/inbox'
 import { Button } from '#/components/ui/button'
@@ -47,9 +47,8 @@ export function InboxNotesThread({
 
   // invalidate: false — onNoteAdded refreshes detail + bumps statusVersion
   // (which refreshes the activity timeline); the inbox route has no loader.
-  const addNote = useMutationAction(addInboxNote, {
+  const addNote = useActionMutation(addInboxNote, {
     successMessage: 'Note added',
-    invalidate: false,
     onSuccess: () => {
       setNoteText('')
       onNoteAdded()

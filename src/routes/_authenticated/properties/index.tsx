@@ -1,13 +1,14 @@
 // Property list — shows all properties for the active organization
-// Reads from parent layout loader instead of re-fetching.
-import { createFileRoute, getRouteApi, redirect } from '@tanstack/react-router'
+// Reads parent-layout data via the shared Query cache (propertiesQuery).
+import { createFileRoute, redirect } from '@tanstack/react-router'
+import { useSuspenseQuery } from '@tanstack/react-query'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import { PropertyListPage } from '#/components/features/property/property-list-page'
 import { deleteProperty } from '#/contexts/property/server/properties'
-import { useMutationAction } from '#/components/hooks/use-mutation-action'
-
-const authRoute = getRouteApi('/_authenticated')
+import { useActionMutation } from '#/components/hooks/use-action-mutation'
+import { propertiesQuery } from '#/shared/queries/route-queries'
+import { identityKeys, propertyKeys } from '#/shared/queries/query-keys'
 
 export const Route = createFileRoute('/_authenticated/properties/')({
   beforeLoad: ({ context }) => {
@@ -19,9 +20,10 @@ export const Route = createFileRoute('/_authenticated/properties/')({
 })
 
 function PropertyListRoute() {
-  const { properties } = authRoute.useLoaderData()
-  const deleteAction = useMutationAction(deleteProperty, {
-    invalidateRoutes: ['/_authenticated'],
+  const { data: propsData } = useSuspenseQuery(propertiesQuery)
+  const properties = propsData.properties
+  const deleteAction = useActionMutation(deleteProperty, {
+    invalidateKeys: [identityKeys.organizations(), propertyKeys.list()],
   })
   return <PropertyListPage properties={properties} deleteAction={deleteAction} />
 }

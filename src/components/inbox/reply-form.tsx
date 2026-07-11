@@ -11,7 +11,7 @@ import {
   retryPublishFn,
   getReplyFn,
 } from '#/contexts/review/server/reply'
-import { useMutationAction } from '#/components/hooks/use-mutation-action'
+import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { ReplyCompose } from './reply-editor-compose'
 import { ReviewReplyApproved, ReviewReplyPublished } from './reply-editor-views'
 import {
@@ -35,34 +35,28 @@ export function ReplyEditorInner({
   loading,
   onReplyChanged,
 }: InnerProps) {
-  const draft = useMutationAction(draftReplyFn, {
+  const draft = useActionMutation(draftReplyFn, {
     successMessage: 'Draft saved',
-    invalidate: false,
     onSuccess: onReplyChanged,
   })
-  const submit = useMutationAction(submitReplyFn, {
+  const submit = useActionMutation(submitReplyFn, {
     successMessage: 'Submitted for approval',
-    invalidate: false,
     onSuccess: onReplyChanged,
   })
-  const approve = useMutationAction(approveReplyFn, {
+  const approve = useActionMutation(approveReplyFn, {
     successMessage: 'Approved and publishing',
-    invalidate: false,
     onSuccess: onReplyChanged,
   })
-  const reject = useMutationAction(rejectReplyFn, {
+  const reject = useActionMutation(rejectReplyFn, {
     successMessage: 'Reply rejected',
-    invalidate: false,
     onSuccess: onReplyChanged,
   })
-  const del = useMutationAction(deleteReplyFn, {
+  const del = useActionMutation(deleteReplyFn, {
     successMessage: 'Reply deleted',
-    invalidate: false,
     onSuccess: () => onReplyChanged(null),
   })
-  const retry = useMutationAction(retryPublishFn, {
+  const retry = useActionMutation(retryPublishFn, {
     successMessage: 'Retrying publish...',
-    invalidate: false,
     onSuccess: onReplyChanged,
   })
   const isSaving = [draft, submit, approve, reject, del, retry].some((m) => m.isPending)

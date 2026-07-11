@@ -1,4 +1,5 @@
-import { createFileRoute, getRouteApi, notFound, redirect } from '@tanstack/react-router'
+import { createFileRoute, notFound, redirect } from '@tanstack/react-router'
+import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import { getPortal } from '#/contexts/portal/server/portals'
@@ -12,13 +13,41 @@ import { listPortalLinks } from '#/contexts/portal/server/portal-links'
 import { getPortalAnalyticsFn } from '#/contexts/dashboard/server/portal-analytics'
 import { PortalDetailPage } from '#/components/features/portal'
 import { PortalBadgeSection } from '#/components/features/badges/portal-badge-section'
-import { useMutationAction } from '#/components/hooks/use-mutation-action'
+import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { useServerFn } from '@tanstack/react-start'
+import { portalKeys, badgeKeys } from '#/shared/queries/query-keys'
+import { propertyQuery, propertiesQuery } from '#/shared/queries/route-queries'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
 import type { BadgeAwardWithTarget } from '#/contexts/badge/application/public-api'
 
-const propertyRoute = getRouteApi('/_authenticated/properties/$propertyId')
+const portalQuery = (portalId: string) =>
+  queryOptions({
+    queryKey: portalKeys.detail(portalId),
+    queryFn: () => getPortal({ data: { portalId } }),
+    staleTime: 30_000,
+  })
+
+const portalLinksQuery = (portalId: string) =>
+  queryOptions({
+    queryKey: portalKeys.links(portalId),
+    queryFn: () => listPortalLinks({ data: { portalId } }),
+    staleTime: 30_000,
+  })
+
+const portalBadgesQuery = (propertyId: string, portalId: string) =>
+  queryOptions({
+    queryKey: badgeKeys.target({ propertyId, targetType: 'portal', targetId: portalId }),
+    queryFn: () =>
+      getVisibleTargetBadges({
+        data: {
+          propertyId,
+          targetType: 'portal',
+          targetId: portalId,
+        },
+      }),
+    staleTime: 30_000,
+  })
 
 export const Route = createFileRoute(
   '/_authenticated/properties/$propertyId/portals/$portalId',
@@ -28,17 +57,13 @@ export const Route = createFileRoute(
     if (!can(role, 'portal.read')) throw redirect({ to: '/properties' })
   },
   staleTime: 30_000,
-  loader: async ({ params }) => {
+  loader: async ({ params, context }) => {
     const [{ portal }, { categories, links }, badges] = await Promise.all([
-      getPortal({ data: { portalId: params.portalId } }),
-      listPortalLinks({ data: { portalId: params.portalId } }),
-      getVisibleTargetBadges({
-        data: {
-          propertyId: params.propertyId,
-          targetType: 'portal',
-          targetId: params.portalId,
-        },
-      }),
+      context.queryClient.ensureQueryData(portalQuery(params.portalId)),
+      context.queryClient.ensureQueryData(portalLinksQuery(params.portalId)),
+      context.queryClient.ensureQueryData(
+        portalBadgesQuery(params.propertyId, params.portalId),
+      ),
     ])
     if (!portal) throw notFound()
     return {
@@ -53,20 +78,27 @@ export const Route = createFileRoute(
 })
 
 function PortalDetailRoute() {
-  const { portal, categories, links, propertyId, badges } = Route.useLoaderData()
-  const { property } = propertyRoute.useLoaderData()
+  const { propertyId, portalId } = Route.useParams()
+  const { data: portalData } = useSuspenseQuery(portalQuery(portalId))
+  const { data: linksData } = useSuspenseQuery(portalLinksQuery(portalId))
+  const { data: badges } = useSuspenseQuery(portalBadgesQuery(propertyId, portalId))
+  const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
+  const { data: propsData } = useSuspenseQuery(propertiesQuery)
+  const { portal } = portalData
+  const { categories, links } = linksData
+  const { property } = propData
+  const { properties } = propsData
+  if (!portal) throw notFound()
   const ctx = Route.useRouteContext()
 
-  const mutation = useMutationAction(updatePortal, {
+  const mutation = useActionMutation(updatePortal, {
     successMessage: 'Portal updated',
-    invalidateRoutes: ['/_authenticated/properties/$propertyId/portals/$portalId'],
+    invalidateKeys: [portalKeys.detail(portalId), portalKeys.links(portalId)],
   })
 
   const requestUploadUrlFn = useServerFn(requestUploadUrl)
   const finalizeUploadFn = useServerFn(finalizeUpload)
 
-  const authRoute = getRouteApi('/_authenticated')
-  const { properties } = authRoute.useLoaderData()
   const propertySlug = properties?.find((p) => p.id === propertyId)?.slug ?? ''
 
   return (
@@ -92,7 +124,7 @@ function PortalDetailRoute() {
         finalizeUpload={finalizeUploadFn}
         getPortalAnalytics={getPortalAnalyticsFn}
       />
-      <PortalBadgeSection badges={badges} />
+      <PortalBadgeSection badges={badges as BadgeAwardWithTarget[]} />
     </PageShell>
   )
 }

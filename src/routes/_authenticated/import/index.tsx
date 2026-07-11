@@ -1,7 +1,9 @@
 import { createFileRoute, redirect, useSearch } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
+import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
+import { identityKeys, propertyKeys, integrationKeys } from '#/shared/queries/query-keys'
 import {
   getGoogleAuthUrl,
   listGoogleConnections,
@@ -14,10 +16,19 @@ import {
   ConnectGoogleButton,
   ImportConnectedView,
 } from '#/components/features/integration'
-import { useMutationActionSilent } from '#/components/hooks/use-mutation-action'
+import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { useAction } from '#/components/hooks/use-action'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
+
+// Shared query options — the loader (ensureQueryData) and component
+// (useSuspenseQuery) reference the SAME options object so the primed cache is
+// hit with zero extra fetch.
+const connectionsQuery = queryOptions({
+  queryKey: integrationKeys.connections(),
+  queryFn: () => listGoogleConnections(),
+  staleTime: 60_000,
+})
 
 export const Route = createFileRoute('/_authenticated/import/')({
   beforeLoad: ({ context }) => {
@@ -25,8 +36,8 @@ export const Route = createFileRoute('/_authenticated/import/')({
     if (!can(role, 'integration.manage')) throw redirect({ to: '/properties' })
   },
   staleTime: 60_000,
-  loader: async () => {
-    const result = await listGoogleConnections()
+  loader: async ({ context }) => {
+    const result = await context.queryClient.ensureQueryData(connectionsQuery)
     return { connections: result.connections }
   },
   component: ImportPage,
@@ -34,11 +45,16 @@ export const Route = createFileRoute('/_authenticated/import/')({
 
 function ImportPage() {
   const search = useSearch({ strict: false }) as { connectionId?: string; error?: string }
-  const { connections } = Route.useLoaderData()
+  const { data } = useSuspenseQuery(connectionsQuery)
+  const connections = data.connections
   const getAuthUrl = useAction(useServerFn(getGoogleAuthUrl))
 
-  const importAction = useMutationActionSilent(startPropertyImport, {
-    invalidateRoutes: ['/_authenticated'],
+  const importAction = useActionMutation(startPropertyImport, {
+    invalidateKeys: [
+      identityKeys.organizations(),
+      propertyKeys.list(),
+      integrationKeys.connections(),
+    ],
   })
 
   return (

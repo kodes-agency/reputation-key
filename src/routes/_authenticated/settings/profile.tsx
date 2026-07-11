@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { PageHeader } from '#/components/layout/page-header'
 import { useServerFn } from '@tanstack/react-start'
-import { useMutationAction } from '#/components/hooks/use-mutation-action'
+import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import {
   updateProfileFn,
   updateUserImageFn,
@@ -19,10 +19,10 @@ export const Route = createFileRoute('/_authenticated/settings/profile')({
 
 function ProfileSettings() {
   const ctx = Route.useRouteContext() as AuthRouteContext
-  const updateProfile = useMutationAction(updateProfileFn, {
+  const updateProfile = useActionMutation(updateProfileFn, {
     successMessage: 'Profile updated successfully',
   })
-  const updateUserImage = useMutationAction(updateUserImageFn, {
+  const updateUserImage = useActionMutation(updateUserImageFn, {
     successMessage: 'Avatar updated successfully',
   })
   const requestUpload = useServerFn(requestAvatarUpload)

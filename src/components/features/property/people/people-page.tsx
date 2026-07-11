@@ -10,10 +10,8 @@ import type {
 import type { listTeams, createTeam, deleteTeam } from '#/contexts/team/server/teams'
 import type { listMembers } from '#/contexts/identity/server/organizations'
 import { Tabs, TabsList, TabsTrigger } from '#/components/ui/tabs'
-import {
-  useMutationAction,
-  useMutationActionSilent,
-} from '#/components/hooks/use-mutation-action'
+import { useActionMutation } from '#/components/hooks/use-action-mutation'
+import { staffKeys, teamKeys, propertyKeys } from '#/shared/queries/query-keys'
 import { toMemberOptions, toTeamOptions } from '#/lib/lookups'
 import { StaffTab } from '#/components/features/property/people/staff-tab'
 import { TeamsTab } from '#/components/features/property/people/teams-tab'
@@ -66,28 +64,29 @@ export function PeoplePage({
   const portalOptions = portals.map((p) => ({ id: String(p.id), name: p.name }))
   const assignedUserIds = new Set(assignments.map((a) => a.userId))
 
-  const invalidateRoutes = [
-    '/_authenticated/properties/$propertyId/people',
-    '/_authenticated/properties/$propertyId',
-  ] as const
+  const invalidateKeys = [
+    staffKeys.assignments(propertyId),
+    teamKeys.list(propertyId),
+    propertyKeys.detail(propertyId),
+  ]
 
-  const assignMutation = useMutationActionSilent(createStaffAssignmentFn, {
-    invalidateRoutes: [...invalidateRoutes],
+  const assignMutation = useActionMutation(createStaffAssignmentFn, {
+    invalidateKeys,
   })
-  const removeMutation = useMutationAction(removeStaffAssignmentFn, {
+  const removeMutation = useActionMutation(removeStaffAssignmentFn, {
     successMessage: 'Staff member unassigned',
-    invalidateRoutes: [...invalidateRoutes],
+    invalidateKeys,
   })
-  const createTeamMutation = useMutationAction(createTeamFn, {
+  const createTeamMutation = useActionMutation(createTeamFn, {
     successMessage: 'Team created',
-    invalidateRoutes: [...invalidateRoutes],
+    invalidateKeys,
     onSuccess: async () => {
       setCreateTeamOpen(false)
     },
   })
-  const deleteTeamMutation = useMutationAction(deleteTeamFn, {
+  const deleteTeamMutation = useActionMutation(deleteTeamFn, {
     successMessage: 'Team deleted',
-    invalidateRoutes: [...invalidateRoutes],
+    invalidateKeys,
   })
 
   return (

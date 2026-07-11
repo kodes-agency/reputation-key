@@ -1,14 +1,26 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
 import { getImportStatus } from '#/contexts/integration/server/gbp-import'
+import { integrationKeys } from '#/shared/queries/query-keys'
 import { ImportProgress, useImportJobPolling } from '#/components/features/integration'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
 import { ErrorState } from '#/components/layout/page-states'
 
+// Shared query options factory — importId is a route param, so the options
+// are built per-request. The loader (ensureQueryData) and component
+// (useSuspenseQuery) reference the SAME factory so keys match.
+const importStatusQuery = (importId: string) =>
+  queryOptions({
+    queryKey: integrationKeys.import(importId),
+    queryFn: () => getImportStatus({ data: { importId } }),
+    staleTime: 0,
+  })
+
 export const Route = createFileRoute('/_authenticated/import/$importId')({
   staleTime: 0,
-  loader: async ({ params: { importId } }) => {
-    const result = await getImportStatus({ data: { importId } })
+  loader: async ({ context, params: { importId } }) => {
+    const result = await context.queryClient.ensureQueryData(importStatusQuery(importId))
     return { job: result.job }
   },
   component: ImportProgressPage,
@@ -16,10 +28,10 @@ export const Route = createFileRoute('/_authenticated/import/$importId')({
 
 function ImportProgressPage() {
   const { importId } = Route.useParams()
-  const initialData = Route.useLoaderData()
+  const { data } = useSuspenseQuery(importStatusQuery(importId))
 
   // Delegated to hook — stable interval, error cap, terminal detection
-  const { job, error } = useImportJobPolling(importId, initialData.job, getImportStatus)
+  const { job, error } = useImportJobPolling(importId, data.job, getImportStatus)
 
   return (
     <PageShell>

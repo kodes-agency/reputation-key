@@ -1,5 +1,6 @@
 // People route — thin wrapper around PeoplePage component
-import { createFileRoute, getRouteApi, redirect } from '@tanstack/react-router'
+import { createFileRoute, redirect } from '@tanstack/react-router'
+import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import {
@@ -15,8 +16,40 @@ import {
   PeoplePage,
   peopleSearchSchema,
 } from '#/components/features/property/people/people-page'
+import {
+  staffKeys,
+  identityKeys,
+  teamKeys,
+  portalKeys,
+} from '#/shared/queries/query-keys'
+import { propertyQuery } from '#/shared/queries/route-queries'
 
-const propertyRoute = getRouteApi('/_authenticated/properties/$propertyId')
+const assignmentsQuery = (propertyId: string) =>
+  queryOptions({
+    queryKey: staffKeys.assignments(propertyId),
+    queryFn: () => listStaffAssignments({ data: { propertyId } }),
+    staleTime: 30_000,
+  })
+
+const membersQuery = queryOptions({
+  queryKey: identityKeys.members(),
+  queryFn: () => listMembers(),
+  staleTime: 30_000,
+})
+
+const teamsQuery = (propertyId: string) =>
+  queryOptions({
+    queryKey: teamKeys.list(propertyId),
+    queryFn: () => listTeams({ data: { propertyId } }),
+    staleTime: 30_000,
+  })
+
+const portalsQuery = (propertyId: string) =>
+  queryOptions({
+    queryKey: portalKeys.list(propertyId),
+    queryFn: () => listPortals({ data: { propertyId } }),
+    staleTime: 30_000,
+  })
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/people')({
   beforeLoad: ({ context }) => {
@@ -25,12 +58,12 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/peo
   },
   validateSearch: (search) => peopleSearchSchema.parse(search),
   staleTime: 30_000,
-  loader: async ({ params: { propertyId } }) => {
+  loader: async ({ params: { propertyId }, context }) => {
     const [{ assignments }, { members }, { teams }, { portals }] = await Promise.all([
-      listStaffAssignments({ data: { propertyId } }),
-      listMembers(),
-      listTeams({ data: { propertyId } }),
-      listPortals({ data: { propertyId } }),
+      context.queryClient.ensureQueryData(assignmentsQuery(propertyId)),
+      context.queryClient.ensureQueryData(membersQuery),
+      context.queryClient.ensureQueryData(teamsQuery(propertyId)),
+      context.queryClient.ensureQueryData(portalsQuery(propertyId)),
     ])
     return { assignments, members, teams, portals }
   },
@@ -39,15 +72,22 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/peo
 
 function PeopleRoute() {
   const { propertyId } = Route.useParams()
-  const { property } = propertyRoute.useLoaderData()
-  const { assignments, members, teams, portals } = Route.useLoaderData()
+  const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
+  const { data: assignmentsData } = useSuspenseQuery(assignmentsQuery(propertyId))
+  const { data: membersData } = useSuspenseQuery(membersQuery)
+  const { data: teamsData } = useSuspenseQuery(teamsQuery(propertyId))
+  const { data: portalsData } = useSuspenseQuery(portalsQuery(propertyId))
+  const { assignments } = assignmentsData
+  const { members } = membersData
+  const { teams } = teamsData
+  const { portals } = portalsData
   const search = Route.useSearch() as { tab?: string }
   const navigate = Route.useNavigate()
 
   return (
     <PeoplePage
       propertyId={propertyId}
-      propertyName={property.name}
+      propertyName={propData.property.name}
       assignments={assignments}
       members={members}
       teams={teams}

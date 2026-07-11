@@ -11,10 +11,8 @@ import {
 import { getSession } from '#/shared/auth/auth.functions'
 import {
   getActiveOrganization,
-  listUserOrganizations,
   setActiveOrganization,
 } from '#/contexts/identity/server/organizations'
-import { listProperties } from '#/contexts/property/server/properties'
 import { getNewCountFn } from '#/contexts/inbox/server/inbox'
 import { notificationFns } from '#/routes/-notification-fns'
 import type { Role } from '#/shared/domain/roles'
@@ -26,7 +24,10 @@ import { StaffSidebar } from '#/components/layout/staff-sidebar'
 import { SettingsSidebar } from '#/components/layout/settings-sidebar'
 import { AppTopBar } from '#/components/layout/app-top-bar'
 import { hasRole } from '#/shared/domain/roles'
-import { useMutationActionSilent } from '#/components/hooks/use-mutation-action'
+import { useSuspenseQuery } from '@tanstack/react-query'
+import { useActionMutation } from '#/components/hooks/use-action-mutation'
+import { organizationsQuery, propertiesQuery } from '#/shared/queries/route-queries'
+import { identityKeys, propertyKeys } from '#/shared/queries/query-keys'
 
 export type AuthRouteContext = Readonly<{
   user: {
@@ -127,28 +128,31 @@ export const Route = createFileRoute('/_authenticated')({
       activeOrganization,
     } satisfies AuthRouteContext
   },
-  loader: async () => {
-    const [orgsResult, propsResult] = await Promise.all([
-      listUserOrganizations(),
-      listProperties(),
+  loader: async ({ context }) => {
+    const [orgs, props] = await Promise.all([
+      context.queryClient.ensureQueryData(organizationsQuery),
+      context.queryClient.ensureQueryData(propertiesQuery),
     ])
-
     return {
-      organizations: orgsResult.organizations,
-      properties: propsResult.properties,
+      organizations: orgs.organizations,
+      properties: props.properties,
     }
   },
-  // Structural data (orgs, properties) rarely changes.
-  // Refetch only on explicit router.invalidate() after mutations.
-  staleTime: 5 * 60 * 1000, // 5 min — structural data rarely changes
+  // Structural data (orgs, properties) rarely changes. Cached via Query
+  // (organizationsQuery/propertiesQuery, 5-min staleTime); refetched by
+  // targeted key invalidation after org-switching mutations.
+  staleTime: 5 * 60 * 1000, // 5 min — matches the Query staleTime
   component: AuthenticatedLayout,
 })
 
 function AuthenticatedLayout() {
   const ctx = Route.useRouteContext()
-  const { organizations, properties } = Route.useLoaderData()
-  const setActiveOrganizationFn = useMutationActionSilent(setActiveOrganization, {
-    invalidateRoutes: ['/_authenticated'],
+  const { data: orgsData } = useSuspenseQuery(organizationsQuery)
+  const { data: propsData } = useSuspenseQuery(propertiesQuery)
+  const organizations = orgsData.organizations
+  const properties = propsData.properties
+  const setActiveOrganizationFn = useActionMutation(setActiveOrganization, {
+    invalidateKeys: [identityKeys.organizations(), propertyKeys.list()],
   })
   const pathname = useRouterState({ select: (s) => s.location.pathname })
   const isSettings = pathname.startsWith('/settings')

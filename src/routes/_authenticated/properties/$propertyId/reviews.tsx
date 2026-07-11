@@ -1,10 +1,12 @@
 // Property-scoped reviews = the inbox triage surface filtered by this property.
 // propertyId comes from the route param (path), NOT from search params.
 import { createFileRoute, getRouteApi, redirect } from '@tanstack/react-router'
+import { useSuspenseQuery } from '@tanstack/react-query'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import { InboxPageV2, inboxSearchSchema } from '#/components/inbox/inbox-page-v2'
 import { inboxFns } from '#/routes/_authenticated/-inbox-fns'
+import { propertiesQuery } from '#/shared/queries/route-queries'
 
 const authRoute = getRouteApi('/_authenticated')
 const propertyRoute = getRouteApi('/_authenticated/properties/$propertyId')
@@ -24,9 +26,7 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/rev
 
 function PropertyReviewsRoute() {
   const ctx = authRoute.useRouteContext() as AuthRouteContext
-  const parentData = authRoute.useLoaderData() as {
-    properties: ReadonlyArray<{ id: string; name: string }>
-  }
+  const { data: propsData } = useSuspenseQuery(propertiesQuery)
   const { propertyId } = propertyRoute.useParams()
   const search = Route.useSearch()
   const navigate = Route.useNavigate()
@@ -36,7 +36,7 @@ function PropertyReviewsRoute() {
       ctx={ctx}
       search={search}
       activePropertyId={propertyId}
-      properties={parentData.properties}
+      properties={propsData.properties}
       inboxFns={inboxFns}
       onNavigate={(opts) =>
         navigate({

@@ -2,7 +2,9 @@
 // Renders inside the `dashboard` tier. Rows are attention-sorted (most-needing first);
 // each row deep-links into that property's deep-dive.
 import type { ReactNode } from 'react'
-import { Link, useRouter } from '@tanstack/react-router'
+import { Link } from '@tanstack/react-router'
+import { useQueryClient } from '@tanstack/react-query'
+import { dashboardKeys } from '#/shared/queries/query-keys'
 import { Building2, AlertCircle, Star, Plus } from 'lucide-react'
 import { Badge } from '#/components/ui/badge'
 import { Button } from '#/components/ui/button'
@@ -40,10 +42,13 @@ export function FleetOverviewLoading() {
 }
 
 export function FleetOverviewError({ message }: Readonly<{ message?: string }>) {
-  const router = useRouter()
+  const qc = useQueryClient()
   return (
     <Shell>
-      <ErrorState message={message} onRetry={() => router.invalidate()} />
+      <ErrorState
+        message={message}
+        onRetry={() => qc.invalidateQueries({ queryKey: dashboardKeys.fleet() })}
+      />
     </Shell>
   )
 }

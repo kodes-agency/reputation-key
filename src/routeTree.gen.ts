@@ -107,11 +107,12 @@ const AuthenticatedProgressRoute = AuthenticatedProgressRouteImport.update({
   path: '/progress',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
-const AuthenticatedLeaderboardRoute = AuthenticatedLeaderboardRouteImport.update({
-  id: '/leaderboard',
-  path: '/leaderboard',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
+const AuthenticatedLeaderboardRoute =
+  AuthenticatedLeaderboardRouteImport.update({
+    id: '/leaderboard',
+    path: '/leaderboard',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedHomeRoute = AuthenticatedHomeRouteImport.update({
   id: '/home',
   path: '/home',
@@ -127,26 +128,29 @@ const ApiHealthIndexRoute = ApiHealthIndexRouteImport.update({
   path: '/api/health/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedSettingsIndexRoute = AuthenticatedSettingsIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => AuthenticatedSettingsRoute,
-} as any)
-const AuthenticatedPropertiesIndexRoute = AuthenticatedPropertiesIndexRouteImport.update({
-  id: '/properties/',
-  path: '/properties/',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
+const AuthenticatedSettingsIndexRoute =
+  AuthenticatedSettingsIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedSettingsRoute,
+  } as any)
+const AuthenticatedPropertiesIndexRoute =
+  AuthenticatedPropertiesIndexRouteImport.update({
+    id: '/properties/',
+    path: '/properties/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedInboxIndexRoute = AuthenticatedInboxIndexRouteImport.update({
   id: '/inbox/',
   path: '/inbox/',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
-const AuthenticatedImportIndexRoute = AuthenticatedImportIndexRouteImport.update({
-  id: '/import/',
-  path: '/import/',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
+const AuthenticatedImportIndexRoute =
+  AuthenticatedImportIndexRouteImport.update({
+    id: '/import/',
+    path: '/import/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const PPropertySlugPortalSlugRoute = PPropertySlugPortalSlugRouteImport.update({
   id: '/p/$propertySlug/$portalSlug',
   path: '/p/$propertySlug/$portalSlug',
@@ -169,11 +173,12 @@ const AuthenticatedSettingsRecognitionRoute =
     path: '/recognition',
     getParentRoute: () => AuthenticatedSettingsRoute,
   } as any)
-const AuthenticatedSettingsProfileRoute = AuthenticatedSettingsProfileRouteImport.update({
-  id: '/profile',
-  path: '/profile',
-  getParentRoute: () => AuthenticatedSettingsRoute,
-} as any)
+const AuthenticatedSettingsProfileRoute =
+  AuthenticatedSettingsProfileRouteImport.update({
+    id: '/profile',
+    path: '/profile',
+    getParentRoute: () => AuthenticatedSettingsRoute,
+  } as any)
 const AuthenticatedSettingsPreferencesRoute =
   AuthenticatedSettingsPreferencesRouteImport.update({
     id: '/preferences',
@@ -192,11 +197,12 @@ const AuthenticatedSettingsNotificationsRoute =
     path: '/notifications',
     getParentRoute: () => AuthenticatedSettingsRoute,
   } as any)
-const AuthenticatedSettingsMembersRoute = AuthenticatedSettingsMembersRouteImport.update({
-  id: '/members',
-  path: '/members',
-  getParentRoute: () => AuthenticatedSettingsRoute,
-} as any)
+const AuthenticatedSettingsMembersRoute =
+  AuthenticatedSettingsMembersRouteImport.update({
+    id: '/members',
+    path: '/members',
+    getParentRoute: () => AuthenticatedSettingsRoute,
+  } as any)
 const AuthenticatedSettingsIntegrationsRoute =
   AuthenticatedSettingsIntegrationsRouteImport.update({
     id: '/integrations',
@@ -209,22 +215,24 @@ const AuthenticatedPropertiesPropertyIdRoute =
     path: '/properties/$propertyId',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
-const AuthenticatedImportImportIdRoute = AuthenticatedImportImportIdRouteImport.update({
-  id: '/import/$importId',
-  path: '/import/$importId',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
+const AuthenticatedImportImportIdRoute =
+  AuthenticatedImportImportIdRouteImport.update({
+    id: '/import/$importId',
+    path: '/import/$importId',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedPropertiesPropertyIdIndexRoute =
   AuthenticatedPropertiesPropertyIdIndexRouteImport.update({
     id: '/',
     path: '/',
     getParentRoute: () => AuthenticatedPropertiesPropertyIdRoute,
   } as any)
-const ApiWebhooksGbpNotificationsRoute = ApiWebhooksGbpNotificationsRouteImport.update({
-  id: '/api/webhooks/gbp/notifications',
-  path: '/api/webhooks/gbp/notifications',
-  getParentRoute: () => rootRouteImport,
-} as any)
+const ApiWebhooksGbpNotificationsRoute =
+  ApiWebhooksGbpNotificationsRouteImport.update({
+    id: '/api/webhooks/gbp/notifications',
+    path: '/api/webhooks/gbp/notifications',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicClickLinkIdRoute = ApiPublicClickLinkIdRouteImport.update({
   id: '/api/public/click/$linkId',
   path: '/api/public/click/$linkId',
@@ -982,10 +990,13 @@ interface AuthenticatedSettingsRouteChildren {
 }
 
 const AuthenticatedSettingsRouteChildren: AuthenticatedSettingsRouteChildren = {
-  AuthenticatedSettingsIntegrationsRoute: AuthenticatedSettingsIntegrationsRoute,
+  AuthenticatedSettingsIntegrationsRoute:
+    AuthenticatedSettingsIntegrationsRoute,
   AuthenticatedSettingsMembersRoute: AuthenticatedSettingsMembersRoute,
-  AuthenticatedSettingsNotificationsRoute: AuthenticatedSettingsNotificationsRoute,
-  AuthenticatedSettingsOrganizationRoute: AuthenticatedSettingsOrganizationRoute,
+  AuthenticatedSettingsNotificationsRoute:
+    AuthenticatedSettingsNotificationsRoute,
+  AuthenticatedSettingsOrganizationRoute:
+    AuthenticatedSettingsOrganizationRoute,
   AuthenticatedSettingsPreferencesRoute: AuthenticatedSettingsPreferencesRoute,
   AuthenticatedSettingsProfileRoute: AuthenticatedSettingsProfileRoute,
   AuthenticatedSettingsRecognitionRoute: AuthenticatedSettingsRecognitionRoute,
@@ -994,7 +1005,9 @@ const AuthenticatedSettingsRouteChildren: AuthenticatedSettingsRouteChildren = {
 }
 
 const AuthenticatedSettingsRouteWithChildren =
-  AuthenticatedSettingsRoute._addFileChildren(AuthenticatedSettingsRouteChildren)
+  AuthenticatedSettingsRoute._addFileChildren(
+    AuthenticatedSettingsRouteChildren,
+  )
 
 interface AuthenticatedPropertiesPropertyIdGoalsRouteChildren {
   AuthenticatedPropertiesPropertyIdGoalsGoalIdRoute: typeof AuthenticatedPropertiesPropertyIdGoalsGoalIdRoute

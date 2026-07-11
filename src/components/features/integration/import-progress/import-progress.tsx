@@ -2,7 +2,9 @@ import type { GbpImportJob } from '#/contexts/integration/application/public-api
 import { Card } from '#/components/ui/card'
 import { ImportStatusBadge } from './import-status-badge'
 import { Button } from '#/components/ui/button'
-import { useNavigate, useRouter } from '@tanstack/react-router'
+import { useNavigate } from '@tanstack/react-router'
+import { useQueryClient } from '@tanstack/react-query'
+import { propertyKeys, identityKeys } from '#/shared/queries/query-keys'
 import { CheckCircle2, XCircle, AlertCircle } from 'lucide-react'
 
 type Props = Readonly<{
@@ -11,7 +13,7 @@ type Props = Readonly<{
 
 export function ImportProgress({ job }: Props) {
   const navigate = useNavigate()
-  const router = useRouter()
+  const qc = useQueryClient()
 
   const isComplete =
     job.status === 'completed' ||
@@ -74,7 +76,10 @@ export function ImportProgress({ job }: Props) {
         <div className="flex items-center gap-3">
           <Button
             onClick={async () => {
-              await router.invalidate()
+              await Promise.all([
+                qc.invalidateQueries({ queryKey: propertyKeys.list() }),
+                qc.invalidateQueries({ queryKey: identityKeys.organizations() }),
+              ])
               navigate({ to: '/properties' })
             }}
           >

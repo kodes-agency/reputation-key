@@ -8,7 +8,8 @@
 // refetch orchestration — Query owns cache, dedup, and cancellation.
 import { useCallback } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useMutationAction } from '#/components/hooks/use-mutation-action'
+import { useActionMutation } from '#/components/hooks/use-action-mutation'
+import type { Action } from '#/components/hooks/use-action'
 import { inboxKeys } from '#/shared/queries/query-keys'
 import type { updateInboxStatusFn } from '#/contexts/inbox/server/inbox'
 import type { InboxServerFns } from './types'
@@ -34,7 +35,10 @@ export type InboxDetailState = Readonly<{
   notes: ReadonlyArray<InboxNote>
   isLoading: boolean
   currentItem: InboxItem | null
-  updateStatus: ReturnType<typeof useMutationAction<typeof updateInboxStatusFn>>
+  updateStatus: Action<
+    Parameters<typeof updateInboxStatusFn>[0],
+    Awaited<ReturnType<typeof updateInboxStatusFn>>
+  >
   /** Called after a note is added — refreshes notes + activity. */
   onNoteAdded: () => void
   /** Called after a reply mutation — writes the new reply into the detail cache. */
@@ -112,9 +116,8 @@ export function useInboxDetail(
     inboxFns.updateInboxStatus,
   )
 
-  const updateStatus = useMutationAction(inboxFns.updateInboxStatus, {
+  const updateStatus = useActionMutation(inboxFns.updateInboxStatus, {
     successMessage: 'Status updated',
-    invalidate: false,
     onSuccess: handleStatusChanged,
   })
 

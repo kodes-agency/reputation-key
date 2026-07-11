@@ -10,9 +10,8 @@ import {
 } from '@tanstack/react-router'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
-import { getProperty } from '#/contexts/property/server/properties'
-import { listStaffAssignments } from '#/contexts/staff/server/staff-assignments'
-import { listTeams } from '#/contexts/team/server/teams'
+import { useSuspenseQuery } from '@tanstack/react-query'
+import { propertyQuery } from '#/shared/queries/route-queries'
 import { ErrorState } from '#/components/layout/page-states'
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId')({
@@ -32,24 +31,11 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId')({
     }
   },
   staleTime: 60_000,
-  loader: async ({ params: { propertyId } }) => {
-    // Use allSettled so a transient DB error in staff/teams doesn't crash the page.
-    // Property data is critical; staff/teams are sidebar metadata.
-    const [propertyRes, staffRes, teamsRes] = await Promise.allSettled([
-      getProperty({ data: { propertyId } }),
-      listStaffAssignments({ data: { propertyId } }),
-      listTeams({ data: { propertyId } }),
-    ])
-
-    if (propertyRes.status === 'rejected') {
-      throw propertyRes.reason
-    }
-
-    return {
-      property: propertyRes.value.property,
-      staffCount: staffRes.status === 'fulfilled' ? staffRes.value.assignments.length : 0,
-      teamCount: teamsRes.status === 'fulfilled' ? teamsRes.value.teams.length : 0,
-    }
+  loader: async ({ context, params: { propertyId } }) => {
+    // Property detail is cached via Query (propertyQuery); staff/teams are
+    // fetched by their own child routes (people/teams) via useSuspenseQuery.
+    const result = await context.queryClient.ensureQueryData(propertyQuery(propertyId))
+    return { property: result.property }
   },
   component: PropertyLayout,
 })
@@ -59,7 +45,9 @@ function PropertyLayout() {
   const navigate = useNavigate()
   const pathname = useRouterState({ select: (s) => s.location.pathname })
   const isFullHeight = pathname.includes('/reviews')
-  const { property } = Route.useLoaderData()
+  const { propertyId } = Route.useParams()
+  const { data } = useSuspenseQuery(propertyQuery(propertyId))
+  const property = data.property
 
   if (!property) {
     return (

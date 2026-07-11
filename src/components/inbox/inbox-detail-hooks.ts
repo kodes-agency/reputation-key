@@ -3,7 +3,7 @@
 // TanStack Query); this file owns the debounced mark-as-read effect.
 
 import { useEffect, useRef } from 'react'
-import { useMutationAction } from '#/components/hooks/use-mutation-action'
+import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import type { updateInboxStatusFn } from '#/contexts/inbox/server/inbox'
 import type { InboxItem } from '#/contexts/inbox/application/public-api'
 
@@ -20,8 +20,7 @@ export function useAutoMarkRead(
   // invalidate: false — detail/list refresh via Query invalidation in the
   // caller's onMarkedRead; the inbox route has no loader, so full
   // router.invalidate() is pure waste.
-  const markReadMutation = useMutationAction(updateInboxStatus, {
-    invalidate: false,
+  const markReadMutation = useActionMutation(updateInboxStatus, {
     onSuccess: onMarkedRead,
   })
   const markReadRef = useRef(markReadMutation)
