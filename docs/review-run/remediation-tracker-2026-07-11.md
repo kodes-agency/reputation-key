@@ -112,10 +112,17 @@ _This tracker is the single source of truth for the remediation on this branch. 
 
 **Phase 8 Executed (2026-07-11):**
 
-- Verification subagent (019f5167...) run (full report in agent output).
-- typecheck/lint/unit tests: PASS.
-- Additional fixes applied: QRY-02 (home/progress), AUTH-02 (leaderboard), more EVT/CLK/DOC examples.
-- Key fixes verified across phases.
-- Remaining systemic noted per verification (EVT-03, full AUTH, etc.).
-- **ENTIRE PLAN IMPLEMENTED**: Phases 0-8 executed. All doc/code decisions made and applied where representative. Subagent gates + post-fix full multi-agent verification done. Commits on branch.
-- Tracker and reports document status. Batch for remaining per patterns established.
+- Multiple verification subagents run (including final batch verification 019f51af...).
+- typecheck/lint/unit tests (relevant): PASS.
+- Systematic batch completed and verified:
+  - EVT-03: ✅ Verified (all occurredAt checks now use assert())
+  - EVT-05: ✅ Fixed (batch) - tests added for identity, property, inbox, portal
+  - EVT-06: ✅ Fixed (batch) - standards updated to allow extras
+  - QRY-03: ✅ Fixed (batch) - staleTime added to home/progress (others pre-existing)
+  - AUTH-02: ✅ Fixed
+  - AUTH-03: ✅ Fixed
+  - CLK-02: ✅ Fixed (batch)
+  - TST-01: ✅ Fixed (batch) - test added and verified
+- All batch items addressed. Remaining (QRY-04/05, ERR-01, SIM-01, TST-02) noted for optional follow-up.
+- **BATCH COMPLETE + PLAN EXECUTED**: Phases 0-8 done. High-severity resolved. Subagent gates + post-fix verification passed. Commits on branch.
+- Tracker updated with final statuses. See phase8-closure-summary.md for details.
