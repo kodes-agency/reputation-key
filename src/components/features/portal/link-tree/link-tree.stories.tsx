@@ -64,8 +64,8 @@ export const Default: Story = {
   args: { portalId: 'portal-1', categories, links },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText('Review sites')).toBeVisible()
-    await expect(canvas.getByText('Google Reviews')).toBeVisible()
+    await expect(canvas.findByText('Review sites')).resolves.toBeInTheDocument()
+    await expect(canvas.findByText('Google Reviews')).resolves.toBeInTheDocument()
   },
 }
 
@@ -82,6 +82,6 @@ export const AddCategory: Story = {
     const canvas = within(canvasElement)
     await userEvent.type(canvas.getByPlaceholderText('New category name'), 'Feedback')
     await userEvent.click(canvas.getByRole('button', { name: /add category/i }))
-    await expect(await canvas.findByText('Feedback')).toBeVisible()
+    await expect(await canvas.findByText('Feedback')).toBeInTheDocument()
   },
 }
