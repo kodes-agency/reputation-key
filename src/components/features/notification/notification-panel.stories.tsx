@@ -233,9 +233,7 @@ export const Loading: Story = {
     const btn = await canvas.findByRole('button', { name: /notifications/i })
     await userEvent.click(btn)
     // Skeleton rows render while the list fn stays pending.
-    await waitFor(() => {
-      expect(body().getByText(/notifications/i)).toBeInTheDocument()
-    })
+    await expect(body().findByText(/notifications/i)).resolves.toBeInTheDocument()
   },
 }
 
