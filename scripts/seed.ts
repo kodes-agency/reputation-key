@@ -10,7 +10,8 @@
 
 import 'dotenv/config'
 import { createSimulationContainer } from '../src/shared/testing/simulation-container.server'
-import { organizationId } from '../src/shared/domain/ids'
+import { organizationId, userId } from '../src/shared/domain/ids'
+import type { AuthContext } from '../src/shared/domain/auth-context'
 import {
   buildScenario,
   type ScenarioSpec,
@@ -156,12 +157,17 @@ async function main(): Promise<void> {
   const badgeDefs = await container.useCases.seedBadgeDefinitions()
   console.log(`  Definitions seeded: ${badgeDefs.length}`)
   const brandedOrgId = organizationId(orgId)
+  const simCtx: AuthContext = {
+    organizationId: brandedOrgId,
+    userId: userId('sim-admin-00000000-0000-0000-0000-000000000001'),
+    role: 'AccountAdmin',
+  }
   for (const def of badgeDefs) {
-    await container.badgePublicApi.setOrganizationBadgeEnablement(
-      brandedOrgId,
-      def.id,
-      true,
-    )
+    await container.badgePublicApi.setOrganizationBadgeEnablement(simCtx, {
+      organizationId: brandedOrgId,
+      badgeDefinitionId: def.id,
+      enabled: true,
+    })
   }
   console.log(`  Badges enabled for org: ${badgeDefs.length}`)
   const badgeResult = await container.useCases.reconcileBadgeDefinitions({
