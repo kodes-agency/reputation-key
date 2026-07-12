@@ -11,7 +11,7 @@ export async function signIn(page: Page, email = TEST_EMAIL, password = TEST_PAS
   await page.getByLabel('Email').fill(email)
   await page.getByLabel('Password', { exact: true }).fill(password)
   await page.getByRole('button', { name: /sign in/i }).click()
-  await page.waitForURL(/\/(dashboard|properties)/)
+  await page.waitForURL(/\/(dashboard|properties|home)/)
 }
 
 /** Register a new account with a unique email. Returns the email used. */
