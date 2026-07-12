@@ -27,15 +27,23 @@ Pick it up by priority; items within a priority tier are independent unless note
 
 ### 3. Multi-instance stale-window + resolver caching
 
-**Status:** Known residual gap. Single-instance is safe.
+**Status:** Single-instance improvements complete (in-memory version-keyed caching for resolver + property access sets). Multi-replica Redis version ready when `numReplicas > 1` is planned.
 **Why it matters:** `resolveTenantContext` resolves permissions via a live DB read (uncached). `getAccessiblePropertyIds` is also uncached (live query). Permission revocation via the Postgres triggers (§4 of the DAC plan) bumps `permission_version` atomically, but with **>1 instance** there is a ≤5 s window where a revoked permission may still be honored on another instance that hasn't observed the version bump.
-**Also:** every request currently does a `fetchRoleDefinitions` DB round-trip. The plan §5 specifies a `(organizationId, userId, permission_version)`-keyed cache that is NOT yet implemented.
-**Action:**
+**Also:** every request currently does a `fetchRoleDefinitions` DB round-trip. The plan §5 specifies a `(organizationId, userId, permission_version)`-keyed cache.
+**Done (2026-07-12):**
 
-1. Implement the version-keyed resolver cache (key on `(orgId, userId, permission_version)`; invalidate on version bump). This removes the per-request DB read.
+- Raised in-memory TTL to 60s + rely on version check.
+- De-emphasized per-fn clear.
+- Per-request ALS memoization.
+- Implemented version-keyed cache for accessible property sets (org:user:version) using same invalidation signal.
+- Added tracing, tests (direct + end-to-end through publicApi).
+- All changes use Date.now() only for cache TTL heuristics (allowed; clock() for domain time).
+  **Action for multi-instance:**
+
+1. When scaling: promote to Redis-backed L2 cache (keyed on version).
 2. Only then enable >1 instance.
-   **Verify:** Revoke a permission on instance A → instance B honors the revocation within the version-bump propagation window (test with two running instances).
-   **Dependency:** Needs the version-cache implementation (code) before multi-instance deploy.
+   **Verify:** Revoke on A → B sees revocation promptly.
+   **Dependency:** Redis + numReplicas >1.
 
 ### 4. GBP Pub/Sub notification lifecycle — live verification
 

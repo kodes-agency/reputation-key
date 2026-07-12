@@ -3,6 +3,13 @@
 // Per ADR-0001: the composition root calls this and passes publicApi to consumers.
 
 import type { StaffAssignmentRepository } from './application/ports/staff-assignment.repository'
+import {
+  getCachedAccessiblePropertySet,
+  setCachedAccessiblePropertySet,
+} from '#/shared/auth/middleware'
+import { fetchPermissionVersion } from '#/shared/db/role-definitions'
+import { getDb } from '#/shared/db'
+import { trace } from '#/shared/observability/trace'
 import type { StaffPortalLookupPort } from './application/ports/portal-lookup.port'
 import type { IdentityMembershipPort } from './application/ports/identity-membership.port'
 import type { StaffPublicApi } from './application/public-api'
@@ -45,7 +52,32 @@ export const buildStaffContext = (deps: StaffContextDeps) => {
       orgWide: boolean,
     ) => {
       if (orgWide) return null
-      return deps.repo.getAccessiblePropertyIds(orgId, userId)
+
+      return trace('staff.getAccessiblePropertyIds', async () => {
+        // AC-04: version-keyed cache (org:user:version). The version fetch is a cheap PK lookup.
+        // When permission_version bumps (including on staff_assignments changes), we naturally use a new key.
+        const currentVersion = await fetchPermissionVersion(
+          getDb(),
+          orgId as unknown as string,
+        )
+        const cached = getCachedAccessiblePropertySet(
+          orgId as unknown as string,
+          userId as unknown as string,
+          currentVersion,
+        )
+        if (cached !== undefined) {
+          return cached
+        }
+
+        const ids = await deps.repo.getAccessiblePropertyIds(orgId, userId)
+        setCachedAccessiblePropertySet(
+          orgId as unknown as string,
+          userId as unknown as string,
+          currentVersion,
+          ids,
+        )
+        return ids
+      })
     },
     getAssignedPortals: getAssignedPortalsUC,
     countAssignmentsByTeam: async (orgId, teamId) => {
