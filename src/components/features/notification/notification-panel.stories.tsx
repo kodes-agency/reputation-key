@@ -229,7 +229,9 @@ export const Loading: Story = {
   args: { notificationFns: loadingFns },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', { name: /notifications/i }))
+    // Use findBy to wait for the button (some stories render async or with providers).
+    const btn = await canvas.findByRole('button', { name: /notifications/i })
+    await userEvent.click(btn)
     // Skeleton rows render while the list fn stays pending.
     await waitFor(() => {
       expect(body().getByText(/notifications/i)).toBeInTheDocument()
