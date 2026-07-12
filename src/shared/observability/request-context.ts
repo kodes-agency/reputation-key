@@ -30,6 +30,8 @@ export interface RequestContext {
   readonly requestId: string
   /** Mutable span attributes — enriched after tenant resolution. */
   spanAttrs: SpanAttrs
+  /** Per-request memo for resolveTenantContext (AC-03). Avoids re-work within one server fn. */
+  resolvedTenantCtx?: import('#/shared/domain/auth-context').AuthContext
 }
 
 const asyncLocalStorage = new AsyncLocalStorage<RequestContext>()

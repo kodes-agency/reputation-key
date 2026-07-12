@@ -26,7 +26,7 @@ Shared code is **used by 2+ modules** across the codebase. If only one context u
 
 - **`auth.ts`** — better-auth server config with organization plugin and access control statement
 - **`auth-client.ts`** — better-auth client instance
-- **`middleware.ts`** — `resolveTenantContext(headers)` resolves org from session, returns `AuthContext`. Has a 5s TTL cache keyed by cookie header to deduplicate concurrent server function calls. Call `clearTenantCache()` at the end of each server function.
+- **`middleware.ts`** — `resolveTenantContext(headers)` resolves org from session, returns `AuthContext`. Uses a version-keyed in-memory cache (currently 60s TTL, rely primarily on `permission_version` check for freshness per auth-caching-improvements plan). Per-request memoization via ALS. `clearTenantCache()` calls de-emphasized. See docs/auth-caching-improvements-2026-07-12.md.
 - **`permissions.ts`** — `createAccessControl(statement)` defining the universe of `resource.action` permissions
 - **`headers.ts`** — `headersFromContext()` (async). Builds a `Headers` object from the current TanStack Start request context. Uses **dynamic import** for `@tanstack/react-start/server` because this module is reachable from client code via `composition.ts` — a static import would pull server-only modules into the client bundle. Returns empty headers when called outside server context (e.g., BullMQ worker). All 47 server functions that call this must `await` it.
 - **`server-errors.ts`** — `throwContextError` (logs before throwing), `catchUntagged` for wrapping non-domain errors

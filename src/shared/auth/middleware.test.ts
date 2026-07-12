@@ -389,8 +389,8 @@ describe('resolveTenantContext cache', () => {
 
     // Act — first call
     await resolveTenantContext(headers)
-    // Advance past TTL
-    vi.advanceTimersByTime(6_000)
+    // Advance past new TTL (60s, per auth-caching plan)
+    vi.advanceTimersByTime(61_000)
     // Act — second call should miss cache
     await resolveTenantContext(headers)
 

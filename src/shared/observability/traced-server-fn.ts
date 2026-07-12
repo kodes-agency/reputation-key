@@ -20,7 +20,8 @@ import {
 } from '#/shared/observability/request-context'
 import { startRequestSpan } from '#/shared/observability/trace'
 import { ServerFunctionError, catchUntagged } from '#/shared/auth/server-errors'
-import { clearTenantCache } from '#/shared/auth/middleware'
+// clearTenantCache import removed (AC-02): we no longer call it unconditionally after every fn.
+// import { clearTenantCache } from '#/shared/auth/middleware'
 import { getLogger } from '#/shared/observability/logger'
 
 /**
@@ -51,11 +52,13 @@ export function tracedHandler<TInput, TOutput>(
         const result = await fn(ctx)
         log.info({ duration: Date.now() - start }, 'request complete')
         span.end()
-        clearTenantCache()
+        // clearTenantCache() softened per auth-caching plan (AC-02): rely primarily on TTL + permission_version check.
+        // Periodic or on-demand cleanup is sufficient; unconditional per-fn clear reduced hit rate across page loads.
+        // clearTenantCache() // intentionally de-emphasized
         return result
       } catch (e) {
         span.end(e)
-        clearTenantCache()
+        // clearTenantCache() // see above
         // Already a ServerFunctionError (tagged by domain catch block) — just re-throw
         if (e instanceof ServerFunctionError) {
           throw e

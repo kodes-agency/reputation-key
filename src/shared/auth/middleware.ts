@@ -24,6 +24,8 @@ import {
   fetchPermissionVersion,
 } from '#/shared/db/role-definitions'
 import { getDb } from '#/shared/db'
+import { getRequestContext } from '#/shared/observability/request-context'
+import type { PropertyId } from '#/shared/domain/ids'
 
 // ── Request-scoped tenant cache ───────────────────────────────
 // Within a single page load, multiple server functions call resolveTenantContext
@@ -32,13 +34,17 @@ import { getDb } from '#/shared/db'
 // rather than serving the prior org's context. Max-size eviction prevents
 // unbounded memory growth under high concurrency.
 
-const TENANT_CACHE_TTL_MS = 5_000 // 5 seconds — covers a single page load
+const TENANT_CACHE_TTL_MS = 60_000 // 60s — version check (permission_version) is the primary freshness guard. Covers multi-fn page loads + short user sessions on stable permissions. See auth-caching-improvements plan.
 // Keyed on (session cookie, orgId): after an org switch A→B the new request uses a
 // different key, so the cache never leaks org A's AuthContext into B's resolution.
 const TENANT_CACHE_MAX_SIZE = 100 // Evict oldest entry when full
 const tenantCache = new Map<
   string,
-  { ctx: AuthContext; ts: number; version: number | null }
+  {
+    ctx: AuthContext
+    ts: number
+    version: number | null
+  }
 >()
 
 function tenantCacheKey(headers: Headers, activeOrgId: string): string | null {
@@ -66,7 +72,7 @@ function evictOldestIfNeeded(): void {
   }
 }
 
-/** Evict expired entries from the tenant cache. Called at the end of each server function. */
+/** Evict expired entries from the tenant cache. No longer called unconditionally after every server function (see auth-caching plan). */
 export function clearTenantCache(): void {
   const now = Date.now()
   for (const [key, entry] of tenantCache) {
@@ -79,6 +85,55 @@ export function clearTenantCache(): void {
 /** Reset the tenant cache completely. Test-only. */
 export function resetTenantCache(): void {
   tenantCache.clear()
+}
+
+// === Versioned property-sets cache (org:user:version) for AC-04 ===
+// This avoids needing the original cookie headers at scoping time.
+// Invalidation happens naturally when a higher version is seen (old keys are not used).
+// We keep it small and tied to the same TTL spirit.
+
+const propertySetsCache = new Map<
+  string,
+  { ids: ReadonlyArray<PropertyId> | null; version: number; ts: number }
+>()
+const PROP_SETS_CACHE_TTL = 60_000
+const PROP_SETS_MAX_SIZE = 200
+
+function propSetsKey(orgId: string, userId: string, version: number): string {
+  return `${orgId}:${userId}:${version}`
+}
+
+function evictOldPropSetsIfNeeded() {
+  if (propertySetsCache.size >= PROP_SETS_MAX_SIZE) {
+    const first = propertySetsCache.keys().next().value
+    if (first) propertySetsCache.delete(first)
+  }
+}
+
+export function getCachedAccessiblePropertySet(
+  orgId: string,
+  userId: string,
+  currentVersion: number,
+): ReadonlyArray<PropertyId> | null | undefined {
+  const key = propSetsKey(orgId, userId, currentVersion)
+  const hit = propertySetsCache.get(key)
+  if (!hit) return undefined
+  if (Date.now() - hit.ts > PROP_SETS_CACHE_TTL) {
+    propertySetsCache.delete(key)
+    return undefined
+  }
+  return hit.ids
+}
+
+export function setCachedAccessiblePropertySet(
+  orgId: string,
+  userId: string,
+  version: number,
+  ids: ReadonlyArray<PropertyId> | null,
+): void {
+  const key = propSetsKey(orgId, userId, version)
+  evictOldPropSetsIfNeeded()
+  propertySetsCache.set(key, { ids, version, ts: Date.now() })
 }
 
 // ── Tagged errors ──────────────────────────────────────────────────
@@ -149,6 +204,13 @@ export async function requireAuth(headers: Headers): Promise<AuthUser> {
  * Throws if user is not authenticated or has no active organization.
  */
 export async function resolveTenantContext(headers: Headers): Promise<AuthContext> {
+  // Per-request memoization (AC-03) — if the same traced server fn calls us twice (or downstream code re-resolves),
+  // return the already-resolved value immediately. Uses existing ALS RequestContext.
+  const reqCtx = getRequestContext()
+  if (reqCtx?.resolvedTenantCtx) {
+    return reqCtx.resolvedTenantCtx
+  }
+
   // Parse the session before the cache lookup so the key can include the active org.
   // getSessionFromHeaders is a JWT verify (no DB); the cache dedupes the expensive
   // getActiveMember() call + permission resolution, not the session decode.
@@ -286,6 +348,13 @@ export async function resolveTenantContext(headers: Headers): Promise<AuthContex
     evictOldestIfNeeded()
     tenantCache.set(key, { ctx, ts: Date.now(), version: resolvedVersion })
   }
+
+  // Per-request memo (AC-03)
+  const reqCtx2 = getRequestContext()
+  if (reqCtx2) {
+    reqCtx2.resolvedTenantCtx = ctx
+  }
+
   enrichSpan({
     organizationId: ctx.organizationId,
     userId: ctx.userId,
