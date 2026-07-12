@@ -12,8 +12,6 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { LinkTree } from './link-tree'
 import type { LinkTreeCategory, LinkTreeLink } from './link-tree-types'
-import { LinkTree } from './link-tree'
-import type { LinkTreeCategory, LinkTreeLink } from './link-tree-types'
 
 const meta: Meta<typeof LinkTree> = {
   title: 'Portal/LinkTree',
