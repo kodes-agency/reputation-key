@@ -2,7 +2,7 @@
 // Per architecture: "Events are facts, named in the past tense."
 
 import { describe, it, expect } from 'vitest'
-import { isIntegrationError } from './errors'
+import { isDomainError } from '#/shared/domain/errors'
 import {
   integrationGoogleAccountConnected,
   integrationGoogleAccountDisconnected,
@@ -166,12 +166,12 @@ describe('integrationGoogleConnectionVisibilityChanged', () => {
   })
 })
 
-// ── occurredAt validation (invalid_event) ────────────────────────────────────────
+// ── occurredAt validation (assertion_failed DomainError) ─────────────────────────
 
 describe('event constructors validate occurredAt', () => {
   // All four constructors share the same guard; exercising one is sufficient since
   // the throw site + code are identical across them.
-  it('throws an Error & IntegrationError with code "invalid_event" when occurredAt is not a Date', () => {
+  it('throws an Error & DomainError with code "assertion_failed" when occurredAt is not a Date', () => {
     let caught: unknown
     try {
       integrationGoogleAccountConnected({
@@ -184,10 +184,10 @@ describe('event constructors validate occurredAt', () => {
       caught = e
     }
     expect(caught).toBeInstanceOf(Error)
-    if (isIntegrationError(caught)) {
-      expect(caught.code).toBe('invalid_event')
+    if (isDomainError(caught)) {
+      expect(caught.code).toBe('assertion_failed')
     } else {
-      expect.fail('expected an IntegrationError')
+      expect.fail('expected a DomainError')
     }
   })
 

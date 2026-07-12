@@ -22,7 +22,7 @@ describe('gbpImportRepository (integration)', () => {
   describe('insert and findById', () => {
     it('inserts and retrieves a job', async () => {
       const db = getDb()
-      const repo = createGbpImportRepository(db)
+      const repo = createGbpImportRepository(db, () => new Date())
       const job = buildTestGbpImportJob({
         id: crypto.randomUUID(),
         organizationId: ORG_A,
@@ -40,7 +40,7 @@ describe('gbpImportRepository (integration)', () => {
 
     it('returns null for non-existent id', async () => {
       const db = getDb()
-      const repo = createGbpImportRepository(db)
+      const repo = createGbpImportRepository(db, () => new Date())
       const fakeId = gbpImportJobId(crypto.randomUUID())
       const found = await repo.findById(ORG_A, fakeId)
       expect(found).toBeNull()
@@ -50,7 +50,7 @@ describe('gbpImportRepository (integration)', () => {
   describe('tenant isolation', () => {
     it('findById does not return jobs from other orgs', async () => {
       const db = getDb()
-      const repo = createGbpImportRepository(db)
+      const repo = createGbpImportRepository(db, () => new Date())
       const job = buildTestGbpImportJob({
         id: crypto.randomUUID(),
         organizationId: ORG_A,
@@ -65,7 +65,7 @@ describe('gbpImportRepository (integration)', () => {
   describe('findByOrganization', () => {
     it('lists jobs for an org', async () => {
       const db = getDb()
-      const repo = createGbpImportRepository(db)
+      const repo = createGbpImportRepository(db, () => new Date())
       await repo.insert(
         buildTestGbpImportJob({
           id: crypto.randomUUID(),
@@ -89,7 +89,7 @@ describe('gbpImportRepository (integration)', () => {
   describe('updateStatus', () => {
     it('updates job status', async () => {
       const db = getDb()
-      const repo = createGbpImportRepository(db)
+      const repo = createGbpImportRepository(db, () => new Date())
       const job = buildTestGbpImportJob({
         id: crypto.randomUUID(),
         organizationId: ORG_A,
@@ -106,7 +106,7 @@ describe('gbpImportRepository (integration)', () => {
   describe('incrementImported', () => {
     it('increments imported count by 1', async () => {
       const db = getDb()
-      const repo = createGbpImportRepository(db)
+      const repo = createGbpImportRepository(db, () => new Date())
       const job = buildTestGbpImportJob({
         id: crypto.randomUUID(),
         organizationId: ORG_A,
@@ -123,7 +123,7 @@ describe('gbpImportRepository (integration)', () => {
   describe('incrementSkipped', () => {
     it('increments skipped count by 1', async () => {
       const db = getDb()
-      const repo = createGbpImportRepository(db)
+      const repo = createGbpImportRepository(db, () => new Date())
       const job = buildTestGbpImportJob({
         id: crypto.randomUUID(),
         organizationId: ORG_A,
@@ -140,7 +140,7 @@ describe('gbpImportRepository (integration)', () => {
   describe('incrementFailed', () => {
     it('increments failed count by 1', async () => {
       const db = getDb()
-      const repo = createGbpImportRepository(db)
+      const repo = createGbpImportRepository(db, () => new Date())
       const job = buildTestGbpImportJob({
         id: crypto.randomUUID(),
         organizationId: ORG_A,

@@ -18,7 +18,6 @@ export const createPropertyEventAdapter = (eventBus: EventBus): PropertyEventPor
   emitPropertyCreated: async (event: PropertyCreatedEvent) => {
     await eventBus.emit(
       propertyCreated({
-        eventId: crypto.randomUUID(),
         propertyId: propertyId(event.propertyId),
         organizationId: toOrgId(event.organizationId),
         name: event.name,

@@ -1,14 +1,10 @@
 // Portal list page — property-scoped portal directory table.
-// Receives a deletePortal server fn as a prop (type-only import — boundary
-// gate allows `import type` from #/contexts/*/server). deletePortalFn flows
-// into PortalDeleteButton, which wraps it via useMutationAction (real hook)
-// against the authed memory router. usePermissions() reads route context from
-// `/_authenticated`, so this story uses the AuthedRouterDecorator.
+// Receives a wrapped delete action (Action) from the route per QRY-04/05.
+// Component + button do not import server fns or call useActionMutation.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, userEvent, within } from 'storybook/test'
 import { PortalListPage } from './portal-list-page'
-import type { deletePortal } from '#/contexts/portal/server/portals'
-import { mockServerFn } from '../../../../.storybook/mocks/mock-action'
+import type { Action } from '#/components/hooks/use-action'
 import {
   AuthedRouterDecorator,
   withRole,
@@ -24,11 +20,10 @@ const meta: Meta<typeof PortalListPage> = {
 export default meta
 type Story = StoryObj<typeof PortalListPage>
 
-// mockServerFn returns a plain callable; cast bridges the createServerFn brand
-// carried by the `typeof deletePortal` prop type.
-const deletePortalFn = mockServerFn(async (_input: { data: { portalId: string } }) => ({
-  success: true,
-})) as unknown as typeof deletePortal
+const deleteMutation: Action<{ data: { portalId: string } }> = Object.assign(
+  async (_input: { data: { portalId: string } }) => ({ deleted: true }),
+  { isPending: false, error: null, isSuccess: false, data: null },
+)
 
 const portals = [
   {
@@ -60,7 +55,7 @@ export const Default: Story = {
     propertyId: 'prop-1',
     propertyName: 'Acme Hotel',
     propertySlug: 'acme-hotel',
-    deletePortalFn,
+    deleteMutation,
   },
 }
 

@@ -34,12 +34,11 @@ const NOW = new Date('2026-06-01T12:00:00Z')
 const mockEvent: GoalCompleted = {
   _tag: 'goal.completed',
   eventId: 'evt-goal-completed-1',
-  correlationId: null,
-  goalId: GOAL_ID,
   organizationId: ORG_ID,
   propertyId: PROP_ID,
   portalId: null,
   portalGroupId: null,
+  goalId: GOAL_ID,
   goalType: 'one_shot' as const,
   aggregationFunction: 'avg',
   metricKey: 'property.review',
@@ -48,6 +47,8 @@ const mockEvent: GoalCompleted = {
   completedAt: NOW,
   parentGoalId: null,
   createdBy: CREATOR_ID,
+  occurredAt: NOW,
+  correlationId: null,
 }
 
 describe('onGoalCompleted (notification)', () => {

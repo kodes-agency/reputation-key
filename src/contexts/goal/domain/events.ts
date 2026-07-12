@@ -18,12 +18,11 @@ import { goalError } from './errors'
 export type GoalCompleted = Readonly<{
   _tag: 'goal.completed'
   eventId: string
-  correlationId: string | null
-  goalId: GoalId
   organizationId: OrganizationId
   propertyId: PropertyId
   portalId: PortalId | null
   portalGroupId: PortalGroupId | null
+  goalId: GoalId
   goalType: GoalType
   aggregationFunction: AggregationFunction
   metricKey: MetricKey
@@ -32,12 +31,14 @@ export type GoalCompleted = Readonly<{
   completedAt: Date
   parentGoalId: GoalId | null
   createdBy: UserId
+  occurredAt: Date
+  correlationId: string | null
 }>
 
 export type GoalEvent = GoalCompleted
 
 export const goalCompleted = (
-  args: Omit<GoalCompleted, '_tag' | 'eventId' | 'correlationId'>,
+  args: Omit<GoalCompleted, '_tag' | 'eventId' | 'occurredAt' | 'correlationId'>,
 ): GoalCompleted => {
   assert(args.completedAt instanceof Date, 'completedAt must be Date')
   if (typeof args.targetValue !== 'number' || isNaN(args.targetValue)) {
@@ -49,6 +50,7 @@ export const goalCompleted = (
   return {
     _tag: 'goal.completed',
     eventId: newEventId(),
+    occurredAt: args.completedAt,
     correlationId: null,
     ...args,
   }

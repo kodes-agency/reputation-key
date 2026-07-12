@@ -113,7 +113,15 @@ jobs:
       - name: Start Storybook
         run: |
           pnpm storybook --ci --quiet &
-          npx --yes wait-on http-get://localhost:6006/iframe.html -t 120000
+          # Robust wait without external 'wait-on' dep (avoids npx resolution flakiness/exit 127 on runners).
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:6006/iframe.html >/dev/null; then
+              echo "Storybook ready after ${i}s"
+              break
+            fi
+            sleep 2
+          done
+          curl -sf http://localhost:6006/iframe.html >/dev/null || (echo "Storybook failed to become ready" && exit 1)
       - name: Run storybook tests
         run: pnpm test-storybook
 

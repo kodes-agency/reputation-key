@@ -14,15 +14,15 @@ import type { BadgeTargetType } from './types'
 export type BadgeAwarded = Readonly<{
   _tag: 'badge.awarded'
   eventId: string
-  correlationId: string | null
-  occurredAt: Date
+  organizationId: OrganizationId
+  propertyId: PropertyId
   badgeDefinitionId: BadgeId
   criteriaVersion: number
   targetType: BadgeTargetType
   targetId: PortalId | PortalGroupId
-  organizationId: OrganizationId
-  propertyId: PropertyId
   awardedAt: Date
+  occurredAt: Date
+  correlationId: string | null
 }>
 
 export type BadgeEvent = BadgeAwarded

@@ -26,6 +26,6 @@ test.describe('Authentication', () => {
     await signIn(page)
 
     // Should redirect to authenticated area
-    await expect(page).toHaveURL(/\/(dashboard|properties)/)
+    await expect(page).toHaveURL(/\/(dashboard|properties|home)/)
   })
 })

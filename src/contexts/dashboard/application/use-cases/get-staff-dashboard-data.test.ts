@@ -46,6 +46,7 @@ describe('getStaffDashboardData (use case)', () => {
     const getStaffDashboard = getStaffDashboardData({
       repo,
       staffPortalResolver: resolver,
+      clock: () => new Date(),
     })
 
     const now = new Date()
@@ -79,6 +80,7 @@ describe('getStaffDashboardData (use case)', () => {
     const getStaffDashboard = getStaffDashboardData({
       repo,
       staffPortalResolver: resolver,
+      clock: () => new Date(),
     })
 
     const now = new Date()
@@ -124,6 +126,7 @@ describe('getStaffDashboardData (use case)', () => {
     const getStaffDashboard = getStaffDashboardData({
       repo,
       staffPortalResolver: resolver,
+      clock: () => new Date(),
     })
 
     const now = new Date()
@@ -155,6 +158,7 @@ describe('getStaffDashboardData (use case)', () => {
     const getStaffDashboard = getStaffDashboardData({
       repo,
       staffPortalResolver: resolver,
+      clock: () => new Date(),
     })
 
     const now = new Date()
@@ -186,6 +190,7 @@ describe('getStaffDashboardData (use case)', () => {
     const getStaffDashboard = getStaffDashboardData({
       repo,
       staffPortalResolver: resolver,
+      clock: () => new Date(),
     })
 
     const now = new Date()

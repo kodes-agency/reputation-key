@@ -72,7 +72,7 @@ describe('getFleetOverview (use case)', () => {
         goalsBehindPace: 0,
       }, // total 0
     })
-    const getFleet = getFleetOverview({ repo, signals })
+    const getFleet = getFleetOverview({ repo, signals, clock: () => new Date() })
 
     const result = await getFleet({
       organizationId: ORG,
@@ -100,7 +100,11 @@ describe('getFleetOverview (use case)', () => {
       scans: { value: 100, priorValue: 100, trend: 0 },
       feedback: { value: 20, priorValue: 20, trend: 0 },
     }
-    const getFleet = getFleetOverview({ repo, signals: mockSignals({}) })
+    const getFleet = getFleetOverview({
+      repo,
+      signals: mockSignals({}),
+      clock: () => new Date(),
+    })
 
     const result = await getFleet({
       organizationId: ORG,
@@ -122,7 +126,11 @@ describe('getFleetOverview (use case)', () => {
       scans: { value: 0, priorValue: 0, trend: null },
       feedback: { value: 0, priorValue: 0, trend: null },
     }
-    const getFleet = getFleetOverview({ repo, signals: mockSignals({}) })
+    const getFleet = getFleetOverview({
+      repo,
+      signals: mockSignals({}),
+      clock: () => new Date(),
+    })
 
     const result = await getFleet({
       organizationId: ORG,

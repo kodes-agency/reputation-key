@@ -1,12 +1,31 @@
 // Storybook preview — imports the app's design-system styles (Tailwind v4 +
 // shadcn tokens) and applies dark theme by default (per PRODUCT.md).
 import type { Preview } from '@storybook/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import '../src/styles.css'
 import '../src/shared/auth/permissions' // side-effect: initPermissionTable() for can()
 import { RouterDecorator } from './RouterDecorator'
 
+// Shared QueryClient for storybook tests (retry: false to avoid flakiness, staleTime high for stability).
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: false,
+      staleTime: Infinity,
+      gcTime: Infinity,
+    },
+  },
+})
+
 const preview: Preview = {
   decorators: [
+    // Provide QueryClient for components using TanStack Query (useSuspenseQuery, etc.).
+    // Must wrap before router in some cases for query + route data.
+    (Story) => (
+      <QueryClientProvider client={queryClient}>
+        <Story />
+      </QueryClientProvider>
+    ),
     // Provide a TanStack memory router so components using useRouter()/
     // useNavigate()/useRouterState() (anything via useMutationAction) render.
     RouterDecorator,

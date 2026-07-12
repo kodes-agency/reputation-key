@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { queryOptions, useQuery } from '@tanstack/react-query'
+import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
 import { z } from 'zod/v4'
 import {
   getLeaderboard,
@@ -70,6 +70,7 @@ const comparisonMatrixQuery = (propertyId: string, period: Period, scope: Scope)
   queryOptions({
     queryKey: leaderboardKeys.matrix({ propertyId, period, scope }),
     queryFn: () => getComparisonMatrix({ data: { propertyId, period, scope } }),
+    staleTime: 60 * 1000,
   })
 
 const leaderboardQuery = (
@@ -81,6 +82,7 @@ const leaderboardQuery = (
   queryOptions({
     queryKey: leaderboardKeys.board({ propertyId, period, scope, metricKey }),
     queryFn: () => getLeaderboard({ data: { propertyId, period, scope, metricKey } }),
+    staleTime: 60 * 1000,
   })
 
 export const Route = createFileRoute('/_authenticated/leaderboard')({
@@ -123,13 +125,11 @@ function StaffLeaderboardPage() {
     view,
   } = Route.useSearch()
 
-  const { data: matrixData } = useQuery({
+  const { data: matrixData } = useSuspenseQuery({
     ...comparisonMatrixQuery(searchPropertyId ?? '', period, scope),
-    enabled: !!searchPropertyId && view === 'matrix',
   })
-  const { data: entriesData } = useQuery({
+  const { data: entriesData } = useSuspenseQuery({
     ...leaderboardQuery(searchPropertyId ?? '', period, scope, metricKey),
-    enabled: !!searchPropertyId && view !== 'matrix',
   })
 
   const matrix = (matrixData ?? null) as MatrixRow[] | null

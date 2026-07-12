@@ -6,7 +6,7 @@ import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getContainer } from '#/composition'
-import { can } from '#/shared/domain/permissions'
+import { canForContext } from '#/shared/domain/permissions'
 import {
   getLeaderboardSchema,
   getComparisonMatrixSchema,
@@ -21,7 +21,7 @@ export const getLeaderboard = createServerFn({ method: 'GET' })
         try {
           const headers = await headersFromContext()
           const ctx = await resolveTenantContext(headers)
-          if (!can(ctx.role, 'leaderboard.read')) {
+          if (!canForContext(ctx, 'leaderboard.read')) {
             throwContextError(
               'AuthError',
               { code: 'forbidden', message: 'No leaderboard read permission' },
@@ -52,7 +52,7 @@ export const getComparisonMatrix = createServerFn({ method: 'GET' })
         try {
           const headers = await headersFromContext()
           const ctx = await resolveTenantContext(headers)
-          if (!can(ctx.role, 'leaderboard.read')) {
+          if (!canForContext(ctx, 'leaderboard.read')) {
             throwContextError(
               'AuthError',
               { code: 'forbidden', message: 'No leaderboard read permission' },

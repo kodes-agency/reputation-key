@@ -76,7 +76,7 @@ describe('teamRepository (integration)', () => {
   describe('insert and findById', () => {
     it('inserts and retrieves a team', async () => {
       const db = getDb()
-      const repo = createTeamRepository(db)
+      const repo = createTeamRepository(db, () => new Date())
       const team = buildTestTeam({
         organizationId: ORG_A,
         propertyId: PROP_A1,
@@ -94,7 +94,7 @@ describe('teamRepository (integration)', () => {
   describe('tenant isolation', () => {
     it('does not return teams from other organizations', async () => {
       const db = getDb()
-      const repo = createTeamRepository(db)
+      const repo = createTeamRepository(db, () => new Date())
       const teamA = buildTestTeam({
         id: 'team-org-a',
         organizationId: ORG_A,
@@ -120,7 +120,7 @@ describe('teamRepository (integration)', () => {
 
     it('nameExistsInProperty does not leak across tenants', async () => {
       const db = getDb()
-      const repo = createTeamRepository(db)
+      const repo = createTeamRepository(db, () => new Date())
       const teamA = buildTestTeam({
         id: 'team-name-a',
         organizationId: ORG_A,
@@ -136,7 +136,7 @@ describe('teamRepository (integration)', () => {
 
     it('listByProperty only returns teams for the given organization', async () => {
       const db = getDb()
-      const repo = createTeamRepository(db)
+      const repo = createTeamRepository(db, () => new Date())
       const tA1 = buildTestTeam({
         id: 'team-list-a1',
         organizationId: ORG_A,
@@ -158,7 +158,7 @@ describe('teamRepository (integration)', () => {
   describe('softDelete', () => {
     it('removes team from queries but preserves row', async () => {
       const db = getDb()
-      const repo = createTeamRepository(db)
+      const repo = createTeamRepository(db, () => new Date())
       const team = buildTestTeam({
         id: 'team-del',
         organizationId: ORG_A,
@@ -178,7 +178,7 @@ describe('teamRepository (integration)', () => {
 
     it('allows a new team with the same name after soft-delete', async () => {
       const db = getDb()
-      const repo = createTeamRepository(db)
+      const repo = createTeamRepository(db, () => new Date())
       const original = buildTestTeam({
         id: 'team-reuse',
         organizationId: ORG_A,
@@ -207,7 +207,7 @@ describe('teamRepository (integration)', () => {
   describe('update', () => {
     it('updates specified fields', async () => {
       const db = getDb()
-      const repo = createTeamRepository(db)
+      const repo = createTeamRepository(db, () => new Date())
       const team = buildTestTeam({
         id: 'team-upd',
         organizationId: ORG_A,

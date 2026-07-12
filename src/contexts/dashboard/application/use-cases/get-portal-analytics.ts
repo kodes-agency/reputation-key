@@ -20,6 +20,7 @@ export type GetPortalAnalyticsInput = Readonly<{
 export type GetPortalAnalyticsDeps = Readonly<{
   repo: DashboardRepository
   portalMetrics: PortalMetricsPort
+  clock: () => Date
 }>
 export type GetPortalAnalytics = ReturnType<typeof getPortalAnalytics>
 

@@ -21,6 +21,7 @@ export type GetAttentionSignalsInput = Readonly<{
 export type GetAttentionSignalsDeps = Readonly<{
   signals: AttentionSignalsPort
   repo: DashboardRepository
+  clock: () => Date
 }>
 
 /** Concrete handler type — the curried use case after dependency injection. */

@@ -12,9 +12,6 @@ import {
 import { Plus } from 'lucide-react'
 import { StaffAssignmentList, AssignStaffForm } from '#/components/features/staff'
 import { EditStaffPortalsModal } from '#/components/features/staff/edit-staff-portals-modal'
-import { useActionMutation } from '#/components/hooks/use-action-mutation'
-import { staffKeys, propertyKeys } from '#/shared/queries/query-keys'
-import type { updateStaffPortals } from '#/contexts/staff/server/staff-assignments'
 import type { Action } from '#/components/hooks/use-action'
 import type { MemberLike, TeamLike } from '#/lib/lookups'
 import type { PortalOption } from '#/components/features/staff/portal-selector'
@@ -36,7 +33,9 @@ interface StaffTabProps {
   removeMutation: Action<{ data: { assignmentId: string } }>
   assignOpen: boolean
   onAssignOpenChange: (open: boolean) => void
-  updateStaffPortalsFn: typeof updateStaffPortals
+  updatePortalsMutation: Action<{
+    data: { userId: string; propertyId: string; portalIds: string[] }
+  }>
 }
 
 export function StaffTab({
@@ -50,16 +49,9 @@ export function StaffTab({
   removeMutation,
   assignOpen,
   onAssignOpenChange,
-  updateStaffPortalsFn,
+  updatePortalsMutation,
 }: StaffTabProps) {
   const [editingUserId, setEditingUserId] = useState<string | null>(null)
-
-  const updatePortalsMutation = useActionMutation(updateStaffPortalsFn, {
-    invalidateKeys: [staffKeys.assignments(propertyId), propertyKeys.detail(propertyId)],
-    onSuccess: () => {
-      setEditingUserId(null)
-    },
-  })
 
   // Compute current portal IDs for the user being edited
   const editingUserAssignments = useMemo(() => {

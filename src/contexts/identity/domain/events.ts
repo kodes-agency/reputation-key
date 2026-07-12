@@ -4,9 +4,9 @@
 // correlationId optional.
 
 import { newEventId } from '#/shared/domain/event-id'
+import { assert } from '#/shared/domain/assert'
 import type { OrganizationId, UserId, InvitationId } from '#/shared/domain/ids'
 import type { Role } from '#/shared/domain/roles'
-import { identityError } from './errors'
 
 export type IdentityOrganizationCreated = Readonly<{
   _tag: 'identity.organization.created'
@@ -21,10 +21,8 @@ export type IdentityOrganizationCreated = Readonly<{
 export const identityOrganizationCreated = (
   args: Omit<IdentityOrganizationCreated, '_tag' | 'eventId' | 'correlationId'>,
 ): IdentityOrganizationCreated => {
-  if (!(args.occurredAt instanceof Date))
-    throw identityError('validation_error', 'occurredAt must be Date')
-  if (args.organizationName.length === 0)
-    throw identityError('validation_error', 'organizationName required')
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  assert(args.organizationName.length > 0, 'organizationName required')
   return {
     _tag: 'identity.organization.created',
     eventId: newEventId(),
@@ -47,9 +45,8 @@ export type IdentityMemberInvited = Readonly<{
 export const identityMemberInvited = (
   args: Omit<IdentityMemberInvited, '_tag' | 'eventId' | 'correlationId'>,
 ): IdentityMemberInvited => {
-  if (!(args.occurredAt instanceof Date))
-    throw identityError('validation_error', 'occurredAt must be Date')
-  if (args.userId === '') throw identityError('validation_error', 'userId required')
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  assert(args.userId !== '', 'userId required')
   return {
     _tag: 'identity.member.invited',
     eventId: newEventId(),
@@ -71,8 +68,7 @@ export type IdentityInvitationAccepted = Readonly<{
 export const identityInvitationAccepted = (
   args: Omit<IdentityInvitationAccepted, '_tag' | 'eventId' | 'correlationId'>,
 ): IdentityInvitationAccepted => {
-  if (!(args.occurredAt instanceof Date))
-    throw identityError('validation_error', 'occurredAt must be Date')
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
   return {
     _tag: 'identity.invitation.accepted',
     eventId: newEventId(),
@@ -92,8 +88,7 @@ export type IdentityInvitationRejected = Readonly<{
 export const identityInvitationRejected = (
   args: Omit<IdentityInvitationRejected, '_tag' | 'eventId' | 'correlationId'>,
 ): IdentityInvitationRejected => {
-  if (!(args.occurredAt instanceof Date))
-    throw identityError('validation_error', 'occurredAt must be Date')
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
   return {
     _tag: 'identity.invitation.rejected',
     eventId: newEventId(),
@@ -113,8 +108,7 @@ export type IdentityInvitationCanceled = Readonly<{
 export const identityInvitationCanceled = (
   args: Omit<IdentityInvitationCanceled, '_tag' | 'eventId' | 'correlationId'>,
 ): IdentityInvitationCanceled => {
-  if (!(args.occurredAt instanceof Date))
-    throw identityError('validation_error', 'occurredAt must be Date')
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
   return {
     _tag: 'identity.invitation.canceled',
     eventId: newEventId(),
@@ -135,9 +129,8 @@ export type IdentityMemberRemoved = Readonly<{
 export const identityMemberRemoved = (
   args: Omit<IdentityMemberRemoved, '_tag' | 'eventId' | 'correlationId'>,
 ): IdentityMemberRemoved => {
-  if (!(args.occurredAt instanceof Date))
-    throw identityError('validation_error', 'occurredAt must be Date')
-  if (args.userId === '') throw identityError('validation_error', 'userId required')
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  assert(args.userId !== '', 'userId required')
   return {
     _tag: 'identity.member.removed',
     eventId: newEventId(),
@@ -160,13 +153,11 @@ export type IdentityMemberRoleChanged = Readonly<{
 export const identityMemberRoleChanged = (
   args: Omit<IdentityMemberRoleChanged, '_tag' | 'eventId' | 'correlationId'>,
 ): IdentityMemberRoleChanged => {
-  if (!(args.occurredAt instanceof Date))
-    throw identityError('validation_error', 'occurredAt must be Date')
-  if (args.previousRole === args.newRole)
-    throw identityError(
-      'validation_error',
-      'Role change must transition to different role',
-    )
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  assert(
+    args.previousRole !== args.newRole,
+    'Role change must transition to different role',
+  )
   return {
     _tag: 'identity.member.role_changed',
     eventId: newEventId(),

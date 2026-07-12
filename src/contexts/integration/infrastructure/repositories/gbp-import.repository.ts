@@ -9,7 +9,10 @@ import type { GbpImportRepository } from '../../application/ports/gbp-import.rep
 import { gbpImportJobFromRow, gbpImportJobToInsert } from '../mappers/gbp-import.mapper'
 import { trace } from '#/shared/observability/trace'
 
-export const createGbpImportRepository = (db: Database): GbpImportRepository => ({
+export const createGbpImportRepository = (
+  db: Database,
+  clock: () => Date,
+): GbpImportRepository => ({
   findById: async (orgId, id) => {
     return trace('gbpImport.findById', async () => {
       const rows = await db
@@ -45,7 +48,7 @@ export const createGbpImportRepository = (db: Database): GbpImportRepository => 
         .update(gbpImportJobs)
         .set({
           status,
-          updatedAt: new Date(),
+          updatedAt: clock(),
         })
         .where(and(eq(gbpImportJobs.organizationId, orgId), eq(gbpImportJobs.id, id)))
     })
@@ -57,7 +60,7 @@ export const createGbpImportRepository = (db: Database): GbpImportRepository => 
         .update(gbpImportJobs)
         .set({
           importedCount: sql`${gbpImportJobs.importedCount} + 1`,
-          updatedAt: new Date(),
+          updatedAt: clock(),
         })
         .where(and(eq(gbpImportJobs.organizationId, orgId), eq(gbpImportJobs.id, id)))
     })
@@ -69,7 +72,7 @@ export const createGbpImportRepository = (db: Database): GbpImportRepository => 
         .update(gbpImportJobs)
         .set({
           skippedCount: sql`${gbpImportJobs.skippedCount} + 1`,
-          updatedAt: new Date(),
+          updatedAt: clock(),
         })
         .where(and(eq(gbpImportJobs.organizationId, orgId), eq(gbpImportJobs.id, id)))
     })
@@ -81,7 +84,7 @@ export const createGbpImportRepository = (db: Database): GbpImportRepository => 
         .update(gbpImportJobs)
         .set({
           failedCount: sql`${gbpImportJobs.failedCount} + 1`,
-          updatedAt: new Date(),
+          updatedAt: clock(),
         })
         .where(and(eq(gbpImportJobs.organizationId, orgId), eq(gbpImportJobs.id, id)))
     })

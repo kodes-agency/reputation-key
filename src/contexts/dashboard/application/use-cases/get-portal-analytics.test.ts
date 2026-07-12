@@ -68,7 +68,11 @@ describe('getPortalAnalytics (use case)', () => {
   it('composes portal KPI sums into PortalAnalyticsData', async () => {
     const repo = createInMemoryDashboardRepository()
     const metrics = createFakePortalMetrics()
-    const analytics = getPortalAnalytics({ repo, portalMetrics: metrics })
+    const analytics = getPortalAnalytics({
+      repo,
+      portalMetrics: metrics,
+      clock: () => new Date(),
+    })
     const now = new Date()
     const start = new Date(now.getTime() - 30 * 86_400_000)
 
@@ -107,7 +111,11 @@ describe('getPortalAnalytics (use case)', () => {
         { metricKey: 'portal.review_link_click', total: 0, count: 0 },
       ],
     })
-    const analytics = getPortalAnalytics({ repo, portalMetrics: metrics })
+    const analytics = getPortalAnalytics({
+      repo,
+      portalMetrics: metrics,
+      clock: () => new Date(),
+    })
     const now = new Date()
 
     const result = await analytics({
@@ -151,7 +159,11 @@ describe('getPortalAnalytics (use case)', () => {
       },
     }
 
-    const analytics = getPortalAnalytics({ repo, portalMetrics: dynamicMetrics })
+    const analytics = getPortalAnalytics({
+      repo,
+      portalMetrics: dynamicMetrics,
+      clock: () => new Date(),
+    })
     const now = new Date()
     const start = new Date(now.getTime() - 30 * 86_400_000)
 
@@ -178,7 +190,11 @@ describe('getPortalAnalytics (use case)', () => {
   it('includes engagement funnel from repo with default values', async () => {
     const repo = createInMemoryDashboardRepository()
     const metrics = createFakePortalMetrics()
-    const analytics = getPortalAnalytics({ repo, portalMetrics: metrics })
+    const analytics = getPortalAnalytics({
+      repo,
+      portalMetrics: metrics,
+      clock: () => new Date(),
+    })
     const now = new Date()
 
     const result = await analytics({

@@ -24,6 +24,7 @@ export type GetStaffDashboardDataInput = Readonly<{
 export type GetStaffDashboardDataDeps = Readonly<{
   repo: DashboardRepository
   staffPortalResolver: StaffPortalResolverPort
+  clock: () => Date
 }>
 export type GetStaffDashboardData = ReturnType<typeof getStaffDashboardData>
 

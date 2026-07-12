@@ -86,7 +86,7 @@ export const ActiveWithProgress: Story = {
     expect(canvas.getByRole('heading', { name: '50 scans this month' })).toBeVisible()
     // Active status badge + scope/metric details render.
     expect(canvas.getByText('Active')).toBeVisible()
-    expect(canvas.getByText('portal.scan')).toBeVisible()
+    expect(canvas.getByText('Scans')).toBeVisible()
     // Cancel action is available for an active goal.
     expect(canvas.getByRole('button', { name: /cancel goal/i })).toBeVisible()
   },

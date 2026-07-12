@@ -10,6 +10,8 @@ export type { PortalDeleted, PortalEvent } from '../domain/events'
 
 export type { PortalGroupDeleted } from '../domain/events'
 
+export { isValidExternalUrl } from '../domain/rules'
+
 import type {
   OrganizationId,
   PropertyId,

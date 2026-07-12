@@ -1,10 +1,10 @@
 # Notification Context
 
-## 1. Bounded context
+## Bounded context
 
 Produces user-facing in-app and email notifications about domain events. Subscribes to events from other contexts, resolves recipients, creates notification rows, and manages email delivery (urgent: immediate via a dedicated job; normal: daily digest).
 
-## 2. Glossary
+## Glossary
 
 | Term               | Meaning                                                                                                                                                                                      |
 | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -18,7 +18,7 @@ Produces user-facing in-app and email notifications about domain events. Subscri
 | Digest             | Daily job that sends all `pending` normal-priority emails per org.                                                                                                                           |
 | Channel preference | Per-user/per-type toggle for in-app and email channels (default: both on).                                                                                                                   |
 
-## 3. Relationships
+## Relationships
 
 **Within context:**
 
@@ -32,7 +32,7 @@ Produces user-facing in-app and email notifications about domain events. Subscri
 - **Staff** — `staff_assignments` joined in `findAssignedManagers()` to resolve property-scoped recipients.
 - **Review / Inbox / Goal / Badge** — event subscriptions (see "Events consumed").
 
-## 4. Invariants
+## Invariants
 
 - A notification is always scoped to exactly one `userId` + `organizationId`.
 - `userId` MUST be non-empty (constructor rejects `invalid_input`).
@@ -41,11 +41,11 @@ Produces user-facing in-app and email notifications about domain events. Subscri
 - Urgent priority is derived from type, never set by callers.
 - Preferences are sparse — a missing preference row means both channels enabled.
 
-## 5. Events produced
+## Events produced
 
 This context produces **no domain events**. It consumes events and materializes notifications + email-queue rows.
 
-## 6. Events consumed
+## Events consumed
 
 | `_tag`                        | Source | Handler action                                                                                                                  |
 | ----------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------- |
@@ -61,7 +61,7 @@ This context produces **no domain events**. It consumes events and materializes 
 | `goal.completed`              | goal   | Enqueue `goal.completed` to assigned managers/staff.                                                                            |
 | `badge.awarded`               | badge  | Enqueue `badge.awarded` to assigned managers/staff.                                                                             |
 
-## 7. Architecture layers
+## Architecture layers
 
 ```
 server/           → createServerFn wrappers (queries + mutations), tenant resolution
@@ -76,7 +76,7 @@ infrastructure/
   repositories/     Drizzle implementations of ports (+ row mapper)
 ```
 
-## 8. Use cases
+## Use cases
 
 | Name                 | Input                                                                  | Output                 | Permission                |
 | -------------------- | ---------------------------------------------------------------------- | ---------------------- | ------------------------- |
@@ -84,7 +84,7 @@ infrastructure/
 
 `insertNotification` is invoked by the insert-notification BullMQ worker, not directly by server functions. Returns `null` when the user has disabled both channels (still persists if email-only) — see Q19.
 
-## 9. Public API
+## Public API
 
 Exported from `application/public-api.ts`:
 
@@ -94,7 +94,7 @@ Exported from `application/public-api.ts`:
 
 The build function (`build.ts`) also exposes `publicApi` query/mutation helpers (`findById`, `getUnreadCount`, `getNotifications`, `markRead`, `markAllRead`, `dismiss`, `getPreferences`, `updatePreference`) consumed by the notification server functions.
 
-## 10. Server functions
+## Server functions
 
 | Name                             | Method | Permission            | Route                        |
 | -------------------------------- | ------ | --------------------- | ---------------------------- |
@@ -109,7 +109,7 @@ The build function (`build.ts`) also exposes `publicApi` query/mutation helpers 
 
 Server functions resolve tenant context from the authenticated session (never client payload) and verify notification ownership before mutating.
 
-## 11. Permissions
+## Permissions
 
 | Permission            | AccountAdmin (owner) | PropertyManager (admin) | Staff (member) |
 | --------------------- | -------------------- | ----------------------- | -------------- |
@@ -132,12 +132,6 @@ Notifications are personal (scoped to the caller's `userId`); all three roles ma
 - `UserLookupPort` — `findByRole()`, `findAssignedManagers()` (managers AND staff), `getEmail()`, `getName()`.
 - `EmailSenderPort` — wraps Resend `sendEmail()`.
 
-## Resolved decisions
-
-- **BullMQ delivery** (ADR 0011) — handlers enqueue jobs, workers insert rows.
-- **Two tables** — `notifications` (in-app) + `notification_email_queue` (email), separate lifecycles.
-- **Title/body pre-rendered** at insertion time (Q19).
-- **Three urgent types**: `reply.pending_approval`, `reply.publish_failed`, `inbox.escalated` (Q9).
 - **`goal.progress_updated` pruned (Q14)** — event removed entirely: no consumer, only `goal.completed` is notification-worthy.
 - **Digest keyed by property timezone** (already on properties table), not org timezone (Q8).
 - **Review notification sources `inbox.inbox_item.created`** (2026-07 design) — the `review.created` notification subscribes to `inbox.inbox_item.created` (carries the `inboxItemId`, fires _after_ the item exists → no race), branching on `sourceType` (review vs feedback). That event is enriched with `rating`/`snippet` so the body derives fully. `resourceId` is the **inbox-item id**, making deep-links honest. (Replaces the old `review.created` subscription that stamped a `reviewId` under `resourceType: 'inbox_item'`.)
