@@ -11,11 +11,11 @@ PRE17B makes Google reviews a trustworthy, lifecycle-managed input for later rev
 
 The target is 5,000 properties and 500,000 new reviews per month. The design is optimized for burst recovery and reconciliation rather than the modest steady-state average of approximately 0.193 reviews/second.
 
-This plan does not invoke an AI model, choose an AI provider, create sentiment/category/priority fields, generate replies, create organization summaries, or produce trend reports. Google-derived AI remains disabled until written policy clarification is recorded in ADR 0031.
+This plan does not invoke an AI model, choose an AI provider, create sentiment/category/priority fields, generate replies, create organization summaries, or produce trend reports. Google's [written response](google-business-profile-ai-policy-response-2026-07-14.md) permits the submitted per-property AI design conditionally, but runtime AI remains disabled throughout PRE17B until Phase 17 consumes an accepted ADR 0031 and the controls built here.
 
 ## 2. Required decisions
 
-Write ADR 0026 and ADR 0027 before schema implementation. ADR 0031 remains pending Google's response.
+Write ADR 0026 and ADR 0027 before schema implementation. Write ADR 0031 from Google's received response before contracting the source-policy schema.
 
 ### 2.1 Source policy is a code-level contract
 
@@ -24,23 +24,32 @@ Represent Google retention and permitted operations behind a source policy, not 
 ```ts
 type SourceContentPolicy = Readonly<{
   source: 'google'
-  contentTtl: Duration
-  mayAnalyze: boolean
-  mayAggregate: boolean
-  mayRetainDerivationsAfterSourceDeletion: boolean
+  rawContentTtl: Duration
+  rawRefreshDueBefore: Duration
+  mayAnalyzePerReview: boolean
+  mayAggregatePerProperty: boolean
+  mayCombineAcrossProperties: boolean
+  mayRetainDerivedMetadata: boolean
+  requiresMerchantOptIn: boolean
+  requiresPiiRedaction: boolean
+  requiresHumanReplyPublish: boolean
+  policyVersion: number
 }>
 ```
 
-PRE17 production defaults are:
+ADR 0031 production policy is expected to encode:
 
-- `contentTtl = 30 days` measured from a successful fetch of that stored copy;
-- `mayAnalyze = false`;
-- `mayAggregate = false` for review-derived analysis/summary data;
-- `mayRetainDerivationsAfterSourceDeletion = false`.
+- `rawContentTtl = 30 days` from the latest successful Google refresh of that cached content/version;
+- `rawRefreshDueBefore < 30 days`, initially 25 days, with purge on missed expiry;
+- `mayAnalyzePerReview = true` conditionally;
+- `mayAggregatePerProperty = true` conditionally;
+- `mayCombineAcrossProperties = false`;
+- `mayRetainDerivedMetadata = true` under a separate product/privacy retention policy;
+- merchant opt-in, PII redaction, approved no-training/minimum-retention provider/region, and human-only reply publication are mandatory.
 
-The pending Google answer may change the interpretation of refresh and derivations. Any change requires ADR 0031, legal/privacy review where applicable, tests, and an explicit source-policy release. It must not require rewriting review use cases.
+The exact refresh-clock semantics and durable previous-reply few-shot use were not answered individually. The conservative baseline above may be broadened only through a new recorded disposition, legal/privacy review where applicable, tests, and an explicit source-policy release. It must not require rewriting review use cases.
 
-Google's current policy permits limited temporary storage for performance but says content may not be manipulated or aggregated, so sentiment, priority, and themes are a ship/no-ship question rather than a technical assumption. See the official [Business Profile API policies](https://developers.google.com/my-business/content/policies).
+Google's direct response resolves the manipulation/aggregation ambiguity for independently generated per-property sentiment, scores, categories, themes, trends, and summaries. See the [response record](google-business-profile-ai-policy-response-2026-07-14.md) and official [Business Profile API policies](https://developers.google.com/my-business/content/policies).
 
 ### 2.2 Property is the routing unit
 
@@ -73,9 +82,9 @@ type ProcessingAvailability =
 
 ### 2.3 One canonical source-content copy
 
-The review context owns Google review content. Inbox, event payloads, queue payloads, activity, notifications, logs, traces, and dashboard caches must not persist review text or reviewer identity as convenience copies.
+The review context owns raw Google review content. Inbox, event payloads, queue payloads, activity, notifications, logs, traces, and dashboard caches must not persist review text, rating, reply text, Google review identifiers, or reviewer identity as convenience copies.
 
-Cross-context readers use stable IDs and bounded batch lookup ports. This gives the content lifecycle one canonical deletion point and prevents every future feature from inventing another retention clock.
+Phase 17/18 derived metadata lives in a separate context/table class and may outlive the raw cache only when it contains no raw content/PII. Cross-context readers use opaque internal IDs and bounded batch lookup ports. This gives raw content one canonical deletion point and prevents every future feature from inventing another cache clock.
 
 ## 3. Target review ingestion flows
 
@@ -133,15 +142,15 @@ Indexes:
 
 Expand the current schema with:
 
-| Column                   | Behavior                                                                                           |
-| ------------------------ | -------------------------------------------------------------------------------------------------- |
-| `source_created_at`      | Google's `createTime`; replaces ambiguous internal use of `reviewed_at`.                           |
-| `source_updated_at`      | Google's review `updateTime`; used for incremental ordering.                                       |
-| `first_fetched_at`       | First successful local fetch. Immutable.                                                           |
-| `last_fetched_at`        | Most recent successful fetch of this copy.                                                         |
-| `content_expires_at`     | Calculated by `SourceContentPolicy` from successful fetch time, never publication time.            |
-| `content_hash`           | Hash of normalized policy-controlled source fields; avoids emitting updates for unchanged fetches. |
-| `source_seen_generation` | Nullable UUID used only by complete-inventory deletion detection.                                  |
+| Column                   | Behavior                                                                                               |
+| ------------------------ | ------------------------------------------------------------------------------------------------------ |
+| `source_created_at`      | Google's `createTime`; replaces ambiguous internal use of `reviewed_at`.                               |
+| `source_updated_at`      | Google's review `updateTime`; used for incremental ordering.                                           |
+| `first_fetched_at`       | First successful local fetch. Immutable.                                                               |
+| `last_fetched_at`        | Most recent successful fetch of this copy.                                                             |
+| `content_expires_at`     | Calculated from the latest successful Google fetch, never publication time or a local scheduler touch. |
+| `content_hash`           | Hash of normalized policy-controlled source fields; avoids emitting updates for unchanged fetches.     |
+| `source_seen_generation` | Nullable UUID used only by complete-inventory deletion detection.                                      |
 
 Also:
 
@@ -258,7 +267,7 @@ The adapter is the anti-corruption layer, but domain constructors still enforce 
 2. Introduce `persistReviewPage`/`applyFetchedReview` command-store methods that own review, mirrored reply, content hash, timestamps, and outbox changes atomically.
 3. Separate outcomes: `created`, `content_changed`, `refreshed_unchanged`, `source_deleted`, and `stale_source_epoch`.
 4. A mere refresh may extend `last_fetched_at/content_expires_at` under the configured policy but does not emit `review.updated` when the content hash is unchanged.
-5. Rename durable events to clear facts such as `review.received.v1`, `review.content-changed.v1`, `review.source-deleted.v1`, and `review.reply-observed.v1`. Payloads carry IDs, rating only if proven necessary as a stable routing fact, and source timestamps—not text or identity.
+5. Rename durable events to clear facts such as `review.received.v1`, `review.content-changed.v1`, `review.source-deleted.v1`, and `review.reply-observed.v1`. Payloads carry opaque internal IDs, property/source epoch, and source timestamps—not text, rating, reply, Google review ID, or identity. Phase 17 workers reload the policy-valid raw row by internal ID.
 6. Ensure a late job from an old connection/source epoch returns `stale_source_epoch` without writing.
 7. Make repository tenant/property predicates mandatory in every lookup and update. Add cross-tenant negative tests.
 
@@ -268,13 +277,13 @@ The adapter is the anti-corruption layer, but domain constructors still enforce 
 
 All lifecycle workflows use “prevent new work → purge owned data → invalidate derived state/cache → record content-free completion.” They are durable, idempotent, retryable, and observable.
 
-| Trigger                                        | Required behavior                                                                                                                                                                   |
-| ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Content expiry                                 | Mark source unavailable, delete canonical review; FK/participants remove inbox/replies/copies; no stale job can recreate it without a new valid fetch.                              |
-| Upstream review 404/complete-inventory absence | Same as source deletion; preserve only content-free deletion evidence.                                                                                                              |
-| Google disconnect                              | Increment property/source epoch immediately, disable new sync, start connection-scoped lifecycle, purge all Google reviews/replies/caches/jobs, then finalize disassociation state. |
-| Property deletion                              | Disable property, increment epoch, run all context participants, then finalize soft/hard deletion according to property policy. Direct FKs provide a final safety net.              |
-| Organization deletion                          | Freeze organization commands, enumerate property/source scopes with cursors, run every participant, remove tenant data, and record minimal completion evidence.                     |
+| Trigger                                        | Required behavior                                                                                                                                                                                                                                               |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Content expiry                                 | Mark raw source unavailable and delete/scrub canonical raw content; participants remove raw copies. Apply the separate derivative retention/deletion policy rather than cascading raw TTL blindly. No stale job can recreate content without a new valid fetch. |
+| Upstream review 404/complete-inventory absence | Same as source deletion; preserve only content-free deletion evidence.                                                                                                                                                                                          |
+| Google disconnect                              | Increment property/source epoch immediately, disable new sync, start connection-scoped lifecycle, purge all Google reviews/replies/caches/jobs, then finalize disassociation state.                                                                             |
+| Property deletion                              | Disable property, increment epoch, run all context participants, then finalize soft/hard deletion according to property policy. Direct FKs provide a final safety net.                                                                                          |
+| Organization deletion                          | Freeze organization commands, enumerate property/source scopes with cursors, run every participant, remove tenant data, and record minimal completion evidence.                                                                                                 |
 
 Important rules:
 
@@ -420,11 +429,11 @@ PRE17B is done when:
 - Webhooks require/persistently deduplicate Pub/Sub message IDs and fetch the named review.
 - Periodic incremental reconciliation is bounded and complete inventory is resumable and deletion-aware.
 - Google list requests use page size 50, all external payloads are runtime-validated, and raw responses/errors are not retained.
-- Review expiry is based on successful fetch time through a source policy; premature sentiment columns are gone.
-- No event/job/inbox/cache/log stores a convenience copy of review text or reviewer identity.
+- Review expiry is based on the latest successful Google fetch through a source policy; premature sentiment columns are gone.
+- No event/job/inbox/cache/log stores a convenience copy of review text, rating, reply text, Google review ID, or reviewer identity.
 - Expiry, upstream deletion, disconnect, property deletion, and organization deletion are durable, idempotent, observable, and tested across all registered participants.
 - Every active property has a validated country, IANA time zone, and explicit provider-neutral region, with no cross-region fallback.
-- Google-derived analysis remains disabled and is independently switchable from all non-AI review features.
+- Google-derived analysis remains runtime-disabled during PRE17B but ADR 0031 records it as conditionally permitted for Phase 17/18. It remains independently switchable from all non-AI review features.
 - PRE17C can build property-local incremental read models and exercise the system at target load.
 
 ## 15. Primary references

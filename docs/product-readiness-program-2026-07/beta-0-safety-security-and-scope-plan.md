@@ -239,7 +239,7 @@ Tasks:
 
 1. Build a field-level data inventory and lineage map for all 16 contexts, queues, caches, logs/traces, object storage, email, Google, backups, tests, and future AI.
 2. Record purpose, role, lawful basis where applicable, source, sensitivity, tenant/property, region, recipients/subprocessors, retention, deletion propagation, and operator access for every class.
-3. Obtain the written Google disposition for storage duration, derivation/aggregation, AI processing, regional processing, and permitted backup/log behavior. Translate it into ADR 0031 and executable capabilities/retention; do not rely on an informal interpretation.
+3. Preserve the received [Google response](google-business-profile-ai-policy-response-2026-07-14.md) and translate it into ADR 0031 and executable capabilities/retention: per-property only, raw refresh/removal, separate derivatives, PII removal, no provider training/minimum retention, regional privacy, merchant opt-in, and manual reply publication. Apply conservative rules to backup/log, few-shot, and historical-backfill details that were not answered individually.
 4. Draft and approve accurate internal-beta terms, property authorization, privacy notice(s), Google access disclosure, subprocessor list, security contact, request process, and incident contact tree.
 5. Name product/privacy/security owners for access, correction, deletion, export, breach, and disconnect requests. Counsel decides controller/processor, GDPR transfer/DPIA, CCPA, and accessibility legal applicability.
 6. Restrict production access to named people with work reason, audited elevation, short-lived credentials, and review-text masking in routine tooling.
@@ -248,7 +248,7 @@ Tasks:
 Acceptance evidence:
 
 - an accountable owner signs the data map and real-property checklist;
-- written Google policy is mapped to code/data controls before Stage 2;
+- Google's written disposition is mapped to accepted code/data controls before Stage 2;
 - every subprocessor and processing region is known;
 - request and incident dry runs identify affected property/data and accountable responder without querying raw production tables ad hoc.
 

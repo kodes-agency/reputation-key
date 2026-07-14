@@ -1,7 +1,7 @@
 # POST-BETA-3 — Metrics, Goals, and Property Dashboards
 
 **Status:** Proposed  
-**Depends on:** POST-BETA-1 attribution; POST-BETA-2 if portal events are enabled; PRE17 durable events/read models; written Google disposition for any Google-derived measure  
+**Depends on:** POST-BETA-1 attribution; POST-BETA-2 if portal events are enabled; PRE17 durable events/read models; accepted ADR 0031 for Google-derived property analytics  
 **Contexts:** Metric, goal, dashboard, property, portal, review, integration, staff, activity, notification  
 **Effort:** 13–20 engineering days
 
@@ -9,7 +9,7 @@
 
 Create one governed, replayable measurement system that can safely power transparent property goals and fast property-local dashboards. Eliminate independent formulas scattered across contexts and make source eligibility, policy, attribution, data quality, correction, time, and retention part of every metric's contract.
 
-Actual reviews remain the operational core of the product, but Google's current published policy blocks persistent/aggregated Google review measures under the conservative interpretation. The architecture should be ready to enable specifically approved review measures later without letting code infer permission. Until then, property dashboards may show current authorized review workflow data where permitted, but long-lived Google-derived metrics, trends, goals, badges, and rankings remain off.
+Actual reviews remain the operational core of the product. Google's [written response](google-business-profile-ai-policy-response-2026-07-14.md) conditionally permits independently generated per-property sentiment, scores, categories, themes, trends, summaries, and retained derivative metadata. ADR 0031 must still separate 30-day raw content from derivative records and enforce PII/provider/region/consent controls. Google-derived staff goals, badges, and rankings remain ineligible because review-solicitation and worker-use risks are independent of property analytics permission.
 
 No organization-wide AI summary is added. Dashboard summaries are property-local.
 
@@ -30,8 +30,8 @@ No organization-wide AI summary is added. Dashboard summaries are property-local
 ### Deferred/conditional
 
 - Portal/individual goals: implemented only after worker-use, sample/opportunity, visibility, and correction gates pass.
-- Google review count/rating/reply metrics: source capability remains `blocked` until exact written permission.
-- Historical Google backfill: only after policy and retention design permit it.
+- Google review/rating/reply and AI-derived measures: property-dashboard-only capability after ADR 0031; never staff gamification.
+- Historical Google backfill: allowed only through the conservative per-property, policy-valid raw-input/derivative-only persistence design because it was not answered separately.
 - Team goal UI: teams remain administrative; a department goal targets a portal group, not a mutable team membership join.
 
 ### Out
@@ -95,13 +95,13 @@ Application code references a version ID. Material rule changes create a new ver
 
 Every source event maps to a centrally evaluated class, for example:
 
-| Source policy class                  | Example                                     | Default consumers                                                              |
-| ------------------------------------ | ------------------------------------------- | ------------------------------------------------------------------------------ |
-| `google_api_content_blocked`         | Google review/rating/content-derived fact   | Temporary authorized workflow only; no metric reading under current policy     |
-| `review_solicitation_analytics_only` | Review-link click, review-request scan      | Limited operational diagnostics; never goals/badges/leaderboards               |
-| `first_party_guest_private`          | Optional private response                   | Property operations; goals only after worker/privacy approval; leaderboard off |
-| `first_party_workflow`               | Manager-confirmed internal workflow outcome | Dashboard/property-group goal if definition approved                           |
-| `manager_confirmed_recognition`      | Explicit quality/training completion        | Badge/goal if catalog-approved; no automatic ranking                           |
+| Source policy class                  | Example                                           | Default consumers                                                              |
+| ------------------------------------ | ------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `google_property_derivative`         | Permitted per-property review/AI-derived metadata | Property dashboard/analytics after ADR 0031; never goals/badges/leaderboards   |
+| `review_solicitation_analytics_only` | Review-link click, review-request scan            | Limited operational diagnostics; never goals/badges/leaderboards               |
+| `first_party_guest_private`          | Optional private response                         | Property operations; goals only after worker/privacy approval; leaderboard off |
+| `first_party_workflow`               | Manager-confirmed internal workflow outcome       | Dashboard/property-group goal if definition approved                           |
+| `manager_confirmed_recognition`      | Explicit quality/training completion              | Badge/goal if catalog-approved; no automatic ranking                           |
 
 The registry fails closed: an unknown source/version or unavailable policy service does not produce a reading. Persist a rejected/quarantined source receipt and alert rather than silently recording `groupId = null` or generic metric data.
 
@@ -159,7 +159,7 @@ Material changes to target, metric, formula, cohort, scope, or recurrence create
 | Level    | Maintain an approved current level ≥ X               | Latest eligible snapshot as-of evaluation. It is `met/not_met/insufficient_data`; it does not permanently complete on the first crossing.      |
 | Ratio    | Approved response workflow SLA ≥ X% with minimum N   | Numerator/denominator and sample threshold. Evaluate through the period and finalize at close; show insufficient data rather than zero.        |
 
-Do not represent a windowed average of new events as an overall external property rating. If Google later permits the latter, it requires a separately sourced `level` definition.
+Do not represent a windowed average of new events as an overall external property rating. A property dashboard rating requires a separately sourced/versioned `level` definition under ADR 0031 and remains ineligible for staff goals, badges, or rankings.
 
 ### 5.3 Lifecycle
 
@@ -195,7 +195,7 @@ Compose versioned read models, not live cross-context joins:
 - active/recent goal periods and transparent evaluation;
 - notification/action links to source workflow.
 
-Google-derived aggregate sections render `not available under current source policy` until explicitly enabled. They do not fall back to locally accumulated prohibited readings.
+Google-derived property sections render only when ADR 0031 and the metric-definition version permit them. They use derivative records/read models rather than extending raw review retention, and they never fall back to unclassified locally accumulated readings.
 
 ### 6.2 Staff scorecard
 
@@ -219,8 +219,8 @@ Google-derived aggregate sections render `not available under current source pol
 
 ### PB3.0 — Freeze unsafe consumers and accept ADRs
 
-1. Add domain tests that external review-link click, review-request scan, Google review/rating/count, named staff mention, and AI fields cannot be goal/badge/leaderboard sources.
-2. Put Google-derived metric production behind the executable source-policy capability.
+1. Add domain tests that external review-link click, review-request scan, Google review/rating/count, named staff mention, and AI fields cannot be goal/badge/leaderboard sources even when they are allowed for property analytics.
+2. Put Google-derived property analytics behind the executable ADR-0031 source-policy capability and raw/derived lifecycle boundary.
 3. Accept ADR 0040 (attribution), 0041 (metric registry), and 0042 (goal kinds).
 4. Correct obsolete glossary/plan statements only after acceptance.
 5. Choose the first approved metric catalog; start small and first-party.
@@ -314,18 +314,18 @@ Google-derived aggregate sections render `not available under current source pol
 - Rollups replay to the same result and repairs are bounded/observable at target scale.
 - Initial property and portal-group goals have correct measure-kind/timezone/version semantics and explainable evidence.
 - No goal or dashboard misrepresents missing/insufficient/restricted data as zero.
-- No Google-derived aggregate or gamification input runs without exact written-policy capability.
+- No Google-derived property aggregate runs without accepted ADR-0031 capability; no Google/review-solicitation/AI-derived staff gamification input runs at all.
 - Property dashboards meet agreed latency/accessibility targets and expose freshness.
 - One property completes two full recurring periods plus a correction/replay drill without unresolved P0/P1 issue.
 
 ## 10. Decisions required before PB3.0 exits
 
-| Decision                     | Recommended default                                                                                                                  |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| First goal scopes            | Property and portal group only; individual portal goals off.                                                                         |
-| Goal authors                 | Managers only for organizational goals.                                                                                              |
-| Personal goals               | Defer as a separate private model.                                                                                                   |
-| Group history                | Event-time/non-retroactive.                                                                                                          |
-| First metric catalog         | Approved first-party operational outcomes only; no review solicitation/Google-derived measure.                                       |
-| Google measures if permitted | Add one by one with exact policy version, beginning with the least content-sensitive operational measure; do not blanket-enable all. |
-| Dashboard unit               | Property-local; no organization AI summary.                                                                                          |
+| Decision                  | Recommended default                                                                                                                  |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| First goal scopes         | Property and portal group only; individual portal goals off.                                                                         |
+| Goal authors              | Managers only for organizational goals.                                                                                              |
+| Personal goals            | Defer as a separate private model.                                                                                                   |
+| Group history             | Event-time/non-retroactive.                                                                                                          |
+| First metric catalog      | Approved first-party operational outcomes for goals/recognition; permitted Google derivatives may appear only in property analytics. |
+| Google property analytics | Add one by one under ADR 0031, beginning with the least content-sensitive measure; no blanket enablement or staff gamification.      |
+| Dashboard unit            | Property-local; no organization AI summary.                                                                                          |

@@ -5,15 +5,16 @@ This folder contains the AI, PRE17, beta-readiness, Google-policy, and post-beta
 ## Recommended reading order
 
 1. [Arc 7 AI platform research](arc-7-ai-platform-research-2026-07-14.md)
-2. [Google Business Profile policy clarification request](google-business-profile-ai-policy-clarification.md)
+2. [Google Business Profile policy response and disposition](google-business-profile-ai-policy-response-2026-07-14.md)
 3. [PRE17 AI-readiness master plan](phase-pre17-master-plan.md)
 4. [Beta-readiness master plan](beta-readiness-master-plan.md)
 5. [Post-beta product-completion master plan](post-beta-product-completion-master-plan.md)
 
-## Google policy request
+## Google policy request and response
 
 - [Editable Markdown letter](google-business-profile-ai-policy-clarification.md)
 - [Submitted PDF attachment](attachments/reputation-key-google-ai-policy-clarification.pdf)
+- [Written Google response and executable disposition](google-business-profile-ai-policy-response-2026-07-14.md)
 
 ## PRE17 — AI platform readiness
 
@@ -32,6 +33,7 @@ This folder contains the AI, PRE17, beta-readiness, Google-policy, and post-beta
 - [BETA-3 — operations, scale evidence, and pilot](beta-3-operations-scale-and-pilot-plan.md)
 - [Codebase audit](beta-readiness-audit-2026-07-14.md)
 - [Primary-source research](beta-readiness-primary-research-2026-07-14.md)
+- [BETA-0 governance working document](beta-0-governance.md)
 
 ## Post-beta product completion
 
@@ -44,4 +46,4 @@ This folder contains the AI, PRE17, beta-readiness, Google-policy, and post-beta
 
 ## Authority
 
-Accepted ADRs and the current code remain authoritative for implemented behavior. These plans explicitly identify where a new ADR must supersede an older decision. Google-derived AI, metrics, trends, and gamification remain blocked until the written Google disposition is translated into an approved executable policy.
+Accepted ADRs and the current code remain authoritative for implemented behavior. These plans explicitly identify where a new ADR must supersede an older decision. Google's written response conditionally permits the submitted per-property AI architecture. Release still requires ADR 0031, executable source policy, raw-content lifecycle, provider/privacy controls, merchant opt-in, and human-only reply publication. Review-solicitation gamification remains prohibited independently.

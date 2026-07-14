@@ -9,7 +9,7 @@
 
 PRE17C turns the preceding architecture into production evidence. It removes dead materialized-view infrastructure, introduces only the read models the current product is permitted to keep, wires bounded cache behavior, adds vendor-neutral telemetry/health, establishes realistic CI suites, and proves the 5,000-property/500,000-review monthly target under burst and failure conditions.
 
-This plan does not implement the Phase 18 AI dashboard. It provides its property-local calendar, read-model pattern, cache seam, SLOs, and test harness. It does not create sentiment/theme/priority aggregates while Google's written policy position is unresolved.
+This plan does not implement the Phase 18 AI dashboard. It provides its property-local calendar, read-model pattern, cache seam, SLOs, and test harness. Google's [written response](google-business-profile-ai-policy-response-2026-07-14.md) permits independently generated per-property sentiment/theme/priority/trend metadata, but PRE17C still does not create those Phase 17/18 projections.
 
 ## 2. Measured risks and decisions
 
@@ -31,14 +31,14 @@ PRE17 therefore tests 20 reviews/second sustained and 100 reviews/second for 60 
 
 The current materialized views are refreshed but the dashboard adapters query raw tables. `REFRESH MATERIALIZED VIEW` replaces contents, and concurrent refresh requires a suitable unique index and still allows only one refresh per view. Keeping unused full refreshes creates write/IO cost without read value. See the official [materialized-view](https://www.postgresql.org/docs/current/rules-materializedviews.html) and [refresh](https://www.postgresql.org/docs/current/sql-refreshmaterializedview.html) documentation.
 
-Replace the metric views with a normal incrementally maintained metric rollup. Remove the unused weekly and inbox views after proving no reads depend on them. Do not create a Google review/rating/sentiment rollup unless `SourceContentPolicy.mayAggregate` is true under completed ADR 0031.
+Replace the metric views with a normal incrementally maintained metric rollup. Remove the unused weekly and inbox views after proving no reads depend on them. Any later Google-derived property rollup requires `SourceContentPolicy.mayAggregatePerProperty = true`, a permitted derived schema, and completed ADR 0031. Cross-property aggregation remains false.
 
-Until then:
+During PRE17C:
 
 - recent-review/detail views may load canonical, unexpired review records;
-- review aggregate sections whose legality is unresolved must be controlled by a source-policy capability, not silently cached/materialized;
+- existing review aggregate sections must be classified as raw-content views, permitted property derivatives, or review-solicitation-ineligible metrics; unknown classifications fail closed rather than being silently cached/materialized;
 - first-party operational metrics such as portal scans can use long-lived rollups under their own retention policy;
-- Phase 18 property reports and sentiment charts remain disabled for Google.
+- Phase 18 property reports and sentiment charts remain runtime-disabled because they are not implemented until Phase 18, not because general Google permission is pending.
 
 ### 2.3 Property-region routing is not full data residency
 
@@ -397,7 +397,7 @@ For each, capture expected invariant, trigger, measured impact, recovery time, f
 PRE17C is done when:
 
 - Dashboard metric reads use verified property-local incremental rollups; dead materialized views/jobs are removed.
-- No Google-derived aggregate/read model is created while its source policy forbids or has not approved aggregation.
+- No Google-derived read model is created unless ADR 0031 classifies it as permitted per-property derivative metadata; cross-property and review-solicitation gamification models remain prohibited.
 - Cache keys and results cannot cross organization/property/role/portal boundaries, cache contains no review content, and failure safely falls back.
 - OpenTelemetry traces/metrics and structured logs expose delivery, sync, lifecycle, cache, query, and worker health without sensitive content or high-cardinality metric labels.
 - Liveness, role-specific readiness, heartbeats, SLO alerts, and runbooks work in staging fault tests.

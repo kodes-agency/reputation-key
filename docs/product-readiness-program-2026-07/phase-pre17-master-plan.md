@@ -5,7 +5,8 @@
 **Type:** Dedicated prerequisite phase before Arc 7 Phases 17–18  
 **Capacity target:** 5,000 properties and 500,000 new reviews per month  
 **Routing decision:** Property-region routing; no silent cross-region fallback  
-**Product constraint:** AI summaries and reports are property-scoped only
+**Product constraint:** AI summaries and reports are property-scoped only  
+**Google disposition:** Written response received; submitted per-property architecture is conditionally permitted
 
 The routing decision means future model requests are selected from the property's processing profile. It is not, by itself, a promise that the primary database, queues, logs, backups, support access, and web runtime all reside in that region. End-to-end regional data residency is a separate infrastructure scope that must be decided before making residency claims.
 
@@ -18,6 +19,7 @@ PRE17 is complete only when the existing application can prove the following wit
 - A committed business change cannot lose its downstream event when Redis or a worker is unavailable.
 - Duplicate or replayed events do not duplicate projections, metrics, notifications, activity, or scheduled work.
 - Every Google review and every copy of it has an enforceable source lifecycle and deletion path.
+- Raw Google content and retained derived metadata have separate schemas, lineage, retention, and deletion behavior.
 - Every property has an explicit country, valid IANA time zone, and processing region.
 - Review ingestion uses targeted or bounded incremental synchronization instead of repeatedly fetching all reviews.
 - Production schema is reproducible from versioned migrations; CI uses the same migration path as deployment.
@@ -29,7 +31,7 @@ PRE17 does **not** implement sentiment, priority scoring, categorization, reply 
 
 ## 2. Evidence and current baseline
 
-The detailed primary-source review is in [PRE17 AI-readiness research](pre17-ai-readiness-primary-research-2026-07-14.md). The core references are the official [AWS transactional-outbox guidance](https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/transactional-outbox.html), [BullMQ Job Scheduler and idempotency guidance](https://docs.bullmq.io/guide/job-schedulers), [Google Business Profile content policy](https://developers.google.com/my-business/content/policies), [Google review API reference](https://developers.google.com/my-business/reference/rest/v4/accounts.locations.reviews/list), [Drizzle migration guidance](https://orm.drizzle.team/docs/migrations), [PostgreSQL materialized-view behavior](https://www.postgresql.org/docs/current/sql-refreshmaterializedview.html), [OpenTelemetry messaging conventions](https://opentelemetry.io/docs/specs/semconv/messaging/messaging-metrics/), and [OWASP prompt-injection guidance](https://cheatsheetseries.owasp.org/cheatsheets/LLM_Prompt_Injection_Prevention_Cheat_Sheet.html).
+The detailed primary-source review is in [PRE17 AI-readiness research](pre17-ai-readiness-primary-research-2026-07-14.md), and Google's direct answer is preserved in the [response and executable disposition](google-business-profile-ai-policy-response-2026-07-14.md). The core references are the official [AWS transactional-outbox guidance](https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/transactional-outbox.html), [BullMQ Job Scheduler and idempotency guidance](https://docs.bullmq.io/guide/job-schedulers), [Google Business Profile content policy](https://developers.google.com/my-business/content/policies), [Google review API reference](https://developers.google.com/my-business/reference/rest/v4/accounts.locations.reviews/list), [Drizzle migration guidance](https://orm.drizzle.team/docs/migrations), [PostgreSQL materialized-view behavior](https://www.postgresql.org/docs/current/sql-refreshmaterializedview.html), [OpenTelemetry messaging conventions](https://opentelemetry.io/docs/specs/semconv/messaging/messaging-metrics/), and [OWASP prompt-injection guidance](https://cheatsheetseries.owasp.org/cheatsheets/LLM_Prompt_Injection_Prevention_Cheat_Sheet.html).
 
 Measured repository baseline on 2026-07-14:
 
@@ -53,16 +55,16 @@ The current worktree contains an active inbox/goal redesign and migration `0003`
 
 Write these ADRs as the first commit of the owning plan, then keep code and context documentation aligned with them:
 
-| ADR                                                  | Decision                                                                                                                                                                               |
-| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 0024 — Transactional outbox and idempotent consumers | PostgreSQL is the reliability boundary. Business writes and events commit atomically; BullMQ delivery is at least once; database receipts make consumers idempotent.                   |
-| 0025 — Context-owned command stores                  | Application use cases never receive a Drizzle transaction. Each context owns a deep command-store interface that hides its transaction and outbox append.                              |
-| 0026 — Source-content lifecycle                      | Google content, source copies, caches, and future derivations share explicit lineage, expiry, disconnect, property-delete, and organization-delete behavior.                           |
-| 0027 — Property processing profile                   | Country, IANA time zone, and processing region live on the property. `us`, `europe`, `global`, and `unresolved` are provider-neutral; unresolved or unsupported means AI unavailable.  |
-| 0028 — Job runtime and scheduler registry            | Contexts declare job and schedule definitions; one runtime owns queues, workers, current BullMQ Job Schedulers, retries, shutdown, and telemetry.                                      |
-| 0029 — Incremental read models                       | Ordinary idempotently updated rollup tables replace unused full-refresh materialized views for active dashboard metrics. Partitioning is deferred until measured evidence requires it. |
-| 0030 — Telemetry content policy                      | Logs, metrics, and traces contain identifiers and low-cardinality metadata only; review, prompt, reply, reviewer, token, and upstream response content are forbidden.                  |
-| 0031 — GBP AI policy disposition                     | Written only after Google's response. It records the allowed operations, retention clock, derived-data treatment, required attribution/consent, and the exact ship/no-ship result.     |
+| ADR                                                  | Decision                                                                                                                                                                                                            |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0024 — Transactional outbox and idempotent consumers | PostgreSQL is the reliability boundary. Business writes and events commit atomically; BullMQ delivery is at least once; database receipts make consumers idempotent.                                                |
+| 0025 — Context-owned command stores                  | Application use cases never receive a Drizzle transaction. Each context owns a deep command-store interface that hides its transaction and outbox append.                                                           |
+| 0026 — Source-content lifecycle                      | Google content, source copies, caches, and future derivations share explicit lineage, expiry, disconnect, property-delete, and organization-delete behavior.                                                        |
+| 0027 — Property processing profile                   | Country, IANA time zone, and processing region live on the property. `us`, `europe`, `global`, and `unresolved` are provider-neutral; unresolved or unsupported means AI unavailable.                               |
+| 0028 — Job runtime and scheduler registry            | Contexts declare job and schedule definitions; one runtime owns queues, workers, current BullMQ Job Schedulers, retries, shutdown, and telemetry.                                                                   |
+| 0029 — Incremental read models                       | Ordinary idempotently updated rollup tables replace unused full-refresh materialized views for active dashboard metrics. Partitioning is deferred until measured evidence requires it.                              |
+| 0030 — Telemetry content policy                      | Logs, metrics, and traces contain identifiers and low-cardinality metadata only; review, prompt, reply, reviewer, token, and upstream response content are forbidden.                                               |
+| 0031 — GBP AI policy disposition                     | Encode Google's received response: per-property analysis and derived retention allowed conditionally; raw 30-day refresh/removal; PII removal; no training; regional privacy; merchant opt-in; manual publish only. |
 
 ## 4. Target runtime
 
@@ -92,7 +94,7 @@ Architectural rules:
 - BullMQ job IDs and deduplication reduce redundant work but never replace database idempotency.
 - Workers reload current state by ID and no-op when the source is expired, deleted, disconnected, region-unresolved, or feature-disabled.
 - There is no automatic fallback from `us` or `europe` to another processing region.
-- Google-derived AI remains disabled independently from ingestion, inbox, and manual reply behavior.
+- Google-derived AI remains independently disabled throughout PRE17; Phase 17 may enable it only after ADR 0031 and all consent/provider/lifecycle controls pass.
 
 ## 5. Program structure and dependencies
 
@@ -162,7 +164,8 @@ PRE17B lifecycle and ingestion may run in parallel after PRE17A durable delivery
 - Use cursor pagination everywhere; offset pagination and fixed maximum scans are forbidden in maintenance/batch paths.
 - Use PostgreSQL and BullMQ; do not add Kafka, a workflow engine, Elasticsearch, a vector database, or table partitioning in PRE17.
 - Retain published outbox rows for 7 days, consumer receipts for 90 days, webhook receipts and sync-run metadata for 30 days, and content-free deletion evidence for 1 year.
-- Keep raw Google content at most 30 days using the source policy; the exact refresh/derivation interpretation is updated only through ADR 0031 after Google's response.
+- Refresh raw Google content before the applicable 30-day cache deadline or remove it. Persist `first_fetched_at`, `last_refreshed_at`, `refresh_due_at`, and `expires_at`; never extend the window without a successful Google fetch.
+- Retained sentiment, scores, categories, themes, and property summary insights use a separate derived-metadata lifecycle and cannot embed raw content, reviewer identity, exact ratings/replies, Google identifiers, or reversible content fingerprints.
 - Cache dashboard sections for at most 5 minutes with jitter. Cache failure degrades to database reads.
 - No user-facing Free/Pro/Enterprise plan or AI entitlement is introduced in PRE17.
 
@@ -177,24 +180,24 @@ Required release controls:
 - `ENFORCE_SOURCE_CONTENT_POLICY`: initially report-only in non-production, mandatory before production review ingestion resumes.
 - `ENABLE_INCREMENTAL_METRIC_ROLLUPS`: shadow comparison against raw queries before dashboard cutover.
 - `ENABLE_OTEL`: optional locally, required in staging/production before PRE17 closure.
-- `ENABLE_GBP_AI`: hard-coded/defaulted false throughout PRE17; Phase 17 may only enable it after ADR 0031.
+- `ENABLE_GBP_AI`: hard-coded/defaulted false throughout PRE17; Phase 17 may enable it per property only after ADR 0031, merchant consent, provider/region eligibility, PII redaction, and raw-content lifecycle gates pass.
 
 Feature flags are temporary migration controls, not permanent alternate architectures. Each plan names its removal gate.
 
 ## 8. Final PRE17 acceptance matrix
 
-| Area          | Required proof                                                                                                                                                                                        |
-| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Baseline      | Typecheck, lint, format, unit, PostgreSQL integration, Redis/BullMQ integration, web build, worker build, Storybook build/tests, and critical E2E all pass as blocking CI jobs.                       |
-| Migration     | A clean database and the committed pre-PRE17 baseline both upgrade using the same versioned migration command used in production; no business object depends on unjournaled sidecar SQL or `db:push`. |
-| Delivery      | Fault injection at DB commit, Redis enqueue, relay acknowledgement, consumer commit, and worker shutdown loses no event and produces no duplicate externally visible side effect.                     |
-| Ingestion     | Webhook messages are persistently deduplicated; specific-review fetch is used for notifications; bounded incremental reconciliation catches missed notifications; initial sync is resumable.          |
-| Lifecycle     | Review expiry, source deletion, Google disconnect, property deletion, and organization deletion purge all linked source content and stop pending work. Completion is observable and retryable.        |
-| Region        | 100% of active properties have country, valid IANA time zone, and explicit `us`/`europe`/`global` region; unresolved and cross-region fallback tests pass.                                            |
-| Dashboard     | Incremental rollups match raw data in shadow comparison; p95 property dashboard reads meet the documented budget; cache never crosses tenant/property scope.                                          |
-| Observability | Outbox age, queue age, retries, stalls, sync freshness, deletion backlog, cache behavior, and worker heartbeat are visible; telemetry contains no review/prompt/reply content.                        |
-| Scale         | Target load and burst suites pass; backlog drains within the declared recovery objective; no unbounded query, fixed 500/5,000 cap, or fleet-wide thundering herd remains.                             |
-| Policy        | GBP AI is still disabled unless a completed ADR 0031 records written Google approval and the exact approved retention/derivation behavior.                                                            |
+| Area          | Required proof                                                                                                                                                                                                                              |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Baseline      | Typecheck, lint, format, unit, PostgreSQL integration, Redis/BullMQ integration, web build, worker build, Storybook build/tests, and critical E2E all pass as blocking CI jobs.                                                             |
+| Migration     | A clean database and the committed pre-PRE17 baseline both upgrade using the same versioned migration command used in production; no business object depends on unjournaled sidecar SQL or `db:push`.                                       |
+| Delivery      | Fault injection at DB commit, Redis enqueue, relay acknowledgement, consumer commit, and worker shutdown loses no event and produces no duplicate externally visible side effect.                                                           |
+| Ingestion     | Webhook messages are persistently deduplicated; specific-review fetch is used for notifications; bounded incremental reconciliation catches missed notifications; initial sync is resumable.                                                |
+| Lifecycle     | Review expiry, source deletion, Google disconnect, property deletion, and organization deletion purge all linked source content and stop pending work. Completion is observable and retryable.                                              |
+| Region        | 100% of active properties have country, valid IANA time zone, and explicit `us`/`europe`/`global` region; unresolved and cross-region fallback tests pass.                                                                                  |
+| Dashboard     | Incremental rollups match raw data in shadow comparison; p95 property dashboard reads meet the documented budget; cache never crosses tenant/property scope.                                                                                |
+| Observability | Outbox age, queue age, retries, stalls, sync freshness, deletion backlog, cache behavior, and worker heartbeat are visible; telemetry contains no review/prompt/reply content.                                                              |
+| Scale         | Target load and burst suites pass; backlog drains within the declared recovery objective; no unbounded query, fixed 500/5,000 cap, or fleet-wide thundering herd remains.                                                                   |
+| Policy        | Google's response is preserved and ADR 0031 tests enforce per-property isolation, raw/derived separation, 30-day refresh-or-remove, PII redaction, merchant opt-in/revocation, approved provider/region, and manual-only reply publication. |
 
 ## 9. Decisions required during PRE17
 
@@ -202,10 +205,10 @@ None of these prevents PRE17A from starting. The stated default applies unless i
 
 | Decision                                     | Planning default                                                                                                                                 | Must be resolved by                                                                                                  |
 | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
-| GBP analysis/aggregation permission          | Keep Google-derived analysis and aggregate read models disabled.                                                                                 | ADR 0031 before any Phase 17 Google model call or Phase 18 report.                                                   |
+| GBP analysis/aggregation permission          | Externally resolved for the submitted per-property architecture; keep runtime capability off until ADR 0031 implements every condition.          | ADR 0031 before any Phase 17 Google model call or Phase 18 report.                                                   |
 | Europe routing set                           | Versioned country list covering the EEA; UK and Switzerland included only after explicit product/legal approval. Other countries route `global`. | Before PRE17B processing-profile backfill is contracted.                                                             |
 | Meaning of regional routing                  | Regional model-processing endpoint only; no end-to-end data-residency claim.                                                                     | Before infrastructure commitments or customer/marketing residency claims. Full residency creates a separate program. |
-| Existing Google review aggregate widgets     | Hide/disable aggregate sections whenever source policy says aggregation is unavailable; keep canonical recent/detail review use.                 | Before PRE17C dashboard cutover.                                                                                     |
+| Existing Google review aggregate widgets     | Enable only property-local definitions expressly covered by ADR 0031; review-solicitation/employee gamification inputs remain ineligible.        | Before PRE17C dashboard cutover.                                                                                     |
 | User-authored inbox notes on source deletion | Delete with the source-owned inbox item; do not orphan them.                                                                                     | Before PRE17B lifecycle contraction.                                                                                 |
 | Observability backend                        | Keep code OTLP/vendor-neutral; choose a managed/self-hosted backend through an operational procurement decision.                                 | Before PRE17C staging telemetry gate.                                                                                |
 | Production load environment                  | Use separate queue/cache Redis and a production-shaped PostgreSQL tier; record exact topology with results.                                      | Before PRE17C load/chaos sign-off.                                                                                   |
@@ -233,4 +236,4 @@ No AI-specific public interface is created in PRE17. Phase 17 should introduce o
 | PRE17C    |      8–12 engineering days | Includes read-model cutover, telemetry, CI split, load/chaos evidence.                                                       |
 | **Total** | **30–45 engineering days** | Approximately 6–9 weeks for one engineer; 4–6 calendar weeks with carefully parallelized ownership after PRE17A foundations. |
 
-These estimates exclude waiting for Google, legal/privacy review, production observability-vendor procurement, and Phase 17/18 product implementation.
+These estimates exclude legal/privacy review, provider procurement/approval, production observability-vendor procurement, and Phase 17/18 product implementation. The general Google clarification wait is complete; any narrow follow-up on cache semantics or few-shot replies is optional under the conservative baseline.

@@ -18,6 +18,7 @@ The beta plans were intentionally safety-first. They mention these contexts only
 ## 2. Source material and authority
 
 - [Post-beta primary research](post-beta-contexts-primary-research-2026-07-14.md)
+- [Google policy response and disposition](google-business-profile-ai-policy-response-2026-07-14.md)
 - [Beta readiness master plan](beta-readiness-master-plan.md)
 - [PRE17 master plan](phase-pre17-master-plan.md)
 - [ADR 0013 — portal groups replace team/staff scope](../adr/0013-portal-groups-replace-team-staff-scope.md)
@@ -32,7 +33,7 @@ The detailed plans below supersede the future-work parts of `goal-pages-design.m
 
 ### 3.1 Non-negotiable boundaries
 
-1. Google-derived metrics, goals, badges, leaderboards, sentiment, trends, or historical aggregates remain disabled until Google gives a written disposition that permits the exact use. A retention limit alone does not resolve Google's separate no-manipulation/no-aggregation language.
+1. Google's written response conditionally permits independently generated per-property sentiment, scores, categories, themes, trends, summaries, and retained derivative metadata. Raw review text, ratings, reviewer information, and replies remain under the applicable 30-day refresh/removal policy. Cross-property AI and Google-derived staff goals/badges/leaderboards remain disabled.
 2. AI sentiment, priority, categorization, or other inferred review fields must never feed staff goals, badges, rankings, pay, scheduling, promotion, discipline, or termination.
 3. Employee-facing features are coaching and positive recognition tools, not an employment-decision system. No negative badges, public bottom-performer lists, or automatic adverse consequence exists.
 4. Ranking and export capabilities are off by default and independently capability-gated. A hidden navigation item is not a control.
@@ -100,7 +101,7 @@ The most important seam is the governed metric registry. Goals, badges, dashboar
 | POST-BETA-4 | [Recognition, activity, and notifications](post-beta-4-recognition-activity-and-notifications-plan.md) | Correctable positive recognition, bounded rankings, trustworthy feeds and delivery              |                                   11–17 days |
 | POST-BETA-5 | Controlled rollout and closure                                                                         | Staff consultation, property trials, fairness/privacy review, scale and UX acceptance           |        4–7 engineering days plus observation |
 
-**Total:** approximately **47–75 engineering days**, excluding legal review, Google response time, and observation windows. Existing code reduces greenfield work, but several data models need migration rather than incremental UI additions.
+**Total:** approximately **47–75 engineering days**, excluding legal review, any narrow Google follow-up, provider approval, and observation windows. Existing code reduces greenfield work, but several data models need migration rather than incremental UI additions.
 
 ### Dependency order
 
@@ -216,7 +217,7 @@ The plans can be estimated and ticketed with the defaults above, but these answe
 5. For rankings, should staff see the full named table, only their own position with anonymized peers, or no staff ranking at all?
 6. Should optional private rating/feedback remain on the public portal, or should its first release only expose property information and public review links?
 7. May a badge award be visibly invalidated after attribution abuse/data correction, or must correction be manager-only and hidden from the recipient view?
-8. Which Google-derived **property dashboard analytics** do you want most if Google explicitly permits them: review volume, average rating, reply count/rate, reply time, or all of these? They would not become staff gamification inputs.
+8. Which Google-derived **property dashboard analytics** should be prioritized under the received per-property disposition: review volume, average rating, reply count/rate, reply time, sentiment, categories, themes, or trends? None would become staff gamification inputs.
 
 ## 11. Program completion gate
 

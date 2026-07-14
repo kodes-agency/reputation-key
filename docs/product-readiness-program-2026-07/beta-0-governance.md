@@ -5,6 +5,8 @@
 **Phase:** BETA-0 (Safety, Security, and Controlled Scope)  
 **Owners:** See [Named owners](#5-named-owners-and-responsibilities) below.
 
+**Google disposition:** [Written response received](google-business-profile-ai-policy-response-2026-07-14.md); the submitted per-property AI architecture is conditionally permitted, but AI remains beta-dark.
+
 ---
 
 ## 1. Data Inventory Template
@@ -35,29 +37,30 @@ system. Copy the template below per data class.
 
 ### Initial inventory (BETA-0 baseline)
 
-| Context / System        | Data class                                         | Sensitivity           | Retention                                 | Deletion path                                                 |
-| ----------------------- | -------------------------------------------------- | --------------------- | ----------------------------------------- | ------------------------------------------------------------- |
-| `identity`              | User email, name, password hash                    | confidential          | Until account deletion                    | Operator command → cascade delete user + session rows         |
-| `identity`              | Organization name, slug                            | internal              | Until org deletion                        | Operator command → cascade delete org + all child rows        |
-| `identity`              | Session tokens                                     | restricted            | Session TTL (Better Auth)                 | Session expiry / revoke                                       |
-| `integration`           | Google OAuth refresh token (encrypted)             | restricted            | Until connection disconnect               | Disconnect command → delete connection row + revoke at Google |
-| `integration`           | Google Business Profile location data              | confidential          | Until connection disconnect               | Disconnect cascade                                            |
-| `review`                | Review text, reviewer display name, rating         | confidential          | Until org deletion or Google sync removal | Org deletion cascade / re-sync                                |
-| `review`                | Reply draft and published reply text               | confidential          | Until org deletion                        | Org deletion cascade                                          |
-| `inbox`                 | Inbox item status, notes, assignment               | internal              | Until org deletion                        | Org deletion cascade                                          |
-| `goal`                  | Goal template, instance, progress reading          | internal              | Until org deletion or goal cancel         | Goal cancel / org deletion cascade                            |
-| `notification`          | In-app notification body                           | internal              | 30-day TTL                                | Scheduled cleanup job                                         |
-| `notification`          | Email content (Resend)                             | confidential          | 30 days (provider)                        | Provider retention policy + suppression list                  |
-| `portal`                | Portal configuration, link tree                    | public / internal     | Until org deletion                        | Org deletion cascade                                          |
-| `guest`                 | Guest session salt, scan event                     | confidential          | 90-day TTL                                | TTL expiry                                                    |
-| `activity`              | Activity event log (audit trail)                   | confidential          | 365 days                                  | Scheduled cleanup job                                         |
-| `team` / `staff`        | Team membership, staff assignment                  | internal              | Until assignment removal / org deletion   | Assignment removal / org deletion cascade                     |
-| `badge` / `leaderboard` | Badge definition, leaderboard snapshot             | internal              | Until org deletion                        | Org deletion cascade                                          |
-| Logs / traces (pino)    | Request ID, org/user ID, error codes               | confidential          | 30 days                                   | Log rotation                                                  |
-| Object storage (S3)     | User avatar, portal media                          | confidential          | Until org deletion                        | Org deletion cleanup job                                      |
-| Redis (cache / queue)   | Session cache key, rate-limit counter, job payload | restricted / internal | TTL-based                                 | TTL expiry                                                    |
-| Backups                 | Full database snapshot                             | restricted            | 30-day rolling                            | Backup rotation policy                                        |
-| Test fixtures           | Synthetic review/property data                     | internal              | Ephemeral (lease-scoped)                  | Test environment lease cleanup                                |
+| Context / System        | Data class                                         | Sensitivity           | Retention                                                     | Deletion path                                                   |
+| ----------------------- | -------------------------------------------------- | --------------------- | ------------------------------------------------------------- | --------------------------------------------------------------- |
+| `identity`              | User email, name, password hash                    | confidential          | Until account deletion                                        | Operator command → cascade delete user + session rows           |
+| `identity`              | Organization name, slug                            | internal              | Until org deletion                                            | Operator command → cascade delete org + all child rows          |
+| `identity`              | Session tokens                                     | restricted            | Session TTL (Better Auth)                                     | Session expiry / revoke                                         |
+| `integration`           | Google OAuth refresh token (encrypted)             | restricted            | Until connection disconnect                                   | Disconnect command → delete connection row + revoke at Google   |
+| `integration`           | Google Business Profile location data              | confidential          | Until connection disconnect                                   | Disconnect cascade                                              |
+| `review`                | Raw Google review text, reviewer identity, rating  | confidential          | Refresh or remove under applicable 30-day cache policy        | Source lifecycle refresh/expiry/disconnect/purge                |
+| `review`                | Google-observed/published reply text               | confidential          | Refresh or remove under applicable 30-day cache policy        | Source lifecycle refresh/expiry/disconnect/purge                |
+| Future `ai`             | Derived sentiment, score, category, theme, summary | confidential/internal | AI disabled in beta; later approved product/privacy retention | Property consent/lifecycle participant; no raw content embedded |
+| `inbox`                 | Inbox item status, notes, assignment               | internal              | Until org deletion                                            | Org deletion cascade                                            |
+| `goal`                  | Goal template, instance, progress reading          | internal              | Until org deletion or goal cancel                             | Goal cancel / org deletion cascade                              |
+| `notification`          | In-app notification body                           | internal              | 30-day TTL                                                    | Scheduled cleanup job                                           |
+| `notification`          | Email content (Resend)                             | confidential          | 30 days (provider)                                            | Provider retention policy + suppression list                    |
+| `portal`                | Portal configuration, link tree                    | public / internal     | Until org deletion                                            | Org deletion cascade                                            |
+| `guest`                 | Guest session salt, scan event                     | confidential          | 90-day TTL                                                    | TTL expiry                                                      |
+| `activity`              | Activity event log (audit trail)                   | confidential          | 365 days                                                      | Scheduled cleanup job                                           |
+| `team` / `staff`        | Team membership, staff assignment                  | internal              | Until assignment removal / org deletion                       | Assignment removal / org deletion cascade                       |
+| `badge` / `leaderboard` | Badge definition, leaderboard snapshot             | internal              | Until org deletion                                            | Org deletion cascade                                            |
+| Logs / traces (pino)    | Request ID, org/user ID, error codes               | confidential          | 30 days                                                       | Log rotation                                                    |
+| Object storage (S3)     | User avatar, portal media                          | confidential          | Until org deletion                                            | Org deletion cleanup job                                        |
+| Redis (cache / queue)   | Session cache key, rate-limit counter, job payload | restricted / internal | TTL-based                                                     | TTL expiry                                                      |
+| Backups                 | Full database snapshot                             | restricted            | ADR 0031/provider policy; must not extend raw Google cache    | Rotation plus restore-time purge ledger or approved erasure     |
+| Test fixtures           | Synthetic review/property data                     | internal              | Ephemeral (lease-scoped)                                      | Test environment lease cleanup                                  |
 
 > **Action required:** Each context owner must verify, correct, and sign off
 > on their rows before BETA-0 closes. Add rows for any data class not listed.
@@ -90,10 +93,13 @@ The following are **disabled** for the entire beta period:
 ### 2.3 Data and Google access disclosure
 
 - No real Google connection is enabled until the property is on the operator
-  allowlist AND the written Google disposition (ADR 0031) is recorded.
+  allowlist AND the received Google disposition is translated into accepted
+  ADR 0031/source-content controls.
 - Review content from Google is treated as confidential; reviewer PII is
-  never logged, never indexed in full text, and never passed to any AI or
-  analytics processor.
+  never logged or indexed in full text. It is never passed to an AI processor
+  during beta. A later enabled AI path must remove structured identity and
+  free-text PII, use a no-training/minimum-retention approved regional provider,
+  and record merchant opt-in.
 - Google refresh tokens are encrypted at rest (AES-256-GCM) and never
   appear in logs, error messages, or client responses.
 
@@ -168,7 +174,7 @@ Responsible for:
 Responsible for:
 
 - Reviewing and approving the data inventory for sensitivity classification.
-- Approving the Google disposition (ADR 0031) and its translation into code controls.
+- Approving ADR 0031 and verifying that Google's received disposition is translated into code controls.
 - Assessing policy violations (SC-7) and determining legal/ regulatory exposure.
 - Owning data subject request process (access, correction, deletion, export).
 - Approving subprocessor list and processing regions.
