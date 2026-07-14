@@ -17,10 +17,15 @@ export type { JobHandler }
  * Uses a dedicated Redis connection with maxRetriesPerRequest=null
  * (required by BullMQ for blocking BRPOPLPUSH operations).
  * Returns undefined if Redis is not configured (REDIS_URL missing).
+ *
+ * @param concurrency  Max jobs processed in parallel (BullMQ default: 1).
+ *                     Set higher for latency-sensitive queues so a single
+ *                     long-running job doesn't block everything behind it.
  */
 export function createJobWorker<T>(
   name: string,
   handler: JobHandler<T>,
+  concurrency?: number,
 ): Worker<T> | undefined {
   const env = getEnv()
   if (!env.REDIS_URL) return undefined
@@ -41,6 +46,7 @@ export function createJobWorker<T>(
         return Math.min(2 ** attemptsMade * 1000, 60000)
       },
     },
+    concurrency,
     limiter: {
       max: 10,
       duration: 1000,

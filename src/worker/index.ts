@@ -30,31 +30,64 @@ async function main() {
   // immediately) arrive with no handler registered yet.
   await bootstrap(container)
 
-  // Track the worker for graceful shutdown
+  // Track workers for graceful shutdown
   let worker: Worker | undefined
+  let backgroundWorker: Worker | undefined
 
-  // Start BullMQ worker for the default queue
+  const registry = container.jobRegistry
+
+  // ── Default queue — user-facing jobs (import, review sync, reply publish, etc.)
+  // Higher concurrency so a single long-running job doesn't block user actions.
   if (container.jobQueue) {
-    const registry = container.jobRegistry
-
-    // NOTE: All job types (review sync, import, retention) share the 'default' queue.
-    // At scale, consider separate queues per job type for isolation.
-    // Single queue is acceptable for current traffic levels.
-    worker = createJobWorker('default', async (job) => {
-      const handler = registry.getHandler(job.name)
-      if (!handler) {
-        logger.warn({ jobName: job.name, jobId: job.id }, 'no handler registered for job')
-        return
-      }
-      await handler(job)
-    })
+    worker = createJobWorker(
+      'default',
+      async (job) => {
+        const handler = registry.getHandler(job.name)
+        if (!handler) {
+          logger.warn(
+            { jobName: job.name, jobId: job.id },
+            'no handler registered for job',
+          )
+          return
+        }
+        await handler(job)
+      },
+      10,
+    )
 
     if (worker) {
-      logger.info('BullMQ worker started, processing jobs from default queue')
+      logger.info('BullMQ worker started on default queue (concurrency: 10)')
+    }
+  } else {
+    logger.warn('No Redis available — default worker not started')
+  }
+
+  // ── Background queue — cron-scheduled maintenance jobs ────────────
+  // Separate queue so background work (metric refresh, badge/leaderboard
+  // reconciliation) never blocks user-facing jobs. Lower concurrency.
+  if (container.backgroundQueue) {
+    backgroundWorker = createJobWorker(
+      'background',
+      async (job) => {
+        const handler = registry.getHandler(job.name)
+        if (!handler) {
+          logger.warn(
+            { jobName: job.name, jobId: job.id },
+            'no handler registered for job',
+          )
+          return
+        }
+        await handler(job)
+      },
+      3,
+    )
+
+    if (backgroundWorker) {
+      logger.info('BullMQ worker started on background queue (concurrency: 3)')
     }
 
     // Schedule health-check job every 5 minutes
-    container.jobQueue
+    container.backgroundQueue
       .add(
         HEALTH_CHECK_JOB_NAME,
         {},
@@ -71,7 +104,7 @@ async function main() {
       })
 
     // Schedule review retention jobs
-    container.jobQueue
+    container.backgroundQueue
       .add(
         REFRESH_EXPIRING_JOB_NAME,
         {},
@@ -87,7 +120,7 @@ async function main() {
         logger.warn({ err }, 'Failed to schedule refresh-expiring-reviews job')
       })
 
-    container.jobQueue
+    container.backgroundQueue
       .add(
         PURGE_EXPIRED_JOB_NAME,
         {},
@@ -125,7 +158,7 @@ async function main() {
     ]
     for (const { jobName, every, pattern, label } of metricSchedules) {
       const repeat = pattern ? { pattern } : { every: every! }
-      container.jobQueue
+      container.backgroundQueue
         .add(jobName, {}, { repeat, jobId: `${jobName}-recurring` })
         .then(() => logger.info({ jobName, label }, 'Job scheduled'))
         .catch((err: unknown) => logger.warn({ err, jobName }, 'Failed to schedule job'))
@@ -148,7 +181,7 @@ async function main() {
     ]
     for (const { jobName, every, pattern, label } of goalSchedules) {
       const repeat = pattern ? { pattern } : { every: every! }
-      container.jobQueue
+      container.backgroundQueue
         .add(jobName, {}, { repeat, jobId: `${jobName}-recurring` })
         .then(() => logger.info({ jobName, label }, 'Job scheduled'))
         .catch((err: unknown) => logger.warn({ err, jobName }, 'Failed to schedule job'))
@@ -168,7 +201,7 @@ async function main() {
     ]
     for (const { jobName, every, pattern, label } of recognitionSchedules) {
       const repeat = pattern ? { pattern } : { every: every! }
-      container.jobQueue
+      container.backgroundQueue
         .add(jobName, {}, { repeat, jobId: `${jobName}-recurring` })
         .then(() => logger.info({ jobName, label }, 'Job scheduled'))
         .catch((err: unknown) => logger.warn({ err, jobName }, 'Failed to schedule job'))
@@ -182,32 +215,42 @@ async function main() {
     ]
     for (const { jobName, every, pattern, label } of notifSchedules) {
       const repeat = pattern ? { pattern } : { every: every! }
-      container.jobQueue
+      container.backgroundQueue
         .add(jobName, {}, { repeat, jobId: `${jobName}-recurring` })
         .then(() => logger.info({ jobName, label }, 'Job scheduled'))
         .catch((err: unknown) => logger.warn({ err, jobName }, 'Failed to schedule job'))
     }
   } else {
-    logger.warn('No Redis available — worker running without job processing')
+    logger.warn('No background queue available — cron jobs not scheduled')
   }
 
   // Graceful shutdown — drain in-progress jobs before exiting
   const shutdown = async (signal: string) => {
-    logger.info({ signal }, 'Shutdown signal received, draining worker')
-    if (worker) {
-      try {
-        await worker.close()
-        logger.info('Worker drained successfully')
-      } catch (err) {
-        logger.error({ err }, 'Error draining worker')
+    logger.info({ signal }, 'Shutdown signal received, draining workers')
+    for (const [label, w] of [
+      ['default', worker],
+      ['background', backgroundWorker],
+    ] as const) {
+      if (w) {
+        try {
+          await w.close()
+          logger.info({ queue: label }, 'Worker drained successfully')
+        } catch (err) {
+          logger.error({ err, queue: label }, 'Error draining worker')
+        }
       }
     }
-    if (container.jobQueue) {
-      try {
-        await container.jobQueue.close()
-        logger.info('Queue closed successfully')
-      } catch (err) {
-        logger.error({ err }, 'Error closing queue')
+    for (const [label, q] of [
+      ['default', container.jobQueue],
+      ['background', container.backgroundQueue],
+    ] as const) {
+      if (q) {
+        try {
+          await q.close()
+          logger.info({ queue: label }, 'Queue closed successfully')
+        } catch (err) {
+          logger.error({ err, queue: label }, 'Error closing queue')
+        }
       }
     }
     process.exit(0)
