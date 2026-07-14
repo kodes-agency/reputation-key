@@ -5,7 +5,7 @@ import { useInboxState } from '#/components/inbox/use-inbox-state'
 import { useInboxKeyboardShortcuts } from '#/components/inbox/use-inbox-keyboard-shortcuts'
 import type { InboxFilterValues } from '#/components/inbox/inbox-filters'
 import type { InboxSearchParams } from './inbox-search-schema'
-import { folderToStatus } from './inbox-search-schema'
+import { folderToStatus, folderIsEscalated } from './inbox-search-schema'
 import type { InboxServerFns } from './types'
 import type { InboxItem } from '#/contexts/inbox/application/public-api'
 
@@ -32,14 +32,13 @@ export function useInboxPage(
   onNavigate: InboxPageNav,
   inboxFns: InboxServerFns,
 ) {
-  const { itemId: _, folder, tab, ...rest } = search
+  const { itemId: _, folder, ...rest } = search
   const isMobile = useIsMobile()
   const filters: InboxFilterValues = useMemo(
     () => ({
       propertyId: rest.propertyId ?? undefined,
-      status:
-        folderToStatus(folder) ??
-        (tab === 'unaddressed' ? (['new', 'read'] as const) : undefined),
+      status: folderToStatus(folder),
+      isEscalated: folderIsEscalated(folder) ? true : undefined,
       sourceType: rest.sourceType ?? undefined,
       platform: rest.platform ?? undefined,
       ratingMin: rest.ratingMin ?? undefined,
@@ -54,7 +53,6 @@ export function useInboxPage(
       rest.ratingMax,
       rest.q,
       folder,
-      tab,
     ],
   )
 
@@ -88,7 +86,6 @@ export function useInboxPage(
   const handleItemStatusChanged = useCallback((u: InboxItem) => patchItem(u), [patchItem])
 
   const detailState = useInboxDetail(selectedItem, !!selectedItem, inboxFns, {
-    autoMarkRead: true,
     onItemStatusChanged: handleItemStatusChanged,
   })
 
@@ -100,7 +97,10 @@ export function useInboxPage(
     closeDetail,
   })
 
-  const newCount = useMemo(() => items.filter((i) => i.status === 'new').length, [items])
+  const openCount = useMemo(
+    () => items.filter((i) => i.status === 'open').length,
+    [items],
+  )
 
   const handleToggleSelect = useCallback(
     (id: string) =>
@@ -116,7 +116,6 @@ export function useInboxPage(
   return {
     isMobile,
     folder,
-    tab,
     search,
     filters,
     items,
@@ -133,7 +132,7 @@ export function useInboxPage(
     handleBulkDone,
     selectedItem,
     detailState,
-    newCount,
+    openCount,
     handleToggleSelect,
     handleSelectAll,
     handleDeselectAll,

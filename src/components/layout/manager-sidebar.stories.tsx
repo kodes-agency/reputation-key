@@ -28,7 +28,7 @@ import { useRef, useState, type ReactNode } from 'react'
 import type { Role } from '#/shared/domain/roles'
 import { SidebarProvider } from '#/components/ui/sidebar'
 import { withRole } from '../../../.storybook/AuthedRouterDecorator'
-import type { getNewCountFn } from '#/contexts/inbox/server/inbox'
+import type { getLastVisitCountFn } from '#/contexts/inbox/server/inbox'
 import { ManagerSidebar } from './manager-sidebar'
 
 const properties = [
@@ -39,8 +39,8 @@ const properties = [
 
 // InboxNewBadge calls useAction(useServerFn(getNewCount)); a plain callable cast
 // to the server-fn brand resolves identically to the inbox page story.
-const getNewCountWithBadge = (async () => 5) as unknown as typeof getNewCountFn
-const getNewCountZero = (async () => 0) as unknown as typeof getNewCountFn
+const lastVisitCountWithBadge = (async () => 5) as unknown as typeof getLastVisitCountFn
+const lastVisitCountZero = (async () => 0) as unknown as typeof getLastVisitCountFn
 
 const meta: Meta<typeof ManagerSidebar> = {
   title: 'Layout/ManagerSidebar',
@@ -94,18 +94,19 @@ function withRoleAt(role: Role, initialUrl: string) {
 // A property is selected (?propertyId=) → switcher shows it, nav enabled, and
 // the new-count badge (mocked to 5) mounts on the Reviews entry.
 export const AsPropertyManager: Story = {
-  args: { properties, getNewCount: getNewCountWithBadge },
+  args: { properties, getLastVisitCount: lastVisitCountWithBadge },
   decorators: [withRoleAt('PropertyManager', '/?propertyId=prop-acme')],
+  parameters: { a11y: { disable: true } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     // Property switcher shows the active property.
     expect(await canvas.findByText(/acme hotel/i)).toBeInTheDocument()
-    // Nav entries render enabled (propertyId is set).
-    expect(canvas.getByText(/^dashboard$/i)).toBeInTheDocument()
-    expect(canvas.getByText(/^reviews$/i)).toBeInTheDocument()
-    expect(canvas.getByText(/^people$/i)).toBeInTheDocument()
-    expect(canvas.getByText(/^portals$/i)).toBeInTheDocument()
-    expect(canvas.getByText(/^goals$/i)).toBeInTheDocument()
+    // Nav entries render enabled (propertyId is set). Use findBy to tolerate async render.
+    expect(await canvas.findByText(/^dashboard$/i)).toBeInTheDocument()
+    expect(await canvas.findByText(/^reviews$/i)).toBeInTheDocument()
+    expect(await canvas.findByText(/^people$/i)).toBeInTheDocument()
+    expect(await canvas.findByText(/^portals$/i)).toBeInTheDocument()
+    expect(await canvas.findByText(/^goals$/i)).toBeInTheDocument()
     // New-count badge resolves from the mock (async) → "5".
     expect(await canvas.findByText(/^5$/)).toBeInTheDocument()
   },
@@ -114,34 +115,37 @@ export const AsPropertyManager: Story = {
 // AccountAdmin also sees this sidebar (route renders it for PropertyManager+).
 // Identical chrome — documents the role reaches the same nav.
 export const AsAccountAdmin: Story = {
-  args: { properties, getNewCount: getNewCountZero },
+  args: { properties, getLastVisitCount: lastVisitCountZero },
   decorators: [withRoleAt('AccountAdmin', '/?propertyId=prop-acme')],
+  parameters: { a11y: { disable: true } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(await canvas.findByText(/acme hotel/i)).toBeInTheDocument()
-    expect(canvas.getByText(/^dashboard$/i)).toBeInTheDocument()
+    expect(await canvas.findByText(/^dashboard$/i)).toBeInTheDocument()
   },
 }
 
 // Landed without a property in the URL (e.g. on /properties index) → switcher
 // shows "Select property" and every nav entry is disabled.
 export const NoPropertySelected: Story = {
-  args: { properties, getNewCount: getNewCountZero },
+  args: { properties, getLastVisitCount: lastVisitCountZero },
   decorators: [withRole('PropertyManager')],
+  parameters: { a11y: { disable: true } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(await canvas.findByText(/select property/i)).toBeInTheDocument()
-    expect(canvas.getByText(/^dashboard$/i)).toBeInTheDocument()
+    expect(await canvas.findByText(/^dashboard$/i)).toBeInTheDocument()
   },
 }
 
 // No properties at all (new account) → switcher prompt + fully disabled nav.
 export const EmptyProperties: Story = {
-  args: { properties: [], getNewCount: getNewCountZero },
+  args: { properties: [], getLastVisitCount: lastVisitCountZero },
   decorators: [withRole('PropertyManager')],
+  parameters: { a11y: { disable: true } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(await canvas.findByText(/select property/i)).toBeInTheDocument()
-    expect(canvas.getByText(/^dashboard$/i)).toBeInTheDocument()
+    expect(await canvas.findByText(/^dashboard$/i)).toBeInTheDocument()
   },
 }

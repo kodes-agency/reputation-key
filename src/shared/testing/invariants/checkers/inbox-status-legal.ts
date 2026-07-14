@@ -1,6 +1,6 @@
-// Invariant: reviews with a published reply have their inbox item marked as
-// 'addressed' (not stuck in 'new' or 'read'). Catches stale inbox items after
-// a reply is published — a common cross-context sync bug.
+// Invariant: reviews with a published reply have their inbox item closed.
+// Catches stale inbox items after a reply is published — a common
+// cross-context sync bug. (ADR 0023: status is open/closed.)
 
 import type { ReviewRepository } from '#/contexts/review/application/ports/review.repository'
 import type { ReplyRepository } from '#/contexts/review/application/ports/reply.repository'
@@ -18,7 +18,7 @@ const MAX_REVIEWS_TO_CHECK = 500
 
 export const inboxStatusLegal = (deps: InboxStatusLegalDeps): InvariantChecker => ({
   id: 'inbox-status-legal',
-  description: 'Reviews with a published reply have their inbox item addressed',
+  description: 'Reviews with a published reply have their inbox item closed',
   async check(ctx) {
     const orgId = organizationId(ctx.organizationId)
     const reviews = await deps.reviewRepo.findByOrganizationId(orgId)
@@ -34,11 +34,11 @@ export const inboxStatusLegal = (deps: InboxStatusLegalDeps): InvariantChecker =
         review.id as string,
         orgId,
       )
-      if (inboxItem && (inboxItem.status === 'new' || inboxItem.status === 'read')) {
+      if (inboxItem && inboxItem.status === 'open') {
         violations.push({
           checker: 'inbox-status-legal',
           severity: 'error' as const,
-          message: `Review ${review.id} has a published reply but inbox item is '${inboxItem.status}' (expected 'addressed' or 'archived')`,
+          message: `Review ${review.id} has a published reply but inbox item is 'open' (expected 'closed')`,
           evidence: {
             reviewId: review.id,
             inboxItemId: inboxItem.id,

@@ -13,7 +13,7 @@ import {
   getActiveOrganization,
   setActiveOrganization,
 } from '#/contexts/identity/server/organizations'
-import { getNewCountFn } from '#/contexts/inbox/server/inbox'
+import { getLastVisitCountFn } from '#/contexts/inbox/server/inbox'
 import { notificationFns } from '#/routes/-notification-fns'
 import type { Role } from '#/shared/domain/roles'
 import type { ClientAuthz } from '#/shared/domain/auth-context'
@@ -163,7 +163,7 @@ function AuthenticatedLayout() {
       {isInbox ? null : isSettings ? (
         <SettingsSidebar />
       ) : hasRole(ctx.role, 'PropertyManager') ? (
-        <ManagerSidebar properties={properties} getNewCount={getNewCountFn} />
+        <ManagerSidebar properties={properties} getLastVisitCount={getLastVisitCountFn} />
       ) : (
         <StaffSidebar
           organizations={organizations}

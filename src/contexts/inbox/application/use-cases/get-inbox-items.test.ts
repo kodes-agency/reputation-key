@@ -43,7 +43,7 @@ function seedItem(overrides: Omit<Partial<InboxItem>, 'id'> & { id: string }): I
     propertyId: PROP_ID,
     sourceType: 'review' as SourceType,
     sourceId: reviewId(`rev-${id}`),
-    status: 'new' as InboxStatus,
+    status: 'open' as InboxStatus,
     rating: 4,
     sourceDate: new Date('2026-04-10'),
     platform: 'google',
@@ -51,10 +51,12 @@ function seedItem(overrides: Omit<Partial<InboxItem>, 'id'> & { id: string }): I
     assignedTo: null,
     reviewerName: null,
     propertyName: null,
-    readAt: null,
+    isEscalated: false,
     escalatedAt: null,
-    addressedAt: null,
-    archivedAt: null,
+    escalatedBy: null,
+    escalationResolvedAt: null,
+    escalationResolvedBy: null,
+    closedAt: null,
     firstReplySubmittedAt: null as Date | null,
     firstReplyPublishedAt: null as Date | null,
     createdAt: FIXED_TIME,
@@ -103,13 +105,13 @@ describe('getInboxItems', () => {
 
   it('filters by status', async () => {
     const { useCase, repo } = setup()
-    repo.items.push(seedItem({ id: 'ii-1', status: 'new' }))
-    repo.items.push(seedItem({ id: 'ii-2', status: 'read' }))
+    repo.items.push(seedItem({ id: 'ii-1', status: 'open' }))
+    repo.items.push(seedItem({ id: 'ii-2', status: 'closed' }))
 
-    const result = await useCase({ filters: { status: 'new' } }, adminCtx)
+    const result = await useCase({ filters: { status: 'open' } }, adminCtx)
 
     expect(result.items).toHaveLength(1)
-    expect(result.items[0].status).toBe('new')
+    expect(result.items[0].status).toBe('open')
   })
 
   it('filters by sourceType', async () => {

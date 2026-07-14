@@ -37,8 +37,8 @@ export const Default: Story = {
 }
 
 // Status filter set → the status trigger reflects the active selection.
-export const StatusEscalated: Story = {
-  args: { value: { ...emptyFilters, status: 'escalated' }, onChange: fn(), properties },
+export const StatusClosed: Story = {
+  args: { value: { ...emptyFilters, status: 'closed' }, onChange: fn(), properties },
 }
 
 // Source + platform filtered, scoped to one property.
@@ -70,7 +70,7 @@ export const FullyFiltered: Story = {
     value: {
       ...emptyFilters,
       propertyId: 'prop-1',
-      status: 'new',
+      status: 'open',
       sourceType: 'review',
       platform: 'google',
       ratingMin: 3,

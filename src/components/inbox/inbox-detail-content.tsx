@@ -7,10 +7,14 @@ import { Button } from '#/components/ui/button'
 import { InboxNotesThread } from './inbox-notes-thread'
 import { ReplyEditor } from './reply-editor'
 import { formatDateTime } from './utils'
-import { getStatusActions } from './inbox-detail-helpers'
+import { getStatusActions, getEscalationActions } from './inbox-detail-helpers'
 import { InboxDetailSourceContent } from './inbox-detail-source-content'
 import { InboxActivityTimeline } from './inbox-activity-timeline'
-import type { updateInboxStatusFn } from '#/contexts/inbox/server/inbox'
+import type {
+  updateInboxStatusFn,
+  escalateInboxItemFn,
+  resolveEscalationFn,
+} from '#/contexts/inbox/server/inbox'
 import type { InboxDetailFns } from './types'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import type {
@@ -28,6 +32,14 @@ export type DetailContentProps = Readonly<{
     Parameters<typeof updateInboxStatusFn>[0],
     Awaited<ReturnType<typeof updateInboxStatusFn>>
   >
+  escalate: Action<
+    Parameters<typeof escalateInboxItemFn>[0],
+    Awaited<ReturnType<typeof escalateInboxItemFn>>
+  >
+  resolveEscalation: Action<
+    Parameters<typeof resolveEscalationFn>[0],
+    Awaited<ReturnType<typeof resolveEscalationFn>>
+  >
   notes: ReadonlyArray<InboxNote>
   onNoteAdded: () => void
   onReplyMutated: (reply: InboxItemDetailResult['reply']) => void
@@ -39,6 +51,8 @@ export function InboxDetailContent({
   detail,
   statusActions,
   updateStatus,
+  escalate,
+  resolveEscalation,
   notes,
   onNoteAdded,
   onReplyMutated,
@@ -55,16 +69,17 @@ export function InboxDetailContent({
           {currentItem.sourceType === 'review' ? 'Reviewed' : 'Submitted'}:{' '}
           {formatDateTime(currentItem.sourceDate)}
         </span>
-        {currentItem.readAt && <span>Opened: {formatDateTime(currentItem.readAt)}</span>}
+        {currentItem.closedAt && (
+          <span>Closed: {formatDateTime(currentItem.closedAt)}</span>
+        )}
         {currentItem.escalatedAt && (
           <span>Escalated: {formatDateTime(currentItem.escalatedAt)}</span>
         )}
-        {currentItem.addressedAt && (
-          <span>Addressed: {formatDateTime(currentItem.addressedAt)}</span>
-        )}
       </div>
 
-      {statusActions.length > 0 && (
+      {(statusActions.length > 0 ||
+        getEscalationActions(currentItem.isEscalated, currentItem.escalationResolvedAt)
+          .length > 0) && (
         <div className="flex flex-wrap gap-2 border-t pt-4">
           {statusActions.map((action) => (
             <Button
@@ -76,13 +91,34 @@ export function InboxDetailContent({
                 updateStatus({
                   data: {
                     inboxItemId: currentItem.id,
-                    status: action.targetStatus as
-                      | 'read'
-                      | 'addressed'
-                      | 'escalated'
-                      | 'archived',
+                    status: action.targetStatus,
                   },
                 })
+              }}
+            >
+              {action.icon}
+              {action.label}
+            </Button>
+          ))}
+          {getEscalationActions(
+            currentItem.isEscalated,
+            currentItem.escalationResolvedAt,
+          ).map((action) => (
+            <Button
+              key={action.action}
+              variant={action.variant}
+              size="sm"
+              disabled={
+                updateStatus.isPending ||
+                escalate.isPending ||
+                resolveEscalation.isPending
+              }
+              onClick={() => {
+                if (action.action === 'escalate') {
+                  escalate({ data: { inboxItemId: currentItem.id } })
+                } else {
+                  resolveEscalation({ data: { inboxItemId: currentItem.id } })
+                }
               }}
             >
               {action.icon}

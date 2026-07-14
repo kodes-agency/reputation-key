@@ -14,9 +14,7 @@ import type { ReactNode, RefObject } from 'react'
 
 export interface InboxListPanelProps {
   folderLabel: string
-  newCount: number
-  showTabs: boolean
-  activeTab: 'all' | 'unaddressed' | undefined
+  openCount: number
   searchQ: string | undefined
   items: readonly InboxItem[]
   selectedIds: readonly string[]
@@ -26,7 +24,6 @@ export interface InboxListPanelProps {
   nextCursor: Cursor | null
   loadAction: { isPending: boolean }
   listRef: RefObject<HTMLDivElement | null>
-  onTabChange: (t: 'all' | 'unaddressed' | undefined) => void
   onSearchChange: (q: string | undefined) => void
   onToggleSelect: (id: string) => void
   onSelectAll: () => void

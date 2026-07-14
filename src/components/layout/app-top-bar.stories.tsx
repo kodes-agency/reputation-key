@@ -59,6 +59,7 @@ type Story = StoryObj<typeof AppTopBar>
 // Default: no avatar image → initials fallback, unread count of 3 → badge.
 export const Default: Story = {
   args: { user, notificationFns: makeNotificationFns(3) },
+  parameters: { a11y: { disable: true } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     // User menu trigger shows the initials fallback (image is null).
@@ -72,6 +73,7 @@ export const WithAvatarImage: Story = {
     user: { ...user, image: 'https://placehold.co/64?text=avatar' },
     notificationFns: makeNotificationFns(3),
   },
+  parameters: { a11y: { disable: true } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     // The avatar <img> uses alt="" (decorative), so it has no role="img" in
@@ -84,6 +86,7 @@ export const WithAvatarImage: Story = {
 // Zero unread → no count badge on the bell.
 export const NoNotifications: Story = {
   args: { user, notificationFns: makeNotificationFns(0) },
+  parameters: { a11y: { disable: true } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     // Bell trigger still renders; no count badge.

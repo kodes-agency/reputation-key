@@ -318,7 +318,6 @@ export function createContainer(options?: {
   const inbox = buildInboxContext({
     db,
     events: eventBus,
-    redis,
     clock,
     staffPublicApi: staff.publicApi,
     reviewLookup,
@@ -498,7 +497,6 @@ export function createContainer(options?: {
     staffPublicApi: staff.publicApi,
     inboxRepo: inbox.internal.repos.inboxRepo,
     inboxNoteRepo: inbox.internal.repos.inboxNoteRepo,
-    newCounter: inbox.internal.repos.newCounter,
     goalRepo: goal.internal.repos.goalRepo,
     metricPublicApi: metricApi.publicApi,
     activityPublicApi: activity.publicApi,

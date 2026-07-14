@@ -2,9 +2,8 @@
 // Wires all inbox event handlers to the event bus.
 
 import type { EventBus } from '#/shared/events/event-bus'
-import type { CreateInboxItemUseCase } from '../../application/use-cases/create-inbox-item'
+import type { CreateInboxItem } from '../../application/use-cases/create-inbox-item'
 import type { InboxRepository } from '../../application/ports/inbox.repository'
-import type { NewCounterPort } from '../../application/ports/new-counter.port'
 import type { FeedbackLookupPort } from '../../application/ports/feedback-lookup.port'
 import { onReviewCreated } from './on-review-created'
 import { onFeedbackSubmitted } from './on-feedback-submitted'
@@ -15,9 +14,8 @@ import { onReviewExpired } from './on-review-expired'
 
 export type RegisterInboxHandlersDeps = Readonly<{
   events: EventBus
-  createInboxItem: CreateInboxItemUseCase
+  createInboxItem: CreateInboxItem
   repo: InboxRepository
-  newCounter: NewCounterPort
   feedbackLookup: FeedbackLookupPort
 }>
 
@@ -39,7 +37,6 @@ export const registerInboxHandlers = (deps: RegisterInboxHandlersDeps): void => 
     onReplyPublished({
       repo: deps.repo,
       events: deps.events,
-      newCounter: deps.newCounter,
     }),
   )
   deps.events.on(
@@ -53,7 +50,6 @@ export const registerInboxHandlers = (deps: RegisterInboxHandlersDeps): void => 
     onReviewExpired({
       repo: deps.repo,
       events: deps.events,
-      newCounter: deps.newCounter,
     }),
   )
 }

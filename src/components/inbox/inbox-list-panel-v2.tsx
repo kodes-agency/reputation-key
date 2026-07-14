@@ -15,9 +15,7 @@ export type { InboxListPanelProps } from './inbox-list-panel-parts'
 export function InboxListPanel(props: InboxListPanelProps) {
   const {
     folderLabel,
-    newCount,
-    showTabs,
-    activeTab,
+    openCount,
     searchQ,
     items,
     selectedIds,
@@ -25,7 +23,6 @@ export function InboxListPanel(props: InboxListPanelProps) {
     nextCursor,
     loadAction,
     listRef,
-    onTabChange,
     onSearchChange,
     onBulkDone,
     bulkUpdateFn,
@@ -37,11 +34,8 @@ export function InboxListPanel(props: InboxListPanelProps) {
     <div className="flex h-full flex-col overflow-hidden border-r">
       <InboxListHeader
         folderLabel={folderLabel}
-        newCount={newCount}
-        showTabs={showTabs}
-        activeTab={activeTab}
+        openCount={openCount}
         searchQ={searchQ}
-        onTabChange={onTabChange}
         onSearchChange={onSearchChange}
         onOpenSidebar={onOpenSidebar}
       />

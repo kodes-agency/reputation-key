@@ -5,7 +5,7 @@
 
 import type { Database } from '#/shared/db'
 import { reviews, replies, inboxItems, goals, goalProgress } from '#/shared/db/schema'
-import { and, count, eq, sql, lt } from 'drizzle-orm'
+import { and, count, eq, sql, lt, isNull } from 'drizzle-orm'
 import { trace } from '#/shared/observability/trace'
 import type { AttentionSignalsPort } from '../../application/ports/attention-signals.port'
 import { slaCutoff } from '../../application/utils'
@@ -49,7 +49,7 @@ export const createAttentionSignalsAdapter = (
           and(
             eq(inboxItems.organizationId, organizationId),
             eq(inboxItems.propertyId, propertyId),
-            eq(inboxItems.status, 'new'),
+            eq(inboxItems.status, 'open'),
           ),
         )
       return Number(rows[0]?.count ?? 0)
@@ -65,7 +65,8 @@ export const createAttentionSignalsAdapter = (
           and(
             eq(inboxItems.organizationId, organizationId),
             eq(inboxItems.propertyId, propertyId),
-            eq(inboxItems.status, 'escalated'),
+            eq(inboxItems.isEscalated, true),
+            isNull(inboxItems.escalationResolvedAt),
           ),
         )
       return Number(rows[0]?.count ?? 0)

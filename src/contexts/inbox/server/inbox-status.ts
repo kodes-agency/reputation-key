@@ -1,4 +1,4 @@
-// Inbox context — status mutation server functions
+// Inbox context — status + escalation mutation server functions
 
 import {
   createServerFn,
@@ -12,7 +12,12 @@ import { getContainer } from '#/composition'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
-import { updateStatusDto, bulkUpdateStatusDto } from '../application/dto/inbox.dto'
+import {
+  updateStatusDto,
+  bulkUpdateStatusDto,
+  escalateInboxItemDto,
+  resolveEscalationDto,
+} from '../application/dto/inbox.dto'
 
 // ── updateInboxStatus ──────────────────────────────────────────────
 
@@ -83,5 +88,71 @@ export const bulkUpdateInboxStatusFn = createServerFn({ method: 'POST' })
       },
       'POST',
       'inbox.bulkUpdateInboxStatus',
+    ),
+  )
+
+// ── escalateInboxItem ──────────────────────────────────────────────
+
+export const escalateInboxItemFn = createServerFn({ method: 'POST' })
+  .inputValidator(escalateInboxItemDto)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const headers = await headersFromContext()
+        const ctx = await resolveTenantContext(headers)
+        if (!canForContext(ctx, 'inbox.write')) {
+          throwContextError(
+            'AuthError',
+            { code: 'forbidden', message: 'No inbox update permission' },
+            403,
+          )
+        }
+        const { useCases } = getContainer()
+        try {
+          return await useCases.escalateInboxItem(
+            { inboxItemId: inboxItemId(data.inboxItemId) },
+            ctx,
+          )
+        } catch (e) {
+          if (isInboxError(e))
+            throwContextError('InboxError', e, inboxErrorStatus(e.code))
+          throw catchUntagged(e)
+        }
+      },
+      'POST',
+      'inbox.escalateInboxItem',
+    ),
+  )
+
+// ── resolveEscalation ──────────────────────────────────────────────
+
+export const resolveEscalationFn = createServerFn({ method: 'POST' })
+  .inputValidator(resolveEscalationDto)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const headers = await headersFromContext()
+        const ctx = await resolveTenantContext(headers)
+        if (!canForContext(ctx, 'inbox.write')) {
+          throwContextError(
+            'AuthError',
+            { code: 'forbidden', message: 'No inbox update permission' },
+            403,
+          )
+        }
+        const { useCases } = getContainer()
+        try {
+          return await useCases.resolveEscalation(
+            { inboxItemId: inboxItemId(data.inboxItemId) },
+            ctx,
+          )
+        } catch (e) {
+          if (isInboxError(e))
+            throwContextError('InboxError', e, inboxErrorStatus(e.code))
+          throw catchUntagged(e)
+        }
+      },
+      'POST',
+      'inbox.resolveEscalation',
     ),
   )

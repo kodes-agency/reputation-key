@@ -16,6 +16,7 @@ function makeItem(opts: {
   rating?: number
   reviewerName?: string
   snippet?: string
+  isEscalated?: boolean
 }): InboxItem {
   return {
     id: opts.id as InboxItem['id'],
@@ -23,7 +24,7 @@ function makeItem(opts: {
     propertyId: 'prop-1' as InboxItem['propertyId'],
     sourceType: opts.sourceType,
     sourceId: opts.id as InboxItem['sourceId'],
-    status: opts.status ?? 'new',
+    status: opts.status ?? 'open',
     rating: opts.rating ?? 4,
     sourceDate: new Date('2025-01-01'),
     platform: 'google',
@@ -31,10 +32,12 @@ function makeItem(opts: {
     assignedTo: null,
     reviewerName: opts.reviewerName ?? 'Anonymous',
     propertyName: 'Acme Hotel',
-    readAt: null,
+    isEscalated: opts.isEscalated ?? false,
     escalatedAt: null,
-    addressedAt: null,
-    archivedAt: null,
+    escalatedBy: null,
+    escalationResolvedAt: null,
+    escalationResolvedBy: null,
+    closedAt: null,
     firstReplySubmittedAt: null,
     firstReplyPublishedAt: null,
     createdAt: new Date('2025-01-01'),
@@ -46,14 +49,14 @@ const items: ReadonlyArray<InboxItem> = [
   makeItem({
     id: 'rev-1',
     sourceType: 'review',
-    status: 'new',
+    status: 'open',
     rating: 4,
     reviewerName: 'Alice Reviewer',
   }),
   makeItem({
     id: 'rev-2',
     sourceType: 'review',
-    status: 'read',
+    status: 'open',
     rating: 5,
     reviewerName: 'Bob Critic',
     snippet: 'Fantastic experience overall.',
@@ -61,7 +64,8 @@ const items: ReadonlyArray<InboxItem> = [
   makeItem({
     id: 'fb-1',
     sourceType: 'feedback',
-    status: 'escalated',
+    status: 'open',
+    isEscalated: true,
     rating: 2,
     reviewerName: 'Carol Guest',
     snippet: 'Slow response from support.',

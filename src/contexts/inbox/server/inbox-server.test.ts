@@ -17,7 +17,7 @@ import { inboxError, isInboxError } from '../domain/errors'
 describe('updateStatusDto', () => {
   const validInput = {
     inboxItemId: '550e8400-e29b-41d4-a716-446655440000',
-    status: 'addressed' as const,
+    status: 'closed' as const,
   }
 
   it('parses valid input', () => {
@@ -46,7 +46,7 @@ describe('updateStatusDto', () => {
 describe('bulkUpdateStatusDto', () => {
   const validInput = {
     inboxItemIds: ['550e8400-e29b-41d4-a716-446655440000'],
-    status: 'addressed' as const,
+    status: 'closed' as const,
   }
 
   it('parses valid input', () => {

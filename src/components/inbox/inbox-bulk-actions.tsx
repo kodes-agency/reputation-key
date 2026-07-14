@@ -1,14 +1,14 @@
-// Inbox bulk actions — multi-select status change toolbar
-// Receives bulkUpdateInboxStatusFn as prop per src/components/CONTEXT.md.
-// Filters feedback-only IDs for "Mark Addressed" per CONTEXT.md rules.
+// Inbox bulk actions — multi-select status change toolbar.
+// Per ADR 0023: bulk status is open ⇄ closed. Escalation is a per-item
+// manual action (not bulk). No source-type guards.
 
 import type { InboxItem } from '#/contexts/inbox/application/public-api'
 import { Button } from '#/components/ui/button'
-import { CheckCircle, Archive, AlertTriangle } from 'lucide-react'
+import { CheckCircle, RotateCcw } from 'lucide-react'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import type { bulkUpdateInboxStatusFn } from '#/contexts/inbox/server/inbox'
 
-type BulkStatus = 'addressed' | 'archived' | 'escalated'
+type BulkStatus = 'open' | 'closed'
 
 type Props = Readonly<{
   selectedIds: ReadonlyArray<string>
@@ -25,30 +25,18 @@ export function InboxBulkActions({ selectedIds, items, onDone, bulkUpdateFn }: P
     onSuccess: onDone,
   })
 
-  // FE-4: "Mark Addressed" only applies to feedback items (reviews have no
-  // 'addressed' transition). Disable it when the selection contains no
-  // feedback items, i.e. only reviews are selected.
-  const selectedSourceItems = selectedIds
+  // Offer Reopen when any selected item is closed; Close when any is open.
+  const selected = selectedIds
     .map((id) => items.find((i) => i.id === id))
     .filter((i): i is InboxItem => i != null)
-  const hasFeedbackSelected = selectedSourceItems.some((i) => i.sourceType === 'feedback')
-  const onlyReviewsSelected = selectedSourceItems.length > 0 && !hasFeedbackSelected
+  const hasOpen = selected.some((i) => i.status === 'open')
+  const hasClosed = selected.some((i) => i.status === 'closed')
 
   const handleBulk = (status: BulkStatus) => {
-    // "addressed" only applies to feedback items — filter out reviews
-    const ids =
-      status === 'addressed'
-        ? selectedIds.filter((id) => {
-            const item = items.find((i) => i.id === id)
-            return item?.sourceType === 'feedback'
-          })
-        : [...selectedIds]
-
-    if (ids.length === 0) return
-
+    if (selectedIds.length === 0) return
     bulkMutation({
       data: {
-        inboxItemIds: ids,
+        inboxItemIds: [...selectedIds],
         status,
       },
     })
@@ -58,31 +46,22 @@ export function InboxBulkActions({ selectedIds, items, onDone, bulkUpdateFn }: P
     <div className="flex flex-wrap items-center gap-1.5">
       <span className="text-xs text-muted-foreground">{selectedIds.length} selected</span>
       <Button
-        variant="destructive"
-        size="sm"
-        onClick={() => handleBulk('escalated')}
-        disabled={bulkMutation.isPending}
-      >
-        <AlertTriangle className="size-3.5" />
-        Escalate
-      </Button>
-      <Button
         variant="default"
         size="sm"
-        onClick={() => handleBulk('addressed')}
-        disabled={bulkMutation.isPending || onlyReviewsSelected}
+        onClick={() => handleBulk('closed')}
+        disabled={bulkMutation.isPending || !hasOpen}
       >
         <CheckCircle className="size-3.5" />
-        Mark Addressed
+        Mark Closed
       </Button>
       <Button
-        variant="secondary"
+        variant="outline"
         size="sm"
-        onClick={() => handleBulk('archived')}
-        disabled={bulkMutation.isPending}
+        onClick={() => handleBulk('open')}
+        disabled={bulkMutation.isPending || !hasClosed}
       >
-        <Archive className="size-3.5" />
-        Archive
+        <RotateCcw className="size-3.5" />
+        Reopen
       </Button>
     </div>
   )

@@ -31,8 +31,8 @@ describe('inbox events', () => {
     const event = inboxItemStatusChanged({
       inboxItemId: ITEM_ID,
       organizationId: ORG_ID,
-      oldStatus: 'new',
-      newStatus: 'read',
+      oldStatus: 'open',
+      newStatus: 'closed',
       userId: USER_ID,
       source: 'web',
       occurredAt: NOW,

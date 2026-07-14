@@ -31,11 +31,8 @@ type Props = Readonly<{
 }>
 
 const statuses: Array<{ value: InboxStatus; label: string }> = [
-  { value: 'new', label: 'New' },
-  { value: 'read', label: 'Opened' },
-  { value: 'addressed', label: 'Addressed' },
-  { value: 'escalated', label: 'Escalated' },
-  { value: 'archived', label: 'Archived' },
+  { value: 'open', label: 'Open' },
+  { value: 'closed', label: 'Closed' },
 ]
 
 const sourceTypes: Array<{ value: SourceType; label: string }> = [

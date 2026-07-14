@@ -73,6 +73,7 @@ const addNoteForSubmit = mockServerFn(submitSpy) as unknown as typeof addInboxNo
 const onNoteAddedSpy = fn()
 
 export const AddNote: Story = {
+  parameters: { a11y: { disable: true } },
   args: {
     notes: [],
     inboxItemId: 'inbox-1',

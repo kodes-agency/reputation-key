@@ -18,11 +18,16 @@ function InboxRealLogic() {
   useEffect(() => {
     const container = createInboxContainer()
     container.seed([
-      makeInboxItem({ id: '1', sourceType: 'review', status: 'new' }),
-      makeInboxItem({ id: '2', sourceType: 'review', status: 'new' }),
-      makeInboxItem({ id: '3', sourceType: 'feedback', status: 'new' }),
-      makeInboxItem({ id: '4', sourceType: 'review', status: 'escalated' }),
-      makeInboxItem({ id: '5', sourceType: 'feedback', status: 'escalated' }),
+      makeInboxItem({ id: '1', sourceType: 'review', status: 'open' }),
+      makeInboxItem({ id: '2', sourceType: 'review', status: 'open' }),
+      makeInboxItem({ id: '3', sourceType: 'feedback', status: 'open' }),
+      makeInboxItem({ id: '4', sourceType: 'review', status: 'open', isEscalated: true }),
+      makeInboxItem({
+        id: '5',
+        sourceType: 'feedback',
+        status: 'open',
+        isEscalated: true,
+      }),
     ])
     const { ORG, USER, role } = inboxTestIds
     const ctx = { organizationId: ORG, userId: USER, role } as AuthContext
@@ -35,13 +40,13 @@ function InboxRealLogic() {
       ),
       container.useCases.getInboxItems(
         {
-          filters: { status: 'new' },
+          filters: { status: 'open' },
         },
         ctx,
       ),
       container.useCases.getInboxItems(
         {
-          filters: { status: 'escalated' },
+          filters: { isEscalated: true },
         },
         ctx,
       ),

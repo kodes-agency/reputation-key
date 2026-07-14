@@ -21,6 +21,7 @@ export type ActivityAction =
   | 'submitted'
   | 'added'
   | 'escalated'
+  | 'deescalated'
   | 'invited'
   | 'connected'
   | 'disconnected'

@@ -7,6 +7,8 @@ type Deps = { queue: Queue }
 export const onInboxItemEscalated =
   (deps: Deps) =>
   async (event: InboxItemEscalated): Promise<void> => {
+    // Escalation is a standalone flag action (ADR 0023) — no status transition,
+    // so the payload carries the flag state, not oldStatus/newStatus.
     const payload: InsertActivityLogInput = {
       action: 'escalated' as const,
       resourceType: 'inbox_item' as const,
@@ -17,9 +19,9 @@ export const onInboxItemEscalated =
       source: event.source,
       eventId: event.eventId,
       payload: {
-        subject: 'inbox_item',
-        from: event.oldStatus,
-        to: 'escalated',
+        subject: 'escalation',
+        from: null,
+        to: 'flagged',
         detail: null,
       },
     }

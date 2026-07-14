@@ -6,15 +6,17 @@
 // components never value-import from contexts/*/server. These imports are
 // type-only (used in `typeof` positions), which the boundary gate allows.
 //
-// Note: getNewCountFn is NOT here — InboxNewBadge mounts in the global manager
-// layout (routes/_authenticated.tsx), not via InboxPageV2. listProperties is also
-// not here — PropertyFilterSelect consumes pre-loaded `properties` data instead.
+// Note: getLastVisitCountFn is NOT here — InboxVisitBadge mounts in the global
+// manager layout (routes/_authenticated.tsx), not via InboxPageV2. listProperties is
+// also not here — PropertyFilterSelect consumes pre-loaded `properties` data instead.
 import type {
   getInboxItemsFn,
   getInboxItemDetailFn,
   getInboxNotesFn,
   getInboxFolderCountsFn,
   updateInboxStatusFn,
+  escalateInboxItemFn,
+  resolveEscalationFn,
   addInboxNoteFn,
   bulkUpdateInboxStatusFn,
 } from '#/contexts/inbox/server/inbox'
@@ -27,6 +29,8 @@ export type InboxServerFns = Readonly<{
   getActivityTimeline: typeof getActivityTimelineFn
   getInboxFolderCounts: typeof getInboxFolderCountsFn
   updateInboxStatus: typeof updateInboxStatusFn
+  escalateInboxItem: typeof escalateInboxItemFn
+  resolveEscalation: typeof resolveEscalationFn
   addInboxNote: typeof addInboxNoteFn
   bulkUpdateInboxStatus: typeof bulkUpdateInboxStatusFn
 }>

@@ -82,7 +82,6 @@ describe('activity event handlers', () => {
         organizationId: ORG,
         propertyId: PROP,
         userId: USER,
-        oldStatus: 'new',
         source: 'web',
         occurredAt: new Date(),
         correlationId: null,

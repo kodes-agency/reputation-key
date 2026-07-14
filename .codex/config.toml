@@ -1,0 +1,9 @@
+[mcp_servers.shadcn]
+command = "npx"
+args = [
+    "shadcn@latest",
+    "mcp",
+]
+
+[mcp_servers.storybook]
+url = "http://localhost:6006/mcp"

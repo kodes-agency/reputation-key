@@ -8,6 +8,7 @@ import type { InboxItemLookupPort } from '../../ports/inbox-item-lookup.port'
 import { onInboxItemCreated } from './on-inbox-item-created'
 import { onInboxStatusChanged } from './on-inbox-status-changed'
 import { onInboxItemEscalated } from './on-inbox-item-escalated'
+import { onInboxItemEscalationResolved } from './on-inbox-item-escalation-resolved'
 import { onInboxItemAssigned } from './on-inbox-item-assigned'
 import { onInboxItemUnassigned } from './on-inbox-item-unassigned'
 import { onInboxNoteAdded } from './on-inbox-note-added'
@@ -45,6 +46,10 @@ export const registerActivityHandlers = (deps: RegisterActivityHandlersDeps): vo
   deps.events.on(
     'inbox.inbox_item.escalated',
     onInboxItemEscalated({ queue: deps.queue }),
+  )
+  deps.events.on(
+    'inbox.inbox_item.escalation_resolved',
+    onInboxItemEscalationResolved({ queue: deps.queue }),
   )
   deps.events.on('inbox.inbox_item.assigned', onInboxItemAssigned({ queue: deps.queue }))
   deps.events.on(

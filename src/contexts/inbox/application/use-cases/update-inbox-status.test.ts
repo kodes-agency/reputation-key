@@ -12,7 +12,6 @@ import {
   userId,
 } from '#/shared/domain/ids'
 import type { InboxItem, InboxStatus, SourceType } from '../../domain/types'
-import type { NewCounterPort } from '../ports/new-counter.port'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { Role } from '#/shared/domain/roles'
 import type { AuthContext } from '#/shared/domain/auth-context'
@@ -25,14 +24,14 @@ const USER_ID = userId('user-1')
 const ctxFor = (role: Role): AuthContext =>
   ({ organizationId: ORG_ID, userId: USER_ID, role }) as AuthContext
 
-function seedNew(overrides?: Partial<InboxItem>): InboxItem {
+function seedOpen(overrides?: Partial<InboxItem>): InboxItem {
   return {
     id: ITEM_ID,
     organizationId: ORG_ID,
     propertyId: propertyId('prop-1'),
     sourceType: 'review' as SourceType,
     sourceId: reviewId('rev-1'),
-    status: 'new' as InboxStatus,
+    status: 'open' as InboxStatus,
     rating: 4,
     sourceDate: new Date('2026-04-10'),
     platform: 'google',
@@ -40,10 +39,12 @@ function seedNew(overrides?: Partial<InboxItem>): InboxItem {
     assignedTo: null,
     reviewerName: null,
     propertyName: null,
-    readAt: null,
+    isEscalated: false,
     escalatedAt: null,
-    addressedAt: null,
-    archivedAt: null,
+    escalatedBy: null,
+    escalationResolvedAt: null,
+    escalationResolvedBy: null,
+    closedAt: null,
     firstReplySubmittedAt: null,
     firstReplyPublishedAt: null,
     createdAt: FIXED_TIME,
@@ -61,57 +62,48 @@ const staffApiAllAccess: StaffPublicApi = {
 const setup = (staffApi: StaffPublicApi = staffApiAllAccess) => {
   const repo = createInMemoryInboxRepo()
   const events = createCapturingEventBus()
-  const decrements: Array<{ orgId: string }> = []
-  const newCounter: NewCounterPort = {
-    getCount: async () => 0,
-    setCount: async () => {},
-    increment: async () => {},
-    decrement: async (orgId) => {
-      decrements.push({ orgId: orgId as string })
-    },
-    decrementBy: async () => {},
-    invalidate: async () => {},
-  }
   const deps = {
     repo,
     events,
-    newCounter,
     clock: () => FIXED_TIME,
     staffPublicApi: staffApi,
-    logger: {
-      info: () => {},
-      warn: () => {},
-      error: () => {},
-      debug: () => {},
-      trace: () => {},
-      fatal: () => {},
-    } as never,
   }
   const useCase = updateInboxStatus(deps)
-  return { useCase, repo, events, decrements }
+  return { useCase, repo, events }
 }
 
 describe('updateInboxStatus', () => {
-  it('transitions new → read successfully', async () => {
+  it('transitions open → closed successfully', async () => {
     const { useCase, repo } = setup()
-    repo.items.push(seedNew())
+    repo.items.push(seedOpen())
 
     const updated = await useCase(
-      { inboxItemId: ITEM_ID, newStatus: 'read' },
+      { inboxItemId: ITEM_ID, newStatus: 'closed' },
       ctxFor('AccountAdmin'),
     )
 
-    expect(updated.status).toBe('read')
-    expect(updated.readAt).toBe(FIXED_TIME)
+    expect(updated.status).toBe('closed')
+    expect(updated.closedAt).toBe(FIXED_TIME)
   })
 
-  it('throws invalid_transition for invalid transition', async () => {
+  it('transitions closed → open (reopen)', async () => {
     const { useCase, repo } = setup()
-    // Same-status is always invalid
-    repo.items.push(seedNew({ status: 'new' }))
+    repo.items.push(seedOpen({ status: 'closed' }))
+
+    const updated = await useCase(
+      { inboxItemId: ITEM_ID, newStatus: 'open' },
+      ctxFor('AccountAdmin'),
+    )
+
+    expect(updated.status).toBe('open')
+  })
+
+  it('throws invalid_transition for same-status transition', async () => {
+    const { useCase, repo } = setup()
+    repo.items.push(seedOpen({ status: 'open' }))
 
     await expect(
-      useCase({ inboxItemId: ITEM_ID, newStatus: 'new' }, ctxFor('AccountAdmin')),
+      useCase({ inboxItemId: ITEM_ID, newStatus: 'open' }, ctxFor('AccountAdmin')),
     ).rejects.toSatisfy(
       (e: unknown) => isInboxError(e) && e.code === 'invalid_transition',
     )
@@ -121,56 +113,59 @@ describe('updateInboxStatus', () => {
     const { useCase } = setup()
 
     await expect(
-      useCase({ inboxItemId: ITEM_ID, newStatus: 'read' }, ctxFor('AccountAdmin')),
+      useCase({ inboxItemId: ITEM_ID, newStatus: 'closed' }, ctxFor('AccountAdmin')),
     ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'not_found')
-  })
-
-  it('decrements new counter when transitioning new → read', async () => {
-    const { useCase, repo, decrements } = setup()
-    repo.items.push(seedNew())
-
-    await useCase({ inboxItemId: ITEM_ID, newStatus: 'read' }, ctxFor('AccountAdmin'))
-
-    expect(decrements).toHaveLength(1)
-    expect(decrements[0].orgId).toBe(ORG_ID as string)
-  })
-
-  it('decrements new counter for all new → * transitions', async () => {
-    const { useCase, repo, decrements } = setup()
-    repo.items.push(seedNew())
-
-    await useCase(
-      { inboxItemId: ITEM_ID, newStatus: 'escalated' },
-      ctxFor('AccountAdmin'),
-    )
-
-    expect(decrements).toHaveLength(1)
   })
 
   it('emits inbox.status.changed event', async () => {
     const { useCase, repo, events } = setup()
-    repo.items.push(seedNew())
+    repo.items.push(seedOpen())
 
-    await useCase({ inboxItemId: ITEM_ID, newStatus: 'read' }, ctxFor('AccountAdmin'))
+    await useCase({ inboxItemId: ITEM_ID, newStatus: 'closed' }, ctxFor('AccountAdmin'))
 
     const emitted = events.capturedEvents
     expect(emitted).toHaveLength(1)
     expect(emitted[0]._tag).toBe('inbox.inbox_item.status_changed')
   })
 
+  it('allows manual close on a review item (no source-type guard — ADR 0023)', async () => {
+    const { useCase, repo } = setup()
+    repo.items.push(seedOpen({ sourceType: 'review' as SourceType }))
+
+    const updated = await useCase(
+      { inboxItemId: ITEM_ID, newStatus: 'closed' },
+      ctxFor('AccountAdmin'),
+    )
+
+    expect(updated.status).toBe('closed')
+  })
+
+  it('allows manual close on a feedback item', async () => {
+    const { useCase, repo } = setup()
+    repo.items.push(
+      seedOpen({ sourceType: 'feedback' as SourceType, sourceId: feedbackId('fb-1') }),
+    )
+
+    const updated = await useCase(
+      { inboxItemId: ITEM_ID, newStatus: 'closed' },
+      ctxFor('AccountAdmin'),
+    )
+
+    expect(updated.status).toBe('closed')
+  })
+
   it('denies access without inbox.write permission for inaccessible property', async () => {
-    // Use a role not in the permission table to simulate lacking inbox.write
     const staffApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [],
       getAssignedPortals: async () => [],
       countAssignmentsByTeam: async () => 0,
     }
     const { useCase, repo } = setup(staffApi)
-    repo.items.push(seedNew())
+    repo.items.push(seedOpen())
 
     await expect(
       useCase(
-        { inboxItemId: ITEM_ID, newStatus: 'read' },
+        { inboxItemId: ITEM_ID, newStatus: 'closed' },
         ctxFor('Guest' as unknown as Role),
       ),
     ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'forbidden')
@@ -183,32 +178,27 @@ describe('updateInboxStatus', () => {
       countAssignmentsByTeam: async () => 0,
     }
     const { useCase, repo } = setup(staffApi)
-    repo.items.push(seedNew())
+    repo.items.push(seedOpen())
 
     await expect(
-      useCase({ inboxItemId: ITEM_ID, newStatus: 'read' }, ctxFor('PropertyManager')),
+      useCase({ inboxItemId: ITEM_ID, newStatus: 'closed' }, ctxFor('PropertyManager')),
     ).resolves.toBeDefined()
   })
 
   it('scopes PropertyManager to assigned properties (PM is NOT org-wide for inbox)', async () => {
-    // PM holds inbox.manage, but per root CONTEXT.md L72 PM only manages
-    // ASSIGNED properties. assertPropertyAccessible must therefore enforce
-    // the staff_assignment scope for PM, not bypass it.
     const staffApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [propertyId('prop-assigned')],
       getAssignedPortals: async () => [],
       countAssignmentsByTeam: async () => 0,
     }
     const { useCase, repo } = setup(staffApi)
-    // Item is on a property PM is NOT assigned to
-    repo.items.push(seedNew({ propertyId: propertyId('prop-other') }))
+    repo.items.push(seedOpen({ propertyId: propertyId('prop-other') }))
 
     await expect(
-      useCase({ inboxItemId: ITEM_ID, newStatus: 'read' }, ctxFor('PropertyManager')),
+      useCase({ inboxItemId: ITEM_ID, newStatus: 'closed' }, ctxFor('PropertyManager')),
     ).rejects.toMatchObject({ _tag: 'InboxError', code: 'forbidden' })
 
-    // Sanity: the item is untouched
-    expect(repo.items[0]!.status).toBe('new')
+    expect(repo.items[0]!.status).toBe('open')
   })
 
   it('allows PropertyManager to update status for an assigned property', async () => {
@@ -218,42 +208,14 @@ describe('updateInboxStatus', () => {
       countAssignmentsByTeam: async () => 0,
     }
     const { useCase, repo } = setup(staffApi)
-    repo.items.push(seedNew())
+    repo.items.push(seedOpen())
 
     const updated = await useCase(
-      { inboxItemId: ITEM_ID, newStatus: 'read' },
+      { inboxItemId: ITEM_ID, newStatus: 'closed' },
       ctxFor('PropertyManager'),
     )
 
-    expect(updated.status).toBe('read')
-  })
-
-  it('rejects manual "addressed" on a review item (reviews auto-transition via reply.published)', async () => {
-    const { useCase, repo } = setup()
-    repo.items.push(seedNew({ sourceType: 'review' as SourceType }))
-
-    await expect(
-      useCase({ inboxItemId: ITEM_ID, newStatus: 'addressed' }, ctxFor('AccountAdmin')),
-    ).rejects.toMatchObject({
-      _tag: 'InboxError',
-      code: 'invalid_transition',
-    })
-
-    expect(repo.items[0]!.status).toBe('new')
-  })
-
-  it('allows manual "addressed" on a feedback item', async () => {
-    const { useCase, repo } = setup()
-    repo.items.push(
-      seedNew({ sourceType: 'feedback' as SourceType, sourceId: feedbackId('fb-1') }),
-    )
-
-    const updated = await useCase(
-      { inboxItemId: ITEM_ID, newStatus: 'addressed' },
-      ctxFor('AccountAdmin'),
-    )
-
-    expect(updated.status).toBe('addressed')
+    expect(updated.status).toBe('closed')
   })
 
   it('skips property check for AccountAdmin role', async () => {
@@ -265,25 +227,10 @@ describe('updateInboxStatus', () => {
       countAssignmentsByTeam: async () => 0,
     }
     const { useCase, repo } = setup(staffApi)
-    repo.items.push(seedNew())
+    repo.items.push(seedOpen())
 
     await expect(
-      useCase({ inboxItemId: ITEM_ID, newStatus: 'read' }, ctxFor('AccountAdmin')),
+      useCase({ inboxItemId: ITEM_ID, newStatus: 'closed' }, ctxFor('AccountAdmin')),
     ).resolves.toBeDefined()
-  })
-
-  it('emits inbox.item.escalated event alongside inbox.status.changed when escalating', async () => {
-    const { useCase, repo, events } = setup()
-    repo.items.push(seedNew())
-
-    await useCase(
-      { inboxItemId: ITEM_ID, newStatus: 'escalated' },
-      ctxFor('AccountAdmin'),
-    )
-
-    const emitted = events.capturedEvents
-    expect(emitted).toHaveLength(2)
-    expect(emitted[0]._tag).toBe('inbox.inbox_item.status_changed')
-    expect(emitted[1]._tag).toBe('inbox.inbox_item.escalated')
   })
 })

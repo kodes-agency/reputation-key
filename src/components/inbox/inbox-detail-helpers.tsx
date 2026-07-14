@@ -2,7 +2,7 @@
 import { Star } from 'lucide-react'
 
 // Re-export from extracted file
-export { getStatusActions } from './inbox-status-actions'
+export { getStatusActions, getEscalationActions } from './inbox-status-actions'
 
 export function RatingStars({ rating }: Readonly<{ rating: number | null }>) {
   if (rating === null) return null

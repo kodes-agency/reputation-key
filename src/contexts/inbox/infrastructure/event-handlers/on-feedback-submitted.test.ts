@@ -2,7 +2,7 @@
 
 import { describe, it, expect, vi } from 'vitest'
 import { onFeedbackSubmitted } from './on-feedback-submitted'
-import type { CreateInboxItemUseCase } from '../../application/use-cases/create-inbox-item'
+import type { CreateInboxItem } from '../../application/use-cases/create-inbox-item'
 import type { GuestFeedbackSubmitted } from '#/contexts/guest/application/public-api'
 import {
   organizationId,
@@ -37,7 +37,7 @@ describe('onFeedbackSubmitted', () => {
   }
 
   it('creates inbox item for the feedback with denormalized rating', async () => {
-    const createInboxItem = vi.fn(async () => ({})) as unknown as CreateInboxItemUseCase
+    const createInboxItem = vi.fn(async () => ({})) as unknown as CreateInboxItem
     const deps = {
       createInboxItem,
       feedbackLookup: feedbackLookupMock,
@@ -59,7 +59,7 @@ describe('onFeedbackSubmitted', () => {
   })
 
   it('creates inbox item with null rating when feedback lookup returns null', async () => {
-    const createInboxItem = vi.fn(async () => ({})) as unknown as CreateInboxItemUseCase
+    const createInboxItem = vi.fn(async () => ({})) as unknown as CreateInboxItem
     const deps = {
       createInboxItem,
       feedbackLookup: {
@@ -84,7 +84,7 @@ describe('onFeedbackSubmitted', () => {
     }
     const createInboxItem = vi.fn(async () => {
       throw alreadyExistsErr
-    }) as unknown as CreateInboxItemUseCase
+    }) as unknown as CreateInboxItem
     const deps = {
       createInboxItem,
       feedbackLookup: feedbackLookupMock,
@@ -96,7 +96,7 @@ describe('onFeedbackSubmitted', () => {
   it('does not throw on generic repo error', async () => {
     const createInboxItem = vi.fn(async () => {
       throw new Error('DB down')
-    }) as unknown as CreateInboxItemUseCase
+    }) as unknown as CreateInboxItem
     const deps = {
       createInboxItem,
       feedbackLookup: feedbackLookupMock,

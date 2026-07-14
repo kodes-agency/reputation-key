@@ -16,11 +16,11 @@ import {
 import { usePropertyId } from '#/components/hooks/use-property-id'
 import { ManagerNavItems } from './manager-nav-items'
 import { ManagerPropertySwitcher } from './manager-property-switcher'
-import type { getNewCountFn } from '#/contexts/inbox/server/inbox'
+import type { getLastVisitCountFn } from '#/contexts/inbox/server/inbox'
 
 type Props = Readonly<{
   properties: ReadonlyArray<{ id: string; name: string; slug: string }>
-  getNewCount: typeof getNewCountFn
+  getLastVisitCount: typeof getLastVisitCountFn
 }>
 
 function useActiveSection(): string {
@@ -46,7 +46,7 @@ function useActiveSection(): string {
   })
 }
 
-export function ManagerSidebar({ properties, getNewCount }: Props) {
+export function ManagerSidebar({ properties, getLastVisitCount }: Props) {
   const propertyId = usePropertyId()
   const activeSection = useActiveSection()
   const navigate = useNavigate()
@@ -74,7 +74,7 @@ export function ManagerSidebar({ properties, getNewCount }: Props) {
             <ManagerNavItems
               propertyId={propertyId ?? undefined}
               activeSection={activeSection}
-              getNewCount={getNewCount}
+              getLastVisitCount={getLastVisitCount}
             />
           </SidebarGroupContent>
         </SidebarGroup>

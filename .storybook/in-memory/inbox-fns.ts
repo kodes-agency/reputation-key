@@ -18,6 +18,8 @@ import {
   getInboxItemDetailDto,
   getInboxNotesDto,
   updateStatusDto,
+  escalateInboxItemDto,
+  resolveEscalationDto,
   addInboxNoteDto,
   bulkUpdateStatusDto,
 } from '#/contexts/inbox/application/dto/inbox.dto'
@@ -29,6 +31,8 @@ import type {
   getInboxNotesFn,
   getInboxFolderCountsFn,
   updateInboxStatusFn,
+  escalateInboxItemFn,
+  resolveEscalationFn,
   addInboxNoteFn,
   bulkUpdateInboxStatusFn,
 } from '#/contexts/inbox/server/inbox'
@@ -49,6 +53,7 @@ export function makeInboxFns(container: InboxContainer): InboxServerFns {
           filters: {
             propertyId: data.propertyId ? propertyId(data.propertyId) : undefined,
             status: data.status,
+            isEscalated: data.isEscalated,
             sourceType: data.sourceType,
             platform: data.platform,
             ratingMin: data.ratingMin,
@@ -101,6 +106,26 @@ export function makeInboxFns(container: InboxContainer): InboxServerFns {
         },
         ctx,
       )) as unknown as typeof updateInboxStatusFn,
+
+    escalateInboxItem: (async ({
+      data,
+    }: {
+      data: z.infer<typeof escalateInboxItemDto>
+    }) =>
+      container.useCases.escalateInboxItem(
+        { inboxItemId: inboxItemId(data.inboxItemId) },
+        ctx,
+      )) as unknown as typeof escalateInboxItemFn,
+
+    resolveEscalation: (async ({
+      data,
+    }: {
+      data: z.infer<typeof resolveEscalationDto>
+    }) =>
+      container.useCases.resolveEscalation(
+        { inboxItemId: inboxItemId(data.inboxItemId) },
+        ctx,
+      )) as unknown as typeof resolveEscalationFn,
 
     addInboxNote: (async ({ data }: { data: z.infer<typeof addInboxNoteDto> }) =>
       container.useCases.addInboxNote(

@@ -18,7 +18,7 @@ import {
   feedbackId,
 } from '#/shared/domain/ids'
 import type { InboxNoteRepository } from '#/contexts/inbox/application/ports/inbox-note.repository'
-import type { NewCounterPort } from '#/contexts/inbox/application/ports/new-counter.port'
+import type { InboxViewRepository } from '#/contexts/inbox/application/ports/inbox-view.repository'
 import type { ReplyLookupPort } from '#/contexts/inbox/application/ports/reply-lookup.port'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'
@@ -40,6 +40,7 @@ export function makeInboxItem(opts: {
   id: string
   sourceType: 'review' | 'feedback'
   status?: InboxItem['status']
+  isEscalated?: boolean
   rating?: number
 }): InboxItem {
   return {
@@ -48,7 +49,12 @@ export function makeInboxItem(opts: {
     propertyId: PROP,
     sourceType: opts.sourceType,
     sourceId: opts.sourceType === 'review' ? reviewId(opts.id) : feedbackId(opts.id),
-    status: opts.status ?? 'new',
+    status: opts.status ?? 'open',
+    isEscalated: opts.isEscalated ?? false,
+    escalatedAt: null,
+    escalatedBy: null,
+    escalationResolvedAt: null,
+    escalationResolvedBy: null,
     rating: opts.rating ?? 4,
     sourceDate: new Date('2025-01-01'),
     platform: 'google',
@@ -56,10 +62,7 @@ export function makeInboxItem(opts: {
     assignedTo: null,
     reviewerName: 'Jane Doe',
     propertyName: 'Acme Hotel',
-    readAt: null,
-    escalatedAt: null,
-    addressedAt: null,
-    archivedAt: null,
+    closedAt: null,
     firstReplySubmittedAt: null,
     firstReplyPublishedAt: null,
     createdAt: new Date('2025-01-01'),
@@ -80,6 +83,17 @@ function createInMemoryNoteRepo(): InboxNoteRepository & { notes: InboxNote[] } 
   }
 }
 
+function createInMemoryViewRepo(): InboxViewRepository {
+  let lastView: Date | null = null
+  return {
+    getLastInboxView: async () => lastView,
+    stampLastInboxView: async (_orgId, _userId, now) => {
+      lastView = now ?? new Date()
+      return lastView
+    },
+  }
+}
+
 const noopStaffApi: StaffPublicApi = {
   // null = AccountAdmin semantics (all properties); PropertyManager role
   // bypasses this call in getInboxItems anyway.
@@ -96,15 +110,6 @@ const noopLogger: LoggerPort = {
   child: () => noopLogger,
 }
 
-const noopNewCounter: NewCounterPort = {
-  getCount: async () => 0,
-  setCount: async () => {},
-  increment: async () => {},
-  decrement: async () => {},
-  decrementBy: async () => {},
-  invalidate: async () => {},
-}
-
 const noopReplyLookup: ReplyLookupPort = {
   getReplyByReviewId: async () => null,
 }
@@ -112,13 +117,14 @@ const noopReplyLookup: ReplyLookupPort = {
 export function createInboxContainer() {
   const inboxRepo = createInMemoryInboxRepo()
   const inboxNoteRepo = createInMemoryNoteRepo()
+  const inboxViewRepo = createInMemoryViewRepo()
   const events = createEventBus()
   let clockNow = new Date('2025-01-15T12:00:00Z')
 
   const useCases = wireUseCases({
     inboxRepo,
     inboxNoteRepo,
-    newCounter: noopNewCounter,
+    inboxViewRepo,
     events,
     staffPublicApi: noopStaffApi,
     logger: noopLogger,

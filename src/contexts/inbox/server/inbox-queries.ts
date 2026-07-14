@@ -14,7 +14,8 @@ import { resolveTenantContext } from '#/shared/auth/middleware'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import {
   getInboxItemsDto,
-  getNewCountDto,
+  getLastVisitCountDto,
+  stampLastInboxViewDto,
   getInboxFolderCountsDto,
 } from '../application/dto/inbox.dto'
 import { getLogger } from '#/shared/observability/logger'
@@ -42,6 +43,7 @@ export const getInboxItemsFn = createServerFn({ method: 'GET' })
               filters: {
                 propertyId: data.propertyId ? propertyId(data.propertyId) : undefined,
                 status: data.status,
+                isEscalated: data.isEscalated,
                 sourceType: data.sourceType,
                 platform: data.platform,
                 ratingMin: data.ratingMin,
@@ -93,13 +95,13 @@ export const getInboxItemsFn = createServerFn({ method: 'GET' })
     ),
   )
 
-// ── getNewCount ────────────────────────────────────────────────────
+// ── getLastVisitCount ──────────────────────────────────────────────
 
-export const getNewCountFn = createServerFn({ method: 'GET' })
-  .inputValidator(getNewCountDto)
+export const getLastVisitCountFn = createServerFn({ method: 'GET' })
+  .inputValidator(getLastVisitCountDto)
   .handler(
     tracedHandler(
-      async ({ data: _data }) => {
+      async () => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         if (!canForContext(ctx, 'inbox.read')) {
@@ -111,7 +113,7 @@ export const getNewCountFn = createServerFn({ method: 'GET' })
         }
         const { useCases } = getContainer()
         try {
-          return await useCases.getNewCount({}, ctx)
+          return await useCases.getLastVisitCount({}, ctx)
         } catch (e) {
           if (isInboxError(e))
             throwContextError('InboxError', e, inboxErrorStatus(e.code))
@@ -119,7 +121,37 @@ export const getNewCountFn = createServerFn({ method: 'GET' })
         }
       },
       'GET',
-      'inbox.getNewCount',
+      'inbox.getLastVisitCount',
+    ),
+  )
+
+// ── stampLastInboxView ─────────────────────────────────────────────
+
+export const stampLastInboxViewFn = createServerFn({ method: 'POST' })
+  .inputValidator(stampLastInboxViewDto)
+  .handler(
+    tracedHandler(
+      async () => {
+        const headers = await headersFromContext()
+        const ctx = await resolveTenantContext(headers)
+        if (!canForContext(ctx, 'inbox.read')) {
+          throwContextError(
+            'AuthError',
+            { code: 'forbidden', message: 'No inbox read permission' },
+            403,
+          )
+        }
+        const { useCases } = getContainer()
+        try {
+          return await useCases.stampLastInboxView({}, ctx)
+        } catch (e) {
+          if (isInboxError(e))
+            throwContextError('InboxError', e, inboxErrorStatus(e.code))
+          throw catchUntagged(e)
+        }
+      },
+      'POST',
+      'inbox.stampLastInboxView',
     ),
   )
 
@@ -129,8 +161,7 @@ export const getInboxFolderCountsFn = createServerFn({ method: 'GET' })
   .inputValidator(getInboxFolderCountsDto)
   .handler(
     tracedHandler(
-      async ({ data: _data }) => {
-        void _data
+      async () => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         if (!canForContext(ctx, 'inbox.read')) {

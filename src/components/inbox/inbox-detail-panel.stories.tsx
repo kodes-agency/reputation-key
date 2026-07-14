@@ -39,7 +39,7 @@ const detailFns = {
 const item = makeInboxItem({
   id: 'rev-panel',
   sourceType: 'review',
-  status: 'new',
+  status: 'open',
   rating: 4,
 })
 

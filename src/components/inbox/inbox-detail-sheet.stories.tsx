@@ -37,7 +37,7 @@ const detailFns = {
 const item = makeInboxItem({
   id: 'rev-sheet',
   sourceType: 'review',
-  status: 'new',
+  status: 'open',
   rating: 4,
 })
 

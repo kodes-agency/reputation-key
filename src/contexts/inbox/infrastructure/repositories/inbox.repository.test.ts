@@ -56,7 +56,7 @@ function makeInboxItem(overrides: Partial<InboxItem> = {}): InboxItem {
     propertyId: PROP_A,
     sourceType: 'review',
     sourceId: reviewId(crypto.randomUUID()),
-    status: 'new',
+    status: 'open',
     rating: 4,
     sourceDate: now,
     platform: 'google',
@@ -64,10 +64,12 @@ function makeInboxItem(overrides: Partial<InboxItem> = {}): InboxItem {
     assignedTo: null,
     reviewerName: 'John Doe',
     propertyName: 'Test Hotel',
-    readAt: null,
+    isEscalated: false,
     escalatedAt: null,
-    addressedAt: null,
-    archivedAt: null,
+    escalatedBy: null,
+    escalationResolvedAt: null,
+    escalationResolvedBy: null,
+    closedAt: null,
     firstReplySubmittedAt: null,
     firstReplyPublishedAt: null,
     createdAt: now,
@@ -162,7 +164,7 @@ describe('inbox repository — CRUD', () => {
     const found = await repo.findById(item.id, ORG_A)
     expect(found).not.toBeNull()
     expect(found!.id).toBe(item.id)
-    expect(found!.status).toBe('new')
+    expect(found!.status).toBe('open')
     expect(found!.rating).toBe(4)
     expect(found!.reviewerName).toBe('John Doe')
   })
@@ -214,12 +216,12 @@ describe('inbox repository — status transitions', () => {
     const updated = await repo.updateStatus(
       item.id,
       ORG_A,
-      'addressed',
-      { addressedAt: now },
+      'closed',
+      { closedAt: now },
       now,
     )
-    expect(updated.status).toBe('addressed')
-    expect(updated.addressedAt).toEqual(now)
+    expect(updated.status).toBe('closed')
+    expect(updated.closedAt).toEqual(now)
   })
 
   it('updates status from new to escalated', async () => {
@@ -230,11 +232,11 @@ describe('inbox repository — status transitions', () => {
     const updated = await repo.updateStatus(
       item.id,
       ORG_A,
-      'escalated',
+      'open',
       { escalatedAt: now },
       now,
     )
-    expect(updated.status).toBe('escalated')
+    expect(updated.status).toBe('open')
   })
 
   it('updates status from new to archived', async () => {
@@ -245,11 +247,11 @@ describe('inbox repository — status transitions', () => {
     const updated = await repo.updateStatus(
       item.id,
       ORG_A,
-      'archived',
-      { archivedAt: now },
+      'closed',
+      { closedAt: now },
       now,
     )
-    expect(updated.status).toBe('archived')
+    expect(updated.status).toBe('closed')
   })
 
   it('bulkUpdateStatus updates multiple items', async () => {
@@ -262,14 +264,14 @@ describe('inbox repository — status transitions', () => {
     const result = await repo.bulkUpdateStatus(
       [item1.id, item2.id],
       ORG_A,
-      'addressed',
-      { addressedAt: now },
+      'closed',
+      { closedAt: now },
       now,
     )
     expect(result.updated).toBe(2)
 
     const found1 = await repo.findById(item1.id, ORG_A)
-    expect(found1!.status).toBe('addressed')
+    expect(found1!.status).toBe('closed')
   })
 })
 
@@ -298,22 +300,22 @@ describe('inbox repository — count by status', () => {
 
   it('counts items by status', async () => {
     await repo.create(
-      makeInboxItem({ sourceId: reviewId(crypto.randomUUID()), status: 'new' }),
+      makeInboxItem({ sourceId: reviewId(crypto.randomUUID()), status: 'open' }),
       ORG_A,
     )
     await repo.create(
-      makeInboxItem({ sourceId: reviewId(crypto.randomUUID()), status: 'new' }),
+      makeInboxItem({ sourceId: reviewId(crypto.randomUUID()), status: 'open' }),
       ORG_A,
     )
     await repo.create(
-      makeInboxItem({ sourceId: reviewId(crypto.randomUUID()), status: 'addressed' }),
+      makeInboxItem({ sourceId: reviewId(crypto.randomUUID()), status: 'closed' }),
       ORG_A,
     )
 
-    const newCount = await repo.countByStatus(ORG_A, 'new')
+    const newCount = await repo.countByStatus(ORG_A, 'open')
     expect(newCount).toBe(2)
 
-    const addressedCount = await repo.countByStatus(ORG_A, 'addressed')
+    const addressedCount = await repo.countByStatus(ORG_A, 'closed')
     expect(addressedCount).toBe(1)
   })
 })
@@ -366,22 +368,22 @@ describe('inbox repository — pagination', () => {
 
   it('filters by status', async () => {
     await repo.create(
-      makeInboxItem({ sourceId: reviewId(crypto.randomUUID()), status: 'new' }),
+      makeInboxItem({ sourceId: reviewId(crypto.randomUUID()), status: 'open' }),
       ORG_A,
     )
     await repo.create(
-      makeInboxItem({ sourceId: reviewId(crypto.randomUUID()), status: 'addressed' }),
+      makeInboxItem({ sourceId: reviewId(crypto.randomUUID()), status: 'closed' }),
       ORG_A,
     )
 
     const result = await repo.findFilteredPaginated(
-      { status: 'new' },
+      { status: 'open' },
       ORG_A,
       undefined,
       50,
     )
     expect(result.items).toHaveLength(1)
-    expect(result.items[0]!.status).toBe('new')
+    expect(result.items[0]!.status).toBe('open')
   })
 })
 
@@ -465,17 +467,17 @@ describe('inbox repository — tenant isolation', () => {
 
     // ORG_B tries to update ORG_A's item — should throw not_found
     await expect(
-      repo.updateStatus(item.id, ORG_B, 'addressed', { addressedAt: new Date() }),
+      repo.updateStatus(item.id, ORG_B, 'closed', { closedAt: new Date() }),
     ).rejects.toThrow()
   })
 
   it('countByStatus returns 0 for different org', async () => {
     await repo.create(
-      makeInboxItem({ sourceId: reviewId(crypto.randomUUID()), status: 'new' }),
+      makeInboxItem({ sourceId: reviewId(crypto.randomUUID()), status: 'open' }),
       ORG_A,
     )
 
-    const count = await repo.countByStatus(ORG_B, 'new')
+    const count = await repo.countByStatus(ORG_B, 'open')
     expect(count).toBe(0)
   })
 

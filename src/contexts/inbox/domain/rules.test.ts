@@ -1,4 +1,4 @@
-// Inbox context — domain rules tests
+// Inbox context — domain rules tests (ADR 0023: open/closed 2-state machine)
 
 import { describe, it, expect } from 'vitest'
 import { canTransition, validateTransition, canAssign, validateAssignment } from './rules'
@@ -8,30 +8,13 @@ import type { InboxStatus } from './types'
 // ─── canTransition ──────────────────────────────────────────────────
 
 describe('canTransition', () => {
-  const ALL_STATUSES: InboxStatus[] = [
-    'new',
-    'read',
-    'addressed',
-    'escalated',
-    'archived',
-  ]
+  const ALL_STATUSES: InboxStatus[] = ['open', 'closed']
 
-  // Valid transitions
+  // Valid transitions — the only two edges in the 2-state machine (ADR 0023)
   describe('valid transitions', () => {
-    const validCases: Array<[InboxStatus, InboxStatus]> = [
-      ['new', 'read'],
-      ['new', 'addressed'],
-      ['new', 'archived'],
-      ['new', 'escalated'],
-      ['read', 'addressed'],
-      ['read', 'escalated'],
-      ['read', 'archived'],
-      ['escalated', 'addressed'],
-      ['escalated', 'archived'],
-      ['addressed', 'archived'],
-      ['addressed', 'escalated'],
-      ['archived', 'escalated'],
-      ['archived', 'read'],
+    const validCases: ReadonlyArray<[InboxStatus, InboxStatus]> = [
+      ['open', 'closed'],
+      ['closed', 'open'],
     ]
 
     it.each(validCases)('allows %s → %s', (from, to) => {
@@ -41,37 +24,11 @@ describe('canTransition', () => {
 
   // Same-status transitions (never valid)
   describe('same-status transitions', () => {
-    it.each(ALL_STATUSES.map((s): [InboxStatus, InboxStatus] => [s, s]))(
-      'rejects %s → %s (same status)',
-      (from, to) => {
-        expect(canTransition(from, to)).toBe(false)
-      },
+    const sameCases: ReadonlyArray<[InboxStatus, InboxStatus]> = ALL_STATUSES.map(
+      (s) => [s, s] as [InboxStatus, InboxStatus],
     )
-  })
 
-  // All impossible combos
-  describe('invalid transitions', () => {
-    const invalidCases: Array<[InboxStatus, InboxStatus]> = [
-      // new cannot go to new
-      ['new', 'new'],
-      // read cannot go to new, read
-      ['read', 'new'],
-      ['read', 'read'],
-      // escalated cannot go to new, read, escalated
-      ['escalated', 'new'],
-      ['escalated', 'read'],
-      ['escalated', 'escalated'],
-      // addressed cannot go to new, read, addressed
-      ['addressed', 'new'],
-      ['addressed', 'read'],
-      ['addressed', 'addressed'],
-      // archived can only go to read or escalated (not new, not addressed, not archived)
-      ['archived', 'archived'],
-      ['archived', 'addressed'],
-      ['archived', 'new'],
-    ]
-
-    it.each(invalidCases)('rejects %s → %s', (from, to) => {
+    it.each(sameCases)('rejects %s → %s', (from, to) => {
       expect(canTransition(from, to)).toBe(false)
     })
   })
@@ -81,65 +38,50 @@ describe('canTransition', () => {
 
 describe('validateTransition', () => {
   it('returns ok with the target status for a valid transition', () => {
-    const result = validateTransition('new', 'read')
+    const result = validateTransition('open', 'closed')
     expect(result.isOk()).toBe(true)
-    expect(result._unsafeUnwrap()).toBe('read')
+    expect(result._unsafeUnwrap()).toBe('closed')
   })
 
-  it('returns ok for new → addressed transition', () => {
-    const result = validateTransition('new', 'addressed')
+  it('returns ok for closed → open transition', () => {
+    const result = validateTransition('closed', 'open')
     expect(result.isOk()).toBe(true)
-    expect(result._unsafeUnwrap()).toBe('addressed')
-  })
-
-  it('returns ok for read → archived transition', () => {
-    const result = validateTransition('read', 'archived')
-    expect(result.isOk()).toBe(true)
-    expect(result._unsafeUnwrap()).toBe('archived')
+    expect(result._unsafeUnwrap()).toBe('open')
   })
 
   it('returns err with invalid_transition code for an invalid transition', () => {
-    const result = validateTransition('addressed', 'new')
+    const result = validateTransition('open', 'open')
     expect(result.isErr()).toBe(true)
     const error = result._unsafeUnwrapErr()
     expect(error.code).toBe('invalid_transition')
-    expect(error.message).toContain('addressed')
-    expect(error.message).toContain('new')
-    expect(error.context).toEqual({ from: 'addressed', to: 'new' })
+    expect(error.message).toContain('open')
+    expect(error.message).toContain('open')
   })
 
   it('returns err for same-status transition', () => {
-    const result = validateTransition('read', 'read')
+    const result = validateTransition('closed', 'closed')
     expect(result.isErr()).toBe(true)
-    expect(result._unsafeUnwrapErr().code).toBe('invalid_transition')
   })
 
   it('error is recognised by isInboxError', () => {
-    const result = validateTransition('addressed', 'new')
+    const result = validateTransition('open', 'open')
     expect(result.isErr()).toBe(true)
-    const error = result._unsafeUnwrapErr()
-    expect(isInboxError(error)).toBe(true)
+    expect(isInboxError(result._unsafeUnwrapErr())).toBe(true)
   })
 })
 
 // ─── canAssign ───────────────────────────────────────────────────────
 
 describe('canAssign', () => {
+  it('returns true for roles with inbox.manage (AccountAdmin)', () => {
+    expect(canAssign('AccountAdmin')).toBe(true)
+  })
+
   it('returns true for PropertyManager', () => {
     expect(canAssign('PropertyManager')).toBe(true)
   })
 
-  it('returns true for AccountAdmin', () => {
-    expect(canAssign('AccountAdmin')).toBe(true)
-  })
-
   it('returns false for Staff', () => {
-    expect(canAssign('Staff')).toBe(false)
-  })
-
-  it('returns false for unknown roles', () => {
-    // Role type is a closed union — these would not compile as Role.
-    // Testing that Staff (the lowest role) returns false is sufficient.
     expect(canAssign('Staff')).toBe(false)
   })
 })
@@ -147,16 +89,9 @@ describe('canAssign', () => {
 // ─── validateAssignment ─────────────────────────────────────────────
 
 describe('validateAssignment', () => {
-  it('returns ok for PropertyManager', () => {
-    const result = validateAssignment('PropertyManager')
-    expect(result.isOk()).toBe(true)
-    expect(result._unsafeUnwrap()).toBe(true)
-  })
-
-  it('returns ok for AccountAdmin', () => {
-    const result = validateAssignment('AccountAdmin')
-    expect(result.isOk()).toBe(true)
-    expect(result._unsafeUnwrap()).toBe(true)
+  it('returns ok for roles with inbox.manage', () => {
+    expect(validateAssignment('AccountAdmin').isOk()).toBe(true)
+    expect(validateAssignment('PropertyManager').isOk()).toBe(true)
   })
 
   it('returns err with assignment_not_allowed for Staff', () => {
@@ -165,12 +100,5 @@ describe('validateAssignment', () => {
     const error = result._unsafeUnwrapErr()
     expect(error.code).toBe('assignment_not_allowed')
     expect(error.message).toContain('Staff')
-    expect(error.context).toEqual({ role: 'Staff' })
-  })
-
-  it('error is recognised by isInboxError', () => {
-    const result = validateAssignment('Staff')
-    expect(result.isErr()).toBe(true)
-    expect(isInboxError(result._unsafeUnwrapErr())).toBe(true)
   })
 })

@@ -8,7 +8,7 @@ type InboxItemRow = typeof inboxItems.$inferSelect
 
 const now = new Date('2025-06-01T12:00:00Z')
 const sourceDate = new Date('2025-05-27T10:00:00Z')
-const readAt = new Date('2025-05-28T08:00:00Z')
+const closedAt = new Date('2025-05-28T08:00:00Z')
 
 const sampleRow: InboxItemRow = {
   id: 'inbox-uuid-001',
@@ -16,17 +16,19 @@ const sampleRow: InboxItemRow = {
   propertyId: 'prop-uuid-001',
   sourceType: 'review',
   sourceId: 'source-uuid-001',
-  status: 'new',
+  status: 'open',
   rating: 4,
   sourceDate,
   platform: 'google',
   snippet: 'Great service!',
   reviewerName: null,
   assignedTo: 'user-uuid-001',
-  readAt,
+  isEscalated: false,
+  escalatedBy: null,
+  escalationResolvedAt: null,
+  escalationResolvedBy: null,
+  closedAt,
   escalatedAt: null,
-  addressedAt: null,
-  archivedAt: null,
   firstReplySubmittedAt: null,
   firstReplyPublishedAt: null,
   createdAt: now,
@@ -46,15 +48,13 @@ describe('inboxItemFromRow', () => {
     const item = inboxItemFromRow(sampleRow)
     expect(item.sourceType).toBe('review')
     expect(item.sourceId).toBe('source-uuid-001')
-    expect(item.status).toBe('new')
+    expect(item.status).toBe('open')
     expect(item.rating).toBe(4)
     expect(item.sourceDate).toBe(sourceDate)
     expect(item.platform).toBe('google')
     expect(item.snippet).toBe('Great service!')
-    expect(item.readAt).toBe(readAt)
+    expect(item.closedAt).toEqual(closedAt)
     expect(item.escalatedAt).toBeNull()
-    expect(item.addressedAt).toBeNull()
-    expect(item.archivedAt).toBeNull()
     expect(item.createdAt).toBe(now)
     expect(item.updatedAt).toBe(now)
   })
@@ -71,13 +71,13 @@ describe('inboxItemFromRow', () => {
       rating: null,
       platform: null,
       snippet: null,
-      readAt: null,
+      closedAt: null,
     }
     const item = inboxItemFromRow(row)
     expect(item.rating).toBeNull()
     expect(item.platform).toBeNull()
     expect(item.snippet).toBeNull()
-    expect(item.readAt).toBeNull()
+    expect(item.closedAt).toBeNull()
   })
 })
 
@@ -98,10 +98,8 @@ describe('inboxItemToInsertRow', () => {
     expect(row.platform).toBe(sampleRow.platform)
     expect(row.snippet).toBe(sampleRow.snippet)
     expect(row.assignedTo).toBe(sampleRow.assignedTo)
-    expect(row.readAt).toBe(sampleRow.readAt)
+    expect(row.closedAt).toBe(sampleRow.closedAt)
     expect(row.escalatedAt).toBe(sampleRow.escalatedAt)
-    expect(row.addressedAt).toBe(sampleRow.addressedAt)
-    expect(row.archivedAt).toBe(sampleRow.archivedAt)
   })
 
   it('excludes createdAt and updatedAt', () => {

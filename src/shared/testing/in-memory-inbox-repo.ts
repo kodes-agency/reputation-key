@@ -33,6 +33,12 @@ export function createInMemoryInboxRepo(): InboxRepository & { items: InboxItem[
         filtered = filtered.filter((i) => filters.propertyIds!.includes(i.propertyId))
       if (filters.sourceType)
         filtered = filtered.filter((i) => i.sourceType === filters.sourceType)
+      if (filters.isEscalated !== undefined)
+        filtered = filtered.filter((i) =>
+          filters.isEscalated
+            ? i.isEscalated && i.escalationResolvedAt === null
+            : !i.isEscalated,
+        )
       filtered.sort(
         (a, b) =>
           b.sourceDate.getTime() - a.sourceDate.getTime() ||
@@ -95,6 +101,56 @@ export function createInMemoryInboxRepo(): InboxRepository & { items: InboxItem[
         (i) =>
           i.organizationId === orgId &&
           i.status === status &&
+          (!propertyIds ||
+            propertyIds.length === 0 ||
+            propertyIds.includes(i.propertyId)),
+      ).length,
+    setEscalation: async (id, orgId, escalatedBy, now) => {
+      const item = items.find((i) => i.id === id && i.organizationId === orgId)
+      if (!item) throw new Error('not found')
+      const idx = items.indexOf(item)
+      const stamp = now ?? new Date()
+      items[idx] = {
+        ...item,
+        isEscalated: true,
+        escalatedAt: stamp,
+        escalatedBy,
+        escalationResolvedAt: null,
+        escalationResolvedBy: null,
+        updatedAt: stamp,
+      }
+      return items[idx]
+    },
+    resolveEscalation: async (id, orgId, resolvedBy, now) => {
+      const item = items.find((i) => i.id === id && i.organizationId === orgId)
+      if (!item) throw new Error('not found')
+      const idx = items.indexOf(item)
+      const stamp = now ?? new Date()
+      items[idx] = {
+        ...item,
+        isEscalated: false,
+        escalationResolvedAt: stamp,
+        escalationResolvedBy: resolvedBy,
+        updatedAt: stamp,
+      }
+      return items[idx]
+    },
+    countEscalatedActive: async (orgId, propertyIds) =>
+      items.filter(
+        (i) =>
+          i.organizationId === orgId &&
+          i.isEscalated &&
+          i.escalationResolvedAt === null &&
+          (!propertyIds ||
+            propertyIds.length === 0 ||
+            propertyIds.includes(i.propertyId)),
+      ).length,
+    countOpenSince: async (orgId, since, propertyIds) =>
+      items.filter(
+        (i) =>
+          i.organizationId === orgId &&
+          i.status === 'open' &&
+          (!since || i.createdAt.getTime() >= since.getTime()) &&
           (!propertyIds ||
             propertyIds.length === 0 ||
             propertyIds.includes(i.propertyId)),

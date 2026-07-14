@@ -2,13 +2,13 @@
 // Creates an inbox item when a new review is ingested.
 
 import type { ReviewCreated } from '#/contexts/review/application/public-api'
-import type { CreateInboxItemUseCase } from '../../application/use-cases/create-inbox-item'
+import type { CreateInboxItem } from '../../application/use-cases/create-inbox-item'
 import { isInboxError } from '../../domain/errors'
 import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
 
 export type OnReviewCreatedDeps = Readonly<{
-  createInboxItem: CreateInboxItemUseCase
+  createInboxItem: CreateInboxItem
 }>
 
 export const onReviewCreated =

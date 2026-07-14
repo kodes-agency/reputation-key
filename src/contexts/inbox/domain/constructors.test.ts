@@ -64,12 +64,11 @@ describe('createInboxItem', () => {
     if (result.isOk()) {
       const item = result.value
       expect(item.id).toBe(inboxItemId('item-1'))
-      expect(item.status).toBe('new')
+      expect(item.status).toBe('open')
       expect(item.rating).toBe(4)
-      expect(item.readAt).toBeNull()
+      expect(item.closedAt).toBeNull()
       expect(item.escalatedAt).toBeNull()
-      expect(item.addressedAt).toBeNull()
-      expect(item.archivedAt).toBeNull()
+      expect(item.isEscalated).toBe(false)
       expect(item.createdAt).toBe(NOW)
       expect(item.updatedAt).toBe(NOW)
     }

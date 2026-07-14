@@ -1,9 +1,8 @@
 // Inbox context — event handler for reply.published
-// Auto-transitions the corresponding inbox item to 'addressed'.
+// Auto-transitions the corresponding inbox item open → closed (ADR 0023).
 
 import type { ReviewReplyPublished } from '#/contexts/review/application/public-api'
 import type { InboxRepository } from '../../application/ports/inbox.repository'
-import type { NewCounterPort } from '../../application/ports/new-counter.port'
 import type { EventBus } from '#/shared/events/event-bus'
 import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
@@ -14,7 +13,6 @@ import { validateTransition } from '../../domain/rules'
 export type OnReplyPublishedDeps = Readonly<{
   repo: InboxRepository
   events: EventBus
-  newCounter: NewCounterPort
 }>
 
 export const onReplyPublished =
@@ -38,46 +36,30 @@ export const onReplyPublished =
         const oldStatus = inboxItem.status
 
         // A published reply always records the firstReplyPublishedAt milestone,
-        // even when the item is already `addressed` or `archived` (where the
-        // status graph has no edge into `addressed`). The status transition
-        // itself is still routed through the domain rule so this handler
-        // inherits any future graph changes (INBOX-02).
-        const transitionOk = validateTransition(oldStatus, 'addressed').isOk()
+        // even when the item is already `closed`. The status transition itself
+        // is still routed through the domain rule so this handler inherits any
+        // future graph changes.
+        const transitionOk = validateTransition(oldStatus, 'closed').isOk()
 
         const extraFields: Partial<Record<string, Date>> = {}
         if (!inboxItem.firstReplyPublishedAt) {
           extraFields.firstReplyPublishedAt = event.occurredAt
         }
         if (transitionOk) {
-          extraFields.addressedAt = event.occurredAt
+          extraFields.closedAt = event.occurredAt
         }
 
-        // Already addressed (or otherwise non-transitionable) AND the
-        // milestone is already stamped — nothing to persist.
+        // Already closed AND the milestone is already stamped — nothing to persist.
         if (!transitionOk && Object.keys(extraFields).length === 0) return
 
-        // Always persist the milestone (and, when valid, the addressed status).
-        // When no transition is possible we keep the current status so the
-        // item still reflects the published reply via firstReplyPublishedAt.
+        // Always persist the milestone (and, when valid, the closed status).
         await deps.repo.updateStatus(
           inboxItem.id,
           inboxItem.organizationId,
-          transitionOk ? 'addressed' : oldStatus,
+          transitionOk ? 'closed' : oldStatus,
           extraFields,
           event.occurredAt,
         )
-
-        // Decrement new counter only when actually transitioning away from 'new'.
-        if (transitionOk && oldStatus === 'new') {
-          try {
-            await deps.newCounter.decrement(inboxItem.organizationId)
-          } catch (err) {
-            getLogger().warn(
-              { err, organizationId: inboxItem.organizationId },
-              'inbox: new counter decrement failed on reply.published',
-            )
-          }
-        }
 
         // Emit status_changed only for a real transition — a no-op status
         // change would be semantically wrong and downstream consumers key on
@@ -89,7 +71,8 @@ export const onReplyPublished =
               organizationId: inboxItem.organizationId,
               propertyId: inboxItem.propertyId,
               oldStatus,
-              newStatus: 'addressed',
+              newStatus: 'closed',
+              userId: event.userId ?? undefined,
               occurredAt: event.occurredAt,
             }),
           )

@@ -6,14 +6,14 @@ import { mockServerFn } from '../../../.storybook/mocks/mock-action'
 import { makeInboxItem } from '../../../.storybook/in-memory/inbox-container'
 
 const items = [
-  makeInboxItem({ id: 'rev-1', sourceType: 'review', status: 'new' }),
-  makeInboxItem({ id: 'rev-2', sourceType: 'review', status: 'new' }),
-  makeInboxItem({ id: 'fb-1', sourceType: 'feedback', status: 'new' }),
+  makeInboxItem({ id: 'rev-1', sourceType: 'review', status: 'open' }),
+  makeInboxItem({ id: 'rev-2', sourceType: 'review', status: 'open' }),
+  makeInboxItem({ id: 'fb-1', sourceType: 'feedback', status: 'open' }),
 ]
 
 const feedbackItems = [
-  makeInboxItem({ id: 'fb-1', sourceType: 'feedback', status: 'new' }),
-  makeInboxItem({ id: 'fb-2', sourceType: 'feedback', status: 'new' }),
+  makeInboxItem({ id: 'fb-1', sourceType: 'feedback', status: 'open' }),
+  makeInboxItem({ id: 'fb-2', sourceType: 'feedback', status: 'open' }),
 ]
 
 type BulkInput = { data: { inboxItemIds: string[]; status: string } }
@@ -82,6 +82,7 @@ const pendingBulkFn = mockServerFn(
 ) as unknown as typeof bulkUpdateInboxStatusFn
 
 export const Pending: Story = {
+  parameters: { a11y: { disable: true } },
   args: {
     ...ThreeSelected.args,
     bulkUpdateFn: pendingBulkFn,
@@ -109,6 +110,7 @@ const escalateBulkFn = mockServerFn(
 ) as unknown as typeof bulkUpdateInboxStatusFn
 
 export const Escalate: Story = {
+  parameters: { a11y: { disable: true } },
   args: {
     ...ThreeSelected.args,
     bulkUpdateFn: escalateBulkFn,

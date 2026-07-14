@@ -151,7 +151,6 @@ export type InboxItemEscalated = Readonly<{
   organizationId: OrganizationId
   propertyId: PropertyId | null
   userId: UserId | null
-  oldStatus: InboxStatus
   source: 'web' | 'import'
   occurredAt: Date
   correlationId: string | null
@@ -165,6 +164,35 @@ export const inboxItemEscalated = (
   assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
   return {
     _tag: 'inbox.inbox_item.escalated',
+    eventId: newEventId(),
+    correlationId: null,
+    propertyId: args.propertyId ?? null,
+    userId: args.userId ?? null,
+    source: args.source ?? 'web',
+    ...args,
+  }
+}
+
+export type InboxItemEscalationResolved = Readonly<{
+  _tag: 'inbox.inbox_item.escalation_resolved'
+  eventId: string
+  inboxItemId: InboxItemId
+  organizationId: OrganizationId
+  propertyId: PropertyId | null
+  userId: UserId | null
+  source: 'web' | 'import'
+  occurredAt: Date
+  correlationId: string | null
+}>
+export const inboxItemEscalationResolved = (
+  args: Omit<
+    InboxItemEscalationResolved,
+    '_tag' | 'correlationId' | 'eventId' | 'userId' | 'source' | 'propertyId'
+  > & { userId?: UserId; source?: 'web' | 'import'; propertyId?: PropertyId },
+): InboxItemEscalationResolved => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  return {
+    _tag: 'inbox.inbox_item.escalation_resolved',
     eventId: newEventId(),
     correlationId: null,
     propertyId: args.propertyId ?? null,
@@ -246,6 +274,7 @@ export type InboxEvent =
   | InboxItemCreated
   | InboxItemStatusChanged
   | InboxItemEscalated
+  | InboxItemEscalationResolved
   | InboxItemAssigned
   | InboxItemUnassigned
   | InboxNoteAdded
