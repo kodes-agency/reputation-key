@@ -46,6 +46,7 @@ export type LeaderboardContextApi = Readonly<{
 export type BuildLeaderboardContextDeps = Readonly<{
   db: Database
   events: EventBus
+  outboxRepo?: import('#/shared/outbox/infrastructure/outbox-repository').OutboxRepository
   clock: Clock
 }>
 

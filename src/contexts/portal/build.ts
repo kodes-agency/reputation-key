@@ -42,6 +42,7 @@ import type { Queue } from 'bullmq'
 type PortalContextDeps = Readonly<{
   db: Database
   events: EventBus
+  outboxRepo?: import('#/shared/outbox/infrastructure/outbox-repository').OutboxRepository
   clock: () => Date
   propertyApi: PropertyPublicApi
   staffPublicApi: StaffPublicApi

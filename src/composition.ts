@@ -183,6 +183,12 @@ export function createContainer(options?: {
   // Identity port (adapter)
   const identityPort = options?.identityPort ?? createBetterAuthIdentityAdapter(db)
 
+  // PRE17A A4: Create outbox repository and register event schemas.
+  // The outbox records domain events durably. Event schemas are registered
+  // once at startup so the relay can validate payloads before publishing.
+  const outboxRepo = createOutboxRepository(db)
+  registerAllEventSchemas()
+
   // ── Context builds (dependency order) ──────────────────────────────
   const staffRepo = createStaffAssignmentRepository(db)
   const staff = buildStaffContext({
@@ -200,12 +206,14 @@ export function createContainer(options?: {
         portal.publicApi.portal.getPortalInfo(orgId, portalId),
     },
     events: eventBus,
+    outboxRepo,
     clock,
   })
 
   const identity = buildIdentityContext({
     identityPort,
     events: eventBus,
+    outboxRepo,
     clock,
     signUp: identityPort.signUp,
     createOrg,
@@ -229,6 +237,7 @@ export function createContainer(options?: {
   const property = buildPropertyContext({
     repo: createPropertyRepository(db),
     events: eventBus,
+    outboxRepo,
     clock,
     staffPublicApi: staff.publicApi,
   })
@@ -236,6 +245,7 @@ export function createContainer(options?: {
   const team = buildTeamContext({
     db,
     events: eventBus,
+    outboxRepo,
     clock,
     propertyApi: property.publicApi,
     staffApi: staff.publicApi,
@@ -244,6 +254,7 @@ export function createContainer(options?: {
   const portal = buildPortalContext({
     db,
     events: eventBus,
+    outboxRepo,
     clock,
     propertyApi: property.publicApi,
     staffPublicApi: staff.publicApi,
@@ -261,6 +272,7 @@ export function createContainer(options?: {
   const guest = buildGuestContext({
     db,
     events: eventBus,
+    outboxRepo,
     clock,
     linkResolver: portal.internal.repos.linkResolver,
     portalApi: portal.publicApi.portal,
@@ -279,6 +291,7 @@ export function createContainer(options?: {
   const integration = buildIntegrationContext({
     db,
     events: eventBus,
+    outboxRepo,
     clock,
     jobQueue: infra.jobQueue,
     propertyLookup,
@@ -298,6 +311,7 @@ export function createContainer(options?: {
   const review = buildReviewContext({
     db,
     events: eventBus,
+    outboxRepo,
     clock,
     staffPublicApi: staff.publicApi,
     googleReviewApi,
@@ -336,6 +350,7 @@ export function createContainer(options?: {
   const inbox = buildInboxContext({
     db,
     events: eventBus,
+    outboxRepo,
     clock,
     staffPublicApi: staff.publicApi,
     reviewLookup,
@@ -348,6 +363,7 @@ export function createContainer(options?: {
   const metricApi = buildMetricContext({
     db,
     events: eventBus,
+    outboxRepo,
     clock,
     findGroupForPortal: async (orgId, pid) => {
       const group = await portal.publicApi.portalGroup.findGroupForPortal(orgId, pid)
@@ -360,6 +376,7 @@ export function createContainer(options?: {
     db,
     metricApi: metricApi.publicApi,
     events: eventBus,
+    outboxRepo,
     clock,
     staffPublicApi: staff.publicApi,
     idGen: () => crypto.randomUUID(),
@@ -397,6 +414,7 @@ export function createContainer(options?: {
   const activity = buildActivityContext({
     db,
     events: eventBus,
+    outboxRepo,
     staffPublicApi: staff.publicApi,
     queue: infra.jobQueue,
     clock,
@@ -406,6 +424,7 @@ export function createContainer(options?: {
   const badge = buildBadgeContext({
     db,
     events: eventBus,
+    outboxRepo,
     clock,
     metricApi: metricApi.publicApi,
   })
@@ -413,12 +432,14 @@ export function createContainer(options?: {
   const leaderboard = buildLeaderboardContext({
     db,
     events: eventBus,
+    outboxRepo,
     clock,
   })
   // Goal context — buildGoalContext creates its own repo and cancelGoalFn internally.
   const notification = buildNotificationContext({
     db,
     events: eventBus,
+    outboxRepo,
     queue: infra.jobQueue,
     clock,
     logger,
@@ -439,6 +460,7 @@ export function createContainer(options?: {
   const createSystemStaffAssignment = createStaffAssignmentSystem({
     assignmentRepo: staffRepo,
     events: eventBus,
+    outboxRepo,
     idGen: () => crypto.randomUUID(),
     clock,
   })
@@ -459,12 +481,6 @@ export function createContainer(options?: {
       }
     }
   })
-  // PRE17A A4: Create outbox repository and register event schemas.
-  // The outbox records domain events durably. Event schemas are registered
-  // once at startup so the relay can validate payloads before publishing.
-  const outboxRepo = createOutboxRepository(db)
-  registerAllEventSchemas()
-
   return {
     db,
     logger,

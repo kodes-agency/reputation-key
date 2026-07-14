@@ -13,6 +13,7 @@ import { createDbInboxItemLookupAdapter } from './infrastructure/adapters/db-inb
 type BuildInput = Readonly<{
   db: Database
   events: EventBus
+  outboxRepo?: import('#/shared/outbox/infrastructure/outbox-repository').OutboxRepository
   staffPublicApi: StaffPublicApi
   queue: Queue | undefined
   clock: () => Date
