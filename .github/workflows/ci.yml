@@ -25,6 +25,15 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - uses: actions/checkout@v4
@@ -40,13 +49,16 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - name: Format check
+        run: pnpm format:check
+
       - name: Typecheck
         run: pnpm typecheck
 
       - name: Lint
         run: pnpm lint
 
-      - name: Push database schema
+      - name: Run migrations
         env:
           NODE_ENV: test
           DATABASE_URL: postgresql://test:test@localhost:5432/test
@@ -56,12 +68,13 @@ jobs:
           GOOGLE_CLIENT_SECRET: ci-placeholder-client-secret
           ENCRYPTION_KEY: aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd
           OAUTH_STATE_SECRET: aabbccddaabbccddaabbccddaabbccdd
-        run: echo "y" | pnpm db:push && echo "y" | pnpm auth:migrate
+        run: echo "y" | pnpm auth:migrate && pnpm db:migrate
 
       - name: Test
         env:
           NODE_ENV: test
           DATABASE_URL: postgresql://test:test@localhost:5432/test
+          REDIS_URL: redis://localhost:6379
           BETTER_AUTH_SECRET: test-secret-at-least-32-characters-long-for-ci
           BETTER_AUTH_URL: http://localhost:3000
           RESEND_API_KEY: re_ci_test_key_placeholder
@@ -70,6 +83,21 @@ jobs:
           ENCRYPTION_KEY: aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd
           OAUTH_STATE_SECRET: aabbccddaabbccddaabbccddaabbccdd
         run: pnpm test
+
+      - name: Web build
+        run: pnpm build
+        env:
+          NODE_ENV: production
+          DATABASE_URL: postgresql://test:test@localhost:5432/test
+          BETTER_AUTH_SECRET: test-secret-at-least-32-characters-long-for-ci
+          BETTER_AUTH_URL: http://localhost:3000
+          GOOGLE_CLIENT_ID: ci-placeholder-client-id
+          GOOGLE_CLIENT_SECRET: ci-placeholder-client-secret
+          ENCRYPTION_KEY: aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd
+          OAUTH_STATE_SECRET: aabbccddaabbccddaabbccddaabbccdd
+
+      - name: Worker build
+        run: pnpm build:worker
 
   storybook:
     runs-on: ubuntu-latest
@@ -161,7 +189,7 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Push database schema
+      - name: Run migrations
         env:
           NODE_ENV: test
           DATABASE_URL: postgresql://test:test@localhost:5432/test
@@ -171,7 +199,7 @@ jobs:
           GOOGLE_CLIENT_SECRET: ci-placeholder-client-secret
           ENCRYPTION_KEY: aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd
           OAUTH_STATE_SECRET: aabbccddaabbccddaabbccddaabbccdd
-        run: echo "y" | pnpm db:push && echo "y" | pnpm auth:migrate
+        run: echo "y" | pnpm auth:migrate && pnpm db:migrate
       - run: pnpm exec playwright install --with-deps chromium
       - name: Run e2e tests
         env:
