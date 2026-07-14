@@ -8,11 +8,11 @@
 
 ## Summary
 
-| Severity | Count |
-|----------|-------|
-| MAJOR | 2 |
-| MINOR | 4 |
-| NIT | 2 |
+| Severity  | Count |
+| --------- | ----- |
+| MAJOR     | 2     |
+| MINOR     | 4     |
+| NIT       | 2     |
 | **Total** | **8** |
 
 ---
@@ -22,6 +22,7 @@
 ### S3-1 MAJOR: 6 use cases missing `can()` permission check as first step
 
 **Files:**
+
 - `src/contexts/portal/application/use-cases/create-link.ts` — missing `portal.update` or equivalent
 - `src/contexts/portal/application/use-cases/create-link-category.ts` — missing permission check
 - `src/contexts/portal/application/use-cases/finalize-upload.ts` — missing `portal.update`
@@ -42,6 +43,7 @@ The team use cases use `staffApi.getAccessiblePropertyIds()` for property-scoped
 **CODE DOES:** These use cases skip the permission check, relying only on tenant isolation and property-scoped access control.
 
 **Fix direction:** Add `can(ctx.role, '<resource>.<action>')` as the first step in each use case:
+
 - `create-link.ts` → `can(ctx.role, 'portal.update')`
 - `create-link-category.ts` → `can(ctx.role, 'portal.update')`
 - `finalize-upload.ts` → `can(ctx.role, 'portal.update')`
@@ -58,12 +60,15 @@ The team use cases use `staffApi.getAccessiblePropertyIds()` for property-scoped
 **Tag:** [code-fix] or [doc-fix]
 
 **What:** The `Permission` type has:
+
 ```typescript
 | 'team.read' // Reserved for future use — team listing gated at use-case level
 ```
+
 But `team.read` IS included in the `statement` in `shared/auth/permissions.ts`, IS assigned to AccountAdmin and PropertyManager roles, and IS queryable via `can()`. The comment says it's "reserved for future use" but it's already implemented.
 
 The same applies to:
+
 - `'review.reply' // Reserved for future use — reply operations use reply.manage instead` — but it's in the statement
 - `'feedback.read' // Reserved for future use — guest/feedback context not yet gated`
 - `'feedback.respond' // Reserved for future use`
@@ -124,9 +129,11 @@ The same applies to:
 **Tag:** [code-fix]
 
 **What:**
+
 ```typescript
 | 'review.reply' // Reserved for future use — reply operations use reply.manage instead
 ```
+
 If `reply.manage` supersedes `review.reply`, then `review.reply` is dead code. It's in the statement, in the `owner` and `admin` roles, and in the Permission type. If it's never checked anywhere, it should be removed.
 
 **Fix direction:** Check if `review.reply` is ever used in a `can()` call. If not, remove it from the statement, roles, and Permission type. If `review.read` covers viewing reviews and `reply.manage` covers reply CRUD, there's no gap.
@@ -142,6 +149,7 @@ If `reply.manage` supersedes `review.reply`, then `review.reply` is dead code. I
 **Tag:** [code-fix]
 
 **What:** Multiple `Permission` type entries have stale/confusing comments:
+
 - `'organization.delete'` — "Reserved for future use — org deletion flow not yet implemented" (legitimate)
 - `'review.reply'` — "reply operations use reply.manage instead" (confusing — why keep it?)
 - `'feedback.read'` / `'feedback.respond'` — "guest/feedback context not yet gated" (should these exist?)

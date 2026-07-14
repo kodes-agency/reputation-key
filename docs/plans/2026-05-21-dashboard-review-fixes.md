@@ -17,6 +17,7 @@
 **Objective:** Replace `interface` with `type ... = Readonly<{...}>` matching codebase convention.
 
 **Files:**
+
 - Modify: `src/contexts/dashboard/application/ports/dashboard.repository.ts`
 
 **Step 1: Replace the interface declaration**
@@ -53,6 +54,7 @@ git commit -m "refactor(dashboard): use Readonly type alias for port (C2)"
 **Objective:** Delete unused types from `domain/types.ts`.
 
 **Files:**
+
 - Modify: `src/contexts/dashboard/domain/types.ts`
 
 **Step 1: Remove lines 6–19**
@@ -83,6 +85,7 @@ git commit -m "refactor(dashboard): remove unused DashboardQueryInput and Dashbo
 **Objective:** Replace anonymous inline input objects with named types, matching inbox port convention.
 
 **Files:**
+
 - Modify: `src/contexts/dashboard/application/ports/dashboard.repository.ts`
 
 **Step 1: Add named input types above the `DashboardRepository` type**
@@ -161,11 +164,13 @@ git commit -m "refactor(dashboard): extract named input types for port methods (
 **Objective:** Replace underscore-separated keys with dot-separated keys matching the canonical `MetricKey` type in `src/contexts/metric/domain/types.ts`.
 
 **Files:**
+
 - Modify: `src/contexts/dashboard/infrastructure/repositories/dashboard.repository.ts`
 
 **Step 1: Fix getKPIs metric keys (lines 143–146)**
 
 Replace:
+
 ```ts
 const curScans = curMetrics.get('portal_scan') ?? 0
 const priorScans = priorMetricsMap.get('portal_scan') ?? 0
@@ -174,6 +179,7 @@ const priorFeedback = priorMetricsMap.get('feedback_submitted') ?? 0
 ```
 
 With:
+
 ```ts
 const curScans = curMetrics.get('portal.scan') ?? 0
 const priorScans = priorMetricsMap.get('portal.scan') ?? 0
@@ -184,6 +190,7 @@ const priorFeedback = priorMetricsMap.get('portal.feedback') ?? 0
 **Step 2: Fix getEngagementFunnel metric keys (lines 266–268)**
 
 Replace:
+
 ```ts
 scans: map.get('portal_scan') ?? 0,
 ratings: map.get('feedback_submitted') ?? 0,
@@ -191,6 +198,7 @@ reviewLinkClicks: map.get('review_link_click') ?? 0,
 ```
 
 With:
+
 ```ts
 scans: map.get('portal.scan') ?? 0,
 ratings: map.get('portal.feedback') ?? 0,
@@ -216,11 +224,13 @@ git commit -m "fix(dashboard): use canonical dot-separated metric keys in repo (
 **Objective:** Update test seed data to use canonical dot-separated keys.
 
 **Files:**
+
 - Modify: `src/contexts/dashboard/infrastructure/repositories/dashboard.repository.test.ts`
 
 **Step 1: Replace all test metric key strings**
 
 Replace every occurrence of:
+
 - `'portal_scan'` → `'portal.scan'`
 - `'feedback_submitted'` → `'portal.feedback'`
 - `'review_link_click'` → `'portal.review_link_click'`
@@ -249,6 +259,7 @@ git commit -m "fix(dashboard): use canonical dot-separated metric keys in tests 
 **Objective:** This is a prerequisite for M1 (date range filtering). For now, just add a comment explaining the intentional omission of date filtering, since `getRecentReviews` is designed to always return the last N reviews regardless of time range. Then skip — M1 is a deliberate design choice (last 5 reviews, always), not a bug.
 
 **Files:**
+
 - Modify: `src/contexts/dashboard/infrastructure/repositories/dashboard.repository.ts`
 
 **Step 1: Add clarifying comment above the WHERE clause**
@@ -278,6 +289,7 @@ git commit -m "docs(dashboard): clarify getRecentReviews has no date filter by d
 **Objective:** Replace JS-side average with SQL AVG, fetching a single aggregate row instead of N rows.
 
 **Files:**
+
 - Modify: `src/contexts/dashboard/infrastructure/repositories/dashboard.repository.ts`
 
 **Step 1: Rewrite the publishedReplies query**
@@ -293,7 +305,9 @@ const [reviewCountRow, replyAgg] = await Promise.all([
   db
     .select({
       repliedCount: count(),
-      avgHours: avg(sql<number>`EXTRACT(EPOCH FROM (replies.published_at - reviews.reviewed_at)) / 3600`),
+      avgHours: avg(
+        sql<number>`EXTRACT(EPOCH FROM (replies.published_at - reviews.reviewed_at)) / 3600`,
+      ),
     })
     .from(replies)
     .innerJoin(reviews, eq(replies.reviewId, reviews.id))
@@ -313,24 +327,29 @@ const [reviewCountRow, replyAgg] = await Promise.all([
 **Step 2: Rewrite the computation**
 
 Replace:
+
 ```ts
 const totalReviews = Number(reviewCountRow[0]?.count ?? 0)
 const repliedCount = publishedReplies.length
 const replyRate = totalReviews > 0 ? (repliedCount / totalReviews) * 100 : 0
 const avgReplyHours =
   repliedCount > 0
-    ? Math.round(publishedReplies.reduce((sum, r) => sum + Number(r.avgHours), 0) / repliedCount)
+    ? Math.round(
+        publishedReplies.reduce((sum, r) => sum + Number(r.avgHours), 0) / repliedCount,
+      )
     : null
 
 return { replyRate: Math.round(replyRate * 100) / 100, avgReplyHours }
 ```
 
 With:
+
 ```ts
 const totalReviews = Number(reviewCountRow[0]?.count ?? 0)
 const repliedCount = Number(replyAgg[0]?.repliedCount ?? 0)
 const replyRate = totalReviews > 0 ? (repliedCount / totalReviews) * 100 : 0
-const avgReplyHours = repliedCount > 0 ? Math.round(Number(replyAgg[0]?.avgHours ?? 0)) : null
+const avgReplyHours =
+  repliedCount > 0 ? Math.round(Number(replyAgg[0]?.avgHours ?? 0)) : null
 
 return { replyRate: Math.round(replyRate * 100) / 100, avgReplyHours }
 ```
@@ -356,6 +375,7 @@ git commit -m "fix(dashboard): compute avg reply hours in SQL instead of JS (M2)
 **Objective:** Add `propertyId` filter to engagement funnel query for consistency with all other metric queries.
 
 **Files:**
+
 - Modify: `src/contexts/dashboard/application/ports/dashboard.repository.ts` (port type)
 - Modify: `src/contexts/dashboard/infrastructure/repositories/dashboard.repository.ts` (implementation)
 - Modify: `src/contexts/dashboard/infrastructure/repositories/dashboard.repository.test.ts` (test)
@@ -364,6 +384,7 @@ git commit -m "fix(dashboard): compute avg reply hours in SQL instead of JS (M2)
 **Step 1: Update the port type `DashboardPortalQuery`**
 
 Add `propertyId`:
+
 ```ts
 export type DashboardPortalQuery = Readonly<{
   organizationId: OrganizationId
@@ -377,6 +398,7 @@ export type DashboardPortalQuery = Readonly<{
 **Step 2: Update the implementation**
 
 In `getEngagementFunnel`, destructure `propertyId` and add it to the WHERE:
+
 ```ts
 async getEngagementFunnel(input): Promise<EngagementFunnel> {
   const { organizationId, propertyId, portalId, startDate, endDate } = input
@@ -402,15 +424,23 @@ async getEngagementFunnel(input): Promise<EngagementFunnel> {
 **Step 3: Update the use case call site**
 
 In `get-dashboard-data.ts`, pass `propertyId` to the engagement funnel call:
+
 ```ts
 const engagementFunnel = portalId
-  ? await repo.getEngagementFunnel({ organizationId, propertyId, portalId, startDate, endDate })
+  ? await repo.getEngagementFunnel({
+      organizationId,
+      propertyId,
+      portalId,
+      startDate,
+      endDate,
+    })
   : null
 ```
 
 **Step 4: Update the test**
 
 In the `getEngagementFunnel` test, add `propertyId: PROP_A` to the call:
+
 ```ts
 const result = await repo.getEngagementFunnel({
   organizationId: ORG_A,
@@ -440,6 +470,7 @@ git commit -m "fix(dashboard): add propertyId filter to getEngagementFunnel (M3)
 **Objective:** Return `null` for avgRating when there are zero reviews, not `0`.
 
 **Files:**
+
 - Modify: `src/contexts/dashboard/domain/types.ts` (KPIValue.value type)
 - Modify: `src/contexts/dashboard/infrastructure/repositories/dashboard.repository.ts` (implementation)
 - Modify: `src/contexts/dashboard/infrastructure/repositories/dashboard.repository.test.ts` (test assertion)
@@ -483,18 +514,21 @@ git commit -m "docs(dashboard): clarify KPIValue.value is 0 when no data exists 
 **Objective:** The dashboard use case accepts `userId` and `role` but does nothing with them. Auth for the dashboard is handled at the route/loader level (property ownership check), not in the use case. Remove the unused params and fix the lying comment.
 
 **Files:**
+
 - Modify: `src/contexts/dashboard/application/use-cases/get-dashboard-data.ts`
 - Modify: `src/contexts/dashboard/application/use-cases/get-dashboard-data.test.ts`
 
 **Step 1: Remove unused imports and params from use case**
 
 In `get-dashboard-data.ts`:
+
 - Remove `import type { UserId } from '#/shared/domain/ids'`
 - Remove `import type { Role } from '#/shared/domain/roles'`
 - Remove `userId` and `role` from `GetDashboardDataInput`
 - Change the comment from "Authorizes via auth context (must be PropertyManager or AccountAdmin)." to "Authorization is enforced at the router/loader level (property ownership). No auth logic here."
 
 Final type:
+
 ```ts
 export type GetDashboardDataInput = Readonly<{
   organizationId: OrganizationId
@@ -508,6 +542,7 @@ export type GetDashboardDataInput = Readonly<{
 **Step 2: Update test — remove userId and role from test calls**
 
 In `get-dashboard-data.test.ts`:
+
 - Remove `import type { Role } from '#/shared/domain/roles'`
 - Remove `const USER_A = userId('user-test')` and `const ROLE: Role = 'PropertyManager'`
 - Remove `userId` and `role` from all `getDashboard()` calls
@@ -533,6 +568,7 @@ git commit -m "fix(dashboard): remove unused auth params from use case, fix misl
 **Objective:** Replace `Partial<Record<string, unknown>>` with a typed approach following the existing `createInMemoryInboxRepo` pattern (expose mutable data, no overrides).
 
 **Files:**
+
 - Modify: `src/shared/testing/in-memory-dashboard-repo.ts`
 - Modify: `src/contexts/dashboard/application/use-cases/get-dashboard-data.test.ts`
 
@@ -604,16 +640,24 @@ export function createInMemoryDashboardRepository(): DashboardRepository & {
     },
     async getEngagementFunnel() {
       calls.push('getEngagementFunnel')
-      return state.engagementFunnelOverride ?? {
-        scans: 100,
-        ratings: 40,
-        reviewLinkClicks: 10,
-      }
+      return (
+        state.engagementFunnelOverride ?? {
+          scans: 100,
+          ratings: 40,
+          reviewLinkClicks: 10,
+        }
+      )
     },
     async getRecentReviews() {
       calls.push('getRecentReviews')
       return [
-        { id: 'r1', rating: 5, snippet: 'Great!', reviewedAt: new Date(), replyStatus: 'none' as const },
+        {
+          id: 'r1',
+          rating: 5,
+          snippet: 'Great!',
+          reviewedAt: new Date(),
+          replyStatus: 'none' as const,
+        },
       ]
     },
   }
@@ -623,6 +667,7 @@ export function createInMemoryDashboardRepository(): DashboardRepository & {
 ```
 
 Key changes:
+
 - No `Partial<Record<string, unknown>>` — typed overrides only for what tests need.
 - `as const` on `'none'` to narrow the literal type.
 - State object instead of closure — cleaner.
@@ -648,11 +693,13 @@ git commit -m "fix(dashboard): remove type-unsafe overrides from in-memory repo 
 **Objective:** Replace `toBeDefined()` with specific value assertions.
 
 **Files:**
+
 - Modify: `src/contexts/dashboard/application/use-cases/get-dashboard-data.test.ts`
 
 **Step 1: Replace vague assertions in "composes all dashboard sections" test**
 
 Replace:
+
 ```ts
 // All sections present
 expect(result.kpis).toBeDefined()
@@ -664,6 +711,7 @@ expect(result.recentReviews).toBeDefined()
 ```
 
 With:
+
 ```ts
 // All sections present with correct shape
 expect(result.kpis.reviews.value).toBe(10)
@@ -693,16 +741,19 @@ git commit -m "test(dashboard): use specific assertions instead of toBeDefined (
 **Objective:** Rename test to reflect what it actually tests.
 
 **Files:**
+
 - Modify: `src/contexts/dashboard/infrastructure/repositories/dashboard.repository.test.ts`
 
 **Step 1: Rename the test**
 
 Change:
+
 ```ts
 it('returns null trend when prior period has zero value', async () => {
 ```
 
 To:
+
 ```ts
 it('returns zero-prior KPIs with null trends when no data in prior period', async () => {
 ```
@@ -726,16 +777,19 @@ git commit -m "test(dashboard): rename test to match actual scope (m6)"
 ### Task 14: Fix stale comment in repo header (m1)
 
 **Files:**
+
 - Modify: `src/contexts/dashboard/infrastructure/repositories/dashboard.repository.ts`
 
 **Step 1: Fix header comment**
 
 Change line 2 from:
+
 ```ts
 // Aggregation queries against metric_readings, reviews, replies, inbox_items.
 ```
 
 To:
+
 ```ts
 // Aggregation queries against reviews, replies, metric_readings.
 ```
@@ -752,16 +806,19 @@ git commit -m "docs(dashboard): remove stale inbox_items from repo header (m1)"
 ### Task 15: Document ReplyStatus mapping (M5)
 
 **Files:**
+
 - Modify: `src/contexts/dashboard/domain/types.ts`
 
 **Step 1: Add JSDoc to ReplyStatus**
 
 Replace:
+
 ```ts
 export type ReplyStatus = 'none' | 'draft' | 'published'
 ```
 
 With:
+
 ```ts
 /**
  * Simplified reply status for the dashboard.
@@ -786,11 +843,13 @@ git commit -m "docs(dashboard): document ReplyStatus mapping from DB enum (M5)"
 ### Task 16: Extract MS_PER_DAY constant (M7)
 
 **Files:**
+
 - Modify: `src/contexts/dashboard/infrastructure/repositories/dashboard.repository.test.ts`
 
 **Step 1: Add constant at top of file**
 
 After the imports, add:
+
 ```ts
 const MS_PER_DAY = 86_400_000
 ```
@@ -842,22 +901,22 @@ Expected: 0 matches (removed in Task 10).
 
 ## Summary of Fixes
 
-| Task | Issue(s) | Severity |
-|------|----------|----------|
-| 1 | C2 — port uses `interface` not `type ... = Readonly<{...}>` | CRITICAL |
-| 2 | C4 — dead types `DashboardQueryInput`, `DashboardDateRange` | CRITICAL |
-| 3 | C3 — port uses inline anonymous input objects | CRITICAL |
-| 4 | C1 — metric keys use underscores not dots (repo) | CRITICAL |
-| 5 | C1 — metric keys use underscores not dots (tests) | CRITICAL |
-| 6 | M1, M4 — getRecentReviews not using helper (document by-design) | MAJOR |
-| 7 | M2, m8 — getReplyPerformance computes avg in JS, variable shadowing | MAJOR |
-| 8 | M3 — getEngagementFunnel missing propertyId filter | MAJOR |
-| 9 | M8 — avgRating returns 0 when no reviews (document contract) | MAJOR |
-| 10 | C5, M9 — use case has unused auth params, lying comment | CRITICAL |
-| 11 | M6 — in-memory repo uses type-unsafe overrides | MAJOR |
-| 12 | m3 — use case test uses toBeDefined() | MINOR |
-| 13 | m6 — test name too narrow | MINOR |
-| 14 | m1 — stale comment mentioning inbox_items | MINOR |
-| 15 | M5 — ReplyStatus mapping undocumented | MAJOR |
-| 16 | M7 — magic number 86400000 | MAJOR |
-| 17 | — | verification |
+| Task | Issue(s)                                                            | Severity     |
+| ---- | ------------------------------------------------------------------- | ------------ |
+| 1    | C2 — port uses `interface` not `type ... = Readonly<{...}>`         | CRITICAL     |
+| 2    | C4 — dead types `DashboardQueryInput`, `DashboardDateRange`         | CRITICAL     |
+| 3    | C3 — port uses inline anonymous input objects                       | CRITICAL     |
+| 4    | C1 — metric keys use underscores not dots (repo)                    | CRITICAL     |
+| 5    | C1 — metric keys use underscores not dots (tests)                   | CRITICAL     |
+| 6    | M1, M4 — getRecentReviews not using helper (document by-design)     | MAJOR        |
+| 7    | M2, m8 — getReplyPerformance computes avg in JS, variable shadowing | MAJOR        |
+| 8    | M3 — getEngagementFunnel missing propertyId filter                  | MAJOR        |
+| 9    | M8 — avgRating returns 0 when no reviews (document contract)        | MAJOR        |
+| 10   | C5, M9 — use case has unused auth params, lying comment             | CRITICAL     |
+| 11   | M6 — in-memory repo uses type-unsafe overrides                      | MAJOR        |
+| 12   | m3 — use case test uses toBeDefined()                               | MINOR        |
+| 13   | m6 — test name too narrow                                           | MINOR        |
+| 14   | m1 — stale comment mentioning inbox_items                           | MINOR        |
+| 15   | M5 — ReplyStatus mapping undocumented                               | MAJOR        |
+| 16   | M7 — magic number 86400000                                          | MAJOR        |
+| 17   | —                                                                   | verification |

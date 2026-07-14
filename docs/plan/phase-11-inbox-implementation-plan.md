@@ -32,6 +32,7 @@ Tasks are ordered by dependency. Each task is self-contained — the subagent re
 ### Task 1: Schema — inbox_items and inbox_notes tables
 
 **Files:**
+
 - `src/shared/db/schema/inbox.schema.ts` (new)
 - `src/shared/db/schema/index.ts` (modify — add export)
 - `src/shared/domain/ids.ts` (modify — add `InboxItemId`, `InboxNoteId` branded types + constructors)
@@ -39,6 +40,7 @@ Tasks are ordered by dependency. Each task is self-contained — the subagent re
 **Spec:**
 
 `inbox_items` table:
+
 ```
 id               uuid PK defaultRandom
 organizationId   varchar(255) not null
@@ -60,12 +62,14 @@ updatedAt        updatedAtColumn()
 ```
 
 Indexes:
+
 - `inbox_items_org_status_idx` on `(organizationId, status)`
 - `inbox_items_org_source_date_idx` on `(organizationId, sourceDate DESC, id)`
 - `inbox_items_property_idx` on `(propertyId)`
 - `inbox_items_source_unique` UNIQUE on `(sourceType, sourceId, organizationId)`
 
 `inbox_notes` table:
+
 ```
 id               uuid PK defaultRandom
 inboxItemId      uuid FK → inbox_items.id ON DELETE CASCADE not null
@@ -84,6 +88,7 @@ Index: `inbox_notes_item_idx` on `(inboxItemId)`
 ### Task 2: Domain types + errors
 
 **Files:**
+
 - `src/contexts/inbox/domain/types.ts` (new)
 - `src/contexts/inbox/domain/errors.ts` (new)
 - `src/contexts/inbox/CONTEXT.md` (already exists — no changes)
@@ -91,6 +96,7 @@ Index: `inbox_notes_item_idx` on `(inboxItemId)`
 **Spec:**
 
 `types.ts`:
+
 - `InboxStatus` = `'new' | 'read' | 'addressed' | 'escalated' | 'archived'`
 - `SourceType` = `'review' | 'feedback'`
 - `InboxItem` — readonly type with branded IDs, all fields from schema spec
@@ -98,6 +104,7 @@ Index: `inbox_notes_item_idx` on `(inboxItemId)`
 - `InboxItemDetail` = `InboxItem` + optional joined source data (review text, reviewer name, feedback comment)
 
 `errors.ts`:
+
 - Tagged error shape `{ _tag: 'InboxError', code, message, context? }`
 - Closed error code union: `'invalid_transition' | 'forbidden' | 'not_found' | 'assignment_not_allowed' | 'already_exists' | 'bulk_partial_failure'`
 - `inboxError(code, message, context?)` constructor
@@ -111,6 +118,7 @@ Index: `inbox_notes_item_idx` on `(inboxItemId)`
 ### Task 3: Domain rules + tests (status transition graph)
 
 **Files:**
+
 - `src/contexts/inbox/domain/rules.ts` (new)
 - `src/contexts/inbox/domain/rules.test.ts` (new)
 
@@ -138,6 +146,7 @@ Index: `inbox_notes_item_idx` on `(inboxItemId)`
 ### Task 4: Domain constructors + events
 
 **Files:**
+
 - `src/contexts/inbox/domain/constructors.ts` (new)
 - `src/contexts/inbox/domain/constructors.test.ts` (new)
 - `src/contexts/inbox/domain/events.ts` (new)
@@ -147,10 +156,12 @@ Index: `inbox_notes_item_idx` on `(inboxItemId)`
 **Spec:**
 
 `constructors.ts`:
+
 - `createInboxItem(input)` → `Result<InboxItem, InboxError>` — validates required fields, generates id/timestamps
 - `createInboxNote(input)` → `Result<InboxNote, InboxError>` — validates text non-empty
 
 `events.ts`:
+
 - `InboxItemCreated` = `{ _tag: 'inbox.item.created', inboxItemId, organizationId, propertyId, sourceType, sourceId, occurredAt }`
 - `InboxStatusChanged` = `{ _tag: 'inbox.status.changed', inboxItemId, organizationId, oldStatus, newStatus, occurredAt }`
 - `InboxItemAssigned` = `{ _tag: 'inbox.item.assigned', inboxItemId, organizationId, assignedTo, occurredAt }`
@@ -158,6 +169,7 @@ Index: `inbox_notes_item_idx` on `(inboxItemId)`
 - `InboxEvent` union
 
 `public-api.ts`:
+
 - Re-exports `InboxItem`, `InboxNote`, `InboxStatus`, `SourceType` types for component consumption (ESLint boundary compliance)
 
 **Tests:** Constructor happy paths, empty text rejection, missing fields. Event structure validation.
@@ -167,6 +179,7 @@ Index: `inbox_notes_item_idx` on `(inboxItemId)`
 ### Task 5: Application ports + DTOs
 
 **Files:**
+
 - `src/contexts/inbox/application/ports/inbox.repository.ts` (new)
 - `src/contexts/inbox/application/ports/inbox-note.repository.ts` (new)
 - `src/contexts/inbox/application/ports/unread-counter.port.ts` (new)
@@ -175,6 +188,7 @@ Index: `inbox_notes_item_idx` on `(inboxItemId)`
 **Spec:**
 
 `inbox.repository.ts` — TypeScript interface:
+
 - `findById(id, orgId): Promise<InboxItem | null>`
 - `findBySource(sourceType, sourceId, orgId): Promise<InboxItem | null>`
 - `findFilteredPaginated(filters, orgId, cursor?, limit?): Promise<{ items: ReadonlyArray<InboxItem>, nextCursor: Cursor | null }>`
@@ -186,10 +200,12 @@ Index: `inbox_notes_item_idx` on `(inboxItemId)`
 - `syncDenormalizedFields(id, orgId, fields): Promise<void>`
 
 `inbox-note.repository.ts`:
+
 - `findByInboxItemId(inboxItemId, orgId): Promise<ReadonlyArray<InboxNote>>`
 - `create(note): Promise<InboxNote>`
 
 `unread-counter.port.ts`:
+
 - `getCount(orgId, userId): Promise<number>`
 - `setCount(orgId, userId, count): Promise<void>`
 - `increment(orgId, userId): Promise<void>`
@@ -197,6 +213,7 @@ Index: `inbox_notes_item_idx` on `(inboxItemId)`
 - `invalidate(orgId, userId): Promise<void>`
 
 `inbox.dto.ts` — Zod schemas:
+
 - `getInboxItemsDto` — `{ propertyId?, status?, sourceType?, platform?, ratingMin?, ratingMax?, sourceDateFrom?, sourceDateTo?, cursor?, limit? }`
 - `updateStatusDto` — `{ inboxItemId, status }`
 - `bulkUpdateStatusDto` — `{ inboxItemIds: uuid[], status }`
@@ -208,6 +225,7 @@ Index: `inbox_notes_item_idx` on `(inboxItemId)`
 ### Task 6: Use cases (7 total) + tests
 
 **Files (all new):**
+
 - `src/contexts/inbox/application/use-cases/get-inbox-items.ts` + `.test.ts`
 - `src/contexts/inbox/application/use-cases/get-inbox-item-detail.ts` + `.test.ts`
 - `src/contexts/inbox/application/use-cases/update-inbox-status.ts` + `.test.ts`
@@ -247,6 +265,7 @@ Tests use in-memory repos + capturing event bus. Every use case tested for: auth
 ### Task 7: Infrastructure — repositories + mappers + tests
 
 **Files (all new):**
+
 - `src/contexts/inbox/infrastructure/mappers/inbox.mapper.ts` + `.test.ts`
 - `src/contexts/inbox/infrastructure/mappers/inbox-note.mapper.ts` + `.test.ts`
 - `src/contexts/inbox/infrastructure/repositories/inbox.repository.ts` + `.test.ts`
@@ -258,6 +277,7 @@ Tests use in-memory repos + capturing event bus. Every use case tested for: auth
 Mappers: `toRow(domain)` / `fromRow(db)`. Round-trip tests. Branded ID handling with `as string` cast.
 
 `inbox.repository.ts` (Drizzle):
+
 - All port methods implemented
 - Every query includes `organizationId` filter (tenant isolation pitfall!)
 - `findFilteredPaginated` builds dynamic WHERE from DTO filters, ORDER BY `(sourceDate DESC, id)`, cursor-based with `WHERE (sourceDate, id) < (cursor.sourceDate, cursor.id)`
@@ -265,9 +285,11 @@ Mappers: `toRow(domain)` / `fromRow(db)`. Round-trip tests. Branded ID handling 
 - Upsert on `findBySource` uses `onConflictDoUpdate` target includes `organizationId`
 
 `inbox-note.repository.ts` (Drizzle):
+
 - Simple CRUD, `organizationId` on all queries
 
 Repository integration tests (real Postgres):
+
 - CRUD happy paths
 - **Tenant isolation test** (NON-NEGOTIABLE) — org A cannot see org B's items
 - Read-back verification after mutations
@@ -276,6 +298,7 @@ Repository integration tests (real Postgres):
 - `pool: 'forks', singleFork: true` in describe block
 
 `redis-unread-counter.ts`:
+
 - Key pattern: `inbox:unread:{organizationId}:{userId}`
 - `getCount`: GET → parse int, cache miss returns -1 (caller falls back to DB count)
 - `setCount`: SET with 1-hour TTL
@@ -287,6 +310,7 @@ Repository integration tests (real Postgres):
 ### Task 8: Infrastructure — event handlers
 
 **Files (all new):**
+
 - `src/contexts/inbox/infrastructure/event-handlers/handle-review-created.ts`
 - `src/contexts/inbox/infrastructure/event-handlers/handle-feedback-submitted.ts`
 - `src/contexts/inbox/infrastructure/event-handlers/handle-review-updated.ts`
@@ -294,6 +318,7 @@ Repository integration tests (real Postgres):
 **Spec:**
 
 Each handler:
+
 - Subscribes to the relevant domain event (`review.created`, `feedback.submitted`, `review.updated`)
 - Creates/updates `inbox_items` row with denormalized filter/sort fields
 - Idempotent — uses `(sourceType, sourceId, organizationId)` unique constraint with `onConflictDoUpdate`
@@ -301,16 +326,19 @@ Each handler:
 - Logs via `getLogger()`
 
 `handle-review-created`:
+
 - Extracts: propertyId, organizationId, platform, rating, reviewedAt (→ sourceDate), reviewerName + text (→ snippet first 200 chars)
 - Creates inbox item with `sourceType = 'review'`
 
 `handle-feedback-submitted`:
+
 - Extracts: propertyId, organizationId, comment (→ snippet)
 - Looks up linked rating value from `ratings` table (via ratingId on feedback)
 - `sourceType = 'feedback'`, `platform = null`, `sourceDate = feedback.createdAt`
 - Bare ratings (no feedback) do NOT trigger this handler
 
 `handle-review-updated`:
+
 - Syncs denormalized fields: rating, text (snippet), reviewedAt (sourceDate)
 - Uses `onConflictDoUpdate` on the unique source index
 
@@ -321,6 +349,7 @@ Each handler:
 ### Task 9: Build function + composition wiring
 
 **Files:**
+
 - `src/contexts/inbox/build.ts` (new)
 - `src/composition.ts` (modify — add inbox context)
 - `src/contexts/inbox/server/inbox.ts` (new — but just the server functions shell for now)
@@ -328,11 +357,13 @@ Each handler:
 **Spec:**
 
 `build.ts`:
+
 - Input: `{ db, events, clock, staffPublicApi, reviewRepo, guestInteractionRepo }`
 - Creates repos, adapters, use cases
 - Returns: `{ useCases: { ...all 7 }, inboxRepo, inboxNoteRepo, eventHandlers: { handleReviewCreated, handleFeedbackSubmitted, handleReviewUpdated } }`
 
 `composition.ts` changes:
+
 - Import `buildInboxContext`
 - Build after `review` and `guest` contexts (dependency on their repos)
 - Subscribe inbox event handlers to `review.created`, `feedback.submitted`, `review.updated`
@@ -343,6 +374,7 @@ Each handler:
 ### Task 10: Server functions
 
 **Files:**
+
 - `src/contexts/inbox/server/inbox.ts` (new — full implementation)
 
 **Spec:**
@@ -352,15 +384,19 @@ Each handler:
 ```typescript
 export const getInboxItems = createServerFn({ method: 'GET' })
   .validator(getInboxItemsDto)
-  .handler(tracedHandler(async ({ data }) => {
-    const ctx = await resolveTenantContext(request.headers)
-    const result = await getInboxItemsUseCase(deps)({ ...data }, ctx)
-    clearTenantCache()
-    return match(result)
-      .with({ _tag: 'Ok' }, ({ value }) => value)
-      .with({ _tag: 'Err' }, ({ error }) => { throw mapError(error) })
-      .exhaustive()
-  }))
+  .handler(
+    tracedHandler(async ({ data }) => {
+      const ctx = await resolveTenantContext(request.headers)
+      const result = await getInboxItemsUseCase(deps)({ ...data }, ctx)
+      clearTenantCache()
+      return match(result)
+        .with({ _tag: 'Ok' }, ({ value }) => value)
+        .with({ _tag: 'Err' }, ({ error }) => {
+          throw mapError(error)
+        })
+        .exhaustive()
+    }),
+  )
 ```
 
 All 7 functions: `getInboxItems`, `getInboxItemDetail`, `updateInboxStatus`, `bulkUpdateStatus`, `assignInboxItem`, `addInboxNote`, `getUnreadCount`.
@@ -372,6 +408,7 @@ Error mapping uses `throwContextError` exclusively (reputation-key convention). 
 ### Task 11: Frontend — routes + inbox layout
 
 **Files:**
+
 - `src/routes/_authenticated/inbox.tsx` (new — layout route)
 - `src/routes/_authenticated/inbox/index.tsx` (new — inbox page)
 - `src/components/features/inbox/index.ts` (new — barrel export)
@@ -379,12 +416,14 @@ Error mapping uses `throwContextError` exclusively (reputation-key convention). 
 **Spec:**
 
 `inbox.tsx` (layout route):
+
 - `beforeLoad`: auth check (standard authenticated pattern)
 - `loader`: loads initial inbox items (first page, no filters)
 - Returns `{ inboxItems, nextCursor }`
 - Component renders the email split layout: list on left, optional detail on right
 
 `inbox/index.tsx`:
+
 - Redirects to or renders the inbox page inline
 - Uses `useLoaderData` from parent route for initial data
 - Passes server fn hooks as props to components (convention)
@@ -394,6 +433,7 @@ Error mapping uses `throwContextError` exclusively (reputation-key convention). 
 ### Task 12: Frontend — list + filter + bulk actions
 
 **Files:**
+
 - `src/components/features/inbox/inbox-list.tsx` (new)
 - `src/components/features/inbox/inbox-item-row.tsx` (new)
 - `src/components/features/inbox/inbox-filter-bar.tsx` (new)
@@ -416,6 +456,7 @@ Error mapping uses `throwContextError` exclusively (reputation-key convention). 
 ### Task 13: Frontend — detail panel + notes thread
 
 **Files:**
+
 - `src/components/features/inbox/inbox-detail-panel.tsx` (new)
 - `src/components/features/inbox/inbox-note-thread.tsx` (new)
 - `src/components/features/inbox/inbox-unread-badge.tsx` (new)
@@ -433,6 +474,7 @@ Error mapping uses `throwContextError` exclusively (reputation-key convention). 
 ### Task 14: Sidebar integration + event handler wiring
 
 **Files:**
+
 - `src/components/layout/manager-sidebar.tsx` (modify — add inbox nav item with unread badge)
 - `src/composition.ts` (verify event handler subscriptions)
 - `src/bootstrap.ts` or worker entry (modify — register inbox event handlers if needed)

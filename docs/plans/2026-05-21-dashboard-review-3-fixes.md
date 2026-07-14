@@ -17,12 +17,16 @@
 **TDD:** Skip — logic fix, existing tests verify no regression.
 
 **Files:**
+
 - Modify: `src/contexts/dashboard/application/use-cases/get-dashboard-data.ts:22-28`
 
 **Step 1:** Change `priorEndDate` to 1ms before `startDate`:
 
 ```typescript
-function priorPeriod(start: Date, end: Date): { priorStartDate: Date; priorEndDate: Date } {
+function priorPeriod(
+  start: Date,
+  end: Date,
+): { priorStartDate: Date; priorEndDate: Date } {
   const duration = end.getTime() - start.getTime()
   return {
     priorStartDate: new Date(start.getTime() - duration),
@@ -45,6 +49,7 @@ Expected: 17 passed
 **TDD:** Skip — type refinement, no behavior change.
 
 **Files:**
+
 - Modify: `src/contexts/dashboard/server/dashboard.ts:15`
 - Modify: `src/contexts/dashboard/application/dto/dashboard.dto.ts` (no change needed, already exported)
 
@@ -70,6 +75,7 @@ Expected: 17 passed
 **TDD:** Skip — removing dead export.
 
 **Files:**
+
 - Modify: `src/contexts/dashboard/build.ts:14-16,28`
 
 **Step 1:** Remove `dashboardRepo` from type and return:
@@ -108,6 +114,7 @@ Expected: no errors
 **TDD:** Skip — dead code removal.
 
 **Files:**
+
 - Modify: `src/routes/_authenticated/properties/$propertyId/index.tsx:74`
 
 **Step 1:** Replace:
@@ -136,6 +143,7 @@ Expected: no errors
 **TDD:** Skip — text fix.
 
 **Files:**
+
 - Modify: `src/routes/_authenticated/properties/$propertyId/index.tsx:213`
 
 **Step 1:** Replace `No reviews in this period.` with `No reviews yet.`
@@ -151,6 +159,7 @@ Expected: no errors
 **TDD:** Skip — dead code removal.
 
 **Files:**
+
 - Modify: `src/routes/_authenticated/properties/$propertyId/index.tsx:149`
 
 **Step 1:** Replace `{ratingDistribution.length > 0 && (` with `{(`
@@ -166,6 +175,7 @@ Expected: no errors
 **TDD:** Skip — comment fix.
 
 **Files:**
+
 - Modify: `src/contexts/dashboard/domain/types.ts:39`
 
 **Step 1:** Replace:

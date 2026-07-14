@@ -2,10 +2,7 @@
 
 import { createErrorFactory } from '#/shared/domain/errors'
 
-export type DashboardErrorCode =
-  | 'forbidden'
-  | 'not_found'
-  | 'invalid_input'
+export type DashboardErrorCode = 'forbidden' | 'not_found' | 'invalid_input'
 
 export type DashboardError = Readonly<{
   _tag: 'DashboardError'

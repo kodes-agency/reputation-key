@@ -8,11 +8,11 @@
 
 ## Summary
 
-| Severity | Count |
-|----------|-------|
-| MAJOR | 2 |
-| MINOR | 3 |
-| NIT | 2 |
+| Severity  | Count |
+| --------- | ----- |
+| MAJOR     | 2     |
+| MINOR     | 3     |
+| NIT       | 2     |
 | **Total** | **7** |
 
 ---
@@ -26,6 +26,7 @@
 **Tag:** [doc-fix] (preferred) or [code-fix] (alternative)
 
 **What:** `src/contexts/CONTEXT.md:112` says:
+
 > **`clearTenantCache()`** — evict expired entries after each server function completes.
 
 Only **one** server file calls it: `src/contexts/portal/server/portal-groups.ts`. The other 14 server function files never call `clearTenantCache()`.
@@ -58,6 +59,7 @@ Only **one** server file calls it: `src/contexts/portal/server/portal-groups.ts`
 ### S1-3 MINOR: In-memory test fakes missing for 7 repository ports
 
 **Files:** Missing fakes for:
+
 - `inbox-note.repository.ts`
 - `portal-group.repository.ts`
 - `metric.repository.ts`
@@ -84,10 +86,12 @@ Only **one** server file calls it: `src/contexts/portal/server/portal-groups.ts`
 **Tag:** [code-fix]
 
 **What:**
+
 ```typescript
 // fallow-ignore-next-line unused-type
 export type AuthError = Readonly<{...}>
 ```
+
 An eslint suppression directive for a type that's exported but only used internally (`throwAuthError` uses the code type but `AuthError` itself is never consumed externally).
 
 **Why it matters:** ESLint directives are code smells. Either the type is needed (remove the suppression) or it's not (inline the type).
@@ -103,9 +107,11 @@ An eslint suppression directive for a type that's exported but only used interna
 **Tag:** [code-fix]
 
 **What:**
+
 ```typescript
 // import { sendVerificationEmail } from './emails' // Re-enable with email verification
 ```
+
 Commented-out import left in production code. Email verification is not yet implemented — this is a feature flag disguised as a code comment.
 
 **Why it matters:** If email verification is planned (Phase 19 — Notifications), it should be tracked as an issue, not a commented-out import. Commented-out code is slop.
@@ -137,10 +143,12 @@ Commented-out import left in production code. Email verification is not yet impl
 **Tag:** [code-fix]
 
 **What:**
+
 ```typescript
 // emits an event but before the handler completes, the event is lost. This is acceptable
 // for current use cases (logging, cache invalidation). For critical side effects
 ```
+
 Fragment comment about fire-and-forget semantics. The comment is incomplete (cuts off mid-sentence) and is embedded in the implementation rather than being a proper doc comment.
 
 **Fix direction:** Convert to a proper JSDoc on the `emit` method, or add to the file header. Complete the sentence.

@@ -60,7 +60,10 @@ export const createInMemoryGbpCacheRepo = (): InMemoryGbpCacheRepo => {
       if (!propertyId) return 0
       let count = 0
       for (const [key, entry] of store.entries()) {
-        if ((entry.propertyId as string) === propertyId && entry.organizationId === orgId) {
+        if (
+          (entry.propertyId as string) === propertyId &&
+          entry.organizationId === orgId
+        ) {
           store.delete(key)
           count++
         }

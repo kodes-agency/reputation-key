@@ -45,18 +45,18 @@ New `inbox` context owns: unified item projection, status workflow, assignment, 
 
 ## Key Architectural Decisions
 
-| # | Decision | Rationale |
-|---|----------|-----------|
-| 1 | `inbox_items` table with hybrid denormalization | Filter/sort columns (rating, sourceDate, sourceType, platform, propertyId) denormalized for indexed queries. Full detail (text, reviewer name, photos) fetched via JOIN on detail view. |
-| 2 | Status workflow: `new → read → addressed → archived` with `escalated` sidetrack | "addressed" is semantically honest for both reviews (replied to) and feedback (internally handled). Un-archive goes to `read`. Any state can escalate or archive. |
-| 3 | `inbox_notes` table (not a single text field) | Notes are audit-relevant. Multiple notes per item. Tracks who wrote what and when. |
-| 4 | Feedback items include joined rating value | Feedback inbox item denormalizes the linked rating (1-5) from the `ratings` table at creation time. Bare ratings without feedback comments do not create inbox items. |
-| 5 | Assignment: PM+ only, property-scoped | Staff cannot reassign. Assignee must have access to the item's property via `staff_assignments`. |
-| 6 | Forward-only cursor pagination on `(sourceDate DESC, id)` | Stable composite cursor across two source types. No backward pagination — inbox loads newest first. |
-| 7 | Inbox emits events: `inbox.item.created`, `inbox.status.changed`, `inbox.item.assigned` | Enables Redis unread badge invalidation. Enables Phase 19 notification subscriptions. Follows existing architecture pattern. |
-| 8 | No feedback category column in Phase 11 | Category is an Arc 7 (AI) feature. Add the nullable column when AI categorization is built. |
-| 9 | Creation triggers: `review.created`, `feedback.submitted` | Event handlers in `inbox/infrastructure/event-handlers/` create `inbox_items` rows. Denormalize filter/sort columns at creation time. |
-| 10 | Email split UI layout with chat-like thread in detail panel | List panel for triage speed and bulk actions. Detail panel shows item content + notes/replies in a vertical thread (newest at bottom, input at bottom). Existing `Sidebar` component reused. |
+| #   | Decision                                                                                | Rationale                                                                                                                                                                                    |
+| --- | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `inbox_items` table with hybrid denormalization                                         | Filter/sort columns (rating, sourceDate, sourceType, platform, propertyId) denormalized for indexed queries. Full detail (text, reviewer name, photos) fetched via JOIN on detail view.      |
+| 2   | Status workflow: `new → read → addressed → archived` with `escalated` sidetrack         | "addressed" is semantically honest for both reviews (replied to) and feedback (internally handled). Un-archive goes to `read`. Any state can escalate or archive.                            |
+| 3   | `inbox_notes` table (not a single text field)                                           | Notes are audit-relevant. Multiple notes per item. Tracks who wrote what and when.                                                                                                           |
+| 4   | Feedback items include joined rating value                                              | Feedback inbox item denormalizes the linked rating (1-5) from the `ratings` table at creation time. Bare ratings without feedback comments do not create inbox items.                        |
+| 5   | Assignment: PM+ only, property-scoped                                                   | Staff cannot reassign. Assignee must have access to the item's property via `staff_assignments`.                                                                                             |
+| 6   | Forward-only cursor pagination on `(sourceDate DESC, id)`                               | Stable composite cursor across two source types. No backward pagination — inbox loads newest first.                                                                                          |
+| 7   | Inbox emits events: `inbox.item.created`, `inbox.status.changed`, `inbox.item.assigned` | Enables Redis unread badge invalidation. Enables Phase 19 notification subscriptions. Follows existing architecture pattern.                                                                 |
+| 8   | No feedback category column in Phase 11                                                 | Category is an Arc 7 (AI) feature. Add the nullable column when AI categorization is built.                                                                                                  |
+| 9   | Creation triggers: `review.created`, `feedback.submitted`                               | Event handlers in `inbox/infrastructure/event-handlers/` create `inbox_items` rows. Denormalize filter/sort columns at creation time.                                                        |
+| 10  | Email split UI layout with chat-like thread in detail panel                             | List panel for triage speed and bulk actions. Detail panel shows item content + notes/replies in a vertical thread (newest at bottom, input at bottom). Existing `Sidebar` component reused. |
 
 ## Consequences
 

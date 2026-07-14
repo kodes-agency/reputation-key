@@ -20,17 +20,17 @@
 
 ## What Constitutes "Slop" in This Codebase
 
-| Category | Examples |
-|----------|----------|
-| **TODO/FIXME/HACK** | `// TODO:`, `// FIXME:`, `// HACK:`, `// BUG:` in production code |
-| **Commented-out code** | Blocks of old code left in comments |
-| **Console abuse** | `console.log`, `console.warn`, `console.error` in production paths (not tests/scripts) |
-| **`any` escape hatches** | `as any`, explicit `any` types, `@ts-ignore`, `@ts-expect-error` without justification |
-| **Duplicate code** | Identical logic copy-pasted across files instead of extracted |
-| **Dead/vestigial code** | Functions, exports, files, or columns imported nowhere |
-| **Orphan files** | Files that import nothing and are imported by nothing |
-| **License-less new files** | Files without the project license header (if applicable) |
-| **Magic strings/numbers** | Unnamed constants used inline where enums or config exist |
+| Category                   | Examples                                                                               |
+| -------------------------- | -------------------------------------------------------------------------------------- |
+| **TODO/FIXME/HACK**        | `// TODO:`, `// FIXME:`, `// HACK:`, `// BUG:` in production code                      |
+| **Commented-out code**     | Blocks of old code left in comments                                                    |
+| **Console abuse**          | `console.log`, `console.warn`, `console.error` in production paths (not tests/scripts) |
+| **`any` escape hatches**   | `as any`, explicit `any` types, `@ts-ignore`, `@ts-expect-error` without justification |
+| **Duplicate code**         | Identical logic copy-pasted across files instead of extracted                          |
+| **Dead/vestigial code**    | Functions, exports, files, or columns imported nowhere                                 |
+| **Orphan files**           | Files that import nothing and are imported by nothing                                  |
+| **License-less new files** | Files without the project license header (if applicable)                               |
+| **Magic strings/numbers**  | Unnamed constants used inline where enums or config exist                              |
 
 ## What Constitutes "Dead Code"
 
@@ -50,6 +50,7 @@ The codebase is reviewed in 10 sections. Each section is self-contained and can 
 **Scope:** Entire `src/` tree. Shared infrastructure. Config files.
 
 **What to do:**
+
 1. **Unused dependency audit** — `depcheck` or manual: which `package.json` dependencies are unused? Unused devDependencies?
 2. **Escape hatch census** — count and locate all `as any`, `any`, `@ts-ignore`, `@ts-expect-error`. Category: justified vs unjustified.
 3. **TODO/FIXME/HACK census** — locate all TODO/FIXME/HACK comments. Categorize: addressed, stale, orphaned (no context).
@@ -69,6 +70,7 @@ The codebase is reviewed in 10 sections. Each section is self-contained and can 
 **Scope:** `src/shared/` (all subdirectories: `domain/`, `events/`, `db/`, `auth/`, `jobs/`, `cache/`, `observability/`, `config/`, `testing/`, `hooks/`, `rate-limit/`)
 
 **What to do:**
+
 1. **Pattern compliance — verify every claim in `src/shared/CONTEXT.md`:**
    - `shared/` imports from itself + external libs only (rule: no business logic, no React except `usePermissions`)
    - `shared/events/events.ts` imports context event types (allowed exception); verify no other shared file imports from `contexts/`
@@ -95,6 +97,7 @@ The codebase is reviewed in 10 sections. Each section is self-contained and can 
 **Scope:** All `src/contexts/*/domain/` directories (12 contexts × domain layers)
 
 **What to do:**
+
 1. **Pattern compliance — verify every claim in `src/contexts/CONTEXT.md` (domain layer rules):**
    - No `async`, no I/O, no framework imports, no `throw` — only `Result<T, E>` returns
    - `readonly` on all domain fields, `ReadonlyArray<T>`
@@ -119,6 +122,7 @@ The codebase is reviewed in 10 sections. Each section is self-contained and can 
 **Scope:** All `src/contexts/*/application/` directories
 
 **What to do:**
+
 1. **Pattern compliance — verify `src/contexts/CONTEXT.md` (application layer rules):**
    - No DB queries, no HTTP code, no React
    - No domain rule duplicates (delegates to domain)
@@ -153,6 +157,7 @@ The codebase is reviewed in 10 sections. Each section is self-contained and can 
 **Scope:** All `src/contexts/*/infrastructure/` directories
 
 **What to do:**
+
 1. **Pattern compliance — `src/contexts/CONTEXT.md` (infrastructure rules):**
    - No business rules (delegates to domain/application)
    - No HTTP routing (server functions own that)
@@ -189,6 +194,7 @@ The codebase is reviewed in 10 sections. Each section is self-contained and can 
 **Scope:** All `src/contexts/*/server/` directories
 
 **What to do:**
+
 1. **Pattern compliance — verify every claim in `src/contexts/CONTEXT.md` (server function pattern):**
    - Every handler wrapped in `tracedHandler()`
    - Every handler calls `resolveTenantContext(headers)` (unless public/anonymous)
@@ -213,6 +219,7 @@ The codebase is reviewed in 10 sections. Each section is self-contained and can 
 **Scope:** `src/routes/` (all files)
 
 **What to do:**
+
 1. **Pattern compliance — verify every claim in `src/routes/CONTEXT.md`:**
    - **Loaders:** Is every route using `loader` for data fetching (not `useQuery` inside components)?
    - **`useMutationAction`:** Are mutations using `useMutationAction` (not raw `useServerFn`)?
@@ -237,6 +244,7 @@ The codebase is reviewed in 10 sections. Each section is self-contained and can 
 **Scope:** `src/components/` (all subdirectories)
 
 **What to do:**
+
 1. **Pattern compliance — verify every claim in `src/components/CONTEXT.md`:**
    - **Kebab-case filenames** — enforce via `scripts/check-filenames.mjs`
    - **Named exports only** — no `export default`
@@ -275,6 +283,7 @@ The codebase is reviewed in 10 sections. Each section is self-contained and can 
 **Scope:** Each bounded context reviewed holistically (all layers together). 12 sub-sections, one per context: identity, property, portal, guest, team, staff, integration, review, inbox, metric, goal, dashboard.
 
 **What to do (per context):**
+
 1. **CONTEXT.md vs Code Reconciliation:**
    - Does every entity listed in "Key Entities" exist in domain types?
    - Does every invariant listed actually have enforcement code (in constructors, rules, DB constraints)?
@@ -311,6 +320,7 @@ The codebase is reviewed in 10 sections. Each section is self-contained and can 
 **Scope:** Composition root, bootstrap, worker, config, build tooling, test setup.
 
 **What to do:**
+
 1. **Composition root (`src/composition.ts`, `src/bootstrap.ts`):**
    - Are all contexts built and wired?
    - Are all event handlers registered?
@@ -330,6 +340,7 @@ The codebase is reviewed in 10 sections. Each section is self-contained and can 
 ## Execution Plan
 
 ### Phase 1: Sections 0-3 (infrastructure + core layers)
+
 Sections that establish baselines for everything else. Run sequentially but section-internals can be parallel.
 
 - **Section 0** — Global Sweep (1 session)
@@ -338,6 +349,7 @@ Sections that establish baselines for everything else. Run sequentially but sect
 - **Section 3** — Application Layer (1 session, can parallel with Section 2)
 
 ### Phase 2: Sections 4-7 (implementation layers)
+
 Each is large but independent — can run in parallel (4 sessions simultaneously).
 
 - **Section 4** — Infrastructure Layer (1 session)
@@ -346,6 +358,7 @@ Each is large but independent — can run in parallel (4 sessions simultaneously
 - **Section 7** — Components (1 session)
 
 ### Phase 3: Section 8 — Per-Context Deep Dives
+
 12 contexts. Batch into 3-4 sessions (3-4 contexts per session, parallelizable).
 
 - Session 8A: identity, property, portal (foundational contexts)
@@ -354,9 +367,11 @@ Each is large but independent — can run in parallel (4 sessions simultaneously
 - Session 8D: metric, goal, dashboard (analytics pipeline)
 
 ### Phase 4: Section 9 — Cross-Cutting
+
 - **Section 9** (1 session)
 
 ### Phase 5: Consolidation
+
 - Merge all findings into `review/MASTER-FINDINGS.md`
 - Categorize by severity: CRITICAL (build-breaking, security), MAJOR (pattern violation, dead code), MINOR (style, naming), NIT (cosmetic)
 - Tag each finding with `[code-fix]` or `[doc-fix]` (which side changes)
@@ -389,12 +404,12 @@ Every finding uses this structure:
 
 ## Severity Definitions
 
-| Severity | Definition |
-|----------|-----------|
-| **CRITICAL** | Build failure, security hole, data loss risk, broken invariant |
-| **MAJOR** | Clear pattern violation, dead code path, doc/code mismatch on architecture |
-| **MINOR** | Style inconsistency, missing but non-critical test, unused import |
-| **NIT** | Cosmetic: naming preference, comment clarity, file organization |
+| Severity     | Definition                                                                 |
+| ------------ | -------------------------------------------------------------------------- |
+| **CRITICAL** | Build failure, security hole, data loss risk, broken invariant             |
+| **MAJOR**    | Clear pattern violation, dead code path, doc/code mismatch on architecture |
+| **MINOR**    | Style inconsistency, missing but non-critical test, unused import          |
+| **NIT**      | Cosmetic: naming preference, comment clarity, file organization            |
 
 ---
 
@@ -430,6 +445,7 @@ When code contradicts CONTEXT.md:
 ## Tooling Notes
 
 For each section, the reviewer will use:
+
 - `search_files` (grep) — pattern search for imports, anti-patterns, dead references
 - `read_file` — reading individual files for detailed analysis
 - `terminal` — running `pnpm build`, `pnpm lint`, `depcheck`, `scripts/check-filenames.mjs`
@@ -442,9 +458,11 @@ For each section, the reviewer will use:
 ## Deliverables
 
 For each section:
+
 - `review/<section>/findings.md` — all findings in standard format
 - `review/<section>/summary.md` — counts by severity/category, high-level observations
 
 After consolidation:
+
 - `review/MASTER-FINDINGS.md` — all findings merged, de-duplicated, categorized
 - `review/fix-batches.md` — findings grouped into actionable fix batches

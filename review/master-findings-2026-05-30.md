@@ -1,20 +1,21 @@
 # Codebase Review — Master Findings
+
 # Date: 2026-05-30 | Scope: 869 TS/TSX files, 12 contexts, 4 layers
 
 ## Review Segments
 
-| # | Segment | Scope | Status |
-|---|---------|-------|--------|
-| S1 | Global Sweep | deps, escape hatches, console, TODOs, dead files | ✅ |
-| S2 | Shared Infrastructure | auth, db, cache, events, observability | ✅ |
-| S3 | Domain Layer | 12 contexts — class/enum/throw/async/mutation | ✅ CLEAN |
-| S4 | Application Layer | 12 contexts — use case shape, can() gates, ports | ✅ CLEAN |
-| S5 | Infrastructure Layer | repos, mappers, adapters, handlers | ✅ CLEAN |
-| S6 | Server Layer | tracedHandler, catchUntagged, error pattern | 🔴 3 violations |
-| S7 | Routes | loaders, beforeLoad, useMutationAction | ✅ CLEAN |
-| S8 | Components | max-lines, named exports, prop drilling | ✅ CLEAN |
-| S9 | Per-Context Deep Dives | test coverage, CONTEXT.md reconciliation | 🟡 8 missing tests |
-| S10 | Cross-Cutting | composition, worker, build, CI | 🔴 2 large files |
+| #   | Segment                | Scope                                            | Status             |
+| --- | ---------------------- | ------------------------------------------------ | ------------------ |
+| S1  | Global Sweep           | deps, escape hatches, console, TODOs, dead files | ✅                 |
+| S2  | Shared Infrastructure  | auth, db, cache, events, observability           | ✅                 |
+| S3  | Domain Layer           | 12 contexts — class/enum/throw/async/mutation    | ✅ CLEAN           |
+| S4  | Application Layer      | 12 contexts — use case shape, can() gates, ports | ✅ CLEAN           |
+| S5  | Infrastructure Layer   | repos, mappers, adapters, handlers               | ✅ CLEAN           |
+| S6  | Server Layer           | tracedHandler, catchUntagged, error pattern      | 🔴 3 violations    |
+| S7  | Routes                 | loaders, beforeLoad, useMutationAction           | ✅ CLEAN           |
+| S8  | Components             | max-lines, named exports, prop drilling          | ✅ CLEAN           |
+| S9  | Per-Context Deep Dives | test coverage, CONTEXT.md reconciliation         | 🟡 8 missing tests |
+| S10 | Cross-Cutting          | composition, worker, build, CI                   | 🔴 2 large files   |
 
 ---
 
@@ -38,6 +39,7 @@
 ### S9-1 MAJOR: 8 use cases without dedicated unit tests
 
 **Files:**
+
 - `contexts/guest/application/use-cases/get-public-portal.ts`
 - `contexts/guest/application/use-cases/resolve-link-and-track.ts`
 - `contexts/guest/application/use-cases/resolve-portal-context.ts`
@@ -115,19 +117,19 @@
 
 ## CLEAN SEGMENTS (ZERO findings)
 
-| Segment | Checks Passed |
-|---------|---------------|
-| S1 | console.log (0), @ts-ignore (0), TODO/FIXME (0), as-any in non-gen code (0) |
-| S3 | class/enum (0), async (0), throw (0), framework imports (0), mutation (0), as-any (0) |
-| S4 | can() in use cases (0 missing), cross-context imports (0) |
-| S5 | (not deeply audited — spot-checked) |
-| S7 | useQuery in routes (0), beforeLoad without can() (0) |
-| S8 | over-150-line components (0), undocumented server imports (0) |
+| Segment | Checks Passed                                                                         |
+| ------- | ------------------------------------------------------------------------------------- |
+| S1      | console.log (0), @ts-ignore (0), TODO/FIXME (0), as-any in non-gen code (0)           |
+| S3      | class/enum (0), async (0), throw (0), framework imports (0), mutation (0), as-any (0) |
+| S4      | can() in use cases (0 missing), cross-context imports (0)                             |
+| S5      | (not deeply audited — spot-checked)                                                   |
+| S7      | useQuery in routes (0), beforeLoad without can() (0)                                  |
+| S8      | over-150-line components (0), undocumented server imports (0)                         |
 
 ## Fixes Applied During Review
 
-| ID | File | Fix |
-|----|------|-----|
+| ID   | File                                   | Fix                            |
+| ---- | -------------------------------------- | ------------------------------ |
 | S6-1 | `identity/server/organizations.ts:314` | `throw e` → `catchUntagged(e)` |
 | S6-1 | `identity/server/organizations.ts:399` | `throw e` → `catchUntagged(e)` |
-| S6-1 | `property/server/properties.ts:105` | `throw e` → `catchUntagged(e)` |
+| S6-1 | `property/server/properties.ts:105`    | `throw e` → `catchUntagged(e)` |

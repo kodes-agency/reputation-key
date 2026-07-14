@@ -8,11 +8,11 @@
 
 ## Summary
 
-| Severity | Count |
-|----------|-------|
-| MAJOR | 0 |
-| MINOR | 2 |
-| NIT | 1 |
+| Severity  | Count |
+| --------- | ----- |
+| MAJOR     | 0     |
+| MINOR     | 2     |
+| NIT       | 1     |
 | **Total** | **3** |
 
 ---
@@ -22,6 +22,7 @@
 ### S5-1 MINOR: `catchUntagged` used in only 3 of 17 server function files
 
 **Files using catchUntagged:**
+
 - `src/contexts/dashboard/server/dashboard.ts`
 - `src/contexts/dashboard/server/portal-analytics.ts`
 - `src/contexts/portal/server/portal-groups.ts`
@@ -61,6 +62,7 @@
 ### S5-3 NIT: Error-to-HTTP mapping duplicated across contexts
 
 **Files:**
+
 - `src/contexts/inbox/server/inbox.ts:30-37` — `inboxErrorStatus()`
 - `src/contexts/integration/server/shared.ts:7-23` — `integrationErrorStatus()`
 - `src/contexts/portal/server/portals.ts` — inline error mapping

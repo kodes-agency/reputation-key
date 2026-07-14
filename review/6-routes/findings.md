@@ -8,11 +8,11 @@
 
 ## Summary
 
-| Severity | Count |
-|----------|-------|
-| MAJOR | 2 |
-| MINOR | 1 |
-| NIT | 0 |
+| Severity  | Count |
+| --------- | ----- |
+| MAJOR     | 2     |
+| MINOR     | 1     |
+| NIT       | 0     |
 | **Total** | **3** |
 
 ---
@@ -22,6 +22,7 @@
 ### S6-1 MAJOR: 6 protected routes missing `can()` permission guards in `beforeLoad`
 
 **Files:**
+
 - `src/routes/_authenticated/inbox/index.tsx` — needs `inbox.read`
 - `src/routes/_authenticated/properties/$propertyId/people.tsx` — needs `staff_assignment.read`
 - `src/routes/_authenticated/properties/$propertyId/reviews.tsx` — needs `review.read`
@@ -42,6 +43,7 @@ Only 5 routes currently have `beforeLoad` permission checks: settings/organizati
 **CODE DOES:** 6 protected routes have no `beforeLoad` permission check.
 
 **Fix direction:** Add `can()` checks in `beforeLoad` for each route:
+
 ```typescript
 beforeLoad: ({ context }) => {
   const role = (context as AuthRouteContext).role
@@ -58,6 +60,7 @@ beforeLoad: ({ context }) => {
 ### S6-2 MAJOR: 15+ components directly import server functions — violates component dependency rules
 
 **Files:**
+
 - `src/components/inbox/inbox-detail-content.tsx` — imports `updateInboxStatusFn`
 - `src/components/inbox/inbox-bulk-actions.tsx` — imports `bulkUpdateInboxStatusFn`
 - `src/components/inbox/inbox-notes-thread.tsx` — imports `addInboxNoteFn`
@@ -81,6 +84,7 @@ beforeLoad: ({ context }) => {
 The exception allows components with **5+ mutations** to import from server. Only `reply-editor.tsx` (5 server fn imports) and `use-link-tree-mutations.ts` (3+) qualify. The rest import 1-2 server functions each — below the threshold. **None have the required documenting comment.**
 
 **Why it matters:** Components importing server functions directly creates tight coupling. The route file should own the `useServerFn`/`useMutationAction` instance and pass it as a prop. This enables:
+
 - Route-level invalidation (router knows when to refetch)
 - Consistent error handling
 - Testability (components can receive mock actions)

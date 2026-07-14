@@ -3,7 +3,13 @@
 
 import type { portalLinkCategories, portalLinks } from '#/shared/db/schema/portal.schema'
 import type { PortalLinkCategory, PortalLink } from '../../domain/types'
-import { organizationId, portalId, portalLinkCategoryId, portalLinkId, unbrand } from '#/shared/domain/ids'
+import {
+  organizationId,
+  portalId,
+  portalLinkCategoryId,
+  portalLinkId,
+  unbrand,
+} from '#/shared/domain/ids'
 
 // ── Category mapper ────────────────────────────────────────────────
 

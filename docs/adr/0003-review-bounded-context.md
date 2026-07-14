@@ -39,18 +39,18 @@ Split review syncing and reply management into two contexts.
 
 ## Key Architectural Decisions
 
-| # | Decision | Rationale |
-|---|----------|-----------|
-| 1 | Facade port `GoogleReviewApiPort` | Review context passes `connectionId`, gets typed reviews back. Never sees tokens or HTTP details. Adapter lives in `integration/infrastructure/`. |
-| 2 | Per-property sync scope | One BullMQ job per property. Webhook and manual "Sync Now" both enqueue the same job type. Expandable to per-connection fan-out later. |
-| 3 | Pub/Sub push + manual sync only | No periodic polling. Preserves GBP API quota. Pub/Sub subscription on first property import per account. |
-| 4 | Derived subscription state | No tracking table. Query properties table to determine if an account should be subscribed. |
-| 5 | `expiresAt` on reviews (30-day retention) | Google policy compliance. Daily `refresh-expiring-reviews` job re-syncs before expiry. `purge-expired-reviews` deletes after 3-day grace. |
-| 6 | Separate `replies` table | Reply is a first-class entity, not fields on review row. Phase 10: `google_sync` source only. Phase 12 extends with `internal` source and draft/approve/reject workflow. |
-| 7 | Full reply enums upfront | `reply_status` and `reply_source` enums include all future values. Avoids `ALTER TYPE` migrations in Phase 12. |
-| 8 | Events: `review.created`, `review.updated` | Emitted by sync job. No listeners in Phase 10. Future phases (sentiment, inbox) subscribe. |
-| 9 | Integration owns webhook route | JWT validation, notification parsing, property routing are Google infrastructure concerns. |
-| 10 | `gbp_cache` for locations only | Reviews are normalized in the `reviews` table. No raw review blobs in cache. `data_type` enum narrowed to `['location']`. |
+| #   | Decision                                   | Rationale                                                                                                                                                                |
+| --- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | Facade port `GoogleReviewApiPort`          | Review context passes `connectionId`, gets typed reviews back. Never sees tokens or HTTP details. Adapter lives in `integration/infrastructure/`.                        |
+| 2   | Per-property sync scope                    | One BullMQ job per property. Webhook and manual "Sync Now" both enqueue the same job type. Expandable to per-connection fan-out later.                                   |
+| 3   | Pub/Sub push + manual sync only            | No periodic polling. Preserves GBP API quota. Pub/Sub subscription on first property import per account.                                                                 |
+| 4   | Derived subscription state                 | No tracking table. Query properties table to determine if an account should be subscribed.                                                                               |
+| 5   | `expiresAt` on reviews (30-day retention)  | Google policy compliance. Daily `refresh-expiring-reviews` job re-syncs before expiry. `purge-expired-reviews` deletes after 3-day grace.                                |
+| 6   | Separate `replies` table                   | Reply is a first-class entity, not fields on review row. Phase 10: `google_sync` source only. Phase 12 extends with `internal` source and draft/approve/reject workflow. |
+| 7   | Full reply enums upfront                   | `reply_status` and `reply_source` enums include all future values. Avoids `ALTER TYPE` migrations in Phase 12.                                                           |
+| 8   | Events: `review.created`, `review.updated` | Emitted by sync job. No listeners in Phase 10. Future phases (sentiment, inbox) subscribe.                                                                               |
+| 9   | Integration owns webhook route             | JWT validation, notification parsing, property routing are Google infrastructure concerns.                                                                               |
+| 10  | `gbp_cache` for locations only             | Reviews are normalized in the `reviews` table. No raw review blobs in cache. `data_type` enum narrowed to `['location']`.                                                |
 
 ## Consequences
 

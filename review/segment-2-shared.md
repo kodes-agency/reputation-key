@@ -2,13 +2,13 @@
 
 ## CLEAN CHECKS (all passed)
 
-| Check | Context | Result |
-|-------|---------|--------|
+| Check                                              | Context                | Result                                                               |
+| -------------------------------------------------- | ---------------------- | -------------------------------------------------------------------- |
 | React imports in shared (excluding usePermissions) | shared/CONTEXT.md rule | Only framework helpers (`createServerFn`, `getRequest`) — acceptable |
-| Business logic in shared | shared/CONTEXT.md rule | **ZERO** — clean |
-| Cross-context imports into shared | shared/CONTEXT.md rule | **ZERO** — clean |
-| Console.log/warn/error in shared | Slop check | **ZERO** — clean |
-| Raw `throw e` without catchUntagged | Error pattern check | **ZERO** — clean |
+| Business logic in shared                           | shared/CONTEXT.md rule | **ZERO** — clean                                                     |
+| Cross-context imports into shared                  | shared/CONTEXT.md rule | **ZERO** — clean                                                     |
+| Console.log/warn/error in shared                   | Slop check             | **ZERO** — clean                                                     |
+| Raw `throw e` without catchUntagged                | Error pattern check    | **ZERO** — clean                                                     |
 
 ## S2-1 NIT: `class` usage in shared/domain
 

@@ -8,11 +8,11 @@
 
 ## Summary
 
-| Severity | Count |
-|----------|-------|
-| MAJOR | 8 |
-| MINOR | 5 |
-| NIT | 2 |
+| Severity  | Count  |
+| --------- | ------ |
+| MAJOR     | 8      |
+| MINOR     | 5      |
+| NIT       | 2      |
 | **Total** | **15** |
 
 ---
@@ -124,9 +124,11 @@
 **Tag:** [code-fix]
 
 **What:**
+
 ```
 // TODO(Phase 12): Pass currentUserId from auth context for "You" label
 ```
+
 Phase 12 (Reply Flow) is marked **Completed** in `docs/plan/plan.md:710`. The feature it references has already shipped. The TODO is stale.
 
 **Verify:** Check if the "You" label feature is implemented — if yes, remove the TODO. If not, update the TODO to reference the correct remaining work.
@@ -144,9 +146,11 @@ Phase 12 (Reply Flow) is marked **Completed** in `docs/plan/plan.md:710`. The fe
 **Tag:** [code-fix]
 
 **What:**
+
 ```
 // TODO: wire to real team membership query when staff context is built
 ```
+
 The staff context was built in Phase 6 and is implemented. `hasTeam={false}` is hardcoded — the TODO should have been resolved.
 
 **Fix direction:** Wire to real team membership query, or if intentionally deferred, update comment to explain when it will be wired.
@@ -170,6 +174,7 @@ The staff context was built in Phase 6 and is implemented. `hasTeam={false}` is 
 ### G0-11 MINOR: 4 TODO comments in production code (non-stale)
 
 **Files:**
+
 - `src/contexts/goal/application/use-cases/create-goal.ts:221` — Transaction wrapping for template goal persistence
 - `src/contexts/goal/application/use-cases/cancel-goal.ts:57` — Transaction wrapping for cancelByParent
 - `src/contexts/goal/infrastructure/jobs/spawn-recurring-instances.job.ts:106` — Unique DB constraint for dedup
@@ -188,6 +193,7 @@ The staff context was built in Phase 6 and is implemented. `hasTeam={false}` is 
 ### G0-12 MINOR: Commented-out code blocks in production files
 
 **Files:**
+
 - `src/shared/auth/auth.ts:19` — `// import { sendVerificationEmail } from './emails'`
 - `src/shared/auth/auth.ts:25` — `// function is injected via setOnAcceptInvitation()`
 
@@ -203,9 +209,11 @@ The staff context was built in Phase 6 and is implemented. `hasTeam={false}` is 
 ### G0-13 MINOR: Commented-out code blocks — documentation examples in source
 
 **Files:** Multiple domain constructors have:
+
 ```
 // returning a Result."
 ```
+
 This appears to be a fragment of a larger comment that was partially deleted.
 
 **Category:** slop
@@ -236,6 +244,7 @@ This appears to be a fragment of a larger comment that was partially deleted.
 ### G0-15 NIT: 5 `.gitkeep` files for empty directories
 
 **Files:**
+
 - `src/contexts/.gitkeep`
 - `src/shared/events/.gitkeep`
 - `src/shared/jobs/.gitkeep`

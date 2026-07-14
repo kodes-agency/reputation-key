@@ -8,11 +8,11 @@
 
 ## Summary
 
-| Severity | Count |
-|----------|-------|
-| MAJOR | 1 |
-| MINOR | 2 |
-| NIT | 2 |
+| Severity  | Count |
+| --------- | ----- |
+| MAJOR     | 1     |
+| MINOR     | 2     |
+| NIT       | 2     |
 | **Total** | **5** |
 
 ---
@@ -26,6 +26,7 @@
 **Tag:** [doc-fix]
 
 **What:** The plan marks Phase 15.5 (Portal Groups + Model Reconfiguration) as "Pending." But the code has already been reconfigured:
+
 - Goals schema has `groupId` (not `staffId`/`teamId`)
 - Goal domain types have `portalId | groupId` scope (not staff/team)
 - `getStaffIdForSession`, `resolveReferralCode`, `recordScanWithRef` — all removed
