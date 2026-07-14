@@ -6,8 +6,7 @@
 // Consumers check receipts before processing to ensure idempotency.
 
 import { and, eq, isNull, lt, sql } from 'drizzle-orm'
-import type { Pool } from 'pg'
-import { drizzle } from 'drizzle-orm/node-postgres'
+import type { Database } from '#/shared/db'
 import {
   outboxEvents,
   eventConsumerReceipts,
@@ -60,9 +59,7 @@ export type OutboxRepository = Readonly<{
 
 // ── Factory ─────────────────────────────────────────────────────────
 
-export function createOutboxRepository(pool: Pool): OutboxRepository {
-  const db = drizzle(pool)
-
+export function createOutboxRepository(db: Database): OutboxRepository {
   return {
     insert: async (event) => {
       await trace('outbox.insert', async () => {

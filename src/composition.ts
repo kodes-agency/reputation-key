@@ -19,6 +19,8 @@ import type { RateLimiter } from '#/shared/rate-limit/middleware'
 import { createJobQueue } from '#/shared/jobs/queue'
 import { createJobRegistry } from '#/shared/jobs/registry'
 import type { JobRegistry } from '#/shared/jobs/registry'
+import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
+import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { createBetterAuthIdentityAdapter } from '#/contexts/identity/infrastructure/adapters/auth-identity.adapter'
 import type { IdentityPort } from '#/contexts/identity/application/ports/identity.port'
 import {
@@ -457,12 +459,18 @@ export function createContainer(options?: {
       }
     }
   })
+  // PRE17A A4: Create outbox repository and register event schemas.
+  // The outbox records domain events durably. Event schemas are registered
+  // once at startup so the relay can validate payloads before publishing.
+  const outboxRepo = createOutboxRepository(db)
+  registerAllEventSchemas()
 
   return {
     db,
     logger,
     redis,
     eventBus,
+    outboxRepo,
     clock,
     cache: infra.cache,
     rateLimiter: infra.rateLimiter,
