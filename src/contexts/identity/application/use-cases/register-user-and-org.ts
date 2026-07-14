@@ -10,6 +10,8 @@ import {
   organizationId as toOrganizationId,
   userId as toUserId,
 } from '#/shared/domain/ids'
+import { emitAndRecord } from '#/shared/outbox/emit-and-record'
+import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 /** Minimal logger surface this use case needs for compensating-transaction
  * diagnostics. Injected (not imported from shared/observability) so the
  * application layer stays free of infrastructure dependencies. */
@@ -45,6 +47,7 @@ export type RegisterUserAndOrgDeps = Readonly<{
   deleteUser: (userId: string) => Promise<void>
   /** Logger for compensating-transaction diagnostics (injected, not imported). */
   logger: RegisterUserAndOrgLogger
+  outboxRepo?: OutboxRepository
 }>
 
 /**
@@ -105,7 +108,9 @@ export const registerUserAndOrg =
     }
 
     // 5. Emit event
-    await deps.events.emit(
+    await emitAndRecord(
+      deps.events,
+      deps.outboxRepo,
       identityOrganizationCreated({
         organizationId: toOrganizationId(orgId),
         organizationName: validName,

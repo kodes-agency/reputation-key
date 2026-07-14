@@ -15,6 +15,8 @@ import { teamId as toTeamId, userId as toUserId } from '#/shared/domain/ids'
 import { validateTeamName } from '../../domain/rules'
 import { teamError } from '../../domain/errors'
 import { teamUpdated } from '../../domain/events'
+import { emitAndRecord } from '#/shared/outbox/emit-and-record'
+import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 
 // fallow-ignore-next-line unused-type
 export type UpdateTeamDeps = Readonly<{
@@ -22,6 +24,7 @@ export type UpdateTeamDeps = Readonly<{
   staffApi: StaffPublicApi
   events: EventBus
   clock: () => Date
+  outboxRepo?: OutboxRepository
 }>
 
 export const updateTeam =
@@ -102,7 +105,9 @@ export const updateTeam =
     })
 
     // 6. Emit event
-    await deps.events.emit(
+    await emitAndRecord(
+      deps.events,
+      deps.outboxRepo,
       teamUpdated({
         teamId: updated.id,
         organizationId: updated.organizationId,

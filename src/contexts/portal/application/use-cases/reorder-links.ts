@@ -10,6 +10,8 @@ import { portalId, portalLinkId, portalLinkCategoryId } from '#/shared/domain/id
 import type { PortalRepository } from '../ports/portal.repository'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { assertPortalPropertyAccess } from '../assert-property-access'
+import { emitAndRecord } from '#/shared/outbox/emit-and-record'
+import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 
 // fallow-ignore-next-line unused-type
 export type ReorderLinksInput = Readonly<{
@@ -25,6 +27,7 @@ export type ReorderLinksDeps = Readonly<{
   staffPublicApi: StaffPublicApi
   events: EventBus
   clock: () => Date
+  outboxRepo?: OutboxRepository
 }>
 
 export const reorderLinks =
@@ -48,7 +51,9 @@ export const reorderLinks =
       input.items.map((item) => ({ id: portalLinkId(item.id), sortKey: item.sortKey })),
     )
 
-    await deps.events.emit(
+    await emitAndRecord(
+      deps.events,
+      deps.outboxRepo,
       portalLinkReordered({
         portalId: portalId(input.portalId),
         categoryId: portalLinkCategoryId(input.categoryId),

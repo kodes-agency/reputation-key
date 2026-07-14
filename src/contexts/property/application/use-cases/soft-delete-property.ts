@@ -7,12 +7,15 @@ import { canForContext } from '#/shared/domain/permissions'
 import { propertyId as toPropertyId } from '#/shared/domain/ids'
 import { propertyError } from '../../domain/errors'
 import { propertyDeleted } from '../../domain/events'
+import { emitAndRecord } from '#/shared/outbox/emit-and-record'
+import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 
 // fallow-ignore-next-line unused-type
 export type DeletePropertyDeps = Readonly<{
   propertyRepo: PropertyRepository
   events: EventBus
   clock: () => Date
+  outboxRepo?: OutboxRepository
 }>
 
 // fallow-ignore-next-line unused-type
@@ -39,7 +42,9 @@ export const deleteProperty =
     await deps.propertyRepo.hardDelete(ctx.organizationId, propertyId)
 
     // 4. Emit event
-    await deps.events.emit(
+    await emitAndRecord(
+      deps.events,
+      deps.outboxRepo,
       propertyDeleted({
         propertyId,
         organizationId: ctx.organizationId,

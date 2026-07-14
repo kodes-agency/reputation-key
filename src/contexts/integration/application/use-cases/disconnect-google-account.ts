@@ -15,6 +15,8 @@ import { googleConnectionId, type OrganizationId } from '#/shared/domain/ids'
 import { integrationError } from '../../domain/errors'
 import { integrationGoogleAccountDisconnected } from '../../domain/events'
 import type { LoggerPort } from '#/shared/domain/logger.port'
+import { emitAndRecord } from '#/shared/outbox/emit-and-record'
+import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 
 export type DisconnectGoogleAccountDeps = Readonly<{
   connectionRepo: GoogleConnectionRepository
@@ -32,6 +34,7 @@ export type DisconnectGoogleAccountDeps = Readonly<{
     organizationId: OrganizationId,
     connectionId: string,
   ) => Promise<void>
+  outboxRepo?: OutboxRepository
 }>
 
 export const disconnectGoogleAccount =
@@ -93,7 +96,9 @@ export const disconnectGoogleAccount =
     await deps.cacheRepo.deleteByConnectionId(connectionId, ctx.organizationId)
 
     // 6. Emit event
-    await deps.events.emit(
+    await emitAndRecord(
+      deps.events,
+      deps.outboxRepo,
       integrationGoogleAccountDisconnected({
         connectionId,
         organizationId: ctx.organizationId,

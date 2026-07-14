@@ -17,12 +17,15 @@ import { getProperty } from './application/use-cases/get-property'
 import { deleteProperty } from './application/use-cases/soft-delete-property'
 import { propertyId } from '#/shared/domain/ids'
 import { randomUUID } from 'crypto'
+import { emitAndRecord } from '#/shared/outbox/emit-and-record'
+import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 
 type PropertyContextDeps = Readonly<{
   repo: PropertyRepository
   events: EventBus
   clock: () => Date
   staffPublicApi: StaffPublicApi
+  outboxRepo?: OutboxRepository
 }>
 
 export const buildPropertyContext = (deps: PropertyContextDeps) => {
@@ -125,7 +128,9 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
           deletedAt: null,
         }
         const inserted = await deps.repo.insertAndReturn(input.orgId, property)
-        await deps.events.emit(
+        await emitAndRecord(
+          deps.events,
+          deps.outboxRepo,
           propertyCreated({
             propertyId: inserted.id,
             organizationId: inserted.organizationId,

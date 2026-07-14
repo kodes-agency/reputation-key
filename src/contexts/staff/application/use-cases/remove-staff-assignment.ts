@@ -7,6 +7,8 @@ import type { StaffAssignmentId } from '../../domain/types'
 import { canForContext } from '#/shared/domain/permissions'
 import { staffError } from '../../domain/errors'
 import { staffUnassigned } from '../../domain/events'
+import { emitAndRecord } from '#/shared/outbox/emit-and-record'
+import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 
 // ── Input type ────────────────────────────────────────────────────────────
 
@@ -19,6 +21,7 @@ export type RemoveStaffAssignmentDeps = Readonly<{
   assignmentRepo: StaffAssignmentRepository
   events: EventBus
   clock: () => Date
+  outboxRepo?: OutboxRepository
 }>
 
 export const removeStaffAssignment =
@@ -42,7 +45,9 @@ export const removeStaffAssignment =
     await deps.assignmentRepo.softDelete(ctx.organizationId, assignment.id)
 
     // 6. Emit event
-    await deps.events.emit(
+    await emitAndRecord(
+      deps.events,
+      deps.outboxRepo,
       staffUnassigned({
         assignmentId: assignment.id,
         organizationId: assignment.organizationId,

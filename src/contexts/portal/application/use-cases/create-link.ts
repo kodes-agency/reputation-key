@@ -15,6 +15,8 @@ import { isValidExternalUrl } from '../../domain/rules'
 import type { PortalRepository } from '../ports/portal.repository'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { assertPortalPropertyAccess } from '../assert-property-access'
+import { emitAndRecord } from '#/shared/outbox/emit-and-record'
+import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 
 // fallow-ignore-next-line unused-type
 export type CreateLinkInput = Readonly<{
@@ -33,6 +35,7 @@ export type CreateLinkDeps = Readonly<{
   events: EventBus
   idGen: () => string
   clock: () => Date
+  outboxRepo?: OutboxRepository
 }>
 
 export const createLink =
@@ -85,7 +88,9 @@ export const createLink =
 
     await deps.portalLinkRepo.insertLink(ctx.organizationId, result.value)
 
-    await deps.events.emit(
+    await emitAndRecord(
+      deps.events,
+      deps.outboxRepo,
       portalLinkCreated({
         portalId: portalId(input.portalId),
         linkId: result.value.id,

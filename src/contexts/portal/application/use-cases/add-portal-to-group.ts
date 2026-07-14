@@ -11,6 +11,8 @@ import type { EventBus } from '#/shared/events/event-bus'
 import { portalGroupId, portalId } from '#/shared/domain/ids'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { assertPropertyAccess } from '../assert-property-access'
+import { emitAndRecord } from '#/shared/outbox/emit-and-record'
+import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 
 // fallow-ignore-next-line unused-type
 export type AddPortalToGroupDeps = Readonly<{
@@ -19,6 +21,7 @@ export type AddPortalToGroupDeps = Readonly<{
   staffPublicApi: StaffPublicApi
   events: EventBus
   clock: () => Date
+  outboxRepo?: OutboxRepository
 }>
 
 export const addPortalToGroup =
@@ -68,7 +71,9 @@ export const addPortalToGroup =
 
     await deps.portalGroupRepo.addPortal(ctx.organizationId, gid, pid)
 
-    await deps.events.emit(
+    await emitAndRecord(
+      deps.events,
+      deps.outboxRepo,
       portalAddedToGroup({
         portalGroupId: gid,
         portalId: pid,

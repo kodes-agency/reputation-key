@@ -13,6 +13,8 @@ import type { EventBus } from '#/shared/events/event-bus'
 import { portalId, portalLinkCategoryId } from '#/shared/domain/ids'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { assertPropertyAccess } from '../assert-property-access'
+import { emitAndRecord } from '#/shared/outbox/emit-and-record'
+import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 
 // fallow-ignore-next-line unused-type
 export type CreateLinkCategoryInput = Readonly<{
@@ -28,6 +30,7 @@ export type CreateLinkCategoryDeps = Readonly<{
   events: EventBus
   idGen: () => string
   clock: () => Date
+  outboxRepo?: OutboxRepository
 }>
 
 export const createLinkCategory =
@@ -75,7 +78,9 @@ export const createLinkCategory =
 
     await deps.portalLinkRepo.insertCategory(ctx.organizationId, result.value)
 
-    await deps.events.emit(
+    await emitAndRecord(
+      deps.events,
+      deps.outboxRepo,
       portalLinkCategoryCreated({
         portalId: portal.id,
         categoryId: result.value.id,

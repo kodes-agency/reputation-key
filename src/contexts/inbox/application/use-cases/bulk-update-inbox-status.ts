@@ -14,6 +14,8 @@ import { inboxItemBulkStatusChanged } from '../../domain/events'
 import { canForContext } from '#/shared/domain/permissions'
 import { getAccessiblePropertyIdsForPermission } from '#/shared/domain/property-access'
 import type { LoggerPort } from '#/shared/domain/logger.port'
+import { emitAndRecord } from '#/shared/outbox/emit-and-record'
+import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 
 export type BulkUpdateInboxStatusInput = Readonly<{
   inboxItemIds: ReadonlyArray<InboxItemId>
@@ -26,6 +28,7 @@ export type BulkUpdateInboxStatusDeps = Readonly<{
   clock: () => Date
   staffPublicApi: StaffPublicApi
   logger: LoggerPort
+  outboxRepo?: OutboxRepository
 }>
 
 export type BulkUpdateInboxStatus = (
@@ -103,7 +106,9 @@ const emitBulkStatusEvents = async (
 ): Promise<void> => {
   for (const id of validIds) {
     const oldItem = items.find((i) => i.id === id)
-    await deps.events.emit(
+    await emitAndRecord(
+      deps.events,
+      deps.outboxRepo,
       inboxItemBulkStatusChanged({
         inboxItemId: id,
         organizationId: ctx.organizationId,

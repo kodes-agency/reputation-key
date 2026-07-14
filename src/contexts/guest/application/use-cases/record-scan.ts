@@ -10,6 +10,8 @@ import type { ScanSource } from '../../domain/types'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { guestScanRecorded } from '../../domain/events'
 import { buildScanEvent } from '../../domain/constructors'
+import { emitAndRecord } from '#/shared/outbox/emit-and-record'
+import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 
 export type RecordScanDeps = Readonly<{
   guestRepo: GuestInteractionRepository
@@ -17,6 +19,7 @@ export type RecordScanDeps = Readonly<{
   idGen: () => ScanEventId
   clock: () => Date
   logger: LoggerPort
+  outboxRepo?: OutboxRepository
 }>
 
 export type RecordScanInput = Readonly<{
@@ -48,7 +51,9 @@ export const recordScan =
       }
       const scan = scanResult.value
       await deps.guestRepo.recordScan(scan)
-      await deps.events.emit(
+      await emitAndRecord(
+        deps.events,
+        deps.outboxRepo,
         guestScanRecorded({
           scanId,
           organizationId: input.organizationId,

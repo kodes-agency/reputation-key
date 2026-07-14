@@ -9,6 +9,8 @@ import { portalDeleted } from '../../domain/events'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { assertPropertyAccess } from '../assert-property-access'
+import { emitAndRecord } from '#/shared/outbox/emit-and-record'
+import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 
 // fallow-ignore-next-line unused-type
 export type SoftDeletePortalInput = Readonly<{
@@ -21,6 +23,7 @@ export type SoftDeletePortalDeps = Readonly<{
   staffPublicApi: StaffPublicApi
   events: EventBus
   clock: () => Date
+  outboxRepo?: OutboxRepository
 }>
 
 export const softDeletePortal =
@@ -45,7 +48,9 @@ export const softDeletePortal =
 
     await deps.portalRepo.softDelete(ctx.organizationId, pid)
 
-    await deps.events.emit(
+    await emitAndRecord(
+      deps.events,
+      deps.outboxRepo,
       portalDeleted({
         portalId: pid,
         organizationId: ctx.organizationId,

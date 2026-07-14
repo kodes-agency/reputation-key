@@ -13,6 +13,8 @@ import { inboxError } from '../../domain/errors'
 import { loadInboxItemOrThrow, assertPropertyAccessible } from '../inbox-access'
 import { canForContext } from '#/shared/domain/permissions'
 import { inboxNoteAdded } from '../../domain/events'
+import { emitAndRecord } from '#/shared/outbox/emit-and-record'
+import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 
 export type AddInboxNoteInput = Readonly<{
   inboxItemId: InboxItemId
@@ -27,6 +29,7 @@ export type AddInboxNoteDeps = Readonly<{
   clock: () => Date
   staffPublicApi: StaffPublicApi
   events: EventBus
+  outboxRepo?: OutboxRepository
 }>
 
 export const addInboxNote =
@@ -68,7 +71,9 @@ export const addInboxNote =
     await deps.noteRepo.create(note, ctx.organizationId)
 
     // 4. Emit event
-    await deps.events.emit(
+    await emitAndRecord(
+      deps.events,
+      deps.outboxRepo,
       inboxNoteAdded({
         inboxItemId: note.inboxItemId,
         organizationId: note.organizationId,

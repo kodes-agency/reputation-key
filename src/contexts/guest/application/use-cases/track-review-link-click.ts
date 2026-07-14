@@ -7,11 +7,14 @@ import type {
 } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { guestReviewLinkClicked } from '../../domain/events'
+import { emitAndRecord } from '#/shared/outbox/emit-and-record'
+import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 
 export type TrackReviewLinkClickDeps = Readonly<{
   events: EventBus
   clock: () => Date
   logger: LoggerPort
+  outboxRepo?: OutboxRepository
 }>
 
 export type TrackReviewLinkClickInput = Readonly<{
@@ -26,7 +29,9 @@ export const trackReviewLinkClick =
   async (input: TrackReviewLinkClickInput): Promise<void> => {
     try {
       const now = deps.clock()
-      await deps.events.emit(
+      await emitAndRecord(
+        deps.events,
+        deps.outboxRepo,
         guestReviewLinkClicked({
           linkId: input.linkId,
           organizationId: input.organizationId,

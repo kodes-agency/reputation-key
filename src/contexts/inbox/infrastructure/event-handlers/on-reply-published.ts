@@ -9,10 +9,13 @@ import { trace } from '#/shared/observability/trace'
 import { inboxItemStatusChanged } from '../../domain/events'
 import { unbrand } from '#/shared/domain/ids'
 import { validateTransition } from '../../domain/rules'
+import { emitAndRecord } from '#/shared/outbox/emit-and-record'
+import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 
 export type OnReplyPublishedDeps = Readonly<{
   repo: InboxRepository
   events: EventBus
+  outboxRepo?: OutboxRepository
 }>
 
 export const onReplyPublished =
@@ -65,7 +68,9 @@ export const onReplyPublished =
         // change would be semantically wrong and downstream consumers key on
         // oldStatus !== newStatus.
         if (transitionOk) {
-          await deps.events.emit(
+          await emitAndRecord(
+            deps.events,
+            deps.outboxRepo,
             inboxItemStatusChanged({
               inboxItemId: inboxItem.id,
               organizationId: inboxItem.organizationId,

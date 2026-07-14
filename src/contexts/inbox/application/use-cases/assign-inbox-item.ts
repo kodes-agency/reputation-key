@@ -12,6 +12,8 @@ import { isPropertyAccessible } from '#/shared/domain/property-access'
 import { inboxItemAssigned, inboxItemUnassigned } from '../../domain/events'
 import { inboxError } from '../../domain/errors'
 import { loadInboxItemOrThrow, assertPropertyAccessible } from '../inbox-access'
+import { emitAndRecord } from '#/shared/outbox/emit-and-record'
+import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 
 export type AssignInboxItemInput = Readonly<{
   inboxItemId: InboxItemId
@@ -24,6 +26,7 @@ export type AssignInboxItemDeps = Readonly<{
   events: EventBus
   clock: () => Date
   staffPublicApi: StaffPublicApi
+  outboxRepo?: OutboxRepository
 }>
 
 export const assignInboxItem =
@@ -82,7 +85,9 @@ export const assignInboxItem =
 
     // 4. Emit event if assigned to a user, or unassigned
     if (input.assignedToUserId) {
-      await deps.events.emit(
+      await emitAndRecord(
+        deps.events,
+        deps.outboxRepo,
         inboxItemAssigned({
           inboxItemId: updated.id,
           organizationId: updated.organizationId,
@@ -94,7 +99,9 @@ export const assignInboxItem =
         }),
       )
     } else if (item.assignedTo) {
-      await deps.events.emit(
+      await emitAndRecord(
+        deps.events,
+        deps.outboxRepo,
         inboxItemUnassigned({
           inboxItemId: updated.id,
           organizationId: updated.organizationId,

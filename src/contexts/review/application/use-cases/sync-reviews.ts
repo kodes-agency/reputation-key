@@ -30,7 +30,7 @@ import { reviewCreated, reviewUpdated, reviewReplyPublished } from '../../domain
 import { reviewError } from '../../domain/errors'
 import { calculateExpiresAt, MAX_REPLY_LENGTH } from '../../domain/rules'
 import { ok, err, type Result } from '#/shared/domain'
-import { toOutboxEvent } from '#/shared/outbox/event-adapter'
+import { emitAndRecord } from '#/shared/outbox/emit-and-record'
 
 export type SyncReviewsDeps = Readonly<{
   reviewRepo: ReviewRepository
@@ -183,12 +183,7 @@ async function syncOneReview(
       occurredAt: gr.reviewedAt,
     }
     const event = isNew ? reviewCreated(eventPayload) : reviewUpdated(eventPayload)
-    await deps.events.emit(event)
-    // PRE17A A4 expand: record event in outbox alongside legacy emission.
-    // Not yet atomic with the business write — that comes in the switch phase.
-    if (deps.outboxRepo) {
-      await deps.outboxRepo.insert({ ...toOutboxEvent(event), id: event.eventId })
-    }
+    await emitAndRecord(deps.events, deps.outboxRepo, event)
   } catch (postPersistErr) {
     // Review was persisted (upsert succeeded) but reply-mirror or event emit
     // failed — count it as a partial failure, not a lost create.
@@ -287,14 +282,7 @@ async function mirrorReply(
         propertyId,
         occurredAt: now,
       })
-      await deps.events.emit(replyEvent)
-      // PRE17A A4 expand: record in outbox alongside legacy emission
-      if (deps.outboxRepo) {
-        await deps.outboxRepo.insert({
-          ...toOutboxEvent(replyEvent),
-          id: replyEvent.eventId,
-        })
-      }
+      await emitAndRecord(deps.events, deps.outboxRepo, replyEvent)
     }
     return true
   } else {

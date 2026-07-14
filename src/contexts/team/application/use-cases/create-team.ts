@@ -15,6 +15,8 @@ import { propertyId as toPropertyId, userId as toUserId } from '#/shared/domain/
 import { buildTeam } from '../../domain/constructors'
 import { teamError } from '../../domain/errors'
 import { teamCreated } from '../../domain/events'
+import { emitAndRecord } from '#/shared/outbox/emit-and-record'
+import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 
 // fallow-ignore-next-line unused-type
 export type CreateTeamDeps = Readonly<{
@@ -24,6 +26,7 @@ export type CreateTeamDeps = Readonly<{
   events: EventBus
   idGen: () => TeamId
   clock: () => Date
+  outboxRepo?: OutboxRepository
 }>
 
 export const createTeam =
@@ -83,7 +86,9 @@ export const createTeam =
     await deps.teamRepo.insert(ctx.organizationId, team)
 
     // 6. Emit event
-    await deps.events.emit(
+    await emitAndRecord(
+      deps.events,
+      deps.outboxRepo,
       teamCreated({
         teamId: team.id,
         organizationId: team.organizationId,

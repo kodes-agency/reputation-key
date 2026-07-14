@@ -19,6 +19,8 @@ import type {
   BadgeEvaluationResult,
   BadgeEvaluationTarget,
 } from '../../domain/types'
+import { emitAndRecord } from '#/shared/outbox/emit-and-record'
+import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 
 export type EvaluateBadgeForTargetDeps = Readonly<{
   badgeRepo: BadgeRepository
@@ -26,6 +28,7 @@ export type EvaluateBadgeForTargetDeps = Readonly<{
   events: EventBus
   idGen: () => BadgeId
   clock: Clock
+  outboxRepo?: OutboxRepository
 }>
 
 export type EvaluateBadgeForTargetInput = Readonly<{
@@ -120,7 +123,9 @@ export async function evaluateBadgeDefinitionForTarget(
   }
 
   const inserted = await deps.badgeRepo.insertAward(award)
-  await deps.events.emit(
+  await emitAndRecord(
+    deps.events,
+    deps.outboxRepo,
     badgeAwarded({
       occurredAt: deps.clock(),
       badgeDefinitionId: inserted.badgeDefinitionId,

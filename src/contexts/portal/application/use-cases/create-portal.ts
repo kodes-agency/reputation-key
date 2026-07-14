@@ -16,6 +16,8 @@ import { portalCreated } from '../../domain/events'
 import { propertyId } from '#/shared/domain/ids'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { assertPropertyAccess } from '../assert-property-access'
+import { emitAndRecord } from '#/shared/outbox/emit-and-record'
+import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 
 // fallow-ignore-next-line unused-type
 export type CreatePortalDeps = Readonly<{
@@ -25,6 +27,7 @@ export type CreatePortalDeps = Readonly<{
   events: EventBus
   idGen: () => PortalId
   clock: () => Date
+  outboxRepo?: OutboxRepository
 }>
 
 export const createPortal =
@@ -91,7 +94,9 @@ export const createPortal =
     await deps.portalRepo.insert(ctx.organizationId, portal)
 
     // 6. Emit event
-    await deps.events.emit(
+    await emitAndRecord(
+      deps.events,
+      deps.outboxRepo,
       portalCreated({
         portalId: portal.id,
         organizationId: portal.organizationId,

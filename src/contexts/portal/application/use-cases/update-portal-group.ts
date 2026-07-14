@@ -12,6 +12,8 @@ import { portalGroupUpdated } from '../../domain/events'
 import { portalGroupId } from '#/shared/domain/ids'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { assertPropertyAccess } from '../assert-property-access'
+import { emitAndRecord } from '#/shared/outbox/emit-and-record'
+import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 
 // fallow-ignore-next-line unused-type
 export type UpdatePortalGroupDeps = Readonly<{
@@ -19,6 +21,7 @@ export type UpdatePortalGroupDeps = Readonly<{
   staffPublicApi: StaffPublicApi
   events: EventBus
   clock: () => Date
+  outboxRepo?: OutboxRepository
 }>
 
 export const updatePortalGroup =
@@ -66,7 +69,9 @@ export const updatePortalGroup =
     })
 
     // 5. Emit event
-    await deps.events.emit(
+    await emitAndRecord(
+      deps.events,
+      deps.outboxRepo,
       portalGroupUpdated({
         portalGroupId: gid,
         organizationId: ctx.organizationId,
