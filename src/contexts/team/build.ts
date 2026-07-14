@@ -18,6 +18,7 @@ import { randomUUID } from 'crypto'
 type TeamContextDeps = Readonly<{
   db: Database
   events: EventBus
+  outboxRepo?: import('#/shared/outbox/infrastructure/outbox-repository').OutboxRepository
   clock: () => Date
   propertyApi: PropertyPublicApi
   staffApi: StaffPublicApi

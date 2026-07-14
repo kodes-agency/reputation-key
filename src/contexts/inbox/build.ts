@@ -35,6 +35,7 @@ import { wireUseCases } from './build-use-cases'
 export type InboxContextBuildInput = Readonly<{
   db: Database
   events: EventBus
+  outboxRepo?: import('#/shared/outbox/infrastructure/outbox-repository').OutboxRepository
   clock: () => Date
   staffPublicApi: StaffPublicApi
   reviewLookup: ReviewLookupPort

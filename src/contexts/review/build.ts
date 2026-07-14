@@ -32,6 +32,7 @@ import { registerReviewHandlers } from './infrastructure/event-handlers'
 export type ReviewContextBuildInput = Readonly<{
   db: Database
   events: EventBus
+  outboxRepo?: import('#/shared/outbox/infrastructure/outbox-repository').OutboxRepository
   clock: () => Date
   googleReviewApi: GoogleReviewApiPort
   jobQueue: Queue | undefined

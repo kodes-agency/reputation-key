@@ -35,6 +35,7 @@ export type OnMemberJoined = (ctx: {
 type IdentityContextDeps = Readonly<{
   identityPort: IdentityPort
   events: EventBus
+  outboxRepo?: import('#/shared/outbox/infrastructure/outbox-repository').OutboxRepository
   clock: () => Date
   /** Sign up a new user. Returns user ID. */
   signUp: (name: string, email: string, password: string) => Promise<string>

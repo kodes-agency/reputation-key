@@ -14,6 +14,7 @@ import { metricReadingId } from '#/shared/domain/ids'
 export type MetricContextBuildInput = Readonly<{
   db: Database
   events: EventBus
+  outboxRepo?: import('#/shared/outbox/infrastructure/outbox-repository').OutboxRepository
   clock: () => Date
   findGroupForPortal: (
     orgId: OrganizationId,
