@@ -41,7 +41,7 @@ package-lock.json
 .runtime/
 daemon/
 deacon/
-events/
+/events/
 logs/
 mayor/
 reputation_key/
