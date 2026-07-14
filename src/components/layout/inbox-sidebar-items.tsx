@@ -1,13 +1,14 @@
 // Inbox sidebar folder and category items — extracted for max-lines compliance.
+// Per ADR 0023: 3 folders (Open, Escalated, Closed). The default (no slug)
+// is the Open working view.
 import { SidebarMenuButton, SidebarMenuItem } from '#/components/ui/sidebar'
 import { Badge } from '#/components/ui/badge'
-import { Inbox, AlertTriangle, CheckCircle, Archive } from 'lucide-react'
+import { Inbox, AlertTriangle, CheckCircle } from 'lucide-react'
 
 export const folders = [
-  { key: '', label: 'Inbox', icon: Inbox },
+  { key: '', label: 'Open', icon: Inbox },
   { key: 'escalated', label: 'Escalated', icon: AlertTriangle },
-  { key: 'addressed', label: 'Addressed', icon: CheckCircle },
-  { key: 'archived', label: 'Archived', icon: Archive },
+  { key: 'closed', label: 'Closed', icon: CheckCircle },
 ] as const
 
 export const categories = [

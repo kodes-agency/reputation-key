@@ -2,7 +2,6 @@
 // Ingests a new review/feedback into the inbox.
 
 import type { InboxRepository } from '../ports/inbox.repository'
-import type { NewCounterPort } from '../ports/new-counter.port'
 import type { EventBus } from '#/shared/events/event-bus'
 import type {
   InboxItemId,
@@ -10,13 +9,11 @@ import type {
   PropertyId,
   ReviewId,
   FeedbackId,
-  UserId,
 } from '#/shared/domain/ids'
 import type { SourceType, InboxItem } from '../../domain/types'
 import { createInboxItem as buildInboxItem } from '../../domain/constructors'
 import { inboxItemCreated } from '../../domain/events'
 import { inboxError } from '../../domain/errors'
-import type { LoggerPort } from '#/shared/domain/logger.port'
 
 export type CreateInboxItemInput = Readonly<{
   organizationId: OrganizationId
@@ -30,19 +27,18 @@ export type CreateInboxItemInput = Readonly<{
   reviewerName: string | null
 }>
 
-// fallow-ignore-next-line unused-type
 export type CreateInboxItemDeps = Readonly<{
   repo: InboxRepository
   events: EventBus
-  newCounter: NewCounterPort
   idGen: () => InboxItemId
   clock: () => Date
-  logger: LoggerPort
 }>
 
+export type CreateInboxItem = (input: CreateInboxItemInput) => Promise<InboxItem>
+
 export const createInboxItem =
-  (deps: CreateInboxItemDeps) =>
-  async (input: CreateInboxItemInput): Promise<InboxItem> => {
+  (deps: CreateInboxItemDeps): CreateInboxItem =>
+  async (input) => {
     // 1. Check for duplicate source
     const existing = await deps.repo.findBySource(
       input.sourceType,
@@ -56,8 +52,7 @@ export const createInboxItem =
       })
     }
 
-    // 2. Build domain object
-    const assignedTo: UserId | null = null
+    // 2. Build domain object (created as 'open', escalation flag clear — ADR 0023)
     const result = buildInboxItem({
       id: deps.idGen(),
       organizationId: input.organizationId,
@@ -69,7 +64,7 @@ export const createInboxItem =
       platform: input.platform,
       snippet: input.snippet,
       reviewerName: input.reviewerName,
-      assignedTo,
+      assignedTo: null,
       clock: deps.clock,
     })
 
@@ -82,17 +77,7 @@ export const createInboxItem =
     // 3. Persist
     await deps.repo.create(item, input.organizationId)
 
-    // 4. Increment new counter (new item starts as 'new')
-    try {
-      await deps.newCounter.increment(item.organizationId)
-    } catch (err) {
-      deps.logger.warn(
-        { err, organizationId: item.organizationId },
-        'New counter increment failed after inbox item creation',
-      )
-    }
-
-    // 5. Emit event
+    // 4. Emit event
     await deps.events.emit(
       inboxItemCreated({
         inboxItemId: item.id,
@@ -106,9 +91,5 @@ export const createInboxItem =
       }),
     )
 
-    // 6. Return
     return item
   }
-
-// fallow-ignore-next-line unused-type
-export type CreateInboxItemUseCase = ReturnType<typeof createInboxItem>

@@ -1,5 +1,6 @@
-// Inbox list panel header — title, All/Unaddressed tabs, and search bar.
+// Inbox list panel header — title, open count badge, and search bar.
 // Extracted from inbox-page-v2.tsx for max-lines compliance.
+// Per ADR 0023: no All/Unaddressed tabs (Open folder IS the working view).
 import { Menu, Search } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { Badge } from '#/components/ui/badge'
@@ -7,11 +8,8 @@ import { Input } from '#/components/ui/input'
 
 type Props = Readonly<{
   folderLabel: string
-  newCount: number
-  showTabs: boolean
-  activeTab: 'all' | 'unaddressed' | undefined
+  openCount: number
   searchQ: string | undefined
-  onTabChange: (tab: 'all' | 'unaddressed' | undefined) => void
   onSearchChange: (q: string | undefined) => void
   /** Opens the folder sidebar drawer (mobile only). */
   onOpenSidebar?: () => void
@@ -19,11 +17,8 @@ type Props = Readonly<{
 
 export function InboxListHeader({
   folderLabel,
-  newCount,
-  showTabs,
-  activeTab,
+  openCount,
   searchQ,
-  onTabChange,
   onSearchChange,
   onOpenSidebar,
 }: Props) {
@@ -43,33 +38,12 @@ export function InboxListHeader({
             </Button>
           )}
           <h1 className="truncate text-lg font-semibold tracking-tight">{folderLabel}</h1>
-          {newCount > 0 && (
+          {openCount > 0 && (
             <Badge variant="secondary" className="text-xs tabular-nums">
-              {newCount} new
+              {openCount} open
             </Badge>
           )}
         </div>
-        {/* All / Unaddressed tabs — only show in root Inbox (no folder selected) */}
-        {showTabs && (
-          <div className="flex items-center gap-1">
-            <Button
-              variant={activeTab !== 'unaddressed' ? 'secondary' : 'ghost'}
-              size="sm"
-              className="h-7 text-xs"
-              onClick={() => onTabChange(undefined)}
-            >
-              All
-            </Button>
-            <Button
-              variant={activeTab === 'unaddressed' ? 'secondary' : 'ghost'}
-              size="sm"
-              className="h-7 text-xs"
-              onClick={() => onTabChange('unaddressed')}
-            >
-              Unaddressed
-            </Button>
-          </div>
-        )}
       </div>
       {/* Search bar */}
       <div className="relative mt-2">

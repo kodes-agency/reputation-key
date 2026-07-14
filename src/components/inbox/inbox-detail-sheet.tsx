@@ -34,7 +34,7 @@ export function InboxDetailSheet({
   if (!item) return null
 
   const currentItem = detailState.currentItem ?? item
-  const statusActions = getStatusActions(currentItem.status, currentItem.sourceType)
+  const statusActions = getStatusActions(currentItem.status)
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -48,7 +48,11 @@ export function InboxDetailSheet({
             <SheetTitle className="text-base">
               {currentItem.sourceType === 'review' ? 'Review' : 'Feedback'} Detail
             </SheetTitle>
-            <InboxStatusBadge status={currentItem.status} />
+            <InboxStatusBadge
+              status={currentItem.status}
+              isEscalated={currentItem.isEscalated}
+              escalationResolvedAt={currentItem.escalationResolvedAt}
+            />
           </div>
           <SheetDescription className="sr-only">
             Detail view for inbox item {currentItem.id}
@@ -74,6 +78,8 @@ export function InboxDetailSheet({
             detail={detailState.detail}
             statusActions={statusActions}
             updateStatus={detailState.updateStatus}
+            escalate={detailState.escalate}
+            resolveEscalation={detailState.resolveEscalation}
             notes={detailState.notes}
             onNoteAdded={detailState.onNoteAdded}
             onReplyMutated={detailState.onReplyMutated}

@@ -30,14 +30,14 @@ const ListItemRow = React.memo(function ListItemRow({
   onToggleSelect: (id: string) => void
   onRowClick: (item: InboxItem) => void
 }) {
-  const isNew = item.status === 'new'
+  const isOpen = item.status === 'open'
 
   return (
     <div
       role="listitem"
       className={`group flex items-start gap-3 border-b cursor-default transition-colors hover:bg-surface/50 px-4 py-3
         ${isSelected ? 'bg-surface-elevated' : ''}
-        ${isNew ? 'border-l-2 border-l-primary rounded-l-sm' : 'border-l-2 border-l-transparent'}`}
+        ${isOpen ? 'border-l-2 border-l-primary rounded-l-sm' : 'border-l-2 border-l-transparent'}`}
     >
       <Checkbox
         className="mt-1"
@@ -60,7 +60,9 @@ const ListItemRow = React.memo(function ListItemRow({
       >
         {/* Row 1: Reviewer name + date + stars */}
         <div className="flex items-center justify-between gap-2">
-          <span className={`text-sm truncate ${isNew ? 'font-semibold' : 'font-medium'}`}>
+          <span
+            className={`text-sm truncate ${isOpen ? 'font-semibold' : 'font-medium'}`}
+          >
             {item.reviewerName ?? 'Anonymous'}
           </span>
           <div className="flex shrink-0 items-center gap-2">
@@ -73,7 +75,7 @@ const ListItemRow = React.memo(function ListItemRow({
         {/* Row 2-3: Snippet as "subject", 2 lines */}
         {item.snippet ? (
           <p
-            className={`line-clamp-2 mt-1 text-sm leading-relaxed ${isNew ? 'font-semibold' : 'font-medium'}`}
+            className={`line-clamp-2 mt-1 text-sm leading-relaxed ${isOpen ? 'font-semibold' : 'font-medium'}`}
           >
             {item.snippet}
           </p>
@@ -92,9 +94,18 @@ const ListItemRow = React.memo(function ListItemRow({
               · {item.platform}
             </span>
           )}
-          {item.status !== 'new' && item.status !== 'read' && (
-            <InboxStatusBadge status={item.status} />
+          {item.status === 'closed' && (
+            <InboxStatusBadge
+              status={item.status}
+              isEscalated={item.isEscalated}
+              escalationResolvedAt={item.escalationResolvedAt}
+            />
           )}
+          {item.status === 'open' &&
+            item.isEscalated &&
+            item.escalationResolvedAt === null && (
+              <InboxStatusBadge status={item.status} isEscalated />
+            )}
         </div>
       </div>
     </div>

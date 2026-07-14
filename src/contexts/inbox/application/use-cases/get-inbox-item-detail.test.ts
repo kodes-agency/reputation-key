@@ -55,10 +55,12 @@ function makeItem(overrides: Partial<InboxItem> = {}): InboxItem {
     assignedTo: null,
     reviewerName: null,
     propertyName: null,
-    readAt: null,
+    isEscalated: false,
     escalatedAt: null,
-    addressedAt: null,
-    archivedAt: null,
+    escalatedBy: null,
+    escalationResolvedAt: null,
+    escalationResolvedBy: null,
+    closedAt: null,
     firstReplySubmittedAt: null,
     firstReplyPublishedAt: null,
     createdAt: FIXED_TIME,
@@ -115,6 +117,10 @@ const setup = (
     countByStatus: async () => 0,
     syncDenormalizedFields: async () => {},
     findByIds: async () => [],
+    setEscalation: vi.fn(),
+    resolveEscalation: vi.fn(),
+    countEscalatedActive: vi.fn(async () => 0),
+    countOpenSince: vi.fn(async () => 0),
     findDetailById: async (id, orgId) =>
       storedDetail &&
       storedDetail.item.id === id &&

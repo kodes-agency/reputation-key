@@ -69,9 +69,7 @@ export function InboxPageV2({
 
   const listPanelProps: InboxListPanelProps = {
     folderLabel: folderLabelFor(s.folder),
-    newCount: s.newCount,
-    showTabs: s.folder === undefined,
-    activeTab: s.tab,
+    openCount: s.openCount,
     searchQ: search.q,
     items: s.items,
     selectedIds: s.selectedIds,
@@ -81,7 +79,6 @@ export function InboxPageV2({
     nextCursor: s.nextCursor,
     loadAction: s.loadAction,
     listRef,
-    onTabChange: (t) => onNavigate({ to: '.', search: (p) => ({ ...p, tab: t }) }),
     onSearchChange: (q) =>
       onNavigate({ to: '.', search: (p) => ({ ...p, q, itemId: undefined }) }),
     onToggleSelect: s.handleToggleSelect,

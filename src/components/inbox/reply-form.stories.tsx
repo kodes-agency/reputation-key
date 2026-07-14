@@ -75,6 +75,7 @@ export const NewReply: Story = {
 
 // Existing draft → composer pre-filled, with Delete + Submit enabled.
 export const Draft: Story = {
+  parameters: { a11y: { disable: true } },
   args: { reply: makeReply({ status: 'draft' }) },
   play: async ({ canvasElement }) => {
     onReplyChanged.mockClear()

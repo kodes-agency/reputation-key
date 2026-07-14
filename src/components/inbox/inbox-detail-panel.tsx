@@ -24,9 +24,7 @@ export function InboxDetailPanel({
   detailFns,
 }: InboxDetailPanelProps) {
   const currentItem = detailState.currentItem ?? selectedItem
-  const statusActions = currentItem
-    ? getStatusActions(currentItem.status, currentItem.sourceType)
-    : []
+  const statusActions = currentItem ? getStatusActions(currentItem.status) : []
 
   return (
     <div className="hidden md:flex h-full min-w-0 flex-col border-l overflow-hidden">
@@ -43,7 +41,13 @@ export function InboxDetailPanel({
               </span>
             )}
           </div>
-          {currentItem && <InboxStatusBadge status={currentItem.status} />}
+          {currentItem && (
+            <InboxStatusBadge
+              status={currentItem.status}
+              isEscalated={currentItem.isEscalated}
+              escalationResolvedAt={currentItem.escalationResolvedAt}
+            />
+          )}
         </div>
         <Button
           variant="ghost"
@@ -76,6 +80,8 @@ export function InboxDetailPanel({
             detail={detailState.detail}
             statusActions={statusActions}
             updateStatus={detailState.updateStatus}
+            escalate={detailState.escalate}
+            resolveEscalation={detailState.resolveEscalation}
             notes={detailState.notes}
             onNoteAdded={detailState.onNoteAdded}
             onReplyMutated={detailState.onReplyMutated}

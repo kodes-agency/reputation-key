@@ -121,7 +121,7 @@ export function useInboxState(
     setSelectedIds([])
     qc.invalidateQueries({ queryKey: inboxKeys.lists() })
     qc.invalidateQueries({ queryKey: inboxKeys.counts() })
-    qc.invalidateQueries({ queryKey: inboxKeys.newCount() })
+    qc.invalidateQueries({ queryKey: inboxKeys.lastVisitCount() })
     if (selectedId) closeDetail()
   }, [selectedId, qc, closeDetail])
 

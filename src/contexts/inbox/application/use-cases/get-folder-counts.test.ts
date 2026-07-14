@@ -31,7 +31,7 @@ const makeItem = ({
     propertyId: propertyId('prop-1'),
     sourceType: 'review',
     sourceId: reviewId(`source-${id}`),
-    status: 'new',
+    status: 'open',
     rating: 4,
     sourceDate: new Date('2025-01-01'),
     platform: null,
@@ -39,10 +39,12 @@ const makeItem = ({
     assignedTo: null,
     reviewerName: null,
     propertyName: null,
-    readAt: null,
+    isEscalated: false,
     escalatedAt: null,
-    addressedAt: null,
-    archivedAt: null,
+    escalatedBy: null,
+    escalationResolvedAt: null,
+    escalationResolvedBy: null,
+    closedAt: null,
     firstReplySubmittedAt: null,
     firstReplyPublishedAt: null,
     createdAt: new Date('2025-01-01'),
@@ -64,36 +66,35 @@ const createScopedStaffApi = (ids: ReadonlyArray<string>): StaffPublicApi => ({
 
 const setup = (staffApi: StaffPublicApi = allAccessStaffApi) => {
   const repo = createInMemoryInboxRepo()
-  const deps = { repo, staffPublicApi: staffApi }
-  const useCase = getInboxFolderCounts(deps)
-
+  const useCase = getInboxFolderCounts({ repo, staffPublicApi: staffApi })
   return { useCase, repo }
 }
 
 describe('getInboxFolderCounts', () => {
-  it('returns counts per status with inbox = sum of all and unaddressed = new + read', async () => {
+  it('returns 3-folder counts: open, escalated (active flag), closed', async () => {
     const { useCase, repo } = setup()
 
     repo.items.push(
-      makeItem({ id: 'ii-1', status: 'new' }),
-      makeItem({ id: 'ii-2', status: 'new' }),
-      makeItem({ id: 'ii-3', status: 'new' }),
-      makeItem({ id: 'ii-4', status: 'read' }),
-      makeItem({ id: 'ii-5', status: 'read' }),
-      makeItem({ id: 'ii-6', status: 'escalated' }),
-      makeItem({ id: 'ii-7', status: 'addressed' }),
-      makeItem({ id: 'ii-8', status: 'addressed' }),
-      makeItem({ id: 'ii-9', status: 'archived' }),
+      makeItem({ id: 'ii-1', status: 'open' }),
+      makeItem({ id: 'ii-2', status: 'open' }),
+      makeItem({ id: 'ii-3', status: 'open', isEscalated: true }),
+      makeItem({ id: 'ii-4', status: 'closed' }),
+      makeItem({ id: 'ii-5', status: 'closed', isEscalated: true }),
+      // Resolved escalation — no longer counts in the Escalated folder
+      makeItem({
+        id: 'ii-6',
+        status: 'open',
+        isEscalated: false,
+        escalationResolvedAt: new Date('2025-01-02'),
+      }),
     )
 
     const counts = await useCase({}, ctxFor('AccountAdmin'))
 
     expect(counts).toEqual({
-      inbox: 9,
-      unaddressed: 5, // 3 new + 2 read
-      escalated: 1,
-      addressed: 2,
-      archived: 1,
+      open: 4,
+      escalated: 2, // ii-3 (open+active) + ii-5 (closed+active); ii-6 resolved
+      closed: 2,
     })
   })
 
@@ -102,59 +103,47 @@ describe('getInboxFolderCounts', () => {
 
     const counts = await useCase({}, ctxFor('AccountAdmin'))
 
-    expect(counts).toEqual({
-      inbox: 0,
-      unaddressed: 0,
-      escalated: 0,
-      addressed: 0,
-      archived: 0,
-    })
+    expect(counts).toEqual({ open: 0, escalated: 0, closed: 0 })
   })
 
   it('throws forbidden when role lacks inbox.read permission', async () => {
     const { useCase } = setup()
 
-    // All current domain roles have inbox.read, so we cast a fictional role
-    // to verify the permission gate is active and would block an unauthorized role.
     await expect(useCase({}, ctxFor('Guest' as unknown as Role))).rejects.toSatisfy(
       (e: unknown) => isInboxError(e) && e.code === 'forbidden',
     )
   })
 
   it('scopes PropertyManager to assigned properties (PM is NOT org-wide for inbox)', async () => {
-    // PM holds inbox.manage, but per CONTEXT.md L72 PM only manages ASSIGNED
-    // properties — folder counts must scope PM via staff_assignment.
     const { useCase, repo } = setup(createScopedStaffApi(['prop-1']))
-    repo.items.push(makeItem({ id: 'ii-1', status: 'new' }))
+    repo.items.push(makeItem({ id: 'ii-1', status: 'open' }))
     repo.items.push(
-      makeItem({ id: 'ii-2', status: 'new', propertyId: propertyId('prop-2') }),
+      makeItem({ id: 'ii-2', status: 'open', propertyId: propertyId('prop-2') }),
     )
 
     const counts = await useCase({}, ctxFor('PropertyManager'))
 
-    // PM assigned to prop-1 only: counts the assigned item, not the prop-2 one
-    expect(counts.inbox).toBe(1)
-    expect(counts.unaddressed).toBe(1)
+    expect(counts.open).toBe(1)
   })
 
   it('counts zero for PropertyManager with no property assignments', async () => {
     const { useCase, repo } = setup(createScopedStaffApi([]))
-    repo.items.push(makeItem({ id: 'ii-1', status: 'new' }))
+    repo.items.push(makeItem({ id: 'ii-1', status: 'open' }))
 
     const counts = await useCase({}, ctxFor('PropertyManager'))
 
-    expect(counts.inbox).toBe(0)
+    expect(counts.open).toBe(0)
   })
 
   it('scopes Staff to assigned properties', async () => {
     const { useCase, repo } = setup(createScopedStaffApi(['prop-1']))
-    repo.items.push(makeItem({ id: 'ii-1', status: 'new' }))
+    repo.items.push(makeItem({ id: 'ii-1', status: 'open' }))
     repo.items.push(
-      makeItem({ id: 'ii-2', status: 'new', propertyId: propertyId('prop-2') }),
+      makeItem({ id: 'ii-2', status: 'open', propertyId: propertyId('prop-2') }),
     )
 
     const counts = await useCase({}, ctxFor('Staff'))
 
-    expect(counts.inbox).toBe(1)
+    expect(counts.open).toBe(1)
   })
 })

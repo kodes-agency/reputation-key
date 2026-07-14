@@ -2,7 +2,7 @@
 
 import { describe, it, expect, vi } from 'vitest'
 import { onReviewCreated } from './on-review-created'
-import type { CreateInboxItemUseCase } from '../../application/use-cases/create-inbox-item'
+import type { CreateInboxItem } from '../../application/use-cases/create-inbox-item'
 import type { ReviewCreated } from '#/contexts/review/application/public-api'
 import { organizationId, reviewId, propertyId } from '#/shared/domain/ids'
 
@@ -30,7 +30,7 @@ describe('onReviewCreated', () => {
   it('creates inbox item for the review', async () => {
     const createInboxItem = vi.fn(async () => ({}))
     const deps = { createInboxItem } as unknown as {
-      createInboxItem: CreateInboxItemUseCase
+      createInboxItem: CreateInboxItem
     }
 
     await onReviewCreated(deps)(mockEvent)
@@ -51,7 +51,7 @@ describe('onReviewCreated', () => {
   it('passes null snippet when reviewText is null', async () => {
     const createInboxItem = vi.fn(async () => ({}))
     const deps = { createInboxItem } as unknown as {
-      createInboxItem: CreateInboxItemUseCase
+      createInboxItem: CreateInboxItem
     }
 
     const eventNoText: ReviewCreated = { ...mockEvent, reviewText: null }
@@ -74,7 +74,7 @@ describe('onReviewCreated', () => {
       throw alreadyExistsErr
     })
     const deps = { createInboxItem } as unknown as {
-      createInboxItem: CreateInboxItemUseCase
+      createInboxItem: CreateInboxItem
     }
 
     await expect(onReviewCreated(deps)(mockEvent)).resolves.toBeUndefined()
@@ -85,7 +85,7 @@ describe('onReviewCreated', () => {
       throw new Error('DB down')
     })
     const deps = { createInboxItem } as unknown as {
-      createInboxItem: CreateInboxItemUseCase
+      createInboxItem: CreateInboxItem
     }
 
     await expect(onReviewCreated(deps)(mockEvent)).resolves.toBeUndefined()

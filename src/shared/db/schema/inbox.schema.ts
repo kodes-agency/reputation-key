@@ -1,4 +1,5 @@
-// Inbox context — Drizzle schema for inbox_items & inbox_notes tables
+// Inbox context — Drizzle schema for inbox_items, inbox_notes & inbox_user_views
+// Per ADR 0023: status is open/closed; escalation is an orthogonal flag.
 
 import { createdAtColumn, updatedAtColumn } from '../columns'
 import {
@@ -6,6 +7,7 @@ import {
   uuid,
   varchar,
   integer,
+  boolean,
   text,
   timestamp,
   pgEnum,
@@ -15,13 +17,7 @@ import {
 
 export const inboxSourceTypeEnum = pgEnum('inbox_source_type', ['review', 'feedback'])
 
-export const inboxStatusEnum = pgEnum('inbox_status', [
-  'new',
-  'read',
-  'addressed',
-  'escalated',
-  'archived',
-])
+export const inboxStatusEnum = pgEnum('inbox_status', ['open', 'closed'])
 
 export const inboxItems = pgTable(
   'inbox_items',
@@ -31,17 +27,20 @@ export const inboxItems = pgTable(
     propertyId: varchar('property_id', { length: 255 }).notNull(),
     sourceType: inboxSourceTypeEnum('source_type').notNull(),
     sourceId: uuid('source_id').notNull(),
-    status: inboxStatusEnum('status').notNull().default('new'),
+    status: inboxStatusEnum('status').notNull().default('open'),
+    // Escalation flag — orthogonal to status (ADR 0023)
+    isEscalated: boolean('is_escalated').notNull().default(false),
+    escalatedAt: timestamp('escalated_at', { withTimezone: true }),
+    escalatedBy: varchar('escalated_by', { length: 255 }),
+    escalationResolvedAt: timestamp('escalation_resolved_at', { withTimezone: true }),
+    escalationResolvedBy: varchar('escalation_resolved_by', { length: 255 }),
     rating: integer('rating'),
     sourceDate: timestamp('source_date', { withTimezone: true }).notNull(),
     platform: varchar('platform', { length: 255 }),
     snippet: text('snippet'),
     reviewerName: varchar('reviewer_name', { length: 255 }),
     assignedTo: varchar('assigned_to', { length: 255 }),
-    readAt: timestamp('read_at', { withTimezone: true }),
-    escalatedAt: timestamp('escalated_at', { withTimezone: true }),
-    addressedAt: timestamp('addressed_at', { withTimezone: true }),
-    archivedAt: timestamp('archived_at', { withTimezone: true }),
+    closedAt: timestamp('closed_at', { withTimezone: true }),
     firstReplySubmittedAt: timestamp('first_reply_submitted_at', { withTimezone: true }),
     firstReplyPublishedAt: timestamp('first_reply_published_at', { withTimezone: true }),
     createdAt: createdAtColumn(),
@@ -60,6 +59,12 @@ export const inboxItems = pgTable(
       t.organizationId,
       t.propertyId,
       t.status,
+    ),
+    // Escalated-folder count: active flag (is_escalated AND escalation_resolved_at IS NULL)
+    index('inbox_items_org_escalated_active_idx').on(
+      t.organizationId,
+      t.isEscalated,
+      t.escalationResolvedAt,
     ),
     uniqueIndex('inbox_items_source_unique').on(
       t.sourceType,
@@ -82,4 +87,17 @@ export const inboxNotes = pgTable(
     createdAt: createdAtColumn(),
   },
   (t) => [index('inbox_notes_item_idx').on(t.inboxItemId)],
+)
+
+// Per-user last-visit timestamp (ADR 0023) — replaces the org-level "new" badge.
+export const inboxUserViews = pgTable(
+  'inbox_user_views',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    userId: varchar('user_id', { length: 255 }).notNull(),
+    lastInboxView: timestamp('last_inbox_view', { withTimezone: true }).notNull(),
+    updatedAt: updatedAtColumn(),
+  },
+  (t) => [uniqueIndex('inbox_user_views_org_user_unique').on(t.organizationId, t.userId)],
 )

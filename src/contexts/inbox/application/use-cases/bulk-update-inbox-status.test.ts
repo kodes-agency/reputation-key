@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { bulkUpdateInboxStatus } from './bulk-update-inbox-status'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
 import { createInMemoryInboxRepo } from '#/shared/testing/in-memory-inbox-repo'
+import { createMockLogger } from '#/shared/testing/mock-logger'
 import {
   inboxItemId,
   organizationId,
@@ -11,7 +12,6 @@ import {
   userId,
 } from '#/shared/domain/ids'
 import type { InboxItem, InboxStatus, SourceType } from '../../domain/types'
-import type { NewCounterPort } from '../ports/new-counter.port'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { Role } from '#/shared/domain/roles'
 import type { AuthContext } from '#/shared/domain/auth-context'
@@ -44,10 +44,12 @@ function seedItem(
     assignedTo: null,
     reviewerName: null,
     propertyName: null,
-    readAt: null,
+    isEscalated: false,
     escalatedAt: null,
-    addressedAt: null,
-    archivedAt: null,
+    escalatedBy: null,
+    escalationResolvedAt: null,
+    escalationResolvedBy: null,
+    closedAt: null,
     firstReplySubmittedAt: null,
     firstReplyPublishedAt: null,
     createdAt: FIXED_TIME,
@@ -64,34 +66,15 @@ const defaultStaffApi: StaffPublicApi = {
 const setup = (staffApi: StaffPublicApi = defaultStaffApi) => {
   const repo = createInMemoryInboxRepo()
   const events = createCapturingEventBus()
-  const decrementByCalls: Array<{ orgId: string; count: number }> = []
-  const newCounter: NewCounterPort = {
-    getCount: async () => 0,
-    setCount: async () => {},
-    increment: async () => {},
-    decrement: async () => {},
-    decrementBy: async (orgId, count) => {
-      decrementByCalls.push({ orgId: orgId as string, count })
-    },
-    invalidate: async () => {},
-  }
   const deps = {
     repo,
     events,
-    newCounter,
     clock: () => FIXED_TIME,
     staffPublicApi: staffApi,
-    logger: {
-      info: () => {},
-      warn: () => {},
-      error: () => {},
-      debug: () => {},
-      trace: () => {},
-      fatal: () => {},
-    } as never,
+    logger: createMockLogger(),
   }
   const useCase = bulkUpdateInboxStatus(deps)
-  return { useCase, repo, events, decrementByCalls }
+  return { useCase, repo, events }
 }
 
 const expectItemStatuses = (
@@ -104,48 +87,48 @@ const expectItemStatuses = (
 describe('bulkUpdateInboxStatus', () => {
   it('updates multiple items with valid transitions', async () => {
     const { useCase, repo } = setup()
-    repo.items.push(seedItem('ii-1', 'new'))
-    repo.items.push(seedItem('ii-2', 'new'))
+    repo.items.push(seedItem('ii-1', 'open'))
+    repo.items.push(seedItem('ii-2', 'open'))
 
     const result = await useCase(
       {
         inboxItemIds: [inboxItemId('ii-1'), inboxItemId('ii-2')],
-        newStatus: 'read',
+        newStatus: 'closed',
       },
       ctxFor('AccountAdmin'),
     )
 
     expect(result.updated).toBe(2)
-    expect(repo.items[0].status).toBe('read')
-    expect(repo.items[1].status).toBe('read')
+    expect(repo.items[0].status).toBe('closed')
+    expect(repo.items[1].status).toBe('closed')
   })
 
   it('skips items with invalid transitions', async () => {
     const { useCase, repo } = setup()
-    repo.items.push(seedItem('ii-1', 'new'))
-    repo.items.push(seedItem('ii-2', 'addressed'))
+    repo.items.push(seedItem('ii-1', 'open'))
+    repo.items.push(seedItem('ii-2', 'closed'))
 
     const result = await useCase(
       {
         inboxItemIds: [inboxItemId('ii-1'), inboxItemId('ii-2')],
-        newStatus: 'read',
+        newStatus: 'closed',
       },
       ctxFor('AccountAdmin'),
     )
 
-    // ii-1: new→read (valid), ii-2: addressed→read (invalid — addressed can only go to archived/escalated)
+    // ii-1: open→closed (valid), ii-2: closed→closed (invalid — same status)
     expect(result.updated).toBe(1)
-    expectItemStatuses(repo, 'read', 'addressed')
+    expectItemStatuses(repo, 'closed', 'closed')
   })
 
   it('returns 0 when all transitions are invalid', async () => {
     const { useCase, repo } = setup()
-    repo.items.push(seedItem('ii-1', 'addressed'))
+    repo.items.push(seedItem('ii-1', 'closed'))
 
     const result = await useCase(
       {
         inboxItemIds: [inboxItemId('ii-1')],
-        newStatus: 'new', // addressed → new is invalid
+        newStatus: 'closed', // closed → closed is invalid
       },
       ctxFor('AccountAdmin'),
     )
@@ -155,13 +138,13 @@ describe('bulkUpdateInboxStatus', () => {
 
   it('emits bulk status changed events for each updated item with shared bulkId', async () => {
     const { useCase, repo, events } = setup()
-    repo.items.push(seedItem('ii-1', 'new'))
-    repo.items.push(seedItem('ii-2', 'new'))
+    repo.items.push(seedItem('ii-1', 'open'))
+    repo.items.push(seedItem('ii-2', 'open'))
 
     await useCase(
       {
         inboxItemIds: [inboxItemId('ii-1'), inboxItemId('ii-2')],
-        newStatus: 'read',
+        newStatus: 'closed',
       },
       ctxFor('AccountAdmin'),
     )
@@ -173,134 +156,89 @@ describe('bulkUpdateInboxStatus', () => {
     expect(new Set(bulkIds).size).toBe(1) // all events share the same bulkId
   })
 
-  it('emits escalated events when bulk escalating (P1 fix)', async () => {
-    const { useCase, repo, events } = setup()
-    repo.items.push(seedItem('ii-1', 'new'))
-    repo.items.push(seedItem('ii-2', 'read'))
-
-    await useCase(
-      {
-        inboxItemIds: [inboxItemId('ii-1'), inboxItemId('ii-2')],
-        newStatus: 'escalated',
-      },
-      ctxFor('AccountAdmin'),
-    )
-
-    const escalatedEvents = events.capturedByTag('inbox.inbox_item.escalated')
-    expect(escalatedEvents).toHaveLength(2)
-    // Each escalated event must carry propertyId and userId (P2 fix)
-    expect(escalatedEvents[0]!.propertyId).toBeTruthy()
-    expect(escalatedEvents[0]!.userId).toBeTruthy()
-  })
-
-  it('decrements new counter for new→read transitions', async () => {
-    const { useCase, repo, decrementByCalls } = setup()
-    repo.items.push(seedItem('ii-1', 'new'))
-    repo.items.push(seedItem('ii-2', 'new'))
-
-    await useCase(
-      {
-        inboxItemIds: [inboxItemId('ii-1'), inboxItemId('ii-2')],
-        newStatus: 'read',
-      },
-      ctxFor('AccountAdmin'),
-    )
-
-    expect(decrementByCalls).toHaveLength(1)
-    expect(decrementByCalls[0].count).toBe(2)
-  })
-
-  it('skips reviews when bulk marking as addressed (review guard)', async () => {
+  it('closes both review and feedback items (no source-type guard — ADR 0023)', async () => {
     const { useCase, repo } = setup()
-    repo.items.push(seedItem('ii-1', 'new', 'prop-1', 'review'))
-    repo.items.push(seedItem('ii-2', 'new', 'prop-1', 'feedback'))
+    repo.items.push(seedItem('ii-1', 'open', 'prop-1', 'review'))
+    repo.items.push(seedItem('ii-2', 'open', 'prop-1', 'feedback'))
 
     const result = await useCase(
       {
         inboxItemIds: [inboxItemId('ii-1'), inboxItemId('ii-2')],
-        newStatus: 'addressed',
+        newStatus: 'closed',
       },
       ctxFor('AccountAdmin'),
     )
 
-    // ii-1 (review) skipped by guard, ii-2 (feedback) updated
-    expect(result.updated).toBe(1)
-    expect(repo.items[0].status).toBe('new')
-    expect(repo.items[1].status).toBe('addressed')
+    expect(result.updated).toBe(2)
+    expect(repo.items[0].status).toBe('closed')
+    expect(repo.items[1].status).toBe('closed')
   })
 
-  it('denies access to all items without inbox.manage when Staff has no property assignments', async () => {
-    // Staff does NOT have inbox.manage, so the property access check fires
-    // When accessible properties are empty, all items are skipped (returns 0 updated)
+  it('denies access to all items when Staff has no property assignments', async () => {
     const staffApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [],
       getAssignedPortals: async () => [],
       countAssignmentsByTeam: async () => 0,
     }
     const { useCase, repo } = setup(staffApi)
-    repo.items.push(seedItem('ii-1', 'new', 'prop-1'))
-    repo.items.push(seedItem('ii-2', 'new', 'prop-2'))
+    repo.items.push(seedItem('ii-1', 'open', 'prop-1'))
+    repo.items.push(seedItem('ii-2', 'open', 'prop-2'))
 
     const result = await useCase(
       {
         inboxItemIds: [inboxItemId('ii-1'), inboxItemId('ii-2')],
-        newStatus: 'read',
+        newStatus: 'closed',
       },
       ctxFor('Staff'),
     )
 
-    // All items filtered out because Staff has no accessible properties
     expect(result.updated).toBe(0)
-    expect(repo.items[0].status).toBe('new')
-    expect(repo.items[1].status).toBe('new')
+    expect(repo.items[0].status).toBe('open')
+    expect(repo.items[1].status).toBe('open')
   })
 
-  it('filters out items from inaccessible properties for Staff (no inbox.manage)', async () => {
-    // Staff does NOT have inbox.manage, so the property access check fires
+  it('filters out items from inaccessible properties for Staff', async () => {
     const staffApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [propertyId('prop-1')],
       getAssignedPortals: async () => [],
       countAssignmentsByTeam: async () => 0,
     }
     const { useCase, repo } = setup(staffApi)
-    repo.items.push(seedItem('ii-1', 'new', 'prop-1'))
-    repo.items.push(seedItem('ii-2', 'new', 'prop-2'))
+    repo.items.push(seedItem('ii-1', 'open', 'prop-1'))
+    repo.items.push(seedItem('ii-2', 'open', 'prop-2'))
 
     const result = await useCase(
       {
         inboxItemIds: [inboxItemId('ii-1'), inboxItemId('ii-2')],
-        newStatus: 'read',
+        newStatus: 'closed',
       },
       ctxFor('Staff'),
     )
 
     expect(result.updated).toBe(1)
-    expectItemStatuses(repo, 'read', 'new')
+    expectItemStatuses(repo, 'closed', 'open')
   })
 
   it('scopes PropertyManager to assigned properties (PM is NOT org-wide for inbox)', async () => {
-    // PM holds inbox.manage, but per CONTEXT.md L72 PM only manages ASSIGNED
-    // properties — the bulk path must filter PM via staff_assignment.
     const staffApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [propertyId('prop-1')],
       getAssignedPortals: async () => [],
       countAssignmentsByTeam: async () => 0,
     }
     const { useCase, repo } = setup(staffApi)
-    repo.items.push(seedItem('ii-1', 'new', 'prop-1'))
-    repo.items.push(seedItem('ii-2', 'new', 'prop-2'))
+    repo.items.push(seedItem('ii-1', 'open', 'prop-1'))
+    repo.items.push(seedItem('ii-2', 'open', 'prop-2'))
 
     const result = await useCase(
       {
         inboxItemIds: [inboxItemId('ii-1'), inboxItemId('ii-2')],
-        newStatus: 'read',
+        newStatus: 'closed',
       },
       ctxFor('PropertyManager'),
     )
 
-    // Only the assigned property's item transitions
     expect(result.updated).toBe(1)
-    expectItemStatuses(repo, 'read', 'new')
+    expectItemStatuses(repo, 'closed', 'open')
   })
 
   it('skips all items for PropertyManager with no property assignments', async () => {
@@ -310,18 +248,18 @@ describe('bulkUpdateInboxStatus', () => {
       countAssignmentsByTeam: async () => 0,
     }
     const { useCase, repo } = setup(staffApi)
-    repo.items.push(seedItem('ii-1', 'new', 'prop-1'))
+    repo.items.push(seedItem('ii-1', 'open', 'prop-1'))
 
     const result = await useCase(
       {
         inboxItemIds: [inboxItemId('ii-1')],
-        newStatus: 'read',
+        newStatus: 'closed',
       },
       ctxFor('PropertyManager'),
     )
 
     expect(result.updated).toBe(0)
-    expect(repo.items[0].status).toBe('new')
+    expect(repo.items[0].status).toBe('open')
   })
 
   it('processes all items for AccountAdmin', async () => {
@@ -333,39 +271,39 @@ describe('bulkUpdateInboxStatus', () => {
       countAssignmentsByTeam: async () => 0,
     }
     const { useCase, repo } = setup(staffApi)
-    repo.items.push(seedItem('ii-1', 'new', 'prop-1'))
-    repo.items.push(seedItem('ii-2', 'new', 'prop-2'))
+    repo.items.push(seedItem('ii-1', 'open', 'prop-1'))
+    repo.items.push(seedItem('ii-2', 'open', 'prop-2'))
 
     const result = await useCase(
       {
         inboxItemIds: [inboxItemId('ii-1'), inboxItemId('ii-2')],
-        newStatus: 'read',
+        newStatus: 'closed',
       },
       ctxFor('AccountAdmin'),
     )
 
     expect(result.updated).toBe(2)
-    expect(repo.items[0].status).toBe('read')
-    expect(repo.items[1].status).toBe('read')
+    expect(repo.items[0].status).toBe('closed')
+    expect(repo.items[1].status).toBe('closed')
   })
 
   // ── Tenant isolation ──────────────────────────────────────────────
   it('does not update items belonging to a different organization', async () => {
     const { useCase, repo } = setup()
-    repo.items.push(seedItem('ii-1', 'new'))
-    repo.items.push(seedItem('ii-2', 'new'))
+    repo.items.push(seedItem('ii-1', 'open'))
+    repo.items.push(seedItem('ii-2', 'open'))
 
     const result = await useCase(
       {
         inboxItemIds: [inboxItemId('ii-1'), inboxItemId('ii-2')],
-        newStatus: 'read',
+        newStatus: 'closed',
       },
       ctxFor('AccountAdmin', OTHER_ORG_ID),
     )
 
     // Items belong to ORG_ID; caller is in OTHER_ORG_ID — zero updates, items unchanged
     expect(result.updated).toBe(0)
-    expect(repo.items[0].status).toBe('new')
-    expect(repo.items[1].status).toBe('new')
+    expect(repo.items[0].status).toBe('open')
+    expect(repo.items[1].status).toBe('open')
   })
 })

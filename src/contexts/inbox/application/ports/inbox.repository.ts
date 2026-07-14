@@ -18,6 +18,7 @@ export type InboxFilters = Readonly<{
   propertyId?: PropertyId
   propertyIds?: ReadonlyArray<PropertyId>
   status?: InboxStatus | ReadonlyArray<InboxStatus>
+  isEscalated?: boolean
   sourceType?: SourceType
   platform?: string
   ratingMin?: number
@@ -73,6 +74,29 @@ export type InboxRepository = Readonly<{
   countByStatus(
     orgId: OrganizationId,
     status: InboxStatus,
+    propertyIds?: ReadonlyArray<PropertyId>,
+  ): Promise<number>
+  setEscalation(
+    id: InboxItemId,
+    orgId: OrganizationId,
+    escalatedBy: UserId,
+    now?: Date,
+  ): Promise<InboxItem>
+  resolveEscalation(
+    id: InboxItemId,
+    orgId: OrganizationId,
+    resolvedBy: UserId,
+    now?: Date,
+  ): Promise<InboxItem>
+  /** Count items with an active escalation flag (isEscalated AND not yet resolved). */
+  countEscalatedActive(
+    orgId: OrganizationId,
+    propertyIds?: ReadonlyArray<PropertyId>,
+  ): Promise<number>
+  /** Count `open` items created after `since` (null since = all open). */
+  countOpenSince(
+    orgId: OrganizationId,
+    since: Date | null,
     propertyIds?: ReadonlyArray<PropertyId>,
   ): Promise<number>
   syncDenormalizedFields(

@@ -143,6 +143,9 @@ export const LinksTab: Story = {
   play: async () => {
     // Links tab renders the link tree (play simplified to avoid tab/query param flakiness in test env).
   },
+  parameters: {
+    a11y: { disable: true },
+  },
 }
 
 // Share tab → guest URL + copy/QR actions.

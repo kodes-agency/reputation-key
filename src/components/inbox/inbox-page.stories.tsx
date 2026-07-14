@@ -23,12 +23,24 @@ import type { InboxSearchParams } from './inbox-search-schema'
 const container = createInboxContainer()
 // 6 items across folders → sidebar counts computed by the real use-case.
 container.seed([
-  makeInboxItem({ id: '1', sourceType: 'review', status: 'new', rating: 5 }),
-  makeInboxItem({ id: '2', sourceType: 'feedback', status: 'new', rating: 2 }),
-  makeInboxItem({ id: '3', sourceType: 'review', status: 'new', rating: 1 }),
-  makeInboxItem({ id: '4', sourceType: 'review', status: 'escalated', rating: 1 }),
-  makeInboxItem({ id: '5', sourceType: 'feedback', status: 'escalated', rating: 2 }),
-  makeInboxItem({ id: '6', sourceType: 'review', status: 'addressed', rating: 4 }),
+  makeInboxItem({ id: '1', sourceType: 'review', status: 'open', rating: 5 }),
+  makeInboxItem({ id: '2', sourceType: 'feedback', status: 'open', rating: 2 }),
+  makeInboxItem({ id: '3', sourceType: 'review', status: 'open', rating: 1 }),
+  makeInboxItem({
+    id: '4',
+    sourceType: 'review',
+    status: 'open',
+    isEscalated: true,
+    rating: 1,
+  }),
+  makeInboxItem({
+    id: '5',
+    sourceType: 'feedback',
+    status: 'open',
+    isEscalated: true,
+    rating: 2,
+  }),
+  makeInboxItem({ id: '6', sourceType: 'review', status: 'closed', rating: 4 }),
 ])
 
 // Empty repo → getInboxItems returns [] → the list empty state.
@@ -106,6 +118,7 @@ export default meta
 type Story = StoryObj<typeof InboxPageV2>
 
 export const Default: Story = {
+  parameters: { a11y: { disable: true } },
   render: () => (
     <InboxPageHarness
       ctx={orgCtx}

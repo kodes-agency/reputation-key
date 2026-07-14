@@ -1,18 +1,17 @@
 // Inbox context — update inbox status use case
-// Changes status, validates transition via domain rules.
-// Enforces role-scoped property access.
+// Transitions status open ⇄ closed (ADR 0023). No source-type-conditional
+// transitions — whether a review was replied to is a query on review data,
+// not an inbox status. Escalation is a separate, orthogonal action.
 
 import type { InboxRepository } from '../ports/inbox.repository'
-import type { NewCounterPort } from '../ports/new-counter.port'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { InboxItemId } from '#/shared/domain/ids'
 import type { InboxStatus, InboxItem } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
-import type { LoggerPort } from '#/shared/domain/logger.port'
 import { canForContext } from '#/shared/domain/permissions'
 import { validateTransition, timestampFieldsForStatus } from '../../domain/rules'
-import { inboxItemStatusChanged, inboxItemEscalated } from '../../domain/events'
+import { inboxItemStatusChanged } from '../../domain/events'
 import { inboxError } from '../../domain/errors'
 import { loadInboxItemOrThrow, assertPropertyAccessible } from '../inbox-access'
 
@@ -21,19 +20,21 @@ export type UpdateInboxStatusInput = Readonly<{
   newStatus: InboxStatus
 }>
 
-// fallow-ignore-next-line unused-type
 export type UpdateInboxStatusDeps = Readonly<{
   repo: InboxRepository
   events: EventBus
-  newCounter: NewCounterPort
   clock: () => Date
   staffPublicApi: StaffPublicApi
-  logger: LoggerPort
 }>
 
+export type UpdateInboxStatus = (
+  input: UpdateInboxStatusInput,
+  ctx: AuthContext,
+) => Promise<InboxItem>
+
 export const updateInboxStatus =
-  (deps: UpdateInboxStatusDeps) =>
-  async (input: UpdateInboxStatusInput, ctx: AuthContext): Promise<InboxItem> => {
+  (deps: UpdateInboxStatusDeps): UpdateInboxStatus =>
+  async (input, ctx) => {
     if (!canForContext(ctx, 'inbox.write'))
       throw inboxError('forbidden', 'No inbox write permission')
 
@@ -50,21 +51,13 @@ export const updateInboxStatus =
       item.propertyId,
     )
 
-    // 2. Reject manual 'addressed' on review items — reviews auto-transition
-    //    to addressed only via review.reply.published (CONTEXT.md L15).
-    //    Server-authoritative mirror of the bulk path's guard
-    //    (bulk-update-inbox-status.ts) and the UI's hidden button.
-    if (input.newStatus === 'addressed' && item.sourceType === 'review') {
-      throw inboxError('invalid_transition', 'Review items cannot be manually addressed')
-    }
-
-    // 3. Validate transition
+    // 2. Validate transition (open ⇄ closed). No source-type guards (ADR 0023).
     const transitionResult = validateTransition(item.status, input.newStatus)
     if (transitionResult.isErr()) {
       throw transitionResult.error
     }
 
-    // 4. Update status (timestamp fields derived from the target status)
+    // 3. Update status (timestamp derived from target status — closedAt only)
     const now = deps.clock()
     const updated = await deps.repo.updateStatus(
       input.inboxItemId,
@@ -74,19 +67,7 @@ export const updateInboxStatus =
       now,
     )
 
-    // 5. Decrement new counter if transitioning away from 'new'
-    if (item.status === 'new' && input.newStatus !== 'new') {
-      try {
-        await deps.newCounter.decrement(ctx.organizationId)
-      } catch (err) {
-        deps.logger.warn(
-          { err, organizationId: ctx.organizationId },
-          'New counter decrement failed — DB is source of truth',
-        )
-      }
-    }
-
-    // 6. Emit event
+    // 4. Emit status_changed event
     await deps.events.emit(
       inboxItemStatusChanged({
         inboxItemId: updated.id,
@@ -99,22 +80,5 @@ export const updateInboxStatus =
       }),
     )
 
-    if (input.newStatus === 'escalated') {
-      await deps.events.emit(
-        inboxItemEscalated({
-          inboxItemId: updated.id,
-          organizationId: updated.organizationId,
-          propertyId: item.propertyId,
-          oldStatus: item.status,
-          userId: ctx.userId,
-          occurredAt: now,
-        }),
-      )
-    }
-
-    // 7. Return
     return updated
   }
-
-// fallow-ignore-next-line unused-type
-export type UpdateInboxStatus = ReturnType<typeof updateInboxStatus>

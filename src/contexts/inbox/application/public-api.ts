@@ -22,9 +22,10 @@ export type { Cursor } from './ports/inbox.repository'
 export type {
   InboxItemCreated,
   InboxItemStatusChanged,
+  InboxItemEscalated,
+  InboxItemEscalationResolved,
   InboxItemAssigned,
   InboxItemUnassigned,
-  InboxItemEscalated,
   InboxNoteAdded,
   InboxItemBulkStatusChanged,
   InboxEvent,

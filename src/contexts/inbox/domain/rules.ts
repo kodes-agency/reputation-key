@@ -8,11 +8,8 @@ import type { InboxStatus } from './types'
 import type { InboxError } from './errors'
 import { inboxError } from './errors'
 const VALID_TRANSITIONS: Readonly<Record<InboxStatus, readonly InboxStatus[]>> = {
-  new: ['read', 'addressed', 'archived', 'escalated'],
-  read: ['addressed', 'escalated', 'archived'],
-  escalated: ['addressed', 'archived'],
-  addressed: ['archived', 'escalated'],
-  archived: ['read', 'escalated'],
+  open: ['closed'],
+  closed: ['open'],
 }
 
 /** Returns true when `from → to` is a legal status transition. Same-status is NOT valid. */
@@ -37,18 +34,15 @@ export const validateTransition = (
   return ok(to)
 }
 
-/** Returns the timestamp field(s) to stamp when an item enters `status`.
- *  Pure derivation — used by the single-item and bulk status use cases. */
+/** Returns the timestamp field to stamp when an item enters `status`.
+ *  Pure derivation — used by the single-item and bulk status use cases.
+ *  Per ADR 0023: only `closedAt` (one field, not four). */
 export const timestampFieldsForStatus = (
   status: InboxStatus,
   now: Date,
 ): Partial<Record<string, Date>> => {
-  const fields: Partial<Record<string, Date>> = {}
-  if (status === 'read') fields.readAt = now
-  if (status === 'escalated') fields.escalatedAt = now
-  if (status === 'addressed') fields.addressedAt = now
-  if (status === 'archived') fields.archivedAt = now
-  return fields
+  if (status === 'closed') return { closedAt: now }
+  return {}
 }
 
 /** Returns true when the given role is allowed to assign inbox items.

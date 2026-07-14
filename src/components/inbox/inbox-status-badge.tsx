@@ -1,34 +1,47 @@
 import { Badge } from '#/components/ui/badge'
+import { AlertTriangle } from 'lucide-react'
 import type { InboxStatus } from '#/contexts/inbox/application/public-api'
 
 type Props = Readonly<{
   status: InboxStatus
+  isEscalated?: boolean
+  escalationResolvedAt?: Date | null
 }>
 
 const statusConfig: Record<
   InboxStatus,
-  {
-    label: string
-    variant: 'default' | 'secondary' | 'outline' | 'destructive'
-    className?: string
-  }
+  { label: string; variant: 'default' | 'secondary' | 'outline'; className?: string }
 > = {
-  new: { label: 'New', variant: 'default' },
-  read: { label: 'Opened', variant: 'secondary' },
-  addressed: {
-    label: 'Addressed',
-    variant: 'outline',
-    className: 'border-green-500 text-green-700 dark:text-green-400',
+  open: { label: 'Open', variant: 'default' },
+  closed: {
+    label: 'Closed',
+    variant: 'secondary',
+    className: 'opacity-60',
   },
-  escalated: { label: 'Escalated', variant: 'destructive' },
-  archived: { label: 'Archived', variant: 'secondary', className: 'opacity-60' },
 }
 
-export function InboxStatusBadge({ status }: Props) {
+export function InboxStatusBadge({
+  status,
+  isEscalated = false,
+  escalationResolvedAt = null,
+}: Props) {
   const config = statusConfig[status]
+  const isEscalationActive = isEscalated && escalationResolvedAt === null
   return (
-    <Badge variant={config.variant} className={config.className}>
-      {config.label}
-    </Badge>
+    <span className="inline-flex items-center gap-1">
+      <Badge variant={config.variant} className={config.className}>
+        {config.label}
+      </Badge>
+      {isEscalationActive && (
+        <Badge
+          variant="destructive"
+          title="Escalated — needs management attention"
+          aria-label="Escalated"
+        >
+          <AlertTriangle className="size-3" />
+          <span className="sr-only">Escalated</span>
+        </Badge>
+      )}
+    </span>
   )
 }

@@ -21,13 +21,13 @@ import type {
 const reviewItem: InboxItem = makeInboxItem({
   id: 'rev-det',
   sourceType: 'review',
-  status: 'new',
+  status: 'open',
   rating: 4,
 })
 const feedbackItem: InboxItem = makeInboxItem({
   id: 'fb-det',
   sourceType: 'feedback',
-  status: 'new',
+  status: 'open',
   rating: 3,
 })
 
@@ -73,7 +73,10 @@ const detailFns = {
 // Mirrors the server fn's { data } payload + status enum (no 'new' — nothing
 // transitions TO new). Output is InboxItem, matching the use-case return.
 type StatusInput = {
-  data: { inboxItemId: string; status: 'read' | 'addressed' | 'escalated' | 'archived' }
+  data: { inboxItemId: string; status: 'open' | 'closed' }
+}
+type IdInput = {
+  data: { inboxItemId: string }
 }
 
 // Controllable Action mock — same shape the component's useMutationAction
@@ -83,6 +86,18 @@ function makeStatusAction(
   overrides: { isPending?: boolean; error?: unknown; isSuccess?: boolean } = {},
 ): Action<StatusInput, InboxItem> {
   const impl = async (_input: StatusInput): Promise<InboxItem> => reviewItem
+  return Object.assign(impl, {
+    isPending: overrides.isPending ?? false,
+    error: overrides.error ?? null,
+    isSuccess: overrides.isSuccess ?? false,
+    data: null,
+  })
+}
+
+function makeIdAction(
+  overrides: { isPending?: boolean; error?: unknown; isSuccess?: boolean } = {},
+): Action<IdInput, InboxItem> {
+  const impl = async (_input: IdInput): Promise<InboxItem> => reviewItem
   return Object.assign(impl, {
     isPending: overrides.isPending ?? false,
     error: overrides.error ?? null,
@@ -105,8 +120,10 @@ export const ReviewAsPropertyManager: Story = {
   args: {
     currentItem: reviewItem,
     detail: reviewDetail,
-    statusActions: getStatusActions(reviewItem.status, reviewItem.sourceType),
+    statusActions: getStatusActions(reviewItem.status),
     updateStatus: makeStatusAction(),
+    escalate: makeIdAction(),
+    resolveEscalation: makeIdAction(),
     notes,
     onNoteAdded: () => {},
     detailFns,
@@ -119,8 +136,10 @@ export const ReviewAsStaff: Story = {
   args: {
     currentItem: reviewItem,
     detail: reviewDetail,
-    statusActions: getStatusActions(reviewItem.status, reviewItem.sourceType),
+    statusActions: getStatusActions(reviewItem.status),
     updateStatus: makeStatusAction(),
+    escalate: makeIdAction(),
+    resolveEscalation: makeIdAction(),
     notes,
     onNoteAdded: () => {},
     detailFns,
@@ -133,8 +152,10 @@ export const FeedbackDetail: Story = {
   args: {
     currentItem: feedbackItem,
     detail: feedbackDetail,
-    statusActions: getStatusActions(feedbackItem.status, feedbackItem.sourceType),
+    statusActions: getStatusActions(feedbackItem.status),
     updateStatus: makeStatusAction(),
+    escalate: makeIdAction(),
+    resolveEscalation: makeIdAction(),
     notes: [],
     onNoteAdded: () => {},
     detailFns,
@@ -148,8 +169,10 @@ export const StatusUpdating: Story = {
   args: {
     currentItem: reviewItem,
     detail: reviewDetail,
-    statusActions: getStatusActions(reviewItem.status, reviewItem.sourceType),
+    statusActions: getStatusActions(reviewItem.status),
     updateStatus: makeStatusAction({ isPending: true }),
+    escalate: makeIdAction({ isPending: true }),
+    resolveEscalation: makeIdAction({ isPending: true }),
     notes,
     onNoteAdded: () => {},
     detailFns,

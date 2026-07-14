@@ -5,7 +5,7 @@
 // Cross-context data (review/feedback/property) is fetched via lookup ports
 // defined in application/ports/ — never via direct table JOINs.
 
-import { and, eq, desc, inArray, sql, gte, lte } from 'drizzle-orm'
+import { and, eq, desc, inArray, sql, gte, lte, isNull } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { inboxItems } from '#/shared/db/schema/inbox.schema'
@@ -291,6 +291,103 @@ export const createInboxRepository = (
       return Number(result[0]?.count ?? 0)
     })
   },
+  setEscalation: async (
+    id: InboxItemId,
+    orgId: OrganizationId,
+    escalatedBy: UserId,
+    now?: Date,
+  ) => {
+    return trace('inbox.setEscalation', async () => {
+      const stamp = now ?? new Date()
+      const result = await db
+        .update(inboxItems)
+        .set({
+          isEscalated: true,
+          escalatedAt: stamp,
+          escalatedBy,
+          escalationResolvedAt: null,
+          escalationResolvedBy: null,
+          updatedAt: stamp,
+        })
+        .where(and(eq(inboxItems.id, id), eq(inboxItems.organizationId, orgId)))
+        .returning()
+      if (!result[0]) {
+        throw inboxError(
+          'not_found',
+          'Inbox item escalation update failed — no row returned',
+        )
+      }
+      return withDefaults(result[0])
+    })
+  },
+  resolveEscalation: async (
+    id: InboxItemId,
+    orgId: OrganizationId,
+    resolvedBy: UserId,
+    now?: Date,
+  ) => {
+    return trace('inbox.resolveEscalation', async () => {
+      const stamp = now ?? new Date()
+      const result = await db
+        .update(inboxItems)
+        .set({
+          isEscalated: false,
+          escalationResolvedAt: stamp,
+          escalationResolvedBy: resolvedBy,
+          updatedAt: stamp,
+        })
+        .where(and(eq(inboxItems.id, id), eq(inboxItems.organizationId, orgId)))
+        .returning()
+      if (!result[0]) {
+        throw inboxError(
+          'not_found',
+          'Inbox item resolve-escalation failed — no row returned',
+        )
+      }
+      return withDefaults(result[0])
+    })
+  },
+  countEscalatedActive: async (
+    orgId: OrganizationId,
+    propertyIds?: ReadonlyArray<PropertyId>,
+  ) => {
+    return trace('inbox.countEscalatedActive', async () => {
+      const conditions: SQL[] = [
+        eq(inboxItems.organizationId, orgId),
+        eq(inboxItems.isEscalated, true),
+        isNull(inboxItems.escalationResolvedAt),
+      ]
+      if (propertyIds && propertyIds.length > 0) {
+        conditions.push(inArray(inboxItems.propertyId, [...propertyIds] as string[]))
+      }
+      const result = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(inboxItems)
+        .where(and(...conditions))
+      return Number(result[0]?.count ?? 0)
+    })
+  },
+  countOpenSince: async (
+    orgId: OrganizationId,
+    since: Date | null,
+    propertyIds?: ReadonlyArray<PropertyId>,
+  ) => {
+    return trace('inbox.countOpenSince', async () => {
+      const conditions: SQL[] = [
+        eq(inboxItems.organizationId, orgId),
+        eq(inboxItems.status, 'open'),
+      ]
+      if (since) conditions.push(gte(inboxItems.createdAt, since))
+      if (propertyIds && propertyIds.length > 0) {
+        conditions.push(inArray(inboxItems.propertyId, [...propertyIds] as string[]))
+      }
+      const result = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(inboxItems)
+        .where(and(...conditions))
+      return Number(result[0]?.count ?? 0)
+    })
+  },
 
   syncDenormalizedFields: async (
     id: InboxItemId,
@@ -410,6 +507,14 @@ const buildFilterConditions = (
         ? eq(inboxItems.status, filters.status)
         : inArray(inboxItems.status, [...filters.status] as InboxStatus[]),
     )
+
+  // Escalation flag filter (Escalated folder shows active flags)
+  if (filters.isEscalated !== undefined) {
+    conditions.push(eq(inboxItems.isEscalated, filters.isEscalated))
+    if (filters.isEscalated) {
+      conditions.push(isNull(inboxItems.escalationResolvedAt))
+    }
+  }
 
   // Simple equality / range filters
   if (filters.sourceType) conditions.push(eq(inboxItems.sourceType, filters.sourceType))

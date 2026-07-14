@@ -13,13 +13,13 @@ import {
   SidebarMenuItem,
   SidebarMenuBadge,
 } from '#/components/ui/sidebar'
-import { InboxNewBadge } from '#/components/inbox/inbox-new-badge'
-import type { getNewCountFn } from '#/contexts/inbox/server/inbox'
+import { InboxVisitBadge } from '#/components/inbox/inbox-visit-badge'
+import type { getLastVisitCountFn } from '#/contexts/inbox/server/inbox'
 
 type Props = Readonly<{
   propertyId: string | undefined
   activeSection: string
-  getNewCount: typeof getNewCountFn
+  getLastVisitCount: typeof getLastVisitCountFn
 }>
 
 const navItems: ReadonlyArray<{
@@ -68,7 +68,7 @@ const navItems: ReadonlyArray<{
   },
 ]
 
-export function ManagerNavItems({ propertyId, activeSection, getNewCount }: Props) {
+export function ManagerNavItems({ propertyId, activeSection, getLastVisitCount }: Props) {
   return (
     <SidebarMenu>
       {navItems.map((item) => {
@@ -100,7 +100,7 @@ export function ManagerNavItems({ propertyId, activeSection, getNewCount }: Prop
             </SidebarMenuButton>
             {item.key === 'reviews' && (
               <SidebarMenuBadge>
-                <InboxNewBadge getNewCount={getNewCount} />
+                <InboxVisitBadge getLastVisitCount={getLastVisitCount} />
               </SidebarMenuBadge>
             )}
           </SidebarMenuItem>

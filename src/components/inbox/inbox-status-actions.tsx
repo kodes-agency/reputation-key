@@ -1,150 +1,74 @@
-// Status transition actions — extracted from inbox-detail-helpers for line-count compliance
-import type { InboxStatus, SourceType } from '#/contexts/inbox/application/public-api'
-import { AlertTriangle, Archive, ArchiveRestore, CheckCircle } from 'lucide-react'
+// Status + escalation actions — extracted for line-count compliance.
+// Per ADR 0023: status (open ⇄ closed) and escalation (flag on/off) are
+// orthogonal. Status transitions use updateInboxStatus; escalation actions
+// use escalateInboxItem / resolveEscalation separately.
+import type { InboxStatus } from '#/contexts/inbox/application/public-api'
+import { AlertTriangle, ArchiveRestore, CheckCircle, RotateCcw } from 'lucide-react'
 import type { ReactNode } from 'react'
 
-// Status transition buttons — which actions are available per status + sourceType
-export function getStatusActions(
-  status: InboxStatus,
-  sourceType: SourceType,
-): Array<{
+type Variant = 'default' | 'outline' | 'secondary' | 'destructive'
+
+export type StatusAction = Readonly<{
   label: string
   targetStatus: InboxStatus
   icon: ReactNode
-  variant: 'default' | 'outline' | 'secondary' | 'destructive'
-}> {
+  variant: Variant
+}>
+
+export type EscalationAction = Readonly<{
+  label: string
+  action: 'escalate' | 'resolve'
+  icon: ReactNode
+  variant: Variant
+}>
+
+/** Status transition buttons — open ⇄ closed (ADR 0023). No source-type guards. */
+export function getStatusActions(status: InboxStatus): StatusAction[] {
   switch (status) {
-    case 'new':
-      if (sourceType === 'review') {
-        return [
-          {
-            label: 'Escalate',
-            targetStatus: 'escalated',
-            icon: <AlertTriangle className="size-3.5" />,
-            variant: 'destructive',
-          },
-          {
-            label: 'Archive',
-            targetStatus: 'archived',
-            icon: <Archive className="size-3.5" />,
-            variant: 'secondary',
-          },
-        ]
-      }
-      // feedback — also gets "Mark Addressed" (new → addressed transition)
+    case 'open':
       return [
         {
-          label: 'Mark Addressed',
-          targetStatus: 'addressed',
+          label: 'Close',
+          targetStatus: 'closed',
           icon: <CheckCircle className="size-3.5" />,
           variant: 'default',
         },
-        {
-          label: 'Escalate',
-          targetStatus: 'escalated',
-          icon: <AlertTriangle className="size-3.5" />,
-          variant: 'destructive',
-        },
-        {
-          label: 'Archive',
-          targetStatus: 'archived',
-          icon: <Archive className="size-3.5" />,
-          variant: 'secondary',
-        },
       ]
-    case 'read':
-      if (sourceType === 'review') {
-        return [
-          {
-            label: 'Escalate',
-            targetStatus: 'escalated',
-            icon: <AlertTriangle className="size-3.5" />,
-            variant: 'destructive',
-          },
-          {
-            label: 'Archive',
-            targetStatus: 'archived',
-            icon: <Archive className="size-3.5" />,
-            variant: 'secondary',
-          },
-        ]
-      }
-      // feedback
+    case 'closed':
       return [
         {
-          label: 'Mark Addressed',
-          targetStatus: 'addressed',
-          icon: <CheckCircle className="size-3.5" />,
-          variant: 'default',
-        },
-        {
-          label: 'Escalate',
-          targetStatus: 'escalated',
-          icon: <AlertTriangle className="size-3.5" />,
-          variant: 'destructive',
-        },
-        {
-          label: 'Archive',
-          targetStatus: 'archived',
-          icon: <Archive className="size-3.5" />,
-          variant: 'secondary',
-        },
-      ]
-    case 'escalated':
-      if (sourceType === 'review') {
-        return [
-          {
-            label: 'Archive',
-            targetStatus: 'archived',
-            icon: <Archive className="size-3.5" />,
-            variant: 'secondary',
-          },
-        ]
-      }
-      // feedback
-      return [
-        {
-          label: 'Mark Addressed',
-          targetStatus: 'addressed',
-          icon: <CheckCircle className="size-3.5" />,
-          variant: 'default',
-        },
-        {
-          label: 'Archive',
-          targetStatus: 'archived',
-          icon: <Archive className="size-3.5" />,
-          variant: 'secondary',
-        },
-      ]
-    case 'addressed':
-      return [
-        {
-          label: 'Escalate',
-          targetStatus: 'escalated',
-          icon: <AlertTriangle className="size-3.5" />,
-          variant: 'destructive',
-        },
-        {
-          label: 'Archive',
-          targetStatus: 'archived',
-          icon: <Archive className="size-3.5" />,
-          variant: 'secondary',
-        },
-      ]
-    case 'archived':
-      return [
-        {
-          label: 'Unarchive',
-          targetStatus: 'read',
-          icon: <ArchiveRestore className="size-3.5" />,
-          variant: 'default',
-        },
-        {
-          label: 'Escalate',
-          targetStatus: 'escalated',
-          icon: <AlertTriangle className="size-3.5" />,
-          variant: 'destructive',
+          label: 'Reopen',
+          targetStatus: 'open',
+          icon: <RotateCcw className="size-3.5" />,
+          variant: 'outline',
         },
       ]
   }
+}
+
+/** Escalation-flag actions — orthogonal to status.
+ *  Active flag (escalated AND not yet resolved) → can resolve; otherwise escalate. */
+export function getEscalationActions(
+  isEscalated: boolean,
+  escalationResolvedAt: Date | null,
+): EscalationAction[] {
+  const isActive = isEscalated && escalationResolvedAt === null
+  if (isActive) {
+    return [
+      {
+        label: 'Resolve escalation',
+        action: 'resolve',
+        icon: <ArchiveRestore className="size-3.5" />,
+        variant: 'outline',
+      },
+    ]
+  }
+  return [
+    {
+      label: 'Escalate',
+      action: 'escalate',
+      icon: <AlertTriangle className="size-3.5" />,
+      variant: 'destructive',
+    },
+  ]
 }

@@ -178,7 +178,6 @@ export const buildInboxItemEscalatedEvent = (
   organizationId: NOTIF_TEST_IDS.orgId,
   propertyId: NOTIF_TEST_IDS.propId,
   userId: NOTIF_TEST_IDS.submitter,
-  oldStatus: 'new',
   source: 'web',
   occurredAt: NOTIF_TEST_IDS.now,
   ...overrides,

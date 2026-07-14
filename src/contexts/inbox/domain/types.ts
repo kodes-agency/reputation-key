@@ -11,7 +11,7 @@ import type {
   FeedbackId,
 } from '#/shared/domain/ids'
 
-export type InboxStatus = 'new' | 'read' | 'addressed' | 'escalated' | 'archived'
+export type InboxStatus = 'open' | 'closed'
 export type SourceType = 'review' | 'feedback'
 
 export type InboxItem = Readonly<{
@@ -21,6 +21,13 @@ export type InboxItem = Readonly<{
   sourceType: SourceType
   sourceId: ReviewId | FeedbackId
   status: InboxStatus
+  // Escalation flag — orthogonal to status (ADR 0023). An item can be
+  // closed + still flagged. Lifecycle: not flagged -> flagged -> acknowledged.
+  isEscalated: boolean
+  escalatedAt: Date | null
+  escalatedBy: UserId | null
+  escalationResolvedAt: Date | null
+  escalationResolvedBy: UserId | null
   rating: number | null
   sourceDate: Date
   platform: string | null
@@ -28,10 +35,7 @@ export type InboxItem = Readonly<{
   assignedTo: UserId | null
   reviewerName: string | null
   propertyName: string | null
-  readAt: Date | null
-  escalatedAt: Date | null
-  addressedAt: Date | null
-  archivedAt: Date | null
+  closedAt: Date | null
   firstReplySubmittedAt: Date | null
   firstReplyPublishedAt: Date | null
   createdAt: Date

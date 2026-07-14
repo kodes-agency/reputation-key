@@ -2,7 +2,6 @@ import { describe, it, expect, vi } from 'vitest'
 import { onReviewExpired } from './on-review-expired'
 import type { ReviewExpired } from '#/contexts/review/application/public-api'
 import type { InboxRepository } from '../../application/ports/inbox.repository'
-import type { NewCounterPort } from '../../application/ports/new-counter.port'
 import type { InboxItem } from '../../domain/types'
 import { inboxItemId, organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 
@@ -17,7 +16,7 @@ function makeItem(overrides: Partial<InboxItem> = {}): InboxItem {
     propertyId: propertyId('prop-1'),
     sourceType: 'review',
     sourceId: REVIEW_ID,
-    status: 'new',
+    status: 'open',
     rating: 4,
     sourceDate: new Date('2026-06-01'),
     platform: 'google',
@@ -25,10 +24,12 @@ function makeItem(overrides: Partial<InboxItem> = {}): InboxItem {
     assignedTo: null,
     reviewerName: 'John Doe',
     propertyName: null,
-    readAt: null,
+    isEscalated: false,
     escalatedAt: null,
-    addressedAt: null,
-    archivedAt: null,
+    escalatedBy: null,
+    escalationResolvedAt: null,
+    escalationResolvedBy: null,
+    closedAt: null,
     firstReplySubmittedAt: null,
     firstReplyPublishedAt: null,
     createdAt: NOW,
@@ -50,22 +51,10 @@ function makeEvent(overrides: Partial<ReviewExpired> = {}): ReviewExpired {
   }
 }
 
-const makeExpireDeps = (item: InboxItem, decrement = vi.fn(async () => {})) => ({
-  repo: {
-    findBySource: vi.fn(async () => item),
-    updateStatus: vi.fn(async () => item),
-  } as unknown as InboxRepository,
-  events: {
-    emit: vi.fn(async () => {}),
-  } as unknown as import('#/shared/events/event-bus').EventBus,
-  newCounter: { decrement } as unknown as NewCounterPort,
-})
-
 describe('onReviewExpired', () => {
   it('archives inbox item when review is purged', async () => {
     const item = makeItem()
     const updateStatus = vi.fn(async () => item)
-    const decrement = vi.fn(async () => {})
 
     const deps = {
       repo: {
@@ -75,7 +64,6 @@ describe('onReviewExpired', () => {
       events: {
         emit: vi.fn(async () => {}),
       } as unknown as import('#/shared/events/event-bus').EventBus,
-      newCounter: { decrement } as unknown as NewCounterPort,
     }
 
     await onReviewExpired(deps)(makeEvent())
@@ -84,28 +72,10 @@ describe('onReviewExpired', () => {
     expect(updateStatus).toHaveBeenCalledWith(
       inboxItemId('inbox-1'),
       ORG_ID,
-      'archived',
-      { archivedAt: NOW },
+      'closed',
+      { closedAt: NOW },
       NOW,
     )
-  })
-
-  it('decrements new counter when archiving a new item', async () => {
-    const decrement = vi.fn(async () => {})
-    const deps = makeExpireDeps(makeItem({ status: 'new' }), decrement)
-
-    await onReviewExpired(deps)(makeEvent())
-
-    expect(decrement).toHaveBeenCalledWith(ORG_ID)
-  })
-
-  it('does not decrement counter when item is not new', async () => {
-    const decrement = vi.fn(async () => {})
-    const deps = makeExpireDeps(makeItem({ status: 'read' }), decrement)
-
-    await onReviewExpired(deps)(makeEvent())
-
-    expect(decrement).not.toHaveBeenCalled()
   })
 
   it('skips silently when no inbox item exists for the review', async () => {
@@ -119,7 +89,6 @@ describe('onReviewExpired', () => {
       events: {
         emit: vi.fn(async () => {}),
       } as unknown as import('#/shared/events/event-bus').EventBus,
-      newCounter: {} as unknown as NewCounterPort,
     }
 
     await expect(onReviewExpired(deps)(makeEvent())).resolves.toBeUndefined()
@@ -136,7 +105,6 @@ describe('onReviewExpired', () => {
       events: {
         emit: vi.fn(async () => {}),
       } as unknown as import('#/shared/events/event-bus').EventBus,
-      newCounter: {} as unknown as NewCounterPort,
     }
 
     await expect(onReviewExpired(deps)(makeEvent())).resolves.toBeUndefined()

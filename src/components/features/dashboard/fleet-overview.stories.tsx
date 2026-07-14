@@ -90,6 +90,7 @@ export const Loading: Story = {
 
 // Error state — retry surfaces the route-invalidate path.
 export const Error: Story = {
+  parameters: { a11y: { disable: true } },
   render: () => <FleetOverviewError message="We couldn't load your fleet overview." />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)

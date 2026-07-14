@@ -1,8 +1,8 @@
 // Inbox context — bulk update inbox status use case
-// Batch status change for multiple inbox items.
+// Batch status change for multiple inbox items (open ⇄ closed per ADR 0023).
+// No source-type guards; escalation is orthogonal and handled separately.
 
 import type { InboxRepository } from '../ports/inbox.repository'
-import type { NewCounterPort } from '../ports/new-counter.port'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { InboxItemId, PropertyId } from '#/shared/domain/ids'
 import type { InboxItem, InboxStatus } from '../../domain/types'
@@ -10,7 +10,7 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { validateTransition, timestampFieldsForStatus } from '../../domain/rules'
 import { inboxError } from '../../domain/errors'
-import { inboxItemBulkStatusChanged, inboxItemEscalated } from '../../domain/events'
+import { inboxItemBulkStatusChanged } from '../../domain/events'
 import { canForContext } from '#/shared/domain/permissions'
 import { getAccessiblePropertyIdsForPermission } from '#/shared/domain/property-access'
 import type { LoggerPort } from '#/shared/domain/logger.port'
@@ -20,15 +20,18 @@ export type BulkUpdateInboxStatusInput = Readonly<{
   newStatus: InboxStatus
 }>
 
-// fallow-ignore-next-line unused-type
 export type BulkUpdateInboxStatusDeps = Readonly<{
   repo: InboxRepository
   events: EventBus
-  newCounter: NewCounterPort
   clock: () => Date
   staffPublicApi: StaffPublicApi
   logger: LoggerPort
 }>
+
+export type BulkUpdateInboxStatus = (
+  input: BulkUpdateInboxStatusInput,
+  ctx: AuthContext,
+) => Promise<{ updated: number }>
 
 // `accessible` is null for an org-wide caller (no filtering); an explicit list
 // for an assigned-scope caller (PM/Staff). `ok: false` means access resolution
@@ -77,9 +80,6 @@ const selectValidBulkItems = (
   for (const id of ids) {
     const item = itemMap.get(id as string)
     if (!item) continue
-    // Defense-in-depth: skip reviews for bulk 'addressed'
-    // (reviews auto-transition via reply.published)
-    if (newStatus === 'addressed' && item.sourceType === 'review') continue
     // Enforce role-scoped property access (using pre-computed list)
     if (accessible !== null && !accessible.includes(item.propertyId)) continue
     if (validateTransition(item.status, newStatus).isOk()) {
@@ -90,8 +90,7 @@ const selectValidBulkItems = (
   return { validIds, oldStatuses }
 }
 
-/** Emits the per-item bulk_status_changed (and, when escalating, the escalated)
- *  events. Mirrors the single-item path so notifications fire identically. */
+/** Emits the per-item bulk_status_changed event. */
 const emitBulkStatusEvents = async (
   deps: BulkUpdateInboxStatusDeps,
   items: ReadonlyArray<InboxItem>,
@@ -116,27 +115,12 @@ const emitBulkStatusEvents = async (
         occurredAt: now,
       }),
     )
-    if (input.newStatus === 'escalated') {
-      await deps.events.emit(
-        inboxItemEscalated({
-          inboxItemId: id,
-          organizationId: ctx.organizationId,
-          propertyId: oldItem?.propertyId ?? ('' as PropertyId),
-          oldStatus: oldStatuses.get(id)!,
-          userId: ctx.userId,
-          occurredAt: now,
-        }),
-      )
-    }
   }
 }
 
 export const bulkUpdateInboxStatus =
-  (deps: BulkUpdateInboxStatusDeps) =>
-  async (
-    input: BulkUpdateInboxStatusInput,
-    ctx: AuthContext,
-  ): Promise<{ updated: number }> => {
+  (deps: BulkUpdateInboxStatusDeps): BulkUpdateInboxStatus =>
+  async (input, ctx) => {
     if (!canForContext(ctx, 'inbox.write'))
       throw inboxError('forbidden', 'No inbox write permission')
     const now = deps.clock()
@@ -165,23 +149,7 @@ export const bulkUpdateInboxStatus =
       now,
     )
 
-    // 4. Decrement new counter for items transitioning away from 'new'
-    //    (single bulk decrement instead of O(n) individual calls)
-    if (input.newStatus !== 'new') {
-      const newCount = validIds.filter((id) => oldStatuses.get(id) === 'new').length
-      if (newCount > 0) {
-        try {
-          await deps.newCounter.decrementBy(ctx.organizationId, newCount)
-        } catch (err) {
-          deps.logger.warn(
-            { err, organizationId: ctx.organizationId },
-            'New counter bulk decrement failed, DB is source of truth',
-          )
-        }
-      }
-    }
-
-    // 5. Emit per-item events
+    // 4. Emit per-item events
     await emitBulkStatusEvents(
       deps,
       items,
@@ -195,6 +163,3 @@ export const bulkUpdateInboxStatus =
 
     return result
   }
-
-// fallow-ignore-next-line unused-type
-export type BulkUpdateInboxStatus = ReturnType<typeof bulkUpdateInboxStatus>

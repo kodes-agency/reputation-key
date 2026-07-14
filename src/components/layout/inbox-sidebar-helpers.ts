@@ -1,19 +1,15 @@
 import { useRouterState } from '@tanstack/react-router'
 
 export interface InboxFolderCounts {
-  inbox: number
-  unaddressed: number
+  open: number
   escalated: number
-  addressed: number
-  archived: number
+  closed: number
 }
 
 export const DEFAULT_COUNTS: InboxFolderCounts = {
-  inbox: 0,
-  unaddressed: 0,
+  open: 0,
   escalated: 0,
-  addressed: 0,
-  archived: 0,
+  closed: 0,
 }
 
 export function useInboxFolder(): string {
@@ -28,9 +24,11 @@ export function useInboxPlatform(): string {
   })
 }
 
+/** Maps a sidebar folder slug to the counts key. The default (no folder) is
+ *  the Open working view (ADR 0023). */
 export function folderCountKey(
-  folder: 'inbox' | 'escalated' | 'addressed' | 'archived' | '',
+  folder: 'open' | 'escalated' | 'closed' | '',
 ): keyof InboxFolderCounts {
-  if (folder === '') return 'unaddressed'
+  if (folder === '') return 'open'
   return folder as keyof InboxFolderCounts
 }

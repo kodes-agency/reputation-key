@@ -7,6 +7,8 @@ import {
   getInboxNotesFn,
   getInboxFolderCountsFn,
   updateInboxStatusFn,
+  escalateInboxItemFn,
+  resolveEscalationFn,
   addInboxNoteFn,
   bulkUpdateInboxStatusFn,
 } from '#/contexts/inbox/server/inbox'
@@ -20,6 +22,8 @@ export const inboxFns: InboxServerFns = {
   getActivityTimeline: getActivityTimelineFn,
   getInboxFolderCounts: getInboxFolderCountsFn,
   updateInboxStatus: updateInboxStatusFn,
+  escalateInboxItem: escalateInboxItemFn,
+  resolveEscalation: resolveEscalationFn,
   addInboxNote: addInboxNoteFn,
   bulkUpdateInboxStatus: bulkUpdateInboxStatusFn,
 }
