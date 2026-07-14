@@ -87,6 +87,7 @@ export function AttentionBand({ signals, propertyId }: AttentionBandProps) {
         key="goalsBehindPace"
         to="/properties/$propertyId/goals"
         params={{ propertyId }}
+        search={{ view: 'active' }}
         className={cn(CHIP_BASE, TONE_CLASS.warning)}
       >
         <ChipContent

@@ -1,5 +1,5 @@
 // Goal detail route — loads goal with progress and instances
-import { createFileRoute, redirect } from '@tanstack/react-router'
+import { createFileRoute, getRouteApi, redirect } from '@tanstack/react-router'
 import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
@@ -9,6 +9,8 @@ import { cancelGoal } from '#/contexts/goal/server/goals'
 import { GoalDetailPage } from '#/components/features/property/goals/goal-detail-page'
 import { goalKeys } from '#/shared/queries/query-keys'
 import { propertyQuery } from '#/shared/queries/route-queries'
+
+const authRoute = getRouteApi('/_authenticated')
 
 const goalQuery = (goalId: string) =>
   queryOptions({
@@ -36,6 +38,7 @@ export const Route = createFileRoute(
 
 function GoalDetailRoute() {
   const { propertyId, goalId } = Route.useParams()
+  const ctx = authRoute.useRouteContext() as AuthRouteContext
   const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
   const { data: goalData } = useSuspenseQuery(goalQuery(goalId))
   const { goal, progress, instances } = goalData
@@ -54,6 +57,7 @@ function GoalDetailRoute() {
       propertyName={propData.property.name}
       onCancel={() => cancelMutation({ data: { goalId } })}
       isCancelling={cancelMutation.isPending}
+      canCancelGoal={can(ctx.role, 'goal.cancel')}
     />
   )
 }

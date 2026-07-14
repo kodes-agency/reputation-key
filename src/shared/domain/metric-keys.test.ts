@@ -29,12 +29,8 @@ describe('metric-keys', () => {
   })
 
   describe('scope → metric key validation', () => {
-    it('property scope allows the three goal-eligible keys', () => {
-      expect(VALID_SCOPE_METRIC_KEYS.property).toEqual([
-        'portal.scan',
-        'portal.rating',
-        'property.review',
-      ])
+    it('property scope allows only property.review', () => {
+      expect(VALID_SCOPE_METRIC_KEYS.property).toEqual(['property.review'])
     })
 
     it('portal scope allows scans and ratings only', () => {

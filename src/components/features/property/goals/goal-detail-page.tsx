@@ -1,28 +1,38 @@
 import { Badge } from '#/components/ui/badge'
-import { Button } from '#/components/ui/button'
-import { Card, CardContent, CardHeader } from '#/components/ui/card'
-import { Separator } from '#/components/ui/separator'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '#/components/ui/card'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
-import { ProgressBar } from './progress-bar'
 import { InstanceHistoryTable } from './instance-history-table'
-import { Target } from 'lucide-react'
+import { GoalProgressTrack } from './goal-progress-track'
 import {
+  CancelGoalDialog,
+  Detail,
+  SummaryMetric,
+  formatValue,
+  sentenceCase,
+} from './goal-detail-parts'
+import {
+  aggregationLabel,
+  formatDate,
+  formatPeriodDates,
+  getGoalPresentation,
+  goalTypeLabel,
+  measureLabel,
+  metricLabel,
+  scopeLabel,
   statusBadgeVariant,
   statusLabel,
-  scopeLabel,
-  goalTypeLabel,
-  aggregationLabel,
-  metricLabel,
   targetUnit,
-  describeGoal,
-  formatPeriodDates,
-  formatDate,
-  daysRemaining,
+  type GoalWithProgress,
 } from '#/contexts/goal/ui/helpers'
 import { deriveEntityScope } from '#/contexts/goal/application/public-api'
 import type { Goal, GoalProgress } from '#/contexts/goal/application/public-api'
-import { type GoalWithProgress } from '#/contexts/goal/ui/helpers'
 
 type Props = Readonly<{
   goal: Goal
@@ -32,6 +42,7 @@ type Props = Readonly<{
   propertyName: string
   onCancel: () => void
   isCancelling: boolean
+  canCancelGoal?: boolean
 }>
 
 export function GoalDetailPage({
@@ -42,13 +53,15 @@ export function GoalDetailPage({
   propertyName,
   onCancel,
   isCancelling,
+  canCancelGoal = true,
 }: Props) {
   const scope = deriveEntityScope(goal)
+  const presentation = getGoalPresentation(goal, progress)
   const isRecurringTemplate = goal.goalType === 'recurring' && !goal.parentGoalId
-  const hasPeriod = goal.periodStart && goal.periodEnd
+  const canCancel = goal.status === 'active' && canCancelGoal
 
   return (
-    <PageShell>
+    <PageShell className="flex flex-col gap-5 md:gap-6">
       <PageHeader
         title={goal.name}
         description={goal.description ?? undefined}
@@ -58,7 +71,6 @@ export function GoalDetailPage({
           { label: 'Goals', to: `/properties/${propertyId}/goals` },
           { label: goal.name },
         ]}
-        backTo={{ to: `/properties/${propertyId}/goals`, label: 'Back to Goals' }}
         actions={
           <Badge variant={statusBadgeVariant(goal.status)}>
             {statusLabel(goal.status)}
@@ -66,89 +78,114 @@ export function GoalDetailPage({
         }
       />
 
-      <div className="flex items-center gap-3 rounded-lg border bg-muted/30 p-4">
-        <Target className="size-4 shrink-0 text-primary" />
-        <p className="text-sm font-medium">{describeGoal(goal)}</p>
-      </div>
-
       <Card>
         <CardHeader>
-          <h2 className="font-semibold leading-none">Details</h2>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Detail label="Scope" value={scopeLabel(scope)} />
-            <Detail
-              label="Type"
-              value={<Badge variant="outline">{goalTypeLabel(goal.goalType)}</Badge>}
-            />
-            <Detail
-              label="Aggregation"
-              value={
-                <Badge variant="outline">
-                  {aggregationLabel(goal.aggregationFunction)}
-                </Badge>
-              }
-            />
-            <Detail label="Metric" value={metricLabel(goal.metricKey)} />
-            <Detail
-              label="Target"
-              value={`${goal.targetValue.toLocaleString()} ${targetUnit(goal.metricKey, goal.aggregationFunction)}`}
-            />
-            {hasPeriod && (
-              <>
-                <Detail
-                  label="Period"
-                  value={formatPeriodDates(goal.periodStart, goal.periodEnd)}
-                />
-                <Detail
-                  label="Days Remaining"
-                  value={
-                    goal.periodEnd ? `${daysRemaining(goal.periodEnd) ?? 0} days` : '—'
-                  }
-                />
-              </>
-            )}
-            {goal.completedAt && (
-              <Detail label="Completed At" value={formatDate(goal.completedAt)} />
-            )}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex min-w-0 flex-col gap-1">
+              <CardTitle>Progress</CardTitle>
+              <CardDescription>{presentation.statusMessage}</CardDescription>
+            </div>
+            <Badge variant="outline">{presentation.remainingLabel}</Badge>
           </div>
-          <Separator />
-          <div className="space-y-2">
-            <h3 className="text-sm font-medium">Progress</h3>
-            <ProgressBar
-              currentValue={progress?.currentValue ?? 0}
-              targetValue={goal.targetValue}
-              aggregation={goal.aggregationFunction}
-              status={goal.status}
-            />
-            {progress && (
-              <p className="text-xs text-muted-foreground">
-                Last computed: {formatDate(progress.lastComputedAt)}
-              </p>
-            )}
+        </CardHeader>
+        <CardContent className="flex flex-col gap-5">
+          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start">
+            <div className="flex min-w-0 flex-col gap-3">
+              <GoalProgressTrack
+                currentValue={presentation.currentValue}
+                targetValue={presentation.targetValue}
+                percent={presentation.progressPercent}
+                label={presentation.progressLabel}
+                status={goal.status}
+                attention={presentation.attention}
+                expectedPercent={presentation.expectedPercent}
+                showExpectedMarker={presentation.showExpectedMarker}
+              />
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
+                <span className="tabular-nums text-foreground">
+                  {presentation.progressLabel}
+                </span>
+                <span>{presentation.timeframeLabel}</span>
+                {presentation.showExpectedMarker && (
+                  <span>Marker shows expected progress for elapsed time</span>
+                )}
+              </div>
+            </div>
+
+            <dl className="grid grid-cols-2 gap-4 lg:grid-cols-1">
+              <SummaryMetric
+                term="Current"
+                value={formatValue(presentation.currentValue, presentation.unit)}
+              />
+              <SummaryMetric
+                term="Target"
+                value={formatValue(goal.targetValue, presentation.unit)}
+              />
+              <SummaryMetric
+                term="Pace"
+                value={presentation.paceLabel || presentation.remainingLabel}
+              />
+              {progress && (
+                <SummaryMetric
+                  term="Last update"
+                  value={formatDate(progress.lastComputedAt)}
+                />
+              )}
+            </dl>
           </div>
         </CardContent>
       </Card>
 
-      {goal.status === 'active' && (
-        <div className="flex justify-end">
-          <Button variant="destructive" onClick={onCancel} disabled={isCancelling}>
-            {isCancelling ? 'Cancelling...' : 'Cancel Goal'}
-          </Button>
+      <section className="flex flex-col gap-3">
+        <div className="flex flex-col gap-1">
+          <h2 className="text-sm font-semibold">Goal settings</h2>
+          <p className="text-sm text-muted-foreground">
+            The rule used to measure and group this target.
+          </p>
         </div>
+        <dl className="grid rounded-lg border sm:grid-cols-2 lg:grid-cols-3">
+          <Detail term="Scope">{scopeLabel(scope)}</Detail>
+          <Detail term="Type">{goalTypeLabel(goal.goalType)}</Detail>
+          <Detail term="Measured as">
+            {sentenceCase(measureLabel(goal.metricKey, goal.aggregationFunction))}
+          </Detail>
+          <Detail term="Metric">{metricLabel(goal.metricKey)}</Detail>
+          <Detail term="Aggregation">{aggregationLabel(goal.aggregationFunction)}</Detail>
+          <Detail term="Target">
+            {goal.targetValue.toLocaleString()}{' '}
+            {targetUnit(goal.metricKey, goal.aggregationFunction)}
+          </Detail>
+          <Detail term="Timeframe">{presentation.timeframeLabel}</Detail>
+          <Detail term="Status">{statusLabel(goal.status)}</Detail>
+          {goal.completedAt && (
+            <Detail term="Completed">{formatDate(goal.completedAt)}</Detail>
+          )}
+          {goal.periodStart || goal.periodEnd ? (
+            <Detail term="Period">
+              {formatPeriodDates(goal.periodStart, goal.periodEnd)}
+            </Detail>
+          ) : null}
+        </dl>
+      </section>
+
+      {canCancel && (
+        <section className="flex flex-col gap-3 rounded-lg border border-destructive/20 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-1">
+            <h2 className="text-sm font-semibold">Cancel this goal</h2>
+            <p className="text-sm text-muted-foreground">
+              Cancelling stops tracking this target and keeps the final progress in
+              History.
+            </p>
+          </div>
+          <CancelGoalDialog
+            goalName={goal.name}
+            onCancel={onCancel}
+            isCancelling={isCancelling}
+          />
+        </section>
       )}
 
       {isRecurringTemplate && <InstanceHistoryTable instances={instances} />}
     </PageShell>
-  )
-}
-
-function Detail({ label, value }: Readonly<{ label: string; value: React.ReactNode }>) {
-  return (
-    <div className="space-y-1">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <div className="text-sm font-medium">{value}</div>
-    </div>
   )
 }

@@ -274,7 +274,7 @@ describe('filterGoalsForPortalGroupView', () => {
 describe('getMetricKeysForScope', () => {
   it('returns goal-eligible keys for property scope', () => {
     const keys = getMetricKeysForScope('property')
-    expect(keys).toEqual(['portal.scan', 'portal.rating', 'property.review'])
+    expect(keys).toEqual(['property.review'])
   })
 
   it('returns portal keys for portal_group scope', () => {
@@ -382,5 +382,145 @@ describe('formatPeriodDates', () => {
     expect(formatPeriodDates(new Date('2026-01-01'), new Date('2026-01-31'))).toBe(
       'Jan 1 – Jan 31',
     )
+  })
+})
+
+// ── Time-proportional expected / pace helpers ──────────────────────────
+
+import {
+  hasPeriod,
+  computeElapsedFraction,
+  computeExpectedValue,
+  computePaceStatus,
+  getGoalPresentation,
+  paceLabel,
+} from './helpers'
+
+describe('hasPeriod', () => {
+  it('true when both dates present', () => {
+    expect(
+      hasPeriod(
+        makeGoal({
+          id: 'g-has' as Goal['id'],
+          periodStart: new Date(),
+          periodEnd: new Date(),
+        }),
+      ),
+    ).toBe(true)
+  })
+  it('false when missing', () => {
+    expect(
+      hasPeriod(
+        makeGoal({ id: 'g-no' as Goal['id'], periodStart: null, periodEnd: null }),
+      ),
+    ).toBe(false)
+  })
+})
+
+describe('computeElapsedFraction', () => {
+  it('0 when no period', () => {
+    expect(computeElapsedFraction(null, null)).toBe(0)
+  })
+  it('clamps and computes mid period', () => {
+    const start = new Date('2026-07-01')
+    const end = new Date('2026-07-11') // 10 days
+    const mid = new Date('2026-07-06')
+    expect(computeElapsedFraction(start, end, mid)).toBeCloseTo(0.5, 1)
+  })
+})
+
+describe('computeExpectedValue', () => {
+  it('fraction of target', () => {
+    expect(computeExpectedValue(100, 0.25)).toBeCloseTo(25)
+  })
+  it('clamps at target', () => {
+    expect(computeExpectedValue(100, 1.2)).toBe(100)
+  })
+})
+
+describe('computePaceStatus + paceLabel', () => {
+  const active = 'active' as const
+  it('ahead when clearly above expected', () => {
+    expect(computePaceStatus(80, 50, 100, active)).toBe('ahead')
+    expect(paceLabel('ahead')).toContain('Ahead')
+  })
+  it('behind when clearly under', () => {
+    expect(computePaceStatus(20, 50, 100, active)).toBe('behind')
+  })
+  it('on-pace near expected within tolerance', () => {
+    expect(computePaceStatus(49, 50, 100, active)).toBe('on-pace')
+  })
+  it('at-target for completed', () => {
+    expect(computePaceStatus(40, 50, 100, 'completed')).toBe('at-target')
+  })
+})
+
+describe('getGoalPresentation', () => {
+  const now = new Date('2026-07-15T12:00:00Z')
+
+  it('marks bounded active goals behind when current progress trails elapsed time', () => {
+    const goal = makeGoal({
+      id: 'g-presentation-behind' as Goal['id'],
+      targetValue: 100,
+      periodStart: new Date('2026-07-01T00:00:00Z'),
+      periodEnd: new Date('2026-07-31T23:59:59Z'),
+    })
+
+    const result = getGoalPresentation(goal, null, now)
+
+    expect(result.pace).toBe('behind')
+    expect(result.attention).toBe('needs-attention')
+    expect(result.showExpectedMarker).toBe(true)
+    expect(result.statusMessage).toContain('Behind by')
+  })
+
+  it('does not invent time pace for recurring templates without a current period', () => {
+    const goal = makeGoal({
+      id: 'g-presentation-recurring' as Goal['id'],
+      goalType: 'recurring',
+      recurrenceRule: { frequency: 'monthly' },
+      periodStart: null,
+      periodEnd: null,
+    })
+
+    const result = getGoalPresentation(goal, null, now)
+
+    expect(result.pace).toBe('no-period')
+    expect(result.attention).toBe('other')
+    expect(result.showExpectedMarker).toBe(false)
+    expect(result.timeframeLabel).toBe('Resets monthly')
+    expect(result.statusMessage).toBe('Current period progress')
+  })
+
+  it('keeps future goals out of pace buckets until their period starts', () => {
+    const goal = makeGoal({
+      id: 'g-presentation-future' as Goal['id'],
+      periodStart: new Date('2026-08-01T00:00:00Z'),
+      periodEnd: new Date('2026-08-31T23:59:59Z'),
+    })
+
+    const result = getGoalPresentation(goal, null, now)
+
+    expect(result.pace).toBe('no-period')
+    expect(result.attention).toBe('other')
+    expect(result.remainingLabel).toBe('Starts Aug 1, 2026')
+    expect(result.statusMessage).toBe('Not started yet')
+  })
+
+  it('uses lifecycle copy for completed goals instead of active pace', () => {
+    const goal = makeGoal({
+      id: 'g-presentation-completed' as Goal['id'],
+      status: 'completed',
+      completedAt: new Date('2026-07-10T09:00:00Z'),
+      periodStart: new Date('2026-07-01T00:00:00Z'),
+      periodEnd: new Date('2026-07-31T23:59:59Z'),
+    })
+
+    const result = getGoalPresentation(goal, null, now)
+
+    expect(result.pace).toBe('at-target')
+    expect(result.showExpectedMarker).toBe(false)
+    expect(result.remainingLabel).toBe('Completed Jul 10, 2026')
+    expect(result.statusMessage).toContain('Finished at')
   })
 })

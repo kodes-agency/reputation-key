@@ -17,6 +17,7 @@ import {
 import type { MetricKey, AggregationFunction } from '#/shared/domain/metric-keys'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { PropertyId, PortalId, PortalGroupId } from '#/shared/domain/ids'
+import { portalId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Role } from '#/shared/domain/roles'
 
@@ -170,11 +171,11 @@ const BASE_INPUT = {
   propertyId: propertyId('prop-1'),
   portalId: null as PortalId | null,
   portalGroupId: null as PortalGroupId | null,
-  name: 'Get 200 scans',
+  name: 'Reach 4.5 average Google rating',
   description: null as string | null,
-  metricKey: 'portal.scan' as MetricKey,
-  aggregationFunction: 'sum' as AggregationFunction,
-  targetValue: 200,
+  metricKey: 'property.review' as MetricKey,
+  aggregationFunction: 'avg' as AggregationFunction,
+  targetValue: 4.5,
 }
 
 describe('createGoal', () => {
@@ -193,6 +194,9 @@ describe('createGoal', () => {
         {
           ...BASE_INPUT,
           goalType: 'open',
+          metricKey: 'property.review' as MetricKey,
+          aggregationFunction: 'count' as AggregationFunction,
+          targetValue: 200,
         },
         ctxFor('AccountAdmin'),
       )
@@ -226,7 +230,7 @@ describe('createGoal', () => {
 
       const queries = fakes.metricRepo._getQueries()
       expect(queries).toHaveLength(1)
-      expect(queries[0]!.metricKey).toBe('portal.scan')
+      expect(queries[0]!.metricKey).toBe('property.review')
       expect(queries[0]!.periodStart).toBeUndefined()
       expect(queries[0]!.periodEnd).toBeUndefined()
       expect(queries[0]!.rollingWindowDays).toBeUndefined()
@@ -317,6 +321,10 @@ describe('createGoal', () => {
         {
           ...BASE_INPUT,
           goalType: 'recurring',
+          portalId: portalId('portal-1'),
+          metricKey: 'portal.scan' as MetricKey,
+          aggregationFunction: 'sum' as AggregationFunction,
+          targetValue: 200,
           recurrenceRule: { frequency: 'monthly' },
         },
         ctxFor('AccountAdmin'),
@@ -356,6 +364,10 @@ describe('createGoal', () => {
         {
           ...BASE_INPUT,
           goalType: 'recurring',
+          portalId: portalId('portal-1'),
+          metricKey: 'portal.scan' as MetricKey,
+          aggregationFunction: 'sum' as AggregationFunction,
+          targetValue: 200,
           recurrenceRule: { frequency: 'weekly' },
         },
         ctxFor('AccountAdmin'),
@@ -374,6 +386,10 @@ describe('createGoal', () => {
         {
           ...BASE_INPUT,
           goalType: 'recurring',
+          portalId: portalId('portal-1'),
+          metricKey: 'portal.scan' as MetricKey,
+          aggregationFunction: 'sum' as AggregationFunction,
+          targetValue: 200,
           recurrenceRule: { frequency: 'quarterly' },
         },
         ctxFor('AccountAdmin'),
@@ -397,6 +413,7 @@ describe('createGoal', () => {
         {
           ...BASE_INPUT,
           goalType: 'open',
+          portalId: portalId('portal-1'),
           metricKey: 'portal.rating',
           aggregationFunction: 'avg',
           targetValue: 4.5,
@@ -534,6 +551,7 @@ describe('createGoal', () => {
         {
           ...BASE_INPUT,
           goalType: 'open',
+          portalId: portalId('portal-1'),
           metricKey: 'portal.scan',
           aggregationFunction: 'avg',
         },

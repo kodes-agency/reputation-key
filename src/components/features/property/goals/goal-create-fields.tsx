@@ -29,7 +29,7 @@ export function GoalCreateFields({
   onCancel,
 }: Props) {
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <TrackSection
         state={state}
         setters={setters}

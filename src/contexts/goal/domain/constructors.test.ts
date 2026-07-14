@@ -16,12 +16,12 @@ const BASE = {
   propertyId: propertyId('prop-1'),
   portalId: null as ReturnType<typeof portalId> | null,
   portalGroupId: null as ReturnType<typeof portalGroupId> | null,
-  name: 'Get 200 scans',
+  name: 'Reach 4.5 average Google rating',
   description: null as string | null,
   createdBy: userId('user-1'),
-  metricKey: 'portal.scan' as const,
-  aggregationFunction: 'sum' as const,
-  targetValue: 200,
+  metricKey: 'property.review' as const,
+  aggregationFunction: 'avg' as const,
+  targetValue: 4.5,
   now: new Date('2026-06-01T12:00:00Z'),
 }
 
@@ -50,6 +50,9 @@ describe('buildGoal', () => {
         ...BASE,
         goalType: 'open',
         portalId: portalId('portal-1'),
+        metricKey: 'portal.scan' as const,
+        aggregationFunction: 'sum' as const,
+        targetValue: 200,
       })
       expect(result.isOk()).toBe(true)
     })
@@ -59,6 +62,9 @@ describe('buildGoal', () => {
         ...BASE,
         goalType: 'open',
         portalGroupId: portalGroupId('pg-1'),
+        metricKey: 'portal.scan' as const,
+        aggregationFunction: 'sum' as const,
+        targetValue: 200,
       })
       expect(result.isOk()).toBe(true)
     })
@@ -342,7 +348,9 @@ describe('buildGoal', () => {
         ...BASE,
         goalType: 'open',
         portalGroupId: portalGroupId('pg-1'),
-        metricKey: 'portal.scan',
+        metricKey: 'portal.scan' as const,
+        aggregationFunction: 'sum' as const,
+        targetValue: 200,
       })
       expect(result.isOk()).toBe(true)
     })
@@ -365,6 +373,7 @@ describe('buildGoal', () => {
       const result = buildGoal({
         ...BASE,
         goalType: 'open',
+        portalId: portalId('portal-1'),
         metricKey: 'portal.scan',
         aggregationFunction: 'avg',
       })
@@ -376,6 +385,7 @@ describe('buildGoal', () => {
       const result = buildGoal({
         ...BASE,
         goalType: 'open',
+        portalId: portalId('portal-1'),
         metricKey: 'portal.rating',
         aggregationFunction: 'avg',
       })
@@ -386,6 +396,7 @@ describe('buildGoal', () => {
       const result = buildGoal({
         ...BASE,
         goalType: 'open',
+        portalId: portalId('portal-1'),
         metricKey: 'portal.rating',
         aggregationFunction: 'sum',
       })

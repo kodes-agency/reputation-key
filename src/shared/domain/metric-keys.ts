@@ -38,7 +38,9 @@ export const AGGREGATION_FUNCTIONS: readonly AggregationFunction[] = [
 
 /**
  * Which metric keys are valid for each entity scope.
- * Portal group scope uses the same keys as portal scope — aggregated across member portals.
+ * - Property scope is intentionally limited to 'property.review' (Google reviews),
+ *   as scans and private ratings are portal-specific experiences.
+ * - Portal group scope uses the same keys as portal scope — aggregated across member portals.
  */
 export const VALID_SCOPE_METRIC_KEYS: Readonly<
   Record<EntityScope, readonly MetricKey[]>
@@ -46,7 +48,7 @@ export const VALID_SCOPE_METRIC_KEYS: Readonly<
   // Goal eligibility follows the outcomes-not-levers rule (ADR 0020):
   // feedback (process) and review-link clicks (lever) are excluded from goals
   // but remain valid MetricKeys for badges/leaderboard/dashboard.
-  property: ['portal.scan', 'portal.rating', 'property.review'],
+  property: ['property.review'],
   portal: ['portal.scan', 'portal.rating'],
   portal_group: ['portal.scan', 'portal.rating'],
 }
