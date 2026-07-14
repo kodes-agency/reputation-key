@@ -73,6 +73,18 @@ const envSchema = z.object({
     .string()
     .optional()
     .transform((v) => v?.toLowerCase() === 'true'),
+  // ── BETA-0 safety envelope controls ────────────────────────────────
+  // Global capability kill switch — comma-separated capability keys to
+  // disable regardless of per-tenant policy (B0.5). Empty/absent = none off.
+  BETA_CAPABILITIES_OFF: z.string().optional(),
+  // Allowlist of org slugs/IDs permitted in the beta cohort (B0.5/B0.6).
+  // Empty/absent = all verified orgs admitted.
+  BETA_ALLOWLIST_ORGS: z.string().optional(),
+  // Org slugs/IDs suspended from the beta (B0.5 operator controls).
+  BETA_SUSPENDED_ORGS: z.string().optional(),
+  // Number of trusted reverse proxies in front of the app (B0.7).
+  // Used to derive the real client IP from X-Forwarded-For safely.
+  TRUSTED_PROXY_COUNT: z.coerce.number().int().min(0).default(1),
 })
 
 // fallow-ignore-next-line unused-type

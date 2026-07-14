@@ -1,0 +1,43 @@
+# Dependabot configuration — automated dependency updates.
+# https://docs.github.com/en/code-security/dependabot/dependabot-version-updates
+
+version: 2
+
+updates:
+  # npm dependencies — weekly check for updates.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: deps
+    labels:
+      - dependencies
+    groups:
+      vitest:
+        patterns:
+          - vitest
+          - '@vitest/*'
+      tanstack:
+        patterns:
+          - '@tanstack/*'
+      storybook:
+        patterns:
+          - storybook
+          - '@storybook/*'
+
+  # GitHub Actions — weekly check for action version updates.
+  # Actions are SHA-pinned (see workflows); Dependabot updates the SHAs
+  # and maintains the version comment alongside each pin.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: ci
+    labels:
+      - dependencies

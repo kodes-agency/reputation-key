@@ -1,0 +1,23 @@
+# CODEOWNERS — mandatory reviewers for security-sensitive paths.
+# Enforced via branch protection ("Require review from Code Owners").
+
+# Authentication & authorization
+/src/shared/auth/              @kodes-agency
+
+# Identity context (session, user, org membership)
+/src/contexts/identity/        @kodes-agency
+
+# CI/CD pipelines & supply chain
+/.github/workflows/            @kodes-agency
+
+# Database migrations
+/drizzle/                      @kodes-agency
+
+# Secrets & environment configuration
+/src/shared/config/env.ts      @kodes-agency
+
+# Third-party integrations (Google Business Profile OAuth)
+/src/contexts/integration/     @kodes-agency
+
+# Database schema definitions
+/src/shared/db/schema/         @kodes-agency

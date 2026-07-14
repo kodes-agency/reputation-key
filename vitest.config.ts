@@ -3,12 +3,10 @@ import { resolve } from 'path'
 import { storybookTest } from '@storybook/addon-vitest/vitest-plugin'
 import { playwright } from '@vitest/browser-playwright'
 
-// Load .env so that process.env.DATABASE_URL etc. are available for
-// integration tests. Vitest doesn't auto-load .env files (only Vite dev
-// server does). We load before defineConfig so the fallbacks below see
-// the real values.
-import { config as dotenvConfig } from 'dotenv'
-dotenvConfig()
+// B0.3: Do NOT load .env here — Vitest must not inherit developer .env
+// files that may point to a remote/production database. Test env vars are
+// set explicitly in the project env block below. CI sets them via the
+// workflow env: key.
 
 // The storybook browser project is only included when VITEST_STORYBOOK=true,
 // which the @storybook/addon-vitest manager sets at module load (it runs inside
@@ -71,8 +69,12 @@ export default defineConfig({
           testTimeout: 30_000,
           env: {
             NODE_ENV: 'test',
+            // B0.3: Never inherit the production DATABASE_URL from the shell.
+            // Tests use a local disposable database. Override with TEST_DATABASE_URL
+            // if your local PostgreSQL uses a non-default port or credentials.
             DATABASE_URL:
-              process.env.DATABASE_URL ?? 'postgresql://test:***@localhost:5432/test',
+              process.env.TEST_DATABASE_URL ??
+              'postgresql://test:test@localhost:5432/test',
             BETTER_AUTH_SECRET: 'test-test-test-test-test-test-test-test',
             BETTER_AUTH_URL: 'http://localhost:3000',
             RESEND_API_KEY: 're_test_key_for_testing_only',
@@ -80,6 +82,8 @@ export default defineConfig({
             GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET ?? '',
             ENCRYPTION_KEY: process.env.ENCRYPTION_KEY ?? 'a'.repeat(64),
             OAUTH_STATE_SECRET: 'ab'.repeat(32),
+            ALLOW_DESTRUCTIVE_DB_TESTS: '1',
+            REDIS_URL: process.env.REDIS_URL ?? 'redis://localhost:6379',
           },
         },
       },

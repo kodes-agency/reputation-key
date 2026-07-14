@@ -9,6 +9,7 @@ import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getAuth } from '#/shared/auth/auth'
 import { getContainer } from '#/composition'
 import { isIdentityError } from '../domain/errors'
+import { assertGlobalCapability } from '#/shared/auth/beta-capabilities'
 import { throwIdentityError } from './organizations.errors.server'
 import {
   registerUserInputSchema,
@@ -24,6 +25,9 @@ export const registerMember = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
+        // B0.6: Public registration is a non-core capability — disabled by
+        // default in beta. Operators enable it via BETA_ALLOWLIST_ORGS.
+        assertGlobalCapability('identity.register')
         const reqHeaders = await headersFromContext()
         const ip = reqHeaders.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
         const { rateLimiter: rl } = getContainer()
@@ -54,6 +58,9 @@ export const registerUserAndOrg = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
+        // B0.6: Self-service org creation is a non-core capability — disabled
+        // by default in beta. Operators enable it via BETA_ALLOWLIST_ORGS.
+        assertGlobalCapability('organization.create')
         const reqHeaders = await headersFromContext()
         const ip = reqHeaders.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
         const { rateLimiter: rl } = getContainer()
