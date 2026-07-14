@@ -126,6 +126,10 @@ export default tseslint.config(
           pattern: 'src/shared/rate-limit/**',
         },
         {
+          type: 'shared-other',
+          pattern: 'src/shared/security/**',
+        },
+        {
           type: 'test-helpers',
           pattern: 'src/shared/testing/**',
         },

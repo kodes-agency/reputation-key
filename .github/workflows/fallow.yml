@@ -11,13 +11,13 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           # Full history so `audit --gate new-only` can diff against the PR base.
           fetch-depth: 0
 
       - name: Fallow audit
-        uses: fallow-rs/fallow@v2
+        uses: fallow-rs/fallow@5b06369ef95a02f68414220b02198da409f45d3d # v3.5.0
         with:
           # Combined dead-code + complexity + duplication verdict.
           # gate: new-only fails ONLY on issues the PR introduces — the

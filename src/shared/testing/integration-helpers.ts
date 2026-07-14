@@ -1,14 +1,21 @@
 // Shared helpers for repository integration tests.
 // Eliminates duplicated pool wiring, truncation, and seeding across test files.
+//
+// B0.3: All integration tests must acquire a TestEnvironmentLease before
+// creating a database pool. The lease validates NODE_ENV, opt-in flag,
+// denylist, and creates a cryptographically unique marker in the database.
 
 import { Pool } from 'pg'
 import { getEnv } from '#/shared/config/env'
 import type { OrganizationId } from '#/shared/domain/ids'
+import {
+  acquireTestLease,
+  validateTestDatabaseUrl,
+  TestEnvironmentError,
+  type TestLease,
+} from './test-environment-lease'
 
-export function createTestPool(maxConnections = 5): Pool {
-  const env = getEnv()
-  return new Pool({ connectionString: env.DATABASE_URL, max: maxConnections })
-}
+export { validateTestDatabaseUrl, TestEnvironmentError }
 
 export async function truncateTables(
   pool: Pool,
@@ -42,22 +49,23 @@ export function setupIntegrationDb(options: {
   maxConnections?: number
 }) {
   const { orgA, orgB, tables, maxConnections = 5 } = options
+  let lease: TestLease | undefined
   let pool: Pool
 
   beforeAll(async () => {
-    pool = createTestPool(maxConnections)
-    const client = await pool.connect()
-    client.release()
+    const env = getEnv()
+    lease = await acquireTestLease(env.DATABASE_URL, maxConnections)
+    pool = lease.pool
   })
 
   afterAll(async () => {
-    await pool?.end()
+    await lease?.release()
   })
 
   beforeEach(async () => {
-    await truncateTables(pool, tables, [orgA, orgB])
-    await seedOrgs(pool, [orgA, orgB])
+    await truncateTables(pool!, tables, [orgA, orgB])
+    await seedOrgs(pool!, [orgA, orgB])
   })
 
-  return { getPool: () => pool }
+  return { getPool: () => pool! }
 }
