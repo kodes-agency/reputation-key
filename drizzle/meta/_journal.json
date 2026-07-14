@@ -24,10 +24,10 @@
       "breakpoints": true
     },
     {
-      "idx": 3,
+      "idx": 4,
       "version": "7",
-      "when": 1783960472549,
-      "tag": "0003_inbox-status-redesign",
+      "when": 1784050000000,
+      "tag": "0004_materialized-views-and-gbp-index",
       "breakpoints": true
     }
   ]
