@@ -54,5 +54,7 @@ export default defineConfig({
     'notifications',
     'notification_email_queue',
     'notification_preferences',
+    'outbox_events',
+    'event_consumer_receipts',
   ],
 })
