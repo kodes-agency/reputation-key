@@ -30,6 +30,7 @@ import { reviewCreated, reviewUpdated, reviewReplyPublished } from '../../domain
 import { reviewError } from '../../domain/errors'
 import { calculateExpiresAt, MAX_REPLY_LENGTH } from '../../domain/rules'
 import { ok, err, type Result } from '#/shared/domain'
+import { emitAndRecord } from '#/shared/outbox/emit-and-record'
 
 export type SyncReviewsDeps = Readonly<{
   reviewRepo: ReviewRepository
@@ -40,6 +41,8 @@ export type SyncReviewsDeps = Readonly<{
   idGen: () => ReviewId
   replyIdGen: () => ReplyId
   logger: LoggerPort
+  /** Outbox repository for durable event recording (PRE17A A4 expand phase). */
+  outboxRepo?: import('#/shared/outbox/infrastructure/outbox-repository').OutboxRepository
 }>
 
 export type SyncReviewsInput = Readonly<{
@@ -179,9 +182,8 @@ async function syncOneReview(
       reviewText: gr.text,
       occurredAt: gr.reviewedAt,
     }
-    await deps.events.emit(
-      isNew ? reviewCreated(eventPayload) : reviewUpdated(eventPayload),
-    )
+    const event = isNew ? reviewCreated(eventPayload) : reviewUpdated(eventPayload)
+    await emitAndRecord(deps.events, deps.outboxRepo, event)
   } catch (postPersistErr) {
     // Review was persisted (upsert succeeded) but reply-mirror or event emit
     // failed — count it as a partial failure, not a lost create.
@@ -270,18 +272,17 @@ async function mirrorReply(
       )
       // R2-001: emit reviewReplyPublished for Google-mirrored replies so
       // downstream handlers (inbox auto-transition, activity audit) fire.
-      await deps.events.emit(
-        reviewReplyPublished({
-          source: 'import',
-          authorId: null,
-          userId: null,
-          replyId,
-          reviewId,
-          organizationId,
-          propertyId,
-          occurredAt: now,
-        }),
-      )
+      const replyEvent = reviewReplyPublished({
+        source: 'import',
+        authorId: null,
+        userId: null,
+        replyId,
+        reviewId,
+        organizationId,
+        propertyId,
+        occurredAt: now,
+      })
+      await emitAndRecord(deps.events, deps.outboxRepo, replyEvent)
     }
     return true
   } else {

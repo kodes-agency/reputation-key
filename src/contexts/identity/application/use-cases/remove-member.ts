@@ -12,6 +12,8 @@ import { identityError } from '../../domain/errors'
 import { identityMemberRemoved } from '../../domain/events'
 import { userId as toUserId } from '#/shared/domain/ids'
 import type { RemoveMemberInput } from '../dto/invitation.dto'
+import { emitAndRecord } from '#/shared/outbox/emit-and-record'
+import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 export type { RemoveMemberInput }
 
 // fallow-ignore-next-line unused-type
@@ -22,6 +24,7 @@ export type RemoveMemberDeps = Readonly<{
   identity: IdentityPort
   events: EventBus
   clock: () => Date
+  outboxRepo?: OutboxRepository
 }>
 export type RemoveMember = ReturnType<typeof removeMember>
 
@@ -64,7 +67,9 @@ export const removeMember =
       await deps.identity.removeMember(ctx, input.memberId)
 
       // 3. Emit event
-      await deps.events.emit(
+      await emitAndRecord(
+        deps.events,
+        deps.outboxRepo,
         identityMemberRemoved({
           organizationId: ctx.organizationId,
           userId: toUserId(targetMember.userId),

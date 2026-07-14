@@ -14,6 +14,8 @@ import type { SourceType, InboxItem } from '../../domain/types'
 import { createInboxItem as buildInboxItem } from '../../domain/constructors'
 import { inboxItemCreated } from '../../domain/events'
 import { inboxError } from '../../domain/errors'
+import { emitAndRecord } from '#/shared/outbox/emit-and-record'
+import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 
 export type CreateInboxItemInput = Readonly<{
   organizationId: OrganizationId
@@ -32,6 +34,7 @@ export type CreateInboxItemDeps = Readonly<{
   events: EventBus
   idGen: () => InboxItemId
   clock: () => Date
+  outboxRepo?: OutboxRepository
 }>
 
 export type CreateInboxItem = (input: CreateInboxItemInput) => Promise<InboxItem>
@@ -78,7 +81,9 @@ export const createInboxItem =
     await deps.repo.create(item, input.organizationId)
 
     // 4. Emit event
-    await deps.events.emit(
+    await emitAndRecord(
+      deps.events,
+      deps.outboxRepo,
       inboxItemCreated({
         inboxItemId: item.id,
         organizationId: item.organizationId,

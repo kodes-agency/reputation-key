@@ -13,6 +13,7 @@ import type { Job } from 'bullmq'
 export const JOB_NAME = 'purge-expired-reviews' as const
 import type { ReviewRepository } from '../../application/ports/review.repository'
 import type { EventBus } from '#/shared/events/event-bus'
+import { emitAndRecord } from '#/shared/outbox/emit-and-record'
 import { reviewExpired } from '../../domain/events'
 import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
@@ -21,6 +22,8 @@ type PurgeHandlerDeps = Readonly<{
   reviewRepo: ReviewRepository
   events: EventBus
   clock: () => Date
+  /** Outbox repository for durable event recording (PRE17A A4 expand phase). */
+  outboxRepo?: import('#/shared/outbox/infrastructure/outbox-repository').OutboxRepository
 }>
 
 export const createPurgeExpiredReviewsHandler = (deps: PurgeHandlerDeps) => {
@@ -39,7 +42,9 @@ export const createPurgeExpiredReviewsHandler = (deps: PurgeHandlerDeps) => {
       for (const review of expired) {
         try {
           // Emit event BEFORE delete so downstream handlers can still access review data
-          await deps.events.emit(
+          await emitAndRecord(
+            deps.events,
+            deps.outboxRepo,
             reviewExpired({
               reviewId: review.id,
               propertyId: review.propertyId,

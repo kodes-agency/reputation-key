@@ -21,6 +21,8 @@ import type { Result } from '#/shared/domain'
 import type { PortalError } from '../../domain/errors'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { assertPropertyAccess } from '../assert-property-access'
+import { emitAndRecord } from '#/shared/outbox/emit-and-record'
+import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 
 // fallow-ignore-next-line unused-type
 export type UpdatePortalDeps = Readonly<{
@@ -28,6 +30,7 @@ export type UpdatePortalDeps = Readonly<{
   staffPublicApi: StaffPublicApi
   events: EventBus
   clock: () => Date
+  outboxRepo?: OutboxRepository
 }>
 
 type PortalPatch = {
@@ -144,7 +147,9 @@ export const updatePortal =
       updatedAt,
     })
 
-    await deps.events.emit(
+    await emitAndRecord(
+      deps.events,
+      deps.outboxRepo,
       portalUpdated({
         portalId: pid,
         organizationId: ctx.organizationId,

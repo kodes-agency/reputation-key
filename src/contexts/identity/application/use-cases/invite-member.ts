@@ -11,6 +11,8 @@ import { canInviteWithRole } from '../../domain/rules'
 import { identityError } from '../../domain/errors'
 import { identityMemberInvited } from '../../domain/events'
 import type { InviteMemberInput } from '../dto/invitation.dto'
+import { emitAndRecord } from '#/shared/outbox/emit-and-record'
+import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 
 // fallow-ignore-next-line unused-type
 export type { InviteMemberInput }
@@ -20,6 +22,7 @@ export type InviteMemberDeps = Readonly<{
   identity: IdentityPort
   events: EventBus
   clock: () => Date
+  outboxRepo?: OutboxRepository
 }>
 
 /**
@@ -55,7 +58,9 @@ export const inviteMember =
     )
 
     // 5. Emit event
-    await deps.events.emit(
+    await emitAndRecord(
+      deps.events,
+      deps.outboxRepo,
       identityMemberInvited({
         organizationId: ctx.organizationId,
         email: input.email,

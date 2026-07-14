@@ -12,6 +12,8 @@ import { normalizeSlug } from '../../domain/rules'
 import { buildProperty } from '../../domain/constructors'
 import { propertyError } from '../../domain/errors'
 import { propertyCreated } from '../../domain/events'
+import { emitAndRecord } from '#/shared/outbox/emit-and-record'
+import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 
 // fallow-ignore-next-line unused-type
 export type CreatePropertyDeps = Readonly<{
@@ -19,6 +21,7 @@ export type CreatePropertyDeps = Readonly<{
   events: EventBus
   idGen: () => PropertyId
   clock: () => Date
+  outboxRepo?: OutboxRepository
 }>
 
 export const createProperty =
@@ -61,7 +64,9 @@ export const createProperty =
     await deps.propertyRepo.insert(ctx.organizationId, property)
 
     // 6. Emit event
-    await deps.events.emit(
+    await emitAndRecord(
+      deps.events,
+      deps.outboxRepo,
       propertyCreated({
         propertyId: property.id,
         organizationId: property.organizationId,

@@ -10,11 +10,14 @@ import type { InvitationId } from '#/shared/domain/ids'
 import { canForContext } from '#/shared/domain/permissions'
 import { identityError } from '../../domain/errors'
 import { identityInvitationCanceled } from '../../domain/events'
+import { emitAndRecord } from '#/shared/outbox/emit-and-record'
+import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 
 export type CancelInvitationDeps = Readonly<{
   identity: IdentityPort
   events: EventBus
   clock: () => Date
+  outboxRepo?: OutboxRepository
 }>
 
 export type CancelInvitationInput = Readonly<{
@@ -48,7 +51,9 @@ export const cancelInvitation =
     await deps.identity.cancelInvitation(input.invitationId, input.headers)
 
     // 3. Emit
-    await deps.events.emit(
+    await emitAndRecord(
+      deps.events,
+      deps.outboxRepo,
       identityInvitationCanceled({
         organizationId: ctx.organizationId,
         invitationId: input.invitationId,

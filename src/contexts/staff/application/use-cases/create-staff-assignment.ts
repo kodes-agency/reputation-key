@@ -26,6 +26,8 @@ import {
   type TeamId,
   type PortalId,
 } from '#/shared/domain/ids'
+import { emitAndRecord } from '#/shared/outbox/emit-and-record'
+import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 
 export type CreateStaffAssignmentDeps = Readonly<{
   assignmentRepo: StaffAssignmentRepository
@@ -39,6 +41,7 @@ export type CreateStaffAssignmentDeps = Readonly<{
   identityMembership: IdentityMembershipPort
   idGen: () => string
   clock: () => Date
+  outboxRepo?: OutboxRepository
 }>
 
 /**
@@ -54,6 +57,7 @@ export type CreateStaffAssignmentSystemDeps = Readonly<{
   events: EventBus
   idGen: () => string
   clock: () => Date
+  outboxRepo?: OutboxRepository
 }>
 
 /** Input for the shared persistence core (post-authorization). */
@@ -85,6 +89,7 @@ const persistStaffAssignment =
     events: EventBus
     idGen: () => string
     clock: () => Date
+    outboxRepo?: OutboxRepository
   }) =>
   async (input: PersistStaffAssignmentInput): Promise<StaffAssignment> => {
     // 1. Check uniqueness — prevent duplicate assignments
@@ -125,7 +130,9 @@ const persistStaffAssignment =
     await deps.assignmentRepo.insert(input.organizationId, assignment)
 
     // 4. Emit event
-    await deps.events.emit(
+    await emitAndRecord(
+      deps.events,
+      deps.outboxRepo,
       staffAssigned({
         assignmentId: assignment.id,
         organizationId: assignment.organizationId,

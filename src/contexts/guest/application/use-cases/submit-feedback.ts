@@ -11,12 +11,15 @@ import type {
 import type { ScanSource } from '../../domain/types'
 import { buildFeedback } from '../../domain/constructors'
 import { guestFeedbackSubmitted } from '../../domain/events'
+import { emitAndRecord } from '#/shared/outbox/emit-and-record'
+import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 
 export type SubmitFeedbackDeps = Readonly<{
   guestRepo: GuestInteractionRepository
   events: EventBus
   idGen: () => FeedbackId
   clock: () => Date
+  outboxRepo?: OutboxRepository
 }>
 
 export type SubmitFeedbackInput = Readonly<{
@@ -53,7 +56,9 @@ export const submitFeedback =
     const feedback = feedbackResult.value
     await deps.guestRepo.insertFeedback(feedback)
 
-    await deps.events.emit(
+    await emitAndRecord(
+      deps.events,
+      deps.outboxRepo,
       guestFeedbackSubmitted({
         feedbackId: feedback.id,
         organizationId: input.organizationId,

@@ -10,6 +10,8 @@ import { canForContext } from '#/shared/domain/permissions'
 import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
 import { teamError } from '../../domain/errors'
 import { teamDeleted } from '../../domain/events'
+import { emitAndRecord } from '#/shared/outbox/emit-and-record'
+import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 
 // ── Input type ────────────────────────────────────────────────────────────
 
@@ -24,6 +26,7 @@ export type SoftDeleteTeamDeps = Readonly<{
   assignmentCheck: AssignmentCheckPort
   events: EventBus
   clock: () => Date
+  outboxRepo?: OutboxRepository
 }>
 
 export const softDeleteTeam =
@@ -69,7 +72,9 @@ export const softDeleteTeam =
     await deps.teamRepo.softDelete(ctx.organizationId, team.id)
 
     // 5. Emit event
-    await deps.events.emit(
+    await emitAndRecord(
+      deps.events,
+      deps.outboxRepo,
       teamDeleted({
         teamId: team.id,
         organizationId: team.organizationId,

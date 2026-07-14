@@ -14,6 +14,8 @@ import { validateTransition, timestampFieldsForStatus } from '../../domain/rules
 import { inboxItemStatusChanged } from '../../domain/events'
 import { inboxError } from '../../domain/errors'
 import { loadInboxItemOrThrow, assertPropertyAccessible } from '../inbox-access'
+import { emitAndRecord } from '#/shared/outbox/emit-and-record'
+import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 
 export type UpdateInboxStatusInput = Readonly<{
   inboxItemId: InboxItemId
@@ -25,6 +27,7 @@ export type UpdateInboxStatusDeps = Readonly<{
   events: EventBus
   clock: () => Date
   staffPublicApi: StaffPublicApi
+  outboxRepo?: OutboxRepository
 }>
 
 export type UpdateInboxStatus = (
@@ -68,7 +71,9 @@ export const updateInboxStatus =
     )
 
     // 4. Emit status_changed event
-    await deps.events.emit(
+    await emitAndRecord(
+      deps.events,
+      deps.outboxRepo,
       inboxItemStatusChanged({
         inboxItemId: updated.id,
         organizationId: updated.organizationId,

@@ -16,6 +16,8 @@ import { staffAssigned, staffUnassigned } from '../../domain/events'
 import { buildStaffAssignment } from '../../domain/constructors'
 import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
 import { staffAssignmentId } from '#/shared/domain/ids'
+import { emitAndRecord } from '#/shared/outbox/emit-and-record'
+import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 
 // fallow-ignore-next-line unused-type
 export type UpdateStaffPortalsInput = Readonly<{
@@ -32,6 +34,7 @@ export type UpdateStaffPortalsDeps = Readonly<{
   staffPublicApi: StaffPublicApi
   clock: () => Date
   idGen: () => string
+  outboxRepo?: OutboxRepository
 }>
 
 export const updateStaffPortals =
@@ -124,7 +127,7 @@ export const updateStaffPortals =
 
         await deps.assignmentRepo.insert(ctx.organizationId, buildResult.value)
 
-        await deps.events.emit({
+        await emitAndRecord(deps.events, deps.outboxRepo, {
           ...staffAssigned({
             assignmentId: buildResult.value.id,
             organizationId: buildResult.value.organizationId,
@@ -146,7 +149,7 @@ export const updateStaffPortals =
       if (!desiredSet.has(portalId)) {
         await deps.assignmentRepo.softDelete(ctx.organizationId, assignment.id)
 
-        await deps.events.emit({
+        await emitAndRecord(deps.events, deps.outboxRepo, {
           ...staffUnassigned({
             assignmentId: assignment.id,
             organizationId: assignment.organizationId,

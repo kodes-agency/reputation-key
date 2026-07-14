@@ -10,6 +10,8 @@ import type { EventBus } from '#/shared/events/event-bus'
 import { portalGroupId, portalId } from '#/shared/domain/ids'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { assertPropertyAccess } from '../assert-property-access'
+import { emitAndRecord } from '#/shared/outbox/emit-and-record'
+import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 
 // fallow-ignore-next-line unused-type
 export type RemovePortalFromGroupDeps = Readonly<{
@@ -17,6 +19,7 @@ export type RemovePortalFromGroupDeps = Readonly<{
   staffPublicApi: StaffPublicApi
   events: EventBus
   clock: () => Date
+  outboxRepo?: OutboxRepository
 }>
 
 export const removePortalFromGroup =
@@ -49,7 +52,9 @@ export const removePortalFromGroup =
       throw portalError('portal_not_in_group', 'portal is not a member of this group')
     }
 
-    await deps.events.emit(
+    await emitAndRecord(
+      deps.events,
+      deps.outboxRepo,
       portalRemovedFromGroup({
         portalGroupId: gid,
         portalId: pid,

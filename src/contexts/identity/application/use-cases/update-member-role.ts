@@ -15,6 +15,8 @@ import { identityError } from '../../domain/errors'
 import { identityMemberRoleChanged } from '../../domain/events'
 import { userId as toUserId } from '#/shared/domain/ids'
 import type { UpdateMemberRoleInput } from '../dto/invitation.dto'
+import { emitAndRecord } from '#/shared/outbox/emit-and-record'
+import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 export type { UpdateMemberRoleInput }
 
 // fallow-ignore-next-line unused-type
@@ -25,6 +27,7 @@ export type UpdateMemberRoleDeps = Readonly<{
   identity: IdentityPort
   events: EventBus
   clock: () => Date
+  outboxRepo?: OutboxRepository
 }>
 export type UpdateMemberRole = ReturnType<typeof updateMemberRole>
 
@@ -81,7 +84,9 @@ export const updateMemberRole =
       await deps.identity.updateMemberRole(ctx, input.memberId, input.role)
 
       // 5. Emit event
-      await deps.events.emit(
+      await emitAndRecord(
+        deps.events,
+        deps.outboxRepo,
         identityMemberRoleChanged({
           organizationId: ctx.organizationId,
           memberUserId: toUserId(targetMember.userId),

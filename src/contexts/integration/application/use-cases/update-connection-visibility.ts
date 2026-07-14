@@ -11,11 +11,14 @@ import { canForContext } from '#/shared/domain/permissions'
 import { googleConnectionId } from '#/shared/domain/ids'
 import { integrationError } from '../../domain/errors'
 import { integrationGoogleConnectionVisibilityChanged } from '../../domain/events'
+import { emitAndRecord } from '#/shared/outbox/emit-and-record'
+import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 
 export type UpdateConnectionVisibilityDeps = Readonly<{
   connectionRepo: GoogleConnectionRepository
   events: EventBus
   clock: () => Date
+  outboxRepo?: OutboxRepository
 }>
 
 export const updateConnectionVisibility =
@@ -59,7 +62,9 @@ export const updateConnectionVisibility =
     }
 
     // 4. Emit event
-    await deps.events.emit(
+    await emitAndRecord(
+      deps.events,
+      deps.outboxRepo,
       integrationGoogleConnectionVisibilityChanged({
         connectionId,
         organizationId: ctx.organizationId,

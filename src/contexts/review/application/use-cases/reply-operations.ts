@@ -5,6 +5,7 @@ import type { ReplyRepository } from '../ports/reply.repository'
 import type { ReviewRepository } from '../ports/review.repository'
 import type { ReplyQueuePort } from '../ports/reply-queue.port'
 import type { EventBus } from '#/shared/events/event-bus'
+import { emitAndRecord } from '#/shared/outbox/emit-and-record'
 import type { ReplyId, ReviewId, OrganizationId, PropertyId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Reply } from '../../domain/types'
@@ -38,6 +39,8 @@ export type ReplyDeps = Readonly<{
   clock: () => Date
   idGen: () => ReplyId
   staffPublicApi: StaffPublicApi
+  /** Outbox repository for durable event recording (PRE17A A4 expand phase). */
+  outboxRepo?: import('#/shared/outbox/infrastructure/outbox-repository').OutboxRepository
 }>
 
 /** Enforce property-assignment scoping for reply mutations (D6-001).
@@ -186,7 +189,9 @@ export const submitReply =
       throw reviewError('invalid_transition', 'Reply status changed concurrently')
     }
 
-    await deps.events.emit(
+    await emitAndRecord(
+      deps.events,
+      deps.outboxRepo,
       reviewReplySubmitted({
         replyId: submitted.id,
         reviewId: submitted.reviewId,
@@ -245,7 +250,9 @@ export const approveReply =
       organizationId: approved.organizationId,
     })
 
-    await deps.events.emit(
+    await emitAndRecord(
+      deps.events,
+      deps.outboxRepo,
       reviewReplyApproved({
         replyId: approved.id,
         reviewId: approved.reviewId,
@@ -305,7 +312,9 @@ export const rejectReply =
       throw reviewError('invalid_transition', 'Reply status changed concurrently')
     }
 
-    await deps.events.emit(
+    await emitAndRecord(
+      deps.events,
+      deps.outboxRepo,
       reviewReplyRejected({
         replyId: updated.id,
         reviewId: updated.reviewId,
@@ -411,7 +420,9 @@ export const markReplyPublished =
 
     // The publish runs from the publish-reply BullMQ job (no user actor); emit
     // userId: null (system) keeping authorId as the original reply author.
-    await deps.events.emit(
+    await emitAndRecord(
+      deps.events,
+      deps.outboxRepo,
       reviewReplyPublished({
         replyId: published.id,
         reviewId: reply.reviewId,
@@ -459,7 +470,9 @@ export const markReplyPublishFailed =
     try {
       const review = await deps.reviewRepo.findById(reply.reviewId, input.organizationId)
       if (review) {
-        await deps.events.emit(
+        await emitAndRecord(
+          deps.events,
+          deps.outboxRepo,
           reviewReplyPublishFailed({
             replyId: updated.id,
             reviewId: updated.reviewId,

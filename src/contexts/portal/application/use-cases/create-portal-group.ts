@@ -15,6 +15,8 @@ import { portalGroupCreated, portalAddedToGroup } from '../../domain/events'
 import { propertyId, portalId } from '#/shared/domain/ids'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { assertPropertyAccess } from '../assert-property-access'
+import { emitAndRecord } from '#/shared/outbox/emit-and-record'
+import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 
 // fallow-ignore-next-line unused-type
 export type CreatePortalGroupDeps = Readonly<{
@@ -25,6 +27,7 @@ export type CreatePortalGroupDeps = Readonly<{
   events: EventBus
   idGen: () => PortalGroupId
   clock: () => Date
+  outboxRepo?: OutboxRepository
 }>
 
 export const createPortalGroup =
@@ -82,7 +85,9 @@ export const createPortalGroup =
     await deps.portalGroupRepo.insert(ctx.organizationId, group)
 
     // 6a. Emit created event
-    await deps.events.emit(
+    await emitAndRecord(
+      deps.events,
+      deps.outboxRepo,
       portalGroupCreated({
         portalGroupId: group.id,
         organizationId: group.organizationId,
@@ -120,7 +125,9 @@ export const createPortalGroup =
       }
       for (const brandedPid of brandedPids) {
         await deps.portalGroupRepo.addPortal(ctx.organizationId, group.id, brandedPid)
-        await deps.events.emit(
+        await emitAndRecord(
+          deps.events,
+          deps.outboxRepo,
           portalAddedToGroup({
             portalGroupId: group.id,
             portalId: brandedPid,

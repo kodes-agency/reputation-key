@@ -13,6 +13,8 @@ import { canForContext } from '#/shared/domain/permissions'
 import { inboxItemEscalated } from '../../domain/events'
 import { inboxError } from '../../domain/errors'
 import { loadInboxItemOrThrow, assertPropertyAccessible } from '../inbox-access'
+import { emitAndRecord } from '#/shared/outbox/emit-and-record'
+import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 
 export type EscalateInboxItemInput = Readonly<{
   inboxItemId: InboxItemId
@@ -23,6 +25,7 @@ export type EscalateInboxItemDeps = Readonly<{
   events: EventBus
   clock: () => Date
   staffPublicApi: StaffPublicApi
+  outboxRepo?: OutboxRepository
 }>
 
 export type EscalateInboxItem = (
@@ -65,7 +68,9 @@ export const escalateInboxItem =
     )
 
     // 4. Emit standalone escalated event (decoupled from status_changed)
-    await deps.events.emit(
+    await emitAndRecord(
+      deps.events,
+      deps.outboxRepo,
       inboxItemEscalated({
         inboxItemId: updated.id,
         organizationId: updated.organizationId,

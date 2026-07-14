@@ -10,10 +10,13 @@ import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
 import { inboxItemStatusChanged } from '../../domain/events'
 import { validateTransition } from '../../domain/rules'
+import { emitAndRecord } from '#/shared/outbox/emit-and-record'
+import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 
 export type OnReviewExpiredDeps = Readonly<{
   repo: InboxRepository
   events: EventBus
+  outboxRepo?: OutboxRepository
 }>
 
 export const onReviewExpired =
@@ -45,7 +48,9 @@ export const onReviewExpired =
         )
 
         // Emit status changed event — symmetric with on-reply-published
-        await deps.events.emit(
+        await emitAndRecord(
+          deps.events,
+          deps.outboxRepo,
           inboxItemStatusChanged({
             inboxItemId: item.id,
             organizationId: item.organizationId,

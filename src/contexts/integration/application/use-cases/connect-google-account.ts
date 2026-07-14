@@ -15,6 +15,8 @@ import { googleConnectionId } from '#/shared/domain/ids'
 import { buildGoogleConnection } from '../../domain/constructors'
 import { integrationError } from '../../domain/errors'
 import { integrationGoogleAccountConnected } from '../../domain/events'
+import { emitAndRecord } from '#/shared/outbox/emit-and-record'
+import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 
 export type ConnectGoogleAccountDeps = Readonly<{
   connectionRepo: GoogleConnectionRepository
@@ -24,6 +26,7 @@ export type ConnectGoogleAccountDeps = Readonly<{
   clock: () => Date
   idGen: () => string
   callbackUrl: string
+  outboxRepo?: OutboxRepository
 }>
 
 export const connectGoogleAccount =
@@ -83,7 +86,9 @@ export const connectGoogleAccount =
       }
 
       // Emit event for reconnection
-      await deps.events.emit(
+      await emitAndRecord(
+        deps.events,
+        deps.outboxRepo,
         integrationGoogleAccountConnected({
           connectionId: updatedConnection.id,
           organizationId: ctx.organizationId,
@@ -141,7 +146,9 @@ export const connectGoogleAccount =
     }
 
     // 7. Emit event
-    await deps.events.emit(
+    await emitAndRecord(
+      deps.events,
+      deps.outboxRepo,
       integrationGoogleAccountConnected({
         connectionId: connection.id,
         organizationId: ctx.organizationId,

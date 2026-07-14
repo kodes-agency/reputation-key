@@ -6,6 +6,8 @@ import type { ScanSource } from '../../domain/types'
 import { buildRating } from '../../domain/constructors'
 import { guestError } from '../../domain/errors'
 import { guestRatingSubmitted } from '../../domain/events'
+import { emitAndRecord } from '#/shared/outbox/emit-and-record'
+import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 
 export type SubmitRatingDeps = Readonly<{
   guestRepo: GuestInteractionRepository
@@ -19,6 +21,7 @@ export type SubmitRatingDeps = Readonly<{
    * shared NATs (cafés, offices).
    */
   ipDedupWindowSeconds: number
+  outboxRepo?: OutboxRepository
 }>
 
 export type SubmitRatingInput = Readonly<{
@@ -76,7 +79,9 @@ export const submitRating =
     const rating = ratingResult.value
     await deps.guestRepo.insertRating(rating)
 
-    await deps.events.emit(
+    await emitAndRecord(
+      deps.events,
+      deps.outboxRepo,
       guestRatingSubmitted({
         ratingId: rating.id,
         organizationId: input.organizationId,
