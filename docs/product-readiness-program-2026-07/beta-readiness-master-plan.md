@@ -5,7 +5,7 @@
 **Target:** Internal-team beta with real properties  
 **Capacity target:** 5,000 properties and 500,000 new reviews/month  
 **Regional decision:** Property-region routing; no silent cross-region fallback  
-**AI decision:** Phases 17/18 remain blocked by PRE17 and the written Google policy disposition
+**AI decision:** Google's submitted per-property architecture is conditionally permitted; Phase 17/18 planning awaits product instruction, and release remains blocked by PRE17, ADR 0031, and phase-specific evidence
 
 ## 1. Outcome
 
@@ -40,6 +40,7 @@ The deferred product contexts are completed after beta through the [Post-Beta Pr
 - [PRE17B review data and regional readiness](phase-pre17b-review-data-and-regional-readiness-plan.md)
 - [PRE17C scale, observability, and closure](phase-pre17c-scale-observability-and-closure-plan.md)
 - [Google policy clarification request](google-business-profile-ai-policy-clarification.md)
+- [Google policy response and disposition](google-business-profile-ai-policy-response-2026-07-14.md)
 - [Post-beta product completion master plan](post-beta-product-completion-master-plan.md)
 
 Official-doc-backed requirements and their links live in the two research files so implementation tickets can cite stable evidence without turning this plan into a link catalogue.
@@ -57,20 +58,20 @@ Official-doc-backed requirements and their links live in the two research files 
 
 ### 3.2 Feature posture
 
-| Capability                           | Initial state                                     | Owner gate                                                                   |
-| ------------------------------------ | ------------------------------------------------- | ---------------------------------------------------------------------------- |
-| Identity, sessions, built-in roles   | On                                                | BETA-0 security/identity                                                     |
-| Custom/dynamic roles                 | Off                                               | Complete repository-wide `AuthorizationPolicy` migration and custom-role E2E |
-| Property and staff direct assignment | On                                                | BETA-1 core data integrity                                                   |
-| Teams                                | Off unless beta workflow proves necessary         | Team assignment/deletion gate                                                |
-| Google OAuth/import/sync/status      | On for allowlisted properties                     | BETA-1 external workflow gate                                                |
-| Reviews, inbox, manual replies       | On                                                | PRE17A/B + BETA-1                                                            |
-| Dashboard                            | Limited property-local, policy-permitted sections | PRE17C query/policy gate                                                     |
-| In-app notifications                 | On                                                | Durable delivery gate                                                        |
-| Notification email                   | Off except allowlisted auth mail                  | BETA-2 email gate                                                            |
-| Portal/guest/QR/NFC                  | Off by default                                    | BETA-2 public-edge/upload/accessibility gate                                 |
-| Goals, badges, leaderboards          | Off                                               | Independent correctness, authorization, jobs, and product gates              |
-| AI 17/18                             | Off                                               | PRE17 complete + ADR 0031 + Phase-specific plan                              |
+| Capability                           | Initial state                                     | Owner gate                                                                                                |
+| ------------------------------------ | ------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Identity, sessions, built-in roles   | On                                                | BETA-0 security/identity                                                                                  |
+| Custom/dynamic roles                 | Off                                               | Complete repository-wide `AuthorizationPolicy` migration and custom-role E2E                              |
+| Property and staff direct assignment | On                                                | BETA-1 core data integrity                                                                                |
+| Teams                                | Off unless beta workflow proves necessary         | Team assignment/deletion gate                                                                             |
+| Google OAuth/import/sync/status      | On for allowlisted properties                     | BETA-1 external workflow gate                                                                             |
+| Reviews, inbox, manual replies       | On                                                | PRE17A/B + BETA-1                                                                                         |
+| Dashboard                            | Limited property-local, policy-permitted sections | PRE17C query/policy gate                                                                                  |
+| In-app notifications                 | On                                                | Durable delivery gate                                                                                     |
+| Notification email                   | Off except allowlisted auth mail                  | BETA-2 email gate                                                                                         |
+| Portal/guest/QR/NFC                  | Off by default                                    | BETA-2 public-edge/upload/accessibility gate                                                              |
+| Goals, badges, leaderboards          | Off                                               | Independent correctness, authorization, jobs, and product gates                                           |
+| AI 17/18                             | Off                                               | External permission received; PRE17 + ADR 0031 + merchant/provider/privacy controls + phase-specific plan |
 
 ### 3.3 Initial internal service objectives
 
@@ -191,14 +192,14 @@ Do not introduce a generic unit-of-work/repository framework, Kafka, a workflow 
 
 ## 7. Staged real-property rollout
 
-| Stage                    | Data/actions                                       | Entry proof                                                                                                                            | Exit proof                                                                                   |
-| ------------------------ | -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| 0 — Local/CI             | Generated fixtures only                            | BETA-0 green                                                                                                                           | Deterministic build/test/migration and fault suites                                          |
-| 1 — Production synthetic | Synthetic org/property, no Google                  | Production envelope and monitoring                                                                                                     | Deploy, queue, email-off, backup, alerts, purge work                                         |
-| 2 — Google shadow        | One internal property; read/sync only; no publish  | Written Google policy disposition permits the implemented storage/derivation model; Google project/access; privacy agreement; PRE17A/B | Freshness, reconciliation, retention, disconnect and purge verified                          |
-| 3 — Controlled publish   | Same property; named managers; manual replies      | Reply workflow/E2E, audit, rollback, operator present                                                                                  | Publish success/failure/retry status accepted; no duplicate replies                          |
-| 4 — Small cohort         | Three to five US properties                        | First property's controlled-publish stage is accepted                                                                                  | At least 14 stable observed days; no unresolved P0/P1; support/runbook feedback incorporated |
-| 5 — Internal beta        | Broader allowlist; Europe only after regional gate | Go/no-go review                                                                                                                        | Four-week stability and product acceptance before external beta/AI                           |
+| Stage                    | Data/actions                                       | Entry proof                                                                                                                         | Exit proof                                                                                   |
+| ------------------------ | -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| 0 — Local/CI             | Generated fixtures only                            | BETA-0 green                                                                                                                        | Deterministic build/test/migration and fault suites                                          |
+| 1 — Production synthetic | Synthetic org/property, no Google                  | Production envelope and monitoring                                                                                                  | Deploy, queue, email-off, backup, alerts, purge work                                         |
+| 2 — Google shadow        | One internal property; read/sync only; no publish  | Received Google response translated into accepted/tested ADR 0031 source policy; Google project/access; privacy agreement; PRE17A/B | Freshness, reconciliation, retention, disconnect and purge verified                          |
+| 3 — Controlled publish   | Same property; named managers; manual replies      | Reply workflow/E2E, audit, rollback, operator present                                                                               | Publish success/failure/retry status accepted; no duplicate replies                          |
+| 4 — Small cohort         | Three to five US properties                        | First property's controlled-publish stage is accepted                                                                               | At least 14 stable observed days; no unresolved P0/P1; support/runbook feedback incorporated |
+| 5 — Internal beta        | Broader allowlist; Europe only after regional gate | Go/no-go review                                                                                                                     | Four-week stability and product acceptance before external beta/AI                           |
 
 At each stage, rollback means disable new work through capabilities, stop schedulers, preserve canonical data, drain or quarantine queues, and follow the runbook. It does not mean deleting evidence or silently switching regions/providers.
 
@@ -223,7 +224,7 @@ At each stage, rollback means disable new work through capabilities, stop schedu
 
 ## 9. Estimate
 
-The estimate includes PRE17 work and the general beta work described here. It excludes calendar waiting for Google, legal/privacy review, vendor account approval, and real-property observation windows.
+The estimate includes PRE17 work and the general beta work described here. It excludes any narrow Google follow-up, legal/privacy review, AI-provider account/approval, and real-property observation windows. The general Google architecture response has been received.
 
 | Phase                             |                                      Engineering effort |
 | --------------------------------- | ------------------------------------------------------: |
@@ -239,21 +240,21 @@ One experienced engineer should plan roughly 10–15 focused weeks plus external
 
 The defaults let BETA-0 start without another interview.
 
-| Decision              | Planning default                                                                                                                                          | Deadline                  |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
-| Beta signup           | Invite-only; operator creates/allows organizations                                                                                                        | BETA-0                    |
-| Roles                 | Built-in owner/admin/member only; custom roles off                                                                                                        | BETA-0                    |
-| Strong auth           | Verified email required; require MFA/passkey for owners once supported/tested                                                                             | Before controlled publish |
-| Public portal/guest   | Dark in initial beta                                                                                                                                      | BETA-2 planning           |
-| Teams                 | Dark unless direct assignments cannot cover pilot                                                                                                         | BETA-1 workflow review    |
-| Notification email    | Auth mail to allowlist only; digests/urgent mail dark                                                                                                     | BETA-0/BETA-2             |
-| Property deletion     | Archive immediately; purge after explicit operator-confirmed grace workflow                                                                               | ADR 0034                  |
-| US pilot region       | US property cell; global control metadata only if documented/approved                                                                                     | Before Stage 2            |
-| European pilot        | No EU real property until EU processing/data flow, DPA/privacy, backup/log/support access are verified                                                    | Before any EU property    |
-| Google source content | No real-content storage or derived processing until the written Google disposition is translated into an approved, executable retention/capability policy | Before Stage 2            |
-| Google aggregates/AI  | Disabled until written Google disposition and ADR 0031                                                                                                    | Before Phase 17/18        |
-| Browser support       | Current and previous major Chrome/Safari/Firefox; mobile Safari/Chrome smoke                                                                              | BETA-2                    |
-| Initial RPO/RTO       | ≤15 minutes / ≤4 hours, verified rather than merely configured                                                                                            | BETA-3                    |
+| Decision              | Planning default                                                                                                                                              | Deadline                  |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
+| Beta signup           | Invite-only; operator creates/allows organizations                                                                                                            | BETA-0                    |
+| Roles                 | Built-in owner/admin/member only; custom roles off                                                                                                            | BETA-0                    |
+| Strong auth           | Verified email required; require MFA/passkey for owners once supported/tested                                                                                 | Before controlled publish |
+| Public portal/guest   | Dark in initial beta                                                                                                                                          | BETA-2 planning           |
+| Teams                 | Dark unless direct assignments cannot cover pilot                                                                                                             | BETA-1 workflow review    |
+| Notification email    | Auth mail to allowlist only; digests/urgent mail dark                                                                                                         | BETA-0/BETA-2             |
+| Property deletion     | Archive immediately; purge after explicit operator-confirmed grace workflow                                                                                   | ADR 0034                  |
+| US pilot region       | US property cell; global control metadata only if documented/approved                                                                                         | Before Stage 2            |
+| European pilot        | No EU real property until EU processing/data flow, DPA/privacy, backup/log/support access are verified                                                        | Before any EU property    |
+| Google source content | No real-content storage until the received Google disposition is translated into approved, executable raw-cache/derived-metadata lifecycle and capabilities   | Before Stage 2            |
+| Google aggregates/AI  | Per-property analysis is externally permitted; runtime remains disabled until ADR 0031, merchant opt-in, PII redaction, provider/region, and phase gates pass | Before Phase 17/18        |
+| Browser support       | Current and previous major Chrome/Safari/Firefox; mobile Safari/Chrome smoke                                                                                  | BETA-2                    |
+| Initial RPO/RTO       | ≤15 minutes / ≤4 hours, verified rather than merely configured                                                                                                | BETA-3                    |
 
 ## 11. Definition of done
 

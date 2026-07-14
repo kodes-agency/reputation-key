@@ -141,7 +141,7 @@ Do not fetch arbitrary URLs during processing. Workers operate only on issued pr
 1. Accept ADR 0044.
 2. Decide whether the first release is link-only or includes private response.
 3. Create separate server capabilities: `public_portal`, `private_response`, `free_text`, `guest_contact`, `guest_media`.
-4. Translate Google's written response into an executable link/metric/content capability; obtain legal/product review for the exact public journey.
+4. Reference the received [Google response](google-business-profile-ai-policy-response-2026-07-14.md) for raw/derived review data, but keep public review-link behavior governed by the separate review-solicitation policy: no rating-conditioned visibility, order, or emphasis. Encode link/metric/content capabilities and obtain legal/product review for the exact public journey.
 5. Record controller/processor roles and retention by property region.
 
 **Exit:** A screenshot/prototype and decision test prove review-link behavior never depends on rating/feedback.

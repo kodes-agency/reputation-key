@@ -5,7 +5,8 @@
 **Contact:** denev@kodes.agency  
 **Date:** 14 July 2026  
 **Google Cloud project number:** Supplied in the associated support case  
-**Implementation status:** Proposed; not enabled in production
+**Implementation status:** Proposed; not enabled in production  
+**Response status:** Written response received; see [Google response and disposition](google-business-profile-ai-policy-response-2026-07-14.md)
 
 ## Purpose of this request
 
@@ -72,6 +73,12 @@ The provider has not yet been selected. Options under consideration include the 
 ## Requested response
 
 We would appreciate written confirmation for each point above, including any conditions that would make the proposed use acceptable. If these questions require policy interpretation rather than ordinary technical support, please refer the case to the Google Business Profile API policy team.
+
+## Response outcome
+
+Google Business Profile API Support stated that the proposed per-property architecture is generally aligned with policy. It permits per-property sentiment, themes, trends, derivative metadata retention, and use of an external AI provider subject to PII removal, no provider training, minimum retention, regional privacy compliance, merchant opt-in, and separate manual reply publication. Raw review content, ratings, reviewer information, and replies remain under the applicable 30-day refresh/removal policy. Automatic AI reply publishing is not supported.
+
+The verbatim response, implementation interpretation, capability matrix, and remaining caveats are recorded in the [dated disposition](google-business-profile-ai-policy-response-2026-07-14.md).
 
 ## References
 

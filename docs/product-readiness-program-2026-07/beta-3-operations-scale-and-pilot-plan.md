@@ -296,7 +296,7 @@ Exit: deploy, rollback, restore, queue, retention/purge, alerts, support command
 
 Entry requires:
 
-- written Google disposition permits the exact source storage/derivative/retention/backup/log design;
+- accepted ADR 0031 and verification evidence implement Google's received per-property permission plus conservative raw-cache, backup/log, and lifecycle controls;
 - demonstrable authority for the property and approved Google project/scopes/quota;
 - approved privacy/beta agreement/data map/operator roster/US route;
 - PRE17A/B and BETA-1 connection/import/lifecycle/disconnect gates;
@@ -357,7 +357,7 @@ The go/no-go packet links immutable or dated artifacts:
 - clean install/upgrade and production artifact smoke;
 - destructive-test isolation proof;
 - authorization/capability and cross-tenant report;
-- Google written disposition and implemented policy mapping;
+- preserved Google response, accepted ADR 0031, and implemented/tested policy mapping;
 - migration/schema/query/load evidence;
 - queue/webhook/import/publish failure reports;
 - regional data-flow and route tests;
@@ -382,7 +382,7 @@ The release chair must be someone empowered to say no. Engineering, product/prop
 |     6 | B3.8 security/privacy proof                | 1–2 days engineering | Stable release candidate        |
 |     7 | B3.9 runbooks/exercises and B3.10 go/no-go | 1–2 days engineering | All evidence; calendar drills   |
 
-Provisioning, vendor approval, Google response, legal/privacy review, penetration testing, and the 14-day/four-week observation windows are calendar dependencies outside engineering estimates.
+Provisioning, AI-provider approval, any narrow Google follow-up, legal/privacy review, penetration testing, and the 14-day/four-week observation windows are calendar dependencies outside engineering estimates. The general Google architecture clarification has been received.
 
 ## 8. Exit gate
 
@@ -397,4 +397,4 @@ BETA-3 and beta readiness close only when:
 - three to five US properties operate for at least 14 stable observed days without unresolved P0/P1 events;
 - the complete evidence packet and every time-bound exception receive explicit go/no-go approval.
 
-This gate qualifies an internal beta, not an external production launch and not Phase 17/18. AI planning resumes only after the real review foundation, Google permission, regional policy, and beta operational evidence are stable.
+This gate qualifies an internal beta, not an external production launch and not Phase 17/18. Google permission has been received for the submitted architecture; AI planning begins only on product instruction, and release still requires the real-review foundation, ADR 0031, regional/provider/privacy controls, and beta operational evidence.

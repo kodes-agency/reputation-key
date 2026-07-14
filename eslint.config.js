@@ -441,6 +441,16 @@ export default tseslint.config(
     },
   },
 
+  // ─── Allow drizzle-orm in shared/outbox/infrastructure/ (outbox repo) ──
+  // PRE17A A3: The outbox repository uses Drizzle directly, same as context
+  // infrastructure repos. Lives under shared/ because it's cross-context.
+  {
+    files: ['src/shared/outbox/infrastructure/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': 'off',
+    },
+  },
+
   // ─── Allow React in permitted locations ────────────────────────────
   // Re-enables no-restricted-imports for React, but keeps the barrel-only rule.
   {

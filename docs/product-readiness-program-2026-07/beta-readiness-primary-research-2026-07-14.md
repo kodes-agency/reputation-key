@@ -6,6 +6,8 @@
 **Expected scale:** 5,000 properties and approximately 500,000 reviews per month  
 **Stack observed:** TypeScript, TanStack Start, React, Vite/Nitro, Better Auth, PostgreSQL/Neon, Redis, BullMQ, Resend, S3-compatible object storage, Railway, GitHub Actions
 
+**Google disposition update:** [Written support response received](google-business-profile-ai-policy-response-2026-07-14.md); the submitted per-property AI architecture is conditionally permitted.
+
 ## Purpose and interpretation
 
 This brief records the primary-source evidence that should constrain a beta-readiness plan. It is not a complete code review and it is not legal advice. Legal applicability, controller/processor roles, and contractual terms must be confirmed by qualified counsel and by the product's agreements with customers and vendors.
@@ -25,7 +27,7 @@ Calling the audience “internal” does not make this a disposable test environ
 
 The following are beta blockers:
 
-1. **Google Business Profile policy resolution.** Google's published policy limits stored API content to temporary storage for no more than 30 calendar days and says it may not be manipulated or aggregated. The current product model persists reviews and the planned trend analysis aggregates them. Written clarification or approval from Google is therefore a hard dependency, not a later optimization.
+1. **Google Business Profile policy translation.** Google's written response now permits the submitted per-property sentiment, scores, categories, themes, trends, summaries, external AI processing, and manager-reviewed drafts. The beta blocker is no longer obtaining the general answer; it is implementing ADR 0031: raw content refreshed or removed under the applicable 30-day policy, separately retained derivatives, PII removal, no provider training/minimum retention, regional privacy, merchant opt-in, and manual-only reply publication.
 2. **Proven tenant isolation.** Every authenticated operation, background job, cache entry, object-storage key, export, and aggregate must be scoped by organization and property, with negative cross-tenant tests. UI route guards are not an authorization boundary.
 3. **A lawful and documented real-data operating model.** Before onboarding a property, the team needs the appropriate customer agreement/DPA, privacy disclosures, a data map, retention and deletion rules, subprocessor and transfer decisions, access controls, and an incident/breach procedure.
 4. **A single, tested migration path.** CI currently uses `db:push` even though `drizzle.config.ts` says production uses committed migrations plus Better Auth migrations and raw-SQL sidecars. A clean installation and an upgrade from a production-like snapshot must use the exact deployment path.
@@ -139,9 +141,9 @@ These are observations from the repository snapshot, not conclusions from docume
 
 ### Requirements and consequences
 
-**Vendor requirement and beta blocker — resolve content use in writing.** Google's published policy says Business Profile API content may be stored only in limited amounts to improve project performance, temporarily for no more than 30 calendar days, securely, and without manipulation or aggregation. The product's review history, materialized metrics, sentiment, priority scoring, per-property themes, and trend reports appear to conflict with the plain published language. Do not infer permission from successful API access. Obtain and retain Google's written answer before using real GBP content for persistent history or AI aggregation.
+**Vendor disposition and beta blocker — implement the written conditions.** Google's published policy says Business Profile API content may be stored only in limited amounts to improve project performance, temporarily for no more than 30 calendar days, securely, and without manipulation or aggregation. Google API Support subsequently confirmed that the submitted per-property sentiment, score, category, theme, trend, summary, and external-AI architecture is generally aligned with policy. Derived metadata is not subject to the same 30-day limit; raw review text, rating, reviewer information, and replies must be refreshed or removed under the applicable cache policy. Preserve the answer and implement—not merely document—the conditions in the [dated disposition](google-business-profile-ai-policy-response-2026-07-14.md).
 
-**Vendor requirement — human authorization for replies.** Reply drafting may be automated, but publishing must remain an explicit human action tied to an authorized end-client unless Google gives a different written interpretation. Record who approved the publication, the exact content, property, review, timestamp, Google response, and idempotency key. Do not implement auto-publish as part of Phase 17.
+**Vendor requirement — human authorization for replies.** Google's response confirms that drafting may be automated after merchant opt-in, but publishing must remain a separate manager action after review/edit. Record who approved publication, the exact final content within its permitted lifecycle, property, review, timestamp, Google response, and idempotency key. Do not implement an automatic publish port/path.
 
 **Vendor requirement — disconnection.** Provide a visible disconnect path and an operator-tested procedure that removes/relinquishes relevant permissions and disassociates the client within Google's required seven-business-day window. Define what local content and derived data are deleted immediately versus under a permitted retention period.
 
@@ -151,7 +153,7 @@ These are observations from the repository snapshot, not conclusions from docume
 
 **Beta gate — quota and backoff.** Measure API requests by project/account/location/operation, smooth imports rather than producing bursts, honor `429` and retry guidance with capped exponential backoff plus jitter, and expose a quota dashboard. A global worker concurrency of ten is not a complete per-Google-API rate-control design.
 
-**Decision/verification needed — provenance and 30-day enforcement.** If Google permits temporary storage only, every stored item and derivative needs source/provenance, fetched-at, expiry, and deletion processing. Backups, caches, search indexes, logs, analytics, and materialized views must not silently extend prohibited retention.
+**Beta gate — raw/derived provenance and 30-day enforcement.** Every raw Google-content copy needs provenance, first/last fetch, refresh due, expiry, and deletion processing. Separately retained derivative metadata needs its own policy/version/region/retention and must not embed raw text, exact ratings/replies, reviewer identity, Google IDs, or reversible content fingerprints. Backups, caches, search indexes, logs, analytics, batch objects, and materialized views must not silently extend raw retention.
 
 ## 4. Privacy, data governance, and real-hotel operations
 
@@ -520,7 +522,7 @@ The approved direction is property-region routing. That decision should be repre
 
 **Recommendation — control plane versus data plane.** Keep global, low-sensitivity configuration/identity metadata separate from property review content and derived data where practical. Use per-region data/queue/provider adapters behind stable ports. Avoid cross-region organization summaries; the stated Phase 18 product scope should be per-property reporting only.
 
-**Beta gate before AI.** No review is sent to an AI provider until the provider is approved as a subprocessor, region policy is resolvable, input/output retention and training terms are recorded, Google permits the use, redaction/minimization is defined, quota/cost is atomic, and the call is auditable without storing raw content in telemetry.
+**Beta gate before AI.** Google's general permission is recorded. No review is sent to an AI provider until the provider is approved as a subprocessor, region policy is resolvable, input/output retention and no-training terms are verified, merchant opt-in is current, structured identity and free-text PII redaction/minimization are implemented, quota/cost is atomic, and the call is auditable without storing raw content in telemetry.
 
 ## 17. Proposed evidence package for a go/no-go beta review
 
@@ -528,7 +530,7 @@ The release decision should be based on artifacts, not statements that work is �
 
 ### Required evidence
 
-- Google written response on GBP content storage, aggregation, and AI processing, plus the product's documented interpretation.
+- Preserved Google written response plus accepted ADR 0031, source-policy tests, raw/derived lifecycle evidence, merchant consent, provider/privacy/region evidence, and manual-publication enforcement.
 - Signed/approved beta customer terms, privacy notice(s), DPA/subprocessor list, data map, retention schedule, region/transfer decision, and DSAR/incident ownership.
 - Threat model and scoped ASVS control matrix with evidence links and accepted exceptions.
 - Endpoint/server-function inventory and complete authorization matrix.
@@ -558,9 +560,9 @@ At every stage, a tenant-isolation failure, unauthorized Google action, unexplai
 
 ## 18. Priority ordering for the implementation plan
 
-This research supports the following order; detailed tickets should be produced only after the Google/legal decisions and repository audit are reconciled.
+This research supports the following order; detailed tickets should be produced only after the received Google disposition is translated, the remaining legal/privacy decisions are owned, and the repository audit is reconciled.
 
-1. **P0 decisions:** Google content/AI permission; privacy/controller/processor/region model; beta promise; SLO/RPO/RTO; supported browsers/devices; pilot ownership.
+1. **P0 decisions:** ADR 0031 implementation of the received Google permission; privacy/controller/processor/region model; beta promise; SLO/RPO/RTO; supported browsers/devices; pilot ownership.
 2. **P0 build and data correctness:** fix production web/worker builds; single migration runner; clean/upgrade CI; test DB isolation; schema invariants; deterministic critical E2E.
 3. **P0 security:** endpoint inventory; tenant matrix and negative tests; auth/session/proxy/origin/CSRF; secrets; uploads/SSRF; webhook identity/dedupe; audit events.
 4. **P0 recovery and external side effects:** backups/restore; BullMQ durability/idempotency/DLQ; reply/email outboxes; kill switches and runbooks.

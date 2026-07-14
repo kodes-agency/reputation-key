@@ -33,6 +33,9 @@ export type Capability =
   | 'ai.analyze'
   | 'ai.generate_reply'
   | 'ai.detect_trends'
+  | 'gbp.reply.auto_publish'
+  | 'gbp.ai.cross_property_summary'
+  | 'gbp.review_solicitation_gamification'
 
 /**
  * Core capabilities are ON by default for all authenticated users in beta.
@@ -47,14 +50,23 @@ const CORE_CAPABILITIES: ReadonlySet<Capability> = new Set<Capability>([
 ])
 
 /**
- * Capabilities that are always off in beta — blocked by Google policy or
- * product readiness gates. These require explicit per-org enablement AND
- * the corresponding ADR/policy disposition.
+ * Capabilities that are always off — hard-blocked by Google policy or
+ * product readiness gates. These can NEVER be allowlisted.
+ *
+ * Google response (2026-07-14): AI analysis, reply drafts, and trends are
+ * conditionally permitted per-property — they move to non-core (off by
+ * default, allowlistable per-org). The following remain hard-blocked:
+ *   - gbp.reply.auto_publish: Google prohibits automated AI reply publishing
+ *   - gbp.ai.cross_property_summary: Google prohibits cross-property combination
+ *   - gbp.review_solicitation_gamification: Google prohibits review-solicitation
+ *     gamification (review clicks/scans/volume never drive goals/badges/leaderboards)
+ *   - notification.send_email: product gate (beta decision, not Google)
+ *   - portal.write, portal.upload: product gate (beta decision)
  */
 const BLOCKED_CAPABILITIES: ReadonlySet<Capability> = new Set<Capability>([
-  'ai.analyze',
-  'ai.generate_reply',
-  'ai.detect_trends',
+  'gbp.reply.auto_publish',
+  'gbp.ai.cross_property_summary',
+  'gbp.review_solicitation_gamification',
   'notification.send_email',
   'portal.write',
   'portal.upload',
@@ -291,6 +303,9 @@ export const ALL_CAPABILITIES: readonly Capability[] = [
   'ai.analyze',
   'ai.generate_reply',
   'ai.detect_trends',
+  'gbp.reply.auto_publish',
+  'gbp.ai.cross_property_summary',
+  'gbp.review_solicitation_gamification',
 ]
 
 export function isCoreCapability(cap: Capability): boolean {

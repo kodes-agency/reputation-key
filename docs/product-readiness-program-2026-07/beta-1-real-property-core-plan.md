@@ -3,7 +3,7 @@
 **Status:** Proposed  
 **Date:** 2026-07-14  
 **Effort:** 20–30 engineering days, including PRE17A/B overlap  
-**Depends on:** BETA-0; written Google storage/use disposition before real GBP content  
+**Depends on:** BETA-0; received Google disposition translated into accepted ADR 0031/source policy before real GBP content  
 **Unlocks:** One-property shadow sync and controlled human reply publication
 
 ## 1. Objective
@@ -50,10 +50,10 @@ BETA-1 adds authorization, complete property lifecycle, external workflow state,
 Complete PRE17 ADRs 0025–0031 and add:
 
 - **ADR 0034 — Property and organization lifecycle:** archive, suspend, disconnect, export, purge, evidence, cancellation, and recovery states.
-- A versioned **Google source-content policy** derived from the written response. It controls persistence, permitted derivatives, retention, backup/cache/log behavior, and purge deadlines.
+- A versioned **Google source-content policy** derived from the [written response](google-business-profile-ai-policy-response-2026-07-14.md). It controls raw refresh/removal, separately retained derivatives, per-property isolation, PII/provider/region/consent conditions, backup/cache/log behavior, and purge deadlines.
 - A clear **control-plane/data-plane boundary:** global low-sensitivity identity/configuration may remain central; review content, derivatives, queues, storage, telemetry, backups, and future AI calls follow property processing region.
 
-If Google confirms only the currently published temporary-storage boundary and disallows the required derivations, change the product/data design before Stage 2. Do not treat a short expiry column as permission to retain forbidden backups, materialized views, trends, or logs.
+Google has permitted the submitted per-property derivatives, but raw content remains temporary. Do not treat a short expiry column or the derivative permission as authorization to retain raw content in backups, materialized views, batch objects, prompts, or logs beyond the approved cache/provider lifecycle.
 
 ## 5. Deep modules to build
 
@@ -387,19 +387,19 @@ Acceptance evidence:
 
 ## 9. Sequence and estimates
 
-| Order | Work package                             |     Estimate | Dependency                 |
-| ----: | ---------------------------------------- | -----------: | -------------------------- |
-|     1 | B1.1 migration authority/schema          |     2–3 days | BETA-0 test lease          |
-|     2 | B1.2 outbox/event contracts              |     3–4 days | migration authority        |
-|     3 | B1.3 `JobRuntime`/queue topology         |     2–3 days | outbox schema              |
-|     4 | B1.4 authorization/staff transactions    |     2–3 days | BETA-0 policy              |
-|     5 | B1.5 property profile/lifecycle          |     2–3 days | schema + authorization     |
-|     6 | B1.6 Google connection/token workflow    |     2–3 days | property profile/runtime   |
-|     7 | B1.7 receipt/import/reconciliation       |     3–4 days | connection + runtime       |
-|     8 | B1.8 source lifecycle/policy             |     2–3 days | written Google disposition |
-|     9 | B1.9 inbox/review correctness            | 1.5–2.5 days | source lifecycle/outbox    |
-|    10 | B1.10 reply publication saga             |     2–3 days | review/runtime/Google      |
-|    11 | B1.11 core projections and full evidence |     2–3 days | canonical events           |
+| Order | Work package                             |     Estimate | Dependency                                |
+| ----: | ---------------------------------------- | -----------: | ----------------------------------------- |
+|     1 | B1.1 migration authority/schema          |     2–3 days | BETA-0 test lease                         |
+|     2 | B1.2 outbox/event contracts              |     3–4 days | migration authority                       |
+|     3 | B1.3 `JobRuntime`/queue topology         |     2–3 days | outbox schema                             |
+|     4 | B1.4 authorization/staff transactions    |     2–3 days | BETA-0 policy                             |
+|     5 | B1.5 property profile/lifecycle          |     2–3 days | schema + authorization                    |
+|     6 | B1.6 Google connection/token workflow    |     2–3 days | property profile/runtime                  |
+|     7 | B1.7 receipt/import/reconciliation       |     3–4 days | connection + runtime                      |
+|     8 | B1.8 source lifecycle/policy             |     2–3 days | ADR 0031 from received Google disposition |
+|     9 | B1.9 inbox/review correctness            | 1.5–2.5 days | source lifecycle/outbox                   |
+|    10 | B1.10 reply publication saga             |     2–3 days | review/runtime/Google                     |
+|    11 | B1.11 core projections and full evidence |     2–3 days | canonical events                          |
 
 Some packages can overlap, but schema → outbox/runtime → external workflows is the sequential spine.
 
@@ -416,7 +416,7 @@ Some packages can overlap, but schema → outbox/runtime → external workflows 
 
 In addition to the synthetic gate:
 
-- written Google policy disposition permits the exact storage, derivative, retention, backup, log, and regional model;
+- accepted ADR 0031/source policy implements the received Google permission and conservative backup/log/few-shot/backfill boundaries;
 - the internal property is demonstrably authorized;
 - privacy, region, operator, provider project/quota, monitoring, and stop controls are approved;
 - publish capability remains off.

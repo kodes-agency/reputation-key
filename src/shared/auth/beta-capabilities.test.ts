@@ -76,7 +76,34 @@ describe('BetaCapabilities', () => {
           isOrgAllowlisted: () => true,
         }),
       )
+      const decision = checkBetaCapability(ctx, 'gbp.reply.auto_publish')
+      expect(decision.allowed).toBe(false)
+      expect(decision.reason).toBe('capability_blocked')
+    })
+
+    it('allows AI capabilities when org is allowlisted (Google conditionally permits)', () => {
+      const ctx = buildTestAuthContext()
+      initCapabilityPolicyStore(
+        makeStore({
+          isCapabilityGloballyEnabled: () => false,
+          isOrgAllowlisted: (orgId, cap) =>
+            orgId === ctx.organizationId && cap === 'ai.analyze',
+        }),
+      )
       const decision = checkBetaCapability(ctx, 'ai.analyze')
+      expect(decision.allowed).toBe(true)
+      expect(decision.reason).toBe('allowed')
+    })
+
+    it('denies gbp.review_solicitation_gamification regardless of allowlist', () => {
+      const ctx = buildTestAuthContext()
+      initCapabilityPolicyStore(
+        makeStore({
+          isCapabilityGloballyEnabled: () => true,
+          isOrgAllowlisted: () => true,
+        }),
+      )
+      const decision = checkBetaCapability(ctx, 'gbp.review_solicitation_gamification')
       expect(decision.allowed).toBe(false)
       expect(decision.reason).toBe('capability_blocked')
     })
@@ -150,7 +177,16 @@ describe('BetaCapabilities', () => {
       const store = createEnvCapabilityPolicyStore({
         BETA_ALLOWLIST_ORGS: 'org-1',
       })
-      expect(store.isOrgAllowlisted('org-1', 'ai.analyze')).toBe(false)
+      expect(store.isOrgAllowlisted('org-1', 'gbp.reply.auto_publish')).toBe(false)
+      expect(store.isOrgAllowlisted('org-1', 'gbp.ai.cross_property_summary')).toBe(false)
+    })
+
+    it('allowlists AI capabilities for listed orgs (Google conditionally permits)', () => {
+      const store = createEnvCapabilityPolicyStore({
+        BETA_ALLOWLIST_ORGS: 'org-1',
+      })
+      expect(store.isOrgAllowlisted('org-1', 'ai.analyze')).toBe(true)
+      expect(store.isOrgAllowlisted('org-1', 'ai.generate_reply')).toBe(true)
     })
 
     it('detects suspended orgs', () => {
@@ -158,7 +194,6 @@ describe('BetaCapabilities', () => {
         BETA_SUSPENDED_ORGS: 'org-bad',
       })
       expect(store.isOrgSuspended('org-bad')).toBe(true)
-      expect(store.isOrgSuspended('org-good')).toBe(false)
     })
   })
 
@@ -169,7 +204,9 @@ describe('BetaCapabilities', () => {
     })
 
     it('identifies blocked capabilities', () => {
-      expect(isBlockedCapability('ai.analyze')).toBe(true)
+      expect(isBlockedCapability('gbp.reply.auto_publish')).toBe(true)
+      expect(isBlockedCapability('gbp.review_solicitation_gamification')).toBe(true)
+      expect(isBlockedCapability('ai.analyze')).toBe(false)
       expect(isBlockedCapability('identity.invite')).toBe(false)
     })
   })

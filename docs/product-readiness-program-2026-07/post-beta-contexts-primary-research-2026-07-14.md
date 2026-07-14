@@ -5,6 +5,8 @@
 **Market order:** United States first, Europe second, then other jurisdictions  
 **Scope:** goals, metrics, teams, staff, badges, leaderboards, activity/audit, notifications, public property portals, guest feedback, QR/NFC links, image uploads, accessibility, performance, and lifecycle/retention
 
+**Google disposition update:** [Written support response received](google-business-profile-ai-policy-response-2026-07-14.md); independently generated per-property AI analysis and retained derivative metadata are conditionally permitted.
+
 This document is research, not legal advice. It deliberately separates binding law and vendor policy from regulator guidance, engineering recommendations, and decisions that require product or legal review. All external sources are primary or first-party sources.
 
 ## How to read the labels
@@ -17,7 +19,7 @@ This document is research, not legal advice. It deliberately separates binding l
 
 ## Executive findings
 
-1. **Google review data is the immediate hard gate.** The current Business Profile API policy allows only limited, secure, temporary storage for no more than 30 days and says stored API content cannot be manipulated or aggregated. Under the conservative reading, review-derived metric readings, goals, badges, leaderboard snapshots, historical trends, and AI analysis are not launchable unless Google gives written approval or clarification. [Google Business Profile API policies](https://developers.google.com/my-business/content/policies)
+1. **Google's written response resolves the per-property AI ambiguity, not the raw-content lifecycle.** Google permits independently generated per-property sentiment, scores, categories, themes, trends, summaries, and external AI processing. Raw review text, ratings, reviewer information, and replies must be refreshed or removed under the applicable 30-day policy; separately stored derivative metadata is not subject to that same limit. Cross-property analysis and review-solicitation gamification remain outside the approved product boundary. [Google response and disposition](google-business-profile-ai-policy-response-2026-07-14.md)
 2. **Review-solicitation gamification is independently prohibited.** Google forbids merchants from discouraging negative reviews, selectively soliciting positive reviews, requesting that staff solicit a certain number of reviews, or requesting staff-identifying review content. Goals, badges, rankings, or incentives based on review-link clicks, Google review count, Google rating, or named-staff mentions would create direct policy risk even if the storage issue were resolved. [Google Maps prohibited and restricted content](https://support.google.com/contributionpolicy/answer/7400114?hl=en)
 3. **Guest portals must not implement review gating.** A guest's private rating must not change whether, where, or how prominently an external review link appears. The safest implementation is one identical path and layout for every rating, with private feedback clearly separated from the external-review action. Google requires genuine, unbiased contributions and the FTC prohibits several deceptive review and review-suppression practices. [Google Maps policy](https://support.google.com/contributionpolicy/answer/7400114?hl=en), [FTC Consumer Reviews and Testimonials Rule Q&A](https://www.ftc.gov/business-guidance/resources/consumer-reviews-testimonials-rule-questions-answers)
 4. **Goals and gamification can become worker monitoring.** Portal/team/staff activity, private ratings, response speed, and rankings can identify or profile employees. In Europe this invokes GDPR transparency, purpose limitation, minimization, accuracy, retention, rights, and potentially DPIA/automated-decision safeguards. In the US, use in hiring, promotion, discipline, compensation, or termination can engage discrimination law, state monitoring notices, state privacy law, and local automated-employment rules.
@@ -49,18 +51,19 @@ These are not accusations of legal non-compliance. They identify where the futur
 
 **Vendor requirement.** Google's Business Profile API policy says that content obtained through the API may be stored only in limited amounts to improve project performance, for no more than 30 calendar days, securely, and without manipulation or aggregation. Google may disable a non-compliant API project. [Google Business Profile API policies](https://developers.google.com/my-business/content/policies)
 
-**Conservative consequence for RepKey.** Until Google responds in writing:
+**Current disposition after Google's written response:**
 
-| Proposed use                                                                                        | Current disposition                                                                                        |
-| --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| Display a fetched review temporarily in an authorized management workflow                           | Potentially permissible within the 30-day and security limits; confirm exact design with Google            |
-| Persist review text/rating indefinitely                                                             | Blocked under the published policy                                                                         |
-| Convert Google rating/review into long-lived `property.review` metric readings                      | Blocked; this is at least storage and likely manipulation                                                  |
-| Calculate rating averages, review counts, trends, or priority distributions from stored GBP content | Blocked; the policy expressly bars aggregation                                                             |
-| Use Google reviews in goals, badges, leaderboards, or employee/portal rankings                      | Blocked on storage/aggregation grounds and may also conflict with review-solicitation rules                |
-| Send Google review content to an AI provider                                                        | Blocked pending explicit permission, lawful data-processing terms, and an approved retention/region design |
+| Proposed use                                                                                      | Current disposition                                                                                                                            |
+| ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Display a fetched review in an authorized management workflow                                     | Permitted within the secure raw-content cache lifecycle.                                                                                       |
+| Persist review text/rating/reviewer/reply indefinitely                                            | Not permitted; refresh or remove under the applicable 30-day policy.                                                                           |
+| Retain sentiment labels, scores, categories, themes, and property summary insights                | Permitted as derivative metadata, subject to product/privacy retention and no embedded raw content/PII.                                        |
+| Per-property sentiment/priority distributions, themes, trends, and summaries                      | Permitted conditionally; generate independently for one Business Profile and never combine properties.                                         |
+| Use Google review/rating/click/request volume in goals, badges, leaderboards, or employee ranking | Continue to prohibit because review-solicitation and worker-use risks are independent of AI permission.                                        |
+| Send minimized review text to an external AI provider                                             | Permitted after PII removal, no-training assurance, minimum retention, merchant opt-in, regional/privacy compliance, and content-safe logging. |
+| Automatically publish AI replies                                                                  | Not supported; manager review/edit and a separate manual publish action are mandatory.                                                         |
 
-**Decision required.** Preserve Google's answer, the submitted architecture, and any conditions as a versioned compliance artifact. Do not generalize permission beyond the exact endpoints, data fields, storage duration, transformations, regions, and user flows Google approves.
+**Required control.** Preserve Google's answer, the submitted architecture, and its conditions as a versioned compliance artifact. Translate it into ADR 0031 and executable capabilities; do not generalize permission beyond the exact data, per-property transformations, regions, consent, and manual-publication flow Google addressed.
 
 **Operational vendor requirements.** Google requires a quick disassociation path: after an end-client relationship ends, the client must be able to disassociate and regain exclusive control, and permissions must be relinquished within seven business days. Google may also request a live or live-equivalent demo and requires it within seven days. These obligations should become tested offboarding and compliance-demo runbooks, not manual promises. [Google Business Profile API policies](https://developers.google.com/my-business/content/policies)
 
@@ -168,14 +171,15 @@ Each metric definition should declare:
 
 ### Proposed eligibility baseline
 
-| Metric family                          | Analytics                                 | Goals                                  | Badges                               | Leaderboard                                       | Rationale                                           |
-| -------------------------------------- | ----------------------------------------- | -------------------------------------- | ------------------------------------ | ------------------------------------------------- | --------------------------------------------------- |
-| Google review content/rating/count     | Block pending Google permission           | Block                                  | Block                                | Block                                             | API content storage/aggregation policy              |
-| External review-link click             | Limited funnel diagnostics                | Never                                  | Never                                | Never                                             | Avoid review-solicitation pressure and staff quotas |
-| QR/NFC scan to a review-request portal | Limited traffic diagnostics               | Never                                  | Never                                | Never                                             | A scan is an opportunity, not a service outcome     |
-| Private guest rating/feedback          | Property operations with privacy controls | Property/team only after worker review | Possibly non-comparative recognition | Off by default; minimum sample and counsel review | Personal data, bias, low sample, guest abuse        |
-| Internal review-response workflow      | Operational/SLA analytics                 | Property/team coaching                 | Carefully selected service badges    | Only after exposure normalization                 | Opportunity volume differs by property/shift        |
-| Training or manager-confirmed quality  | Analytics                                 | Potentially eligible                   | Potentially eligible                 | Prefer no ranking                                 | More controllable but still worker data             |
+| Metric family                           | Analytics                                                                       | Goals                                  | Badges                               | Leaderboard                                       | Rationale                                                           |
+| --------------------------------------- | ------------------------------------------------------------------------------- | -------------------------------------- | ------------------------------------ | ------------------------------------------------- | ------------------------------------------------------------------- |
+| Google raw review content/rating/count  | Authorized property workflow plus permitted derivative analytics under ADR 0031 | Never                                  | Never                                | Never                                             | Raw-cache policy and separate review-solicitation/worker risks      |
+| Google-derived sentiment/category/theme | Property analytics only; no cross-property combination                          | Never                                  | Never                                | Never                                             | Permitted derivative metadata, but not an employee-evaluation input |
+| External review-link click              | Limited funnel diagnostics                                                      | Never                                  | Never                                | Never                                             | Avoid review-solicitation pressure and staff quotas                 |
+| QR/NFC scan to a review-request portal  | Limited traffic diagnostics                                                     | Never                                  | Never                                | Never                                             | A scan is an opportunity, not a service outcome                     |
+| Private guest rating/feedback           | Property operations with privacy controls                                       | Property/team only after worker review | Possibly non-comparative recognition | Off by default; minimum sample and counsel review | Personal data, bias, low sample, guest abuse                        |
+| Internal review-response workflow       | Operational/SLA analytics                                                       | Property/team coaching                 | Carefully selected service badges    | Only after exposure normalization                 | Opportunity volume differs by property/shift                        |
+| Training or manager-confirmed quality   | Analytics                                                                       | Potentially eligible                   | Potentially eligible                 | Prefer no ranking                                 | More controllable but still worker data                             |
 
 This table is a **recommended product policy**, not a statement that every allowed cell is legally safe in every deployment.
 
@@ -414,7 +418,7 @@ Define lab budgets in CI, but use field 75th-percentile data for the product obj
 
 ## 12. Lifecycle and retention
 
-**Legal/vendor basis.** GDPR requires purpose limitation, data minimization, accuracy, storage limitation, rights handling, and privacy by design/default. CCPA provides access/knowledge, deletion subject to exceptions, correction, and notice rights when applicable. Google imposes the stricter 30-day/no-aggregation rule for API content. [GDPR](https://eur-lex.europa.eu/eli/reg/2016/679/oj), [California CCPA overview](https://oag.ca.gov/privacy/ccpa), [Google API policy](https://developers.google.com/my-business/content/policies)
+**Legal/vendor basis.** GDPR requires purpose limitation, data minimization, accuracy, storage limitation, rights handling, and privacy by design/default. CCPA provides access/knowledge, deletion subject to exceptions, correction, and notice rights when applicable. Google keeps raw API content under its 30-day refresh/removal policy while its written response permits separately retained per-property derivative metadata. [GDPR](https://eur-lex.europa.eu/eli/reg/2016/679/oj), [California CCPA overview](https://oag.ca.gov/privacy/ccpa), [Google API policy](https://developers.google.com/my-business/content/policies), [Google response](google-business-profile-ai-policy-response-2026-07-14.md)
 
 ### Required lifecycle properties
 
@@ -430,7 +434,8 @@ These are **recommendations for discussion, not source-mandated periods**. Couns
 
 | Data class                              | Candidate active retention/action                                                                    |
 | --------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| GBP API review content                  | Maximum 30 days and no derived aggregate under published policy; shorter if not operationally needed |
+| GBP raw review content                  | Refresh or remove under the applicable 30-day cache policy; no raw convenience copies                |
+| GBP permitted derivative metadata       | Product/privacy schedule; property-scoped and free of raw content/PII                                |
 | Raw guest private feedback              | 180 days, then delete or customer-configured shorter period                                          |
 | Raw guest scan/click/rating events      | 13 months, then aggregate/anonymize where lawful; exclude Google-derived data                        |
 | Metric readings used for coaching       | 13 months; corrections retained as non-content evidence for the same window                          |
@@ -445,7 +450,7 @@ These are **recommendations for discussion, not source-mandated periods**. Couns
 
 ## 13. Decisions requiring counsel and product leadership
 
-1. **Google disposition:** What exact persistent storage, transformations, aggregates, AI processing, and derived features does Google permit in writing?
+1. **Google implementation:** Accept ADR 0031 and prove the received per-property permission's raw-cache, derivative, PII/provider/region, consent, and manual-publication conditions.
 2. **Review-neutral portal:** Will product remove rating-dependent smart routing entirely? This is the recommended answer.
 3. **Permitted workforce use:** Will contracts and UI prohibit employment decisions, pay, discipline, scheduling, and promotion use? This is the recommended v1 boundary.
 4. **Individual leaderboards:** Are they valuable enough to justify the privacy, fairness, consultation, correction, and support burden?
@@ -463,7 +468,7 @@ These are **recommendations for discussion, not source-mandated periods**. Couns
 
 ## 14. Recommended planning sequence
 
-1. Resolve Google policy and freeze prohibited metric consumers in code.
+1. Encode Google's response in ADR 0031/source policy and freeze review-solicitation/worker metric consumers in code.
 2. Create the metric registry, provenance, correction, eligibility, and retention model.
 3. Create the workforce permitted-use policy, activation gate, transparency view, and DPIA/AIA template.
 4. Make team/staff assignment temporal and distinguish access from metric attribution.

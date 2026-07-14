@@ -3,13 +3,14 @@
 **Researched:** 2026-07-14  
 **Scope:** Decision input for Phases 17–18; Google Business Profile compliance, provider/deployment choice, quota packaging, and the current repository's delivery constraints.  
 **Sources:** Official Google, OpenAI, Anthropic, Microsoft, AWS, Mistral, vLLM, and BullMQ documentation plus the current repository.  
-**Status:** Research and engineering guidance, not legal advice and not yet an implementation plan.
+**Status:** Research and engineering guidance, updated after Google's written response; not legal advice and not yet an implementation plan.  
+**Google disposition:** [Per-property AI architecture conditionally permitted](google-business-profile-ai-policy-response-2026-07-14.md)
 
 ## Decision-ready recommendation
 
-1. **Do not treat Google Business Profile review AI as cleared by the existing API access.** Google's product-specific policy allows creating, managing, and reporting on authorized listings, but separately says API Content may only be stored in limited amounts for performance, for no more than 30 days, and that stored Content cannot be manipulated or aggregated. It does not define derived data or publish an AI exception. Persistent sentiment/priority is unresolved; per-property themes and trajectories are the highest-risk features. ([GBP API policy](https://developers.google.com/my-business/content/policies))
-2. **The validation must cover the existing product, not only Arc 7.** This repo uses one configured Google client for end-client OAuth/background work, stores reviews, and already aggregates review data in dashboards. Google's automated-use wording may implicate that SaaS shape, while the current expiry calculation starts from review publication rather than API receipt. Ask Google to review the exact current and proposed flow in writing before broadening it.
-3. **Make written Google confirmation a Phase 17 launch gate.** The product's core value is AI over actual Google reviews, not a guest-feedback substitute. Build the provider port, quota ledger, reliable jobs, reply UX, and evaluation harness in parallel using synthetic/anonymized fixtures, but do not launch custom GBP review AI until Google approves the exact flow. If Google declines, investigate a separately licensed review-data source or reconsider Arc 7 rather than silently substituting first-party feedback.
+1. **Google has conditionally cleared the submitted per-property architecture.** Its written support response permits independently generated per-property sentiment, scores, categories, themes, trends, and summaries; external AI processing; and manager-reviewed reply drafting. Raw review text, ratings, reviewer information, and replies remain under the applicable 30-day refresh/removal policy, while derived metadata is not subject to that same limit.
+2. **Translate the response into code before release.** ADR 0031 and `SourceContentPolicy` must enforce per-property isolation, raw/derived data separation, PII removal, provider no-training/minimum-retention controls, property-region routing, merchant opt-in, and a separate manual reply-publication command. Unknown policy state fails closed for AI without breaking non-AI review management.
+3. **The external policy gate is resolved; PRE17 remains the internal readiness gate.** Phase 17/18 planning may proceed when requested, but production AI waits for the lifecycle, consent, provider, reliability, privacy, and evaluation evidence—not another general Google approval. Historical backfill and durable reply few-shot examples retain narrower caveats because Google did not answer them individually.
 4. **Keep `AIProvider` portable, but run one production provider initially.** Evaluate OpenAI direct, Vertex AI EU, and Mistral EU on a frozen multilingual fixture set; include Anthropic as a quality benchmark. Mistral is a credible EU-native option, OpenAI has the strongest structured-output ergonomics, and Vertex has the clearest Google Cloud EU deployment story. Bedrock is the strongest governance alternative when explicit no-retention/IAM enforcement is worth extra operations.
 5. **Do not invent Free/Pro/Enterprise plans inside Arc 7.** Start with internal per-property fair-use limits and an organization safety cap; measure real usage and quality; then expose a per-property included allowance or AI credit add-on. Store generic entitlements so a future billing plan can drive them without changing the AI context.
 6. **Preserve the original reliability design.** Quota authorization needs atomic reservation and settlement inside the provider boundary. BullMQ jobs and settlements must be idempotent. The current in-process event handoff needs reconciliation or an outbox to make the 60-second gate credible.
@@ -18,23 +19,30 @@ The recommended sequencing is therefore:
 
 ```text
 now
-  -> submit exact current + Arc 7 GBP flow to Google API support
-  -> build source-aware AI contracts, quotas, jobs, and UI behind a feature gate
-  -> run provider bake-off with synthetic/anonymized fixtures, not production GBP data
-  -> choose one approved provider/deployment
-  -> launch Phase 17 over actual Google reviews only after written approval
-  -> launch Phase 18 per property only after the same aggregation approval
+  -> preserve Google response and encode ADR 0031/source policy
+  -> complete PRE17 raw-content lifecycle, regions, durable jobs, and observability
+  -> run provider bake-off with synthetic/anonymized fixtures
+  -> choose and verify one no-training, minimum-retention deployment per region
+  -> plan and implement Phase 17 with merchant opt-in and manual publish only
+  -> launch Phase 18 per property only; no cross-property prompt/report/summary
 ```
 
 ## Evidence labels
 
 - **Published rule/fact** means an official source directly supports the statement.
 - **Engineering inference** means the conclusion follows from published behavior but is not vendor assurance.
-- **Unresolved** means the official material does not answer the product's exact use case.
+- **Written support disposition** means Google API Support addressed the submitted architecture directly; it must not be generalized beyond that scope.
+- **Unresolved** means neither public material nor the written response answers the narrower behavior.
 
 Provider prices below are current on the research date, in USD per 1 million text tokens before tax. Catalogs, promotional rates, regions, and privacy programs change; revalidate them before implementation and store price schedules with effective dates.
 
 # Part I — Google Business Profile compliance
+
+## 0. Written support disposition received
+
+Google Business Profile API Support stated that the submitted architecture is generally aligned with policy. It permits per-property sentiment, themes, trend summaries, derived scores/categories/insights, external AI processing, and manager-reviewed reply drafting subject to the conditions recorded in the [response and executable disposition](google-business-profile-ai-policy-response-2026-07-14.md).
+
+The response resolves the main manipulation/aggregation, derived-retention, external-provider, OAuth/merchant-opt-in, and manual-publish questions. It does not waive the public GBP terms: raw content remains under the applicable 30-day refresh/removal policy; PII must be removed before external processing; providers must not train on the data and must minimize retention; applicable regional privacy rules still apply; and automatic AI reply publishing is unsupported.
 
 ## 1. Controlling rules
 
@@ -51,9 +59,9 @@ The material rules are:
 
 I found no official public text that specifically approves third-party sentiment analysis, priority scoring, LLM reply drafting, theme extraction, or custom trend summaries from GBP review content.
 
-## 2. What the official text does not define
+## 2. What the public text did not define before the support response
 
-The following are **unresolved**, not permissions:
+The original public-doc research correctly identified the following ambiguities. Google's written response now resolves the derived-data, per-property analysis, external-processor, OAuth/opt-in, and manual-publish questions for the submitted design. The exact cache-refresh clock, durable few-shot reply corpus, historical-backfill wording, and backup/log treatment remain conservative implementation decisions:
 
 - Whether every review field—text, rating, reviewer metadata, reply—is “Content.”
 - Whether sentiment, priority, themes, and summaries become Content or are separately usable derived data.
@@ -64,7 +72,7 @@ The following are **unresolved**, not permissions:
 - Whether derived output may survive deletion of the source review.
 - Whether using Vertex AI or another Google service in the same Cloud project changes the answer.
 
-No-training, zero-retention, EU processing, self-hosting, deleting prompts after inference, and 30-day rolling outputs reduce privacy/retention exposure. None of those controls grants permission to manipulate or aggregate GBP Content.
+No-training, minimum retention, regional processing, deleting prompt bodies, and 30-day raw-content controls are now conditions of the permitted design, not substitutes for permission. The written response supplies the permission only for the submitted per-property scope.
 
 ## 3. A pre-existing SaaS-project question
 
@@ -76,11 +84,11 @@ The boundary between “the tool provider's own use” and “indirect access by
 - End-clients manually authorize the `business.manage` scope, but background sync and notifications then operate programmatically.
 - The product exposes review management through its own UI rather than handing clients a raw GBP automation API. That is a favorable distinction, but Google does not publish a precise safe boundary.
 
-**Recommendation:** include the existing OAuth, background sync, dashboard, and reply workflow in the written support request. An AI-only answer would leave the more basic project-usage question unresolved.
+**Updated disposition:** Google's response expressly says the OAuth 2.0 Web Server flow with the appropriate Business Profile scope is aligned with the recommended approach. Continue to test tenant authorization, merchant opt-in, disconnect, scope, and manual publish; do not interpret this as approval for exposing a raw automation API.
 
 ## 4. Retention start point and the current implementation
 
-Google says “no more than 30 calendar days” but does not publish the clock's start point.
+Google's response says raw review content should be refreshed or removed under the applicable 30-day policy, but it does not define the precise cache-clock reset semantics.
 
 The repo currently computes:
 
@@ -90,63 +98,66 @@ expires_at = reviewed_at + 30 days
 
 and immediately expires an old review imported today. ([review retention rule](../../src/contexts/review/domain/rules.ts), [review context](../../src/contexts/review/CONTEXT.md))
 
-This is stricter than a receipt-based interpretation and prevents useful historical import. It also means refresh cannot extend retention. Ask Google explicitly whether the clock begins at review publication, first API receipt, each retrieval, or each content-version update.
+This is based on review publication rather than RepKey's cache lifecycle, so an old review imported today expires immediately even though it was just fetched.
 
-Until there is an answer, the least circumvention-prone engineering interpretation is an **inference**, not a Google rule:
+Use the response's refresh-or-remove wording as the conservative executable baseline:
 
 ```text
 first_received_at = first API receipt of the review lineage
-delete_by = first_received_at + 30 calendar days
+last_refreshed_at = latest successful API retrieval of the cached content/version
+refresh_due_at <= last_refreshed_at + 25 calendar days
+expires_at = last_refreshed_at + 30 calendar days
+if refresh does not succeed by expires_at -> remove raw content and all raw copies
 ```
 
-Do not reset `first_received_at` when the same review is fetched again. Preserve source lineage on raw and derived values so a deletion can cascade. This addresses time only; it does not solve the manipulation/aggregation restriction.
+Preserve `first_received_at` for lineage and refresh evidence. A successful refresh may extend the cache window; a scheduler must not extend it merely by updating a timestamp locally. Store permitted derived metadata separately so it can follow the product/privacy retention schedule after raw content is removed.
 
 ## 5. Supported reporting does not clearly include review NLP
 
 Google's third-party policy explicitly discusses Business Profile performance reports and permits some aggregation of GBP performance data with other platforms when Google-specific reporting remains readily accessible. It forbids sharing or comparing one customer's GBP-specific data with another customer. ([Business Profile third-party policy](https://support.google.com/business/answer/7353941))
 
-This supports charts based on documented Performance API metrics such as impressions, calls, website clicks, bookings, and orders. ([GBP API FAQ](https://developers.google.com/my-business/content/faq)) It does **not** clearly authorize sentiment trajectories or themes extracted from review text, which remain subject to the separate Content clause.
+This supports charts based on documented Performance API metrics such as impressions, calls, website clicks, bookings, and orders. ([GBP API FAQ](https://developers.google.com/my-business/content/faq)) Google's later written response separately permits sentiment trajectories and themes when independently generated for one Business Profile.
 
-The user's decision to keep Phase 18 per property is correct and avoids organization summaries/cross-property blending. It does not cure the underlying review aggregation question.
+The user's decision to keep Phase 18 per property matches the permitted scope and avoids organization summaries/cross-property blending. Cross-property ratings, prompts, theme extraction, comparisons, and summaries remain outside the current disposition.
 
 ## 6. Feature risk map
 
 This is a practical risk classification, not legal advice.
 
-| Capability                                           |        GBP-source risk | Practical reading                                                                          |
-| ---------------------------------------------------- | ---------------------: | ------------------------------------------------------------------------------------------ |
-| Sentiment/category on direct guest feedback          |    Low under GBP terms | The source did not come through GBP. Ordinary privacy/AI terms still apply.                |
-| Existing GBP review storage and dashboard aggregates |        High/unresolved | Already implicates storage, aggregation, clock start, and project-use questions.           |
-| Transient sentiment on one GBP review                | Medium-high/unresolved | Less retention exposure, but still transforms and may transfer Content.                    |
-| Persisted sentiment/priority and urgent events       |        High/unresolved | Derived persistence and combination of rating/sentiment.                                   |
-| Manager-requested draft for one GBP review           | Medium-high/unresolved | Closely aligned with review management, but transforms/transfers Content.                  |
-| Persisted AI reply draft                             |            Medium-high | It may become merchant-authored content, but is derived from a review.                     |
-| Manual preview/edit/publish                          | Lower operational risk | Best evidence of specific consent; inference permission remains unresolved.                |
-| Automatic reply publishing                           |              Very high | Conflicts with the express-consent rule unless every action has specific prior consent.    |
-| Previous GBP replies as few-shot examples            |                   High | Expands source content, retention, and provider transfer.                                  |
-| Daily per-property themes/trajectories               |              Very high | Direct aggregation across multiple reviews and time.                                       |
-| Sentiment/priority distributions                     |              Very high | Aggregation of unresolved derived values.                                                  |
-| Historical GBP backfill                              |              Very high | Large-scale processing and retention; current old-review expiry also makes it impractical. |
-| Equivalent per-property trends on direct feedback    |    Low under GBP terms | Lower policy risk, but outside the selected actual-Google-review product direction.        |
-| GBP Performance API metrics                          |                  Lower | A specifically documented reporting category.                                              |
+| Capability                                    | Current disposition | Practical reading                                                                                                             |
+| --------------------------------------------- | ------------------: | ----------------------------------------------------------------------------------------------------------------------------- |
+| Sentiment/category on direct guest feedback   |             Allowed | Outside GBP terms; ordinary privacy/AI rules still apply.                                                                     |
+| Raw GBP review storage                        |         Conditional | Secure, limited cache; refresh or remove under the applicable 30-day policy.                                                  |
+| Per-review sentiment/category/priority        |         Conditional | Permitted per property after PII removal, merchant opt-in, approved provider/region, and content-safe logging.                |
+| Retained derived sentiment/priority metadata  |         Conditional | Not subject to the raw 30-day limit; must exclude raw content/PII and follow product/privacy retention.                       |
+| Manager-requested reply draft                 |         Conditional | Permitted with merchant opt-in and human review/edit.                                                                         |
+| Manual preview/edit/publish                   |            Required | Publication is a separate manager action with authorization and idempotency.                                                  |
+| Automatic AI reply publishing                 |              Denied | Google's response says it is unsupported.                                                                                     |
+| Previous GBP replies as few-shot examples     |             Caution | Not answered separately; use only same-property replies in a valid raw-cache window unless further clarification allows more. |
+| Daily per-property themes/trajectories        |         Conditional | Permitted independently per Business Profile; no cross-property prompt/report/rating/summary.                                 |
+| Per-property sentiment/priority distributions |         Conditional | Permitted derivative property analysis; retain only non-content metadata.                                                     |
+| Historical per-property analysis              |             Caution | Supported by the general disposition but not separately answered; process valid cached inputs and retain derivatives only.    |
+| Cross-property themes/ratings/summaries       |        Out of scope | Outside the submitted product and expressly avoided.                                                                          |
+| GBP Performance API metrics                   |             Allowed | A separately documented reporting category.                                                                                   |
 
 ## 7. Actual-review-first launch path
 
 ```text
 google_business_profile
-  existing review management reviewed with Google
-  custom sentiment/priority/reply drafting behind a launch gate
+  raw content refreshed or removed under the 30-day cache policy
+  per-review sentiment/priority/category after PII removal and merchant opt-in
   manual reply publication with action-specific consent
-  per-property trends behind explicit aggregation approval
+  per-property trends/summaries with no cross-property combination
+  retained derived metadata separated from raw review content
 
 places_official_summary
   optional official fallback only where available
   show mandatory disclosure/attribution/links
   do not materialize a history
 
-if Google denies custom review AI
-  investigate a separately licensed review-data source
-  otherwise reconsider/de-scope Arc 7
+if implementation cannot satisfy privacy/provider/region/cache conditions
+  keep AI capability off without disabling non-AI review management
+  do not silently route content to another region/provider
   do not relabel guest feedback as the same product
 ```
 
@@ -185,13 +196,13 @@ It is a useful fallback for a current property summary because Google supplies t
 - the complete unmodified summary, “Summarized with Gemini,” Google Maps attribution, review link, reporting link, and about link are required;
 - Places Content generally cannot be cached except for narrow exceptions, so fetch for display rather than materializing report history. ([Places policies and attribution](https://developers.google.com/maps/documentation/places/web-service/policies))
 
-## 10. Written validation path
+## 10. Written validation completed; revalidation path
 
 Use the official [Business Profile APIs support channel](https://developers.google.com/my-business/content/support) from the Cloud project holding/requesting access. The general terms say use beyond documented API limits needs Google's express consent and direct developers to the relevant API team. ([Google API limitations](https://developers.google.com/terms#section_2_using_our_apis))
 
-Submit an architecture/data-flow diagram, privacy disclosure, retention/deletion schedule, provider terms, manager-consent UX, and a demo. Ask for explicit written approval tied to the production project, not a generic support assurance.
+The architecture request was submitted and Google API Support returned the [written disposition](google-business-profile-ai-policy-response-2026-07-14.md). Preserve the original case/email evidence and provide an implementation-equivalent demo if Google requests one. Re-submit material changes—especially cross-property processing, auto-publication, provider training, broader raw retention, or new data uses—rather than treating the current answer as unrestricted permission.
 
-Questions to ask verbatim or near-verbatim:
+The submitted questions included:
 
 1. Does “Content” include review text, rating, reviewer metadata, replies, and outputs derived from them?
 2. Is this app's single developer project plus individual end-client OAuth/background sync permitted, or must each end-client use a separate GBP API project?
@@ -206,7 +217,7 @@ Questions to ask verbatim or near-verbatim:
 11. Does independently customer-uploaded Takeout/export data fall outside the API Content rule?
 12. What disclosure, attribution, provider-transfer, retention, audit, and deletion rules apply?
 
-OAuth verification should disclose and demonstrate the feature, but OAuth approval is not necessarily a waiver of the GBP-specific policy. If Google will not provide a clear answer, obtain counsel and keep custom GBP review AI disabled.
+OAuth verification should disclose and demonstrate the feature, but OAuth approval is not a waiver of the GBP-specific conditions. Google's separate written response supplies the current per-property disposition. Apply the conservative baseline or seek a narrow follow-up for cache semantics, durable reply examples, historical backfill, or any materially broader design.
 
 # Part II — Provider and deployment options
 
@@ -227,7 +238,7 @@ No provider publishes a model-level end-to-end latency guarantee strong enough t
 
 ## 12. Shortlist for this product
 
-Run one bake-off, not seven, using synthetic/anonymized fixtures while GBP approval is pending:
+Run one bake-off, not seven, using synthetic/anonymized fixtures while the internal provider, privacy, and regional-processing controls are being approved:
 
 1. **OpenAI direct** — best implementation ergonomics and schema tooling; a strong default if EU/ZDR eligibility is available.
 2. **Vertex AI EU** — best candidate if formal EU processing boundaries and Google Cloud governance dominate.
@@ -236,7 +247,7 @@ Run one bake-off, not seven, using synthetic/anonymized fixtures while GBP appro
 
 Azure and Bedrock are deployment/governance alternatives, not extra quality candidates. Choose Azure for Microsoft enterprise procurement; choose Bedrock for explicit enforceable no-retention/geography controls. Self-host only after volume or customer requirements justify a separate GPU platform.
 
-Recommended evaluation set: 100–200 anonymized or synthetic representative examples covering positive, negative, mixed, neutral, sarcasm, rating/text disagreement, short/long text, abuse, each supported language, strong existing replies, and properties with real versus spurious themes. Do not retain production GBP content merely to build this set while policy is unresolved.
+Recommended evaluation set: 100–200 anonymized or synthetic representative examples covering positive, negative, mixed, neutral, sarcasm, rating/text disagreement, short/long text, abuse, each supported language, strong existing replies, and properties with real versus spurious themes. Do not create a long-lived production GBP corpus for evaluation; raw content remains under the refresh/removal policy even though derived metadata may be retained.
 
 Blind-score:
 
@@ -398,8 +409,10 @@ The scheduler may run daily for every eligible property while generating a new A
 
 ### Phase 17
 
-- Treat written approval for the actual GBP review flow as the launch gate; do not replace it with guest-feedback AI.
-- Resolve/obtain approval for the current GBP project, storage, dashboard, clock, and provider-transfer flow.
+- Treat the written response as satisfying the external policy gate for the submitted flow; preserve and encode it in ADR 0031/source policy.
+- Implement the raw-content refresh/removal lifecycle and separate retained derived metadata.
+- Remove structured reviewer identity and redact PII found inside review text before provider transfer.
+- Require property-level merchant opt-in and an approved no-training/minimum-retention regional provider deployment.
 - Define provider-neutral schemas, prompt/model versions, source lineage, and privacy class.
 - Implement atomic entitlements/usage reservations before adapter calls.
 - Persist reply drafts server-side with AI provenance and require separate manual publication.
@@ -410,26 +423,30 @@ The scheduler may run daily for every eligible property while generating a new A
 ### Phase 18 — per property only
 
 - No organization summary.
-- Build per-property report infrastructure in parallel, but launch custom Google-review themes/trends/history only after written aggregation approval.
+- Google's response permits per-property themes, trends, and summaries. Keep each prompt, batch partition, report, cache key, and query independently property-scoped.
+- Retain only derived themes/trajectories/summary insights beyond the raw cache window; no excerpts, exact ratings, replies, reviewer identities, or reversible content fingerprints.
+- Historical backfill may be planned conservatively, but its release criteria must enforce valid cached inputs and derivative-only persistence because Google did not answer it separately.
 - Supported GBP Performance metrics and the live official Places review summary are adjacent capabilities, not replacements for custom review trends.
 - Add paginated, time-bounded source queries, minimum sample/change rules, and per-property scheduling timezone.
 - Keep generation off the dashboard request path; read precomputed reports/aggregates and use cache only as a performance layer.
 - If an approved source has insufficient change, carry forward the latest report with a visible “no meaningful new evidence” state rather than spending tokens on a new summary.
 
-## 22. Decisions still requiring confirmation
+## 22. Resolved and remaining decisions
 
-| Decision                                                               | Owner / evidence needed                                                        |
-| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| Is the current single-project GBP SaaS flow allowed?                   | Written GBP API-team answer                                                    |
-| Are per-review AI transformation and per-property aggregation allowed? | Written GBP API-team answer; counsel if ambiguous                              |
-| What starts/resets the 30-day clock?                                   | Written GBP API-team answer                                                    |
-| Can derived values/reports outlive source Content?                     | Written GBP API-team answer                                                    |
-| Is an LLM transfer permitted, and under what consent/ZDR rules?        | Google answer + provider DPA/security review                                   |
-| Production provider/deployment                                         | Results of OpenAI vs Vertex EU vs Mistral EU benchmark and privacy eligibility |
-| Model per operation                                                    | Quality/latency/cost evaluation, not list-price intuition                      |
-| Initial internal caps                                                  | Beta workload assumptions, then measured usage                                 |
-| Minimum evidence/change for a daily property report                    | Product/quality decision validated in a post-approval Google-review pilot      |
-| Historical GBP backfill                                                | Google approval plus clock/source-lineage answer                               |
+| Decision                                                  | Status / evidence needed                                                                                                            |
+| --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| OAuth Web Server flow and merchant opt-in                 | Resolved conditionally by Google's written response; implement consent evidence and scope tests.                                    |
+| Per-review AI transformation and per-property aggregation | Resolved conditionally by Google's written response.                                                                                |
+| Derived values/reports outliving raw content              | Resolved: allowed, provided the retained data is derivative metadata and follows product/privacy retention.                         |
+| External LLM transfer                                     | Resolved conditionally: PII removal, no training, minimum retention, and applicable regional privacy controls.                      |
+| Automated reply publication                               | Resolved: unsupported; manual manager publication is mandatory.                                                                     |
+| Exact raw-cache refresh semantics                         | Use refresh-before-30-days/purge-on-failure baseline; seek follow-up only if broader behavior is needed.                            |
+| Durable previous-reply few-shot corpus                    | Not explicitly confirmed; use current same-property cached replies only by default.                                                 |
+| Historical GBP backfill                                   | General per-property processing is permitted, but the named backfill question was not separately answered; retain derivatives only. |
+| Production provider/deployment                            | Provider bake-off plus DPA, no-training/retention, regional, security, and procurement review.                                      |
+| Model per operation                                       | Quality/latency/cost evaluation, not list-price intuition.                                                                          |
+| Initial internal caps                                     | Beta workload assumptions, then measured usage.                                                                                     |
+| Minimum evidence/change for a daily property report       | Product/quality decision validated in a controlled Google-review pilot.                                                             |
 
 # Part V — Azure OpenAI and AWS Bedrock for a US-first product
 
@@ -526,4 +543,4 @@ Recommendation: **benchmark Azure GPT-5 nano/mini against Bedrock Nova Micro/Nov
 
 ## Revised bottom line
 
-Arc 7 is still a strong product direction, but it should be reframed as **actual-Google-review AI with a written compliance gate**, not “send every GBP review to Anthropic.” Provider portability, quotas, reliable jobs, reply UX, and per-property reporting infrastructure can be built behind a feature gate while Google reviews the exact flow; quality evaluation can use synthetic/anonymized fixtures. If Google declines, investigate a separately licensed review source or reconsider the Arc rather than substituting guest feedback. For a US-first product with EU expansion, the practical managed-cloud bake-off should now include Azure US/EU Data Zone, Bedrock US/EU geographic Nova, and Bedrock Claude as a quality ceiling. Commercially, start with generic internal entitlements and per-property caps; use real data before inventing Free/Pro/Enterprise plans.
+Arc 7 is a viable **actual-Google-review AI** direction under Google's written per-property disposition. The external permission question is no longer the blocker; the work is now to prove the conditions in code and operations: raw/derived separation, 30-day refresh/removal, PII redaction, merchant opt-in, no-training/minimum-retention regional providers, per-property isolation, and manual publication. Provider portability, quotas, durable jobs, reply UX, and property reports remain the correct design. For a US-first product with EU expansion, the practical managed-cloud bake-off should include Azure US/EU Data Zone, Bedrock US/EU geographic Nova, and Bedrock Claude as a quality ceiling. Commercially, start with generic internal entitlements and per-property caps; use real data before inventing Free/Pro/Enterprise plans.

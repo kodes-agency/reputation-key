@@ -183,4 +183,3 @@ export type DomainEvent =
   | GoalEvent
   | MetricEvent
   | BadgeEvent
-

@@ -4,12 +4,14 @@ Checked: 2026-07-14
 Target: 5,000 properties and 500,000 new reviews per month  
 Decisions already made: a dedicated PRE17 phase; routing is property-region based; AI summaries and trend reports are property-scoped.
 
+Google disposition: [written support response conditionally permits the submitted per-property AI architecture](google-business-profile-ai-policy-response-2026-07-14.md).
+
 This note records the external constraints that should shape PRE17. It is not legal advice. Statements marked **Inference** are implementation conclusions drawn from the cited sources rather than requirements stated verbatim by a source.
 
 ## Executive findings
 
 1. **PostgreSQL must be the reliability boundary.** Persist a state change and its outbox event in one transaction; relay committed events to BullMQ; make every consumer idempotent. BullMQ deduplication is an optimization, not the source of correctness.
-2. **Google policy is an unresolved release gate.** Google's current Business Profile policy limits stored API content to 30 days and says it cannot be manipulated or aggregated. Sentiment, priority, themes, and trend reports appear to fall within that ambiguity. Technical work may proceed behind source-specific feature switches, but Google-derived AI must not launch until Google confirms the intended use in writing.
+2. **Google's written response resolves the external policy gate for the submitted architecture.** Per-property sentiment, scores, categories, themes, trends, summaries, external AI processing, and manager-reviewed reply drafting are conditionally permitted. Raw content must be refreshed or removed under the applicable 30-day policy; derived metadata is not subject to that same limit. PRE17 must translate the conditions into ADR 0031 and executable controls before release.
 3. **Region routing needs explicit product data.** GBP's `storefrontAddress.regionCode` is suitable for deriving a property's country, but it is not customer consent and does not itself select a lawful processing region. Persist country, IANA time zone, and an explicit processing-region policy per property.
 4. **AI execution needs separate interactive, near-real-time, and batch capacity.** BullMQ's scheduler and rate-limiter behavior makes a shared queue unsuitable for both a reply-drafting latency target and historical/trend work.
 5. **Commercial budget, provider throughput, and actual usage are three different controls.** Provider RPM/TPM limits do not enforce per-organization allowances. Reserve an internal budget atomically before dispatch, then settle it from the provider's returned usage.
@@ -63,7 +65,7 @@ Retries support fixed or exponential backoff and jitter. Unrecoverable failures 
 
 Google's current Business Profile API policy says limited API content may be stored only to improve project performance, for no more than 30 calendar days, securely, and without manipulation or aggregation. It also says a third-party relationship must be easy to terminate and that disassociation must be available within seven business days. Review replies require the end-client's authorization, and automated changes cannot be triggered without the user's prior specific and express consent. [Google Business Profile API policies](https://developers.google.com/my-business/content/policies)
 
-**Implementation consequence:** Sentiment classification and priority appear to manipulate content; themes and trends appear to aggregate it. That is an interpretation, not a Google ruling. The pending written clarification must therefore be an explicit ship/no-ship gate for GBP-derived AI. PRE17 should still build source-specific enablement, lineage, expiry, disconnect, and purge machinery so Google processing can remain off without disabling first-party or future review sources.
+**Written disposition and implementation consequence:** Google Business Profile API Support permits sentiment, scores, categories, themes, trends, and summaries when generated independently for one Business Profile. It also permits external AI processing after PII removal, no-training assurance, minimum retention, and applicable regional privacy controls. Merchant opt-in is required and reply publication must remain a separate manager action; automatic AI posting is unsupported. Raw review text, star ratings, reviewer information, and replies remain under the applicable 30-day refresh/removal policy, while non-content derived metadata may follow a separate product/privacy retention schedule. PRE17 must still build source-specific enablement, raw/derived lineage, refresh/expiry, consent epochs, region routing, disconnect, and lifecycle machinery so AI can fail closed without disabling non-AI review management.
 
 The Business Information API returns a `storefrontAddress.regionCode` using a CLDR country/region code; Google's own listing examples and filters expose this field. [Google location-data guide](https://developers.google.com/my-business/content/location-data) The Location resource defines `storefrontAddress` as a postal address, whose `regionCode` is required and not inferred; service-area-only businesses also have a required base-region code. [Google Business Profile Location resource](https://developers.google.com/my-business/reference/businessinformation/rest/v1/accounts.locations)
 
@@ -73,6 +75,8 @@ The Business Information API returns a `storefrontAddress.regionCode` using a CL
 - Treat Google's country code as a routing default only. A customer/admin decision or contract can override the processing policy; no code path may silently fall back from a required EU/US cell to a global or different-region deployment.
 - Define an explicit “AI unavailable: region not configured/supported” result that leaves all non-AI functionality working.
 - Route every execution from the property record, not from user location, organization headquarters, language, or worker deployment region.
+- Remove structured reviewer identity and run bounded PII detection/redaction over review text before provider transfer; provider input must contain only fields required for the operation.
+- Keep raw Google content and retained derived metadata in separate lifecycle classes. A long-lived derivative cannot embed excerpts, exact ratings, replies, reviewer identities, Google identifiers, or reversible content fingerprints.
 - Re-evaluate routing immediately when a property's country or policy changes; never move existing content across regions as a side effect.
 - Make “Generate reply” an explicit user action, return a suggestion into the existing human review workflow, and never publish it automatically.
 - On source disconnect, property deletion, organization deletion, source expiry, or source deletion, cancel pending work and purge/scrub every linked copy and derivation according to the resolved source policy.
@@ -193,4 +197,4 @@ The stated load averages approximately 16,667 reviews/day, 694/hour, 11.6/minute
 - Budget reservation is race-tested and crash-reconciled; provider usage settlement cannot double-charge a logical execution.
 - Telemetry demonstrates the 60-second analysis and interactive-reply latency paths without capturing review/prompt/reply content.
 - Adversarial input/output tests and human-approval boundaries pass.
-- GBP AI remains disabled until Google's written clarification permits the intended processing and retention; the decision and its exact conditions are recorded in an ADR and source-policy configuration.
+- Google's response is preserved and translated into accepted ADR 0031/source-policy configuration; tests prove per-property isolation, raw/derived separation, refresh-or-remove lifecycle, PII redaction, merchant opt-in/revocation, provider/region eligibility, and manual-only reply publication.
