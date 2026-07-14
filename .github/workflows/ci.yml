@@ -68,7 +68,7 @@ jobs:
           GOOGLE_CLIENT_SECRET: ci-placeholder-client-secret
           ENCRYPTION_KEY: aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd
           OAUTH_STATE_SECRET: aabbccddaabbccddaabbccddaabbccdd
-        run: pnpm auth:migrate && pnpm db:migrate
+        run: echo "y" | pnpm auth:migrate && pnpm db:migrate
 
       - name: Test
         env:
@@ -199,7 +199,7 @@ jobs:
           GOOGLE_CLIENT_SECRET: ci-placeholder-client-secret
           ENCRYPTION_KEY: aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd
           OAUTH_STATE_SECRET: aabbccddaabbccddaabbccddaabbccdd
-        run: pnpm auth:migrate && pnpm db:migrate
+        run: echo "y" | pnpm auth:migrate && pnpm db:migrate
       - run: pnpm exec playwright install --with-deps chromium
       - name: Run e2e tests
         env:
