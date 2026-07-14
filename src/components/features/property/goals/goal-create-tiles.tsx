@@ -78,12 +78,12 @@ export function SectionCard({
   children,
 }: Readonly<{ title: string; description: string; children: ReactNode }>) {
   return (
-    <Card>
+    <Card className="gap-4 py-4">
       <CardHeader>
         <CardTitle>{title}</CardTitle>
         <CardDescription>{description}</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-6">{children}</CardContent>
+      <CardContent className="space-y-4">{children}</CardContent>
     </Card>
   )
 }

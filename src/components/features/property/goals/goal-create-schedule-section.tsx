@@ -9,13 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '#/components/ui/select'
-import {
-  SectionCard,
-  ChoiceTile,
-  TIMEFRAME_ICONS,
-  TIMEFRAMES,
-  thisMonthRange,
-} from './goal-create-tiles'
+import { SectionCard, ChoiceTile, TIMEFRAME_ICONS, TIMEFRAMES } from './goal-create-tiles'
 import { goalTypeLabel, goalTypeDescription } from '#/contexts/goal/ui/helpers'
 import type { FormState } from './go-create-form-state'
 
@@ -25,15 +19,10 @@ export function TimeframeSection({
   state: s,
   setters: $,
 }: Readonly<{ state: FormState; setters: Setters }>) {
-  // Selecting a timeframe also seeds sensible defaults for the conditional field.
+  // Selecting a timeframe delegates to the central goalType setter (which
+  // handles seeding defaults + clearing illegal fields for the type).
   const pickTimeframe = (type: FormState['goalType']) => {
     $.goalType(type)
-    if (type === 'one_shot' && !s.periodStart) {
-      const { start, end } = thisMonthRange()
-      $.periodStart(start)
-      $.periodEnd(end)
-    }
-    if (type === 'rolling' && !s.rollingWindowDays) $.rollingWindowDays('30')
   }
 
   return (

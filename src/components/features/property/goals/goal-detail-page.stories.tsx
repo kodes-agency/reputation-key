@@ -1,7 +1,5 @@
-// Goal detail page — single goal summary: scope/type/aggregation/metric, target,
-// progress bar, period, cancel action, and (for recurring templates) the instance
-// history table. Fully prop-driven: `goal` + `progress` + `instances` are plain
-// domain shapes, no server/RPC. Branded IDs are built via the shared constructors.
+// Goal detail page — honest progress summary, lifecycle-aware settings,
+// confirmation-based cancellation, and recurring instance history.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, within } from 'storybook/test'
 import { GoalDetailPage } from './goal-detail-page'
@@ -79,13 +77,14 @@ export const ActiveWithProgress: Story = {
     propertyName: 'Harborline Suites',
     onCancel: () => {},
     isCancelling: false,
+    canCancelGoal: true,
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     // Goal name renders in the header.
     expect(canvas.getByRole('heading', { name: '50 scans this month' })).toBeVisible()
     // Active status badge + scope/metric details render.
-    expect(canvas.getByText('Active')).toBeVisible()
+    expect(canvas.getAllByText('Active')[0]).toBeVisible()
     expect(canvas.getByText('Scans')).toBeVisible()
     // Cancel action is available for an active goal.
     expect(canvas.getByRole('button', { name: /cancel goal/i })).toBeVisible()
@@ -121,8 +120,39 @@ export const Completed: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    expect(canvas.getByText('Completed')).toBeVisible()
+    expect(canvas.getAllByText('Completed')[0]).toBeVisible()
     // No cancel button once the goal is no longer active.
+    expect(canvas.queryByRole('button', { name: /cancel goal/i })).toBeNull()
+  },
+}
+
+export const Expired: Story = {
+  args: {
+    ...ActiveWithProgress.args,
+    goal: {
+      ...activeGoal,
+      status: 'expired',
+      periodStart: new Date('2026-05-01T00:00:00Z'),
+      periodEnd: new Date('2026-05-31T23:59:59Z'),
+      targetValue: 50,
+    },
+    progress: { ...inProgress, currentValue: 21 },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getAllByText('Expired')[0]).toBeVisible()
+    expect(canvas.getByText(/short/i)).toBeVisible()
+    expect(canvas.queryByRole('button', { name: /cancel goal/i })).toBeNull()
+  },
+}
+
+export const ReadOnlyActive: Story = {
+  args: {
+    ...ActiveWithProgress.args,
+    canCancelGoal: false,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
     expect(canvas.queryByRole('button', { name: /cancel goal/i })).toBeNull()
   },
 }

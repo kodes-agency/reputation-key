@@ -8,7 +8,7 @@ Property-scoped goals with progress tracking driven by metric events.
 
 | Term                     | Definition                                                                                                                                                                                                                                                                                                                                                                                                       |
 | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | -------------------------------------------------------------------- |
-| **Goal**                 | A property-scoped target (e.g. "reach 4.5 average rating", "collect 50 reviews"). Belongs to an organization and is scoped to a property, portal, or portal group.                                                                                                                                                                                                                                               |
+| **Goal**                 | A property-scoped target (e.g. "reach 4.5 average Google rating", "collect 50 reviews"). Belongs to an organization and is scoped to a property, portal, or portal group. Property scope only supports `property.review`. Portal-level metrics (scans, private ratings) are only available for portal and portal_group scopes.                                                                                   |
 | **GoalType**             | `'open'`, `'one_shot'`, `'rolling'`, or `'recurring'`. Determines how time periods and progress are computed.                                                                                                                                                                                                                                                                                                    |
 | **GoalStatus**           | Lifecycle: `active` → `completed`, `expired`, or `cancelled`. Only `active` goals accept progress updates.                                                                                                                                                                                                                                                                                                       |
 | **GoalProgress**         | Current numeric progress toward a goal's target. Tracks `currentValue`, `currentSum`, `currentCount`, and `computedSource`. One-to-one with a Goal.                                                                                                                                                                                                                                                              |
@@ -117,6 +117,61 @@ Exported from `application/public-api.ts`:
 | `listStaffGoals` | GET    | `goal.read`   | List goals for authenticated staff (stub) |
 
 ## Permissions
+
+## UI Layer (redesign 2026)
+
+### Glossary additions
+
+| Term                 | Definition                                                                                                             |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| **GoalProgressRing** | Reusable circular progress with time-proportional "expected" notch marker. Primary at-a-glance pace visualization.     |
+| **Health Donut**     | Pie chart (via ChartContainer + Recharts Pie) showing distribution of active goals by pace (ahead / on-pace / behind). |
+| **Trajectory Graph** | Time series (Area/Line) of actual vs expected progress.                                                                |
+| **Pace / On Pace**   | Comparison of current value to time-proportional expected (elapsed / total period \* target). Tolerance ~2%.           |
+| **Command Center**   | List header summary + health donut + pace-colored rings for instant visibility.                                        |
+
+### Resolved decisions
+
+- Use time-proportional expected model (not velocity) for notch + trajectory (ADR 0020 foundation).
+- Ring + notch is canonical for individual goal progress (lightweight SVG); complex viz use Recharts via existing ChartContainer.
+- Reuse shadcn (Card, Badge, etc.) + ui/chart primitives heavily; no custom from-scratch charts.
+- No search / multi-select on list (fixed status sort).
+- Visual live ring in create preview (current=0 + notch).
+- Pace tolerance and labels centralized in ui/helpers (pure).
+- High-quality: a11y roles, stories for all new components, lint + type clean, small supporting files.
+- Data: UI uses existing Goal + GoalProgress + period dates; full event history for rich trajectories deferred.
+- **Density pass (2026-07):** list + detail pages were too sparse (card stack,
+  per-item `p-6` padding, `gap-6` between cards, a summary donut box, a redundant
+  `describeGoal` banner). Resolved into six decisions, all grounded in DESIGN.md §6
+  ("card grids earn their place when the content varies; otherwise a list or table is
+  the right affordance") and the "no hero-metric cards" rule:
+  1. **List affordance → compact row list.** One border-separated row per goal, no
+     per-item Card chrome. Replaces the identical-card grid DESIGN.md §6 proscribes.
+  2. **Summary → inline text line, no box/donut.** Pace distribution renders as one
+     muted line ("N active · a ahead · b on pace · c behind"); the `GoalsListSummary`
+     bordered box and `GoalHealthDonut` are dropped from the list (the donut
+     duplicated pace the per-row rings already encode — a hero-metric pattern).
+  3. **Row indicator → ring at `sm`.** Smaller footprint (~40%), but keeps all three
+     signals (fill + time-notch + pace color). A bar was rejected: it loses the notch
+     and forces re-adding "expected" as a text column (net more weight).
+  4. **Row metadata → lean.** Target absorbs the metric unit ("50 reviews", no metric
+     chip); scope badge shows _only when non-property_; period dates deferred to
+     detail. Pace text label retained (ring color alone is weak for scanning / a11y).
+  5. **Detail page → progress-hero.** Drop the redundant `describeGoal` banner. One
+     progress surface at top (lg ring + current/expected/pace + trajectory graph);
+     config grid demoted to a compact key-value strip beneath. Fixes hierarchy:
+     progress (the reason the page is opened) gets top billing over reference config.
+  6. **Section rhythm → `space-y-4 md:space-y-6`** (16/24px) via `PageShell`
+     `className` override on these pages only. One step down the DESIGN.md scale
+     (xl→lg desktop); not below `lg`, to stay minimal-not-cramped.
+  7. **Create flow → same rhythm.** Extended the 16px step to the create form:
+     `SectionCard` went from `Card gap-6 py-6` + `CardContent space-y-6` to
+     `gap-4 py-4` + `space-y-4` (per-section vertical density, ×4 sections); the
+     `GoalCreateFields` section stack `space-y-6` → `space-y-4`; the live preview's
+     `Card` gained `py-4` to keep its top flush with the tightened sections. The
+     form↔preview grid gutter stays `gap-6` (horizontal breathing, not whitespace).
+
+New reusable components live under `src/components/goals/` (GoalProgressRing, GoalTrajectoryGraph) for cross-use (list/detail/form + future). (GoalHealthDonut was removed in the 2026-07 density pass — see resolved decisions above.)
 
 | Permission    | AccountAdmin | PropertyManager | Staff |
 | ------------- | ------------ | --------------- | ----- |
