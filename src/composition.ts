@@ -78,6 +78,8 @@ function buildInfrastructure(options: {
   enableJobs: boolean
   /** Override the queue (simulations inject an in-memory queue). */
   queue?: Queue
+  /** Override the background queue (simulations inject an in-memory queue). */
+  backgroundQueue?: Queue
 }) {
   const cache: Cache = options.redis ? createRedisCache(options.redis) : createNoopCache()
   const rateLimiter: RateLimiter = createRateLimiter(options.redis, {
@@ -90,8 +92,15 @@ function buildInfrastructure(options: {
   // worker needs one for processing.
   const jobQueue: Queue | undefined =
     options.queue ?? (options.redis ? createJobQueue('default') : undefined)
+  // Background queue for cron-scheduled maintenance jobs (health-check, metric
+  // refresh, badge/leaderboard reconciliation, etc.). Only created when jobs
+  // are enabled (worker process) to avoid an unused Redis connection in the
+  // web server.
+  const backgroundQueue: Queue | undefined =
+    options.backgroundQueue ??
+    (options.enableJobs && options.redis ? createJobQueue('background') : undefined)
   const jobRegistry: JobRegistry = createJobRegistry()
-  return { cache, rateLimiter, jobQueue, jobRegistry }
+  return { cache, rateLimiter, jobQueue, backgroundQueue, jobRegistry }
 }
 
 // ── Identity infrastructure helpers ────────────────────────────────
@@ -146,6 +155,8 @@ export function createContainer(options?: {
   eventBus?: EventBus
   /** Override the job queue (simulations inject an in-memory queue). */
   queue?: Queue
+  /** Override the background queue (simulations inject an in-memory queue). */
+  backgroundQueue?: Queue
   /** Override the identity port (simulations use the in-memory identity fake). */
   identityPort?: IdentityPort
   /** Override the email sender (simulations capture emails instead of sending). */
@@ -160,7 +171,12 @@ export function createContainer(options?: {
   const env = options?.env ?? getEnv()
 
   // Infrastructure
-  const infra = buildInfrastructure({ redis, enableJobs, queue: options?.queue })
+  const infra = buildInfrastructure({
+    redis,
+    enableJobs,
+    queue: options?.queue,
+    backgroundQueue: options?.backgroundQueue,
+  })
 
   // Identity port (adapter)
   const identityPort = options?.identityPort ?? createBetterAuthIdentityAdapter(db)
@@ -452,6 +468,7 @@ export function createContainer(options?: {
     cache: infra.cache,
     rateLimiter: infra.rateLimiter,
     jobQueue: infra.jobQueue,
+    backgroundQueue: infra.backgroundQueue,
     jobRegistry: infra.jobRegistry,
     useCases: {
       ...identity.internal.useCases,

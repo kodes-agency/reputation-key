@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "NODE_ENV=development vite dev --port 3000",
     "dev:worker": "tsx src/worker/index.ts",
+    "dev:all": "concurrently -n web,worker -c blue,green \"pnpm dev\" \"pnpm dev:worker\"",
     "build": "vite build",
     "build:worker": "tsup",
     "preview": "vite preview",
@@ -104,6 +105,7 @@
     "@vitest/browser-playwright": "4.1.7",
     "@vitest/coverage-istanbul": "^4.1.9",
     "@vitest/coverage-v8": "^4.1.9",
+    "concurrently": "^9.2.4",
     "dotenv": "^17.4.2",
     "drizzle-kit": "^0.31.10",
     "eslint": "^10.2.1",
