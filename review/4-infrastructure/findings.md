@@ -8,11 +8,11 @@
 
 ## Summary
 
-| Severity | Count |
-|----------|-------|
-| MAJOR | 0 |
-| MINOR | 2 |
-| NIT | 1 |
+| Severity  | Count |
+| --------- | ----- |
+| MAJOR     | 0     |
+| MINOR     | 2     |
+| NIT       | 1     |
 | **Total** | **3** |
 
 ---
@@ -26,12 +26,14 @@
 **Tag:** [doc-fix]
 
 **What:**
+
 ```typescript
 findAllActive: async () => {
   const rows = await db.select().from(goals).where(eq(goals.status, 'active'))
   return rows.map(goalFromRow)
 }
 ```
+
 This queries ALL active goals across ALL organizations without a `WHERE organization_id` filter. The port interface documents this as intentional: "Safe: findAllActive is a background job that legitimately processes all orgs."
 
 **Why it matters:** At first glance this looks like a tenant isolation violation. The port comment explains the intent, but the repository implementation itself has no such comment. A developer reading the repo in isolation might "fix" it by adding an orgId filter, breaking the background jobs.

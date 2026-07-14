@@ -1,7 +1,12 @@
 // Guest context — resolveLinkAndTrack use case tests
 import { describe, it, expect } from 'vitest'
 import { resolveLinkAndTrack } from './resolve-link-and-track'
-import { portalLinkId, type OrganizationId, type PropertyId, type PortalId } from '#/shared/domain/ids'
+import {
+  portalLinkId,
+  type OrganizationId,
+  type PropertyId,
+  type PortalId,
+} from '#/shared/domain/ids'
 
 const LINK_ID = portalLinkId('link-0000-0000-4000-8000-000000000001')
 

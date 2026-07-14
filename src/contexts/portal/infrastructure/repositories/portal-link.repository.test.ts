@@ -21,12 +21,18 @@ const ORG_B = organizationId('org-dddddddddddd')
 let pool: Pool
 
 async function truncateAll(pool: Pool) {
-  await pool.query('DELETE FROM portal_links WHERE organization_id IN ($1, $2)', [ORG_A, ORG_B])
-  await pool.query('DELETE FROM portal_link_categories WHERE organization_id IN ($1, $2)', [
+  await pool.query('DELETE FROM portal_links WHERE organization_id IN ($1, $2)', [
     ORG_A,
     ORG_B,
   ])
-  await pool.query('DELETE FROM portals WHERE organization_id IN ($1, $2)', [ORG_A, ORG_B])
+  await pool.query(
+    'DELETE FROM portal_link_categories WHERE organization_id IN ($1, $2)',
+    [ORG_A, ORG_B],
+  )
+  await pool.query('DELETE FROM portals WHERE organization_id IN ($1, $2)', [
+    ORG_A,
+    ORG_B,
+  ])
 }
 
 async function seedOrg(pool: Pool, ids: string[]) {
@@ -60,7 +66,12 @@ beforeEach(async () => {
 describe('portalLinkRepository (integration)', () => {
   async function seedPortal(orgId: typeof ORG_A, slug: string, overrides = {}) {
     const portalRepo = createPortalRepository(getDb())
-    const portal = buildTestPortal({ id: crypto.randomUUID(), organizationId: orgId, slug, ...overrides })
+    const portal = buildTestPortal({
+      id: crypto.randomUUID(),
+      organizationId: orgId,
+      slug,
+      ...overrides,
+    })
     await portalRepo.insert(orgId, portal)
     return portal
   }
@@ -189,7 +200,11 @@ describe('portalLinkRepository (integration)', () => {
   })
 
   describe('links', () => {
-    async function seedCategory(orgId: typeof ORG_A, portal: ReturnType<typeof buildTestPortal>, title: string) {
+    async function seedCategory(
+      orgId: typeof ORG_A,
+      portal: ReturnType<typeof buildTestPortal>,
+      title: string,
+    ) {
       const repo = createPortalLinkRepository(getDb())
       const cat = buildTestPortalLinkCategory({
         id: portalLinkCategoryId(crypto.randomUUID()),
@@ -272,7 +287,10 @@ describe('portalLinkRepository (integration)', () => {
         sortKey: 'a0',
       })
       await repo.insertLink(ORG_A, link)
-      await repo.updateLink(ORG_A, link.id, { label: 'New Label', url: 'https://new.example.com' })
+      await repo.updateLink(ORG_A, link.id, {
+        label: 'New Label',
+        url: 'https://new.example.com',
+      })
 
       const found = await repo.findLinkById(ORG_A, link.id)
       expect(found?.label).toBe('New Label')

@@ -120,7 +120,10 @@ describe('googleConnectionRepository (integration)', () => {
         }),
       )
 
-      const results = await repo.listByOrganization(ORG_A, { showAll: false, userId: otherUser })
+      const results = await repo.listByOrganization(ORG_A, {
+        showAll: false,
+        userId: otherUser,
+      })
       // Non-admin sees: organization-visible + own private
       expect(results.length).toBeGreaterThanOrEqual(1)
     })

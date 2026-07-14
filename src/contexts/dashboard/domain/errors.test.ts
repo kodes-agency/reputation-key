@@ -1,10 +1,6 @@
 // Dashboard context — domain errors unit tests
 import { describe, it, expect } from 'vitest'
-import {
-  dashboardError,
-  isDashboardError,
-  type DashboardErrorCode,
-} from './errors'
+import { dashboardError, isDashboardError, type DashboardErrorCode } from './errors'
 
 describe('dashboardError', () => {
   it.each([

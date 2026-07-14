@@ -126,6 +126,7 @@ export type DashboardData = Readonly<{
 **TDD:** Skip — rename + type guard addition.
 
 **Files:**
+
 - `src/contexts/dashboard/infrastructure/repositories/dashboard.repository.ts`
 - `src/contexts/dashboard/domain/types.ts` (add validation function)
 
@@ -163,6 +164,7 @@ import { toDashboardReplyStatus } from '../../domain/types'
 (Note: `DashboardReplyStatus` is a type used by `RecentReview` — no direct import needed since it's already part of the `RecentReview` type.)
 
 Replace the unsafe cast:
+
 ```ts
 // Before:
 replyStatus: row.replyStatus as ReplyStatus,
@@ -184,6 +186,7 @@ replyStatus: toDashboardReplyStatus(row.replyStatus),
 When no portal is selected, KPIs should show property-level aggregates. The portal filter only makes sense for the engagement funnel.
 
 **Files to modify:**
+
 1. `src/contexts/dashboard/application/ports/dashboard.repository.ts` — remove `portalId` from `DashboardKPIQuery`
 2. `src/contexts/dashboard/infrastructure/repositories/dashboard.repository.ts` — remove `portalId` from `getKPIs` destructuring, remove `portalId` filter from `metricConditions`
 3. `src/contexts/dashboard/application/use-cases/get-dashboard-data.ts` — remove `portalId` from `getKPIs` call
@@ -192,6 +195,7 @@ When no portal is selected, KPIs should show property-level aggregates. The port
 **Exact changes:**
 
 **Port file** — `DashboardKPIQuery` becomes:
+
 ```ts
 /** Query for KPI aggregation (property-scoped, not portal-scoped). */
 export type DashboardKPIQuery = Readonly<{
@@ -205,15 +209,26 @@ export type DashboardKPIQuery = Readonly<{
 ```
 
 **Repo** — `getKPIs` destructuring (line 91):
+
 ```ts
 // Before:
-const { organizationId, propertyId, portalId, startDate, endDate, priorStartDate, priorEndDate } = input
+const {
+  organizationId,
+  propertyId,
+  portalId,
+  startDate,
+  endDate,
+  priorStartDate,
+  priorEndDate,
+} = input
 
 // After:
-const { organizationId, propertyId, startDate, endDate, priorStartDate, priorEndDate } = input
+const { organizationId, propertyId, startDate, endDate, priorStartDate, priorEndDate } =
+  input
 ```
 
 **Repo** — `metricConditions` (lines 111-118), remove the `portalId` conditional:
+
 ```ts
 const metricConditions = (start: Date, end: Date) =>
   and(
@@ -225,6 +240,7 @@ const metricConditions = (start: Date, end: Date) =>
 ```
 
 **Use case** — remove `portalId` from `repo.getKPIs` call (line 44):
+
 ```ts
 repo.getKPIs({
   organizationId,
@@ -237,6 +253,7 @@ repo.getKPIs({
 ```
 
 **Test file** — remove `portalId: null` from all `repo.getKPIs({...})` calls (lines 238, 281, 506). Example:
+
 ```ts
 // Before:
 const result = await repo.getKPIs({
@@ -294,6 +311,7 @@ function trend(current: number, prior: number): number | null {
 **File:** `src/contexts/dashboard/infrastructure/repositories/dashboard.repository.ts`
 
 Line 263:
+
 ```ts
 // Before:
 const map = new Map(rows.map((r) => [r.metricKey, Number(r.total ?? 0)]))
@@ -303,6 +321,7 @@ const metricMap = new Map(rows.map((r) => [r.metricKey, Number(r.total ?? 0)]))
 ```
 
 Lines 266-268:
+
 ```ts
 // Before:
 scans: map.get('portal.scan') ?? 0,
@@ -346,11 +365,13 @@ reviewLinkClicks: metricMap.get('portal.review_link_click') ?? 0,
 **File:** `src/contexts/dashboard/application/use-cases/get-dashboard-data.test.ts`
 
 Add constant after imports:
+
 ```ts
 const MS_PER_DAY = 86_400_000
 ```
 
 Replace line 14:
+
 ```ts
 // Before:
 const startDate = new Date(now.getTime() - 30 * 86400000)
@@ -494,6 +515,7 @@ node_modules/.bin/vitest run src/contexts/dashboard/ 2>&1 | tail -25
 ```
 
 Verify:
+
 - All tests pass (17 expected)
 - `grep -rn "interface " src/contexts/dashboard/domain/types.ts` → no matches
 - `grep -rn "ReplyStatus" src/contexts/dashboard/domain/types.ts` → only `DashboardReplyStatus`

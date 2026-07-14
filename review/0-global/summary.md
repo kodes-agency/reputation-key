@@ -4,12 +4,12 @@
 
 ## Quick counts
 
-| Category | Count |
-|----------|-------|
-| dead-code | 6 (unused deps + dead export) |
-| slop | 7 (TODOs, commented code, duplicate lockfile, gitkeeps) |
-| pattern-violation | 0 |
-| doc-discrepancy | 0 |
+| Category          | Count                                                   |
+| ----------------- | ------------------------------------------------------- |
+| dead-code         | 6 (unused deps + dead export)                           |
+| slop              | 7 (TODOs, commented code, duplicate lockfile, gitkeeps) |
+| pattern-violation | 0                                                       |
+| doc-discrepancy   | 0                                                       |
 
 ## Key observations
 

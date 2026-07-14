@@ -26,10 +26,10 @@
 
 ## CLEAN CHECKS (all passed)
 
-| Check | Result |
-|-------|--------|
-| `console.log/warn/error` in production code | **ZERO** — clean |
-| `@ts-ignore` / `@ts-expect-error` in production code | **ZERO** — clean |
-| `TODO:` / `FIXME:` / `HACK:` comments | **ZERO** — clean |
-| `as any` in non-generated source | **ZERO** — only in `routeTree.gen.ts` (TanStack Router codegen) |
-| `ts-prune` dead export analysis | Not installed — skip |
+| Check                                                | Result                                                          |
+| ---------------------------------------------------- | --------------------------------------------------------------- |
+| `console.log/warn/error` in production code          | **ZERO** — clean                                                |
+| `@ts-ignore` / `@ts-expect-error` in production code | **ZERO** — clean                                                |
+| `TODO:` / `FIXME:` / `HACK:` comments                | **ZERO** — clean                                                |
+| `as any` in non-generated source                     | **ZERO** — only in `routeTree.gen.ts` (TanStack Router codegen) |
+| `ts-prune` dead export analysis                      | Not installed — skip                                            |

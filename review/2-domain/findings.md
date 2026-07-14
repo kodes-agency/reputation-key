@@ -8,11 +8,11 @@
 
 ## Summary
 
-| Severity | Count |
-|----------|-------|
-| MAJOR | 1 |
-| MINOR | 1 |
-| NIT | 1 |
+| Severity  | Count |
+| --------- | ----- |
+| MAJOR     | 1     |
+| MINOR     | 1     |
+| NIT       | 1     |
 | **Total** | **3** |
 
 ---
@@ -22,6 +22,7 @@
 ### S2-1 MAJOR: Portal context domain — non-standard file naming for portal groups
 
 **Files:**
+
 - `src/contexts/portal/domain/portal-group-constructors.ts`
 - `src/contexts/portal/domain/portal-group-events.ts`
 - `src/contexts/portal/domain/portal-group-types.ts`

@@ -16,6 +16,7 @@
 **Objective:** Fix `depcheck` "missing dependency" warning. Logger imports `pino-pretty` but it was never declared.
 
 **Files:**
+
 - Modify: `package.json`
 
 **Step 1: Add dependency**
@@ -53,8 +54,12 @@ const ORG = organizationId('org-test')
 const PROP = propertyId('00000000-0000-4000-8000-000000000001')
 
 describe('useCaseName', () => {
-  it('happy path', async () => { /* ... */ })
-  it('error path', async () => { /* ... */ })
+  it('happy path', async () => {
+    /* ... */
+  })
+  it('error path', async () => {
+    /* ... */
+  })
 })
 ```
 
@@ -67,9 +72,11 @@ describe('useCaseName', () => {
 **Objective:** Test the guest public-portal use case with in-memory port fakes.
 
 **Files:**
+
 - Create: `src/contexts/guest/application/use-cases/get-public-portal.test.ts`
 
 **What to test:**
+
 1. Happy path: resolves org from slug, returns portal + org name
 2. Error path: portal not found → `PublicPortalError('not_found')`
 
@@ -84,9 +91,11 @@ describe('useCaseName', () => {
 **Objective:** Test link resolution + click tracking for guest portal links.
 
 **Files:**
+
 - Create: `src/contexts/guest/application/use-cases/resolve-link-and-track.test.ts`
 
 **What to test:**
+
 1. Happy path: resolves link, records click event, emits event
 2. Error path: link not found → error
 3. Verify event emission via `CapturingEventBus`
@@ -100,9 +109,11 @@ describe('useCaseName', () => {
 **Objective:** Test portal context resolution (org → property → portal lookup chain).
 
 **Files:**
+
 - Create: `src/contexts/guest/application/use-cases/resolve-portal-context.test.ts`
 
 **What to test:**
+
 1. Happy path: resolves full chain org → property → portal
 2. Error path: any link in chain missing → not_found
 
@@ -115,9 +126,11 @@ describe('useCaseName', () => {
 **Objective:** Test portal group creation with permission check.
 
 **Files:**
+
 - Create: `src/contexts/portal/application/use-cases/create-portal-group.test.ts`
 
 **What to test:**
+
 1. Happy path: creates group, returns PortalGroup, emits event
 2. Permission denied: Staff role → forbidden
 3. Duplicate name: group name taken → conflict error
@@ -134,9 +147,11 @@ describe('useCaseName', () => {
 **Objective:** Test portal group name/description update.
 
 **Files:**
+
 - Create: `src/contexts/portal/application/use-cases/update-portal-group.test.ts`
 
 **What to test:**
+
 1. Happy path: updates name, returns updated group
 2. Permission denied: Staff → forbidden
 3. Not found: nonexistent group → not_found
@@ -150,9 +165,11 @@ describe('useCaseName', () => {
 **Objective:** Test portal group deletion with event emission.
 
 **Files:**
+
 - Create: `src/contexts/portal/application/use-cases/delete-portal-group.test.ts`
 
 **What to test:**
+
 1. Happy path: deletes group, emits `portal_group.deleted` event
 2. Permission denied: Staff → forbidden
 3. Not found: nonexistent group → not_found
@@ -166,9 +183,11 @@ describe('useCaseName', () => {
 **Objective:** Test portal group listing for a property.
 
 **Files:**
+
 - Create: `src/contexts/portal/application/use-cases/list-portal-groups.test.ts`
 
 **What to test:**
+
 1. Happy path: returns groups for property
 2. Permission denied: Guest → forbidden
 3. Empty list: property with no groups
@@ -182,9 +201,11 @@ describe('useCaseName', () => {
 **Objective:** Test portal link listing (existing use case, no test).
 
 **Files:**
+
 - Create: `src/contexts/portal/application/use-cases/list-portal-links.test.ts`
 
 **What to test:**
+
 1. Happy path: returns links for portal
 2. Permission denied: Staff → forbidden
 3. Empty list: portal with no links
@@ -215,8 +236,8 @@ pnpm test
 Find the section starting with `## Functional style` (line 116). After "No class, no this, no enum." add:
 
 ```markdown
-- **Exception:** `class ... extends Error` for runtime `instanceof` checks and 
-  seroval-compatible error serialization. See `shared/auth/server-errors.ts` 
+- **Exception:** `class ... extends Error` for runtime `instanceof` checks and
+  seroval-compatible error serialization. See `shared/auth/server-errors.ts`
   (`ServerFunctionError`) and `shared/domain/assert.ts` (`UnreachableError`).
 ```
 
@@ -231,13 +252,14 @@ Find the section starting with `## Functional style` (line 116). After "No class
 **File:** Modify `src/shared/CONTEXT.md` — add to the "Rules" section or create a `docs/dev-notes/depcheck-false-positives.md`.
 
 **Template:**
+
 ```markdown
 # Depcheck False Positives
 
-| Dependency | Reason |
-|-----------|--------|
-| `tailwindcss` | Consumed via PostCSS config (`postcss.config.mjs`), not by source imports. Known depcheck limitation. |
-| `@rolldown/binding-*` | Required by Vite/Rolldown build. Depcheck cannot detect platform-native binary usage. |
+| Dependency            | Reason                                                                                                |
+| --------------------- | ----------------------------------------------------------------------------------------------------- |
+| `tailwindcss`         | Consumed via PostCSS config (`postcss.config.mjs`), not by source imports. Known depcheck limitation. |
+| `@rolldown/binding-*` | Required by Vite/Rolldown build. Depcheck cannot detect platform-native binary usage.                 |
 ```
 
 **Gate:** `pnpm lint` (clean).
@@ -246,10 +268,10 @@ Find the section starting with `## Functional style` (line 116). After "No class
 
 ## Phase D — Deferred (Phase 22)
 
-| Finding | Description | Effort | Phase |
-|---------|-------------|--------|-------|
-| S10-1 | `composition.ts` — split into per-context wiring | ~60 min | Phase 22 |
-| S10-2 | `worker/index.ts` — split into per-context job registration | ~45 min | Phase 22 |
+| Finding | Description                                                 | Effort  | Phase    |
+| ------- | ----------------------------------------------------------- | ------- | -------- |
+| S10-1   | `composition.ts` — split into per-context wiring            | ~60 min | Phase 22 |
+| S10-2   | `worker/index.ts` — split into per-context job registration | ~45 min | Phase 22 |
 
 **Deferred because:** These are structural refactors that touch every context's wiring. Doing them in isolation risks merge conflicts with active feature branches. Schedule for Phase 22 (production hardening) when feature churn is lower.
 

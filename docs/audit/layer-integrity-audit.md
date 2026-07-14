@@ -9,14 +9,14 @@
 
 ### Result: ✅ CLEAN — Zero violations
 
-| Check | Pattern | Hits |
-|-------|---------|------|
-| Domain → Application | `from.*\.\./application` in `*/domain/` | 0 |
-| Domain → Infrastructure | `from.*\.\./infrastructure` in `*/domain/` | 0 |
-| Domain → Server | `from.*\.\./server` in `*/domain/` | 0 |
-| Application → Infrastructure | `from.*\.\./infrastructure` in `*/application/` | 0 |
-| Application → Server | `from.*\.\./server` in `*/application/` | 0 |
-| Server → Infrastructure | `from.*infrastructure` in `*/server/` | 0 |
+| Check                        | Pattern                                         | Hits |
+| ---------------------------- | ----------------------------------------------- | ---- |
+| Domain → Application         | `from.*\.\./application` in `*/domain/`         | 0    |
+| Domain → Infrastructure      | `from.*\.\./infrastructure` in `*/domain/`      | 0    |
+| Domain → Server              | `from.*\.\./server` in `*/domain/`              | 0    |
+| Application → Infrastructure | `from.*\.\./infrastructure` in `*/application/` | 0    |
+| Application → Server         | `from.*\.\./server` in `*/application/`         | 0    |
+| Server → Infrastructure      | `from.*infrastructure` in `*/server/`           | 0    |
 
 All layers respect strict dependency direction. No upward imports detected.
 
@@ -45,6 +45,7 @@ All layers respect strict dependency direction. No upward imports detected.
 All of the following conform to the "event types only" exception or go through public-api barrels:
 
 **Event type imports (allowed per architecture):**
+
 - `inbox/infrastructure` → `review/domain/events` (type-only: `ReviewCreated`, `ReviewUpdated`, `ReplyPublished`)
 - `inbox/infrastructure` → `guest/domain/events` (type-only: `FeedbackSubmitted`)
 - `integration/infrastructure` → `property/domain/events` (type-only: `PropertyCreated` in `on-property-created.ts` handler)
@@ -53,6 +54,7 @@ All of the following conform to the "event types only" exception or go through p
 - `metric/infrastructure` → `review/domain/events` (type-only: `ReviewCreated`)
 
 **Public-api barrel imports (correct pattern):**
+
 - `portal/application` → `property/application/public-api` (`PropertyPublicApi`)
 - `inbox/application` → `staff/application/public-api` (`StaffPublicApi`)
 - `identity/application` → `portal/application/public-api` (`StoragePort`)
@@ -69,19 +71,19 @@ All of the following conform to the "event types only" exception or go through p
 
 ### Status
 
-| Context | Has `application/public-api.ts` | Cross-context consumer | Notes |
-|---------|------|--------|-------|
-| dashboard | ✅ | No | Has barrel, no external consumers |
-| guest | ❌ | Yes (inbox, metric) | Consumers only import event types from `domain/events` — allowed. Barrel would formalize boundary. |
-| identity | ❌ | No | No cross-context consumers. Barrel not currently needed. |
-| inbox | ✅ | No | Has barrel, no external consumers |
-| integration | ✅ | No | Has barrel, no external consumers |
-| metric | ❌ | No | No cross-context consumers. Barrel not currently needed. |
-| portal | ✅ | Yes (identity, guest) | Barrel used correctly |
-| property | ✅ | Yes (portal, integration, team) | Barrel used correctly |
-| review | ✅ | Yes (inbox, integration, metric) | Barrel used correctly |
-| staff | ✅ | Yes (inbox, property, team) | Barrel used correctly |
-| team | ❌ | No | No cross-context consumers. Barrel not currently needed. |
+| Context     | Has `application/public-api.ts` | Cross-context consumer           | Notes                                                                                              |
+| ----------- | ------------------------------- | -------------------------------- | -------------------------------------------------------------------------------------------------- |
+| dashboard   | ✅                              | No                               | Has barrel, no external consumers                                                                  |
+| guest       | ❌                              | Yes (inbox, metric)              | Consumers only import event types from `domain/events` — allowed. Barrel would formalize boundary. |
+| identity    | ❌                              | No                               | No cross-context consumers. Barrel not currently needed.                                           |
+| inbox       | ✅                              | No                               | Has barrel, no external consumers                                                                  |
+| integration | ✅                              | No                               | Has barrel, no external consumers                                                                  |
+| metric      | ❌                              | No                               | No cross-context consumers. Barrel not currently needed.                                           |
+| portal      | ✅                              | Yes (identity, guest)            | Barrel used correctly                                                                              |
+| property    | ✅                              | Yes (portal, integration, team)  | Barrel used correctly                                                                              |
+| review      | ✅                              | Yes (inbox, integration, metric) | Barrel used correctly                                                                              |
+| staff       | ✅                              | Yes (inbox, property, team)      | Barrel used correctly                                                                              |
+| team        | ❌                              | No                               | No cross-context consumers. Barrel not currently needed.                                           |
 
 ### Recommendation (LOW severity)
 
@@ -94,13 +96,14 @@ All of the following conform to the "event types only" exception or go through p
 
 ### Result: ✅ CLEAN — All 11 contexts pass
 
-| Check | Pattern | Hits |
-|-------|---------|------|
-| async functions | `async ` in `*/domain/*.ts` | 0 (comments only) |
-| class declarations | `^class ` in `*/domain/*.ts` | 0 (comment only: "Tagged record instead of class") |
-| DB/HTTP imports | `postgres\|knex\|pg\|http\|axios\|fetch\|prisma\|drizzle\|supabase` in `*/domain/*.ts` | 0 |
+| Check              | Pattern                                                                                | Hits                                               |
+| ------------------ | -------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| async functions    | `async ` in `*/domain/*.ts`                                                            | 0 (comments only)                                  |
+| class declarations | `^class ` in `*/domain/*.ts`                                                           | 0 (comment only: "Tagged record instead of class") |
+| DB/HTTP imports    | `postgres\|knex\|pg\|http\|axios\|fetch\|prisma\|drizzle\|supabase` in `*/domain/*.ts` | 0                                                  |
 
 Domain files across all contexts contain:
+
 - `types.ts` — Readonly type definitions
 - `errors.ts` — Tagged discriminated union error constructors
 - `events.ts` — Event type definitions and pure event constructors
@@ -120,6 +123,7 @@ All domain files only import from `#/shared/domain` (IDs, Result, slug utilities
 - **Pattern:** Manual DI — no framework, no decorators, no auto-wiring. Dependencies passed as function arguments.
 
 **Build order (correct dependency chain):**
+
 1. `staff` (no cross-context deps)
 2. `identity` (no cross-context deps)
 3. `property` → depends on `staff.publicApi`
@@ -138,14 +142,14 @@ Cross-context wiring correctly passes public APIs as ports. The composition root
 
 ## Summary
 
-| Category | Severity | Count | Details |
-|----------|----------|-------|---------|
-| Dependency direction | — | 0 violations | Clean |
-| Cross-context imports | MEDIUM | 1 | V2.1: property-event.adapter.ts imports runtime value from property/domain |
-| Cross-context imports | LOW | 1 | V2.2: google-review-api.adapter.ts imports port type bypassing public-api |
-| Missing public-api barrels | LOW | 1 | guest context has cross-context consumers but no barrel |
-| Domain purity | — | 0 violations | Clean |
-| Composition root | — | 0 violations | Proper DI wiring |
+| Category                   | Severity | Count        | Details                                                                    |
+| -------------------------- | -------- | ------------ | -------------------------------------------------------------------------- |
+| Dependency direction       | —        | 0 violations | Clean                                                                      |
+| Cross-context imports      | MEDIUM   | 1            | V2.1: property-event.adapter.ts imports runtime value from property/domain |
+| Cross-context imports      | LOW      | 1            | V2.2: google-review-api.adapter.ts imports port type bypassing public-api  |
+| Missing public-api barrels | LOW      | 1            | guest context has cross-context consumers but no barrel                    |
+| Domain purity              | —        | 0 violations | Clean                                                                      |
+| Composition root           | —        | 0 violations | Proper DI wiring                                                           |
 
 **Total violations: 2 (1 MEDIUM, 1 LOW) + 1 recommendation**
 
@@ -154,9 +158,11 @@ Cross-context wiring correctly passes public APIs as ports. The composition root
 1. **V2.1 (MEDIUM):** In `review/application/public-api.ts`, re-export event types from `property/domain/events`, OR have `property/application/public-api.ts` re-export `propertyCreated`. Then update `integration/infrastructure/adapters/property-event.adapter.ts` to import through the barrel.
 
 2. **V2.2 (LOW):** Add `GoogleReviewApiPort` to `review/application/public-api.ts` exports:
+
    ```ts
    export type { GoogleReviewApiPort } from './ports/google-review-api.port'
    ```
+
    Then update `integration/infrastructure/adapters/google-review-api.adapter.ts:5` to import from `#/contexts/review/application/public-api`.
 
 3. **Guest barrel (LOW):** Create `guest/application/public-api.ts` re-exporting event types for formalized boundary.

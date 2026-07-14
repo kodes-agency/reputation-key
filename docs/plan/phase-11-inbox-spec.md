@@ -9,20 +9,20 @@ Managers see all reviews and all private feedback in a single unified list. They
 
 ## Design Decisions Summary
 
-| Decision | Resolution |
-|----------|------------|
-| Bounded context | New `contexts/inbox/` |
-| Data model | Hybrid denormalization — filter/sort cols in `inbox_items`, detail via JOIN |
+| Decision        | Resolution                                                                      |
+| --------------- | ------------------------------------------------------------------------------- |
+| Bounded context | New `contexts/inbox/`                                                           |
+| Data model      | Hybrid denormalization — filter/sort cols in `inbox_items`, detail via JOIN     |
 | Status workflow | `new → read → addressed → archived`, `escalated` sidetrack, un-archive → `read` |
-| Sources | Reviews + feedback (with joined rating). No bare ratings. |
-| Category | Skip for Phase 11 (Arc 7) |
-| Internal notes | `inbox_notes` table (`id`, `inboxItemId`, `authorUserId`, `text`, `createdAt`) |
-| Assignment | PM+ only, must have property access, reassignable, status unchanged on assign |
-| Sort | Newest first, no default filter, unread badge (Redis-cached) |
-| Pagination | Forward-only cursor `(sourceDate DESC, id)` |
-| Route | `/inbox` top-level |
-| Events | `inbox.item.created`, `inbox.status.changed`, `inbox.item.assigned` |
-| UI layout | Email split (list \| detail), chat-like thread in detail panel |
+| Sources         | Reviews + feedback (with joined rating). No bare ratings.                       |
+| Category        | Skip for Phase 11 (Arc 7)                                                       |
+| Internal notes  | `inbox_notes` table (`id`, `inboxItemId`, `authorUserId`, `text`, `createdAt`)  |
+| Assignment      | PM+ only, must have property access, reassignable, status unchanged on assign   |
+| Sort            | Newest first, no default filter, unread badge (Redis-cached)                    |
+| Pagination      | Forward-only cursor `(sourceDate DESC, id)`                                     |
+| Route           | `/inbox` top-level                                                              |
+| Events          | `inbox.item.created`, `inbox.status.changed`, `inbox.item.assigned`             |
+| UI layout       | Email split (list \| detail), chat-like thread in detail panel                  |
 
 ## Scope (in)
 
@@ -147,17 +147,17 @@ archived ──→ read (un-archive) ────────┘
 
 Valid transitions:
 
-| From | To | Trigger |
-|------|----|---------|
-| new | read | Manager opens/views the item |
-| new | archived | Bulk archive untouched items |
-| new | escalated | Direct escalate (urgent review) |
-| read | addressed | Manual: manager marks as handled |
-| read | escalated | Manager escalates |
+| From      | To        | Trigger                                 |
+| --------- | --------- | --------------------------------------- |
+| new       | read      | Manager opens/views the item            |
+| new       | archived  | Bulk archive untouched items            |
+| new       | escalated | Direct escalate (urgent review)         |
+| read      | addressed | Manual: manager marks as handled        |
+| read      | escalated | Manager escalates                       |
 | escalated | addressed | Handled (reply published or note added) |
-| escalated | archived | Manager archives |
-| addressed | archived | Manager archives |
-| archived | read | Manager un-archives |
+| escalated | archived  | Manager archives                        |
+| addressed | archived  | Manager archives                        |
+| archived  | read      | Manager un-archives                     |
 
 ## Gate Criteria
 

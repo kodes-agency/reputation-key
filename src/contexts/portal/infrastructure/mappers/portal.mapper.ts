@@ -4,7 +4,14 @@
 import type { portals } from '#/shared/db/schema/portal.schema'
 import type { Portal, PortalTheme, EntityType } from '../../domain/types'
 import type { PropertyId, TeamId, UserId } from '#/shared/domain/ids'
-import { portalId, organizationId, propertyId, teamId, userId, unbrand } from '#/shared/domain/ids'
+import {
+  portalId,
+  organizationId,
+  propertyId,
+  teamId,
+  userId,
+  unbrand,
+} from '#/shared/domain/ids'
 import { portalError } from '../../domain/errors'
 
 type PortalRow = typeof portals.$inferSelect
@@ -19,7 +26,10 @@ function parseEntityType(value: string): EntityType {
   return value as EntityType
 }
 
-function brandEntityId(value: string, entityType: EntityType): PropertyId | TeamId | UserId {
+function brandEntityId(
+  value: string,
+  entityType: EntityType,
+): PropertyId | TeamId | UserId {
   switch (entityType) {
     case 'team':
       return teamId(value)

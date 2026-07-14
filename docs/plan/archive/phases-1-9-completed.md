@@ -536,4 +536,3 @@ This is where the product becomes visible. By end of this arc, a manager can cre
 **Phase after this.** Review sync from GBP. This is where we start becoming a real reputation tool.
 
 ---
-

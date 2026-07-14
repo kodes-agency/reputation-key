@@ -7,7 +7,10 @@
 import { getContainer } from '#/composition'
 import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
-import type { HandleGbpNotificationInput, HandleGbpNotificationResult } from '../../application/use-cases/handle-gbp-notification'
+import type {
+  HandleGbpNotificationInput,
+  HandleGbpNotificationResult,
+} from '../../application/use-cases/handle-gbp-notification'
 
 /**
  * Handles a GBP Pub/Sub notification after JWT verification.

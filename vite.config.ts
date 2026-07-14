@@ -25,9 +25,10 @@ const config = defineConfig(({ mode }) => {
     build: {
       rollupOptions: {
         output: {
-          manualChunks: {
-            'vendor-charts': ['recharts'],
-            'vendor-dnd': ['@dnd-kit/core', '@dnd-kit/sortable', '@dnd-kit/utilities'],
+          // Vite 8 / Rolldown requires manualChunks as a function, not an object.
+          manualChunks(id) {
+            if (id.includes('node_modules/recharts')) return 'vendor-charts'
+            if (id.includes('node_modules/@dnd-kit')) return 'vendor-dnd'
           },
         },
       },

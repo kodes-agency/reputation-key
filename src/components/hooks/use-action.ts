@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback } from 'react'
 
 /** Typed action result — callable like a function, with reactive state props.
  *
@@ -13,14 +13,12 @@ import { useState, useCallback } from "react";
  *   create.isSuccess  // boolean
  *   create.data       // TOutput | null
  */
-export type Action<TInput, TOutput = unknown> = ((
-	input: TInput,
-) => Promise<TOutput>) & {
-	isPending: boolean;
-	error: unknown;
-	isSuccess: boolean;
-	data: TOutput | null;
-};
+export type Action<TInput, TOutput = unknown> = ((input: TInput) => Promise<TOutput>) & {
+  isPending: boolean
+  error: unknown
+  isSuccess: boolean
+  data: TOutput | null
+}
 
 /** Broad action type for form components that accept any mutation shape.
  * Any `Action<Specific>` is assignable to `AnyAction`.
@@ -28,11 +26,11 @@ export type Action<TInput, TOutput = unknown> = ((
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type AnyAction = ((...args: any[]) => Promise<unknown>) & {
-	isPending: boolean;
-	error: unknown;
-	isSuccess: boolean;
-	data: unknown;
-};
+  isPending: boolean
+  error: unknown
+  isSuccess: boolean
+  data: unknown
+}
 
 /** Wrap an async function with pending/error/success state.
  *
@@ -46,34 +44,34 @@ export type AnyAction = ((...args: any[]) => Promise<unknown>) & {
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function useAction<TFn extends (...args: any[]) => Promise<any>>(
-	fn: TFn,
+  fn: TFn,
 ): Action<Parameters<TFn>[0], Awaited<ReturnType<TFn>>> {
-	const [isPending, setIsPending] = useState(false);
-	const [error, setError] = useState<unknown>(null);
-	const [isSuccess, setIsSuccess] = useState(false);
-	const [data, setData] = useState<Awaited<ReturnType<TFn>> | null>(null);
+  const [isPending, setIsPending] = useState(false)
+  const [error, setError] = useState<unknown>(null)
+  const [isSuccess, setIsSuccess] = useState(false)
+  const [data, setData] = useState<Awaited<ReturnType<TFn>> | null>(null)
 
-	const execute = useCallback(
-		async (input: Parameters<TFn>[0]): Promise<Awaited<ReturnType<TFn>>> => {
-			setIsPending(true);
-			setError(null);
-			setIsSuccess(false);
-			try {
-				const result = (await fn(input)) as Awaited<ReturnType<TFn>>;
-				setData(result);
-				setIsSuccess(true);
-				return result;
-			} catch (err) {
-				setError(err);
-				throw err;
-			} finally {
-				setIsPending(false);
-			}
-		},
-		[fn],
-	);
+  const execute = useCallback(
+    async (input: Parameters<TFn>[0]): Promise<Awaited<ReturnType<TFn>>> => {
+      setIsPending(true)
+      setError(null)
+      setIsSuccess(false)
+      try {
+        const result = (await fn(input)) as Awaited<ReturnType<TFn>>
+        setData(result)
+        setIsSuccess(true)
+        return result
+      } catch (err) {
+        setError(err)
+        throw err
+      } finally {
+        setIsPending(false)
+      }
+    },
+    [fn],
+  )
 
-	return Object.assign(execute, { isPending, error, isSuccess, data });
+  return Object.assign(execute, { isPending, error, isSuccess, data })
 }
 
 /** Wrap an action with a post-execution side effect.
@@ -83,26 +81,26 @@ export function useAction<TFn extends (...args: any[]) => Promise<any>>(
  * after the server function succeeds.
  */
 export function wrapAction<TInput, TOutput>(
-	action: Action<TInput, TOutput>,
-	after: (output: TOutput) => void | Promise<void>,
+  action: Action<TInput, TOutput>,
+  after: (output: TOutput) => void | Promise<void>,
 ): Action<TInput, TOutput> {
-	const wrapped = async (input: TInput): Promise<TOutput> => {
-		const result = await action(input);
-		await after(result);
-		return result;
-	};
-	return Object.assign(wrapped, {
-		get isPending() {
-			return action.isPending;
-		},
-		get error() {
-			return action.error;
-		},
-		get isSuccess() {
-			return action.isSuccess;
-		},
-		get data() {
-			return action.data;
-		},
-	}) as Action<TInput, TOutput>;
+  const wrapped = async (input: TInput): Promise<TOutput> => {
+    const result = await action(input)
+    await after(result)
+    return result
+  }
+  return Object.assign(wrapped, {
+    get isPending() {
+      return action.isPending
+    },
+    get error() {
+      return action.error
+    },
+    get isSuccess() {
+      return action.isSuccess
+    },
+    get data() {
+      return action.data
+    },
+  }) as Action<TInput, TOutput>
 }

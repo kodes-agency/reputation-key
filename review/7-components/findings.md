@@ -8,11 +8,11 @@
 
 ## Summary
 
-| Severity | Count |
-|----------|-------|
-| MAJOR | 0 |
-| MINOR | 3 |
-| NIT | 1 |
+| Severity  | Count |
+| --------- | ----- |
+| MAJOR     | 0     |
+| MINOR     | 3     |
+| NIT       | 1     |
 | **Total** | **4** |
 
 ---

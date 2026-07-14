@@ -1,6 +1,10 @@
 // Dashboard context — DTO validation tests
 import { describe, it, expect } from 'vitest'
-import { getDashboardDataDto, getPortalAnalyticsDto, timeRangePreset } from './dashboard.dto'
+import {
+  getDashboardDataDto,
+  getPortalAnalyticsDto,
+  timeRangePreset,
+} from './dashboard.dto'
 
 describe('timeRangePreset', () => {
   it.each(['7d', '30d', '60d', '90d', 'all'])('accepts %s', (val) => {
@@ -37,9 +41,7 @@ describe('getDashboardDataDto', () => {
   })
 
   it('rejects invalid UUID for propertyId', () => {
-    expect(() =>
-      getDashboardDataDto.parse({ propertyId: 'not-a-uuid' }),
-    ).toThrow()
+    expect(() => getDashboardDataDto.parse({ propertyId: 'not-a-uuid' })).toThrow()
   })
 })
 
