@@ -3,6 +3,7 @@
 **Date:** 2026-07-14
 **Scope:** Internal-team beta with real Google Business Profile properties
 **Method:** STRIDE (Spoofing, Tampering, Repudiation, Information Disclosure, Denial of Service, Elevation of Privilege)
+**Accountable owner:** Bozhidar Denev
 
 ## Trust boundaries
 

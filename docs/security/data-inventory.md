@@ -1,7 +1,9 @@
 # Data Inventory and Lineage Map — Beta
 
 **Date:** 2026-07-14
+**Accountable owner:** Bozhidar Denev (product, privacy, security)
 **Scope:** All data classes across the Reputation Key beta deployment.
+**Subprocessors:** Neon (PostgreSQL), Resend (email), AWS S3 (eu-west-3), Sentry (error monitoring)
 
 ## Data classes by sensitivity
 
@@ -118,11 +120,11 @@ Guest browser → Signed session → Rating/Feedback → PostgreSQL (IP hashed)
 
 - Structured logs (Pino) redact: tokens, cookies, authorization headers, review text, reviewer names, emails, presigned URLs.
 - Traces (`src/shared/observability/trace.ts`) record operation name + duration only — no payload data.
-- Audit logs record: userId, ipAddress, action, resourceType, resourceId — no content fields.
+- Sentry error monitoring (active for beta): `beforeSend` hook must scrub review text, reviewer names, emails, tokens, and Google identifiers from event payloads before transmission. Initialization pending (BETA-3).
 
 ## Gap remediation (pre-BETA-1)
 
 - [ ] Confirm Pino redaction patterns are active in production (currently configured, needs deployment verification)
 - [ ] Verify TTL purge job runs against restored backup (content_expires_at enforcement after PITR)
 - [ ] Rate limiting on auth endpoints (login, registration)
-- [ ] Body size limits at proxy layer
+- [ ] Initialize Sentry SDK with PII-scrubbing `beforeSend` hook (BETA-3)
