@@ -1,43 +1,35 @@
-# Dependabot configuration — automated dependency updates.
-# https://docs.github.com/en/code-security/dependabot/dependabot-version-updates
+# Dependabot configuration — B0.4 supply chain security
+# Checks for vulnerable dependencies weekly and opens PRs for updates.
 
 version: 2
-
 updates:
-  # npm dependencies — weekly check for updates.
+  # npm production + dev dependencies
   - package-ecosystem: npm
     directory: /
     schedule:
       interval: weekly
       day: monday
     open-pull-requests-limit: 10
-    commit-message:
-      prefix: deps
+    # Group minor/patch updates to reduce PR noise
+    groups:
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+    # Security updates are always opened immediately regardless of schedule
+    # Major version updates get individual PRs for review
+    reviewers:
+      - kodes-agency/engineering
     labels:
       - dependencies
-    groups:
-      vitest:
-        patterns:
-          - vitest
-          - '@vitest/*'
-      tanstack:
-        patterns:
-          - '@tanstack/*'
-      storybook:
-        patterns:
-          - storybook
-          - '@storybook/*'
+      - security
 
-  # GitHub Actions — weekly check for action version updates.
-  # Actions are SHA-pinned (see workflows); Dependabot updates the SHAs
-  # and maintains the version comment alongside each pin.
+  # GitHub Actions versions
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
       day: monday
-    open-pull-requests-limit: 5
-    commit-message:
-      prefix: ci
     labels:
       - dependencies
+      - ci
