@@ -54,24 +54,57 @@ export default defineConfig({
     // triggered through the dev server / MCP `run-story-tests` tool).
     projects: [
       {
-        // Integration tests share a database and can race on TRUNCATE CASCADE.
-        // Run all tests in a single worker (maxWorkers: 1) so beforeEach
-        // truncation doesn't delete data from a parallel test file. (Vitest 4
-        // flattened poolOptions.forks.singleFork into the top-level option.)
+        // PRE17C: Pure unit tests — no DB, no Redis. Runs in parallel
+        // for fast CI feedback. Excludes repository integration tests
+        // and migration verification (those need a database service).
         extends: true,
         test: {
           name: 'unit',
           environment: 'node',
           include: ['src/**/*.test.ts'],
+          exclude: [
+            'src/**/infrastructure/repositories/*.test.ts',
+            'src/shared/db/migration-verification.test.ts',
+          ],
+          setupFiles: ['src/test-setup.ts'],
+          pool: 'forks',
+          maxWorkers: 4,
+          testTimeout: 30_000,
+          env: {
+            NODE_ENV: 'test',
+            DATABASE_URL:
+              process.env.TEST_DATABASE_URL ??
+              'postgresql://test:test@localhost:5432/test',
+            BETTER_AUTH_SECRET: 'test-test-test-test-test-test-test-test',
+            BETTER_AUTH_URL: 'http://localhost:3000',
+            RESEND_API_KEY: 're_test_key_for_testing_only',
+            GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID ?? '',
+            GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET ?? '',
+            ENCRYPTION_KEY: process.env.ENCRYPTION_KEY ?? 'a'.repeat(64),
+            OAUTH_STATE_SECRET: 'ab'.repeat(32),
+            ALLOW_DESTRUCTIVE_DB_TESTS: '1',
+            REDIS_URL: process.env.REDIS_URL ?? 'redis://localhost:6379',
+          },
+        },
+      },
+      {
+        // PRE17C: Integration tests — need PostgreSQL. Run serially
+        // (maxWorkers: 1) because tests share a database and can race
+        // on TRUNCATE CASCADE.
+        extends: true,
+        test: {
+          name: 'integration',
+          environment: 'node',
+          include: [
+            'src/**/infrastructure/repositories/*.test.ts',
+            'src/shared/db/migration-verification.test.ts',
+          ],
           setupFiles: ['src/test-setup.ts'],
           pool: 'forks',
           maxWorkers: 1,
           testTimeout: 30_000,
           env: {
             NODE_ENV: 'test',
-            // B0.3: Never inherit the production DATABASE_URL from the shell.
-            // Tests use a local disposable database. Override with TEST_DATABASE_URL
-            // if your local PostgreSQL uses a non-default port or credentials.
             DATABASE_URL:
               process.env.TEST_DATABASE_URL ??
               'postgresql://test:test@localhost:5432/test',
