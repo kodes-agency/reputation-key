@@ -45,6 +45,11 @@ export const buildProperty = (
       createdAt: input.now,
       updatedAt: input.now,
       deletedAt: null,
+      lifecycleState: 'active',
+      lifecycleReason: null,
+      lifecycleStateChangedAt: input.now,
+      purgeScheduledFor: null,
+      lifecycleInitiatedBy: null,
     }),
   )
 }

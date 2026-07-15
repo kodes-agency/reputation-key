@@ -65,6 +65,7 @@ const EXPECTED_INDEXES = [
   'properties_org_gbp_place_id_unique',
   'metric_readings_recorded_at_idx',
   'inbox_items_source_date_idx',
+  'properties_lifecycle_state_idx',
 ] as const
 
 describe('migration verification (PRE17A A1)', () => {

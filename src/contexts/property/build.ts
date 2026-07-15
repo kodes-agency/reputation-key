@@ -126,6 +126,11 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
           createdAt: now,
           updatedAt: now,
           deletedAt: null,
+          lifecycleState: 'active',
+          lifecycleReason: null,
+          lifecycleStateChangedAt: now,
+          purgeScheduledFor: null,
+          lifecycleInitiatedBy: null,
         }
         const inserted = await deps.repo.insertAndReturn(input.orgId, property)
         await emitAndRecord(

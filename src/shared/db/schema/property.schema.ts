@@ -5,7 +5,15 @@
 import { sql } from 'drizzle-orm'
 import { createdAtColumn, updatedAtColumn, deletedAtColumn } from '../columns'
 import { googleConnections } from './google-connection.schema'
-import { pgTable, uuid, varchar, index, uniqueIndex } from 'drizzle-orm/pg-core'
+import {
+  pgTable,
+  uuid,
+  varchar,
+  text,
+  timestamp,
+  index,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core'
 
 export const properties = pgTable(
   'properties',
@@ -23,6 +31,16 @@ export const properties = pgTable(
     createdAt: createdAtColumn(),
     updatedAt: updatedAtColumn(),
     deletedAt: deletedAtColumn(),
+    // B1.5: Lifecycle state machine (migration 0009)
+    lifecycleState: varchar('lifecycle_state', { length: 20 })
+      .notNull()
+      .default('active'),
+    lifecycleReason: text('lifecycle_reason'),
+    lifecycleStateChangedAt: timestamp('lifecycle_state_changed_at', {
+      withTimezone: true,
+    }).defaultNow(),
+    purgeScheduledFor: timestamp('purge_scheduled_for', { withTimezone: true }),
+    lifecycleInitiatedBy: varchar('lifecycle_initiated_by', { length: 255 }),
   },
   (t) => ({
     orgSlugUnique: uniqueIndex('properties_org_slug_unique')

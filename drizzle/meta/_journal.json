@@ -64,6 +64,13 @@
       "when": 1784054000000,
       "tag": "0008_incremental-rollup-tables",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1784055000000,
+      "tag": "0009_property-lifecycle-state",
+      "breakpoints": true
     }
   ]
 }
