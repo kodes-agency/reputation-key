@@ -3,6 +3,7 @@
 
 import type { properties } from '#/shared/db/schema/property.schema'
 import type { Property } from '../../domain/types'
+import type { PropertyLifecycleState } from '../../domain/property-lifecycle'
 import { unbrand } from '#/shared/domain/ids'
 import { propertyId, organizationId, googleConnectionId } from '#/shared/domain/ids'
 
@@ -22,6 +23,11 @@ export const propertyFromRow = (row: PropertyRow): Property => ({
   createdAt: row.createdAt,
   updatedAt: row.updatedAt,
   deletedAt: row.deletedAt,
+  lifecycleState: row.lifecycleState as PropertyLifecycleState,
+  lifecycleReason: row.lifecycleReason,
+  lifecycleStateChangedAt: row.lifecycleStateChangedAt,
+  purgeScheduledFor: row.purgeScheduledFor,
+  lifecycleInitiatedBy: row.lifecycleInitiatedBy,
 })
 
 export const propertyToRow = (property: Property): PropertyInsertRow => ({
@@ -36,4 +42,9 @@ export const propertyToRow = (property: Property): PropertyInsertRow => ({
   createdAt: property.createdAt,
   updatedAt: property.updatedAt,
   deletedAt: property.deletedAt,
+  lifecycleState: property.lifecycleState,
+  lifecycleReason: property.lifecycleReason,
+  lifecycleStateChangedAt: property.lifecycleStateChangedAt,
+  purgeScheduledFor: property.purgeScheduledFor,
+  lifecycleInitiatedBy: property.lifecycleInitiatedBy,
 })

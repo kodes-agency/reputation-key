@@ -20,6 +20,11 @@ const makePropertyRow = (overrides: Record<string, unknown> = {}) => ({
   createdAt: FIXED_TIME,
   updatedAt: FIXED_TIME,
   deletedAt: null,
+  lifecycleState: 'active',
+  lifecycleReason: null,
+  lifecycleStateChangedAt: null,
+  purgeScheduledFor: null,
+  lifecycleInitiatedBy: null,
   ...overrides,
 })
 
@@ -34,18 +39,19 @@ const makeProperty = (overrides: Partial<Property> = {}): Property => ({
   createdAt: FIXED_TIME,
   updatedAt: FIXED_TIME,
   deletedAt: null,
+  lifecycleState: 'active',
+  lifecycleReason: null,
+  lifecycleStateChangedAt: null,
+  purgeScheduledFor: null,
+  lifecycleInitiatedBy: null,
   ...overrides,
 })
 
 describe('propertyFromRow', () => {
   it('maps all fields from row to domain', () => {
-    // Arrange
     const row = makePropertyRow()
-
-    // Act
     const property = propertyFromRow(row)
 
-    // Assert
     expect(property.id).toBe('prop-1')
     expect(property.organizationId).toBe('org-1')
     expect(property.name).toBe('Sunset Apartments')
@@ -55,74 +61,60 @@ describe('propertyFromRow', () => {
     expect(property.createdAt).toBe(FIXED_TIME)
     expect(property.updatedAt).toBe(FIXED_TIME)
     expect(property.deletedAt).toBeNull()
+    expect(property.lifecycleState).toBe('active')
   })
 
   it('maps null gbpPlaceId correctly', () => {
-    // Arrange
     const row = makePropertyRow({ gbpPlaceId: null })
-
-    // Act
     const property = propertyFromRow(row)
 
-    // Assert
     expect(property.gbpPlaceId).toBeNull()
   })
 
   it('maps deletedAt date when present', () => {
-    // Arrange
     const deletedAt = new Date('2026-05-01T00:00:00Z')
     const row = makePropertyRow({ deletedAt })
-
-    // Act
     const property = propertyFromRow(row)
 
-    // Assert
     expect(property.deletedAt).toEqual(deletedAt)
+  })
+
+  it('maps lifecycle state from row', () => {
+    const row = makePropertyRow({ lifecycleState: 'archived' })
+    const property = propertyFromRow(row)
+
+    expect(property.lifecycleState).toBe('archived')
   })
 })
 
 describe('propertyToRow', () => {
   it('maps all fields from domain to row', () => {
-    // Arrange
     const property = makeProperty()
-
-    // Act
     const row = propertyToRow(property)
 
-    // Assert
     expect(row.id).toBe('prop-1')
     expect(row.organizationId).toBe('org-1')
     expect(row.name).toBe('Sunset Apartments')
     expect(row.slug).toBe('sunset-apartments')
     expect(row.timezone).toBe('America/Los_Angeles')
     expect(row.gbpPlaceId).toBe('ChIJ123')
-    expect(row.createdAt).toBe(FIXED_TIME)
-    expect(row.updatedAt).toBe(FIXED_TIME)
-    expect(row.deletedAt).toBeNull()
+    expect(row.lifecycleState).toBe('active')
   })
 
   it('maps null gbpPlaceId to row', () => {
-    // Arrange
     const property = makeProperty({ gbpPlaceId: null })
-
-    // Act
     const row = propertyToRow(property)
 
-    // Assert
     expect(row.gbpPlaceId).toBeNull()
   })
 })
 
 describe('round-trip: propertyToRow → propertyFromRow', () => {
   it('preserves all fields through a round-trip', () => {
-    // Arrange
     const original = makeProperty()
-
-    // Act
     const row = propertyToRow(original)
     const restored = propertyFromRow(row as ReturnType<typeof makePropertyRow>)
 
-    // Assert
     expect(restored.id).toBe(original.id)
     expect(restored.organizationId).toBe(original.organizationId)
     expect(restored.name).toBe(original.name)
@@ -132,5 +124,6 @@ describe('round-trip: propertyToRow → propertyFromRow', () => {
     expect(restored.createdAt).toBe(original.createdAt)
     expect(restored.updatedAt).toBe(original.updatedAt)
     expect(restored.deletedAt).toBe(original.deletedAt)
+    expect(restored.lifecycleState).toBe(original.lifecycleState)
   })
 })

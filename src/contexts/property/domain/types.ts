@@ -4,6 +4,7 @@
 // readonly on every field. Branded IDs prevent accidental substitution.
 
 import type { OrganizationId, PropertyId, GoogleConnectionId } from '#/shared/domain/ids'
+import type { PropertyLifecycleState } from './property-lifecycle'
 
 /** Property entity — the organizational unit everything else lives under. */
 export type Property = Readonly<{
@@ -17,6 +18,12 @@ export type Property = Readonly<{
   createdAt: Date
   updatedAt: Date
   deletedAt: Date | null
+  // B1.5: Lifecycle state machine
+  lifecycleState: PropertyLifecycleState
+  lifecycleReason: string | null
+  lifecycleStateChangedAt: Date | null
+  purgeScheduledFor: Date | null
+  lifecycleInitiatedBy: string | null
 }>
 
 /** Re-export PropertyId from shared for convenience */
