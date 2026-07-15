@@ -31,7 +31,7 @@ import {
   JOB_NAME as PURGE_EXPIRED_JOB_NAME,
 } from '#/contexts/review/infrastructure/jobs/purge-expired-reviews.job'
 import {
-  createRefreshMatViewHandler,
+  createRefreshRollupHandler,
   JOB_NAMES,
 } from '#/contexts/metric/infrastructure/jobs/refresh-materialized-view.job'
 import {
@@ -159,16 +159,16 @@ export async function bootstrap(container: Container): Promise<void> {
   // Example:
   //   container.eventBus.on('portal.created', (event) => { ... })
 
-  // ── Metric materialized view refresh jobs ──────────────────────────
-  const metricMatViewDeps = { db: container.db }
+  // ── Metric incremental rollup refresh jobs ─────────────────────────
+  const metricRollupDeps = { db: container.db }
   for (const [queryKey, jobName] of [
     ['dailyMetrics', JOB_NAMES.refreshDailyMetrics],
     ['weeklyMetrics', JOB_NAMES.refreshWeeklyMetrics],
     ['dailyInboxMetrics', JOB_NAMES.refreshDailyInboxMetrics],
   ] as const) {
-    const handler = createRefreshMatViewHandler(metricMatViewDeps, queryKey)
+    const handler = createRefreshRollupHandler(metricRollupDeps, queryKey)
     container.jobRegistry.register(jobName, handler)
-    logger.info({ job: jobName }, 'registered metric refresh job handler')
+    logger.info({ job: jobName }, 'registered metric rollup refresh job handler')
   }
 
   // ── Goal event handlers ────────────────────────────────────────────
