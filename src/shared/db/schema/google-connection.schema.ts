@@ -16,8 +16,13 @@ export const connectionVisibilityEnum = pgEnum('connection_visibility', [
   'organization',
 ])
 export const connectionStatusEnum = pgEnum('connection_status', [
+  'pending',
   'active',
+  'degraded',
+  'reauth_required',
+  'disconnecting',
   'disconnected',
+  'failed',
 ])
 
 export const googleConnections = pgTable(
@@ -34,6 +39,11 @@ export const googleConnections = pgTable(
     connectedBy: varchar('connected_by', { length: 255 }).notNull(),
     visibility: connectionVisibilityEnum('visibility').notNull().default('private'),
     status: connectionStatusEnum('status').notNull().default('active'),
+    // B1.6: Token key versioning + health tracking (migration 0010)
+    encryptionKeyId: varchar('encryption_key_id', { length: 50 }).notNull().default('v1'),
+    lastSuccessfulSyncAt: timestamp('last_successful_sync_at', { withTimezone: true }),
+    statusReason: text('status_reason'),
+    statusChangedAt: timestamp('status_changed_at', { withTimezone: true }).defaultNow(),
     createdAt: createdAtColumn(),
     updatedAt: updatedAtColumn(),
   },

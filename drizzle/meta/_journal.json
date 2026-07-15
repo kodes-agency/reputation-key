@@ -71,6 +71,13 @@
       "when": 1784055000000,
       "tag": "0009_property-lifecycle-state",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1784056000000,
+      "tag": "0010_google-connection-lifecycle",
+      "breakpoints": true
     }
   ]
 }

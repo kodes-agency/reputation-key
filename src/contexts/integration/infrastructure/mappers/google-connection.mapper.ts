@@ -21,6 +21,10 @@ export const googleConnectionFromRow = (row: GoogleConnectionRow): GoogleConnect
   connectedBy: userId(row.connectedBy),
   visibility: row.visibility,
   status: row.status,
+  encryptionKeyId: row.encryptionKeyId,
+  lastSuccessfulSyncAt: row.lastSuccessfulSyncAt,
+  statusReason: row.statusReason,
+  statusChangedAt: row.statusChangedAt,
   createdAt: row.createdAt,
   updatedAt: row.updatedAt,
 })
@@ -39,6 +43,10 @@ export const googleConnectionToInsert = (
   connectedBy: unbrand(conn.connectedBy),
   visibility: conn.visibility,
   status: conn.status,
+  encryptionKeyId: conn.encryptionKeyId,
+  lastSuccessfulSyncAt: conn.lastSuccessfulSyncAt,
+  statusReason: conn.statusReason,
+  statusChangedAt: conn.statusChangedAt,
   createdAt: conn.createdAt,
   updatedAt: conn.updatedAt,
 })

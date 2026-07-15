@@ -33,10 +33,15 @@ type Props = Readonly<{
 
 const STATUS_META: Record<
   GoogleConnectionStatus,
-  { label: string; variant: 'default' | 'secondary' }
+  { label: string; variant: 'default' | 'secondary' | 'destructive' }
 > = {
+  pending: { label: 'Connecting…', variant: 'secondary' },
   active: { label: 'Connected', variant: 'default' },
+  degraded: { label: 'Degraded', variant: 'secondary' },
+  reauth_required: { label: 'Re-authentication required', variant: 'destructive' },
+  disconnecting: { label: 'Disconnecting…', variant: 'secondary' },
   disconnected: { label: 'Disconnected', variant: 'secondary' },
+  failed: { label: 'Connection failed', variant: 'destructive' },
 }
 
 export function IntegrationsSettingsPage({
