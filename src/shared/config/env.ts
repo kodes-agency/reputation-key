@@ -73,6 +73,18 @@ const envSchema = z.object({
     .string()
     .optional()
     .transform((v) => v?.toLowerCase() === 'true'),
+  // B0.6: Require email verification. In production, defaults to true.
+  // In development/test, defaults to false for convenience.
+  EMAIL_VERIFICATION_REQUIRED:
+    process.env.NODE_ENV === 'production'
+      ? z
+          .string()
+          .optional()
+          .transform((v) => v !== 'false')
+      : z
+          .string()
+          .optional()
+          .transform((v) => v === 'true'),
   // ── BETA-0 safety envelope controls ────────────────────────────────
   // Global capability kill switch — comma-separated capability keys to
   // disable regardless of per-tenant policy (B0.5). Empty/absent = none off.

@@ -1,0 +1,27 @@
+# CODEOWNERS — mandatory reviewers for critical paths (B0.4)
+# Each line: pattern followed by team/user reviewers.
+# GitHub enforces these as required reviewers on protected branches.
+
+# Default: all changes require engineering review
+*                           @kodes-agency/engineering
+
+# Security-critical paths require additional review
+/src/shared/auth/           @kodes-agency/engineering
+/src/shared/security/       @kodes-agency/engineering
+/src/shared/db/schema/      @kodes-agency/engineering
+/drizzle/                   @kodes-agency/engineering
+/scripts/migrations/        @kodes-agency/engineering
+
+# CI and deployment configuration
+/.github/workflows/         @kodes-agency/engineering
+/.github/dependabot.yml     @kodes-agency/engineering
+
+# Google integration (sensitive external API access)
+/src/contexts/integration/  @kodes-agency/engineering
+
+# Retention and deletion (irreversible operations)
+/src/contexts/review/application/source-content-lifecycle.ts  @kodes-agency/engineering
+
+# Public request handling (abuse surface)
+/src/routes/p/              @kodes-agency/engineering
+/src/contexts/guest/        @kodes-agency/engineering

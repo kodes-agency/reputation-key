@@ -71,7 +71,7 @@ export function createAuth() {
       //   1. Run scripts/migrations/verify-existing-emails.sql
       //   2. Confirm Resend domain verification is complete
       //   3. Set EMAIL_VERIFICATION_REQUIRED=true in env
-      requireEmailVerification: process.env.EMAIL_VERIFICATION_REQUIRED === 'true',
+      requireEmailVerification: env.EMAIL_VERIFICATION_REQUIRED,
       sendResetPassword: async ({ user, url }) => {
         await sendResetPasswordEmail(user.email, url)
       },
