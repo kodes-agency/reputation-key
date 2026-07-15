@@ -50,6 +50,13 @@
       "when": 1784052000000,
       "tag": "0006_property-profile-and-review-lifecycle",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1784053000000,
+      "tag": "0007_review-sync-state",
+      "breakpoints": true
     }
   ]
 }
