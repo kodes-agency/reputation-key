@@ -451,6 +451,15 @@ export default tseslint.config(
     },
   },
 
+  // ─── Allow drizzle-orm in shared/observability/health-metrics (PRE17C) ──
+  // Health metrics queries raw SQL via Drizzle for operational monitoring.
+  {
+    files: ['src/shared/observability/health-metrics.ts'],
+    rules: {
+      'no-restricted-imports': 'off',
+    },
+  },
+
   // ─── Allow React in permitted locations ────────────────────────────
   // Re-enables no-restricted-imports for React, but keeps the barrel-only rule.
   {
