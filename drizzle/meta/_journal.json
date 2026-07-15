@@ -43,6 +43,13 @@
       "when": 1784051000000,
       "tag": "0005_outbox-events",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1784052000000,
+      "tag": "0006_property-profile-and-review-lifecycle",
+      "breakpoints": true
     }
   ]
 }
