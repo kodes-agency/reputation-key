@@ -13,7 +13,14 @@ import type {
 
 export type GoogleConnectionVisibility = 'private' | 'organization'
 
-export type GoogleConnectionStatus = 'active' | 'disconnected'
+export type GoogleConnectionStatus =
+  | 'pending'
+  | 'active'
+  | 'degraded'
+  | 'reauth_required'
+  | 'disconnecting'
+  | 'disconnected'
+  | 'failed'
 
 export type GoogleConnection = Readonly<{
   id: GoogleConnectionId
@@ -27,6 +34,11 @@ export type GoogleConnection = Readonly<{
   connectedBy: UserId
   visibility: GoogleConnectionVisibility
   status: GoogleConnectionStatus
+  // B1.6: Token key versioning + health tracking
+  encryptionKeyId: string
+  lastSuccessfulSyncAt: Date | null
+  statusReason: string | null
+  statusChangedAt: Date | null
   createdAt: Date
   updatedAt: Date
 }>

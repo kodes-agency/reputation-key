@@ -54,6 +54,10 @@ export const buildGoogleConnection = (args: BuildConnectionArgs) => {
     connectedBy: args.connectedBy,
     visibility: args.visibility,
     status: 'active',
+    encryptionKeyId: 'v1',
+    lastSuccessfulSyncAt: null,
+    statusReason: null,
+    statusChangedAt: args.now,
     createdAt: args.now,
     updatedAt: args.now,
   })

@@ -26,6 +26,10 @@ const sampleRow: GoogleConnectionRow = {
   connectedBy: 'user-uuid-001',
   visibility: 'organization',
   status: 'active',
+  encryptionKeyId: 'v1',
+  lastSuccessfulSyncAt: null,
+  statusReason: null,
+  statusChangedAt: now,
   createdAt: now,
   updatedAt: now,
 }
