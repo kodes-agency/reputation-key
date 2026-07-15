@@ -37,11 +37,9 @@ UPDATE "reviews" SET "last_fetched_at" = "updated_at" WHERE "last_fetched_at" IS
 
 -- Cursor indexes for incremental sync (do NOT include text in covering indexes)
 CREATE INDEX "reviews_property_updated_cursor_idx"
-  ON "reviews" ("property_id", "source_updated_at" DESC, "id" DESC)
-  WHERE "deleted_at" IS NULL;--> statement-breakpoint
+  ON "reviews" ("property_id", "source_updated_at" DESC, "id" DESC);--> statement-breakpoint
 CREATE INDEX "reviews_property_created_cursor_idx"
-  ON "reviews" ("property_id", "source_created_at" DESC, "id" DESC)
-  WHERE "deleted_at" IS NULL;--> statement-breakpoint
+  ON "reviews" ("property_id", "source_created_at" DESC, "id" DESC);--> statement-breakpoint
 CREATE INDEX "reviews_content_expires_idx"
   ON "reviews" ("content_expires_at", "id")
   WHERE "content_expires_at" IS NOT NULL;--> statement-breakpoint
