@@ -16,11 +16,11 @@
 // data that arrived during this run.
 
 import { sql } from 'drizzle-orm'
-import type { Database } from '#/shared/db'
 import { getLogger } from '#/shared/observability/logger'
+import type { Database } from '#/shared/db'
 import { trace } from '#/shared/observability/trace'
 
-const NULL_PORTAL = sql`'00000000-0000-0000-0000-000000000000'::uuid`
+const NULL_PORTAL = sql`'00000000-0000-0000-0000-000000000000'`
 
 /**
  * Incrementally refresh rollup_daily_metrics.

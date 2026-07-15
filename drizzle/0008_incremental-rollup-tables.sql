@@ -12,9 +12,9 @@
 
 -- ── rollup_daily_metrics ──────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS rollup_daily_metrics (
-  organization_id uuid NOT NULL,
-  property_id uuid NOT NULL,
-  portal_id uuid NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000'::uuid,
+  organization_id text NOT NULL,
+  property_id text NOT NULL,
+  portal_id text NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000',
   metric_key text NOT NULL,
   date timestamptz NOT NULL,
   count integer NOT NULL DEFAULT 0,
@@ -25,9 +25,9 @@ CREATE TABLE IF NOT EXISTS rollup_daily_metrics (
 
 -- ── rollup_weekly_metrics ─────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS rollup_weekly_metrics (
-  organization_id uuid NOT NULL,
-  property_id uuid NOT NULL,
-  portal_id uuid NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000'::uuid,
+  organization_id text NOT NULL,
+  property_id text NOT NULL,
+  portal_id text NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000',
   metric_key text NOT NULL,
   week timestamptz NOT NULL,
   count integer NOT NULL DEFAULT 0,
@@ -38,8 +38,8 @@ CREATE TABLE IF NOT EXISTS rollup_weekly_metrics (
 
 -- ── rollup_daily_inbox_metrics ────────────────────────────────────
 CREATE TABLE IF NOT EXISTS rollup_daily_inbox_metrics (
-  organization_id uuid NOT NULL,
-  property_id uuid NOT NULL,
+  organization_id text NOT NULL,
+  property_id text NOT NULL,
   date timestamptz NOT NULL,
   open_count integer NOT NULL DEFAULT 0,
   closed_count integer NOT NULL DEFAULT 0,
