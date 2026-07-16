@@ -28,6 +28,8 @@ import { Route as AuthenticatedPropertiesIndexRouteImport } from './routes/_auth
 import { Route as AuthenticatedInboxIndexRouteImport } from './routes/_authenticated/inbox/index'
 import { Route as AuthenticatedImportIndexRouteImport } from './routes/_authenticated/import/index'
 import { Route as PPropertySlugPortalSlugRouteImport } from './routes/p/$propertySlug/$portalSlug'
+import { Route as ApiHealthReadyRouteImport } from './routes/api/health/ready'
+import { Route as ApiHealthLiveRouteImport } from './routes/api/health/live'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as AuthenticatedSettingsSecurityRouteImport } from './routes/_authenticated/settings/security'
 import { Route as AuthenticatedSettingsRecognitionRouteImport } from './routes/_authenticated/settings/recognition'
@@ -154,6 +156,16 @@ const AuthenticatedImportIndexRoute =
 const PPropertySlugPortalSlugRoute = PPropertySlugPortalSlugRouteImport.update({
   id: '/p/$propertySlug/$portalSlug',
   path: '/p/$propertySlug/$portalSlug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHealthReadyRoute = ApiHealthReadyRouteImport.update({
+  id: '/api/health/ready',
+  path: '/api/health/ready',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHealthLiveRoute = ApiHealthLiveRouteImport.update({
+  id: '/api/health/live',
+  path: '/api/health/live',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
@@ -351,6 +363,8 @@ export interface FileRoutesByFullPath {
   '/settings/recognition': typeof AuthenticatedSettingsRecognitionRoute
   '/settings/security': typeof AuthenticatedSettingsSecurityRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/health/live': typeof ApiHealthLiveRoute
+  '/api/health/ready': typeof ApiHealthReadyRoute
   '/p/$propertySlug/$portalSlug': typeof PPropertySlugPortalSlugRoute
   '/import/': typeof AuthenticatedImportIndexRoute
   '/inbox/': typeof AuthenticatedInboxIndexRoute
@@ -398,6 +412,8 @@ export interface FileRoutesByTo {
   '/settings/recognition': typeof AuthenticatedSettingsRecognitionRoute
   '/settings/security': typeof AuthenticatedSettingsSecurityRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/health/live': typeof ApiHealthLiveRoute
+  '/api/health/ready': typeof ApiHealthReadyRoute
   '/p/$propertySlug/$portalSlug': typeof PPropertySlugPortalSlugRoute
   '/import': typeof AuthenticatedImportIndexRoute
   '/inbox': typeof AuthenticatedInboxIndexRoute
@@ -447,6 +463,8 @@ export interface FileRoutesById {
   '/_authenticated/settings/recognition': typeof AuthenticatedSettingsRecognitionRoute
   '/_authenticated/settings/security': typeof AuthenticatedSettingsSecurityRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/health/live': typeof ApiHealthLiveRoute
+  '/api/health/ready': typeof ApiHealthReadyRoute
   '/p/$propertySlug/$portalSlug': typeof PPropertySlugPortalSlugRoute
   '/_authenticated/import/': typeof AuthenticatedImportIndexRoute
   '/_authenticated/inbox/': typeof AuthenticatedInboxIndexRoute
@@ -498,6 +516,8 @@ export interface FileRouteTypes {
     | '/settings/recognition'
     | '/settings/security'
     | '/api/auth/$'
+    | '/api/health/live'
+    | '/api/health/ready'
     | '/p/$propertySlug/$portalSlug'
     | '/import/'
     | '/inbox/'
@@ -545,6 +565,8 @@ export interface FileRouteTypes {
     | '/settings/recognition'
     | '/settings/security'
     | '/api/auth/$'
+    | '/api/health/live'
+    | '/api/health/ready'
     | '/p/$propertySlug/$portalSlug'
     | '/import'
     | '/inbox'
@@ -593,6 +615,8 @@ export interface FileRouteTypes {
     | '/_authenticated/settings/recognition'
     | '/_authenticated/settings/security'
     | '/api/auth/$'
+    | '/api/health/live'
+    | '/api/health/ready'
     | '/p/$propertySlug/$portalSlug'
     | '/_authenticated/import/'
     | '/_authenticated/inbox/'
@@ -628,6 +652,8 @@ export interface RootRouteChildren {
   RegisterRoute: typeof RegisterRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
+  ApiHealthLiveRoute: typeof ApiHealthLiveRoute
+  ApiHealthReadyRoute: typeof ApiHealthReadyRoute
   PPropertySlugPortalSlugRoute: typeof PPropertySlugPortalSlugRoute
   ApiHealthIndexRoute: typeof ApiHealthIndexRoute
   ApiAuthGoogleCallbackRoute: typeof ApiAuthGoogleCallbackRoute
@@ -769,6 +795,20 @@ declare module '@tanstack/react-router' {
       path: '/p/$propertySlug/$portalSlug'
       fullPath: '/p/$propertySlug/$portalSlug'
       preLoaderRoute: typeof PPropertySlugPortalSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/health/ready': {
+      id: '/api/health/ready'
+      path: '/api/health/ready'
+      fullPath: '/api/health/ready'
+      preLoaderRoute: typeof ApiHealthReadyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/health/live': {
+      id: '/api/health/live'
+      path: '/api/health/live'
+      fullPath: '/api/health/live'
+      preLoaderRoute: typeof ApiHealthLiveRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/auth/$': {
@@ -1129,6 +1169,8 @@ const rootRouteChildren: RootRouteChildren = {
   RegisterRoute: RegisterRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ApiHealthLiveRoute: ApiHealthLiveRoute,
+  ApiHealthReadyRoute: ApiHealthReadyRoute,
   PPropertySlugPortalSlugRoute: PPropertySlugPortalSlugRoute,
   ApiHealthIndexRoute: ApiHealthIndexRoute,
   ApiAuthGoogleCallbackRoute: ApiAuthGoogleCallbackRoute,

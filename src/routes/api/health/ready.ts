@@ -1,11 +1,10 @@
-// Combined health endpoint (backward compatible).
-// Prefer /api/health/live and /api/health/ready for orchestration (BQR-6.1).
+// Readiness probe — DB + Redis must be healthy before traffic (BQR-6.1).
 import { createFileRoute } from '@tanstack/react-router'
 import { isRedisHealthy } from '#/shared/cache/redis'
 import { isDbHealthy } from '#/shared/db'
 import { readyProbe, probeHttpStatus } from '#/shared/health/probes'
 
-export const Route = createFileRoute('/api/health/')({
+export const Route = createFileRoute('/api/health/ready')({
   server: {
     handlers: {
       GET: async () => {
