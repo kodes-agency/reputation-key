@@ -9,7 +9,7 @@ import type { ReplyRepository } from '../ports/reply.repository'
 import type { GoogleReviewApiPort } from '../ports/google-review-api.port'
 import type { EventBus } from '#/shared/events/event-bus'
 import { createMockLogger } from '#/shared/testing/mock-logger'
-import { createSequentialReviewCommandStore } from '../../infrastructure/review-command-store'
+import type { ReviewCommandStore } from '../ports/review-command-store.port'
 import type { Review, GoogleReview, Reply } from '../../domain/types'
 import { MAX_REPLY_LENGTH } from '../../domain/rules'
 import {
@@ -193,10 +193,18 @@ function createTestEnv(googleReviews: ReadonlyArray<GoogleReview> = []) {
     replyToReview: vi.fn(async () => {}),
   }
 
-  const commandStore = createSequentialReviewCommandStore({
-    upsert: (review, now) => reviewRepo.upsert(review, now),
-    events,
-  })
+  // In-process fake of ReviewCommandStore (application zone must not import infra).
+  const commandStore: ReviewCommandStore = {
+    upsertAndRecord: async (review, event, now) => {
+      const saved = await reviewRepo.upsert(review, now)
+      try {
+        await events.emit(event)
+      } catch {
+        // Best-effort bus (matches production post-commit semantics)
+      }
+      return saved
+    },
+  }
 
   const deps: SyncReviewsDeps = {
     reviewRepo,
