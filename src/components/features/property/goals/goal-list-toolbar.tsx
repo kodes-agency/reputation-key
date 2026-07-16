@@ -97,22 +97,27 @@ function ViewLink({
   active: boolean
   children: ReactNode
 }>) {
+  // Use Button asChild so global `a { color: accent }` does not override
+  // contrast (data-slot=button is excluded from that rule in styles.css).
   return (
-    <Link
-      to="/properties/$propertyId/goals"
-      params={{ propertyId }}
-      search={search}
-      aria-current={active ? 'page' : undefined}
+    <Button
+      asChild
+      variant={active ? 'secondary' : 'ghost'}
+      size="sm"
       className={cn(
-        'relative inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent px-2 py-1 text-sm font-medium whitespace-nowrap transition-all',
-        active
-          ? 'bg-background text-foreground shadow-sm'
-          : // muted-foreground meets WCAG AA; foreground/60 fails axe (4.47 < 4.5)
-            'text-muted-foreground hover:text-foreground',
+        'relative h-[calc(100%-1px)] flex-1 gap-1.5 rounded-md px-2 py-1 shadow-none',
+        active && 'bg-background text-foreground shadow-sm',
       )}
     >
-      {children}
-    </Link>
+      <Link
+        to="/properties/$propertyId/goals"
+        params={{ propertyId }}
+        search={search}
+        aria-current={active ? 'page' : undefined}
+      >
+        {children}
+      </Link>
+    </Button>
   )
 }
 
