@@ -139,9 +139,9 @@ The in-process handler reads `event.reviewText` and stores it as `inbox_items.sn
 ### Finding 4.4 — ADR 0030 referenced but missing
 
 **Severity:** P1  
-**Status:** Open (docs / BQR-3)
+**Status:** **Remediated (BQR-1.4)** — `docs/adr/0030-identifier-only-domain-events-and-outbox.md` (accepted)
 
-ADR 0030 is referenced as authoritative in 6 locations but no file exists at `docs/adr/0030*.md`.
+Identifier-only outbox/event contract is documented. Architecture test `adr-0030-presence.test.ts` locks file presence and event-adapter citation.
 
 ## 5. Capability Inventory (Truthful — post BQR-0 containment)
 

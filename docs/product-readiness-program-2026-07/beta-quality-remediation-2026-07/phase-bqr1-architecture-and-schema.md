@@ -1,6 +1,6 @@
 # BQR-1 — Architecture and Schema Coherence
 
-**Status:** In progress — slices 1.1–1.2 merged; 1.3 in progress  
+**Status:** In progress — slices 1.1–1.3 merged; 1.4 in progress  
 **Depends on:** BQR-0 containment  
 **Unblocks:** BQR-2 (durable runtime), BQR-4 (auth seams)  
 **Estimate:** 7–11 engineering days
@@ -22,8 +22,22 @@ One executable architectural rule set and one canonical persistence model that m
 | ----------- | ----------------------------------------------------------------------------------------------------------------------------- | --------------- |
 | **BQR-1.1** | Drizzle represents migrations 0006–0008; domain/mapper preserve routing + review lifecycle columns; static schema-parity test | Done (PR #189)  |
 | **BQR-1.2** | Domain-error convention resolution + boundary tests (CONTEXT.md contradictions)                                               | Done (PR #190)  |
-| **BQR-1.3** | Dependency-boundary / import-direction rules executable for application → outbox / infrastructure                             | **This branch** |
-| **BQR-1.4** | Remaining schema/doc drift (ADR 0030 gap list, health metric column consumers) without dual models                            | Not started     |
+| **BQR-1.3** | Dependency-boundary / import-direction rules executable for application → outbox / infrastructure                             | Done (PR #191)  |
+| **BQR-1.4** | Remaining schema/doc drift (ADR 0030 gap list, health metric column consumers) without dual models                            | **This branch** |
+
+## BQR-1.4 scope
+
+### In
+
+- Author ADR 0030 (identifier-only domain events and outbox payloads) so citations resolve.
+- Health metrics query lifecycle/sync/outbox via **canonical Drizzle schema tables** (no dual string table names).
+- Architecture tests for ADR file + health schema imports.
+
+### Out
+
+- Full source-content lifecycle wiring (`content_expires_at` writers) — BQR-3.
+- Allowlist-at-insert for outbox (denylist remains expand-phase) — BQR-2/3.
+- OpenTelemetry vendor ADR (historically mis-numbered in PRE17C notes; not this 0030).
 
 ## BQR-1.3 scope
 

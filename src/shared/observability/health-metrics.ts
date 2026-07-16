@@ -1,13 +1,20 @@
 // Health metrics — operational health for the outbox, queues, and content
-// lifecycle (PRE17C).
+// lifecycle (PRE17C / BQR-1.4).
 //
 // Provides a structured health snapshot that can be exposed via a health
 // endpoint or scraped by a monitoring system. Metrics are identifier-only —
-// no review content, PII, or provider data in any metric value.
+// no review content, PII, or provider data in any metric value (ADR 0030).
+//
+// Queries use the canonical Drizzle schema tables (single persistence model).
+// Raw SQL fragments remain only for aggregate expressions; table/column
+// identity comes from schema imports.
 
 import type { OutboxRepository } from '#/shared/outbox'
 import type { Database } from '#/shared/db'
 import { sql } from 'drizzle-orm'
+import { outboxEvents } from '#/shared/db/schema/outbox.schema'
+import { reviews } from '#/shared/db/schema/review.schema'
+import { reviewSyncState } from '#/shared/db/schema/review-sync.schema'
 import { trace } from '#/shared/observability/trace'
 
 export type HealthSnapshot = Readonly<{
@@ -57,57 +64,87 @@ export function createHealthChecker(
         }
 
         if (outboxRepo) {
-          // Count unpublished events
-          const unpublishedResult = await db.execute(sql`
-            SELECT count(*)::int AS cnt,
-                   EXTRACT(EPOCH FROM (NOW() - MIN(created_at))) * 1000 AS age_ms
-            FROM outbox_events WHERE published_at IS NULL
-          `)
-          const row = unpublishedResult.rows[0] as
-            | { cnt: number; age_ms: number | null }
-            | undefined
+          const unpublishedResult = await db
+            .select({
+              cnt: sql<number>`count(*)::int`,
+              age_ms: sql<number | null>`
+                EXTRACT(EPOCH FROM (NOW() - MIN(${outboxEvents.createdAt}))) * 1000
+              `,
+            })
+            .from(outboxEvents)
+            .where(sql`${outboxEvents.publishedAt} IS NULL`)
+
+          const row = unpublishedResult[0]
           if (row) {
             outboxMetrics = {
               unpublishedCount: row.cnt,
-              oldestUnpublishedAgeMs: row.age_ms ? Math.round(row.age_ms) : null,
+              oldestUnpublishedAgeMs:
+                row.age_ms != null ? Math.round(Number(row.age_ms)) : null,
               expiredLeaseCount: 0,
             }
           }
 
-          // Count expired leases
-          const expiredResult = await db.execute(sql`
-            SELECT count(*)::int AS cnt FROM outbox_events
-            WHERE published_at IS NULL AND lease_expires_at IS NOT NULL AND lease_expires_at < NOW()
-          `)
-          const expiredRow = expiredResult.rows[0] as { cnt: number } | undefined
+          const expiredResult = await db
+            .select({
+              cnt: sql<number>`count(*)::int`,
+            })
+            .from(outboxEvents)
+            .where(
+              sql`${outboxEvents.publishedAt} IS NULL
+                AND ${outboxEvents.leaseExpiresAt} IS NOT NULL
+                AND ${outboxEvents.leaseExpiresAt} < NOW()`,
+            )
+
+          const expiredRow = expiredResult[0]
           if (expiredRow) {
             outboxMetrics.expiredLeaseCount = expiredRow.cnt
           }
         }
 
-        // Review content lifecycle metrics
-        const reviewResult = await db.execute(sql`
-          SELECT
-            count(*) FILTER (WHERE content_expires_at IS NOT NULL)::int AS total,
-            count(*) FILTER (WHERE content_expires_at IS NOT NULL
-              AND last_fetched_at IS NOT NULL
-              AND NOW() > (last_fetched_at + INTERVAL '25 days'))::int AS refresh_due,
-            count(*) FILTER (WHERE content_expires_at IS NOT NULL
-              AND content_expires_at < NOW())::int AS expired
-          FROM reviews
-        `)
-        const reviewRow = reviewResult.rows[0] as
-          | { total: number; refresh_due: number; expired: number }
-          | undefined
+        // Review content lifecycle metrics (columns from migration 0006 / Drizzle)
+        const reviewResult = await db
+          .select({
+            total: sql<number>`
+              count(*) FILTER (WHERE ${reviews.contentExpiresAt} IS NOT NULL)::int
+            `,
+            refresh_due: sql<number>`
+              count(*) FILTER (
+                WHERE ${reviews.contentExpiresAt} IS NOT NULL
+                  AND ${reviews.lastFetchedAt} IS NOT NULL
+                  AND NOW() > (${reviews.lastFetchedAt} + INTERVAL '25 days')
+              )::int
+            `,
+            expired: sql<number>`
+              count(*) FILTER (
+                WHERE ${reviews.contentExpiresAt} IS NOT NULL
+                  AND ${reviews.contentExpiresAt} < NOW()
+              )::int
+            `,
+          })
+          .from(reviews)
 
-        // Sync state metrics
-        const syncResult = await db.execute(sql`
-          SELECT
-            count(*) FILTER (WHERE next_incremental_at IS NOT NULL AND next_incremental_at < NOW())::int AS due,
-            count(*) FILTER (WHERE error_class IS NOT NULL AND error_retry_at IS NOT NULL AND error_retry_at < NOW())::int AS failed
-          FROM review_sync_state
-        `)
-        const syncRow = syncResult.rows[0] as { due: number; failed: number } | undefined
+        const reviewRow = reviewResult[0]
+
+        // Sync state metrics (migration 0007 / Drizzle)
+        const syncResult = await db
+          .select({
+            due: sql<number>`
+              count(*) FILTER (
+                WHERE ${reviewSyncState.nextIncrementalAt} IS NOT NULL
+                  AND ${reviewSyncState.nextIncrementalAt} < NOW()
+              )::int
+            `,
+            failed: sql<number>`
+              count(*) FILTER (
+                WHERE ${reviewSyncState.errorClass} IS NOT NULL
+                  AND ${reviewSyncState.errorRetryAt} IS NOT NULL
+                  AND ${reviewSyncState.errorRetryAt} < NOW()
+              )::int
+            `,
+          })
+          .from(reviewSyncState)
+
+        const syncRow = syncResult[0]
 
         return {
           timestamp: now.toISOString(),
