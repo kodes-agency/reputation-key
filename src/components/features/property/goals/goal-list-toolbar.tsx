@@ -2,7 +2,7 @@ import { Link } from '@tanstack/react-router'
 import { Filter } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Button } from '#/components/ui/button'
-import { Tabs, TabsList, TabsTrigger } from '#/components/ui/tabs'
+import { cn } from '#/lib/utils'
 import { goalTypeLabel } from '#/contexts/goal/ui/helpers'
 import type { GoalListView, HistoryGoalStatus } from '#/contexts/goal/ui/helpers'
 import type { GoalType } from '#/contexts/goal/application/public-api'
@@ -17,6 +17,11 @@ type GoalsToolbarProps = Readonly<{
   historyCount: number
 }>
 
+/**
+ * View switcher uses a nav + links (not Radix Tabs). TabsTrigger+asChild Link
+ * sets aria-controls to panels that do not exist when there is no TabsContent,
+ * which fails axe aria-valid-attr-value (BQR merge gate).
+ */
 export function GoalsToolbar({
   propertyId,
   view,
@@ -27,30 +32,30 @@ export function GoalsToolbar({
 }: GoalsToolbarProps) {
   return (
     <div className="flex flex-col gap-3 border-b pb-4 lg:flex-row lg:items-center lg:justify-between">
-      <Tabs value={view} className="min-w-0">
-        <TabsList>
-          <TabsTrigger value="active" asChild>
-            <Link
-              to="/properties/$propertyId/goals"
-              params={{ propertyId }}
-              search={goalSearch({ view: 'active', goalType })}
-            >
-              Active
-              <span className="tabular-nums text-muted-foreground">{activeCount}</span>
-            </Link>
-          </TabsTrigger>
-          <TabsTrigger value="history" asChild>
-            <Link
-              to="/properties/$propertyId/goals"
-              params={{ propertyId }}
-              search={goalSearch({ view: 'history', historyStatus, goalType })}
-            >
-              History
-              <span className="tabular-nums text-muted-foreground">{historyCount}</span>
-            </Link>
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
+      <nav aria-label="Goal list views" className="min-w-0">
+        <div
+          className={cn(
+            'inline-flex h-9 w-fit items-center justify-center rounded-lg bg-muted p-[3px] text-muted-foreground',
+          )}
+        >
+          <ViewLink
+            propertyId={propertyId}
+            search={goalSearch({ view: 'active', goalType })}
+            active={view === 'active'}
+          >
+            Active
+            <span className="tabular-nums text-muted-foreground">{activeCount}</span>
+          </ViewLink>
+          <ViewLink
+            propertyId={propertyId}
+            search={goalSearch({ view: 'history', historyStatus, goalType })}
+            active={view === 'history'}
+          >
+            History
+            <span className="tabular-nums text-muted-foreground">{historyCount}</span>
+          </ViewLink>
+        </div>
+      </nav>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between lg:justify-end">
         <div className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
@@ -78,6 +83,41 @@ export function GoalsToolbar({
         </div>
       </div>
     </div>
+  )
+}
+
+function ViewLink({
+  propertyId,
+  search,
+  active,
+  children,
+}: Readonly<{
+  propertyId: string
+  search: GoalSearch
+  active: boolean
+  children: ReactNode
+}>) {
+  // Use Button asChild so global `a { color: accent }` does not override
+  // contrast (data-slot=button is excluded from that rule in styles.css).
+  return (
+    <Button
+      asChild
+      variant={active ? 'secondary' : 'ghost'}
+      size="sm"
+      className={cn(
+        'relative h-[calc(100%-1px)] flex-1 gap-1.5 rounded-md px-2 py-1 shadow-none',
+        active && 'bg-background text-foreground shadow-sm',
+      )}
+    >
+      <Link
+        to="/properties/$propertyId/goals"
+        params={{ propertyId }}
+        search={search}
+        aria-current={active ? 'page' : undefined}
+      >
+        {children}
+      </Link>
+    </Button>
   )
 }
 

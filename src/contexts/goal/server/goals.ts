@@ -4,6 +4,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { match } from 'ts-pattern'
+import { assertBetaCapability } from '#/shared/auth/beta-capabilities'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
@@ -76,6 +77,7 @@ export const createGoal = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
+        assertBetaCapability(ctx, 'goal.use')
         if (!canForContext(ctx, 'goal.create')) {
           throwContextError(
             'GoalError',
@@ -169,6 +171,7 @@ export const updateGoal = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
+        assertBetaCapability(ctx, 'goal.use')
         if (!canForContext(ctx, 'goal.update')) {
           throwContextError(
             'GoalError',
@@ -262,6 +265,7 @@ export const cancelGoal = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
+        assertBetaCapability(ctx, 'goal.use')
         if (!canForContext(ctx, 'goal.cancel')) {
           throwContextError(
             'GoalError',
@@ -331,6 +335,7 @@ export const listGoals = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
+        assertBetaCapability(ctx, 'goal.use')
         if (!canForContext(ctx, 'goal.read')) {
           throwContextError(
             'GoalError',
@@ -395,6 +400,7 @@ export const getGoal = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
+        assertBetaCapability(ctx, 'goal.use')
         if (!canForContext(ctx, 'goal.read')) {
           throwContextError(
             'GoalError',

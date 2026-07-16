@@ -33,6 +33,7 @@ export function GoalProgressTrack({
       <div
         className="relative h-2 w-full overflow-hidden rounded-full bg-muted"
         role="progressbar"
+        aria-label={label}
         aria-valuemin={0}
         aria-valuemax={Math.max(0, targetValue)}
         aria-valuenow={valueNow}

@@ -92,6 +92,14 @@ const envSchema = z.object({
   // Allowlist of org slugs/IDs permitted in the beta cohort (B0.5/B0.6).
   // Empty/absent = all verified orgs admitted.
   BETA_ALLOWLIST_ORGS: z.string().optional(),
+  // BQR-0: Outbox relay/dispatcher containment. The outbox path has known
+  // defects (non-atomic emit, relay/dispatcher envelope mismatch, empty
+  // consumer registry). Must NOT process real work until BQR-2 fixes them.
+  // Default: false (safe). Set to 'true' only in controlled test environments.
+  OUTBOX_DISPATCHER_ENABLED: z
+    .string()
+    .optional()
+    .transform((v) => v?.toLowerCase() === 'true'),
   // Org slugs/IDs suspended from the beta (B0.5 operator controls).
   BETA_SUSPENDED_ORGS: z.string().optional(),
   // Number of trusted reverse proxies in front of the app (B0.7).

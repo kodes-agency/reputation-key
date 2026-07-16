@@ -1,6 +1,7 @@
 // Guest context — scan & public portal read server functions (split from public.ts)
 
 import { createServerFn } from '@tanstack/react-start'
+import { assertGlobalCapability } from '#/shared/auth/beta-capabilities'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { z } from 'zod/v4'
 import { match } from 'ts-pattern'
@@ -48,6 +49,7 @@ export const recordScanFn = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
+        assertGlobalCapability('portal.read')
         const { useCases, rateLimiter } = getContainer()
         const headers = await headersFromContext()
 
@@ -107,6 +109,7 @@ export const getPublicPortal = createServerFn({ method: 'GET' })
   .handler(
     tracedHandler(
       async ({ data }) => {
+        assertGlobalCapability('portal.read')
         const { useCases } = getContainer()
         try {
           return await useCases.getPublicPortal({
@@ -137,6 +140,7 @@ export const resolveLinkAndTrack = createServerFn({ method: 'GET' })
   .handler(
     tracedHandler(
       async ({ data }) => {
+        assertGlobalCapability('portal.read')
         const { useCases } = getContainer()
         try {
           return await useCases.resolveLinkAndTrack({ linkId: portalLinkId(data.linkId) })

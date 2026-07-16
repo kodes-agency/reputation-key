@@ -4,6 +4,7 @@ import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
+import { assertBetaCapability } from '#/shared/auth/beta-capabilities'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getContainer } from '#/composition'
 import { canForContext } from '#/shared/domain/permissions'
@@ -32,6 +33,7 @@ export const getStaffVisibleBadges = createServerFn({ method: 'GET' })
         try {
           const headers = await headersFromContext()
           const ctx = await resolveTenantContext(headers)
+          assertBetaCapability(ctx, 'badge.use')
           if (!canForContext(ctx, 'badge.read')) {
             throwContextError(
               'AuthError',
@@ -62,6 +64,7 @@ export const getVisibleTargetBadges = createServerFn({ method: 'GET' })
         try {
           const headers = await headersFromContext()
           const ctx = await resolveTenantContext(headers)
+          assertBetaCapability(ctx, 'badge.use')
           if (!canForContext(ctx, 'badge.read')) {
             throwContextError(
               'AuthError',
@@ -127,6 +130,7 @@ export const setOrganizationBadgeEnablement = createServerFn({ method: 'POST' })
         try {
           const headers = await headersFromContext()
           const ctx = await resolveTenantContext(headers)
+          assertBetaCapability(ctx, 'badge.use')
           if (!canForContext(ctx, 'badge.manage')) {
             throwContextError(
               'AuthError',
@@ -157,6 +161,7 @@ export const getOrganizationBadgeDefinitionsFn = createServerFn({
     async () => {
       const headers = await headersFromContext()
       const ctx = await resolveTenantContext(headers)
+      assertBetaCapability(ctx, 'badge.use')
       if (!canForContext(ctx, 'badge.read')) {
         throwContextError(
           'AuthError',

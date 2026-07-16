@@ -10,6 +10,8 @@ import {
   createEnvCapabilityPolicyStore,
   isCoreCapability,
   isBlockedCapability,
+  isCapabilityJobEnabled,
+  checkGlobalCapability,
   type CapabilityPolicyStore,
 } from './beta-capabilities'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
@@ -19,8 +21,7 @@ function makeStore(
 ): CapabilityPolicyStore {
   return {
     isCapabilityGloballyEnabled: (cap) => {
-      if (cap === 'identity.invite' || cap === 'property.create' || cap === 'portal.read')
-        return true
+      if (cap === 'identity.invite' || cap === 'property.create') return true
       return false
     },
     isOrgAllowlisted: (_orgId, _cap) => false,
@@ -157,7 +158,13 @@ describe('BetaCapabilities', () => {
     it('allows core capabilities by default', () => {
       const store = createEnvCapabilityPolicyStore({})
       expect(store.isCapabilityGloballyEnabled('identity.invite')).toBe(true)
-      expect(store.isCapabilityGloballyEnabled('portal.read')).toBe(true)
+      expect(store.isCapabilityGloballyEnabled('property.create')).toBe(true)
+    })
+
+    it('treats portal.read as non-core (BQR-0 dark portal/guest)', () => {
+      const store = createEnvCapabilityPolicyStore({})
+      expect(store.isCapabilityGloballyEnabled('portal.read')).toBe(false)
+      expect(isCoreCapability('portal.read')).toBe(false)
     })
 
     it('does not allowlist non-core capabilities without BETA_ALLOWLIST_ORGS', () => {
@@ -201,6 +208,7 @@ describe('BetaCapabilities', () => {
     it('identifies core capabilities', () => {
       expect(isCoreCapability('identity.invite')).toBe(true)
       expect(isCoreCapability('goal.use')).toBe(false)
+      expect(isCoreCapability('portal.read')).toBe(false)
     })
 
     it('identifies blocked capabilities', () => {
@@ -208,6 +216,26 @@ describe('BetaCapabilities', () => {
       expect(isBlockedCapability('gbp.review_solicitation_gamification')).toBe(true)
       expect(isBlockedCapability('ai.analyze')).toBe(false)
       expect(isBlockedCapability('identity.invite')).toBe(false)
+    })
+  })
+
+  describe('isCapabilityJobEnabled / checkGlobalCapability', () => {
+    it('allows core capability jobs', () => {
+      // Default store treats identity.invite as globally enabled in makeStore
+      expect(isCapabilityJobEnabled('identity.invite')).toBe(true)
+    })
+
+    it('denies dark-context jobs by default', () => {
+      expect(isCapabilityJobEnabled('goal.use')).toBe(false)
+      expect(isCapabilityJobEnabled('badge.use')).toBe(false)
+      expect(isCapabilityJobEnabled('leaderboard.use')).toBe(false)
+      expect(isCapabilityJobEnabled('team.use')).toBe(false)
+      expect(isCapabilityJobEnabled('portal.read')).toBe(false)
+    })
+
+    it('denies blocked capability jobs', () => {
+      expect(isCapabilityJobEnabled('notification.send_email')).toBe(false)
+      expect(checkGlobalCapability('notification.send_email').allowed).toBe(false)
     })
   })
 })

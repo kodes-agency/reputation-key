@@ -7,7 +7,7 @@ import { getLogger } from '#/shared/observability/logger'
 import { createContainer } from '#/composition'
 import { bootstrap } from '#/bootstrap'
 import { createJobWorker } from '#/shared/jobs/worker'
-import { createJobQueue } from '#/shared/jobs/queue'
+import { createJobQueue, type Queue } from '#/shared/jobs/queue'
 import { createOutboxRelay } from '#/shared/outbox/relay'
 import { createDispatcherHandler } from '#/shared/outbox/dispatcher'
 import { JOB_NAMES } from '#/contexts/metric/infrastructure/jobs/refresh-materialized-view.job'
@@ -16,6 +16,7 @@ import { JOB_NAME as REFRESH_EXPIRING_JOB_NAME } from '#/contexts/review/infrast
 import { JOB_NAME as PURGE_EXPIRED_JOB_NAME } from '#/contexts/review/infrastructure/jobs/purge-expired-reviews.job'
 import { RECONCILE_GOAL_JOB_NAME as RECONCILE_JOB_NAME } from '#/contexts/goal/infrastructure/jobs/reconcile-goal-progress.job'
 import { SPAWN_RECURRING_JOB_NAME as SPAWN_RECURRING_JOB_NAME } from '#/contexts/goal/infrastructure/jobs/spawn-recurring-instances.job'
+import { isCapabilityJobEnabled } from '#/shared/auth/beta-capabilities'
 import type { Worker } from 'bullmq'
 
 // fallow-ignore-next-line complexity — worker wires 10+ job schedules, complexity is inherent
@@ -167,60 +168,64 @@ async function main() {
         .catch((err: unknown) => logger.warn({ err, jobName }, 'Failed to schedule job'))
     }
 
-    // ── Goal jobs ──────────────────────────────────────────────────
-    type GoalSchedule = Readonly<{
+    // ── Dark-context + outbound-email jobs (BQR-0 containment) ──────
+    // Goal / badge / leaderboard / portal are dark for beta. Outbound email
+    // is blocked (notification.send_email). Only schedule when the matching
+    // capability is globally enabled (core). Non-core allowlists do not
+    // re-enable background work until a later promotion path exists.
+    type CapabilitySchedule = Readonly<{
       jobName: string
       every?: number
       pattern?: string
       label: string
+      capability: 'goal.use' | 'badge.use' | 'leaderboard.use' | 'notification.send_email'
     }>
-    const goalSchedules: GoalSchedule[] = [
-      { jobName: RECONCILE_JOB_NAME, pattern: '10 * * * *', label: 'hourly' },
+    const capabilitySchedules: CapabilitySchedule[] = [
+      {
+        jobName: RECONCILE_JOB_NAME,
+        pattern: '10 * * * *',
+        label: 'hourly',
+        capability: 'goal.use',
+      },
       {
         jobName: SPAWN_RECURRING_JOB_NAME,
         every: 24 * 60 * 60 * 1000,
         label: 'daily',
+        capability: 'goal.use',
+      },
+      // Stagger: badge at minute 20, leaderboard at minute 30
+      {
+        jobName: 'badge.reconcile',
+        pattern: '20 * * * *',
+        label: 'hourly',
+        capability: 'badge.use',
+      },
+      {
+        jobName: 'leaderboard.reconcile',
+        pattern: '30 * * * *',
+        label: 'hourly',
+        capability: 'leaderboard.use',
+      },
+      // Digest sends outbound email at each property's 8am local window (ADR 0011)
+      {
+        jobName: 'digest-notification',
+        pattern: '0 * * * *',
+        label: 'hourly',
+        capability: 'notification.send_email',
       },
     ]
-    for (const { jobName, every, pattern, label } of goalSchedules) {
+    for (const { jobName, every, pattern, label, capability } of capabilitySchedules) {
+      if (!isCapabilityJobEnabled(capability)) {
+        logger.info(
+          { jobName, capability },
+          'BQR-0: dark/blocked capability job NOT scheduled',
+        )
+        continue
+      }
       const repeat = pattern ? { pattern } : { every: every! }
       container.backgroundQueue
         .add(jobName, {}, { repeat, jobId: `${jobName}-recurring` })
-        .then(() => logger.info({ jobName, label }, 'Job scheduled'))
-        .catch((err: unknown) => logger.warn({ err, jobName }, 'Failed to schedule job'))
-    }
-
-    // ── Badge + Leaderboard reconciliation jobs ──────────────────────
-    type RecognitionSchedule = Readonly<{
-      jobName: string
-      every?: number
-      pattern?: string
-      label: string
-    }>
-    const recognitionSchedules: RecognitionSchedule[] = [
-      // Stagger: badge at minute 20, leaderboard at minute 30 to avoid thundering herd
-      { jobName: 'badge.reconcile', pattern: '20 * * * *', label: 'hourly' },
-      { jobName: 'leaderboard.reconcile', pattern: '30 * * * *', label: 'hourly' },
-    ]
-    for (const { jobName, every, pattern, label } of recognitionSchedules) {
-      const repeat = pattern ? { pattern } : { every: every! }
-      container.backgroundQueue
-        .add(jobName, {}, { repeat, jobId: `${jobName}-recurring` })
-        .then(() => logger.info({ jobName, label }, 'Job scheduled'))
-        .catch((err: unknown) => logger.warn({ err, jobName }, 'Failed to schedule job'))
-    }
-
-    // ── Notification digest job ─────────────────────────────────────
-    // Runs hourly to send normal-priority notification emails at each
-    // property's 8am local-time window (ADR 0011).
-    const notifSchedules: RecognitionSchedule[] = [
-      { jobName: 'digest-notification', pattern: '0 * * * *', label: 'hourly' },
-    ]
-    for (const { jobName, every, pattern, label } of notifSchedules) {
-      const repeat = pattern ? { pattern } : { every: every! }
-      container.backgroundQueue
-        .add(jobName, {}, { repeat, jobId: `${jobName}-recurring` })
-        .then(() => logger.info({ jobName, label }, 'Job scheduled'))
+        .then(() => logger.info({ jobName, label, capability }, 'Job scheduled'))
         .catch((err: unknown) => logger.warn({ err, jobName }, 'Failed to schedule job'))
     }
   } else {
@@ -228,31 +233,36 @@ async function main() {
   }
 
   // ── Outbox relay + dispatcher (PRE17A A3/A4) ─────────────────────
-  // The relay polls outbox_events for unpublished rows, publishes to the
-  // domain-events BullMQ queue. The dispatcher worker receives events and
-  // invokes registered consumers with receipt-based idempotency.
+  // BQR-0 CONTAINMENT: The outbox path has known defects (non-atomic emit,
+  // relay/dispatcher envelope mismatch, empty consumer registry, no-op
+  // consumers). It must NOT process real work until BQR-2 fixes these.
+  // The relay and dispatcher are disabled by default. Enable only with
+  // OUTBOX_DISPATCHER_ENABLED=true in a controlled test environment.
   let domainEventsWorker: Worker | undefined
   let stopRelay: (() => void) | undefined
-  let domainEventsQueue: ReturnType<typeof createJobQueue>
+  let domainEventsQueue: Queue | undefined
 
-  if (container.outboxRepo && env.REDIS_URL) {
+  if (container.outboxRepo && env.REDIS_URL && env.OUTBOX_DISPATCHER_ENABLED) {
     domainEventsQueue = createJobQueue('domain-events')
 
     if (domainEventsQueue) {
-      // Start the relay — polls every 5 seconds
       const relay = createOutboxRelay(container.outboxRepo, domainEventsQueue)
       stopRelay = relay.start(5_000)
-
-      // Start the dispatcher worker — concurrency 20 for burst capacity
       const dispatchHandler = createDispatcherHandler(container.outboxRepo)
       domainEventsWorker = createJobWorker('domain-events', dispatchHandler, 20)
 
       if (domainEventsWorker) {
-        logger.info(
-          'Outbox relay + dispatcher started on domain-events queue (concurrency: 20)',
+        logger.warn(
+          'Outbox relay + dispatcher started — OUTBOX_DISPATCHER_ENABLED is true. ' +
+            'This is unsafe until BQR-2 is complete.',
         )
       }
     }
+  } else if (container.outboxRepo && env.REDIS_URL && !env.OUTBOX_DISPATCHER_ENABLED) {
+    logger.info(
+      'Outbox relay + dispatcher DISABLED (BQR-0 containment). ' +
+        'Events are delivered via the in-process event bus only until BQR-2.',
+    )
   } else {
     logger.warn('Outbox relay not started — no outboxRepo or Redis')
   }
