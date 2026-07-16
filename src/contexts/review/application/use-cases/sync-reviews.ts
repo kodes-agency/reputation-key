@@ -32,7 +32,11 @@ import type { ReviewError } from '../../domain/errors'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { reviewCreated, reviewUpdated, reviewReplyPublished } from '../../domain/events'
 import { reviewError } from '../../domain/errors'
-import { calculateExpiresAt, MAX_REPLY_LENGTH } from '../../domain/rules'
+import {
+  calculateExpiresAt,
+  computeReviewContentHash,
+  MAX_REPLY_LENGTH,
+} from '../../domain/rules'
 import { ok, err, type Result } from '#/shared/domain'
 import { emitAndRecord } from '#/shared/outbox'
 import type { ReviewCommandStore } from '../ports/review-command-store.port'
@@ -169,10 +173,16 @@ async function syncOneReview(
     expiresAt: calculateExpiresAt(gr.reviewedAt, now),
     sentimentLabel: existing?.sentimentLabel ?? null,
     sentimentScore: existing?.sentimentScore ?? null,
-    // BQR-1.1: preserve lifecycle columns; always refresh lastFetchedAt on sync
+    // BQR-3.1: fetch-based content expiry + content hash on every successful sync
     ...defaultReviewLifecycle({
       reviewedAt: gr.reviewedAt,
       now,
+      contentHash: computeReviewContentHash({
+        rating: gr.rating,
+        text: gr.text,
+        reviewerName: gr.reviewerName,
+        languageCode: gr.languageCode,
+      }),
       existing: existing ?? null,
     }),
   }

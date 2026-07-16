@@ -4,6 +4,7 @@ import { describe, it, expect } from 'vitest'
 import {
   isValidRating,
   calculateExpiresAt,
+  computeReviewContentHash,
   canTransitionReply,
   MAX_REPLY_LENGTH,
 } from './rules'
@@ -54,6 +55,37 @@ describe('calculateExpiresAt', () => {
     const expiresAt = calculateExpiresAt(reviewedAt, now)
 
     expect(expiresAt.getTime()).toBe(now.getTime() + THIRTY_DAYS_MS)
+  })
+})
+
+describe('computeReviewContentHash', () => {
+  const base = {
+    rating: 5,
+    text: 'Great place!',
+    reviewerName: 'Jane Doe',
+    languageCode: 'en',
+  }
+
+  it('is stable for identical fields', () => {
+    expect(computeReviewContentHash(base)).toBe(computeReviewContentHash({ ...base }))
+  })
+
+  it('changes when rating changes', () => {
+    expect(computeReviewContentHash(base)).not.toBe(
+      computeReviewContentHash({ ...base, rating: 4 }),
+    )
+  })
+
+  it('changes when text changes', () => {
+    expect(computeReviewContentHash(base)).not.toBe(
+      computeReviewContentHash({ ...base, text: 'Changed' }),
+    )
+  })
+
+  it('treats null text the same as empty string', () => {
+    expect(computeReviewContentHash({ ...base, text: null })).toBe(
+      computeReviewContentHash({ ...base, text: '' }),
+    )
   })
 })
 

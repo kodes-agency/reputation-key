@@ -3,9 +3,18 @@
 //
 // Calculates content expiry timestamps, identifies reviews due for refresh
 // or purge, and classifies content status against the SourceContentPolicy.
+//
+// BQR-3.1: write paths use calculateContentExpiry + computeReviewContentHash.
+// BQR-3.2: jobs use classifyReviewsForRefresh / checkContentStatus.
 
 import type { SourceContentPolicy } from '#/shared/domain/source-content-policy'
-import { createGoogleSourceContentPolicy } from '#/shared/domain/source-content-policy'
+import {
+  contentExpiresAtFromFetch,
+  createGoogleSourceContentPolicy,
+} from '#/shared/domain/source-content-policy'
+import { computeReviewContentHash } from '../domain/rules'
+
+export { computeReviewContentHash }
 
 const DEFAULT_POLICY = createGoogleSourceContentPolicy()
 
@@ -27,7 +36,7 @@ export function calculateContentExpiry(
   policy: SourceContentPolicy = DEFAULT_POLICY,
 ): Date | null {
   if (!lastFetchedAt) return null
-  return new Date(lastFetchedAt.getTime() + policy.rawContentTtlMs)
+  return contentExpiresAtFromFetch(lastFetchedAt, policy)
 }
 
 /**

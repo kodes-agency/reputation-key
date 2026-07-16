@@ -9,6 +9,7 @@ import type {
   GoogleConnectionId,
   UserId,
 } from '#/shared/domain/ids'
+import { contentExpiresAtFromFetch } from '#/shared/domain/source-content-policy'
 
 export type ReviewPlatform = 'google'
 
@@ -80,12 +81,20 @@ export type Reply = Readonly<{
 }>
 
 /**
- * Default source-lifecycle fields when constructing a review at first fetch.
- * Callers should pass reviewedAt/now so timestamps stay coherent.
+ * Default source-lifecycle fields when constructing or refreshing a review.
+ *
+ * BQR-3.1 / ADR 0031:
+ * - `lastFetchedAt` is always the successful fetch instant (`now`).
+ * - `contentExpiresAt` is always derived from that fetch (policy TTL), never
+ *   preserved from a prior observation or from publication time.
+ * - `contentHash` is supplied by the caller from current source fields so
+ *   unchanged vs content-changed refreshes can be distinguished (BQR-3.4).
  */
 export function defaultReviewLifecycle(args: {
   reviewedAt: Date
   now: Date
+  /** Hash of current normalized source fields; required on production write paths. */
+  contentHash?: string | null
   existing?: Pick<
     Review,
     | 'sourceCreatedAt'
@@ -107,13 +116,14 @@ export function defaultReviewLifecycle(args: {
   | 'sourceSeenGeneration'
 > {
   const existing = args.existing
+  const lastFetchedAt = args.now
   return {
     sourceCreatedAt: existing?.sourceCreatedAt ?? args.reviewedAt,
     sourceUpdatedAt: existing?.sourceUpdatedAt ?? null,
     firstFetchedAt: existing?.firstFetchedAt ?? args.now,
-    lastFetchedAt: args.now,
-    contentExpiresAt: existing?.contentExpiresAt ?? null,
-    contentHash: existing?.contentHash ?? null,
+    lastFetchedAt,
+    contentExpiresAt: contentExpiresAtFromFetch(lastFetchedAt),
+    contentHash: args.contentHash ?? existing?.contentHash ?? null,
     sourceSeenGeneration: existing?.sourceSeenGeneration ?? null,
   }
 }

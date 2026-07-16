@@ -95,6 +95,35 @@ describe('buildReview', () => {
     }
   })
 
+  it('sets contentExpiresAt from fetch time (not publication) and contentHash', () => {
+    const reviewedAt = new Date('2025-05-01T12:00:00Z') // older publication
+    const result = buildReview({
+      id: reviewId('rev-1'),
+      organizationId: ORG_ID,
+      propertyId: PROP_ID,
+      externalId: 'ext-1',
+      externalLocationId: 'loc-1',
+      googleConnectionId: null,
+      reviewerName: 'Jane',
+      reviewerProfilePhotoUrl: null,
+      rating: 5,
+      text: 'Nice',
+      languageCode: 'en',
+      reviewedAt,
+      now: NOW,
+    })
+
+    expect(result.isOk()).toBe(true)
+    if (result.isOk()) {
+      const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000
+      expect(result.value.lastFetchedAt).toEqual(NOW)
+      expect(result.value.contentExpiresAt?.getTime()).toBe(
+        NOW.getTime() + THIRTY_DAYS_MS,
+      )
+      expect(result.value.contentHash).toMatch(/^[a-f0-9]{64}$/)
+    }
+  })
+
   it('preserves sentiment when provided', () => {
     const result = buildReview({
       id: reviewId('rev-1'),

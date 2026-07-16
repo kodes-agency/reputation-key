@@ -5,6 +5,7 @@ import {
   calculateContentExpiry,
   checkContentStatus,
   classifyReviewsForRefresh,
+  computeReviewContentHash,
 } from './source-content-lifecycle'
 
 const NOW = new Date('2026-07-15T12:00:00Z')
@@ -19,6 +20,18 @@ describe('calculateContentExpiry', () => {
     const fetched = new Date('2026-07-01T12:00:00Z')
     const expiry = calculateContentExpiry(fetched)
     expect(expiry).toEqual(new Date('2026-07-31T12:00:00Z'))
+  })
+})
+
+describe('computeReviewContentHash (re-export)', () => {
+  it('is available for write-path callers via lifecycle module', () => {
+    const hash = computeReviewContentHash({
+      rating: 5,
+      text: 'x',
+      reviewerName: null,
+      languageCode: 'en',
+    })
+    expect(hash).toMatch(/^[a-f0-9]{64}$/)
   })
 })
 

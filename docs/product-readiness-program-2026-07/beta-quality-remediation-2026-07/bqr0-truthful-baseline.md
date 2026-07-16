@@ -95,18 +95,18 @@ Migrations 0009-0011 remain fully mirrored. Parity locked by `schema-migration-p
 ### Finding 3.2 — Review lifecycle columns never written
 
 **Severity:** P0  
-**Status:** **Partially remediated (BQR-1.1)** — mapper + sync path write lifecycle fields; content expiry/hash/policy still BQR-3  
-**Files:** `src/contexts/review/infrastructure/mappers/review.mapper.ts`, `sync-reviews.ts`
+**Status:** **Partially remediated (BQR-1.1 + BQR-3.1)** — mapper/sync write all lifecycle columns including `contentExpiresAt` + `contentHash`; job readers still on legacy `expiresAt` until BQR-3.2  
+**Files:** `src/contexts/review/infrastructure/mappers/review.mapper.ts`, `sync-reviews.ts`, `defaultReviewLifecycle`, `source-content-lifecycle.ts`
 
-`reviewToRow()` now includes all 7 lifecycle columns. Sync updates `lastFetchedAt` / preserves existing lifecycle on upsert. Full `content_expires_at` / hash policy and dead `source-content-lifecycle` wiring remain BQR-3.
+`reviewToRow()` includes all 7 lifecycle columns. Sync sets `lastFetchedAt`, `contentExpiresAt` (fetch + policy TTL), and `contentHash` on every successful upsert. Refresh/purge jobs still query publication-based `expiresAt` until BQR-3.2.
 
 ### Finding 3.3 — source-content-lifecycle.ts is dead code
 
 **Severity:** P1  
-**Status:** Open (deferred to BQR-3)  
+**Status:** **Partially remediated (BQR-3.1)** — write path uses `calculateContentExpiry` + `computeReviewContentHash`; classification used by jobs in BQR-3.2  
 **File:** `src/contexts/review/application/source-content-lifecycle.ts`
 
-The `fresh`/`refresh_due`/`expired` classification module is imported only by its own test. No production use case, job, or handler wires it in.
+Write path imports lifecycle helpers. Job classification (`classifyReviewsForRefresh`) remains BQR-3.2.
 
 ## 4. Review Content in Events and Denormalized Copies
 

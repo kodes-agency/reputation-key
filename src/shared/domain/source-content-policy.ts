@@ -67,3 +67,14 @@ export function createGoogleSourceContentPolicy(): SourceContentPolicy {
     policyVersion: 1,
   }
 }
+
+/**
+ * Content expiry is always derived from the last successful Google fetch
+ * (ADR 0031). Publication time must not extend or reset this clock.
+ */
+export function contentExpiresAtFromFetch(
+  lastFetchedAt: Date,
+  policy: SourceContentPolicy = createGoogleSourceContentPolicy(),
+): Date {
+  return new Date(lastFetchedAt.getTime() + policy.rawContentTtlMs)
+}

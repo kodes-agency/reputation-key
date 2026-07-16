@@ -451,7 +451,7 @@ describe('syncReviews', () => {
     })
   })
 
-  // ── expiresAt ────────────────────────────────────────────────────
+  // ── expiresAt (legacy publication clock — dual path until BQR-3.2) ──
 
   describe('expiresAt', () => {
     it('calculated per-review from reviewedAt (not from now)', async () => {
@@ -476,6 +476,80 @@ describe('syncReviews', () => {
 
       const stored = env.reviewStore.get(`${ORG_ID}:ext-1`)!
       expect(stored.expiresAt.getTime()).toBe(NOW.getTime())
+    })
+  })
+
+  // ── BQR-3.1 content lifecycle (fetch-based clock + hash) ──────────
+
+  describe('content lifecycle (BQR-3.1)', () => {
+    it('sets contentExpiresAt from fetch time, not publication time', async () => {
+      const env = createTestEnv([
+        makeGoogleReview({
+          externalId: 'ext-1',
+          rating: 5,
+          reviewedAt: daysAgo(45), // publication long ago
+        }),
+      ])
+
+      await env.sync(defaultInput)
+
+      const stored = env.reviewStore.get(`${ORG_ID}:ext-1`)!
+      expect(stored.lastFetchedAt?.getTime()).toBe(NOW.getTime())
+      expect(stored.contentExpiresAt?.getTime()).toBe(NOW.getTime() + THIRTY_DAYS_MS)
+      expect(stored.contentHash).toMatch(/^[a-f0-9]{64}$/)
+    })
+
+    it('extends contentExpiresAt and preserves firstFetchedAt on re-sync', async () => {
+      const firstFetch = daysAgo(10)
+      const env = createTestEnv([
+        makeGoogleReview({ externalId: 'ext-1', rating: 5, text: 'Great place!' }),
+      ])
+      env.seedReview(
+        makeReview({
+          externalId: 'ext-1',
+          firstFetchedAt: firstFetch,
+          lastFetchedAt: firstFetch,
+          contentExpiresAt: new Date(firstFetch.getTime() + THIRTY_DAYS_MS),
+          contentHash: 'old-hash',
+        }),
+      )
+
+      await env.sync(defaultInput)
+
+      const stored = env.reviewStore.get(`${ORG_ID}:ext-1`)!
+      expect(stored.firstFetchedAt?.getTime()).toBe(firstFetch.getTime())
+      expect(stored.lastFetchedAt?.getTime()).toBe(NOW.getTime())
+      expect(stored.contentExpiresAt?.getTime()).toBe(NOW.getTime() + THIRTY_DAYS_MS)
+      expect(stored.contentHash).not.toBe('old-hash')
+      expect(stored.contentHash).toMatch(/^[a-f0-9]{64}$/)
+    })
+
+    it('produces the same contentHash for identical source fields', async () => {
+      const env1 = createTestEnv([
+        makeGoogleReview({
+          externalId: 'ext-1',
+          rating: 4,
+          text: 'Solid',
+          reviewerName: 'A',
+          languageCode: 'en',
+        }),
+      ])
+      await env1.sync(defaultInput)
+      const hash1 = env1.reviewStore.get(`${ORG_ID}:ext-1`)!.contentHash
+
+      const env2 = createTestEnv([
+        makeGoogleReview({
+          externalId: 'ext-1',
+          rating: 4,
+          text: 'Solid',
+          reviewerName: 'A',
+          languageCode: 'en',
+        }),
+      ])
+      await env2.sync(defaultInput)
+      const hash2 = env2.reviewStore.get(`${ORG_ID}:ext-1`)!.contentHash
+
+      expect(hash1).toBe(hash2)
     })
   })
 
