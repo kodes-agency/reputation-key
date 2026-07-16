@@ -5,30 +5,25 @@ import { expect, type Page } from '@playwright/test'
 export const TEST_EMAIL = process.env.E2E_TEST_EMAIL ?? 'test@example.com'
 export const TEST_PASSWORD = process.env.E2E_TEST_PASSWORD ?? 'password123'
 
-/** Wait until the client form handlers are attached (avoids native GET submit). */
-async function waitForClientForm(page: Page): Promise<void> {
-  await page.waitForLoadState('domcontentloaded')
-  // Controlled React inputs are hydrated when the form has a non-null action
-  // handler via React's event system — proxy: form exists and a field is enabled.
-  await page.locator('form').first().waitFor({ state: 'visible' })
-  await page
-    .locator('input#login-email, input#register-email, form input')
-    .first()
-    .waitFor({
-      state: 'visible',
-    })
-  // One animation frame after visibility is usually enough for hydration in CI.
-  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => r(null))))
-}
-
-/** Sign in with the default test credentials. */
+/**
+ * Sign in via the better-auth HTTP API so Set-Cookie is applied to the browser
+ * context. UI server-fn sign-in has historically failed to propagate cookies in
+ * CI, which made every authenticated e2e suite time out for ~18 minutes.
+ */
 export async function signIn(page: Page, email = TEST_EMAIL, password = TEST_PASSWORD) {
-  await page.goto('/login')
-  await waitForClientForm(page)
-  await page.getByLabel('Email').fill(email)
-  await page.getByLabel('Password', { exact: true }).fill(password)
-  await page.getByRole('button', { name: /sign in/i }).click()
-  // Prefer dashboard; also accept other authenticated landings.
+  const response = await page.request.post('/api/auth/sign-in/email', {
+    data: { email, password },
+    headers: { 'content-type': 'application/json' },
+  })
+  if (!response.ok()) {
+    const body = await response.text()
+    throw new Error(
+      `E2E sign-in API failed (${response.status()}): ${body.slice(0, 300)}. ` +
+        `Ensure scripts/seed-e2e-user.ts ran and credentials match E2E_TEST_*.`,
+    )
+  }
+  // Cookie jar is updated; load an authenticated route.
+  await page.goto('/dashboard')
   await page.waitForURL(/\/(dashboard|properties|home|inbox)/, { timeout: 20_000 })
 }
 
@@ -39,7 +34,6 @@ export async function registerAccount(
   password = 'Password123!',
 ) {
   await page.goto('/register')
-  // Registration may redirect to /login when identity.register is off.
   await page.waitForLoadState('domcontentloaded')
   if (page.url().includes('/login')) {
     throw new Error(
@@ -47,7 +41,7 @@ export async function registerAccount(
         'Set BETA_E2E_GLOBAL_CAPABILITIES=identity.register,organization.create for e2e.',
     )
   }
-  await waitForClientForm(page)
+  await page.locator('form').first().waitFor({ state: 'visible' })
   await page.getByLabel('Full name').fill('E2E Test User')
   await page.getByLabel('Email').fill(email)
   await page.getByLabel('Organization name').fill('E2E Test Org')
