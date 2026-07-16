@@ -107,7 +107,8 @@ function ViewLink({
         'relative inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent px-2 py-1 text-sm font-medium whitespace-nowrap transition-all',
         active
           ? 'bg-background text-foreground shadow-sm'
-          : 'text-foreground/60 hover:text-foreground',
+          : // muted-foreground meets WCAG AA; foreground/60 fails axe (4.47 < 4.5)
+            'text-muted-foreground hover:text-foreground',
       )}
     >
       {children}
