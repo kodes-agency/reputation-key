@@ -1,6 +1,6 @@
 # BQR-4 — Authoritative Authorization, Privacy, and Context Containment
 
-**Status:** In progress — slice 4.2  
+**Status:** Complete — slices 4.1–4.3  
 **Depends on:** BQR-1 (architecture rules); selected BQR-2 primitives; BQR-3 complete  
 **Unblocks:** BQR-5 (user paths under real auth gates), BQR-7 pilot security evidence  
 **Estimate:** 10–16 engineering days
@@ -29,11 +29,11 @@ Every enabled production entry point authorizes through a **single `authorize()`
 
 ## PR slices
 
-| Slice       | Outcome                                                                                         | Status          |
-| ----------- | ----------------------------------------------------------------------------------------------- | --------------- |
-| **BQR-4.1** | Core surface capabilities; `requireAuthorized`; property/inbox/review servers use `authorize()` | **This branch** |
-| **BQR-4.2** | Remove `reviewerName`/`reviewText` from `review.created`/`review.updated`; consumers re-fetch   | Pending         |
-| **BQR-4.3** | Accept/align ADR 0032 & 0033; architecture tests lock authorize usage on enabled contexts       | Pending         |
+| Slice       | Outcome                                                                    | Status          |
+| ----------- | -------------------------------------------------------------------------- | --------------- |
+| **BQR-4.1** | Core surface capabilities; `requireAuthorized`; servers use authorize seam | Done (PR #201)  |
+| **BQR-4.2** | Identifier-only review.created/updated; consumers re-fetch                 | Done (PR #201)  |
+| **BQR-4.3** | ADR 0032/0033 accepted; architecture tests                                 | **This branch** |
 
 ## BQR-4.1 scope
 
