@@ -185,10 +185,22 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      # Required: composition root needs Redis to build jobQueue; without it
+      # /api/auth/* rate-limit path throws jobQueue required → sign-in 500s.
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     env:
       NODE_ENV: test
       DATABASE_URL: postgresql://test:test@localhost:5432/test
+      REDIS_URL: redis://localhost:6379
       BETTER_AUTH_SECRET: test-secret-at-least-32-characters-long-for-ci
       BETTER_AUTH_URL: http://localhost:3000
       RESEND_API_KEY: re_ci_test_key_placeholder
