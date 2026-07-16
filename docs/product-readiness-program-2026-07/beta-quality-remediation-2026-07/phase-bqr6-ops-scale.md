@@ -1,6 +1,6 @@
 # BQR-6 — Operations, Topology, Recovery, and Target-Scale Proof
 
-**Status:** In progress — slice 6.3  
+**Status:** Code/docs complete for 6.1–6.5; **staging execution human/env-gated**  
 **Depends on:** BQR-2 (durable runtime), BQR-5 (blocking experience gates)  
 **Unblocks:** BQR-7 real-property pilot  
 **Estimate:** 10–17 engineering days
@@ -13,13 +13,13 @@ Master plan §7.3 evidence pack: `docs/release-evidence/beta/<release-id>/scale-
 
 ## PR slices (planned)
 
-| Slice       | Outcome                                                                                             |
-| ----------- | --------------------------------------------------------------------------------------------------- |
-| **BQR-6.1** | Live/ready health probes + phase plan + release-evidence scaffold — **done (#205)**                 |
-| **BQR-6.2** | Worker heartbeat + BullMQ queue depths via `GET /api/health/metrics` — **done (#206)**              |
-| **BQR-6.3** | `pnpm perf:evidence` freezes SLOs/scenarios into `docs/release-evidence/beta/<id>/`                 |
-| **BQR-6.4** | Staging load/fault checklist + runbook links (execution may require human/env)                      |
-| **BQR-6.5** | Recovery rehearsal notes (backup/restore, outbox drain) — RPO/RTO claims with evidence or exception |
+| Slice       | Outcome                                                                                            |
+| ----------- | -------------------------------------------------------------------------------------------------- |
+| **BQR-6.1** | Live/ready health probes + phase plan + release-evidence scaffold — **done (#205)**                |
+| **BQR-6.2** | Worker heartbeat + BullMQ queue depths via `GET /api/health/metrics` — **done (#206)**             |
+| **BQR-6.3** | `pnpm perf:evidence` freezes SLOs/scenarios into evidence pack — **done (#207)**                   |
+| **BQR-6.4** | Staging load/fault checklist — procedure in `docs/operations/bqr6-staging-load-fault-checklist.md` |
+| **BQR-6.5** | Recovery rehearsal — procedure in `docs/operations/bqr6-recovery-rehearsal.md` (RPO/RTO)           |
 
 ## Exit criteria
 
