@@ -18,6 +18,8 @@
 // (draft/approved/published) tracks the local lifecycle. This type tracks
 // the external interaction.
 
+import { reviewError } from './errors'
+
 export type ReplyPublicationState =
   | 'idle' // no publication workflow active
   | 'publish_requested' // manager approved, outbox intent recorded
@@ -72,13 +74,18 @@ export function isValidPublicationTransition(
 
 /**
  * Assert that a transition is valid.
+ * Throws a tagged ReviewError (BQR-1.2) — never an untagged { code } object.
  */
 export function assertValidPublicationTransition(
   from: ReplyPublicationState,
   to: ReplyPublicationState,
 ): void {
   if (!isValidPublicationTransition(from, to)) {
-    throw { code: 'invalid_publication_transition', from, to } as const
+    throw reviewError(
+      'invalid_transition',
+      `Invalid reply publication transition from "${from}" to "${to}"`,
+      { from, to },
+    )
   }
 }
 

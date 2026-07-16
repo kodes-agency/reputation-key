@@ -18,6 +18,7 @@ export type IntegrationErrorCode =
   | 'encryption_error'
   | 'invalid_cache_entry'
   | 'invalid_event'
+  | 'invalid_transition'
 export type IntegrationError = Readonly<{
   _tag: 'IntegrationError'
   code: IntegrationErrorCode

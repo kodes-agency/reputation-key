@@ -1,6 +1,6 @@
 # BQR-1 — Architecture and Schema Coherence
 
-**Status:** In progress — slice 1 (schema parity 0006–0008)  
+**Status:** In progress — slice 1.1 done; 1.2 in progress  
 **Depends on:** BQR-0 containment  
 **Unblocks:** BQR-2 (durable runtime), BQR-4 (auth seams)  
 **Estimate:** 7–11 engineering days
@@ -20,10 +20,25 @@ One executable architectural rule set and one canonical persistence model that m
 
 | Slice       | Outcome                                                                                                                       | Status          |
 | ----------- | ----------------------------------------------------------------------------------------------------------------------------- | --------------- |
-| **BQR-1.1** | Drizzle represents migrations 0006–0008; domain/mapper preserve routing + review lifecycle columns; static schema-parity test | **This branch** |
-| **BQR-1.2** | Domain-error convention resolution + boundary tests (CONTEXT.md contradictions)                                               | Not started     |
+| **BQR-1.1** | Drizzle represents migrations 0006–0008; domain/mapper preserve routing + review lifecycle columns; static schema-parity test | Done (PR #189)  |
+| **BQR-1.2** | Domain-error convention resolution + boundary tests (CONTEXT.md contradictions)                                               | **This branch** |
 | **BQR-1.3** | Dependency-boundary / import-direction rules executable for application → outbox / infrastructure                             | Not started     |
 | **BQR-1.4** | Remaining schema/doc drift (ADR 0030 gap list, health metric column consumers) without dual models                            | Not started     |
+
+## BQR-1.2 scope
+
+### In
+
+- Resolve CONTEXT.md vs `shared/domain/errors.ts` contradiction (Result vs throw).
+- Lifecycle assert helpers throw **tagged** context errors only (property, integration, review).
+- Every context `domain/errors.ts` has factory + `isXxxError` (activity guard added).
+- Architecture tests: `domain-error-convention.test.ts` (module shape + ban untagged `{ code }` throws).
+
+### Out
+
+- Mass-refactor of metric constructors that throw tagged errors intentionally (documented residual).
+- Application use-case error unification (BQR-4 adjacent).
+- Event-family / outbox import boundaries (1.3).
 
 ## BQR-1.1 scope (this slice)
 
@@ -60,7 +75,7 @@ One executable architectural rule set and one canonical persistence model that m
 | ------------------------------------------------------------------- | ----------- |
 | Canonical Drizzle model matches 0006–0008 migrated objects          | Yes         |
 | Architecture/schema parity test green                               | Yes         |
-| Domain error convention coherent repo-wide                          | No (1.2)    |
+| Domain error convention coherent repo-wide                          | Yes (1.2)   |
 | Application cannot import shared outbox internals in forbidden ways | No (1.3)    |
 | No dual models for enabled paths remaining in BQR-1 scope           | Partial     |
 

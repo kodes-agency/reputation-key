@@ -19,6 +19,7 @@ export const propertyErrorStatus = (code: PropertyErrorCode): number =>
     .with('forbidden', () => HTTP_STATUS.FORBIDDEN)
     .with('property_not_found', () => HTTP_STATUS.NOT_FOUND)
     .with('slug_taken', () => HTTP_STATUS.CONFLICT)
+    .with('property_not_active', 'invalid_transition', () => HTTP_STATUS.CONFLICT)
     .with(
       'invalid_slug',
       'invalid_name',

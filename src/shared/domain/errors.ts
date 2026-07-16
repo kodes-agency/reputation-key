@@ -1,17 +1,19 @@
 // Base tagged error shape — conventions for error handling across all contexts.
+// Authoritative layer table: src/contexts/CONTEXT.md § Error pattern (BQR-1.2).
 //
 // Every domain error follows this shape:
 //   { _tag: 'XxxError', code: '<reason>', message: string, context?: Readonly<Record<string, unknown>> }
 //
 // Errors are built via smart constructors (e.g., portalError, reviewError).
-// Domain functions return Result<T, DomainError>. Application layer throws.
+// Domain pure functions prefer Result<T, XxxError>. Application layer throws.
+// Domain assert helpers may throw the same tagged shape only (never plain Error / untagged { code }).
 // Server functions catch tagged errors and pattern-match on _tag/code → HTTP.
 //
 // Per conventions:
-// - No throw in domain; return Result instead.
-// - Throw tagged errors at the application boundary.
-// - Server functions translate tagged errors to HTTP using match().exhaustive().
-// - No plain Error objects. Ever.
+// - No plain Error in domain/application for business failures.
+// - Prefer Result in pure domain; throw tagged errors at the application boundary.
+// - ADR 0005 hybrid (Error & tagged) is allowed for stack/logging where needed (e.g. integration).
+// - Server functions translate tagged errors to HTTP (throwContextError).
 
 // fallow-ignore-next-line unused-type
 export type TaggedError<

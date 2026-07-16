@@ -1,6 +1,6 @@
 # Beta Quality Remediation Program — July 2026
 
-**Status:** BQR-0 in PR; BQR-1.1 schema parity in progress  
+**Status:** BQR-0 in PR; BQR-1.1 + BQR-1.2 in flight  
 **Purpose:** Bring the current codebase to an evidence-backed internal beta standard after the July 2026 implementation review  
 **Applies before:** Any real-property pilot, Phase 17, Phase 18, or post-beta capability activation
 
@@ -21,7 +21,7 @@ Primary-source research for this program may be added as `primary-source-researc
 | Phase | Status                                                                    | Notes                                                                     |
 | ----- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
 | BQR-0 | **In PR** [#188](https://github.com/kodes-agency/reputation-key/pull/188) | Outbox dispatch off; dark server fns + jobs contained; baseline inventory |
-| BQR-1 | **1.1 in progress**                                                       | Schema parity 0006–0008; slices 1.2–1.4 planned                           |
+| BQR-1 | **1.1 + 1.2 in PRs**                                                      | Schema parity; domain-error convention                                    |
 | BQR-2 | Not started                                                               | Atomic outbox, consumers, envelope fix                                    |
 | BQR-3 | Not started                                                               | Source lifecycle, region routing                                          |
 | BQR-4 | Not started                                                               | Authoritative authorize(), tenancy, privacy                               |

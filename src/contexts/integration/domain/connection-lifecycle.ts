@@ -16,6 +16,8 @@
 // - disconnected:      Terminal — tokens revoked, sync stopped, connection inert
 // - failed:            Terminal — connection failed permanently (wrong account, scope mismatch)
 
+import { integrationError } from './errors'
+
 export type ConnectionState =
   | 'pending'
   | 'active'
@@ -72,13 +74,19 @@ export function isValidConnectionTransition(
 
 /**
  * Assert that a transition is valid.
+ * Throws a tagged IntegrationError (BQR-1.2) — never an untagged { code } object.
  */
 export function assertValidConnectionTransition(
   from: ConnectionState,
   to: ConnectionState,
 ): void {
   if (!isValidConnectionTransition(from, to)) {
-    throw { code: 'invalid_transition', from, to } as const
+    throw integrationError(
+      'invalid_transition',
+      `Invalid connection lifecycle transition from "${from}" to "${to}"`,
+      false,
+      { from, to },
+    )
   }
 }
 

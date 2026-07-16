@@ -75,8 +75,16 @@ describe('property-lifecycle (B1.5)', () => {
       expect(() => assertValidTransition('active', 'suspended')).not.toThrow()
     })
 
-    it('throws for invalid transitions', () => {
-      expect(() => assertValidTransition('active', 'purged')).toThrow()
+    it('throws tagged PropertyError for invalid transitions (BQR-1.2)', () => {
+      try {
+        assertValidTransition('active', 'purged')
+        expect.fail('expected throw')
+      } catch (e) {
+        expect(e).toMatchObject({
+          _tag: 'PropertyError',
+          code: 'invalid_transition',
+        })
+      }
     })
   })
 
@@ -85,8 +93,16 @@ describe('property-lifecycle (B1.5)', () => {
       expect(() => assertCanPerformExternalEffect('active')).not.toThrow()
     })
 
-    it('throws for suspended', () => {
-      expect(() => assertCanPerformExternalEffect('suspended')).toThrow()
+    it('throws tagged PropertyError for suspended (BQR-1.2)', () => {
+      try {
+        assertCanPerformExternalEffect('suspended')
+        expect.fail('expected throw')
+      } catch (e) {
+        expect(e).toMatchObject({
+          _tag: 'PropertyError',
+          code: 'property_not_active',
+        })
+      }
     })
 
     it('throws for archived', () => {
