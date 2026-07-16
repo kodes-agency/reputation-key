@@ -246,6 +246,9 @@ function main() {
   )
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+// tsx / node entry — compare file URLs so the catalog prints when invoked
+// as `pnpm perf:catalog` / `tsx scripts/perf/load-test.ts`.
+import { pathToFileURL } from 'node:url'
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main()
 }
