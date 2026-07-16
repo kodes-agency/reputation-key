@@ -9,8 +9,7 @@ import { trace } from '#/shared/observability/trace'
 import { inboxItemStatusChanged } from '../../domain/events'
 import { unbrand } from '#/shared/domain/ids'
 import { validateTransition } from '../../domain/rules'
-import { emitAndRecord } from '#/shared/outbox/emit-and-record'
-import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
+import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
 
 export type OnReplyPublishedDeps = Readonly<{
   repo: InboxRepository

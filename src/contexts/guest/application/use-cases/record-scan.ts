@@ -10,8 +10,7 @@ import type { ScanSource } from '../../domain/types'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { guestScanRecorded } from '../../domain/events'
 import { buildScanEvent } from '../../domain/constructors'
-import { emitAndRecord } from '#/shared/outbox/emit-and-record'
-import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
+import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
 
 export type RecordScanDeps = Readonly<{
   guestRepo: GuestInteractionRepository

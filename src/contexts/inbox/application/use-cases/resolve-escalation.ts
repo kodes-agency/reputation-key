@@ -12,8 +12,7 @@ import { canForContext } from '#/shared/domain/permissions'
 import { inboxItemEscalationResolved } from '../../domain/events'
 import { inboxError } from '../../domain/errors'
 import { loadInboxItemOrThrow, assertPropertyAccessible } from '../inbox-access'
-import { emitAndRecord } from '#/shared/outbox/emit-and-record'
-import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
+import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
 
 export type ResolveEscalationInput = Readonly<{
   inboxItemId: InboxItemId

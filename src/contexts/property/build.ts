@@ -17,8 +17,7 @@ import { getProperty } from './application/use-cases/get-property'
 import { deleteProperty } from './application/use-cases/soft-delete-property'
 import { propertyId } from '#/shared/domain/ids'
 import { randomUUID } from 'crypto'
-import { emitAndRecord } from '#/shared/outbox/emit-and-record'
-import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
+import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
 
 type PropertyContextDeps = Readonly<{
   repo: PropertyRepository

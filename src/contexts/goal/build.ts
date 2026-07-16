@@ -30,7 +30,7 @@ export type GoalContextBuildInput = Readonly<{
   db: Database
   metricApi: MetricPublicApi
   events: EventBus
-  outboxRepo?: import('#/shared/outbox/infrastructure/outbox-repository').OutboxRepository
+  outboxRepo?: import('#/shared/outbox').OutboxRepository
   clock: () => Date
   idGen: () => string
   staffPublicApi: StaffPublicApi

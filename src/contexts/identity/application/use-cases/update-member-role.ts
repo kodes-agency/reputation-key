@@ -15,8 +15,7 @@ import { identityError } from '../../domain/errors'
 import { identityMemberRoleChanged } from '../../domain/events'
 import { userId as toUserId } from '#/shared/domain/ids'
 import type { UpdateMemberRoleInput } from '../dto/invitation.dto'
-import { emitAndRecord } from '#/shared/outbox/emit-and-record'
-import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
+import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
 export type { UpdateMemberRoleInput }
 
 // fallow-ignore-next-line unused-type

@@ -13,8 +13,7 @@ import { propertyError } from '../../domain/errors'
 import { propertyUpdated } from '../../domain/events'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
-import { emitAndRecord } from '#/shared/outbox/emit-and-record'
-import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
+import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
 
 // fallow-ignore-next-line unused-type
 export type UpdatePropertyDeps = Readonly<{

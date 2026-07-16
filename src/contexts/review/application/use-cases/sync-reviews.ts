@@ -34,7 +34,7 @@ import { reviewCreated, reviewUpdated, reviewReplyPublished } from '../../domain
 import { reviewError } from '../../domain/errors'
 import { calculateExpiresAt, MAX_REPLY_LENGTH } from '../../domain/rules'
 import { ok, err, type Result } from '#/shared/domain'
-import { emitAndRecord } from '#/shared/outbox/emit-and-record'
+import { emitAndRecord } from '#/shared/outbox'
 
 export type SyncReviewsDeps = Readonly<{
   reviewRepo: ReviewRepository
@@ -46,7 +46,7 @@ export type SyncReviewsDeps = Readonly<{
   replyIdGen: () => ReplyId
   logger: LoggerPort
   /** Outbox repository for durable event recording (PRE17A A4 expand phase). */
-  outboxRepo?: import('#/shared/outbox/infrastructure/outbox-repository').OutboxRepository
+  outboxRepo?: import('#/shared/outbox').OutboxRepository
 }>
 
 export type SyncReviewsInput = Readonly<{

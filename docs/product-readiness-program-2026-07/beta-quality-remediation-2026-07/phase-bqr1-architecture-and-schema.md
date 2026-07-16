@@ -1,6 +1,6 @@
 # BQR-1 — Architecture and Schema Coherence
 
-**Status:** In progress — slice 1.1 done; 1.2 in progress  
+**Status:** In progress — slices 1.1–1.2 merged; 1.3 in progress  
 **Depends on:** BQR-0 containment  
 **Unblocks:** BQR-2 (durable runtime), BQR-4 (auth seams)  
 **Estimate:** 7–11 engineering days
@@ -21,9 +21,24 @@ One executable architectural rule set and one canonical persistence model that m
 | Slice       | Outcome                                                                                                                       | Status          |
 | ----------- | ----------------------------------------------------------------------------------------------------------------------------- | --------------- |
 | **BQR-1.1** | Drizzle represents migrations 0006–0008; domain/mapper preserve routing + review lifecycle columns; static schema-parity test | Done (PR #189)  |
-| **BQR-1.2** | Domain-error convention resolution + boundary tests (CONTEXT.md contradictions)                                               | **This branch** |
-| **BQR-1.3** | Dependency-boundary / import-direction rules executable for application → outbox / infrastructure                             | Not started     |
+| **BQR-1.2** | Domain-error convention resolution + boundary tests (CONTEXT.md contradictions)                                               | Done (PR #190)  |
+| **BQR-1.3** | Dependency-boundary / import-direction rules executable for application → outbox / infrastructure                             | **This branch** |
 | **BQR-1.4** | Remaining schema/doc drift (ADR 0030 gap list, health metric column consumers) without dual models                            | Not started     |
+
+## BQR-1.3 scope
+
+### In
+
+- Public outbox barrel `#/shared/outbox` (`emitAndRecord`, `OutboxRepository` type).
+- Application + context `build.ts` import only the public surface (no `infrastructure/`, `relay`, `dispatcher`, `event-adapter`).
+- ESLint: application/domain restricted-imports for forbidden outbox paths; boundaries elements for outbox infra/runtime.
+- Architecture test: `outbox-import-boundary.test.ts`.
+
+### Out
+
+- Atomic outbox / envelope fix (BQR-2).
+- Moving `emitAndRecord` into per-context command stores (BQR-2 vertical slices).
+- Domain pure modules remaining free of outbox (already enforced).
 
 ## BQR-1.2 scope
 
@@ -76,7 +91,7 @@ One executable architectural rule set and one canonical persistence model that m
 | Canonical Drizzle model matches 0006–0008 migrated objects          | Yes         |
 | Architecture/schema parity test green                               | Yes         |
 | Domain error convention coherent repo-wide                          | Yes (1.2)   |
-| Application cannot import shared outbox internals in forbidden ways | No (1.3)    |
+| Application cannot import shared outbox internals in forbidden ways | Yes (1.3)   |
 | No dual models for enabled paths remaining in BQR-1 scope           | Partial     |
 
 ## Residual

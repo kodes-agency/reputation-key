@@ -66,7 +66,7 @@ export type BadgeContextApi = Readonly<{
 export type BuildBadgeContextDeps = Readonly<{
   db: Database
   events: EventBus
-  outboxRepo?: import('#/shared/outbox/infrastructure/outbox-repository').OutboxRepository
+  outboxRepo?: import('#/shared/outbox').OutboxRepository
   clock: () => Date
   metricApi: MetricPublicApi
 }>

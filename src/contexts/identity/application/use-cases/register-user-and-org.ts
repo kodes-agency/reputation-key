@@ -10,8 +10,7 @@ import {
   organizationId as toOrganizationId,
   userId as toUserId,
 } from '#/shared/domain/ids'
-import { emitAndRecord } from '#/shared/outbox/emit-and-record'
-import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
+import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
 /** Minimal logger surface this use case needs for compensating-transaction
  * diagnostics. Injected (not imported from shared/observability) so the
  * application layer stays free of infrastructure dependencies. */
