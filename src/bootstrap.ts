@@ -10,6 +10,7 @@ import { createHealthCheckHandler, JOB_NAME } from '#/shared/jobs/health-check.j
 import { isDbHealthy } from '#/shared/db'
 import { isRedisHealthy } from '#/shared/cache/redis'
 import { getLogger } from '#/shared/observability/logger'
+import { isCapabilityJobEnabled, type Capability } from '#/shared/auth/beta-capabilities'
 import {
   createProcessImageJob,
   JOB_NAME as PROCESS_IMAGE_JOB_NAME,
@@ -43,6 +44,33 @@ import { activityLogId, replyId } from '#/shared/domain/ids'
 export async function bootstrap(container: Container): Promise<void> {
   const logger = getLogger()
 
+  /**
+   * BQR-0: Register a job only when its capability is globally enabled.
+   * When dark/blocked, register a no-op so leftover Redis repeatable jobs
+   * drain harmlessly instead of executing dark work.
+   */
+  function registerCapabilityGatedJob(
+    jobName: string,
+    capability: Capability,
+    handler: (job: import('bullmq').Job) => Promise<void>,
+  ): void {
+    if (!isCapabilityJobEnabled(capability)) {
+      container.jobRegistry.register(jobName, async () => {
+        logger.info(
+          { job: jobName, capability },
+          'BQR-0: skipping dark/blocked capability job',
+        )
+      })
+      logger.info(
+        { job: jobName, capability },
+        'registered no-op job handler (capability dark/blocked)',
+      )
+      return
+    }
+    container.jobRegistry.register(jobName, handler)
+    logger.info({ job: jobName, capability }, 'registered capability-gated job handler')
+  }
+
   // ── Register background job handlers ─────────────────────────────
   const healthCheckHandler = createHealthCheckHandler({
     dbHealthy: isDbHealthy,
@@ -58,20 +86,19 @@ export async function bootstrap(container: Container): Promise<void> {
   })
   logger.info({ job: JOB_NAME }, 'registered health-check job handler')
 
-  // ── Portal image processing job ──────────────────────────────────
+  // ── Portal image processing job (portal dark / portal.upload blocked) ──
   const processImageHandler = createProcessImageJob({
     storage: container.storage,
     portalRepo: container.portalRepo,
     clock: container.clock,
   })
-  container.jobRegistry.register(PROCESS_IMAGE_JOB_NAME, async (job) => {
+  registerCapabilityGatedJob(PROCESS_IMAGE_JOB_NAME, 'portal.upload', async (job) => {
     await processImageHandler(
       job as import('bullmq').Job<
         import('#/contexts/portal/infrastructure/jobs/process-image.job').ProcessImageJobData
       >,
     )
   })
-  logger.info({ job: PROCESS_IMAGE_JOB_NAME }, 'registered process-image job handler')
 
   // ── GBP property import job ─────────────────────────────────────
   const importHandler = createImportPropertyHandler({
@@ -176,7 +203,7 @@ export async function bootstrap(container: Container): Promise<void> {
   // (composition.ts) so they're available in both web server and worker.
   // No separate registration needed here.
 
-  // ── Goal reconciliation job ────────────────────────────────────────
+  // ── Goal reconciliation job (goal.use dark) ────────────────────────
   const { createReconcileGoalProgressHandler, RECONCILE_GOAL_JOB_NAME } =
     await import('#/contexts/goal/infrastructure/jobs/reconcile-goal-progress.job')
   const reconcileHandler = createReconcileGoalProgressHandler({
@@ -185,15 +212,11 @@ export async function bootstrap(container: Container): Promise<void> {
     events: container.eventBus,
     clock: container.clock,
   })
-  container.jobRegistry.register(RECONCILE_GOAL_JOB_NAME, async (job): Promise<void> => {
+  registerCapabilityGatedJob(RECONCILE_GOAL_JOB_NAME, 'goal.use', async (job) => {
     await reconcileHandler(job)
   })
-  logger.info(
-    { job: RECONCILE_GOAL_JOB_NAME },
-    'registered goal reconciliation job handler',
-  )
 
-  // ── Goal recurring instance spawner job ────────────────────────────
+  // ── Goal recurring instance spawner job (goal.use dark) ────────────
   const { createSpawnRecurringInstancesHandler, SPAWN_RECURRING_JOB_NAME } =
     await import('#/contexts/goal/infrastructure/jobs/spawn-recurring-instances.job')
   const spawnHandler = createSpawnRecurringInstancesHandler({
@@ -202,13 +225,9 @@ export async function bootstrap(container: Container): Promise<void> {
     clock: container.clock,
     idGen: () => crypto.randomUUID(),
   })
-  container.jobRegistry.register(SPAWN_RECURRING_JOB_NAME, async (job): Promise<void> => {
+  registerCapabilityGatedJob(SPAWN_RECURRING_JOB_NAME, 'goal.use', async (job) => {
     await spawnHandler(job)
   })
-  logger.info(
-    { job: SPAWN_RECURRING_JOB_NAME },
-    'registered goal recurring spawner job handler',
-  )
 
   // ── Activity log insertion job ────────────────────────────────────
   const { createInsertActivityLogHandler, INSERT_ACTIVITY_LOG_JOB_NAME } =
@@ -269,6 +288,7 @@ export async function bootstrap(container: Container): Promise<void> {
     'registered insert-notification job handler',
   )
 
+  // Outbound email is blocked (notification.send_email) for beta.
   const { createUrgentEmailJobHandler, URGENT_EMAIL_JOB_NAME } =
     await import('#/contexts/notification/infrastructure/jobs/urgent-email.job')
   const urgentEmailHandler = createUrgentEmailJobHandler({
@@ -279,14 +299,17 @@ export async function bootstrap(container: Container): Promise<void> {
     logger: container.logger,
     clock: container.clock,
   })
-  container.jobRegistry.register(URGENT_EMAIL_JOB_NAME, async (job) => {
-    await urgentEmailHandler(
-      job as import('bullmq').Job<
-        import('#/contexts/notification/infrastructure/jobs/urgent-email.job').UrgentEmailJobData
-      >,
-    )
-  })
-  logger.info({ job: URGENT_EMAIL_JOB_NAME }, 'registered urgent-email job handler')
+  registerCapabilityGatedJob(
+    URGENT_EMAIL_JOB_NAME,
+    'notification.send_email',
+    async (job) => {
+      await urgentEmailHandler(
+        job as import('bullmq').Job<
+          import('#/contexts/notification/infrastructure/jobs/urgent-email.job').UrgentEmailJobData
+        >,
+      )
+    },
+  )
 
   const { createDigestNotificationJobHandler, DIGEST_JOB_NAME } =
     await import('#/contexts/notification/infrastructure/jobs/digest-notification.job')
@@ -300,30 +323,27 @@ export async function bootstrap(container: Container): Promise<void> {
     logger: container.logger,
     clock: container.clock,
   })
-  container.jobRegistry.register(DIGEST_JOB_NAME, async (job) => {
+  registerCapabilityGatedJob(DIGEST_JOB_NAME, 'notification.send_email', async (job) => {
     await digestHandler(job as import('bullmq').Job<void>)
   })
-  logger.info({ job: DIGEST_JOB_NAME }, 'registered digest-notification job handler')
 
   // ── Seed system badge definitions ────────────────────────────────
+  // Seeding is idempotent domain data used by the recognition model; it does
+  // not evaluate awards. Safe to run while badge.use is dark.
   try {
     await container.useCases.seedBadgeDefinitions()
     logger.info('seeded system badge definitions')
   } catch (e) {
     logger.error({ err: e }, 'failed to seed badge definitions')
   }
-  // ── Badge reconciliation job ──────────────────────────────────────
-  container.jobRegistry.register('badge.reconcile', async () => {
+
+  // ── Badge reconciliation job (badge.use dark) ─────────────────────
+  registerCapabilityGatedJob('badge.reconcile', 'badge.use', async () => {
     await container.useCases.reconcileBadgeDefinitions({})
   })
-  logger.info({ job: 'badge.reconcile' }, 'registered badge reconciliation job handler')
 
-  // ── Leaderboard reconciliation job ────────────────────────────────
-  container.jobRegistry.register('leaderboard.reconcile', async () => {
+  // ── Leaderboard reconciliation job (leaderboard.use dark) ─────────
+  registerCapabilityGatedJob('leaderboard.reconcile', 'leaderboard.use', async () => {
     await container.useCases.reconcileLeaderboards()
   })
-  logger.info(
-    { job: 'leaderboard.reconcile' },
-    'registered leaderboard reconciliation job handler',
-  )
 }

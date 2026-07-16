@@ -34,6 +34,13 @@ vi.mock('#/shared/auth/middleware', () => ({
   clearTenantCache: vi.fn(),
 }))
 
+// BQR-0: portal.read is non-core; handler tests assert use-case wiring, not capability policy.
+vi.mock('#/shared/auth/beta-capabilities', () => ({
+  assertBetaCapability: vi.fn(),
+  assertGlobalCapability: vi.fn(),
+  BetaCapabilityError: class BetaCapabilityError extends Error {},
+}))
+
 vi.mock('#/composition', () => ({
   getContainer: vi.fn(() => ({
     useCases: {

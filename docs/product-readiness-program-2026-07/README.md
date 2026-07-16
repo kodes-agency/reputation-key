@@ -40,7 +40,8 @@ This folder contains the AI, PRE17, beta-readiness, Google-policy, and post-beta
 
 - [Program index](beta-quality-remediation-2026-07/README.md)
 - [Master plan](beta-quality-remediation-2026-07/master-plan.md)
-- [Primary-source research](beta-quality-remediation-2026-07/primary-source-research.md)
+- [BQR-0 phase + exit matrix](beta-quality-remediation-2026-07/phase-bqr0-containment-and-rebaseline.md)
+- [BQR-0 truthful baseline](beta-quality-remediation-2026-07/bqr0-truthful-baseline.md)
 
 ## Post-beta product completion
 

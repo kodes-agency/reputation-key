@@ -1,6 +1,6 @@
 # Beta Quality Remediation Program — July 2026
 
-**Status:** Proposed; implementation has not started  
+**Status:** BQR-0 containment complete (branch / PR); BQR-1 not started  
 **Purpose:** Bring the current codebase to an evidence-backed internal beta standard after the July 2026 implementation review  
 **Applies before:** Any real-property pilot, Phase 17, Phase 18, or post-beta capability activation
 
@@ -8,24 +8,41 @@ This program corrects the gap between code that has been added and capabilities 
 
 ## Reading order
 
-1. [Primary-source research](primary-source-research.md)
-2. [Master plan](master-plan.md)
-3. [BQR-0 — contain, inventory, and rebaseline](phase-bqr0-containment-and-rebaseline.md)
-4. [BQR-1 — restore architectural and schema coherence](phase-bqr1-architecture-and-schema.md)
-5. [BQR-2 — durable commands, events, jobs, and external workflows](phase-bqr2-durable-runtime.md)
-6. [BQR-3 — Google review lifecycle and property-region routing](phase-bqr3-review-and-region.md)
-7. [BQR-4 — authorization, security, privacy, and context activation](phase-bqr4-security-and-capabilities.md)
-8. [BQR-5 — experience, accessibility, performance, and test gates](phase-bqr5-experience-and-verification.md)
-9. [BQR-6 — production topology, observability, recovery, and scale](phase-bqr6-operations-and-scale.md)
-10. [BQR-7 — real-property pilot and beta acceptance](phase-bqr7-pilot-and-acceptance.md)
+1. [Master plan](master-plan.md) — program outcomes, principles, phases, gates
+2. [BQR-0 phase plan + exit matrix](phase-bqr0-containment-and-rebaseline.md)
+3. [BQR-0 truthful baseline](bqr0-truthful-baseline.md) — inventory and open P0/P1 findings
+4. Later phases (planned; detailed docs written when each phase starts):
+   - BQR-1 — architecture and schema
+   - BQR-2 — durable runtime
+   - BQR-3 — review lifecycle and region
+   - BQR-4 — security and capabilities
+   - BQR-5 — experience and verification
+   - BQR-6 — operations and scale
+   - BQR-7 — pilot and acceptance
+
+Primary-source research for this program may be added as `primary-source-research.md` when external citations are re-gathered; until then the July PRE17/beta research under the parent folder remains the reference set.
+
+## Progress
+
+| Phase | Status             | Notes                                                                     |
+| ----- | ------------------ | ------------------------------------------------------------------------- |
+| BQR-0 | **Done on branch** | Outbox dispatch off; dark server fns + jobs contained; baseline inventory |
+| BQR-1 | Not started        | Schema drift 0006–0008, architecture rules                                |
+| BQR-2 | Not started        | Atomic outbox, consumers, envelope fix                                    |
+| BQR-3 | Not started        | Source lifecycle, region routing                                          |
+| BQR-4 | Not started        | Authoritative authorize(), tenancy, privacy                               |
+| BQR-5 | Not started        | Blocking a11y/E2E/Storybook                                               |
+| BQR-6 | Not started        | Topology, recovery, scale proof                                           |
+| BQR-7 | Not started        | Real-property pilot                                                       |
 
 ## Authority and relationship to earlier plans
 
-- Accepted ADRs and verified production behavior remain authoritative.
-- Repository `CONTEXT.md` files remain authoritative where they are internally consistent. BQR-1 resolves the current contradiction around domain errors before broad refactoring.
-- This program supersedes any statement that PRE17 or internal beta is already complete. It does not replace the product intent in the existing PRE17, beta-readiness, AI-governance, or post-beta plans.
-- The post-beta plans remain future product programs. Their currently unwired domain prototypes and migration must not be treated as active beta behavior.
-- Google's written response remains the authority for Google-source processing, together with the conservative executable interpretation recorded in ADR 0031 and the AI-governance standards.
+- Accepted ADRs and verified production behavior remain authoritative where not superseded.
+- BQR master plan §4 beta capability posture supersedes ADR 0032’s listing of `portal.read` as core until ADR 0032 is revised (tracked residual in BQR-0 exit matrix).
+- Repository `CONTEXT.md` files remain authoritative where internally consistent. BQR-1 resolves domain-error contradictions before broad refactoring.
+- This program supersedes any statement that PRE17 or internal beta is already complete. It does not replace product intent in existing PRE17, beta-readiness, AI-governance, or post-beta plans.
+- Post-beta plans remain future product programs. Unwired domain prototypes and migrations must not be treated as active beta behavior.
+- Google's written response remains the authority for Google-source processing, with ADR 0031 and AI-governance standards.
 
 ## Definition of “working”
 

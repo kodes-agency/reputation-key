@@ -40,13 +40,16 @@ export type Capability =
 /**
  * Core capabilities are ON by default for all authenticated users in beta.
  * These represent the minimum viable product surface.
+ *
+ * BQR-0 (2026-07): `portal.read` was removed from core. Portal and Guest are
+ * dark for internal beta (master plan §4). They remain non-core (off unless
+ * explicitly allowlisted) so promotion is possible after BQR-4 / post-beta gates.
  */
 const CORE_CAPABILITIES: ReadonlySet<Capability> = new Set<Capability>([
   'identity.invite',
   'property.create',
   'property.connect_gbp',
   'property.publish_reply',
-  'portal.read',
 ])
 
 /**
@@ -315,3 +318,29 @@ export function isCoreCapability(cap: Capability): boolean {
 export function isBlockedCapability(cap: Capability): boolean {
   return BLOCKED_CAPABILITIES.has(cap)
 }
+
+/**
+ * Worker/schedule gate: true only when the capability is globally enabled
+ * (core, not killed). Non-core and blocked capabilities return false — even
+ * if individual orgs are allowlisted for interactive server functions.
+ *
+ * BQR-0: dark-context jobs must not schedule or run until their capability is
+ * promoted to core (or an explicit later job-enablement path exists).
+ */
+export function isCapabilityJobEnabled(capability: Capability): boolean {
+  return checkGlobalCapability(capability).allowed
+}
+
+/**
+ * Dark beta contexts and the capability that must be asserted on every
+ * production entry path (server functions, jobs, schedules).
+ * Kept here so architecture tests and worker containment share one list.
+ */
+export const DARK_CONTEXT_CAPABILITIES = {
+  team: 'team.use',
+  portal: 'portal.read',
+  guest: 'portal.read',
+  goal: 'goal.use',
+  badge: 'badge.use',
+  leaderboard: 'leaderboard.use',
+} as const satisfies Readonly<Record<string, Capability>>

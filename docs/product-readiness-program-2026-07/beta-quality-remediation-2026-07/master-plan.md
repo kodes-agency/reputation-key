@@ -1,6 +1,6 @@
 # Beta Quality Remediation — Master Plan
 
-**Status:** Proposed  
+**Status:** Active — BQR-0 containment complete on branch; BQR-1 next  
 **Date:** 2026-07-16  
 **Target:** Internal beta with real, allowlisted US properties  
 **Scale model:** 5,000 properties and 500,000 new reviews/month  
