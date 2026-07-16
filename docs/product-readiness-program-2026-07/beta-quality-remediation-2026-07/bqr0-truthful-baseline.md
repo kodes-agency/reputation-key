@@ -11,14 +11,12 @@
 ### Finding 1.1 — `emitAndRecord()` is non-atomic
 
 **Severity:** P0  
-**Status:** Open (deferred to BQR-2); **contained** — durable dispatch off by default  
-**File:** `src/shared/outbox/emit-and-record.ts`
+**Status:** **Partially remediated (BQR-2.3)** — review sync `created`/`updated` use atomic `ReviewCommandStore`; other families still on `emitAndRecord`  
+**Files:** `src/contexts/review/infrastructure/review-command-store.ts`, `sync-reviews.ts`; residual `src/shared/outbox/emit-and-record.ts`
 
-The function performs two independent awaits: `events.emit(event)` (in-process bus) then `outboxRepo.insert(...)`. The outbox insert is NOT enrolled in the source context's transaction. A crash between the business commit and the outbox insert loses the event permanently.
+`emitAndRecord` still performs two independent awaits (in-process bus then outbox insert) and is **not** enrolled in the source context's transaction.
 
-The function's own JSDoc admits this: _"The outbox insert is NOT yet atomic with the business write."_
-
-All ~15 emitting use cases follow the same pattern: business write → separate `emitAndRecord()` call.
+**BQR-2.3 tracer bullet:** review sync commits the review row and `outbox_events` row in one PostgreSQL transaction via `createAtomicReviewCommandStore`, then emits on the bus after commit. Remaining producers (replies, purge, guest, badge, …) still use non-atomic `emitAndRecord` until later slices.
 
 ### Finding 1.2 — Relay/dispatcher envelope mismatch
 

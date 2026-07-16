@@ -9,6 +9,7 @@ import type { ReplyRepository } from '../ports/reply.repository'
 import type { GoogleReviewApiPort } from '../ports/google-review-api.port'
 import type { EventBus } from '#/shared/events/event-bus'
 import { createMockLogger } from '#/shared/testing/mock-logger'
+import type { ReviewCommandStore } from '../ports/review-command-store.port'
 import type { Review, GoogleReview, Reply } from '../../domain/types'
 import { MAX_REPLY_LENGTH } from '../../domain/rules'
 import {
@@ -192,6 +193,19 @@ function createTestEnv(googleReviews: ReadonlyArray<GoogleReview> = []) {
     replyToReview: vi.fn(async () => {}),
   }
 
+  // In-process fake of ReviewCommandStore (application zone must not import infra).
+  const commandStore: ReviewCommandStore = {
+    upsertAndRecord: async (review, event, now) => {
+      const saved = await reviewRepo.upsert(review, now)
+      try {
+        await events.emit(event)
+      } catch {
+        // Best-effort bus (matches production post-commit semantics)
+      }
+      return saved
+    },
+  }
+
   const deps: SyncReviewsDeps = {
     reviewRepo,
     replyRepo,
@@ -201,6 +215,7 @@ function createTestEnv(googleReviews: ReadonlyArray<GoogleReview> = []) {
     idGen,
     replyIdGen,
     logger: createMockLogger(),
+    commandStore,
   }
 
   return {
@@ -508,7 +523,7 @@ describe('syncReviews', () => {
       expect(env.emittedEvents).toHaveLength(0)
     })
 
-    it('events.emit throws → error caught, already-persisted reviews remain, returns Err', async () => {
+    it('events.emit throws → durable upsert still succeeds (bus is best-effort after commit)', async () => {
       const env = createTestEnv([
         makeGoogleReview({ externalId: 'ext-1', rating: 5 }),
         makeGoogleReview({ externalId: 'ext-2', rating: 4 }),
@@ -525,19 +540,19 @@ describe('syncReviews', () => {
 
       const result = await env.sync(defaultInput)
 
-      // Partial failure → Ok with partialFailure flag
+      // BQR-2.3: after atomic commit, in-process emit is best-effort. Both
+      // reviews remain durable; second emit failure is logged, not a failed sync.
       expect(result.isOk()).toBe(true)
       if (result.isOk()) {
-        expect(result.value.partialFailure).toBe(true)
         expect(result.value).toMatchObject({
           fetched: 2,
           created: 2,
           updated: 0,
           repliesMirrored: 0,
-          failed: 1,
+          failed: 0,
+          partialFailure: false,
         })
       }
-      // Both reviews were upserted before emit was called for each
       expect(env.reviewStore.has(`${ORG_ID}:ext-1`)).toBe(true)
       expect(env.reviewStore.has(`${ORG_ID}:ext-2`)).toBe(true)
       expect(env.emittedEvents).toHaveLength(1)

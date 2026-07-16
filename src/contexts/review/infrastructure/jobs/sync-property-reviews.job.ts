@@ -5,41 +5,17 @@ import type { Job } from 'bullmq'
 
 export const JOB_NAME = 'sync-property-reviews' as const
 import type { SyncPropertyReviewsJobData } from '../../application/ports/review-queue.port'
-import type { ReviewRepository } from '../../application/ports/review.repository'
-import type { ReplyRepository } from '../../application/ports/reply.repository'
-import type { GoogleReviewApiPort } from '../../application/ports/google-review-api.port'
-import type { EventBus } from '#/shared/events/event-bus'
-import { syncReviews } from '../../application/use-cases/sync-reviews'
-import {
-  reviewId,
-  propertyId,
-  organizationId,
-  googleConnectionId,
-  replyId,
-} from '#/shared/domain/ids'
+import type { syncReviews } from '../../application/use-cases/sync-reviews'
+import { propertyId, organizationId, googleConnectionId } from '#/shared/domain/ids'
 import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
 
 type SyncHandlerDeps = Readonly<{
-  reviewRepo: ReviewRepository
-  replyRepo: ReplyRepository
-  googleReviewApi: GoogleReviewApiPort
-  events: EventBus
-  clock: () => Date
+  /** Pre-wired use case from composition (includes BQR-2.3 command store). */
+  syncReviews: ReturnType<typeof syncReviews>
 }>
 
 export const createSyncPropertyReviewsHandler = (deps: SyncHandlerDeps) => {
-  const sync = syncReviews({
-    reviewRepo: deps.reviewRepo,
-    replyRepo: deps.replyRepo,
-    googleReviewApi: deps.googleReviewApi,
-    events: deps.events,
-    clock: deps.clock,
-    idGen: () => reviewId(crypto.randomUUID()),
-    replyIdGen: () => replyId(crypto.randomUUID()),
-    logger: getLogger(),
-  })
-
   return async (job: Job<SyncPropertyReviewsJobData>) => {
     return trace('job.syncPropertyReviews', async () => {
       const logger = getLogger()
@@ -57,7 +33,7 @@ export const createSyncPropertyReviewsHandler = (deps: SyncHandlerDeps) => {
       }
 
       try {
-        const result = await sync({
+        const result = await deps.syncReviews({
           propertyId: propertyId(job.data.propertyId),
           organizationId: organizationId(job.data.organizationId),
           connectionId: googleConnectionId(job.data.connectionId),

@@ -35,6 +35,7 @@ import { reviewError } from '../../domain/errors'
 import { calculateExpiresAt, MAX_REPLY_LENGTH } from '../../domain/rules'
 import { ok, err, type Result } from '#/shared/domain'
 import { emitAndRecord } from '#/shared/outbox'
+import type { ReviewCommandStore } from '../ports/review-command-store.port'
 
 export type SyncReviewsDeps = Readonly<{
   reviewRepo: ReviewRepository
@@ -45,7 +46,12 @@ export type SyncReviewsDeps = Readonly<{
   idGen: () => ReviewId
   replyIdGen: () => ReplyId
   logger: LoggerPort
-  /** Outbox repository for durable event recording (PRE17A A4 expand phase). */
+  /**
+   * BQR-2.3: Atomic review upsert + outbox insert (+ post-commit bus emit).
+   * Required for review.created / review.updated durable recording.
+   */
+  commandStore: ReviewCommandStore
+  /** Outbox for non-atomic emitAndRecord paths (e.g. reply mirrored events). */
   outboxRepo?: import('#/shared/outbox').OutboxRepository
 }>
 
@@ -171,16 +177,12 @@ async function syncOneReview(
     }),
   }
 
-  await deps.reviewRepo.upsert(review, now)
-
   const isNew = !existing
   let repliesMirrored = 0
   let hadError = false
+  let persisted = false
   try {
-    if (
-      await mirrorReply(deps, review.id, input.organizationId, input.propertyId, gr, now)
-    )
-      repliesMirrored = 1
+    // BQR-2.3: review row + outbox event in one transaction (via command store).
     const eventPayload = {
       reviewId: review.id,
       propertyId: input.propertyId,
@@ -193,20 +195,26 @@ async function syncOneReview(
       occurredAt: gr.reviewedAt,
     }
     const event = isNew ? reviewCreated(eventPayload) : reviewUpdated(eventPayload)
-    await emitAndRecord(deps.events, deps.outboxRepo, event)
-  } catch (postPersistErr) {
-    // Review was persisted (upsert succeeded) but reply-mirror or event emit
-    // failed — count it as a partial failure, not a lost create.
+    await deps.commandStore.upsertAndRecord(review, event, now)
+    persisted = true
+
+    if (
+      await mirrorReply(deps, review.id, input.organizationId, input.propertyId, gr, now)
+    )
+      repliesMirrored = 1
+  } catch (syncErr) {
+    // Atomic upsert+outbox rolled back together if the TX fails. After commit,
+    // mirrorReply failures still count as partial (review+outbox already durable).
     deps.logger.warn(
-      { err: postPersistErr, externalId: gr.externalId },
+      { err: syncErr, externalId: gr.externalId },
       'Failed to sync review, continuing',
     )
     hadError = true
   }
 
   return {
-    created: isNew ? 1 : 0,
-    updated: isNew ? 0 : 1,
+    created: isNew && persisted ? 1 : 0,
+    updated: !isNew && persisted ? 1 : 0,
     repliesMirrored,
     hadError,
   }
