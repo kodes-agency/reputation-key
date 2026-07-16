@@ -106,12 +106,10 @@ jobs:
 
   storybook:
     runs-on: ubuntu-latest
-    # Non-blocking per plan contingency 5.1: build-storybook is the known
-    # Vite-8/Rolldown breakage surface (storybook#33063/#33747). Local builds
-    # are green, but ubuntu-runner stability is unverified; the iframe.html
-    # existence check stays as the regression sentinel. storybook-test below
-    # carries the durable component-coverage signal as a hard gate.
-    continue-on-error: true
+    # BQR-5.3: hard gate. build-storybook was soft during Vite-8/Rolldown
+    # instability (storybook#33063/#33747); runner builds have been green on
+    # main for BQR-5.1/5.2 — promote to hard fail. storybook-test still owns
+    # component render + a11y (BQR-5.4 already covered by @storybook/addon-a11y).
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
@@ -130,8 +128,7 @@ jobs:
   storybook-test:
     runs-on: ubuntu-latest
     # Component-test coverage: boots Storybook, then runs the test-runner
-    # (render + a11y checks across all stories) — the durable fix for the
-    # codebase's zero-component-coverage gap.
+    # (render + a11y checks across all stories) — hard gate for BQR-5.4 a11y.
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
