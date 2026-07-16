@@ -1,6 +1,7 @@
 # BQR-3 — Source Lifecycle and Property Region Routing
 
-**Status:** In progress — slice 3.2  
+**Status:** In progress — slice 3.3
+
 **Depends on:** BQR-2 review slice (atomic producer, durable consumers registered, envelope contract)  
 **Unblocks:** BQR-5 (review user paths stable), BQR-7 pilot gate (source policy + region), Phase 17 AI eligibility  
 **Estimate:** 10–16 engineering days
@@ -37,8 +38,8 @@ Finding 4.1 (PII on in-process domain events) may be partially mitigated in 3.4 
 | Slice       | Outcome                                                                                                        | Status          |
 | ----------- | -------------------------------------------------------------------------------------------------------------- | --------------- |
 | **BQR-3.1** | Sync / `buildReview` always set `contentExpiresAt` + `contentHash` from policy; lifecycle module used on write | Done (PR #199)  |
-| **BQR-3.2** | Refresh + purge jobs use `contentExpiresAt` / lifecycle classification; policy windows replace magic numbers   | **This branch** |
-| **BQR-3.3** | On `review.expired`, scrub inbox denormalized raw content (snippet / reviewer name) while closing the item     | Pending         |
+| **BQR-3.2** | Refresh + purge jobs use `contentExpiresAt` / lifecycle classification; policy windows replace magic numbers   | Done (this PR)  |
+| **BQR-3.3** | On `review.expired`, scrub inbox denormalized raw content (snippet / reviewer name) while closing the item     | **This branch** |
 | **BQR-3.4** | Hash-stable re-fetch: extend lifecycle only; no `review.updated` when content hash unchanged                   | Pending         |
 | **BQR-3.5** | Property create/import resolves processing region; unresolved stays explicit; no silent region change          | Pending         |
 
@@ -94,14 +95,37 @@ Finding 4.1 (PII on in-process domain events) may be partially mitigated in 3.4 
 | Purge scan       | `expiresAt < now-3d` (grace)              | `contentExpiresAt < now` (no grace)                                     |
 | Lifecycle module | Write path only (3.1)                     | Write + refresh job classification                                      |
 
+## BQR-3.3 scope
+
+### In
+
+- In-process `onReviewExpired` and durable `handleInboxReviewExpired` clear `snippet` + `reviewerName` when source expires.
+- Scrub runs even if the item is already closed (idempotent cleanup of residual copies).
+- `syncDenormalizedFields` accepts `snippet: null` / `reviewerName: null` to clear columns.
+- Shared `scrubInboxSourceContent` helper used by both paths.
+
+### Out
+
+- Removing denormalized columns entirely (later contract / PRE17B inbox expansion).
+- Scrubbing rating (kept as non-text operational fact for closed history).
+- Hash-stable re-fetch (3.4) or processing region (3.5).
+
+## Authoritative path (BQR-3.3)
+
+| Concern                 | Before                                      | After                                |
+| ----------------------- | ------------------------------------------- | ------------------------------------ |
+| Expiry inbox projection | Close only; snippet + reviewerName retained | Scrub to null, then close if open    |
+| Already-closed item     | No-op                                       | Still scrubs denormalized raw fields |
+| Durable consumer        | Close only (BQR-2.4)                        | Same scrub + close as in-process     |
+
 ## Exit criteria (full BQR-3)
 
-| Criterion                                                             | Met after 3.2? |
+| Criterion                                                             | Met after 3.3? |
 | --------------------------------------------------------------------- | -------------- |
 | Every successful sync writes `last_fetched_at` + `content_expires_at` | Yes (3.1)      |
 | Content hash written and stable for identical source content          | Yes (3.1)      |
-| Refresh/purge jobs use fetch-based `content_expires_at`               | Yes            |
-| Expired source content not retained as raw text in inbox projections  | No (3.3)       |
+| Refresh/purge jobs use fetch-based `content_expires_at`               | Yes (3.2)      |
+| Expired source content not retained as raw text in inbox projections  | Yes            |
 | Unchanged re-fetch does not emit content-changed events               | No (3.4)       |
 | Active properties resolve region without silent fallback              | No (3.5)       |
 | `OUTBOX_DISPATCHER_ENABLED` remains default false                     | Yes            |

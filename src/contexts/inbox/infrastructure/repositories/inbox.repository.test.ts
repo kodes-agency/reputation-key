@@ -427,6 +427,25 @@ describe('inbox repository — denormalized field sync', () => {
     expect(found!.snippet).toBe('Updated text')
     expect(found!.reviewerName).toBe('Jane Smith')
   })
+
+  it('syncDenormalizedFields clears snippet and reviewerName when set to null (BQR-3.3)', async () => {
+    const item = makeInboxItem({
+      rating: 4,
+      snippet: 'Raw review text',
+      reviewerName: 'John Doe',
+    })
+    await repo.create(item, ORG_A)
+
+    await repo.syncDenormalizedFields(item.id, ORG_A, {
+      snippet: null,
+      reviewerName: null,
+    })
+
+    const found = await repo.findById(item.id, ORG_A)
+    expect(found!.snippet).toBeNull()
+    expect(found!.reviewerName).toBeNull()
+    expect(found!.rating).toBe(4)
+  })
 })
 
 // ── Tenant isolation ────────────────────────────────────────────────

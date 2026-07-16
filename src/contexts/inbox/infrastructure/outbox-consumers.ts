@@ -25,6 +25,7 @@ import { inboxItemStatusChanged } from '../domain/events'
 import { validateTransition } from '../domain/rules'
 import { organizationId, propertyId, reviewId, unbrand } from '#/shared/domain/ids'
 import { getLogger } from '#/shared/observability/logger'
+import { scrubInboxSourceContent } from './event-handlers/on-review-expired'
 
 export type InboxConsumerDeps = Readonly<{
   outboxRepo: OutboxRepository
@@ -177,8 +178,9 @@ export async function handleInboxReviewUpdated(
 }
 
 /**
- * BQR-2.4: close open inbox item when source review expires.
- * Mirrors on-review-expired in-process handler.
+ * BQR-2.4 / BQR-3.3: close open inbox item when source review expires and
+ * scrub denormalized raw content (snippet, reviewer name). Mirrors
+ * on-review-expired in-process handler.
  */
 export async function handleInboxReviewExpired(
   deps: InboxConsumerDeps,
@@ -200,8 +202,11 @@ export async function handleInboxReviewExpired(
     return { status: 'applied' }
   }
 
+  // BQR-3.3: always scrub raw copies when source expires (even if already closed).
+  await scrubInboxSourceContent(deps.inboxRepo, item, now)
+
   if (validateTransition(item.status, 'closed').isErr()) {
-    // Already closed (or other illegal transition) — idempotent success.
+    // Already closed (or other illegal transition) — scrub done; idempotent.
     await deps.outboxRepo.insertReceipt(
       event.eventId,
       'inbox.on-review-expired',

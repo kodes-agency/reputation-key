@@ -195,8 +195,8 @@ describe('handleInboxReviewUpdated (BQR-2.4)', () => {
   })
 })
 
-describe('handleInboxReviewExpired (BQR-2.4)', () => {
-  it('closes open inbox item and records applied', async () => {
+describe('handleInboxReviewExpired (BQR-2.4 / BQR-3.3)', () => {
+  it('scrubs raw content, closes open inbox item, and records applied', async () => {
     const deps = makeDeps({})
     const result = await handleInboxReviewExpired(
       deps,
@@ -208,6 +208,12 @@ describe('handleInboxReviewExpired (BQR-2.4)', () => {
     )
 
     expect(result).toEqual({ status: 'applied' })
+    expect(deps.inboxRepo.syncDenormalizedFields).toHaveBeenCalledWith(
+      INBOX,
+      ORG,
+      { snippet: null, reviewerName: null },
+      NOW,
+    )
     expect(deps.inboxRepo.updateStatus).toHaveBeenCalledWith(
       INBOX,
       ORG,
@@ -223,7 +229,7 @@ describe('handleInboxReviewExpired (BQR-2.4)', () => {
     )
   })
 
-  it('is idempotent when item already closed', async () => {
+  it('scrubs raw content when item already closed (no status re-write)', async () => {
     const deps = makeDeps({ item: makeItem({ status: 'closed' }) })
     const result = await handleInboxReviewExpired(
       deps,
@@ -234,6 +240,12 @@ describe('handleInboxReviewExpired (BQR-2.4)', () => {
       }),
     )
     expect(result).toEqual({ status: 'applied' })
+    expect(deps.inboxRepo.syncDenormalizedFields).toHaveBeenCalledWith(
+      INBOX,
+      ORG,
+      { snippet: null, reviewerName: null },
+      NOW,
+    )
     expect(deps.inboxRepo.updateStatus).not.toHaveBeenCalled()
   })
 
@@ -249,5 +261,6 @@ describe('handleInboxReviewExpired (BQR-2.4)', () => {
     )
     expect(result).toEqual({ status: 'applied' })
     expect(deps.inboxRepo.updateStatus).not.toHaveBeenCalled()
+    expect(deps.inboxRepo.syncDenormalizedFields).not.toHaveBeenCalled()
   })
 })

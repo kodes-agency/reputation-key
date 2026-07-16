@@ -1,9 +1,18 @@
 import { describe, it, expect, vi } from 'vitest'
-import { onReviewExpired } from './on-review-expired'
+import { onReviewExpired, scrubInboxSourceContent } from './on-review-expired'
 import type { ReviewExpired } from '#/contexts/review/application/public-api'
 import type { InboxRepository } from '../../application/ports/inbox.repository'
 import type { InboxItem } from '../../domain/types'
 import { inboxItemId, organizationId, propertyId, reviewId } from '#/shared/domain/ids'
+
+vi.mock('#/shared/observability/logger', () => ({
+  getLogger: () => ({
+    info: () => {},
+    warn: () => {},
+    error: () => {},
+    debug: () => {},
+  }),
+}))
 
 const NOW = new Date('2026-06-15T12:00:00Z')
 const ORG_ID = organizationId('org-1')
@@ -51,15 +60,34 @@ function makeEvent(overrides: Partial<ReviewExpired> = {}): ReviewExpired {
   }
 }
 
+describe('scrubInboxSourceContent', () => {
+  it('clears snippet and reviewerName via syncDenormalizedFields', async () => {
+    const item = makeItem()
+    const syncDenormalizedFields = vi.fn(async () => {})
+    const repo = { syncDenormalizedFields } as unknown as InboxRepository
+
+    await scrubInboxSourceContent(repo, item, NOW)
+
+    expect(syncDenormalizedFields).toHaveBeenCalledWith(
+      inboxItemId('inbox-1'),
+      ORG_ID,
+      { snippet: null, reviewerName: null },
+      NOW,
+    )
+  })
+})
+
 describe('onReviewExpired', () => {
-  it('archives inbox item when review is purged', async () => {
+  it('scrubs raw content and closes inbox item when review is purged', async () => {
     const item = makeItem()
     const updateStatus = vi.fn(async () => item)
+    const syncDenormalizedFields = vi.fn(async () => {})
 
     const deps = {
       repo: {
         findBySource: vi.fn(async () => item),
         updateStatus,
+        syncDenormalizedFields,
       } as unknown as InboxRepository,
       events: {
         emit: vi.fn(async () => {}),
@@ -69,6 +97,12 @@ describe('onReviewExpired', () => {
     await onReviewExpired(deps)(makeEvent())
 
     expect(deps.repo.findBySource).toHaveBeenCalledWith('review', 'rev-1', ORG_ID)
+    expect(syncDenormalizedFields).toHaveBeenCalledWith(
+      inboxItemId('inbox-1'),
+      ORG_ID,
+      { snippet: null, reviewerName: null },
+      NOW,
+    )
     expect(updateStatus).toHaveBeenCalledWith(
       inboxItemId('inbox-1'),
       ORG_ID,
@@ -78,13 +112,43 @@ describe('onReviewExpired', () => {
     )
   })
 
+  it('scrubs raw content even when item is already closed', async () => {
+    const item = makeItem({ status: 'closed', closedAt: NOW })
+    const updateStatus = vi.fn()
+    const syncDenormalizedFields = vi.fn(async () => {})
+
+    const deps = {
+      repo: {
+        findBySource: vi.fn(async () => item),
+        updateStatus,
+        syncDenormalizedFields,
+      } as unknown as InboxRepository,
+      events: {
+        emit: vi.fn(async () => {}),
+      } as unknown as import('#/shared/events/event-bus').EventBus,
+    }
+
+    await onReviewExpired(deps)(makeEvent())
+
+    expect(syncDenormalizedFields).toHaveBeenCalledWith(
+      inboxItemId('inbox-1'),
+      ORG_ID,
+      { snippet: null, reviewerName: null },
+      NOW,
+    )
+    expect(updateStatus).not.toHaveBeenCalled()
+    expect(deps.events.emit).not.toHaveBeenCalled()
+  })
+
   it('skips silently when no inbox item exists for the review', async () => {
     const updateStatus = vi.fn()
+    const syncDenormalizedFields = vi.fn()
 
     const deps = {
       repo: {
         findBySource: vi.fn(async () => null),
         updateStatus,
+        syncDenormalizedFields,
       } as unknown as InboxRepository,
       events: {
         emit: vi.fn(async () => {}),
@@ -93,6 +157,7 @@ describe('onReviewExpired', () => {
 
     await expect(onReviewExpired(deps)(makeEvent())).resolves.toBeUndefined()
     expect(updateStatus).not.toHaveBeenCalled()
+    expect(syncDenormalizedFields).not.toHaveBeenCalled()
   })
 
   it('does not throw on repo error', async () => {

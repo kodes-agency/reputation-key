@@ -1,10 +1,12 @@
 // Inbox context — event handler for review.expired
-// Closes orphaned inbox items when their source review is purged, preventing
-// orphaned items that show "Anonymous" (reviewerName lookup returns null).
+// Closes the inbox item when its source review is purged, and scrubs
+// denormalized raw source content (snippet, reviewer name) so PII does not
+// outlive the review cache (BQR-3.3 / finding 4.3 / ADR 0031).
 
 import type { ReviewExpired } from '#/contexts/review/application/public-api'
 import type { InboxRepository } from '../../application/ports/inbox.repository'
 import type { EventBus } from '#/shared/events/event-bus'
+import type { InboxItemId, OrganizationId } from '#/shared/domain/ids'
 import { unbrand } from '#/shared/domain/ids'
 import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
@@ -17,6 +19,23 @@ export type OnReviewExpiredDeps = Readonly<{
   events: EventBus
   outboxRepo?: OutboxRepository
 }>
+
+/**
+ * Clear denormalized raw review text from an inbox projection.
+ * Idempotent — safe when fields are already null.
+ */
+export async function scrubInboxSourceContent(
+  repo: InboxRepository,
+  item: Readonly<{ id: InboxItemId; organizationId: OrganizationId }>,
+  now: Date,
+): Promise<void> {
+  await repo.syncDenormalizedFields(
+    item.id,
+    item.organizationId,
+    { snippet: null, reviewerName: null },
+    now,
+  )
+}
 
 export const onReviewExpired =
   (deps: OnReviewExpiredDeps) =>
@@ -31,13 +50,14 @@ export const onReviewExpired =
         )
         if (!item) return
 
+        // BQR-3.3: always scrub raw copies when source expires (even if already closed).
+        await scrubInboxSourceContent(deps.repo, item, event.occurredAt)
+
         // Route through the domain transition rule (open → closed).
         if (validateTransition(item.status, 'closed').isErr()) return
 
         const oldStatus = item.status
 
-        // Close the inbox item so it leaves the active view but retains its
-        // denormalized reviewerName for historical context.
         await deps.repo.updateStatus(
           item.id,
           item.organizationId,

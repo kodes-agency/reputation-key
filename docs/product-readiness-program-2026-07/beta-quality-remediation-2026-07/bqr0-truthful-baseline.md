@@ -129,10 +129,10 @@ Previously only `CONTENT_FIELDS_TO_STRIP` denylist applied at insert; Zod allowl
 ### Finding 4.3 — inbox_items stores full review text permanently
 
 **Severity:** P0  
-**Status:** Open (deferred to BQR-3)  
-**File:** `src/contexts/inbox/infrastructure/event-handlers/on-review-created.ts:31-32`
+**Status:** **Partially remediated (BQR-3.3)** — expiry path scrubs snippet/reviewerName; create path still copies text until PRE17B denormalization removal  
+**File:** `src/contexts/inbox/infrastructure/event-handlers/on-review-created.ts:31-32`, `on-review-expired.ts`
 
-The in-process handler reads `event.reviewText` and stores it as `inbox_items.snippet` (full, untruncated). When a review expires and is purged from `reviews`, the inbox handler only transitions `open→closed` and **retains** the denormalized text. The review.expired outbox consumer is a no-op stub.
+The in-process create handler still stores review text as `inbox_items.snippet` for the active window. On `review.expired`, both in-process and durable handlers call `scrubInboxSourceContent` (nulls snippet + reviewerName) before/while closing. Residual: avoid copying raw text into inbox at all (later lifecycle expansion).
 
 ### Finding 4.4 — ADR 0030 referenced but missing
 

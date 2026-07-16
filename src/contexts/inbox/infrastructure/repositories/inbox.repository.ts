@@ -394,7 +394,7 @@ export const createInboxRepository = (
     orgId: OrganizationId,
     fields: {
       rating?: number
-      snippet?: string
+      snippet?: string | null
       reviewerName?: string | null
       sourceDate?: Date
     },
