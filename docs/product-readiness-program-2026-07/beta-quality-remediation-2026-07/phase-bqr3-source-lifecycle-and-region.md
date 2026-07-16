@@ -1,6 +1,6 @@
 # BQR-3 — Source Lifecycle and Property Region Routing
 
-**Status:** In progress — slice 3.3
+**Status:** In progress — slice 3.4
 
 **Depends on:** BQR-2 review slice (atomic producer, durable consumers registered, envelope contract)  
 **Unblocks:** BQR-5 (review user paths stable), BQR-7 pilot gate (source policy + region), Phase 17 AI eligibility  
@@ -39,8 +39,8 @@ Finding 4.1 (PII on in-process domain events) may be partially mitigated in 3.4 
 | ----------- | -------------------------------------------------------------------------------------------------------------- | --------------- |
 | **BQR-3.1** | Sync / `buildReview` always set `contentExpiresAt` + `contentHash` from policy; lifecycle module used on write | Done (PR #199)  |
 | **BQR-3.2** | Refresh + purge jobs use `contentExpiresAt` / lifecycle classification; policy windows replace magic numbers   | Done (this PR)  |
-| **BQR-3.3** | On `review.expired`, scrub inbox denormalized raw content (snippet / reviewer name) while closing the item     | **This branch** |
-| **BQR-3.4** | Hash-stable re-fetch: extend lifecycle only; no `review.updated` when content hash unchanged                   | Pending         |
+| **BQR-3.3** | On `review.expired`, scrub inbox denormalized raw content (snippet / reviewer name) while closing the item     | Done (this PR)  |
+| **BQR-3.4** | Hash-stable re-fetch: extend lifecycle only; no `review.updated` when content hash unchanged                   | **This branch** |
 | **BQR-3.5** | Property create/import resolves processing region; unresolved stays explicit; no silent region change          | Pending         |
 
 ## BQR-3.1 scope
@@ -118,15 +118,37 @@ Finding 4.1 (PII on in-process domain events) may be partially mitigated in 3.4 
 | Already-closed item     | No-op                                       | Still scrubs denormalized raw fields |
 | Durable consumer        | Close only (BQR-2.4)                        | Same scrub + close as in-process     |
 
+## BQR-3.4 scope
+
+### In
+
+- On re-sync, when existing `contentHash` equals newly computed hash: `reviewRepo.upsert` only (extend `lastFetchedAt` / `contentExpiresAt`); **no** `review.updated` / outbox row.
+- When hash differs or existing hash is null: keep atomic `upsertAndRecord` + `review.updated` (null hash establishes baseline once).
+- `SyncReviewsResult.updated` counts content-changed emissions only.
+
+### Out
+
+- Renaming events to `review.content-changed.v1` (later contract).
+- Processing-region production workflow (3.5).
+- Identifier-only in-process event payloads (BQR-4).
+
+## Authoritative path (BQR-3.4)
+
+| Concern               | Before                           | After                                                  |
+| --------------------- | -------------------------------- | ------------------------------------------------------ |
+| Unchanged re-fetch    | Always `review.updated` + outbox | Lifecycle clocks only; zero domain events              |
+| Content-changed fetch | `review.updated`                 | Unchanged (still atomic upsert + event)                |
+| Null existing hash    | N/A                              | Treated as content-changed once to write baseline hash |
+
 ## Exit criteria (full BQR-3)
 
-| Criterion                                                             | Met after 3.3? |
+| Criterion                                                             | Met after 3.4? |
 | --------------------------------------------------------------------- | -------------- |
 | Every successful sync writes `last_fetched_at` + `content_expires_at` | Yes (3.1)      |
 | Content hash written and stable for identical source content          | Yes (3.1)      |
 | Refresh/purge jobs use fetch-based `content_expires_at`               | Yes (3.2)      |
-| Expired source content not retained as raw text in inbox projections  | Yes            |
-| Unchanged re-fetch does not emit content-changed events               | No (3.4)       |
+| Expired source content not retained as raw text in inbox projections  | Yes (3.3)      |
+| Unchanged re-fetch does not emit content-changed events               | Yes            |
 | Active properties resolve region without silent fallback              | No (3.5)       |
 | `OUTBOX_DISPATCHER_ENABLED` remains default false                     | Yes            |
 

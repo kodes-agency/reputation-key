@@ -69,6 +69,10 @@ export type SyncReviewsInput = Readonly<{
 export type SyncReviewsResult = Readonly<{
   fetched: number
   created: number
+  /**
+   * Content-changed updates only (emitted `review.updated`).
+   * Hash-stable re-fetches extend lifecycle clocks without counting here (BQR-3.4).
+   */
   updated: number
   repliesMirrored: number
   failed: number
@@ -156,6 +160,13 @@ async function syncOneReview(
     input.organizationId,
   )
 
+  const contentHash = computeReviewContentHash({
+    rating: gr.rating,
+    text: gr.text,
+    reviewerName: gr.reviewerName,
+    languageCode: gr.languageCode,
+  })
+
   const review: Omit<Review, 'createdAt' | 'updatedAt'> = {
     id: existing?.id ?? deps.idGen(),
     organizationId: input.organizationId,
@@ -177,36 +188,44 @@ async function syncOneReview(
     ...defaultReviewLifecycle({
       reviewedAt: gr.reviewedAt,
       now,
-      contentHash: computeReviewContentHash({
-        rating: gr.rating,
-        text: gr.text,
-        reviewerName: gr.reviewerName,
-        languageCode: gr.languageCode,
-      }),
+      contentHash,
       existing: existing ?? null,
     }),
   }
 
   const isNew = !existing
+  // BQR-3.4 / ADR 0031: same hash → lifecycle-only refresh, no review.updated.
+  // Null existing hash (pre-3.1 row) is treated as content-changed once to establish baseline.
+  const contentUnchanged =
+    !isNew && existing.contentHash != null && existing.contentHash === contentHash
+
   let repliesMirrored = 0
   let hadError = false
   let persisted = false
+  let contentChanged = false
   try {
-    // BQR-2.3: review row + outbox event in one transaction (via command store).
-    const eventPayload = {
-      reviewId: review.id,
-      propertyId: input.propertyId,
-      organizationId: input.organizationId,
-      platform: 'google' as const,
-      externalId: gr.externalId,
-      rating: gr.rating,
-      reviewerName: gr.reviewerName,
-      reviewText: gr.text,
-      occurredAt: gr.reviewedAt,
+    if (contentUnchanged) {
+      // Extend lastFetchedAt / contentExpiresAt only — no domain event / outbox row.
+      await deps.reviewRepo.upsert(review, now)
+      persisted = true
+    } else {
+      // BQR-2.3: review row + outbox event in one transaction (via command store).
+      const eventPayload = {
+        reviewId: review.id,
+        propertyId: input.propertyId,
+        organizationId: input.organizationId,
+        platform: 'google' as const,
+        externalId: gr.externalId,
+        rating: gr.rating,
+        reviewerName: gr.reviewerName,
+        reviewText: gr.text,
+        occurredAt: gr.reviewedAt,
+      }
+      const event = isNew ? reviewCreated(eventPayload) : reviewUpdated(eventPayload)
+      await deps.commandStore.upsertAndRecord(review, event, now)
+      persisted = true
+      contentChanged = !isNew
     }
-    const event = isNew ? reviewCreated(eventPayload) : reviewUpdated(eventPayload)
-    await deps.commandStore.upsertAndRecord(review, event, now)
-    persisted = true
 
     if (
       await mirrorReply(deps, review.id, input.organizationId, input.propertyId, gr, now)
@@ -224,7 +243,8 @@ async function syncOneReview(
 
   return {
     created: isNew && persisted ? 1 : 0,
-    updated: !isNew && persisted ? 1 : 0,
+    // `updated` means content-changed emission, not mere lifecycle refresh.
+    updated: contentChanged && persisted ? 1 : 0,
     repliesMirrored,
     hadError,
   }
