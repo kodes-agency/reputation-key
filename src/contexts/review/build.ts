@@ -15,6 +15,7 @@ import type { ReplyQueuePort } from './application/ports/reply-queue.port'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { createReviewRepository } from './infrastructure/repositories/review.repository'
 import { createReplyRepository } from './infrastructure/repositories/reply.repository'
+import { createAtomicReviewCommandStore } from './infrastructure/review-command-store'
 import { syncReviews } from './application/use-cases/sync-reviews'
 import {
   draftReply,
@@ -111,6 +112,9 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     queue,
   })
 
+  // BQR-2.3: atomic review upsert + outbox insert for sync path
+  const commandStore = createAtomicReviewCommandStore(input.db, input.events)
+
   const useCases = {
     syncReviews: syncReviews({
       reviewRepo,
@@ -121,6 +125,8 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
       idGen: () => reviewId(crypto.randomUUID()),
       replyIdGen: () => replyId(crypto.randomUUID()),
       logger: input.logger,
+      commandStore,
+      outboxRepo: input.outboxRepo,
     }),
     draftReply: draftReply(replyDeps),
     submitReply: submitReply(replyDeps),

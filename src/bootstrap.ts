@@ -114,15 +114,9 @@ export async function bootstrap(container: Container): Promise<void> {
   logger.info({ job: IMPORT_PROPERTY_JOB_NAME }, 'registered import-property job handler')
 
   // ── Review sync jobs ─────────────────────────────────────────────
-  // Reuse the single GoogleReviewApiAdapter from the composition root (S15 fix).
-  const googleReviewApiForJobs = container.googleReviewApi
-
   const syncReviewsHandler = createSyncPropertyReviewsHandler({
-    reviewRepo: container.reviewRepo,
-    replyRepo: container.replyRepo,
-    googleReviewApi: googleReviewApiForJobs,
-    events: container.eventBus,
-    clock: container.clock,
+    // BQR-2.3: use composition-wired use case (atomic ReviewCommandStore)
+    syncReviews: container.useCases.syncReviews,
   })
   container.jobRegistry.register(SYNC_REVIEWS_JOB_NAME, async (job) => {
     await syncReviewsHandler(
