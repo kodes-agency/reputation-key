@@ -1,6 +1,6 @@
 # Beta Quality Remediation — Master Plan
 
-**Status:** Active — BQR-0 in PR; BQR-1.1 schema parity in progress  
+**Status:** Active — BQR-0…1 complete; BQR-2 durable runtime in progress  
 **Date:** 2026-07-16  
 **Target:** Internal beta with real, allowlisted US properties  
 **Scale model:** 5,000 properties and 500,000 new reviews/month  

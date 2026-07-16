@@ -23,12 +23,12 @@ All ~15 emitting use cases follow the same pattern: business write → separate 
 ### Finding 1.2 — Relay/dispatcher envelope mismatch
 
 **Severity:** P0  
-**Status:** Open (deferred to BQR-2); **contained** — relay/dispatcher not started unless `OUTBOX_DISPATCHER_ENABLED=true`  
-**Files:** `src/shared/outbox/relay.ts:67`, `src/shared/outbox/dispatcher.ts:88-92`
+**Status:** **Remediated (BQR-2.1)** — relay enqueues full `ConsumerEvent` via `buildConsumerEvent`; dispatcher uses `parseConsumerEvent`  
+**Files:** `src/shared/outbox/envelope.ts`, `relay.ts`, `dispatcher.ts`
 
-The relay enqueues only the bare event payload as BullMQ job data. The dispatcher expects a full `ConsumerEvent` envelope (`eventId`, `eventType`, `eventVersion`, `payload`, `organizationId`, etc.). Since the relay discards the envelope, `event.eventType` is `undefined` → validation throws → caught and logged as "discarding" → job silently dropped.
+Previously the relay enqueued only the bare event payload as BullMQ job data. The dispatcher expected a full `ConsumerEvent` envelope, so `event.eventType` was `undefined` and every job was discarded.
 
-**Every outbox event is silently lost on dispatch** when the dispatcher is enabled. Default runtime keeps it disabled.
+**Containment still in force:** `OUTBOX_DISPATCHER_ENABLED` remains default-off until remaining BQR-2 exit criteria (consumers, atomic producers, no-ops).
 
 ### Finding 1.3 — Consumer registry empty in production
 

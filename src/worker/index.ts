@@ -233,11 +233,11 @@ async function main() {
   }
 
   // ── Outbox relay + dispatcher (PRE17A A3/A4) ─────────────────────
-  // BQR-0 CONTAINMENT: The outbox path has known defects (non-atomic emit,
-  // relay/dispatcher envelope mismatch, empty consumer registry, no-op
-  // consumers). It must NOT process real work until BQR-2 fixes these.
-  // The relay and dispatcher are disabled by default. Enable only with
-  // OUTBOX_DISPATCHER_ENABLED=true in a controlled test environment.
+  // BQR-0 CONTAINMENT (still in force through BQR-2 exit): durable dispatch
+  // stays off by default. BQR-2.1 fixed the relay/dispatcher envelope
+  // mismatch; remaining BQR-2 work: consumer registration, atomic producers,
+  // no-op consumers. Enable only with OUTBOX_DISPATCHER_ENABLED=true in a
+  // controlled test environment — not until BQR-2 exit criteria are green.
   let domainEventsWorker: Worker | undefined
   let stopRelay: (() => void) | undefined
   let domainEventsQueue: Queue | undefined

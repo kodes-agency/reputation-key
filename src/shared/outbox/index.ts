@@ -5,6 +5,7 @@
 //   - ./infrastructure/**   (Drizzle repository implementation)
 //   - ./relay               (worker relay loop)
 //   - ./dispatcher          (worker consumer dispatcher)
+//   - ./envelope            (relay↔dispatcher job-data contract)
 //   - ./event-adapter       (internal payload mapping)
 //
 // Composition root and worker entry points may import infrastructure modules
