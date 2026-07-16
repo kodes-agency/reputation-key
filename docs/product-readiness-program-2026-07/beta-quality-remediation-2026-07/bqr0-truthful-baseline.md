@@ -33,10 +33,10 @@ Previously the relay enqueued only the bare event payload as BullMQ job data. Th
 ### Finding 1.3 — Consumer registry empty in production
 
 **Severity:** P0  
-**Status:** Open (deferred to BQR-2); **contained** with dispatcher off  
-**File:** `src/contexts/inbox/infrastructure/outbox-consumers.ts`
+**Status:** **Remediated (BQR-2.2)** — worker calls `container.registerOutboxConsumers()` → `registerInboxConsumers`  
+**Files:** `src/composition.ts`, `src/worker/index.ts`, `src/contexts/inbox/infrastructure/outbox-consumers.ts`
 
-`registerInboxConsumers()` is defined but has zero callers. The dispatcher runs with no consumers registered. Even if the envelope bug were fixed, `consumersByType.get(undefined)` returns nothing.
+Previously `registerInboxConsumers()` had zero callers. Worker now registers inbox consumers whenever `outboxRepo` is present. Durable relay still requires `OUTBOX_DISPATCHER_ENABLED` (default off).
 
 ### Finding 1.4 — No-op consumers
 

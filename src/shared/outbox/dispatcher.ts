@@ -66,6 +66,19 @@ export function clearConsumers(): void {
   consumersByType.clear()
 }
 
+/** List registered consumers (event type + name). Tests / operator diagnostics. */
+export function listRegisteredConsumers(): ReadonlyArray<
+  Readonly<{ eventType: string; consumerName: string }>
+> {
+  const out: Array<{ eventType: string; consumerName: string }> = []
+  for (const [eventType, regs] of consumersByType) {
+    for (const reg of regs) {
+      out.push({ eventType, consumerName: reg.consumerName })
+    }
+  }
+  return out
+}
+
 /**
  * Create a dispatcher handler for the BullMQ 'domain-events' worker.
  * This function is passed to createJobWorker as the handler.

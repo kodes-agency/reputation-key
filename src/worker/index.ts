@@ -234,13 +234,22 @@ async function main() {
 
   // ── Outbox relay + dispatcher (PRE17A A3/A4) ─────────────────────
   // BQR-0 CONTAINMENT (still in force through BQR-2 exit): durable dispatch
-  // stays off by default. BQR-2.1 fixed the relay/dispatcher envelope
-  // mismatch; remaining BQR-2 work: consumer registration, atomic producers,
-  // no-op consumers. Enable only with OUTBOX_DISPATCHER_ENABLED=true in a
-  // controlled test environment — not until BQR-2 exit criteria are green.
+  // stays off by default. BQR-2.1 fixed the envelope; BQR-2.2 registers
+  // consumers on the worker so the registry is not empty when dispatch is
+  // enabled. Remaining: atomic producers, no-op consumer bodies (2.3–2.4).
+  // Enable only with OUTBOX_DISPATCHER_ENABLED=true in a controlled test
+  // environment — not until BQR-2 exit criteria are green.
   let domainEventsWorker: Worker | undefined
   let stopRelay: (() => void) | undefined
   let domainEventsQueue: Queue | undefined
+
+  // BQR-2.2: always register durable consumers when outbox is available so
+  // the dispatcher is never started with an empty registry. Registration
+  // alone does not process work — relay still requires the enable flag.
+  if (container.outboxRepo) {
+    container.registerOutboxConsumers()
+    logger.info('Outbox consumers registered with dispatcher')
+  }
 
   if (container.outboxRepo && env.REDIS_URL && env.OUTBOX_DISPATCHER_ENABLED) {
     domainEventsQueue = createJobQueue('domain-events')
@@ -254,14 +263,14 @@ async function main() {
       if (domainEventsWorker) {
         logger.warn(
           'Outbox relay + dispatcher started — OUTBOX_DISPATCHER_ENABLED is true. ' +
-            'This is unsafe until BQR-2 is complete.',
+            'This is unsafe until BQR-2 is complete (atomic producers / no-op consumers).',
         )
       }
     }
   } else if (container.outboxRepo && env.REDIS_URL && !env.OUTBOX_DISPATCHER_ENABLED) {
     logger.info(
       'Outbox relay + dispatcher DISABLED (BQR-0 containment). ' +
-        'Events are delivered via the in-process event bus only until BQR-2.',
+        'Consumers are registered; events still deliver via in-process bus until BQR-2 exit.',
     )
   } else {
     logger.warn('Outbox relay not started — no outboxRepo or Redis')

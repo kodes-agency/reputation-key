@@ -1,6 +1,6 @@
 # Beta Quality Remediation Program — July 2026
 
-**Status:** BQR-0…1 complete on main; BQR-2.1 in progress  
+**Status:** BQR-0…1 complete on main; BQR-2.2 in progress  
 **Purpose:** Bring the current codebase to an evidence-backed internal beta standard after the July 2026 implementation review  
 **Applies before:** Any real-property pilot, Phase 17, Phase 18, or post-beta capability activation
 
@@ -23,7 +23,7 @@ Primary-source research for this program may be added as `primary-source-researc
 | ----- | ------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------- |
 | BQR-0 | **Merged** [#188](https://github.com/kodes-agency/reputation-key/pull/188)                                                                 | Outbox dispatch off; dark paths contained; baseline inventory         |
 | BQR-1 | **Merged** [#189](https://github.com/kodes-agency/reputation-key/pull/189)–[#192](https://github.com/kodes-agency/reputation-key/pull/192) | Schema, errors, outbox boundaries, ADR 0030 + health schema consumers |
-| BQR-2 | **2.1 in progress**                                                                                                                        | Envelope first; then consumers, atomic TX, no-op fix                  |
+| BQR-2 | **2.1 merged [#193](https://github.com/kodes-agency/reputation-key/pull/193); 2.2 open**                                                   | Envelope done; consumers wiring; then atomic TX, no-op fix            |
 | BQR-3 | Not started                                                                                                                                | Source lifecycle, region routing                                      |
 | BQR-4 | Not started                                                                                                                                | Authoritative authorize(), tenancy, privacy                           |
 | BQR-5 | Not started                                                                                                                                | Blocking a11y/E2E/Storybook                                           |

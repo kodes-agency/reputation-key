@@ -67,6 +67,7 @@ import { createReviewLookupAdapter } from '#/contexts/inbox/infrastructure/adapt
 import { createFeedbackLookupAdapter } from '#/contexts/inbox/infrastructure/adapters/feedback-lookup.adapter'
 import { createPropertyLookupAdapter } from '#/contexts/inbox/infrastructure/adapters/property-lookup.adapter'
 import { createReplyLookupAdapter } from '#/contexts/inbox/infrastructure/adapters/reply-lookup.adapter'
+import { registerInboxConsumers } from '#/contexts/inbox/infrastructure/outbox-consumers'
 import {
   propertyId,
   organizationId as toOrgId,
@@ -138,6 +139,21 @@ async function setActiveOrg(orgId: string): Promise<void> {
     // where cookies aren't yet available), this is non-fatal — the user
     // will set their active org on first login.
     logger.warn({ err: e, orgId }, 'Failed to set active organization during setup')
+  }
+}
+
+// ── Outbox consumer registration (BQR-2.2) ─────────────────────────
+// Kept outside createContainer so wiring stays a single assignment inside
+// the composition root (complexity budget) while still capturing deps.
+
+function createOutboxConsumerRegistrar(deps: {
+  outboxRepo: import('#/shared/outbox').OutboxRepository
+  reviewLookup: import('#/contexts/inbox/application/ports/review-lookup.port').ReviewLookupPort
+  createInboxItem: import('#/contexts/inbox/application/use-cases/create-inbox-item').CreateInboxItem
+  updateInboxStatus: import('#/contexts/inbox/application/use-cases/update-inbox-status').UpdateInboxStatus
+}): () => void {
+  return () => {
+    registerInboxConsumers(deps)
   }
 }
 
@@ -548,6 +564,13 @@ export function createContainer(options?: {
     notificationRepo: notification.internal.repos.notificationRepo,
     notificationEmailRepo: notification.internal.repos.emailRepo,
     notificationPrefRepo: notification.internal.repos.prefRepo,
+    // BQR-2.2: worker calls this before optional durable dispatch start.
+    registerOutboxConsumers: createOutboxConsumerRegistrar({
+      outboxRepo,
+      reviewLookup,
+      createInboxItem: inbox.internal.useCases.createInboxItem,
+      updateInboxStatus: inbox.internal.useCases.updateInboxStatus,
+    }),
   } as const
 }
 
