@@ -1,9 +1,9 @@
 import { defineConfig, devices } from '@playwright/test'
 
 // CI previously used retries: 2. With a missing seed user every test timed out
-// at 30s × 3 attempts × 12 specs ≈ 18 minutes of red "pending" e2e — making PR
-// checks look stuck long after hard gates (check/storybook-test) were green.
-// One retry is enough for true flakes once auth is seeded.
+// at 30s × 3 attempts × 12 specs ≈ 18 minutes of red "pending" e2e.
+// BQR-5.1: critical project is a hard gate; residual stays soft in CI.
+
 const isCi = !!process.env.CI
 
 export default defineConfig({
@@ -12,7 +12,6 @@ export default defineConfig({
     url: 'http://localhost:3000',
     reuseExistingServer: !isCi,
     timeout: 180_000,
-    // Forward e2e capability overrides into the dev server process.
     env: {
       ...process.env,
     },
@@ -22,7 +21,6 @@ export default defineConfig({
   expect: { timeout: 10_000 },
   fullyParallel: true,
   forbidOnly: isCi,
-  // Soft-gate e2e: no retries so PR checks don't stay pending for ~15+ minutes.
   retries: 0,
   workers: isCi ? 1 : undefined,
   reporter: 'list',
@@ -32,7 +30,13 @@ export default defineConfig({
   },
   projects: [
     {
-      name: 'chromium',
+      name: 'critical',
+      testMatch: /critical\/.*\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: 'full',
+      testIgnore: /critical\/.*/,
       use: { ...devices['Desktop Chrome'] },
     },
   ],

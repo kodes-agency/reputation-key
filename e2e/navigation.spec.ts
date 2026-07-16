@@ -17,7 +17,8 @@ test.describe('Navigation', () => {
     await expect(page.getByRole('heading', { name: /properties/i })).toBeVisible()
 
     await page.getByRole('link', { name: /members/i }).click()
-    await expect(page.getByRole('heading', { name: /members/i })).toBeVisible()
+    // Avoid strict-mode clash when page has multiple "Members" headings.
+    await expect(page.getByRole('heading', { name: /members/i }).first()).toBeVisible()
 
     await page.goto('/staff')
     await expect(page.getByRole('heading', { name: /staff/i })).toBeVisible()

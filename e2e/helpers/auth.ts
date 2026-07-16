@@ -80,6 +80,7 @@ export async function registerAccount(
   await page.getByLabel('Organization name').fill('E2E Test Org')
   await page.getByLabel('Password', { exact: true }).fill(password)
   await page.getByLabel('Confirm password').fill(password)
+  // Register form primary CTA is "Create account & organization" (not "Create account").
   await page.getByRole('button', { name: /create account/i }).click()
   // Success renders on /register — no redirect. Wait for the success card.
   await expect(page.getByText(/account created/i)).toBeVisible({ timeout: 15_000 })

@@ -1,6 +1,6 @@
 # BQR-5 — Blocking Experience Verification (E2E, Storybook, A11y)
 
-**Status:** Planned (starts after BQR-4 merge)  
+**Status:** In progress — slice 5.1  
 **Depends on:** BQR-3 (user paths), BQR-4 (auth gates on those paths)  
 **Unblocks:** BQR-6 evidence pack, BQR-7 pilot readiness  
 **Estimate:** 8–13 engineering days
@@ -15,7 +15,7 @@ Master plan §8: no required evidence job may use `continue-on-error` without an
 
 | Slice       | Outcome                                                                                     |
 | ----------- | ------------------------------------------------------------------------------------------- |
-| **BQR-5.1** | Inventory e2e soft-gate residual failures; fix or quarantine with owner + expiry            |
+| **BQR-5.1** | Critical Playwright hard-gated; seed property; residual full suite soft                     |
 | **BQR-5.2** | Promote critical-path e2e (auth, property, inbox triage) to hard CI gate                    |
 | **BQR-5.3** | Storybook-test remains hard; document/fix storybook **build** soft-gate or remove exception |
 | **BQR-5.4** | A11y regressions covered via Storybook a11y addon on critical components                    |
