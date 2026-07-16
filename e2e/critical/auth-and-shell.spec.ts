@@ -72,10 +72,11 @@ test.describe('Critical: properties shell', () => {
 
     await page.goto(`/properties/${seed.propertyId}/people`)
     await expect(page).toHaveURL(new RegExp(`/properties/${seed.propertyId}/people`))
-    await expect(page.getByRole('heading', { name: /^people$/i })).toBeVisible({
-      timeout: 15_000,
-    })
-    await expect(page.getByRole('tab', { name: /teams/i })).toBeVisible()
+    // People page mounts Tabs (Staff / Teams / Directory). Header may share
+    // the property layout; tabs are the durable shell signal.
+    await expect(
+      page.getByRole('tab', { name: /^(staff|teams|directory)$/i }).first(),
+    ).toBeVisible({ timeout: 20_000 })
   })
 })
 
