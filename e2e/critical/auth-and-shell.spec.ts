@@ -13,7 +13,8 @@ import { signIn } from '../helpers/auth'
 import { openSeededProperty, SEEDED_PROPERTY_NAME } from '../helpers/property'
 import { requireE2eSeedState } from '../helpers/seed-state'
 
-/** InboxPageV2 chrome when empty or loading complete. */
+/** InboxPageV2 chrome when empty or loading complete.
+ * Multiple "Inbox" headings can exist (sidebar + list header) — use .first(). */
 function inboxChrome(page: import('@playwright/test').Page) {
   return page
     .getByRole('heading', { name: /^inbox$/i })
@@ -21,6 +22,7 @@ function inboxChrome(page: import('@playwright/test').Page) {
     .or(page.getByText(/no inbox items/i))
     .or(page.getByText(/new reviews and feedback will appear here/i))
     .or(page.getByRole('button', { name: /retry/i }))
+    .first()
 }
 
 test.describe('Critical: authentication', () => {
