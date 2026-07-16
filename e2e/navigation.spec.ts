@@ -1,45 +1,38 @@
-// E2E: Navigation between authenticated pages
+// E2E: Navigation between authenticated manager surfaces (BQR-5.2).
+// Single-property orgs redirect /dashboard → property deep-dive (product behavior).
 
 import { test, expect } from '@playwright/test'
 import { signIn } from './helpers/auth'
-import { createProperty, deleteProperty } from './helpers/property'
+import { openSeededProperty, SEEDED_PROPERTY_NAME } from './helpers/property'
+import { requireE2eSeedState } from './helpers/seed-state'
 
 test.describe('Navigation', () => {
   test.beforeEach(async ({ page }) => {
     await signIn(page)
   })
 
-  test('navigate through dashboard, properties, and members', async ({ page }) => {
-    await page.goto('/dashboard')
-    await expect(page.getByRole('heading', { name: /dashboard/i })).toBeVisible()
+  test('navigate properties, inbox, and members settings', async ({ page }) => {
+    await page.goto('/properties')
+    await expect(page.getByRole('heading', { name: /^properties$/i })).toBeVisible()
 
-    await page.getByRole('link', { name: /properties/i }).click()
-    await expect(page.getByRole('heading', { name: /properties/i })).toBeVisible()
+    await page.goto('/inbox')
+    await expect(page).toHaveURL(/\/inbox/)
 
-    await page.getByRole('link', { name: /members/i }).click()
-    // Avoid strict-mode clash when page has multiple "Members" headings.
-    await expect(page.getByRole('heading', { name: /members/i }).first()).toBeVisible()
-
-    await page.goto('/staff')
-    await expect(page.getByRole('heading', { name: /staff/i })).toBeVisible()
+    await page.goto('/settings/members')
+    await expect(page.getByRole('heading', { name: /^members$/i }).first()).toBeVisible()
   })
 
   test('property detail tabs navigate correctly', async ({ page }) => {
-    const propertyName = await createProperty(page, 'E2E Nav')
+    const seed = requireE2eSeedState()
+    await openSeededProperty(page)
+    await expect(page.getByText(SEEDED_PROPERTY_NAME).first()).toBeVisible()
 
-    // Open property
-    await page.getByText(propertyName).click()
-    await expect(page.getByText(/property details/i)).toBeVisible()
+    // Manager property nav: Reviews + People (not legacy Teams/Staff top-level tabs).
+    await page.goto(`/properties/${seed.propertyId}/reviews`)
+    await expect(page).toHaveURL(new RegExp(`/properties/${seed.propertyId}/reviews`))
 
-    // Teams tab
-    await page.getByRole('link', { name: /teams/i }).click()
-    await expect(page.getByRole('heading', { name: /teams/i })).toBeVisible()
-
-    // Staff tab
-    await page.getByRole('link', { name: /staff/i }).click()
-    await expect(page.getByRole('heading', { name: /staff/i })).toBeVisible()
-
-    // Cleanup
-    await deleteProperty(page, propertyName)
+    await page.goto(`/properties/${seed.propertyId}/people`)
+    await expect(page).toHaveURL(new RegExp(`/properties/${seed.propertyId}/people`))
+    await expect(page.getByRole('tab', { name: /teams/i })).toBeVisible()
   })
 })
