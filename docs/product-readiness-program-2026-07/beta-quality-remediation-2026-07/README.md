@@ -1,6 +1,6 @@
 # Beta Quality Remediation Program — July 2026
 
-**Status:** BQR-0…3 complete on main; BQR-0…4 complete on main; BQR-5.1 in progress
+**Status:** BQR-0…5 complete on main; BQR-6 in progress
 
 **Purpose:** Bring the current codebase to an evidence-backed internal beta standard after the July 2026 implementation review  
 **Applies before:** Any real-property pilot, Phase 17, Phase 18, or post-beta capability activation
@@ -16,22 +16,24 @@ This program corrects the gap between code that has been added and capabilities 
 5. [BQR-2 durable runtime](phase-bqr2-durable-runtime.md) — atomic outbox, envelope, consumers
 6. [BQR-3 source lifecycle and region](phase-bqr3-source-lifecycle-and-region.md) — fetch-based expiry, hash, purge, region
 7. [BQR-4 auth, privacy, containment](phase-bqr4-auth-privacy-containment.md)
-8. Later phases: BQR-5…BQR-7
+8. [BQR-5 experience verification](phase-bqr5-experience-verification.md)
+9. [BQR-6 ops and scale](phase-bqr6-ops-scale.md)
+10. Later: BQR-7 pilot
 
 Primary-source research for this program may be added as `primary-source-research.md` when external citations are re-gathered; until then the July PRE17/beta research under the parent folder remains the reference set.
 
 ## Progress
 
-| Phase | Status                                                                                                                                     | Notes                                                                  |
-| ----- | ------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------- |
-| BQR-0 | **Merged** [#188](https://github.com/kodes-agency/reputation-key/pull/188)                                                                 | Outbox dispatch off; dark paths contained; baseline inventory          |
-| BQR-1 | **Merged** [#189](https://github.com/kodes-agency/reputation-key/pull/189)–[#192](https://github.com/kodes-agency/reputation-key/pull/192) | Schema, errors, outbox boundaries, ADR 0030 + health schema consumers  |
-| BQR-2 | **Merged** [#193](https://github.com/kodes-agency/reputation-key/pull/193)–[#197](https://github.com/kodes-agency/reputation-key/pull/197) | Envelope, consumers, atomic producer, real consumers, allowlist insert |
-| BQR-3 | **Merged** [#199](https://github.com/kodes-agency/reputation-key/pull/199)                                                                 | Source lifecycle + processing-region routing                           |
-| BQR-4 | **Merged** [#201](https://github.com/kodes-agency/reputation-key/pull/201)                                                                 | authorize() seam; privacy events; ADR align                            |
-| BQR-5 | **5.1 in progress**                                                                                                                        | Critical e2e hard gate; residual soft; storybook-test hard             |
-| BQR-6 | Not started                                                                                                                                | Topology, recovery, scale proof                                        |
-| BQR-7 | Not started                                                                                                                                | Real-property pilot                                                    |
+| Phase | Status                                                                                                                                     | Notes                                                                                |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
+| BQR-0 | **Merged** [#188](https://github.com/kodes-agency/reputation-key/pull/188)                                                                 | Outbox dispatch off; dark paths contained; baseline inventory                        |
+| BQR-1 | **Merged** [#189](https://github.com/kodes-agency/reputation-key/pull/189)–[#192](https://github.com/kodes-agency/reputation-key/pull/192) | Schema, errors, outbox boundaries, ADR 0030 + health schema consumers                |
+| BQR-2 | **Merged** [#193](https://github.com/kodes-agency/reputation-key/pull/193)–[#197](https://github.com/kodes-agency/reputation-key/pull/197) | Envelope, consumers, atomic producer, real consumers, allowlist insert               |
+| BQR-3 | **Merged** [#199](https://github.com/kodes-agency/reputation-key/pull/199)                                                                 | Source lifecycle + processing-region routing                                         |
+| BQR-4 | **Merged** [#201](https://github.com/kodes-agency/reputation-key/pull/201)                                                                 | authorize() seam; privacy events; ADR align                                          |
+| BQR-5 | **Merged** [#202](https://github.com/kodes-agency/reputation-key/pull/202)–[#204](https://github.com/kodes-agency/reputation-key/pull/204) | Critical e2e hard; residual soft; storybook build+test hard; a11y via storybook-test |
+| BQR-6 | **In progress**                                                                                                                            | Live/ready probes, evidence pack, scale/recovery proof                               |
+| BQR-7 | Not started                                                                                                                                | Real-property pilot (human-gated)                                                    |
 
 ## Authority and relationship to earlier plans
 
