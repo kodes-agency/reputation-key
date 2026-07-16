@@ -111,6 +111,8 @@ export type PropertyPublicApi = Readonly<{
     slug: string
     gbpPlaceId: string
     googleConnectionId: GoogleConnectionId
+    /** ISO country from GBP storefrontAddress.regionCode when known (BQR-3.5). */
+    countryCode?: string | null
   }) => Promise<PropertyImportResult>
 
   /**

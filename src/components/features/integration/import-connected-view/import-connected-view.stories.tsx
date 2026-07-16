@@ -40,6 +40,7 @@ const locations: GbpLocation[] = [
     primaryCategory: 'Restaurant',
     latitude: null,
     longitude: null,
+    countryCode: null,
   },
   {
     name: 'locations/b',
@@ -49,6 +50,7 @@ const locations: GbpLocation[] = [
     primaryCategory: 'Auto Repair',
     latitude: null,
     longitude: null,
+    countryCode: null,
   },
 ]
 

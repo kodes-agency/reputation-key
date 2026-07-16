@@ -29,6 +29,8 @@ export type PropertyImportRepo = Readonly<{
     slug: string
     gbpPlaceId: string
     googleConnectionId: string
+    /** ISO country from GBP when known (BQR-3.5). */
+    countryCode?: string | null
   }) => Promise<{
     id: string
     organizationId: string

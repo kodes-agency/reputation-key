@@ -35,6 +35,7 @@ export const createImportPropertyHandler = (
             gbpPlaceId: loc.gbpPlaceId,
             businessName: loc.businessName,
             gbpLocationName: loc.gbpLocationName,
+            countryCode: loc.countryCode ?? null,
           })),
         })
 

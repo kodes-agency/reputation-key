@@ -65,6 +65,7 @@ export function ImportConnectedView({
           address: l.address,
           primaryCategory: l.primaryCategory,
           gbpLocationName: l.name,
+          countryCode: l.countryCode,
         })),
       },
     })

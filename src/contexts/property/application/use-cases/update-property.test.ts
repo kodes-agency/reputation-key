@@ -182,6 +182,56 @@ describe('updateProperty', () => {
     )
   })
 
+  it('resolves processing region when country is set on unresolved property (BQR-3.5)', async () => {
+    const { useCase, propertyRepo } = setup()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const prop = buildTestProperty({
+      processingRegion: 'unresolved',
+      countryCode: null,
+    })
+    propertyRepo.seed([prop])
+
+    const updated = await useCase({ propertyId: prop.id, countryCode: 'US' }, ctx)
+
+    expect(updated.countryCode).toBe('US')
+    expect(updated.processingRegion).toBe('us')
+    expect(updated.processingRegionResolvedAt).toEqual(FIXED_TIME)
+  })
+
+  it('rejects country change that would alter a resolved region (BQR-3.5)', async () => {
+    const { useCase, propertyRepo } = setup()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const prop = buildTestProperty({
+      countryCode: 'US',
+      processingRegion: 'us',
+      processingRegionResolvedAt: FIXED_TIME,
+    })
+    propertyRepo.seed([prop])
+
+    await expect(
+      useCase({ propertyId: prop.id, countryCode: 'DE' }, ctx),
+    ).rejects.toSatisfy(
+      (e: unknown) =>
+        isPropertyError(e) && (e as { code: string }).code === 'region_locked',
+    )
+  })
+
+  it('allows country correction within the same resolved region (BQR-3.5)', async () => {
+    const { useCase, propertyRepo } = setup()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const prop = buildTestProperty({
+      countryCode: 'US',
+      processingRegion: 'us',
+      processingRegionResolvedAt: FIXED_TIME,
+    })
+    propertyRepo.seed([prop])
+
+    const updated = await useCase({ propertyId: prop.id, countryCode: 'PR' }, ctx)
+
+    expect(updated.countryCode).toBe('PR')
+    expect(updated.processingRegion).toBe('us')
+  })
+
   it('allows setting gbpPlaceId to null (clearing it)', async () => {
     const { useCase, propertyRepo } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })

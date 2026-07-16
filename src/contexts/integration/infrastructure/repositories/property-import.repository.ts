@@ -26,6 +26,7 @@ export const createPropertyImportRepository = (
           slug: input.slug,
           gbpPlaceId: input.gbpPlaceId,
           googleConnectionId: toConnId(input.googleConnectionId),
+          countryCode: input.countryCode ?? null,
         })
         return {
           id: result.id,

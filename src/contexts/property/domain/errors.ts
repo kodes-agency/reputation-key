@@ -7,6 +7,8 @@ export type PropertyErrorCode =
   | 'invalid_slug'
   | 'invalid_name'
   | 'invalid_timezone'
+  | 'invalid_country'
+  | 'region_locked'
   | 'slug_taken'
   | 'property_not_found'
   | 'invalid_transition'

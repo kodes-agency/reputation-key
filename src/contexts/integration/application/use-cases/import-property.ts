@@ -31,6 +31,8 @@ export type ImportLocation = Readonly<{
   gbpPlaceId: string
   businessName: string
   gbpLocationName: string
+  /** ISO country from GBP when known (BQR-3.5). */
+  countryCode?: string | null
 }>
 
 export type CreatedProperty = Readonly<{
@@ -153,6 +155,7 @@ export const importProperty =
             slug,
             gbpPlaceId: location.gbpPlaceId,
             googleConnectionId: input.connectionId,
+            countryCode: location.countryCode ?? null,
           })
 
           await deps.importRepo.incrementImported(orgId, jobId)

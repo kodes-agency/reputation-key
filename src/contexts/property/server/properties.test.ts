@@ -50,6 +50,10 @@ describe('propertyErrorStatus (imported from server module)', () => {
       'invalid_slug',
       'invalid_name',
       'invalid_timezone',
+      'invalid_country',
+      'region_locked',
+      'invalid_transition',
+      'property_not_active',
     ]
     for (const code of codes) {
       const status = propertyErrorStatus(code)
@@ -95,9 +99,11 @@ describe('throwContextError with PropertyError', () => {
       ['forbidden', 403],
       ['property_not_found', 404],
       ['slug_taken', 409],
+      ['region_locked', 409],
       ['invalid_slug', 400],
       ['invalid_name', 400],
       ['invalid_timezone', 400],
+      ['invalid_country', 400],
     ]
     for (const [code, expectedStatus] of cases) {
       const e = propertyError(code, `test ${code}`)

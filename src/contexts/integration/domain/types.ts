@@ -87,6 +87,8 @@ export type GbpLocation = Readonly<{
   primaryCategory: string | null
   latitude: number | null
   longitude: number | null
+  /** ISO 3166-1 alpha-2 from storefrontAddress.regionCode when present (BQR-3.5). */
+  countryCode: string | null
 }>
 
 export type { GoogleConnectionId, GbpImportJobId }
