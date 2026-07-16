@@ -210,6 +210,7 @@ async function syncOneReview(
       persisted = true
     } else {
       // BQR-2.3: review row + outbox event in one transaction (via command store).
+      // BQR-4.2: identifier-only domain event (no reviewerName / reviewText).
       const eventPayload = {
         reviewId: review.id,
         propertyId: input.propertyId,
@@ -217,8 +218,6 @@ async function syncOneReview(
         platform: 'google' as const,
         externalId: gr.externalId,
         rating: gr.rating,
-        reviewerName: gr.reviewerName,
-        reviewText: gr.text,
         occurredAt: gr.reviewedAt,
       }
       const event = isNew ? reviewCreated(eventPayload) : reviewUpdated(eventPayload)

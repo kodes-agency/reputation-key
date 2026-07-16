@@ -5,6 +5,7 @@ import type { EventBus } from '#/shared/events/event-bus'
 import type { CreateInboxItem } from '../../application/use-cases/create-inbox-item'
 import type { InboxRepository } from '../../application/ports/inbox.repository'
 import type { FeedbackLookupPort } from '../../application/ports/feedback-lookup.port'
+import type { ReviewLookupPort } from '../../application/ports/review-lookup.port'
 import { onReviewCreated } from './on-review-created'
 import { onFeedbackSubmitted } from './on-feedback-submitted'
 import { onReviewUpdated } from './on-review-updated'
@@ -17,12 +18,17 @@ export type RegisterInboxHandlersDeps = Readonly<{
   createInboxItem: CreateInboxItem
   repo: InboxRepository
   feedbackLookup: FeedbackLookupPort
+  /** BQR-4.2: reload review content for identifier-only events. */
+  reviewLookup: ReviewLookupPort
 }>
 
 export const registerInboxHandlers = (deps: RegisterInboxHandlersDeps): void => {
   deps.events.on(
     'review.created',
-    onReviewCreated({ createInboxItem: deps.createInboxItem }),
+    onReviewCreated({
+      createInboxItem: deps.createInboxItem,
+      reviewLookup: deps.reviewLookup,
+    }),
   )
   deps.events.on(
     'guest.feedback.submitted',
@@ -31,7 +37,13 @@ export const registerInboxHandlers = (deps: RegisterInboxHandlersDeps): void => 
       feedbackLookup: deps.feedbackLookup,
     }),
   )
-  deps.events.on('review.updated', onReviewUpdated(deps))
+  deps.events.on(
+    'review.updated',
+    onReviewUpdated({
+      repo: deps.repo,
+      reviewLookup: deps.reviewLookup,
+    }),
+  )
   deps.events.on(
     'review.reply.published',
     onReplyPublished({

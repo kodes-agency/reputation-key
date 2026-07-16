@@ -71,8 +71,6 @@ function makeEvent(): DomainEvent {
     platform: 'google',
     externalId: 'ext-1',
     rating: 5,
-    reviewerName: 'Jane',
-    reviewText: 'Great',
     occurredAt: NOW,
   } as DomainEvent
 }
@@ -123,7 +121,6 @@ describe('createAtomicReviewCommandStore', () => {
       externalId: 'ext-1',
       externalLocationId: 'loc-1',
       googleConnectionId: 'conn-1',
-      reviewerName: 'Jane',
       reviewerProfilePhotoUrl: null,
       rating: 5,
       text: 'Great',

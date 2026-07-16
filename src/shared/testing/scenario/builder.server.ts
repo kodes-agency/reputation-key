@@ -219,8 +219,6 @@ async function createReviews(
           rating: spec.rating,
           platform: 'google',
           externalId: review.externalId,
-          reviewerName: review.reviewerName,
-          reviewText: review.text ?? null,
           occurredAt: ctx.now,
         }),
       )

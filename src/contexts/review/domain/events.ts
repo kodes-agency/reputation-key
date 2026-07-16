@@ -21,8 +21,7 @@ export type ReviewCreated = Readonly<{
   platform: ReviewPlatform
   externalId: string
   rating: StarRating
-  reviewerName: string | null
-  reviewText: string | null
+  // BQR-4.2 / ADR 0030: identifier-only — no raw reviewer/text on the bus.
   occurredAt: Date
   correlationId: string | null
 }>
@@ -49,8 +48,7 @@ export type ReviewUpdated = Readonly<{
   platform: ReviewPlatform
   externalId: string
   rating: StarRating
-  reviewerName: string | null
-  reviewText: string | null
+  // BQR-4.2 / ADR 0030: identifier-only — no raw reviewer/text on the bus.
   occurredAt: Date
   correlationId: string | null
 }>

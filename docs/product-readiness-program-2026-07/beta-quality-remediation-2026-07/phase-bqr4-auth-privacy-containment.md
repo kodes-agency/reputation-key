@@ -1,6 +1,6 @@
 # BQR-4 — Authoritative Authorization, Privacy, and Context Containment
 
-**Status:** In progress — slice 4.1  
+**Status:** In progress — slice 4.2  
 **Depends on:** BQR-1 (architecture rules); selected BQR-2 primitives; BQR-3 complete  
 **Unblocks:** BQR-5 (user paths under real auth gates), BQR-7 pilot security evidence  
 **Estimate:** 10–16 engineering days

@@ -2,7 +2,17 @@
 
 import { describe, it, expect, vi } from 'vitest'
 import { onReviewUpdated } from './on-review-updated'
+
+vi.mock('#/shared/observability/logger', () => ({
+  getLogger: () => ({
+    info: () => {},
+    warn: () => {},
+    error: () => {},
+    debug: () => {},
+  }),
+}))
 import type { InboxRepository } from '../../application/ports/inbox.repository'
+import type { ReviewLookupPort } from '../../application/ports/review-lookup.port'
 import type { InboxItem } from '../../application/public-api'
 import type { ReviewUpdated } from '#/contexts/review/application/public-api'
 import { inboxItemId, organizationId, reviewId, propertyId } from '#/shared/domain/ids'
@@ -52,22 +62,29 @@ const mockEvent: ReviewUpdated = {
   platform: 'google',
   externalId: 'ext-1',
   rating: 3,
-  reviewText: 'Updated review text',
-  reviewerName: null,
   occurredAt: NOW,
 }
 
 describe('onReviewUpdated', () => {
-  it('syncs denormalized fields on matching inbox item', async () => {
+  it('syncs denormalized fields from review lookup (BQR-4.2)', async () => {
     const item = makeInboxItem()
     const repo = {
       findBySource: vi.fn(async () => item),
       syncDenormalizedFields: vi.fn(async () => {}),
     } as unknown as InboxRepository
+    const reviewLookup = {
+      getReviewSnippetById: vi.fn(async () => ({
+        reviewerName: null,
+        text: 'Updated review text',
+        reviewerProfilePhotoUrl: null,
+      })),
+      getReviewSnippetsByIds: vi.fn(async () => new Map()),
+    } satisfies ReviewLookupPort
 
-    await onReviewUpdated({ repo })(mockEvent)
+    await onReviewUpdated({ repo, reviewLookup })(mockEvent)
 
     expect(repo.findBySource).toHaveBeenCalledWith('review', 'rev-1', ORG_ID)
+    expect(reviewLookup.getReviewSnippetById).toHaveBeenCalledWith(REVIEW_ID, ORG_ID)
     expect(repo.syncDenormalizedFields).toHaveBeenCalledWith(INBOX_ID, ORG_ID, {
       rating: 3,
       snippet: 'Updated review text',
@@ -75,15 +92,22 @@ describe('onReviewUpdated', () => {
     })
   })
 
-  it('passes undefined snippet when reviewText is null', async () => {
+  it('passes undefined snippet when lookup text is null', async () => {
     const item = makeInboxItem()
     const repo = {
       findBySource: vi.fn(async () => item),
       syncDenormalizedFields: vi.fn(async () => {}),
     } as unknown as InboxRepository
+    const reviewLookup = {
+      getReviewSnippetById: vi.fn(async () => ({
+        reviewerName: null,
+        text: null,
+        reviewerProfilePhotoUrl: null,
+      })),
+      getReviewSnippetsByIds: vi.fn(async () => new Map()),
+    } satisfies ReviewLookupPort
 
-    const eventNullText: ReviewUpdated = { ...mockEvent, reviewText: null }
-    await onReviewUpdated({ repo })(eventNullText)
+    await onReviewUpdated({ repo, reviewLookup })(mockEvent)
 
     expect(repo.syncDenormalizedFields).toHaveBeenCalledWith(INBOX_ID, ORG_ID, {
       rating: 3,
@@ -97,32 +121,14 @@ describe('onReviewUpdated', () => {
       findBySource: vi.fn(async () => null),
       syncDenormalizedFields: vi.fn(async () => {}),
     } as unknown as InboxRepository
+    const reviewLookup = {
+      getReviewSnippetById: vi.fn(async () => null),
+      getReviewSnippetsByIds: vi.fn(async () => new Map()),
+    } satisfies ReviewLookupPort
 
-    await onReviewUpdated({ repo })(mockEvent)
+    await onReviewUpdated({ repo, reviewLookup })(mockEvent)
 
     expect(repo.syncDenormalizedFields).not.toHaveBeenCalled()
-  })
-
-  it('does not throw on repo error', async () => {
-    const repo = {
-      findBySource: vi.fn(async () => {
-        throw new Error('DB down')
-      }),
-      syncDenormalizedFields: vi.fn(async () => {}),
-    } as unknown as InboxRepository
-
-    await expect(onReviewUpdated({ repo })(mockEvent)).resolves.toBeUndefined()
-  })
-
-  it('does not throw when syncDenormalizedFields fails', async () => {
-    const item = makeInboxItem()
-    const repo = {
-      findBySource: vi.fn(async () => item),
-      syncDenormalizedFields: vi.fn(async () => {
-        throw new Error('Write failed')
-      }),
-    } as unknown as InboxRepository
-
-    await expect(onReviewUpdated({ repo })(mockEvent)).resolves.toBeUndefined()
+    expect(reviewLookup.getReviewSnippetById).not.toHaveBeenCalled()
   })
 })

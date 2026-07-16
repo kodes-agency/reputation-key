@@ -162,8 +162,6 @@ export const buildReviewCreatedEvent = (
   platform: 'google',
   externalId: 'ext-1',
   rating: 4,
-  reviewText: 'Nice hotel',
-  reviewerName: null,
   occurredAt: NOTIF_TEST_IDS.now,
   ...overrides,
 })

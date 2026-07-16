@@ -1,14 +1,17 @@
 // Inbox context — event handler for review.created
 // Creates an inbox item when a new review is ingested.
+// BQR-4.2: event is identifier-only; snippet/reviewer re-fetched via lookup.
 
 import type { ReviewCreated } from '#/contexts/review/application/public-api'
 import type { CreateInboxItem } from '../../application/use-cases/create-inbox-item'
+import type { ReviewLookupPort } from '../../application/ports/review-lookup.port'
 import { isInboxError } from '../../domain/errors'
 import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
 
 export type OnReviewCreatedDeps = Readonly<{
   createInboxItem: CreateInboxItem
+  reviewLookup: ReviewLookupPort
 }>
 
 export const onReviewCreated =
@@ -16,6 +19,11 @@ export const onReviewCreated =
   async (event: ReviewCreated): Promise<void> => {
     return trace('event.onReviewCreated', async () => {
       try {
+        const snippet = await deps.reviewLookup.getReviewSnippetById(
+          event.reviewId,
+          event.organizationId,
+        )
+
         await deps.createInboxItem({
           organizationId: event.organizationId,
           propertyId: event.propertyId,
@@ -24,8 +32,8 @@ export const onReviewCreated =
           rating: event.rating,
           sourceDate: event.occurredAt,
           platform: event.platform,
-          snippet: event.reviewText ?? null,
-          reviewerName: event.reviewerName,
+          snippet: snippet?.text ?? null,
+          reviewerName: snippet?.reviewerName ?? null,
         })
       } catch (err) {
         if (isInboxError(err) && err.code === 'already_exists') return
