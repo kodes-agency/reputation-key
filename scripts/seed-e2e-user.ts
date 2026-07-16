@@ -10,6 +10,8 @@
 //   DATABASE_URL=... BETTER_AUTH_SECRET=... pnpm exec tsx scripts/seed-e2e-user.ts
 
 import 'dotenv/config'
+import { writeFileSync, mkdirSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
 import { eq, and, isNull } from 'drizzle-orm'
 import { getAuth } from '../src/shared/auth/auth'
 import { getDb } from '../src/shared/db'
@@ -28,6 +30,21 @@ const organizationName = process.env.E2E_TEST_ORG ?? 'E2E Test Org'
 const propertyName = process.env.E2E_TEST_PROPERTY ?? 'E2E Seed Property'
 const propertySlug = process.env.E2E_TEST_PROPERTY_SLUG ?? 'e2e-seed-property'
 
+/** Written for Playwright critical specs (direct property deep-link). */
+const seedStatePath = resolve(process.cwd(), 'e2e/.seed-state.json')
+
+function writeSeedState(state: {
+  email: string
+  organizationId: string
+  propertyId: string
+  propertyName: string
+  propertySlug: string
+}): void {
+  mkdirSync(dirname(seedStatePath), { recursive: true })
+  writeFileSync(seedStatePath, `${JSON.stringify(state, null, 2)}\n`, 'utf8')
+  console.log(`E2E seed state written: ${seedStatePath}`)
+}
+
 function slugify(value: string): string {
   return value
     .toLowerCase()
@@ -36,7 +53,7 @@ function slugify(value: string): string {
     .slice(0, 48)
 }
 
-async function ensureProperty(orgId: string): Promise<void> {
+async function ensureProperty(orgId: string): Promise<string> {
   const db = getDb()
   const existing = await db
     .select({ id: properties.id })
@@ -52,7 +69,7 @@ async function ensureProperty(orgId: string): Promise<void> {
 
   if (existing[0]) {
     console.log(`E2E property already exists: ${propertySlug} (${existing[0].id})`)
-    return
+    return existing[0].id
   }
 
   const [row] = await db
@@ -73,7 +90,9 @@ async function ensureProperty(orgId: string): Promise<void> {
     })
     .returning({ id: properties.id })
 
-  console.log(`E2E property created: ${propertyName} (${row?.id})`)
+  if (!row?.id) throw new Error('E2E property insert returned no id')
+  console.log(`E2E property created: ${propertyName} (${row.id})`)
+  return row.id
 }
 
 async function resolveOrgIdForUser(userId: string): Promise<string | null> {
@@ -141,7 +160,14 @@ async function main(): Promise<void> {
     console.log(`E2E org already exists for user: ${orgId}`)
   }
 
-  await ensureProperty(orgId)
+  const propertyId = await ensureProperty(orgId)
+  writeSeedState({
+    email,
+    organizationId: orgId,
+    propertyId,
+    propertyName,
+    propertySlug,
+  })
 }
 
 main()

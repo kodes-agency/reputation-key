@@ -3,22 +3,28 @@
 // CI seeds `e2e-seed-property` via scripts/seed-e2e-user.ts.
 
 import { expect, type Page } from '@playwright/test'
+import { requireE2eSeedState } from './seed-state'
 
 export const SEEDED_PROPERTY_NAME = process.env.E2E_TEST_PROPERTY ?? 'E2E Seed Property'
 export const SEEDED_PROPERTY_SLUG =
   process.env.E2E_TEST_PROPERTY_SLUG ?? 'e2e-seed-property'
 
 /**
- * Open the seeded property from the properties list.
- * Prefer this over createProperty — there is no /properties/new UI path.
+ * Open the seeded property detail page.
+ * Prefers a deep-link from seed state (reliable) over list-row click
+ * (client-side navigate on a div is hydration-sensitive under Playwright).
  */
 export async function openSeededProperty(page: Page): Promise<string> {
-  await page.goto('/properties')
-  await expect(page.getByRole('heading', { name: /properties/i })).toBeVisible()
-  const name = SEEDED_PROPERTY_NAME
-  await page.getByText(name).click()
-  await expect(page).toHaveURL(/\/properties\//)
-  return name
+  const seed = requireE2eSeedState()
+  await page.goto(`/properties/${seed.propertyId}`)
+  await expect(page).toHaveURL(new RegExp(`/properties/${seed.propertyId}`), {
+    timeout: 20_000,
+  })
+  // Dashboard shell uses property name in description / breadcrumbs.
+  await expect(page.getByText(seed.propertyName).first()).toBeVisible({
+    timeout: 15_000,
+  })
+  return seed.propertyName
 }
 
 /**
@@ -40,17 +46,25 @@ export async function deleteProperty(page: Page, propertyName: string): Promise<
     return
   }
   await page.goto('/properties')
-  await page.getByText(propertyName).click()
+  await page
+    .locator('div.cursor-pointer')
+    .filter({ hasText: propertyName })
+    .first()
+    .click()
   page.on('dialog', (dialog) => dialog.accept())
   await page.getByRole('button', { name: /delete property/i }).click()
   await page.waitForURL('/properties')
 }
 
 /**
- * Navigate into a property from the properties list.
+ * Navigate into a property from the properties list (UI path).
  */
 export async function openProperty(page: Page, propertyName: string): Promise<void> {
   await page.goto('/properties')
-  await page.getByText(propertyName).click()
+  await page
+    .locator('div.cursor-pointer')
+    .filter({ hasText: propertyName })
+    .first()
+    .click()
   await expect(page).toHaveURL(/\/properties\//)
 }

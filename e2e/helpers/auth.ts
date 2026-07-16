@@ -66,6 +66,10 @@ export async function registerAccount(
   email: string,
   password = 'Password123!',
 ) {
+  // Unique org name avoids better-auth slug collisions with the seeded "E2E Test Org".
+  const orgSuffix = email.replace(/[^a-z0-9]/gi, '').slice(-10)
+  const organizationName = `E2E Org ${orgSuffix}`
+
   await page.goto('/register')
   await page.waitForLoadState('domcontentloaded')
   if (page.url().includes('/login')) {
@@ -77,12 +81,20 @@ export async function registerAccount(
   await page.locator('form').first().waitFor({ state: 'visible' })
   await page.getByLabel('Full name').fill('E2E Test User')
   await page.getByLabel('Email').fill(email)
-  await page.getByLabel('Organization name').fill('E2E Test Org')
+  await page.getByLabel('Organization name').fill(organizationName)
   await page.getByLabel('Password', { exact: true }).fill(password)
   await page.getByLabel('Confirm password').fill(password)
   // Register form primary CTA is "Create account & organization" (not "Create account").
   await page.getByRole('button', { name: /create account/i }).click()
-  // Success renders on /register — no redirect. Wait for the success card.
-  await expect(page.getByText(/account created/i)).toBeVisible({ timeout: 15_000 })
+
+  // Success renders on /register — no redirect. AuthCard title is a div (not a heading role).
+  const success = page.getByText(/account created/i)
+  const errorBanner = page.locator('[role="alert"]')
+  await expect(success.or(errorBanner)).toBeVisible({ timeout: 20_000 })
+  if (await errorBanner.isVisible().catch(() => false)) {
+    const msg = (await errorBanner.innerText().catch(() => '')).trim()
+    throw new Error(`Registration failed with UI error: ${msg || '(empty alert)'}`)
+  }
+  await expect(success).toBeVisible()
   return email
 }
