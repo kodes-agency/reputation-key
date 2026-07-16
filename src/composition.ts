@@ -67,6 +67,7 @@ import { createReviewLookupAdapter } from '#/contexts/inbox/infrastructure/adapt
 import { createFeedbackLookupAdapter } from '#/contexts/inbox/infrastructure/adapters/feedback-lookup.adapter'
 import { createPropertyLookupAdapter } from '#/contexts/inbox/infrastructure/adapters/property-lookup.adapter'
 import { createReplyLookupAdapter } from '#/contexts/inbox/infrastructure/adapters/reply-lookup.adapter'
+import { registerInboxConsumers } from '#/contexts/inbox/infrastructure/outbox-consumers'
 import {
   propertyId,
   organizationId as toOrgId,
@@ -548,6 +549,20 @@ export function createContainer(options?: {
     notificationRepo: notification.internal.repos.notificationRepo,
     notificationEmailRepo: notification.internal.repos.emailRepo,
     notificationPrefRepo: notification.internal.repos.prefRepo,
+    /**
+     * BQR-2.2: Register durable outbox consumers with the dispatcher registry.
+     * Call from the worker before (or when) starting the domain-events worker.
+     * Safe to call when dispatch is still disabled — registry is populated for
+     * the flag flip; jobs only run if OUTBOX_DISPATCHER_ENABLED starts relay.
+     */
+    registerOutboxConsumers: () => {
+      registerInboxConsumers({
+        outboxRepo,
+        reviewLookup,
+        createInboxItem: inbox.internal.useCases.createInboxItem,
+        updateInboxStatus: inbox.internal.useCases.updateInboxStatus,
+      })
+    },
   } as const
 }
 
