@@ -97,6 +97,13 @@ async function seedReview(
     expiresAt: new Date(now.getTime() + 25 * 24 * 60 * 60 * 1000),
     sentimentLabel: null,
     sentimentScore: null,
+    sourceCreatedAt: reviewedAt,
+    sourceUpdatedAt: null,
+    firstFetchedAt: now,
+    lastFetchedAt: now,
+    contentExpiresAt: null,
+    contentHash: null,
+    sourceSeenGeneration: null,
     ...overrides,
   })
 }

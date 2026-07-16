@@ -42,6 +42,10 @@ const EXPECTED_TABLES = [
   'inbox_user_views',
   'metric_definitions',
   'metric_readings',
+  // Migration 0007 (BQR-1.1)
+  'review_sync_state',
+  'review_sync_runs',
+  'inbound_webhook_receipts',
   'badge_definitions',
   'organization_badge_enablements',
   'badge_awards',

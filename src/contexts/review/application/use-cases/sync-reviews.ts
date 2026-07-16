@@ -23,7 +23,11 @@ import type {
   PropertyId,
   GoogleConnectionId,
 } from '#/shared/domain/ids'
-import type { Review, GoogleReview } from '../../domain/types'
+import {
+  defaultReviewLifecycle,
+  type Review,
+  type GoogleReview,
+} from '../../domain/types'
 import type { ReviewError } from '../../domain/errors'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { reviewCreated, reviewUpdated, reviewReplyPublished } from '../../domain/events'
@@ -159,6 +163,12 @@ async function syncOneReview(
     expiresAt: calculateExpiresAt(gr.reviewedAt, now),
     sentimentLabel: existing?.sentimentLabel ?? null,
     sentimentScore: existing?.sentimentScore ?? null,
+    // BQR-1.1: preserve lifecycle columns; always refresh lastFetchedAt on sync
+    ...defaultReviewLifecycle({
+      reviewedAt: gr.reviewedAt,
+      now,
+      existing: existing ?? null,
+    }),
   }
 
   await deps.reviewRepo.upsert(review, now)

@@ -84,23 +84,23 @@ Goal reconcile/spawn, badge/leaderboard reconcile, portal process-image, and out
 ### Finding 3.1 — Migrations 0006-0008 absent from Drizzle schema
 
 **Severity:** P0  
-**Status:** Open (deferred to BQR-1)
+**Status:** **Remediated in BQR-1.1** (Drizzle + domain/mapper + parity test)
 
-| Migration | Adds                                                                                                    | Drizzle representation |
-| --------- | ------------------------------------------------------------------------------------------------------- | ---------------------- |
-| 0006      | 9 property routing columns + 7 review lifecycle columns                                                 | **None**               |
-| 0007      | 3 tables (review_sync_state, review_sync_runs, inbound_webhook_receipts)                                | **None**               |
-| 0008      | 4 tables (rollup_daily_metrics, rollup_weekly_metrics, rollup_daily_inbox_metrics, \_rollup_watermarks) | **None**               |
+| Migration | Adds                                                                                                    | Drizzle representation (BQR-1.1)    |
+| --------- | ------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| 0006      | 9 property routing columns + 7 review lifecycle columns                                                 | `property.schema` / `review.schema` |
+| 0007      | 3 tables (review_sync_state, review_sync_runs, inbound_webhook_receipts)                                | `review-sync.schema.ts`             |
+| 0008      | 4 tables (rollup_daily_metrics, rollup_weekly_metrics, rollup_daily_inbox_metrics, \_rollup_watermarks) | `rollup.schema.ts`                  |
 
-Migrations 0009-0011 ARE fully mirrored in Drizzle schema.
+Migrations 0009-0011 remain fully mirrored. Parity locked by `schema-migration-parity.test.ts`.
 
 ### Finding 3.2 — Review lifecycle columns never written
 
 **Severity:** P0  
-**Status:** Open (deferred to BQR-1 / BQR-3)  
-**Files:** `src/contexts/review/infrastructure/mappers/review.mapper.ts`
+**Status:** **Partially remediated (BQR-1.1)** — mapper + sync path write lifecycle fields; content expiry/hash/policy still BQR-3  
+**Files:** `src/contexts/review/infrastructure/mappers/review.mapper.ts`, `sync-reviews.ts`
 
-`reviewToRow()` omits all 7 lifecycle columns. After the one-time migration backfill, `last_fetched_at` is frozen at original `created_at`. The health metrics module reads these columns and will drift to "everything is stale" over time.
+`reviewToRow()` now includes all 7 lifecycle columns. Sync updates `lastFetchedAt` / preserves existing lifecycle on upsert. Full `content_expires_at` / hash policy and dead `source-content-lifecycle` wiring remain BQR-3.
 
 ### Finding 3.3 — source-content-lifecycle.ts is dead code
 

@@ -54,6 +54,14 @@ export const reviews = pgTable(
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     sentimentLabel: varchar('sentiment_label', { length: 20 }),
     sentimentScore: real('sentiment_score'),
+    // PRE17B / BQR-1.1: Review source lifecycle (migration 0006)
+    sourceCreatedAt: timestamp('source_created_at', { withTimezone: true }),
+    sourceUpdatedAt: timestamp('source_updated_at', { withTimezone: true }),
+    firstFetchedAt: timestamp('first_fetched_at', { withTimezone: true }),
+    lastFetchedAt: timestamp('last_fetched_at', { withTimezone: true }),
+    contentExpiresAt: timestamp('content_expires_at', { withTimezone: true }),
+    contentHash: text('content_hash'),
+    sourceSeenGeneration: uuid('source_seen_generation'),
     createdAt: createdAtColumn(),
     updatedAt: updatedAtColumn(),
   },
@@ -73,6 +81,18 @@ export const reviews = pgTable(
       t.reviewedAt,
     ),
     index('reviews_google_connection_idx').on(t.googleConnectionId),
+    // Migration 0006: incremental sync cursors (no text in covering indexes)
+    index('reviews_property_updated_cursor_idx').on(
+      t.propertyId,
+      t.sourceUpdatedAt,
+      t.id,
+    ),
+    index('reviews_property_created_cursor_idx').on(
+      t.propertyId,
+      t.sourceCreatedAt,
+      t.id,
+    ),
+    index('reviews_content_expires_idx').on(t.contentExpiresAt, t.id),
   ],
 )
 

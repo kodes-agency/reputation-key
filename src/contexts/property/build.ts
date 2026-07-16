@@ -6,7 +6,7 @@ import type { PropertyRepository } from './application/ports/property.repository
 import type { PropertyPublicApi } from './application/public-api'
 import { propertyImportConflict } from './application/public-api'
 import { propertyCreated } from './domain/events'
-import type { Property } from './domain/types'
+import { DEFAULT_PROPERTY_ROUTING, type Property } from './domain/types'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { OrganizationId, PropertyId, GoogleConnectionId } from '#/shared/domain/ids'
 import type { EventBus } from '#/shared/events/event-bus'
@@ -131,6 +131,7 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
           lifecycleStateChangedAt: now,
           purgeScheduledFor: null,
           lifecycleInitiatedBy: null,
+          ...DEFAULT_PROPERTY_ROUTING,
         }
         const inserted = await deps.repo.insertAndReturn(input.orgId, property)
         await emitAndRecord(
