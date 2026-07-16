@@ -2,6 +2,7 @@
 // Per architecture: thin — resolve auth → validate input → call use case → translate errors → return
 
 import { createServerFn } from '@tanstack/react-start'
+import { assertGlobalCapability } from '#/shared/auth/beta-capabilities'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { getContainer } from '#/composition'
 import { headersFromContext } from '#/shared/auth/headers'
@@ -22,6 +23,7 @@ export const submitRatingFn = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
+        assertGlobalCapability('portal.read')
         const { useCases, rateLimiter } = getContainer()
         const headers = await headersFromContext()
 
@@ -86,6 +88,7 @@ export const submitFeedbackFn = createServerFn({ method: 'POST' })
           return { success: true, blocked: true }
         }
 
+        assertGlobalCapability('portal.read')
         const { useCases, rateLimiter } = getContainer()
         const headers = await headersFromContext()
 

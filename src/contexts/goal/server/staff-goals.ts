@@ -7,6 +7,7 @@ import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
+import { assertBetaCapability } from '#/shared/auth/beta-capabilities'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { canForContext } from '#/shared/domain/permissions'
 import { getContainer } from '#/composition'
@@ -29,6 +30,7 @@ export const listStaffGoals = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
+        assertBetaCapability(ctx, 'goal.use')
         if (!canForContext(ctx, 'goal.read')) {
           throwContextError(
             'AuthError',

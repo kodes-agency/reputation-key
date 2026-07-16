@@ -7,7 +7,7 @@ import { getLogger } from '#/shared/observability/logger'
 import { createContainer } from '#/composition'
 import { bootstrap } from '#/bootstrap'
 import { createJobWorker } from '#/shared/jobs/worker'
-import { createJobQueue } from '#/shared/jobs/queue'
+import { createJobQueue, type Queue } from '#/shared/jobs/queue'
 import { createOutboxRelay } from '#/shared/outbox/relay'
 import { createDispatcherHandler } from '#/shared/outbox/dispatcher'
 import { JOB_NAMES } from '#/contexts/metric/infrastructure/jobs/refresh-materialized-view.job'
@@ -228,31 +228,36 @@ async function main() {
   }
 
   // ── Outbox relay + dispatcher (PRE17A A3/A4) ─────────────────────
-  // The relay polls outbox_events for unpublished rows, publishes to the
-  // domain-events BullMQ queue. The dispatcher worker receives events and
-  // invokes registered consumers with receipt-based idempotency.
+  // BQR-0 CONTAINMENT: The outbox path has known defects (non-atomic emit,
+  // relay/dispatcher envelope mismatch, empty consumer registry, no-op
+  // consumers). It must NOT process real work until BQR-2 fixes these.
+  // The relay and dispatcher are disabled by default. Enable only with
+  // OUTBOX_DISPATCHER_ENABLED=true in a controlled test environment.
   let domainEventsWorker: Worker | undefined
   let stopRelay: (() => void) | undefined
-  let domainEventsQueue: ReturnType<typeof createJobQueue>
+  let domainEventsQueue: Queue | undefined
 
-  if (container.outboxRepo && env.REDIS_URL) {
+  if (container.outboxRepo && env.REDIS_URL && env.OUTBOX_DISPATCHER_ENABLED) {
     domainEventsQueue = createJobQueue('domain-events')
 
     if (domainEventsQueue) {
-      // Start the relay — polls every 5 seconds
       const relay = createOutboxRelay(container.outboxRepo, domainEventsQueue)
       stopRelay = relay.start(5_000)
-
-      // Start the dispatcher worker — concurrency 20 for burst capacity
       const dispatchHandler = createDispatcherHandler(container.outboxRepo)
       domainEventsWorker = createJobWorker('domain-events', dispatchHandler, 20)
 
       if (domainEventsWorker) {
-        logger.info(
-          'Outbox relay + dispatcher started on domain-events queue (concurrency: 20)',
+        logger.warn(
+          'Outbox relay + dispatcher started — OUTBOX_DISPATCHER_ENABLED is true. ' +
+            'This is unsafe until BQR-2 is complete.',
         )
       }
     }
+  } else if (container.outboxRepo && env.REDIS_URL && !env.OUTBOX_DISPATCHER_ENABLED) {
+    logger.info(
+      'Outbox relay + dispatcher DISABLED (BQR-0 containment). ' +
+        'Events are delivered via the in-process event bus only until BQR-2.',
+    )
   } else {
     logger.warn('Outbox relay not started — no outboxRepo or Redis')
   }

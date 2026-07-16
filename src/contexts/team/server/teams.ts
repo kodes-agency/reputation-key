@@ -4,6 +4,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { match } from 'ts-pattern'
+import { assertBetaCapability } from '#/shared/auth/beta-capabilities'
 import { HTTP_STATUS } from '#/shared/http/status'
 import { z } from 'zod/v4'
 import { headersFromContext } from '#/shared/auth/headers'
@@ -43,6 +44,7 @@ export const createTeam = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
+        assertBetaCapability(ctx, 'team.use')
         if (!canForContext(ctx, 'team.create')) {
           throwContextError(
             'AuthError',
@@ -74,6 +76,7 @@ export const updateTeam = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
+        assertBetaCapability(ctx, 'team.use')
         if (!canForContext(ctx, 'team.update')) {
           throwContextError(
             'AuthError',
@@ -105,6 +108,7 @@ export const listTeams = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
+        assertBetaCapability(ctx, 'team.use')
         if (!canForContext(ctx, 'team.read')) {
           throwContextError(
             'AuthError',
@@ -139,6 +143,7 @@ export const deleteTeam = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
+        assertBetaCapability(ctx, 'team.use')
         if (!canForContext(ctx, 'team.delete')) {
           throwContextError(
             'AuthError',

@@ -4,6 +4,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { match } from 'ts-pattern'
+import { assertBetaCapability } from '#/shared/auth/beta-capabilities'
 import { z } from 'zod/v4'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
@@ -53,6 +54,7 @@ export const createPortalGroup = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
+        assertBetaCapability(ctx, 'portal.read')
 
         try {
           const { useCases } = getContainer()
@@ -78,6 +80,7 @@ export const updatePortalGroup = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
+        assertBetaCapability(ctx, 'portal.read')
 
         try {
           const { useCases } = getContainer()
@@ -107,6 +110,7 @@ export const listPortalGroups = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
+        assertBetaCapability(ctx, 'portal.read')
 
         try {
           const { useCases } = getContainer()
@@ -136,6 +140,7 @@ export const getPortalGroup = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
+        assertBetaCapability(ctx, 'portal.read')
 
         try {
           const { useCases } = getContainer()
@@ -161,6 +166,7 @@ export const softDeletePortalGroup = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
+        assertBetaCapability(ctx, 'portal.read')
 
         try {
           const { useCases } = getContainer()
@@ -191,6 +197,7 @@ export const addPortalToGroup = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
+        assertBetaCapability(ctx, 'portal.read')
 
         try {
           const { useCases } = getContainer()
@@ -216,6 +223,7 @@ export const removePortalFromGroup = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
+        assertBetaCapability(ctx, 'portal.read')
 
         try {
           const { useCases } = getContainer()
