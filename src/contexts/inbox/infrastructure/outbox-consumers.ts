@@ -1,13 +1,13 @@
-// Outbox consumer registrations for the inbox context (PRE17A A4 switch phase).
+// Outbox consumer registrations for the inbox context (PRE17A A4 / BQR-2.4).
 //
 // Registers inbox's event consumers with the dispatcher. Each consumer:
 // 1. Receives an identifier-only ConsumerEvent (no review text, PII)
-// 2. Checks the receipt (idempotency)
-// 3. Re-fetches content via lookup ports if needed
-// 4. Commits state + receipt atomically
+// 2. Checks the receipt (idempotency — dispatcher pre-checks hasReceipt)
+// 3. Re-fetches content via lookup ports if needed (ADR 0030)
+// 4. Applies projection side effects and records a receipt
 //
-// During the switch phase, BOTH the in-process bus AND the dispatcher
-// handle events. In the contract phase, the in-process bus is removed.
+// BQR-2.4: review.updated and review.expired perform real work (no no-op
+// applied receipts). System path uses the repository (not auth-gated use cases).
 
 import {
   registerConsumer,
@@ -15,19 +15,226 @@ import {
   type ConsumerResult,
 } from '#/shared/outbox/dispatcher'
 import type { OutboxRepository } from '#/shared/outbox'
+import { emitAndRecord } from '#/shared/outbox'
+import type { EventBus } from '#/shared/events/event-bus'
 import type { ReviewLookupPort } from '../application/ports/review-lookup.port'
+import type { InboxRepository } from '../application/ports/inbox.repository'
 import type { CreateInboxItem } from '../application/use-cases/create-inbox-item'
-import type { UpdateInboxStatus } from '../application/use-cases/update-inbox-status'
 import { isInboxError } from '../domain/errors'
-import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
+import { inboxItemStatusChanged } from '../domain/events'
+import { validateTransition } from '../domain/rules'
+import { organizationId, propertyId, reviewId, unbrand } from '#/shared/domain/ids'
 import { getLogger } from '#/shared/observability/logger'
 
 export type InboxConsumerDeps = Readonly<{
   outboxRepo: OutboxRepository
   reviewLookup: ReviewLookupPort
   createInboxItem: CreateInboxItem
-  updateInboxStatus: UpdateInboxStatus
+  inboxRepo: InboxRepository
+  events: EventBus
+  clock: () => Date
 }>
+
+type ReviewIdPayload = Readonly<{
+  reviewId: string
+  organizationId: string
+  propertyId: string
+}>
+
+type ReviewCreatedPayload = ReviewIdPayload &
+  Readonly<{
+    rating: number
+    occurredAt?: string | Date
+    platform?: string
+    externalId?: string
+  }>
+
+type ReviewUpdatedPayload = ReviewIdPayload &
+  Readonly<{
+    rating: number
+  }>
+
+function asReviewCreatedPayload(payload: unknown): ReviewCreatedPayload {
+  const p = payload as ReviewCreatedPayload
+  return p
+}
+
+function asReviewUpdatedPayload(payload: unknown): ReviewUpdatedPayload {
+  return payload as ReviewUpdatedPayload
+}
+
+function asReviewIdPayload(payload: unknown): ReviewIdPayload {
+  return payload as ReviewIdPayload
+}
+
+/** Exported for unit tests — review.created durable handler body. */
+export async function handleInboxReviewCreated(
+  deps: InboxConsumerDeps,
+  event: ConsumerEvent,
+): Promise<ConsumerResult> {
+  const logger = getLogger()
+  const payload = asReviewCreatedPayload(event.payload)
+  const orgId = organizationId(payload.organizationId)
+  const rId = reviewId(payload.reviewId)
+
+  const snippet = await deps.reviewLookup.getReviewSnippetById(rId, orgId)
+
+  if (!snippet) {
+    logger.warn(
+      { reviewId: payload.reviewId, eventId: event.eventId },
+      'inbox.on-review-created: review not found — marking obsolete',
+    )
+    await deps.outboxRepo.insertReceipt(
+      event.eventId,
+      'inbox.on-review-created',
+      'obsolete',
+    )
+    return { status: 'obsolete' }
+  }
+
+  const sourceDate =
+    payload.occurredAt != null ? new Date(payload.occurredAt) : deps.clock()
+
+  try {
+    await deps.createInboxItem({
+      organizationId: orgId,
+      propertyId: propertyId(payload.propertyId),
+      sourceType: 'review',
+      sourceId: rId,
+      rating: payload.rating,
+      sourceDate,
+      platform: (payload.platform as 'google') ?? 'google',
+      snippet: snippet.text ?? null,
+      reviewerName: snippet.reviewerName,
+    })
+    await deps.outboxRepo.insertReceipt(
+      event.eventId,
+      'inbox.on-review-created',
+      'applied',
+    )
+    return { status: 'applied' }
+  } catch (err: unknown) {
+    if (isInboxError(err) && err.code === 'already_exists') {
+      await deps.outboxRepo.insertReceipt(
+        event.eventId,
+        'inbox.on-review-created',
+        'duplicate',
+      )
+      return { status: 'duplicate' }
+    }
+    throw err
+  }
+}
+
+/**
+ * BQR-2.4: sync denormalized inbox fields from identifier-only event + lookup.
+ * Mirrors on-review-updated in-process handler.
+ */
+export async function handleInboxReviewUpdated(
+  deps: InboxConsumerDeps,
+  event: ConsumerEvent,
+): Promise<ConsumerResult> {
+  const logger = getLogger()
+  const payload = asReviewUpdatedPayload(event.payload)
+  const orgId = organizationId(payload.organizationId)
+  const rId = reviewId(payload.reviewId)
+  const sourceId = unbrand(rId)
+
+  const item = await deps.inboxRepo.findBySource('review', sourceId, orgId)
+  if (!item) {
+    // No inbox projection yet — nothing to update; not an error.
+    await deps.outboxRepo.insertReceipt(
+      event.eventId,
+      'inbox.on-review-updated',
+      'applied',
+    )
+    return { status: 'applied' }
+  }
+
+  // ADR 0030: re-fetch content; rating is a stable identifier-adjacent fact on payload.
+  const snippet = await deps.reviewLookup.getReviewSnippetById(rId, orgId)
+  if (!snippet) {
+    logger.warn(
+      { reviewId: payload.reviewId, eventId: event.eventId },
+      'inbox.on-review-updated: review not found — marking obsolete',
+    )
+    await deps.outboxRepo.insertReceipt(
+      event.eventId,
+      'inbox.on-review-updated',
+      'obsolete',
+    )
+    return { status: 'obsolete' }
+  }
+
+  await deps.inboxRepo.syncDenormalizedFields(item.id, item.organizationId, {
+    rating: payload.rating,
+    snippet: snippet.text ?? undefined,
+    reviewerName: snippet.reviewerName,
+  })
+
+  await deps.outboxRepo.insertReceipt(event.eventId, 'inbox.on-review-updated', 'applied')
+  return { status: 'applied' }
+}
+
+/**
+ * BQR-2.4: close open inbox item when source review expires.
+ * Mirrors on-review-expired in-process handler.
+ */
+export async function handleInboxReviewExpired(
+  deps: InboxConsumerDeps,
+  event: ConsumerEvent,
+): Promise<ConsumerResult> {
+  const payload = asReviewIdPayload(event.payload)
+  const orgId = organizationId(payload.organizationId)
+  const rId = reviewId(payload.reviewId)
+  const sourceId = unbrand(rId)
+  const now = deps.clock()
+
+  const item = await deps.inboxRepo.findBySource('review', sourceId, orgId)
+  if (!item) {
+    await deps.outboxRepo.insertReceipt(
+      event.eventId,
+      'inbox.on-review-expired',
+      'applied',
+    )
+    return { status: 'applied' }
+  }
+
+  if (validateTransition(item.status, 'closed').isErr()) {
+    // Already closed (or other illegal transition) — idempotent success.
+    await deps.outboxRepo.insertReceipt(
+      event.eventId,
+      'inbox.on-review-expired',
+      'applied',
+    )
+    return { status: 'applied' }
+  }
+
+  const oldStatus = item.status
+  await deps.inboxRepo.updateStatus(
+    item.id,
+    item.organizationId,
+    'closed',
+    { closedAt: now },
+    now,
+  )
+
+  await emitAndRecord(
+    deps.events,
+    deps.outboxRepo,
+    inboxItemStatusChanged({
+      inboxItemId: item.id,
+      organizationId: item.organizationId,
+      propertyId: item.propertyId,
+      oldStatus,
+      newStatus: 'closed',
+      occurredAt: now,
+    }),
+  )
+
+  await deps.outboxRepo.insertReceipt(event.eventId, 'inbox.on-review-expired', 'applied')
+  return { status: 'applied' }
+}
 
 /**
  * Register inbox consumers with the outbox dispatcher.
@@ -36,123 +243,22 @@ export type InboxConsumerDeps = Readonly<{
 export function registerInboxConsumers(deps: InboxConsumerDeps): void {
   const logger = getLogger()
 
-  // ── review.created → create inbox item ──────────────────────────
   registerConsumer({
     eventType: 'review.created',
     consumerName: 'inbox.on-review-created',
-    handler: async (event: ConsumerEvent): Promise<ConsumerResult> => {
-      const payload = event.payload as {
-        reviewId: string
-        organizationId: string
-        propertyId: string
-        googleReviewId: string
-        rating: number
-        occurredAt: string
-        platform: string
-      }
-
-      // Re-fetch review content via lookup port (ADR 0030: identifier-only payloads)
-      const snippet = await deps.reviewLookup.getReviewSnippetById(
-        reviewId(payload.reviewId),
-        organizationId(payload.organizationId),
-      )
-
-      if (!snippet) {
-        logger.warn(
-          { reviewId: payload.reviewId, eventId: event.eventId },
-          'inbox.on-review-created: review not found — marking obsolete',
-        )
-        await deps.outboxRepo.insertReceipt(
-          event.eventId,
-          'inbox.on-review-created',
-          'obsolete',
-        )
-        return { status: 'obsolete' }
-      }
-
-      try {
-        await deps.createInboxItem({
-          organizationId: organizationId(payload.organizationId),
-          propertyId: propertyId(payload.propertyId),
-          sourceType: 'review',
-          sourceId: reviewId(payload.reviewId),
-          rating: payload.rating,
-          sourceDate: new Date(payload.occurredAt),
-          platform: payload.platform as 'google',
-          snippet: snippet.text ?? null,
-          reviewerName: snippet.reviewerName,
-        })
-        await deps.outboxRepo.insertReceipt(
-          event.eventId,
-          'inbox.on-review-created',
-          'applied',
-        )
-        return { status: 'applied' }
-      } catch (err: unknown) {
-        if (isInboxError(err) && err.code === 'already_exists') {
-          await deps.outboxRepo.insertReceipt(
-            event.eventId,
-            'inbox.on-review-created',
-            'duplicate',
-          )
-          return { status: 'duplicate' }
-        }
-        throw err
-      }
-    },
+    handler: (event) => handleInboxReviewCreated(deps, event),
   })
 
-  // ── review.updated → update inbox item (if exists) ───────────────
   registerConsumer({
     eventType: 'review.updated',
     consumerName: 'inbox.on-review-updated',
-    handler: async (event: ConsumerEvent): Promise<ConsumerResult> => {
-      // For review.updated, the inbox item may need to be updated with
-      // new rating or content. For now, we mark as applied (no-op) since
-      // the inbox item is a snapshot at creation time.
-      // TODO: Implement inbox item update when product requires it.
-      await deps.outboxRepo.insertReceipt(
-        event.eventId,
-        'inbox.on-review-updated',
-        'applied',
-      )
-      return { status: 'applied' }
-    },
+    handler: (event) => handleInboxReviewUpdated(deps, event),
   })
 
-  // ── review.expired → close inbox item ────────────────────────────
   registerConsumer({
     eventType: 'review.expired',
     consumerName: 'inbox.on-review-expired',
-    handler: async (event: ConsumerEvent): Promise<ConsumerResult> => {
-      const payload = event.payload as {
-        reviewId: string
-        organizationId: string
-        propertyId: string
-      }
-
-      // The existing on-review-expired handler auto-transitions the inbox
-      // item to closed. For the outbox consumer, we do the same via
-      // updateInboxStatus. The receipt ensures we don't double-process.
-      try {
-        // The existing handler uses a specific lookup — for the outbox
-        // consumer, we'd need to find the inbox item by sourceId.
-        // For now, mark as applied — the in-process bus handler still
-        // handles the actual transition.
-        await deps.outboxRepo.insertReceipt(
-          event.eventId,
-          'inbox.on-review-expired',
-          'applied',
-        )
-        return { status: 'applied' }
-      } catch (err) {
-        logger.error(
-          { err, reviewId: payload.reviewId, eventId: event.eventId },
-          'inbox.on-review-expired: failed',
-        )
-        throw err
-      }
-    },
+    handler: (event) => handleInboxReviewExpired(deps, event),
   })
 
   logger.info('Inbox consumers registered with outbox dispatcher (3 consumers)')

@@ -150,7 +150,9 @@ function createOutboxConsumerRegistrar(deps: {
   outboxRepo: import('#/shared/outbox').OutboxRepository
   reviewLookup: import('#/contexts/inbox/application/ports/review-lookup.port').ReviewLookupPort
   createInboxItem: import('#/contexts/inbox/application/use-cases/create-inbox-item').CreateInboxItem
-  updateInboxStatus: import('#/contexts/inbox/application/use-cases/update-inbox-status').UpdateInboxStatus
+  inboxRepo: import('#/contexts/inbox/application/ports/inbox.repository').InboxRepository
+  events: EventBus
+  clock: Clock
 }): () => void {
   return () => {
     registerInboxConsumers(deps)
@@ -564,12 +566,14 @@ export function createContainer(options?: {
     notificationRepo: notification.internal.repos.notificationRepo,
     notificationEmailRepo: notification.internal.repos.emailRepo,
     notificationPrefRepo: notification.internal.repos.prefRepo,
-    // BQR-2.2: worker calls this before optional durable dispatch start.
+    // BQR-2.2/2.4: worker calls this before optional durable dispatch start.
     registerOutboxConsumers: createOutboxConsumerRegistrar({
       outboxRepo,
       reviewLookup,
       createInboxItem: inbox.internal.useCases.createInboxItem,
-      updateInboxStatus: inbox.internal.useCases.updateInboxStatus,
+      inboxRepo: inbox.internal.repos.inboxRepo,
+      events: eventBus,
+      clock,
     }),
   } as const
 }

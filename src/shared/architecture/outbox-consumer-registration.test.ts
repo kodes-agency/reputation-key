@@ -53,4 +53,17 @@ describe('BQR-2.2: outbox consumer registration', () => {
     clearConsumers()
     expect(listRegisteredConsumers()).toEqual([])
   })
+
+  it('BQR-2.4: updated/expired consumers perform real projection work', () => {
+    const src = readFileSync(
+      join(ROOT, 'src/contexts/inbox/infrastructure/outbox-consumers.ts'),
+      'utf-8',
+    )
+    expect(src).toContain('syncDenormalizedFields')
+    expect(src).toContain('updateStatus')
+    expect(src).toContain('handleInboxReviewUpdated')
+    expect(src).toContain('handleInboxReviewExpired')
+    expect(src).not.toMatch(/TODO: Implement inbox item update/)
+    expect(src).not.toMatch(/for now, mark as applied/i)
+  })
 })
