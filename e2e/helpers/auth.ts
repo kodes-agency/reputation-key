@@ -10,10 +10,22 @@ export const TEST_PASSWORD = process.env.E2E_TEST_PASSWORD ?? 'password123'
  * set the first organization active. Server-fn UI login historically left
  * sessions without cookies / without active org, which made e2e hang ~18m.
  */
+const ORIGIN = process.env.E2E_BASE_URL ?? 'http://localhost:3000'
+
+function apiHeaders(extra: Record<string, string> = {}): Record<string, string> {
+  // better-auth CSRF/origin checks require Origin on mutating org routes
+  return {
+    'content-type': 'application/json',
+    origin: ORIGIN,
+    referer: `${ORIGIN}/`,
+    ...extra,
+  }
+}
+
 export async function signIn(page: Page, email = TEST_EMAIL, password = TEST_PASSWORD) {
   const response = await page.request.post('/api/auth/sign-in/email', {
     data: { email, password },
-    headers: { 'content-type': 'application/json' },
+    headers: apiHeaders(),
   })
   if (!response.ok()) {
     const body = await response.text()
@@ -23,7 +35,9 @@ export async function signIn(page: Page, email = TEST_EMAIL, password = TEST_PAS
     )
   }
 
-  const orgsRes = await page.request.get('/api/auth/organization/list')
+  const orgsRes = await page.request.get('/api/auth/organization/list', {
+    headers: apiHeaders(),
+  })
   if (orgsRes.ok()) {
     const orgs = (await orgsRes.json()) as unknown
     const list = Array.isArray(orgs) ? orgs : []
@@ -31,7 +45,7 @@ export async function signIn(page: Page, email = TEST_EMAIL, password = TEST_PAS
     if (first?.id) {
       const active = await page.request.post('/api/auth/organization/set-active', {
         data: { organizationId: first.id },
-        headers: { 'content-type': 'application/json' },
+        headers: apiHeaders(),
       })
       if (!active.ok()) {
         const body = await active.text()
