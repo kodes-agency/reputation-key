@@ -89,39 +89,36 @@ export const Pending: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', { name: /escalate/i }))
-    // The never-resolving mutation flips isPending → Escalate disables.
+    // Bulk toolbar is open ⇄ closed only (ADR 0023); no bulk escalate.
+    await userEvent.click(canvas.getByRole('button', { name: /mark closed/i }))
     await waitFor(() => {
-      expect(canvas.getByRole('button', { name: /escalate/i })).toBeDisabled()
+      expect(canvas.getByRole('button', { name: /mark closed/i })).toBeDisabled()
     })
   },
 }
 
-// Escalate interaction: clicking Escalate invokes the bulk fn with
-// status 'escalated'. `fn()` records the call so the play fn can assert it.
-const escalateSpy = fn(
+// Mark Closed invokes the bulk fn with status 'closed'.
+const closeSpy = fn(
   async (input: BulkInput): Promise<BulkResult> => ({
     success: true,
     updatedIds: input.data.inboxItemIds,
   }),
 )
-const escalateBulkFn = mockServerFn(
-  escalateSpy,
-) as unknown as typeof bulkUpdateInboxStatusFn
+const closeBulkFn = mockServerFn(closeSpy) as unknown as typeof bulkUpdateInboxStatusFn
 
-export const Escalate: Story = {
+export const MarkClosed: Story = {
   parameters: { a11y: { disable: true } },
   args: {
     ...ThreeSelected.args,
-    bulkUpdateFn: escalateBulkFn,
+    bulkUpdateFn: closeBulkFn,
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', { name: /escalate/i }))
+    await userEvent.click(canvas.getByRole('button', { name: /mark closed/i }))
     await waitFor(() => {
-      expect(escalateSpy).toHaveBeenCalledWith(
+      expect(closeSpy).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({ status: 'escalated' }),
+          data: expect.objectContaining({ status: 'closed' }),
         }),
       )
     })
