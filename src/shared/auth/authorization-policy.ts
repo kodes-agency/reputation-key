@@ -85,84 +85,66 @@ export function authorize(input: AuthorizeInput): void {
  * Map a permission to the beta surface capability that must be enabled (BQR-4.1).
  * Dark-context permissions map to dark capabilities (fail closed unless allowlisted).
  */
+const PERMISSION_CAPABILITY: Readonly<Record<Permission, Capability>> = {
+  'property.create': 'property.create',
+  'property.update': 'property.create',
+  'property.delete': 'property.create',
+  'property.read': 'property.create',
+  'property.admin': 'property.create',
+  'reply.manage': 'property.publish_reply',
+  'review.read': 'review.use',
+  'inbox.read': 'inbox.use',
+  'inbox.write': 'inbox.use',
+  'inbox.manage': 'inbox.use',
+  'dashboard.read': 'dashboard.use',
+  'dashboard.fleet_read': 'dashboard.use',
+  'staff_assignment.create': 'staff.use',
+  'staff_assignment.delete': 'staff.use',
+  'staff_assignment.read': 'staff.use',
+  'integration.manage': 'integration.use',
+  'notification.read': 'notification.in_app',
+  'notification.update': 'notification.in_app',
+  'invitation.create': 'identity.invite',
+  'invitation.list': 'identity.invite',
+  'invitation.cancel': 'identity.invite',
+  'invitation.resend': 'identity.invite',
+  'portal.create': 'portal.read',
+  'portal.update': 'portal.read',
+  'portal.delete': 'portal.read',
+  'portal.read': 'portal.read',
+  'team.create': 'team.use',
+  'team.update': 'team.use',
+  'team.delete': 'team.use',
+  'team.read': 'team.use',
+  'goal.read': 'goal.use',
+  'goal.create': 'goal.use',
+  'goal.update': 'goal.use',
+  'goal.cancel': 'goal.use',
+  'badge.read': 'badge.use',
+  'badge.manage': 'badge.use',
+  'leaderboard.read': 'leaderboard.use',
+  'organization.update': 'identity.invite',
+  'organization.delete': 'identity.invite',
+  'member.create': 'identity.invite',
+  'member.update': 'identity.invite',
+  'member.delete': 'identity.invite',
+  'member.list': 'identity.invite',
+  'identity.avatar_upload': 'identity.invite',
+  'identity.logo_upload': 'identity.invite',
+  'identity.password.change': 'identity.invite',
+  'identity.profile.update': 'identity.invite',
+  'identity.avatar.set': 'identity.invite',
+  'identity.leave_org': 'identity.invite',
+  'ac.create': 'identity.invite',
+  'ac.read': 'identity.invite',
+  'ac.update': 'identity.invite',
+  'ac.delete': 'identity.invite',
+  'feedback.read': 'identity.invite',
+  'feedback.respond': 'identity.invite',
+}
+
 export function capabilityForPermission(permission: Permission): Capability {
-  switch (permission) {
-    case 'property.create':
-      return 'property.create'
-    case 'property.update':
-    case 'property.delete':
-    case 'property.read':
-    case 'property.admin':
-      return 'property.create'
-    case 'reply.manage':
-      return 'property.publish_reply'
-    case 'review.read':
-      return 'review.use'
-    case 'inbox.read':
-    case 'inbox.write':
-    case 'inbox.manage':
-      return 'inbox.use'
-    case 'dashboard.read':
-    case 'dashboard.fleet_read':
-      return 'dashboard.use'
-    case 'staff_assignment.create':
-    case 'staff_assignment.delete':
-    case 'staff_assignment.read':
-      return 'staff.use'
-    case 'integration.manage':
-      return 'integration.use'
-    case 'notification.read':
-    case 'notification.update':
-      return 'notification.in_app'
-    case 'invitation.create':
-    case 'invitation.list':
-    case 'invitation.cancel':
-    case 'invitation.resend':
-      return 'identity.invite'
-    case 'portal.create':
-    case 'portal.update':
-    case 'portal.delete':
-    case 'portal.read':
-      return 'portal.read'
-    case 'team.create':
-    case 'team.update':
-    case 'team.delete':
-    case 'team.read':
-      return 'team.use'
-    case 'goal.read':
-    case 'goal.create':
-    case 'goal.update':
-    case 'goal.cancel':
-      return 'goal.use'
-    case 'badge.read':
-    case 'badge.manage':
-      return 'badge.use'
-    case 'leaderboard.read':
-      return 'leaderboard.use'
-    case 'organization.update':
-    case 'organization.delete':
-    case 'member.create':
-    case 'member.update':
-    case 'member.delete':
-    case 'member.list':
-    case 'identity.avatar_upload':
-    case 'identity.logo_upload':
-    case 'identity.password.change':
-    case 'identity.profile.update':
-    case 'identity.avatar.set':
-    case 'identity.leave_org':
-    case 'ac.create':
-    case 'ac.read':
-    case 'ac.update':
-    case 'ac.delete':
-    case 'feedback.read':
-    case 'feedback.respond':
-      return 'identity.invite'
-    default: {
-      const _exhaustive: never = permission
-      return _exhaustive
-    }
-  }
+  return PERMISSION_CAPABILITY[permission]
 }
 
 /**

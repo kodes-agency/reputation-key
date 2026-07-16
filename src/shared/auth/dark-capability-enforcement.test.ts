@@ -42,18 +42,32 @@ describe('BQR-0: Dark context capability enforcement', () => {
         // Skip utility/helper files that don't export server functions
         if (!content.includes('createServerFn')) continue
 
-        it(`${basename} imports a capability assertion`, () => {
+        it(`${basename} enforces capability via authorize seam or assert*Capability`, () => {
+          // BQR-4.1: requireAuthorized → capabilityForPermission covers dark caps.
+          // BQR-0 style: explicit assertBetaCapability / assertGlobalCapability.
+          const hasAssert = /assert(Global|Beta)Capability/.test(content)
+          const hasAuthorizeSeam =
+            content.includes('requireAuthorized') || content.includes('authorize(')
           expect(
-            content.match(/assert(Global|Beta)Capability/),
-            `${basename} in dark context "${context}" must import and call assertBetaCapability or assertGlobalCapability`,
-          ).not.toBeNull()
+            hasAssert || hasAuthorizeSeam,
+            `${basename} in dark context "${context}" must call requireAuthorized/authorize or assertBeta/GlobalCapability`,
+          ).toBe(true)
         })
 
-        it(`${basename} references capability '${capability}'`, () => {
+        it(`${basename} references dark capability '${capability}' (literal or mapped permission)`, () => {
+          // Literal capability string, or requireAuthorized with a permission
+          // that capabilityForPermission maps to this dark capability.
+          const hasLiteral = content.includes(capability)
+          const permissionPrefix = capability.replace(/\.use$/, '')
+          const hasMappedPermission =
+            content.includes('requireAuthorized') &&
+            (content.includes(`'${permissionPrefix}.`) ||
+              content.includes(`"${permissionPrefix}.`) ||
+              content.includes(`'${capability}'`))
           expect(
-            content,
-            `${basename} in dark context "${context}" must reference '${capability}'`,
-          ).toContain(capability)
+            hasLiteral || hasMappedPermission,
+            `${basename} in dark context "${context}" must reference '${capability}' or use requireAuthorized with ${permissionPrefix}.* permissions`,
+          ).toBe(true)
         })
       }
     })
