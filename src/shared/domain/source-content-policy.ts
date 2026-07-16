@@ -78,3 +78,24 @@ export function contentExpiresAtFromFetch(
 ): Date {
   return new Date(lastFetchedAt.getTime() + policy.rawContentTtlMs)
 }
+
+/**
+ * Lead time before hard expiry when refresh is due
+ * (`rawContentTtlMs - rawRefreshDueBeforeMs`, typically 5 days).
+ */
+export function contentRefreshLeadMs(
+  policy: SourceContentPolicy = createGoogleSourceContentPolicy(),
+): number {
+  return policy.rawContentTtlMs - policy.rawRefreshDueBeforeMs
+}
+
+/**
+ * Upper bound for content_expires_at scans: refresh candidates with
+ * contentExpiresAt in (now, now + lead].
+ */
+export function contentRefreshDueThreshold(
+  now: Date,
+  policy: SourceContentPolicy = createGoogleSourceContentPolicy(),
+): Date {
+  return new Date(now.getTime() + contentRefreshLeadMs(policy))
+}

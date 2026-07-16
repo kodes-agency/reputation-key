@@ -6,6 +6,7 @@ import {
   checkContentStatus,
   classifyReviewsForRefresh,
   computeReviewContentHash,
+  contentRefreshDueThreshold,
 } from './source-content-lifecycle'
 
 const NOW = new Date('2026-07-15T12:00:00Z')
@@ -32,6 +33,13 @@ describe('computeReviewContentHash (re-export)', () => {
       languageCode: 'en',
     })
     expect(hash).toMatch(/^[a-f0-9]{64}$/)
+  })
+})
+
+describe('contentRefreshDueThreshold', () => {
+  it('is now + (TTL − refresh-due) lead window (5 days for Google policy)', () => {
+    const threshold = contentRefreshDueThreshold(NOW)
+    expect(threshold.getTime() - NOW.getTime()).toBe(5 * DAYS)
   })
 })
 

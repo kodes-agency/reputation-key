@@ -22,9 +22,17 @@ export type ReviewRepository = Readonly<{
     options?: { limit?: number },
   ): Promise<ReadonlyArray<Review>>
   findByOrganizationId(orgId: OrganizationId): Promise<ReadonlyArray<Review>>
-  /** ⚠️ CROSS-TENANT: System-level query — scans ALL orgs. Only for background jobs (refresh-expiring). */
+  /**
+   * ⚠️ CROSS-TENANT: System-level query — scans ALL orgs.
+   * Reviews with non-null `contentExpiresAt <= date` (inclusive).
+   * Used by refresh-expiring (pass refresh-due threshold).
+   */
   findAllExpiringBeforeAcrossTenants(date: Date): Promise<ReadonlyArray<Review>>
-  /** ⚠️ CROSS-TENANT: System-level query — scans ALL orgs. Only for background jobs (purge-expired). */
+  /**
+   * ⚠️ CROSS-TENANT: System-level query — scans ALL orgs.
+   * Reviews with non-null `contentExpiresAt < date` (exclusive).
+   * Used by purge-expired (pass `now`; no post-expiry grace — ADR 0031).
+   */
   findAllExpiredBeforeAcrossTenants(date: Date): Promise<ReadonlyArray<Review>>
   deleteById(id: ReviewId, organizationId: OrganizationId): Promise<void>
   deleteByPropertyId(

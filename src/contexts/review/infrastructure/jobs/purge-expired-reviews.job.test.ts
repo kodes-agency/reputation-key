@@ -17,6 +17,8 @@ vi.mock('#/shared/observability/logger', () => ({
 }))
 
 function makeReview(overrides: Partial<Review> = {}): Review {
+  const lastFetchedAt = new Date('2025-01-01')
+  const contentExpiresAt = new Date('2025-01-31')
   return {
     id: reviewId('rev-1'),
     organizationId: organizationId('org-1'),
@@ -30,19 +32,19 @@ function makeReview(overrides: Partial<Review> = {}): Review {
     rating: 3,
     text: null,
     languageCode: null,
-    reviewedAt: new Date('2025-01-01'),
-    expiresAt: new Date('2025-01-08'),
+    reviewedAt: lastFetchedAt,
+    expiresAt: contentExpiresAt,
     sentimentLabel: null,
     sentimentScore: null,
-    sourceCreatedAt: new Date('2025-01-01'),
+    sourceCreatedAt: lastFetchedAt,
     sourceUpdatedAt: null,
-    firstFetchedAt: new Date('2025-01-01'),
-    lastFetchedAt: new Date('2025-01-01'),
-    contentExpiresAt: null,
-    contentHash: null,
+    firstFetchedAt: lastFetchedAt,
+    lastFetchedAt,
+    contentExpiresAt,
+    contentHash: 'abc',
     sourceSeenGeneration: null,
-    createdAt: new Date('2025-01-01'),
-    updatedAt: new Date('2025-01-01'),
+    createdAt: lastFetchedAt,
+    updatedAt: lastFetchedAt,
     ...overrides,
   }
 }
@@ -125,9 +127,9 @@ describe('createPurgeExpiredReviewsHandler', () => {
     )
   })
 
-  // ── Grace window ─────────────────────────────────────────────────
+  // ── ADR 0031: no post-expiry grace ───────────────────────────────
 
-  it('uses 3-day grace window from clock', async () => {
+  it('uses now as exclusive contentExpiresAt threshold (no 3-day grace)', async () => {
     const now = new Date('2025-12-31T23:59:59.999Z')
     const findAllExpiredBeforeAcrossTenants = vi.fn().mockResolvedValue([])
 
@@ -143,13 +145,12 @@ describe('createPurgeExpiredReviewsHandler', () => {
     await handler({} as never)
 
     const threshold = findAllExpiredBeforeAcrossTenants.mock.calls[0][0] as Date
-    expect(now.getTime() - threshold.getTime()).toBe(3 * 24 * 60 * 60 * 1000)
+    expect(threshold.getTime()).toBe(now.getTime())
   })
 
-  it('calls clock() twice: once for threshold, once for occurredAt', async () => {
-    const firstDate = new Date('2025-01-10T00:00:00Z')
-    const secondDate = new Date('2025-01-10T00:05:00Z')
-    const clock = vi.fn(() => (clock.mock.calls.length === 1 ? firstDate : secondDate))
+  it('uses a single clock reading for threshold and occurredAt', async () => {
+    const fixed = new Date('2025-01-10T00:00:00Z')
+    const clock = vi.fn(() => fixed)
     const emit = vi.fn().mockResolvedValue(undefined)
     const findAllExpiredBeforeAcrossTenants = vi.fn().mockResolvedValue([makeReview()])
 
@@ -164,12 +165,9 @@ describe('createPurgeExpiredReviewsHandler', () => {
 
     await handler({} as never)
 
-    expect(clock).toHaveBeenCalledTimes(2)
-    // First call → threshold
-    const threshold = findAllExpiredBeforeAcrossTenants.mock.calls[0][0] as Date
-    expect(threshold.getTime()).toBe(firstDate.getTime() - 3 * 24 * 60 * 60 * 1000)
-    // Second call → occurredAt
-    expect(emit.mock.calls[0][0].occurredAt).toBe(secondDate)
+    expect(clock).toHaveBeenCalledTimes(1)
+    expect(findAllExpiredBeforeAcrossTenants.mock.calls[0][0]).toBe(fixed)
+    expect(emit.mock.calls[0][0].occurredAt).toBe(fixed)
   })
 
   // ── Error resilience ─────────────────────────────────────────────

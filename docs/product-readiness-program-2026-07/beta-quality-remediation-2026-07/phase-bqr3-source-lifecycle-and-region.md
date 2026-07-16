@@ -1,6 +1,6 @@
 # BQR-3 — Source Lifecycle and Property Region Routing
 
-**Status:** In progress — slice 3.1  
+**Status:** In progress — slice 3.2  
 **Depends on:** BQR-2 review slice (atomic producer, durable consumers registered, envelope contract)  
 **Unblocks:** BQR-5 (review user paths stable), BQR-7 pilot gate (source policy + region), Phase 17 AI eligibility  
 **Estimate:** 10–16 engineering days
@@ -36,8 +36,8 @@ Finding 4.1 (PII on in-process domain events) may be partially mitigated in 3.4 
 
 | Slice       | Outcome                                                                                                        | Status          |
 | ----------- | -------------------------------------------------------------------------------------------------------------- | --------------- |
-| **BQR-3.1** | Sync / `buildReview` always set `contentExpiresAt` + `contentHash` from policy; lifecycle module used on write | **This branch** |
-| **BQR-3.2** | Refresh + purge jobs use `contentExpiresAt` / lifecycle classification; policy windows replace magic numbers   | Pending         |
+| **BQR-3.1** | Sync / `buildReview` always set `contentExpiresAt` + `contentHash` from policy; lifecycle module used on write | Done (PR #199)  |
+| **BQR-3.2** | Refresh + purge jobs use `contentExpiresAt` / lifecycle classification; policy windows replace magic numbers   | **This branch** |
 | **BQR-3.3** | On `review.expired`, scrub inbox denormalized raw content (snippet / reviewer name) while closing the item     | Pending         |
 | **BQR-3.4** | Hash-stable re-fetch: extend lifecycle only; no `review.updated` when content hash unchanged                   | Pending         |
 | **BQR-3.5** | Property create/import resolves processing region; unresolved stays explicit; no silent region change          | Pending         |
@@ -69,13 +69,38 @@ Finding 4.1 (PII on in-process domain events) may be partially mitigated in 3.4 
 | Lifecycle module     | Unit-tested only                                        | Used by domain lifecycle defaults + application sync write path       |
 | Jobs / purge clock   | Still `expiresAt` (publication-based)                   | Unchanged this slice; switched in 3.2                                 |
 
+## BQR-3.2 scope
+
+### In
+
+- Repository expiry scans query `content_expires_at` (non-null), not publication `expires_at`.
+- Refresh job: policy lead window via `contentRefreshDueThreshold`; `classifyReviewsForRefresh` keeps only `refresh_due`.
+- Purge job: threshold is `now` (exclusive); **no** 3-day post-expiry grace (ADR 0031).
+- Unit tests lock policy windows and expired-vs-due split.
+
+### Out
+
+- Inbox snippet scrub (3.3).
+- Hash-stable re-fetch without `review.updated` (3.4).
+- Processing-region production workflow (3.5).
+- Dropping legacy `expiresAt` column (later contract).
+- Backfill of null `content_expires_at` rows (re-fetch via normal sync fills them).
+
+## Authoritative path (BQR-3.2)
+
+| Concern          | Before                                    | After                                                                   |
+| ---------------- | ----------------------------------------- | ----------------------------------------------------------------------- |
+| Refresh scan     | `expiresAt <= now+5d` (publication clock) | `contentExpiresAt <= now+policyLead` then classify → `refresh_due` only |
+| Purge scan       | `expiresAt < now-3d` (grace)              | `contentExpiresAt < now` (no grace)                                     |
+| Lifecycle module | Write path only (3.1)                     | Write + refresh job classification                                      |
+
 ## Exit criteria (full BQR-3)
 
-| Criterion                                                             | Met after 3.1? |
+| Criterion                                                             | Met after 3.2? |
 | --------------------------------------------------------------------- | -------------- |
-| Every successful sync writes `last_fetched_at` + `content_expires_at` | Yes            |
-| Content hash written and stable for identical source content          | Yes            |
-| Refresh/purge jobs use fetch-based `content_expires_at`               | No (3.2)       |
+| Every successful sync writes `last_fetched_at` + `content_expires_at` | Yes (3.1)      |
+| Content hash written and stable for identical source content          | Yes (3.1)      |
+| Refresh/purge jobs use fetch-based `content_expires_at`               | Yes            |
 | Expired source content not retained as raw text in inbox projections  | No (3.3)       |
 | Unchanged re-fetch does not emit content-changed events               | No (3.4)       |
 | Active properties resolve region without silent fallback              | No (3.5)       |
@@ -83,7 +108,7 @@ Finding 4.1 (PII on in-process domain events) may be partially mitigated in 3.4 
 
 ## Residual (accepted until later slices / phases)
 
-- Legacy `expiresAt` (publication clock) remains until 3.2 switches readers and a later contract drop.
+- Legacy `expiresAt` (publication clock) remains until a later contract drop; jobs no longer read it.
 - In-process events may still carry reviewer/text fields until BQR-4 identifier-only bus work.
 - Full deletion coordinator (`contexts/lifecycle/`) remains PRE17B/BQR-6 scale — BQR-3 covers review+inbox vertical path.
 - Time-zone API import enrichment is optional for 3.5 if country is already known; unresolved stays fail-closed for AI only.

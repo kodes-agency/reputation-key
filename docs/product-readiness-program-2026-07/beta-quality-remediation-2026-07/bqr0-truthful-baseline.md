@@ -95,18 +95,18 @@ Migrations 0009-0011 remain fully mirrored. Parity locked by `schema-migration-p
 ### Finding 3.2 — Review lifecycle columns never written
 
 **Severity:** P0  
-**Status:** **Partially remediated (BQR-1.1 + BQR-3.1)** — mapper/sync write all lifecycle columns including `contentExpiresAt` + `contentHash`; job readers still on legacy `expiresAt` until BQR-3.2  
-**Files:** `src/contexts/review/infrastructure/mappers/review.mapper.ts`, `sync-reviews.ts`, `defaultReviewLifecycle`, `source-content-lifecycle.ts`
+**Status:** **Remediated (BQR-1.1 + BQR-3.1 + BQR-3.2)** — writers set lifecycle columns; jobs read `contentExpiresAt`  
+**Files:** `src/contexts/review/infrastructure/mappers/review.mapper.ts`, `sync-reviews.ts`, `defaultReviewLifecycle`, `source-content-lifecycle.ts`, refresh/purge jobs, review repository
 
-`reviewToRow()` includes all 7 lifecycle columns. Sync sets `lastFetchedAt`, `contentExpiresAt` (fetch + policy TTL), and `contentHash` on every successful upsert. Refresh/purge jobs still query publication-based `expiresAt` until BQR-3.2.
+`reviewToRow()` includes all 7 lifecycle columns. Sync sets `lastFetchedAt`, `contentExpiresAt` (fetch + policy TTL), and `contentHash`. Refresh/purge jobs query `content_expires_at` (non-null); purge has no post-expiry grace (ADR 0031). Legacy `expiresAt` remains for expand-phase dual clock until a later contract drop.
 
 ### Finding 3.3 — source-content-lifecycle.ts is dead code
 
 **Severity:** P1  
-**Status:** **Partially remediated (BQR-3.1)** — write path uses `calculateContentExpiry` + `computeReviewContentHash`; classification used by jobs in BQR-3.2  
+**Status:** **Remediated (BQR-3.1 + BQR-3.2)** — write path uses expiry/hash helpers; refresh job uses `classifyReviewsForRefresh`  
 **File:** `src/contexts/review/application/source-content-lifecycle.ts`
 
-Write path imports lifecycle helpers. Job classification (`classifyReviewsForRefresh`) remains BQR-3.2.
+Write path and refresh job import lifecycle helpers. Purge uses repository `contentExpiresAt` scan with `now` as exclusive bound.
 
 ## 4. Review Content in Events and Denormalized Copies
 
