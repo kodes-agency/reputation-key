@@ -8,8 +8,7 @@ import type { IdentityPort } from '../ports/identity.port'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { InvitationId, OrganizationId, UserId } from '#/shared/domain/ids'
 import { identityInvitationAccepted } from '../../domain/events'
-import { emitAndRecord } from '#/shared/outbox/emit-and-record'
-import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
+import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
 
 export type AcceptInvitationDeps = Readonly<{
   identity: IdentityPort

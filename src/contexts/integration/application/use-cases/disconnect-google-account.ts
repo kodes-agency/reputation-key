@@ -15,8 +15,7 @@ import { googleConnectionId, type OrganizationId } from '#/shared/domain/ids'
 import { integrationError } from '../../domain/errors'
 import { integrationGoogleAccountDisconnected } from '../../domain/events'
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import { emitAndRecord } from '#/shared/outbox/emit-and-record'
-import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
+import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
 
 export type DisconnectGoogleAccountDeps = Readonly<{
   connectionRepo: GoogleConnectionRepository

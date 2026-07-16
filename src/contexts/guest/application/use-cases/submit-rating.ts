@@ -6,8 +6,7 @@ import type { ScanSource } from '../../domain/types'
 import { buildRating } from '../../domain/constructors'
 import { guestError } from '../../domain/errors'
 import { guestRatingSubmitted } from '../../domain/events'
-import { emitAndRecord } from '#/shared/outbox/emit-and-record'
-import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
+import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
 
 export type SubmitRatingDeps = Readonly<{
   guestRepo: GuestInteractionRepository

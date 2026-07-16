@@ -11,8 +11,7 @@ import type {
 import type { ScanSource } from '../../domain/types'
 import { buildFeedback } from '../../domain/constructors'
 import { guestFeedbackSubmitted } from '../../domain/events'
-import { emitAndRecord } from '#/shared/outbox/emit-and-record'
-import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
+import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
 
 export type SubmitFeedbackDeps = Readonly<{
   guestRepo: GuestInteractionRepository

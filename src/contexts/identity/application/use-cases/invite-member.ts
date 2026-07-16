@@ -11,8 +11,7 @@ import { canInviteWithRole } from '../../domain/rules'
 import { identityError } from '../../domain/errors'
 import { identityMemberInvited } from '../../domain/events'
 import type { InviteMemberInput } from '../dto/invitation.dto'
-import { emitAndRecord } from '#/shared/outbox/emit-and-record'
-import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
+import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
 
 // fallow-ignore-next-line unused-type
 export type { InviteMemberInput }

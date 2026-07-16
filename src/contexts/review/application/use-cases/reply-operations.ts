@@ -5,7 +5,7 @@ import type { ReplyRepository } from '../ports/reply.repository'
 import type { ReviewRepository } from '../ports/review.repository'
 import type { ReplyQueuePort } from '../ports/reply-queue.port'
 import type { EventBus } from '#/shared/events/event-bus'
-import { emitAndRecord } from '#/shared/outbox/emit-and-record'
+import { emitAndRecord } from '#/shared/outbox'
 import type { ReplyId, ReviewId, OrganizationId, PropertyId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Reply } from '../../domain/types'
@@ -40,7 +40,7 @@ export type ReplyDeps = Readonly<{
   idGen: () => ReplyId
   staffPublicApi: StaffPublicApi
   /** Outbox repository for durable event recording (PRE17A A4 expand phase). */
-  outboxRepo?: import('#/shared/outbox/infrastructure/outbox-repository').OutboxRepository
+  outboxRepo?: import('#/shared/outbox').OutboxRepository
 }>
 
 /** Enforce property-assignment scoping for reply mutations (D6-001).

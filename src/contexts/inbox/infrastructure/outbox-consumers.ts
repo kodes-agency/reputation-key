@@ -14,7 +14,7 @@ import {
   type ConsumerEvent,
   type ConsumerResult,
 } from '#/shared/outbox/dispatcher'
-import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
+import type { OutboxRepository } from '#/shared/outbox'
 import type { ReviewLookupPort } from '../application/ports/review-lookup.port'
 import type { CreateInboxItem } from '../application/use-cases/create-inbox-item'
 import type { UpdateInboxStatus } from '../application/use-cases/update-inbox-status'

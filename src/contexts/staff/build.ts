@@ -27,7 +27,7 @@ type StaffContextDeps = Readonly<{
   repo: StaffAssignmentRepository
   portalLookup: StaffPortalLookupPort
   events: EventBus
-  outboxRepo?: import('#/shared/outbox/infrastructure/outbox-repository').OutboxRepository
+  outboxRepo?: import('#/shared/outbox').OutboxRepository
   clock: () => Date
   /**
    * Validates that a target userId is a member of ctx.organizationId before

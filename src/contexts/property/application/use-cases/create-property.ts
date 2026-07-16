@@ -12,8 +12,7 @@ import { normalizeSlug } from '../../domain/rules'
 import { buildProperty } from '../../domain/constructors'
 import { propertyError } from '../../domain/errors'
 import { propertyCreated } from '../../domain/events'
-import { emitAndRecord } from '#/shared/outbox/emit-and-record'
-import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
+import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
 
 // fallow-ignore-next-line unused-type
 export type CreatePropertyDeps = Readonly<{

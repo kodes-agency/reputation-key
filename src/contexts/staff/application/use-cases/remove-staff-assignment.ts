@@ -7,8 +7,7 @@ import type { StaffAssignmentId } from '../../domain/types'
 import { canForContext } from '#/shared/domain/permissions'
 import { staffError } from '../../domain/errors'
 import { staffUnassigned } from '../../domain/events'
-import { emitAndRecord } from '#/shared/outbox/emit-and-record'
-import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
+import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
 
 // ── Input type ────────────────────────────────────────────────────────────
 

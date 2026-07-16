@@ -19,8 +19,7 @@ import { createMetricReading } from '../../domain/constructors'
 // F073: Use the shared METRIC_KEYS constant instead of duplicating values.
 // If a new MetricKey is added to the union, it is automatically valid here.
 import { METRIC_KEYS } from '#/shared/domain/metric-keys'
-import { emitAndRecord } from '#/shared/outbox/emit-and-record'
-import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
+import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
 const BUILT_IN_METRIC_KEYS: Set<MetricKey> = new Set(METRIC_KEYS)
 
 export type RecordMetricInput = Readonly<{

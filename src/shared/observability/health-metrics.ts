@@ -5,7 +5,7 @@
 // endpoint or scraped by a monitoring system. Metrics are identifier-only —
 // no review content, PII, or provider data in any metric value.
 
-import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
+import type { OutboxRepository } from '#/shared/outbox'
 import type { Database } from '#/shared/db'
 import { sql } from 'drizzle-orm'
 import { trace } from '#/shared/observability/trace'

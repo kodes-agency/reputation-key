@@ -15,8 +15,7 @@ import { googleConnectionId } from '#/shared/domain/ids'
 import { buildGoogleConnection } from '../../domain/constructors'
 import { integrationError } from '../../domain/errors'
 import { integrationGoogleAccountConnected } from '../../domain/events'
-import { emitAndRecord } from '#/shared/outbox/emit-and-record'
-import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
+import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
 
 export type ConnectGoogleAccountDeps = Readonly<{
   connectionRepo: GoogleConnectionRepository

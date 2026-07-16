@@ -129,6 +129,33 @@ export default tseslint.config(
           type: 'shared-other',
           pattern: 'src/shared/security/**',
         },
+        // BQR-1.3: public outbox surface is shared-other (application-allowed).
+        // Infrastructure implementation is a separate element so composition/worker
+        // can wire it without application reaching into adapters.
+        {
+          type: 'shared-other',
+          pattern: 'src/shared/outbox/index.ts',
+        },
+        {
+          type: 'shared-other',
+          pattern: 'src/shared/outbox/emit-and-record.ts',
+        },
+        {
+          type: 'shared-outbox-infra',
+          pattern: 'src/shared/outbox/infrastructure/**',
+        },
+        {
+          type: 'shared-outbox-runtime',
+          pattern: 'src/shared/outbox/relay.ts',
+        },
+        {
+          type: 'shared-outbox-runtime',
+          pattern: 'src/shared/outbox/dispatcher.ts',
+        },
+        {
+          type: 'shared-outbox-runtime',
+          pattern: 'src/shared/outbox/event-adapter.ts',
+        },
         {
           type: 'test-helpers',
           pattern: 'src/shared/testing/**',
@@ -195,6 +222,7 @@ export default tseslint.config(
 
             // infrastructure → imports from domain/, application/, shared/*, external libs
             // Per architecture: job handlers need EventBus to emit domain events.
+            // BQR-1.3: may use public outbox surface (shared-other), not relay/dispatcher.
             {
               from: { type: 'infrastructure' },
               allow: {
@@ -207,6 +235,30 @@ export default tseslint.config(
                     'shared-db',
                     'shared-events',
                     'shared-other',
+                  ],
+                },
+              },
+            },
+
+            // shared outbox infrastructure may use shared-db / observability (via shared-other)
+            {
+              from: { type: 'shared-outbox-infra' },
+              allow: {
+                to: {
+                  type: ['shared-db', 'shared-other', 'shared-domain', 'shared-events'],
+                },
+              },
+            },
+            {
+              from: { type: 'shared-outbox-runtime' },
+              allow: {
+                to: {
+                  type: [
+                    'shared-outbox-infra',
+                    'shared-other',
+                    'shared-db',
+                    'shared-domain',
+                    'shared-events',
                   ],
                 },
               },
@@ -308,11 +360,20 @@ export default tseslint.config(
             },
 
             // shared-other → imports from shared/ and external libs only
+            // BQR-1.3: emit-and-record (shared-other) may depend on outbox infra + adapter
             {
               from: { type: 'shared-other' },
               allow: {
                 to: {
-                  type: ['shared-domain', 'shared-auth', 'shared-db', 'shared-other'],
+                  type: [
+                    'shared-domain',
+                    'shared-auth',
+                    'shared-db',
+                    'shared-other',
+                    'shared-outbox-infra',
+                    'shared-outbox-runtime',
+                    'shared-events',
+                  ],
                 },
               },
             },
@@ -351,6 +412,9 @@ export default tseslint.config(
                     'shared-db',
                     'shared-events',
                     'shared-other',
+                    // BQR-1.3: composition/worker construct outbox adapters and loops
+                    'shared-outbox-infra',
+                    'shared-outbox-runtime',
                   ],
                 },
               },
@@ -479,6 +543,51 @@ export default tseslint.config(
               group: ['#/components/features/*/*'],
               message:
                 'Import from the feature barrel (e.g., "#/components/features/identity"), not from sub-folders. See docs/conventions.md "Component Organization".',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  // BQR-1.3: application + domain must not import outbox internals.
+  // Public surface is `#/shared/outbox` (barrel). Composition/worker construct adapters.
+  {
+    files: [
+      'src/contexts/*/application/**/*.{ts,tsx}',
+      'src/contexts/*/domain/**/*.{ts,tsx}',
+    ],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '#/shared/outbox/infrastructure/outbox-repository',
+              message:
+                'BQR-1.3: import OutboxRepository from #/shared/outbox (public barrel), not infrastructure.',
+            },
+            {
+              name: '#/shared/outbox/relay',
+              message:
+                'BQR-1.3: outbox relay is worker-only. Application must not import it.',
+            },
+            {
+              name: '#/shared/outbox/dispatcher',
+              message:
+                'BQR-1.3: outbox dispatcher is worker-only. Application must not import it.',
+            },
+            {
+              name: '#/shared/outbox/event-adapter',
+              message:
+                'BQR-1.3: event-adapter is internal. Use emitAndRecord from #/shared/outbox.',
+            },
+          ],
+          patterns: [
+            {
+              group: ['**/shared/outbox/infrastructure/**'],
+              message:
+                'BQR-1.3: application/domain must not import outbox infrastructure. Use #/shared/outbox.',
             },
           ],
         },

@@ -47,7 +47,7 @@ import { randomUUID, createHash } from 'crypto'
 type IntegrationContextDeps = Readonly<{
   db: Database
   events: EventBus
-  outboxRepo?: import('#/shared/outbox/infrastructure/outbox-repository').OutboxRepository
+  outboxRepo?: import('#/shared/outbox').OutboxRepository
   clock: () => Date
   jobQueue: Queue | undefined
   propertyLookup: PropertyLookupPort

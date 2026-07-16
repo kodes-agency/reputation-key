@@ -10,8 +10,7 @@ import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
 import { inboxItemStatusChanged } from '../../domain/events'
 import { validateTransition } from '../../domain/rules'
-import { emitAndRecord } from '#/shared/outbox/emit-and-record'
-import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
+import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
 
 export type OnReviewExpiredDeps = Readonly<{
   repo: InboxRepository

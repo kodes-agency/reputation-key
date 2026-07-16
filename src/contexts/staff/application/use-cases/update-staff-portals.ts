@@ -16,8 +16,7 @@ import { staffAssigned, staffUnassigned } from '../../domain/events'
 import { buildStaffAssignment } from '../../domain/constructors'
 import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
 import { staffAssignmentId } from '#/shared/domain/ids'
-import { emitAndRecord } from '#/shared/outbox/emit-and-record'
-import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
+import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
 
 // fallow-ignore-next-line unused-type
 export type UpdateStaffPortalsInput = Readonly<{

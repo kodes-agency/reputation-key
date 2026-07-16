@@ -30,7 +30,7 @@ import type { UserId, OrganizationId } from '#/shared/domain/ids'
 type BuildInput = Readonly<{
   db: Database
   events: EventBus
-  outboxRepo?: import('#/shared/outbox/infrastructure/outbox-repository').OutboxRepository
+  outboxRepo?: import('#/shared/outbox').OutboxRepository
   queue: Queue | undefined
   clock: () => Date
   logger: LoggerPort

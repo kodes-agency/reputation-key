@@ -13,7 +13,7 @@ import type { Job } from 'bullmq'
 export const JOB_NAME = 'purge-expired-reviews' as const
 import type { ReviewRepository } from '../../application/ports/review.repository'
 import type { EventBus } from '#/shared/events/event-bus'
-import { emitAndRecord } from '#/shared/outbox/emit-and-record'
+import { emitAndRecord } from '#/shared/outbox'
 import { reviewExpired } from '../../domain/events'
 import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
@@ -23,7 +23,7 @@ type PurgeHandlerDeps = Readonly<{
   events: EventBus
   clock: () => Date
   /** Outbox repository for durable event recording (PRE17A A4 expand phase). */
-  outboxRepo?: import('#/shared/outbox/infrastructure/outbox-repository').OutboxRepository
+  outboxRepo?: import('#/shared/outbox').OutboxRepository
 }>
 
 export const createPurgeExpiredReviewsHandler = (deps: PurgeHandlerDeps) => {

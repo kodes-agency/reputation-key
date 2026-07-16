@@ -15,8 +15,7 @@ import { teamId as toTeamId, userId as toUserId } from '#/shared/domain/ids'
 import { validateTeamName } from '../../domain/rules'
 import { teamError } from '../../domain/errors'
 import { teamUpdated } from '../../domain/events'
-import { emitAndRecord } from '#/shared/outbox/emit-and-record'
-import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
+import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
 
 // fallow-ignore-next-line unused-type
 export type UpdateTeamDeps = Readonly<{

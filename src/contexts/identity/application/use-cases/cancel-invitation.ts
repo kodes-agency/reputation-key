@@ -10,8 +10,7 @@ import type { InvitationId } from '#/shared/domain/ids'
 import { canForContext } from '#/shared/domain/permissions'
 import { identityError } from '../../domain/errors'
 import { identityInvitationCanceled } from '../../domain/events'
-import { emitAndRecord } from '#/shared/outbox/emit-and-record'
-import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
+import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
 
 export type CancelInvitationDeps = Readonly<{
   identity: IdentityPort

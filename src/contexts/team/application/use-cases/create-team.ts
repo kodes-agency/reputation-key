@@ -15,8 +15,7 @@ import { propertyId as toPropertyId, userId as toUserId } from '#/shared/domain/
 import { buildTeam } from '../../domain/constructors'
 import { teamError } from '../../domain/errors'
 import { teamCreated } from '../../domain/events'
-import { emitAndRecord } from '#/shared/outbox/emit-and-record'
-import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
+import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
 
 // fallow-ignore-next-line unused-type
 export type CreateTeamDeps = Readonly<{
