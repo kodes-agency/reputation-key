@@ -8,6 +8,8 @@ import {
 import type { Database } from '#/shared/db'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { DomainEvent } from '#/shared/events/events'
+import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
+import { clearEventSchemas } from '#/shared/events/schema-registry'
 
 vi.mock('#/shared/observability/logger', () => ({
   getLogger: () => ({
@@ -107,6 +109,8 @@ describe('createSequentialReviewCommandStore', () => {
 describe('createAtomicReviewCommandStore', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    clearEventSchemas()
+    registerAllEventSchemas()
   })
 
   it('runs upsert + outbox insert inside a single transaction before emit', async () => {

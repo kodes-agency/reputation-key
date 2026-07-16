@@ -33,6 +33,13 @@ describe('BQR-1.4: ADR 0030 and health schema consumers', () => {
     expect(src).toContain('CONTENT_FIELDS_TO_STRIP')
   })
 
+  it('BQR-2.5: event-adapter allowlist-validates via schema registry at insert', () => {
+    const src = readFileSync(EVENT_ADAPTER, 'utf-8')
+    expect(src).toContain('validateEventPayload')
+    expect(src).toContain('isEventRegistered')
+    expect(src).toContain('tryToOutboxEvent')
+  })
+
   it('health-metrics imports canonical Drizzle schema tables (no dual string table names)', () => {
     expect(existsSync(HEALTH)).toBe(true)
     const src = readFileSync(HEALTH, 'utf-8')

@@ -121,10 +121,10 @@ The `fresh`/`refresh_due`/`expired` classification module is imported only by it
 ### Finding 4.2 — Outbox protected by denylist, not allowlist
 
 **Severity:** P1  
-**Status:** Open (deferred to BQR-2 / BQR-4)  
-**File:** `src/shared/outbox/event-adapter.ts:21-32`
+**Status:** **Remediated (BQR-2.5)** — insert path uses schema-registry allowlist; denylist remains defense-in-depth  
+**File:** `src/shared/outbox/event-adapter.ts`
 
-`CONTENT_FIELDS_TO_STRIP` is a denylist of 10 field names. A field not in the list (e.g. `comment`, `body`, `description`) would persist into the durable outbox. Zod allowlist schemas exist but are only validated at relay/dispatch, not at insert.
+Previously only `CONTENT_FIELDS_TO_STRIP` denylist applied at insert; Zod allowlist ran only at relay/dispatch. `toOutboxEvent` now validates against registered schemas and persists only allowlisted fields. Unregistered types skip durable insert (`tryToOutboxEvent` → null).
 
 ### Finding 4.3 — inbox_items stores full review text permanently
 

@@ -1,6 +1,6 @@
 # BQR-2 — Durable Runtime (Atomic Outbox, Envelope, Consumers)
 
-**Status:** In progress — slice 2.4  
+**Status:** In progress — slice 2.5  
 **Depends on:** BQR-1 (architecture rules, public outbox surface, ADR 0030)  
 **Unblocks:** BQR-3 (review lifecycle consumers), BQR-4 (selected primitives), BQR-6 (event reliability evidence)  
 **Estimate:** 14–22 engineering days
@@ -29,13 +29,13 @@ Commands that produce domain facts commit **state + outbox row in one transactio
 
 ## PR slices
 
-| Slice       | Outcome                                                                                                                     | Status          |
-| ----------- | --------------------------------------------------------------------------------------------------------------------------- | --------------- |
-| **BQR-2.1** | Relay enqueues full `ConsumerEvent` envelope; dispatcher parses/validates envelope; unit tests lock the contract            | Done (PR #193)  |
-| **BQR-2.2** | Wire `registerInboxConsumers` into the worker path via `container.registerOutboxConsumers` when outbox is present           | Done (PR #194)  |
-| **BQR-2.3** | Tracer-bullet atomic producer: review sync `created`/`updated` via `ReviewCommandStore` (upsert + outbox in one TX)         | Done (PR #195)  |
-| **BQR-2.4** | Real inbox durable consumers for `review.updated` / `review.expired` (no no-op `applied` receipts)                          | **This branch** |
-| **BQR-2.5** | Schema-registry allowlist validation at outbox insert; remaining enabled-context families migrate toward atomic record path | Pending         |
+| Slice       | Outcome                                                                                                             | Status          |
+| ----------- | ------------------------------------------------------------------------------------------------------------------- | --------------- |
+| **BQR-2.1** | Relay enqueues full `ConsumerEvent` envelope; dispatcher parses/validates envelope; unit tests lock the contract    | Done (PR #193)  |
+| **BQR-2.2** | Wire `registerInboxConsumers` into the worker path via `container.registerOutboxConsumers` when outbox is present   | Done (PR #194)  |
+| **BQR-2.3** | Tracer-bullet atomic producer: review sync `created`/`updated` via `ReviewCommandStore` (upsert + outbox in one TX) | Done (PR #195)  |
+| **BQR-2.4** | Real inbox durable consumers for `review.updated` / `review.expired` (no no-op `applied` receipts)                  | Done (PR #196)  |
+| **BQR-2.5** | Schema-registry allowlist validation at outbox insert; schema fields aligned with domain                            | **This branch** |
 
 Later slices may split by event family if a single PR would exceed review size. Dispatcher stays default-off until exit.
 
@@ -109,12 +109,28 @@ Later slices may split by event family if a single PR would exceed review size. 
 | Relay and dispatcher share one envelope contract                           | Yes (2.1)      |
 | Inbox (and required) consumers registered when durable path can start      | Yes (2.2)      |
 | At least one enabled producer path commits state + outbox atomically       | Yes (2.3)      |
-| No enabled durable consumer acknowledges work it did not perform           | Yes            |
-| Insert path validates identifier-only payload (allowlist / registry)       | No (2.5)       |
+| No enabled durable consumer acknowledges work it did not perform           | Yes (2.4)      |
+| Insert path validates identifier-only payload (allowlist / registry)       | Yes            |
 | Crash-boundary evidence for claim → publish → consume → receipt            | Partial\*      |
 | `OUTBOX_DISPATCHER_ENABLED` remains default `false` until all of the above | Yes            |
 
 \*Structural unit tests exist; full DB+Redis crash integration remains part of later slices / BQR-6 evidence pack.
+
+## BQR-2.5 scope
+
+### In
+
+- `toOutboxEvent` allowlist-validates via schema registry; persists only Zod-parsed fields.
+- `tryToOutboxEvent` skips unregistered types (no durable row for orphans).
+- Denylist strip retained as defense-in-depth.
+- Align review/inbox/reply schema field names with domain (`externalId`, `oldStatus`, `userId`).
+- Unit tests for allowlist strip, unregistered skip, invalid payload, smuggled fields.
+
+### Out
+
+- Migrating remaining producers to atomic command stores (incremental).
+- Enabling `OUTBOX_DISPATCHER_ENABLED` by default (BQR-2 exit decision).
+- Full DB+Redis crash integration suite (BQR-6 evidence).
 
 ## Residual (accepted until later slices)
 
@@ -123,6 +139,7 @@ Later slices may split by event family if a single PR would exceed review size. 
 - Consumer receipt not yet co-committed with projection in one TX.
 - Review content PII on in-process events is BQR-3/4 (ADR 0030 outbox path is identifier-only after adapter strip).
 - Dark contexts stay dark; no new durable consumers for team/portal/goal/etc.
+- Remaining event families not yet on atomic command stores.
 
 ## Containment note
 
