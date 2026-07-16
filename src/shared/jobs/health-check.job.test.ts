@@ -94,4 +94,21 @@ describe('createHealthCheckHandler', () => {
     expect(result1.db).toBe(result2.db)
     expect(result1.redis).toBe(result2.redis)
   })
+
+  it('records worker heartbeat when provided (BQR-6.2)', async () => {
+    const recordHeartbeat = vi.fn().mockResolvedValue(undefined)
+    const deps = { ...createMockDeps(), recordHeartbeat }
+    const handler = createHealthCheckHandler(deps)
+    await handler({ id: '1', data: {} } as never)
+    expect(recordHeartbeat).toHaveBeenCalledOnce()
+  })
+
+  it('continues when heartbeat write fails', async () => {
+    const recordHeartbeat = vi.fn().mockRejectedValue(new Error('redis down'))
+    const deps = { ...createMockDeps(), recordHeartbeat }
+    const handler = createHealthCheckHandler(deps)
+    const result = await handler({ id: '1', data: {} } as never)
+    expect(result.db).toBe(true)
+    expect(result.redis).toBe(true)
+  })
 })

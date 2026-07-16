@@ -10,13 +10,14 @@
 - [ ] Commands run: `pnpm exec tsx scripts/perf/seed-scale.ts` / `load-test.ts --scenario=…`
 - [ ] Dataset: orgs / properties / reviews
 
-## Health probes (BQR-6.1)
+## Health probes (BQR-6.1 / 6.2)
 
-| Probe     | URL                     | Expected                                     |
-| --------- | ----------------------- | -------------------------------------------- |
-| Liveness  | `GET /api/health/live`  | 200 `{ status: "ok" }`                       |
-| Readiness | `GET /api/health/ready` | 200 when DB+Redis up; 503 degraded otherwise |
-| Combined  | `GET /api/health`       | Same as readiness (compat)                   |
+| Probe     | URL                       | Expected                                     |
+| --------- | ------------------------- | -------------------------------------------- |
+| Liveness  | `GET /api/health/live`    | 200 `{ status: "ok" }`                       |
+| Readiness | `GET /api/health/ready`   | 200 when DB+Redis up; 503 degraded otherwise |
+| Combined  | `GET /api/health`         | Same as readiness (compat)                   |
+| Metrics   | `GET /api/health/metrics` | Outbox lag, queue depths, worker heartbeat   |
 
 ## Staging load / fault (BQR-6.4)
 

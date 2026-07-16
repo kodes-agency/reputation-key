@@ -77,6 +77,12 @@ export async function bootstrap(container: Container): Promise<void> {
     redisHealthy: isRedisHealthy,
     logger,
     clock: container.clock,
+    // BQR-6.2: stamp worker liveness for /api/health/metrics
+    recordHeartbeat: async () => {
+      const { getRedis } = await import('#/shared/cache/redis')
+      const { writeWorkerHeartbeat } = await import('#/shared/health/worker-heartbeat')
+      await writeWorkerHeartbeat(getRedis() ?? undefined, container.clock)
+    },
   })
 
   // Handler returns HealthCheckResult (BullMQ stores it as return value);

@@ -19,6 +19,8 @@ export type HealthCheckDeps = Readonly<{
   redisHealthy: () => Promise<boolean>
   logger: pino.Logger
   clock: () => Date
+  /** BQR-6.2: optional Redis heartbeat so metrics can detect worker stalls. */
+  recordHeartbeat?: () => Promise<void>
 }>
 
 export function createHealthCheckHandler(deps: HealthCheckDeps) {
@@ -33,6 +35,14 @@ export function createHealthCheckHandler(deps: HealthCheckDeps) {
         return false
       }),
     ])
+
+    if (deps.recordHeartbeat) {
+      try {
+        await deps.recordHeartbeat()
+      } catch (err) {
+        deps.logger.warn({ err }, '[health-check] heartbeat write failed')
+      }
+    }
 
     const result: HealthCheckResult = {
       db,

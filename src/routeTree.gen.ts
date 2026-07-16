@@ -29,6 +29,7 @@ import { Route as AuthenticatedInboxIndexRouteImport } from './routes/_authentic
 import { Route as AuthenticatedImportIndexRouteImport } from './routes/_authenticated/import/index'
 import { Route as PPropertySlugPortalSlugRouteImport } from './routes/p/$propertySlug/$portalSlug'
 import { Route as ApiHealthReadyRouteImport } from './routes/api/health/ready'
+import { Route as ApiHealthMetricsRouteImport } from './routes/api/health/metrics'
 import { Route as ApiHealthLiveRouteImport } from './routes/api/health/live'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as AuthenticatedSettingsSecurityRouteImport } from './routes/_authenticated/settings/security'
@@ -161,6 +162,11 @@ const PPropertySlugPortalSlugRoute = PPropertySlugPortalSlugRouteImport.update({
 const ApiHealthReadyRoute = ApiHealthReadyRouteImport.update({
   id: '/api/health/ready',
   path: '/api/health/ready',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHealthMetricsRoute = ApiHealthMetricsRouteImport.update({
+  id: '/api/health/metrics',
+  path: '/api/health/metrics',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiHealthLiveRoute = ApiHealthLiveRouteImport.update({
@@ -364,6 +370,7 @@ export interface FileRoutesByFullPath {
   '/settings/security': typeof AuthenticatedSettingsSecurityRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/health/live': typeof ApiHealthLiveRoute
+  '/api/health/metrics': typeof ApiHealthMetricsRoute
   '/api/health/ready': typeof ApiHealthReadyRoute
   '/p/$propertySlug/$portalSlug': typeof PPropertySlugPortalSlugRoute
   '/import/': typeof AuthenticatedImportIndexRoute
@@ -413,6 +420,7 @@ export interface FileRoutesByTo {
   '/settings/security': typeof AuthenticatedSettingsSecurityRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/health/live': typeof ApiHealthLiveRoute
+  '/api/health/metrics': typeof ApiHealthMetricsRoute
   '/api/health/ready': typeof ApiHealthReadyRoute
   '/p/$propertySlug/$portalSlug': typeof PPropertySlugPortalSlugRoute
   '/import': typeof AuthenticatedImportIndexRoute
@@ -464,6 +472,7 @@ export interface FileRoutesById {
   '/_authenticated/settings/security': typeof AuthenticatedSettingsSecurityRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/health/live': typeof ApiHealthLiveRoute
+  '/api/health/metrics': typeof ApiHealthMetricsRoute
   '/api/health/ready': typeof ApiHealthReadyRoute
   '/p/$propertySlug/$portalSlug': typeof PPropertySlugPortalSlugRoute
   '/_authenticated/import/': typeof AuthenticatedImportIndexRoute
@@ -517,6 +526,7 @@ export interface FileRouteTypes {
     | '/settings/security'
     | '/api/auth/$'
     | '/api/health/live'
+    | '/api/health/metrics'
     | '/api/health/ready'
     | '/p/$propertySlug/$portalSlug'
     | '/import/'
@@ -566,6 +576,7 @@ export interface FileRouteTypes {
     | '/settings/security'
     | '/api/auth/$'
     | '/api/health/live'
+    | '/api/health/metrics'
     | '/api/health/ready'
     | '/p/$propertySlug/$portalSlug'
     | '/import'
@@ -616,6 +627,7 @@ export interface FileRouteTypes {
     | '/_authenticated/settings/security'
     | '/api/auth/$'
     | '/api/health/live'
+    | '/api/health/metrics'
     | '/api/health/ready'
     | '/p/$propertySlug/$portalSlug'
     | '/_authenticated/import/'
@@ -653,6 +665,7 @@ export interface RootRouteChildren {
   ResetPasswordRoute: typeof ResetPasswordRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiHealthLiveRoute: typeof ApiHealthLiveRoute
+  ApiHealthMetricsRoute: typeof ApiHealthMetricsRoute
   ApiHealthReadyRoute: typeof ApiHealthReadyRoute
   PPropertySlugPortalSlugRoute: typeof PPropertySlugPortalSlugRoute
   ApiHealthIndexRoute: typeof ApiHealthIndexRoute
@@ -802,6 +815,13 @@ declare module '@tanstack/react-router' {
       path: '/api/health/ready'
       fullPath: '/api/health/ready'
       preLoaderRoute: typeof ApiHealthReadyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/health/metrics': {
+      id: '/api/health/metrics'
+      path: '/api/health/metrics'
+      fullPath: '/api/health/metrics'
+      preLoaderRoute: typeof ApiHealthMetricsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/health/live': {
@@ -1170,6 +1190,7 @@ const rootRouteChildren: RootRouteChildren = {
   ResetPasswordRoute: ResetPasswordRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiHealthLiveRoute: ApiHealthLiveRoute,
+  ApiHealthMetricsRoute: ApiHealthMetricsRoute,
   ApiHealthReadyRoute: ApiHealthReadyRoute,
   PPropertySlugPortalSlugRoute: PPropertySlugPortalSlugRoute,
   ApiHealthIndexRoute: ApiHealthIndexRoute,
