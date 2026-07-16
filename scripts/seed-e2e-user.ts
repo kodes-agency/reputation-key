@@ -16,7 +16,10 @@
 //   E2E_TEST_ORG      default E2E Test Org
 
 import 'dotenv/config'
+import { eq } from 'drizzle-orm'
 import { getAuth } from '../src/shared/auth/auth'
+import { getDb } from '../src/shared/db'
+import { user } from '../src/shared/db/schema/auth'
 import {
   betterAuthOrganizationSchema,
   parseBetterAuthResponse,
@@ -56,12 +59,15 @@ async function main(): Promise<void> {
     const message = err instanceof Error ? err.message : String(err)
     if (/already|exists|taken|unique|duplicate/i.test(message)) {
       console.log(`E2E user already exists — ${email}`)
-      // Still ensure org exists for this user is harder without login;
-      // for CI (fresh DB) the first path always runs.
+      // Mark verified for re-runs; org may already exist from prior seed.
+      await getDb().update(user).set({ emailVerified: true }).where(eq(user.email, email))
       return
     }
     throw err
   }
+
+  // ensureEmailVerified for environments where verification is toggled on later
+  await getDb().update(user).set({ emailVerified: true }).where(eq(user.id, userId))
 
   const slug = `${slugify(organizationName)}-${Date.now().toString(36)}`
   const org = await auth.api.createOrganization({

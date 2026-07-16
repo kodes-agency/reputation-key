@@ -22,7 +22,8 @@ export default defineConfig({
   expect: { timeout: 10_000 },
   fullyParallel: true,
   forbidOnly: isCi,
-  retries: isCi ? 1 : 0,
+  // Soft-gate e2e: no retries so PR checks don't stay pending for ~15+ minutes.
+  retries: 0,
   workers: isCi ? 1 : undefined,
   reporter: 'list',
   use: {

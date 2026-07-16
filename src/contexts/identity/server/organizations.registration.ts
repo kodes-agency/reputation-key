@@ -107,9 +107,25 @@ export const signInUser = createServerFn({ method: 'POST' })
         const auth = getAuth()
 
         try {
-          await auth.api.signInEmail({
+          // returnHeaders: true so Set-Cookie from better-auth reaches the browser.
+          // Without this, server-fn sign-in creates a session that never sticks
+          // (E2E stays on /login after submit; PR checks look "stuck" on timeouts).
+          const signedIn = await auth.api.signInEmail({
             body: { email: data.email, password: data.password },
+            headers: reqHeaders,
+            returnHeaders: true,
           })
+          const { setResponseHeader } = await import('@tanstack/react-start/server')
+          const setCookies =
+            typeof signedIn.headers.getSetCookie === 'function'
+              ? signedIn.headers.getSetCookie()
+              : (() => {
+                  const single = signedIn.headers.get('set-cookie')
+                  return single ? [single] : []
+                })()
+          for (const cookie of setCookies) {
+            setResponseHeader('Set-Cookie', cookie)
+          }
         } catch (e) {
           const { getLogger } = await import('#/shared/observability/logger')
           const { maskEmail } = await import('#/shared/observability/pii')
