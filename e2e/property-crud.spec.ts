@@ -1,31 +1,21 @@
-// E2E: Property CRUD flow
+// E2E: Property list + detail using seeded property (BQR-5.1)
+// UI create path was removed; properties enter via Google import.
 
 import { test, expect } from '@playwright/test'
 import { signIn } from './helpers/auth'
-import { createProperty } from './helpers/property'
+import { openSeededProperty, SEEDED_PROPERTY_NAME } from './helpers/property'
 
-test.describe('Property CRUD', () => {
+test.describe('Property list and detail', () => {
   test.beforeEach(async ({ page }) => {
     await signIn(page)
   })
 
-  test('create, list, edit, and delete a property', async ({ page }) => {
-    // ── Create a property ───────────────────────────────────────
-    const propertyName = await createProperty(page, 'E2E Hotel')
-    await expect(page.getByText(propertyName)).toBeVisible()
+  test('list shows seeded property and opens detail', async ({ page }) => {
+    await page.goto('/properties')
+    await expect(page.getByRole('heading', { name: /^properties$/i })).toBeVisible()
+    await expect(page.getByText(SEEDED_PROPERTY_NAME)).toBeVisible()
 
-    // ── Edit the property ───────────────────────────────────────
-    await page.getByText(propertyName).click()
-    await page.getByRole('button', { name: /edit/i }).click()
-    const updatedName = `${propertyName} Updated`
-    await page.getByLabel('Name').fill(updatedName)
-    await page.getByRole('button', { name: /save changes/i }).click()
-    await expect(page.getByRole('heading', { name: updatedName })).toBeVisible()
-
-    // ── Delete the property ─────────────────────────────────────
-    page.on('dialog', (dialog) => dialog.accept())
-    await page.getByRole('button', { name: /delete property/i }).click()
-    await page.waitForURL('/properties')
-    await expect(page.getByText(updatedName)).not.toBeVisible()
+    await openSeededProperty(page)
+    await expect(page).toHaveURL(/\/properties\/[a-f0-9-]+/)
   })
 })

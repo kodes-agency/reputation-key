@@ -66,3 +66,6 @@ skills-lock.json
 # Historical AI review output (regenerable; never commit)
 docs/reviews/
 drizzle.bak/
+
+# Playwright E2E seed state (written by scripts/seed-e2e-user.ts)
+e2e/.seed-state.json

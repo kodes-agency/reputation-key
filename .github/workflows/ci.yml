@@ -160,16 +160,9 @@ jobs:
 
   e2e:
     runs-on: ubuntu-latest
-    # Soft gate until BQR-5 makes Playwright blocking.
-    #
-    # Historical "stale CI" cause: missing seed user + no Redis + retries:2 →
-    # ~18 minutes of auth timeouts while hard gates were already green.
-    # Auth path is fixed (seed + Redis + API sign-in + active org). Remaining
-    # failures are product/UI assertion drift (register, guest portal, etc.).
-    #
-    # Job must conclude success so `gh pr checks` is not red after hard gates.
-    # Use step-level continue-on-error + warning, not job-level failure.
-    timeout-minutes: 20
+    # BQR-5.1: critical Playwright project is a hard gate (auth + properties shell).
+    # Residual full suite remains soft until product/UI drift is cleared (BQR-5.2).
+    timeout-minutes: 25
 
     services:
       postgres:
@@ -229,14 +222,16 @@ jobs:
       - name: Seed E2E test user
         run: pnpm exec tsx scripts/seed-e2e-user.ts
       - run: pnpm exec playwright install --with-deps chromium
-      - name: Run e2e tests
-        id: e2e_run
+      - name: Run critical e2e (hard gate — BQR-5.1)
+        run: pnpm test:e2e --project=critical
+      - name: Run full e2e suite (soft residual — BQR-5.2)
+        id: e2e_full
         continue-on-error: true
-        run: pnpm test:e2e
-      - name: Soft-gate e2e result
+        run: pnpm test:e2e --project=full
+      - name: Soft-gate residual e2e
         run: |
-          if [ "${{ steps.e2e_run.outcome }}" = "success" ]; then
-            echo "E2E passed"
+          if [ "${{ steps.e2e_full.outcome }}" = "success" ]; then
+            echo "Full e2e suite passed"
           else
-            echo "::warning::E2E soft-failed (non-blocking until BQR-5). Auth bootstrap is fixed; remaining failures are suite/UI drift. See this job log."
+            echo "::warning::Full e2e residual soft-failed (BQR-5.2). Critical path is hard-gated above."
           fi

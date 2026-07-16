@@ -1,6 +1,6 @@
 # Beta Quality Remediation Program — July 2026
 
-**Status:** BQR-0…3 complete on main; BQR-4 complete on PR #201
+**Status:** BQR-0…3 complete on main; BQR-0…4 complete on main; BQR-5.1 in progress
 
 **Purpose:** Bring the current codebase to an evidence-backed internal beta standard after the July 2026 implementation review  
 **Applies before:** Any real-property pilot, Phase 17, Phase 18, or post-beta capability activation
@@ -28,8 +28,8 @@ Primary-source research for this program may be added as `primary-source-researc
 | BQR-1 | **Merged** [#189](https://github.com/kodes-agency/reputation-key/pull/189)–[#192](https://github.com/kodes-agency/reputation-key/pull/192) | Schema, errors, outbox boundaries, ADR 0030 + health schema consumers  |
 | BQR-2 | **Merged** [#193](https://github.com/kodes-agency/reputation-key/pull/193)–[#197](https://github.com/kodes-agency/reputation-key/pull/197) | Envelope, consumers, atomic producer, real consumers, allowlist insert |
 | BQR-3 | **Merged** [#199](https://github.com/kodes-agency/reputation-key/pull/199)                                                                 | Source lifecycle + processing-region routing                           |
-| BQR-4 | **4.1–4.3 complete (PR #201)**                                                                                                             | authorize() seam; privacy events; ADR align                            |
-| BQR-5 | Not started                                                                                                                                | Blocking a11y/E2E/Storybook                                            |
+| BQR-4 | **Merged** [#201](https://github.com/kodes-agency/reputation-key/pull/201)                                                                 | authorize() seam; privacy events; ADR align                            |
+| BQR-5 | **5.1 in progress**                                                                                                                        | Critical e2e hard gate; residual soft; storybook-test hard             |
 | BQR-6 | Not started                                                                                                                                | Topology, recovery, scale proof                                        |
 | BQR-7 | Not started                                                                                                                                | Real-property pilot                                                    |
 
