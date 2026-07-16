@@ -15,24 +15,16 @@
 
 import type { Job } from 'bullmq'
 import type { OutboxRepository } from './infrastructure/outbox-repository'
+import { parseConsumerEvent, type ConsumerEvent } from './envelope'
 import { validateEventPayload } from '#/shared/events/schema-registry'
 import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
 
 // ── Consumer registration ───────────────────────────────────────────
 
-export type ConsumerHandler = (event: ConsumerEvent) => Promise<ConsumerResult>
+export type { ConsumerEvent }
 
-export type ConsumerEvent = Readonly<{
-  eventId: string
-  eventType: string
-  eventVersion: number
-  payload: unknown
-  organizationId: string
-  propertyId: string | null
-  sourceContext: string
-  sourceAggregateId: string
-}>
+export type ConsumerHandler = (event: ConsumerEvent) => Promise<ConsumerResult>
 
 export type ConsumerResult = Readonly<{
   /** 'applied' — consumer processed the event and committed state + receipt. */
@@ -83,17 +75,25 @@ export function createDispatcherHandler(repo: OutboxRepository) {
 
   return async (job: Job) => {
     await trace('outbox.dispatch', async () => {
-      const { id: eventId, name: eventType, data } = job
-      if (!eventId) {
+      const { id: jobId, name: jobName, data } = job
+      if (!jobId) {
+        logger.error({ jobName }, 'Job has no ID — cannot process outbox event')
+        return
+      }
+
+      // BQR-2.1: require full ConsumerEvent envelope (relay must not send bare payload)
+      const event = parseConsumerEvent(data)
+      if (!event) {
         logger.error(
-          { jobName: eventType },
-          'Job has no ID — cannot process outbox event',
+          { jobId, jobName },
+          'Job data is not a ConsumerEvent envelope — discarding (BQR-2.1 contract)',
         )
         return
       }
 
-      // The payload should include the event metadata
-      const event = data as ConsumerEvent
+      // Prefer envelope eventId; fall back to BullMQ job ID (relay sets jobId = event UUID)
+      const eventId = event.eventId || jobId
+      const eventType = event.eventType
 
       // Validate payload against the schema registry
       try {
@@ -107,7 +107,7 @@ export function createDispatcherHandler(repo: OutboxRepository) {
       }
 
       // Resolve consumers for this event type
-      const consumers = consumersByType.get(event.eventType) ?? []
+      const consumers = consumersByType.get(eventType) ?? []
 
       if (consumers.length === 0) {
         logger.warn(

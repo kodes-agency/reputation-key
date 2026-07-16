@@ -3,7 +3,7 @@
 // Application and domain layers must depend only on the public outbox surface
 // (`#/shared/outbox`). They must not reach into:
 //   - infrastructure/ (Drizzle repository implementation)
-//   - relay / dispatcher (worker runtime)
+//   - relay / dispatcher / envelope (worker runtime contract)
 //   - event-adapter (internal payload mapping)
 //
 // Composition root and worker may import infrastructure to wire adapters.
@@ -20,6 +20,7 @@ const FORBIDDEN_PATH_SNIPPETS = [
   'shared/outbox/relay',
   'shared/outbox/dispatcher',
   'shared/outbox/event-adapter',
+  'shared/outbox/envelope',
 ] as const
 
 function walkTsFiles(dir: string, pred: (rel: string) => boolean): string[] {

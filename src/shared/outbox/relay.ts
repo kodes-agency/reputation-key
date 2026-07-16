@@ -13,6 +13,7 @@ import type {
   OutboxRepository,
   UnpublishedEvent,
 } from './infrastructure/outbox-repository'
+import { buildConsumerEvent } from './envelope'
 import { validateEventPayload } from '#/shared/events/schema-registry'
 import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
@@ -61,10 +62,14 @@ export function createOutboxRelay(
         event.payload,
       )
 
+      // BQR-2.1: enqueue the full ConsumerEvent envelope — not bare payload.
+      // Dispatcher expects eventType/eventVersion/payload/metadata on job.data.
+      const envelope = buildConsumerEvent(event, validatedPayload)
+
       // Use the event UUID as the BullMQ job ID for deduplication.
       // If the job already exists (re-publish after a crash), BullMQ
       // returns the existing job — treat as accepted.
-      await queue.add(event.eventType, validatedPayload, {
+      await queue.add(event.eventType, envelope, {
         jobId: event.id,
         removeOnComplete: { count: 1000 },
         removeOnFail: { count: 500 },

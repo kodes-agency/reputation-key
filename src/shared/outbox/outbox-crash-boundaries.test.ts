@@ -20,7 +20,9 @@ import {
   validateEventPayload,
 } from '#/shared/events/schema-registry'
 import { registerConsumer, clearConsumers, type ConsumerEvent } from './dispatcher'
+import { buildConsumerEvent, parseConsumerEvent } from './envelope'
 import { z } from 'zod'
+import type { UnpublishedEvent } from './infrastructure/outbox-repository'
 
 // ── Test setup ──────────────────────────────────────────────────────
 
@@ -170,6 +172,26 @@ describe('outbox crash boundaries', () => {
       const event = makeTestEvent()
       expect(event.eventId).toBeDefined()
       expect(typeof event.eventId).toBe('string')
+    })
+
+    it('relay→dispatcher envelope includes eventType (BQR-2.1)', () => {
+      // Pre-fix: queue.add(name, barePayload) → dispatcher saw eventType undefined.
+      const row: UnpublishedEvent = {
+        id: 'evt-001',
+        eventType: TEST_EVENT_TYPE,
+        eventVersion: TEST_EVENT_VERSION,
+        payload: { resourceId: 'res-1', action: 'created' },
+        organizationId: 'org-1',
+        propertyId: null,
+        sourceContext: 'test',
+        sourceAggregateId: 'res-1',
+      }
+      const jobData = buildConsumerEvent(row, row.payload)
+      const parsed = parseConsumerEvent(jobData)
+      expect(parsed).not.toBeNull()
+      expect(parsed!.eventType).toBe(TEST_EVENT_TYPE)
+      expect(parsed!.eventId).toBe('evt-001')
+      expect(parseConsumerEvent(row.payload)).toBeNull()
     })
 
     it('consumer handler can return obsolete when source no longer exists', async () => {
