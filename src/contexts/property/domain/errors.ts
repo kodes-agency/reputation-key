@@ -9,6 +9,8 @@ export type PropertyErrorCode =
   | 'invalid_timezone'
   | 'slug_taken'
   | 'property_not_found'
+  | 'invalid_transition'
+  | 'property_not_active'
 
 export type PropertyError = Readonly<{
   _tag: 'PropertyError'

@@ -17,6 +17,8 @@
 // The irreversible boundary is purge_pending → purging. Before that, recovery
 // to 'active' is possible. After purging starts, there is no rollback.
 
+import { propertyError } from './errors'
+
 export type PropertyLifecycleState =
   | 'active'
   | 'suspended'
@@ -106,20 +108,28 @@ export function isValidTransition(
  */
 export function assertCanPerformExternalEffect(state: PropertyLifecycleState): void {
   if (!ACTIVE_STATES.has(state)) {
-    throw { code: 'property_not_active', state } as const
+    throw propertyError(
+      'property_not_active',
+      `Property cannot perform external effects in state "${state}"`,
+      { state },
+    )
   }
 }
 
 /**
  * Assert that a transition is valid.
- * Throws on invalid transitions.
+ * Throws a tagged PropertyError on invalid transitions (BQR-1.2).
  */
 export function assertValidTransition(
   from: PropertyLifecycleState,
   to: PropertyLifecycleState,
 ): void {
   if (!isValidTransition(from, to)) {
-    throw { code: 'invalid_transition', from, to } as const
+    throw propertyError(
+      'invalid_transition',
+      `Invalid property lifecycle transition from "${from}" to "${to}"`,
+      { from, to },
+    )
   }
 }
 
