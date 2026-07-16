@@ -1,6 +1,6 @@
 # Beta Quality Remediation Program — July 2026
 
-**Status:** BQR-0…1 complete on main; BQR-2.4 in progress  
+**Status:** BQR-0…1 complete on main; BQR-2.5 in progress  
 **Purpose:** Bring the current codebase to an evidence-backed internal beta standard after the July 2026 implementation review  
 **Applies before:** Any real-property pilot, Phase 17, Phase 18, or post-beta capability activation
 
@@ -19,16 +19,16 @@ Primary-source research for this program may be added as `primary-source-researc
 
 ## Progress
 
-| Phase | Status                                                                                                                                     | Notes                                                                 |
-| ----- | ------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------- |
-| BQR-0 | **Merged** [#188](https://github.com/kodes-agency/reputation-key/pull/188)                                                                 | Outbox dispatch off; dark paths contained; baseline inventory         |
-| BQR-1 | **Merged** [#189](https://github.com/kodes-agency/reputation-key/pull/189)–[#192](https://github.com/kodes-agency/reputation-key/pull/192) | Schema, errors, outbox boundaries, ADR 0030 + health schema consumers |
-| BQR-2 | **2.1–2.3 merged; 2.4 open**                                                                                                               | Envelope, consumers, atomic producer; real no-op consumer bodies      |
-| BQR-3 | Not started                                                                                                                                | Source lifecycle, region routing                                      |
-| BQR-4 | Not started                                                                                                                                | Authoritative authorize(), tenancy, privacy                           |
-| BQR-5 | Not started                                                                                                                                | Blocking a11y/E2E/Storybook                                           |
-| BQR-6 | Not started                                                                                                                                | Topology, recovery, scale proof                                       |
-| BQR-7 | Not started                                                                                                                                | Real-property pilot                                                   |
+| Phase | Status                                                                                                                                     | Notes                                                                  |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------- |
+| BQR-0 | **Merged** [#188](https://github.com/kodes-agency/reputation-key/pull/188)                                                                 | Outbox dispatch off; dark paths contained; baseline inventory          |
+| BQR-1 | **Merged** [#189](https://github.com/kodes-agency/reputation-key/pull/189)–[#192](https://github.com/kodes-agency/reputation-key/pull/192) | Schema, errors, outbox boundaries, ADR 0030 + health schema consumers  |
+| BQR-2 | **2.1–2.4 merged; 2.5 open**                                                                                                               | Envelope, consumers, atomic producer, real consumers; allowlist insert |
+| BQR-3 | Not started                                                                                                                                | Source lifecycle, region routing                                       |
+| BQR-4 | Not started                                                                                                                                | Authoritative authorize(), tenancy, privacy                            |
+| BQR-5 | Not started                                                                                                                                | Blocking a11y/E2E/Storybook                                            |
+| BQR-6 | Not started                                                                                                                                | Topology, recovery, scale proof                                        |
+| BQR-7 | Not started                                                                                                                                | Real-property pilot                                                    |
 
 ## Authority and relationship to earlier plans
 

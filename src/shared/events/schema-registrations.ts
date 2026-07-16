@@ -16,12 +16,17 @@ import { registerEventSchema } from './schema-registry'
 
 // ── Review event schemas ────────────────────────────────────────────
 
+// BQR-2.5: schemas match domain event field names after denylist strip
+// (not legacy googleReviewId / previousStatus aliases).
+
 const reviewCreatedSchema = z.object({
   reviewId: z.string(),
   organizationId: z.string(),
   propertyId: z.string(),
-  googleReviewId: z.string(),
+  externalId: z.string(),
   rating: z.number().int().min(1).max(5),
+  platform: z.string().optional(),
+  occurredAt: z.string().optional(),
 })
 
 const reviewUpdatedSchema = reviewCreatedSchema
@@ -30,6 +35,7 @@ const reviewExpiredSchema = z.object({
   reviewId: z.string(),
   organizationId: z.string(),
   propertyId: z.string(),
+  occurredAt: z.string().optional(),
 })
 
 const replyEventSchema = z.object({
@@ -37,7 +43,10 @@ const replyEventSchema = z.object({
   reviewId: z.string(),
   organizationId: z.string(),
   propertyId: z.string(),
-  staffId: z.string(),
+  userId: z.string().nullable().optional(),
+  authorId: z.string().nullable().optional(),
+  source: z.string().optional(),
+  occurredAt: z.string().optional(),
 })
 
 // ── Inbox event schemas ─────────────────────────────────────────────
@@ -45,17 +54,21 @@ const replyEventSchema = z.object({
 const inboxItemCreatedSchema = z.object({
   inboxItemId: z.string(),
   organizationId: z.string(),
-  propertyId: z.string(),
+  propertyId: z.string().nullable().optional(),
   reviewId: z.string().optional(),
-  sourceType: z.string(),
+  sourceType: z.string().optional(),
+  sourceId: z.string().optional(),
 })
 
 const inboxItemStatusChangedSchema = z.object({
   inboxItemId: z.string(),
   organizationId: z.string(),
-  propertyId: z.string(),
-  previousStatus: z.string(),
+  propertyId: z.string().nullable().optional(),
+  oldStatus: z.string(),
   newStatus: z.string(),
+  userId: z.string().nullable().optional(),
+  source: z.string().optional(),
+  occurredAt: z.string().optional(),
 })
 
 const inboxItemEscalatedSchema = z.object({
