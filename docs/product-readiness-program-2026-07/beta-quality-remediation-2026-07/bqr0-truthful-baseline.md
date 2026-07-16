@@ -39,10 +39,10 @@ Previously `registerInboxConsumers()` had zero callers. Worker now registers inb
 ### Finding 1.4 — No-op consumers
 
 **Severity:** P1  
-**Status:** Open (deferred to BQR-2)  
+**Status:** **Remediated (BQR-2.4)** — `review.updated` syncs denormalized fields; `review.expired` closes open items  
 **File:** `src/contexts/inbox/infrastructure/outbox-consumers.ts`
 
-Two of three defined consumers write an `'applied'` receipt without performing the projection side effect.
+Previously two of three durable consumers wrote an `'applied'` receipt without projection work. BQR-2.4 implements real handlers mirroring the in-process bus path (lookup + repo, not auth-gated use cases). Residual: receipt still commits after state (not same TX as projection) — full applyOnce co-commit remains a later hardening item.
 
 ## 2. Capability Enforcement
 

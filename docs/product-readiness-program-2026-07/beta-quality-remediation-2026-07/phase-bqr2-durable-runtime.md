@@ -1,6 +1,6 @@
 # BQR-2 — Durable Runtime (Atomic Outbox, Envelope, Consumers)
 
-**Status:** In progress — slice 2.3  
+**Status:** In progress — slice 2.4  
 **Depends on:** BQR-1 (architecture rules, public outbox surface, ADR 0030)  
 **Unblocks:** BQR-3 (review lifecycle consumers), BQR-4 (selected primitives), BQR-6 (event reliability evidence)  
 **Estimate:** 14–22 engineering days
@@ -29,13 +29,13 @@ Commands that produce domain facts commit **state + outbox row in one transactio
 
 ## PR slices
 
-| Slice       | Outcome                                                                                                                                    | Status          |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------ | --------------- |
-| **BQR-2.1** | Relay enqueues full `ConsumerEvent` envelope; dispatcher parses/validates envelope; unit tests lock the contract                           | Done (PR #193)  |
-| **BQR-2.2** | Wire `registerInboxConsumers` into the worker path via `container.registerOutboxConsumers` when outbox is present                          | Done (PR #194)  |
-| **BQR-2.3** | Tracer-bullet atomic producer: review sync `created`/`updated` via `ReviewCommandStore` (upsert + outbox in one TX)                        | **This branch** |
-| **BQR-2.4** | Real inbox durable consumers for `review.updated` / `review.expired` (no no-op `applied` receipts); receipt + projection co-commit pattern | Pending         |
-| **BQR-2.5** | Schema-registry allowlist validation at outbox insert; remaining enabled-context families migrate toward atomic record path                | Pending         |
+| Slice       | Outcome                                                                                                                     | Status          |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------- | --------------- |
+| **BQR-2.1** | Relay enqueues full `ConsumerEvent` envelope; dispatcher parses/validates envelope; unit tests lock the contract            | Done (PR #193)  |
+| **BQR-2.2** | Wire `registerInboxConsumers` into the worker path via `container.registerOutboxConsumers` when outbox is present           | Done (PR #194)  |
+| **BQR-2.3** | Tracer-bullet atomic producer: review sync `created`/`updated` via `ReviewCommandStore` (upsert + outbox in one TX)         | Done (PR #195)  |
+| **BQR-2.4** | Real inbox durable consumers for `review.updated` / `review.expired` (no no-op `applied` receipts)                          | **This branch** |
+| **BQR-2.5** | Schema-registry allowlist validation at outbox insert; remaining enabled-context families migrate toward atomic record path | Pending         |
 
 Later slices may split by event family if a single PR would exceed review size. Dispatcher stays default-off until exit.
 
@@ -87,14 +87,29 @@ Later slices may split by event family if a single PR would exceed review size. 
 | Consumer registry | Empty in production worker    | Inbox consumers registered at worker start when outbox exists |
 | Dispatcher enable | Would run with zero consumers | Registry populated; still off by default until BQR-2 exit     |
 
+## BQR-2.4 scope
+
+### In
+
+- `handleInboxReviewUpdated`: find inbox by source, re-fetch snippet via lookup, `syncDenormalizedFields`.
+- `handleInboxReviewExpired`: find by source, close open items, emit status-changed (same as in-process handler).
+- Composition wires `inboxRepo` + `events` + `clock` into consumer registration.
+- Unit + architecture tests prove real side effects (no TODO no-op stubs).
+
+### Out
+
+- Receipt + projection in one DB transaction (applyOnce) — residual hardening.
+- Enabling `OUTBOX_DISPATCHER_ENABLED` by default.
+- Allowlist-at-insert (2.5).
+
 ## Exit criteria (full BQR-2)
 
-| Criterion                                                                  | Met after 2.2? |
+| Criterion                                                                  | Met after 2.4? |
 | -------------------------------------------------------------------------- | -------------- |
 | Relay and dispatcher share one envelope contract                           | Yes (2.1)      |
-| Inbox (and required) consumers registered when durable path can start      | Yes            |
-| At least one enabled producer path commits state + outbox atomically       | No (2.3)       |
-| No enabled durable consumer acknowledges work it did not perform           | No (2.4)       |
+| Inbox (and required) consumers registered when durable path can start      | Yes (2.2)      |
+| At least one enabled producer path commits state + outbox atomically       | Yes (2.3)      |
+| No enabled durable consumer acknowledges work it did not perform           | Yes            |
 | Insert path validates identifier-only payload (allowlist / registry)       | No (2.5)       |
 | Crash-boundary evidence for claim → publish → consume → receipt            | Partial\*      |
 | `OUTBOX_DISPATCHER_ENABLED` remains default `false` until all of the above | Yes            |
@@ -104,7 +119,8 @@ Later slices may split by event family if a single PR would exceed review size. 
 ## Residual (accepted until later slices)
 
 - In-process event bus still primary delivery until durable switch per family.
-- `emitAndRecord` remains non-atomic until 2.3+ vertical cutovers.
+- Other producers still use non-atomic `emitAndRecord` (beyond review sync).
+- Consumer receipt not yet co-committed with projection in one TX.
 - Review content PII on in-process events is BQR-3/4 (ADR 0030 outbox path is identifier-only after adapter strip).
 - Dark contexts stay dark; no new durable consumers for team/portal/goal/etc.
 
