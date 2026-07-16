@@ -28,6 +28,13 @@ const sampleRow: ReviewRow = {
   expiresAt,
   sentimentLabel: 'positive',
   sentimentScore: 0.92,
+  sourceCreatedAt: reviewedAt,
+  sourceUpdatedAt: null,
+  firstFetchedAt: now,
+  lastFetchedAt: now,
+  contentExpiresAt: null,
+  contentHash: null,
+  sourceSeenGeneration: null,
   createdAt: now,
   updatedAt: now,
 }

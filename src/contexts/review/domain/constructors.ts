@@ -1,6 +1,11 @@
 // Review context — entity constructors
 
-import type { Review, Reply, SentimentLabel } from './types'
+import {
+  defaultReviewLifecycle,
+  type Review,
+  type Reply,
+  type SentimentLabel,
+} from './types'
 import type {
   ReviewId,
   ReplyId,
@@ -55,6 +60,7 @@ export const buildReview = (args: BuildReviewArgs) => {
     expiresAt,
     sentimentLabel: args.sentimentLabel ?? null,
     sentimentScore: args.sentimentScore ?? null,
+    ...defaultReviewLifecycle({ reviewedAt: args.reviewedAt, now: args.now }),
     createdAt: args.now,
     updatedAt: args.now,
   })

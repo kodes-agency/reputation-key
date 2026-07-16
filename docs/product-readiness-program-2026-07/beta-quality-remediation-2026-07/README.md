@@ -1,6 +1,6 @@
 # Beta Quality Remediation Program — July 2026
 
-**Status:** BQR-0 containment complete (branch / PR); BQR-1 not started  
+**Status:** BQR-0 in PR; BQR-1.1 schema parity in progress  
 **Purpose:** Bring the current codebase to an evidence-backed internal beta standard after the July 2026 implementation review  
 **Applies before:** Any real-property pilot, Phase 17, Phase 18, or post-beta capability activation
 
@@ -11,29 +11,23 @@ This program corrects the gap between code that has been added and capabilities 
 1. [Master plan](master-plan.md) — program outcomes, principles, phases, gates
 2. [BQR-0 phase plan + exit matrix](phase-bqr0-containment-and-rebaseline.md)
 3. [BQR-0 truthful baseline](bqr0-truthful-baseline.md) — inventory and open P0/P1 findings
-4. Later phases (planned; detailed docs written when each phase starts):
-   - BQR-1 — architecture and schema
-   - BQR-2 — durable runtime
-   - BQR-3 — review lifecycle and region
-   - BQR-4 — security and capabilities
-   - BQR-5 — experience and verification
-   - BQR-6 — operations and scale
-   - BQR-7 — pilot and acceptance
+4. [BQR-1 architecture and schema](phase-bqr1-architecture-and-schema.md)
+5. Later phases (detailed docs when each phase starts): BQR-2…BQR-7
 
 Primary-source research for this program may be added as `primary-source-research.md` when external citations are re-gathered; until then the July PRE17/beta research under the parent folder remains the reference set.
 
 ## Progress
 
-| Phase | Status             | Notes                                                                     |
-| ----- | ------------------ | ------------------------------------------------------------------------- |
-| BQR-0 | **Done on branch** | Outbox dispatch off; dark server fns + jobs contained; baseline inventory |
-| BQR-1 | Not started        | Schema drift 0006–0008, architecture rules                                |
-| BQR-2 | Not started        | Atomic outbox, consumers, envelope fix                                    |
-| BQR-3 | Not started        | Source lifecycle, region routing                                          |
-| BQR-4 | Not started        | Authoritative authorize(), tenancy, privacy                               |
-| BQR-5 | Not started        | Blocking a11y/E2E/Storybook                                               |
-| BQR-6 | Not started        | Topology, recovery, scale proof                                           |
-| BQR-7 | Not started        | Real-property pilot                                                       |
+| Phase | Status                                                                    | Notes                                                                     |
+| ----- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| BQR-0 | **In PR** [#188](https://github.com/kodes-agency/reputation-key/pull/188) | Outbox dispatch off; dark server fns + jobs contained; baseline inventory |
+| BQR-1 | **1.1 in progress**                                                       | Schema parity 0006–0008; slices 1.2–1.4 planned                           |
+| BQR-2 | Not started                                                               | Atomic outbox, consumers, envelope fix                                    |
+| BQR-3 | Not started                                                               | Source lifecycle, region routing                                          |
+| BQR-4 | Not started                                                               | Authoritative authorize(), tenancy, privacy                               |
+| BQR-5 | Not started                                                               | Blocking a11y/E2E/Storybook                                               |
+| BQR-6 | Not started                                                               | Topology, recovery, scale proof                                           |
+| BQR-7 | Not started                                                               | Real-property pilot                                                       |
 
 ## Authority and relationship to earlier plans
 

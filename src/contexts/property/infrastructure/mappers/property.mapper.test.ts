@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { propertyFromRow, propertyToRow } from './property.mapper'
-import type { Property } from '../../domain/types'
+import { DEFAULT_PROPERTY_ROUTING, type Property } from '../../domain/types'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
@@ -25,6 +25,15 @@ const makePropertyRow = (overrides: Record<string, unknown> = {}) => ({
   lifecycleStateChangedAt: null,
   purgeScheduledFor: null,
   lifecycleInitiatedBy: null,
+  countryCode: null,
+  countrySource: 'organization_default',
+  timezoneSource: 'legacy',
+  timezoneResolvedAt: null,
+  processingRegion: 'unresolved',
+  processingRegionSource: 'country_default',
+  routingPolicyVersion: 1,
+  processingRegionResolvedAt: null,
+  sourceEpoch: 0,
   ...overrides,
 })
 
@@ -44,6 +53,7 @@ const makeProperty = (overrides: Partial<Property> = {}): Property => ({
   lifecycleStateChangedAt: null,
   purgeScheduledFor: null,
   lifecycleInitiatedBy: null,
+  ...DEFAULT_PROPERTY_ROUTING,
   ...overrides,
 })
 

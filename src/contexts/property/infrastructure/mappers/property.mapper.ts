@@ -28,6 +28,15 @@ export const propertyFromRow = (row: PropertyRow): Property => ({
   lifecycleStateChangedAt: row.lifecycleStateChangedAt,
   purgeScheduledFor: row.purgeScheduledFor,
   lifecycleInitiatedBy: row.lifecycleInitiatedBy,
+  countryCode: row.countryCode ?? null,
+  countrySource: row.countrySource ?? null,
+  timezoneSource: row.timezoneSource ?? null,
+  timezoneResolvedAt: row.timezoneResolvedAt ?? null,
+  processingRegion: row.processingRegion ?? null,
+  processingRegionSource: row.processingRegionSource ?? null,
+  routingPolicyVersion: row.routingPolicyVersion ?? 1,
+  processingRegionResolvedAt: row.processingRegionResolvedAt ?? null,
+  sourceEpoch: row.sourceEpoch ?? 0,
 })
 
 export const propertyToRow = (property: Property): PropertyInsertRow => ({
@@ -47,4 +56,13 @@ export const propertyToRow = (property: Property): PropertyInsertRow => ({
   lifecycleStateChangedAt: property.lifecycleStateChangedAt,
   purgeScheduledFor: property.purgeScheduledFor,
   lifecycleInitiatedBy: property.lifecycleInitiatedBy,
+  countryCode: property.countryCode,
+  countrySource: property.countrySource,
+  timezoneSource: property.timezoneSource,
+  timezoneResolvedAt: property.timezoneResolvedAt,
+  processingRegion: property.processingRegion,
+  processingRegionSource: property.processingRegionSource,
+  routingPolicyVersion: property.routingPolicyVersion,
+  processingRegionResolvedAt: property.processingRegionResolvedAt,
+  sourceEpoch: property.sourceEpoch,
 })

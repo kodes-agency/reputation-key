@@ -39,6 +39,14 @@ export type Review = Readonly<{
   expiresAt: Date
   sentimentLabel: SentimentLabel
   sentimentScore: number | null
+  // PRE17B / BQR-1.1: Source content lifecycle (migration 0006)
+  sourceCreatedAt: Date | null
+  sourceUpdatedAt: Date | null
+  firstFetchedAt: Date | null
+  lastFetchedAt: Date | null
+  contentExpiresAt: Date | null
+  contentHash: string | null
+  sourceSeenGeneration: string | null
   createdAt: Date
   updatedAt: Date
 }>
@@ -70,6 +78,45 @@ export type Reply = Readonly<{
   createdAt: Date
   updatedAt: Date
 }>
+
+/**
+ * Default source-lifecycle fields when constructing a review at first fetch.
+ * Callers should pass reviewedAt/now so timestamps stay coherent.
+ */
+export function defaultReviewLifecycle(args: {
+  reviewedAt: Date
+  now: Date
+  existing?: Pick<
+    Review,
+    | 'sourceCreatedAt'
+    | 'sourceUpdatedAt'
+    | 'firstFetchedAt'
+    | 'lastFetchedAt'
+    | 'contentExpiresAt'
+    | 'contentHash'
+    | 'sourceSeenGeneration'
+  > | null
+}): Pick<
+  Review,
+  | 'sourceCreatedAt'
+  | 'sourceUpdatedAt'
+  | 'firstFetchedAt'
+  | 'lastFetchedAt'
+  | 'contentExpiresAt'
+  | 'contentHash'
+  | 'sourceSeenGeneration'
+> {
+  const existing = args.existing
+  return {
+    sourceCreatedAt: existing?.sourceCreatedAt ?? args.reviewedAt,
+    sourceUpdatedAt: existing?.sourceUpdatedAt ?? null,
+    firstFetchedAt: existing?.firstFetchedAt ?? args.now,
+    lastFetchedAt: args.now,
+    contentExpiresAt: existing?.contentExpiresAt ?? null,
+    contentHash: existing?.contentHash ?? null,
+    sourceSeenGeneration: existing?.sourceSeenGeneration ?? null,
+  }
+}
 
 /** Raw review data from Google API, before domain mapping. */
 export type GoogleReview = Readonly<{

@@ -11,6 +11,7 @@ import {
   varchar,
   text,
   timestamp,
+  integer,
   index,
   uniqueIndex,
 } from 'drizzle-orm/pg-core'
@@ -41,6 +42,18 @@ export const properties = pgTable(
     }).defaultNow(),
     purgeScheduledFor: timestamp('purge_scheduled_for', { withTimezone: true }),
     lifecycleInitiatedBy: varchar('lifecycle_initiated_by', { length: 255 }),
+    // PRE17B / BQR-1.1: Property processing profile + routing (migration 0006)
+    countryCode: varchar('country_code', { length: 2 }),
+    countrySource: text('country_source').default('organization_default'),
+    timezoneSource: text('timezone_source').default('legacy'),
+    timezoneResolvedAt: timestamp('timezone_resolved_at', { withTimezone: true }),
+    processingRegion: text('processing_region').default('unresolved'),
+    processingRegionSource: text('processing_region_source').default('country_default'),
+    routingPolicyVersion: integer('routing_policy_version').notNull().default(1),
+    processingRegionResolvedAt: timestamp('processing_region_resolved_at', {
+      withTimezone: true,
+    }),
+    sourceEpoch: integer('source_epoch').notNull().default(0),
   },
   (t) => ({
     orgSlugUnique: uniqueIndex('properties_org_slug_unique')
@@ -51,5 +64,9 @@ export const properties = pgTable(
       .on(t.organizationId, t.gbpPlaceId)
       .where(sql`gbp_place_id IS NOT NULL AND deleted_at IS NULL`),
     orgIdx: index('properties_org_idx').on(t.organizationId),
+    // Migration 0006: backfill queue for unresolved processing region
+    routingBackfillIdx: index('properties_routing_backfill_idx')
+      .on(t.routingPolicyVersion, t.id)
+      .where(sql`processing_region = 'unresolved' AND deleted_at IS NULL`),
   }),
 )

@@ -201,6 +201,13 @@ async function createReviews(
       expiresAt: new Date(reviewedAt.getTime() + 30 * MS_PER_DAY),
       sentimentLabel: 'unknown',
       sentimentScore: null,
+      sourceCreatedAt: reviewedAt,
+      sourceUpdatedAt: null,
+      firstFetchedAt: ctx.now,
+      lastFetchedAt: ctx.now,
+      contentExpiresAt: null,
+      contentHash: null,
+      sourceSeenGeneration: null,
     }
     try {
       await ctx.container.reviewRepo.upsert(review, ctx.now)

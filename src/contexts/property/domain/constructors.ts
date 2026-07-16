@@ -4,7 +4,7 @@
 // Pure — ID and time are inputs, no side effects.
 
 import { Result } from '#/shared/domain'
-import type { Property, PropertyId } from './types'
+import { DEFAULT_PROPERTY_ROUTING, type Property, type PropertyId } from './types'
 import type { PropertyError } from './errors'
 import type { OrganizationId, GoogleConnectionId } from '#/shared/domain/ids'
 import {
@@ -50,6 +50,7 @@ export const buildProperty = (
       lifecycleStateChangedAt: input.now,
       purgeScheduledFor: null,
       lifecycleInitiatedBy: null,
+      ...DEFAULT_PROPERTY_ROUTING,
     }),
   )
 }
