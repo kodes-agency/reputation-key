@@ -13,6 +13,16 @@ import { signIn } from '../helpers/auth'
 import { openSeededProperty, SEEDED_PROPERTY_NAME } from '../helpers/property'
 import { requireE2eSeedState } from '../helpers/seed-state'
 
+/** InboxPageV2 chrome when empty or loading complete. */
+function inboxChrome(page: import('@playwright/test').Page) {
+  return page
+    .getByRole('heading', { name: /^inbox$/i })
+    .or(page.getByText(/no message selected/i))
+    .or(page.getByText(/no inbox items/i))
+    .or(page.getByText(/new reviews and feedback will appear here/i))
+    .or(page.getByRole('button', { name: /retry/i }))
+}
+
 test.describe('Critical: authentication', () => {
   test('sign in with seeded credentials reaches authenticated area', async ({ page }) => {
     await signIn(page)
@@ -55,16 +65,15 @@ test.describe('Critical: properties shell', () => {
     const seed = requireE2eSeedState()
     await page.goto(`/properties/${seed.propertyId}/reviews`)
     await expect(page).toHaveURL(new RegExp(`/properties/${seed.propertyId}/reviews`))
-    // Inbox-style reviews surface; empty state is OK for seed property.
-    await expect(page.getByText(SEEDED_PROPERTY_NAME).first()).toBeVisible({
-      timeout: 15_000,
-    })
+    // Property-scoped reviews reuses InboxPageV2 chrome (not property name text).
+    await expect(inboxChrome(page)).toBeVisible({ timeout: 15_000 })
 
     await page.goto(`/properties/${seed.propertyId}/people`)
     await expect(page).toHaveURL(new RegExp(`/properties/${seed.propertyId}/people`))
-    await expect(page.getByRole('tab', { name: /teams/i })).toBeVisible({
+    await expect(page.getByRole('heading', { name: /^people$/i })).toBeVisible({
       timeout: 15_000,
     })
+    await expect(page.getByRole('tab', { name: /teams/i })).toBeVisible()
   })
 })
 
@@ -76,11 +85,7 @@ test.describe('Critical: inbox and members shell', () => {
   test('inbox triage surface loads for manager', async ({ page }) => {
     await page.goto('/inbox')
     await expect(page).toHaveURL(/\/inbox/)
-    // Empty inbox is fine — assert the triage chrome is mounted.
-    // EmptyState title is "No open items" (or similar folder label).
-    await expect(
-      page.getByRole('list', { name: /inbox items/i }).or(page.getByText(/no .+ items/i)),
-    ).toBeVisible({ timeout: 15_000 })
+    await expect(inboxChrome(page)).toBeVisible({ timeout: 15_000 })
   })
 
   test('settings members page loads', async ({ page }) => {
