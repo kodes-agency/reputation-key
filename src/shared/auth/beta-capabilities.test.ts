@@ -172,6 +172,25 @@ describe('BetaCapabilities', () => {
       expect(store.isOrgAllowlisted('org-1', 'goal.use')).toBe(false)
     })
 
+    it('enables listed non-core capabilities via BETA_E2E_GLOBAL_CAPABILITIES', () => {
+      const store = createEnvCapabilityPolicyStore({
+        BETA_E2E_GLOBAL_CAPABILITIES: 'identity.register,organization.create,team.use',
+      })
+      expect(store.isCapabilityGloballyEnabled('identity.register')).toBe(true)
+      expect(store.isCapabilityGloballyEnabled('organization.create')).toBe(true)
+      expect(store.isCapabilityGloballyEnabled('team.use')).toBe(true)
+      // Unlisted non-core stay off
+      expect(store.isCapabilityGloballyEnabled('goal.use')).toBe(false)
+    })
+
+    it('never enables blocked capabilities via BETA_E2E_GLOBAL_CAPABILITIES', () => {
+      const store = createEnvCapabilityPolicyStore({
+        BETA_E2E_GLOBAL_CAPABILITIES: 'notification.send_email,gbp.reply.auto_publish',
+      })
+      expect(store.isCapabilityGloballyEnabled('notification.send_email')).toBe(false)
+      expect(store.isCapabilityGloballyEnabled('gbp.reply.auto_publish')).toBe(false)
+    })
+
     it('allowlists non-core capabilities for listed orgs', () => {
       const store = createEnvCapabilityPolicyStore({
         BETA_ALLOWLIST_ORGS: 'org-1,org-2',

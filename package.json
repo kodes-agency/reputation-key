@@ -22,6 +22,7 @@
     "test:integration": "vitest run --project=integration",
     "test:watch": "vitest --project=unit",
     "test:e2e": "playwright test",
+    "seed:e2e-user": "tsx scripts/seed-e2e-user.ts",
     "seed": "tsx scripts/seed.ts",
     "seed:simulate": "tsx scripts/seed.ts -- --invariants",
     "simulate": "tsx scripts/simulate.ts",

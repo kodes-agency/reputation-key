@@ -117,6 +117,9 @@ export type CapabilityPolicyStore = Readonly<{
  * Environment variables:
  * - BETA_CAPABILITIES_OFF=1 — global kill switch, disables ALL capabilities
  * - BETA_ALLOWLIST_ORGS — comma-separated org IDs allowed to use non-core capabilities
+ * - BETA_E2E_GLOBAL_CAPABILITIES — comma-separated non-core capabilities forced ON
+ *   globally for E2E/CI only (never blocked capabilities). Used so Playwright
+ *   can exercise register/login without changing production beta posture.
  */
 export function createEnvCapabilityPolicyStore(
   env: Readonly<Record<string, string | undefined>>,
@@ -134,6 +137,12 @@ export function createEnvCapabilityPolicyStore(
       .map((s) => s.trim())
       .filter(Boolean),
   )
+  const e2eGlobalCapabilities = new Set(
+    (env.BETA_E2E_GLOBAL_CAPABILITIES ?? '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean),
+  )
 
   return {
     isCapabilityGloballyEnabled: (cap) => {
@@ -142,6 +151,8 @@ export function createEnvCapabilityPolicyStore(
       if (BLOCKED_CAPABILITIES.has(cap)) return false
       // Core capabilities are globally enabled
       if (CORE_CAPABILITIES.has(cap)) return true
+      // E2E/CI override for selected non-core capabilities
+      if (e2eGlobalCapabilities.has(cap)) return true
       // Non-core capabilities require per-org allowlist
       return false
     },

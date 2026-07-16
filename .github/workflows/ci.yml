@@ -160,14 +160,16 @@ jobs:
 
   e2e:
     runs-on: ubuntu-latest
-    # Non-blocking: the 9 Playwright specs are the rendered-component proof that
-    # the Phase-1 server-fn refactor preserved runtime behavior. The webServer
-    # block in playwright.config.ts auto-starts `pnpm dev`. Two pre-existing
-    # environmental blockers keep this non-blocking for now: (1) the register
-    # server fn has a runtime failure against the seeded DB, (2) the
-    # "existing credentials" spec needs a seeded test account. Re-enable as a
-    # hard gate once those are resolved.
+    # Soft gate until BQR-5 makes Playwright blocking. Previously this job ran
+    # ~18 minutes of guaranteed failures: no seeded user + registration gated
+    # off (identity.register / organization.create non-core) so every signIn
+    # timed out with retries. That made PR checks look "stuck" long after the
+    # hard gates (check, storybook-test) were green.
+    #
+    # Fix: seed E2E user, open registration capabilities for this job only via
+    # BETA_E2E_GLOBAL_CAPABILITIES, and keep one retry max (playwright.config).
     continue-on-error: true
+    timeout-minutes: 20
 
     services:
       postgres:
@@ -184,6 +186,22 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://test:test@localhost:5432/test
+      BETTER_AUTH_SECRET: test-secret-at-least-32-characters-long-for-ci
+      BETTER_AUTH_URL: http://localhost:3000
+      RESEND_API_KEY: re_ci_test_key_placeholder
+      GOOGLE_CLIENT_ID: ci-placeholder-client-id
+      GOOGLE_CLIENT_SECRET: ci-placeholder-client-secret
+      ENCRYPTION_KEY: aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd
+      OAUTH_STATE_SECRET: aabbccddaabbccddaabbccddaabbccdd
+      E2E_BASE_URL: http://localhost:3000
+      E2E_TEST_EMAIL: test@example.com
+      E2E_TEST_PASSWORD: password123
+      # Open registration + team UI for this job only (not production defaults).
+      BETA_E2E_GLOBAL_CAPABILITIES: identity.register,organization.create,team.use
+
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
@@ -195,27 +213,9 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Run migrations
-        env:
-          NODE_ENV: test
-          DATABASE_URL: postgresql://test:test@localhost:5432/test
-          BETTER_AUTH_SECRET: test-secret-at-least-32-characters-long-for-ci
-          BETTER_AUTH_URL: http://localhost:3000
-          GOOGLE_CLIENT_ID: ci-placeholder-client-id
-          GOOGLE_CLIENT_SECRET: ci-placeholder-client-secret
-          ENCRYPTION_KEY: aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd
-          OAUTH_STATE_SECRET: aabbccddaabbccddaabbccddaabbccdd
         run: echo "y" | pnpm auth:migrate && pnpm db:migrate
+      - name: Seed E2E test user
+        run: pnpm exec tsx scripts/seed-e2e-user.ts
       - run: pnpm exec playwright install --with-deps chromium
       - name: Run e2e tests
-        env:
-          NODE_ENV: test
-          DATABASE_URL: postgresql://test:test@localhost:5432/test
-          BETTER_AUTH_SECRET: test-secret-at-least-32-characters-long-for-ci
-          BETTER_AUTH_URL: http://localhost:3000
-          RESEND_API_KEY: re_ci_test_key_placeholder
-          GOOGLE_CLIENT_ID: ci-placeholder-client-id
-          GOOGLE_CLIENT_SECRET: ci-placeholder-client-secret
-          ENCRYPTION_KEY: aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd
-          OAUTH_STATE_SECRET: aabbccddaabbccddaabbccddaabbccdd
-          E2E_BASE_URL: http://localhost:3000
         run: pnpm test:e2e

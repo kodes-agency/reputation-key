@@ -92,6 +92,10 @@ const envSchema = z.object({
   // Allowlist of org slugs/IDs permitted in the beta cohort (B0.5/B0.6).
   // Empty/absent = all verified orgs admitted.
   BETA_ALLOWLIST_ORGS: z.string().optional(),
+  // Comma-separated non-core capabilities forced globally ON (E2E/CI only).
+  // Must never enable blocked capabilities. Example:
+  // identity.register,organization.create,team.use
+  BETA_E2E_GLOBAL_CAPABILITIES: z.string().optional(),
   // BQR-0: Outbox relay/dispatcher containment. The outbox path has known
   // defects (non-atomic emit, relay/dispatcher envelope mismatch, empty
   // consumer registry). Must NOT process real work until BQR-2 fixes them.
