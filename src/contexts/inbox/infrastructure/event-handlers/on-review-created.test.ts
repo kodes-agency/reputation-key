@@ -2,7 +2,17 @@
 
 import { describe, it, expect, vi } from 'vitest'
 import { onReviewCreated } from './on-review-created'
+
+vi.mock('#/shared/observability/logger', () => ({
+  getLogger: () => ({
+    info: () => {},
+    warn: () => {},
+    error: () => {},
+    debug: () => {},
+  }),
+}))
 import type { CreateInboxItem } from '../../application/use-cases/create-inbox-item'
+import type { ReviewLookupPort } from '../../application/ports/review-lookup.port'
 import type { ReviewCreated } from '#/contexts/review/application/public-api'
 import { organizationId, reviewId, propertyId } from '#/shared/domain/ids'
 
@@ -21,20 +31,27 @@ const mockEvent: ReviewCreated = {
   platform: 'google',
   externalId: 'ext-1',
   rating: 4,
-  reviewText: 'Nice hotel',
-  reviewerName: 'Test Reviewer',
   occurredAt: NOW,
 }
 
 describe('onReviewCreated', () => {
-  it('creates inbox item for the review', async () => {
+  it('creates inbox item with content from review lookup (BQR-4.2)', async () => {
     const createInboxItem = vi.fn(async () => ({}))
-    const deps = { createInboxItem } as unknown as {
-      createInboxItem: CreateInboxItem
-    }
+    const reviewLookup = {
+      getReviewSnippetById: vi.fn(async () => ({
+        reviewerName: 'Test Reviewer',
+        text: 'Nice hotel',
+        reviewerProfilePhotoUrl: null,
+      })),
+      getReviewSnippetsByIds: vi.fn(async () => new Map()),
+    } satisfies ReviewLookupPort
 
-    await onReviewCreated(deps)(mockEvent)
+    await onReviewCreated({
+      createInboxItem: createInboxItem as unknown as CreateInboxItem,
+      reviewLookup,
+    })(mockEvent)
 
+    expect(reviewLookup.getReviewSnippetById).toHaveBeenCalledWith(REVIEW_ID, ORG_ID)
     expect(createInboxItem).toHaveBeenCalledWith({
       organizationId: ORG_ID,
       propertyId: PROP_ID,
@@ -48,17 +65,24 @@ describe('onReviewCreated', () => {
     })
   })
 
-  it('passes null snippet when reviewText is null', async () => {
+  it('passes null snippet when lookup returns no text', async () => {
     const createInboxItem = vi.fn(async () => ({}))
-    const deps = { createInboxItem } as unknown as {
-      createInboxItem: CreateInboxItem
-    }
+    const reviewLookup = {
+      getReviewSnippetById: vi.fn(async () => ({
+        reviewerName: null,
+        text: null,
+        reviewerProfilePhotoUrl: null,
+      })),
+      getReviewSnippetsByIds: vi.fn(async () => new Map()),
+    } satisfies ReviewLookupPort
 
-    const eventNoText: ReviewCreated = { ...mockEvent, reviewText: null }
-    await onReviewCreated(deps)(eventNoText)
+    await onReviewCreated({
+      createInboxItem: createInboxItem as unknown as CreateInboxItem,
+      reviewLookup,
+    })(mockEvent)
 
     expect(createInboxItem).toHaveBeenCalledWith(
-      expect.objectContaining({ snippet: null }),
+      expect.objectContaining({ snippet: null, reviewerName: null }),
     )
   })
 
@@ -73,21 +97,20 @@ describe('onReviewCreated', () => {
     const createInboxItem = vi.fn(async () => {
       throw alreadyExistsErr
     })
-    const deps = { createInboxItem } as unknown as {
-      createInboxItem: CreateInboxItem
-    }
+    const reviewLookup = {
+      getReviewSnippetById: vi.fn(async () => ({
+        reviewerName: null,
+        text: null,
+        reviewerProfilePhotoUrl: null,
+      })),
+      getReviewSnippetsByIds: vi.fn(async () => new Map()),
+    } satisfies ReviewLookupPort
 
-    await expect(onReviewCreated(deps)(mockEvent)).resolves.toBeUndefined()
-  })
-
-  it('does not throw on generic repo error', async () => {
-    const createInboxItem = vi.fn(async () => {
-      throw new Error('DB down')
-    })
-    const deps = { createInboxItem } as unknown as {
-      createInboxItem: CreateInboxItem
-    }
-
-    await expect(onReviewCreated(deps)(mockEvent)).resolves.toBeUndefined()
+    await expect(
+      onReviewCreated({
+        createInboxItem: createInboxItem as unknown as CreateInboxItem,
+        reviewLookup,
+      })(mockEvent),
+    ).resolves.toBeUndefined()
   })
 })

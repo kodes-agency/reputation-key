@@ -9,22 +9,17 @@ import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { getContainer } from '#/composition'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
-import { canForContext } from '#/shared/domain/permissions'
+
+import { requireAuthorized } from '#/shared/auth/authorization-policy'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getAuth } from '#/shared/auth/auth'
 import { timeRangePreset } from '../application/dto/dashboard.dto'
 import { timeRangeToDates } from '../application/utils'
 import { isDashboardError } from '../domain/errors'
-import type { DashboardErrorCode } from '../domain/errors'
 import { extractResponseSlaHours } from '#/shared/domain/response-sla'
 import { standardErrorStatus } from '#/shared/http/status'
 
 /** Local error constructor — server must not import domain error constructors. */
-const makeDashboardError = (code: DashboardErrorCode, message: string) => ({
-  _tag: 'DashboardError' as const,
-  code,
-  message,
-})
 
 export const fleetOverviewErrorStatus = standardErrorStatus
 
@@ -45,15 +40,8 @@ export const getFleetOverviewFn = createServerFn({ method: 'GET' })
           // dashboard.fleet_read (PM+); the server fn must match so Staff
           // (who hold dashboard.read but not fleet_read) cannot reach the RPC
           // directly and read cross-property reply-derived aggregates.
-          if (
-            !canForContext(ctx, 'dashboard.read') ||
-            !canForContext(ctx, 'dashboard.fleet_read')
-          ) {
-            throw makeDashboardError(
-              'forbidden',
-              'Insufficient permissions to view fleet dashboard',
-            )
-          }
+          requireAuthorized({ actor: ctx, action: 'dashboard.read' })
+          requireAuthorized({ actor: ctx, action: 'dashboard.fleet_read' })
 
           // Resolve the org-level response SLA (defaults to 48h when unset/no org).
           const auth = getAuth()

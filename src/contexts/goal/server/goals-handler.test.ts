@@ -26,6 +26,17 @@ const mocks = vi.hoisted(() => ({
   resolveTenantContext: vi.fn(),
 }))
 
+vi.mock('#/shared/observability/logger', () => {
+  const logger = {
+    info: () => {},
+    warn: () => {},
+    error: () => {},
+    debug: () => {},
+    child: () => logger,
+  }
+  return { getLogger: () => logger }
+})
+
 vi.mock('#/shared/auth/headers', () => ({
   headersFromContext: vi.fn(async () => new Headers()),
 }))
@@ -36,8 +47,24 @@ vi.mock('#/shared/auth/middleware', () => ({
 }))
 vi.mock('#/shared/auth/beta-capabilities', () => ({
   assertBetaCapability: vi.fn(),
+  checkBetaCapability: vi.fn(() => ({
+    allowed: true,
+    reason: 'allowed',
+    capability: 'goal.use',
+  })),
   BetaCapabilityError: class BetaCapabilityError extends Error {},
 }))
+
+// BQR-4.1: authorize seam — default allow; permission-deny tests override.
+const requireAuthorizedMock = vi.hoisted(() => vi.fn())
+vi.mock('#/shared/auth/authorization-policy', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('#/shared/auth/authorization-policy')>()
+  return {
+    ...actual,
+    requireAuthorized: requireAuthorizedMock,
+  }
+})
 
 vi.mock('#/composition', () => ({
   getContainer: vi.fn(() => ({
@@ -48,6 +75,7 @@ vi.mock('#/composition', () => ({
 }))
 
 import { getGoal } from '#/contexts/goal/server/goals'
+import { ServerFunctionError } from '#/shared/auth/server-errors'
 
 const TEST_CTX = {
   userId: 'user-test-1',
@@ -59,6 +87,7 @@ describe('getGoal handler (executable)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.resolveTenantContext.mockResolvedValue(TEST_CTX)
+    requireAuthorizedMock.mockImplementation(() => {})
   })
 
   it('invokes the getGoal use case with the caller organizationId and role', async () => {
@@ -77,6 +106,7 @@ describe('getGoal handler (executable)', () => {
     expect(input.goalId).toBeTruthy()
     expect(ctx.organizationId).toBe('org-test-aaaa')
     expect(ctx.role).toBe('AccountAdmin')
+    expect(requireAuthorizedMock).toHaveBeenCalled()
   })
 
   it('throws a 404 ServerFunctionError when the use case returns goal_not_found', async () => {
@@ -103,22 +133,25 @@ describe('getGoal handler (executable)', () => {
     })
   })
 
-  it('throws 403 before reaching the use case when the role lacks goal.read', async () => {
-    // Guest does not have goal.read permission
-    mocks.resolveTenantContext.mockResolvedValue({
-      ...TEST_CTX,
-      role: 'Guest' as never,
+  it('throws 403 before reaching the use case when authorize denies', async () => {
+    requireAuthorizedMock.mockImplementation(() => {
+      throw new ServerFunctionError(
+        'AuthError',
+        'Authorization denied: permission_denied',
+        'permission_denied',
+        403,
+      )
     })
 
     await expect(
       withStartContext(() => getGoal({ data: { goalId: 'goal-1' } })),
     ).rejects.toMatchObject({
-      name: 'GoalError',
-      code: 'forbidden',
+      name: 'AuthError',
+      code: 'permission_denied',
       status: 403,
     })
 
-    // The use case must never be called — the permission gate short-circuits
+    // The use case must never be called — the authorize gate short-circuits
     expect(mocks.getGoal).not.toHaveBeenCalled()
   })
 })

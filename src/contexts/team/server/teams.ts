@@ -4,11 +4,10 @@
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { match } from 'ts-pattern'
-import { assertBetaCapability } from '#/shared/auth/beta-capabilities'
 import { HTTP_STATUS } from '#/shared/http/status'
 import { z } from 'zod/v4'
 import { headersFromContext } from '#/shared/auth/headers'
-import { canForContext } from '#/shared/domain/permissions'
+import { requireAuthorized } from '#/shared/auth/authorization-policy'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getContainer } from '#/composition'
@@ -44,14 +43,7 @@ export const createTeam = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        assertBetaCapability(ctx, 'team.use')
-        if (!canForContext(ctx, 'team.create')) {
-          throwContextError(
-            'AuthError',
-            { code: 'forbidden', message: 'No team create permission' },
-            403,
-          )
-        }
+        requireAuthorized({ actor: ctx, action: 'team.create' })
 
         try {
           const { useCases } = getContainer()
@@ -76,14 +68,7 @@ export const updateTeam = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        assertBetaCapability(ctx, 'team.use')
-        if (!canForContext(ctx, 'team.update')) {
-          throwContextError(
-            'AuthError',
-            { code: 'forbidden', message: 'No team update permission' },
-            403,
-          )
-        }
+        requireAuthorized({ actor: ctx, action: 'team.update' })
 
         try {
           const { useCases } = getContainer()
@@ -108,14 +93,7 @@ export const listTeams = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        assertBetaCapability(ctx, 'team.use')
-        if (!canForContext(ctx, 'team.read')) {
-          throwContextError(
-            'AuthError',
-            { code: 'forbidden', message: 'No team read permission' },
-            403,
-          )
-        }
+        requireAuthorized({ actor: ctx, action: 'team.read' })
 
         try {
           const { useCases } = getContainer()
@@ -143,14 +121,7 @@ export const deleteTeam = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        assertBetaCapability(ctx, 'team.use')
-        if (!canForContext(ctx, 'team.delete')) {
-          throwContextError(
-            'AuthError',
-            { code: 'forbidden', message: 'No team delete permission' },
-            403,
-          )
-        }
+        requireAuthorized({ actor: ctx, action: 'team.delete' })
 
         try {
           const { useCases } = getContainer()

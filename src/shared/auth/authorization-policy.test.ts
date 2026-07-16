@@ -1,7 +1,13 @@
 // Tests for AuthorizationPolicy (B0.6).
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { checkAuthorization, authorize, AuthorizationError } from './authorization-policy'
+import {
+  checkAuthorization,
+  authorize,
+  AuthorizationError,
+  capabilityForPermission,
+  requireAuthorized,
+} from './authorization-policy'
 import {
   initCapabilityPolicyStore,
   resetCapabilityPolicyStore,
@@ -71,7 +77,7 @@ describe('AuthorizationPolicy', () => {
       const decision = checkAuthorization({
         actor: ctx,
         action: 'inbox.read',
-        capability: 'portal.read',
+        capability: 'inbox.use',
         propertyId: 'prop-other',
         assignedPropertyIds: new Set(['prop-mine']),
       })
@@ -84,7 +90,7 @@ describe('AuthorizationPolicy', () => {
       const decision = checkAuthorization({
         actor: ctx,
         action: 'inbox.read',
-        capability: 'portal.read',
+        capability: 'inbox.use',
         propertyId: 'prop-mine',
         assignedPropertyIds: new Set(['prop-mine']),
       })
@@ -96,10 +102,40 @@ describe('AuthorizationPolicy', () => {
       const decision = checkAuthorization({
         actor: ctx,
         action: 'inbox.read',
-        capability: 'portal.read',
+        capability: 'inbox.use',
         propertyId: 'prop-any',
       })
       expect(decision.allowed).toBe(true)
+    })
+  })
+
+  describe('capabilityForPermission (BQR-4.1)', () => {
+    it('maps enabled surfaces to core capabilities', () => {
+      expect(capabilityForPermission('inbox.read')).toBe('inbox.use')
+      expect(capabilityForPermission('review.read')).toBe('review.use')
+      expect(capabilityForPermission('dashboard.read')).toBe('dashboard.use')
+      expect(capabilityForPermission('property.create')).toBe('property.create')
+      expect(capabilityForPermission('reply.manage')).toBe('property.publish_reply')
+    })
+
+    it('maps dark surfaces to non-core capabilities', () => {
+      expect(capabilityForPermission('goal.read')).toBe('goal.use')
+      expect(capabilityForPermission('portal.read')).toBe('portal.read')
+      expect(capabilityForPermission('team.create')).toBe('team.use')
+    })
+  })
+
+  describe('requireAuthorized (BQR-4.1)', () => {
+    it('does not throw for allowed AccountAdmin property.create', () => {
+      const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+      expect(() =>
+        requireAuthorized({ actor: ctx, action: 'property.create' }),
+      ).not.toThrow()
+    })
+
+    it('throws AuthError path for denied Staff property.create', () => {
+      const ctx = buildTestAuthContext({ role: 'Staff' })
+      expect(() => requireAuthorized({ actor: ctx, action: 'property.create' })).toThrow()
     })
   })
 
@@ -140,7 +176,7 @@ describe('AuthorizationPolicy', () => {
       const decision = checkAuthorization({
         actor: ctx,
         action: 'inbox.read',
-        capability: 'portal.read',
+        capability: 'inbox.use',
         propertyId: 'prop-from-org-b',
         assignedPropertyIds: new Set(['prop-from-org-a']),
       })

@@ -6,8 +6,8 @@ import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { getAuth } from '#/shared/auth/auth'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
-import { throwContextError } from '#/shared/auth/server-errors'
-import { canForContext } from '#/shared/domain/permissions'
+
+import { requireAuthorized } from '#/shared/auth/authorization-policy'
 import { z } from 'zod/v4'
 import { handleAuthError } from './auth-settings.helpers'
 
@@ -25,13 +25,7 @@ export const changePasswordFn = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!canForContext(ctx, 'identity.password.change')) {
-          throwContextError(
-            'AuthError',
-            { code: 'forbidden', message: 'Insufficient permissions to change password' },
-            403,
-          )
-        }
+        requireAuthorized({ actor: ctx, action: 'identity.password.change' })
         const auth = getAuth()
 
         try {
@@ -72,13 +66,7 @@ export const updateProfileFn = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!canForContext(ctx, 'identity.profile.update')) {
-          throwContextError(
-            'AuthError',
-            { code: 'forbidden', message: 'Insufficient permissions to update profile' },
-            403,
-          )
-        }
+        requireAuthorized({ actor: ctx, action: 'identity.profile.update' })
         const auth = getAuth()
 
         try {
@@ -113,13 +101,7 @@ export const updateUserImageFn = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!canForContext(ctx, 'identity.avatar.set')) {
-          throwContextError(
-            'AuthError',
-            { code: 'forbidden', message: 'Insufficient permissions to update avatar' },
-            403,
-          )
-        }
+        requireAuthorized({ actor: ctx, action: 'identity.avatar.set' })
         const auth = getAuth()
 
         try {

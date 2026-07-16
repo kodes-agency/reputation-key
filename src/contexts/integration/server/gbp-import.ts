@@ -7,7 +7,7 @@ import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
-import { canForContext } from '#/shared/domain/permissions'
+import { requireAuthorized } from '#/shared/auth/authorization-policy'
 import { getContainer } from '#/composition'
 import { listLocationsInputSchema } from '../application/dto/list-locations.dto'
 import { importPropertiesInputSchema } from '../application/dto/import-properties.dto'
@@ -24,16 +24,7 @@ export const listGbpLocations = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!canForContext(ctx, 'integration.manage')) {
-          throwContextError(
-            'AuthError',
-            {
-              code: 'forbidden',
-              message: 'Insufficient permissions to manage integrations',
-            },
-            403,
-          )
-        }
+        requireAuthorized({ actor: ctx, action: 'integration.manage' })
 
         try {
           const { useCases } = getContainer()
@@ -59,16 +50,7 @@ export const startPropertyImport = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!canForContext(ctx, 'property.create')) {
-          throwContextError(
-            'AuthError',
-            {
-              code: 'forbidden',
-              message: 'Insufficient permissions to create properties',
-            },
-            403,
-          )
-        }
+        requireAuthorized({ actor: ctx, action: 'property.create' })
 
         try {
           const { useCases } = getContainer()
@@ -94,16 +76,7 @@ export const getImportStatus = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!canForContext(ctx, 'integration.manage')) {
-          throwContextError(
-            'AuthError',
-            {
-              code: 'forbidden',
-              message: 'Insufficient permissions to manage integrations',
-            },
-            403,
-          )
-        }
+        requireAuthorized({ actor: ctx, action: 'integration.manage' })
 
         try {
           const { useCases } = getContainer()

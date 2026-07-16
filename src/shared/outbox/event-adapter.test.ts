@@ -19,8 +19,6 @@ function makeReviewCreated(): DomainEvent {
     platform: 'google',
     externalId: 'ext-1',
     rating: 5,
-    reviewerName: 'SECRET NAME',
-    reviewText: 'SECRET TEXT',
     occurredAt: NOW,
     correlationId: null,
   } as DomainEvent
@@ -93,8 +91,6 @@ describe('toOutboxEvent allowlist (BQR-2.5)', () => {
       propertyId: propertyId('prop-1'),
       organizationId: organizationId('org-1'),
       // missing externalId + rating
-      reviewerName: null,
-      reviewText: null,
       occurredAt: NOW,
       correlationId: null,
     } as unknown as DomainEvent

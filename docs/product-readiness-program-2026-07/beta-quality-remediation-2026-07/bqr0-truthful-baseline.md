@@ -113,10 +113,10 @@ Write path and refresh job import lifecycle helpers. Purge uses repository `cont
 ### Finding 4.1 — Domain events carry raw PII
 
 **Severity:** P0  
-**Status:** Open (deferred to BQR-3 / BQR-4)  
-**File:** `src/contexts/review/domain/events.ts:22-23, 51-52`
+**Status:** **Remediated (BQR-4.2)** — identifier-only `review.created` / `review.updated`  
+**File:** `src/contexts/review/domain/events.ts`
 
-`ReviewCreated` and `ReviewUpdated` define `reviewerName: string | null` and `reviewText: string | null`. The in-process event bus delivers these to every subscriber. The outbox strips them downstream, but only via a fragile denylist (see 4.2).
+`ReviewCreated` / `ReviewUpdated` no longer carry `reviewerName` or `reviewText`. Inbox in-process handlers re-fetch content via `ReviewLookupPort` (same pattern as durable consumers).
 
 ### Finding 4.2 — Outbox protected by denylist, not allowlist
 

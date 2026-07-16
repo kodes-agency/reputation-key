@@ -11,8 +11,8 @@ import {
   resolveTenantContext,
   resetTenantCache,
 } from '#/shared/auth/middleware'
-import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
-import { canForContext } from '#/shared/domain/permissions'
+import { catchUntagged } from '#/shared/auth/server-errors'
+import { requireAuthorized } from '#/shared/auth/authorization-policy'
 import { getContainer } from '#/composition'
 import { isIdentityError } from '../domain/errors'
 import { throwIdentityError } from './organizations.errors.server'
@@ -61,16 +61,7 @@ export const cancelInvitation = createServerFn({ method: 'POST' })
         try {
           const headers = await headersFromContext()
           const ctx = await resolveTenantContext(headers)
-          if (!canForContext(ctx, 'invitation.cancel')) {
-            throwContextError(
-              'AuthError',
-              {
-                code: 'forbidden',
-                message: 'Insufficient permissions to cancel invitations',
-              },
-              403,
-            )
-          }
+          requireAuthorized({ actor: ctx, action: 'invitation.cancel' })
 
           const { useCases } = getContainer()
           await useCases.cancelInvitation(
@@ -96,16 +87,7 @@ export const resendInvitation = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!canForContext(ctx, 'invitation.resend')) {
-          throwContextError(
-            'AuthError',
-            {
-              code: 'forbidden',
-              message: 'Insufficient permissions to resend invitations',
-            },
-            403,
-          )
-        }
+        requireAuthorized({ actor: ctx, action: 'invitation.resend' })
 
         try {
           const { useCases } = getContainer()
@@ -127,13 +109,7 @@ export const listInvitations = createServerFn({ method: 'GET' }).handler(
     async () => {
       const headers = await headersFromContext()
       const ctx = await resolveTenantContext(headers)
-      if (!canForContext(ctx, 'invitation.list')) {
-        throwContextError(
-          'AuthError',
-          { code: 'forbidden', message: 'Insufficient permissions to list invitations' },
-          403,
-        )
-      }
+      requireAuthorized({ actor: ctx, action: 'invitation.list' })
 
       try {
         const { useCases } = getContainer()

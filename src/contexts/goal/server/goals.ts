@@ -4,11 +4,10 @@
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { match } from 'ts-pattern'
-import { assertBetaCapability } from '#/shared/auth/beta-capabilities'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
-import { canForContext } from '#/shared/domain/permissions'
+import { requireAuthorized } from '#/shared/auth/authorization-policy'
 import { getContainer } from '#/composition'
 import {
   createGoalSchema,
@@ -77,14 +76,7 @@ export const createGoal = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        assertBetaCapability(ctx, 'goal.use')
-        if (!canForContext(ctx, 'goal.create')) {
-          throwContextError(
-            'GoalError',
-            makeGoalError('forbidden', 'No goal create permission'),
-            403,
-          )
-        }
+        requireAuthorized({ actor: ctx, action: 'goal.create' })
         try {
           const { useCases } = getContainer()
           const result = await useCases.createGoal(
@@ -171,17 +163,7 @@ export const updateGoal = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        assertBetaCapability(ctx, 'goal.use')
-        if (!canForContext(ctx, 'goal.update')) {
-          throwContextError(
-            'GoalError',
-            makeGoalError(
-              'forbidden',
-              'Only AccountAdmin or PropertyManager can update goals',
-            ),
-            403,
-          )
-        }
+        requireAuthorized({ actor: ctx, action: 'goal.update' })
 
         try {
           const { useCases } = getContainer()
@@ -265,17 +247,7 @@ export const cancelGoal = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        assertBetaCapability(ctx, 'goal.use')
-        if (!canForContext(ctx, 'goal.cancel')) {
-          throwContextError(
-            'GoalError',
-            makeGoalError(
-              'forbidden',
-              'Only AccountAdmin or PropertyManager can cancel goals',
-            ),
-            403,
-          )
-        }
+        requireAuthorized({ actor: ctx, action: 'goal.cancel' })
 
         try {
           const { useCases } = getContainer()
@@ -335,14 +307,7 @@ export const listGoals = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        assertBetaCapability(ctx, 'goal.use')
-        if (!canForContext(ctx, 'goal.read')) {
-          throwContextError(
-            'GoalError',
-            makeGoalError('forbidden', 'No goal read permission'),
-            403,
-          )
-        }
+        requireAuthorized({ actor: ctx, action: 'goal.read' })
 
         try {
           const { useCases } = getContainer()
@@ -400,14 +365,7 @@ export const getGoal = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        assertBetaCapability(ctx, 'goal.use')
-        if (!canForContext(ctx, 'goal.read')) {
-          throwContextError(
-            'GoalError',
-            makeGoalError('forbidden', 'No goal read permission'),
-            403,
-          )
-        }
+        requireAuthorized({ actor: ctx, action: 'goal.read' })
 
         try {
           const { useCases } = getContainer()

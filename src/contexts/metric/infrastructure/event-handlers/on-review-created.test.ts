@@ -1,5 +1,14 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { onReviewCreated, type OnReviewCreatedDeps } from './on-review-created'
+
+vi.mock('#/shared/observability/logger', () => ({
+  getLogger: () => ({
+    info: () => {},
+    warn: () => {},
+    error: () => {},
+    debug: () => {},
+  }),
+}))
 import type { MetricReading } from '../../domain/types'
 import type { RecordMetricInput } from '../../application/use-cases/record-metric'
 import {
@@ -47,8 +56,6 @@ describe('onReviewCreated', () => {
       platform: 'google',
       externalId: 'ext-1',
       rating: 3,
-      reviewText: 'Decent place',
-      reviewerName: null,
       occurredAt: FIXED_TIME,
     })
 
@@ -75,8 +82,6 @@ describe('onReviewCreated', () => {
       platform: 'google',
       externalId: 'ext-2',
       rating: 5,
-      reviewText: null,
-      reviewerName: null,
       occurredAt: FIXED_TIME,
     })
 
@@ -103,8 +108,6 @@ describe('onReviewCreated', () => {
         platform: 'google',
         externalId: 'ext-1',
         rating: 1,
-        reviewText: null,
-        reviewerName: null,
         occurredAt: FIXED_TIME,
       }),
     ).resolves.toBeUndefined()

@@ -1,8 +1,8 @@
 // Inbox context — item detail query server functions
 
+import { requireAuthorized } from '#/shared/auth/authorization-policy'
 import {
   createServerFn,
-  canForContext,
   isInboxError,
   inboxErrorStatus,
   inboxItemId,
@@ -23,13 +23,7 @@ export const getInboxItemDetailFn = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!canForContext(ctx, 'inbox.read')) {
-          throwContextError(
-            'AuthError',
-            { code: 'forbidden', message: 'No inbox read permission' },
-            403,
-          )
-        }
+        requireAuthorized({ actor: ctx, action: 'inbox.read' })
         const { useCases } = getContainer()
         try {
           return await useCases.getInboxItemDetail(
@@ -58,13 +52,7 @@ export const getInboxNotesFn = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!canForContext(ctx, 'inbox.read')) {
-          throwContextError(
-            'AuthError',
-            { code: 'forbidden', message: 'No inbox read permission' },
-            403,
-          )
-        }
+        requireAuthorized({ actor: ctx, action: 'inbox.read' })
         const { useCases } = getContainer()
         try {
           return await useCases.getInboxNotes(

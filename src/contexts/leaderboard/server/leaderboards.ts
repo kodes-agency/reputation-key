@@ -4,10 +4,9 @@ import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
-import { assertBetaCapability } from '#/shared/auth/beta-capabilities'
-import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
+import { catchUntagged } from '#/shared/auth/server-errors'
 import { getContainer } from '#/composition'
-import { canForContext } from '#/shared/domain/permissions'
+import { requireAuthorized } from '#/shared/auth/authorization-policy'
 import {
   getLeaderboardSchema,
   getComparisonMatrixSchema,
@@ -22,14 +21,7 @@ export const getLeaderboard = createServerFn({ method: 'GET' })
         try {
           const headers = await headersFromContext()
           const ctx = await resolveTenantContext(headers)
-          assertBetaCapability(ctx, 'leaderboard.use')
-          if (!canForContext(ctx, 'leaderboard.read')) {
-            throwContextError(
-              'AuthError',
-              { code: 'forbidden', message: 'No leaderboard read permission' },
-              403,
-            )
-          }
+          requireAuthorized({ actor: ctx, action: 'leaderboard.read' })
           return await getContainer().leaderboardPublicApi.getLeaderboard({
             organizationId: ctx.organizationId,
             propertyId: propertyId(data.propertyId),
@@ -54,14 +46,7 @@ export const getComparisonMatrix = createServerFn({ method: 'GET' })
         try {
           const headers = await headersFromContext()
           const ctx = await resolveTenantContext(headers)
-          assertBetaCapability(ctx, 'leaderboard.use')
-          if (!canForContext(ctx, 'leaderboard.read')) {
-            throwContextError(
-              'AuthError',
-              { code: 'forbidden', message: 'No leaderboard read permission' },
-              403,
-            )
-          }
+          requireAuthorized({ actor: ctx, action: 'leaderboard.read' })
           return await getContainer().leaderboardPublicApi.getComparisonMatrix({
             organizationId: ctx.organizationId,
             propertyId: propertyId(data.propertyId),
