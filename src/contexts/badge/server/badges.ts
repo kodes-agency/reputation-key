@@ -4,10 +4,9 @@ import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
-import { assertBetaCapability } from '#/shared/auth/beta-capabilities'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getContainer } from '#/composition'
-import { canForContext } from '#/shared/domain/permissions'
+import { requireAuthorized } from '#/shared/auth/authorization-policy'
 import {
   getStaffVisibleBadgesSchema,
   getVisibleTargetBadgesSchema,
@@ -33,14 +32,7 @@ export const getStaffVisibleBadges = createServerFn({ method: 'GET' })
         try {
           const headers = await headersFromContext()
           const ctx = await resolveTenantContext(headers)
-          assertBetaCapability(ctx, 'badge.use')
-          if (!canForContext(ctx, 'badge.read')) {
-            throwContextError(
-              'AuthError',
-              { code: 'forbidden', message: 'No badge read permission' },
-              403,
-            )
-          }
+          requireAuthorized({ actor: ctx, action: 'badge.read' })
           return (await getContainer().badgePublicApi.getStaffVisibleBadges({
             organizationId: toOrgId(ctx.organizationId),
             userId: ctx.userId,
@@ -64,14 +56,7 @@ export const getVisibleTargetBadges = createServerFn({ method: 'GET' })
         try {
           const headers = await headersFromContext()
           const ctx = await resolveTenantContext(headers)
-          assertBetaCapability(ctx, 'badge.use')
-          if (!canForContext(ctx, 'badge.read')) {
-            throwContextError(
-              'AuthError',
-              { code: 'forbidden', message: 'No badge read permission' },
-              403,
-            )
-          }
+          requireAuthorized({ actor: ctx, action: 'badge.read' })
           // Role-Filtered Badge Visibility (root CONTEXT.md):
           // AccountAdmin sees the whole org; PropertyManager must manage the
           // target property; Staff may only view an assigned portal or a group
@@ -130,14 +115,7 @@ export const setOrganizationBadgeEnablement = createServerFn({ method: 'POST' })
         try {
           const headers = await headersFromContext()
           const ctx = await resolveTenantContext(headers)
-          assertBetaCapability(ctx, 'badge.use')
-          if (!canForContext(ctx, 'badge.manage')) {
-            throwContextError(
-              'AuthError',
-              { code: 'forbidden', message: 'No badge manage permission' },
-              403,
-            )
-          }
+          requireAuthorized({ actor: ctx, action: 'badge.manage' })
           return await getContainer().badgePublicApi.setOrganizationBadgeEnablement(ctx, {
             organizationId: toOrgId(ctx.organizationId),
             badgeDefinitionId: badgeId(data.badgeDefinitionId),
@@ -161,14 +139,7 @@ export const getOrganizationBadgeDefinitionsFn = createServerFn({
     async () => {
       const headers = await headersFromContext()
       const ctx = await resolveTenantContext(headers)
-      assertBetaCapability(ctx, 'badge.use')
-      if (!canForContext(ctx, 'badge.read')) {
-        throwContextError(
-          'AuthError',
-          { code: 'forbidden', message: 'No badge read permission' },
-          403,
-        )
-      }
+      requireAuthorized({ actor: ctx, action: 'badge.read' })
       const rows = await getContainer().badgePublicApi.getOrganizationBadgeDefinitions(
         toOrgId(ctx.organizationId),
       )

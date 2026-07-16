@@ -5,9 +5,9 @@ import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
-import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
+import { catchUntagged } from '#/shared/auth/server-errors'
 
-import { canForContext } from '#/shared/domain/permissions'
+import { requireAuthorized } from '#/shared/auth/authorization-policy'
 import { serializeClientAuthz, EMPTY_CLIENT_AUTHZ } from '#/shared/domain/auth-context'
 import { getContainer } from '#/composition'
 
@@ -19,16 +19,7 @@ export const getActiveOrganization = createServerFn({ method: 'GET' }).handler(
       try {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!canForContext(ctx, 'dashboard.read')) {
-          throwContextError(
-            'AuthError',
-            {
-              code: 'forbidden',
-              message: 'Insufficient permissions to read organization',
-            },
-            403,
-          )
-        }
+        requireAuthorized({ actor: ctx, action: 'dashboard.read' })
         const { identityPort } = getContainer()
 
         const org = await identityPort.getActiveOrg(headers)
@@ -83,13 +74,7 @@ export const listMembers = createServerFn({ method: 'GET' }).handler(
       try {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!canForContext(ctx, 'member.list')) {
-          throwContextError(
-            'AuthError',
-            { code: 'forbidden', message: 'Insufficient permissions to list members' },
-            403,
-          )
-        }
+        requireAuthorized({ actor: ctx, action: 'member.list' })
         const { identityPort } = getContainer()
         const members = await identityPort.listMembers(ctx)
         const mapped = members.map((m) => ({

@@ -1,6 +1,6 @@
 # Beta Quality Remediation Program — July 2026
 
-**Status:** BQR-0…2 complete on main; BQR-3 complete (3.1–3.5) on PR
+**Status:** BQR-0…3 complete on main; BQR-4.1 in progress
 
 **Purpose:** Bring the current codebase to an evidence-backed internal beta standard after the July 2026 implementation review  
 **Applies before:** Any real-property pilot, Phase 17, Phase 18, or post-beta capability activation
@@ -15,7 +15,8 @@ This program corrects the gap between code that has been added and capabilities 
 4. [BQR-1 architecture and schema](phase-bqr1-architecture-and-schema.md)
 5. [BQR-2 durable runtime](phase-bqr2-durable-runtime.md) — atomic outbox, envelope, consumers
 6. [BQR-3 source lifecycle and region](phase-bqr3-source-lifecycle-and-region.md) — fetch-based expiry, hash, purge, region
-7. Later phases (detailed docs when each phase starts): BQR-4…BQR-7
+7. [BQR-4 auth, privacy, containment](phase-bqr4-auth-privacy-containment.md)
+8. Later phases: BQR-5…BQR-7
 
 Primary-source research for this program may be added as `primary-source-research.md` when external citations are re-gathered; until then the July PRE17/beta research under the parent folder remains the reference set.
 
@@ -26,8 +27,8 @@ Primary-source research for this program may be added as `primary-source-researc
 | BQR-0 | **Merged** [#188](https://github.com/kodes-agency/reputation-key/pull/188)                                                                 | Outbox dispatch off; dark paths contained; baseline inventory          |
 | BQR-1 | **Merged** [#189](https://github.com/kodes-agency/reputation-key/pull/189)–[#192](https://github.com/kodes-agency/reputation-key/pull/192) | Schema, errors, outbox boundaries, ADR 0030 + health schema consumers  |
 | BQR-2 | **Merged** [#193](https://github.com/kodes-agency/reputation-key/pull/193)–[#197](https://github.com/kodes-agency/reputation-key/pull/197) | Envelope, consumers, atomic producer, real consumers, allowlist insert |
-| BQR-3 | **3.1–3.5 complete (PR #199)**                                                                                                             | Source lifecycle + processing-region routing                           |
-| BQR-4 | Not started                                                                                                                                | Authoritative authorize(), tenancy, privacy                            |
+| BQR-3 | **Merged** [#199](https://github.com/kodes-agency/reputation-key/pull/199)                                                                 | Source lifecycle + processing-region routing                           |
+| BQR-4 | **4.1 in progress**                                                                                                                        | authorize() seam; privacy events; ADR align                            |
 | BQR-5 | Not started                                                                                                                                | Blocking a11y/E2E/Storybook                                            |
 | BQR-6 | Not started                                                                                                                                | Topology, recovery, scale proof                                        |
 | BQR-7 | Not started                                                                                                                                | Real-property pilot                                                    |

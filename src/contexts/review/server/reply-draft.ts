@@ -9,7 +9,7 @@ import { resolveTenantContext } from '#/shared/auth/middleware'
 import { isReviewError } from '../domain/errors'
 import { reviewId } from '#/shared/domain/ids'
 import { reviewErrorStatus, reviewIdDto, draftReplyDto } from './reply-read'
-import { canForContext } from '#/shared/domain/permissions'
+import { requireAuthorized } from '#/shared/auth/authorization-policy'
 
 // ── draftReply ───────────────────────────────────────────────────────
 
@@ -20,13 +20,7 @@ export const draftReplyFn = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!canForContext(ctx, 'reply.manage')) {
-          throwContextError(
-            'AuthError',
-            { code: 'unauthorized', message: 'No reply manage permission' },
-            403,
-          )
-        }
+        requireAuthorized({ actor: ctx, action: 'reply.manage' })
         const { useCases } = getContainer()
         try {
           return await useCases.draftReply(
@@ -53,13 +47,7 @@ export const submitReplyFn = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!canForContext(ctx, 'reply.manage')) {
-          throwContextError(
-            'AuthError',
-            { code: 'unauthorized', message: 'No reply manage permission' },
-            403,
-          )
-        }
+        requireAuthorized({ actor: ctx, action: 'reply.manage' })
         const { useCases } = getContainer()
         try {
           return await useCases.submitReply({ reviewId: reviewId(data.reviewId) }, ctx)
@@ -83,13 +71,7 @@ export const approveReplyFn = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!canForContext(ctx, 'reply.manage')) {
-          throwContextError(
-            'AuthError',
-            { code: 'unauthorized', message: 'No reply manage permission' },
-            403,
-          )
-        }
+        requireAuthorized({ actor: ctx, action: 'reply.manage' })
         const { useCases } = getContainer()
         try {
           return await useCases.approveReply({ reviewId: reviewId(data.reviewId) }, ctx)

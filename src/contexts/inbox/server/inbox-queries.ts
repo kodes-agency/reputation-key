@@ -1,8 +1,8 @@
 // Inbox context — query server functions (list, counts)
 
+import { requireAuthorized } from '#/shared/auth/authorization-policy'
 import {
   createServerFn,
-  canForContext,
   isInboxError,
   inboxErrorStatus,
   propertyId,
@@ -29,13 +29,7 @@ export const getInboxItemsFn = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!canForContext(ctx, 'inbox.read')) {
-          throwContextError(
-            'AuthError',
-            { code: 'forbidden', message: 'No inbox read permission' },
-            403,
-          )
-        }
+        requireAuthorized({ actor: ctx, action: 'inbox.read' })
         const { useCases } = getContainer()
         try {
           return await useCases.getInboxItems(
@@ -104,13 +98,7 @@ export const getLastVisitCountFn = createServerFn({ method: 'GET' })
       async () => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!canForContext(ctx, 'inbox.read')) {
-          throwContextError(
-            'AuthError',
-            { code: 'forbidden', message: 'No inbox read permission' },
-            403,
-          )
-        }
+        requireAuthorized({ actor: ctx, action: 'inbox.read' })
         const { useCases } = getContainer()
         try {
           return await useCases.getLastVisitCount({}, ctx)
@@ -134,13 +122,7 @@ export const stampLastInboxViewFn = createServerFn({ method: 'POST' })
       async () => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!canForContext(ctx, 'inbox.read')) {
-          throwContextError(
-            'AuthError',
-            { code: 'forbidden', message: 'No inbox read permission' },
-            403,
-          )
-        }
+        requireAuthorized({ actor: ctx, action: 'inbox.read' })
         const { useCases } = getContainer()
         try {
           return await useCases.stampLastInboxView({}, ctx)
@@ -164,13 +146,7 @@ export const getInboxFolderCountsFn = createServerFn({ method: 'GET' })
       async () => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!canForContext(ctx, 'inbox.read')) {
-          throwContextError(
-            'AuthError',
-            { code: 'forbidden', message: 'No inbox read permission' },
-            403,
-          )
-        }
+        requireAuthorized({ actor: ctx, action: 'inbox.read' })
         const { useCases } = getContainer()
         try {
           return await useCases.getInboxFolderCounts({}, ctx)

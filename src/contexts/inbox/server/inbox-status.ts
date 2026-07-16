@@ -1,8 +1,8 @@
 // Inbox context — status + escalation mutation server functions
 
+import { requireAuthorized } from '#/shared/auth/authorization-policy'
 import {
   createServerFn,
-  canForContext,
   isInboxError,
   inboxErrorStatus,
   inboxItemId,
@@ -28,13 +28,7 @@ export const updateInboxStatusFn = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!canForContext(ctx, 'inbox.write')) {
-          throwContextError(
-            'AuthError',
-            { code: 'forbidden', message: 'No inbox update permission' },
-            403,
-          )
-        }
+        requireAuthorized({ actor: ctx, action: 'inbox.write' })
         const { useCases } = getContainer()
         try {
           return await useCases.updateInboxStatus(
@@ -64,13 +58,7 @@ export const bulkUpdateInboxStatusFn = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!canForContext(ctx, 'inbox.write')) {
-          throwContextError(
-            'AuthError',
-            { code: 'forbidden', message: 'No inbox update permission' },
-            403,
-          )
-        }
+        requireAuthorized({ actor: ctx, action: 'inbox.write' })
         const { useCases } = getContainer()
         try {
           return await useCases.bulkUpdateInboxStatus(
@@ -100,13 +88,7 @@ export const escalateInboxItemFn = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!canForContext(ctx, 'inbox.write')) {
-          throwContextError(
-            'AuthError',
-            { code: 'forbidden', message: 'No inbox update permission' },
-            403,
-          )
-        }
+        requireAuthorized({ actor: ctx, action: 'inbox.write' })
         const { useCases } = getContainer()
         try {
           return await useCases.escalateInboxItem(
@@ -133,13 +115,7 @@ export const resolveEscalationFn = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!canForContext(ctx, 'inbox.write')) {
-          throwContextError(
-            'AuthError',
-            { code: 'forbidden', message: 'No inbox update permission' },
-            403,
-          )
-        }
+        requireAuthorized({ actor: ctx, action: 'inbox.write' })
         const { useCases } = getContainer()
         try {
           return await useCases.resolveEscalation(

@@ -7,8 +7,8 @@ import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
-import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
-import { canForContext } from '#/shared/domain/permissions'
+import { catchUntagged } from '#/shared/auth/server-errors'
+import { requireAuthorized } from '#/shared/auth/authorization-policy'
 import { getContainer } from '#/composition'
 import { propertyId as toPropertyId } from '#/shared/domain/ids'
 
@@ -23,13 +23,7 @@ export const listStaffPortals = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        if (!canForContext(ctx, 'staff_assignment.read')) {
-          throwContextError(
-            'AuthError',
-            { code: 'forbidden', message: 'No staff assignment read permission' },
-            403,
-          )
-        }
+        requireAuthorized({ actor: ctx, action: 'staff_assignment.read' })
 
         try {
           const { useCases } = getContainer()

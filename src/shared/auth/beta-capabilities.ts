@@ -23,6 +23,7 @@ export type Capability =
   | 'property.connect_gbp'
   | 'property.publish_reply'
   | 'notification.send_email'
+  | 'notification.in_app'
   | 'portal.read'
   | 'portal.write'
   | 'portal.upload'
@@ -36,20 +37,36 @@ export type Capability =
   | 'gbp.reply.auto_publish'
   | 'gbp.ai.cross_property_summary'
   | 'gbp.review_solicitation_gamification'
+  // BQR-4.1: explicit surface capabilities for master-plan enabled contexts
+  | 'review.use'
+  | 'inbox.use'
+  | 'dashboard.use'
+  | 'staff.use'
+  | 'integration.use'
+  | 'activity.use'
+  | 'metric.internal'
 
 /**
  * Core capabilities are ON by default for all authenticated users in beta.
- * These represent the minimum viable product surface.
+ * These represent the minimum viable product surface (master plan §4).
  *
  * BQR-0 (2026-07): `portal.read` was removed from core. Portal and Guest are
- * dark for internal beta (master plan §4). They remain non-core (off unless
- * explicitly allowlisted) so promotion is possible after BQR-4 / post-beta gates.
+ * dark for internal beta. BQR-4.1 adds explicit core surface caps for review,
+ * inbox, dashboard, staff, integration, activity, and in-app notification.
  */
 const CORE_CAPABILITIES: ReadonlySet<Capability> = new Set<Capability>([
   'identity.invite',
   'property.create',
   'property.connect_gbp',
   'property.publish_reply',
+  'review.use',
+  'inbox.use',
+  'dashboard.use',
+  'staff.use',
+  'integration.use',
+  'activity.use',
+  'notification.in_app',
+  'metric.internal',
 ])
 
 /**
