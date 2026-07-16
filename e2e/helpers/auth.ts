@@ -6,9 +6,9 @@ export const TEST_EMAIL = process.env.E2E_TEST_EMAIL ?? 'test@example.com'
 export const TEST_PASSWORD = process.env.E2E_TEST_PASSWORD ?? 'password123'
 
 /**
- * Sign in via the better-auth HTTP API so Set-Cookie is applied to the browser
- * context. UI server-fn sign-in has historically failed to propagate cookies in
- * CI, which made every authenticated e2e suite time out for ~18 minutes.
+ * Sign in via better-auth HTTP API (Set-Cookie on the browser context), then
+ * set the first organization active. Server-fn UI login historically left
+ * sessions without cookies / without active org, which made e2e hang ~18m.
  */
 export async function signIn(page: Page, email = TEST_EMAIL, password = TEST_PASSWORD) {
   const response = await page.request.post('/api/auth/sign-in/email', {
@@ -22,7 +22,26 @@ export async function signIn(page: Page, email = TEST_EMAIL, password = TEST_PAS
         `Ensure scripts/seed-e2e-user.ts ran and credentials match E2E_TEST_*.`,
     )
   }
-  // Cookie jar is updated; load an authenticated route.
+
+  const orgsRes = await page.request.get('/api/auth/organization/list')
+  if (orgsRes.ok()) {
+    const orgs = (await orgsRes.json()) as unknown
+    const list = Array.isArray(orgs) ? orgs : []
+    const first = list[0] as { id?: string } | undefined
+    if (first?.id) {
+      const active = await page.request.post('/api/auth/organization/set-active', {
+        data: { organizationId: first.id },
+        headers: { 'content-type': 'application/json' },
+      })
+      if (!active.ok()) {
+        const body = await active.text()
+        throw new Error(
+          `E2E set-active org failed (${active.status()}): ${body.slice(0, 300)}`,
+        )
+      }
+    }
+  }
+
   await page.goto('/dashboard')
   await page.waitForURL(/\/(dashboard|properties|home|inbox)/, { timeout: 20_000 })
 }
