@@ -142,6 +142,21 @@ async function setActiveOrg(orgId: string): Promise<void> {
   }
 }
 
+// ── Outbox consumer registration (BQR-2.2) ─────────────────────────
+// Kept outside createContainer so wiring stays a single assignment inside
+// the composition root (complexity budget) while still capturing deps.
+
+function createOutboxConsumerRegistrar(deps: {
+  outboxRepo: import('#/shared/outbox').OutboxRepository
+  reviewLookup: import('#/contexts/inbox/application/ports/review-lookup.port').ReviewLookupPort
+  createInboxItem: import('#/contexts/inbox/application/use-cases/create-inbox-item').CreateInboxItem
+  updateInboxStatus: import('#/contexts/inbox/application/use-cases/update-inbox-status').UpdateInboxStatus
+}): () => void {
+  return () => {
+    registerInboxConsumers(deps)
+  }
+}
+
 // ── Main container ─────────────────────────────────────────────────
 
 export function createContainer(options?: {
@@ -549,20 +564,13 @@ export function createContainer(options?: {
     notificationRepo: notification.internal.repos.notificationRepo,
     notificationEmailRepo: notification.internal.repos.emailRepo,
     notificationPrefRepo: notification.internal.repos.prefRepo,
-    /**
-     * BQR-2.2: Register durable outbox consumers with the dispatcher registry.
-     * Call from the worker before (or when) starting the domain-events worker.
-     * Safe to call when dispatch is still disabled — registry is populated for
-     * the flag flip; jobs only run if OUTBOX_DISPATCHER_ENABLED starts relay.
-     */
-    registerOutboxConsumers: () => {
-      registerInboxConsumers({
-        outboxRepo,
-        reviewLookup,
-        createInboxItem: inbox.internal.useCases.createInboxItem,
-        updateInboxStatus: inbox.internal.useCases.updateInboxStatus,
-      })
-    },
+    // BQR-2.2: worker calls this before optional durable dispatch start.
+    registerOutboxConsumers: createOutboxConsumerRegistrar({
+      outboxRepo,
+      reviewLookup,
+      createInboxItem: inbox.internal.useCases.createInboxItem,
+      updateInboxStatus: inbox.internal.useCases.updateInboxStatus,
+    }),
   } as const
 }
 

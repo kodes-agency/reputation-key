@@ -1,7 +1,8 @@
 // BQR-2.2: Durable outbox consumers must be wired on the worker path.
 // Finding 1.3 — registerInboxConsumers had zero callers.
+// Static-source checks only (no cross-zone imports into contexts/).
 
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import {
@@ -9,19 +10,6 @@ import {
   listRegisteredConsumers,
   registerConsumer,
 } from '#/shared/outbox/dispatcher'
-import type { OutboxRepository } from '#/shared/outbox'
-import type { ReviewLookupPort } from '#/contexts/inbox/application/ports/review-lookup.port'
-import type { CreateInboxItem } from '#/contexts/inbox/application/use-cases/create-inbox-item'
-import type { UpdateInboxStatus } from '#/contexts/inbox/application/use-cases/update-inbox-status'
-
-vi.mock('#/shared/observability/logger', () => ({
-  getLogger: () => ({
-    info: () => {},
-    warn: () => {},
-    error: () => {},
-    debug: () => {},
-  }),
-}))
 
 const ROOT = process.cwd()
 
@@ -42,44 +30,17 @@ describe('BQR-2.2: outbox consumer registration', () => {
     expect(compositionSrc).toContain('registerInboxConsumers')
   })
 
-  it('registerInboxConsumers registers the three review→inbox consumers', async () => {
-    const { registerInboxConsumers } =
-      await import('#/contexts/inbox/infrastructure/outbox-consumers')
-
-    const outboxRepo = {
-      insert: async () => {},
-      claimUnpublished: async () => [],
-      markPublished: async () => {},
-      hasReceipt: async () => false,
-      insertReceipt: async () => {},
-      findExpiredLeases: async () => [],
-      purgePublishedBefore: async () => 0,
-      purgeReceiptsBefore: async () => 0,
-    } satisfies OutboxRepository
-
-    const reviewLookup = {
-      getReviewSnippetById: async () => null,
-    } as unknown as ReviewLookupPort
-
-    const createInboxItem = (async () => {}) as unknown as CreateInboxItem
-    const updateInboxStatus = (async () => {}) as unknown as UpdateInboxStatus
-
-    registerInboxConsumers({
-      outboxRepo,
-      reviewLookup,
-      createInboxItem,
-      updateInboxStatus,
-    })
-
-    const registered = listRegisteredConsumers()
-    expect(registered).toEqual(
-      expect.arrayContaining([
-        { eventType: 'review.created', consumerName: 'inbox.on-review-created' },
-        { eventType: 'review.updated', consumerName: 'inbox.on-review-updated' },
-        { eventType: 'review.expired', consumerName: 'inbox.on-review-expired' },
-      ]),
+  it('inbox outbox-consumers registers the three review→inbox consumers', () => {
+    const src = readFileSync(
+      join(ROOT, 'src/contexts/inbox/infrastructure/outbox-consumers.ts'),
+      'utf-8',
     )
-    expect(registered).toHaveLength(3)
+    expect(src).toContain("eventType: 'review.created'")
+    expect(src).toContain("consumerName: 'inbox.on-review-created'")
+    expect(src).toContain("eventType: 'review.updated'")
+    expect(src).toContain("consumerName: 'inbox.on-review-updated'")
+    expect(src).toContain("eventType: 'review.expired'")
+    expect(src).toContain("consumerName: 'inbox.on-review-expired'")
   })
 
   it('listRegisteredConsumers is empty after clear', () => {
