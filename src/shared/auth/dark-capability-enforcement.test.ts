@@ -86,27 +86,21 @@ describe('BQR-0: Dark job / schedule containment', () => {
 
   it('bootstrap registers dark jobs via registerCapabilityGatedJob', () => {
     expect(bootstrapSrc).toContain('registerCapabilityGatedJob')
-    expect(bootstrapSrc).toContain(
-      "registerCapabilityGatedJob(RECONCILE_GOAL_JOB_NAME, 'goal.use'",
-    )
-    expect(bootstrapSrc).toContain(
-      "registerCapabilityGatedJob(SPAWN_RECURRING_JOB_NAME, 'goal.use'",
-    )
-    expect(bootstrapSrc).toContain(
-      "registerCapabilityGatedJob('badge.reconcile', 'badge.use'",
-    )
-    expect(bootstrapSrc).toContain(
-      "registerCapabilityGatedJob('leaderboard.reconcile', 'leaderboard.use'",
-    )
-    expect(bootstrapSrc).toContain(
-      "registerCapabilityGatedJob(PROCESS_IMAGE_JOB_NAME, 'portal.upload'",
-    )
-    expect(bootstrapSrc).toContain(
-      "registerCapabilityGatedJob(URGENT_EMAIL_JOB_NAME, 'notification.send_email'",
-    )
-    expect(bootstrapSrc).toContain(
-      "registerCapabilityGatedJob(DIGEST_JOB_NAME, 'notification.send_email'",
-    )
+    // Match job name + capability even if prettier wraps arguments across lines
+    const gated = (job: string, cap: string) => {
+      const re = new RegExp(
+        `registerCapabilityGatedJob\\(\\s*${job}\\s*,\\s*'${cap}'`,
+        'm',
+      )
+      expect(bootstrapSrc, `expected gated job ${job} / ${cap}`).toMatch(re)
+    }
+    gated('RECONCILE_GOAL_JOB_NAME', 'goal.use')
+    gated('SPAWN_RECURRING_JOB_NAME', 'goal.use')
+    gated("'badge.reconcile'", 'badge.use')
+    gated("'leaderboard.reconcile'", 'leaderboard.use')
+    gated('PROCESS_IMAGE_JOB_NAME', 'portal.upload')
+    gated('URGENT_EMAIL_JOB_NAME', 'notification.send_email')
+    gated('DIGEST_JOB_NAME', 'notification.send_email')
   })
 
   it('outbox dispatcher remains opt-in', () => {
