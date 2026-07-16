@@ -14,6 +14,7 @@ export const importPropertiesInputSchema = z.object({
         address: z.string().nullable(),
         primaryCategory: z.string().nullable(),
         gbpLocationName: z.string().min(1),
+        countryCode: z.string().length(2).nullable().optional(),
       }),
     )
     .min(1, 'Select at least one location'),

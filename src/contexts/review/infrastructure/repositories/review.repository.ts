@@ -9,7 +9,7 @@
 //          batch queries for scheduled jobs. No tenant filter — designed to scan all orgs in
 //          one pass. If total reviews exceed ~5K, these jobs need cursor-based pagination.
 
-import { and, eq, lte, lt, inArray, desc } from 'drizzle-orm'
+import { and, eq, lte, lt, inArray, desc, isNotNull } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { reviews } from '#/shared/db/schema/review.schema'
 import type { ReviewRepository } from '../../application/ports/review.repository'
@@ -127,25 +127,35 @@ export const createReviewRepository = (db: Database): ReviewRepository => ({
     })
   },
 
-  /** ⚠️ CROSS-TENANT: Reviews where expiresAt <= date (inclusive). Scans ALL orgs. Only for background jobs. */
+  /**
+   * ⚠️ CROSS-TENANT: contentExpiresAt <= date (inclusive), non-null only.
+   * BQR-3.2: fetch-based clock (ADR 0031), not publication-based expiresAt.
+   */
   findAllExpiringBeforeAcrossTenants: async (date: Date) => {
     return trace('review.findAllExpiringBeforeAcrossTenants', async () => {
       const rows = await db
         .select()
         .from(reviews)
-        .where(lte(reviews.expiresAt, date))
+        .where(
+          and(isNotNull(reviews.contentExpiresAt), lte(reviews.contentExpiresAt, date)),
+        )
         .limit(5000)
       return rows.map(reviewFromRow)
     })
   },
 
-  /** ⚠️ CROSS-TENANT: Reviews where expiresAt < date (exclusive). Scans ALL orgs. Only for purge job with 3-day grace period. */
+  /**
+   * ⚠️ CROSS-TENANT: contentExpiresAt < date (exclusive), non-null only.
+   * BQR-3.2 / ADR 0031: no post-expiry grace — purge as soon as the fetch clock expires.
+   */
   findAllExpiredBeforeAcrossTenants: async (date: Date) => {
     return trace('review.findAllExpiredBeforeAcrossTenants', async () => {
       const rows = await db
         .select()
         .from(reviews)
-        .where(lt(reviews.expiresAt, date))
+        .where(
+          and(isNotNull(reviews.contentExpiresAt), lt(reviews.contentExpiresAt, date)),
+        )
         .limit(5000)
       return rows.map(reviewFromRow)
     })

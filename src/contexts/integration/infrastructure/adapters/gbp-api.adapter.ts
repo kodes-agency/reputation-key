@@ -261,6 +261,15 @@ function parseAddress(loc: Record<string, unknown>): string | null {
   return `${addressLines.join(', ')}, ${locality} ${administrativeArea} ${postalCode}`.trim()
 }
 
+/** ISO country from GBP storefrontAddress.regionCode (CLDR/ISO 3166-1 alpha-2). */
+function parseCountryCode(loc: Record<string, unknown>): string | null {
+  const storefrontAddress = loc.storefrontAddress as Record<string, unknown> | undefined
+  const raw = storefrontAddress?.regionCode
+  if (typeof raw !== 'string') return null
+  const code = raw.trim().toUpperCase()
+  return /^[A-Z]{2}$/.test(code) ? code : null
+}
+
 function parseCoordinates(loc: Record<string, unknown>): {
   latitude: number | null
   longitude: number | null
@@ -294,5 +303,6 @@ function mapGbpLocation(location: unknown): GbpLocation {
     primaryCategory: (primaryCategory?.displayName as string | undefined) ?? null,
     latitude,
     longitude,
+    countryCode: parseCountryCode(loc),
   }
 }

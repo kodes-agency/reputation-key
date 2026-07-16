@@ -20,6 +20,16 @@ type SetValues = {
   gbpPlaceId?: string | null
   updatedAt?: Date
   deletedAt?: Date | null
+  // BQR-3.5 processing profile
+  countryCode?: string | null
+  countrySource?: string | null
+  timezoneSource?: string | null
+  timezoneResolvedAt?: Date | null
+  processingRegion?: string | null
+  processingRegionSource?: string | null
+  routingPolicyVersion?: number
+  processingRegionResolvedAt?: Date | null
+  sourceEpoch?: number
 }
 
 export const createPropertyRepository = (db: Database): PropertyRepository => ({
@@ -90,6 +100,22 @@ export const createPropertyRepository = (db: Database): PropertyRepository => ({
       if (patch.slug !== undefined) setValues.slug = patch.slug
       if (patch.timezone !== undefined) setValues.timezone = patch.timezone
       if (patch.gbpPlaceId !== undefined) setValues.gbpPlaceId = patch.gbpPlaceId
+      // BQR-3.5 processing profile fields
+      if (patch.countryCode !== undefined) setValues.countryCode = patch.countryCode
+      if (patch.countrySource !== undefined) setValues.countrySource = patch.countrySource
+      if (patch.timezoneSource !== undefined)
+        setValues.timezoneSource = patch.timezoneSource
+      if (patch.timezoneResolvedAt !== undefined)
+        setValues.timezoneResolvedAt = patch.timezoneResolvedAt
+      if (patch.processingRegion !== undefined)
+        setValues.processingRegion = patch.processingRegion
+      if (patch.processingRegionSource !== undefined)
+        setValues.processingRegionSource = patch.processingRegionSource
+      if (patch.routingPolicyVersion !== undefined)
+        setValues.routingPolicyVersion = patch.routingPolicyVersion
+      if (patch.processingRegionResolvedAt !== undefined)
+        setValues.processingRegionResolvedAt = patch.processingRegionResolvedAt
+      if (patch.sourceEpoch !== undefined) setValues.sourceEpoch = patch.sourceEpoch
 
       await db
         .update(properties)

@@ -1,6 +1,6 @@
 # BQR-2 — Durable Runtime (Atomic Outbox, Envelope, Consumers)
 
-**Status:** In progress — slice 2.5  
+**Status:** Complete — slices 2.1–2.5 merged (#193–#197)  
 **Depends on:** BQR-1 (architecture rules, public outbox surface, ADR 0030)  
 **Unblocks:** BQR-3 (review lifecycle consumers), BQR-4 (selected primitives), BQR-6 (event reliability evidence)  
 **Estimate:** 14–22 engineering days
@@ -29,13 +29,13 @@ Commands that produce domain facts commit **state + outbox row in one transactio
 
 ## PR slices
 
-| Slice       | Outcome                                                                                                             | Status          |
-| ----------- | ------------------------------------------------------------------------------------------------------------------- | --------------- |
-| **BQR-2.1** | Relay enqueues full `ConsumerEvent` envelope; dispatcher parses/validates envelope; unit tests lock the contract    | Done (PR #193)  |
-| **BQR-2.2** | Wire `registerInboxConsumers` into the worker path via `container.registerOutboxConsumers` when outbox is present   | Done (PR #194)  |
-| **BQR-2.3** | Tracer-bullet atomic producer: review sync `created`/`updated` via `ReviewCommandStore` (upsert + outbox in one TX) | Done (PR #195)  |
-| **BQR-2.4** | Real inbox durable consumers for `review.updated` / `review.expired` (no no-op `applied` receipts)                  | Done (PR #196)  |
-| **BQR-2.5** | Schema-registry allowlist validation at outbox insert; schema fields aligned with domain                            | **This branch** |
+| Slice       | Outcome                                                                                                             | Status         |
+| ----------- | ------------------------------------------------------------------------------------------------------------------- | -------------- |
+| **BQR-2.1** | Relay enqueues full `ConsumerEvent` envelope; dispatcher parses/validates envelope; unit tests lock the contract    | Done (PR #193) |
+| **BQR-2.2** | Wire `registerInboxConsumers` into the worker path via `container.registerOutboxConsumers` when outbox is present   | Done (PR #194) |
+| **BQR-2.3** | Tracer-bullet atomic producer: review sync `created`/`updated` via `ReviewCommandStore` (upsert + outbox in one TX) | Done (PR #195) |
+| **BQR-2.4** | Real inbox durable consumers for `review.updated` / `review.expired` (no no-op `applied` receipts)                  | Done (PR #196) |
+| **BQR-2.5** | Schema-registry allowlist validation at outbox insert; schema fields aligned with domain                            | Done (PR #197) |
 
 Later slices may split by event family if a single PR would exceed review size. Dispatcher stays default-off until exit.
 

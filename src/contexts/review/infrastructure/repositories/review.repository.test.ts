@@ -245,7 +245,7 @@ describe.sequential('reviewRepository (integration)', () => {
   })
 
   describe('findAllExpiringBeforeAcrossTenants / findAllExpiredBeforeAcrossTenants', () => {
-    it('findAllExpiringBeforeAcrossTenants returns reviews where expiresAt <= date', async () => {
+    it('findAllExpiringBeforeAcrossTenants returns reviews where contentExpiresAt <= date', async () => {
       const db = getDb()
       const repo = createReviewRepository(db)
       const now = new Date('2025-06-01T12:00:00Z')
@@ -254,14 +254,21 @@ describe.sequential('reviewRepository (integration)', () => {
         makeReview({
           id: '1a000000-0000-0000-0000-000000000001',
           externalId: 'ext-soon',
-          expiresAt: new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000), // 2 days
+          contentExpiresAt: new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000), // 2 days
         }),
       )
       await repo.upsert(
         makeReview({
           id: '1a000000-0000-0000-0000-000000000002',
           externalId: 'ext-later',
-          expiresAt: new Date(now.getTime() + 20 * 24 * 60 * 60 * 1000), // 20 days
+          contentExpiresAt: new Date(now.getTime() + 20 * 24 * 60 * 60 * 1000), // 20 days
+        }),
+      )
+      await repo.upsert(
+        makeReview({
+          id: '1a000000-0000-0000-0000-000000000003',
+          externalId: 'ext-null-lifecycle',
+          contentExpiresAt: null, // pre-BQR-3.1 rows are ignored
         }),
       )
 
@@ -272,7 +279,7 @@ describe.sequential('reviewRepository (integration)', () => {
       expect(expiring[0].externalId).toBe('ext-soon')
     })
 
-    it('findAllExpiredBeforeAcrossTenants uses exclusive boundary', async () => {
+    it('findAllExpiredBeforeAcrossTenants uses exclusive contentExpiresAt boundary', async () => {
       const db = getDb()
       const repo = createReviewRepository(db)
       const now = new Date('2025-06-01T12:00:00Z')
@@ -281,14 +288,14 @@ describe.sequential('reviewRepository (integration)', () => {
         makeReview({
           id: '1a000000-0000-0000-0000-000000000001',
           externalId: 'ext-expired',
-          expiresAt: new Date(now.getTime() - 1), // 1ms before now
+          contentExpiresAt: new Date(now.getTime() - 1), // 1ms before now
         }),
       )
       await repo.upsert(
         makeReview({
           id: '1a000000-0000-0000-0000-000000000002',
           externalId: 'ext-active',
-          expiresAt: now, // exactly now — should NOT be included (exclusive)
+          contentExpiresAt: now, // exactly now — should NOT be included (exclusive)
         }),
       )
 

@@ -12,7 +12,10 @@ import {
   validateSlug,
   validatePropertyName,
   validateTimezone,
+  normalizeCountryCode,
 } from './rules'
+import { resolvePropertyRouting } from './processing-routing'
+import { ok } from '#/shared/domain'
 
 // fallow-ignore-next-line unused-type
 export type BuildPropertyInput = Readonly<{
@@ -23,6 +26,9 @@ export type BuildPropertyInput = Readonly<{
   timezone: string
   gbpPlaceId?: string | null
   googleConnectionId?: GoogleConnectionId | null
+  /** Optional ISO country; when set, processing region is resolved (BQR-3.5). */
+  countryCode?: string | null
+  countrySource?: string
   now: Date
 }>
 
@@ -33,24 +39,39 @@ export const buildProperty = (
   const slug = validateSlug(input.providedSlug ?? normalizeSlug(input.name))
   const tz = validateTimezone(input.timezone)
 
-  return Result.combine([nameResult, slug, tz]).map(
-    ([validName, validSlug, validTz]): Property => ({
-      id: input.id,
-      organizationId: input.organizationId,
-      name: validName,
-      slug: validSlug,
-      timezone: validTz,
-      gbpPlaceId: input.gbpPlaceId ?? null,
-      googleConnectionId: input.googleConnectionId ?? null,
-      createdAt: input.now,
-      updatedAt: input.now,
-      deletedAt: null,
-      lifecycleState: 'active',
-      lifecycleReason: null,
-      lifecycleStateChangedAt: input.now,
-      purgeScheduledFor: null,
-      lifecycleInitiatedBy: null,
-      ...DEFAULT_PROPERTY_ROUTING,
-    }),
+  const countryResult =
+    input.countryCode != null && input.countryCode !== ''
+      ? normalizeCountryCode(input.countryCode)
+      : ok<string | null, PropertyError>(null)
+
+  return Result.combine([nameResult, slug, tz, countryResult]).map(
+    ([validName, validSlug, validTz, countryCode]): Property => {
+      const routing = resolvePropertyRouting({
+        countryCode,
+        countrySource:
+          input.countrySource ??
+          (countryCode ? 'manual' : DEFAULT_PROPERTY_ROUTING.countrySource),
+        now: input.now,
+      })
+
+      return {
+        id: input.id,
+        organizationId: input.organizationId,
+        name: validName,
+        slug: validSlug,
+        timezone: validTz,
+        gbpPlaceId: input.gbpPlaceId ?? null,
+        googleConnectionId: input.googleConnectionId ?? null,
+        createdAt: input.now,
+        updatedAt: input.now,
+        deletedAt: null,
+        lifecycleState: 'active',
+        lifecycleReason: null,
+        lifecycleStateChangedAt: input.now,
+        purgeScheduledFor: null,
+        lifecycleInitiatedBy: null,
+        ...routing,
+      }
+    },
   )
 }

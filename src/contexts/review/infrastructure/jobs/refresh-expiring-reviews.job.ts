@@ -1,11 +1,19 @@
 // Review context — BullMQ job handler for refreshing expiring reviews
-// Finds reviews expiring within 5 days, enqueues sync jobs to re-fetch them.
+// Finds reviews in the policy refresh-due window (contentExpiresAt within
+// the lead before hard expiry) and enqueues sync jobs to re-fetch them.
+//
+// BQR-3.2 / ADR 0031: uses fetch-based contentExpiresAt + SourceContentPolicy,
+// not the legacy publication-based expiresAt clock.
 
 import type { Job } from 'bullmq'
 
 export const JOB_NAME = 'refresh-expiring-reviews' as const
 import type { ReviewRepository } from '../../application/ports/review.repository'
 import type { ReviewQueuePort } from '../../application/ports/review-queue.port'
+import {
+  classifyReviewsForRefresh,
+  contentRefreshDueThreshold,
+} from '../../application/source-content-lifecycle'
 import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
 
@@ -19,10 +27,24 @@ export const createRefreshExpiringReviewsHandler = (deps: RefreshHandlerDeps) =>
   return async (_job: Job) => {
     return trace('job.refreshExpiringReviews', async () => {
       const logger = getLogger()
-      const fiveDaysFromNow = new Date(deps.clock().getTime() + 5 * 24 * 60 * 60 * 1000)
+      const now = deps.clock()
+      const threshold = contentRefreshDueThreshold(now)
 
-      const expiring =
-        await deps.reviewRepo.findAllExpiringBeforeAcrossTenants(fiveDaysFromNow)
+      const candidates =
+        await deps.reviewRepo.findAllExpiringBeforeAcrossTenants(threshold)
+
+      // Classify with the same pure rules as unit tests: only refresh_due
+      // (not already expired — those are the purge job's responsibility).
+      const { refreshDue } = classifyReviewsForRefresh(
+        candidates.map((r) => ({
+          id: r.id as string,
+          lastFetchedAt: r.lastFetchedAt,
+          contentExpiresAt: r.contentExpiresAt,
+        })),
+        now,
+      )
+      const dueIds = new Set(refreshDue)
+      const expiring = candidates.filter((r) => dueIds.has(r.id as string))
 
       // Group by (propertyId, connectionId, locationName, organizationId)
       const grouped = new Map<
@@ -67,7 +89,11 @@ export const createRefreshExpiringReviewsHandler = (deps: RefreshHandlerDeps) =>
       }
 
       logger.info(
-        { expiringCount: expiring.length, propertiesRefreshed: enqueued },
+        {
+          candidateCount: candidates.length,
+          refreshDueCount: expiring.length,
+          propertiesRefreshed: enqueued,
+        },
         'Refresh expiring reviews completed',
       )
     })

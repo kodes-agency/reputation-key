@@ -42,7 +42,7 @@ export const createProperty =
       )
     }
 
-    // 4. Build domain object
+    // 4. Build domain object (BQR-3.5: optional country resolves processing region)
     const propertyResult = buildProperty({
       id: deps.idGen(),
       organizationId: ctx.organizationId,
@@ -50,6 +50,8 @@ export const createProperty =
       providedSlug: input.slug,
       timezone: input.timezone,
       gbpPlaceId: input.gbpPlaceId,
+      countryCode: input.countryCode ?? null,
+      countrySource: input.countryCode ? 'manual' : undefined,
       now: deps.clock(),
     })
 

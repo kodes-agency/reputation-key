@@ -95,18 +95,18 @@ Migrations 0009-0011 remain fully mirrored. Parity locked by `schema-migration-p
 ### Finding 3.2 — Review lifecycle columns never written
 
 **Severity:** P0  
-**Status:** **Partially remediated (BQR-1.1)** — mapper + sync path write lifecycle fields; content expiry/hash/policy still BQR-3  
-**Files:** `src/contexts/review/infrastructure/mappers/review.mapper.ts`, `sync-reviews.ts`
+**Status:** **Remediated (BQR-1.1 + BQR-3.1 + BQR-3.2)** — writers set lifecycle columns; jobs read `contentExpiresAt`  
+**Files:** `src/contexts/review/infrastructure/mappers/review.mapper.ts`, `sync-reviews.ts`, `defaultReviewLifecycle`, `source-content-lifecycle.ts`, refresh/purge jobs, review repository
 
-`reviewToRow()` now includes all 7 lifecycle columns. Sync updates `lastFetchedAt` / preserves existing lifecycle on upsert. Full `content_expires_at` / hash policy and dead `source-content-lifecycle` wiring remain BQR-3.
+`reviewToRow()` includes all 7 lifecycle columns. Sync sets `lastFetchedAt`, `contentExpiresAt` (fetch + policy TTL), and `contentHash`. Refresh/purge jobs query `content_expires_at` (non-null); purge has no post-expiry grace (ADR 0031). Legacy `expiresAt` remains for expand-phase dual clock until a later contract drop.
 
 ### Finding 3.3 — source-content-lifecycle.ts is dead code
 
 **Severity:** P1  
-**Status:** Open (deferred to BQR-3)  
+**Status:** **Remediated (BQR-3.1 + BQR-3.2)** — write path uses expiry/hash helpers; refresh job uses `classifyReviewsForRefresh`  
 **File:** `src/contexts/review/application/source-content-lifecycle.ts`
 
-The `fresh`/`refresh_due`/`expired` classification module is imported only by its own test. No production use case, job, or handler wires it in.
+Write path and refresh job import lifecycle helpers. Purge uses repository `contentExpiresAt` scan with `now` as exclusive bound.
 
 ## 4. Review Content in Events and Denormalized Copies
 
@@ -129,10 +129,10 @@ Previously only `CONTENT_FIELDS_TO_STRIP` denylist applied at insert; Zod allowl
 ### Finding 4.3 — inbox_items stores full review text permanently
 
 **Severity:** P0  
-**Status:** Open (deferred to BQR-3)  
-**File:** `src/contexts/inbox/infrastructure/event-handlers/on-review-created.ts:31-32`
+**Status:** **Partially remediated (BQR-3.3)** — expiry path scrubs snippet/reviewerName; create path still copies text until PRE17B denormalization removal  
+**File:** `src/contexts/inbox/infrastructure/event-handlers/on-review-created.ts:31-32`, `on-review-expired.ts`
 
-The in-process handler reads `event.reviewText` and stores it as `inbox_items.snippet` (full, untruncated). When a review expires and is purged from `reviews`, the inbox handler only transitions `open→closed` and **retains** the denormalized text. The review.expired outbox consumer is a no-op stub.
+The in-process create handler still stores review text as `inbox_items.snippet` for the active window. On `review.expired`, both in-process and durable handlers call `scrubInboxSourceContent` (nulls snippet + reviewerName) before/while closing. Residual: avoid copying raw text into inbox at all (later lifecycle expansion).
 
 ### Finding 4.4 — ADR 0030 referenced but missing
 

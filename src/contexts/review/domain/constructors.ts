@@ -16,7 +16,12 @@ import type {
 } from '#/shared/domain/ids'
 import { ok, err } from '#/shared/domain'
 import { reviewError } from './errors'
-import { isValidRating, calculateExpiresAt, MAX_REPLY_LENGTH } from './rules'
+import {
+  isValidRating,
+  calculateExpiresAt,
+  computeReviewContentHash,
+  MAX_REPLY_LENGTH,
+} from './rules'
 
 type BuildReviewArgs = Readonly<{
   id: ReviewId
@@ -42,6 +47,12 @@ export const buildReview = (args: BuildReviewArgs) => {
   }
 
   const expiresAt = calculateExpiresAt(args.reviewedAt, args.now)
+  const contentHash = computeReviewContentHash({
+    rating: args.rating,
+    text: args.text,
+    reviewerName: args.reviewerName,
+    languageCode: args.languageCode,
+  })
 
   return ok<Review>({
     id: args.id,
@@ -60,7 +71,11 @@ export const buildReview = (args: BuildReviewArgs) => {
     expiresAt,
     sentimentLabel: args.sentimentLabel ?? null,
     sentimentScore: args.sentimentScore ?? null,
-    ...defaultReviewLifecycle({ reviewedAt: args.reviewedAt, now: args.now }),
+    ...defaultReviewLifecycle({
+      reviewedAt: args.reviewedAt,
+      now: args.now,
+      contentHash,
+    }),
     createdAt: args.now,
     updatedAt: args.now,
   })

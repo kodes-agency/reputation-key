@@ -22,6 +22,7 @@ const fullLocation: GbpLocation = {
   primaryCategory: 'Restaurant',
   latitude: 39.78,
   longitude: -89.64,
+  countryCode: null,
 }
 
 // Unselected, full detail (address + category badge).
@@ -44,6 +45,7 @@ export const Minimal: Story = {
       primaryCategory: null,
       latitude: null,
       longitude: null,
+      countryCode: null,
     },
     selected: false,
     onSelect: () => {},

@@ -99,12 +99,17 @@ export type InboxRepository = Readonly<{
     since: Date | null,
     propertyIds?: ReadonlyArray<PropertyId>,
   ): Promise<number>
+  /**
+   * Update denormalized projection fields. Pass `null` for `snippet` /
+   * `reviewerName` to clear raw source content (BQR-3.3 expiry scrub).
+   * Omit a field to leave it unchanged.
+   */
   syncDenormalizedFields(
     id: InboxItemId,
     orgId: OrganizationId,
     fields: {
       rating?: number
-      snippet?: string
+      snippet?: string | null
       reviewerName?: string | null
       sourceDate?: Date
     },

@@ -38,7 +38,23 @@ describe('createProperty', () => {
     expect(property.slug).toBe('grand-hotel')
     expect(property.timezone).toBe('America/New_York')
     expect(property.gbpPlaceId).toBeNull()
+    expect(property.processingRegion).toBe('unresolved')
     expect(propertyRepo.all()).toHaveLength(1)
+  })
+
+  it('resolves processing region when countryCode is provided (BQR-3.5)', async () => {
+    const { useCase } = setup()
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+
+    const property = await useCase(
+      { name: 'US Hotel', timezone: 'America/New_York', countryCode: 'US' },
+      ctx,
+    )
+
+    expect(property.countryCode).toBe('US')
+    expect(property.processingRegion).toBe('us')
+    expect(property.countrySource).toBe('manual')
+    expect(property.processingRegionResolvedAt).toEqual(FIXED_TIME)
   })
 
   it('creates a property with custom slug and gbpPlaceId', async () => {

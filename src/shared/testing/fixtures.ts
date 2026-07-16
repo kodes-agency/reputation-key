@@ -301,6 +301,7 @@ export function buildTestGbpLocation(overrides: Partial<GbpLocation> = {}): GbpL
     primaryCategory: 'restaurant',
     latitude: 40.7128,
     longitude: -74.006,
+    countryCode: null,
     ...overrides,
   }
 }

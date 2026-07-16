@@ -6,7 +6,8 @@ import type { PropertyRepository } from './application/ports/property.repository
 import type { PropertyPublicApi } from './application/public-api'
 import { propertyImportConflict } from './application/public-api'
 import { propertyCreated } from './domain/events'
-import { DEFAULT_PROPERTY_ROUTING, type Property } from './domain/types'
+import type { Property } from './domain/types'
+import { resolvePropertyRouting } from './domain/processing-routing'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { OrganizationId, PropertyId, GoogleConnectionId } from '#/shared/domain/ids'
 import type { EventBus } from '#/shared/events/event-bus'
@@ -114,11 +115,18 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
       try {
         const id = idGen()
         const now = deps.clock()
+        // BQR-3.5: resolve region from GBP country when present; else explicit unresolved.
+        const routing = resolvePropertyRouting({
+          countryCode: input.countryCode ?? null,
+          countrySource: input.countryCode ? 'google_address' : 'organization_default',
+          now,
+        })
         const property: Property = {
           id,
           organizationId: input.orgId,
           name: input.name,
           slug: input.slug,
+          // Keep UTC placeholder until timezone API enrichment; availability fails closed for AI.
           timezone: 'UTC',
           gbpPlaceId: input.gbpPlaceId,
           googleConnectionId: input.googleConnectionId,
@@ -130,7 +138,7 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
           lifecycleStateChangedAt: now,
           purgeScheduledFor: null,
           lifecycleInitiatedBy: null,
-          ...DEFAULT_PROPERTY_ROUTING,
+          ...routing,
         }
         const inserted = await deps.repo.insertAndReturn(input.orgId, property)
         await emitAndRecord(

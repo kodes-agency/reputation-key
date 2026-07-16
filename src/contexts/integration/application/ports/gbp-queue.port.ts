@@ -12,6 +12,8 @@ export type ImportPropertyJobData = Readonly<{
     address: string | null
     primaryCategory: string | null
     gbpLocationName: string
+    /** ISO country when known from GBP (BQR-3.5). */
+    countryCode?: string | null
   }>
 }>
 

@@ -126,4 +126,54 @@ describe('buildProperty', () => {
       expect(result.value.slug).toBe('my-cool-hotel')
     }
   })
+
+  it('leaves processing region unresolved without country (BQR-3.5)', () => {
+    const result = buildProperty({
+      id: FIXED_ID,
+      organizationId: FIXED_ORG,
+      name: 'Grand Hotel',
+      timezone: 'America/New_York',
+      now: FIXED_TIME,
+    })
+    expect(result.isOk()).toBe(true)
+    if (result.isOk()) {
+      expect(result.value.countryCode).toBeNull()
+      expect(result.value.processingRegion).toBe('unresolved')
+      expect(result.value.processingRegionResolvedAt).toBeNull()
+    }
+  })
+
+  it('resolves processing region from country code (BQR-3.5)', () => {
+    const result = buildProperty({
+      id: FIXED_ID,
+      organizationId: FIXED_ORG,
+      name: 'Grand Hotel',
+      timezone: 'Europe/Berlin',
+      countryCode: 'de',
+      countrySource: 'manual',
+      now: FIXED_TIME,
+    })
+    expect(result.isOk()).toBe(true)
+    if (result.isOk()) {
+      expect(result.value.countryCode).toBe('DE')
+      expect(result.value.processingRegion).toBe('europe')
+      expect(result.value.processingRegionSource).toBe('country_default')
+      expect(result.value.processingRegionResolvedAt).toBe(FIXED_TIME)
+    }
+  })
+
+  it('rejects invalid country code', () => {
+    const result = buildProperty({
+      id: FIXED_ID,
+      organizationId: FIXED_ORG,
+      name: 'Grand Hotel',
+      timezone: 'UTC',
+      countryCode: 'USA',
+      now: FIXED_TIME,
+    })
+    expect(result.isErr()).toBe(true)
+    if (result.isErr()) {
+      expect(result.error.code).toBe('invalid_country')
+    }
+  })
 })

@@ -8,7 +8,16 @@ import type { UpdatePropertyInput } from '../dto/update-property.dto'
 export type { UpdatePropertyInput } from '../dto/update-property.dto'
 import { canForContext } from '#/shared/domain/permissions'
 import { propertyId as toPropertyId } from '#/shared/domain/ids'
-import { validatePropertyName, validateSlug, validateTimezone } from '../../domain/rules'
+import {
+  normalizeCountryCode,
+  validatePropertyName,
+  validateSlug,
+  validateTimezone,
+} from '../../domain/rules'
+import {
+  resolvePropertyRouting,
+  wouldChangeResolvedRegion,
+} from '../../domain/processing-routing'
 import { propertyError } from '../../domain/errors'
 import { propertyUpdated } from '../../domain/events'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
@@ -49,6 +58,7 @@ async function validateUpdateFields(
   existing: Property,
   propertyId: ReturnType<typeof toPropertyId>,
   organizationId: AuthContext['organizationId'],
+  now: Date,
 ) {
   const newSlug = input.slug ?? existing.slug
   if (input.slug && input.slug !== existing.slug) {
@@ -74,7 +84,33 @@ async function validateUpdateFields(
   const newGbpPlaceId =
     input.gbpPlaceId !== undefined ? input.gbpPlaceId : existing.gbpPlaceId
 
-  return { newName, newSlug, newTimezone, newGbpPlaceId }
+  // BQR-3.5: optional country resolves region; no silent region change once resolved.
+  let routing: ReturnType<typeof resolvePropertyRouting> | null = null
+  if (input.countryCode !== undefined) {
+    const countryResult = normalizeCountryCode(input.countryCode)
+    if (countryResult.isErr()) throw countryResult.error
+    const countryCode = countryResult.value
+    if (wouldChangeResolvedRegion(existing.processingRegion, countryCode)) {
+      throw propertyError(
+        'region_locked',
+        'processing region cannot change after it has been resolved',
+        {
+          currentRegion: existing.processingRegion,
+          attemptedCountry: countryCode,
+        },
+      )
+    }
+    routing = resolvePropertyRouting({
+      countryCode,
+      countrySource: 'manual',
+      now,
+      sourceEpoch: existing.sourceEpoch,
+      timezoneSource: existing.timezoneSource,
+      timezoneResolvedAt: existing.timezoneResolvedAt,
+    })
+  }
+
+  return { newName, newSlug, newTimezone, newGbpPlaceId, routing }
 }
 
 export const updateProperty =
@@ -96,28 +132,31 @@ export const updateProperty =
     if (!accessible) {
       throw propertyError('forbidden', 'No access to this property', { propertyId })
     }
+    const updatedAt = deps.clock()
     const fields = await validateUpdateFields(
       deps,
       input,
       existing,
       propertyId,
       ctx.organizationId,
+      updatedAt,
     )
 
     const hasChanges =
       fields.newName !== existing.name ||
       fields.newSlug !== existing.slug ||
       fields.newTimezone !== existing.timezone ||
-      fields.newGbpPlaceId !== existing.gbpPlaceId
+      fields.newGbpPlaceId !== existing.gbpPlaceId ||
+      fields.routing !== null
 
     if (!hasChanges) return existing
 
-    const updatedAt = deps.clock()
     await deps.propertyRepo.update(ctx.organizationId, propertyId, {
       name: fields.newName,
       slug: fields.newSlug,
       timezone: fields.newTimezone,
       gbpPlaceId: fields.newGbpPlaceId,
+      ...(fields.routing ?? {}),
       updatedAt,
     })
 
@@ -139,6 +178,7 @@ export const updateProperty =
       slug: fields.newSlug,
       timezone: fields.newTimezone,
       gbpPlaceId: fields.newGbpPlaceId,
+      ...(fields.routing ?? {}),
       updatedAt,
     }
   }

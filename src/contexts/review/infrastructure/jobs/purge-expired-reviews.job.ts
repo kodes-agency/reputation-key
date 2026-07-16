@@ -1,5 +1,8 @@
 // Review context — BullMQ job handler for purging expired reviews
-// Deletes reviews that expired more than 3 days ago (grace period for failed syncs).
+// Deletes reviews whose contentExpiresAt has passed (fetch-based clock).
+//
+// BQR-3.2 / ADR 0031: no post-expiry grace period. Raw content must not be
+// served after the policy TTL from the last successful Google fetch.
 //
 // ⚠️ CROSS-TENANT: This job intentionally scans ALL organizations in one pass.
 // It uses findAllExpiredBeforeAcrossTenants() which has no tenant filter.
@@ -30,13 +33,12 @@ export const createPurgeExpiredReviewsHandler = (deps: PurgeHandlerDeps) => {
   return async (_job: Job) => {
     return trace('job.purgeExpiredReviews', async () => {
       const logger = getLogger()
-      const threeDaysAgo = new Date(deps.clock().getTime() - 3 * 24 * 60 * 60 * 1000)
+      const now = deps.clock()
 
       // Cross-tenant scan: intentionally fetches across all orgs (system-level job).
       // Each iteration below is tenant-scoped via review.organizationId.
-      const expired =
-        await deps.reviewRepo.findAllExpiredBeforeAcrossTenants(threeDaysAgo)
-      const now = deps.clock()
+      // Threshold is `now` — exclusive boundary means contentExpiresAt < now.
+      const expired = await deps.reviewRepo.findAllExpiredBeforeAcrossTenants(now)
 
       let purged = 0
       for (const review of expired) {
