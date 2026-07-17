@@ -75,7 +75,9 @@ export async function registerAccount(
   if (page.url().includes('/login')) {
     throw new Error(
       'Registration is capability-gated off (redirected to /login). ' +
-        'Set BETA_E2E_GLOBAL_CAPABILITIES=identity.register,organization.create for e2e.',
+        'Set BETA_E2E_GLOBAL_CAPABILITIES=identity.register,organization.create for e2e. ' +
+        'BQC-0.3: the override boots only with NODE_ENV=test or ' +
+        'BETA_E2E_EXECUTION_IDENTITY=local-e2e set (test-only guard).',
     )
   }
   await page.locator('form').first().waitFor({ state: 'visible' })

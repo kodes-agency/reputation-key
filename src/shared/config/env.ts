@@ -95,7 +95,13 @@ const envSchema = z.object({
   // Comma-separated non-core capabilities forced globally ON (E2E/CI only).
   // Must never enable blocked capabilities. Example:
   // identity.register,organization.create,team.use
+  // BQC-0.3: non-empty values refuse process startup unless NODE_ENV=test or
+  // BETA_E2E_EXECUTION_IDENTITY is set (see capability-boot-guard.ts).
   BETA_E2E_GLOBAL_CAPABILITIES: z.string().optional(),
+  // Explicit test/CI execution identity that authorizes the E2E capability
+  // override above (e.g. 'playwright-e2e'). Meaningless in production — the
+  // boot guard never requires it and production must never set it.
+  BETA_E2E_EXECUTION_IDENTITY: z.string().optional(),
   // BQR-0: Outbox relay/dispatcher containment. The outbox path has known
   // defects (non-atomic emit, relay/dispatcher envelope mismatch, empty
   // consumer registry). Must NOT process real work until BQR-2 fixes them.

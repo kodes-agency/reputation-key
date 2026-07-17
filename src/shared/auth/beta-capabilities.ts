@@ -10,8 +10,19 @@
 //
 // Default posture: core capabilities on, non-core off. Unknown capabilities
 // and missing policy fail closed for mutations and external effects.
+//
+// BQC-0.3: tests should inject a policy store via initCapabilityPolicyStore
+// (dependency-injected adapters). The BETA_E2E_GLOBAL_CAPABILITIES environment
+// backdoor exists only for browser E2E, where the app runs as a separate
+// process; it is guarded at boot by capability-boot-guard.ts.
 
 import type { AuthContext } from '#/shared/domain/auth-context'
+
+/**
+ * Capability-policy version. Bump when CORE_CAPABILITIES or
+ * BLOCKED_CAPABILITIES change. Recorded in the boot manifest (BQC-0.3).
+ */
+export const CAPABILITY_POLICY_VERSION = 'bqc-0.3'
 
 // ── Capability definitions ──────────────────────────────────────────
 
@@ -190,6 +201,74 @@ export function createEnvCapabilityPolicyStore(
   }
 }
 
+// ── Test-only override guard (BQC-0.3 / SPEC-P0-03) ─────────────────
+
+/**
+ * Minimal env shape the override guard reads. Structural, so the parsed Env
+ * from getEnv() fits directly. Allowlist/suspension fields are accepted (so
+ * callers can pass the full env) but never recorded.
+ */
+export type CapabilityPolicyEnv = Readonly<{
+  NODE_ENV?: string
+  BETA_E2E_GLOBAL_CAPABILITIES?: string
+  BETA_E2E_EXECUTION_IDENTITY?: string
+  BETA_CAPABILITIES_OFF?: string
+  BETA_ALLOWLIST_ORGS?: string
+  BETA_SUSPENDED_ORGS?: string
+}>
+
+/** Parse the override variable into non-empty, blocked-filtered capabilities. */
+export function parseE2EGlobalOverrides(
+  env: CapabilityPolicyEnv,
+): ReadonlyArray<Capability> {
+  return (env.BETA_E2E_GLOBAL_CAPABILITIES ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s): s is Capability => s.length > 0)
+    .filter((cap) => !isBlockedCapability(cap))
+    .sort()
+}
+
+/**
+ * Refuse when BETA_E2E_GLOBAL_CAPABILITIES is non-empty outside an explicit
+ * test/CI execution identity (NODE_ENV=test, or BETA_E2E_EXECUTION_IDENTITY
+ * naming the test runner — CI e2e runs `pnpm dev`, whose script pins
+ * NODE_ENV=development, so the identity var authorizes the override there).
+ * Throws on violation.
+ */
+export function assertE2EOverrideIdentity(env: CapabilityPolicyEnv): void {
+  const hasOverride = (env.BETA_E2E_GLOBAL_CAPABILITIES ?? '')
+    .split(',')
+    .some((s) => s.trim().length > 0)
+  if (!hasOverride) return
+
+  const isTestIdentity = env.NODE_ENV === 'test'
+  const hasExplicitIdentity = (env.BETA_E2E_EXECUTION_IDENTITY ?? '').trim().length > 0
+  if (isTestIdentity || hasExplicitIdentity) return
+
+  throw new Error(
+    '[CAPABILITY POLICY] BETA_E2E_GLOBAL_CAPABILITIES is a test-only override and ' +
+      `refuses to boot outside an explicit test/CI execution identity ` +
+      `(NODE_ENV=${env.NODE_ENV ?? '(unset)'}; set NODE_ENV=test or ` +
+      'BETA_E2E_EXECUTION_IDENTITY for e2e runs).',
+  )
+}
+
+/**
+ * Production boot assertion: no blocked capability may be globally enabled,
+ * regardless of policy-store configuration. Throws on violation.
+ */
+export function assertBlockedCapabilitiesContained(store: CapabilityPolicyStore): void {
+  for (const cap of listBlockedCapabilities()) {
+    if (store.isCapabilityGloballyEnabled(cap)) {
+      throw new Error(
+        `[CAPABILITY POLICY] blocked capability "${cap}" is globally enabled at boot. ` +
+          'Blocked capabilities must never boot enabled.',
+      )
+    }
+  }
+}
+
 // ── Capability checker ──────────────────────────────────────────────
 
 let _store: CapabilityPolicyStore | undefined
@@ -202,7 +281,14 @@ export function initCapabilityPolicyStore(store: CapabilityPolicyStore): void {
 /** Get the current policy store, initializing from env if not yet set. */
 function getStore(): CapabilityPolicyStore {
   if (!_store) {
-    _store = createEnvCapabilityPolicyStore(process.env)
+    // BQC-0.3: this lazy env fallback is the backdoor SPEC-P0-03 warns about.
+    // Fail closed when the test-only override leaks outside an explicit
+    // test/CI identity — covers processes the startup boot guard cannot
+    // reach (e.g. vite dev server, where Nitro plugins do not execute).
+    assertE2EOverrideIdentity(process.env)
+    const store = createEnvCapabilityPolicyStore(process.env)
+    assertBlockedCapabilitiesContained(store)
+    _store = store
   }
   return _store
 }
@@ -345,6 +431,16 @@ export function isCoreCapability(cap: Capability): boolean {
 
 export function isBlockedCapability(cap: Capability): boolean {
   return BLOCKED_CAPABILITIES.has(cap)
+}
+
+/** Sorted core capability list — for the boot manifest (BQC-0.3). */
+export function listCoreCapabilities(): ReadonlyArray<Capability> {
+  return [...CORE_CAPABILITIES].sort()
+}
+
+/** Sorted blocked capability list — for boot assertions and the manifest. */
+export function listBlockedCapabilities(): ReadonlyArray<Capability> {
+  return [...BLOCKED_CAPABILITIES].sort()
 }
 
 /**

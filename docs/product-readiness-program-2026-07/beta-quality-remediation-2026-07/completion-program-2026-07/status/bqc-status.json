@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
   "program": "BQC",
-  "updatedAt": "2026-07-17T05:54:48.000Z",
+  "updatedAt": "2026-07-17T06:50:02.000Z",
   "baseline": {
     "validationReport": "docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md",
     "validationBaselineSha": "29b021875c145a7f8827f0ee70fc20935fc5dc79",
-    "workingTreeSha": "7cd383e9fba8d56bc653b31145f6202772efe195",
+    "workingTreeSha": "77fc52d67eab77438409da399bf486ddd9879f39",
     "lockfileSha256": "948a751d725fd8668b4ef734a28eea10392fd89890608f453998786a2b197287",
     "notes": "BQR work is implementation history only. No BQR phase is `accepted` under BQC rules. Open findings remain from the 2026-07-16 validation report until closed by BQC evidence."
   },
@@ -136,7 +136,7 @@
       ],
       "openFindings": ["STD-P0-01", "SPEC-P2-01", "SPEC-P0-03"],
       "exceptions": [],
-      "notes": "0.1 and 0.2 implementation_complete; 0.3\u20130.5 remaining. Not accepted."
+      "notes": "0.1–0.3 implementation_complete; 0.4–0.5 remaining. Not accepted."
     },
     {
       "id": "BQC-0.1",
@@ -173,11 +173,15 @@
       "kind": "slice",
       "parentId": "BQC-0",
       "title": "Restrict test-only capability overrides",
-      "state": "not_started",
+      "state": "implementation_complete",
       "owner": "engineering",
-      "requiredEvidenceIds": ["production-config-rejection"],
-      "openFindings": ["SPEC-P0-03"],
-      "exceptions": []
+      "requiredEvidenceIds": [
+        "production-config-rejection",
+        "capability-boot-guard-tests"
+      ],
+      "openFindings": [],
+      "exceptions": [],
+      "notes": "SPEC-P0-03 containment portion addressed: BETA_E2E_GLOBAL_CAPABILITIES refuses to take effect outside NODE_ENV=test or explicit BETA_E2E_EXECUTION_IDENTITY — true startup refusal in the worker entry, and fail-closed at first capability evaluation in every process via the lazy getStore() net (proven: built production server 500s with a leaked override; dev server 500s /register; both boot normally with identity or without override). Blocked-capability boot assertion + policy version + tenant-free manifest logged at worker startup. Evidence: capability-boot-guard.test.ts (18 tests). Nitro server/plugins are inert in this build (B0.7 security-headers equally affected — flagged for BQC-6/7), so web has no process-startup hook. Authoritative persisted policy remains BQC-2 scope. Pending independent review for accepted."
     },
     {
       "id": "BQC-0.4",
