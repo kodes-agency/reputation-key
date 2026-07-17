@@ -11,6 +11,10 @@ Make the Review context the sole owner of canonical raw Google review/reply cont
 
 Expired content is neither served nor sent to another processor, even when a sweeper, consumer, queue, or provider is degraded.
 
+## Ownership mode
+
+BQC-1 `IMPLEMENTS` source classification, lifecycle, eligible reads, copy removal, refresh, and erasure. BQC-3 only `INTEGRATES` the resulting content-free facts into durable delivery; BQC-6 `PROMOTES` lifecycle behavior into UX/release gates; BQC-8 `RE_EXECUTES` it at target scale. Completed BQC-1 modules are not rebuilt in those phases.
+
 ## 2. Findings owned
 
 - SPEC-P0-02 — incomplete Google lifecycle/retention.

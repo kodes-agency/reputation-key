@@ -1,7 +1,7 @@
 # BQC-3 — Durable Commands, Consumers, and Jobs
 
 **Status:** `not_started`  
-**Estimate:** 12–18 engineering days  
+**Estimate:** 13–19 engineering days  
 **Dependencies:** BQC-0; BQC-1 lifecycle contracts; BQC-2 policy interface  
 **Unlocks:** durable dispatch, BQC-4 execution routing, reliable beta workflows
 
@@ -18,6 +18,15 @@ The shared runtime delivers envelopes and mechanics. Owning contexts hide transa
 - SPEC-P0-01 — durable runtime stopped at tracer bullet.
 - SPEC-P1-02 — silent job acknowledgement.
 - Durable portions of STD-P1-03 and SPEC-P0-02.
+- Delayed/system integration portion of SPEC-P0-03.
+
+## Ownership mode
+
+- Context command/projection modules, `JobRuntime`, runtime registration, retry semantics, and durable cutover: `IMPLEMENTS`.
+- Adoption of the BQC-2 policy interface in workers, consumers, schedules, and existing delayed-runtime triggers: `INTEGRATES`.
+- BQC-7 owns new general operator commands and integrates both `ExecutionPolicy` and the accepted runtime interfaces there.
+- BQC-5 verifies dependency direction and cleans only residual non-runtime composition; it does not rebuild these modules.
+- BQC-6 `PROMOTES` the runtime behavior into release gates; BQC-8 `RE_EXECUTES` it under integrated faults and scale.
 
 ## 3. Target modules
 
@@ -67,7 +76,21 @@ BullMQ retries require the processor to throw/reject. Catching is allowed only t
 - Mark dark-context events/jobs as denied/unregistered.
 - Fail build/readiness when an enabled registered producer lacks a consumer or job handler.
 
-### BQC-3.2 — Deepen the review/reply command family
+### BQC-3.2 — Integrate delayed/system execution policy
+
+**Mode:** `INTEGRATES` the BQC-2.5 contract; BQC-3 owns each production call-site edit.
+
+- Extend job envelopes with the content-free policy context defined by BQC-2.5: action, org/property/resource, purpose, initiator/system identity, policy version, and correlation.
+- Re-authorize current policy immediately before protected reads and external side effects using the required fresh/strong read.
+- Convert suspension, disconnect, consent revocation, cohort removal, missing scope, stale context, and unavailable policy into the declared typed runtime outcomes.
+- Ensure a queued stale allow decision never overrides a current deny.
+- Require named/audited principals for existing operator-triggered delayed work and remove direct policy bypasses; do not create BQC-7's general operator-command surface in this slice.
+- Deny or unregister dark-context event handlers, jobs, and schedules identified by BQC-2.6.
+- Add revocation-while-queued, manual enqueue, dark-runtime, and unavailable-policy integration tests.
+
+Do not reimplement role, grant, capability, consent, or suspension logic inside `JobRuntime`; it consumes `ExecutionPolicy`.
+
+### BQC-3.3 — Deepen the review/reply command family
 
 Complete the existing tracer bullet:
 
@@ -80,7 +103,7 @@ Complete the existing tracer bullet:
 
 All state+outbox writes are atomic. Identifier-only payload schemas are insertion-time allowlists. Remove `emitAndRecord` from migrated application paths.
 
-### BQC-3.3 — Deepen inbox projections and commands
+### BQC-3.4 — Deepen inbox projections and commands
 
 - Projection `applyOnce` co-commits inbox state and receipt.
 - Review created/updated/expired/publication facts use real projection behavior.
@@ -88,7 +111,7 @@ All state+outbox writes are atomic. Identifier-only payload schemas are insertio
 - Notes remain context-owned content; events carry note ID, not text.
 - Add repair/rebuild from canonical governed data and content-free event facts.
 
-### BQC-3.4 — Migrate remaining enabled families
+### BQC-3.5 — Migrate remaining enabled families
 
 Recommended order:
 
@@ -100,7 +123,7 @@ Recommended order:
 
 For each family: characterize → atomic command → durable consumer → shadow compare → authoritative switch → legacy removal. Dark Team/Portal/Guest/Goal/Badge/Leaderboard/AI families remain denied and need no speculative durable implementation.
 
-### BQC-3.5 — Correct dispatcher and unknown-work behavior
+### BQC-3.6 — Correct dispatcher and unknown-work behavior
 
 - Malformed envelopes become unrecoverable/quarantined failures.
 - Missing enabled consumer is a deployment/readiness failure and alerts.
@@ -109,7 +132,7 @@ For each family: characterize → atomic command → durable consumer → shadow
 - Per-job attempts/backoff/jitter/timeouts are explicit and tested.
 - Max-attempt jobs move to a content-safe quarantine with redrive metadata.
 
-### BQC-3.6 — Relay, lease, ordering, and retention hardening
+### BQC-3.7 — Relay, lease, ordering, and retention hardening
 
 - Prove claim/lease/renew/reclaim under multiple workers.
 - Preserve event ID, aggregate identity/version, schema version, occurred/recorded time, org/property, correlation/causation, and processing region without content.
@@ -117,7 +140,7 @@ For each family: characterize → atomic command → durable consumer → shadow
 - Correct outbox/receipt retention with valid bounded SQL and scheduled runners.
 - Alert on oldest unpublished/claimed/stalled/quarantined age and count.
 
-### BQC-3.7 — External workflow reliability
+### BQC-3.8 — External workflow reliability
 
 Manual Google reply publication must use a durable state machine:
 
@@ -129,7 +152,7 @@ Manual Google reply publication must use a durable state machine:
 
 Use idempotency where Google supports it; otherwise reconcile before retrying an ambiguous publish. Never auto-publish an AI draft.
 
-### BQC-3.8 — Durable cutover and in-process retirement
+### BQC-3.9 — Durable cutover and in-process retirement
 
 - Enable durable processing for synthetic data only.
 - Compare projections/results against the legacy in-process path without duplicate external effects.
@@ -152,6 +175,13 @@ Use idempotency where Google supports it; otherwise reconcile before retrying an
 - Multiple workers contend without double external effects.
 - Max attempts and backoff match the registered policy.
 
+### Delayed authorization
+
+- Revocation/suspension/consent change after enqueue denies before protected work.
+- Missing, stale, unavailable, or tampered policy context produces the declared outcome.
+- Dark jobs/consumers/schedules are unregistered or denied without side effects.
+- `JobRuntime` delegates decisions to `ExecutionPolicy` and contains no duplicate grant/role/capability rules.
+
 ### External publication
 
 - Timeout before request, during request, and after provider success before local acknowledgement.
@@ -173,6 +203,7 @@ Never deploy producers that emit an enabled version before compatible consumers 
 ## 8. Evidence
 
 - Event/job catalogue.
+- Delayed/system policy integration matrix reusing BQC-2.5 contract fixtures.
 - Per-family atomicity and crash-boundary results.
 - Runtime retry/quarantine/redrive report.
 - External publication ambiguity rehearsal.
@@ -186,6 +217,8 @@ Never deploy producers that emit an enabled version before compatible consumers 
 | Every enabled producer commits state+outbox atomically        | Pass            |
 | Every enabled consumer commits projection+receipt atomically  | Pass            |
 | Application layer has no shared outbox infrastructure imports | Pass            |
+| Workers/consumers/schedules re-check authoritative policy     | Pass            |
+| Dark delayed work is unregistered or denied                   | Pass            |
 | Retryable failures throw and retry                            | Pass            |
 | Invalid/unknown work quarantines and alerts                   | Pass            |
 | Duplicate/reorder/poison/stalled/redrive tests pass           | Pass            |

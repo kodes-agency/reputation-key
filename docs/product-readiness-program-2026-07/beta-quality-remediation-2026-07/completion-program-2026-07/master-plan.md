@@ -26,13 +26,13 @@ This program is complete only when evidence is accepted. Merging its implementat
 
 ## 2. Starting baseline
 
-The [validation report](../bqr-implementation-validation-report-2026-07-16.md) records 25 findings:
+The [validation report](../bqr-implementation-validation-report-2026-07-16.md) records 25 findings. BQC execution discovered one additional P1 (`STD-P1-07`, inert Nitro server plugins), so the live program inventory contains 26:
 
 | Axis                         |  P0 |  P1 |  P2 | Total |
 | ---------------------------- | --: | --: | --: | ----: |
-| Standards adherence          |   2 |   6 |   6 |    14 |
+| Standards adherence          |   2 |   7 |   6 |    15 |
 | Plan/specification adherence |   3 |   6 |   2 |    11 |
-| Combined inventory           |   5 |  12 |   8 |    25 |
+| Combined inventory           |   5 |  13 |   8 |    26 |
 
 The implementation has valuable foundations: typed event envelopes, an atomic review tracer bullet, real inbox consumers, lifecycle/region domain fields, policy vocabulary, tests, health primitives, and operational templates. BQC deepens and completes these modules; it does not replace them with a new architecture.
 
@@ -117,7 +117,18 @@ The named interfaces are design targets, not permission to create generic pass-t
 9. **No required soft gates.** Required evidence cannot use `continue-on-error`, log-only failure, or an unowned exception.
 10. **No real data in unsafe intermediate states.** A partial migration never activates its path for real Google content.
 
-## 6. Phase dependency map
+## 6. Execution ownership and dependency model
+
+The [execution ownership model](execution-ownership-model.md) is authoritative when phase prose appears to overlap. Each slice declares one of four modes:
+
+- `IMPLEMENTS` — changes the authoritative production behavior/module;
+- `INTEGRATES` — adopts an existing interface in another execution path;
+- `PROMOTES` — reuses behavior/tests as a blocking gate;
+- `RE_EXECUTES` — runs the accepted behavior under scale, fault, recovery, or pilot conditions.
+
+The same behavior is implemented once. BQC-6 promotes existing evidence; BQC-8 re-executes it. Neither phase recreates the owning module.
+
+### 6.1 Phase dependency map
 
 ```mermaid
 flowchart TD
@@ -140,21 +151,32 @@ flowchart TD
   Q8 --> Q9["BQC-9 Pilot and AI handoff"]
 ```
 
-BQC-1 and BQC-2 can proceed in parallel after BQC-0 if they do not edit the same policy/event family. BQC-5 may start local characterization and inventory work earlier, but production cutovers wait for the BQC-2/3 interfaces.
+BQC-1 and BQC-2 can proceed in parallel after BQC-0 if they do not edit the same policy/event family. BQC-3 requires the stable BQC-2 policy interface, not final BQC-2 acceptance: delayed integration and browser evidence intentionally close later. BQC-5.1 and the minimum BQC-6 harness run early, before broad BQC-2.4/BQC-3 cutovers; remaining BQC-5/6 work follows BQC-4.
+
+### 6.2 Execution waves
+
+| Wave | Work                                                               | Ownership rule                                                                 |
+| ---- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
+| 0    | BQC-0                                                              | Establish truth and containment                                                |
+| 1    | BQC-1; BQC-2.1–2.3; early BQC-5.1; minimum BQC-6.1/error detection | Build data/policy interfaces and guardrails once                               |
+| 2    | BQC-2.4–2.7; BQC-3; BQC-4                                          | BQC-3 owns all delayed-runtime edits; BQC-4 consumes policy/runtime interfaces |
+| 3    | Remaining BQC-5 and BQC-6                                          | Clean residual architecture and promote evidence; no feature reimplementation  |
+| 4    | BQC-7 and BQC-8                                                    | Implement operations once, then re-execute at target conditions                |
+| 5    | BQC-9                                                              | Observe the immutable accepted candidate                                       |
 
 ## 7. Delivery slices
 
 Every slice follows this template:
 
-1. State the invariant and the current authoritative path.
-2. Add a failing behavior/contract test.
-3. Introduce or deepen the smallest context-owned interface.
-4. Implement the production adapter and the local test adapter where the seam is real.
-5. Migrate/backfill if required.
-6. Shadow/compare without duplicate external effects.
-7. Switch the authoritative path behind a default-off capability when applicable.
-8. Observe defined metrics for the slice.
-9. Delete the superseded path and tests that inspect its internals.
+1. Declare `IMPLEMENTS`, `INTEGRATES`, `PROMOTES`, or `RE_EXECUTES`.
+2. Name the authoritative artifact/behavior owner and explicit non-goals.
+3. State the invariant and the current authoritative path.
+4. Add a failing behavior/contract test when this slice owns implementation/integration.
+5. Introduce or deepen the smallest context-owned interface only in its owning phase.
+6. Implement the production adapter and local test adapter where the seam is real.
+7. Migrate/backfill and shadow/compare without duplicate external effects when required.
+8. Switch the authoritative path and delete the superseded path.
+9. Link later promotion/re-execution to the same tests/harness; do not recreate them.
 10. Attach evidence and update the finding/gate state.
 
 ## 8. Quality policy and measurable budgets
@@ -265,15 +287,17 @@ Rollback disables new work through policy, stops schedules, preserves canonical 
 | --------- | -------------------------------------------: |
 | BQC-0     |                                     2–3 days |
 | BQC-1     |                                    8–12 days |
-| BQC-2     |                                    8–12 days |
-| BQC-3     |                                   12–18 days |
+| BQC-2     |                                    7–10 days |
+| BQC-3     |                                   13–19 days |
 | BQC-4     |                                     6–9 days |
-| BQC-5     |                                   10–16 days |
-| BQC-6     |                                    8–12 days |
+| BQC-5     |                                    8–13 days |
+| BQC-6     |                                    7–11 days |
 | BQC-7     |                                    8–13 days |
 | BQC-8     |                                    6–10 days |
 | BQC-9     |             3–5 days plus 14-day observation |
-| **Total** | **71–110 engineering days plus observation** |
+| **Total** | **68–105 engineering days plus observation** |
+
+The total counts each production implementation once. Later `PROMOTES`/`RE_EXECUTES` budgets cover harness integration, environment execution, analysis, and evidence—not a second implementation of the same behavior. Because BQC-0/BQC-1 and part of BQC-2 are already implemented, remaining-effort forecasts must be derived from the live status manifest rather than subtracting informally from this original full-program range.
 
 One experienced engineer should expect approximately 18–26 focused weeks. Two senior engineers split between runtime/data and product/security/verification may reduce calendar time to roughly 12–17 weeks plus observation. Atomic cutovers, migrations, region activation, and pilot stages remain sequential.
 
@@ -283,7 +307,7 @@ Re-estimate after BQC-0 and at every accepted phase using actual slice throughpu
 
 BQC is accepted only when:
 
-1. all 25 findings map to accepted closure evidence;
+1. all tracked findings, including findings discovered during BQC, map to accepted closure evidence;
 2. every phase exit matrix is accepted for the same immutable release candidate;
 3. the beta capability matrix matches deployed policy and negative tests;
 4. no P0/P1 remains;

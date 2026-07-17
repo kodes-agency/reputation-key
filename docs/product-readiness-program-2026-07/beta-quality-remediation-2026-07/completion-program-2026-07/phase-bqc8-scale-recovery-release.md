@@ -16,6 +16,12 @@ Execute—not describe—the target-scale, burst, failure, restore, regional, se
 - Final evidence for SPEC-P1-05 and SPEC-P1-06.
 - Target-scale and recovery closure for every P0 runtime/data/policy finding.
 
+## Ownership mode
+
+- Scale/fault/recovery harnesses and immutable evidence validation: `IMPLEMENTS`.
+- Product behavior, policy, lifecycle, runtime, routing, testing, and operations controls from BQC-1…7: `RE_EXECUTES`.
+- BQC-8 never repairs a product/control defect inside the evidence candidate. A failed scenario returns to its implementation owner, produces a new immutable candidate, and reruns affected evidence.
+
 ## 3. Test environment and dataset
 
 Provision a production-shaped staging cell with:
@@ -34,12 +40,16 @@ The seed tool records deterministic seed/version/hash and validates counts/relat
 
 ### BQC-8.1 — Convert scenario catalogues into executable harnesses
 
+**Mode:** `IMPLEMENTS` the scale/fault orchestration and evidence-ingestion harnesses. It does not replace product or operational controls owned by BQC-1…7.
+
 - Turn `scripts/perf/load-test.ts` from descriptions into runnable scenarios or replace it with a maintained tool.
 - Make `write-scale-evidence` ingest measured outputs; it may not label unexecuted rows as evidence.
 - Fail when thresholds, required samples, release identity, or monitoring data are absent.
 - Store raw performance data without protected content and generate reviewed summaries.
 
 ### BQC-8.2 — Steady-state and burst capacity
+
+**Mode:** `RE_EXECUTES` accepted BQC-3 runtime, BQC-5 query/composition, BQC-6 experience, and BQC-7 topology behavior at target scale.
 
 Execute:
 
@@ -55,6 +65,8 @@ Measure throughput, p50/p95/p99 latency, error rate, queue oldest age/lag, DB CP
 
 ### BQC-8.3 — Source lifecycle at scale
 
+**Mode:** `RE_EXECUTES` BQC-1 source lifecycle and BQC-3 durable scheduling at target scale.
+
 - Advance an accelerated clock/data distribution through refresh-due and hard expiry.
 - Verify cursor jobs cover all 500,000 reviews without full-table/unbounded behavior.
 - Inject Google throttling/transient failures and prove backpressure, retries, alerts, and purge safety.
@@ -62,6 +74,8 @@ Measure throughput, p50/p95/p99 latency, error rate, queue oldest age/lag, DB CP
 - Verify outbox/receipt/job/log/cache retention keeps tables/queues bounded.
 
 ### BQC-8.4 — Durable runtime fault matrix
+
+**Mode:** `RE_EXECUTES` the BQC-3 fault/runtime harness in the deployed target environment. Add only environment orchestration/measurement, not a parallel runtime implementation.
 
 Inject at controlled boundaries:
 
@@ -79,12 +93,16 @@ Prove no lost facts, split commits, duplicate external replies, or silently comp
 
 ### BQC-8.5 — Region fault matrix
 
+**Mode:** `RE_EXECUTES` BQC-4 routing and BQC-7 topology under integrated faults.
+
 - Stop or deny the US queue/worker/provider adapter and prove no cross-region execution.
 - Attempt wrong-cell/tampered jobs and confirm quarantine/alert.
 - Attempt an unresolved/Europe property in the US-only beta and confirm deny.
 - Verify global control/observability data remains content-free.
 
 ### BQC-8.6 — Backup, restore, rollback, and forward recovery
+
+**Mode:** `RE_EXECUTES` BQC-1 lifecycle, BQC-3 reconciliation, and BQC-7 backup/deployment controls. The timed environment orchestration and measurement belong to BQC-8.
 
 Measure:
 
@@ -100,9 +118,13 @@ Record start/end timestamps, lost/recovered work, manual steps, owners, and devi
 
 ### BQC-8.7 — Security and privacy release gates
 
+**Mode:** `RE_EXECUTES` the BQC-7 gates against the final artifact and binds their existing policy/results to the release identity.
+
 Run all BQC-7 scans against final artifacts, repeat protected-canary scans across staging telemetry/evidence, verify least privilege and private diagnostics, and review data-flow/retention/provider/subprocessor documentation with accountable owners.
 
 ### BQC-8.8 — Immutable release bundle
+
+**Mode:** `IMPLEMENTS` the bundle validator and release-identity binding; it consumes accepted evidence from BQC-1…7 and measurements from BQC-8.2…8.7.
 
 Populate the master evidence structure. Add an automated validator that ensures:
 
@@ -162,7 +184,7 @@ This phase's output is the release evidence bundle itself, plus:
 | Region outage produces no fallback                              | Pass            |
 | Restore observes RPO/RTO and source policy                      | Pass            |
 | Security/privacy/artifact gates pass final candidate            | Pass            |
-| All 25 findings have accepted evidence                          | Pass            |
+| All tracked findings have accepted evidence                     | Pass            |
 | Release bundle validates and reviewers approve pilot entry      | Accepted        |
 
 ## 9. Out of scope
