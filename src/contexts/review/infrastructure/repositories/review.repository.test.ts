@@ -232,6 +232,67 @@ describe.sequential('reviewRepository (integration)', () => {
     })
   })
 
+  describe('findRecentEligibleByPropertyId (BQC-1.4 serving read)', () => {
+    const T1 = new Date('2025-06-01T12:00:00Z')
+    const FUTURE = new Date('2099-01-01T00:00:00Z')
+
+    it('returns only eligible reviews: excludes expired and clock-less rows', async () => {
+      const db = getDb()
+      const repo = createReviewRepository(db)
+
+      await repo.upsert(
+        makeReview({
+          id: '1a000000-0000-0000-0000-0000000000e1',
+          externalId: 'ext-eligible',
+          contentExpiresAt: FUTURE,
+        } as Partial<Omit<Review, 'id'>>),
+      )
+      await repo.upsert(
+        makeReview({
+          id: '1a000000-0000-0000-0000-0000000000e2',
+          externalId: 'ext-expired',
+          contentExpiresAt: new Date('2020-01-01T00:00:00Z'),
+        } as Partial<Omit<Review, 'id'>>),
+      )
+      await repo.upsert(
+        makeReview({
+          id: '1a000000-0000-0000-0000-0000000000e3',
+          externalId: 'ext-clockless',
+          contentExpiresAt: null,
+        } as unknown as Partial<Omit<Review, 'id'>>),
+      )
+
+      const rows = await repo.findRecentEligibleByPropertyId(
+        PROP_A,
+        ORG_A,
+        { limit: 10 },
+        T1,
+      )
+      expect(rows.map((r) => r.externalId)).toEqual(['ext-eligible'])
+    })
+
+    it('excludes rows at the exact expiry boundary (strictly future)', async () => {
+      const db = getDb()
+      const repo = createReviewRepository(db)
+
+      await repo.upsert(
+        makeReview({
+          id: '1a000000-0000-0000-0000-0000000000e4',
+          externalId: 'ext-boundary',
+          contentExpiresAt: T1,
+        } as Partial<Omit<Review, 'id'>>),
+      )
+
+      const rows = await repo.findRecentEligibleByPropertyId(
+        PROP_A,
+        ORG_A,
+        { limit: 10 },
+        T1,
+      )
+      expect(rows).toHaveLength(0)
+    })
+  })
+
   describe('tenant isolation', () => {
     it('same externalId, different org → separate reviews', async () => {
       const db = getDb()

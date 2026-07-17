@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "program": "BQC",
-  "updatedAt": "2026-07-17T13:20:00.000Z",
+  "updatedAt": "2026-07-17T14:00:00.000Z",
   "baseline": {
     "validationReport": "docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md",
     "validationBaselineSha": "29b021875c145a7f8827f0ee70fc20935fc5dc79",
@@ -217,7 +217,23 @@
       "requiredEvidenceIds": [],
       "openFindings": ["SPEC-P0-02", "STD-P1-03"],
       "exceptions": [],
-      "notes": "1.1–1.3 implementation_complete; 1.4–1.7 remaining. Not accepted."
+      "notes": "1.1–1.4 implementation_complete; 1.5–1.7 remaining. Not accepted."
+    },
+    {
+      "id": "BQC-1.4",
+      "kind": "slice",
+      "parentId": "BQC-1",
+      "title": "Centralize eligible reads",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "requiredEvidenceIds": [
+        "eligible-reads-interface",
+        "serving-read-predicates",
+        "adapter-elimination"
+      ],
+      "openFindings": [],
+      "exceptions": [],
+      "notes": "review.publicApi is now the governed read interface (createEligibleReads): typed unavailable outcomes for serving reads; satisfies inbox ReviewLookupPort and metric ReviewRatingLookupPort directly — per-context eligibility adapters deleted (one rule, one owner: isContentEligibleForRead). Last two serving leaks closed: dashboard getRecentReviews excludes expired/clock-less content in SQL; staff recent-activity uses findRecentEligibleByPropertyId (SQL predicate). Aggregates (avg rating, distributions, counts) remain by classification (irreversible, cannot reconstruct raw content) — recorded for reviewer. Operations paths (sync/refresh/purge/reply-publish) read rows directly by design. Integration-proven predicates (review repo + dashboard adapter + boundary case). Pending independent review for accepted."
     },
     {
       "id": "BQC-1.3",

@@ -63,8 +63,6 @@ import { createIdentityMembershipAdapter } from '#/contexts/staff/infrastructure
 import { createGoogleReviewApiAdapter } from '#/contexts/integration/infrastructure/adapters/google-review-api.adapter'
 import { handleGbpNotification } from '#/contexts/integration/application/use-cases'
 import type { PropertyLookupPort } from '#/contexts/integration/application/ports/property-lookup.port'
-import { createReviewLookupAdapter } from '#/contexts/inbox/infrastructure/adapters/review-lookup.adapter'
-import { createReviewRatingLookupAdapter } from '#/contexts/metric/infrastructure/adapters/review-rating-lookup.adapter'
 import { createFeedbackLookupAdapter } from '#/contexts/inbox/infrastructure/adapters/feedback-lookup.adapter'
 import { createPropertyLookupAdapter } from '#/contexts/inbox/infrastructure/adapters/property-lookup.adapter'
 import { createReplyLookupAdapter } from '#/contexts/inbox/infrastructure/adapters/reply-lookup.adapter'
@@ -339,18 +337,11 @@ export function createContainer(options?: {
   })
 
   // ── Inbox lookup ports (cross-context wiring) ─────────────────────
-  // Per architecture: inbox context defines ports, composition root wires
-  // them by delegating to review/guest/property context APIs via adapters.
-  // Adapters live in inbox/infrastructure/adapters/ — cross-context SQL is
-  // encapsulated there, not in the composition root or inbox repository.
-  const reviewLookup = createReviewLookupAdapter({
-    findReviewById: (id, orgId) => review.internal.repos.reviewRepo.findById(id, orgId),
-    findReviewsByIds: (ids, orgId) =>
-      review.internal.repos.reviewRepo.findByIds(ids, orgId),
-    findReviewIdsByContentFilter: (orgId, filter, now) =>
-      review.internal.repos.reviewRepo.findIdsByContentFilter(orgId, filter, now),
-    clock,
-  })
+  // BQC-1.4: review.publicApi IS the governed read interface — it satisfies
+  // the inbox ReviewLookupPort and metric ReviewRatingLookupPort directly.
+  // No per-context eligibility adapters remain (single rule, one owner).
+  const reviewLookup: import('#/contexts/inbox/application/ports/review-lookup.port').ReviewLookupPort =
+    review.publicApi
 
   const feedbackLookup = createFeedbackLookupAdapter({
     findFeedbackById: (id, orgId) =>
@@ -391,10 +382,7 @@ export function createContainer(options?: {
       const group = await portal.publicApi.portalGroup.findGroupForPortal(orgId, pid)
       return group ? { portalGroupId: group.id } : null
     },
-    reviewRatingLookup: createReviewRatingLookupAdapter({
-      findReviewById: (id, orgId) => review.internal.repos.reviewRepo.findById(id, orgId),
-      clock,
-    }),
+    reviewRatingLookup: review.publicApi,
   })
 
   // Goal context — buildGoalContext creates its own repo and cancelGoalFn internally.
