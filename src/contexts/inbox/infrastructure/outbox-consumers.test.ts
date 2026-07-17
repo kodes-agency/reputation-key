@@ -1,15 +1,20 @@
 // BQR-2.4 — durable inbox consumers perform real projection work.
+// BQC-1.2: review.updated has no consumer (denormalized copies are gone);
+// created is an existence check + metadata-only create; expired just closes.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import {
-  handleInboxReviewUpdated,
+  handleInboxReviewCreated,
   handleInboxReviewExpired,
   type InboxConsumerDeps,
 } from './outbox-consumers'
 import type { ConsumerEvent } from '#/shared/outbox/dispatcher'
 import type { InboxRepository } from '../application/ports/inbox.repository'
 import type { OutboxRepository } from '#/shared/outbox'
-import type { ReviewLookupPort } from '../application/ports/review-lookup.port'
+import type {
+  ReviewLookupPort,
+  ReviewSnippetResult,
+} from '../application/ports/review-lookup.port'
 import type { EventBus } from '#/shared/events/event-bus'
 import { inboxItemId, organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import type { InboxItem } from '../domain/types'
@@ -37,12 +42,12 @@ function makeItem(overrides: Partial<InboxItem> = {}): InboxItem {
     sourceType: 'review',
     sourceId: REV,
     status: 'open',
-    rating: 4,
+    rating: null,
     sourceDate: new Date('2026-06-01'),
     platform: 'google',
-    snippet: 'Old snippet',
+    snippet: null,
     assignedTo: null,
-    reviewerName: 'Old Name',
+    reviewerName: null,
     propertyName: null,
     isEscalated: false,
     escalatedAt: null,
@@ -71,13 +76,20 @@ function makeEvent(eventType: string, payload: Record<string, unknown>): Consume
   }
 }
 
+const AVAILABLE_SNIPPET: ReviewSnippetResult = {
+  status: 'available',
+  snippet: {
+    text: 'Fresh text',
+    reviewerName: 'Jane',
+    reviewerProfilePhotoUrl: null,
+    rating: 4,
+  },
+}
+
 function makeDeps(overrides: {
   item?: InboxItem | null
-  snippet?: {
-    text: string | null
-    reviewerName: string | null
-    reviewerProfilePhotoUrl: string | null
-  } | null
+  snippetResult?: ReviewSnippetResult
+  createError?: unknown
 }): InboxConsumerDeps {
   const item = overrides.item === undefined ? makeItem() : overrides.item
 
@@ -94,21 +106,15 @@ function makeDeps(overrides: {
 
   const inboxRepo = {
     findBySource: vi.fn(async () => item),
-    syncDenormalizedFields: vi.fn(async () => {}),
     updateStatus: vi.fn(async () => item ?? makeItem({ status: 'closed' })),
   } as unknown as InboxRepository
 
-  const defaultSnippet = {
-    text: 'Fresh text',
-    reviewerName: 'Jane',
-    reviewerProfilePhotoUrl: null,
-  }
-
   const reviewLookup = {
     getReviewSnippetById: vi.fn(async () =>
-      overrides.snippet === undefined ? defaultSnippet : overrides.snippet,
+      overrides.snippetResult === undefined ? AVAILABLE_SNIPPET : overrides.snippetResult,
     ),
     getReviewSnippetsByIds: vi.fn(async () => new Map()),
+    findEligibleReviewIds: vi.fn(async () => []),
   } satisfies ReviewLookupPort
 
   const events = {
@@ -117,86 +123,125 @@ function makeDeps(overrides: {
     clear: vi.fn(),
   } satisfies EventBus
 
+  const createInboxItem = vi.fn(async () => {
+    if (overrides.createError) throw overrides.createError
+    return makeItem()
+  })
+
   return {
     outboxRepo,
     reviewLookup,
-    createInboxItem: vi.fn(async () =>
-      makeItem(),
-    ) as unknown as InboxConsumerDeps['createInboxItem'],
+    createInboxItem: createInboxItem as unknown as InboxConsumerDeps['createInboxItem'],
     inboxRepo,
     events,
     clock: () => NOW,
   }
 }
 
-describe('handleInboxReviewUpdated (BQR-2.4)', () => {
+describe('handleInboxReviewCreated (BQR-2.4 / BQC-1.2)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  it('syncs denormalized fields from lookup + payload rating', async () => {
-    const deps = makeDeps({})
-    const event = makeEvent('review.updated', {
-      reviewId: 'rev-1',
-      organizationId: 'org-1',
-      propertyId: 'prop-1',
-      rating: 2,
-    })
+  it('marks obsolete when the review does not exist', async () => {
+    const deps = makeDeps({ snippetResult: { status: 'not_found' } })
+    const result = await handleInboxReviewCreated(
+      deps,
+      makeEvent('review.created', {
+        reviewId: 'rev-1',
+        organizationId: 'org-1',
+        propertyId: 'prop-1',
+      }),
+    )
 
-    const result = await handleInboxReviewUpdated(deps, event)
+    expect(result).toEqual({ status: 'obsolete' })
+    expect(deps.createInboxItem).not.toHaveBeenCalled()
+    expect(deps.outboxRepo.insertReceipt).toHaveBeenCalledWith(
+      'evt-1',
+      'inbox.on-review-created',
+      'obsolete',
+    )
+  })
+
+  it('creates a metadata-only inbox item when content is available', async () => {
+    const deps = makeDeps({ snippetResult: AVAILABLE_SNIPPET })
+    const result = await handleInboxReviewCreated(
+      deps,
+      makeEvent('review.created', {
+        reviewId: 'rev-1',
+        organizationId: 'org-1',
+        propertyId: 'prop-1',
+        occurredAt: NOW.toISOString(),
+        platform: 'google',
+      }),
+    )
 
     expect(result).toEqual({ status: 'applied' })
-    expect(deps.inboxRepo.findBySource).toHaveBeenCalledWith('review', 'rev-1', ORG)
-    expect(deps.reviewLookup.getReviewSnippetById).toHaveBeenCalled()
-    expect(deps.inboxRepo.syncDenormalizedFields).toHaveBeenCalledWith(INBOX, ORG, {
-      rating: 2,
-      snippet: 'Fresh text',
-      reviewerName: 'Jane',
+    expect(deps.reviewLookup.getReviewSnippetById).toHaveBeenCalledWith(REV, ORG)
+    // BQC-1.2: metadata only — no rating/snippet/reviewerName copied.
+    expect(deps.createInboxItem).toHaveBeenCalledWith({
+      organizationId: ORG,
+      propertyId: PROP,
+      sourceType: 'review',
+      sourceId: REV,
+      sourceDate: NOW,
+      platform: 'google',
     })
     expect(deps.outboxRepo.insertReceipt).toHaveBeenCalledWith(
       'evt-1',
-      'inbox.on-review-updated',
+      'inbox.on-review-created',
       'applied',
     )
   })
 
-  it('applies without sync when no inbox item exists', async () => {
-    const deps = makeDeps({ item: null })
-    const result = await handleInboxReviewUpdated(
+  it('still creates a metadata-only item when content is expired', async () => {
+    const deps = makeDeps({ snippetResult: { status: 'expired' } })
+    const result = await handleInboxReviewCreated(
       deps,
-      makeEvent('review.updated', {
+      makeEvent('review.created', {
         reviewId: 'rev-1',
         organizationId: 'org-1',
         propertyId: 'prop-1',
-        rating: 5,
       }),
     )
-    expect(result).toEqual({ status: 'applied' })
-    expect(deps.inboxRepo.syncDenormalizedFields).not.toHaveBeenCalled()
-  })
 
-  it('marks obsolete when review content is gone', async () => {
-    const deps = makeDeps({ snippet: null })
-    const result = await handleInboxReviewUpdated(
-      deps,
-      makeEvent('review.updated', {
-        reviewId: 'rev-1',
-        organizationId: 'org-1',
-        propertyId: 'prop-1',
-        rating: 5,
-      }),
-    )
-    expect(result).toEqual({ status: 'obsolete' })
+    expect(result).toEqual({ status: 'applied' })
+    expect(deps.createInboxItem).toHaveBeenCalled()
     expect(deps.outboxRepo.insertReceipt).toHaveBeenCalledWith(
       'evt-1',
-      'inbox.on-review-updated',
-      'obsolete',
+      'inbox.on-review-created',
+      'applied',
+    )
+  })
+
+  it('marks duplicate when the inbox item already exists', async () => {
+    const deps = makeDeps({
+      createError: {
+        _tag: 'InboxError',
+        code: 'already_exists',
+        message: 'duplicate',
+      },
+    })
+    const result = await handleInboxReviewCreated(
+      deps,
+      makeEvent('review.created', {
+        reviewId: 'rev-1',
+        organizationId: 'org-1',
+        propertyId: 'prop-1',
+      }),
+    )
+
+    expect(result).toEqual({ status: 'duplicate' })
+    expect(deps.outboxRepo.insertReceipt).toHaveBeenCalledWith(
+      'evt-1',
+      'inbox.on-review-created',
+      'duplicate',
     )
   })
 })
 
-describe('handleInboxReviewExpired (BQR-2.4 / BQR-3.3)', () => {
-  it('scrubs raw content, closes open inbox item, and records applied', async () => {
+describe('handleInboxReviewExpired (BQR-2.4 / BQC-1.2)', () => {
+  it('closes the open inbox item and records applied', async () => {
     const deps = makeDeps({})
     const result = await handleInboxReviewExpired(
       deps,
@@ -208,12 +253,7 @@ describe('handleInboxReviewExpired (BQR-2.4 / BQR-3.3)', () => {
     )
 
     expect(result).toEqual({ status: 'applied' })
-    expect(deps.inboxRepo.syncDenormalizedFields).toHaveBeenCalledWith(
-      INBOX,
-      ORG,
-      { snippet: null, reviewerName: null },
-      NOW,
-    )
+    expect(deps.inboxRepo.findBySource).toHaveBeenCalledWith('review', 'rev-1', ORG)
     expect(deps.inboxRepo.updateStatus).toHaveBeenCalledWith(
       INBOX,
       ORG,
@@ -229,7 +269,7 @@ describe('handleInboxReviewExpired (BQR-2.4 / BQR-3.3)', () => {
     )
   })
 
-  it('scrubs raw content when item already closed (no status re-write)', async () => {
+  it('applies without a status re-write when the item is already closed', async () => {
     const deps = makeDeps({ item: makeItem({ status: 'closed' }) })
     const result = await handleInboxReviewExpired(
       deps,
@@ -240,12 +280,6 @@ describe('handleInboxReviewExpired (BQR-2.4 / BQR-3.3)', () => {
       }),
     )
     expect(result).toEqual({ status: 'applied' })
-    expect(deps.inboxRepo.syncDenormalizedFields).toHaveBeenCalledWith(
-      INBOX,
-      ORG,
-      { snippet: null, reviewerName: null },
-      NOW,
-    )
     expect(deps.inboxRepo.updateStatus).not.toHaveBeenCalled()
   })
 
@@ -261,6 +295,5 @@ describe('handleInboxReviewExpired (BQR-2.4 / BQR-3.3)', () => {
     )
     expect(result).toEqual({ status: 'applied' })
     expect(deps.inboxRepo.updateStatus).not.toHaveBeenCalled()
-    expect(deps.inboxRepo.syncDenormalizedFields).not.toHaveBeenCalled()
   })
 })

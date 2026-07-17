@@ -74,6 +74,7 @@ function makeDetail(item: InboxItem): InboxItemDetail {
     item: { ...item, reviewerName: 'Test Reviewer' },
     reviewText: 'Test review',
     reviewerProfilePhotoUrl: null,
+    reviewContentStatus: 'available',
     feedbackComment: null,
     feedbackRatingValue: null,
   }
@@ -115,7 +116,6 @@ const setup = (
     bulkUpdateStatus: async () => ({ updated: 0 }),
     updateAssignment: async () => storedDetail!.item,
     countByStatus: async () => 0,
-    syncDenormalizedFields: async () => {},
     findByIds: async () => [],
     setEscalation: vi.fn(),
     resolveEscalation: vi.fn(),

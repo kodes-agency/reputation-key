@@ -11,6 +11,7 @@ vi.mock('#/shared/observability/logger', () => ({
 }))
 import type { MetricReading } from '../../domain/types'
 import type { RecordMetricInput } from '../../application/use-cases/record-metric'
+import type { ReviewCreated } from '#/contexts/review/application/public-api'
 import {
   organizationId,
   propertyId,
@@ -20,7 +21,9 @@ import {
 
 const FIXED_TIME = new Date('2026-05-20T12:00:00Z')
 
-const createFakeDeps = (): OnReviewCreatedDeps & {
+const createFakeDeps = (
+  rating: number | null = 3,
+): OnReviewCreatedDeps & {
   readings: RecordMetricInput[]
 } => {
   const readings: RecordMetricInput[] = []
@@ -34,8 +37,24 @@ const createFakeDeps = (): OnReviewCreatedDeps & {
         occurredAt: FIXED_TIME,
       } as MetricReading
     },
+    reviewRatingLookup: {
+      getEligibleRatingById: vi.fn(async () => rating),
+    },
   }
 }
+
+const makeEvent = (overrides: Partial<ReviewCreated> = {}): ReviewCreated => ({
+  _tag: 'review.created',
+  eventId: 'test-event-id',
+  correlationId: null,
+  reviewId: reviewId('rev-1'),
+  propertyId: propertyId('prop-1'),
+  organizationId: organizationId('org-1'),
+  platform: 'google',
+  externalId: 'ext-1',
+  occurredAt: FIXED_TIME,
+  ...overrides,
+})
 
 describe('onReviewCreated', () => {
   let deps: ReturnType<typeof createFakeDeps>
@@ -44,21 +63,14 @@ describe('onReviewCreated', () => {
     deps = createFakeDeps()
   })
 
-  it('records a property.review reading with star value and null portalId', async () => {
+  it('records a property.review reading with the looked-up rating and null portalId', async () => {
     const handler = onReviewCreated(deps)
-    await handler({
-      _tag: 'review.created',
-      eventId: 'test-event-id',
-      correlationId: null,
-      reviewId: reviewId('rev-1'),
-      propertyId: propertyId('prop-1'),
-      organizationId: organizationId('org-1'),
-      platform: 'google',
-      externalId: 'ext-1',
-      rating: 3,
-      occurredAt: FIXED_TIME,
-    })
+    await handler(makeEvent())
 
+    expect(deps.reviewRatingLookup.getEligibleRatingById).toHaveBeenCalledWith(
+      reviewId('rev-1'),
+      organizationId('org-1'),
+    )
     expect(deps.readings).toHaveLength(1)
     expect(deps.readings[0]).toEqual({
       organizationId: organizationId('org-1'),
@@ -70,23 +82,23 @@ describe('onReviewCreated', () => {
     })
   })
 
-  it('records rating value even when review text is null', async () => {
+  it('records the exact rating value returned by the lookup', async () => {
+    deps = createFakeDeps(5)
     const handler = onReviewCreated(deps)
-    await handler({
-      _tag: 'review.created',
-      eventId: 'test-event-id',
-      correlationId: null,
-      reviewId: reviewId('rev-2'),
-      propertyId: propertyId('prop-1'),
-      organizationId: organizationId('org-1'),
-      platform: 'google',
-      externalId: 'ext-2',
-      rating: 5,
-      occurredAt: FIXED_TIME,
-    })
+    await handler(makeEvent({ reviewId: reviewId('rev-2'), externalId: 'ext-2' }))
 
     expect(deps.readings[0]!.value).toBe(5)
     expect(deps.readings[0]!.portalId).toBeNull()
+  })
+
+  it('records nothing when the review content is ineligible (lookup returns null)', async () => {
+    deps = createFakeDeps(null)
+    const recordMetric = vi.fn(deps.recordMetric)
+    const handler = onReviewCreated({ ...deps, recordMetric })
+    await handler(makeEvent())
+
+    expect(recordMetric).not.toHaveBeenCalled()
+    expect(deps.readings).toHaveLength(0)
   })
 
   it('does not throw when recordMetric fails', async () => {
@@ -94,22 +106,12 @@ describe('onReviewCreated', () => {
       recordMetric: async () => {
         throw new Error('DB unavailable')
       },
+      reviewRatingLookup: {
+        getEligibleRatingById: async () => 1,
+      },
     }
     const handler = onReviewCreated(failingDeps)
 
-    await expect(
-      handler({
-        _tag: 'review.created',
-        eventId: 'test-event-id',
-        correlationId: null,
-        reviewId: reviewId('rev-1'),
-        propertyId: propertyId('prop-1'),
-        organizationId: organizationId('org-1'),
-        platform: 'google',
-        externalId: 'ext-1',
-        rating: 1,
-        occurredAt: FIXED_TIME,
-      }),
-    ).resolves.toBeUndefined()
+    await expect(handler(makeEvent())).resolves.toBeUndefined()
   })
 })

@@ -19,11 +19,8 @@ export type CreateInboxItemInput = Readonly<{
   propertyId: PropertyId
   sourceType: SourceType
   sourceId: ReviewId | FeedbackId
-  rating: number | null
   sourceDate: Date
   platform: string | null
-  snippet: string | null
-  reviewerName: string | null
   assignedTo: UserId | null
   clock: () => Date
 }>
@@ -31,17 +28,6 @@ export type CreateInboxItemInput = Readonly<{
 export const createInboxItem = (
   input: CreateInboxItemInput,
 ): Result<InboxItem, InboxError> => {
-  // Validate strings
-  if (input.snippet !== null) {
-    const trimmed = input.snippet.trim()
-    if (trimmed.length > 10000) {
-      return err(
-        inboxError('invalid_input', 'Snippet exceeds 10000 characters', {
-          snippet: input.snippet,
-        }),
-      )
-    }
-  }
   if (input.platform !== null) {
     if (input.platform.length > 50) {
       return err(
@@ -50,13 +36,6 @@ export const createInboxItem = (
         }),
       )
     }
-  }
-  if (input.rating !== null && (input.rating < 1 || input.rating > 5)) {
-    return err(
-      inboxError('invalid_input', 'Rating must be between 1 and 5', {
-        rating: input.rating,
-      }),
-    )
   }
 
   const now = input.clock()
@@ -67,12 +46,14 @@ export const createInboxItem = (
     sourceType: input.sourceType,
     sourceId: input.sourceId,
     status: 'open' as InboxStatus,
-    rating: input.rating,
+    // BQC-1.2: raw source content is never stored on inbox items — rating/
+    // snippet/reviewerName are sourced live via the eligible review lookup.
+    rating: null,
     sourceDate: input.sourceDate,
     platform: input.platform,
-    snippet: input.snippet,
+    snippet: null,
     assignedTo: input.assignedTo,
-    reviewerName: input.reviewerName,
+    reviewerName: null,
     propertyName: null,
     isEscalated: false,
     escalatedAt: null,

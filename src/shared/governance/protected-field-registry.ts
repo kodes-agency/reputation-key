@@ -291,19 +291,19 @@ export const PROTECTED_FIELD_REGISTRY: ReadonlyArray<ProtectedFieldRule> = [
     mustEliminate: false,
   },
 
-  // ── inbox (denormalized convenience copies — BQC-1.2 eliminates) ────
+  // ── inbox (denormalized convenience copies — eliminated in BQC-1.2) ───
   {
     relation: 'inbox_items',
     kind: 'table',
     field: 'snippet',
     classification: 'raw_source_content',
     owner: 'inbox (copy of review)',
-    purpose: 'Denormalized review text copy (full, untruncated)',
-    creationPath: 'on-review-created/updated handlers + durable consumers',
-    readPath: 'inbox list/detail UI',
-    refreshRule: 'none — copy of review clock',
+    purpose: 'Legacy denormalized review text copy — writes stopped in BQC-1.2',
+    creationPath: 'none since BQC-1.2 (handlers removed)',
+    readPath: 'none since BQC-1.2 (mapper never reads it; UI resolves live)',
+    refreshRule: 'n/a — content resolves via eligibility-enforcing review lookup',
     deletionMechanism:
-      'scrubInboxSourceContent on review.expired only; no scrub on property delete (no FK); row never deleted',
+      'null-backfill migration (BQC-1.2, bounded/idempotent); column contraction in BQC-1.6/1.7',
     mustEliminate: true,
   },
   {
@@ -312,12 +312,12 @@ export const PROTECTED_FIELD_REGISTRY: ReadonlyArray<ProtectedFieldRule> = [
     field: 'reviewer_name',
     classification: 'raw_source_content',
     owner: 'inbox (copy of review)',
-    purpose: 'Denormalized reviewer name copy',
-    creationPath: 'on-review-created/updated handlers + durable consumers',
-    readPath: 'inbox list/detail UI',
-    refreshRule: 'none — copy of review clock',
+    purpose: 'Legacy denormalized reviewer name copy — writes stopped in BQC-1.2',
+    creationPath: 'none since BQC-1.2',
+    readPath: 'none since BQC-1.2 (mapper never reads it)',
+    refreshRule: 'n/a — resolves via eligibility-enforcing review lookup',
     deletionMechanism:
-      'scrubInboxSourceContent on review.expired only; row never deleted',
+      'null-backfill migration (BQC-1.2); column contraction in BQC-1.6/1.7',
     mustEliminate: true,
   },
   {
@@ -326,11 +326,13 @@ export const PROTECTED_FIELD_REGISTRY: ReadonlyArray<ProtectedFieldRule> = [
     field: 'rating',
     classification: 'raw_source_content',
     owner: 'inbox (copy of review)',
-    purpose: 'Denormalized rating copy',
-    creationPath: 'on-review-created handler (event payload)',
-    readPath: 'inbox list UI',
-    refreshRule: 'none',
-    deletionMechanism: 'never scrubbed; row never deleted',
+    purpose: 'Legacy denormalized rating copy — writes stopped in BQC-1.2',
+    creationPath: 'none since BQC-1.2',
+    readPath:
+      'none since BQC-1.2 (mapper never reads it; list stars come from live lookup)',
+    refreshRule: 'n/a — resolves via eligibility-enforcing review lookup',
+    deletionMechanism:
+      'null-backfill migration (BQC-1.2); column contraction in BQC-1.6/1.7',
     mustEliminate: true,
   },
   {
@@ -355,7 +357,7 @@ export const PROTECTED_FIELD_REGISTRY: ReadonlyArray<ProtectedFieldRule> = [
     classification: 'local_operational_fact',
     owner: 'activity',
     purpose:
-      'Audit facts {subject, from, to, detail} — embedded googleEmail + note-text (≤100 chars) vectors must become content-free (BQC-1.2)',
+      'Audit facts {subject, from, to, detail} — googleEmail + note-text vectors eliminated in BQC-1.2 (detail: null); rejection reason retained as minimal reason (ADR 0045 r.4)',
     creationPath: 'insert-activity-log job from event handlers',
     readPath: 'activity UI',
     refreshRule: 'content-free facts only (ADR 0045/0046)',
@@ -548,6 +550,7 @@ export const PROTECTED_FIELD_REGISTRY: ReadonlyArray<ProtectedFieldRule> = [
   },
 
   // ── event payload fields (outbox-registered types) ──────────────────
+  // BQC-1.2: review.created/updated no longer carry rating (identifier-only).
   {
     relation: 'event:review.created',
     kind: 'event',
@@ -562,19 +565,6 @@ export const PROTECTED_FIELD_REGISTRY: ReadonlyArray<ProtectedFieldRule> = [
     mustEliminate: false,
   },
   {
-    relation: 'event:review.created',
-    kind: 'event',
-    field: 'rating',
-    classification: 'raw_source_content',
-    owner: 'review',
-    purpose: 'Rating on durable event — residual raw field (BQC-1.2 converts to ID-only)',
-    creationPath: 'review sync emit; outbox allowlist',
-    readPath: 'durable consumers',
-    refreshRule: 'identifier-only target',
-    deletionMechanism: 'outbox retention (never scheduled)',
-    mustEliminate: true,
-  },
-  {
     relation: 'event:review.updated',
     kind: 'event',
     field: 'externalId',
@@ -586,19 +576,6 @@ export const PROTECTED_FIELD_REGISTRY: ReadonlyArray<ProtectedFieldRule> = [
     refreshRule: 'identifier-only event (ADR 0030)',
     deletionMechanism: 'outbox retention (never scheduled)',
     mustEliminate: false,
-  },
-  {
-    relation: 'event:review.updated',
-    kind: 'event',
-    field: 'rating',
-    classification: 'raw_source_content',
-    owner: 'review',
-    purpose: 'Rating on durable event — residual raw field (BQC-1.2 converts to ID-only)',
-    creationPath: 'review sync emit; outbox allowlist',
-    readPath: 'durable consumers',
-    refreshRule: 'identifier-only target',
-    deletionMechanism: 'outbox retention (never scheduled)',
-    mustEliminate: true,
   },
   {
     relation: 'event:property.created',

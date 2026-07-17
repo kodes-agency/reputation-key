@@ -1,4 +1,6 @@
-// Source content display — review text, feedback, or snippet fallback.
+// Source content display — review text, feedback, or an honest unavailable
+// state when the source content is no longer eligible (BQC-1.2: raw copies
+// are never stored, so there is no snippet fallback).
 import { useState } from 'react'
 import { RatingStars } from './inbox-detail-helpers'
 import { formatDateTime } from './utils'
@@ -70,11 +72,21 @@ export function InboxDetailSourceContent({ currentItem, detail }: Props) {
         </div>
       )}
 
-      {!detail?.reviewText && !detail?.feedbackComment && currentItem.snippet && (
-        <div className="rounded-md border bg-muted/30 p-3">
-          <p className="text-sm">{currentItem.snippet}</p>
-        </div>
-      )}
+      {currentItem.sourceType === 'review' &&
+        detail?.reviewContentStatus === 'expired' && (
+          <div className="rounded-md border bg-muted/30 p-3">
+            <p className="text-sm text-muted-foreground">
+              Review content unavailable (source cache expired)
+            </p>
+          </div>
+        )}
+
+      {currentItem.sourceType === 'review' &&
+        detail?.reviewContentStatus === 'not_found' && (
+          <div className="rounded-md border bg-muted/30 p-3">
+            <p className="text-sm text-muted-foreground">Review content unavailable</p>
+          </div>
+        )}
     </>
   )
 }

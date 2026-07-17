@@ -31,11 +31,14 @@ export const inboxItemFromRow = (row: InboxItemRow): Omit<InboxItem, 'propertyNa
   escalationResolvedBy: row.escalationResolvedBy
     ? userId(row.escalationResolvedBy)
     : null,
-  rating: row.rating,
+  // BQC-1.2: denormalized raw copies are never read — rating/snippet/
+  // reviewerName are sourced live via the eligibility-enforcing review
+  // lookup. Legacy column values (pre-backfill) must not be served.
+  rating: null,
   sourceDate: row.sourceDate,
   platform: row.platform,
-  snippet: row.snippet,
-  reviewerName: row.reviewerName,
+  snippet: null,
+  reviewerName: null,
   assignedTo: row.assignedTo ? userId(row.assignedTo) : null,
   closedAt: row.closedAt,
   firstReplySubmittedAt: row.firstReplySubmittedAt,
@@ -60,11 +63,10 @@ export const inboxItemToInsertRow = (
   escalationResolvedBy: item.escalationResolvedBy
     ? unbrand(item.escalationResolvedBy)
     : null,
-  rating: item.rating,
+  // BQC-1.2: no denormalized raw copies — columns stay NULL (BQC-1.6/1.7
+  // contracts the obsolete columns after all readers are gone).
   sourceDate: item.sourceDate,
   platform: item.platform,
-  snippet: item.snippet,
-  reviewerName: item.reviewerName,
   assignedTo: item.assignedTo ? unbrand(item.assignedTo) : null,
   closedAt: item.closedAt,
   firstReplySubmittedAt: item.firstReplySubmittedAt,

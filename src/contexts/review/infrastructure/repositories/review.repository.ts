@@ -9,7 +9,7 @@
 //          batch queries for scheduled jobs. No tenant filter — designed to scan all orgs in
 //          one pass. If total reviews exceed ~5K, these jobs need cursor-based pagination.
 
-import { and, eq, lte, lt, inArray, desc, isNotNull } from 'drizzle-orm'
+import { and, eq, lte, lt, gt, gte, inArray, desc, isNotNull, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { reviews } from '#/shared/db/schema/review.schema'
 import type { ReviewRepository } from '../../application/ports/review.repository'
@@ -124,6 +124,36 @@ export const createReviewRepository = (db: Database): ReviewRepository => ({
         .where(eq(reviews.organizationId, orgId))
         .limit(500)
       return rows.map(reviewFromRow)
+    })
+  },
+
+  /**
+   * BQC-1.2: eligible content filter for cross-context list queries.
+   * Eligibility predicate lives here (defense in depth): non-null
+   * contentExpiresAt strictly in the future. Text search escapes LIKE
+   * wildcards. Bounded at 1000 ids — page-size guard for list filters.
+   */
+  findIdsByContentFilter: async (orgId, filter, now) => {
+    return trace('review.findIdsByContentFilter', async () => {
+      const conditions = [
+        eq(reviews.organizationId, orgId),
+        isNotNull(reviews.contentExpiresAt),
+        gt(reviews.contentExpiresAt, now),
+      ]
+      if (filter.ratingMin !== undefined)
+        conditions.push(gte(reviews.rating, filter.ratingMin))
+      if (filter.ratingMax !== undefined)
+        conditions.push(lte(reviews.rating, filter.ratingMax))
+      if (filter.textQuery) {
+        const escaped = filter.textQuery.replace(/%/g, '\\%').replace(/_/g, '\\_')
+        conditions.push(sql`${reviews.text} ilike ${'%' + escaped + '%'}`)
+      }
+      const rows = await db
+        .select({ id: reviews.id })
+        .from(reviews)
+        .where(and(...conditions))
+        .limit(1000)
+      return rows.map((r) => r.id as string)
     })
   },
 

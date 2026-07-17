@@ -1,4 +1,5 @@
 // Inbox context — on-feedback-submitted event handler tests
+// BQC-1.2: metadata only — guest rating/comment resolve live at read time.
 
 import { describe, it, expect, vi } from 'vitest'
 import { onFeedbackSubmitted } from './on-feedback-submitted'
@@ -32,16 +33,9 @@ const mockEvent: GuestFeedbackSubmitted = {
 }
 
 describe('onFeedbackSubmitted', () => {
-  const feedbackLookupMock = {
-    getFeedbackSnippetById: async () => ({ comment: 'Great!', ratingValue: 4 }),
-  }
-
-  it('creates inbox item for the feedback with denormalized rating', async () => {
+  it('creates inbox item with event metadata only (BQC-1.2)', async () => {
     const createInboxItem = vi.fn(async () => ({})) as unknown as CreateInboxItem
-    const deps = {
-      createInboxItem,
-      feedbackLookup: feedbackLookupMock,
-    }
+    const deps = { createInboxItem }
 
     await onFeedbackSubmitted(deps)(mockEvent)
 
@@ -50,28 +44,9 @@ describe('onFeedbackSubmitted', () => {
       propertyId: PROP_ID,
       sourceType: 'feedback',
       sourceId: FEEDBACK_ID,
-      rating: 4,
       sourceDate: NOW,
       platform: null,
-      snippet: null,
-      reviewerName: null,
     })
-  })
-
-  it('creates inbox item with null rating when feedback lookup returns null', async () => {
-    const createInboxItem = vi.fn(async () => ({})) as unknown as CreateInboxItem
-    const deps = {
-      createInboxItem,
-      feedbackLookup: {
-        getFeedbackSnippetById: async () => null,
-      },
-    }
-
-    await onFeedbackSubmitted(deps)(mockEvent)
-
-    expect(createInboxItem).toHaveBeenCalledWith(
-      expect.objectContaining({ rating: null }),
-    )
   })
 
   it('silently handles already_exists error', async () => {
@@ -85,10 +60,7 @@ describe('onFeedbackSubmitted', () => {
     const createInboxItem = vi.fn(async () => {
       throw alreadyExistsErr
     }) as unknown as CreateInboxItem
-    const deps = {
-      createInboxItem,
-      feedbackLookup: feedbackLookupMock,
-    }
+    const deps = { createInboxItem }
 
     await expect(onFeedbackSubmitted(deps)(mockEvent)).resolves.toBeUndefined()
   })
@@ -97,10 +69,7 @@ describe('onFeedbackSubmitted', () => {
     const createInboxItem = vi.fn(async () => {
       throw new Error('DB down')
     }) as unknown as CreateInboxItem
-    const deps = {
-      createInboxItem,
-      feedbackLookup: feedbackLookupMock,
-    }
+    const deps = { createInboxItem }
 
     await expect(onFeedbackSubmitted(deps)(mockEvent)).resolves.toBeUndefined()
   })

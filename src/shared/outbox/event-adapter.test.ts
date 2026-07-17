@@ -18,7 +18,6 @@ function makeReviewCreated(): DomainEvent {
     organizationId: organizationId('org-1'),
     platform: 'google',
     externalId: 'ext-1',
-    rating: 5,
     occurredAt: NOW,
     correlationId: null,
   } as DomainEvent
@@ -30,12 +29,12 @@ describe('toOutboxEvent allowlist (BQR-2.5)', () => {
     registerEventSchema({
       type: 'review.created',
       version: 1,
+      // BQC-1.2: identifier-only — rating is no longer in the schema.
       schema: z.object({
         reviewId: z.string(),
         organizationId: z.string(),
         propertyId: z.string(),
         externalId: z.string(),
-        rating: z.number().int().min(1).max(5),
         platform: z.string().optional(),
         occurredAt: z.string().optional(),
       }),
@@ -50,10 +49,10 @@ describe('toOutboxEvent allowlist (BQR-2.5)', () => {
       organizationId: 'org-1',
       propertyId: 'prop-1',
       externalId: 'ext-1',
-      rating: 5,
       platform: 'google',
       occurredAt: NOW.toISOString(),
     })
+    expect(row.payload).not.toHaveProperty('rating')
     expect(row.payload).not.toHaveProperty('reviewerName')
     expect(row.payload).not.toHaveProperty('reviewText')
     expect(row.payload).not.toHaveProperty('_tag')
@@ -90,7 +89,7 @@ describe('toOutboxEvent allowlist (BQR-2.5)', () => {
       reviewId: reviewId('rev-2'),
       propertyId: propertyId('prop-1'),
       organizationId: organizationId('org-1'),
-      // missing externalId + rating
+      // missing externalId
       occurredAt: NOW,
       correlationId: null,
     } as unknown as DomainEvent

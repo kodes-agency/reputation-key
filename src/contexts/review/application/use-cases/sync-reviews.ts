@@ -210,14 +210,14 @@ async function syncOneReview(
       persisted = true
     } else {
       // BQR-2.3: review row + outbox event in one transaction (via command store).
-      // BQR-4.2: identifier-only domain event (no reviewerName / reviewText).
+      // BQC-1.2: identifier-only domain event — no rating (raw content);
+      // consumers resolve content via the authorized read at consume time.
       const eventPayload = {
         reviewId: review.id,
         propertyId: input.propertyId,
         organizationId: input.organizationId,
         platform: 'google' as const,
         externalId: gr.externalId,
-        rating: gr.rating,
         occurredAt: gr.reviewedAt,
       }
       const event = isNew ? reviewCreated(eventPayload) : reviewUpdated(eventPayload)

@@ -33,18 +33,17 @@ describe('createInboxItem', () => {
       propertyId: PROP_ID,
       sourceType: 'review' as SourceType,
       sourceId: reviewId('rev-1'),
-      rating: 4,
       sourceDate: new Date('2026-04-10'),
       platform: 'google',
-      snippet: 'Great stay!',
-      reviewerName: null,
     })
 
     expect(item.id).toBe(FIXED_ID)
     expect(item.status).toBe('open')
-    expect(item.rating).toBe(4)
+    // BQC-1.2: raw source content is never stored — always null.
+    expect(item.rating).toBeNull()
     expect(item.platform).toBe('google')
-    expect(item.snippet).toBe('Great stay!')
+    expect(item.snippet).toBeNull()
+    expect(item.reviewerName).toBeNull()
     expect(repo.items).toHaveLength(1)
   })
 
@@ -56,11 +55,8 @@ describe('createInboxItem', () => {
       propertyId: PROP_ID,
       sourceType: 'review' as SourceType,
       sourceId: reviewId('rev-1'),
-      rating: 5,
       sourceDate: new Date('2026-04-10'),
       platform: null,
-      snippet: null,
-      reviewerName: null,
     })
 
     const emitted = events.capturedEvents
@@ -76,11 +72,8 @@ describe('createInboxItem', () => {
       propertyId: PROP_ID,
       sourceType: 'review' as SourceType,
       sourceId: reviewId('rev-1'),
-      rating: 3,
       sourceDate: new Date('2026-04-10'),
       platform: 'google',
-      snippet: 'OK',
-      reviewerName: null,
     }
 
     await useCase(input)

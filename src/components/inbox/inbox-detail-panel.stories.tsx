@@ -81,6 +81,7 @@ export const Populated: Story = {
         item,
         reviewText: 'Great location and very clean rooms.',
         reviewerProfilePhotoUrl: null,
+        reviewContentStatus: 'available',
         feedbackComment: null,
         feedbackRatingValue: null,
         reply: null,

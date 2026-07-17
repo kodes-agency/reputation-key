@@ -1,4 +1,5 @@
 // Inbox context — on-review-created event handler tests
+// BQC-1.2: metadata only — no review lookup, no raw content copied.
 
 import { describe, it, expect, vi } from 'vitest'
 import { onReviewCreated } from './on-review-created'
@@ -12,7 +13,6 @@ vi.mock('#/shared/observability/logger', () => ({
   }),
 }))
 import type { CreateInboxItem } from '../../application/use-cases/create-inbox-item'
-import type { ReviewLookupPort } from '../../application/ports/review-lookup.port'
 import type { ReviewCreated } from '#/contexts/review/application/public-api'
 import { organizationId, reviewId, propertyId } from '#/shared/domain/ids'
 
@@ -30,60 +30,25 @@ const mockEvent: ReviewCreated = {
   organizationId: ORG_ID,
   platform: 'google',
   externalId: 'ext-1',
-  rating: 4,
   occurredAt: NOW,
 }
 
 describe('onReviewCreated', () => {
-  it('creates inbox item with content from review lookup (BQR-4.2)', async () => {
+  it('creates inbox item with event metadata only (BQC-1.2)', async () => {
     const createInboxItem = vi.fn(async () => ({}))
-    const reviewLookup = {
-      getReviewSnippetById: vi.fn(async () => ({
-        reviewerName: 'Test Reviewer',
-        text: 'Nice hotel',
-        reviewerProfilePhotoUrl: null,
-      })),
-      getReviewSnippetsByIds: vi.fn(async () => new Map()),
-    } satisfies ReviewLookupPort
 
     await onReviewCreated({
       createInboxItem: createInboxItem as unknown as CreateInboxItem,
-      reviewLookup,
     })(mockEvent)
 
-    expect(reviewLookup.getReviewSnippetById).toHaveBeenCalledWith(REVIEW_ID, ORG_ID)
     expect(createInboxItem).toHaveBeenCalledWith({
       organizationId: ORG_ID,
       propertyId: PROP_ID,
       sourceType: 'review',
       sourceId: REVIEW_ID,
-      rating: 4,
       sourceDate: NOW,
       platform: 'google',
-      snippet: 'Nice hotel',
-      reviewerName: 'Test Reviewer',
     })
-  })
-
-  it('passes null snippet when lookup returns no text', async () => {
-    const createInboxItem = vi.fn(async () => ({}))
-    const reviewLookup = {
-      getReviewSnippetById: vi.fn(async () => ({
-        reviewerName: null,
-        text: null,
-        reviewerProfilePhotoUrl: null,
-      })),
-      getReviewSnippetsByIds: vi.fn(async () => new Map()),
-    } satisfies ReviewLookupPort
-
-    await onReviewCreated({
-      createInboxItem: createInboxItem as unknown as CreateInboxItem,
-      reviewLookup,
-    })(mockEvent)
-
-    expect(createInboxItem).toHaveBeenCalledWith(
-      expect.objectContaining({ snippet: null, reviewerName: null }),
-    )
   })
 
   it('silently handles already_exists error', async () => {
@@ -97,19 +62,22 @@ describe('onReviewCreated', () => {
     const createInboxItem = vi.fn(async () => {
       throw alreadyExistsErr
     })
-    const reviewLookup = {
-      getReviewSnippetById: vi.fn(async () => ({
-        reviewerName: null,
-        text: null,
-        reviewerProfilePhotoUrl: null,
-      })),
-      getReviewSnippetsByIds: vi.fn(async () => new Map()),
-    } satisfies ReviewLookupPort
 
     await expect(
       onReviewCreated({
         createInboxItem: createInboxItem as unknown as CreateInboxItem,
-        reviewLookup,
+      })(mockEvent),
+    ).resolves.toBeUndefined()
+  })
+
+  it('logs and swallows other errors', async () => {
+    const createInboxItem = vi.fn(async () => {
+      throw new Error('DB down')
+    })
+
+    await expect(
+      onReviewCreated({
+        createInboxItem: createInboxItem as unknown as CreateInboxItem,
       })(mockEvent),
     ).resolves.toBeUndefined()
   })

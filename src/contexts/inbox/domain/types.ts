@@ -57,6 +57,8 @@ export type InboxItemDetail = Readonly<{
   // Review-specific (null for feedback)
   reviewText: string | null
   reviewerProfilePhotoUrl: string | null
+  /** BQC-1.2: typed eligibility outcome of the authorized review read. */
+  reviewContentStatus: 'available' | 'expired' | 'not_found' | null
   // Feedback-specific (null for reviews)
   feedbackComment: string | null
   feedbackRatingValue: number | null

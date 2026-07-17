@@ -155,25 +155,24 @@ export function createInMemoryInboxRepo(): InboxRepository & { items: InboxItem[
             propertyIds.length === 0 ||
             propertyIds.includes(i.propertyId)),
       ).length,
-    syncDenormalizedFields: async () => {},
     findDetailById: async (id, orgId) => {
       const item = items.find((i) => i.id === id && i.organizationId === orgId)
       if (!item) return null
       if (item.sourceType === 'review') {
         return {
           item,
-          reviewerName: 'Test Reviewer',
           reviewText: 'Test review text',
           reviewerProfilePhotoUrl: null,
+          reviewContentStatus: 'available' as const,
           feedbackComment: null,
           feedbackRatingValue: null,
         }
       }
       return {
         item,
-        reviewerName: null,
         reviewText: null,
         reviewerProfilePhotoUrl: null,
+        reviewContentStatus: null,
         feedbackComment: 'Test feedback comment',
         feedbackRatingValue: item.rating,
       }

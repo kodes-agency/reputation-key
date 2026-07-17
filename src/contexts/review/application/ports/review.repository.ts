@@ -23,6 +23,17 @@ export type ReviewRepository = Readonly<{
   ): Promise<ReadonlyArray<Review>>
   findByOrganizationId(orgId: OrganizationId): Promise<ReadonlyArray<Review>>
   /**
+   * Review-owned eligible id query for cross-context list filters (BQC-1.2).
+   * Returns ids of reviews whose content is eligible at `now`
+   * (contentExpiresAt IS NOT NULL AND > now), optionally narrowed by rating
+   * range and case-insensitive text search. Callers avoid cross-context JOINs.
+   */
+  findIdsByContentFilter(
+    orgId: OrganizationId,
+    filter: Readonly<{ ratingMin?: number; ratingMax?: number; textQuery?: string }>,
+    now: Date,
+  ): Promise<ReadonlyArray<string>>
+  /**
    * ⚠️ CROSS-TENANT: System-level query — scans ALL orgs.
    * Reviews with non-null `contentExpiresAt <= date` (inclusive).
    * Used by refresh-expiring (pass refresh-due threshold).

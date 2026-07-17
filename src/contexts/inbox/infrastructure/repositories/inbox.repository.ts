@@ -15,7 +15,10 @@ import type {
   Cursor,
   PaginatedResult,
 } from '../../application/ports/inbox.repository'
-import type { ReviewLookupPort } from '../../application/ports/review-lookup.port'
+import type {
+  ReviewLookupPort,
+  ReviewSnippet,
+} from '../../application/ports/review-lookup.port'
 import type { FeedbackLookupPort } from '../../application/ports/feedback-lookup.port'
 import type { PropertyLookupPort } from '../../application/ports/property-lookup.port'
 import type { InboxItem, InboxStatus, SourceType } from '../../domain/types'
@@ -111,6 +114,23 @@ export const createInboxRepository = (
       const conditions = buildFilterConditions(filters, orgId)
       if (conditions === null) return { items: [], nextCursor: null } as PaginatedResult
 
+      // BQC-1.2: rating range / free-text search run against live, eligible
+      // reviews via the Review-owned query (no denormalized copies, no JOINs).
+      if (
+        filters.ratingMin !== undefined ||
+        filters.ratingMax !== undefined ||
+        filters.q
+      ) {
+        const eligibleIds = await ports.reviewLookup.findEligibleReviewIds(orgId, {
+          ratingMin: filters.ratingMin,
+          ratingMax: filters.ratingMax,
+          textQuery: filters.q,
+        })
+        if (eligibleIds.length === 0)
+          return { items: [], nextCursor: null } as PaginatedResult
+        conditions.push(inArray(inboxItems.sourceId, [...eligibleIds]))
+      }
+
       // Cursor-based pagination: sourceDate DESC, id DESC
       // Keyset pagination: ORDER BY sourceDate DESC, id DESC means
       // "next page" = rows with (sourceDate, id) < cursor value
@@ -130,7 +150,7 @@ export const createInboxRepository = (
 
       const sliced = rows.slice(0, limit)
 
-      // Enrich with review/property names via lookup ports (batch)
+      // Enrich with live eligible review content + property names (batch)
       const reviewIdsToFetch = sliced
         .filter((r) => r.sourceType === 'review')
         .map((r) => r.sourceId)
@@ -138,22 +158,21 @@ export const createInboxRepository = (
       const propertyIdsToFetch = [...new Set(sliced.map((r) => r.propertyId))]
 
       const [reviewSnippets, propertyNames] = await Promise.all([
-        batchReviewNames(ports, reviewIdsToFetch, orgId),
+        batchReviewSnippets(ports, reviewIdsToFetch, orgId),
         batchPropertyNames(ports, propertyIdsToFetch, orgId),
       ])
 
       const items = sliced.map((row) => {
         const item = inboxItemFromRow(row)
+        // BQC-1.2: rating/snippet/reviewerName come only from the live
+        // eligible lookup — expired/missing content renders as nulls.
+        const live =
+          row.sourceType === 'review' ? reviewSnippets.get(row.sourceId) : undefined
         return {
           ...item,
-          // Denormalized column takes priority (survives review deletion).
-          // Fall back to dynamic lookup for legacy items created before
-          // the reviewer_name column was added.
-          reviewerName:
-            item.reviewerName ??
-            (row.sourceType === 'review'
-              ? (reviewSnippets.get(row.sourceId)?.reviewerName ?? null)
-              : null),
+          rating: live?.rating ?? null,
+          snippet: live?.text ?? null,
+          reviewerName: live?.reviewerName ?? null,
           propertyName: propertyNames.get(row.propertyId) ?? null,
         }
       })
@@ -389,33 +408,6 @@ export const createInboxRepository = (
     })
   },
 
-  syncDenormalizedFields: async (
-    id: InboxItemId,
-    orgId: OrganizationId,
-    fields: {
-      rating?: number
-      snippet?: string | null
-      reviewerName?: string | null
-      sourceDate?: Date
-    },
-    now?: Date,
-  ) => {
-    return trace('inbox.syncDenormalizedFields', async () => {
-      const result = await db
-        .update(inboxItems)
-        .set({ ...fields, updatedAt: now ?? new Date() })
-        .where(and(eq(inboxItems.id, id), eq(inboxItems.organizationId, orgId)))
-        .returning()
-
-      if (!result[0]) {
-        log.warn(
-          { id: id as string, orgId: orgId as string },
-          'syncDenormalizedFields matched no rows — fire-and-forget',
-        )
-      }
-    })
-  },
-
   findDetailById: async (id: InboxItemId, orgId: OrganizationId) => {
     return trace('inbox.findDetailById', async () => {
       const start = Date.now()
@@ -439,28 +431,28 @@ export const createInboxRepository = (
         orgId,
       )
 
-      // Enrich via lookup ports instead of cross-context JOINs
-      // Denormalized column takes priority (survives review deletion);
-      // fall back to lookup for legacy items pre-denormalization.
-      let reviewerName: string | null = item.reviewerName
       if (item.sourceType === 'review') {
-        const snippet = await ports.reviewLookup.getReviewSnippetById(
+        // BQC-1.2: content comes only from the eligibility-enforcing lookup;
+        // expired/missing yields a typed status, never stale fields.
+        const result = await ports.reviewLookup.getReviewSnippetById(
           reviewId(item.sourceId),
           orgId,
         )
-        if (!reviewerName) reviewerName = snippet?.reviewerName ?? null
+        const snippet = result.status === 'available' ? result.snippet : null
         log.debug(
           {
             id: id as string,
             orgId: orgId as string,
+            contentStatus: result.status,
             duration: Date.now() - start,
           },
           'inbox findDetailById review enrichment',
         )
         return {
-          item: { ...item, propertyName, reviewerName },
+          item: { ...item, propertyName, reviewerName: snippet?.reviewerName ?? null },
           reviewText: snippet?.text ?? null,
           reviewerProfilePhotoUrl: snippet?.reviewerProfilePhotoUrl ?? null,
+          reviewContentStatus: result.status,
           feedbackComment: null,
           feedbackRatingValue: null,
         }
@@ -476,9 +468,10 @@ export const createInboxRepository = (
         'inbox findDetailById complete',
       )
       return {
-        item: { ...item, propertyName, reviewerName },
+        item: { ...item, propertyName, reviewerName: null },
         reviewText: null,
         reviewerProfilePhotoUrl: null,
+        reviewContentStatus: null,
         feedbackComment: snippet?.comment ?? null,
         feedbackRatingValue: snippet?.ratingValue ?? null,
       }
@@ -519,41 +512,26 @@ const buildFilterConditions = (
   // Simple equality / range filters
   if (filters.sourceType) conditions.push(eq(inboxItems.sourceType, filters.sourceType))
   if (filters.platform) conditions.push(eq(inboxItems.platform, filters.platform))
-  if (filters.ratingMin !== undefined)
-    conditions.push(gte(inboxItems.rating, filters.ratingMin))
-  if (filters.ratingMax !== undefined)
-    conditions.push(lte(inboxItems.rating, filters.ratingMax))
+  // BQC-1.2: rating range and free-text search are applied via
+  // reviewLookup.findEligibleReviewIds at the call site — never against
+  // denormalized copies.
   if (filters.sourceDateFrom)
     conditions.push(gte(inboxItems.sourceDate, filters.sourceDateFrom))
   if (filters.sourceDateTo)
     conditions.push(lte(inboxItems.sourceDate, filters.sourceDateTo))
-
-  // Free-text search on the denormalized snippet (escape LIKE wildcards)
-  if (filters.q) {
-    const escaped = filters.q.replace(/%/g, '\\%').replace(/_/g, '\\_')
-    conditions.push(sql`${inboxItems.snippet} ilike ${'%' + escaped + '%'}`)
-  }
 
   return conditions
 }
 
 // ── Batch helpers ──────────────────────────────────────────────────
 
-async function batchReviewNames(
+async function batchReviewSnippets(
   ports: LookupPorts,
   sourceIds: string[],
   orgId: OrganizationId,
-): Promise<Map<string, { reviewerName: string | null }>> {
-  const map = new Map<string, { reviewerName: string | null }>()
-  if (sourceIds.length === 0) return map
-  const snippets = await ports.reviewLookup.getReviewSnippetsByIds(
-    sourceIds.map(reviewId),
-    orgId,
-  )
-  for (const [id, snippet] of snippets) {
-    map.set(id, { reviewerName: snippet.reviewerName })
-  }
-  return map
+): Promise<ReadonlyMap<string, ReviewSnippet>> {
+  if (sourceIds.length === 0) return new Map<string, ReviewSnippet>()
+  return ports.reviewLookup.getReviewSnippetsByIds(sourceIds.map(reviewId), orgId)
 }
 
 async function batchPropertyNames(

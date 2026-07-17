@@ -4,7 +4,10 @@
 
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest'
 import { createInboxRepository } from './inbox.repository'
-import type { ReviewLookupPort } from '../../application/ports/review-lookup.port'
+import type {
+  ReviewLookupPort,
+  ReviewSnippetResult,
+} from '../../application/ports/review-lookup.port'
 import type { FeedbackLookupPort } from '../../application/ports/feedback-lookup.port'
 import type { PropertyLookupPort } from '../../application/ports/property-lookup.port'
 import { getDb } from '#/shared/db'
@@ -34,8 +37,11 @@ const db = getDb()
 // Stub lookup ports — inbox repo owns the SQL, these just provide enrichment data
 const stubPorts = {
   reviewLookup: {
-    getReviewSnippetById: async () => null,
+    getReviewSnippetById: async (): Promise<ReviewSnippetResult> => ({
+      status: 'not_found',
+    }),
     getReviewSnippetsByIds: async () => new Map(),
+    findEligibleReviewIds: async () => [] as string[],
   } satisfies ReviewLookupPort,
   feedbackLookup: {
     getFeedbackSnippetById: async () => null,
@@ -165,8 +171,11 @@ describe('inbox repository — CRUD', () => {
     expect(found).not.toBeNull()
     expect(found!.id).toBe(item.id)
     expect(found!.status).toBe('open')
-    expect(found!.rating).toBe(4)
-    expect(found!.reviewerName).toBe('John Doe')
+    // BQC-1.2: denormalized content columns are never written nor read back —
+    // rating/snippet/reviewerName resolve live via the review lookup.
+    expect(found!.rating).toBeNull()
+    expect(found!.snippet).toBeNull()
+    expect(found!.reviewerName).toBeNull()
   })
 
   it('findById returns null for non-existent id', async () => {
@@ -401,6 +410,9 @@ describe('inbox repository — detail view', () => {
     expect(detail).not.toBeNull()
     expect(detail!.item.id).toBe(item.id)
     expect(detail!.item.sourceType).toBe('review')
+    // BQC-1.2: the stub lookup reports not_found — typed status, no content.
+    expect(detail!.reviewContentStatus).toBe('not_found')
+    expect(detail!.reviewText).toBeNull()
   })
 
   it('findDetailById returns null for non-existent item', async () => {
@@ -409,42 +421,85 @@ describe('inbox repository — detail view', () => {
   })
 })
 
-describe('inbox repository — denormalized field sync', () => {
+describe('inbox repository — live content lookup (BQC-1.2)', () => {
   const repo = createInboxRepository(db, stubPorts)
 
-  it('syncDenormalizedFields updates rating and snippet', async () => {
-    const item = makeInboxItem({ rating: 3, snippet: 'Old text' })
-    await repo.create(item, ORG_A)
+  it('list items read rating/snippet/reviewerName from the eligible lookup map', async () => {
+    const srcId = crypto.randomUUID()
+    await repo.create(makeInboxItem({ sourceId: reviewId(srcId) }), ORG_A)
 
-    await repo.syncDenormalizedFields(item.id, ORG_A, {
-      rating: 5,
-      snippet: 'Updated text',
-      reviewerName: 'Jane Smith',
+    const liveRepo = createInboxRepository(db, {
+      ...stubPorts,
+      reviewLookup: {
+        ...stubPorts.reviewLookup,
+        getReviewSnippetsByIds: async () =>
+          new Map([
+            [
+              srcId,
+              {
+                text: 'Live text',
+                reviewerName: 'Live Reviewer',
+                reviewerProfilePhotoUrl: null,
+                rating: 5,
+              },
+            ],
+          ]),
+      },
     })
 
-    const found = await repo.findById(item.id, ORG_A)
-    expect(found!.rating).toBe(5)
-    expect(found!.snippet).toBe('Updated text')
-    expect(found!.reviewerName).toBe('Jane Smith')
+    const result = await liveRepo.findFilteredPaginated({}, ORG_A, undefined, 50)
+    expect(result.items).toHaveLength(1)
+    expect(result.items[0]!.rating).toBe(5)
+    expect(result.items[0]!.snippet).toBe('Live text')
+    expect(result.items[0]!.reviewerName).toBe('Live Reviewer')
   })
 
-  it('syncDenormalizedFields clears snippet and reviewerName when set to null (BQR-3.3)', async () => {
-    const item = makeInboxItem({
-      rating: 4,
-      snippet: 'Raw review text',
-      reviewerName: 'John Doe',
-    })
-    await repo.create(item, ORG_A)
+  it('list items render nulls when the lookup has no eligible snippet', async () => {
+    await repo.create(makeInboxItem({ sourceId: reviewId(crypto.randomUUID()) }), ORG_A)
 
-    await repo.syncDenormalizedFields(item.id, ORG_A, {
-      snippet: null,
-      reviewerName: null,
+    const result = await repo.findFilteredPaginated({}, ORG_A, undefined, 50)
+    expect(result.items).toHaveLength(1)
+    expect(result.items[0]!.rating).toBeNull()
+    expect(result.items[0]!.snippet).toBeNull()
+    expect(result.items[0]!.reviewerName).toBeNull()
+  })
+
+  it('rating/search filters resolve via reviewLookup.findEligibleReviewIds', async () => {
+    const srcMatch = crypto.randomUUID()
+    const srcOther = crypto.randomUUID()
+    await repo.create(makeInboxItem({ sourceId: reviewId(srcMatch) }), ORG_A)
+    await repo.create(makeInboxItem({ sourceId: reviewId(srcOther) }), ORG_A)
+
+    const filteredRepo = createInboxRepository(db, {
+      ...stubPorts,
+      reviewLookup: {
+        ...stubPorts.reviewLookup,
+        findEligibleReviewIds: async () => [srcMatch],
+      },
     })
 
-    const found = await repo.findById(item.id, ORG_A)
-    expect(found!.snippet).toBeNull()
-    expect(found!.reviewerName).toBeNull()
-    expect(found!.rating).toBe(4)
+    const result = await filteredRepo.findFilteredPaginated(
+      { ratingMin: 4 },
+      ORG_A,
+      undefined,
+      50,
+    )
+    expect(result.items).toHaveLength(1)
+    expect(result.items[0]!.sourceId).toBe(reviewId(srcMatch))
+  })
+
+  it('rating/search filters match nothing when no reviews are eligible', async () => {
+    await repo.create(makeInboxItem({ sourceId: reviewId(crypto.randomUUID()) }), ORG_A)
+
+    // stubPorts.findEligibleReviewIds returns [] — provably empty result.
+    const result = await repo.findFilteredPaginated(
+      { ratingMin: 4 },
+      ORG_A,
+      undefined,
+      50,
+    )
+    expect(result.items).toHaveLength(0)
+    expect(result.nextCursor).toBeNull()
   })
 })
 

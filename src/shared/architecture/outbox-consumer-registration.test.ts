@@ -30,17 +30,17 @@ describe('BQR-2.2: outbox consumer registration', () => {
     expect(compositionSrc).toContain('registerInboxConsumers')
   })
 
-  it('inbox outbox-consumers registers the three review→inbox consumers', () => {
+  it('inbox outbox-consumers registers the two review→inbox consumers (BQC-1.2)', () => {
     const src = readFileSync(
       join(ROOT, 'src/contexts/inbox/infrastructure/outbox-consumers.ts'),
       'utf-8',
     )
     expect(src).toContain("eventType: 'review.created'")
     expect(src).toContain("consumerName: 'inbox.on-review-created'")
-    expect(src).toContain("eventType: 'review.updated'")
-    expect(src).toContain("consumerName: 'inbox.on-review-updated'")
     expect(src).toContain("eventType: 'review.expired'")
     expect(src).toContain("consumerName: 'inbox.on-review-expired'")
+    // BQC-1.2: review.updated has no consumer — denormalized copies are gone.
+    expect(src).not.toContain("consumerName: 'inbox.on-review-updated'")
   })
 
   it('listRegisteredConsumers is empty after clear', () => {
@@ -54,15 +54,18 @@ describe('BQR-2.2: outbox consumer registration', () => {
     expect(listRegisteredConsumers()).toEqual([])
   })
 
-  it('BQR-2.4: updated/expired consumers perform real projection work', () => {
+  it('BQR-2.4 / BQC-1.2: created/expired consumers perform real projection work', () => {
     const src = readFileSync(
       join(ROOT, 'src/contexts/inbox/infrastructure/outbox-consumers.ts'),
       'utf-8',
     )
-    expect(src).toContain('syncDenormalizedFields')
+    expect(src).toContain('createInboxItem')
     expect(src).toContain('updateStatus')
-    expect(src).toContain('handleInboxReviewUpdated')
+    expect(src).toContain('handleInboxReviewCreated')
     expect(src).toContain('handleInboxReviewExpired')
+    // BQC-1.2: no denormalized-field syncing remains.
+    expect(src).not.toContain('syncDenormalizedFields')
+    expect(src).not.toContain('handleInboxReviewUpdated')
     expect(src).not.toMatch(/TODO: Implement inbox item update/)
     expect(src).not.toMatch(/for now, mark as applied/i)
   })

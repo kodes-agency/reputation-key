@@ -20,6 +20,19 @@ export { computeReviewContentHash, contentRefreshDueThreshold, contentRefreshLea
 
 const DEFAULT_POLICY = createGoogleSourceContentPolicy()
 
+/**
+ * BQC-1.2: the read-time eligibility rule (ADR 0031). Content is servable
+ * only while a successful-fetch clock exists and has not passed. Clock-less
+ * rows fail closed — local reads, scheduler touches, copies, backups, and
+ * model calls never extend the clock.
+ */
+export function isContentEligibleForRead(
+  contentExpiresAt: Date | null,
+  now: Date,
+): boolean {
+  return contentExpiresAt !== null && contentExpiresAt > now
+}
+
 export type ReviewContentStatus = 'fresh' | 'refresh_due' | 'expired' | 'no_content'
 
 export type ReviewContentCheck = Readonly<{

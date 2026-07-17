@@ -49,11 +49,9 @@ export const onInboxItemCreated =
     const isReview = event.sourceType === 'review'
     const type = isReview ? 'review.created' : 'feedback.created'
     const title = isReview ? 'New review' : 'New feedback'
-    const body = isReview
-      ? event.rating
-        ? `${event.rating}-star review received`
-        : 'New review received'
-      : 'A guest submitted feedback'
+    // BQC-1.2: content-free template — no rating (raw source content);
+    // ADR 0046 r.8: property/resource/status metadata only.
+    const body = isReview ? 'New review received' : 'A guest submitted feedback'
 
     await Promise.all(
       recipients.map((userId) =>

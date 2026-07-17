@@ -29,11 +29,8 @@ const baseItemInput = (id: string) => ({
   propertyId: PROP_ID,
   sourceType: 'review' as const,
   sourceId: REVIEW_ID,
-  rating: null,
   sourceDate: NOW,
   platform: null,
-  snippet: null,
-  reviewerName: null,
   assignedTo: null,
   clock,
 })
@@ -51,11 +48,8 @@ describe('createInboxItem', () => {
       propertyId: PROP_ID,
       sourceType: 'review',
       sourceId: REVIEW_ID,
-      rating: 4,
       sourceDate: new Date('2025-05-20T10:00:00Z'),
       platform: 'google',
-      snippet: 'Great experience!',
-      reviewerName: null,
       assignedTo: null,
       clock,
     })
@@ -65,7 +59,10 @@ describe('createInboxItem', () => {
       const item = result.value
       expect(item.id).toBe(inboxItemId('item-1'))
       expect(item.status).toBe('open')
-      expect(item.rating).toBe(4)
+      // BQC-1.2: raw source content is never stored — always null.
+      expect(item.rating).toBeNull()
+      expect(item.snippet).toBeNull()
+      expect(item.reviewerName).toBeNull()
       expect(item.closedAt).toBeNull()
       expect(item.escalatedAt).toBeNull()
       expect(item.isEscalated).toBe(false)
@@ -81,11 +78,8 @@ describe('createInboxItem', () => {
       propertyId: PROP_ID,
       sourceType: 'feedback',
       sourceId: FEEDBACK_ID,
-      rating: null,
       sourceDate: new Date('2025-05-21T10:00:00Z'),
       platform: null,
-      snippet: null,
-      reviewerName: null,
       assignedTo: USER_ID,
       clock,
     })
@@ -99,18 +93,6 @@ describe('createInboxItem', () => {
     }
   })
 
-  it('returns Err for rating below 1', () => {
-    const result = createInboxItem({ ...baseItemInput('item-3'), rating: 0 })
-    expectInvalid(result)
-    if (result.isErr()) expect(result.error.context).toEqual({ rating: 0 })
-  })
-
-  it('returns Err for rating above 5', () => {
-    const result = createInboxItem({ ...baseItemInput('item-4'), rating: 6 })
-    expectInvalid(result)
-    if (result.isErr()) expect(result.error.context).toEqual({ rating: 6 })
-  })
-
   it('returns Err for platform exceeding 50 characters', () => {
     const result = createInboxItem({
       ...baseItemInput('item-5'),
@@ -118,15 +100,6 @@ describe('createInboxItem', () => {
     })
     expectInvalid(result)
     if (result.isErr()) expect(result.error.message).toContain('Platform')
-  })
-
-  it('returns Err for snippet exceeding 10000 characters', () => {
-    const result = createInboxItem({
-      ...baseItemInput('item-6'),
-      snippet: 'a'.repeat(10001),
-    })
-    expectInvalid(result)
-    if (result.isErr()) expect(result.error.message).toContain('Snippet')
   })
 })
 
