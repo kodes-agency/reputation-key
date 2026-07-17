@@ -152,6 +152,24 @@ export const createGoogleConnectionRepository = (
     })
   },
 
+  redactForDisconnect: async (orgId, id) => {
+    return trace('googleConnection.redactForDisconnect', async () => {
+      await db
+        .update(googleConnections)
+        .set({
+          encryptedAccessToken: 'redacted',
+          encryptedRefreshToken: 'redacted',
+          googleEmail: 'redacted',
+          googleAccountId: `redacted:${id}`,
+          scopes: [],
+          updatedAt: new Date(),
+        })
+        .where(
+          and(eq(googleConnections.organizationId, orgId), eq(googleConnections.id, id)),
+        )
+    })
+  },
+
   updateVisibility: async (orgId, id, visibility) => {
     return trace('googleConnection.updateVisibility', async () => {
       await db

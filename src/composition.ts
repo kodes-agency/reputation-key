@@ -252,6 +252,7 @@ export function createContainer(options?: {
   })
 
   const property = buildPropertyContext({
+    db,
     repo: createPropertyRepository(db),
     events: eventBus,
     outboxRepo,

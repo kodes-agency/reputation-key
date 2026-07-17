@@ -1,5 +1,6 @@
 // Integration context — disconnect Google account use case
-// Steps: authorize → find connection → revoke token → mark disconnected → purge cache → emit
+// Steps: authorize → find connection → unsubscribe/revoke → mark disconnected →
+// purge cache → purge source content (BQC-1.7) → redact identifiers → emit
 
 import type { GoogleConnectionRepository } from '../ports/google-connection.repository'
 import type { GoogleOAuthPort } from '../ports/google-oauth.port'
@@ -10,6 +11,7 @@ import type { GoogleConnection } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { DisconnectGoogleInput } from '../dto/disconnect-google.dto'
 export type { DisconnectGoogleInput as DisconnectGoogleAccountInput } from '../dto/disconnect-google.dto'
+import type { SourceContentPurge } from '#/contexts/review/application/ports/source-content-purge.port'
 import { canForContext } from '#/shared/domain/permissions'
 import { googleConnectionId, type OrganizationId } from '#/shared/domain/ids'
 import { integrationError } from '../../domain/errors'
@@ -33,6 +35,11 @@ export type DisconnectGoogleAccountDeps = Readonly<{
     organizationId: OrganizationId,
     connectionId: string,
   ) => Promise<void>
+  /**
+   * BQC-1.7: bounded lifecycle purge of the connection's source content.
+   * Optional until wired in composition (kept out of older test fixtures).
+   */
+  sourceContentPurge?: SourceContentPurge
   outboxRepo?: OutboxRepository
 }>
 
@@ -94,7 +101,19 @@ export const disconnectGoogleAccount =
     // 5. Purge cache
     await deps.cacheRepo.deleteByConnectionId(connectionId, ctx.organizationId)
 
-    // 6. Emit event
+    // 6. BQC-1.7: bounded lifecycle purge of source content for this
+    // connection — reviews (and replies via per-batch FK cascade), with
+    // content-free evidence. Without a valid grant, refresh is impossible;
+    // keeping the content would be an unmanaged copy (ADR 0031).
+    if (deps.sourceContentPurge) {
+      await deps.sourceContentPurge.forConnection(ctx.organizationId, input.connectionId)
+    }
+
+    // 7. BQC-1.7: remove provider identifiers and secret material. The
+    // connection row stays as a content-free audit fact.
+    await deps.connectionRepo.redactForDisconnect(ctx.organizationId, connectionId)
+
+    // 8. Emit event
     await emitAndRecord(
       deps.events,
       deps.outboxRepo,

@@ -1,6 +1,6 @@
 // Integration context — disconnect Google account use case tests
 
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { disconnectGoogleAccount } from './disconnect-google-account'
 import { createInMemoryGoogleConnectionRepo } from '#/shared/testing/in-memory-google-connection-repo'
 import { createInMemoryGoogleOAuthPort } from '#/shared/testing/in-memory-google-oauth-port'
@@ -37,8 +37,8 @@ const setup = () => {
 }
 
 describe('disconnectGoogleAccount', () => {
-  it('updates status to disconnected, purges cache, and emits event', async () => {
-    const { useCase, connectionRepo, cacheRepo, events } = setup()
+  it('updates status to disconnected, purges cache, purges source content, redacts identifiers, and emits event', async () => {
+    const { connectionRepo, cacheRepo, events } = setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
     const connection = buildTestGoogleConnection({ status: 'active' })
     connectionRepo.seed([connection])
@@ -63,10 +63,45 @@ describe('disconnectGoogleAccount', () => {
       testPropertyId as string,
     )
 
-    const result = await useCase({ connectionId: connection.id as string }, ctx)
+    // BQC-1.7: lifecycle purge of the connection's source content
+    const forConnection = vi.fn(async () => ({
+      subject: 'reviews.purge.connection',
+      batches: 1,
+      rowsDeleted: 3,
+    }))
+    const useCaseWithPurge = disconnectGoogleAccount({
+      connectionRepo,
+      oauth: createInMemoryGoogleOAuthPort(),
+      encryption: createInMemoryTokenEncryption(),
+      cacheRepo,
+      events,
+      clock: () => FIXED_TIME,
+      logger: createMockLogger(),
+      sourceContentPurge: {
+        forConnection,
+        forProperty: vi.fn(),
+        forOrganization: vi.fn(),
+        inboxForProperty: vi.fn(),
+      },
+    })
+
+    const result = await useCaseWithPurge({ connectionId: connection.id as string }, ctx)
 
     expect(result.status).toBe('disconnected')
     expect(cacheRepo.all()).toHaveLength(0)
+
+    // Source content purge ran for exactly this connection
+    expect(forConnection).toHaveBeenCalledWith(ctx.organizationId, connection.id)
+
+    // Identifiers + secrets redacted; row stays as content-free audit fact
+    const redacted = await connectionRepo.findById(ctx.organizationId, connection.id)
+    expect(redacted).not.toBeNull()
+    expect(redacted!.status).toBe('disconnected')
+    expect(redacted!.googleAccountId).toBe(`redacted:${connection.id}`)
+    expect(redacted!.googleEmail).toBe('redacted')
+    expect(redacted!.encryptedAccessToken).toBe('redacted')
+    expect(redacted!.encryptedRefreshToken).toBe('redacted')
+    expect(redacted!.scopes).toEqual([])
 
     const emitted = events.capturedByTag('integration.google_account.disconnected')
     expect(emitted).toHaveLength(1)

@@ -3,6 +3,7 @@
 import type { PropertyRepository } from '../ports/property.repository'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { EventBus } from '#/shared/events/event-bus'
+import type { SourceContentPurge } from '#/contexts/review/application/ports/source-content-purge.port'
 import { canForContext } from '#/shared/domain/permissions'
 import { propertyId as toPropertyId } from '#/shared/domain/ids'
 import { propertyError } from '../../domain/errors'
@@ -14,6 +15,8 @@ export type DeletePropertyDeps = Readonly<{
   propertyRepo: PropertyRepository
   events: EventBus
   clock: () => Date
+  /** BQC-1.7: bounded lifecycle purge before the FK-cascading hard delete. */
+  sourceContentPurge?: SourceContentPurge
   outboxRepo?: OutboxRepository
 }>
 
@@ -37,10 +40,20 @@ export const deleteProperty =
       throw propertyError('property_not_found', 'property not found in this organization')
     }
 
-    // 3. Hard delete — cascades to reviews, replies, inbox items via FK
+    // 3. BQC-1.7: bounded lifecycle purge first — reviews (+ replies via
+    // per-batch FK cascade) and inbox rows are deleted in bounded, evidenced
+    // batches instead of one unbounded cascade. gbp_cache dies with the
+    // property row via its FK below.
+    if (deps.sourceContentPurge) {
+      await deps.sourceContentPurge.inboxForProperty(ctx.organizationId, propertyId)
+      await deps.sourceContentPurge.forProperty(ctx.organizationId, propertyId)
+    }
+
+    // 4. Hard delete — cascades to gbp_cache (FK); reviews/replies/inbox rows
+    // are already gone via the bounded purge above.
     await deps.propertyRepo.hardDelete(ctx.organizationId, propertyId)
 
-    // 4. Emit event
+    // 5. Emit event
     await emitAndRecord(
       deps.events,
       deps.outboxRepo,

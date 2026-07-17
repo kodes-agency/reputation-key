@@ -21,12 +21,14 @@ export type RetentionRule = Readonly<{
   table: string
   /** Key columns forming the row identifier (single or composite PK). */
   keyColumns: ReadonlyArray<string>
-  /** Timestamp column the cutoff applies to. */
+  /** Timestamp column the cutoff applies to (ignored when equalsWhere set). */
   tsColumn: string
-  /** Rows older than this are deleted. */
+  /** Rows older than this are deleted (ignored when equalsWhere set). */
   olderThanMs: number
   /** Extra static predicate (e.g. 'published_at IS NOT NULL'). */
   extraWhere?: string
+  /** Equality predicate for lifecycle purges (e.g. purge by connection id). */
+  equalsWhere?: Readonly<{ column: string; value: string }>
 }>
 
 export type RetentionExecution = Readonly<{
@@ -46,6 +48,12 @@ export async function executeRetentionRule(
   const batchSize = options.batchSize ?? 500
   const keys = rule.keyColumns.map((k) => `"${k}"`).join(', ')
   const extra = rule.extraWhere ? `AND ${rule.extraWhere}` : ''
+  // Lifecycle purge by equality (e.g. disconnect/property/org purge) or
+  // age-based retention by timestamp — both from the static registry.
+  const predicate = rule.equalsWhere
+    ? `"${rule.equalsWhere.column}" = '${rule.equalsWhere.value}' ${extra}`
+    : `"${rule.tsColumn}" < '${options.cutoff.toISOString()}' ${extra}`
+  const orderColumn = rule.equalsWhere ? rule.keyColumns[0] : rule.tsColumn
   let batches = 0
   let rowsDeleted = 0
 
@@ -54,8 +62,8 @@ export async function executeRetentionRule(
       sql.raw(
         `DELETE FROM "${rule.table}" WHERE (${keys}) IN (` +
           `SELECT ${keys} FROM "${rule.table}" ` +
-          `WHERE "${rule.tsColumn}" < '${options.cutoff.toISOString()}' ${extra} ` +
-          `ORDER BY "${rule.tsColumn}" ASC LIMIT ${batchSize}` +
+          `WHERE ${predicate} ` +
+          `ORDER BY "${orderColumn}" ASC LIMIT ${batchSize}` +
           `) RETURNING ${keys}`,
       ),
     )

@@ -57,6 +57,12 @@ export type GoogleConnectionRepository = Readonly<{
     id: GoogleConnectionId,
     status: GoogleConnectionStatus,
   ) => Promise<void>
+  /**
+   * BQC-1.7: remove provider identifiers and secret material on disconnect.
+   * The connection row stays as a content-free audit fact (id, org, status,
+   * timestamps); tokens/email/account id/scopes are replaced with 'redacted'.
+   */
+  redactForDisconnect: (orgId: OrganizationId, id: GoogleConnectionId) => Promise<void>
   updateVisibility: (
     orgId: OrganizationId,
     id: GoogleConnectionId,

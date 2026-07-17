@@ -72,7 +72,8 @@ export const PROTECTED_FIELD_REGISTRY: ReadonlyArray<ProtectedFieldRule> = [
     creationPath: 'sync-reviews upsert',
     readPath: 'authorized Review lookup',
     refreshRule: 'kept while required for source operation',
-    deletionMechanism: 'purge-expired-reviews job (daily); property cascade',
+    deletionMechanism:
+      'purge-expired-reviews job (daily); bounded lifecycle purge on disconnect/property/org purge (BQC-1.7)',
     mustEliminate: false,
   },
   {
@@ -85,7 +86,7 @@ export const PROTECTED_FIELD_REGISTRY: ReadonlyArray<ProtectedFieldRule> = [
     creationPath: 'sync-reviews upsert',
     readPath: 'authorized Review lookup; reply publish path',
     refreshRule: 'kept while required for source operation',
-    deletionMechanism: 'purge-expired-reviews job; property cascade',
+    deletionMechanism: 'purge-expired-reviews job; bounded lifecycle purge (BQC-1.7)',
     mustEliminate: false,
   },
   {
@@ -98,7 +99,8 @@ export const PROTECTED_FIELD_REGISTRY: ReadonlyArray<ProtectedFieldRule> = [
     creationPath: 'sync-reviews upsert',
     readPath: 'sync/publish paths',
     refreshRule: 'kept while required for source operation',
-    deletionMechanism: 'set null on connection delete; purge job; cascade',
+    deletionMechanism:
+      'set null on connection delete; purge job; bounded lifecycle purge (BQC-1.7)',
     mustEliminate: false,
   },
   {
@@ -111,7 +113,7 @@ export const PROTECTED_FIELD_REGISTRY: ReadonlyArray<ProtectedFieldRule> = [
     creationPath: 'sync-reviews upsert',
     readPath: 'authorized Review lookup only',
     refreshRule: 'successful-fetch clock (30d TTL)',
-    deletionMechanism: 'purge-expired-reviews job; property cascade',
+    deletionMechanism: 'purge-expired-reviews job; bounded lifecycle purge (BQC-1.7)',
     mustEliminate: false,
   },
   {
@@ -124,7 +126,7 @@ export const PROTECTED_FIELD_REGISTRY: ReadonlyArray<ProtectedFieldRule> = [
     creationPath: 'sync-reviews upsert',
     readPath: 'authorized Review lookup only',
     refreshRule: 'successful-fetch clock (30d TTL)',
-    deletionMechanism: 'purge-expired-reviews job; property cascade',
+    deletionMechanism: 'purge-expired-reviews job; bounded lifecycle purge (BQC-1.7)',
     mustEliminate: false,
   },
   {
@@ -137,7 +139,7 @@ export const PROTECTED_FIELD_REGISTRY: ReadonlyArray<ProtectedFieldRule> = [
     creationPath: 'sync-reviews upsert',
     readPath: 'authorized Review lookup; aggregates',
     refreshRule: 'successful-fetch clock (30d TTL)',
-    deletionMechanism: 'purge-expired-reviews job; property cascade',
+    deletionMechanism: 'purge-expired-reviews job; bounded lifecycle purge (BQC-1.7)',
     mustEliminate: false,
   },
   {
@@ -150,7 +152,7 @@ export const PROTECTED_FIELD_REGISTRY: ReadonlyArray<ProtectedFieldRule> = [
     creationPath: 'sync-reviews upsert',
     readPath: 'authorized Review lookup only',
     refreshRule: 'successful-fetch clock (30d TTL)',
-    deletionMechanism: 'purge-expired-reviews job; property cascade',
+    deletionMechanism: 'purge-expired-reviews job; bounded lifecycle purge (BQC-1.7)',
     mustEliminate: false,
   },
   {
@@ -163,7 +165,7 @@ export const PROTECTED_FIELD_REGISTRY: ReadonlyArray<ProtectedFieldRule> = [
     creationPath: 'sync-reviews upsert',
     readPath: 'authorized Review lookup only',
     refreshRule: 'successful-fetch clock (30d TTL)',
-    deletionMechanism: 'purge-expired-reviews job; property cascade',
+    deletionMechanism: 'purge-expired-reviews job; bounded lifecycle purge (BQC-1.7)',
     mustEliminate: false,
   },
   {
@@ -218,7 +220,8 @@ export const PROTECTED_FIELD_REGISTRY: ReadonlyArray<ProtectedFieldRule> = [
     creationPath: 'mirrorReply (sync) / internal reply workflow',
     readPath: 'authorized Review lookup; publish path',
     refreshRule: 'same source clock as parent review',
-    deletionMechanism: 'cascade with review row; mirror delete when Google has none',
+    deletionMechanism:
+      'per-batch FK cascade with parent review; bounded lifecycle purge (BQC-1.7)',
     mustEliminate: false,
   },
   {
@@ -259,7 +262,7 @@ export const PROTECTED_FIELD_REGISTRY: ReadonlyArray<ProtectedFieldRule> = [
     creationPath: 'connect-google-account OAuth',
     readPath: 'settings UI; activity log copy (to be content-free)',
     refreshRule: 'kept while connected',
-    deletionMechanism: 'none — survives disconnect (flagged; BQC-1.7)',
+    deletionMechanism: 'redactForDisconnect on disconnect (BQC-1.7: email → redacted)',
     mustEliminate: false,
   },
 

@@ -2,6 +2,8 @@
 // Wires property repos, use cases, and the PublicApi surface.
 // Per ADR-0001: the composition root calls this and passes publicApi to consumers.
 
+import type { Database } from '#/shared/db'
+
 import type { PropertyRepository } from './application/ports/property.repository'
 import type { PropertyPublicApi } from './application/public-api'
 import { propertyImportConflict } from './application/public-api'
@@ -9,6 +11,7 @@ import { propertyCreated } from './domain/events'
 import type { Property } from './domain/types'
 import { resolvePropertyRouting } from './domain/processing-routing'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import { createSourceContentPurge } from '#/contexts/review/infrastructure/source-content-purge'
 import type { OrganizationId, PropertyId, GoogleConnectionId } from '#/shared/domain/ids'
 import type { EventBus } from '#/shared/events/event-bus'
 import { createProperty } from './application/use-cases/create-property'
@@ -21,6 +24,7 @@ import { randomUUID } from 'crypto'
 import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
 
 type PropertyContextDeps = Readonly<{
+  db: Database
   repo: PropertyRepository
   events: EventBus
   clock: () => Date
@@ -56,6 +60,10 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
       propertyRepo: deps.repo,
       events: deps.events,
       clock: deps.clock,
+      sourceContentPurge: createSourceContentPurge({
+        db: deps.db,
+        clock: deps.clock,
+      }),
     }),
   } as const
 

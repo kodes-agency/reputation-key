@@ -62,6 +62,20 @@ export const createInMemoryGoogleConnectionRepo = (): InMemoryGoogleConnectionRe
       store.set(id as string, { ...existing, status, updatedAt: new Date() })
     },
 
+    redactForDisconnect: async (orgId, id) => {
+      const existing = store.get(id as string)
+      if (!existing || !byOrg(orgId)(existing)) return
+      store.set(id as string, {
+        ...existing,
+        encryptedAccessToken: 'redacted',
+        encryptedRefreshToken: 'redacted',
+        googleEmail: 'redacted',
+        googleAccountId: `redacted:${id}`,
+        scopes: [],
+        updatedAt: new Date(),
+      })
+    },
+
     updateVisibility: async (orgId, id, visibility) => {
       const existing = store.get(id as string)
       if (!existing || !byOrg(orgId)(existing)) return

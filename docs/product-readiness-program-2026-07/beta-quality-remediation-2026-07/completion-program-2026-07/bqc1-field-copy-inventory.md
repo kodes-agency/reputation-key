@@ -118,3 +118,13 @@ Still open (owning slices):
 - `gbp_cache` armed-dormant + unscheduled expiry — BQC-1.6.
 - `activity_log` retention job — BQC-1.6.
 - Property hard-delete orphan scrub for legacy rows — covered for content by the 1.2 null-backfill; row-level cleanup is BQC-1.7.
+
+## 6. Status after BQC-1.3–1.7 (2026-07-17)
+
+- **1.3 refetch persistence** — upsert now advances all lifecycle clocks on every successful fetch (was frozen at first insert); `firstFetchedAt` preserved; `SyncReviewsResult.refreshed` content-free counter.
+- **1.4 eligible reads** — `review.publicApi` is the governed read interface; dashboard + staff widgets exclude expired/clock-less content in SQL; per-context eligibility adapters deleted.
+- **1.5 bounded refresh** — keyset-cursor batches replace the 5,000-row scan; `review_refresh_runs` run state; failed enqueue never acknowledged; hourly schedule with resume; oldest-due alerting on `/api/health/metrics`.
+- **1.6 safe erasure + retention** — bounded id-IN-subquery executor (invalid `DELETE...LIMIT` removed); daily `retention-sweep` with a 9-subject registry (outbox/receipts/sync+refresh runs/webhook/notifications/email queue/activity/gbp_cache); content-free evidence in `retention_runs`; log vectors fixed at source (GBP error body, webhook dumps, check-db stdout).
+- **1.7 lifecycle purges** — disconnect: bounded review purge + identifier/secret redaction (`redactForDisconnect`); property purge: bounded inbox + review deletion before hard delete (CONTEXT.md cascade claim corrected); org purge: bounded erasure across the org. All with `retention_runs` evidence.
+
+Phase BQC-1 is `evidence_pending`: all seven slices implementation_complete, awaiting independent review.

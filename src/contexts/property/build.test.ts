@@ -25,7 +25,13 @@ describe('PropertyPublicApi', () => {
     const clock = () => new Date('2025-01-01')
     const staffPublicApi = createStubStaffApi()
 
-    const { publicApi } = buildPropertyContext({ repo, events, clock, staffPublicApi })
+    const { publicApi } = buildPropertyContext({
+      db: {} as never,
+      repo,
+      events,
+      clock,
+      staffPublicApi,
+    })
 
     const exists = await publicApi.propertyExists(prop.organizationId, prop.id)
     expect(exists).toBe(true)
@@ -37,7 +43,13 @@ describe('PropertyPublicApi', () => {
     const clock = () => new Date('2025-01-01')
     const staffPublicApi = createStubStaffApi()
 
-    const { publicApi } = buildPropertyContext({ repo, events, clock, staffPublicApi })
+    const { publicApi } = buildPropertyContext({
+      db: {} as never,
+      repo,
+      events,
+      clock,
+      staffPublicApi,
+    })
 
     const exists = await publicApi.propertyExists(
       organizationId('org-1'),
