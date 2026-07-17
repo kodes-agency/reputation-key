@@ -27,6 +27,7 @@ const PERMISSION_CAPABILITY: Readonly<Record<Permission, Capability>> = {
   'staff_assignment.delete': 'staff.use',
   'staff_assignment.read': 'staff.use',
   'integration.manage': 'integration.use',
+  'policy.admin': 'identity.invite',
   'notification.read': 'notification.in_app',
   'notification.update': 'notification.in_app',
   'invitation.create': 'identity.invite',
@@ -72,4 +73,9 @@ const PERMISSION_CAPABILITY: Readonly<Record<Permission, Capability>> = {
 
 export function capabilityForPermission(permission: Permission): Capability {
   return PERMISSION_CAPABILITY[permission]
+}
+
+/** True when the action is a known Permission (the map is exhaustive). */
+export function hasPermissionCapability(action: string): action is Permission {
+  return Object.hasOwn(PERMISSION_CAPABILITY, action)
 }

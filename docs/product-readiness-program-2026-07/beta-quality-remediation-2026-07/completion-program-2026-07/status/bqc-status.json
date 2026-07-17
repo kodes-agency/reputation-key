@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "program": "BQC",
-  "updatedAt": "2026-07-17T20:35:00.000Z",
+  "updatedAt": "2026-07-17T21:25:00.000Z",
   "baseline": {
     "validationReport": "docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md",
     "validationBaselineSha": "29b021875c145a7f8827f0ee70fc20935fc5dc79",
@@ -328,12 +328,28 @@
       "id": "BQC-2",
       "kind": "phase",
       "title": "Authoritative authorization and capabilities",
-      "state": "implementation_in_progress",
+      "state": "evidence_pending",
       "owner": "engineering",
       "requiredEvidenceIds": [],
       "openFindings": ["SPEC-P0-03", "STD-P1-02"],
       "exceptions": [],
-      "notes": "Slices 2.1–2.5 implementation_complete; 2.6 (dark-context policy + interactive containment) implementation_complete. Slice 2.7 not started. SPEC-P0-03 interactive portions land in 2.6; finding remains evidence_pending until BQC-3 delayed integration + BQC-6 browser evidence (ownership model)."
+      "notes": "All seven slices (2.1–2.7) implementation_complete: catalogue, persisted policy state, grant wiring, ExecutionPolicy interactive cutover, delayed/system contract, dark containment, policy operations. Awaiting independent review of evidence before acceptance. SPEC-P0-03 remains evidence_pending until BQC-3 delayed integration and BQC-6 browser evidence pass (ownership model); STD-P1-02 interactive portions await the same review."
+    },
+    {
+      "id": "BQC-2.7",
+      "kind": "slice",
+      "parentId": "BQC-2",
+      "title": "Policy operations",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "requiredEvidenceIds": [
+        "policy-admin-workflow-integration",
+        "policy-admin-least-privilege",
+        "policy-admin-server-fns"
+      ],
+      "openFindings": [],
+      "exceptions": [],
+      "notes": "Authenticated, least-privilege policy administration (phase §2.7): 7 server fns (identity/server/policy-admin.ts) — getPolicyStateFn (content-free org state read), setOrgCapabilityFn (allowlist/clear non-core capabilities; core/blocked/unknown rejected), setOrgSuspensionFn + setPropertySuspensionFn (reason + ticket required), grantPropertyAccessFn (reason + ticket + optional expiry + membership required), revokePropertyAccessFn (reason required), explainPolicyDecisionFn (read-only diagnostic: per-layer breakdown without PII or secret config — ids/booleans/reason codes only). New owner-only policy.admin permission (PM holds organization.update, so a dedicated permission was required for least privilege — proven: PM/Staff deny permission_denied, AccountAdmin passes). Every mutation writes a content-free audit row (actorType/executionKind 'operator', reason+ticket in the row). Validation errors map to 400. isPermissionAction hardened: permission discrimination is now the exhaustive capability map, not a prefix regex (caught a real skip). listAllCapabilities() added (ALL_CAPABILITIES was missing the 8 surface caps). Global kill switches stay env-managed (BQC-0.4); general runtime/redrive/repair operator commands are BQC-7. 7 integration + 3 least-privilege tests green. Not claimed: admin UI (surface is server fns; UI wiring later), cross-org operator admin (BQC-7); slice not accepted — pending independent review."
     },
     {
       "id": "BQC-2.6",

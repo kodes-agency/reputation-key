@@ -56,6 +56,8 @@ export type Permission =
   | 'feedback.read' // Reserved for future use — guest/feedback context not yet gated
   | 'feedback.respond' // Reserved for future use — guest/feedback context not yet gated
   | 'integration.manage'
+  // BQC-2.7: policy administration — AccountAdmin (owner) only by default.
+  | 'policy.admin'
   | 'identity.avatar_upload'
   | 'identity.logo_upload'
   | 'identity.password.change'

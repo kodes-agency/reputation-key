@@ -4,7 +4,7 @@
 > Regenerate: `pnpm bqc:generate-status`. Schema: `src/shared/bqc/status-schema.ts`.
 
 **Program:** BQC  
-**Manifest updated:** 2026-07-17T20:35:00.000Z  
+**Manifest updated:** 2026-07-17T21:25:00.000Z  
 **Validation report:** docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md  
 **Validation baseline SHA:** `29b021875c145a7f8827f0ee70fc20935fc5dc79`  
 **Working tree SHA (status describes):** `927614bce728f8c42d922720f149b6ea1b046354`  
@@ -33,7 +33,7 @@ Only these states are valid: `not_started`, `implementation_in_progress`, `imple
 | BQR-7 | phase | Pilot (historical BQR) | `blocked` | product | — | — | human pilot + real properties; BQC-0 through BQC-8 acceptance first (review 2026-08-15) |
 | BQC-0 | phase | Truthful rebaseline and containment | `evidence_pending` | engineering | — | STD-P0-01, SPEC-P2-01, SPEC-P0-03 | — |
 | BQC-1 | phase | Google source-data governance | `evidence_pending` | engineering | — | SPEC-P0-02, STD-P1-03 | — |
-| BQC-2 | phase | Authoritative authorization and capabilities | `implementation_in_progress` | engineering | — | SPEC-P0-03, STD-P1-02 | — |
+| BQC-2 | phase | Authoritative authorization and capabilities | `evidence_pending` | engineering | — | SPEC-P0-03, STD-P1-02 | — |
 | BQC-3 | phase | Durable commands, consumers, and jobs | `not_started` | engineering | — | STD-P0-02, SPEC-P0-01, SPEC-P1-02 | — |
 | BQC-4 | phase | Enforced regional execution | `not_started` | engineering | — | SPEC-P1-01 | — |
 | BQC-5 | phase | Clean architecture and context quality | `not_started` | engineering | — | STD-P1-01, STD-P1-04, STD-P1-06, STD-P2-01, STD-P2-02, STD-P2-03, STD-P2-04, STD-P2-05 | — |
@@ -58,6 +58,7 @@ Only these states are valid: `not_started`, `implementation_in_progress`, `imple
 | BQC-1.3 | slice | Correct successful-refetch persistence | `implementation_complete` | engineering | — | — | — |
 | BQC-1.2 | slice | Remove raw inbox/activity/transport copies | `implementation_complete` | engineering | — | — | — |
 | BQC-1.1 | slice | Complete field-and-copy inventory | `implementation_complete` | engineering | — | — | — |
+| BQC-2.7 | slice | Policy operations | `implementation_complete` | engineering | — | — | — |
 | BQC-2.6 | slice | Dark-context policy and interactive containment | `implementation_complete` | engineering | — | — | — |
 | BQC-2.5 | slice | Delayed/system policy contract | `implementation_complete` | engineering | — | — | — |
 | BQC-2.4 | slice | Interactive production cutover | `implementation_complete` | engineering | — | — | — |

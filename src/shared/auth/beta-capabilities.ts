@@ -470,6 +470,27 @@ export function listBlockedCapabilities(): ReadonlyArray<Capability> {
 }
 
 /**
+ * The complete capability universe (all 28 — ALL_CAPABILITIES above is the
+ * older UI-facing subset and does NOT include the BQR-4.1 surface caps).
+ * Used for validation (BQC-2.7 policy administration) and guards.
+ */
+export function listAllCapabilities(): ReadonlyArray<Capability> {
+  const nonCore: ReadonlyArray<Capability> = [
+    'identity.register',
+    'organization.create',
+    'portal.read',
+    'team.use',
+    'goal.use',
+    'badge.use',
+    'leaderboard.use',
+    'ai.analyze',
+    'ai.generate_reply',
+    'ai.detect_trends',
+  ]
+  return [...CORE_CAPABILITIES, ...BLOCKED_CAPABILITIES, ...nonCore].sort()
+}
+
+/**
  * Worker/schedule gate: true only when the capability is globally enabled
  * (core, not killed). Non-core and blocked capabilities return false — even
  * if individual orgs are allowlisted for interactive server functions.

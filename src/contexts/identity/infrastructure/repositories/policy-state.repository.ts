@@ -26,6 +26,35 @@ export async function getPolicyVersion(db: Database): Promise<number> {
   return Number(row?.version ?? 0)
 }
 
+/** Membership check for policy administration (grants require org membership). */
+export async function isOrgMember(
+  db: Database,
+  organizationId: string,
+  userId: string,
+): Promise<boolean> {
+  const rows = await db.execute(sql`
+    SELECT 1 AS one FROM member
+    WHERE "organizationId" = ${organizationId} AND "userId" = ${userId}
+    LIMIT 1
+  `)
+  return rows.rows.length > 0
+}
+
+/** The member's role in an org (for the read-only decision diagnostic). */
+export async function getMemberRole(
+  db: Database,
+  organizationId: string,
+  userId: string,
+): Promise<string | null> {
+  const rows = await db.execute(sql`
+    SELECT role FROM member
+    WHERE "organizationId" = ${organizationId} AND "userId" = ${userId}
+    LIMIT 1
+  `)
+  const row = rows.rows[0] as { role: string } | undefined
+  return row?.role ?? null
+}
+
 // ── Organization policy ──────────────────────────────────────────────
 
 export type SetOrganizationPolicyInput = Readonly<{
@@ -204,5 +233,49 @@ export async function loadPolicySnapshot(db: Database): Promise<PolicySnapshot> 
     // Wildcard allowlists exist only in the env seed, never in the DB.
     orgAllowlistAll: [],
     propertyAllowlistAll: [],
+  }
+}
+
+// ── Org-scoped state read (BQC-2.7 policy administration surface) ────
+
+// The OrgPolicyState contract lives in application/ports (boundary rule);
+// imported for the implementation and re-exported for existing consumers.
+import type { OrgPolicyState } from '../../application/ports/property-access-grant.port'
+export type { OrgPolicyState }
+
+/** Org-scoped policy state for the admin surface — content-free by shape. */
+export async function loadOrgPolicyState(
+  db: Database,
+  organizationId: string,
+): Promise<OrgPolicyState> {
+  const [policyRows, capabilityRows, propertyPolicyRows] = await Promise.all([
+    db.execute(
+      sql`SELECT organization_id, cohort, suspended_at, suspended_reason FROM organization_policy WHERE organization_id = ${organizationId}`,
+    ),
+    db.execute(
+      sql`SELECT capability FROM organization_capability WHERE organization_id = ${organizationId} ORDER BY capability`,
+    ),
+    db.execute(
+      sql`SELECT property_id, suspended_at, suspended_reason FROM property_policy WHERE property_id IN (SELECT id FROM properties WHERE organization_id = ${organizationId})`,
+    ),
+  ])
+  const p = policyRows.rows[0] as Record<string, unknown> | undefined
+  return {
+    policy: p
+      ? {
+          organizationId: p.organization_id as string,
+          cohort: p.cohort as string,
+          suspendedAt: toDate(p.suspended_at),
+          suspendedReason: (p.suspended_reason as string | null) ?? null,
+        }
+      : null,
+    capabilities: capabilityRows.rows.map((r) => r.capability as string),
+    propertyPolicies: propertyPolicyRows.rows.map(
+      (r): PropertyPolicyRecord => ({
+        propertyId: r.property_id as string,
+        suspendedAt: toDate(r.suspended_at),
+        suspendedReason: (r.suspended_reason as string | null) ?? null,
+      }),
+    ),
   }
 }
