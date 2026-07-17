@@ -109,6 +109,30 @@ export const reviewRefreshRuns = pgTable(
   (t) => [index('review_refresh_runs_started_at_idx').on(t.startedAt)],
 )
 
+/**
+ * BQC-1.6 — retention/deletion evidence. One row per retention subject per
+ * sweep: content-free evidence only (subject, timestamps, counts, outcome,
+ * error code, policy version). No deleted IDs' content, no payload copies.
+ */
+export const retentionRuns = pgTable(
+  'retention_runs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    /** Retention subject, e.g. 'outbox_events.published', 'reviews.purge'. */
+    subject: text('subject').notNull(),
+    startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
+    finishedAt: timestamp('finished_at', { withTimezone: true }),
+    batchSize: integer('batch_size').notNull(),
+    batches: integer('batches').notNull().default(0),
+    rowsDeleted: integer('rows_deleted').notNull().default(0),
+    /** 'completed' | 'failed' */
+    outcome: text('outcome').notNull().default('completed'),
+    errorCode: text('error_code'),
+    policyVersion: integer('policy_version').notNull().default(1),
+  },
+  (t) => [index('retention_runs_subject_started_idx').on(t.subject, t.startedAt)],
+)
+
 /** Dedup receipts for Google Pub/Sub (and future inbound webhooks). */
 export const inboundWebhookReceipts = pgTable(
   'inbound_webhook_receipts',

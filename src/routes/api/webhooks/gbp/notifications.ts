@@ -67,7 +67,12 @@ export async function handleGbpWebhookPost(request: Request): Promise<Response> 
       const body = pubSubBodySchema.parse(await request.json())
 
       if (!body.message?.data) {
-        logger.warn({ body }, 'Webhook received malformed message — missing message.data')
+        // BQC-1.6: no raw body in logs — the data blob carries GBP resource
+        // names (provider identifiers). Message ID only.
+        logger.warn(
+          { messageId: body.message?.messageId },
+          'Webhook received malformed message — missing message.data',
+        )
         return Response.json(
           {
             error: 'Bad Request',
@@ -82,7 +87,14 @@ export async function handleGbpWebhookPost(request: Request): Promise<Response> 
       )
 
       if (!payload.locationName || !payload.reviewName) {
-        logger.warn({ payload }, 'Webhook received incomplete notification')
+        // BQC-1.6: no decoded payload in logs — booleans only.
+        logger.warn(
+          {
+            hasLocationName: Boolean(payload.locationName),
+            hasReviewName: Boolean(payload.reviewName),
+          },
+          'Webhook received incomplete notification',
+        )
         return Response.json(
           {
             error: 'Bad Request',
@@ -95,10 +107,8 @@ export async function handleGbpWebhookPost(request: Request): Promise<Response> 
       // 3. Extract locationId from locationName
       const locationId = payload.locationName.split('/').pop()
       if (!locationId) {
-        logger.warn(
-          { locationName: payload.locationName },
-          'Could not extract location ID',
-        )
+        // BQC-1.6: no GBP resource name in logs.
+        logger.warn('Could not extract location ID from notification')
         return Response.json(
           { error: 'Bad Request', message: 'Invalid locationName format' },
           { status: 400 },

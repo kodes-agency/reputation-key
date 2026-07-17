@@ -100,8 +100,6 @@ function makeDeps(overrides: {
     hasReceipt: vi.fn(async () => false),
     insertReceipt: vi.fn(async () => {}),
     findExpiredLeases: vi.fn(async () => []),
-    purgePublishedBefore: vi.fn(async () => 0),
-    purgeReceiptsBefore: vi.fn(async () => 0),
   } satisfies OutboxRepository
 
   const inboxRepo = {

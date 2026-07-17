@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "program": "BQC",
-  "updatedAt": "2026-07-17T15:45:00.000Z",
+  "updatedAt": "2026-07-17T16:40:00.000Z",
   "baseline": {
     "validationReport": "docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md",
     "validationBaselineSha": "29b021875c145a7f8827f0ee70fc20935fc5dc79",
@@ -217,7 +217,23 @@
       "requiredEvidenceIds": [],
       "openFindings": ["SPEC-P0-02", "STD-P1-03"],
       "exceptions": [],
-      "notes": "1.1–1.5 implementation_complete; 1.6–1.7 remaining. Not accepted."
+      "notes": "1.1–1.6 implementation_complete; 1.7 remaining. Not accepted."
+    },
+    {
+      "id": "BQC-1.6",
+      "kind": "slice",
+      "parentId": "BQC-1",
+      "title": "Safe erasure and valid retention SQL",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "requiredEvidenceIds": [
+        "retention-executor-integration",
+        "retention-sweep-schedule",
+        "deletion-evidence"
+      ],
+      "openFindings": [],
+      "exceptions": [],
+      "notes": "Invalid DELETE...LIMIT replaced by bounded id-IN-subquery executor (integration-proven incl. composite keys); broken unused outbox purge methods removed. retention-sweep job scheduled daily (background queue, offset after purge) with a 9-subject rule registry: outbox published 30d, receipts 30d, sync/refresh runs 30d, webhook receipts 30d, notifications 90d, email queue terminal 90d, activity 90d, gbp_cache expiry. Content-free evidence per subject in retention_runs (migration 0013): subject/timestamps/counts/outcome/errorCode/policyVersion. Purge records reviews.purge evidence; emit-before-delete stop-before-canonical already pinned (purge test). Reads fail closed at hard expiry independently of sweep completion (1.2/1.4 eligibility). Log hygiene fixed at source: GBP error context stores status+bodyBytes (was raw body), webhook logs messageId/booleans (was raw body/decoded names), check-db prints identifiers+clocks (was reviewer content). Registry updated. Pending independent review for accepted."
     },
     {
       "id": "BQC-1.5",
