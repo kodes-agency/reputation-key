@@ -19,6 +19,7 @@ import type { Job } from 'bullmq'
 export const JOB_NAME = 'refresh-expiring-reviews' as const
 import type { ReviewRepository } from '../../application/ports/review.repository'
 import type { ReviewQueuePort } from '../../application/ports/review-queue.port'
+import type { Review } from '../../domain/types'
 import type {
   ReviewRefreshRunRepository,
   RefreshRunCursor,
@@ -52,6 +53,227 @@ type SyncGroup = Readonly<{
   locationName: string
 }>
 
+type SweepState = {
+  cursor: RefreshRunCursor | null
+  batches: number
+  seen: number
+  dueCount: number
+  enqueued: number
+  enqueueFailed: number
+  oldestDue: Date | null
+}
+
+type BatchOutcome =
+  | Readonly<{ kind: 'empty' }>
+  | Readonly<{ kind: 'processed'; cursor: RefreshRunCursor }>
+  | Readonly<{ kind: 'enqueue_failed' }>
+
+/** Resolve the resume cursor from the previous run, when it stopped mid-sweep. */
+function resolveResumeCursor(
+  latest: {
+    status: string
+    cursorContentExpiresAt: Date | null
+    cursorReviewId: string | null
+  } | null,
+): RefreshRunCursor | null {
+  if (
+    latest &&
+    (latest.status === 'budget_exhausted' || latest.status === 'failed') &&
+    latest.cursorContentExpiresAt &&
+    latest.cursorReviewId
+  ) {
+    return {
+      contentExpiresAt: latest.cursorContentExpiresAt,
+      reviewId: latest.cursorReviewId,
+    }
+  }
+  return null
+}
+
+/** Group due rows by (propertyId, connectionId, locationName, organizationId). */
+function groupDueRowsBySyncKey(dueRows: ReadonlyArray<Review>): Map<string, SyncGroup> {
+  const groups = new Map<string, SyncGroup>()
+  for (const review of dueRows) {
+    const connectionId = review.googleConnectionId
+    if (!connectionId) continue
+    const key = `${review.propertyId}:${connectionId}:${review.externalLocationId}`
+    if (!groups.has(key)) {
+      groups.set(key, {
+        propertyId: review.propertyId as string,
+        organizationId: review.organizationId as string,
+        connectionId: connectionId as string,
+        locationName: review.externalLocationId,
+      })
+    }
+  }
+  return groups
+}
+
+/** Enqueue one sync job per group; failures are counted, not swallowed. */
+async function enqueueSyncGroups(
+  deps: RefreshHandlerDeps,
+  groups: ReadonlyMap<string, SyncGroup>,
+  state: SweepState,
+  logger: ReturnType<typeof getLogger>,
+): Promise<void> {
+  for (const data of groups.values()) {
+    try {
+      await deps.queue.addSyncJob(data)
+      state.enqueued++
+    } catch (err) {
+      state.enqueueFailed++
+      logger.warn({ err, propertyId: data.propertyId }, 'Failed to enqueue refresh job')
+    }
+  }
+}
+
+/** Fetch, classify, group, and enqueue one batch. Never advances past failures. */
+async function processSweepBatch(
+  deps: RefreshHandlerDeps,
+  state: SweepState,
+  batchSize: number,
+  threshold: Date,
+  now: Date,
+  logger: ReturnType<typeof getLogger>,
+): Promise<BatchOutcome> {
+  const batch = await deps.reviewRepo.findExpiringBatchAcrossTenants(
+    threshold,
+    state.cursor
+      ? { contentExpiresAt: state.cursor.contentExpiresAt, id: state.cursor.reviewId }
+      : null,
+    batchSize,
+  )
+  if (batch.length === 0) return { kind: 'empty' }
+
+  state.batches++
+  state.seen += batch.length
+
+  // Classify with the same pure rules as unit tests: only refresh_due
+  // (already-expired rows are the purge job's responsibility).
+  const { refreshDue } = classifyReviewsForRefresh(
+    batch.map((r) => ({
+      id: r.id as string,
+      lastFetchedAt: r.lastFetchedAt,
+      contentExpiresAt: r.contentExpiresAt,
+    })),
+    now,
+  )
+  const dueIds = new Set(refreshDue)
+  const dueRows = batch.filter((r) => dueIds.has(r.id as string))
+  state.dueCount += dueRows.length
+  for (const r of dueRows) {
+    if (
+      r.contentExpiresAt &&
+      (!state.oldestDue || r.contentExpiresAt < state.oldestDue)
+    ) {
+      state.oldestDue = r.contentExpiresAt
+    }
+  }
+
+  await enqueueSyncGroups(deps, groupDueRowsBySyncKey(dueRows), state, logger)
+  if (state.enqueueFailed > 0) return { kind: 'enqueue_failed' }
+
+  const last = batch[batch.length - 1]
+  return {
+    kind: 'processed',
+    cursor: {
+      contentExpiresAt: last.contentExpiresAt as Date,
+      reviewId: last.id as string,
+    },
+  }
+}
+
+type PersistFn = (extra?: Record<string, unknown>) => Promise<void>
+
+/** The bounded sweep loop — returns on empty/budget; throws on enqueue failure. */
+async function runSweepLoop(
+  deps: RefreshHandlerDeps,
+  state: SweepState,
+  options: Readonly<{
+    batchSize: number
+    maxBatches: number
+    threshold: Date
+    now: Date
+    logger: ReturnType<typeof getLogger>
+    persist: PersistFn
+  }>,
+): Promise<void> {
+  for (;;) {
+    if (state.batches >= options.maxBatches) return
+    const outcome = await processSweepBatch(
+      deps,
+      state,
+      options.batchSize,
+      options.threshold,
+      options.now,
+      options.logger,
+    )
+
+    if (outcome.kind === 'empty') return
+
+    if (outcome.kind === 'enqueue_failed') {
+      // Never acknowledge a failed enqueue as success: hold the cursor
+      // before this batch (reprocessed on retry; sync upserts are
+      // idempotent), record 'failed', and throw for the queue retry.
+      await options.persist({
+        status: 'failed',
+        failureReason: `${state.enqueueFailed} enqueue failure(s) in batch ${state.batches}`,
+        finishedAt: deps.clock(),
+        nextAttemptAt: deps.clock(),
+      })
+      throw new Error(
+        `refresh sweep: ${state.enqueueFailed} enqueue failure(s) — run recorded failed, cursor held`,
+      )
+    }
+
+    state.cursor = outcome.cursor
+    await options.persist()
+  }
+}
+
+/** Terminal state + oldest-due alert + completion log. */
+async function finalizeSweep(
+  deps: RefreshHandlerDeps,
+  state: SweepState,
+  options: Readonly<{
+    exhausted: boolean
+    resumed: boolean
+    now: Date
+    alertLeadMs: number
+    logger: ReturnType<typeof getLogger>
+    persist: PersistFn
+  }>,
+): Promise<void> {
+  await options.persist({
+    status: options.exhausted ? 'budget_exhausted' : 'completed',
+    finishedAt: deps.clock(),
+    nextAttemptAt: options.exhausted
+      ? deps.clock()
+      : new Date(deps.clock().getTime() + 60 * 60 * 1000),
+  })
+
+  if (
+    state.oldestDue &&
+    state.oldestDue.getTime() - options.now.getTime() < options.alertLeadMs
+  ) {
+    options.logger.warn(
+      { oldestDueContentExpiresAt: state.oldestDue },
+      'BQC-1.5: refresh-due content nearing the policy deadline',
+    )
+  }
+  options.logger.info(
+    {
+      candidatesSeen: state.seen,
+      refreshDueCount: state.dueCount,
+      enqueued: state.enqueued,
+      batchesProcessed: state.batches,
+      resumed: options.resumed,
+      status: options.exhausted ? 'budget_exhausted' : 'completed',
+    },
+    'Refresh expiring reviews completed',
+  )
+}
+
 export const createRefreshExpiringReviewsHandler = (deps: RefreshHandlerDeps) => {
   const batchSize = deps.batchSize ?? DEFAULT_BATCH_SIZE
   const maxBatches = deps.maxBatches ?? DEFAULT_MAX_BATCHES
@@ -63,19 +285,7 @@ export const createRefreshExpiringReviewsHandler = (deps: RefreshHandlerDeps) =>
       const now = deps.clock()
       const threshold = contentRefreshDueThreshold(now)
 
-      // Resume from the previous run's cursor when it stopped mid-sweep
-      // (budget exhausted or failed with an unadvanced cursor).
-      const latest = await deps.refreshRunRepo.findLatestRun()
-      const resumeCursor: RefreshRunCursor | null =
-        latest &&
-        (latest.status === 'budget_exhausted' || latest.status === 'failed') &&
-        latest.cursorContentExpiresAt &&
-        latest.cursorReviewId
-          ? {
-              contentExpiresAt: latest.cursorContentExpiresAt,
-              reviewId: latest.cursorReviewId,
-            }
-          : null
+      const resumeCursor = resolveResumeCursor(await deps.refreshRunRepo.findLatestRun())
 
       const run = await deps.refreshRunRepo.createRun({
         batchSize,
@@ -83,152 +293,46 @@ export const createRefreshExpiringReviewsHandler = (deps: RefreshHandlerDeps) =>
         cursor: resumeCursor,
       })
 
-      let cursor: RefreshRunCursor | null = resumeCursor
-      let batches = 0
-      let seen = 0
-      let dueCount = 0
-      let enqueued = 0
-      let enqueueFailed = 0
-      let oldestDue: Date | null = null
-      let stop: 'empty' | 'budget'
+      const state: SweepState = {
+        cursor: resumeCursor,
+        batches: 0,
+        seen: 0,
+        dueCount: 0,
+        enqueued: 0,
+        enqueueFailed: 0,
+        oldestDue: null,
+      }
 
       const persist = (extra: Record<string, unknown> = {}) =>
         deps.refreshRunRepo.updateRun(run.id, {
-          cursor,
-          batchesProcessed: batches,
-          candidatesSeen: seen,
-          refreshDueCount: dueCount,
-          enqueuedCount: enqueued,
-          enqueueFailedCount: enqueueFailed,
-          oldestDueContentExpiresAt: oldestDue,
+          cursor: state.cursor,
+          batchesProcessed: state.batches,
+          candidatesSeen: state.seen,
+          refreshDueCount: state.dueCount,
+          enqueuedCount: state.enqueued,
+          enqueueFailedCount: state.enqueueFailed,
+          oldestDueContentExpiresAt: state.oldestDue,
           ...extra,
         })
 
       try {
-        for (;;) {
-          if (batches >= maxBatches) {
-            stop = 'budget'
-            break
-          }
-          const batch = await deps.reviewRepo.findExpiringBatchAcrossTenants(
-            threshold,
-            cursor
-              ? { contentExpiresAt: cursor.contentExpiresAt, id: cursor.reviewId }
-              : null,
-            batchSize,
-          )
-          if (batch.length === 0) {
-            stop = 'empty'
-            break
-          }
-          batches++
-          seen += batch.length
+        await runSweepLoop(deps, state, {
+          batchSize,
+          maxBatches,
+          threshold,
+          now,
+          logger,
+          persist,
+        })
 
-          // Classify with the same pure rules as unit tests: only refresh_due
-          // (already-expired rows are the purge job's responsibility).
-          const { refreshDue } = classifyReviewsForRefresh(
-            batch.map((r) => ({
-              id: r.id as string,
-              lastFetchedAt: r.lastFetchedAt,
-              contentExpiresAt: r.contentExpiresAt,
-            })),
-            now,
-          )
-          const dueIds = new Set(refreshDue)
-          const dueRows = batch.filter((r) => dueIds.has(r.id as string))
-          dueCount += dueRows.length
-          for (const r of dueRows) {
-            if (r.contentExpiresAt && (!oldestDue || r.contentExpiresAt < oldestDue)) {
-              oldestDue = r.contentExpiresAt
-            }
-          }
-
-          // Group by (propertyId, connectionId, locationName, organizationId)
-          const groups = new Map<string, SyncGroup>()
-          for (const review of dueRows) {
-            const connectionId = review.googleConnectionId
-            if (!connectionId) continue
-            const key = `${review.propertyId}:${connectionId}:${review.externalLocationId}`
-            if (!groups.has(key)) {
-              groups.set(key, {
-                propertyId: review.propertyId as string,
-                organizationId: review.organizationId as string,
-                connectionId: connectionId as string,
-                locationName: review.externalLocationId,
-              })
-            }
-          }
-
-          let batchHadEnqueueFailure = false
-          for (const data of groups.values()) {
-            try {
-              await deps.queue.addSyncJob(data)
-              enqueued++
-            } catch (err) {
-              enqueueFailed++
-              batchHadEnqueueFailure = true
-              logger.warn(
-                { err, propertyId: data.propertyId },
-                'Failed to enqueue refresh job',
-              )
-            }
-          }
-
-          if (batchHadEnqueueFailure) {
-            // Never acknowledge a failed enqueue as success: hold the cursor
-            // before this batch (reprocessed on retry; sync upserts are
-            // idempotent), record 'failed', and throw for the queue retry.
-            await persist({
-              status: 'failed',
-              failureReason: `${enqueueFailed} enqueue failure(s) in batch ${batches}`,
-              finishedAt: deps.clock(),
-              nextAttemptAt: deps.clock(),
-            })
-            throw new Error(
-              `refresh sweep: ${enqueueFailed} enqueue failure(s) — run recorded failed, cursor held`,
-            )
-          }
-
-          // Advance past the fully-enqueued batch.
-          const last = batch[batch.length - 1]
-          cursor = {
-            contentExpiresAt: last.contentExpiresAt as Date,
-            reviewId: last.id as string,
-          }
-          await persist()
-        }
-
-        if (stop === 'empty') {
-          await persist({
-            status: 'completed',
-            finishedAt: deps.clock(),
-            nextAttemptAt: new Date(deps.clock().getTime() + 60 * 60 * 1000),
-          })
-        } else {
-          await persist({
-            status: 'budget_exhausted',
-            finishedAt: deps.clock(),
-            nextAttemptAt: deps.clock(),
-          })
-        }
-
-        if (oldestDue && oldestDue.getTime() - now.getTime() < alertLeadMs) {
-          logger.warn(
-            { oldestDueContentExpiresAt: oldestDue },
-            'BQC-1.5: refresh-due content nearing the policy deadline',
-          )
-        }
-        logger.info(
-          {
-            candidatesSeen: seen,
-            refreshDueCount: dueCount,
-            enqueued,
-            batchesProcessed: batches,
-            resumed: resumeCursor !== null,
-            status: stop === 'empty' ? 'completed' : 'budget_exhausted',
-          },
-          'Refresh expiring reviews completed',
-        )
+        await finalizeSweep(deps, state, {
+          exhausted: state.batches >= maxBatches,
+          resumed: resumeCursor !== null,
+          now,
+          alertLeadMs,
+          logger,
+          persist,
+        })
       } catch (err) {
         // The enqueue-failure path already persisted 'failed'; other throws
         // record a failure once, best-effort, then rethrow for queue retry.
