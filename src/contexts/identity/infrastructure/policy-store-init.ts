@@ -32,6 +32,10 @@ import {
   createExecutionPolicy,
   initExecutionPolicy,
 } from '#/shared/auth/execution-policy'
+import {
+  createDelayedExecutionPolicy,
+  initDelayedExecutionPolicy,
+} from '#/shared/auth/system-execution-policy'
 import { organizationId, userId } from '#/shared/domain/ids'
 import {
   getPolicyVersion,
@@ -87,6 +91,21 @@ export function initPersistedCapabilityPolicyStore(deps: {
       },
       writeDecisionAudit: (entry) => writePolicyDecision(deps.db, entry),
       onAuditError: (err) => logger.warn({ err }, 'policy decision audit write failed'),
+    }),
+  )
+
+  // BQC-2.5: install the delayed/system policy contract — the strong read
+  // for external-effect actions is the same version-gated refresh (worker
+  // call-site integration is BQC-3's).
+  initDelayedExecutionPolicy(
+    createDelayedExecutionPolicy({
+      refreshPolicy: () => persisted.refresh(),
+      hasActiveConsent: async (input) => {
+        const consent = await getActiveConsent(deps.db, input)
+        return consent !== null
+      },
+      writeDecisionAudit: (entry) => writePolicyDecision(deps.db, entry),
+      onAuditError: (err) => logger.warn({ err }, 'delayed decision audit write failed'),
     }),
   )
 

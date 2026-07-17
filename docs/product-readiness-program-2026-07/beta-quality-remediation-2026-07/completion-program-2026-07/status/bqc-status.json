@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "program": "BQC",
-  "updatedAt": "2026-07-17T19:30:00.000Z",
+  "updatedAt": "2026-07-17T19:55:00.000Z",
   "baseline": {
     "validationReport": "docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md",
     "validationBaselineSha": "29b021875c145a7f8827f0ee70fc20935fc5dc79",
@@ -333,7 +333,23 @@
       "requiredEvidenceIds": [],
       "openFindings": ["SPEC-P0-03", "STD-P1-02"],
       "exceptions": [],
-      "notes": "Slices 2.1 (catalogue), 2.2 (persisted policy state), 2.3 (wire grants), and 2.4 (interactive cutover) implementation_complete. Slices 2.5–2.7 not started."
+      "notes": "Slices 2.1–2.4 implementation_complete; 2.5 (delayed/system policy contract) implementation_complete. Slices 2.6–2.7 not started."
+    },
+    {
+      "id": "BQC-2.5",
+      "kind": "slice",
+      "parentId": "BQC-2",
+      "title": "Delayed/system policy contract",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "requiredEvidenceIds": [
+        "delayed-contract-fixtures",
+        "delayed-policy-wiring-proof",
+        "catalogue-pending-bqc3-record"
+      ],
+      "openFindings": [],
+      "exceptions": [],
+      "notes": "The contract workers/consumers/schedules will authorize delayed execution against (IMPLEMENTS; BQC-3 owns call-site integration — no worker/consumer/schedule edits here, per ownership model). system-execution-policy.ts: normalized request (named system principal, catalogue action, org/property, execution kind, initiator, purpose, policyVersionAtEnqueue, correlation) → typed outcome allow / deny(reason) / stale_context. Rules proven by 12 fixture tests + real-PG wiring: decisions always computed from CURRENT policy (stale allow never overrides); external-effect actions (catalogue externalEffect: GBP sync/publish/import, S3, email) perform a version-gated strong read immediately before deciding — suspension written NOW denies NOW, proven on real PG without waiting the 5s bound; catalogue-derived scope validation (property action without propertyId → missing_scope; no org → missing_scope); stale_context annotates version skew, never overrides; role/grant checks stay at the interactive boundary (capability+suspension+consent re-checked); unknown actions deny closed. Contract data derived from the 2.1 catalogue (capability merge: strictest gate wins — multi-row actions). Content-free audit per decision (JobRuntime consumes the result; rows land in policy_decision_audit). Deterministic fixtures exported (system-execution-policy.fixtures.ts) for BQC-3 integration tests. Every delayed entry point recorded as awaiting BQC-3: catalogue policyIntegration='pending_bqc3' on all 40 job/consumer/schedule rows, guard-enforced. Composition installs the contract (initDelayedExecutionPolicy in policy-store-init, sharing the 2.2 refresh). Not claimed: worker/consumer/schedule call-site integration (BQC-3.2), job envelope schema (BQC-3), operator-identity for delayed work (BQC-3.2/BQC-7); slice not accepted — pending independent review."
     },
     {
       "id": "BQC-2.4",
