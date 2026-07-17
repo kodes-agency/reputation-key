@@ -11,21 +11,14 @@
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { BUMP_POLICY_VERSION_SQL } from './policy-version-sql'
+import type {
+  GrantSource,
+  PropertyAccessGrantRecord,
+} from '../../application/ports/property-access-grant.port'
 
-export type GrantSource = 'operator' | 'migration' | 'invitation'
-
-export type PropertyAccessGrantRecord = Readonly<{
-  id: string
-  organizationId: string
-  propertyId: string
-  userId: string
-  source: GrantSource
-  createdBy: string | null
-  createdAt: Date
-  expiresAt: Date | null
-  revokedAt: Date | null
-  revokeReason: string | null
-}>
+// The record contract lives in application/ports (boundary rule); re-exported
+// here for the repository's existing consumers.
+export type { GrantSource, PropertyAccessGrantRecord }
 
 export type GrantPropertyAccessInput = Readonly<{
   organizationId: string
@@ -142,4 +135,20 @@ export async function hasActiveGrant(
     LIMIT 1
   `)
   return rows.rows.length > 0
+}
+
+/** All active grants in an org — the policy-admin surface read (BQC-2.7). */
+export async function listActiveGrantsForOrg(
+  db: Database,
+  organizationId: string,
+  at: Date,
+): Promise<ReadonlyArray<PropertyAccessGrantRecord>> {
+  const rows = await db.execute(sql`
+    SELECT * FROM property_access_grant
+    WHERE organization_id = ${organizationId}
+      AND revoked_at IS NULL
+      AND (expires_at IS NULL OR expires_at > ${at})
+    ORDER BY property_id, user_id
+  `)
+  return rows.rows.map((r) => mapGrant(r as Record<string, unknown>))
 }

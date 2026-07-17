@@ -34,7 +34,10 @@ import {
   type Capability,
   type CapabilityDenyReason,
 } from './beta-capabilities'
-import { capabilityForPermission } from './capability-for-permission'
+import {
+  capabilityForPermission,
+  hasPermissionCapability,
+} from './capability-for-permission'
 import { throwContextError } from './server-errors'
 
 /** Bump when decision semantics change. Recorded on every decision + audit row. */
@@ -298,12 +301,13 @@ export function createExecutionPolicy(deps: ExecutionPolicyDeps): ExecutionPolic
 }
 
 // ── Permission vs SystemAction discrimination ────────────────────────
-
-const PERMISSION_PREFIXES =
-  /^(property|reply|review|inbox|dashboard|staff_assignment|integration|notification|invitation|portal|team|goal|badge|leaderboard|organization|member|identity|ac|feedback)\./
+// Authoritative: an action is a Permission iff the permission→capability
+// map covers it (the map is exhaustive — Record<Permission, Capability>).
+// A prefix regex previously missed 'policy.admin', silently skipping the
+// permission layer for it (BQC-2.7).
 
 function isPermissionAction(action: string): action is Permission {
-  return PERMISSION_PREFIXES.test(action) && !action.startsWith('system:')
+  return !action.startsWith('system:') && hasPermissionCapability(action)
 }
 
 // ── Singleton (composition-installed) + migration helper ─────────────

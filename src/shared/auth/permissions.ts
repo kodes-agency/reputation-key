@@ -37,6 +37,10 @@ export const statement = {
   inbox: ['read', 'write', 'manage'],
   notification: ['read', 'update'],
   integration: ['manage'],
+  // BQC-2.7: policy administration (allowlist/suspension/grants/diagnostic).
+  // Granted to AccountAdmin (owner full statement) only — deliberately NOT in
+  // the PropertyManager/Staff role definitions below (least privilege).
+  policy: ['admin'],
   identity: [
     'avatar_upload',
     'logo_upload',

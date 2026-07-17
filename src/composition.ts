@@ -24,6 +24,31 @@ import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { createBetterAuthIdentityAdapter } from '#/contexts/identity/infrastructure/adapters/auth-identity.adapter'
 import { createGrantAccessLookup } from '#/contexts/identity/infrastructure/adapters/grant-access-lookup.adapter'
 import { initPersistedCapabilityPolicyStore } from '#/contexts/identity/infrastructure/policy-store-init'
+import { createPolicyAdminOps } from '#/contexts/identity/application/use-cases/policy-admin'
+import { createPolicyDiagnostic } from '#/shared/auth/policy-diagnostic'
+import {
+  isCoreCapability,
+  isBlockedCapability,
+  listAllCapabilities,
+  type Capability,
+} from '#/shared/auth/beta-capabilities'
+import { EXECUTION_POLICY_VERSION } from '#/shared/auth/execution-policy'
+import {
+  setOrganizationPolicy,
+  setPropertyPolicy,
+  addOrganizationCapability,
+  removeOrganizationCapability,
+  isOrgMember,
+  getMemberRole,
+  loadOrgPolicyState,
+} from '#/contexts/identity/infrastructure/repositories/policy-state.repository'
+import {
+  grantPropertyAccess,
+  revokePropertyAccess,
+  hasActiveGrant,
+  listActiveGrantsForOrg,
+} from '#/contexts/identity/infrastructure/repositories/property-access-grant.repository'
+import { writePolicyDecision } from '#/contexts/identity/infrastructure/repositories/policy-decision-audit.repository'
 import type { IdentityPort } from '#/contexts/identity/application/ports/identity.port'
 import {
   betterAuthOrganizationSchema,
@@ -216,6 +241,33 @@ export function createContainer(options?: {
 
   // Identity port (adapter)
   const identityPort = options?.identityPort ?? createBetterAuthIdentityAdapter(db)
+
+  // BQC-2.7: policy administration operations (least-privilege, audited).
+  // Identity-owned persistence bound here — application layer stays
+  // orchestration-only (boundary rule).
+  const policyDiagnostic = createPolicyDiagnostic({
+    getMemberRole: (orgId, uid) => getMemberRole(db, orgId, uid),
+    hasActiveGrant: (input) => hasActiveGrant(db, input),
+  })
+  const policyAdmin = createPolicyAdminOps({
+    isCoreCapability: (cap) => isCoreCapability(cap as Capability),
+    isBlockedCapability: (cap) => isBlockedCapability(cap as Capability),
+    listAllCapabilities,
+    policyVersion: EXECUTION_POLICY_VERSION,
+    explainPolicyDecision: (input) => policyDiagnostic(input),
+    setOrganizationPolicy: (input) => setOrganizationPolicy(db, input),
+    setPropertyPolicy: (input) => setPropertyPolicy(db, input),
+    addOrganizationCapability: (orgId, cap, by) =>
+      addOrganizationCapability(db, orgId, cap, by),
+    removeOrganizationCapability: (orgId, cap) =>
+      removeOrganizationCapability(db, orgId, cap),
+    isOrgMember: (orgId, uid) => isOrgMember(db, orgId, uid),
+    loadOrgPolicyState: (orgId) => loadOrgPolicyState(db, orgId),
+    grantPropertyAccess: (input) => grantPropertyAccess(db, input),
+    revokePropertyAccess: (input) => revokePropertyAccess(db, input),
+    listActiveGrantsForOrg: (orgId, at) => listActiveGrantsForOrg(db, orgId, at),
+    writePolicyDecision: (entry) => writePolicyDecision(db, entry),
+  })
 
   // PRE17A A4: Create outbox repository and register event schemas.
   // The outbox records domain events durably. Event schemas are registered
@@ -579,6 +631,8 @@ export function createContainer(options?: {
     activityRepo: activity.internal.repos.activityRepo,
     notificationPublicApi: notification.publicApi,
     identityPort,
+    // BQC-2.7: least-privilege policy administration operations.
+    policyAdmin,
     portalPublicApi: portal.publicApi,
     notificationRepo: notification.internal.repos.notificationRepo,
     notificationEmailRepo: notification.internal.repos.emailRepo,
