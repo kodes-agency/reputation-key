@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "program": "BQC",
-  "updatedAt": "2026-07-17T06:50:02.000Z",
+  "updatedAt": "2026-07-17T07:56:56.000Z",
   "baseline": {
     "validationReport": "docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md",
     "validationBaselineSha": "29b021875c145a7f8827f0ee70fc20935fc5dc79",
@@ -136,7 +136,7 @@
       ],
       "openFindings": ["STD-P0-01", "SPEC-P2-01", "SPEC-P0-03"],
       "exceptions": [],
-      "notes": "0.1–0.3 implementation_complete; 0.4–0.5 remaining. Not accepted."
+      "notes": "0.1–0.4 implementation_complete; 0.5 remaining. Not accepted."
     },
     {
       "id": "BQC-0.1",
@@ -188,11 +188,12 @@
       "kind": "slice",
       "parentId": "BQC-0",
       "title": "Confirm operational stop controls",
-      "state": "not_started",
+      "state": "implementation_complete",
       "owner": "engineering",
-      "requiredEvidenceIds": ["stop-control-rehearsal"],
+      "requiredEvidenceIds": ["stop-control-rehearsal", "stop-control-tests"],
       "openFindings": [],
-      "exceptions": []
+      "exceptions": [],
+      "notes": "Six stop controls documented and exercised (docs/operations/bqc0-stop-control-rehearsal.md). New: per-capability kill list (BETA_CAPABILITIES_OFF comma form — runbook §11 previously prescribed a value the code silently ignored), capability re-checks in sync/import/publish job handlers, ops:queue pause/resume quarantine (jobs preserved). Boot manifest records kill posture. Temporary boot-time containment; removal slice is BQC-2 persisted policy. Open honestly: staging rehearsal steps (live Redis pause, kill-list under load), per-property stop and DLQ deferred to BQC-2/BQC-3. Pending independent review for accepted."
     },
     {
       "id": "BQC-0.5",
@@ -281,7 +282,7 @@
       "state": "not_started",
       "owner": "engineering",
       "requiredEvidenceIds": [],
-      "openFindings": ["SPEC-P1-05", "SPEC-P1-06"],
+      "openFindings": ["SPEC-P1-05", "SPEC-P1-06", "STD-P1-07"],
       "exceptions": []
     },
     {

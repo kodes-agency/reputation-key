@@ -4,7 +4,7 @@
 > Regenerate: `pnpm bqc:generate-status`. Schema: `src/shared/bqc/status-schema.ts`.
 
 **Program:** BQC  
-**Manifest updated:** 2026-07-17T06:50:02.000Z  
+**Manifest updated:** 2026-07-17T07:56:56.000Z  
 **Validation report:** docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md  
 **Validation baseline SHA:** `29b021875c145a7f8827f0ee70fc20935fc5dc79`  
 **Working tree SHA (status describes):** `77fc52d67eab77438409da399bf486ddd9879f39`  
@@ -37,7 +37,7 @@ Only these states are valid: `not_started`, `implementation_in_progress`, `imple
 | BQC-4 | phase | Enforced regional execution | `not_started` | engineering | — | SPEC-P1-01 | — |
 | BQC-5 | phase | Clean architecture and context quality | `not_started` | engineering | — | STD-P1-01, STD-P1-04, STD-P1-06, STD-P2-01, STD-P2-02, STD-P2-03, STD-P2-04, STD-P2-05 | — |
 | BQC-6 | phase | Trustworthy verification and experience gates | `not_started` | engineering | — | STD-P1-05, SPEC-P1-03, STD-P2-06 | — |
-| BQC-7 | phase | Production operations, security, and observability | `not_started` | engineering | — | SPEC-P1-05, SPEC-P1-06 | — |
+| BQC-7 | phase | Production operations, security, and observability | `not_started` | engineering | — | SPEC-P1-05, SPEC-P1-06, STD-P1-07 | — |
 | BQC-8 | phase | Scale, recovery, and release evidence | `not_started` | engineering | — | SPEC-P1-04, SPEC-P2-02 | — |
 | BQC-9 | phase | Controlled pilot and AI-readiness handoff | `blocked` | product | — | — | BQC-0 through BQC-8 accepted + human pilot authorization (review 2026-09-01) |
 
@@ -48,7 +48,7 @@ Only these states are valid: `not_started`, `implementation_in_progress`, `imple
 | BQC-0.1 | slice | Machine-readable program status | `implementation_complete` | engineering | #209 | SPEC-P2-01 | — |
 | BQC-0.2 | slice | Correct portal capability taxonomy | `implementation_complete` | engineering | — | — | — |
 | BQC-0.3 | slice | Restrict test-only capability overrides | `implementation_complete` | engineering | — | — | — |
-| BQC-0.4 | slice | Confirm operational stop controls | `not_started` | engineering | — | — | — |
+| BQC-0.4 | slice | Confirm operational stop controls | `implementation_complete` | engineering | — | — | — |
 | BQC-0.5 | slice | Re-run and pin the baseline | `not_started` | engineering | — | — | — |
 
 ## Historical BQR work

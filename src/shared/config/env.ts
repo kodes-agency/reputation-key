@@ -86,8 +86,10 @@ const envSchema = z.object({
           .optional()
           .transform((v) => v === 'true'),
   // ── BETA-0 safety envelope controls ────────────────────────────────
-  // Global capability kill switch — comma-separated capability keys to
-  // disable regardless of per-tenant policy (B0.5). Empty/absent = none off.
+  // Capability kill switch (BQC-0.4): '1'/'true'/'all' disables ALL
+  // capabilities; a comma-separated list disables exactly those capabilities
+  // (e.g. property.connect_gbp,property.publish_reply stops Google
+  // sync/import/publish). Empty/absent = none off.
   BETA_CAPABILITIES_OFF: z.string().optional(),
   // Allowlist of org slugs/IDs permitted in the beta cohort (B0.5/B0.6).
   // Empty/absent = all verified orgs admitted.
