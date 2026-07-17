@@ -20,7 +20,7 @@ Property management — creation, updates, soft-deletion, and cross-context prop
 ## Invariants
 
 - Property slugs must be unique within an organization.
-- Properties are hard-deleted (`deleteProperty`), cascading to reviews, replies, and inbox items via FK. The use-case file is named `soft-delete-property.ts` but the implementation performs a hard delete via `propertyRepo.hardDelete`.
+- Properties are hard-deleted (`deleteProperty`). BQC-1.7: reviews (+ replies via per-batch FK cascade) and inbox rows are first removed by a bounded, evidenced lifecycle purge (`sourceContentPurge`); `propertyRepo.hardDelete` then cascades to gbp_cache via FK. The use-case file is named `soft-delete-property.ts` but the implementation performs a hard delete.
 - GBP place IDs must be unique within an organization (enforced by `PropertyImportConflict`).
 
 ## Events produced
@@ -57,7 +57,7 @@ property/
 - **`updateProperty`** — Update property settings, emits `property.updated`.
 - **`getProperty`** — Retrieve a single property by ID.
 - **`listProperties`** — List properties for an org, filtered by user's accessible properties (via StaffPublicApi).
-- **`deleteProperty`** — Hard-delete a property (file: `soft-delete-property.ts`), emits `property.deleted`. Cascades to reviews, replies, inbox items via FK. Requires `property.delete` permission.
+- **`deleteProperty`** — Hard-delete a property (file: `soft-delete-property.ts`), emits `property.deleted`. BQC-1.7: bounded lifecycle purge of reviews/replies/inbox rows first; FK cascade handles gbp_cache. Requires `property.delete` permission.
 
 ## Public API
 

@@ -43,6 +43,7 @@ import {
   googleConnectionId as toConnectionId,
 } from '#/shared/domain/ids'
 import { randomUUID, createHash } from 'crypto'
+import { createSourceContentPurge } from '#/contexts/review/infrastructure/source-content-purge'
 
 type IntegrationContextDeps = Readonly<{
   db: Database
@@ -166,6 +167,10 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       clock: deps.clock,
       logger: deps.logger,
       unsubscribeFromNotifications: manageNotificationsUseCase.unsubscribe,
+      sourceContentPurge: createSourceContentPurge({
+        db: deps.db,
+        clock: deps.clock,
+      }),
     }),
 
     listGoogleConnections: listGoogleConnections({

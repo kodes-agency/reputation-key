@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "program": "BQC",
-  "updatedAt": "2026-07-17T16:40:00.000Z",
+  "updatedAt": "2026-07-17T17:30:00.000Z",
   "baseline": {
     "validationReport": "docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md",
     "validationBaselineSha": "29b021875c145a7f8827f0ee70fc20935fc5dc79",
@@ -212,12 +212,28 @@
       "id": "BQC-1",
       "kind": "phase",
       "title": "Google source-data governance",
-      "state": "implementation_in_progress",
+      "state": "evidence_pending",
       "owner": "engineering",
       "requiredEvidenceIds": [],
       "openFindings": ["SPEC-P0-02", "STD-P1-03"],
       "exceptions": [],
-      "notes": "1.1–1.6 implementation_complete; 1.7 remaining. Not accepted."
+      "notes": "All seven slices (1.1–1.7) implementation_complete. Awaiting independent review of evidence before acceptance."
+    },
+    {
+      "id": "BQC-1.7",
+      "kind": "slice",
+      "parentId": "BQC-1",
+      "title": "Disconnect/property/org purge",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "requiredEvidenceIds": [
+        "lifecycle-purge-integration",
+        "disconnect-redaction-tests",
+        "property-purge-order-tests"
+      ],
+      "openFindings": [],
+      "exceptions": [],
+      "notes": "Same lifecycle module exercised for all three purges (purge-source-content.ts, bounded via the retention executor with evidence). Disconnect: bounded review purge per connection (replies cascade per batch) + redactForDisconnect removes tokens/email/account id/scopes — connection row stays as content-free audit fact. Property purge: inbox rows + reviews deleted in bounded batches BEFORE propertyRepo.hardDelete (no unbounded cascade; gbp_cache via FK). Org purge: bounded review erasure across the org. Integration-proven on real PostgreSQL (bounded batching, exact scoping, reply cascade, evidence rows). CONTEXT.md FK-cascade claim corrected. Audit evidence preserved: events, activity log, retention_runs rows are never deleted by purges. Pending independent review for accepted."
     },
     {
       "id": "BQC-1.6",

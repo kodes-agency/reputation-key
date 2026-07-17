@@ -1,6 +1,6 @@
 // Property context — hard-delete property use case tests
 
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { deleteProperty } from './soft-delete-property'
 import { createInMemoryPropertyRepo } from '#/shared/testing/in-memory-property-repo'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
@@ -76,5 +76,47 @@ describe('deleteProperty', () => {
     expect(emitted).toHaveLength(1)
     expect(emitted[0].propertyId).toBe(prop.id)
     expect(emitted[0].occurredAt).toBe(FIXED_TIME)
+  })
+
+  it('purges inbox rows and source content (bounded) before the hard delete (BQC-1.7)', async () => {
+    const propertyRepo = createInMemoryPropertyRepo()
+    const events = createCapturingEventBus()
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+    const prop = buildTestProperty({})
+    propertyRepo.seed([prop])
+
+    const calls: string[] = []
+    const sourceContentPurge = {
+      inboxForProperty: vi.fn(async () => {
+        calls.push('inbox')
+        return { subject: 'inbox_items.purge.property', batches: 1, rowsDeleted: 2 }
+      }),
+      forProperty: vi.fn(async () => {
+        calls.push('reviews')
+        return { subject: 'reviews.purge.property', batches: 2, rowsDeleted: 7 }
+      }),
+      forConnection: vi.fn(),
+      forOrganization: vi.fn(),
+    }
+    const useCase = deleteProperty({
+      propertyRepo,
+      events,
+      clock: () => FIXED_TIME,
+      sourceContentPurge,
+    })
+
+    await useCase({ propertyId: prop.id }, ctx)
+
+    // Bounded purge ran, inbox before reviews, both before hardDelete
+    expect(calls).toEqual(['inbox', 'reviews'])
+    expect(sourceContentPurge.inboxForProperty).toHaveBeenCalledWith(
+      ctx.organizationId,
+      prop.id,
+    )
+    expect(sourceContentPurge.forProperty).toHaveBeenCalledWith(
+      ctx.organizationId,
+      prop.id,
+    )
+    expect(propertyRepo.all()).toHaveLength(0)
   })
 })
