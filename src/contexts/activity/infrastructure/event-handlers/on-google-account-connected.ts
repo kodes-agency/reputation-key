@@ -20,7 +20,9 @@ export const onGoogleAccountConnected =
         subject: 'integration',
         from: null,
         to: null,
-        detail: event.googleEmail,
+        // BQC-1.2 / ADR 0045 r.3-4: content-free — no googleEmail; the
+        // connection ID identifies the resource, detail resolves at view time.
+        detail: null,
       },
     }
     await deps.queue.add('insert-activity-log', payload)

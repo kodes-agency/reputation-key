@@ -1,14 +1,15 @@
 // Inbox context — event handler registration
 // Wires all inbox event handlers to the event bus.
+//
+// BQC-1.2: review.updated no longer has an inbox handler — its only job was
+// syncing denormalized copies, which no longer exist. Live reads resolve via
+// the eligibility-enforcing review lookup.
 
 import type { EventBus } from '#/shared/events/event-bus'
 import type { CreateInboxItem } from '../../application/use-cases/create-inbox-item'
 import type { InboxRepository } from '../../application/ports/inbox.repository'
-import type { FeedbackLookupPort } from '../../application/ports/feedback-lookup.port'
-import type { ReviewLookupPort } from '../../application/ports/review-lookup.port'
 import { onReviewCreated } from './on-review-created'
 import { onFeedbackSubmitted } from './on-feedback-submitted'
-import { onReviewUpdated } from './on-review-updated'
 import { onReplyPublished } from './on-reply-published'
 import { onReplySubmitted } from './on-reply-submitted'
 import { onReviewExpired } from './on-review-expired'
@@ -17,9 +18,6 @@ export type RegisterInboxHandlersDeps = Readonly<{
   events: EventBus
   createInboxItem: CreateInboxItem
   repo: InboxRepository
-  feedbackLookup: FeedbackLookupPort
-  /** BQR-4.2: reload review content for identifier-only events. */
-  reviewLookup: ReviewLookupPort
 }>
 
 export const registerInboxHandlers = (deps: RegisterInboxHandlersDeps): void => {
@@ -27,21 +25,12 @@ export const registerInboxHandlers = (deps: RegisterInboxHandlersDeps): void => 
     'review.created',
     onReviewCreated({
       createInboxItem: deps.createInboxItem,
-      reviewLookup: deps.reviewLookup,
     }),
   )
   deps.events.on(
     'guest.feedback.submitted',
     onFeedbackSubmitted({
       createInboxItem: deps.createInboxItem,
-      feedbackLookup: deps.feedbackLookup,
-    }),
-  )
-  deps.events.on(
-    'review.updated',
-    onReviewUpdated({
-      repo: deps.repo,
-      reviewLookup: deps.reviewLookup,
     }),
   )
   deps.events.on(

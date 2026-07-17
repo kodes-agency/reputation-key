@@ -17,8 +17,6 @@ describe('inbox events', () => {
       propertyId: PROP_ID,
       sourceType: 'review',
       sourceId: 'rev-1' as unknown as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-      rating: 5,
-      snippet: 'test',
       userId: USER_ID,
       source: 'web',
       occurredAt: NOW,

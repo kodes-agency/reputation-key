@@ -10,6 +10,7 @@ import { createMetricRepository } from './infrastructure/repositories/metric.rep
 import { recordMetric, type RecordMetric } from './application/use-cases/record-metric'
 import { registerMetricHandlers } from './infrastructure/event-handlers'
 import { metricReadingId } from '#/shared/domain/ids'
+import type { ReviewRatingLookupPort } from './application/ports/review-rating-lookup.port'
 
 export type MetricContextBuildInput = Readonly<{
   db: Database
@@ -20,6 +21,7 @@ export type MetricContextBuildInput = Readonly<{
     orgId: OrganizationId,
     portalId: PortalId,
   ) => Promise<{ portalGroupId: PortalGroupId } | null>
+  reviewRatingLookup: ReviewRatingLookupPort
 }>
 
 export type MetricContextApi = Readonly<{
@@ -44,6 +46,7 @@ export const buildMetricContext = (input: MetricContextBuildInput): MetricContex
     events: input.events,
     recordMetric: record,
     findGroupForPortal: input.findGroupForPortal,
+    reviewRatingLookup: input.reviewRatingLookup,
   })
 
   const publicApi: MetricPublicApi = {

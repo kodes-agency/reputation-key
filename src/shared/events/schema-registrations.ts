@@ -18,13 +18,14 @@ import { registerEventSchema } from './schema-registry'
 
 // BQR-2.5: schemas match domain event field names after denylist strip
 // (not legacy googleReviewId / previousStatus aliases).
+// BQC-1.2: no rating — identifier-only payloads; rating resolves via
+// authorized read at consume time.
 
 const reviewCreatedSchema = z.object({
   reviewId: z.string(),
   organizationId: z.string(),
   propertyId: z.string(),
   externalId: z.string(),
-  rating: z.number().int().min(1).max(5),
   platform: z.string().optional(),
   occurredAt: z.string().optional(),
 })

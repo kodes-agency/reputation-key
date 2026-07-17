@@ -21,11 +21,8 @@ export type CreateInboxItemInput = Readonly<{
   propertyId: PropertyId
   sourceType: SourceType
   sourceId: ReviewId | FeedbackId
-  rating: number | null
   sourceDate: Date
   platform: string | null
-  snippet: string | null
-  reviewerName: string | null
 }>
 
 export type CreateInboxItemDeps = Readonly<{
@@ -61,11 +58,8 @@ export const createInboxItem =
       propertyId: input.propertyId,
       sourceType: input.sourceType,
       sourceId: input.sourceId,
-      rating: input.rating,
       sourceDate: input.sourceDate,
       platform: input.platform,
-      snippet: input.snippet,
-      reviewerName: input.reviewerName,
       assignedTo: null,
       clock: deps.clock,
     })
@@ -79,7 +73,7 @@ export const createInboxItem =
     // 3. Persist
     await deps.repo.create(item, input.organizationId)
 
-    // 4. Emit event
+    // 4. Emit event (identifier-only — BQC-1.2)
     await emitAndRecord(
       deps.events,
       deps.outboxRepo,
@@ -89,8 +83,6 @@ export const createInboxItem =
         propertyId: item.propertyId,
         sourceType: item.sourceType,
         sourceId: item.sourceId,
-        rating: item.rating,
-        snippet: item.snippet,
         occurredAt: item.createdAt,
       }),
     )

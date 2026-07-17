@@ -70,8 +70,8 @@ function makeEvent(): DomainEvent {
     reviewId: reviewId('rev-1'),
     platform: 'google',
     externalId: 'ext-1',
-    rating: 5,
     occurredAt: NOW,
+    correlationId: null,
   } as DomainEvent
 }
 

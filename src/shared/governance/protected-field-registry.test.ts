@@ -70,9 +70,7 @@ const REQUIRED_EVENT_FIELDS: ReadonlyArray<
   Readonly<{ relation: string; field: string }>
 > = [
   { relation: 'event:review.created', field: 'externalId' },
-  { relation: 'event:review.created', field: 'rating' },
   { relation: 'event:review.updated', field: 'externalId' },
-  { relation: 'event:review.updated', field: 'rating' },
   { relation: 'event:property.created', field: 'gbpPlaceId' },
   { relation: 'event:identity.member.invited', field: 'email' },
 ]

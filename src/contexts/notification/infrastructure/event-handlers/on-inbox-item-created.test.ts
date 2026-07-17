@@ -67,7 +67,6 @@ describe('onInboxItemCreated (notification)', () => {
     deps.userLookup.findAssignedManagers.mockResolvedValue([NOTIF_TEST_IDS.manager1])
     const reviewSourceEvent = buildInboxItemCreatedEvent({
       sourceType: 'review',
-      rating: 4,
     })
 
     await onInboxItemCreated(deps)(reviewSourceEvent)
@@ -80,7 +79,8 @@ describe('onInboxItemCreated (notification)', () => {
         resourceType: 'inbox_item',
         resourceId: NOTIF_TEST_IDS.inboxItemId,
         title: 'New review',
-        body: '4-star review received',
+        // BQC-1.2: content-free body — no star count (raw rating never copied).
+        body: 'New review received',
       }),
     )
   })

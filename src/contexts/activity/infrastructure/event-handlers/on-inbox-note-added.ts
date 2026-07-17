@@ -20,7 +20,9 @@ export const onInboxNoteAdded =
         subject: 'note',
         from: null,
         to: null,
-        detail: event.text.length > 100 ? event.text.slice(0, 100) + '...' : event.text,
+        // BQC-1.2 / ADR 0045 r.3-4: content-free — no note text; authorized
+        // detail is fetched at view time via the inbox item.
+        detail: null,
       },
     }
     await deps.queue.add('insert-activity-log', payload)

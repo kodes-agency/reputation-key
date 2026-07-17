@@ -81,6 +81,7 @@ export const Open: Story = {
         item,
         reviewText: 'Quick and friendly check-in.',
         reviewerProfilePhotoUrl: null,
+        reviewContentStatus: 'available',
         feedbackComment: null,
         feedbackRatingValue: null,
         reply: null,

@@ -48,8 +48,6 @@ describe('activity event handlers', () => {
         propertyId: PROP,
         sourceType: 'review',
         sourceId: REVIEW,
-        rating: null,
-        snippet: null,
         userId: USER,
         source: 'web',
         occurredAt: new Date(),

@@ -148,6 +148,7 @@ function createTestEnv(googleReviews: ReadonlyArray<GoogleReview> = []) {
     }),
     findByPropertyId: vi.fn(async (_propertyId, _orgId) => []),
     findByOrganizationId: vi.fn(async () => []),
+    findIdsByContentFilter: vi.fn(async () => []),
     findAllExpiringBeforeAcrossTenants: vi.fn(async () => []),
     findAllExpiredBeforeAcrossTenants: vi.fn(async () => []),
     deleteById: vi.fn(async (_id, _orgId) => {}),
@@ -794,15 +795,16 @@ describe('syncReviews', () => {
       await env.sync(defaultInput)
 
       const event = env.emittedEvents[0]
+      // BQC-1.2: identifier-only payload — no rating on the bus.
       expect(event).toMatchObject({
         _tag: 'review.created',
         externalId: 'ext-1',
-        rating: 4,
         platform: 'google',
         organizationId: ORG_ID,
         propertyId: PROP_ID,
         occurredAt: daysAgo(5),
       })
+      expect(event).not.toHaveProperty('rating')
       expect(event.reviewId).toBeDefined()
     })
 

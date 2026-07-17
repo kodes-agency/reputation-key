@@ -125,8 +125,6 @@ export const buildInboxItemCreatedEvent = (
   propertyId: NOTIF_TEST_IDS.propId,
   sourceType: 'feedback',
   sourceId: NOTIF_TEST_IDS.reviewId,
-  rating: null,
-  snippet: null,
   userId: null,
   source: 'web',
   occurredAt: NOTIF_TEST_IDS.now,
@@ -161,7 +159,6 @@ export const buildReviewCreatedEvent = (
   organizationId: NOTIF_TEST_IDS.orgId,
   platform: 'google',
   externalId: 'ext-1',
-  rating: 4,
   occurredAt: NOTIF_TEST_IDS.now,
   ...overrides,
 })

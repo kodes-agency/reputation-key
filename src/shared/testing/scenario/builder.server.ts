@@ -216,7 +216,6 @@ async function createReviews(
           reviewId: rId,
           propertyId: propId,
           organizationId: ctx.orgId,
-          rating: spec.rating,
           platform: 'google',
           externalId: review.externalId,
           occurredAt: ctx.now,

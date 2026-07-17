@@ -10,7 +10,7 @@ import type {
   OrganizationId,
   UserId,
 } from '#/shared/domain/ids'
-import type { ReviewPlatform, StarRating } from './types'
+import type { ReviewPlatform } from './types'
 
 export type ReviewCreated = Readonly<{
   _tag: 'review.created'
@@ -20,8 +20,8 @@ export type ReviewCreated = Readonly<{
   organizationId: OrganizationId
   platform: ReviewPlatform
   externalId: string
-  rating: StarRating
   // BQR-4.2 / ADR 0030: identifier-only — no raw reviewer/text on the bus.
+  // BQC-1.2: rating removed — raw content resolves via authorized read.
   occurredAt: Date
   correlationId: string | null
 }>
@@ -47,8 +47,8 @@ export type ReviewUpdated = Readonly<{
   organizationId: OrganizationId
   platform: ReviewPlatform
   externalId: string
-  rating: StarRating
   // BQR-4.2 / ADR 0030: identifier-only — no raw reviewer/text on the bus.
+  // BQC-1.2: rating removed — raw content resolves via authorized read.
   occurredAt: Date
   correlationId: string | null
 }>

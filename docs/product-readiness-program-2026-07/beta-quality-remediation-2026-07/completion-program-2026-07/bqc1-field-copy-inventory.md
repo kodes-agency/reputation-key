@@ -97,3 +97,24 @@ Taxonomy per BQC-1 §3 / ADR 0031. `SourceContentPolicy.policyVersion` is **1** 
 - `src/contexts/property/CONTEXT.md:23,60` claims inbox items cascade via FK — false.
 
 Corrections land with the slices that change the behavior (BQC-1.2/1.6/1.7), so docs and code flip together.
+
+## 5. Status after BQC-1.2 (2026-07-17)
+
+Eliminated copies (this slice):
+
+- `inbox_items.snippet` / `reviewer_name` / `rating` — writes stopped (handlers + mapper); reads resolve live via the eligibility-enforcing review lookup (`isContentEligibleForRead` — clock-less and expired rows fail closed); bounded null-backfill (`scripts/migrations/null-inbox-source-copies.ts`, idempotent/resumable, integration-proven). Column contraction deferred to BQC-1.6/1.7.
+- `review.created` / `review.updated` durable payloads — `rating` removed (identifier-only per ADR 0030). Metric `property.review` and inbox flows read the rating at consume time via the authorized lookup; expired content records nothing.
+- Inbox `review.updated` consumer + in-process handler removed (their only job was denormalized sync).
+- `activity_log.payload` — `google_email` and note-text vectors eliminated (`detail: null`); rejection reason retained as ADR 0045 r.4 minimal reason.
+- Notification bodies — star count removed ("New review received"); raw content no longer flows to Resend (external processor).
+- `inbox.inbox_item.created` in-memory event — `rating`/`snippet` removed.
+
+Still open (owning slices):
+
+- Log vectors (GBP API error bodies, webhook payload dumps, `check-db` stdout) — BQC-1.6.
+- Outbox retention never scheduled — BQC-1.6.
+- `google_connections` disconnect purge — BQC-1.7.
+- Reviews with `content_expires_at = NULL` (invisible to purge) — BQC-1.3/1.5 backfill handling.
+- `gbp_cache` armed-dormant + unscheduled expiry — BQC-1.6.
+- `activity_log` retention job — BQC-1.6.
+- Property hard-delete orphan scrub for legacy rows — covered for content by the 1.2 null-backfill; row-level cleanup is BQC-1.7.

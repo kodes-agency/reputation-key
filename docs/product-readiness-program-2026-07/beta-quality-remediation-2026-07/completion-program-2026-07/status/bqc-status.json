@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "program": "BQC",
-  "updatedAt": "2026-07-17T09:40:00.000Z",
+  "updatedAt": "2026-07-17T12:55:00.000Z",
   "baseline": {
     "validationReport": "docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md",
     "validationBaselineSha": "29b021875c145a7f8827f0ee70fc20935fc5dc79",
@@ -217,7 +217,24 @@
       "requiredEvidenceIds": [],
       "openFindings": ["SPEC-P0-02", "STD-P1-03"],
       "exceptions": [],
-      "notes": "1.1 implementation_complete; 1.2–1.7 remaining. Not accepted."
+      "notes": "1.1–1.2 implementation_complete; 1.3–1.7 remaining. Not accepted."
+    },
+    {
+      "id": "BQC-1.2",
+      "kind": "slice",
+      "parentId": "BQC-1",
+      "title": "Remove raw inbox/activity/transport copies",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "requiredEvidenceIds": [
+        "inbox-copy-elimination",
+        "event-slimming",
+        "null-backfill",
+        "registry-tests"
+      ],
+      "openFindings": [],
+      "exceptions": [],
+      "notes": "Raw inbox copies eliminated: writes stopped, reads resolve live via the eligibility-enforcing review lookup (isContentEligibleForRead; expired/clock-less fail closed with typed unavailable outcomes); bounded idempotent null-backfill integration-proven. review.created/updated payloads identifier-only (rating removed; metric reads rating at consume time, records nothing when expired). review.updated inbox consumer removed. Activity facts content-free (googleEmail/note-text vectors gone). Notification templates content-free (no raw content to Resend). Registry updated; doc §5 records remaining vectors per owning slice. Pending independent review for accepted."
     },
     {
       "id": "BQC-1.1",
