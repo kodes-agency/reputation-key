@@ -1,8 +1,8 @@
 # BQC-6 — Trustworthy Verification and Experience Gates
 
 **Status:** `not_started`  
-**Estimate:** 8–12 engineering days  
-**Dependencies:** BQC-1 through BQC-5 active paths stable  
+**Estimate:** 7–11 engineering days  
+**Dependencies:** BQC-0 for the minimum harness; BQC-1 through BQC-5 active paths stable for full promotion  
 **Unlocks:** release-candidate promotion and BQC-8 evidence
 
 ## 1. Outcome
@@ -16,6 +16,15 @@ A green gate means the tested behavior actually worked without uncaught runtime 
 - STD-P2-06 — non-hermetic configuration and route/test hygiene.
 - SPEC-P1-03 — shallow/blind experience evidence.
 - Verification portion of every P0 finding.
+
+## Ownership mode
+
+- Test-environment, browser/component harness, error detection, artifact handling, and CI configuration: `IMPLEMENTS`.
+- Existing BQC-1…5 module/integration tests and behavior: `PROMOTES`; do not recreate their implementations or lower-level test matrices.
+- Direct-navigation/browser workflows and missing cross-interface E2E coverage: `IMPLEMENTS` as verification only.
+- BQC-8 `RE_EXECUTES` the same harness against the final deployed candidate.
+
+Complete the minimum hermetic environment and browser-error detection before broad BQC-2.4/BQC-3 cutovers. The remaining component/E2E/accessibility promotion follows stable BQC-1…5 paths.
 
 ## 3. Verification pyramid
 
@@ -34,6 +43,8 @@ A green gate means the tested behavior actually worked without uncaught runtime 
 
 ### BQC-6.1 — Hermetic test environment
 
+**Mode:** `IMPLEMENTS` the shared verification harness. Establish the minimum environment builder early; later work extends rather than replaces it.
+
 - Create one validated test-environment builder for unit, integration, Storybook, and E2E.
 - Supply deterministic Google/email/storage adapters by dependency injection.
 - No bare test command requires real secrets or network.
@@ -41,12 +52,14 @@ A green gate means the tested behavior actually worked without uncaught runtime 
 - Create, migrate, seed, and destroy isolated resources per suite/run.
 - Remove implicit empty credential defaults that fail validation halfway through a run.
 
-### BQC-6.2 — Fix client/runtime errors first
+### BQC-6.2 — Enforce client/runtime error detection
 
-- Remove Node `crypto` from browser-reachable review code.
+**Mode:** `IMPLEMENTS` the failure-sensitive harness and `PROMOTES` the BQC-5 runtime-neutral fix.
+
 - Add global Playwright listeners for `pageerror`, unhandled rejection, failed critical network mutation, and unexpected `console.error`.
 - Fail the test immediately with the original error and retain artifacts.
 - Treat known benign console output through narrow, owned, expiring allowlists only.
+- Verify the BQC-5 fix removed Node `crypto` and other Node-only imports from browser-reachable code; if not, return the defect to BQC-5 rather than implementing a second hashing/module solution here.
 
 ### BQC-6.3 — One authoritative component/Storybook gate
 
@@ -83,9 +96,11 @@ Each test must perform and verify a meaningful transition:
 
 A Retry button or rendered shell is not success unless the scenario explicitly tests failure recovery and verifies the recovered state.
 
-### BQC-6.6 — Dark-context negative suite
+### BQC-6.6 — Dark-context browser promotion
 
-Directly navigate/call/enqueue/trigger Team, Portal, Guest, Goal, Badge, Leaderboard, outbound non-auth email, auto-publish, and AI paths. Verify no read, mutation, event effect, scheduled effect, upload, export, or external call occurs. Do not globally enable them for beta regression tests.
+**Mode:** `PROMOTES` BQC-2 policy/server/command negatives and BQC-3 delayed-runtime negatives; `IMPLEMENTS` only browser/direct-navigation coverage.
+
+Directly navigate Team, Portal, Guest, Goal, Badge, Leaderboard, outbound non-auth email, auto-publish, and AI surfaces. Verify intentional unavailable/denied UX and no browser-initiated read, mutation, upload, export, or external call. Reuse the BQC-2/BQC-3 matrices for direct server calls, manual enqueue, events, jobs, consumers, and schedules; do not recreate those lower-level suites. Do not globally enable dark capabilities for beta regression tests.
 
 ### BQC-6.7 — Residual full suite hardening
 

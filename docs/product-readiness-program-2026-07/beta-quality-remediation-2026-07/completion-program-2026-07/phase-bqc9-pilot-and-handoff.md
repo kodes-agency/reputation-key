@@ -11,6 +11,12 @@ Operate the accepted release through production synthetic, one-property read-onl
 
 After acceptance, publish a Phase 17/18 handoff that records proven interfaces, budgets, governance, and open product/provider decisions. No AI feature is implemented in BQC-9.
 
+## Ownership mode
+
+- Production-synthetic and real-property operation of the immutable candidate: `RE_EXECUTES`/observes accepted behavior.
+- Final beta acceptance and Phase 17/18 handoff: `PROMOTES` the accepted candidate and evidence.
+- BQC-9 contains no product/runtime fix slices. Any material defect returns to its implementation owner, creates a new candidate, and restarts the affected acceptance and observation clock.
+
 ## 2. Entry conditions
 
 - One validated BQC-8 release bundle and go decision.

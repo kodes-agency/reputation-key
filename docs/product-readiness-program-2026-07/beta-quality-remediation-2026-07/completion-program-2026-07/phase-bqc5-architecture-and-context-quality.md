@@ -1,8 +1,8 @@
 # BQC-5 — Clean Architecture and Context Quality
 
 **Status:** `not_started`  
-**Estimate:** 10–16 engineering days  
-**Dependencies:** stable BQC-2, BQC-3, and BQC-4 interfaces  
+**Estimate:** 8–13 engineering days  
+**Dependencies:** BQC-0 for early guardrails; stable BQC-2, BQC-3, and BQC-4 interfaces for residual cleanup  
 **Unlocks:** trustworthy verification, lower Phase 17 change cost, maintainable beta operations
 
 ## 1. Outcome
@@ -23,6 +23,14 @@ The goal is not more abstractions. A new interface is introduced only when it hi
 - STD-P2-05 — dead code, complexity, duplication.
 - Architecture support for every other phase.
 
+## Ownership mode
+
+- BQC-5.1 runs early and `IMPLEMENTS` dependency guardrails before broad BQC-2.4/BQC-3 cutovers.
+- BQC-5 `IMPLEMENTS` semantic schema verification, runtime-neutral domain fixes, operational-read seams, residual non-worker composition cleanup, and code-health burn-down.
+- BQC-3 owns job/consumer/schedule registries and context runtime registration. BQC-5 verifies those modules but does not rebuild them.
+- Behavior defects found inside accepted BQC-1…4 modules return to their owning phase; BQC-5 does not silently reimplement them.
+- BQC-6 `PROMOTES` BQC-5 architecture/browser-safety checks into release gates.
+
 ## 3. Starting quality baseline
 
 The validation recorded:
@@ -42,6 +50,8 @@ Re-run after BQC-3 because removal of legacy event paths should reduce part of t
 
 ### BQC-5.1 — Make architecture policy executable
 
+**Mode:** `IMPLEMENTS` early guardrails. Complete the blocking import rules before BQC-2.4 and BQC-3 begin broad cutovers; remaining inherited-violation cleanup may continue later.
+
 - Translate `src/contexts/CONTEXT.md` into import/dependency rules enforced by ESLint and/or a module graph tool.
 - Ban domain → Node/browser/runtime imports.
 - Ban application → infrastructure and application → shared outbox/DB/BullMQ imports.
@@ -52,20 +62,23 @@ Re-run after BQC-3 because removal of legacy event paths should reduce part of t
 
 Source scans may remain fast tripwires but cannot be the sole gate.
 
-### BQC-5.2 — Per-context runtime modules
+### BQC-5.2 — Non-worker context composition cleanup
 
-Replace global registration clusters with one runtime module per context that exposes only the pieces composition needs:
+**Mode:** `IMPLEMENTS` residual composition cleanup; BQC-3 owns all job/consumer/schedule registration.
+
+Replace remaining global server/query/readiness composition clusters with one module per context that exposes only the pieces composition needs:
 
 - server/application interface;
-- registered jobs/consumers/schedules;
 - readiness contributions;
 - shutdown hook where required.
 
-The global composition root selects enabled modules and supplies adapters. It does not import individual use cases, event handlers, or business rules. The worker receives one registry assembled from context modules; adding a job edits its context plus one registry declaration, not multiple switch statements.
+The global composition root selects enabled modules and supplies adapters. It does not import individual use cases, event handlers, or business rules. It consumes the BQC-3 runtime registry as one accepted interface and must not introduce another worker/job registry.
 
 Add composition characterization tests before splitting. Delete old global wiring only after behavior parity.
 
 ### BQC-5.3 — Runtime-neutral domain decisions
+
+**Mode:** `IMPLEMENTS`. BQC-6 only detects/proves browser runtime cleanliness.
 
 - Move review hashing out of `review/domain/rules.ts` behind the appropriate application/runtime seam, or use a deliberately universal pure implementation outside domain policy.
 - Inject `Clock` or explicit `now` into replayable/domain decisions in Identity, Activity, Staff, Metric, Portal, Guest, Goal, and Badge.
@@ -94,22 +107,26 @@ Wire or remove the currently unused dashboard cache and health endpoint modules.
 
 ### BQC-5.6 — Cross-context/privacy cleanup
 
+**Mode:** `IMPLEMENTS` dependency-direction cleanup only. Protected-content behavior/copy removal belongs to BQC-1; durable event/job integration belongs to BQC-3.
+
 - Replace Guest infrastructure's import of a Portal domain error with a Guest-owned result or explicit public interface outcome.
 - Remove shared event/queries modules that import context implementations; invert through registrations/public interfaces.
-- Ensure Activity, Notification, Dashboard, Metric, and Staff consume content-free facts or authorized owning-context lookups.
+- Enforce that Activity, Notification, Dashboard, Metric, and Staff use the content-free facts/authorized owning-context lookups already implemented by BQC-1/BQC-3; return behavior gaps to those owners.
 - Confirm dark contexts cannot be pulled into enabled bundles through a convenient shared barrel.
 
 ### BQC-5.7 — Complexity burn-down
 
-Rank the 120 complexity findings by enabled-path risk and change frequency. Refactor in this order:
+Rank the 120 complexity findings by enabled-path risk and change frequency. Refactor residual/inherited code in this order:
 
-1. `ExecutionPolicy` and authorization resolution after BQC-2 characterization.
-2. Review/source lifecycle and import/sync commands.
-3. Composition/bootstrap/worker registration.
+1. Legacy authorization assembly/call-site complexity outside the BQC-2-owned `ExecutionPolicy`.
+2. Review/import/sync callers outside the accepted BQC-1 lifecycle interface; behavior defects return to BQC-1.
+3. Non-worker composition/bootstrap; worker/runtime registration remains BQC-3-owned.
 4. Inbox/dashboard queries and UI orchestration.
 5. Dark Goal/Badge/Portal modules only enough to enforce boundaries, determinism, and safe future maintenance.
 
 Use domain decision tables/state machines and deep modules, not extraction of one-line pass-through functions. Each refactor must reduce what callers know and tests should move to the new interface.
+
+If the hotspot is inside a newly implemented BQC-1…4 module, its owning phase fixes it and refreshes its evidence. BQC-5 records and verifies the result rather than creating a replacement module.
 
 ### BQC-5.8 — Dead-code and control reconciliation
 
@@ -130,6 +147,8 @@ Eliminate duplicated policy and domain invariants first: authorization assembly,
 UI story/fixture duplication can remain when it improves clarity and is not policy-bearing. The beta target is <7% measured duplication and zero duplicated authorization/retention/routing decisions.
 
 ### BQC-5.10 — Context acceptance pass
+
+**Mode:** `PROMOTES` the owning BQC-1…4 interfaces into an architecture acceptance matrix. This slice does not implement missing product behavior; gaps return to their owner and the matrix reruns.
 
 #### Enabled/limited contexts
 
@@ -193,7 +212,8 @@ Full feature completion for dark contexts remains in the post-beta product plans
 | Routes do not construct DB/repository adapters                               | Pass            |
 | Browser/domain paths contain no Node-only implementation                     | Pass            |
 | Schema and migrations are semantically verified                              | Pass            |
-| Context runtime modules replace global handler/job wiring                    | Pass            |
+| Non-worker context modules replace residual global composition glue          | Pass            |
+| BQC-3 runtime registry passes dependency rules without a duplicate registry  | Pass            |
 | Ambient time is removed from replayable/domain decisions                     | Pass            |
 | Confirmed unused production controls are wired or removed                    | Pass            |
 | All complexity/dead-code findings are triaged; enabled P0/P1 hotspots closed | Pass            |

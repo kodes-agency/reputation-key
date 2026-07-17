@@ -12,10 +12,18 @@ Define and deploy a repeatable production-like topology with separate web and wo
 ## 2. Findings owned
 
 - STD-P1-04 — public/internal metrics design, with BQC-5.
+- STD-P1-07 — Nitro server plugins are inert in the production build, so intended response-header and startup controls do not execute.
 - SPEC-P1-05 — topology/observability incomplete.
 - SPEC-P1-06 — security/release gates missing.
 - Operational support for SPEC-P1-02 and SPEC-P1-04.
 - Resolution of intended-but-unused operational/security modules from STD-P2-05.
+
+## Ownership mode
+
+- Containers/deployment, health/metrics, alerts, operator commands, security controls/scans, and backup configuration: `IMPLEMENTS`.
+- Operator commands `INTEGRATE` the accepted BQC-2 `ExecutionPolicy` and BQC-3 runtime interfaces; BQC-7 does not duplicate either implementation.
+- BQC-8 `RE_EXECUTES` these same controls under integrated load, fault, restore, and final-artifact conditions.
+- An integrated BQC-8 failure returns to BQC-7 (or the relevant product owner) for correction; BQC-8 does not create a second operations implementation.
 
 ## 3. Production topology
 
@@ -77,6 +85,8 @@ Never label/log organization, property, user, review, event, job IDs, review/rep
 
 ### BQC-7.4 — Alerts and SLOs
 
+**Mode:** `IMPLEMENTS` alert definitions, routing, runbooks, and focused synthetic injection. BQC-8 re-executes them during integrated fault/scale scenarios.
+
 Define owner, severity, threshold/window, runbook, and test for:
 
 - web/worker availability and latency;
@@ -108,9 +118,12 @@ Wire or remove the unused operator-command module. Required authenticated/idempo
 
 Commands require reason/correlation, dry-run where applicable, bounded scope, confirmation for destructive actions, and content-free audit results.
 
+Every command passes a named operator principal and target resource through BQC-2 `ExecutionPolicy`. Commands that enqueue or redrive work use the BQC-3 runtime contract instead of invoking handlers or infrastructure directly.
+
 ### BQC-7.6 — Security hardening
 
-- Wire the intended security-header/CSP module and verify actual response headers.
+- Repair or replace the inert Nitro-plugin integration; do not treat a source file under `server/plugins` as an active control without built-artifact proof.
+- Wire the intended security-header/CSP behavior through a production-supported integration point and verify the complete B0.7 response-header set against the booted production artifact.
 - Enforce trusted proxy/origin, body/time limits, request IDs, secure cookies/session settings, and rate controls appropriate to enabled surfaces.
 - Verify OAuth state/PKCE/redirect allowlists, encrypted token lifecycle, key rotation, and log redaction.
 - Restrict health/metrics/admin endpoints by network and/or strong authorization.
@@ -119,6 +132,8 @@ Commands require reason/correlation, dry-run where applicable, bounded scope, co
 - Keep uploads/public guest/outbound non-auth email dark; remove unused dependencies if not needed for beta.
 
 ### BQC-7.7 — Supply-chain and security CI
+
+**Mode:** `IMPLEMENTS` the hard gates and artifact generation. BQC-8 reruns the same gates against the immutable candidate; it does not maintain separate scan policy.
 
 Hard-gate:
 

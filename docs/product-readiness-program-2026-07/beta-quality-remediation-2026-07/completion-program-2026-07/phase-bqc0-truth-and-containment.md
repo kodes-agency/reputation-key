@@ -9,6 +9,10 @@
 
 Establish one machine-verifiable program status and close immediate containment defects before deeper work begins. After BQC-0, nobody can mistake merged scaffolding for accepted behavior, accidentally enable a non-core capability in production, or open portal writes through a read gate.
 
+## Ownership mode
+
+BQC-0 `IMPLEMENTS` status truth and immediate containment. Later phases replace temporary controls only through their owning production modules; BQC-8 validates that the final candidate still carries the accepted posture. Completed BQC-0 code/evidence is reused, not reimplemented.
+
 ## 2. Findings owned
 
 - STD-P0-01 — portal writes authorized by `portal.read`.

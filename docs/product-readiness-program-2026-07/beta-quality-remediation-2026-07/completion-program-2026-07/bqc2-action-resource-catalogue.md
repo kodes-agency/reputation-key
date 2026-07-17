@@ -64,7 +64,7 @@ These have no extractable authorization call; the row is the canonical **assignm
 
 - `/api/public/click/$linkId` — no `portal.read` assert (BQC-2.4 wires).
 - `/api/auth/google/callback` — no `integration.use` assert (HMAC state + session only).
-- `/api/webhooks/gbp/notifications` — no `property.connect_gbp` assert at ingress; the enqueued job handler gates. BQC-2.5 decides whether ingress must also assert.
+- `/api/webhooks/gbp/notifications` — no `property.connect_gbp` assert at ingress; BQC-2.5 defines the required ingress/delayed policy contract and BQC-3 performs the worker/job integration once.
 
 ### 4.5 Operator commands bypass application authorization
 

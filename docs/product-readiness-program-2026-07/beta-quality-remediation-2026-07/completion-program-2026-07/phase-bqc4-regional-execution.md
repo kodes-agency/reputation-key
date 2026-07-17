@@ -9,6 +9,10 @@
 
 A property's approved processing region selects the actual queue, worker, data/cache/object-storage boundary, and external provider endpoint for every protected workload. `unresolved` or unavailable routing fails closed and becomes an operator-visible state. No code or infrastructure silently falls back to another region.
 
+## Ownership mode
+
+BQC-4 `IMPLEMENTS` `ProcessingRouter` and production selection of queue/worker/data/provider targets. BQC-7 `IMPLEMENTS` the matching deployable cell topology; BQC-8 `RE_EXECUTES` no-fallback behavior under integrated failures. Neither later phase creates a second routing decision model.
+
 ## 2. Findings owned
 
 - SPEC-P1-01 — processing region is metadata only.
