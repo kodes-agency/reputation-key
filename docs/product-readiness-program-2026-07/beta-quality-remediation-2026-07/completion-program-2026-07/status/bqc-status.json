@@ -1,0 +1,284 @@
+{
+  "schemaVersion": 1,
+  "program": "BQC",
+  "updatedAt": "2026-07-17T00:00:00.000Z",
+  "baseline": {
+    "validationReport": "docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md",
+    "validationBaselineSha": "29b021875c145a7f8827f0ee70fc20935fc5dc79",
+    "workingTreeSha": "7cd383e9fba8d56bc653b31145f6202772efe195",
+    "lockfileSha256": "948a751d725fd8668b4ef734a28eea10392fd89890608f453998786a2b197287",
+    "notes": "BQR work is implementation history only. No BQR phase is `accepted` under BQC rules. Open findings remain from the 2026-07-16 validation report until closed by BQC evidence."
+  },
+  "entries": [
+    {
+      "id": "BQR-0",
+      "kind": "phase",
+      "title": "Containment and rebaseline (historical BQR)",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "implementation": { "pr": "#188" },
+      "requiredEvidenceIds": [],
+      "openFindings": ["STD-P0-01", "SPEC-P0-03"],
+      "exceptions": [],
+      "notes": "Historical. Not BQC-accepted. Containment defects remain."
+    },
+    {
+      "id": "BQR-1",
+      "kind": "phase",
+      "title": "Architecture and schema (historical BQR)",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "implementation": { "pr": "#189-#192" },
+      "requiredEvidenceIds": [],
+      "openFindings": ["STD-P1-01", "STD-P1-06", "STD-P2-02"],
+      "exceptions": [],
+      "notes": "Historical. Presence/architecture tests incomplete relative to BQC."
+    },
+    {
+      "id": "BQR-2",
+      "kind": "phase",
+      "title": "Durable runtime (historical BQR)",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "implementation": { "pr": "#193-#197" },
+      "requiredEvidenceIds": [],
+      "openFindings": ["STD-P0-02", "SPEC-P0-01", "SPEC-P1-02"],
+      "exceptions": [],
+      "notes": "Historical. Tracer-bullet durable path only; not full family coverage."
+    },
+    {
+      "id": "BQR-3",
+      "kind": "phase",
+      "title": "Source lifecycle and region (historical BQR)",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "implementation": { "pr": "#199" },
+      "requiredEvidenceIds": [],
+      "openFindings": ["SPEC-P0-02", "SPEC-P1-01"],
+      "exceptions": [],
+      "notes": "Historical. Lifecycle/region incomplete at production depth."
+    },
+    {
+      "id": "BQR-4",
+      "kind": "phase",
+      "title": "Auth privacy containment (historical BQR)",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "implementation": { "pr": "#201" },
+      "requiredEvidenceIds": [],
+      "openFindings": ["STD-P1-02", "SPEC-P0-03"],
+      "exceptions": [],
+      "notes": "Historical. Policy not authoritative everywhere."
+    },
+    {
+      "id": "BQR-5",
+      "kind": "phase",
+      "title": "Experience verification (historical BQR)",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "implementation": { "pr": "#202-#204" },
+      "requiredEvidenceIds": [],
+      "openFindings": ["STD-P1-05", "SPEC-P1-03"],
+      "exceptions": [],
+      "notes": "Historical. Browser gates shallow; residual soft."
+    },
+    {
+      "id": "BQR-6",
+      "kind": "phase",
+      "title": "Ops and scale (historical BQR)",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "implementation": { "pr": "#205-#208" },
+      "requiredEvidenceIds": [],
+      "openFindings": ["STD-P1-04", "SPEC-P1-04", "SPEC-P1-05", "SPEC-P1-06"],
+      "exceptions": [],
+      "notes": "Historical. Templates/checklists without executed staging scale proof."
+    },
+    {
+      "id": "BQR-7",
+      "kind": "phase",
+      "title": "Pilot (historical BQR)",
+      "state": "blocked",
+      "owner": "product",
+      "requiredEvidenceIds": [],
+      "openFindings": [],
+      "exceptions": [],
+      "blockedDependency": "human pilot + real properties; BQC-0 through BQC-8 acceptance first",
+      "nextReviewDate": "2026-08-15",
+      "notes": "Superseded as completion path by BQC-9. Pilot remains human-gated."
+    },
+    {
+      "id": "BQC-0",
+      "kind": "phase",
+      "title": "Truthful rebaseline and containment",
+      "state": "implementation_in_progress",
+      "owner": "engineering",
+      "requiredEvidenceIds": [
+        "baseline-manifest",
+        "portal-negative-matrix",
+        "production-config-rejection",
+        "stop-control-rehearsal",
+        "generated-status"
+      ],
+      "openFindings": ["STD-P0-01", "SPEC-P2-01", "SPEC-P0-03"],
+      "exceptions": [],
+      "notes": "Active completion phase."
+    },
+    {
+      "id": "BQC-0.1",
+      "kind": "slice",
+      "parentId": "BQC-0",
+      "title": "Machine-readable program status",
+      "state": "implementation_in_progress",
+      "owner": "engineering",
+      "requiredEvidenceIds": ["generated-status", "status-schema-tests"],
+      "openFindings": ["SPEC-P2-01"],
+      "exceptions": []
+    },
+    {
+      "id": "BQC-0.2",
+      "kind": "slice",
+      "parentId": "BQC-0",
+      "title": "Correct portal capability taxonomy",
+      "state": "not_started",
+      "owner": "engineering",
+      "requiredEvidenceIds": ["portal-negative-matrix"],
+      "openFindings": ["STD-P0-01"],
+      "exceptions": []
+    },
+    {
+      "id": "BQC-0.3",
+      "kind": "slice",
+      "parentId": "BQC-0",
+      "title": "Restrict test-only capability overrides",
+      "state": "not_started",
+      "owner": "engineering",
+      "requiredEvidenceIds": ["production-config-rejection"],
+      "openFindings": ["SPEC-P0-03"],
+      "exceptions": []
+    },
+    {
+      "id": "BQC-0.4",
+      "kind": "slice",
+      "parentId": "BQC-0",
+      "title": "Confirm operational stop controls",
+      "state": "not_started",
+      "owner": "engineering",
+      "requiredEvidenceIds": ["stop-control-rehearsal"],
+      "openFindings": [],
+      "exceptions": []
+    },
+    {
+      "id": "BQC-0.5",
+      "kind": "slice",
+      "parentId": "BQC-0",
+      "title": "Re-run and pin the baseline",
+      "state": "not_started",
+      "owner": "engineering",
+      "requiredEvidenceIds": ["baseline-manifest"],
+      "openFindings": [],
+      "exceptions": []
+    },
+    {
+      "id": "BQC-1",
+      "kind": "phase",
+      "title": "Google source-data governance",
+      "state": "not_started",
+      "owner": "engineering",
+      "requiredEvidenceIds": [],
+      "openFindings": ["SPEC-P0-02", "STD-P1-03"],
+      "exceptions": []
+    },
+    {
+      "id": "BQC-2",
+      "kind": "phase",
+      "title": "Authoritative authorization and capabilities",
+      "state": "not_started",
+      "owner": "engineering",
+      "requiredEvidenceIds": [],
+      "openFindings": ["SPEC-P0-03", "STD-P1-02"],
+      "exceptions": []
+    },
+    {
+      "id": "BQC-3",
+      "kind": "phase",
+      "title": "Durable commands, consumers, and jobs",
+      "state": "not_started",
+      "owner": "engineering",
+      "requiredEvidenceIds": [],
+      "openFindings": ["STD-P0-02", "SPEC-P0-01", "SPEC-P1-02"],
+      "exceptions": []
+    },
+    {
+      "id": "BQC-4",
+      "kind": "phase",
+      "title": "Enforced regional execution",
+      "state": "not_started",
+      "owner": "engineering",
+      "requiredEvidenceIds": [],
+      "openFindings": ["SPEC-P1-01"],
+      "exceptions": []
+    },
+    {
+      "id": "BQC-5",
+      "kind": "phase",
+      "title": "Clean architecture and context quality",
+      "state": "not_started",
+      "owner": "engineering",
+      "requiredEvidenceIds": [],
+      "openFindings": [
+        "STD-P1-01",
+        "STD-P1-04",
+        "STD-P1-06",
+        "STD-P2-01",
+        "STD-P2-02",
+        "STD-P2-03",
+        "STD-P2-04",
+        "STD-P2-05"
+      ],
+      "exceptions": []
+    },
+    {
+      "id": "BQC-6",
+      "kind": "phase",
+      "title": "Trustworthy verification and experience gates",
+      "state": "not_started",
+      "owner": "engineering",
+      "requiredEvidenceIds": [],
+      "openFindings": ["STD-P1-05", "SPEC-P1-03", "STD-P2-06"],
+      "exceptions": []
+    },
+    {
+      "id": "BQC-7",
+      "kind": "phase",
+      "title": "Production operations, security, and observability",
+      "state": "not_started",
+      "owner": "engineering",
+      "requiredEvidenceIds": [],
+      "openFindings": ["SPEC-P1-05", "SPEC-P1-06"],
+      "exceptions": []
+    },
+    {
+      "id": "BQC-8",
+      "kind": "phase",
+      "title": "Scale, recovery, and release evidence",
+      "state": "not_started",
+      "owner": "engineering",
+      "requiredEvidenceIds": [],
+      "openFindings": ["SPEC-P1-04", "SPEC-P2-02"],
+      "exceptions": []
+    },
+    {
+      "id": "BQC-9",
+      "kind": "phase",
+      "title": "Controlled pilot and AI-readiness handoff",
+      "state": "blocked",
+      "owner": "product",
+      "requiredEvidenceIds": [],
+      "openFindings": [],
+      "exceptions": [],
+      "blockedDependency": "BQC-0 through BQC-8 accepted + human pilot authorization",
+      "nextReviewDate": "2026-09-01"
+    }
+  ]
+}

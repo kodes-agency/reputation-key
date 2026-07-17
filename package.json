@@ -45,7 +45,9 @@
     "test-storybook": "test-storybook",
     "test:storybook": "VITEST_STORYBOOK=true vitest run --project='storybook:**'",
     "perf:catalog": "tsx scripts/perf/load-test.ts",
-    "perf:evidence": "tsx scripts/perf/write-scale-evidence.ts"
+    "perf:evidence": "tsx scripts/perf/write-scale-evidence.ts",
+    "bqc:validate-status": "tsx scripts/bqc/validate-status.ts",
+    "bqc:generate-status": "tsx scripts/bqc/generate-status.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

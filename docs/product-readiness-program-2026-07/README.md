@@ -9,7 +9,8 @@ This folder contains the AI, PRE17, beta-readiness, Google-policy, and post-beta
 3. [PRE17 AI-readiness master plan](phase-pre17-master-plan.md)
 4. [Beta-readiness master plan](beta-readiness-master-plan.md)
 5. [Beta quality remediation program](beta-quality-remediation-2026-07/README.md)
-6. [Post-beta product-completion master plan](post-beta-product-completion-master-plan.md)
+6. [Beta Quality Completion Program](beta-quality-remediation-2026-07/completion-program-2026-07/README.md)
+7. [Post-beta product-completion master plan](post-beta-product-completion-master-plan.md)
 
 ## Google policy request and response
 
@@ -40,6 +41,8 @@ This folder contains the AI, PRE17, beta-readiness, Google-policy, and post-beta
 
 - [Program index](beta-quality-remediation-2026-07/README.md)
 - [Master plan](beta-quality-remediation-2026-07/master-plan.md)
+- [Implementation validation](beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md)
+- [BQC completion program](beta-quality-remediation-2026-07/completion-program-2026-07/README.md)
 - [BQR-0 phase + exit matrix](beta-quality-remediation-2026-07/phase-bqr0-containment-and-rebaseline.md)
 - [BQR-0 truthful baseline](beta-quality-remediation-2026-07/bqr0-truthful-baseline.md)
 

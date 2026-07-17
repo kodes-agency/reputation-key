@@ -63,6 +63,14 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      # BQC-0.1: live completion truth is the schema-validated status manifest.
+      - name: BQC status manifest
+        run: |
+          pnpm bqc:validate-status
+          pnpm bqc:generate-status
+          git diff --exit-code -- \
+            docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/completion-program-2026-07/STATUS.md
+
       - name: Run migrations
         env:
           NODE_ENV: test
