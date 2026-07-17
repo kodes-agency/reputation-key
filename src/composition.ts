@@ -22,6 +22,7 @@ import type { JobRegistry } from '#/shared/jobs/registry'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { createBetterAuthIdentityAdapter } from '#/contexts/identity/infrastructure/adapters/auth-identity.adapter'
+import { initPersistedCapabilityPolicyStore } from '#/contexts/identity/infrastructure/policy-store-init'
 import type { IdentityPort } from '#/contexts/identity/application/ports/identity.port'
 import {
   betterAuthOrganizationSchema,
@@ -82,6 +83,9 @@ function buildInfrastructure(options: {
   queue?: Queue
   /** Override the background queue (simulations inject an in-memory queue). */
   backgroundQueue?: Queue
+  /** Database + env for the persisted capability policy store (BQC-2.2). */
+  db: Database
+  env: Env
 }) {
   const cache: Cache = options.redis ? createRedisCache(options.redis) : createNoopCache()
   const rateLimiter: RateLimiter = createRateLimiter(options.redis, {
@@ -102,7 +106,16 @@ function buildInfrastructure(options: {
     options.backgroundQueue ??
     (options.enableJobs && options.redis ? createJobQueue('background') : undefined)
   const jobRegistry: JobRegistry = createJobRegistry()
-  return { cache, rateLimiter, jobQueue, backgroundQueue, jobRegistry }
+  // BQC-2.2: install the composite capability policy store — env global
+  // posture (kill switch / e2e overrides unchanged) + persisted tenant state
+  // (allowlist/suspension from the 0014 policy tables). The env seed unions
+  // in, so behavior is identical until DB policy rows exist; revocation and
+  // suspension take effect within POLICY_REFRESH_INTERVAL_MS.
+  const policyStore = initPersistedCapabilityPolicyStore({
+    db: options.db,
+    env: options.env,
+  })
+  return { cache, rateLimiter, jobQueue, backgroundQueue, jobRegistry, policyStore }
 }
 
 // ── Identity infrastructure helpers ────────────────────────────────
@@ -160,6 +173,7 @@ function createOutboxConsumerRegistrar(deps: {
 
 // ── Main container ─────────────────────────────────────────────────
 
+// fallow-ignore-next-line complexity — composition root: per-dependency override pattern is inherently branchy (was already over threshold on main; extraction would scatter the wiring)
 export function createContainer(options?: {
   enableJobs?: boolean
   /** Override the database connection (simulations, per-test isolation). */
@@ -195,6 +209,8 @@ export function createContainer(options?: {
     enableJobs,
     queue: options?.queue,
     backgroundQueue: options?.backgroundQueue,
+    db,
+    env,
   })
 
   // Identity port (adapter)
@@ -563,6 +579,10 @@ export function createContainer(options?: {
     notificationRepo: notification.internal.repos.notificationRepo,
     notificationEmailRepo: notification.internal.repos.emailRepo,
     notificationPrefRepo: notification.internal.repos.prefRepo,
+    // BQC-2.2: version-gated strong read of persisted policy state.
+    // Workers await this before starting; side-effect paths use it for
+    // fresh reads (BQC-2.5).
+    refreshPolicyStore: infra.policyStore.refresh,
     // BQR-2.2/2.4: worker calls this before optional durable dispatch start.
     registerOutboxConsumers: createOutboxConsumerRegistrar({
       outboxRepo,
