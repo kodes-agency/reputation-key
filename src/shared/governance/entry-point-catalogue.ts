@@ -129,6 +129,13 @@ export type EntryPointRow = Readonly<{
   purpose: string
   /** Consumer rows: event tags handled (guard pins to registration tables). */
   eventTags?: ReadonlyArray<string>
+  /**
+   * BQC-2.5: delayed-execution policy integration state. Required on
+   * job/consumer/schedule rows: 'pending_bqc3' until BQC-3 integrates the
+   * BQC-2.5 contract into the runtime call site for this entry point.
+   * This field IS the record of delayed entry points awaiting BQC-3.
+   */
+  policyIntegration?: 'pending_bqc3'
   /** True when code carries no mechanically checkable authz — BQC-2.4 must wire. */
   canonicalOnly?: boolean
   notes?: string
@@ -258,7 +265,7 @@ const job = (
     name,
     file,
     { action, capability, resourceScope, principals: ['system'] },
-    opts,
+    { policyIntegration: 'pending_bqc3', ...opts },
   )
 
 /** Event consumer module (system principal); eventTags pinned by the guard. */
@@ -276,7 +283,7 @@ const consumer = (
     name,
     file,
     { action, capability, resourceScope, principals: ['system'] },
-    { ...opts, eventTags },
+    { policyIntegration: 'pending_bqc3', ...opts, eventTags },
   )
 
 /** Recurring schedule registered in the worker (system principal). */
@@ -292,7 +299,7 @@ const schedule = (
     name,
     'src/worker/index.ts',
     { action, capability, resourceScope, principals: ['system'] },
-    opts,
+    { policyIntegration: 'pending_bqc3', ...opts },
   )
 
 /** Operator command (operator principal; DIRECT-DB bypasses flagged in notes). */

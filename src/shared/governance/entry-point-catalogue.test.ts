@@ -377,6 +377,18 @@ describe('BQC-2.1 entry-point catalogue', () => {
     expect(bad.map(rowKey), `malformed rows: ${bad.map(rowKey).join(', ')}`).toEqual([])
   })
 
+  it('records every delayed entry point as awaiting BQC-3 integration (BQC-2.5)', () => {
+    const delayed = catalogue.filter((r) =>
+      ['job', 'consumer', 'schedule'].includes(r.kind),
+    )
+    const missing = delayed.filter((r) => r.policyIntegration !== 'pending_bqc3')
+    expect(
+      missing.map(rowKey),
+      `delayed rows without policyIntegration 'pending_bqc3': ${missing.map(rowKey).join(', ')}`,
+    ).toEqual([])
+    expect(delayed.length).toBeGreaterThan(0)
+  })
+
   it('derives every row posture from the authoritative capability sets', () => {
     const bad = catalogue.filter(
       (r) => r.betaPosture !== postureForCapability(r.capability),
