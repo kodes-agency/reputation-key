@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "program": "BQC",
-  "updatedAt": "2026-07-17T08:45:00.000Z",
+  "updatedAt": "2026-07-17T09:40:00.000Z",
   "baseline": {
     "validationReport": "docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md",
     "validationBaselineSha": "29b021875c145a7f8827f0ee70fc20935fc5dc79",
@@ -212,11 +212,24 @@
       "id": "BQC-1",
       "kind": "phase",
       "title": "Google source-data governance",
-      "state": "not_started",
+      "state": "implementation_in_progress",
       "owner": "engineering",
       "requiredEvidenceIds": [],
       "openFindings": ["SPEC-P0-02", "STD-P1-03"],
-      "exceptions": []
+      "exceptions": [],
+      "notes": "1.1 implementation_complete; 1.2–1.7 remaining. Not accepted."
+    },
+    {
+      "id": "BQC-1.1",
+      "kind": "slice",
+      "parentId": "BQC-1",
+      "title": "Complete field-and-copy inventory",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "requiredEvidenceIds": ["field-copy-inventory", "protected-field-registry-tests"],
+      "openFindings": [],
+      "exceptions": [],
+      "notes": "Verified inventory + executable classification published (bqc1-field-copy-inventory.md). Machine registry (protected-field-registry.ts, 46 entries) guarded by a test that fails when a protected field is introduced without classification (schema columns incl. outbox barrel-excluded tables, outbox event payload fields, job payload scan). Backup/PITR decision recorded as open prerequisite (security/privacy owner) before real data. Worst unmanaged copies ranked for 1.2/1.6/1.7. Pending independent review for accepted."
     },
     {
       "id": "BQC-2",
