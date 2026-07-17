@@ -143,7 +143,10 @@ export type CapabilityPolicyStore = Readonly<{
  * Creates a policy store from environment configuration.
  *
  * Environment variables:
- * - BETA_CAPABILITIES_OFF=1 — global kill switch, disables ALL capabilities
+ * - BETA_CAPABILITIES_OFF — capability kill switch (BQC-0.4): '1'/'true'/'all'
+ *   disables ALL capabilities; a comma-separated list disables exactly those
+ *   capabilities (e.g. property.connect_gbp,property.publish_reply stops
+ *   Google sync/import/publish). Empty/absent = none off.
  * - BETA_ALLOWLIST_ORGS — comma-separated org IDs allowed to use non-core capabilities
  * - BETA_E2E_GLOBAL_CAPABILITIES — comma-separated non-core capabilities forced ON
  *   globally for E2E/CI only (never blocked capabilities). Used so Playwright
@@ -152,7 +155,8 @@ export type CapabilityPolicyStore = Readonly<{
 export function createEnvCapabilityPolicyStore(
   env: Readonly<Record<string, string | undefined>>,
 ): CapabilityPolicyStore {
-  const globalOff = env.BETA_CAPABILITIES_OFF === '1'
+  const killAll = isKillSwitchAll(env)
+  const killedCapabilities = new Set(parseKilledCapabilities(env))
   const allowlistedOrgs = new Set(
     (env.BETA_ALLOWLIST_ORGS ?? '')
       .split(',')
@@ -174,7 +178,9 @@ export function createEnvCapabilityPolicyStore(
 
   return {
     isCapabilityGloballyEnabled: (cap) => {
-      if (globalOff) return false
+      if (killAll) return false
+      // BQC-0.4: per-capability kill list (granular stop control)
+      if (killedCapabilities.has(cap)) return false
       // Blocked capabilities are never globally enabled
       if (BLOCKED_CAPABILITIES.has(cap)) return false
       // Core capabilities are globally enabled
@@ -226,6 +232,26 @@ export function parseE2EGlobalOverrides(
     .map((s) => s.trim())
     .filter((s): s is Capability => s.length > 0)
     .filter((cap) => !isBlockedCapability(cap))
+    .sort()
+}
+
+/** True when BETA_CAPABILITIES_OFF is the whole-switch form ('1'/'true'/'all'). */
+export function isKillSwitchAll(env: CapabilityPolicyEnv): boolean {
+  const raw = (env.BETA_CAPABILITIES_OFF ?? '').trim().toLowerCase()
+  return raw === '1' || raw === 'true' || raw === 'all'
+}
+
+/**
+ * Sorted per-capability kill list from BETA_CAPABILITIES_OFF (BQC-0.4 stop
+ * control). Empty when the switch is absent or in whole-switch form (see
+ * isKillSwitchAll). Unknown entries are inert but recorded for truthfulness.
+ */
+export function parseKilledCapabilities(env: CapabilityPolicyEnv): ReadonlyArray<string> {
+  if (isKillSwitchAll(env)) return []
+  return (env.BETA_CAPABILITIES_OFF ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0)
     .sort()
 }
 

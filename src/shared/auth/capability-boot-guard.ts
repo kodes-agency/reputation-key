@@ -34,9 +34,11 @@ import {
   assertE2EOverrideIdentity,
   createEnvCapabilityPolicyStore,
   initCapabilityPolicyStore,
+  isKillSwitchAll,
   listBlockedCapabilities,
   listCoreCapabilities,
   parseE2EGlobalOverrides,
+  parseKilledCapabilities,
   type Capability,
   type CapabilityPolicyEnv,
 } from './beta-capabilities'
@@ -47,7 +49,10 @@ export type { CapabilityPolicyEnv }
 export type CapabilityBootManifest = Readonly<{
   policyVersion: string
   nodeEnv: string
+  /** Whole-switch kill ('1'/'true'/'all'). */
   killSwitchActive: boolean
+  /** BQC-0.4 per-capability kill list (empty when whole-switch or absent). */
+  disabledCapabilities: ReadonlyArray<string>
   coreCapabilities: ReadonlyArray<Capability>
   blockedCapabilities: ReadonlyArray<Capability>
   e2eGlobalOverrides: ReadonlyArray<Capability>
@@ -69,7 +74,8 @@ export function buildCapabilityBootManifest(
   return {
     policyVersion: CAPABILITY_POLICY_VERSION,
     nodeEnv: env.NODE_ENV ?? '(unset)',
-    killSwitchActive: env.BETA_CAPABILITIES_OFF === '1',
+    killSwitchActive: isKillSwitchAll(env),
+    disabledCapabilities: parseKilledCapabilities(env),
     coreCapabilities: listCoreCapabilities(),
     blockedCapabilities: listBlockedCapabilities(),
     e2eGlobalOverrides: parseE2EGlobalOverrides(env),

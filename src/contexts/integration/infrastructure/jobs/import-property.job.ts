@@ -4,6 +4,7 @@ import type { ImportPropertyJobData } from '../../application/ports/gbp-queue.po
 import type { ImportPropertyUseCase } from '../../application/use-cases/import-property'
 import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
+import { isCapabilityJobEnabled } from '#/shared/auth/beta-capabilities'
 
 export type { ImportPropertyJobData }
 
@@ -20,6 +21,16 @@ export const createImportPropertyHandler = (
     return trace('job.importProperty', async () => {
       const logger = getLogger()
       const { jobId, organizationId, connectionId, locations } = job.data
+
+      // BQC-0.4 stop control: already-enqueued work must not call Google after
+      // the capability is switched off (jobs are skipped, not deleted).
+      if (!isCapabilityJobEnabled('property.connect_gbp')) {
+        logger.info(
+          { jobId, organizationId },
+          'BQC-0.4: import skipped — property.connect_gbp is disabled',
+        )
+        return
+      }
 
       logger.info(
         { jobId, organizationId, connectionId, locationCount: locations.length },

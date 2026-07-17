@@ -13,6 +13,7 @@ import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { replyId, organizationId } from '#/shared/domain/ids'
 import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
+import { isCapabilityJobEnabled } from '#/shared/auth/beta-capabilities'
 import {
   markReplyPublished,
   markReplyPublishFailed,
@@ -60,6 +61,17 @@ export const createPublishReplyHandler = (deps: PublishHandlerDeps) => {
   return async (job: Job<PublishReplyJobData>) => {
     return trace('job.publishReply', async () => {
       const logger = getLogger()
+
+      // BQC-0.4 stop control: already-enqueued work must not call Google after
+      // the capability is switched off (jobs are skipped, not deleted).
+      if (!isCapabilityJobEnabled('property.publish_reply')) {
+        logger.info(
+          { jobId: job.id, replyId: job.data.replyId },
+          'BQC-0.4: publish skipped — property.publish_reply is disabled',
+        )
+        return
+      }
+
       const rId = replyId(job.data.replyId)
       const orgId = organizationId(job.data.organizationId)
 

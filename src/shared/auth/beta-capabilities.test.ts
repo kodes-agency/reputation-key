@@ -155,6 +155,42 @@ describe('BetaCapabilities', () => {
       expect(store.isCapabilityGloballyEnabled('property.create')).toBe(false)
     })
 
+    it('treats BETA_CAPABILITIES_OFF=all as the global kill switch (BQC-0.4)', () => {
+      const store = createEnvCapabilityPolicyStore({ BETA_CAPABILITIES_OFF: 'all' })
+      expect(store.isCapabilityGloballyEnabled('identity.invite')).toBe(false)
+      expect(store.isCapabilityGloballyEnabled('property.create')).toBe(false)
+      expect(store.isCapabilityGloballyEnabled('review.use')).toBe(false)
+    })
+
+    it('disables exactly the listed capabilities when BETA_CAPABILITIES_OFF is a comma list (BQC-0.4)', () => {
+      const store = createEnvCapabilityPolicyStore({
+        BETA_CAPABILITIES_OFF: 'property.connect_gbp,property.publish_reply',
+      })
+      // Listed: off — this is the Google sync/import/publish stop control.
+      expect(store.isCapabilityGloballyEnabled('property.connect_gbp')).toBe(false)
+      expect(store.isCapabilityGloballyEnabled('property.publish_reply')).toBe(false)
+      // Unlisted: untouched (core still on, non-core still default-off).
+      expect(store.isCapabilityGloballyEnabled('property.create')).toBe(true)
+      expect(store.isCapabilityGloballyEnabled('review.use')).toBe(true)
+      expect(store.isCapabilityGloballyEnabled('goal.use')).toBe(false)
+    })
+
+    it('ignores unknown entries in the kill list', () => {
+      const store = createEnvCapabilityPolicyStore({
+        BETA_CAPABILITIES_OFF: 'not.a.cap, property.create ',
+      })
+      expect(store.isCapabilityGloballyEnabled('property.create')).toBe(false)
+      expect(store.isCapabilityGloballyEnabled('review.use')).toBe(true)
+    })
+
+    it('keeps blocked capabilities blocked regardless of the kill list', () => {
+      const store = createEnvCapabilityPolicyStore({
+        BETA_CAPABILITIES_OFF: 'portal.write,review.use',
+      })
+      expect(store.isCapabilityGloballyEnabled('portal.write')).toBe(false)
+      expect(store.isOrgAllowlisted('org-1', 'portal.write')).toBe(false)
+    })
+
     it('allows core capabilities by default', () => {
       const store = createEnvCapabilityPolicyStore({})
       expect(store.isCapabilityGloballyEnabled('identity.invite')).toBe(true)

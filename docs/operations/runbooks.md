@@ -133,8 +133,8 @@ Each runbook follows the structure:
 
 **Trigger:** Any P0 stop condition from ADR 0038 (tenant isolation breach, data loss, duplicate effect, token leak, policy violation).
 **Impact:** P0 — all external effects must stop immediately.
-**Containment:** Set `BETA_CAPABILITIES_OFF=identity.invite,property.connect_gbp,property.publish_reply` in env. Restart web + worker. Jobs re-check capability before side effects.
-**Recovery:** Investigate root cause. Fix. Re-enable capabilities one at a time with monitoring.
+**Containment:** Full stop → set `BETA_CAPABILITIES_OFF=all` and restart web + worker. Targeted stop → set a comma list, e.g. `BETA_CAPABILITIES_OFF=property.connect_gbp,property.publish_reply` stops Google sync/import/publish (interactive gates deny; the sync/import/publish job handlers re-check capability before side effects and skip cleanly — enqueued jobs are preserved, not deleted). Worker startup logs the effective capability manifest (kill switch, disabled list, blocked set).
+**Recovery:** Investigate root cause. Fix. Re-enable capabilities one at a time with monitoring (remove list entries, restart).
 **Verification:** No new external effects after kill switch. Canonical data preserved.
 **Escalation:** Bozhidar Denev decides on restart. All P0 conditions require written sign-off before re-enabling.
 
