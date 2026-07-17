@@ -213,27 +213,12 @@ async function syncOneReview(
   let persisted = false
   let contentChanged = false
   try {
-    if (contentUnchanged) {
-      // Extend lastFetchedAt / contentExpiresAt only — no domain event / outbox row.
-      await deps.reviewRepo.upsert(review, now)
-      persisted = true
-    } else {
-      // BQR-2.3: review row + outbox event in one transaction (via command store).
-      // BQC-1.2: identifier-only domain event — no rating (raw content);
-      // consumers resolve content via the authorized read at consume time.
-      const eventPayload = {
-        reviewId: review.id,
-        propertyId: input.propertyId,
-        organizationId: input.organizationId,
-        platform: 'google' as const,
-        externalId: gr.externalId,
-        occurredAt: gr.reviewedAt,
-      }
-      const event = isNew ? reviewCreated(eventPayload) : reviewUpdated(eventPayload)
-      await deps.commandStore.upsertAndRecord(review, event, now)
-      persisted = true
-      contentChanged = !isNew
-    }
+    const outcome = await persistSyncedReview(deps, review, gr, input, now, {
+      isNew,
+      contentUnchanged,
+    })
+    persisted = outcome.persisted
+    contentChanged = outcome.contentChanged
 
     if (
       await mirrorReply(deps, review.id, input.organizationId, input.propertyId, gr, now)
@@ -258,6 +243,40 @@ async function syncOneReview(
     repliesMirrored,
     hadError,
   }
+}
+
+/**
+ * Persist one synced review (BQC-1.3). Hash-stable refetch extends lifecycle
+ * clocks only (no event); new/content-changed rows commit with an
+ * identifier-only domain event in one transaction (BQR-2.3).
+ */
+async function persistSyncedReview(
+  deps: SyncReviewsDeps,
+  review: Omit<Review, 'createdAt' | 'updatedAt'>,
+  gr: GoogleReview,
+  input: SyncReviewsInput,
+  now: Date,
+  state: Readonly<{ isNew: boolean; contentUnchanged: boolean }>,
+): Promise<{ persisted: boolean; contentChanged: boolean }> {
+  if (state.contentUnchanged) {
+    // Extend lastFetchedAt / contentExpiresAt only — no domain event / outbox row.
+    await deps.reviewRepo.upsert(review, now)
+    return { persisted: true, contentChanged: false }
+  }
+
+  // BQC-1.2: identifier-only domain event — no rating (raw content);
+  // consumers resolve content via the authorized read at consume time.
+  const eventPayload = {
+    reviewId: review.id,
+    propertyId: input.propertyId,
+    organizationId: input.organizationId,
+    platform: 'google' as const,
+    externalId: gr.externalId,
+    occurredAt: gr.reviewedAt,
+  }
+  const event = state.isNew ? reviewCreated(eventPayload) : reviewUpdated(eventPayload)
+  await deps.commandStore.upsertAndRecord(review, event, now)
+  return { persisted: true, contentChanged: !state.isNew }
 }
 
 async function mirrorReply(
