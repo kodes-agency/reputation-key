@@ -138,6 +138,7 @@ function createTestEnv(googleReviews: ReadonlyArray<GoogleReview> = []) {
     findById: vi.fn(async () => null),
     findByIds: vi.fn(async () => []),
     findRecentEligibleByPropertyId: vi.fn(async () => []),
+    findExpiringBatchAcrossTenants: vi.fn(async () => []),
     findByExternalId: vi.fn(
       async (_p, externalId, orgId) => reviewStore.get(`${orgId}:${externalId}`) ?? null,
     ),

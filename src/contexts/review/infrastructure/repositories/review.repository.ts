@@ -208,6 +208,32 @@ export const createReviewRepository = (db: Database): ReviewRepository => ({
   },
 
   /**
+   * BQC-1.5: keyset-bounded batch (contentExpiresAt ASC, id ASC).
+   * Cursor predicate is a strict row-tuple greater-than, so concurrent
+   * inserts behind the cursor never cause skips or repeats.
+   */
+  findExpiringBatchAcrossTenants: async (date, cursor, limit) => {
+    return trace('review.findExpiringBatchAcrossTenants', async () => {
+      const conditions = [
+        isNotNull(reviews.contentExpiresAt),
+        lte(reviews.contentExpiresAt, date),
+      ]
+      if (cursor) {
+        conditions.push(
+          sql`(${reviews.contentExpiresAt}, ${reviews.id}) > (${cursor.contentExpiresAt}, ${cursor.id})`,
+        )
+      }
+      const rows = await db
+        .select()
+        .from(reviews)
+        .where(and(...conditions))
+        .orderBy(reviews.contentExpiresAt, reviews.id)
+        .limit(limit)
+      return rows.map(reviewFromRow)
+    })
+  },
+
+  /**
    * ⚠️ CROSS-TENANT: contentExpiresAt < date (exclusive), non-null only.
    * BQR-3.2 / ADR 0031: no post-expiry grace — purge as soon as the fetch clock expires.
    */

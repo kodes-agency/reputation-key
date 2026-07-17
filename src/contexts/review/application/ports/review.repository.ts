@@ -51,6 +51,17 @@ export type ReviewRepository = Readonly<{
    */
   findAllExpiringBeforeAcrossTenants(date: Date): Promise<ReadonlyArray<Review>>
   /**
+   * ⚠️ CROSS-TENANT: BQC-1.5 keyset-bounded batch of expiring reviews,
+   * ordered (contentExpiresAt ASC, id ASC). `cursor` resumes strictly AFTER
+   * (contentExpiresAt, id) — no row is skipped or repeated as the cursor
+   * advances. Replaces the one-shot 5,000-row scan.
+   */
+  findExpiringBatchAcrossTenants(
+    date: Date,
+    cursor: Readonly<{ contentExpiresAt: Date; id: string }> | null,
+    limit: number,
+  ): Promise<ReadonlyArray<Review>>
+  /**
    * ⚠️ CROSS-TENANT: System-level query — scans ALL orgs.
    * Reviews with non-null `contentExpiresAt < date` (exclusive).
    * Used by purge-expired (pass `now`; no post-expiry grace — ADR 0031).

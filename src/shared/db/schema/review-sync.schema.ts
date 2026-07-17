@@ -74,6 +74,41 @@ export const reviewSyncRuns = pgTable(
   (t) => [index('review_sync_runs_started_at_idx').on(t.startedAt)],
 )
 
+/**
+ * BQC-1.5 — refresh sweep run record. One row per sweep run with the
+ * resume cursor, counts, oldest due expiry, failures, and terminal state.
+ * `budget_exhausted` runs resume from their cursor on the next run.
+ */
+export const reviewRefreshRuns = pgTable(
+  'review_refresh_runs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
+    finishedAt: timestamp('finished_at', { withTimezone: true }),
+    /** Keyset cursor (contentExpiresAt, id) the run stopped at. */
+    cursorContentExpiresAt: timestamp('cursor_content_expires_at', {
+      withTimezone: true,
+    }),
+    cursorReviewId: uuid('cursor_review_id'),
+    batchSize: integer('batch_size').notNull(),
+    maxBatches: integer('max_batches').notNull(),
+    batchesProcessed: integer('batches_processed').notNull().default(0),
+    candidatesSeen: integer('candidates_seen').notNull().default(0),
+    refreshDueCount: integer('refresh_due_count').notNull().default(0),
+    enqueuedCount: integer('enqueued_count').notNull().default(0),
+    enqueueFailedCount: integer('enqueue_failed_count').notNull().default(0),
+    /** Oldest contentExpiresAt among refresh-due rows seen (alert input). */
+    oldestDueContentExpiresAt: timestamp('oldest_due_content_expires_at', {
+      withTimezone: true,
+    }),
+    /** 'running' | 'completed' | 'budget_exhausted' | 'failed' */
+    status: text('status').notNull().default('running'),
+    failureReason: text('failure_reason'),
+    nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }),
+  },
+  (t) => [index('review_refresh_runs_started_at_idx').on(t.startedAt)],
+)
+
 /** Dedup receipts for Google Pub/Sub (and future inbound webhooks). */
 export const inboundWebhookReceipts = pgTable(
   'inbound_webhook_receipts',
