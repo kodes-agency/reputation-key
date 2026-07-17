@@ -4,6 +4,7 @@
 import 'dotenv/config'
 import { getEnv } from '#/shared/config/env'
 import { getLogger } from '#/shared/observability/logger'
+import { runCapabilityBootGuard } from '#/shared/auth/capability-boot-guard'
 import { createContainer } from '#/composition'
 import { bootstrap } from '#/bootstrap'
 import { createJobWorker } from '#/shared/jobs/worker'
@@ -25,6 +26,10 @@ async function main() {
   const logger = getLogger()
 
   logger.info({ env: env.NODE_ENV }, 'Worker starting')
+
+  // BQC-0.3: refuse boot if test-only capability overrides leak outside an
+  // explicit test/CI identity; assert blocked caps; record policy manifest.
+  runCapabilityBootGuard(env, logger)
 
   // Build the dependency container
   const container = createContainer({ enableJobs: true })

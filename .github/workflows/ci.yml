@@ -210,7 +210,10 @@ jobs:
       E2E_TEST_EMAIL: test@example.com
       E2E_TEST_PASSWORD: password123
       # Open registration + team UI for this job only (not production defaults).
+      # BQC-0.3: the override boots only with this explicit execution identity
+      # (the dev server pins NODE_ENV=development via the dev script).
       BETA_E2E_GLOBAL_CAPABILITIES: identity.register,organization.create,team.use
+      BETA_E2E_EXECUTION_IDENTITY: playwright-e2e
 
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
