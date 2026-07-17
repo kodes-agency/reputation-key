@@ -4,11 +4,12 @@
 > Regenerate: `pnpm bqc:generate-status`. Schema: `src/shared/bqc/status-schema.ts`.
 
 **Program:** BQC  
-**Manifest updated:** 2026-07-17T07:56:56.000Z  
+**Manifest updated:** 2026-07-17T08:45:00.000Z  
 **Validation report:** docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md  
 **Validation baseline SHA:** `29b021875c145a7f8827f0ee70fc20935fc5dc79`  
-**Working tree SHA (status describes):** `77fc52d67eab77438409da399bf486ddd9879f39`  
+**Working tree SHA (status describes):** `927614bce728f8c42d922720f149b6ea1b046354`  
 **Lockfile SHA-256:** `948a751d725fd8668b4ef734a28eea10392fd89890608f453998786a2b197287`  
+**Migration version:** 0011_people-access-and-attribution  
 
 BQR work is implementation history only. No BQR phase is `accepted` under BQC rules. Open findings remain from the 2026-07-16 validation report until closed by BQC evidence.
 
@@ -30,7 +31,7 @@ Only these states are valid: `not_started`, `implementation_in_progress`, `imple
 | BQR-5 | phase | Experience verification (historical BQR) | `implementation_complete` | engineering | #202-#204 | STD-P1-05, SPEC-P1-03 | — |
 | BQR-6 | phase | Ops and scale (historical BQR) | `implementation_complete` | engineering | #205-#208 | STD-P1-04, SPEC-P1-04, SPEC-P1-05, SPEC-P1-06 | — |
 | BQR-7 | phase | Pilot (historical BQR) | `blocked` | product | — | — | human pilot + real properties; BQC-0 through BQC-8 acceptance first (review 2026-08-15) |
-| BQC-0 | phase | Truthful rebaseline and containment | `implementation_in_progress` | engineering | — | STD-P0-01, SPEC-P2-01, SPEC-P0-03 | — |
+| BQC-0 | phase | Truthful rebaseline and containment | `evidence_pending` | engineering | — | STD-P0-01, SPEC-P2-01, SPEC-P0-03 | — |
 | BQC-1 | phase | Google source-data governance | `not_started` | engineering | — | SPEC-P0-02, STD-P1-03 | — |
 | BQC-2 | phase | Authoritative authorization and capabilities | `not_started` | engineering | — | SPEC-P0-03, STD-P1-02 | — |
 | BQC-3 | phase | Durable commands, consumers, and jobs | `not_started` | engineering | — | STD-P0-02, SPEC-P0-01, SPEC-P1-02 | — |
@@ -49,7 +50,7 @@ Only these states are valid: `not_started`, `implementation_in_progress`, `imple
 | BQC-0.2 | slice | Correct portal capability taxonomy | `implementation_complete` | engineering | — | — | — |
 | BQC-0.3 | slice | Restrict test-only capability overrides | `implementation_complete` | engineering | — | — | — |
 | BQC-0.4 | slice | Confirm operational stop controls | `implementation_complete` | engineering | — | — | — |
-| BQC-0.5 | slice | Re-run and pin the baseline | `not_started` | engineering | — | — | — |
+| BQC-0.5 | slice | Re-run and pin the baseline | `implementation_complete` | engineering | — | — | — |
 
 ## Historical BQR work
 

@@ -1,0 +1,41 @@
+$ pnpm test:e2e --project=critical
+started: 2026-07-17T08:34:52.676Z  durationMs: 11309  exit: 0
+
+
+> reputation-key@ test:e2e /Users/bozhidardenev/kodes/projects/rep-key
+> playwright test --project\=critical
+
+
+Running 7 tests using 1 worker
+
+  ✓  1 [critical] › e2e/critical/auth-and-shell.spec.ts:30:3 › Critical: authentication › sign in with seeded credentials reaches authenticated area (933ms)
+  ✓  2 [critical] › e2e/critical/auth-and-shell.spec.ts:35:3 › Critical: authentication › registration form is reachable when e2e capabilities are on (1.6s)
+  ✓  3 [critical] › e2e/critical/auth-and-shell.spec.ts:55:3 › Critical: properties shell › properties list shows seeded property (652ms)
+  ✓  4 [critical] › e2e/critical/auth-and-shell.spec.ts:61:3 › Critical: properties shell › open seeded property detail (699ms)
+  ✓  5 [critical] › e2e/critical/auth-and-shell.spec.ts:67:3 › Critical: properties shell › property reviews route loads inbox chrome (686ms)
+  ✓  6 [critical] › e2e/critical/auth-and-shell.spec.ts:81:3 › Critical: inbox and members shell › inbox triage surface loads for manager (707ms)
+  ✓  7 [critical] › e2e/critical/auth-and-shell.spec.ts:87:3 › Critical: inbox and members shell › settings members page loads (705ms)
+
+  7 passed (10.9s)
+
+(node:17168) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+[WebServer] (node:17175) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:17196) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:17196) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+[WebServer] Warning: Route file "/Users/bozhidardenev/kodes/projects/rep-key/src/routes/api/webhooks/gbp/notifications.test.ts" does not export a Route. This file will not be included in the route tree.
+[WebServer] 
+[WebServer] If this file is not intended to be a route, you can exclude it using one of these options:
+[WebServer]   1. Rename the file to "/Users/bozhidardenev/kodes/projects/rep-key/src/routes/api/webhooks/gbp/-notifications.test.ts" (prefix with "-")
+[WebServer]   2. Use 'routeFileIgnorePattern' in your config to match this file
+[WebServer] 
+[WebServer] Current configuration:
+[WebServer]   routeFileIgnorePrefix: "-"
+[WebServer]   routeFileIgnorePattern: undefined
+(node:17274) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:17274) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:17274) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)

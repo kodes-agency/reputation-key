@@ -48,6 +48,7 @@
     "perf:evidence": "tsx scripts/perf/write-scale-evidence.ts",
     "bqc:validate-status": "tsx scripts/bqc/validate-status.ts",
     "bqc:generate-status": "tsx scripts/bqc/generate-status.ts",
+    "bqc:run-baseline": "tsx scripts/bqc/run-baseline.ts",
     "ops:queue": "tsx scripts/ops/queue-quarantine.ts"
   },
   "dependencies": {

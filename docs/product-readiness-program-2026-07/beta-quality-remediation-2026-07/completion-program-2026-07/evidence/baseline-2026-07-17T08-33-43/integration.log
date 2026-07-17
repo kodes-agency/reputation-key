@@ -1,0 +1,35 @@
+$ pnpm test:integration
+started: 2026-07-17T08:34:21.199Z  durationMs: 5796  exit: 0
+
+
+> reputation-key@ test:integration /Users/bozhidardenev/kodes/projects/rep-key
+> vitest run --project=integration
+
+
+ RUN  v4.1.10 /Users/bozhidardenev/kodes/projects/rep-key
+
+ ✓ |integration| src/contexts/integration/infrastructure/repositories/google-connection.repository.test.ts (9 tests) 63ms
+ ✓ |integration| src/contexts/dashboard/infrastructure/repositories/dashboard.repository.test.ts (15 tests) 117ms
+ ✓ |integration| src/contexts/portal/infrastructure/repositories/portal-link.repository.test.ts (11 tests) 81ms
+ ✓ |integration| src/contexts/review/infrastructure/repositories/review.repository.test.ts (14 tests) 98ms
+ ✓ |integration| src/contexts/review/infrastructure/repositories/reply.repository.test.ts (10 tests) 82ms
+ ✓ |integration| src/contexts/property/infrastructure/repositories/property.repository.test.ts (7 tests) 84ms
+{"level":50,"time":1784277264400,"pid":16159,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.updateStatus","duration":1,"error":"[object Object]","msg":"✕ inbox.updateStatus 1ms — [object Object]"}
+{"level":50,"time":1784277264402,"pid":16159,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.create","duration":0,"error":"[object Object]","msg":"✕ inbox.create 0ms — [object Object]"}
+ ✓ |integration| src/contexts/inbox/infrastructure/repositories/inbox.repository.test.ts (26 tests) 80ms
+ ✓ |integration| src/contexts/guest/infrastructure/repositories/guest-interaction.repository.test.ts (12 tests) 67ms
+ ✓ |integration| src/contexts/team/infrastructure/repositories/team.repository.test.ts (7 tests) 62ms
+ ✓ |integration| src/contexts/integration/infrastructure/repositories/gbp-cache.repository.test.ts (9 tests) 70ms
+ ✓ |integration| src/contexts/portal/infrastructure/repositories/portal.repository.test.ts (9 tests) 63ms
+ ✓ |integration| src/contexts/staff/infrastructure/repositories/staff-assignment.repository.test.ts (9 tests) 70ms
+ ✓ |integration| src/shared/db/migration-verification.test.ts (7 tests) 42ms
+ ✓ |integration| src/contexts/integration/infrastructure/repositories/gbp-import.repository.test.ts (8 tests) 43ms
+ ✓ |integration| src/contexts/metric/infrastructure/repositories/metric.repository.test.ts (4 tests) 2ms
+ ✓ |integration| src/contexts/inbox/infrastructure/repositories/inbox-note.repository.test.ts (2 tests) 1ms
+
+ Test Files  16 passed (16)
+      Tests  159 passed (159)
+   Start at  11:34:21
+   Duration  5.27s (transform 226ms, setup 359ms, import 2.91s, tests 1.03s, environment 1ms)
+
+

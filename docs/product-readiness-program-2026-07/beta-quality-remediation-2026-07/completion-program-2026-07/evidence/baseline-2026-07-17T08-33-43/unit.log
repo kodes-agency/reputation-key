@@ -1,0 +1,526 @@
+$ pnpm test:unit
+started: 2026-07-17T08:34:09.456Z  durationMs: 11742  exit: 0
+
+
+> reputation-key@ test:unit /Users/bozhidardenev/kodes/projects/rep-key
+> vitest run --project=unit
+
+
+ RUN  v4.1.10 /Users/bozhidardenev/kodes/projects/rep-key
+
+ ✓ |unit| src/contexts/goal/ui/helpers.test.ts (64 tests) 17ms
+{"level":40,"time":1784277250330,"pid":15401,"hostname":"Bozhidars-MacBook-Air.local","err":{"type":"Error","message":"connection refused","stack":"Error: connection refused\n    at /Users/bozhidardenev/kodes/projects/rep-key/src/shared/cache/redis-cache.test.ts:72:9\n    at file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11\n    at file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26\n    at file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)\n    at file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10)\n    at file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2955:64"},"key":"any-key","msg":"[cache] get failed"}
+{"level":40,"time":1784277250333,"pid":15401,"hostname":"Bozhidars-MacBook-Air.local","err":{"type":"Error","message":"connection refused","stack":"Error: connection refused\n    at /Users/bozhidardenev/kodes/projects/rep-key/src/shared/cache/redis-cache.test.ts:102:9\n    at file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11\n    at file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26\n    at file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)\n    at file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10)\n    at file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2955:64"},"key":"key","msg":"[cache] set failed"}
+{"level":40,"time":1784277250333,"pid":15401,"hostname":"Bozhidars-MacBook-Air.local","err":{"type":"Error","message":"connection refused","stack":"Error: connection refused\n    at /Users/bozhidardenev/kodes/projects/rep-key/src/shared/cache/redis-cache.test.ts:126:9\n    at file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11\n    at file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26\n    at file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)\n    at file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10)\n    at file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2955:64"},"key":"key","msg":"[cache] delete failed"}
+{"level":40,"time":1784277250334,"pid":15401,"hostname":"Bozhidars-MacBook-Air.local","err":{"type":"Error","message":"connection refused","stack":"Error: connection refused\n    at /Users/bozhidardenev/kodes/projects/rep-key/src/shared/cache/redis-cache.test.ts:148:9\n    at file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11\n    at file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26\n    at file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)\n    at file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10)\n    at file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2955:64"},"key":"any-key","msg":"[cache] exists check failed"}
+ ✓ |unit| src/shared/cache/redis-cache.test.ts (14 tests) 31ms
+{"level":50,"time":1784277250663,"pid":15397,"hostname":"Bozhidars-MacBook-Air.local","errorType":"AuthError","code":"unauthorized","status":401,"message":"Valid session required","msg":"← THROW AuthError(unauthorized) → 401"}
+ ✓ |unit| src/shared/auth/auth.test.ts (6 tests) 498ms
+{"level":50,"time":1784277250679,"pid":15402,"hostname":"Bozhidars-MacBook-Air.local","errorType":"AuthError","code":"forbidden","status":403,"message":"No goal read permission","msg":"← THROW AuthError(forbidden) → 403"}
+ ✓ |unit| src/contexts/goal/server/staff-goals.test.ts (15 tests) 13ms
+ ✓ |unit| src/shared/architecture/outbox-import-boundary.test.ts (330 tests) 19ms
+{"level":50,"time":1784277251135,"pid":15439,"hostname":"Bozhidars-MacBook-Air.local","errorType":"GoalError","code":"not_found","status":404,"message":"Goal not found","msg":"← THROW GoalError(not_found) → 404"}
+{"level":50,"time":1784277251136,"pid":15439,"hostname":"Bozhidars-MacBook-Air.local","errorType":"GoalError","code":"forbidden","status":403,"message":"Insufficient role","msg":"← THROW GoalError(forbidden) → 403"}
+{"level":50,"time":1784277251136,"pid":15439,"hostname":"Bozhidars-MacBook-Air.local","errorType":"GoalError","code":"immutable_goal","status":409,"message":"Goal is completed","msg":"← THROW GoalError(immutable_goal) → 409"}
+{"level":50,"time":1784277251136,"pid":15439,"hostname":"Bozhidars-MacBook-Air.local","errorType":"GoalError","code":"forbidden","status":403,"message":"test forbidden","msg":"← THROW GoalError(forbidden) → 403"}
+{"level":50,"time":1784277251136,"pid":15439,"hostname":"Bozhidars-MacBook-Air.local","errorType":"GoalError","code":"not_found","status":404,"message":"test not_found","msg":"← THROW GoalError(not_found) → 404"}
+{"level":50,"time":1784277251136,"pid":15439,"hostname":"Bozhidars-MacBook-Air.local","errorType":"GoalError","code":"validation_error","status":400,"message":"test validation_error","msg":"← THROW GoalError(validation_error) → 400"}
+{"level":50,"time":1784277251136,"pid":15439,"hostname":"Bozhidars-MacBook-Air.local","errorType":"GoalError","code":"immutable_goal","status":409,"message":"test immutable_goal","msg":"← THROW GoalError(immutable_goal) → 409"}
+{"level":50,"time":1784277251136,"pid":15439,"hostname":"Bozhidars-MacBook-Air.local","errorType":"GoalError","code":"forbidden","status":403,"message":"No goal write permission","msg":"← THROW GoalError(forbidden) → 403"}
+ ✓ |unit| src/contexts/goal/server/goals.test.ts (54 tests) 9ms
+ ✓ |unit| src/contexts/staff/build.test.ts (4 tests) 20ms
+ ✓ |unit| src/contexts/review/application/use-cases/reply-operations.test.ts (55 tests) 18ms
+ ✓ |unit| src/shared/architecture/no-event-bus-after-db-write.test.ts (1 test) 18ms
+{"level":50,"time":1784277251539,"pid":15440,"hostname":"Bozhidars-MacBook-Air.local","errorType":"AuthError","code":"unauthorized","status":401,"message":"Valid session required","msg":"← THROW AuthError(unauthorized) → 401"}
+{"level":50,"time":1784277251541,"pid":15440,"hostname":"Bozhidars-MacBook-Air.local","errorType":"AuthError","code":"unauthorized","status":401,"message":"Valid session required","msg":"← THROW AuthError(unauthorized) → 401"}
+{"level":50,"time":1784277251541,"pid":15440,"hostname":"Bozhidars-MacBook-Air.local","errorType":"AuthError","code":"no_active_org","status":400,"message":"No active organization selected","msg":"← THROW AuthError(no_active_org) → 400"}
+{"level":50,"time":1784277251541,"pid":15440,"hostname":"Bozhidars-MacBook-Air.local","errorType":"AuthError","code":"forbidden","status":403,"message":"Not a member of the active organization","msg":"← THROW AuthError(forbidden) → 403"}
+{"level":40,"time":1784277251541,"pid":15440,"hostname":"Bozhidars-MacBook-Air.local","memberRole":"content-manager","organizationId":"org-1","userId":"u1","msg":"auth.unsupported_member_role: custom role rejected while custom roles are disabled"}
+{"level":50,"time":1784277251541,"pid":15440,"hostname":"Bozhidars-MacBook-Air.local","errorType":"AuthError","code":"forbidden","status":403,"message":"Member role is not supported","msg":"← THROW AuthError(forbidden) → 403"}
+{"level":40,"time":1784277251541,"pid":15440,"hostname":"Bozhidars-MacBook-Air.local","memberRole":"owner,admin","organizationId":"org-1","userId":"u1","msg":"auth.unsupported_member_role: custom role rejected while custom roles are disabled"}
+{"level":50,"time":1784277251541,"pid":15440,"hostname":"Bozhidars-MacBook-Air.local","errorType":"AuthError","code":"forbidden","status":403,"message":"Member role is not supported","msg":"← THROW AuthError(forbidden) → 403"}
+{"level":50,"time":1784277251542,"pid":15440,"hostname":"Bozhidars-MacBook-Air.local","err":{"type":"Error","message":"db down","stack":"Error: db down\n    at Object.<anonymous> (/Users/bozhidardenev/kodes/projects/rep-key/src/shared/auth/middleware.test.ts:331:38)\n    at Object.Mock [as select] (file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+spy@4.1.10/node_modules/@vitest/spy/dist/index.js:332:34)\n    at fetchPermissionVersion (/Users/bozhidardenev/kodes/projects/rep-key/src/shared/db/role-definitions.ts:44:6)\n    at Module.resolveTenantContext (/Users/bozhidardenev/kodes/projects/rep-key/src/shared/auth/middleware.ts:297:31)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at /Users/bozhidardenev/kodes/projects/rep-key/src/shared/auth/middleware.test.ts:340:3\n    at file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:20"},"organizationId":"org-1","userId":"u1","memberRole":"content-manager","msg":"auth.authorization_unavailable: dynamic resolver failed; fail-closed"}
+{"level":50,"time":1784277251544,"pid":15440,"hostname":"Bozhidars-MacBook-Air.local","errorType":"AuthError","code":"authorization_unavailable","status":503,"message":"Authorization resolution failed","msg":"← THROW AuthError(authorization_unavailable) → 503"}
+ ✓ |unit| src/shared/auth/middleware.test.ts (19 tests) 18ms
+{"level":30,"time":1784277251608,"pid":15399,"hostname":"Bozhidars-MacBook-Air.local","job":"health-check","msg":"registered health-check job handler"}
+{"level":30,"time":1784277251609,"pid":15398,"hostname":"Bozhidars-MacBook-Air.local","job":"health-check","msg":"registered health-check job handler"}
+{"level":30,"time":1784277251608,"pid":15399,"hostname":"Bozhidars-MacBook-Air.local","job":"process-image","capability":"portal.upload","msg":"registered no-op job handler (capability dark/blocked)"}
+{"level":30,"time":1784277251608,"pid":15399,"hostname":"Bozhidars-MacBook-Air.local","job":"import-property","msg":"registered import-property job handler"}
+{"level":30,"time":1784277251608,"pid":15399,"hostname":"Bozhidars-MacBook-Air.local","job":"sync-property-reviews","msg":"registered sync-property-reviews job handler"}
+{"level":30,"time":1784277251608,"pid":15399,"hostname":"Bozhidars-MacBook-Air.local","job":"refresh-expiring-reviews","msg":"registered refresh-expiring-reviews job handler"}
+{"level":30,"time":1784277251608,"pid":15399,"hostname":"Bozhidars-MacBook-Air.local","job":"purge-expired-reviews","msg":"registered purge-expired-reviews job handler"}
+{"level":30,"time":1784277251608,"pid":15399,"hostname":"Bozhidars-MacBook-Air.local","job":"publish-reply","msg":"registered publish-reply job handler"}
+{"level":30,"time":1784277251608,"pid":15399,"hostname":"Bozhidars-MacBook-Air.local","job":"refresh-daily-metrics","msg":"registered metric rollup refresh job handler"}
+{"level":30,"time":1784277251608,"pid":15399,"hostname":"Bozhidars-MacBook-Air.local","job":"refresh-weekly-metrics","msg":"registered metric rollup refresh job handler"}
+{"level":30,"time":1784277251608,"pid":15399,"hostname":"Bozhidars-MacBook-Air.local","job":"refresh-daily-inbox-metrics","msg":"registered metric rollup refresh job handler"}
+{"level":30,"time":1784277251613,"pid":15399,"hostname":"Bozhidars-MacBook-Air.local","job":"reconcile-goal-progress","capability":"goal.use","msg":"registered no-op job handler (capability dark/blocked)"}
+{"level":30,"time":1784277251609,"pid":15398,"hostname":"Bozhidars-MacBook-Air.local","job":"process-image","capability":"portal.upload","msg":"registered no-op job handler (capability dark/blocked)"}
+{"level":30,"time":1784277251609,"pid":15398,"hostname":"Bozhidars-MacBook-Air.local","job":"import-property","msg":"registered import-property job handler"}
+{"level":30,"time":1784277251609,"pid":15398,"hostname":"Bozhidars-MacBook-Air.local","job":"sync-property-reviews","msg":"registered sync-property-reviews job handler"}
+{"level":30,"time":1784277251609,"pid":15398,"hostname":"Bozhidars-MacBook-Air.local","job":"refresh-expiring-reviews","msg":"registered refresh-expiring-reviews job handler"}
+{"level":30,"time":1784277251609,"pid":15398,"hostname":"Bozhidars-MacBook-Air.local","job":"purge-expired-reviews","msg":"registered purge-expired-reviews job handler"}
+{"level":30,"time":1784277251609,"pid":15398,"hostname":"Bozhidars-MacBook-Air.local","job":"publish-reply","msg":"registered publish-reply job handler"}
+{"level":30,"time":1784277251609,"pid":15398,"hostname":"Bozhidars-MacBook-Air.local","job":"refresh-daily-metrics","msg":"registered metric rollup refresh job handler"}
+{"level":30,"time":1784277251609,"pid":15398,"hostname":"Bozhidars-MacBook-Air.local","job":"refresh-weekly-metrics","msg":"registered metric rollup refresh job handler"}
+{"level":30,"time":1784277251609,"pid":15398,"hostname":"Bozhidars-MacBook-Air.local","job":"refresh-daily-inbox-metrics","msg":"registered metric rollup refresh job handler"}
+{"level":30,"time":1784277251613,"pid":15398,"hostname":"Bozhidars-MacBook-Air.local","job":"reconcile-goal-progress","capability":"goal.use","msg":"registered no-op job handler (capability dark/blocked)"}
+{"level":30,"time":1784277251624,"pid":15398,"hostname":"Bozhidars-MacBook-Air.local","job":"spawn-recurring-instances","capability":"goal.use","msg":"registered no-op job handler (capability dark/blocked)"}
+{"level":30,"time":1784277251625,"pid":15399,"hostname":"Bozhidars-MacBook-Air.local","job":"spawn-recurring-instances","capability":"goal.use","msg":"registered no-op job handler (capability dark/blocked)"}
+{"level":30,"time":1784277251629,"pid":15399,"hostname":"Bozhidars-MacBook-Air.local","job":"insert-activity-log","msg":"registered activity log insertion job handler"}
+{"level":30,"time":1784277251629,"pid":15398,"hostname":"Bozhidars-MacBook-Air.local","job":"insert-activity-log","msg":"registered activity log insertion job handler"}
+{"level":30,"time":1784277251631,"pid":15399,"hostname":"Bozhidars-MacBook-Air.local","job":"insert-notification","msg":"registered insert-notification job handler"}
+{"level":30,"time":1784277251631,"pid":15398,"hostname":"Bozhidars-MacBook-Air.local","job":"insert-notification","msg":"registered insert-notification job handler"}
+{"level":30,"time":1784277251631,"pid":15398,"hostname":"Bozhidars-MacBook-Air.local","job":"urgent-email","capability":"notification.send_email","msg":"registered no-op job handler (capability dark/blocked)"}
+{"level":30,"time":1784277251631,"pid":15398,"hostname":"Bozhidars-MacBook-Air.local","job":"digest-notification","capability":"notification.send_email","msg":"registered no-op job handler (capability dark/blocked)"}
+{"level":30,"time":1784277251631,"pid":15399,"hostname":"Bozhidars-MacBook-Air.local","job":"urgent-email","capability":"notification.send_email","msg":"registered no-op job handler (capability dark/blocked)"}
+{"level":30,"time":1784277251631,"pid":15399,"hostname":"Bozhidars-MacBook-Air.local","job":"digest-notification","capability":"notification.send_email","msg":"registered no-op job handler (capability dark/blocked)"}
+{"level":30,"time":1784277251640,"pid":15399,"hostname":"Bozhidars-MacBook-Air.local","msg":"seeded system badge definitions"}
+{"level":30,"time":1784277251640,"pid":15399,"hostname":"Bozhidars-MacBook-Air.local","job":"badge.reconcile","capability":"badge.use","msg":"registered no-op job handler (capability dark/blocked)"}
+{"level":30,"time":1784277251640,"pid":15399,"hostname":"Bozhidars-MacBook-Air.local","job":"leaderboard.reconcile","capability":"leaderboard.use","msg":"registered no-op job handler (capability dark/blocked)"}
+{"level":30,"time":1784277251640,"pid":15398,"hostname":"Bozhidars-MacBook-Air.local","msg":"seeded system badge definitions"}
+ ✓ |unit| src/contexts/notification/infrastructure/jobs/digest-notification.job.test.ts (3 tests) 54ms
+{"level":30,"time":1784277251641,"pid":15398,"hostname":"Bozhidars-MacBook-Air.local","job":"badge.reconcile","capability":"badge.use","msg":"registered no-op job handler (capability dark/blocked)"}
+{"level":30,"time":1784277251641,"pid":15398,"hostname":"Bozhidars-MacBook-Air.local","job":"leaderboard.reconcile","capability":"leaderboard.use","msg":"registered no-op job handler (capability dark/blocked)"}
+ ✓ |unit| src/contexts/activity/application/use-cases/insert-activity-log.test.ts (2 tests) 55ms
+ ✓ |unit| src/contexts/badge/application/use-cases/evaluate-badge-for-target.test.ts (11 tests) 16ms
+{"level":50,"time":1784277251760,"pid":15451,"hostname":"Bozhidars-MacBook-Air.local","err":{"type":"Error","message":"boom","stack":"Error: boom\n    at /Users/bozhidardenev/kodes/projects/rep-key/src/shared/events/event-bus.test.ts:85:15\n    at Mock (file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+spy@4.1.10/node_modules/@vitest/spy/dist/index.js:332:34)\n    at /Users/bozhidardenev/kodes/projects/rep-key/src/shared/events/event-bus.ts:56:19\n    at Array.map (<anonymous>)\n    at Object.emit (/Users/bozhidardenev/kodes/projects/rep-key/src/shared/events/event-bus.ts:54:33)\n    at /Users/bozhidardenev/kodes/projects/rep-key/src/shared/events/event-bus.test.ts:92:17\n    at file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11\n    at file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26\n    at file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20\n    at new Promise (<anonymous>)"},"tag":"identity.organization.created","msg":"event handler threw"}
+{"level":50,"time":1784277251762,"pid":15451,"hostname":"Bozhidars-MacBook-Air.local","err":{"type":"Error","message":"handler error","stack":"Error: handler error\n    at /Users/bozhidardenev/kodes/projects/rep-key/src/shared/events/event-bus.test.ts:102:15\n    at /Users/bozhidardenev/kodes/projects/rep-key/src/shared/events/event-bus.ts:56:19\n    at Array.map (<anonymous>)\n    at Object.emit (/Users/bozhidardenev/kodes/projects/rep-key/src/shared/events/event-bus.ts:54:33)\n    at /Users/bozhidardenev/kodes/projects/rep-key/src/shared/events/event-bus.test.ts:107:13\n    at file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11\n    at file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26\n    at file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)"},"tag":"identity.organization.created","msg":"event handler threw"}
+ ✓ |unit| src/shared/events/event-bus.test.ts (9 tests) 17ms
+ ✓ |unit| src/contexts/goal/domain/goal-recurrence.test.ts (9 tests) 14ms
+ ✓ |unit| src/contexts/identity/infrastructure/adapters/auth-identity.adapter.test.ts (25 tests) 17ms
+ ✓ |unit| src/routes/api/webhooks/gbp/notifications.test.ts (6 tests) 17ms
+ ✓ |unit| src/contexts/notification/application/use-cases/insert-notification.test.ts (18 tests) 13ms
+ ✓ |unit| src/contexts/badge/application/utils.test.ts (8 tests) 14ms
+ ✓ |unit| src/contexts/notification/infrastructure/jobs/urgent-email.job.test.ts (12 tests) 8ms
+ ✓ |unit| src/shared/security/security-headers.test.ts (8 tests) 11ms
+ ✓ |unit| src/contexts/review/application/use-cases/sync-reviews.test.ts (27 tests) 18ms
+{"level":40,"time":1784277252053,"pid":15506,"hostname":"Bozhidars-MacBook-Air.local","reviewId":"rev-1","msg":"inbox: reply.published but no inbox item found"}
+{"level":30,"time":1784277252054,"pid":15455,"hostname":"Bozhidars-MacBook-Air.local","component":"server-fn","fn":"portal.listPortals","method":"GET","useCase":"portal.listPortals","duration":8,"msg":"request complete"}
+{"level":30,"time":1784277252055,"pid":15455,"hostname":"Bozhidars-MacBook-Air.local","component":"server-fn","fn":"portal.listPortals","method":"GET","useCase":"portal.listPortals","duration":0,"msg":"request complete"}
+ ✓ |unit| src/contexts/portal/server/portals-handler.test.ts (2 tests) 13ms
+{"level":50,"time":1784277252055,"pid":15506,"hostname":"Bozhidars-MacBook-Air.local","err":{"type":"Error","message":"DB down","stack":"Error: DB down\n    at Object.<anonymous> (/Users/bozhidardenev/kodes/projects/rep-key/src/contexts/inbox/infrastructure/event-handlers/on-reply-published.test.ts:176:17)\n    at Object.Mock [as findBySource] (file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+spy@4.1.10/node_modules/@vitest/spy/dist/index.js:332:34)\n    at /Users/bozhidardenev/kodes/projects/rep-key/src/contexts/inbox/infrastructure/event-handlers/on-reply-published.ts:25:43\n    at trace (/Users/bozhidardenev/kodes/projects/rep-key/src/shared/observability/trace.ts:54:26)\n    at /Users/bozhidardenev/kodes/projects/rep-key/src/contexts/inbox/infrastructure/event-handlers/on-reply-published.ts:23:12\n    at /Users/bozhidardenev/kodes/projects/rep-key/src/contexts/inbox/infrastructure/event-handlers/on-reply-published.test.ts:181:40\n    at file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11\n    at file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26\n    at file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20\n    at new Promise (<anonymous>)"},"replyId":"reply-1","msg":"inbox: failed to handle reply.published"}
+ ✓ |unit| src/contexts/inbox/infrastructure/event-handlers/on-reply-published.test.ts (7 tests) 9ms
+ ✓ |unit| src/contexts/staff/application/use-cases/list-staff-portals.test.ts (7 tests) 10ms
+ ✓ |unit| src/contexts/inbox/application/use-cases/get-inbox-items.test.ts (15 tests) 10ms
+{"level":50,"time":1784277252277,"pid":15569,"hostname":"Bozhidars-MacBook-Air.local","errorType":"AuthError","code":"permission_denied","status":403,"message":"Authorization denied: permission_denied","msg":"← THROW AuthError(permission_denied) → 403"}
+ ✓ |unit| src/shared/auth/authorization-policy.test.ts (14 tests) 7ms
+ ✓ |unit| src/contexts/goal/server/goals-handler.test.ts (4 tests) 11ms
+ ✓ |unit| src/shared/jobs/runtime.test.ts (5 tests) 6ms
+ ✓ |unit| src/shared/architecture/domain-error-convention.test.ts (147 tests) 9ms
+{"level":50,"time":1784277252408,"pid":15599,"hostname":"Bozhidars-MacBook-Air.local","errorType":"GuestError","code":"invalid_rating","status":400,"message":"Rating must be between 1 and 5","msg":"← THROW GuestError(invalid_rating) → 400"}
+{"level":50,"time":1784277252409,"pid":15599,"hostname":"Bozhidars-MacBook-Air.local","errorType":"GuestError","code":"portal_not_found","status":404,"message":"Portal missing","msg":"← THROW GuestError(portal_not_found) → 404"}
+{"level":50,"time":1784277252409,"pid":15599,"hostname":"Bozhidars-MacBook-Air.local","errorType":"GuestError","code":"portal_inactive","status":410,"message":"Portal deactivated","msg":"← THROW GuestError(portal_inactive) → 410"}
+{"level":50,"time":1784277252409,"pid":15599,"hostname":"Bozhidars-MacBook-Air.local","errorType":"GuestError","code":"rate_limit_exceeded","status":429,"message":"test rate_limit_exceeded","msg":"← THROW GuestError(rate_limit_exceeded) → 429"}
+{"level":50,"time":1784277252409,"pid":15599,"hostname":"Bozhidars-MacBook-Air.local","errorType":"GuestError","code":"invalid_rating","status":400,"message":"test invalid_rating","msg":"← THROW GuestError(invalid_rating) → 400"}
+{"level":50,"time":1784277252409,"pid":15599,"hostname":"Bozhidars-MacBook-Air.local","errorType":"GuestError","code":"duplicate_rating","status":400,"message":"test duplicate_rating","msg":"← THROW GuestError(duplicate_rating) → 400"}
+{"level":50,"time":1784277252409,"pid":15599,"hostname":"Bozhidars-MacBook-Air.local","errorType":"GuestError","code":"feedback_too_long","status":400,"message":"test feedback_too_long","msg":"← THROW GuestError(feedback_too_long) → 400"}
+{"level":50,"time":1784277252409,"pid":15599,"hostname":"Bozhidars-MacBook-Air.local","errorType":"GuestError","code":"feedback_empty","status":400,"message":"test feedback_empty","msg":"← THROW GuestError(feedback_empty) → 400"}
+{"level":50,"time":1784277252409,"pid":15599,"hostname":"Bozhidars-MacBook-Air.local","errorType":"GuestError","code":"invalid_source","status":400,"message":"test invalid_source","msg":"← THROW GuestError(invalid_source) → 400"}
+{"level":50,"time":1784277252409,"pid":15599,"hostname":"Bozhidars-MacBook-Air.local","errorType":"GuestError","code":"invalid_session","status":400,"message":"test invalid_session","msg":"← THROW GuestError(invalid_session) → 400"}
+{"level":50,"time":1784277252409,"pid":15599,"hostname":"Bozhidars-MacBook-Air.local","errorType":"GuestError","code":"portal_not_found","status":404,"message":"test portal_not_found","msg":"← THROW GuestError(portal_not_found) → 404"}
+{"level":50,"time":1784277252409,"pid":15599,"hostname":"Bozhidars-MacBook-Air.local","errorType":"GuestError","code":"portal_inactive","status":410,"message":"test portal_inactive","msg":"← THROW GuestError(portal_inactive) → 410"}
+ ✓ |unit| src/contexts/guest/server/public.test.ts (33 tests) 7ms
+ ✓ |unit| src/shared/auth/pubsub-jwt.verifier.test.ts (8 tests) 8ms
+{"level":50,"time":1784277252438,"pid":15602,"hostname":"Bozhidars-MacBook-Air.local","err":{"type":"Error","message":"DB unavailable","stack":"Error: DB unavailable\n    at Object.recordMetric (/Users/bozhidardenev/kodes/projects/rep-key/src/contexts/metric/infrastructure/event-handlers/on-feedback-submitted.test.ts:109:15)\n    at /Users/bozhidardenev/kodes/projects/rep-key/src/contexts/metric/infrastructure/event-handlers/on-feedback-submitted.ts:34:20\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at trace (/Users/bozhidardenev/kodes/projects/rep-key/src/shared/observability/trace.ts:54:20)"},"event":"guest.feedback.submitted","portalId":"portal-1","organizationId":"org-1","msg":"metric: failed to record portal.feedback"}
+ ✓ |unit| src/contexts/metric/infrastructure/event-handlers/on-feedback-submitted.test.ts (4 tests) 6ms
+ ✓ |unit| src/contexts/identity/domain/property-access-grant.test.ts (11 tests) 3ms
+{"level":50,"time":1784277252531,"pid":15605,"hostname":"Bozhidars-MacBook-Air.local","err":{"type":"Error","message":"DB unavailable","stack":"Error: DB unavailable\n    at Object.recordMetric (/Users/bozhidardenev/kodes/projects/rep-key/src/contexts/metric/infrastructure/event-handlers/on-review-link-clicked.test.ts:107:15)\n    at /Users/bozhidardenev/kodes/projects/rep-key/src/contexts/metric/infrastructure/event-handlers/on-review-link-clicked.ts:34:20\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at trace (/Users/bozhidardenev/kodes/projects/rep-key/src/shared/observability/trace.ts:54:20)"},"event":"guest.review_link.clicked","portalId":"portal-1","organizationId":"org-1","msg":"metric: failed to record portal.review_link_click"}
+ ✓ |unit| src/contexts/metric/infrastructure/event-handlers/on-review-link-clicked.test.ts (4 tests) 6ms
+ ✓ |unit| src/contexts/goal/infrastructure/event-handlers/on-metric-recorded.test.ts (19 tests) 10ms
+{"level":50,"time":1784277252558,"pid":15606,"hostname":"Bozhidars-MacBook-Air.local","err":{"type":"Error","message":"DB unavailable","stack":"Error: DB unavailable\n    at Object.recordMetric (/Users/bozhidardenev/kodes/projects/rep-key/src/contexts/metric/infrastructure/event-handlers/on-rating-submitted.test.ts:105:15)\n    at /Users/bozhidardenev/kodes/projects/rep-key/src/contexts/metric/infrastructure/event-handlers/on-rating-submitted.ts:34:20\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at trace (/Users/bozhidardenev/kodes/projects/rep-key/src/shared/observability/trace.ts:54:20)"},"event":"guest.rating.submitted","portalId":"portal-1","organizationId":"org-1","msg":"metric: failed to record portal.rating"}
+ ✓ |unit| src/contexts/metric/infrastructure/event-handlers/on-rating-submitted.test.ts (4 tests) 6ms
+ ✓ |unit| src/contexts/integration/domain/errors.test.ts (12 tests) 4ms
+ ✓ |unit| src/contexts/guest/domain/guest-response.test.ts (18 tests) 4ms
+{"level":30,"time":1784277252658,"pid":15608,"hostname":"Bozhidars-MacBook-Air.local","templatesChecked":1,"spawned":1,"failed":0,"msg":"Spawned recurring instances"}
+{"level":30,"time":1784277252659,"pid":15608,"hostname":"Bozhidars-MacBook-Air.local","templatesChecked":1,"spawned":0,"failed":0,"msg":"Spawned recurring instances"}
+{"level":30,"time":1784277252660,"pid":15608,"hostname":"Bozhidars-MacBook-Air.local","templatesChecked":1,"spawned":1,"failed":0,"msg":"Spawned recurring instances"}
+{"level":30,"time":1784277252660,"pid":15608,"hostname":"Bozhidars-MacBook-Air.local","templatesChecked":1,"spawned":0,"failed":0,"msg":"Spawned recurring instances"}
+{"level":30,"time":1784277252660,"pid":15608,"hostname":"Bozhidars-MacBook-Air.local","templatesChecked":1,"spawned":1,"failed":0,"msg":"Spawned recurring instances"}
+{"level":30,"time":1784277252660,"pid":15608,"hostname":"Bozhidars-MacBook-Air.local","templatesChecked":1,"spawned":1,"failed":0,"msg":"Spawned recurring instances"}
+{"level":30,"time":1784277252660,"pid":15608,"hostname":"Bozhidars-MacBook-Air.local","templatesChecked":1,"spawned":1,"failed":0,"msg":"Spawned recurring instances"}
+{"level":30,"time":1784277252660,"pid":15608,"hostname":"Bozhidars-MacBook-Air.local","templatesChecked":1,"spawned":0,"failed":0,"msg":"Spawned recurring instances"}
+{"level":30,"time":1784277252661,"pid":15608,"hostname":"Bozhidars-MacBook-Air.local","templatesChecked":1,"spawned":0,"failed":0,"msg":"Spawned recurring instances"}
+{"level":30,"time":1784277252661,"pid":15608,"hostname":"Bozhidars-MacBook-Air.local","templatesChecked":0,"spawned":0,"failed":0,"msg":"Spawned recurring instances"}
+ ✓ |unit| src/contexts/goal/infrastructure/jobs/spawn-recurring-instances.job.test.ts (9 tests) 7ms
+ ✓ |unit| src/contexts/goal/application/use-cases/system-cancel-goal.test.ts (8 tests) 4ms
+ ✓ |unit| src/shared/architecture/adr-0030-presence.test.ts (5 tests) 3ms
+{"level":50,"time":1784277252761,"pid":15612,"hostname":"Bozhidars-MacBook-Air.local","err":{"type":"Error","message":"DB down","stack":"Error: DB down\n    at Object.<anonymous> (/Users/bozhidardenev/kodes/projects/rep-key/src/contexts/inbox/infrastructure/event-handlers/on-feedback-submitted.test.ts:98:13)\n    at Object.Mock [as createInboxItem] (file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+spy@4.1.10/node_modules/@vitest/spy/dist/index.js:332:34)\n    at /Users/bozhidardenev/kodes/projects/rep-key/src/contexts/inbox/infrastructure/event-handlers/on-feedback-submitted.ts:26:20\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at trace (/Users/bozhidardenev/kodes/projects/rep-key/src/shared/observability/trace.ts:54:20)"},"feedbackId":"fb-1","msg":"inbox: failed to handle feedback.submitted"}
+ ✓ |unit| src/contexts/inbox/infrastructure/event-handlers/on-feedback-submitted.test.ts (4 tests) 7ms
+{"level":50,"time":1784277252780,"pid":15614,"hostname":"Bozhidars-MacBook-Air.local","span":"publicPortal.findBySlug","duration":3,"error":"[object Object]","msg":"✕ publicPortal.findBySlug 3ms — [object Object]"}
+{"level":50,"time":1784277252781,"pid":15614,"hostname":"Bozhidars-MacBook-Air.local","span":"publicPortal.findBySlug","duration":0,"error":"[object Object]","msg":"✕ publicPortal.findBySlug 0ms — [object Object]"}
+{"level":50,"time":1784277252782,"pid":15614,"hostname":"Bozhidars-MacBook-Air.local","span":"publicPortal.findBySlug","duration":0,"error":"boom","stack":"Error: boom\n    at Object.findPublicPortalBySlug (/Users/bozhidardenev/kodes/projects/rep-key/src/contexts/guest/infrastructure/resolvers/public-portal-lookup.test.ts:47:13)\n    at /Users/bozhidardenev/kodes/projects/rep-key/src/contexts/guest/infrastructure/resolvers/public-portal-lookup.ts:15:40\n    at trace (/Users/bozhidardenev/kodes/projects/rep-key/src/shared/observability/trace.ts:54:26)\n    at Object.findBySlug (/Users/bozhidardenev/kodes/projects/rep-key/src/contexts/guest/infrastructure/resolvers/public-portal-lookup.ts:13:12)\n    at /Users/bozhidardenev/kodes/projects/rep-key/src/contexts/guest/infrastructure/resolvers/public-portal-lookup.test.ts:51:25\n    at file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11\n    at file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26\n    at file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)","msg":"✕ publicPortal.findBySlug 0ms — boom"}
+ ✓ |unit| src/contexts/guest/infrastructure/resolvers/public-portal-lookup.test.ts (4 tests) 7ms
+ ✓ |unit| src/shared/auth/beta-capabilities.test.ts (30 tests) 5ms
+{"level":50,"time":1784277252882,"pid":15613,"hostname":"Bozhidars-MacBook-Air.local","errorType":"PropertyError","code":"invalid_slug","status":400,"message":"slug must be URL-friendly","msg":"← THROW PropertyError(invalid_slug) → 400"}
+{"level":50,"time":1784277252882,"pid":15613,"hostname":"Bozhidars-MacBook-Air.local","errorType":"PropertyError","code":"forbidden","status":403,"message":"Insufficient role","msg":"← THROW PropertyError(forbidden) → 403"}
+{"level":50,"time":1784277252882,"pid":15613,"hostname":"Bozhidars-MacBook-Air.local","errorType":"PropertyError","code":"slug_taken","status":409,"message":"Slug already exists","msg":"← THROW PropertyError(slug_taken) → 409"}
+{"level":50,"time":1784277252882,"pid":15613,"hostname":"Bozhidars-MacBook-Air.local","errorType":"PropertyError","code":"forbidden","status":403,"message":"test forbidden","msg":"← THROW PropertyError(forbidden) → 403"}
+{"level":50,"time":1784277252882,"pid":15613,"hostname":"Bozhidars-MacBook-Air.local","errorType":"PropertyError","code":"property_not_found","status":404,"message":"test property_not_found","msg":"← THROW PropertyError(property_not_found) → 404"}
+{"level":50,"time":1784277252882,"pid":15613,"hostname":"Bozhidars-MacBook-Air.local","errorType":"PropertyError","code":"slug_taken","status":409,"message":"test slug_taken","msg":"← THROW PropertyError(slug_taken) → 409"}
+{"level":50,"time":1784277252882,"pid":15613,"hostname":"Bozhidars-MacBook-Air.local","errorType":"PropertyError","code":"region_locked","status":409,"message":"test region_locked","msg":"← THROW PropertyError(region_locked) → 409"}
+{"level":50,"time":1784277252882,"pid":15613,"hostname":"Bozhidars-MacBook-Air.local","errorType":"PropertyError","code":"invalid_slug","status":400,"message":"test invalid_slug","msg":"← THROW PropertyError(invalid_slug) → 400"}
+{"level":50,"time":1784277252882,"pid":15613,"hostname":"Bozhidars-MacBook-Air.local","errorType":"PropertyError","code":"invalid_name","status":400,"message":"test invalid_name","msg":"← THROW PropertyError(invalid_name) → 400"}
+{"level":50,"time":1784277252882,"pid":15613,"hostname":"Bozhidars-MacBook-Air.local","errorType":"PropertyError","code":"invalid_timezone","status":400,"message":"test invalid_timezone","msg":"← THROW PropertyError(invalid_timezone) → 400"}
+{"level":50,"time":1784277252882,"pid":15613,"hostname":"Bozhidars-MacBook-Air.local","errorType":"PropertyError","code":"invalid_country","status":400,"message":"test invalid_country","msg":"← THROW PropertyError(invalid_country) → 400"}
+ ✓ |unit| src/contexts/property/server/properties.test.ts (25 tests) 7ms
+ ✓ |unit| src/contexts/portal/application/use-cases/update-portal.test.ts (11 tests) 4ms
+ ✓ |unit| src/contexts/portal/application/use-cases/create-portal-group.test.ts (7 tests) 4ms
+ ✓ |unit| src/contexts/identity/application/use-cases/delete-custom-role.test.ts (2 tests) 3ms
+ ✓ |unit| src/contexts/identity/application/use-cases/remove-member.test.ts (6 tests) 3ms
+ ✓ |unit| src/contexts/property/application/use-cases/update-property.test.ts (18 tests) 6ms
+{"level":50,"time":1784277253126,"pid":15620,"hostname":"Bozhidars-MacBook-Air.local","errorType":"IntegrationError","code":"oauth_failed","status":400,"message":"OAuth flow failed","msg":"← THROW IntegrationError(oauth_failed) → 400"}
+{"level":50,"time":1784277253127,"pid":15620,"hostname":"Bozhidars-MacBook-Air.local","errorType":"IntegrationError","code":"forbidden","status":403,"message":"Insufficient role","msg":"← THROW IntegrationError(forbidden) → 403"}
+{"level":50,"time":1784277253127,"pid":15620,"hostname":"Bozhidars-MacBook-Air.local","errorType":"IntegrationError","code":"connection_not_found","status":404,"message":"Not found","msg":"← THROW IntegrationError(connection_not_found) → 404"}
+{"level":50,"time":1784277253127,"pid":15620,"hostname":"Bozhidars-MacBook-Air.local","errorType":"IntegrationError","code":"forbidden","status":403,"message":"test forbidden","msg":"← THROW IntegrationError(forbidden) → 403"}
+{"level":50,"time":1784277253127,"pid":15620,"hostname":"Bozhidars-MacBook-Air.local","errorType":"IntegrationError","code":"connection_not_found","status":404,"message":"test connection_not_found","msg":"← THROW IntegrationError(connection_not_found) → 404"}
+{"level":50,"time":1784277253127,"pid":15620,"hostname":"Bozhidars-MacBook-Air.local","errorType":"IntegrationError","code":"import_not_found","status":404,"message":"test import_not_found","msg":"← THROW IntegrationError(import_not_found) → 404"}
+{"level":50,"time":1784277253127,"pid":15620,"hostname":"Bozhidars-MacBook-Air.local","errorType":"IntegrationError","code":"oauth_failed","status":400,"message":"test oauth_failed","msg":"← THROW IntegrationError(oauth_failed) → 400"}
+{"level":50,"time":1784277253127,"pid":15620,"hostname":"Bozhidars-MacBook-Air.local","errorType":"IntegrationError","code":"oauth_denied","status":400,"message":"test oauth_denied","msg":"← THROW IntegrationError(oauth_denied) → 400"}
+{"level":50,"time":1784277253127,"pid":15620,"hostname":"Bozhidars-MacBook-Air.local","errorType":"IntegrationError","code":"token_refresh_failed","status":400,"message":"test token_refresh_failed","msg":"← THROW IntegrationError(token_refresh_failed) → 400"}
+{"level":50,"time":1784277253127,"pid":15620,"hostname":"Bozhidars-MacBook-Air.local","errorType":"IntegrationError","code":"gbp_api_error","status":400,"message":"test gbp_api_error","msg":"← THROW IntegrationError(gbp_api_error) → 400"}
+{"level":50,"time":1784277253127,"pid":15620,"hostname":"Bozhidars-MacBook-Air.local","errorType":"IntegrationError","code":"invalid_visibility","status":400,"message":"test invalid_visibility","msg":"← THROW IntegrationError(invalid_visibility) → 400"}
+{"level":50,"time":1784277253127,"pid":15620,"hostname":"Bozhidars-MacBook-Air.local","errorType":"IntegrationError","code":"encryption_error","status":400,"message":"test encryption_error","msg":"← THROW IntegrationError(encryption_error) → 400"}
+{"level":50,"time":1784277253128,"pid":15620,"hostname":"Bozhidars-MacBook-Air.local","errorType":"IntegrationError","code":"gbp_api_rate_limited","status":429,"message":"test gbp_api_rate_limited","msg":"← THROW IntegrationError(gbp_api_rate_limited) → 429"}
+{"level":50,"time":1784277253128,"pid":15620,"hostname":"Bozhidars-MacBook-Air.local","errorType":"IntegrationError","code":"connection_disconnected","status":409,"message":"test connection_disconnected","msg":"← THROW IntegrationError(connection_disconnected) → 409"}
+ ✓ |unit| src/contexts/integration/server/google-connections.test.ts (22 tests) 7ms
+{"level":30,"time":1784277253232,"pid":15624,"hostname":"Bozhidars-MacBook-Air.local","propertyId":"e0000000-0000-0000-0000-000000000001","gbpLocationName":"accounts/123/locations/456","msg":"property.created: enqueuing initial review sync"}
+{"level":30,"time":1784277253234,"pid":15624,"hostname":"Bozhidars-MacBook-Air.local","propertyId":"e0000000-0000-0000-0000-000000000001","gbpLocationName":"accounts/123/locations/456","msg":"property.created: enqueuing initial review sync"}
+{"level":50,"time":1784277253234,"pid":15624,"hostname":"Bozhidars-MacBook-Air.local","err":{"type":"Error","message":"Redis unavailable","stack":"Error: Redis unavailable\n    at Object.<anonymous> (/Users/bozhidardenev/kodes/projects/rep-key/src/contexts/review/infrastructure/event-handlers/on-property-created.test.ts:81:15)\n    at Object.Mock [as addSyncJob] (file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+spy@4.1.10/node_modules/@vitest/spy/dist/index.js:332:34)\n    at /Users/bozhidardenev/kodes/projects/rep-key/src/contexts/review/infrastructure/event-handlers/on-property-created.ts:23:26\n    at trace (/Users/bozhidardenev/kodes/projects/rep-key/src/shared/observability/trace.ts:54:26)\n    at /Users/bozhidardenev/kodes/projects/rep-key/src/contexts/review/infrastructure/event-handlers/on-property-created.ts:13:12\n    at /Users/bozhidardenev/kodes/projects/rep-key/src/contexts/review/infrastructure/event-handlers/on-property-created.test.ts:91:18\n    at file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11\n    at file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26\n    at file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20\n    at new Promise (<anonymous>)"},"propertyId":"e0000000-0000-0000-0000-000000000001","msg":"property.created: failed to enqueue review sync"}
+ ✓ |unit| src/contexts/review/infrastructure/event-handlers/on-property-created.test.ts (4 tests) 6ms
+ ✓ |unit| src/contexts/integration/domain/events.test.ts (14 tests) 4ms
+{"level":50,"time":1784277253358,"pid":15627,"hostname":"Bozhidars-MacBook-Air.local","err":{"type":"Error","message":"DB unavailable","stack":"Error: DB unavailable\n    at Object.recordMetric (/Users/bozhidardenev/kodes/projects/rep-key/src/contexts/metric/infrastructure/event-handlers/on-scan-recorded.test.ts:105:15)\n    at /Users/bozhidardenev/kodes/projects/rep-key/src/contexts/metric/infrastructure/event-handlers/on-scan-recorded.ts:34:20\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at trace (/Users/bozhidardenev/kodes/projects/rep-key/src/shared/observability/trace.ts:54:20)"},"event":"guest.scan.recorded","portalId":"portal-1","organizationId":"org-1","msg":"metric: failed to record portal.scan"}
+ ✓ |unit| src/contexts/integration/application/use-cases/import-property.test.ts (11 tests) 5ms
+ ✓ |unit| src/contexts/metric/infrastructure/event-handlers/on-scan-recorded.test.ts (4 tests) 6ms
+ ✓ |unit| src/shared/bqc/status-schema.test.ts (12 tests) 4ms
+ ✓ |unit| src/contexts/notification/infrastructure/event-handlers/on-goal-completed.test.ts (10 tests) 7ms
+{"level":50,"time":1784277253520,"pid":15616,"hostname":"Bozhidars-MacBook-Air.local","errorType":"IdentityError","code":"forbidden","status":403,"message":"Insufficient role","msg":"← THROW IdentityError(forbidden) → 403"}
+{"level":50,"time":1784277253520,"pid":15616,"hostname":"Bozhidars-MacBook-Air.local","errorType":"IdentityError","code":"forbidden","status":403,"message":"Insufficient role","msg":"← THROW IdentityError(forbidden) → 403"}
+{"level":50,"time":1784277253520,"pid":15616,"hostname":"Bozhidars-MacBook-Air.local","errorType":"IdentityError","code":"org_setup_failed","status":409,"message":"Slug conflict","msg":"← THROW IdentityError(org_setup_failed) → 409"}
+{"level":50,"time":1784277253520,"pid":15616,"hostname":"Bozhidars-MacBook-Air.local","errorType":"IdentityError","code":"forbidden","status":403,"message":"test forbidden","msg":"← THROW IdentityError(forbidden) → 403"}
+{"level":50,"time":1784277253520,"pid":15616,"hostname":"Bozhidars-MacBook-Air.local","errorType":"IdentityError","code":"invalid_slug","status":400,"message":"test invalid_slug","msg":"← THROW IdentityError(invalid_slug) → 400"}
+{"level":50,"time":1784277253520,"pid":15616,"hostname":"Bozhidars-MacBook-Air.local","errorType":"IdentityError","code":"invalid_name","status":400,"message":"test invalid_name","msg":"← THROW IdentityError(invalid_name) → 400"}
+{"level":50,"time":1784277253520,"pid":15616,"hostname":"Bozhidars-MacBook-Air.local","errorType":"IdentityError","code":"registration_failed","status":400,"message":"test registration_failed","msg":"← THROW IdentityError(registration_failed) → 400"}
+{"level":50,"time":1784277253520,"pid":15616,"hostname":"Bozhidars-MacBook-Air.local","errorType":"IdentityError","code":"org_setup_failed","status":409,"message":"test org_setup_failed","msg":"← THROW IdentityError(org_setup_failed) → 409"}
+{"level":50,"time":1784277253520,"pid":15616,"hostname":"Bozhidars-MacBook-Air.local","errorType":"IdentityError","code":"member_not_found","status":404,"message":"test member_not_found","msg":"← THROW IdentityError(member_not_found) → 404"}
+{"level":50,"time":1784277253520,"pid":15616,"hostname":"Bozhidars-MacBook-Air.local","errorType":"IdentityError","code":"invitation_not_found","status":404,"message":"test invitation_not_found","msg":"← THROW IdentityError(invitation_not_found) → 404"}
+ ✓ |unit| src/contexts/identity/server/organizations.test.ts (16 tests) 6ms
+ ✓ |unit| src/contexts/activity/infrastructure/event-handlers/event-handlers.test.ts (7 tests) 6ms
+ ✓ |unit| src/contexts/portal/application/use-cases/soft-delete-portal-group.test.ts (4 tests) 3ms
+{"level":40,"time":1784277253637,"pid":15643,"hostname":"Bozhidars-MacBook-Air.local","msg":"[rate-limit] Redis unavailable — failing open (all requests allowed)"}
+{"level":40,"time":1784277253637,"pid":15643,"hostname":"Bozhidars-MacBook-Air.local","msg":"[rate-limit] Redis unavailable — failing open (all requests allowed)"}
+{"level":40,"time":1784277253637,"pid":15643,"hostname":"Bozhidars-MacBook-Air.local","msg":"[rate-limit] Redis unavailable — failing open (all requests allowed)"}
+{"level":40,"time":1784277253637,"pid":15643,"hostname":"Bozhidars-MacBook-Air.local","msg":"[rate-limit] Redis unavailable — failing open (all requests allowed)"}
+{"level":40,"time":1784277253637,"pid":15643,"hostname":"Bozhidars-MacBook-Air.local","msg":"[rate-limit] Redis unavailable — failing open (all requests allowed)"}
+{"level":40,"time":1784277253637,"pid":15643,"hostname":"Bozhidars-MacBook-Air.local","msg":"[rate-limit] Redis unavailable — failing open (all requests allowed)"}
+{"level":40,"time":1784277253637,"pid":15643,"hostname":"Bozhidars-MacBook-Air.local","msg":"[rate-limit] Redis unavailable — failing open (all requests allowed)"}
+{"level":40,"time":1784277253637,"pid":15643,"hostname":"Bozhidars-MacBook-Air.local","msg":"[rate-limit] Redis unavailable — failing open (all requests allowed)"}
+{"level":40,"time":1784277253637,"pid":15643,"hostname":"Bozhidars-MacBook-Air.local","msg":"[rate-limit] Redis unavailable — failing open (all requests allowed)"}
+{"level":40,"time":1784277253637,"pid":15643,"hostname":"Bozhidars-MacBook-Air.local","msg":"[rate-limit] Redis unavailable — failing open (all requests allowed)"}
+{"level":40,"time":1784277253637,"pid":15643,"hostname":"Bozhidars-MacBook-Air.local","msg":"[rate-limit] Redis unavailable — failing open (all requests allowed)"}
+ ✓ |unit| src/shared/rate-limit/middleware.test.ts (8 tests) 6ms
+ ✓ |unit| src/contexts/badge/domain/badge-award.test.ts (9 tests) 3ms
+ ✓ |unit| src/contexts/notification/infrastructure/event-handlers/on-inbox-item-created.test.ts (8 tests) 5ms
+{"level":50,"time":1784277253746,"pid":15623,"hostname":"Bozhidars-MacBook-Air.local","errorType":"PortalError","code":"invalid_slug","status":400,"message":"slug must be URL-friendly","msg":"← THROW PortalError(invalid_slug) → 400"}
+{"level":50,"time":1784277253746,"pid":15623,"hostname":"Bozhidars-MacBook-Air.local","errorType":"PortalError","code":"forbidden","status":403,"message":"Insufficient role","msg":"← THROW PortalError(forbidden) → 403"}
+{"level":50,"time":1784277253746,"pid":15623,"hostname":"Bozhidars-MacBook-Air.local","errorType":"PortalError","code":"slug_taken","status":409,"message":"Slug already exists","msg":"← THROW PortalError(slug_taken) → 409"}
+{"level":50,"time":1784277253746,"pid":15623,"hostname":"Bozhidars-MacBook-Air.local","errorType":"PortalError","code":"forbidden","status":403,"message":"test forbidden","msg":"← THROW PortalError(forbidden) → 403"}
+{"level":50,"time":1784277253746,"pid":15623,"hostname":"Bozhidars-MacBook-Air.local","errorType":"PortalError","code":"portal_not_found","status":404,"message":"test portal_not_found","msg":"← THROW PortalError(portal_not_found) → 404"}
+{"level":50,"time":1784277253746,"pid":15623,"hostname":"Bozhidars-MacBook-Air.local","errorType":"PortalError","code":"property_not_found","status":404,"message":"test property_not_found","msg":"← THROW PortalError(property_not_found) → 404"}
+{"level":50,"time":1784277253746,"pid":15623,"hostname":"Bozhidars-MacBook-Air.local","errorType":"PortalError","code":"category_not_found","status":404,"message":"test category_not_found","msg":"← THROW PortalError(category_not_found) → 404"}
+{"level":50,"time":1784277253746,"pid":15623,"hostname":"Bozhidars-MacBook-Air.local","errorType":"PortalError","code":"link_not_found","status":404,"message":"test link_not_found","msg":"← THROW PortalError(link_not_found) → 404"}
+{"level":50,"time":1784277253746,"pid":15623,"hostname":"Bozhidars-MacBook-Air.local","errorType":"PortalError","code":"slug_taken","status":409,"message":"test slug_taken","msg":"← THROW PortalError(slug_taken) → 409"}
+{"level":50,"time":1784277253746,"pid":15623,"hostname":"Bozhidars-MacBook-Air.local","errorType":"PortalError","code":"upload_failed","status":422,"message":"test upload_failed","msg":"← THROW PortalError(upload_failed) → 422"}
+{"level":50,"time":1784277253746,"pid":15623,"hostname":"Bozhidars-MacBook-Air.local","errorType":"PortalError","code":"invalid_slug","status":400,"message":"test invalid_slug","msg":"← THROW PortalError(invalid_slug) → 400"}
+{"level":50,"time":1784277253746,"pid":15623,"hostname":"Bozhidars-MacBook-Air.local","errorType":"PortalError","code":"invalid_name","status":400,"message":"test invalid_name","msg":"← THROW PortalError(invalid_name) → 400"}
+{"level":50,"time":1784277253746,"pid":15623,"hostname":"Bozhidars-MacBook-Air.local","errorType":"PortalError","code":"invalid_description","status":400,"message":"test invalid_description","msg":"← THROW PortalError(invalid_description) → 400"}
+{"level":50,"time":1784277253746,"pid":15623,"hostname":"Bozhidars-MacBook-Air.local","errorType":"PortalError","code":"invalid_theme","status":400,"message":"test invalid_theme","msg":"← THROW PortalError(invalid_theme) → 400"}
+{"level":50,"time":1784277253746,"pid":15623,"hostname":"Bozhidars-MacBook-Air.local","errorType":"PortalError","code":"invalid_threshold","status":400,"message":"test invalid_threshold","msg":"← THROW PortalError(invalid_threshold) → 400"}
+{"level":50,"time":1784277253746,"pid":15623,"hostname":"Bozhidars-MacBook-Air.local","errorType":"PortalError","code":"invalid_url","status":400,"message":"test invalid_url","msg":"← THROW PortalError(invalid_url) → 400"}
+{"level":50,"time":1784277253746,"pid":15623,"hostname":"Bozhidars-MacBook-Air.local","errorType":"PortalError","code":"invalid_label","status":400,"message":"test invalid_label","msg":"← THROW PortalError(invalid_label) → 400"}
+{"level":50,"time":1784277253746,"pid":15623,"hostname":"Bozhidars-MacBook-Air.local","errorType":"PortalError","code":"invalid_title","status":400,"message":"test invalid_title","msg":"← THROW PortalError(invalid_title) → 400"}
+ ✓ |unit| src/contexts/portal/server/portals.test.ts (34 tests) 6ms
+{"level":30,"time":1784277253761,"pid":15646,"hostname":"Bozhidars-MacBook-Air.local","goalsReconciled":1,"updated":1,"expired":0,"completed":0,"failed":0,"msg":"Reconciled goal progress"}
+{"level":30,"time":1784277253762,"pid":15646,"hostname":"Bozhidars-MacBook-Air.local","goalsReconciled":1,"updated":0,"expired":0,"completed":0,"failed":0,"msg":"Reconciled goal progress"}
+{"level":30,"time":1784277253762,"pid":15646,"hostname":"Bozhidars-MacBook-Air.local","goalsReconciled":1,"updated":0,"expired":1,"completed":0,"failed":0,"msg":"Reconciled goal progress"}
+{"level":30,"time":1784277253763,"pid":15646,"hostname":"Bozhidars-MacBook-Air.local","goalsReconciled":1,"updated":0,"expired":0,"completed":0,"failed":0,"msg":"Reconciled goal progress"}
+{"level":30,"time":1784277253763,"pid":15646,"hostname":"Bozhidars-MacBook-Air.local","goalsReconciled":1,"updated":1,"expired":0,"completed":1,"failed":0,"msg":"Reconciled goal progress"}
+{"level":30,"time":1784277253763,"pid":15646,"hostname":"Bozhidars-MacBook-Air.local","goalsReconciled":1,"updated":1,"expired":0,"completed":1,"failed":0,"msg":"Reconciled goal progress"}
+{"level":30,"time":1784277253763,"pid":15646,"hostname":"Bozhidars-MacBook-Air.local","goalsReconciled":1,"updated":0,"expired":1,"completed":0,"failed":0,"msg":"Reconciled goal progress"}
+{"level":30,"time":1784277253763,"pid":15646,"hostname":"Bozhidars-MacBook-Air.local","goalsReconciled":1,"updated":1,"expired":0,"completed":0,"failed":0,"msg":"Reconciled goal progress"}
+{"level":30,"time":1784277253763,"pid":15646,"hostname":"Bozhidars-MacBook-Air.local","goalsReconciled":1,"updated":0,"expired":0,"completed":0,"failed":0,"msg":"Reconciled goal progress"}
+ ✓ |unit| src/contexts/goal/infrastructure/jobs/reconcile-goal-progress.job.test.ts (9 tests) 7ms
+{"level":40,"time":1784277253823,"pid":15648,"hostname":"Bozhidars-MacBook-Air.local","permission":"bogus.read","msg":"permission_catalogue: unknown permission in role statement; dropping"}
+{"level":40,"time":1784277253823,"pid":15648,"hostname":"Bozhidars-MacBook-Air.local","raw":"not json","msg":"permission_catalogue: organizationRole.permission is not valid JSON; treating as no permissions"}
+ ✓ |unit| src/shared/auth/role-definitions.test.ts (5 tests) 5ms
+ ✓ |unit| src/contexts/inbox/application/use-cases/escalate-inbox-item.test.ts (7 tests) 3ms
+ ✓ |unit| src/contexts/integration/infrastructure/adapters/mybusiness-notifications.adapter.test.ts (4 tests) 5ms
+{"level":50,"time":1784277253910,"pid":15647,"hostname":"Bozhidars-MacBook-Air.local","errorType":"APIError","status":"FORBIDDEN","code":"api_error","message":"You don't have permission to do that.","msg":"← THROW APIError(FORBIDDEN) → 403"}
+{"level":50,"time":1784277253912,"pid":15647,"hostname":"Bozhidars-MacBook-Air.local","errorType":"APIError","status":"FORBIDDEN","code":"api_error","message":"You don't have permission to do that.","msg":"← THROW APIError(FORBIDDEN) → 403"}
+{"level":50,"time":1784277253912,"pid":15647,"hostname":"Bozhidars-MacBook-Air.local","errorType":"APIError","status":"UNAUTHORIZED","code":"api_error","message":"Not authenticated","msg":"← THROW APIError(UNAUTHORIZED) → 401"}
+{"level":50,"time":1784277253913,"pid":15647,"hostname":"Bozhidars-MacBook-Air.local","error":"relation \"organizationRole\" does not exist","stack":"Error: relation \"organizationRole\" does not exist\n    at /Users/bozhidardenev/kodes/projects/rep-key/src/shared/auth/server-errors.test.ts:39:28\n    at file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11\n    at file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26\n    at file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)\n    at file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10)\n    at file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2955:64","errorType":"UntaggedError","msg":"← THROW InternalError → 500"}
+ ✓ |unit| src/shared/auth/server-errors.test.ts (4 tests) 6ms
+{"level":40,"time":1784277253937,"pid":15653,"hostname":"Bozhidars-MacBook-Air.local","role":"orphan-role","msg":"resolve_permissions: custom role missing definition or policy; skipping (fail-closed)"}
+{"level":40,"time":1784277253937,"pid":15653,"hostname":"Bozhidars-MacBook-Air.local","role":"no-def","msg":"resolve_permissions: custom role missing definition or policy; skipping (fail-closed)"}
+ ✓ |unit| src/shared/auth/resolve-permissions.test.ts (9 tests) 5ms
+{"level":40,"time":1784277253982,"pid":15654,"hostname":"Bozhidars-MacBook-Air.local","raw":"{not json","msg":"permission_catalogue: organizationRole.permission is not valid JSON; treating as no permissions"}
+{"level":40,"time":1784277253983,"pid":15654,"hostname":"Bozhidars-MacBook-Air.local","raw":"[1,2,3]","msg":"permission_catalogue: organizationRole.permission is not a record; treating as no permissions"}
+{"level":40,"time":1784277253983,"pid":15654,"hostname":"Bozhidars-MacBook-Air.local","raw":"42","msg":"permission_catalogue: organizationRole.permission is not a record; treating as no permissions"}
+{"level":40,"time":1784277253983,"pid":15654,"hostname":"Bozhidars-MacBook-Air.local","raw":"\"a string\"","msg":"permission_catalogue: organizationRole.permission is not a record; treating as no permissions"}
+{"level":40,"time":1784277253983,"pid":15654,"hostname":"Bozhidars-MacBook-Air.local","raw":"null","msg":"permission_catalogue: organizationRole.permission is not a record; treating as no permissions"}
+{"level":40,"time":1784277253983,"pid":15654,"hostname":"Bozhidars-MacBook-Air.local","permission":"bogus.x","msg":"permission_catalogue: unknown permission in role statement; dropping"}
+{"level":40,"time":1784277253983,"pid":15654,"hostname":"Bozhidars-MacBook-Air.local","permission":"dashboard.nope","msg":"permission_catalogue: unknown permission in role statement; dropping"}
+ ✓ |unit| src/shared/auth/permission-catalogue.test.ts (13 tests) 6ms
+ ✓ |unit| src/contexts/notification/infrastructure/event-handlers/on-reply-published.test.ts (3 tests) 3ms
+ ✓ |unit| src/contexts/inbox/infrastructure/event-handlers/on-review-created.test.ts (3 tests) 4ms
+{"level":50,"time":1784277254093,"pid":15655,"hostname":"Bozhidars-MacBook-Air.local","errorType":"StaffError","code":"forbidden","status":403,"message":"Access denied","msg":"← THROW StaffError(forbidden) → 403"}
+{"level":50,"time":1784277254093,"pid":15655,"hostname":"Bozhidars-MacBook-Air.local","errorType":"StaffError","code":"already_assigned","status":409,"message":"Duplicate assignment","msg":"← THROW StaffError(already_assigned) → 409"}
+{"level":50,"time":1784277254093,"pid":15655,"hostname":"Bozhidars-MacBook-Air.local","errorType":"StaffError","code":"assignment_not_found","status":404,"message":"Not found","msg":"← THROW StaffError(assignment_not_found) → 404"}
+{"level":50,"time":1784277254094,"pid":15655,"hostname":"Bozhidars-MacBook-Air.local","errorType":"StaffError","code":"invalid_input","status":400,"message":"Bad data","msg":"← THROW StaffError(invalid_input) → 400"}
+ ✓ |unit| src/contexts/staff/server/staff-assignments.test.ts (10 tests) 5ms
+ ✓ |unit| src/contexts/notification/infrastructure/event-handlers/on-reply-submitted.test.ts (8 tests) 5ms
+ ✓ |unit| src/contexts/inbox/domain/rules.test.ts (14 tests) 2ms
+ ✓ |unit| src/contexts/goal/infrastructure/event-handlers/on-portal-group-deleted.test.ts (8 tests) 5ms
+ ✓ |unit| src/contexts/goal/domain/constructors.test.ts (45 tests) 5ms
+ ✓ |unit| src/contexts/goal/application/use-cases/create-goal.test.ts (20 tests) 5ms
+ ✓ |unit| src/contexts/identity/infrastructure/adapters/better-auth-schemas.test.ts (6 tests) 4ms
+{"level":50,"time":1784277254304,"pid":15661,"hostname":"Bozhidars-MacBook-Air.local","errorType":"AuthError","code":"capability_denied","status":403,"message":"Authorization denied: capability_denied","msg":"← THROW AuthError(capability_denied) → 403"}
+ ✓ |unit| src/shared/auth/portal-capability-taxonomy.test.ts (8 tests) 5ms
+ ✓ |unit| src/contexts/metric/domain/metric-registry.test.ts (16 tests) 3ms
+ ✓ |unit| src/contexts/review/infrastructure/jobs/purge-expired-reviews.job.test.ts (7 tests) 5ms
+ ✓ |unit| src/contexts/portal/server/portal-links.test.ts (29 tests) 5ms
+ ✓ |unit| src/contexts/notification/infrastructure/jobs/insert-notification.job.test.ts (6 tests) 5ms
+ ✓ |unit| src/contexts/staff/application/use-cases/update-staff-portals.test.ts (8 tests) 5ms
+ ✓ |unit| src/contexts/integration/application/use-cases/list-gbp-locations.test.ts (13 tests) 4ms
+ ✓ |unit| src/contexts/integration/application/use-cases/connect-google-account.test.ts (7 tests) 5ms
+ ✓ |unit| src/contexts/goal/domain/progress-strategy.test.ts (56 tests) 5ms
+ ✓ |unit| src/contexts/team/application/use-cases/soft-delete-team.test.ts (5 tests) 3ms
+ ✓ |unit| src/shared/jobs/health-check.job.test.ts (9 tests) 4ms
+ ✓ |unit| src/contexts/inbox/infrastructure/outbox-consumers.test.ts (6 tests) 5ms
+ ✓ |unit| src/contexts/portal/domain/constructors.test.ts (13 tests) 3ms
+ ✓ |unit| src/contexts/goal/infrastructure/event-handlers/on-portal-deleted.test.ts (8 tests) 6ms
+ ✓ |unit| src/contexts/dashboard/application/dto/dashboard.dto.test.ts (13 tests) 4ms
+ ✓ |unit| src/contexts/identity/application/use-cases/register-user-and-org.test.ts (7 tests) 5ms
+ ✓ |unit| src/contexts/portal/application/use-cases/create-portal.test.ts (11 tests) 4ms
+ ✓ |unit| src/contexts/notification/infrastructure/event-handlers/on-inbox-note-added.test.ts (7 tests) 5ms
+ ✓ |unit| src/contexts/review/domain/rules.test.ts (21 tests) 4ms
+ ✓ |unit| src/contexts/portal/application/use-cases/create-link.test.ts (8 tests) 4ms
+ ✓ |unit| src/contexts/identity/domain/events.test.ts (3 tests) 3ms
+ ✓ |unit| src/contexts/guest/domain/constructors.test.ts (4 tests) 2ms
+ ✓ |unit| src/shared/outbox/event-adapter.test.ts (5 tests) 5ms
+ ✓ |unit| src/contexts/notification/infrastructure/event-handlers/on-inbox-item-escalated.test.ts (6 tests) 4ms
+ ✓ |unit| src/shared/domain/metric-keys.test.ts (16 tests) 3ms
+ ✓ |unit| src/contexts/identity/application/use-cases/resend-invitation.test.ts (5 tests) 5ms
+ ✓ |unit| src/contexts/identity/application/use-cases/cancel-invitation.test.ts (3 tests) 3ms
+ ✓ |unit| src/contexts/goal/infrastructure/mappers/goal.mapper.test.ts (17 tests) 3ms
+ ✓ |unit| src/contexts/property/domain/property-lifecycle.test.ts (35 tests) 4ms
+ ✓ |unit| src/shared/outbox/outbox-crash-boundaries.test.ts (11 tests) 4ms
+ ✓ |unit| src/shared/auth/permissions.test.ts (19 tests) 4ms
+ ✓ |unit| src/shared/auth/capability-boot-guard.test.ts (16 tests) 4ms
+ ✓ |unit| src/contexts/staff/application/use-cases/get-assigned-portals.test.ts (6 tests) 4ms
+ ✓ |unit| src/contexts/portal/application/use-cases/create-link-category.test.ts (7 tests) 3ms
+ ✓ |unit| src/shared/testing/in-memory-queue.test.ts (4 tests) 4ms
+ ✓ |unit| src/contexts/team/application/use-cases/update-team.test.ts (6 tests) 3ms
+ ✓ |unit| src/contexts/integration/application/use-cases/manage-notifications.test.ts (8 tests) 4ms
+ ✓ |unit| src/shared/jobs/queue-quarantine.test.ts (4 tests) 3ms
+ ✓ |unit| src/contexts/inbox/server/inbox-server.test.ts (26 tests) 6ms
+ ✓ |unit| src/contexts/notification/domain/types.test.ts (14 tests) 2ms
+ ✓ |unit| src/contexts/goal/application/use-cases/list-goals.test.ts (8 tests) 4ms
+ ✓ |unit| src/contexts/identity/application/use-cases/finalize-org-logo-upload.test.ts (2 tests) 3ms
+ ✓ |unit| src/contexts/inbox/application/use-cases/update-inbox-status.test.ts (12 tests) 4ms
+ ✓ |unit| src/contexts/inbox/application/use-cases/get-inbox-item-detail.test.ts (9 tests) 4ms
+ ✓ |unit| src/contexts/property/application/use-cases/create-property.test.ts (8 tests) 4ms
+ ✓ |unit| src/contexts/guest/server/guest-session.test.ts (10 tests) 7ms
+ ✓ |unit| src/contexts/portal/application/use-cases/request-upload-url.test.ts (6 tests) 5ms
+ ✓ |unit| src/shared/testing/test-environment-lease.test.ts (12 tests) 4ms
+ ✓ |unit| src/contexts/badge/infrastructure/mappers/badge.mapper.test.ts (8 tests) 6ms
+ ✓ |unit| src/contexts/staff/application/use-cases/create-staff-assignment.test.ts (10 tests) 4ms
+ ✓ |unit| src/contexts/review/infrastructure/mappers/reply.mapper.test.ts (5 tests) 2ms
+ ✓ |unit| src/contexts/integration/domain/gbp-api-error.test.ts (8 tests) 3ms
+ ✓ |unit| src/contexts/goal/domain/goal-measure-kinds.test.ts (14 tests) 3ms
+ ✓ |unit| src/contexts/guest/application/use-cases/get-public-portal.test.ts (2 tests) 2ms
+ ✓ |unit| src/contexts/inbox/infrastructure/event-handlers/on-review-expired.test.ts (5 tests) 4ms
+ ✓ |unit| src/shared/health/worker-heartbeat.test.ts (5 tests) 5ms
+ ✓ |unit| src/contexts/identity/application/use-cases/create-custom-role.test.ts (4 tests) 4ms
+ ✓ |unit| src/contexts/review/domain/reply-publication-workflow.test.ts (40 tests) 4ms
+ ✓ |unit| src/contexts/portal/domain/rules.test.ts (44 tests) 5ms
+ ✓ |unit| src/contexts/property/domain/errors.test.ts (9 tests) 2ms
+ ✓ |unit| src/contexts/property/application/use-cases/list-properties.test.ts (4 tests) 3ms
+ ✓ |unit| src/contexts/integration/application/use-cases/list-google-connections.test.ts (4 tests) 4ms
+ ✓ |unit| src/contexts/review/infrastructure/jobs/refresh-expiring-reviews.job.test.ts (7 tests) 4ms
+ ✓ |unit| src/contexts/identity/server/auth-settings.test.ts (24 tests) 4ms
+ ✓ |unit| src/contexts/goal/application/use-cases/get-goal.test.ts (5 tests) 3ms
+ ✓ |unit| src/contexts/review/server/reply.test.ts (31 tests) 4ms
+ ✓ |unit| src/contexts/inbox/application/use-cases/assign-inbox-item.test.ts (11 tests) 5ms
+ ✓ |unit| src/contexts/identity/application/use-cases/update-organization.test.ts (8 tests) 5ms
+ ✓ |unit| src/contexts/badge/domain/badge-definition.test.ts (5 tests) 3ms
+ ✓ |unit| src/contexts/integration/server/gbp-import.test.ts (13 tests) 3ms
+ ✓ |unit| src/contexts/inbox/application/use-cases/bulk-update-inbox-status.test.ts (11 tests) 4ms
+ ✓ |unit| src/contexts/integration/application/use-cases/disconnect-google-account.test.ts (6 tests) 4ms
+ ✓ |unit| src/contexts/identity/application/use-cases/update-member-role.test.ts (10 tests) 4ms
+ ✓ |unit| src/shared/auth/dark-capability-enforcement.test.ts (27 tests) 4ms
+ ✓ |unit| src/contexts/notification/infrastructure/event-handlers/on-badge-awarded.test.ts (5 tests) 4ms
+ ✓ |unit| src/contexts/guest/application/use-cases/submit-rating.test.ts (5 tests) 4ms
+ ✓ |unit| src/contexts/inbox/domain/events.test.ts (2 tests) 3ms
+ ✓ |unit| src/contexts/integration/domain/connection-lifecycle.test.ts (27 tests) 3ms
+ ✓ |unit| src/contexts/notification/infrastructure/event-handlers/on-reply-rejected.test.ts (4 tests) 4ms
+ ✓ |unit| src/contexts/staff/application/use-cases/list-staff-assignments.test.ts (6 tests) 3ms
+ ✓ |unit| src/shared/domain/assert.test.ts (7 tests) 3ms
+ ✓ |unit| src/shared/domain/errors.test.ts (10 tests) 4ms
+ ✓ |unit| src/contexts/notification/domain/constructors.test.ts (18 tests) 4ms
+ ✓ |unit| src/contexts/review/infrastructure/review-command-store.test.ts (2 tests) 4ms
+ ✓ |unit| src/contexts/portal/domain/portal-token.test.ts (13 tests) 3ms
+ ✓ |unit| src/contexts/dashboard/application/use-cases/get-portal-analytics.test.ts (4 tests) 4ms
+ ✓ |unit| src/contexts/portal/application/use-cases/list-portals.test.ts (5 tests) 3ms
+ ✓ |unit| src/contexts/guest/domain/events.test.ts (4 tests) 3ms
+ ✓ |unit| src/contexts/goal/application/use-cases/update-goal.test.ts (11 tests) 3ms
+ ✓ |unit| src/shared/testing/invariants/index.test.ts (7 tests) 4ms
+ ✓ |unit| src/contexts/portal/application/use-cases/reorder-links.test.ts (5 tests) 3ms
+ ✓ |unit| src/contexts/portal/application/use-cases/delete-link-category.test.ts (5 tests) 4ms
+ ✓ |unit| src/contexts/leaderboard/domain/scoring.test.ts (10 tests) 3ms
+ ✓ |unit| src/contexts/activity/domain/activity-audit.test.ts (7 tests) 4ms
+ ✓ |unit| src/contexts/dashboard/application/use-cases/get-staff-dashboard-data.test.ts (5 tests) 4ms
+ ✓ |unit| src/contexts/team/application/use-cases/list-teams.test.ts (9 tests) 3ms
+ ✓ |unit| src/contexts/portal/application/use-cases/reorder-categories.test.ts (5 tests) 3ms
+ ✓ |unit| src/contexts/guest/application/use-cases/submit-feedback.test.ts (3 tests) 4ms
+ ✓ |unit| src/contexts/property/domain/rules.test.ts (29 tests) 4ms
+ ✓ |unit| src/contexts/portal/application/use-cases/delete-link.test.ts (5 tests) 5ms
+ ✓ |unit| src/contexts/staff/domain/staff-participation.test.ts (14 tests) 4ms
+ ✓ |unit| src/contexts/team/application/use-cases/create-team.test.ts (7 tests) 3ms
+ ✓ |unit| src/contexts/inbox/application/use-cases/add-inbox-note.test.ts (7 tests) 3ms
+ ✓ |unit| src/contexts/notification/infrastructure/event-handlers/on-reply-publish-failed.test.ts (3 tests) 3ms
+ ✓ |unit| src/contexts/staff/infrastructure/mappers/staff-assignment.mapper.test.ts (8 tests) 2ms
+ ✓ |unit| src/contexts/metric/domain/events.test.ts (1 test) 3ms
+ ✓ |unit| src/contexts/team/domain/team-membership.test.ts (21 tests) 4ms
+ ✓ |unit| src/contexts/guest/infrastructure/mappers/guest.mapper.test.ts (10 tests) 3ms
+ ✓ |unit| src/contexts/review/domain/inbox-correctness.test.ts (21 tests) 3ms
+ ✓ |unit| src/contexts/goal/application/public-api.test.ts (3 tests) 4ms
+ ✓ |unit| src/contexts/identity/domain/rules.test.ts (33 tests) 3ms
+ ✓ |unit| src/contexts/review/domain/constructors.test.ts (10 tests) 3ms
+ ✓ |unit| src/contexts/integration/domain/constructors.test.ts (17 tests) 4ms
+ ✓ |unit| src/contexts/portal/domain/portal-group-membership.test.ts (15 tests) 3ms
+ ✓ |unit| src/contexts/guest/application/use-cases/track-review-link-click.test.ts (2 tests) 4ms
+ ✓ |unit| src/contexts/integration/application/use-cases/start-property-import.test.ts (5 tests) 3ms
+ ✓ |unit| src/contexts/portal/application/use-cases/add-portal-to-group.test.ts (5 tests) 3ms
+ ✓ |unit| src/contexts/notification/infrastructure/event-handlers/on-reply-approved.test.ts (3 tests) 3ms
+ ✓ |unit| src/contexts/dashboard/application/use-cases/get-fleet-overview.test.ts (3 tests) 3ms
+ ✓ |unit| src/contexts/review/application/source-content-lifecycle.test.ts (9 tests) 3ms
+ ✓ |unit| src/shared/observability/correlation-id.test.ts (4 tests) 3ms
+ ✓ |unit| src/contexts/identity/application/use-cases/accept-invitation.test.ts (2 tests) 3ms
+ ✓ |unit| src/contexts/identity/application/use-cases/update-custom-role.test.ts (3 tests) 4ms
+ ✓ |unit| src/contexts/identity/application/use-cases/invite-member.test.ts (5 tests) 3ms
+ ✓ |unit| src/contexts/dashboard/application/use-cases/get-dashboard-data.test.ts (2 tests) 3ms
+ ✓ |unit| src/contexts/portal/application/use-cases/remove-portal-from-group.test.ts (5 tests) 3ms
+ ✓ |unit| src/contexts/inbox/infrastructure/event-handlers/on-review-updated.test.ts (3 tests) 4ms
+ ✓ |unit| src/contexts/guest/application/use-cases/resolve-link-and-track.test.ts (2 tests) 2ms
+ ✓ |unit| src/contexts/integration/application/use-cases/update-connection-visibility.test.ts (4 tests) 3ms
+ ✓ |unit| src/contexts/activity/queries/get-activity-timeline.test.ts (6 tests) 3ms
+ ✓ |unit| src/shared/architecture/authorize-server-boundary.test.ts (2 tests) 4ms
+ ✓ |unit| src/contexts/notification/domain/notification-policy.test.ts (13 tests) 4ms
+ ✓ |unit| src/contexts/property/application/use-cases/get-property.test.ts (5 tests) 3ms
+ ✓ |unit| src/contexts/metric/infrastructure/event-handlers/on-review-created.test.ts (3 tests) 4ms
+ ✓ |unit| src/contexts/staff/application/use-cases/remove-staff-assignment.test.ts (5 tests) 3ms
+ ✓ |unit| src/contexts/guest/domain/rules.test.ts (10 tests) 2ms
+ ✓ |unit| src/contexts/property/application/use-cases/soft-delete-property.test.ts (5 tests) 3ms
+ ✓ |unit| src/contexts/activity/domain/constructors.test.ts (5 tests) 3ms
+ ✓ |unit| src/contexts/review/domain/bounded-sync-policy.test.ts (16 tests) 3ms
+ ✓ |unit| src/contexts/staff/domain/portal-responsibility.test.ts (15 tests) 3ms
+ ✓ |unit| src/contexts/portal/application/use-cases/update-link.test.ts (8 tests) 3ms
+ ✓ |unit| src/contexts/leaderboard/application/utils.test.ts (9 tests) 3ms
+ ✓ |unit| src/contexts/badge/application/use-cases/set-organization-badge-enablement.test.ts (2 tests) 3ms
+ ✓ |unit| src/contexts/inbox/application/use-cases/get-folder-counts.test.ts (6 tests) 4ms
+ ✓ |unit| src/contexts/portal/application/use-cases/get-portal-qr-url.test.ts (2 tests) 3ms
+ ✓ |unit| src/contexts/portal/application/use-cases/get-portal.test.ts (4 tests) 3ms
+ ✓ |unit| src/contexts/portal/application/use-cases/soft-delete-portal.test.ts (4 tests) 3ms
+ ✓ |unit| src/contexts/activity/queries/get-org-activity.test.ts (5 tests) 3ms
+ ✓ |unit| src/contexts/guest/application/use-cases/record-scan.test.ts (2 tests) 3ms
+ ✓ |unit| src/contexts/portal/domain/errors.test.ts (9 tests) 3ms
+ ✓ |unit| src/contexts/property/domain/events.test.ts (3 tests) 3ms
+ ✓ |unit| src/contexts/notification/infrastructure/event-handlers/on-inbox-item-assigned.test.ts (2 tests) 3ms
+ ✓ |unit| src/contexts/inbox/application/use-cases/resolve-escalation.test.ts (5 tests) 3ms
+ ✓ |unit| src/contexts/guest/domain/guest-session.test.ts (9 tests) 4ms
+ ✓ |unit| src/contexts/inbox/application/use-cases/create-inbox-item.test.ts (3 tests) 3ms
+ ✓ |unit| src/shared/security/error-redaction.test.ts (9 tests) 3ms
+ ✓ |unit| src/contexts/property/domain/constructors.test.ts (10 tests) 3ms
+ ✓ |unit| src/shared/bqc/generate-status-md.test.ts (2 tests) 3ms
+ ✓ |unit| src/contexts/inbox/application/use-cases/get-inbox-notes.test.ts (6 tests) 3ms
+ ✓ |unit| src/contexts/property/build.test.ts (2 tests) 3ms
+ ✓ |unit| src/contexts/identity/application/use-cases/register-user.test.ts (3 tests) 3ms
+ ✓ |unit| src/contexts/portal/application/use-cases/update-link-category.test.ts (7 tests) 3ms
+ ✓ |unit| src/contexts/leaderboard/domain/recognition-board.test.ts (11 tests) 3ms
+ ✓ |unit| src/shared/auth/property-access-policy.test.ts (13 tests) 3ms
+ ✓ |unit| src/contexts/portal/application/use-cases/finalize-upload.test.ts (5 tests) 3ms
+ ✓ |unit| src/contexts/integration/application/use-cases/get-import-status.test.ts (3 tests) 3ms
+ ✓ |unit| src/smoke.test.ts (2 tests) 3ms
+ ✓ |unit| src/shared/health/queue-depth.test.ts (4 tests) 3ms
+ ✓ |unit| src/shared/projections/projection-contract.test.ts (15 tests) 3ms
+ ✓ |unit| src/contexts/portal/domain/safe-link.test.ts (13 tests) 3ms
+ ✓ |unit| src/contexts/goal/application/use-cases/cancel-goal.test.ts (10 tests) 3ms
+{"level":50,"time":1784277259462,"pid":15848,"hostname":"Bozhidars-MacBook-Air.local","errorType":"TeamError","code":"forbidden","status":403,"message":"Access denied","msg":"← THROW TeamError(forbidden) → 403"}
+{"level":50,"time":1784277259463,"pid":15848,"hostname":"Bozhidars-MacBook-Air.local","errorType":"TeamError","code":"name_taken","status":409,"message":"Duplicate name","msg":"← THROW TeamError(name_taken) → 409"}
+ ✓ |unit| src/contexts/team/server/teams.test.ts (7 tests) 3ms
+ ✓ |unit| src/contexts/portal/domain/events.test.ts (2 tests) 3ms
+ ✓ |unit| src/contexts/inbox/infrastructure/mappers/inbox-note.mapper.test.ts (4 tests) 2ms
+ ✓ |unit| src/shared/config/bundle-budgets.test.ts (7 tests) 3ms
+ ✓ |unit| src/contexts/property/infrastructure/mappers/property.mapper.test.ts (7 tests) 2ms
+ ✓ |unit| src/shared/db/schema/schema-migration-parity.test.ts (10 tests) 3ms
+ ✓ |unit| src/shared/architecture/outbox-consumer-registration.test.ts (5 tests) 3ms
+ ✓ |unit| src/contexts/team/domain/rules.test.ts (11 tests) 2ms
+ ✓ |unit| src/contexts/review/infrastructure/mappers/review.mapper.test.ts (10 tests) 2ms
+ ✓ |unit| src/contexts/integration/application/use-cases/refresh-google-token.test.ts (5 tests) 4ms
+ ✓ |unit| src/contexts/badge/domain/constructors.test.ts (12 tests) 3ms
+ ✓ |unit| src/contexts/inbox/infrastructure/mappers/inbox.mapper.test.ts (8 tests) 3ms
+ ✓ |unit| src/contexts/integration/application/use-cases/handle-gbp-notification.test.ts (4 tests) 3ms
+ ✓ |unit| src/contexts/portal/application/use-cases/update-portal-group.test.ts (5 tests) 3ms
+ ✓ |unit| src/shared/domain/roles.test.ts (12 tests) 2ms
+ ✓ |unit| src/contexts/inbox/domain/constructors.test.ts (9 tests) 3ms
+ ✓ |unit| src/shared/health/probes.test.ts (4 tests) 3ms
+ ✓ |unit| src/contexts/portal/infrastructure/mappers/portal-link.mapper.test.ts (4 tests) 3ms
+ ✓ |unit| src/contexts/identity/application/use-cases/list-invitations.test.ts (4 tests) 3ms
+ ✓ |unit| src/contexts/team/domain/errors.test.ts (7 tests) 3ms
+ ✓ |unit| src/contexts/metric/application/use-cases/record-metric.test.ts (2 tests) 2ms
+ ✓ |unit| src/contexts/team/infrastructure/mappers/team.mapper.test.ts (9 tests) 3ms
+ ✓ |unit| src/contexts/integration/infrastructure/mappers/google-connection.mapper.test.ts (7 tests) 3ms
+ ✓ |unit| src/contexts/dashboard/application/utils.test.ts (12 tests) 3ms
+ ✓ |unit| src/contexts/staff/application/ports/staff-assignment.repository.test.ts (1 test) 2ms
+ ✓ |unit| src/shared/testing/in-memory-email-sender.test.ts (3 tests) 2ms
+ ✓ |unit| src/contexts/integration/domain/rules.test.ts (21 tests) 3ms
+ ✓ |unit| src/shared/observability/telemetry.test.ts (7 tests) 2ms
+ ✓ |unit| src/contexts/staff/domain/errors.test.ts (10 tests) 3ms
+ ✓ |unit| src/contexts/portal/application/use-cases/list-portal-links.test.ts (2 tests) 2ms
+ ✓ |unit| src/contexts/integration/infrastructure/mappers/gbp-cache.mapper.test.ts (6 tests) 2ms
+ ✓ |unit| src/shared/domain/permissions.test.ts (3 tests) 3ms
+ ✓ |unit| src/contexts/integration/infrastructure/mappers/gbp-import.mapper.test.ts (5 tests) 2ms
+ ✓ |unit| src/contexts/portal/application/use-cases/list-portal-groups.test.ts (3 tests) 2ms
+ ✓ |unit| src/shared/architecture/adr-0032-0033-presence.test.ts (2 tests) 2ms
+ ✓ |unit| src/shared/security/client-ip.test.ts (10 tests) 2ms
+ ✓ |unit| src/contexts/review/infrastructure/jobs/publish-reply.job.test.ts (2 tests) 2ms
+ ✓ |unit| src/shared/outbox/envelope.test.ts (9 tests) 2ms
+ ✓ |unit| src/contexts/identity/application/use-cases/request-org-logo-upload.test.ts (2 tests) 2ms
+ ✓ |unit| src/contexts/staff/domain/constructors.test.ts (6 tests) 2ms
+ ✓ |unit| src/contexts/metric/domain/metric-reading.test.ts (8 tests) 2ms
+ ✓ |unit| src/shared/architecture/atomic-review-outbox.test.ts (3 tests) 2ms
+ ✓ |unit| src/contexts/portal/infrastructure/mappers/portal.mapper.test.ts (5 tests) 2ms
+ ✓ |unit| src/contexts/guest/domain/errors.test.ts (3 tests) 2ms
+ ✓ |unit| src/shared/db/pool.test.ts (8 tests) 4ms
+ ✓ |unit| src/contexts/review/infrastructure/jobs/sync-property-reviews.job.test.ts (2 tests) 4ms
+ ✓ |unit| src/contexts/integration/server/error-helpers.test.ts (1 test) 2ms
+ ✓ |unit| src/contexts/integration/infrastructure/jobs/import-property.job.test.ts (2 tests) 2ms
+ ✓ |unit| src/contexts/team/domain/constructors.test.ts (4 tests) 2ms
+ ✓ |unit| src/contexts/property/domain/processing-routing.test.ts (7 tests) 2ms
+ ✓ |unit| src/contexts/dashboard/domain/errors.test.ts (5 tests) 2ms
+ ✓ |unit| src/contexts/staff/domain/rules.test.ts (6 tests) 2ms
+ ✓ |unit| src/shared/domain/processing-profile.test.ts (8 tests) 3ms
+ ✓ |unit| src/contexts/identity/application/use-cases/request-avatar-upload.test.ts (2 tests) 2ms
+ ✓ |unit| src/contexts/portal/domain/portal-group-constructors.test.ts (6 tests) 2ms
+ ✓ |unit| src/shared/domain/auth-context-helpers.test.ts (4 tests) 2ms
+ ✓ |unit| src/shared/observability/web-vitals.test.ts (8 tests) 2ms
+ ✓ |unit| src/contexts/identity/application/use-cases/finalize-avatar-upload.test.ts (2 tests) 2ms
+ ✓ |unit| src/contexts/dashboard/domain/types.test.ts (4 tests) 2ms
+ ✓ |unit| src/contexts/guest/application/use-cases/resolve-portal-context.test.ts (2 tests) 1ms
+
+ Test Files  312 passed (312)
+      Tests  3396 passed (3396)
+   Start at  11:34:10
+   Duration  11.13s (transform 2.95s, setup 7.99s, import 12.14s, tests 2.01s, environment 14ms)
+
+

@@ -1,0 +1,99 @@
+$ node_modules/.bin/fallow dupes
+started: 2026-07-17T08:34:51.125Z  durationMs: 202  exit: 0
+
+● Duplicates (612 clone groups)
+
+     98 lines  2 instances  dup:43a0f1e0
+    src/contexts/identity/application/ports/identity.port.ts:41-138
+    src/contexts/identity/server/organizations.shared.ts:60-77
+
+     90 lines  2 instances  dup:8bb8c343
+    src/contexts/portal/application/use-cases/add-portal-to-group.test.ts:24-105
+    src/contexts/portal/application/use-cases/remove-portal-from-group.test.ts:21-110
+
+     86 lines  2 instances  dup:a6ebc854
+    src/contexts/portal/application/use-cases/remove-portal-from-group.test.ts:23-108
+    src/contexts/portal/application/use-cases/soft-delete-portal-group.test.ts:22-107
+
+     85 lines  4 instances  dup:3012d87a
+    src/contexts/portal/application/use-cases/add-portal-to-group.test.ts:29-105
+    src/contexts/portal/application/use-cases/create-portal-group.test.ts:24-96
+    src/contexts/portal/application/use-cases/remove-portal-from-group.test.ts:26-110
+    src/contexts/portal/application/use-cases/soft-delete-portal-group.test.ts:25-109
+
+     66 lines  2 instances  dup:bbcda489
+    src/contexts/inbox/application/ports/reply-lookup.port.ts:26-49
+    src/contexts/review/domain/types.ts:64-129
+
+     62 lines  2 instances  dup:780aabc9
+    src/contexts/goal/application/use-cases/get-goal.test.ts:24-85
+    src/contexts/goal/application/use-cases/list-goals.test.ts:25-86
+
+     57 lines  2 instances  dup:680d1d83
+    src/contexts/goal/application/use-cases/get-goal.test.ts:90-145
+    src/contexts/goal/application/use-cases/list-goals.test.ts:98-154
+
+     50 lines  2 instances  dup:e5cca2d3
+    src/contexts/portal/application/ports/portal.repository.ts:15-40
+    src/contexts/portal/application/public-api.ts:31-80
+
+     48 lines  2 instances  dup:4ce73f32
+    src/contexts/dashboard/application/use-cases/get-dashboard-data.ts:28-37
+    src/contexts/dashboard/application/use-cases/get-portal-analytics.ts:37-84
+
+     47 lines  2 instances  dup:9a327f6c
+    src/contexts/inbox/application/use-cases/get-inbox-item-detail.test.ts:28-70
+    src/contexts/inbox/application/use-cases/get-inbox-items.test.ts:21-67
+
+  ... and 602 more clone groups
+  Identical code blocks detected via suffix-array analysis — https://docs.fallow.tools/explanations/duplication#clone-groups
+
+● Clone families (113 with multiple groups)
+
+  3 groups, 53 lines across src/components/features/identity/login/login-form.stories.tsx, src/components/features/identity/reset-password/reset-password-form.stories.tsx
+    → Extract 3 shared clone groups (53 lines) from login-form.stories.tsx, reset-password-form.stories.tsx into a shared directory
+
+  2 groups, 35 lines across src/components/features/identity/member-directory/invite-member-form.stories.tsx, src/components/features/identity/reset-password/reset-password-form.stories.tsx
+    → Extract shared function (17 lines) from invite-member-form.stories.tsx, reset-password-form.stories.tsx
+    → Extract shared function (18 lines) from invite-member-form.stories.tsx, reset-password-form.stories.tsx
+
+  2 groups, 27 lines across src/components/features/identity/registration/register-form.stories.tsx, src/components/features/identity/security-settings-form.stories.tsx
+    → Extract shared function (11 lines) from register-form.stories.tsx, security-settings-form.stories.tsx
+    → Extract shared function (16 lines) from register-form.stories.tsx, security-settings-form.stories.tsx
+
+  2 groups, 39 lines across src/components/features/identity/registration/register-form.stories.tsx, src/components/layout/manager-sidebar.stories.tsx
+    → Extract shared function (28 lines) from register-form.stories.tsx, manager-sidebar.stories.tsx
+    → Extract shared function (11 lines) from register-form.stories.tsx, manager-sidebar.stories.tsx
+
+  2 groups, 33 lines across src/components/features/notification/notification-panel.stories.tsx
+    → Extract shared function (17 lines) from notification-panel.stories.tsx, notification-panel.stories.tsx
+    → Extract shared function (16 lines) from notification-panel.stories.tsx, notification-panel.stories.tsx
+
+  2 groups, 11 lines across src/components/features/staff/assign-staff-form.stories.tsx
+    → Extract shared function (6 lines) from assign-staff-form.stories.tsx, assign-staff-form.stories.tsx
+    → Extract shared function (5 lines) from assign-staff-form.stories.tsx, assign-staff-form.stories.tsx
+
+  2 groups, 44 lines across src/components/forms/form-text-field.stories.tsx, src/components/forms/form-textarea.stories.tsx
+    → Extract shared function (30 lines) from form-text-field.stories.tsx, form-textarea.stories.tsx
+    → Extract shared function (14 lines) from form-text-field.stories.tsx, form-textarea.stories.tsx
+
+  2 groups, 48 lines across src/components/inbox/inbox-detail-panel.stories.tsx, src/components/inbox/inbox-detail-sheet.stories.tsx
+    → Extract shared function (25 lines) from inbox-detail-panel.stories.tsx, inbox-detail-sheet.stories.tsx
+    → Extract shared function (23 lines) from inbox-detail-panel.stories.tsx, inbox-detail-sheet.stories.tsx
+
+  2 groups, 17 lines across src/components/layout/manager-sidebar.stories.tsx
+    → Extract shared function (9 lines) from manager-sidebar.stories.tsx, manager-sidebar.stories.tsx
+    → Extract shared function (8 lines) from manager-sidebar.stories.tsx, manager-sidebar.stories.tsx
+
+  5 groups, 85 lines across src/components/layout/settings-sidebar.stories.tsx, src/components/layout/staff-sidebar.stories.tsx
+    → Extract 5 shared clone groups (85 lines) from settings-sidebar.stories.tsx, staff-sidebar.stories.tsx into src/components/layout
+
+  ... and 103 more families
+
+  Groups of related clones across the same files — https://docs.fallow.tools/explanations/duplication#clone-families
+
+
+loaded config: /Users/bozhidardenev/kodes/projects/rep-key/.fallowrc.json
+note: module wiring excluded from clone detection (--no-ignore-imports to include it)
+
+✗ 14,480 lines (9.7%) duplicated across 354 files (0.14s)
