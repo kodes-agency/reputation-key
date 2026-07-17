@@ -1,0 +1,154 @@
+$ node_modules/.bin/fallow dead-code
+started: 2026-07-17T08:34:50.853Z  durationMs: 272  exit: 1
+
+── Unused Code ─────────────────────────────────────
+
+● Unused files (22)
+  server/plugins/security-headers.ts
+  src/components/features/portal/portal-detail/portal-detail-tab-bar.tsx
+  src/components/features/property/goals/staff-goals-section.tsx
+  src/components/features/property/index.ts
+  src/components/features/property/property-detail/property-detail-fields.tsx
+  src/components/hooks/use-reduced-motion.ts
+  src/components/inbox/index.ts
+  src/components/layout/confirmation-dialog.tsx
+  src/components/layout/permission-states.tsx
+  src/components/layout/setup-guide-states.tsx
+  ... and 12 more (--format json for full list)
+  Files not reachable from any entry point — https://docs.fallow.tools/explanations/dead-code#unused-files
+  To suppress: // fallow-ignore-next-line unused-files
+
+● Unused exports (194)
+  src/shared/domain/index.ts (21)
+    :22 organizationId (re-export)
+    :23 userId (re-export)
+    :24 propertyId (re-export)
+    :25 portalId (re-export)
+    :26 teamId (re-export)
+    ... and 16 more (--format json for full list)
+  src/shared/db/schema/people-access.schema.ts (10)
+    :27 grantStatusEnum
+    :28 grantKindEnum
+    :35 participationStatusEnum
+    :41 membershipRoleEnum
+    :43 responsibilityKindEnum
+    ... and 5 more (--format json for full list)
+  src/components/ui/sidebar.tsx (8)
+    :686 SidebarGroupAction
+    :690 SidebarInput
+    :693 SidebarMenuAction
+    :697 SidebarMenuSkeleton
+    :698 SidebarMenuSub
+    ... and 3 more (--format json for full list)
+  src/contexts/review/application/public-api.ts (8)
+    :25 reviewCreated (re-export)
+    :26 reviewUpdated (re-export)
+    :27 reviewExpired (re-export)
+    :28 reviewReplyPublished (re-export)
+    :29 reviewReplySubmitted (re-export)
+    ... and 3 more (--format json for full list)
+  src/contexts/identity/application/public-api.ts (7)
+    :6 identityOrganizationCreated (re-export)
+    :7 identityMemberInvited (re-export)
+    :8 identityInvitationAccepted (re-export)
+    :9 identityInvitationRejected (re-export)
+    :10 identityInvitationCanceled (re-export)
+    ... and 2 more (--format json for full list)
+  src/components/features/organization/index.ts (6)
+    :2 ResponseSlaCard (re-export)
+    :3 OrganizationSettingsForm (re-export)
+    :4 OrganizationSwitchList (re-export)
+    :5 OrgIdentityCard (re-export)
+    :6 OrgBillingCard (re-export)
+    ... and 1 more (--format json for full list)
+  src/components/features/portal/index.ts (6)
+    :4 CreatePortalForm (re-export)
+    :5 EditPortalForm (re-export)
+    :8 LinkTree (re-export)
+    :9 PortalSettings (re-export)
+    :10 PortalShare (re-export)
+    ... and 1 more (--format json for full list)
+  src/contexts/portal/server/portal-groups.ts (6)
+    :50 createPortalGroup
+    :76 updatePortalGroup
+    :136 getPortalGroup
+    :162 softDeletePortalGroup
+    :193 addPortalToGroup
+    ... and 1 more (--format json for full list)
+  src/contexts/property/domain/property-lifecycle.ts (5)
+    :32 LIFECYCLE_STATES
+    :56 ACTIVE_STATES
+    :59 RECOVERABLE_STATES
+    :67 IRREVERSIBLE_STATES
+    :73 BLOCKED_STATES
+  src/components/features/staff/index.ts (4)
+    :3 TeamSelector (re-export)
+    :4 OrgStaffTable (re-export)
+    :5 MemberSelector (re-export)
+    :6 PortalSelector (re-export)
+  ... and 113 more in 75 files (--format json for full list)
+  Exported symbols with no known consumers — https://docs.fallow.tools/explanations/dead-code#unused-exports
+  To auto-fix: fallow fix --dry-run
+  To suppress: // fallow-ignore-next-line unused-exports
+
+── Dependencies ─────────────────────────────────────
+
+● Unused devDependencies (1)
+  shadcn
+  Listed in devDependencies but never imported or referenced — https://docs.fallow.tools/explanations/dead-code#unused-dependencies
+
+● Unlisted dependencies (1)
+  nitropack
+  Packages imported in code but missing from package.json — https://docs.fallow.tools/explanations/dead-code#unlisted-dependencies
+
+── Structure ─────────────────────────────────────
+
+● Duplicate exports (2)
+  src/components/features/portal/portal-analytics/portal-analytics-charts.tsx
+    ↔ property/property-dashboard-helpers.tsx (1 export)
+    RatingDistributionChart
+
+  src/shared/db/schema/outbox.schema.ts
+    ↔ outbox/infrastructure/outbox-repository.ts (1 export)
+    ReceiptStatus
+
+  Same export name defined in multiple files; barrel re-exports may resolve ambiguously — https://docs.fallow.tools/explanations/dead-code#duplicate-exports
+
+● Boundary violations (14)
+  src/shared/events/events.ts:160 → src/contexts/badge/domain/events.ts (shared → domain)
+  src/shared/events/events.ts:161 → src/contexts/identity/domain/events.ts (shared → domain)
+  src/shared/events/events.ts:162 → src/contexts/property/domain/events.ts (shared → domain)
+  src/shared/events/events.ts:163 → src/contexts/team/domain/events.ts (shared → domain)
+  src/shared/events/events.ts:164 → src/contexts/staff/domain/events.ts (shared → domain)
+  src/shared/events/events.ts:165 → src/contexts/portal/domain/events.ts (shared → domain)
+  src/shared/events/events.ts:166 → src/contexts/guest/domain/events.ts (shared → domain)
+  src/shared/events/events.ts:167 → src/contexts/integration/domain/events.ts (shared → domain)
+  src/shared/events/events.ts:168 → src/contexts/review/domain/events.ts (shared → domain)
+  src/shared/events/events.ts:169 → src/contexts/inbox/domain/events.ts (shared → domain)
+  ... and 4 more (--format json for full list)
+  Imports that cross defined architecture zone boundaries — https://docs.fallow.tools/explanations/dead-code#boundary-violations
+  To suppress: // fallow-ignore-file boundary-violation
+
+── Maintenance ─────────────────────────────────────
+
+● Stale suppressions (24)
+  src/components/ui/card.tsx:1:0 // fallow-ignore-file unused-export (no unused-export issue found in this file)
+  src/components/ui/table.tsx:2:0 // fallow-ignore-file unused-export (no unused-export issue found in this file)
+  src/contexts/dashboard/application/use-cases/get-fleet-overview.ts:49:0 // fallow-ignore-next-line — ('—' is not a recognized fallow issue kind. Other tokens on this line still apply.)
+  src/contexts/dashboard/application/use-cases/get-fleet-overview.ts:49:0 // fallow-ignore-next-line prior-period ('prior-period' is not a recognized fallow issue kind. Other tokens on this line still apply.)
+  src/contexts/dashboard/application/use-cases/get-fleet-overview.ts:49:0 // fallow-ignore-next-line pattern ('pattern' is not a recognized fallow issue kind. Other tokens on this line still apply.)
+  src/contexts/dashboard/application/use-cases/get-fleet-overview.ts:49:0 // fallow-ignore-next-line shared ('shared' is not a recognized fallow issue kind. Other tokens on this line still apply.)
+  src/contexts/dashboard/application/use-cases/get-fleet-overview.ts:49:0 // fallow-ignore-next-line across ('across' is not a recognized fallow issue kind. Other tokens on this line still apply.)
+  src/contexts/dashboard/application/use-cases/get-fleet-overview.ts:49:0 // fallow-ignore-next-line dashboard ('dashboard' is not a recognized fallow issue kind. Other tokens on this line still apply.)
+  src/contexts/dashboard/application/use-cases/get-fleet-overview.ts:49:0 // fallow-ignore-next-line use ('use' is not a recognized fallow issue kind. Other tokens on this line still apply.)
+  src/contexts/dashboard/application/use-cases/get-fleet-overview.ts:49:0 // fallow-ignore-next-line cases ('cases' is not a recognized fallow issue kind. Other tokens on this line still apply.)
+  ... and 14 more (--format json for full list)
+  Suppression comments or JSDoc tags that no longer match any issue — https://docs.fallow.tools/explanations/dead-code#stale-suppressions
+
+
+loaded config: /Users/bozhidardenev/kodes/projects/rep-key/.fallowrc.json
+   0.159799792s  WARN boundary zone 'shared-testing' matched 0 reachable files, check your directory structure, pattern, or whether these files are all currently unreachable
+  490 entry points detected (467 plugin, 16 package.json, 7 manual entry)
+
+✗ 22 files · 194 exports · 1 dev/optional dependency · 1 unlisted dependency · 2 duplicate pairs · 14 violations · 24 stale suppressions (0.19s)
+  258 issues · 209 suppressed · 24 stale suppressions

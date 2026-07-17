@@ -1,0 +1,228 @@
+$ pnpm test:e2e --project=full
+started: 2026-07-17T08:35:03.985Z  durationMs: 115778  exit: 1
+
+
+> reputation-key@ test:e2e /Users/bozhidardenev/kodes/projects/rep-key
+> playwright test --project\=full
+
+
+Running 11 tests using 1 worker
+
+  ✘   1 [full] › e2e/auth.spec.ts:7:3 › Authentication › register a new account and sign in (20.8s)
+  ✓   2 [full] › e2e/auth.spec.ts:17:3 › Authentication › sign in with existing credentials (601ms)
+  -   3 [full] › e2e/guest-portal.spec.ts:7:1 › guest portal flow: visit, rate, feedback
+  ✘   4 [full] › e2e/member-invitation.spec.ts:11:3 › Member Invitation › invite a new member and cancel invitation (10.8s)
+  ✓   5 [full] › e2e/navigation.spec.ts:14:3 › Navigation › navigate properties, inbox, and members settings (1.1s)
+  ✘   6 [full] › e2e/navigation.spec.ts:25:3 › Navigation › property detail tabs navigate correctly (12.1s)
+  ✓   7 [full] › e2e/property-crud.spec.ts:13:3 › Property list and detail › list shows seeded property and opens detail (880ms)
+  ✓   8 [full] › e2e/property-detail.spec.ts:13:3 › Property Detail › view seeded property details (671ms)
+  ✘   9 [full] › e2e/reset-password.spec.ts:7:3 › Password Reset › request password reset for existing email (20.5s)
+  ✘  10 [full] › e2e/staff-assignment.spec.ts:14:3 › Staff Assignment › property people staff tab loads (11.7s)
+  ✘  11 [full] › e2e/team-management.spec.ts:14:3 › Team Management › create and delete a team within a property (30.0s)
+
+
+  1) [full] › e2e/auth.spec.ts:7:3 › Authentication › register a new account and sign in ───────────
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: getByText(/account created/i).or(locator('[role="alert"]'))
+    Expected: visible
+    Timeout: 20000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 20000ms[22m
+    [2m  - waiting for getByText(/account created/i).or(locator('[role="alert"]'))[22m
+
+
+       at helpers/auth.ts:95
+
+      93 |   const success = page.getByText(/account created/i)
+      94 |   const errorBanner = page.locator('[role="alert"]')
+    > 95 |   await expect(success.or(errorBanner)).toBeVisible({ timeout: 20_000 })
+         |                                         ^
+      96 |   if (await errorBanner.isVisible().catch(() => false)) {
+      97 |     const msg = (await errorBanner.innerText().catch(() => '')).trim()
+      98 |     throw new Error(`Registration failed with UI error: ${msg || '(empty alert)'}`)
+        at registerAccount (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/auth.ts:95:41)
+        at /Users/bozhidardenev/kodes/projects/rep-key/e2e/auth.spec.ts:10:5
+
+    Error Context: test-results/auth-Authentication-register-a-new-account-and-sign-in-full/error-context.md
+
+  2) [full] › e2e/member-invitation.spec.ts:11:3 › Member Invitation › invite a new member and cancel invitation 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: getByText(/invite a new member/i)
+    Expected: visible
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 10000ms[22m
+    [2m  - waiting for getByText(/invite a new member/i)[22m
+
+
+      14 |
+      15 |     await page.getByRole('button', { name: /invite member/i }).click()
+    > 16 |     await expect(page.getByText(/invite a new member/i)).toBeVisible()
+         |                                                          ^
+      17 |
+      18 |     const inviteEmail = `e2e-invite-${Date.now()}@example.com`
+      19 |     await page.getByPlaceholder('colleague@example.com').fill(inviteEmail)
+        at /Users/bozhidardenev/kodes/projects/rep-key/e2e/member-invitation.spec.ts:16:58
+
+    Error Context: test-results/member-invitation-Member-I-e3011-ember-and-cancel-invitation-full/error-context.md
+
+  3) [full] › e2e/navigation.spec.ts:25:3 › Navigation › property detail tabs navigate correctly ───
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: getByRole('tab', { name: /teams/i })
+    Expected: visible
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 10000ms[22m
+    [2m  - waiting for getByRole('tab', { name: /teams/i })[22m
+
+
+      34 |     await page.goto(`/properties/${seed.propertyId}/people`)
+      35 |     await expect(page).toHaveURL(new RegExp(`/properties/${seed.propertyId}/people`))
+    > 36 |     await expect(page.getByRole('tab', { name: /teams/i })).toBeVisible()
+         |                                                             ^
+      37 |   })
+      38 | })
+      39 |
+        at /Users/bozhidardenev/kodes/projects/rep-key/e2e/navigation.spec.ts:36:61
+
+    Error Context: test-results/navigation-Navigation-prop-0878a-ail-tabs-navigate-correctly-full/error-context.md
+
+  4) [full] › e2e/reset-password.spec.ts:7:3 › Password Reset › request password reset for existing email 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: getByText(/check your email/i).or(locator('[role="alert"]'))
+    Expected: visible
+    Timeout: 20000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 20000ms[22m
+    [2m  - waiting for getByText(/check your email/i).or(locator('[role="alert"]'))[22m
+
+
+      18 |     const success = page.getByText(/check your email/i)
+      19 |     const errorBanner = page.locator('[role="alert"]')
+    > 20 |     await expect(success.or(errorBanner)).toBeVisible({ timeout: 20_000 })
+         |                                           ^
+      21 |     if (await errorBanner.isVisible().catch(() => false)) {
+      22 |       // CI uses placeholder RESEND_API_KEY; request may fail closed.
+      23 |       // Treat "form submitted and received a response" as the shell check.
+        at /Users/bozhidardenev/kodes/projects/rep-key/e2e/reset-password.spec.ts:20:43
+
+    Error Context: test-results/reset-password-Password-Re-7c5b5-rd-reset-for-existing-email-full/error-context.md
+
+  5) [full] › e2e/staff-assignment.spec.ts:14:3 › Staff Assignment › property people staff tab loads 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: getByRole('tab', { name: /teams/i })
+    Expected: visible
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 10000ms[22m
+    [2m  - waiting for getByRole('tab', { name: /teams/i })[22m
+
+
+      20 |       await staffTab.click()
+      21 |     }
+    > 22 |     await expect(page.getByRole('tab', { name: /teams/i })).toBeVisible()
+         |                                                             ^
+      23 |     // No second member to assign in seed-only orgs — chrome visibility is the gate.
+      24 |     await expect(page.getByText(/staff|assign|no staff|directory/i).first()).toBeVisible({
+      25 |       timeout: 15_000,
+        at /Users/bozhidardenev/kodes/projects/rep-key/e2e/staff-assignment.spec.ts:22:61
+
+    Error Context: test-results/staff-assignment-Staff-Ass-9a7c6-erty-people-staff-tab-loads-full/error-context.md
+
+  6) [full] › e2e/team-management.spec.ts:14:3 › Team Management › create and delete a team within a property 
+
+    [31mTest timeout of 30000ms exceeded.[39m
+
+    Error: locator.click: Test timeout of 30000ms exceeded.
+    Call log:
+    [2m  - waiting for getByRole('tab', { name: /teams/i })[22m
+
+
+      15 |     const seed = requireE2eSeedState()
+      16 |     await page.goto(`/properties/${seed.propertyId}/people`)
+    > 17 |     await page.getByRole('tab', { name: /teams/i }).click()
+         |                                                     ^
+      18 |
+      19 |     const teamName = `Front Desk ${Date.now()}`
+      20 |     await page.getByRole('button', { name: /create team/i }).click()
+        at /Users/bozhidardenev/kodes/projects/rep-key/e2e/team-management.spec.ts:17:53
+
+    Error Context: test-results/team-management-Team-Manag-9e033-te-a-team-within-a-property-full/error-context.md
+
+  6 failed
+    [full] › e2e/auth.spec.ts:7:3 › Authentication › register a new account and sign in ────────────
+    [full] › e2e/member-invitation.spec.ts:11:3 › Member Invitation › invite a new member and cancel invitation 
+    [full] › e2e/navigation.spec.ts:25:3 › Navigation › property detail tabs navigate correctly ────
+    [full] › e2e/reset-password.spec.ts:7:3 › Password Reset › request password reset for existing email 
+    [full] › e2e/staff-assignment.spec.ts:14:3 › Staff Assignment › property people staff tab loads 
+    [full] › e2e/team-management.spec.ts:14:3 › Team Management › create and delete a team within a property 
+  1 skipped
+  4 passed (1.9m)
+ ELIFECYCLE  Command failed with exit code 1.
+
+(node:17442) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+[WebServer] (node:17458) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:17479) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:17479) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+[WebServer] Warning: Route file "/Users/bozhidardenev/kodes/projects/rep-key/src/routes/api/webhooks/gbp/notifications.test.ts" does not export a Route. This file will not be included in the route tree.
+[WebServer] 
+[WebServer] If this file is not intended to be a route, you can exclude it using one of these options:
+[WebServer]   1. Rename the file to "/Users/bozhidardenev/kodes/projects/rep-key/src/routes/api/webhooks/gbp/-notifications.test.ts" (prefix with "-")
+[WebServer]   2. Use 'routeFileIgnorePattern' in your config to match this file
+[WebServer] 
+[WebServer] Current configuration:
+[WebServer]   routeFileIgnorePrefix: "-"
+[WebServer]   routeFileIgnorePattern: undefined
+(node:17508) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:17508) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:17508) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:18032) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:18032) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:18032) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:18244) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:18244) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:18244) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:18544) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:18544) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:18544) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:18966) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:18966) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:18966) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:19151) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:19151) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:19151) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)

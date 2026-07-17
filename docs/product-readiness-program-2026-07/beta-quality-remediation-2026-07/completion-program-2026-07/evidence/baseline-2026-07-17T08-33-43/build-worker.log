@@ -1,0 +1,18 @@
+$ pnpm build:worker
+started: 2026-07-17T08:34:30.419Z  durationMs: 580  exit: 0
+
+
+> reputation-key@ build:worker /Users/bozhidardenev/kodes/projects/rep-key
+> tsup
+
+CLI Building entry: src/worker/index.ts
+CLI Using tsconfig: tsconfig.json
+CLI tsup v8.5.1
+CLI Using tsup config: /Users/bozhidardenev/kodes/projects/rep-key/tsup.config.ts
+CLI Target: node22
+CLI Cleaning output folder
+ESM Build start
+ESM dist-worker/index.js     2.15 MB
+ESM dist-worker/index.js.map 4.26 MB
+ESM ⚡️ Build success in 209ms
+

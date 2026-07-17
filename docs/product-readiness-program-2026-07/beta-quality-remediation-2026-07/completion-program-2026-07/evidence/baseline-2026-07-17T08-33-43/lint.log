@@ -1,0 +1,10 @@
+$ pnpm lint
+started: 2026-07-17T08:33:56.485Z  durationMs: 5040  exit: 0
+
+
+> reputation-key@ lint /Users/bozhidardenev/kodes/projects/rep-key
+> eslint . && node scripts/check-filenames.mjs && node scripts/check-component-boundaries.mjs
+
+✓ All component files use kebab-case naming.
+✓ No component/server boundary violations.
+

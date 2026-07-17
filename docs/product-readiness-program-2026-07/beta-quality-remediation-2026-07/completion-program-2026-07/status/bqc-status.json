@@ -1,12 +1,13 @@
 {
   "schemaVersion": 1,
   "program": "BQC",
-  "updatedAt": "2026-07-17T07:56:56.000Z",
+  "updatedAt": "2026-07-17T08:45:00.000Z",
   "baseline": {
     "validationReport": "docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md",
     "validationBaselineSha": "29b021875c145a7f8827f0ee70fc20935fc5dc79",
-    "workingTreeSha": "77fc52d67eab77438409da399bf486ddd9879f39",
+    "workingTreeSha": "927614bce728f8c42d922720f149b6ea1b046354",
     "lockfileSha256": "948a751d725fd8668b4ef734a28eea10392fd89890608f453998786a2b197287",
+    "migrationVersion": "0011_people-access-and-attribution",
     "notes": "BQR work is implementation history only. No BQR phase is `accepted` under BQC rules. Open findings remain from the 2026-07-16 validation report until closed by BQC evidence."
   },
   "entries": [
@@ -125,7 +126,7 @@
       "id": "BQC-0",
       "kind": "phase",
       "title": "Truthful rebaseline and containment",
-      "state": "implementation_in_progress",
+      "state": "evidence_pending",
       "owner": "engineering",
       "requiredEvidenceIds": [
         "baseline-manifest",
@@ -136,7 +137,7 @@
       ],
       "openFindings": ["STD-P0-01", "SPEC-P2-01", "SPEC-P0-03"],
       "exceptions": [],
-      "notes": "0.1–0.4 implementation_complete; 0.5 remaining. Not accepted."
+      "notes": "All five slices (0.1–0.5) implementation_complete. Awaiting independent review of evidence plus the staging stop-control rehearsal steps (docs/operations/bqc0-stop-control-rehearsal.md) before acceptance. Findings close only on accepted evidence per slice."
     },
     {
       "id": "BQC-0.1",
@@ -200,11 +201,12 @@
       "kind": "slice",
       "parentId": "BQC-0",
       "title": "Re-run and pin the baseline",
-      "state": "not_started",
+      "state": "implementation_complete",
       "owner": "engineering",
       "requiredEvidenceIds": ["baseline-manifest"],
       "openFindings": [],
-      "exceptions": []
+      "exceptions": [],
+      "notes": "Baseline pinned at 927614bce (migration 0011, lockfile 948a751d) via scripts/bqc/run-baseline.ts — 13/17 gates pass, results verbatim in evidence/baseline-2026-07-17T08-33-43/. Failures recorded with ownership, not excused: dependency-audit 5 known vulns (BQC-7), fallow dead-code/health baseline state (BQC-5), e2e-full 6 local registration-path failures root-caused to node:crypto client leak = STD-P2-01 (BQC-5/BQC-6; CI green on same SHA, timing dimension to isolate). Reproducible via pnpm bqc:run-baseline. Pending independent review for accepted."
     },
     {
       "id": "BQC-1",

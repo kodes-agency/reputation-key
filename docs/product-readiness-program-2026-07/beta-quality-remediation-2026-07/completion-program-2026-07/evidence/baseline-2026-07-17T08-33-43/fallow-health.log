@@ -1,0 +1,2851 @@
+$ node_modules/.bin/fallow health
+started: 2026-07-17T08:34:51.327Z  durationMs: 384  exit: 1
+
+● Health score: 71 B
+  Deductions: hotspots -10.0 · unit size -10.0 · duplication -4.7 · coupling -2.5 · dead exports -1.0 · unused deps -0.4 · dead files -0.3 · maintainability -0.2
+
+■ Metrics: 152,369 LOC · dead files 1.5% · dead exports 4.8% · avg cyclomatic 1.5 · p90 cyclomatic 3 · maintainability 90.6 (good) · 0 churn hotspots (since 6 months) · 1 unused dep · duplication 9.7%
+
+  Function size: 72% low · 15% medium · 7% high · 5% very high  (1-15 / 16-30 / 31-60 / >60 LOC)
+
+  Render fan-in: <Button> 78 parents (108 incl. repeats) · <Badge> 32 parents (43 incl. repeats) · <PageHeader> 27 parents (31 incl. repeats) · <PageShell> 20 parents (24 incl. repeats) · <Card> 19 parents (24 incl. repeats)
+
+● Large functions (10 shown, 543 total)
+  src/contexts/review/application/use-cases/sync-reviews.test.ts
+    :240 <arrow>  636 lines
+  src/contexts/dashboard/infrastructure/repositories/dashboard.repository.test.ts
+    :101 <arrow>  565 lines
+  src/contexts/identity/infrastructure/adapters/auth-identity.adapter.test.ts
+    :100 <arrow>  555 lines
+  src/contexts/goal/domain/constructors.test.ts
+    :28 <arrow>  517 lines
+  src/contexts/badge/infrastructure/repositories/badge.repository.ts
+    :35 createBadgeRepository  516 lines
+  src/contexts/goal/infrastructure/repositories/goal.repository.ts
+    :39 createGoalRepository  509 lines
+  src/contexts/identity/infrastructure/adapters/auth-identity.adapter.ts
+    :133 createBetterAuthIdentityAdapter  450 lines
+  src/contexts/inbox/infrastructure/repositories/inbox.repository.ts
+    :44 createInboxRepository  444 lines
+  src/contexts/goal/application/use-cases/create-goal.test.ts
+    :181 <arrow>  423 lines
+  src/contexts/leaderboard/infrastructure/repositories/leaderboard.repository.ts
+    :56 createLeaderboardRepository  421 lines
+  Functions exceeding 60 lines of code (very high risk): https://docs.fallow.tools/explanations/health#unit-size
+  use --top 543 to see all
+
+● High complexity functions (120)
+  CRAP scores use Istanbul coverage where matched (296/11282 functions); unmatched functions are estimated from export references.
+  src/contexts/goal/domain/constructors.ts
+    :48 buildGoal CRITICAL
+          43 cyclomatic   57 cognitive  193 lines
+  src/components/ui/color-picker.tsx
+    :312 parseColorString CRITICAL
+          30 cyclomatic   34 cognitive   92 lines
+         blast radius: <InputGroupItem> rendered in 15 places
+         930.0 CRAP
+  src/components/goals/goal-progress-ring.tsx
+    :44 GoalProgressRing CRITICAL
+          29 cyclomatic   44 cognitive  165 lines
+         react: 11 props, JSX depth 4
+         870.0 CRAP
+  src/contexts/dashboard/application/use-cases/get-portal-analytics.ts
+    :36 <arrow>
+          29 cyclomatic   16 cognitive   97 lines
+  src/composition.ts
+    :164 createContainer
+          23 cyclomatic   13 cognitive  416 lines
+  src/components/ui/chart.tsx
+    :184 <arrow> CRITICAL
+          22 cyclomatic   39 cognitive   66 lines
+         react: JSX depth 5
+         blast radius: <ChartContainer> rendered in 4 places
+         506.0 CRAP
+  src/contexts/identity/application/use-cases/update-organization.ts
+    :29 <arrow>
+          22 cyclomatic   23 cognitive   53 lines
+  src/contexts/goal/infrastructure/jobs/reconcile-goal-progress.job.ts
+    :37 <arrow> HIGH
+          20 cyclomatic   32 cognitive  112 lines
+  src/contexts/goal/ui/helpers.ts
+    :678 getGoalPresentation
+          20 cyclomatic   16 cognitive   76 lines
+  src/contexts/integration/application/use-cases/import-property.ts
+    :111 <arrow> HIGH
+          20 cyclomatic   29 cognitive  185 lines
+  src/routes/_authenticated/home.tsx
+    :110 StaffHomePage
+          20 cyclomatic   20 cognitive   70 lines
+         react: 5 hooks (5 custom), JSX depth 3
+  src/shared/auth/middleware.ts
+    :206 resolveTenantContext HIGH
+          20 cyclomatic   31 cognitive  159 lines
+  src/shared/observability/operator-commands.ts
+    :37 validateOperatorCommand
+          19 cyclomatic   21 cognitive   38 lines
+  src/contexts/goal/application/use-cases/list-goals.ts
+    :53 <arrow> HIGH
+          18 cyclomatic   26 cognitive  105 lines
+  src/components/inbox/use-inbox-keyboard-shortcuts.ts
+    :22 handleKeyDown
+          17 cyclomatic   19 cognitive   40 lines
+  src/contexts/guest/domain/guest-response.ts
+    :83 submitResponse
+          17 cyclomatic   16 cognitive   48 lines
+  src/components/features/property/goals/goal-create-form.tsx
+    :100 handleSubmit
+          16 cyclomatic   18 cognitive   45 lines
+  src/components/inbox/inbox-detail-source-content.tsx
+    :12 InboxDetailSourceContent CRITICAL
+          16 cyclomatic   42 cognitive   69 lines
+         react: 2 props, 1 hooks (1 state), JSX depth 5
+  src/contexts/goal/ui/helpers.ts
+    :563 remainingLabelForGoal
+          16 cyclomatic   17 cognitive   25 lines
+  src/contexts/inbox/infrastructure/repositories/inbox.repository.ts
+    :491 buildFilterConditions
+          16 cyclomatic   16 cognitive   48 lines
+  src/contexts/property/application/use-cases/update-property.ts
+    :55 validateUpdateFields
+          16 cyclomatic   21 cognitive   60 lines
+  src/components/inbox/inbox-list-v2.tsx
+    :22 ListItemRow HIGH
+          14 cyclomatic   39 cognitive   92 lines
+         react: 4 props, JSX depth 5
+  src/contexts/badge/application/use-cases/evaluate-badge-for-target.ts
+    :143 criteriaMet
+          14 cyclomatic   21 cognitive   45 lines
+  src/contexts/goal/infrastructure/jobs/spawn-recurring-instances.job.ts
+    :36 <arrow>
+          14 cyclomatic   20 cognitive  143 lines
+  src/contexts/integration/application/use-cases/list-gbp-locations.ts
+    :34 <arrow> HIGH
+          14 cyclomatic   27 cognitive  112 lines
+  src/routes/_authenticated/leaderboard.tsx
+    :119 StaffLeaderboardPage
+          14 cyclomatic   19 cognitive  153 lines
+         react: 3 hooks (3 custom), JSX depth 3
+         blast radius: <EmptyData> rendered in 2 places
+  src/components/features/property/goals/goal-create-track-section.tsx
+    :103 TargetSection HIGH
+          13 cyclomatic   32 cognitive   57 lines
+         react: 2 props, JSX depth 5
+  src/components/features/staff/edit-staff-portals-modal.tsx
+    :33 EditStaffPortalsModal HIGH
+          13 cyclomatic   36 cognitive   97 lines
+         react: 8 props, 3 hooks (2 state, 1 memo), JSX depth 4
+  src/components/forms/image-upload-field/drop-zone.tsx
+    :24 DropZone
+          13 cyclomatic   24 cognitive   57 lines
+         react: 14 props, JSX depth 3
+  src/contexts/staff/application/use-cases/update-staff-portals.ts
+    :41 <arrow>
+          13 cyclomatic   17 cognitive  128 lines
+  src/components/features/property/goals/goal-create-preview.tsx
+    :27 GoalCreatePreview CRITICAL
+          12 cyclomatic   54 cognitive   91 lines
+         react: 4 props, JSX depth 5
+  src/components/features/property/goals/goal-detail-page.tsx
+    :48 GoalDetailPage CRITICAL
+          12 cyclomatic  115 cognitive  144 lines
+         react: 8 props, JSX depth 7
+  src/components/features/staff/assign-staff-form.tsx
+    :58 onSubmit
+          12 cyclomatic   17 cognitive   39 lines
+         react: 1 props
+  src/components/inbox/reply-form.tsx
+    :32 ReplyEditorInner
+          12 cyclomatic   17 cognitive   86 lines
+         react: 4 props, 6 hooks (6 custom), JSX depth 2
+  src/contexts/identity/server/auth-settings.helpers.ts
+    :8 handleAuthError
+          12 cyclomatic   16 cognitive   51 lines
+  src/contexts/portal/application/use-cases/create-portal-group.ts
+    :34 <arrow>
+          12 cyclomatic   18 cognitive  109 lines
+  src/components/features/portal/portal-analytics/portal-analytics-tab.tsx
+    :25 PortalAnalyticsTab HIGH
+          11 cyclomatic   30 cognitive  102 lines
+         react: 3 props, 3 hooks (1 state, 1 effect, 1 custom), max effect deps 1, JSX depth 4
+  src/components/inbox/inbox-detail-panel.tsx
+    :20 InboxDetailPanel CRITICAL
+          11 cyclomatic   51 cognitive   75 lines
+         react: 4 props, JSX depth 5
+  src/components/inbox/use-inbox-detail.ts
+    :61 useInboxDetail
+          11 cyclomatic   18 cognitive  124 lines
+         react: 10 hooks
+  src/contexts/badge/application/use-cases/reconcile-badge-definitions.ts
+    :26 <arrow> HIGH
+          11 cyclomatic   30 cognitive   66 lines
+  src/shared/auth/permission-catalogue.ts
+    :45 parsePermissionStatement
+          11 cyclomatic   16 cognitive   42 lines
+  src/components/features/integration/import-progress/import-progress.tsx
+    :14 ImportProgress CRITICAL
+          10 cyclomatic   77 cognitive   79 lines
+         react: 1 props, 2 hooks (2 custom), JSX depth 6
+  src/components/inbox/inbox-detail-content.tsx
+    :49 InboxDetailContent
+          10 cyclomatic   19 cognitive  108 lines
+         react: 10 props, 1 hooks (1 custom), JSX depth 3
+         blast radius: <InboxDetailContent> rendered in 2 places
+  src/components/layout/confirmation-dialog.tsx
+    :60 ConfirmationDialog CRITICAL
+           9 cyclomatic   47 cognitive   74 lines
+         react: 10 props, JSX depth 6
+  src/components/ui/sidebar.tsx
+    :149 Sidebar
+           9 cyclomatic   21 cognitive  101 lines
+         react: 5 props, 1 hooks (1 custom), JSX depth 4
+         blast radius: <SidebarMenuButton> rendered in 15 places
+  src/components/features/integration/import-connected-view/import-locations-section.tsx
+    :17 ImportLocationsSection HIGH
+           8 cyclomatic   29 cognitive   82 lines
+         react: 8 props, JSX depth 5
+  src/components/features/portal/portal-detail/portal-detail-page.tsx
+    :51 PortalDetailPage HIGH
+           8 cyclomatic   34 cognitive  108 lines
+         react: 10 props, 7 hooks (4 state, 3 custom), JSX depth 5
+  src/routes/_authenticated.tsx
+    :148 AuthenticatedLayout
+           8 cyclomatic   19 cognitive   50 lines
+         react: 4 hooks (4 custom), JSX depth 4
+  src/components/features/guest/public-portal/public-portal-content.tsx
+    :43 PublicPortalContent
+           7 cyclomatic   18 cognitive   78 lines
+         react: 6 props, JSX depth 4
+  src/components/features/organization/organization-settings-form.tsx
+    :42 OrganizationSettingsForm HIGH
+           7 cyclomatic   27 cognitive   85 lines
+         react: 4 props, 1 hooks (1 custom), JSX depth 4
+  src/components/features/organization/response-sla-card.tsx
+    :26 ResponseSlaCard
+           7 cyclomatic   21 cognitive   51 lines
+         react: 2 props, 1 hooks (1 state), JSX depth 5
+  src/components/features/portal/portal-form/portal-creation-with-preview.tsx
+    :23 PortalCreationWithPreview CRITICAL
+           7 cyclomatic   41 cognitive   83 lines
+         react: 2 props, 3 hooks (2 state, 1 effect), max effect deps 1, JSX depth 5
+  src/components/features/property/goals/goal-entity-picker.tsx
+    :14 EntityPicker HIGH
+           7 cyclomatic   38 cognitive   88 lines
+         react: 7 props, JSX depth 4
+  src/components/features/staff/member-selector.tsx
+    :20 MemberSelector
+           7 cyclomatic   21 cognitive   65 lines
+         react: 2 props, JSX depth 4
+  src/components/features/staff/portal-selector.tsx
+    :24 PortalSelector
+           7 cyclomatic   21 cognitive   66 lines
+         react: 2 props, JSX depth 4
+         blast radius: <PortalSelector> rendered in 2 places
+  src/components/features/team/team-members/add-members-dialog-content.tsx
+    :17 AddMembersDialogContent
+           7 cyclomatic   24 cognitive   58 lines
+         react: 8 props, JSX depth 4
+  src/components/forms/image-upload-field.tsx
+    :25 ImageUploadField HIGH
+           7 cyclomatic   37 cognitive  103 lines
+         react: 8 props, 6 hooks (3 callback, 3 custom), JSX depth 5
+         blast radius: <ImageUploadField> rendered in 3 places
+  src/components/inbox/inbox-detail-sheet.tsx
+    :27 InboxDetailSheet CRITICAL
+           7 cyclomatic   51 cognitive   66 lines
+         react: 5 props, JSX depth 5
+         blast radius: <InboxDetailSheet> rendered in 2 places
+  src/components/inbox/inbox-page-v2.tsx
+    :31 InboxPageV2 HIGH
+           7 cyclomatic   28 cognitive  131 lines
+         react: 7 props, 3 hooks (1 state, 2 custom), JSX depth 5
+         blast radius: <InboxPageV2> rendered in 2 places
+  src/components/layout/app-top-bar.tsx
+    :50 AppTopBar CRITICAL
+           7 cyclomatic   50 cognitive   73 lines
+         react: 2 props, 2 hooks (2 custom), JSX depth 5
+  src/components/features/portal/link-tree/link-inline-form.tsx
+    :19 LinkInlineForm
+           6 cyclomatic   19 cognitive   56 lines
+         react: 8 props, 2 hooks (2 state), JSX depth 4
+         blast radius: <LinkInlineForm> rendered in 2 places
+  src/components/features/property/goals/goal-create-schedule-section.tsx
+    :18 TimeframeSection HIGH
+           6 cyclomatic   39 cognitive   89 lines
+         react: 2 props, JSX depth 5
+  src/components/features/staff/staff-assignment-row.tsx
+    :49 UserAssignmentRow CRITICAL
+           6 cyclomatic   69 cognitive   69 lines
+         react: 6 props, JSX depth 7
+  src/components/inbox/inbox-filters.tsx
+    :45 InboxFilters HIGH
+           6 cyclomatic   27 cognitive  101 lines
+         react: 3 props, 1 hooks (1 callback), JSX depth 4
+  src/components/inbox/reply-editor-compose.tsx
+    :17 ReplyCompose
+           6 cyclomatic   17 cognitive   58 lines
+         react: 5 props, 1 hooks (1 state), JSX depth 4
+  src/components/layout/settings-sidebar.tsx
+    :36 SettingsSidebar HIGH
+           6 cyclomatic   37 cognitive  102 lines
+         react: 2 hooks (2 custom), JSX depth 7
+  src/components/layout/staff-property-switcher.tsx
+    :17 StaffPropertySwitcher CRITICAL
+           6 cyclomatic   44 cognitive   44 lines
+         react: 3 props, JSX depth 7
+  src/components/features/notification/notification-list-body.tsx
+    :84 NotificationList
+           5 cyclomatic   16 cognitive   55 lines
+         react: 7 props, JSX depth 5
+         blast radius: <NotificationSection> rendered in 2 places
+  src/components/features/portal/portal-list-page.tsx
+    :95 <arrow> HIGH
+           5 cyclomatic   26 cognitive   57 lines
+         react: JSX depth 6
+  src/components/features/portal/portal-settings/portal-settings.tsx
+    :34 PortalSettings HIGH
+           5 cyclomatic   26 cognitive   82 lines
+         react: 13 props, 1 hooks (1 custom), JSX depth 4
+  src/components/features/portal/portal-settings/theme-preset-selector.tsx
+    :50 ThemePresetSelector HIGH
+           5 cyclomatic   33 cognitive   89 lines
+         react: 3 props, 2 hooks (2 state), JSX depth 5
+         blast radius: <ThemePresetSelector> rendered in 2 places
+  src/components/features/property/property-dashboard.tsx
+    :26 PropertyDashboard HIGH
+           5 cyclomatic   28 cognitive  137 lines
+         react: 6 props, JSX depth 5
+  src/components/features/settings/integrations-settings-page.tsx
+    :47 IntegrationsSettingsPage HIGH
+           5 cyclomatic   37 cognitive   86 lines
+         react: 3 props, 1 hooks (1 state), JSX depth 5
+  src/components/layout/manager-property-switcher.tsx
+    :18 ManagerPropertySwitcher CRITICAL
+           5 cyclomatic   61 cognitive   52 lines
+         react: 3 props, 1 hooks (1 custom), JSX depth 7
+  src/routes/_authenticated/import/index.tsx
+    :46 ImportPage
+           5 cyclomatic   17 cognitive   55 lines
+         react: 5 hooks (5 custom), JSX depth 3
+  src/components/features/identity/member-directory/invitation-table.tsx
+    :67 <arrow> CRITICAL
+           4 cyclomatic   52 cognitive   59 lines
+         react: JSX depth 7
+  src/components/features/portal/link-tree/sortable-category.tsx
+    :35 SortableCategory CRITICAL
+           4 cyclomatic   45 cognitive  107 lines
+         react: 10 props, 4 hooks (4 custom), JSX depth 6
+  src/components/features/portal/portal-list-page.tsx
+    :38 PortalListPage CRITICAL
+           4 cyclomatic   52 cognitive  120 lines
+         react: 5 props, 1 hooks (1 custom), JSX depth 5
+  src/components/features/portal/portal-share/qr-code-modal.tsx
+    :27 QRCodeModal CRITICAL
+           4 cyclomatic   62 cognitive   95 lines
+         react: 4 props, 3 hooks (2 state, 1 effect), max effect deps 2, JSX depth 8
+  src/components/features/staff/staff-goal-list.tsx
+    :61 <arrow>
+           4 cyclomatic   22 cognitive   35 lines
+         react: 2 props, JSX depth 6
+  src/components/features/team/team-form/team-lead-select.tsx
+    :24 TeamLeadSelect
+           4 cyclomatic   16 cognitive   34 lines
+         react: 3 props, JSX depth 6
+         blast radius: <TeamLeadSelect> rendered in 2 places
+  src/components/goals/goal-trajectory-graph.tsx
+    :35 GoalTrajectoryGraph HIGH
+           4 cyclomatic   25 cognitive   84 lines
+         react: 4 props, JSX depth 4
+  src/components/inbox/inbox-activity-timeline.tsx
+    :55 <arrow>
+           4 cyclomatic   16 cognitive   37 lines
+         react: JSX depth 5
+  src/components/inbox/inbox-list-header.tsx
+    :18 InboxListHeader
+           4 cyclomatic   16 cognitive   43 lines
+         react: 5 props, JSX depth 5
+  src/components/layout/header.tsx
+    :71 Header HIGH
+           4 cyclomatic   28 cognitive   44 lines
+         react: 2 props, JSX depth 6
+  src/components/layout/inbox-sidebar.tsx
+    :32 InboxSidebar CRITICAL
+           4 cyclomatic   72 cognitive  105 lines
+         react: 5 props, 4 hooks (4 custom), JSX depth 7
+         blast radius: <InboxSidebar> rendered in 2 places
+  src/components/features/notification/notification-popover-content.tsx
+    :10 NotificationPopoverContent HIGH
+           3 cyclomatic   26 cognitive   80 lines
+         react: 15 props, JSX depth 5
+  src/components/features/portal/link-tree/sortable-link.tsx
+    :28 SortableLink CRITICAL
+           3 cyclomatic   46 cognitive   76 lines
+         react: 4 props, 2 hooks (2 custom), JSX depth 6
+  src/components/features/property/goals/goal-detail-parts.tsx
+    :41 CancelGoalDialog
+           3 cyclomatic   23 cognitive   41 lines
+         react: 3 props, JSX depth 5
+         blast radius: <Detail> rendered in 10 places
+  src/components/features/property/people/teams-tab.tsx
+    :88 <arrow> HIGH
+           3 cyclomatic   30 cognitive   45 lines
+         react: JSX depth 5
+    :41 TeamsTab HIGH
+           3 cyclomatic   35 cognitive   97 lines
+         react: 8 props, 1 hooks (1 custom), JSX depth 6
+  src/components/features/property/property-list-page.tsx
+    :27 PropertyListPage
+           3 cyclomatic   17 cognitive   67 lines
+         react: 2 props, 2 hooks (2 custom), JSX depth 5
+  src/components/features/team/team-members/team-header.tsx
+    :32 TeamHeader
+           3 cyclomatic   21 cognitive   39 lines
+         react: 3 props, JSX depth 5
+  src/components/layout/manager-sidebar.tsx
+    :49 ManagerSidebar HIGH
+           3 cyclomatic   32 cognitive   55 lines
+         react: 2 props, 3 hooks (3 custom), JSX depth 7
+  src/components/layout/staff-sidebar.tsx
+    :45 StaffSidebar HIGH
+           3 cyclomatic   36 cognitive   95 lines
+         react: 5 props, 5 hooks (1 effect, 4 custom), max effect deps 3, JSX depth 7
+  src/routes/_authenticated/settings/members.tsx
+    :83 MembersSettingsRoute CRITICAL
+           3 cyclomatic   55 cognitive   91 lines
+         react: 10 hooks (1 state, 9 custom), JSX depth 6
+  src/components/features/identity/member-directory/invitation-table.tsx
+    :47 InvitationTable
+           2 cyclomatic   19 cognitive   84 lines
+         react: 3 props, 1 hooks (1 custom), JSX depth 5
+  src/components/features/organization/create-organization-dialog.tsx
+    :41 CreateOrganizationDialog HIGH
+           2 cyclomatic   33 cognitive  100 lines
+         react: 4 props, 2 hooks (2 custom), JSX depth 5
+  src/components/features/portal/portal-delete-button.tsx
+    :26 PortalDeleteButton
+           2 cyclomatic   16 cognitive   40 lines
+         react: 3 props, JSX depth 4
+  src/components/features/portal/portal-settings/smart-routing-config.tsx
+    :11 SmartRoutingConfig HIGH
+           2 cyclomatic   38 cognitive   79 lines
+         react: 5 props, JSX depth 5
+  src/components/features/portal/portal-share/portal-share.tsx
+    :12 PortalShare
+           2 cyclomatic   19 cognitive   48 lines
+         react: 2 props, 2 hooks (2 state), JSX depth 5
+  src/components/features/property/goals/goal-list-row.tsx
+    :12 GoalRow
+           2 cyclomatic   17 cognitive   55 lines
+         react: 2 props, JSX depth 4
+         blast radius: <GoalEmptyState> rendered in 2 places
+  src/components/features/property/goals/instance-history-table.tsx
+    :21 InstanceHistoryTable
+           2 cyclomatic   22 cognitive   47 lines
+         react: 1 props, JSX depth 6
+  src/components/features/property/people/directory-tab.tsx
+    :21 DirectoryTab
+           2 cyclomatic   20 cognitive   34 lines
+         react: 1 props, JSX depth 5
+  src/components/features/property/people/people-page.tsx
+    :41 PeoplePage
+           2 cyclomatic   22 cognitive   71 lines
+         react: 13 props, 2 hooks (2 state), JSX depth 4
+  src/components/features/property/people/staff-tab.tsx
+    :41 StaffTab HIGH
+           2 cyclomatic   38 cognitive   90 lines
+         react: 11 props, 4 hooks (1 state, 3 memo), JSX depth 6
+  src/components/forms/image-upload-field/empty-state.tsx
+    :13 EmptyState
+           2 cyclomatic   22 cognitive   37 lines
+         react: 5 props, JSX depth 4
+  src/components/layout/header.tsx
+    :28 AuthActions
+           2 cyclomatic   19 cognitive   40 lines
+         react: 2 props, JSX depth 4
+  src/components/layout/staff-org-switcher.tsx
+    :16 StaffOrgSwitcher HIGH
+           2 cyclomatic   39 cognitive   41 lines
+         react: 3 props, JSX depth 7
+  src/routes/__root.tsx
+    :35 RootDocument
+           2 cyclomatic   17 cognitive   35 lines
+         react: 1 props, 1 hooks (1 custom), JSX depth 4
+  src/routes/_authenticated/properties/$propertyId/teams/$teamId.tsx
+    :97 TeamLayout
+           2 cyclomatic   16 cognitive   52 lines
+         react: 4 hooks (4 custom), JSX depth 5
+  src/components/features/identity/profile-settings-form.tsx
+    :49 ProfileSettingsForm CRITICAL
+           1 cyclomatic   48 cognitive   97 lines
+         react: 5 props, 2 hooks (1 state, 1 custom), JSX depth 7
+  src/components/features/identity/security-settings-form.tsx
+    :25 SecuritySettingsForm CRITICAL
+           1 cyclomatic   51 cognitive   99 lines
+         react: 1 props, 1 hooks (1 custom), JSX depth 6
+  src/components/features/organization/organization-settings-page.tsx
+    :46 OrganizationSettingsPage
+           1 cyclomatic   19 cognitive   82 lines
+         react: 9 props, 8 hooks (1 state, 7 custom), JSX depth 4
+  src/components/features/portal/link-tree/link-tree-category-list.tsx
+    :45 LinkTreeCategoryList
+           1 cyclomatic   20 cognitive   95 lines
+         react: 19 props, 4 hooks (4 custom), JSX depth 3
+  src/components/features/property/goals/goal-list-toolbar.tsx
+    :25 GoalsToolbar
+           1 cyclomatic   19 cognitive   63 lines
+         react: 6 props, JSX depth 5
+         blast radius: <FilterLink> rendered in 4 places
+  src/components/features/settings/preferences-settings-page.tsx
+    :12 PreferencesSettingsPage HIGH
+           1 cyclomatic   25 cognitive   30 lines
+         react: JSX depth 5
+  src/components/ui/complex.stories.tsx
+    :114 renderSidebar CRITICAL
+           1 cyclomatic  100 cognitive   57 lines
+         react: JSX depth 8
+  src/components/ui/data-display.stories.tsx
+    :59 render
+           1 cyclomatic   16 cognitive   31 lines
+         react: JSX depth 4
+  src/components/ui/inputs-nav.stories.tsx
+    :201 render
+           1 cyclomatic   21 cognitive   25 lines
+         react: JSX depth 5
+  Functions exceeding cyclomatic, cognitive, or CRAP thresholds (https://docs.fallow.tools/explanations/health#complexity-metrics)
+  To suppress: // fallow-ignore-next-line complexity
+
+● Coverage gaps (383 untested files, 792 untested exports, 59.9% file coverage)
+
+  Files
+  drizzle.config.ts
+  src/bootstrap.ts
+  src/components/features/badges/portal-badge-section.tsx
+  src/components/features/badges/staff-badge-summary.tsx
+  src/components/features/dashboard/fleet-overview.tsx
+  src/components/features/guest/cookie-consent-banner.tsx
+  src/components/features/guest/index.ts
+  src/components/features/guest/portal-unavailable.tsx
+  src/components/features/guest/public-portal/feedback-form.tsx
+  src/components/features/guest/public-portal/public-portal-content.tsx
+  ... and 373 more files (--format json for full list)
+
+  Exports
+  drizzle.config.ts:6 `default`
+  src/bootstrap.ts:44 `bootstrap`
+  src/components/features/badges/portal-badge-section.tsx:9 `PortalBadgeSection`
+  src/components/features/badges/staff-badge-summary.tsx:9 `StaffBadgeSummary`
+  src/components/features/dashboard/fleet-overview.tsx:80 `FleetOverview`
+  src/components/features/dashboard/fleet-overview.tsx:56 `FleetOverviewEmpty`
+  src/components/features/dashboard/fleet-overview.tsx:44 `FleetOverviewError`
+  src/components/features/dashboard/fleet-overview.tsx:36 `FleetOverviewLoading`
+  src/components/features/guest/cookie-consent-banner.tsx:7 `CookieConsentBanner`
+  src/components/features/guest/index.ts:8 `CookieConsentBanner`
+  ... and 782 more exports (--format json for full list)
+
+  Static test dependency gaps (not line-level coverage): https://docs.fallow.tools/explanations/health#coverage-gaps
+
+● File health scores (1267 files) · sorted by triage concern
+
+   83.2    src/components/ui/color-picker.tsx              risk
+           1636 LOC    2 fan-in   10 fan-out    9% dead  0.18 density  930.0 risk
+
+   90.3    src/components/goals/goal-progress-ring.tsx     risk
+            209 LOC    2 fan-in    3 fan-out    0% dead  0.14 density  870.0 risk
+
+   80.0    src/components/ui/chart.tsx                     risk
+            348 LOC    3 fan-in    1 fan-out   50% dead  0.24 density  506.0 risk
+
+   82.6    src/routes/_authenticated/home.tsx              risk
+            180 LOC    0 fan-in   19 fan-out    0% dead  0.18 density  420.0 risk
+
+   71.2    src/shared/observability/operator-commands.ts   risk
+            101 LOC    0 fan-in    1 fan-out  100% dead  0.20 density  380.0 risk
+
+   84.8    src/worker/index.ts                             risk
+            331 LOC    0 fan-in   16 fan-out    0% dead  0.13 density  380.0 risk
+
+   88.2    src/components/inbox/use-inbox-keyboard-shortcuts.ts  risk
+             79 LOC    1 fan-in    1 fan-out    0% dead  0.30 density  306.0 risk
+
+   83.3    src/components/inbox/inbox-timeline-helpers.tsx  risk
+            103 LOC    1 fan-in    1 fan-out   20% dead  0.33 density  272.0 risk
+
+   84.5    src/components/features/property/goals/goal-create-form.tsx  risk
+            182 LOC    2 fan-in    9 fan-out    0% dead  0.21 density  272.0 risk
+
+   88.2    src/components/inbox/inbox-detail-source-content.tsx  risk
+             81 LOC    1 fan-in    3 fan-out    0% dead  0.21 density  272.0 risk
+
+  ... and 1257 more files (--format json for full list)
+
+  Sorted by triage concern: the larger of low-MI concern and CRAP risk. The risk / structure tag marks which one placed each file. MI reflects complexity, coupling, and dead code; risk reflects untested complexity (CRAP) and can diverge from MI. Risk: low <15, moderate 15-30, high >=30. CRAP from Istanbul coverage data (296/11282 functions matched). https://docs.fallow.tools/explanations/health#file-health-scores
+
+● Hotspots (738 files, since 6 months)
+
+   34.4 ─  src/composition.ts
+          53 commits   2062 churn  0.11 density  51 fan-in  ─ stable
+
+   25.0 ─  src/shared/domain/ids.ts
+          23 commits    287 churn  0.21 density  474 fan-in  ─ stable
+
+   17.3 ▲  src/contexts/identity/infrastructure/adapters/auth-identity.adapter.ts
+          19 commits   1122 churn  0.14 density   2 fan-in  ▲ accelerating
+
+   17.2 ─  src/worker/index.ts
+          21 commits    645 churn  0.13 density   0 fan-in  ─ stable
+
+   17.0 ▼  src/routes/_authenticated/properties/$propertyId/portals/index.tsx
+          18 commits   1583 churn  0.18 density   0 fan-in  ▼ cooling
+
+   16.8 ▼  src/contexts/inbox/infrastructure/repositories/inbox.repository.ts
+          14 commits    909 churn  0.19 density   2 fan-in  ▼ cooling
+
+   16.1 ▲  src/contexts/property/application/use-cases/update-property.ts
+          16 commits    917 churn  0.16 density   2 fan-in  ▲ accelerating
+
+   15.9 ▼  src/contexts/goal/server/goals.ts
+          16 commits   1675 churn  0.15 density   5 fan-in  ▼ cooling
+
+   15.9 ▲  src/contexts/property/build.ts
+          17 commits    222 churn  0.14 density   2 fan-in  ▲ accelerating
+
+   15.8 ─  src/shared/auth/middleware.ts
+          18 commits    617 churn  0.15 density  51 fan-in  ─ stable
+
+   15.7 ▼  src/contexts/goal/application/use-cases/get-goal.test.ts [test]
+          14 commits    397 churn  0.18 density   0 fan-in  ▼ cooling
+
+   15.3 ▼  src/routes/_authenticated/dashboard.tsx
+          21 commits   1585 churn  0.14 density   0 fan-in  ▼ cooling
+
+   15.1 ▼  src/routes/_authenticated.tsx
+          28 commits    997 churn  0.10 density  20 fan-in  ▼ cooling
+
+   15.1 ─  src/contexts/inbox/application/use-cases/bulk-update-inbox-status.ts
+          19 commits    556 churn  0.12 density   3 fan-in  ─ stable
+
+   15.0 ▼  src/contexts/property/infrastructure/repositories/property.repository.ts
+          11 commits    390 churn  0.24 density   2 fan-in  ▼ cooling
+
+   14.8 ▼  src/contexts/metric/infrastructure/repositories/metric.repository.ts
+          13 commits    325 churn  0.19 density   1 fan-in  ▼ cooling
+
+   14.8 ▼  src/contexts/goal/application/use-cases/list-goals.test.ts [test]
+          14 commits    568 churn  0.17 density   0 fan-in  ▼ cooling
+
+   14.7 ▲  src/contexts/goal/infrastructure/repositories/goal.repository.ts
+          16 commits   1225 churn  0.15 density   1 fan-in  ▲ accelerating
+
+   14.5 ▲  src/contexts/goal/infrastructure/event-handlers/on-metric-recorded.test.ts [test]
+          16 commits    868 churn  0.15 density   0 fan-in  ▲ accelerating
+
+   14.3 ─  src/contexts/review/application/use-cases/sync-reviews.ts
+          22 commits    708 churn  0.10 density   3 fan-in  ─ stable
+
+   13.8 ─  src/routes/_authenticated/properties/$propertyId.tsx
+          19 commits   1281 churn  0.13 density   0 fan-in  ─ stable
+
+   13.6 ▼  src/contexts/goal/application/use-cases/cancel-goal.test.ts [test]
+          13 commits    514 churn  0.17 density   0 fan-in  ▼ cooling
+
+   13.5 ▼  src/contexts/integration/infrastructure/adapters/gbp-api.adapter.ts
+          12 commits    756 churn  0.20 density   1 fan-in  ▼ cooling
+
+   13.3 ─  src/components/inbox/use-inbox-state.ts
+           8 commits    410 churn  0.24 density   1 fan-in  ─ stable
+
+   13.2 ▼  src/contexts/inbox/application/use-cases/add-inbox-note.test.ts [test]
+          10 commits    350 churn  0.21 density   0 fan-in  ▼ cooling
+
+   12.9 ▼  src/contexts/goal/infrastructure/event-handlers/on-portal-deleted.test.ts [test]
+          14 commits    414 churn  0.15 density   0 fan-in  ▼ cooling
+
+   12.8 ▼  src/contexts/goal/application/use-cases/update-goal.test.ts [test]
+          13 commits    533 churn  0.16 density   0 fan-in  ▼ cooling
+
+   12.6 ▼  src/shared/queries/query-keys.ts
+           5 commits    131 churn  0.32 density  37 fan-in  ▼ cooling
+
+   12.4 ▼  src/contexts/integration/application/use-cases/list-gbp-locations.ts
+          16 commits    385 churn  0.14 density   2 fan-in  ▼ cooling
+
+   12.4 ─  src/contexts/identity/application/use-cases/update-member-role.ts
+          17 commits    291 churn  0.12 density   2 fan-in  ─ stable
+
+   12.2 ─  src/contexts/identity/application/use-cases/update-organization.ts
+           7 commits    118 churn  0.27 density   4 fan-in  ─ stable
+
+   11.9 ─  src/contexts/goal/application/use-cases/list-goals.ts
+          10 commits    242 churn  0.18 density   6 fan-in  ─ stable
+
+   11.9 ▲  src/contexts/goal/infrastructure/jobs/reconcile-goal-progress.job.test.ts [test]
+          13 commits    485 churn  0.15 density   0 fan-in  ▲ accelerating
+
+   11.7 ▲  src/routes/_authenticated/home.tsx
+          10 commits    359 churn  0.18 density   0 fan-in  ▲ accelerating
+
+   11.6 ▼  src/components/features/property/goals/goal-create-form.tsx
+           9 commits    479 churn  0.21 density   2 fan-in  ▼ cooling
+
+   11.6 ▼  src/contexts/inbox/application/use-cases/update-inbox-status.test.ts [test]
+          11 commits    726 churn  0.17 density   0 fan-in  ▼ cooling
+
+   11.5 ─  src/bootstrap.ts
+          24 commits    575 churn  0.08 density   1 fan-in  ─ stable
+
+   11.3 ▼  src/components/layout/manager-sidebar.tsx
+          12 commits    875 churn  0.16 density   2 fan-in  ▼ cooling
+
+   11.3 ▼  src/contexts/inbox/application/use-cases/get-inbox-item-detail.test.ts [test]
+          11 commits    449 churn  0.16 density   0 fan-in  ▼ cooling
+
+   11.2 ─  src/components/inbox/use-inbox-detail.ts
+          10 commits    554 churn  0.16 density   7 fan-in  ─ stable
+
+   11.2 ─  src/contexts/review/application/use-cases/reply-operations.ts
+          15 commits   1028 churn  0.11 density   3 fan-in  ─ stable
+
+   11.2 ▼  src/contexts/inbox/application/use-cases/assign-inbox-item.test.ts [test]
+          11 commits    514 churn  0.16 density   0 fan-in  ▼ cooling
+
+   11.2 ─  src/contexts/portal/server/portals.ts
+          17 commits   1025 churn  0.11 density  11 fan-in  ─ stable
+
+   11.1 ▲  src/contexts/identity/application/use-cases/remove-member.ts
+          18 commits    243 churn  0.10 density   2 fan-in  ▲ accelerating
+
+   11.0 ─  src/contexts/portal/infrastructure/repositories/portal.repository.ts
+          12 commits    526 churn  0.16 density   3 fan-in  ─ stable
+
+   10.8 ▼  src/contexts/guest/application/use-cases/record-scan.test.ts [test]
+           7 commits     93 churn  0.27 density   0 fan-in  ▼ cooling
+
+   10.7 ▼  src/routes/_authenticated/properties/$propertyId/portals/$portalId.tsx
+          15 commits    512 churn  0.13 density   0 fan-in  ▼ cooling
+
+   10.6 ▼  src/contexts/goal/application/use-cases/create-goal.test.ts [test]
+          14 commits    932 churn  0.12 density   0 fan-in  ▼ cooling
+
+   10.6 ▼  src/contexts/inbox/application/use-cases/bulk-update-inbox-status.test.ts [test]
+          13 commits    807 churn  0.13 density   0 fan-in  ▼ cooling
+
+   10.4 ─  src/contexts/inbox/infrastructure/event-handlers/on-reply-published.ts
+          12 commits    266 churn  0.13 density   2 fan-in  ─ stable
+
+   10.3 ▼  src/contexts/goal/ui/helpers.ts
+           6 commits    801 churn  0.27 density  21 fan-in  ▼ cooling
+
+   10.1 ─  src/components/inbox/inbox-detail-content.tsx
+          14 commits    352 churn  0.11 density   3 fan-in  ─ stable
+
+   10.1 ▲  src/components/features/notification/notification-queries.ts
+           8 commits    327 churn  0.17 density   1 fan-in  ▲ accelerating
+
+   10.0 ─  src/contexts/guest/infrastructure/repositories/guest-interaction.repository.ts
+           9 commits    209 churn  0.19 density   2 fan-in  ─ stable
+
+    9.9 ▲  src/contexts/property/application/use-cases/create-property.ts
+          14 commits    108 churn  0.11 density   2 fan-in  ▲ accelerating
+
+    9.9 ▲  src/shared/auth/middleware.test.ts [test]
+           9 commits    508 churn  0.16 density   0 fan-in  ▲ accelerating
+
+    9.7 ▲  src/contexts/team/server/teams.ts
+          12 commits    391 churn  0.13 density   5 fan-in  ▲ accelerating
+
+    9.6 ▼  src/contexts/guest/server/public.ts
+          17 commits    961 churn  0.10 density   2 fan-in  ▼ cooling
+
+    9.5 ▼  src/routes/_authenticated/properties/index.tsx
+          18 commits    888 churn  0.10 density   0 fan-in  ▼ cooling
+
+    9.5 ─  src/contexts/inbox/domain/events.ts
+          13 commits    611 churn  0.11 density  13 fan-in  ─ stable
+
+    9.3 ─  src/contexts/goal/infrastructure/event-handlers/on-metric-recorded.ts
+          13 commits    672 churn  0.12 density   2 fan-in  ─ stable
+
+    9.3 ▼  src/contexts/portal/application/use-cases/create-portal-group.test.ts [test]
+           6 commits    398 churn  0.25 density   0 fan-in  ▼ cooling
+
+    9.2 ▲  src/components/inbox/use-inbox-page.ts
+           6 commits    246 churn  0.21 density   2 fan-in  ▲ accelerating
+
+    9.2 ▲  src/shared/auth/beta-capabilities.ts
+           8 commits    536 churn  0.14 density  25 fan-in  ▲ accelerating
+
+    9.2 ▼  src/contexts/goal/application/use-cases/create-goal.ts
+          16 commits    612 churn  0.09 density   2 fan-in  ▼ cooling
+
+    9.1 ▼  src/routes/api/auth/google/callback.ts
+          10 commits    856 churn  0.17 density   0 fan-in  ▼ cooling
+
+    9.1 ▲  src/components/inbox/inbox-bulk-actions.tsx
+           8 commits    258 churn  0.17 density   3 fan-in  ▲ accelerating
+
+    9.1 ─  src/contexts/activity/queries/get-org-activity.ts
+           7 commits    240 churn  0.19 density   3 fan-in  ─ stable
+
+    9.0 ▲  src/routes/_authenticated/leaderboard.tsx
+           8 commits    655 churn  0.17 density   0 fan-in  ▲ accelerating
+
+    9.0 ▲  src/contexts/goal/infrastructure/jobs/reconcile-goal-progress.job.ts
+          10 commits    378 churn  0.15 density   3 fan-in  ▲ accelerating
+
+    9.0 ▲  src/contexts/portal/application/use-cases/update-portal.ts
+           9 commits    189 churn  0.15 density   2 fan-in  ▲ accelerating
+
+    9.0 ─  src/shared/auth/auth.ts
+          20 commits    402 churn  0.08 density  17 fan-in  ─ stable
+
+    8.9 ▼  src/contexts/portal/infrastructure/repositories/portal-link.repository.ts
+           6 commits    418 churn  0.27 density   2 fan-in  ▼ cooling
+
+    8.8 ▲  src/contexts/team/application/use-cases/update-team.ts
+          13 commits    165 churn  0.11 density   2 fan-in  ▲ accelerating
+
+    8.8 ▼  src/contexts/property/infrastructure/mappers/property.mapper.ts
+           8 commits     90 churn  0.19 density   2 fan-in  ▼ cooling
+
+    8.8 ▼  src/shared/config/env.ts
+          26 commits    195 churn  0.06 density  32 fan-in  ▼ cooling
+
+    8.7 ▲  src/contexts/goal/domain/constructors.ts
+           8 commits    541 churn  0.18 density   3 fan-in  ▲ accelerating
+
+    8.7 ─  src/contexts/notification/build.ts
+           7 commits    166 churn  0.17 density   1 fan-in  ─ stable
+
+    8.6 ▼  src/routes/_authenticated/properties/$propertyId/index.tsx
+          14 commits   1045 churn  0.12 density   0 fan-in  ▼ cooling
+
+    8.6 ─  src/shared/auth/beta-capabilities.test.ts [test]
+           5 commits    308 churn  0.21 density   0 fan-in  ─ stable
+
+    8.5 ▼  src/contexts/review/application/use-cases/sync-reviews.test.ts [test]
+          11 commits   1035 churn  0.12 density   0 fan-in  ▼ cooling
+
+    8.5 ─  src/contexts/identity/application/use-cases/register-user-and-org.test.ts [test]
+          10 commits    160 churn  0.15 density   0 fan-in  ─ stable
+
+    8.4 ─  src/contexts/dashboard/server/dashboard.ts
+          13 commits    221 churn  0.10 density   1 fan-in  ─ stable
+
+    8.3 ─  src/contexts/staff/server/staff-assignments.ts
+          14 commits    383 churn  0.10 density   4 fan-in  ─ stable
+
+    8.3 ▼  src/routes/p/$propertySlug/$portalSlug.tsx
+          11 commits    205 churn  0.14 density   0 fan-in  ▼ cooling
+
+    8.3 ─  src/contexts/goal/application/use-cases/get-goal.ts
+           9 commits    180 churn  0.14 density   2 fan-in  ─ stable
+
+    8.3 ─  src/contexts/team/application/use-cases/create-team.test.ts [test]
+           7 commits    162 churn  0.21 density   0 fan-in  ─ stable
+
+    8.2 ▼  src/contexts/inbox/infrastructure/event-handlers/on-review-created.ts
+           6 commits     94 churn  0.21 density   2 fan-in  ▼ cooling
+
+    8.2 ▼  src/routes/_authenticated/properties/$propertyId/people.tsx
+          14 commits    796 churn  0.10 density   0 fan-in  ▼ cooling
+
+    8.2 ▼  src/contexts/goal/infrastructure/jobs/spawn-recurring-instances.job.test.ts [test]
+          12 commits    487 churn  0.11 density   0 fan-in  ▼ cooling
+
+    8.1 ─  src/contexts/review/infrastructure/repositories/reply.repository.ts
+           7 commits    197 churn  0.20 density   2 fan-in  ─ stable
+
+    8.1 ▼  src/contexts/integration/infrastructure/repositories/google-connection.repository.ts
+          10 commits    530 churn  0.15 density   2 fan-in  ▼ cooling
+
+    8.1 ▼  src/contexts/inbox/domain/rules.ts
+           8 commits    126 churn  0.16 density   6 fan-in  ▼ cooling
+
+    8.0 ▲  src/routes/_authenticated/progress.tsx
+           8 commits    160 churn  0.15 density   0 fan-in  ▲ accelerating
+
+    8.0 ▲  src/contexts/goal/infrastructure/jobs/spawn-recurring-instances.job.ts
+          11 commits    551 churn  0.12 density   3 fan-in  ▲ accelerating
+
+    8.0 ▼  src/routes/accept-invitation.tsx
+          13 commits    899 churn  0.12 density   0 fan-in  ▼ cooling
+
+    8.0 ▼  src/contexts/identity/server/organizations.registration.ts
+           9 commits    286 churn  0.13 density   1 fan-in  ▼ cooling
+
+    8.0 ▼  src/contexts/inbox/application/use-cases/get-inbox-notes.test.ts [test]
+           9 commits    319 churn  0.14 density   0 fan-in  ▼ cooling
+
+    8.0 ▼  src/shared/domain/metric-keys.test.ts [test]
+           6 commits    290 churn  0.21 density   0 fan-in  ▼ cooling
+
+    7.9 ─  src/contexts/staff/application/use-cases/create-staff-assignment.ts
+          19 commits    590 churn  0.07 density   3 fan-in  ─ stable
+
+    7.9 ─  src/contexts/team/infrastructure/repositories/team.repository.ts
+           7 commits    217 churn  0.20 density   2 fan-in  ─ stable
+
+    7.9 ▼  src/contexts/metric/infrastructure/event-handlers/on-review-link-clicked.ts
+           9 commits     98 churn  0.15 density   2 fan-in  ▼ cooling
+
+    7.9 ▼  src/routes/__root.tsx
+          16 commits    455 churn  0.10 density   0 fan-in  ▼ cooling
+
+    7.9 ─  src/contexts/integration/infrastructure/repositories/gbp-import.repository.ts
+           8 commits    234 churn  0.17 density   2 fan-in  ─ stable
+
+    7.8 ▼  src/contexts/review/infrastructure/repositories/review.repository.ts
+           8 commits    248 churn  0.16 density   3 fan-in  ▼ cooling
+
+    7.7 ▼  src/contexts/integration/domain/errors.ts
+          10 commits    171 churn  0.13 density  26 fan-in  ▼ cooling
+
+    7.6 ▼  src/contexts/integration/server/google-connections.ts
+          13 commits    660 churn  0.10 density   2 fan-in  ▼ cooling
+
+    7.6 ▲  src/contexts/dashboard/application/utils.ts
+           4 commits     44 churn  0.29 density   8 fan-in  ▲ accelerating
+
+    7.6 ▼  src/contexts/notification/infrastructure/jobs/digest-notification.job.ts
+           8 commits    451 churn  0.14 density   2 fan-in  ▼ cooling
+
+    7.5 ─  src/contexts/integration/application/use-cases/disconnect-google-account.ts
+          15 commits    259 churn  0.08 density   2 fan-in  ─ stable
+
+    7.4 ▼  src/contexts/activity/infrastructure/adapters/db-user-lookup.adapter.ts
+           9 commits    142 churn  0.12 density   1 fan-in  ▼ cooling
+
+    7.4 ▼  src/contexts/staff/application/use-cases/create-staff-assignment.test.ts [test]
+           8 commits    583 churn  0.16 density   0 fan-in  ▼ cooling
+
+    7.4 ─  src/contexts/portal/application/use-cases/create-portal.test.ts [test]
+           7 commits    249 churn  0.19 density   0 fan-in  ─ stable
+
+    7.3 ▲  src/components/inbox/inbox-detail-panel.tsx
+           8 commits    146 churn  0.13 density   2 fan-in  ▲ accelerating
+
+    7.3 ▼  src/contexts/dashboard/server/portal-analytics.ts
+          14 commits    244 churn  0.08 density   4 fan-in  ▼ cooling
+
+    7.3 ▼  src/contexts/goal/infrastructure/event-handlers/on-portal-group-deleted.test.ts [test]
+           8 commits    380 churn  0.14 density   0 fan-in  ▼ cooling
+
+    7.3 ▼  src/shared/domain/roles.ts
+           9 commits    119 churn  0.14 density  59 fan-in  ▼ cooling
+
+    7.2 ─  src/contexts/integration/application/use-cases/connect-google-account.ts
+          17 commits    382 churn  0.07 density   2 fan-in  ─ stable
+
+    7.1 ▼  src/components/inbox/inbox-filters.tsx
+           8 commits    317 churn  0.14 density   4 fan-in  ▼ cooling
+
+    7.1 ▲  src/contexts/portal/domain/rules.ts
+           6 commits    218 churn  0.21 density   8 fan-in  ▲ accelerating
+
+    7.1 ▼  src/contexts/metric/infrastructure/event-handlers/on-feedback-submitted.ts
+           8 commits     96 churn  0.15 density   2 fan-in  ▼ cooling
+
+    7.1 ▼  src/contexts/metric/infrastructure/event-handlers/on-rating-submitted.ts
+           8 commits     96 churn  0.15 density   2 fan-in  ▼ cooling
+
+    7.1 ▼  src/contexts/metric/infrastructure/event-handlers/on-scan-recorded.ts
+           8 commits     96 churn  0.15 density   2 fan-in  ▼ cooling
+
+    7.1 ▼  src/contexts/property/domain/constructors.ts
+          10 commits    126 churn  0.12 density   2 fan-in  ▼ cooling
+
+    7.0 ─  src/contexts/portal/application/use-cases/list-portal-groups.ts
+           8 commits     81 churn  0.13 density   2 fan-in  ─ stable
+
+    7.0 ▼  src/contexts/inbox/infrastructure/repositories/inbox.repository.test.ts [test]
+          11 commits   1019 churn  0.10 density   0 fan-in  ▼ cooling
+
+    6.9 ▼  src/contexts/goal/domain/events.ts
+          12 commits    297 churn  0.09 density   5 fan-in  ▼ cooling
+
+    6.9 ─  src/contexts/review/server/reply-read.ts
+           9 commits    118 churn  0.11 density   3 fan-in  ─ stable
+
+    6.9 ▲  src/contexts/portal/application/use-cases/list-portals.ts
+           7 commits     74 churn  0.15 density   2 fan-in  ▲ accelerating
+
+    6.9 ▲  src/contexts/identity/infrastructure/adapters/auth-identity.adapter.test.ts [test]
+          11 commits    928 churn  0.10 density   0 fan-in  ▲ accelerating
+
+    6.9 ▼  src/contexts/review/domain/events.ts
+          14 commits    607 churn  0.08 density   5 fan-in  ▼ cooling
+
+    6.8 ▼  src/shared/db/pool.ts
+           6 commits    163 churn  0.21 density   4 fan-in  ▼ cooling
+
+    6.8 ▼  src/components/features/portal/link-tree/use-link-tree-reorder.ts
+           7 commits    219 churn  0.18 density   1 fan-in  ▼ cooling
+
+    6.8 ▼  src/contexts/leaderboard/infrastructure/repositories/leaderboard.repository.ts
+           7 commits    866 churn  0.14 density   1 fan-in  ▼ cooling
+
+    6.8 ─  src/contexts/team/application/use-cases/create-team.ts
+          14 commits    150 churn  0.08 density   2 fan-in  ─ stable
+
+    6.8 ▼  src/routes/_authenticated/inbox/index.tsx
+          10 commits   1064 churn  0.11 density   0 fan-in  ▼ cooling
+
+    6.8 ▼  src/contexts/portal/application/use-cases/update-portal-group.test.ts [test]
+           5 commits    159 churn  0.22 density   0 fan-in  ▼ cooling
+
+    6.8 ─  src/contexts/inbox/domain/rules.test.ts [test]
+           6 commits    348 churn  0.18 density   0 fan-in  ─ stable
+
+    6.7 ─  src/contexts/portal/server/portal-links.ts
+          11 commits    606 churn  0.10 density   2 fan-in  ─ stable
+
+    6.7 ▼  src/contexts/identity/server/organizations.invitations.ts
+          11 commits    338 churn  0.09 density   1 fan-in  ▼ cooling
+
+    6.7 ─  src/contexts/integration/server/error-helpers.ts
+           5 commits     35 churn  0.19 density   5 fan-in  ─ stable
+
+    6.6 ▲  src/components/features/notification/notification-panel.tsx
+           6 commits    431 churn  0.15 density   3 fan-in  ▲ accelerating
+
+    6.6 ▼  src/contexts/badge/infrastructure/repositories/badge.repository.ts
+           6 commits    582 churn  0.16 density   1 fan-in  ▼ cooling
+
+    6.6 ▼  src/contexts/staff/infrastructure/repositories/staff-assignment.repository.ts
+           8 commits    387 churn  0.15 density   2 fan-in  ▼ cooling
+
+    6.6 ▼  src/contexts/guest/application/use-cases/submit-feedback.test.ts [test]
+           6 commits    121 churn  0.19 density   0 fan-in  ▼ cooling
+
+    6.6 ▼  src/contexts/guest/infrastructure/resolvers/public-portal-lookup.ts
+           6 commits    337 churn  0.20 density   2 fan-in  ▼ cooling
+
+    6.5 ▲  src/contexts/metric/domain/errors.ts
+           6 commits     37 churn  0.18 density   3 fan-in  ▲ accelerating
+
+    6.5 ▲  src/contexts/identity/application/use-cases/register-user-and-org.ts
+          18 commits    244 churn  0.06 density   2 fan-in  ▲ accelerating
+
+    6.5 ─  src/contexts/inbox/infrastructure/event-handlers/on-feedback-submitted.ts
+           6 commits     93 churn  0.17 density   2 fan-in  ─ stable
+
+    6.4 ▼  src/contexts/integration/infrastructure/adapters/google-review-api.adapter.ts
+           7 commits    339 churn  0.16 density   1 fan-in  ▼ cooling
+
+    6.4 ▼  src/contexts/portal/server/portal-groups.ts
+           8 commits    404 churn  0.12 density   1 fan-in  ▼ cooling
+
+    6.4 ▲  src/contexts/review/application/use-cases/reply-operations.test.ts [test]
+           7 commits   1263 churn  0.13 density   0 fan-in  ▲ accelerating
+
+    6.3 ─  src/contexts/goal/domain/progress-strategy.ts
+           7 commits    281 churn  0.15 density   4 fan-in  ─ stable
+
+    6.3 ▼  src/contexts/goal/application/use-cases/cancel-goal.ts
+           9 commits    186 churn  0.11 density   2 fan-in  ▼ cooling
+
+    6.3 ▼  src/contexts/identity/server/organizations.query.ts
+          10 commits    291 churn  0.09 density   1 fan-in  ▼ cooling
+
+    6.3 ▼  src/contexts/inbox/application/use-cases/get-inbox-items.test.ts [test]
+          10 commits    585 churn  0.10 density   0 fan-in  ▼ cooling
+
+    6.2 ─  src/contexts/badge/application/use-cases/evaluate-badge-for-target.ts
+           6 commits    265 churn  0.14 density   5 fan-in  ─ stable
+
+    6.2 ─  src/contexts/portal/application/use-cases/create-portal-group.ts
+           9 commits    215 churn  0.10 density   2 fan-in  ─ stable
+
+    6.2 ─  src/contexts/dashboard/infrastructure/repositories/dashboard.repository.ts
+           7 commits   1569 churn  0.15 density   2 fan-in  ─ stable
+
+    6.2 ▲  src/contexts/goal/server/goals-handler.test.ts [test]
+           4 commits    179 churn  0.20 density   0 fan-in  ▲ accelerating
+
+    6.2 ▼  src/contexts/guest/application/use-cases/submit-rating.test.ts [test]
+           6 commits    195 churn  0.18 density   0 fan-in  ▼ cooling
+
+    6.2 ─  src/contexts/identity/application/use-cases/update-member-role.test.ts [test]
+           7 commits    231 churn  0.15 density   0 fan-in  ─ stable
+
+    6.1 ─  src/contexts/inbox/server/inbox-queries.ts
+           7 commits    364 churn  0.12 density   1 fan-in  ─ stable
+
+    6.1 ▲  src/contexts/team/application/use-cases/soft-delete-team.ts
+          12 commits    122 churn  0.08 density   2 fan-in  ▲ accelerating
+
+    6.0 ▼  src/contexts/inbox/application/use-cases/assign-inbox-item.ts
+          13 commits    253 churn  0.07 density   3 fan-in  ▼ cooling
+
+    6.0 ▲  src/routes/_authenticated/properties/$propertyId/reviews.tsx
+           8 commits    159 churn  0.12 density   0 fan-in  ▲ accelerating
+
+    6.0 ▼  src/contexts/property/application/use-cases/list-properties.ts
+           8 commits     68 churn  0.13 density   2 fan-in  ▼ cooling
+
+    6.0 ▼  src/contexts/metric/infrastructure/event-handlers/on-feedback-submitted.test.ts [test]
+           8 commits    251 churn  0.13 density   0 fan-in  ▼ cooling
+
+    6.0 ▼  src/contexts/metric/infrastructure/event-handlers/on-rating-submitted.test.ts [test]
+           8 commits    251 churn  0.13 density   0 fan-in  ▼ cooling
+
+    6.0 ▼  src/contexts/metric/infrastructure/event-handlers/on-scan-recorded.test.ts [test]
+           8 commits    249 churn  0.13 density   0 fan-in  ▼ cooling
+
+    6.0 ▼  src/contexts/metric/application/use-cases/record-metric.test.ts [test]
+           8 commits    309 churn  0.13 density   0 fan-in  ▼ cooling
+
+    5.9 ▼  src/contexts/guest/server/guest-scans.ts
+           8 commits    187 churn  0.11 density   1 fan-in  ▼ cooling
+
+    5.9 ─  src/components/inbox/inbox-notes-thread.tsx
+           7 commits    163 churn  0.13 density   3 fan-in  ─ stable
+
+    5.9 ─  src/contexts/goal/application/use-cases/update-goal.ts
+           7 commits    179 churn  0.13 density   2 fan-in  ─ stable
+
+    5.9 ▼  src/contexts/integration/server/gbp-import.ts
+          11 commits    324 churn  0.09 density   6 fan-in  ▼ cooling
+
+    5.9 ▼  src/routes/_authenticated/properties/$propertyId/teams/$teamId.tsx
+           9 commits    301 churn  0.12 density   2 fan-in  ▼ cooling
+
+    5.9 ▼  src/contexts/inbox/infrastructure/event-handlers/on-review-updated.test.ts [test]
+           5 commits    204 churn  0.17 density   0 fan-in  ▼ cooling
+
+    5.8 ▼  src/components/features/portal/portal-analytics/portal-analytics-tab.tsx
+           6 commits    604 churn  0.15 density   1 fan-in  ▼ cooling
+
+    5.8 ▲  vite.config.ts
+           8 commits    171 churn  0.12 density   0 fan-in  ▲ accelerating
+
+    5.8 ▼  src/contexts/inbox/infrastructure/event-handlers/on-review-updated.ts
+           5 commits     83 churn  0.19 density   2 fan-in  ▼ cooling
+
+    5.8 ─  src/contexts/activity/queries/get-activity-timeline.test.ts [test]
+           5 commits    217 churn  0.17 density   0 fan-in  ─ stable
+
+    5.8 ─  src/contexts/team/application/use-cases/list-teams.ts
+           9 commits     82 churn  0.11 density   2 fan-in  ─ stable
+
+    5.7 ▼  src/components/features/guest/public-portal/feedback-form.tsx
+           6 commits    159 churn  0.17 density   2 fan-in  ▼ cooling
+
+    5.7 ▼  src/components/features/integration/import-progress/import-progress.tsx
+           9 commits    231 churn  0.12 density   2 fan-in  ▼ cooling
+
+    5.7 ─  src/contexts/staff/application/use-cases/update-staff-portals.ts
+           8 commits    224 churn  0.10 density   2 fan-in  ─ stable
+
+    5.7 ▼  src/shared/auth/dark-capability-enforcement.test.ts [test]
+           3 commits    164 churn  0.23 density   0 fan-in  ▼ cooling
+
+    5.7 ─  src/shared/domain/roles.test.ts [test]
+           4 commits    123 churn  0.23 density   0 fan-in  ─ stable
+
+    5.7 ▼  src/contexts/metric/infrastructure/event-handlers/on-review-created.test.ts [test]
+           8 commits    205 churn  0.12 density   0 fan-in  ▼ cooling
+
+    5.7 ▲  src/components/features/notification/notification-panel.stories.tsx
+           8 commits    368 churn  0.09 density   0 fan-in  ▲ accelerating
+
+    5.6 ▼  src/components/inbox/inbox-page-v2.tsx
+           8 commits    383 churn  0.10 density   3 fan-in  ▼ cooling
+
+    5.6 ▼  src/contexts/goal/ui/helpers.test.ts [test]
+           5 commits    736 churn  0.17 density   0 fan-in  ▼ cooling
+
+    5.5 ─  src/components/features/identity/registration/accept-invitation-page.tsx
+           7 commits    409 churn  0.13 density   1 fan-in  ─ stable
+
+    5.5 ▼  src/contexts/inbox/infrastructure/event-handlers/on-review-created.test.ts [test]
+           5 commits    184 churn  0.16 density   0 fan-in  ▼ cooling
+
+    5.5 ─  src/contexts/inbox/application/use-cases/get-folder-counts.test.ts [test]
+           6 commits    361 churn  0.13 density   0 fan-in  ─ stable
+
+    5.5 ▲  src/contexts/portal/application/use-cases/create-link-category.test.ts [test]
+           5 commits    154 churn  0.19 density   0 fan-in  ▲ accelerating
+
+    5.5 ▼  src/contexts/staff/server/staff-assignments.test.ts [test]
+           5 commits    226 churn  0.20 density   0 fan-in  ▼ cooling
+
+    5.5 ─  src/contexts/notification/infrastructure/adapters/db-user-lookup.adapter.ts
+           6 commits    168 churn  0.14 density   2 fan-in  ─ stable
+
+    5.5 ▲  src/contexts/goal/application/public-api.test.ts [test]
+           9 commits     90 churn  0.10 density   0 fan-in  ▲ accelerating
+
+    5.4 ▼  src/routes/_authenticated/properties/$propertyId/goals/$goalId.tsx
+           6 commits    123 churn  0.14 density   0 fan-in  ▼ cooling
+
+    5.4 ─  src/shared/db/schema/goal.schema.ts
+          10 commits    123 churn  0.09 density   5 fan-in  ─ stable
+
+    5.4 ▲  src/start.ts
+           6 commits     54 churn  0.20 density   0 fan-in  ▲ accelerating
+
+    5.3 ─  src/routes/_authenticated/settings/organization.tsx
+           8 commits    182 churn  0.11 density   0 fan-in  ─ stable
+
+    5.3 ▼  src/components/features/integration/import-connected-view/import-connected-view.tsx
+          11 commits    490 churn  0.08 density   2 fan-in  ▼ cooling
+
+    5.3 ▼  src/contexts/review/domain/constructors.ts
+           7 commits    171 churn  0.12 density   1 fan-in  ▼ cooling
+
+    5.3 ▼  src/contexts/activity/infrastructure/adapters/db-inbox-item-lookup.adapter.ts
+           5 commits     76 churn  0.16 density   1 fan-in  ▼ cooling
+
+    5.3 ▼  src/contexts/metric/infrastructure/event-handlers/on-review-link-clicked.test.ts [test]
+           7 commits    251 churn  0.13 density   0 fan-in  ▼ cooling
+
+    5.2 ─  src/components/inbox/reply-form.tsx
+           4 commits    157 churn  0.19 density   3 fan-in  ─ stable
+
+    5.2 ▼  src/contexts/integration/application/use-cases/import-property.ts
+           8 commits    368 churn  0.10 density   3 fan-in  ▼ cooling
+
+    5.2 ▼  src/contexts/review/server/reply.ts
+           9 commits    528 churn  0.09 density   1 fan-in  ▼ cooling
+
+    5.2 ▼  src/contexts/integration/infrastructure/adapters/google-oauth.adapter.ts
+          10 commits    526 churn  0.10 density   1 fan-in  ▼ cooling
+
+    5.2 ▲  src/contexts/portal/infrastructure/repositories/portal-group.repository.ts
+           5 commits    276 churn  0.17 density   1 fan-in  ▲ accelerating
+
+    5.2 ▲  src/contexts/goal/server/staff-goals.test.ts [test]
+           5 commits    265 churn  0.17 density   0 fan-in  ▲ accelerating
+
+    5.2 ▼  src/contexts/dashboard/infrastructure/adapters/attention-signals.adapter.ts
+           5 commits    311 churn  0.15 density   1 fan-in  ▼ cooling
+
+    5.1 ─  src/contexts/inbox/server/inbox-status.ts
+           7 commits    246 churn  0.10 density   1 fan-in  ─ stable
+
+    5.1 ▼  src/contexts/notification/application/use-cases/insert-notification.ts
+           7 commits    336 churn  0.11 density   5 fan-in  ▼ cooling
+
+    5.1 ─  src/contexts/property/application/use-cases/soft-delete-property.ts
+          12 commits     98 churn  0.07 density   2 fan-in  ─ stable
+
+    5.1 ─  src/contexts/integration/domain/events.test.ts [test]
+           7 commits    314 churn  0.11 density   0 fan-in  ─ stable
+
+    5.1 ▲  src/contexts/goal/infrastructure/mappers/goal.mapper.test.ts [test]
+           6 commits    222 churn  0.14 density   0 fan-in  ▲ accelerating
+
+    5.0 ▼  src/contexts/dashboard/application/use-cases/get-portal-analytics.ts
+           3 commits    150 churn  0.26 density   2 fan-in  ▼ cooling
+
+    5.0 ▼  src/contexts/notification/infrastructure/event-handlers/on-inbox-item-created.ts
+           5 commits     97 churn  0.15 density   2 fan-in  ▼ cooling
+
+    5.0 ▼  src/routes/_authenticated/properties/$propertyId/goals/new.tsx
+           8 commits    170 churn  0.10 density   0 fan-in  ▼ cooling
+
+    5.0 ─  src/contexts/portal/application/use-cases/update-portal-group.ts
+           9 commits    188 churn  0.08 density   2 fan-in  ─ stable
+
+    5.0 ▼  src/contexts/staff/application/ports/staff-assignment.repository.test.ts [test]
+           3 commits    110 churn  0.29 density   0 fan-in  ▼ cooling
+
+    5.0 ▼  src/contexts/property/application/use-cases/get-property.ts
+           8 commits     91 churn  0.11 density   2 fan-in  ▼ cooling
+
+    4.9 ─  src/components/inbox/inbox-detail-sheet.tsx
+           9 commits    262 churn  0.08 density   4 fan-in  ─ stable
+
+    4.9 ▼  src/components/layout/inbox-sidebar.tsx
+           6 commits    298 churn  0.12 density   1 fan-in  ▼ cooling
+
+    4.9 ─  src/contexts/inbox/application/use-cases/get-inbox-items.ts
+           7 commits    177 churn  0.11 density   3 fan-in  ─ stable
+
+    4.9 ▼  src/contexts/integration/application/use-cases/list-gbp-locations.test.ts [test]
+           5 commits    668 churn  0.17 density   0 fan-in  ▼ cooling
+
+    4.9 ─  src/contexts/staff/build.ts
+          15 commits    206 churn  0.05 density   2 fan-in  ─ stable
+
+    4.9 ─  src/contexts/activity/queries/get-activity-timeline.ts
+           6 commits    152 churn  0.12 density   2 fan-in  ─ stable
+
+    4.9 ▼  src/contexts/review/domain/rules.ts
+           6 commits    113 churn  0.13 density   8 fan-in  ▼ cooling
+
+    4.9 ▼  src/contexts/inbox/infrastructure/event-handlers/on-reply-published.test.ts [test]
+           7 commits    415 churn  0.11 density   0 fan-in  ▼ cooling
+
+    4.9 ─  src/contexts/identity/application/use-cases/remove-member.test.ts [test]
+           7 commits    170 churn  0.12 density   0 fan-in  ─ stable
+
+    4.9 ▼  src/shared/auth/emails.ts
+          12 commits    312 churn  0.08 density   2 fan-in  ▼ cooling
+
+    4.8 ─  src/contexts/notification/server/notifications.ts
+           6 commits    488 churn  0.11 density   5 fan-in  ─ stable
+
+    4.8 ─  src/contexts/property/server/properties.ts
+          10 commits    477 churn  0.08 density   2 fan-in  ─ stable
+
+    4.8 ▼  src/lib/lookups.ts
+           6 commits    307 churn  0.16 density   9 fan-in  ▼ cooling
+
+    4.8 ▼  src/contexts/goal/domain/constructors.test.ts [test]
+           7 commits    746 churn  0.11 density   0 fan-in  ▼ cooling
+
+    4.8 ▼  src/contexts/portal/domain/rules.test.ts [test]
+           4 commits    380 churn  0.23 density   0 fan-in  ▼ cooling
+
+    4.8 ▼  src/contexts/inbox/application/use-cases/create-inbox-item.test.ts [test]
+           8 commits    178 churn  0.10 density   0 fan-in  ▼ cooling
+
+    4.7 ─  src/components/inbox/inbox-list-v2.tsx
+           4 commits    222 churn  0.17 density   2 fan-in  ─ stable
+
+    4.7 ▼  src/components/features/notification/notification-utils.ts
+           4 commits    101 churn  0.17 density   2 fan-in  ▼ cooling
+
+    4.7 ▼  src/components/hooks/use-property-id.ts
+           4 commits     57 churn  0.23 density   2 fan-in  ▼ cooling
+
+    4.7 ▼  src/shared/auth/server-errors.ts
+           6 commits    188 churn  0.16 density  59 fan-in  ▼ cooling
+
+    4.7 ▼  src/components/features/integration/location-picker/location-picker.tsx
+           6 commits    185 churn  0.16 density   2 fan-in  ▼ cooling
+
+    4.7 ▲  src/contexts/portal/domain/constructors.ts
+           8 commits    291 churn  0.10 density   6 fan-in  ▲ accelerating
+
+    4.7 ─  src/contexts/portal/domain/events.ts
+          11 commits   1125 churn  0.07 density  15 fan-in  ─ stable
+
+    4.7 ▼  src/contexts/portal/application/use-cases/list-portal-groups.test.ts [test]
+           4 commits    122 churn  0.19 density   0 fan-in  ▼ cooling
+
+    4.7 ▼  src/contexts/review/infrastructure/mappers/reply.mapper.ts
+           5 commits     75 churn  0.17 density   2 fan-in  ▼ cooling
+
+    4.7 ▼  src/contexts/review/infrastructure/jobs/purge-expired-reviews.job.test.ts [test]
+           6 commits    350 churn  0.12 density   0 fan-in  ▼ cooling
+
+    4.7 ▼  src/contexts/integration/infrastructure/jobs/import-property.job.ts
+           7 commits   1111 churn  0.11 density   2 fan-in  ▼ cooling
+
+    4.7 ▼  src/contexts/property/application/use-cases/list-properties.test.ts [test]
+           6 commits    118 churn  0.14 density   0 fan-in  ▼ cooling
+
+    4.7 ▼  src/contexts/metric/infrastructure/event-handlers/on-review-created.ts
+           8 commits     77 churn  0.10 density   2 fan-in  ▼ cooling
+
+    4.7 ─  src/contexts/review/domain/rules.test.ts [test]
+           4 commits    145 churn  0.18 density   0 fan-in  ─ stable
+
+    4.6 ▼  src/contexts/review/infrastructure/mappers/review.mapper.ts
+           5 commits    152 churn  0.14 density   3 fan-in  ▼ cooling
+
+    4.6 ─  src/contexts/portal/application/use-cases/create-link.ts
+          10 commits    140 churn  0.07 density   2 fan-in  ─ stable
+
+    4.5 ▲  src/contexts/badge/server/badges.ts
+           6 commits    257 churn  0.10 density   3 fan-in  ▲ accelerating
+
+    4.5 ▼  .storybook/in-memory/inbox-container.ts
+           3 commits    176 churn  0.19 density   7 fan-in  ▼ cooling
+
+    4.5 ─  src/components/inbox/inbox-activity-timeline.tsx
+           6 commits    288 churn  0.11 density   1 fan-in  ─ stable
+
+    4.5 ▼  src/contexts/identity/server/organizations.shared.ts
+           5 commits    122 churn  0.13 density   4 fan-in  ▼ cooling
+
+    4.5 ▼  src/contexts/inbox/application/use-cases/get-inbox-item-detail.ts
+           9 commits    153 churn  0.08 density   4 fan-in  ▼ cooling
+
+    4.5 ▼  src/contexts/staff/domain/constructors.ts
+          10 commits    147 churn  0.09 density   4 fan-in  ▼ cooling
+
+    4.5 ▼  src/contexts/activity/domain/errors.ts
+           3 commits     28 churn  0.22 density   3 fan-in  ▼ cooling
+
+    4.5 ─  src/contexts/integration/infrastructure/repositories/property-import.repository.ts
+           4 commits    191 churn  0.17 density   1 fan-in  ─ stable
+
+    4.5 ─  src/contexts/team/server/teams.test.ts [test]
+           4 commits    199 churn  0.20 density   0 fan-in  ─ stable
+
+    4.5 ▼  src/contexts/integration/application/use-cases/get-import-status.ts
+           8 commits     92 churn  0.10 density   2 fan-in  ▼ cooling
+
+    4.5 ▼  src/contexts/notification/infrastructure/jobs/digest-notification.job.test.ts [test]
+           6 commits   1085 churn  0.11 density   0 fan-in  ▼ cooling
+
+    4.4 ▼  src/components/layout/staff-sidebar.tsx
+           5 commits    462 churn  0.16 density   2 fan-in  ▼ cooling
+
+    4.4 ▼  src/contexts/badge/application/use-cases/evaluate-badge-for-target.test.ts [test]
+           4 commits    408 churn  0.16 density   0 fan-in  ▼ cooling
+
+    4.4 ▲  src/contexts/metric/domain/constructors.ts
+           8 commits    175 churn  0.09 density   2 fan-in  ▲ accelerating
+
+    4.4 ▼  src/contexts/inbox/infrastructure/mappers/inbox.mapper.ts
+           6 commits    112 churn  0.12 density   2 fan-in  ▼ cooling
+
+    4.4 ─  src/contexts/inbox/infrastructure/event-handlers/on-review-expired.test.ts [test]
+           4 commits    261 churn  0.15 density   0 fan-in  ─ stable
+
+    4.4 ▼  src/contexts/goal/server/staff-goals.ts
+          11 commits    290 churn  0.06 density   3 fan-in  ▼ cooling
+
+    4.4 ─  src/contexts/integration/infrastructure/mappers/gbp-cache.mapper.ts
+           9 commits    125 churn  0.09 density   2 fan-in  ─ stable
+
+    4.4 ▲  src/contexts/staff/infrastructure/mappers/staff-assignment.mapper.ts
+           6 commits     80 churn  0.14 density   2 fan-in  ▲ accelerating
+
+    4.4 ─  src/contexts/guest/application/use-cases/track-review-link-click.ts
+          12 commits     82 churn  0.06 density   3 fan-in  ─ stable
+
+    4.4 ▲  src/contexts/property/server/property-shared.ts
+           3 commits     32 churn  0.19 density   3 fan-in  ▲ accelerating
+
+    4.3 ─  src/components/features/guest/public-portal/star-rating.tsx
+           4 commits    123 churn  0.22 density   1 fan-in  ─ stable
+
+    4.3 ▼  src/routes/register.tsx
+           8 commits    336 churn  0.10 density   0 fan-in  ▼ cooling
+
+    4.3 ▼  src/contexts/staff/application/use-cases/list-staff-assignments.ts
+           6 commits     54 churn  0.13 density   2 fan-in  ▼ cooling
+
+    4.3 ▼  src/contexts/goal/server/goals.test.ts [test]
+           4 commits    443 churn  0.19 density   0 fan-in  ▼ cooling
+
+    4.3 ▼  src/contexts/notification/domain/errors.ts
+           4 commits     41 churn  0.16 density  11 fan-in  ▼ cooling
+
+    4.3 ─  src/contexts/portal/application/use-cases/get-portal.ts
+           7 commits     50 churn  0.10 density   2 fan-in  ─ stable
+
+    4.3 ─  src/contexts/guest/domain/errors.ts
+           5 commits     34 churn  0.15 density  16 fan-in  ─ stable
+
+    4.3 ▲  src/contexts/guest/infrastructure/mappers/guest.mapper.ts
+           9 commits    255 churn  0.09 density   2 fan-in  ▲ accelerating
+
+    4.2 ▲  src/components/layout/app-top-bar.tsx
+           4 commits    130 churn  0.16 density   2 fan-in  ▲ accelerating
+
+    4.2 ▼  src/components/features/property/goals/goals-list-page.tsx
+           6 commits    405 churn  0.11 density   2 fan-in  ▼ cooling
+
+    4.2 ▲  src/contexts/portal/application/use-cases/update-link.ts
+           6 commits    123 churn  0.11 density   2 fan-in  ▲ accelerating
+
+    4.2 ─  src/contexts/portal/build.ts
+          14 commits    426 churn  0.05 density   1 fan-in  ─ stable
+
+    4.2 ─  src/contexts/integration/application/use-cases/update-connection-visibility.ts
+          11 commits    178 churn  0.06 density   2 fan-in  ─ stable
+
+    4.2 ▼  src/contexts/inbox/application/use-cases/update-inbox-status.ts
+          16 commits    368 churn  0.04 density   3 fan-in  ▼ cooling
+
+    4.2 ─  src/contexts/guest/application/use-cases/record-scan.ts
+          14 commits    132 churn  0.05 density   2 fan-in  ─ stable
+
+    4.2 ─  src/contexts/review/infrastructure/jobs/purge-expired-reviews.job.ts
+           9 commits    142 churn  0.07 density   3 fan-in  ─ stable
+
+    4.2 ▲  src/shared/auth/authorization-policy.test.ts [test]
+           3 commits    203 churn  0.17 density   0 fan-in  ▲ accelerating
+
+    4.1 ─  src/components/layout/manager-property-switcher.tsx
+           4 commits    142 churn  0.16 density   1 fan-in  ─ stable
+
+    4.1 ▼  src/contexts/review/build.ts
+          13 commits    283 churn  0.05 density   1 fan-in  ▼ cooling
+
+    4.1 ▼  src/shared/domain/errors.ts
+           5 commits     95 churn  0.14 density  15 fan-in  ▼ cooling
+
+    4.1 ▼  src/contexts/integration/infrastructure/repositories/gbp-cache.repository.ts
+           6 commits    278 churn  0.13 density   2 fan-in  ▼ cooling
+
+    4.1 ▼  src/contexts/inbox/domain/constructors.test.ts [test]
+           5 commits    343 churn  0.13 density   0 fan-in  ▼ cooling
+
+    4.1 ─  src/contexts/identity/application/use-cases/invite-member.ts
+          14 commits    132 churn  0.05 density   2 fan-in  ─ stable
+
+    4.1 ▲  src/contexts/staff/application/use-cases/remove-staff-assignment.ts
+          11 commits     81 churn  0.06 density   2 fan-in  ▲ accelerating
+
+    4.1 ─  src/contexts/staff/build.test.ts [test]
+           7 commits    180 churn  0.09 density   0 fan-in  ─ stable
+
+    4.1 ▼  src/shared/auth/permissions.test.ts [test]
+           7 commits    446 churn  0.11 density   0 fan-in  ▼ cooling
+
+    4.0 ▼  src/contexts/goal/infrastructure/mappers/goal.mapper.ts
+           9 commits    213 churn  0.07 density   2 fan-in  ▼ cooling
+
+    4.0 ▼  src/contexts/integration/build.ts
+          17 commits    556 churn  0.04 density   1 fan-in  ▼ cooling
+
+    4.0 ▼  src/contexts/portal/application/use-cases/get-portal-qr-url.test.ts [test]
+           4 commits     91 churn  0.17 density   0 fan-in  ▼ cooling
+
+    4.0 ─  src/contexts/guest/application/use-cases/submit-rating.ts
+          13 commits    140 churn  0.05 density   2 fan-in  ─ stable
+
+    4.0 ▼  src/contexts/inbox/application/use-cases/get-inbox-notes.ts
+           9 commits    136 churn  0.07 density   3 fan-in  ▼ cooling
+
+    4.0 ─  src/contexts/inbox/server/inbox-shared.ts
+           4 commits     74 churn  0.14 density   5 fan-in  ─ stable
+
+    4.0 ▼  src/shared/jobs/worker.ts
+           8 commits     93 churn  0.09 density   2 fan-in  ▼ cooling
+
+    4.0 ─  src/contexts/guest/domain/events.test.ts [test]
+           6 commits    162 churn  0.11 density   0 fan-in  ─ stable
+
+    3.9 ▼  src/components/features/staff/assign-staff-form.tsx
+           5 commits    525 churn  0.15 density   2 fan-in  ▼ cooling
+
+    3.9 ─  src/routes/_authenticated/properties/$propertyId/goals/index.tsx
+           4 commits    165 churn  0.14 density   0 fan-in  ─ stable
+
+    3.9 ▼  src/contexts/inbox/domain/constructors.ts
+           7 commits    134 churn  0.09 density   3 fan-in  ▼ cooling
+
+    3.9 ▼  src/contexts/review/infrastructure/jobs/sync-property-reviews.job.ts
+           7 commits    313 churn  0.09 density   2 fan-in  ▼ cooling
+
+    3.9 ─  src/contexts/portal/application/use-cases/create-portal.ts
+          10 commits    135 churn  0.06 density   2 fan-in  ─ stable
+
+    3.9 ▼  src/components/features/portal/link-tree/use-link-tree-state.ts
+           4 commits    418 churn  0.17 density   1 fan-in  ▼ cooling
+
+    3.9 ▲  src/contexts/inbox/application/use-cases/get-folder-counts.ts
+           6 commits    201 churn  0.09 density   3 fan-in  ▲ accelerating
+
+    3.9 ▼  src/contexts/inbox/application/use-cases/add-inbox-note.ts
+          15 commits    215 churn  0.04 density   3 fan-in  ▼ cooling
+
+    3.9 ▼  src/contexts/staff/domain/rules.test.ts [test]
+           4 commits    133 churn  0.18 density   0 fan-in  ▼ cooling
+
+    3.9 ▲  src/contexts/guest/server/public.test.ts [test]
+           4 commits    321 churn  0.16 density   0 fan-in  ▲ accelerating
+
+    3.9 ▼  src/contexts/dashboard/infrastructure/adapters/metric-stats.adapter.ts
+           5 commits    405 churn  0.13 density   2 fan-in  ▼ cooling
+
+    3.9 ▲  src/contexts/property/build.test.ts [test]
+           4 commits     50 churn  0.18 density   0 fan-in  ▲ accelerating
+
+    3.9 ▼  src/contexts/portal/application/use-cases/get-portal-qr-url.ts
+           9 commits     78 churn  0.07 density   2 fan-in  ▼ cooling
+
+    3.9 ▼  src/contexts/identity/application/use-cases/invite-member.test.ts [test]
+           5 commits    114 churn  0.16 density   0 fan-in  ▼ cooling
+
+    3.9 ─  src/shared/domain/permissions.ts
+          11 commits    194 churn  0.06 density  133 fan-in  ─ stable
+
+    3.9 ▼  src/contexts/identity/application/use-cases/list-invitations.ts
+           8 commits     68 churn  0.09 density   2 fan-in  ▼ cooling
+
+    3.9 ▼  src/contexts/integration/infrastructure/adapters/token-encryption.adapter.ts
+           7 commits    129 churn  0.10 density   1 fan-in  ▼ cooling
+
+    3.8 ▼  src/components/features/portal/portal-detail/portal-detail-page.tsx
+           8 commits    480 churn  0.08 density   2 fan-in  ▼ cooling
+
+    3.8 ▼  src/components/features/portal/portal-form/create-portal-form.tsx
+           7 commits    435 churn  0.10 density   3 fan-in  ▼ cooling
+
+    3.8 ─  src/contexts/inbox/server/inbox-item-actions.ts
+           6 commits    162 churn  0.09 density   1 fan-in  ─ stable
+
+    3.8 ─  src/components/features/property/people/staff-tab.tsx
+           5 commits    174 churn  0.11 density   1 fan-in  ─ stable
+
+    3.8 ─  src/contexts/identity/server/organizations.response-sla.ts
+           4 commits    124 churn  0.13 density   2 fan-in  ─ stable
+
+    3.8 ─  src/components/features/integration/google-account-selector/google-account-selector.tsx
+           7 commits    100 churn  0.11 density   1 fan-in  ─ stable
+
+    3.8 ▲  src/contexts/portal/application/use-cases/finalize-upload.test.ts [test]
+           3 commits    118 churn  0.22 density   0 fan-in  ▲ accelerating
+
+    3.8 ─  src/contexts/identity/application/use-cases/request-avatar-upload.ts
+           7 commits     77 churn  0.09 density   2 fan-in  ─ stable
+
+    3.8 ─  src/contexts/identity/server/organizations.members.ts
+           6 commits    170 churn  0.09 density   1 fan-in  ─ stable
+
+    3.8 ▲  src/contexts/portal/application/use-cases/reorder-links.test.ts [test]
+           4 commits    163 churn  0.16 density   0 fan-in  ▲ accelerating
+
+    3.8 ▼  src/contexts/integration/infrastructure/repositories/gbp-import.repository.test.ts [test]
+           4 commits    188 churn  0.15 density   0 fan-in  ▼ cooling
+
+    3.8 ▼  src/contexts/activity/domain/constructors.test.ts [test]
+           5 commits    112 churn  0.12 density   0 fan-in  ▼ cooling
+
+    3.7 ▲  src/contexts/inbox/infrastructure/event-handlers/on-review-expired.ts
+           6 commits    145 churn  0.08 density   3 fan-in  ▲ accelerating
+
+    3.7 ─  src/contexts/guest/application/use-cases/submit-feedback.ts
+          12 commits    103 churn  0.05 density   2 fan-in  ─ stable
+
+    3.7 ▲  src/contexts/property/domain/errors.test.ts [test]
+           3 commits     67 churn  0.18 density   0 fan-in  ▲ accelerating
+
+    3.7 ▼  src/contexts/integration/domain/errors.test.ts [test]
+           4 commits    119 churn  0.16 density   0 fan-in  ▼ cooling
+
+    3.6 ─  src/contexts/dashboard/server/attention-signals.ts
+           7 commits    141 churn  0.07 density   1 fan-in  ─ stable
+
+    3.6 ▲  src/contexts/inbox/infrastructure/repositories/inbox-note.repository.ts
+           4 commits     82 churn  0.15 density   2 fan-in  ▲ accelerating
+
+    3.6 ─  src/contexts/review/server/reply-draft.ts
+           5 commits    183 churn  0.10 density   1 fan-in  ─ stable
+
+    3.6 ▼  src/routes/reset-password.tsx
+           8 commits    316 churn  0.09 density   0 fan-in  ▼ cooling
+
+    3.6 ▼  src/contexts/activity/application/use-cases/insert-activity-log.ts
+           7 commits    170 churn  0.08 density  26 fan-in  ▼ cooling
+
+    3.6 ▲  src/contexts/portal/application/use-cases/add-portal-to-group.ts
+           6 commits     98 churn  0.08 density   2 fan-in  ▲ accelerating
+
+    3.6 ▲  src/components/features/portal/portal-detail/portal-detail-page.stories.tsx
+           5 commits    191 churn  0.09 density   0 fan-in  ▲ accelerating
+
+    3.6 ▲  src/contexts/portal/application/use-cases/create-link-category.ts
+           9 commits    113 churn  0.06 density   2 fan-in  ▲ accelerating
+
+    3.6 ▼  src/contexts/guest/build.ts
+          12 commits    131 churn  0.05 density   1 fan-in  ▼ cooling
+
+    3.6 ─  src/contexts/property/server/properties.test.ts [test]
+           4 commits    283 churn  0.15 density   0 fan-in  ─ stable
+
+    3.6 ▲  src/contexts/portal/application/use-cases/reorder-links.ts
+           9 commits     98 churn  0.06 density   2 fan-in  ▲ accelerating
+
+    3.6 ▼  src/shared/cache/redis.ts
+           4 commits     52 churn  0.21 density   5 fan-in  ▼ cooling
+
+    3.6 ▼  src/shared/jobs/health-check.job.test.ts [test]
+           3 commits    114 churn  0.21 density   0 fan-in  ▼ cooling
+
+    3.6 ▼  src/contexts/integration/application/use-cases/list-google-connections.ts
+           7 commits     90 churn  0.09 density   2 fan-in  ▼ cooling
+
+    3.6 ─  src/contexts/portal/domain/errors.test.ts [test]
+           4 commits     89 churn  0.16 density   0 fan-in  ─ stable
+
+    3.5 ▼  src/components/features/organization/organization-settings-form.tsx
+           7 commits    799 churn  0.09 density   3 fan-in  ▼ cooling
+
+    3.5 ─  src/components/features/portal/portal-list-page.tsx
+           9 commits    315 churn  0.06 density   2 fan-in  ─ stable
+
+    3.5 ─  src/contexts/identity/domain/rules.ts
+           5 commits    164 churn  0.13 density   6 fan-in  ─ stable
+
+    3.5 ▲  src/contexts/team/application/use-cases/soft-delete-team.test.ts [test]
+           3 commits    102 churn  0.20 density   0 fan-in  ▲ accelerating
+
+    3.5 ─  src/contexts/integration/application/use-cases/import-property.test.ts [test]
+           4 commits    526 churn  0.14 density   0 fan-in  ─ stable
+
+    3.5 ▲  src/contexts/portal/application/use-cases/reorder-categories.test.ts [test]
+           4 commits    168 churn  0.15 density   0 fan-in  ▲ accelerating
+
+    3.5 ▼  src/contexts/property/domain/rules.ts
+           5 commits    108 churn  0.13 density   4 fan-in  ▼ cooling
+
+    3.5 ▲  src/contexts/portal/application/use-cases/create-link.test.ts [test]
+           5 commits    254 churn  0.12 density   0 fan-in  ▲ accelerating
+
+    3.5 ▼  src/contexts/activity/infrastructure/event-handlers/on-inbox-item-escalated.ts
+           4 commits     37 churn  0.13 density   2 fan-in  ▼ cooling
+
+    3.5 ▲  src/shared/domain/assert.ts
+           4 commits     51 churn  0.13 density  23 fan-in  ▲ accelerating
+
+    3.4 ─  src/components/layout/manager-nav-items.tsx
+          11 commits    245 churn  0.05 density   1 fan-in  ─ stable
+
+    3.4 ─  src/contexts/staff/server/staff-portals-update.ts
+           7 commits    133 churn  0.07 density   1 fan-in  ─ stable
+
+    3.4 ─  src/contexts/inbox/server/inbox-item-queries.ts
+           6 commits    149 churn  0.08 density   1 fan-in  ─ stable
+
+    3.4 ▼  src/contexts/review/domain/errors.ts
+           6 commits     36 churn  0.09 density  17 fan-in  ▼ cooling
+
+    3.4 ▼  src/routes/_authenticated/properties/$propertyId/portals/new.tsx
+          11 commits    510 churn  0.06 density   0 fan-in  ▼ cooling
+
+    3.4 ─  src/contexts/portal/application/use-cases/request-upload-url.ts
+           7 commits     92 churn  0.08 density   2 fan-in  ─ stable
+
+    3.4 ▼  src/contexts/review/infrastructure/review-command-store.test.ts [test]
+           3 commits    196 churn  0.14 density   0 fan-in  ▼ cooling
+
+    3.4 ▼  src/contexts/portal/application/use-cases/request-upload-url.test.ts [test]
+           3 commits    150 churn  0.20 density   0 fan-in  ▼ cooling
+
+    3.4 ▲  src/contexts/property/domain/rules.test.ts [test]
+           3 commits    205 churn  0.23 density   0 fan-in  ▲ accelerating
+
+    3.4 ▼  src/contexts/activity/infrastructure/event-handlers/on-inbox-note-added.ts
+           3 commits     29 churn  0.18 density   1 fan-in  ▼ cooling
+
+    3.4 ▼  src/shared/auth/auth.test.ts [test]
+           5 commits    339 churn  0.16 density   0 fan-in  ▼ cooling
+
+    3.4 ▼  src/contexts/inbox/application/use-cases/create-inbox-item.ts
+          13 commits    202 churn  0.04 density  10 fan-in  ▼ cooling
+
+    3.4 ▼  src/contexts/team/infrastructure/repositories/team.repository.test.ts [test]
+           5 commits    251 churn  0.12 density   0 fan-in  ▼ cooling
+
+    3.4 ▲  src/contexts/guest/application/use-cases/track-review-link-click.test.ts [test]
+           4 commits     58 churn  0.16 density   0 fan-in  ▲ accelerating
+
+    3.4 ─  src/shared/observability/request-context.ts
+           5 commits     73 churn  0.11 density   5 fan-in  ─ stable
+
+    3.4 ─  src/contexts/guest/infrastructure/resolvers/portal-context-resolver.ts
+           4 commits     89 churn  0.17 density   1 fan-in  ─ stable
+
+    3.4 ▼  src/components/hooks/use-mobile.ts
+           3 commits     44 churn  0.20 density   1 fan-in  ▼ cooling
+
+    3.3 ▼  src/components/features/identity/member-directory/member-table.tsx
+           6 commits    359 churn  0.10 density   1 fan-in  ▼ cooling
+
+    3.3 ▼  src/components/features/identity/shared/role-badge.tsx
+           3 commits     55 churn  0.19 density   3 fan-in  ▼ cooling
+
+    3.3 ▼  src/contexts/notification/infrastructure/jobs/urgent-email.job.ts
+           5 commits    162 churn  0.10 density   3 fan-in  ▼ cooling
+
+    3.3 ─  src/contexts/integration/application/use-cases/start-property-import.ts
+           7 commits    197 churn  0.08 density   2 fan-in  ─ stable
+
+    3.3 ▼  src/components/inbox/inbox-detail-helpers.tsx
+           3 commits    164 churn  0.17 density   6 fan-in  ▼ cooling
+
+    3.3 ─  src/contexts/identity/application/use-cases/resend-invitation.ts
+           6 commits     96 churn  0.10 density   2 fan-in  ─ stable
+
+    3.3 ▼  src/contexts/portal/infrastructure/mappers/portal.mapper.ts
+           5 commits    124 churn  0.12 density   2 fan-in  ▼ cooling
+
+    3.3 ▲  src/contexts/portal/application/use-cases/reorder-categories.ts
+           8 commits     89 churn  0.06 density   2 fan-in  ▲ accelerating
+
+    3.3 ▲  src/contexts/portal/application/use-cases/soft-delete-portal.ts
+           8 commits     78 churn  0.06 density   2 fan-in  ▲ accelerating
+
+    3.3 ▼  src/contexts/notification/infrastructure/repositories/notification.repository.ts
+           6 commits    348 churn  0.08 density   1 fan-in  ▼ cooling
+
+    3.3 ▼  src/contexts/inbox/infrastructure/event-handlers/on-feedback-submitted.test.ts [test]
+           5 commits    145 churn  0.10 density   0 fan-in  ▼ cooling
+
+    3.3 ─  src/shared/db/schema/staff-assignment.schema.ts
+           9 commits     92 churn  0.06 density   6 fan-in  ─ stable
+
+    3.3 ─  src/shared/db/schema/guest.schema.ts
+           7 commits    169 churn  0.08 density   4 fan-in  ─ stable
+
+    3.3 ▼  src/shared/db/migration-verification.test.ts [test]
+           4 commits    218 churn  0.10 density   0 fan-in  ▼ cooling
+
+    3.2 ▼  src/components/ui/color-picker.tsx
+           3 commits   1643 churn  0.18 density   2 fan-in  ▼ cooling
+
+    3.2 ─  src/components/features/staff/member-selector.tsx
+           4 commits    187 churn  0.16 density   2 fan-in  ─ stable
+
+    3.2 ▼  src/components/features/identity/member-directory/property-assignment-selector.tsx
+           4 commits    184 churn  0.14 density   1 fan-in  ▼ cooling
+
+    3.2 ▼  src/components/features/portal/link-tree/sortable-category.tsx
+           6 commits    301 churn  0.10 density   1 fan-in  ▼ cooling
+
+    3.2 ─  src/contexts/portal/server/portal-link-categories.ts
+           4 commits    127 churn  0.11 density   1 fan-in  ─ stable
+
+    3.2 ▼  src/routes/join.tsx
+           5 commits     98 churn  0.12 density   0 fan-in  ▼ cooling
+
+    3.2 ▼  src/components/features/identity/member-directory/invite-member-form.tsx
+           5 commits    447 churn  0.12 density   2 fan-in  ▼ cooling
+
+    3.2 ▲  src/contexts/leaderboard/server/leaderboards.ts
+           7 commits    119 churn  0.06 density   1 fan-in  ▲ accelerating
+
+    3.2 ▼  src/contexts/activity/infrastructure/activity-repository.drizzle.ts
+           5 commits    296 churn  0.10 density   1 fan-in  ▼ cooling
+
+    3.2 ▼  src/shared/observability/traced-server-fn.ts
+           5 commits     79 churn  0.11 density  45 fan-in  ▼ cooling
+
+    3.2 ▼  src/contexts/activity/infrastructure/event-handlers/on-reply-approved.ts
+           3 commits     35 churn  0.17 density   2 fan-in  ▼ cooling
+
+    3.2 ▼  src/contexts/activity/infrastructure/event-handlers/on-reply-published.ts
+           3 commits     35 churn  0.17 density   2 fan-in  ▼ cooling
+
+    3.2 ▼  src/contexts/activity/infrastructure/event-handlers/on-reply-rejected.ts
+           3 commits     35 churn  0.17 density   2 fan-in  ▼ cooling
+
+    3.2 ▼  src/contexts/activity/infrastructure/event-handlers/on-reply-submitted.ts
+           3 commits     35 churn  0.17 density   2 fan-in  ▼ cooling
+
+    3.2 ─  src/contexts/identity/domain/events.ts
+          14 commits    531 churn  0.04 density   9 fan-in  ─ stable
+
+    3.2 ▼  src/contexts/goal/domain/progress-strategy.test.ts [test]
+           5 commits    741 churn  0.11 density   0 fan-in  ▼ cooling
+
+    3.2 ▼  src/contexts/integration/application/use-cases/disconnect-google-account.test.ts [test]
+           5 commits    169 churn  0.11 density   0 fan-in  ▼ cooling
+
+    3.1 ▼  src/components/inbox/reply-editor-compose.tsx
+           4 commits     80 churn  0.13 density   2 fan-in  ▼ cooling
+
+    3.1 ▼  src/components/inbox/property-filter-select.tsx
+           3 commits    182 churn  0.16 density   2 fan-in  ▼ cooling
+
+    3.1 ─  src/contexts/activity/server/activity.ts
+           9 commits    262 churn  0.05 density   7 fan-in  ─ stable
+
+    3.1 ▼  src/contexts/review/domain/types.ts
+           6 commits    162 churn  0.08 density  22 fan-in  ▼ cooling
+
+    3.1 ▼  src/shared/hooks/usePermissions.ts
+           3 commits     49 churn  0.18 density  14 fan-in  ▼ cooling
+
+    3.1 ▲  src/contexts/notification/infrastructure/event-handlers/test-fixtures.ts
+           5 commits    314 churn  0.08 density  10 fan-in  ▲ accelerating
+
+    3.1 ─  src/contexts/notification/domain/constructors.test.ts [test]
+           4 commits    763 churn  0.12 density   0 fan-in  ─ stable
+
+    3.1 ▲  src/contexts/portal/application/use-cases/remove-portal-from-group.ts
+           6 commits     79 churn  0.07 density   2 fan-in  ▲ accelerating
+
+    3.1 ▼  src/contexts/goal/infrastructure/event-handlers/on-portal-deleted.ts
+           5 commits    124 churn  0.10 density   2 fan-in  ▼ cooling
+
+    3.1 ▲  src/contexts/portal/application/use-cases/soft-delete-portal-group.ts
+           6 commits     71 churn  0.07 density   2 fan-in  ▲ accelerating
+
+    3.1 ▲  src/contexts/team/application/use-cases/update-team.test.ts [test]
+           3 commits    112 churn  0.17 density   0 fan-in  ▲ accelerating
+
+    3.1 ─  src/contexts/portal/application/use-cases/get-portal-group.ts
+           4 commits     43 churn  0.11 density   1 fan-in  ─ stable
+
+    3.1 ▼  src/contexts/notification/infrastructure/event-handlers/on-inbox-note-added.ts
+           4 commits     66 churn  0.12 density   2 fan-in  ▼ cooling
+
+    3.0 ─  src/components/features/property/property-dashboard.tsx
+           7 commits    596 churn  0.07 density   2 fan-in  ─ stable
+
+    3.0 ─  src/components/features/team/team-members/team-member-list.tsx
+           4 commits    611 churn  0.15 density   1 fan-in  ─ stable
+
+    3.0 ▼  src/routes/api/webhooks/gbp/notifications.ts
+           5 commits    591 churn  0.10 density   1 fan-in  ▼ cooling
+
+    3.0 ▼  src/contexts/notification/infrastructure/adapters/resend-email.adapter.ts
+           5 commits    116 churn  0.09 density   1 fan-in  ▼ cooling
+
+    3.0 ▼  src/contexts/metric/application/use-cases/record-metric.ts
+          12 commits    172 churn  0.04 density  13 fan-in  ▼ cooling
+
+    3.0 ─  src/contexts/identity/application/use-cases/finalize-org-logo-upload.ts
+           6 commits     57 churn  0.08 density   2 fan-in  ─ stable
+
+    3.0 ▼  src/routes/_authenticated/properties/$propertyId/teams/$teamId/index.tsx
+           8 commits    150 churn  0.07 density   0 fan-in  ▼ cooling
+
+    2.9 ▼  src/contexts/dashboard/server/staff-dashboard.ts
+           7 commits    129 churn  0.06 density   1 fan-in  ▼ cooling
+
+    2.9 ─  src/components/inbox/inbox-list-panel-parts.tsx
+           4 commits    153 churn  0.10 density   1 fan-in  ─ stable
+
+    2.9 ▲  src/shared/outbox/dispatcher.ts
+           3 commits    208 churn  0.12 density   5 fan-in  ▲ accelerating
+
+    2.9 ▲  src/contexts/dashboard/infrastructure/adapters/review-stats.adapter.ts
+           3 commits    505 churn  0.16 density   2 fan-in  ▲ accelerating
+
+    2.9 ▲  src/contexts/portal/infrastructure/adapters/s3-storage.adapter.ts
+           3 commits    153 churn  0.19 density   1 fan-in  ▲ accelerating
+
+    2.9 ▼  src/contexts/identity/server/organizations.upload.ts
+           4 commits    178 churn  0.11 density   1 fan-in  ▼ cooling
+
+    2.9 ▲  src/contexts/inbox/application/inbox-access.ts
+           4 commits    116 churn  0.10 density   7 fan-in  ▲ accelerating
+
+    2.9 ▲  src/contexts/property/application/use-cases/update-property.test.ts [test]
+           3 commits    290 churn  0.15 density   0 fan-in  ▲ accelerating
+
+    2.9 ▼  src/contexts/metric/build.ts
+           9 commits     79 churn  0.05 density   1 fan-in  ▼ cooling
+
+    2.9 ▼  src/contexts/identity/domain/rules.test.ts [test]
+           3 commits    239 churn  0.21 density   0 fan-in  ▼ cooling
+
+    2.9 ▼  src/contexts/identity/application/use-cases/finalize-avatar-upload.ts
+           5 commits     47 churn  0.10 density   2 fan-in  ▼ cooling
+
+    2.9 ▼  src/shared/jobs/health-check.job.ts
+           5 commits     59 churn  0.11 density   3 fan-in  ▼ cooling
+
+    2.9 ─  src/contexts/identity/domain/errors.ts
+           4 commits     40 churn  0.12 density  43 fan-in  ─ stable
+
+    2.9 ▲  src/contexts/portal/domain/errors.ts
+           5 commits     51 churn  0.10 density  61 fan-in  ▲ accelerating
+
+    2.9 ▼  src/contexts/dashboard/infrastructure/adapters/staff-portal-resolver.adapter.ts
+           3 commits     35 churn  0.15 density   1 fan-in  ▼ cooling
+
+    2.8 ▼  src/components/forms/image-upload-field/drop-zone.tsx
+           3 commits     84 churn  0.16 density   1 fan-in  ▼ cooling
+
+    2.8 ▼  src/components/features/property/goals/goal-entity-picker.tsx
+           4 commits    225 churn  0.11 density   1 fan-in  ▼ cooling
+
+    2.8 ▼  src/components/ui/field.tsx
+           4 commits   1128 churn  0.13 density  25 fan-in  ▼ cooling
+
+    2.8 ▲  src/components/features/portal/link-tree/link-tree-category-list.tsx
+           4 commits    315 churn  0.14 density   1 fan-in  ▲ accelerating
+
+    2.8 ▼  src/components/inbox/inbox-detail-content.stories.tsx
+           4 commits    212 churn  0.09 density   0 fan-in  ▼ cooling
+
+    2.8 ▼  src/routes/api/public/click/$linkId.ts
+           5 commits    179 churn  0.10 density   0 fan-in  ▼ cooling
+
+    2.8 ▼  src/routes/_authenticated/settings/members.tsx
+           9 commits   2161 churn  0.06 density   0 fan-in  ▼ cooling
+
+    2.8 ▼  src/contexts/identity/server/auth-settings.ts
+           9 commits    449 churn  0.05 density   2 fan-in  ▼ cooling
+
+    2.8 ▼  src/contexts/integration/domain/constructors.ts
+           7 commits    236 churn  0.07 density   4 fan-in  ▼ cooling
+
+    2.8 ─  src/components/inbox/reply-editor.tsx
+           6 commits    356 churn  0.07 density   2 fan-in  ─ stable
+
+    2.8 ▼  src/shared/db/schema/metric.schema.ts
+           7 commits     75 churn  0.07 density   5 fan-in  ▼ cooling
+
+    2.8 ▲  src/contexts/staff/domain/errors.test.ts [test]
+           3 commits     73 churn  0.18 density   0 fan-in  ▲ accelerating
+
+    2.8 ▼  src/contexts/property/infrastructure/mappers/property.mapper.test.ts [test]
+           5 commits    197 churn  0.09 density   0 fan-in  ▼ cooling
+
+    2.8 ─  src/contexts/property/domain/events.ts
+          12 commits    191 churn  0.04 density   7 fan-in  ─ stable
+
+    2.8 ▲  src/shared/db/schema/portal.schema.ts
+           6 commits    228 churn  0.08 density  18 fan-in  ▲ accelerating
+
+    2.8 ▼  src/contexts/metric/infrastructure/repositories/metric.repository.test.ts [test]
+           6 commits    256 churn  0.08 density   0 fan-in  ▼ cooling
+
+    2.8 ─  src/contexts/integration/domain/events.ts
+          11 commits    341 churn  0.04 density   7 fan-in  ─ stable
+
+    2.7 ▼  src/components/features/integration/connect-google-button/connect-google-button.tsx
+           5 commits    118 churn  0.11 density   2 fan-in  ▼ cooling
+
+    2.7 ▼  src/contexts/staff/server/staff-portals.ts
+           8 commits    138 churn  0.05 density   1 fan-in  ▼ cooling
+
+    2.7 ▼  src/contexts/identity/server/organizations.update.ts
+           6 commits     73 churn  0.07 density   1 fan-in  ▼ cooling
+
+    2.7 ▼  src/contexts/review/infrastructure/jobs/refresh-expiring-reviews.job.test.ts [test]
+           5 commits    347 churn  0.08 density   0 fan-in  ▼ cooling
+
+    2.7 ▼  src/contexts/activity/infrastructure/event-handlers/on-inbox-bulk-status-changed.ts
+           3 commits     30 churn  0.14 density   1 fan-in  ▼ cooling
+
+    2.7 ▼  src/contexts/activity/infrastructure/event-handlers/on-inbox-item-assigned.ts
+           3 commits     29 churn  0.14 density   2 fan-in  ▼ cooling
+
+    2.7 ▼  src/contexts/activity/infrastructure/event-handlers/on-inbox-item-created.ts
+           3 commits     29 churn  0.14 density   2 fan-in  ▼ cooling
+
+    2.7 ▼  src/contexts/activity/infrastructure/event-handlers/on-inbox-item-unassigned.ts
+           3 commits     29 churn  0.14 density   1 fan-in  ▼ cooling
+
+    2.7 ▲  src/contexts/property/domain/errors.ts
+           3 commits     38 churn  0.13 density  18 fan-in  ▲ accelerating
+
+    2.7 ▼  src/contexts/notification/infrastructure/repositories/notification-email.repository.ts
+           7 commits    267 churn  0.06 density   1 fan-in  ▼ cooling
+
+    2.6 ▼  src/contexts/identity/server/organizations.roles.ts
+           3 commits    132 churn  0.11 density   0 fan-in  ▼ cooling
+
+    2.6 ▼  src/components/features/integration/location-picker/location-row.tsx
+           6 commits     94 churn  0.09 density   3 fan-in  ▼ cooling
+
+    2.6 ▲  src/contexts/inbox/infrastructure/outbox-consumers.ts
+           4 commits    504 churn  0.08 density   2 fan-in  ▲ accelerating
+
+    2.6 ▼  src/shared/observability/logger.ts
+           3 commits     42 churn  0.17 density  91 fan-in  ▼ cooling
+
+    2.6 ▲  src/contexts/portal/application/use-cases/update-link-category.ts
+           5 commits     88 churn  0.08 density   2 fan-in  ▲ accelerating
+
+    2.6 ─  src/contexts/portal/application/use-cases/finalize-upload.ts
+           7 commits     93 churn  0.06 density   2 fan-in  ─ stable
+
+    2.6 ▼  src/contexts/identity/application/use-cases/request-org-logo-upload.ts
+           5 commits     71 churn  0.09 density   2 fan-in  ▼ cooling
+
+    2.6 ▲  src/contexts/portal/application/use-cases/delete-link.ts
+           5 commits     58 churn  0.08 density   2 fan-in  ▲ accelerating
+
+    2.6 ─  src/contexts/staff/application/use-cases/update-staff-portals.test.ts [test]
+           4 commits    283 churn  0.10 density   0 fan-in  ─ stable
+
+    2.6 ▼  src/contexts/notification/infrastructure/jobs/urgent-email.job.test.ts [test]
+           5 commits    481 churn  0.08 density   0 fan-in  ▼ cooling
+
+    2.6 ▼  src/contexts/integration/domain/gbp-api-error.ts
+           6 commits    153 churn  0.08 density   5 fan-in  ▼ cooling
+
+    2.6 ▲  src/components/layout/app-top-bar.stories.tsx
+           3 commits     97 churn  0.11 density   0 fan-in  ▲ accelerating
+
+    2.6 ─  src/contexts/identity/application/use-cases/list-invitations.test.ts [test]
+           4 commits     73 churn  0.11 density   0 fan-in  ─ stable
+
+    2.5 ▲  src/shared/observability/health-metrics.ts
+           3 commits    252 churn  0.10 density   1 fan-in  ▲ accelerating
+
+    2.5 ─  src/routes/api/auth/$.ts
+           4 commits    108 churn  0.11 density   0 fan-in  ─ stable
+
+    2.5 ▼  src/components/features/organization/organization-switch-list.tsx
+           3 commits     98 churn  0.17 density   2 fan-in  ▼ cooling
+
+    2.5 ─  src/components/features/portal/portal-share/qr-code-modal.tsx
+           4 commits    135 churn  0.11 density   1 fan-in  ─ stable
+
+    2.5 ▼  src/components/inbox/inbox-page-parts.tsx
+           3 commits    104 churn  0.12 density   1 fan-in  ▼ cooling
+
+    2.5 ─  src/contexts/dashboard/application/use-cases/get-staff-dashboard-data.ts
+           4 commits     95 churn  0.09 density   2 fan-in  ─ stable
+
+    2.5 ▼  .storybook/in-memory/inbox-fns.ts
+           4 commits    288 churn  0.08 density   1 fan-in  ▼ cooling
+
+    2.5 ▼  src/contexts/review/infrastructure/jobs/refresh-expiring-reviews.job.ts
+           4 commits    187 churn  0.10 density   3 fan-in  ▼ cooling
+
+    2.5 ▲  src/components/features/portal/portal-share/portal-share.tsx
+           3 commits     69 churn  0.13 density   2 fan-in  ▲ accelerating
+
+    2.5 ▼  src/components/features/property/goals/goal-create-fields.tsx
+          10 commits    588 churn  0.04 density   1 fan-in  ▼ cooling
+
+    2.5 ▼  src/contexts/integration/application/use-cases/refresh-google-token.ts
+           7 commits    176 churn  0.07 density   3 fan-in  ▼ cooling
+
+    2.5 ▼  src/contexts/notification/infrastructure/event-handlers/on-reply-rejected.ts
+           3 commits     44 churn  0.12 density   2 fan-in  ▼ cooling
+
+    2.5 ▼  src/contexts/portal/server/portals.test.ts [test]
+           3 commits    350 churn  0.15 density   0 fan-in  ▼ cooling
+
+    2.5 ─  src/contexts/notification/infrastructure/event-handlers/on-goal-completed.test.ts [test]
+           4 commits    219 churn  0.09 density   0 fan-in  ─ stable
+
+    2.5 ▲  src/contexts/property/application/use-cases/soft-delete-property.test.ts [test]
+           3 commits    118 churn  0.17 density   0 fan-in  ▲ accelerating
+
+    2.5 ▼  src/contexts/dashboard/application/use-cases/get-fleet-overview.test.ts [test]
+           3 commits    154 churn  0.12 density   0 fan-in  ▼ cooling
+
+    2.5 ▼  src/shared/auth/permissions.ts
+          12 commits    265 churn  0.04 density   9 fan-in  ▼ cooling
+
+    2.5 ▲  src/contexts/staff/domain/errors.ts
+           3 commits     32 churn  0.16 density  17 fan-in  ▲ accelerating
+
+    2.5 ▲  src/contexts/guest/domain/constructors.test.ts [test]
+           4 commits     79 churn  0.12 density   0 fan-in  ▲ accelerating
+
+    2.5 ▼  src/contexts/integration/domain/gbp-api-error.test.ts [test]
+           3 commits    116 churn  0.14 density   0 fan-in  ▼ cooling
+
+    2.5 ▼  src/contexts/inbox/infrastructure/mappers/inbox.mapper.test.ts [test]
+           5 commits    168 churn  0.08 density   0 fan-in  ▼ cooling
+
+    2.4 ─  src/components/features/property/goals/goal-detail-page.tsx
+           6 commits    435 churn  0.06 density   2 fan-in  ─ stable
+
+    2.4 ▲  src/components/features/team/team-members/member-table.tsx
+           3 commits    113 churn  0.16 density   1 fan-in  ▲ accelerating
+
+    2.4 ─  src/contexts/portal/infrastructure/jobs/process-image.job.ts
+           7 commits    192 churn  0.06 density   1 fan-in  ─ stable
+
+    2.4 ▼  src/components/features/organization/organization-settings-page.tsx
+           7 commits    162 churn  0.06 density   1 fan-in  ▼ cooling
+
+    2.4 ▼  src/routes/login.tsx
+           6 commits    262 churn  0.08 density   0 fan-in  ▼ cooling
+
+    2.4 ▼  src/contexts/team/application/use-cases/list-teams.test.ts [test]
+           5 commits    247 churn  0.09 density   0 fan-in  ▼ cooling
+
+    2.4 ─  src/contexts/activity/infrastructure/event-handlers/event-handlers.test.ts [test]
+           4 commits    232 churn  0.08 density   0 fan-in  ─ stable
+
+    2.4 ▲  src/contexts/review/application/use-cases/get-staff-recent-activity.ts
+           3 commits     80 churn  0.11 density   1 fan-in  ▲ accelerating
+
+    2.4 ▼  src/contexts/identity/server/organizations.test.ts [test]
+           3 commits    367 churn  0.18 density   0 fan-in  ▼ cooling
+
+    2.4 ─  src/contexts/integration/infrastructure/repositories/gbp-cache.repository.test.ts [test]
+           7 commits    458 churn  0.06 density   0 fan-in  ─ stable
+
+    2.4 ▲  src/contexts/leaderboard/infrastructure/event-handlers/index.ts
+           3 commits     73 churn  0.11 density   1 fan-in  ▲ accelerating
+
+    2.4 ▲  src/contexts/goal/domain/errors.ts
+           4 commits     70 churn  0.10 density   6 fan-in  ▲ accelerating
+
+    2.4 ▼  src/contexts/integration/application/use-cases/connect-google-account.test.ts [test]
+           4 commits    158 churn  0.10 density   0 fan-in  ▼ cooling
+
+    2.4 ─  src/contexts/team/infrastructure/mappers/team.mapper.ts
+           4 commits     53 churn  0.12 density   2 fan-in  ─ stable
+
+    2.3 ─  src/shared/auth/auth.functions.ts
+           4 commits    146 churn  0.12 density   5 fan-in  ─ stable
+
+    2.3 ▼  src/components/inbox/inbox-detail-panel.stories.tsx
+           3 commits    123 churn  0.10 density   0 fan-in  ▼ cooling
+
+    2.3 ▼  src/components/inbox/inbox-detail-sheet.stories.tsx
+           3 commits    136 churn  0.10 density   0 fan-in  ▼ cooling
+
+    2.3 ▼  src/components/features/staff/team-selector.tsx
+           4 commits    116 churn  0.10 density   2 fan-in  ▼ cooling
+
+    2.3 ▼  src/router.tsx
+           7 commits    167 churn  0.06 density   0 fan-in  ▼ cooling
+
+    2.3 ▲  src/contexts/portal/application/use-cases/delete-link-category.ts
+           5 commits     63 churn  0.07 density   2 fan-in  ▲ accelerating
+
+    2.3 ▲  src/contexts/property/infrastructure/repositories/property.repository.test.ts [test]
+           5 commits    224 churn  0.09 density   0 fan-in  ▲ accelerating
+
+    2.3 ▼  src/contexts/activity/infrastructure/event-handlers/on-inbox-status-changed.ts
+           3 commits     44 churn  0.12 density   1 fan-in  ▼ cooling
+
+    2.3 ▼  src/shared/auth/headers.ts
+           3 commits     43 churn  0.15 density  49 fan-in  ▼ cooling
+
+    2.3 ▼  src/contexts/integration/infrastructure/adapters/property-event.adapter.ts
+           4 commits     58 churn  0.09 density   1 fan-in  ▼ cooling
+
+    2.3 ─  src/contexts/dashboard/application/use-cases/get-dashboard-data.test.ts [test]
+           4 commits     80 churn  0.09 density   0 fan-in  ─ stable
+
+    2.3 ▼  src/contexts/notification/infrastructure/event-handlers/on-inbox-item-created.test.ts [test]
+           5 commits    340 churn  0.07 density   0 fan-in  ▼ cooling
+
+    2.3 ▲  src/routes/_authenticated/properties/$propertyId/goals.tsx
+           3 commits    122 churn  0.14 density   0 fan-in  ▲ accelerating
+
+    2.2 ▼  src/components/features/property/property-list-page.tsx
+           6 commits    143 churn  0.06 density   2 fan-in  ▼ cooling
+
+    2.2 ▼  src/components/features/identity/member-directory/role-selector.tsx
+           5 commits    154 churn  0.08 density   1 fan-in  ▼ cooling
+
+    2.2 ▲  src/shared/auth/authorization-policy.ts
+           3 commits    194 churn  0.09 density  36 fan-in  ▲ accelerating
+
+    2.2 ▼  src/components/inbox/reply-editor-actions.tsx
+           4 commits    145 churn  0.09 density   2 fan-in  ▼ cooling
+
+    2.2 ▼  src/components/ui/breadcrumb.tsx
+           5 commits    451 churn  0.08 density   2 fan-in  ▼ cooling
+
+    2.2 ▼  src/components/hooks/use-action.ts
+           5 commits    420 churn  0.08 density  71 fan-in  ▼ cooling
+
+    2.2 ▼  src/contexts/dashboard/application/use-cases/get-dashboard-data.ts
+           5 commits    166 churn  0.07 density   2 fan-in  ▼ cooling
+
+    2.2 ▲  src/contexts/notification/domain/constructors-transitions.ts
+           3 commits    249 churn  0.11 density   2 fan-in  ▲ accelerating
+
+    2.2 ▲  src/contexts/dashboard/application/use-cases/get-portal-analytics.test.ts [test]
+           3 commits    258 churn  0.11 density   0 fan-in  ▲ accelerating
+
+    2.2 ▼  src/contexts/team/domain/constructors.ts
+           4 commits     40 churn  0.11 density   2 fan-in  ▼ cooling
+
+    2.2 ─  src/contexts/guest/domain/events.ts
+          12 commits    312 churn  0.03 density   7 fan-in  ─ stable
+
+    2.2 ▲  src/contexts/portal/infrastructure/mappers/portal-group.mapper.ts
+           6 commits     49 churn  0.06 density   1 fan-in  ▲ accelerating
+
+    2.2 ▲  src/contexts/integration/domain/rules.ts
+           3 commits     20 churn  0.15 density   2 fan-in  ▲ accelerating
+
+    2.1 ─  src/components/features/portal/link-tree/link-tree.tsx
+           6 commits    955 churn  0.07 density   3 fan-in  ─ stable
+
+    2.1 ▼  src/components/features/team/team-form/team-lead-select.tsx
+           3 commits     63 churn  0.12 density   3 fan-in  ▼ cooling
+
+    2.1 ▼  src/components/inbox/inbox-list-header.tsx
+           3 commits    130 churn  0.10 density   1 fan-in  ▼ cooling
+
+    2.1 ─  src/components/features/property/goals/go-create-form-state.ts
+           4 commits    136 churn  0.09 density   6 fan-in  ─ stable
+
+    2.1 ─  src/contexts/notification/domain/constructors.ts
+           4 commits    134 churn  0.08 density   4 fan-in  ─ stable
+
+    2.1 ─  src/contexts/review/infrastructure/jobs/publish-reply.job.ts
+           4 commits    250 churn  0.08 density   2 fan-in  ─ stable
+
+    2.1 ▼  src/components/ui/collapsible.tsx
+           4 commits     83 churn  0.10 density   0 fan-in  ▼ cooling
+
+    2.1 ─  src/components/features/property/people/people-page.tsx
+           8 commits    291 churn  0.04 density   3 fan-in  ─ stable
+
+    2.1 ▼  src/routes/_authenticated/properties/$propertyId/metrics.tsx
+           5 commits    126 churn  0.07 density   0 fan-in  ▼ cooling
+
+    2.1 ─  src/contexts/integration/server/google-auth-url.ts
+           6 commits    169 churn  0.05 density   1 fan-in  ─ stable
+
+    2.1 ▼  src/contexts/dashboard/application/use-cases/get-fleet-overview.ts
+           3 commits    229 churn  0.10 density   2 fan-in  ▼ cooling
+
+    2.1 ▼  src/contexts/notification/infrastructure/event-handlers/on-reply-approved.ts
+           3 commits     44 churn  0.10 density   2 fan-in  ▼ cooling
+
+    2.1 ▼  src/contexts/notification/infrastructure/event-handlers/on-reply-publish-failed.ts
+           3 commits     44 churn  0.10 density   2 fan-in  ▼ cooling
+
+    2.1 ▼  src/contexts/notification/infrastructure/event-handlers/on-reply-published.ts
+           3 commits     44 churn  0.10 density   2 fan-in  ▼ cooling
+
+    2.1 ▲  src/contexts/guest/domain/constructors.ts
+           6 commits    155 churn  0.06 density   4 fan-in  ▲ accelerating
+
+    2.1 ─  src/contexts/integration/application/use-cases/handle-gbp-notification.test.ts [test]
+           4 commits    172 churn  0.09 density   0 fan-in  ─ stable
+
+    2.1 ▼  src/shared/events/event-bus.ts
+           4 commits     75 churn  0.11 density  96 fan-in  ▼ cooling
+
+    2.1 ▲  src/contexts/team/domain/events.ts
+           9 commits    185 churn  0.04 density   5 fan-in  ▲ accelerating
+
+    2.1 ▼  src/components/ui/card.tsx
+           5 commits    140 churn  0.08 density  21 fan-in  ▼ cooling
+
+    2.1 ▼  src/components/ui/tooltip.tsx
+           6 commits    289 churn  0.07 density   3 fan-in  ▼ cooling
+
+    2.0 ▼  src/components/layout/header.tsx
+           6 commits    130 churn  0.06 density   1 fan-in  ▼ cooling
+
+    2.0 ─  src/contexts/review/server/staff-recent-activity.ts
+           7 commits    132 churn  0.04 density   1 fan-in  ─ stable
+
+    2.0 ─  src/contexts/badge/infrastructure/mappers/badge.mapper.ts
+           4 commits    194 churn  0.07 density   2 fan-in  ─ stable
+
+    2.0 ▲  src/contexts/team/build.ts
+           6 commits     81 churn  0.05 density   1 fan-in  ▲ accelerating
+
+    2.0 ▲  src/contexts/portal/application/assert-property-access.ts
+           3 commits     78 churn  0.09 density  22 fan-in  ▲ accelerating
+
+    2.0 ▼  src/contexts/dashboard/infrastructure/adapters/portal-metrics.adapter.ts
+           3 commits    338 churn  0.11 density   1 fan-in  ▼ cooling
+
+    2.0 ─  src/contexts/portal/application/use-cases/list-portal-links.ts
+           6 commits     67 churn  0.05 density   2 fan-in  ─ stable
+
+    2.0 ▼  src/contexts/review/infrastructure/repositories/reply.repository.test.ts [test]
+           4 commits    398 churn  0.08 density   0 fan-in  ▼ cooling
+
+    2.0 ▲  src/shared/domain/property-access.ts
+           3 commits    112 churn  0.09 density  28 fan-in  ▲ accelerating
+
+    2.0 ▲  src/contexts/staff/domain/events.ts
+          11 commits    140 churn  0.03 density   5 fan-in  ▲ accelerating
+
+    2.0 ▼  src/contexts/notification/infrastructure/event-handlers/on-inbox-note-added.test.ts [test]
+           4 commits    298 churn  0.08 density   0 fan-in  ▼ cooling
+
+    1.9 ▼  src/components/features/property/attention-band.tsx
+           3 commits    144 churn  0.09 density   1 fan-in  ▼ cooling
+
+    1.9 ▼  src/components/forms/image-upload-field.tsx
+           3 commits    129 churn  0.11 density   4 fan-in  ▼ cooling
+
+    1.9 ▼  src/components/ui/sheet.tsx
+           3 commits    348 churn  0.11 density   5 fan-in  ▼ cooling
+
+    1.9 ▼  src/contexts/property/server/property-read.ts
+           3 commits     99 churn  0.10 density   1 fan-in  ▼ cooling
+
+    1.9 ─  src/shared/db/index.ts
+           4 commits     56 churn  0.11 density  75 fan-in  ─ stable
+
+    1.9 ▲  src/contexts/identity/build.ts
+          14 commits    173 churn  0.02 density   1 fan-in  ▲ accelerating
+
+    1.9 ▼  src/contexts/goal/infrastructure/event-handlers/on-portal-group-deleted.ts
+           3 commits     89 churn  0.09 density   2 fan-in  ▼ cooling
+
+    1.9 ▼  src/contexts/integration/infrastructure/repositories/google-connection.repository.test.ts [test]
+           3 commits    253 churn  0.10 density   0 fan-in  ▼ cooling
+
+    1.9 ▼  src/contexts/notification/application/use-cases/insert-notification.test.ts [test]
+           4 commits    463 churn  0.07 density   0 fan-in  ▼ cooling
+
+    1.9 ▲  src/contexts/review/infrastructure/mappers/review.mapper.test.ts [test]
+           3 commits    170 churn  0.09 density   0 fan-in  ▲ accelerating
+
+    1.9 ▲  src/components/inbox/inbox-bulk-actions.stories.tsx
+           3 commits    164 churn  0.08 density   0 fan-in  ▲ accelerating
+
+    1.9 ▼  src/contexts/guest/infrastructure/mappers/guest.mapper.test.ts [test]
+           4 commits    326 churn  0.09 density   0 fan-in  ▼ cooling
+
+    1.9 ▼  src/contexts/notification/infrastructure/event-handlers/on-reply-approved.test.ts [test]
+           3 commits    161 churn  0.09 density   0 fan-in  ▼ cooling
+
+    1.9 ▼  src/contexts/notification/infrastructure/event-handlers/on-reply-publish-failed.test.ts [test]
+           3 commits    157 churn  0.09 density   0 fan-in  ▼ cooling
+
+    1.9 ▼  src/contexts/notification/infrastructure/event-handlers/on-reply-published.test.ts [test]
+           3 commits    161 churn  0.09 density   0 fan-in  ▼ cooling
+
+    1.9 ▼  src/contexts/notification/infrastructure/event-handlers/on-reply-rejected.test.ts [test]
+           3 commits    185 churn  0.09 density   0 fan-in  ▼ cooling
+
+    1.9 ─  src/contexts/portal/infrastructure/mappers/portal.mapper.test.ts [test]
+           4 commits     84 churn  0.09 density   0 fan-in  ─ stable
+
+    1.8 ▼  src/components/features/guest/public-portal/public-portal-content.tsx
+           4 commits    126 churn  0.08 density   2 fan-in  ▼ cooling
+
+    1.8 ─  src/contexts/dashboard/server/fleet-overview.ts
+           5 commits    126 churn  0.05 density   1 fan-in  ─ stable
+
+    1.8 ▼  src/components/features/property/property-detail/property-detail-fields.tsx
+           5 commits    188 churn  0.07 density   1 fan-in  ▼ cooling
+
+    1.8 ▲  src/components/features/dashboard/fleet-overview.tsx
+           3 commits    176 churn  0.08 density   2 fan-in  ▲ accelerating
+
+    1.8 ─  src/components/features/portal/portal-form/portal-name-slug-group.tsx
+           4 commits    184 churn  0.09 density   1 fan-in  ─ stable
+
+    1.8 ▼  src/contexts/review/infrastructure/repositories/review.repository.test.ts [test]
+           3 commits    506 churn  0.09 density   0 fan-in  ▼ cooling
+
+    1.8 ▼  src/contexts/integration/server/gbp-import.test.ts [test]
+           3 commits    153 churn  0.11 density   0 fan-in  ▼ cooling
+
+    1.8 ─  src/shared/db/schema/review.schema.ts
+           7 commits    143 churn  0.04 density  11 fan-in  ─ stable
+
+    1.8 ─  src/contexts/metric/domain/events.test.ts [test]
+           6 commits     66 churn  0.05 density   0 fan-in  ─ stable
+
+    1.7 ▼  src/components/features/integration/import-connected-view/import-locations-section.tsx
+           4 commits    199 churn  0.08 density   2 fan-in  ▼ cooling
+
+    1.7 ▼  src/components/features/property/goals/instance-history-table.tsx
+           3 commits     75 churn  0.09 density   1 fan-in  ▼ cooling
+
+    1.7 ▲  src/components/features/identity/registration/invitation-list-view.tsx
+           3 commits    126 churn  0.11 density   1 fan-in  ▲ accelerating
+
+    1.7 ▼  src/components/features/portal/portal-form/edit-portal-form.tsx
+           5 commits    807 churn  0.07 density   3 fan-in  ▼ cooling
+
+    1.7 ▼  src/components/ui/dialog.tsx
+           4 commits    203 churn  0.08 density   9 fan-in  ▼ cooling
+
+    1.7 ▲  src/contexts/badge/application/use-cases/set-organization-badge-enablement.ts
+           3 commits     40 churn  0.08 density   2 fan-in  ▲ accelerating
+
+    1.7 ▼  src/contexts/identity/application/use-cases/register-user.ts
+           4 commits     45 churn  0.09 density   2 fan-in  ▼ cooling
+
+    1.7 ─  src/contexts/goal/domain/types.ts
+           7 commits    129 churn  0.04 density  30 fan-in  ─ stable
+
+    1.7 ▲  src/contexts/identity/application/use-cases/resend-invitation.test.ts [test]
+           3 commits    126 churn  0.09 density   0 fan-in  ▲ accelerating
+
+    1.7 ▲  src/contexts/staff/infrastructure/mappers/staff-assignment.mapper.test.ts [test]
+           4 commits    193 churn  0.08 density   0 fan-in  ▲ accelerating
+
+    1.7 ▼  src/contexts/staff/domain/constructors.test.ts [test]
+           3 commits     93 churn  0.10 density   0 fan-in  ▼ cooling
+
+    1.7 ▼  src/contexts/notification/infrastructure/event-handlers/on-reply-submitted.test.ts [test]
+           3 commits    301 churn  0.08 density   0 fan-in  ▼ cooling
+
+    1.7 ▼  src/contexts/notification/infrastructure/jobs/test-fixtures.ts
+           3 commits    166 churn  0.08 density   1 fan-in  ▼ cooling
+
+    1.6 ▼  src/components/inbox/inbox-status-actions.tsx
+           3 commits    340 churn  0.08 density   1 fan-in  ▼ cooling
+
+    1.6 ─  src/components/features/identity/registration/register-form-fields.tsx
+           4 commits    230 churn  0.08 density   1 fan-in  ─ stable
+
+    1.6 ▼  src/contexts/guest/application/use-cases/resolve-link-and-track.ts
+           4 commits     49 churn  0.07 density   2 fan-in  ▼ cooling
+
+    1.6 ▲  src/contexts/integration/infrastructure/mappers/gbp-cache.mapper.test.ts [test]
+           3 commits     99 churn  0.10 density   0 fan-in  ▲ accelerating
+
+    1.6 ▲  src/contexts/identity/application/use-cases/update-organization.test.ts [test]
+           3 commits    333 churn  0.09 density   0 fan-in  ▲ accelerating
+
+    1.6 ▼  src/shared/jobs/queue.ts
+           8 commits     60 churn  0.04 density   3 fan-in  ▼ cooling
+
+    1.5 ▼  src/components/ui/sidebar.tsx
+           3 commits   1772 churn  0.09 density  18 fan-in  ▼ cooling
+
+    1.5 ▼  src/components/ui/select.tsx
+           4 commits    250 churn  0.07 density  14 fan-in  ▼ cooling
+
+    1.5 ▼  src/contexts/dashboard/infrastructure/repositories/dashboard.repository.test.ts [test]
+           4 commits    737 churn  0.07 density   0 fan-in  ▼ cooling
+
+    1.5 ▼  src/contexts/inbox/application/use-cases/escalate-inbox-item.ts
+           3 commits     89 churn  0.06 density   3 fan-in  ▼ cooling
+
+    1.5 ▼  src/contexts/inbox/application/use-cases/resolve-escalation.ts
+           3 commits     88 churn  0.06 density   3 fan-in  ▼ cooling
+
+    1.5 ▼  src/contexts/review/domain/constructors.test.ts [test]
+           3 commits    356 churn  0.08 density   0 fan-in  ▼ cooling
+
+    1.5 ▲  src/contexts/identity/application/use-cases/cancel-invitation.ts
+           4 commits     72 churn  0.05 density   2 fan-in  ▲ accelerating
+
+    1.5 ▲  src/contexts/integration/application/ports/property-import-repo.port.ts
+           3 commits     61 churn  0.07 density   4 fan-in  ▲ accelerating
+
+    1.5 ─  src/contexts/staff/infrastructure/repositories/staff-assignment.repository.test.ts [test]
+           4 commits    313 churn  0.07 density   0 fan-in  ─ stable
+
+    1.5 ▼  src/contexts/dashboard/application/use-cases/get-staff-dashboard-data.test.ts [test]
+           3 commits    217 churn  0.07 density   0 fan-in  ▼ cooling
+
+    1.5 ▼  src/components/ui/alert-dialog.tsx
+           4 commits    267 churn  0.07 density  11 fan-in  ▼ cooling
+
+    1.5 ▼  src/contexts/activity/infrastructure/jobs/insert-activity-log.job.ts
+           3 commits     43 churn  0.08 density   1 fan-in  ▼ cooling
+
+    1.5 ▼  src/components/ui/table.tsx
+           4 commits    173 churn  0.07 density  11 fan-in  ▼ cooling
+
+    1.4 ▲  src/components/layout/settings-sidebar.tsx
+           3 commits    139 churn  0.08 density   2 fan-in  ▲ accelerating
+
+    1.4 ▼  src/components/inbox/inbox-real-logic.stories.tsx
+           3 commits    158 churn  0.06 density   0 fan-in  ▼ cooling
+
+    1.4 ▼  src/components/features/identity/member-directory/invitation-table.tsx
+           4 commits    156 churn  0.06 density   1 fan-in  ▼ cooling
+
+    1.4 ▼  src/routes/api/portals/$id/qr.ts
+           3 commits    117 churn  0.10 density   0 fan-in  ▼ cooling
+
+    1.4 ▼  src/components/features/team/team-members/member-table-row.tsx
+           4 commits    111 churn  0.06 density   1 fan-in  ▼ cooling
+
+    1.4 ─  src/components/features/organization/org-identity-card.tsx
+           4 commits    168 churn  0.07 density   2 fan-in  ─ stable
+
+    1.4 ▼  src/components/features/integration/import-progress/import-status-badge.tsx
+           7 commits    124 churn  0.04 density   3 fan-in  ▼ cooling
+
+    1.4 ▲  src/contexts/portal/infrastructure/repositories/link-resolver.repository.ts
+           3 commits     52 churn  0.09 density   1 fan-in  ▲ accelerating
+
+    1.4 ─  src/components/features/organization/org-billing-card.tsx
+           4 commits    202 churn  0.07 density   2 fan-in  ─ stable
+
+    1.4 ▼  src/contexts/integration/application/use-cases/start-property-import.test.ts [test]
+           3 commits    211 churn  0.08 density   0 fan-in  ▼ cooling
+
+    1.3 ▼  src/components/features/identity/registration/register-form.tsx
+           3 commits    310 churn  0.09 density   2 fan-in  ▼ cooling
+
+    1.3 ─  src/components/features/portal/portal-delete-button.tsx
+           4 commits     99 churn  0.05 density   1 fan-in  ─ stable
+
+    1.3 ▼  src/components/inbox/reply-editor-views.tsx
+           3 commits     51 churn  0.07 density   1 fan-in  ▼ cooling
+
+    1.3 ─  src/contexts/badge/build.ts
+           6 commits    130 churn  0.03 density   1 fan-in  ─ stable
+
+    1.3 ▲  src/contexts/notification/infrastructure/repositories/notification-preference.repository.ts
+           3 commits    110 churn  0.07 density   1 fan-in  ▲ accelerating
+
+    1.3 ▼  src/contexts/integration/application/ports/google-connection.repository.ts
+           6 commits    180 churn  0.04 density  10 fan-in  ▼ cooling
+
+    1.3 ▼  src/shared/rate-limit/middleware.ts
+           6 commits    124 churn  0.04 density   2 fan-in  ▼ cooling
+
+    1.3 ▼  src/contexts/portal/infrastructure/repositories/portal.repository.test.ts [test]
+           4 commits    236 churn  0.07 density   0 fan-in  ▼ cooling
+
+    1.3 ▼  src/contexts/metric/domain/events.ts
+          10 commits    114 churn  0.02 density   4 fan-in  ▼ cooling
+
+    1.3 ▼  src/contexts/metric/infrastructure/jobs/refresh-materialized-view.job.ts
+           4 commits    101 churn  0.05 density   2 fan-in  ▼ cooling
+
+    1.3 ▲  src/shared/db/schema/portal-group.schema.ts
+           3 commits     39 churn  0.07 density   8 fan-in  ▲ accelerating
+
+    1.3 ▼  src/components/ui/dropdown-menu.tsx
+           4 commits    958 churn  0.06 density   6 fan-in  ▼ cooling
+
+    1.3 ─  src/shared/db/schema/property.schema.ts
+           7 commits     77 churn  0.03 density  19 fan-in  ─ stable
+
+    1.3 ─  src/shared/db/schema/inbox.schema.ts
+           5 commits    131 churn  0.04 density  11 fan-in  ─ stable
+
+    1.2 ▼  src/contexts/identity/server/auth-settings.org.ts
+           3 commits     66 churn  0.06 density   1 fan-in  ▼ cooling
+
+    1.2 ▼  src/contexts/activity/build.ts
+           6 commits    149 churn  0.03 density   1 fan-in  ▼ cooling
+
+    1.2 ─  src/components/features/identity/security-settings-form.tsx
+           4 commits    199 churn  0.05 density   2 fan-in  ─ stable
+
+    1.2 ─  src/components/features/portal/portal-form/basic-info-section.tsx
+           4 commits    148 churn  0.06 density   1 fan-in  ─ stable
+
+    1.2 ▼  src/components/inbox/reply-editor.stories.tsx
+           3 commits    143 churn  0.05 density   0 fan-in  ▼ cooling
+
+    1.2 ▼  src/routes/_authenticated/settings/security.tsx
+           5 commits     58 churn  0.04 density   0 fan-in  ▼ cooling
+
+    1.2 ▼  src/contexts/staff/domain/rules.ts
+           3 commits     56 churn  0.07 density   2 fan-in  ▼ cooling
+
+    1.2 ▼  src/contexts/integration/infrastructure/mappers/google-connection.mapper.ts
+           5 commits    103 churn  0.04 density   2 fan-in  ▼ cooling
+
+    1.2 ▼  src/components/ui/tabs.tsx
+           6 commits    135 churn  0.04 density   8 fan-in  ▼ cooling
+
+    1.2 ─  src/shared/db/schema/gbp-cache.schema.ts
+           5 commits    112 churn  0.05 density   4 fan-in  ─ stable
+
+    1.1 ▼  src/components/features/portal/link-tree/sortable-link.tsx
+           4 commits    133 churn  0.05 density   1 fan-in  ▼ cooling
+
+    1.1 ▼  src/components/inbox/inbox-status-badge.tsx
+           3 commits     87 churn  0.06 density   4 fan-in  ▼ cooling
+
+    1.1 ▼  src/components/features/identity/member-directory/role-select.tsx
+           3 commits     70 churn  0.06 density   1 fan-in  ▼ cooling
+
+    1.1 ▼  src/components/forms/image-upload-field/empty-state.tsx
+           3 commits     53 churn  0.06 density   1 fan-in  ▼ cooling
+
+    1.1 ▼  src/contexts/activity/domain/constructors.ts
+           6 commits    150 churn  0.03 density   2 fan-in  ▼ cooling
+
+    1.1 ▼  src/components/features/identity/profile-settings-form.tsx
+           7 commits    324 churn  0.03 density   2 fan-in  ▼ cooling
+
+    1.1 ▼  src/contexts/integration/application/use-cases/handle-gbp-notification.ts
+           3 commits     77 churn  0.06 density   3 fan-in  ▼ cooling
+
+    1.1 ▼  src/contexts/portal/infrastructure/mappers/portal-link.mapper.ts
+           3 commits     86 churn  0.06 density   2 fan-in  ▼ cooling
+
+    1.1 ▼  src/contexts/review/infrastructure/mappers/reply.mapper.test.ts [test]
+           3 commits     99 churn  0.07 density   0 fan-in  ▼ cooling
+
+    1.1 ▼  src/routes/_authenticated/settings/preferences.tsx
+           4 commits     46 churn  0.05 density   0 fan-in  ▼ cooling
+
+    1.1 ▼  src/test-setup.ts
+           3 commits     14 churn  0.08 density   0 fan-in  ▼ cooling
+
+    1.1 ▼  src/shared/domain/metric-keys.ts
+           6 commits    228 churn  0.03 density  28 fan-in  ▼ cooling
+
+    1.0 ▼  src/contexts/inbox/build-use-cases.ts
+           5 commits    137 churn  0.03 density   2 fan-in  ▼ cooling
+
+    1.0 ▼  src/contexts/goal/infrastructure/event-handlers/index.ts
+           8 commits    108 churn  0.02 density   3 fan-in  ▼ cooling
+
+    1.0 ▲  src/shared/domain/auth-context.ts
+           3 commits     58 churn  0.05 density  132 fan-in  ▲ accelerating
+
+    1.0 ▲  src/contexts/leaderboard/infrastructure/mappers/leaderboard.mapper.ts
+           3 commits    145 churn  0.05 density   1 fan-in  ▲ accelerating
+
+    1.0 ▲  src/contexts/inbox/infrastructure/mappers/inbox-note.mapper.ts
+           3 commits     50 churn  0.06 density   2 fan-in  ▲ accelerating
+
+    1.0 ▼  src/contexts/integration/infrastructure/mappers/gbp-import.mapper.ts
+           4 commits     83 churn  0.05 density   2 fan-in  ▼ cooling
+
+    1.0 ▼  src/routes/_authenticated/settings.tsx
+           3 commits     22 churn  0.06 density   0 fan-in  ▼ cooling
+
+    0.9 ▼  src/components/ui/button.tsx
+           6 commits    122 churn  0.03 density  76 fan-in  ▼ cooling
+
+    0.9 ─  src/contexts/inbox/build.ts
+          13 commits    406 churn  0.01 density   2 fan-in  ─ stable
+
+    0.9 ▼  src/contexts/goal/build.ts
+          14 commits    352 churn  0.01 density   1 fan-in  ▼ cooling
+
+    0.9 ▼  src/contexts/property/application/public-api.ts
+           5 commits    136 churn  0.03 density  13 fan-in  ▼ cooling
+
+    0.9 ▼  src/routes/_authenticated/settings/profile.tsx
+           8 commits     87 churn  0.02 density   0 fan-in  ▼ cooling
+
+    0.9 ▲  src/components/features/property/goals/goal-detail-page.stories.tsx
+           3 commits    216 churn  0.04 density   0 fan-in  ▲ accelerating
+
+    0.9 ▼  src/routes/index.tsx
+           5 commits    210 churn  0.04 density   0 fan-in  ▼ cooling
+
+    0.9 ▲  src/shared/db/schema/team.schema.ts
+           3 commits     43 churn  0.06 density   5 fan-in  ▲ accelerating
+
+    0.9 ▼  src/components/ui/separator.tsx
+           4 commits     44 churn  0.04 density   4 fan-in  ▼ cooling
+
+    0.9 ▼  src/components/features/identity/profile-settings-page.tsx
+           6 commits     55 churn  0.03 density   1 fan-in  ▼ cooling
+
+    0.9 ▼  src/components/features/portal/portal-form/theme-field-group.tsx
+           3 commits     38 churn  0.05 density   1 fan-in  ▼ cooling
+
+    0.8 ▼  src/components/ui/command.tsx
+           3 commits    176 churn  0.05 density   0 fan-in  ▼ cooling
+
+    0.8 ▼  src/components/layout/inbox-sidebar-items.tsx
+           3 commits    124 churn  0.04 density   1 fan-in  ▼ cooling
+
+    0.8 ▲  src/components/features/portal/portal-settings/smart-routing-config.tsx
+           3 commits    101 churn  0.04 density   1 fan-in  ▲ accelerating
+
+    0.8 ▼  src/components/ui/badge.tsx
+           4 commits     85 churn  0.04 density  31 fan-in  ▼ cooling
+
+    0.8 ▼  src/routes/api/health/index.ts
+           3 commits     47 churn  0.05 density   0 fan-in  ▼ cooling
+
+    0.8 ▼  src/contexts/identity/infrastructure/adapters/better-auth-schemas.ts
+           5 commits    128 churn  0.03 density   3 fan-in  ▼ cooling
+
+    0.8 ▼  src/contexts/goal/application/dto/goal.dto.ts
+           5 commits    158 churn  0.03 density   8 fan-in  ▼ cooling
+
+    0.8 ▼  src/routes/_authenticated/team.tsx
+           3 commits     30 churn  0.05 density   0 fan-in  ▼ cooling
+
+    0.7 ─  src/shared/db/schema/auth.ts
+           6 commits    165 churn  0.02 density   7 fan-in  ─ stable
+
+    0.7 ▲  src/contexts/identity/application/use-cases/accept-invitation.ts
+           3 commits     70 churn  0.03 density   2 fan-in  ▲ accelerating
+
+    0.7 ▼  src/routes/_authenticated/properties/$propertyId/teams/$teamId/members.tsx
+           6 commits    144 churn  0.02 density   0 fan-in  ▼ cooling
+
+    0.7 ▼  src/components/features/property/delete-property-dialog.tsx
+           4 commits     98 churn  0.03 density   1 fan-in  ▼ cooling
+
+    0.7 ▲  src/contexts/dashboard/domain/types.ts
+          11 commits    241 churn  0.01 density  12 fan-in  ▲ accelerating
+
+    0.6 ─  src/contexts/notification/infrastructure/event-handlers/index.ts
+           4 commits     87 churn  0.02 density   1 fan-in  ─ stable
+
+    0.6 ─  src/contexts/badge/domain/events.ts
+           4 commits     54 churn  0.02 density   3 fan-in  ─ stable
+
+    0.6 ▼  src/shared/db/schema/gbp-import-job.schema.ts
+           4 commits     87 churn  0.03 density   5 fan-in  ▼ cooling
+
+    0.6 ▼  src/shared/db/schema/google-connection.schema.ts
+           5 commits    146 churn  0.02 density   7 fan-in  ▼ cooling
+
+    0.5 ▼  src/contexts/inbox/infrastructure/event-handlers/index.ts
+           8 commits     91 churn  0.01 density   1 fan-in  ▼ cooling
+
+    0.5 ─  src/contexts/leaderboard/build.ts
+           7 commits    123 churn  0.01 density   1 fan-in  ─ stable
+
+    0.5 ▼  src/shared/auth/auth-cli.ts
+           5 commits     81 churn  0.02 density   0 fan-in  ▼ cooling
+
+    0.5 ▼  src/components/inbox/inbox-list-panel-v2.tsx
+           4 commits    299 churn  0.02 density   1 fan-in  ▼ cooling
+
+    0.5 ▲  src/components/features/portal/link-tree/link-tree.stories.tsx
+           6 commits    241 churn  0.01 density   0 fan-in  ▲ accelerating
+
+    0.4 ▼  src/contexts/dashboard/build.ts
+           7 commits    119 churn  0.01 density   1 fan-in  ▼ cooling
+
+    0.4 ▼  src/contexts/metric/infrastructure/event-handlers/index.ts
+           3 commits     67 churn  0.02 density   1 fan-in  ▼ cooling
+
+    0.4 ▼  src/components/features/property/goals/progress-bar.tsx
+           3 commits     53 churn  0.02 density   4 fan-in  ▼ cooling
+
+    0.4 ▲  src/contexts/notification/infrastructure/repositories/notification-row.mapper.ts
+           3 commits    105 churn  0.02 density   1 fan-in  ▲ accelerating
+
+    0.4 ▼  src/components/features/portal/link-tree/use-link-tree-mutations.ts
+           3 commits    128 churn  0.02 density   1 fan-in  ▼ cooling
+
+    0.4 ▼  src/components/features/portal/link-tree/delete-category-dialog.tsx
+           3 commits    103 churn  0.02 density   1 fan-in  ▼ cooling
+
+    0.4 ▲  src/shared/db/schema/activity.schema.ts
+           3 commits     49 churn  0.02 density   3 fan-in  ▲ accelerating
+
+    0.3 ▼  src/contexts/activity/infrastructure/event-handlers/index.ts
+           4 commits    303 churn  0.01 density   1 fan-in  ▼ cooling
+
+    0.3 ▲  src/shared/db/base-where.ts
+           3 commits     66 churn  0.02 density   5 fan-in  ▲ accelerating
+
+    0.2 ▼  src/contexts/notification/domain/types.ts
+           3 commits    145 churn  0.01 density  23 fan-in  ▼ cooling
+
+  529 files excluded (< 3 commits)
+
+  Files with high churn and high complexity: https://docs.fallow.tools/explanations/health#hotspot-metrics
+
+● Refactoring targets (67)
+  7 low effort · 57 medium · 3 high
+    score = quick-win ROI (higher = better) · pri = absolute priority
+
+   32.1  pri:32.1    src/contexts/identity/server/organizations.roles.ts
+         dead code · effort:low · confidence:high  Remove 3 unused exports to reduce surface area (100% dead)
+
+   23.5  pri:23.5    src/components/ui/collapsible.tsx
+         dead code · effort:low · confidence:high  Remove 3 unused exports to reduce surface area (100% dead)
+
+   20.9  pri:20.9    src/shared/queries/bounded-properties.ts
+         dead code · effort:low · confidence:high  Remove 5 unused exports to reduce surface area (100% dead)
+
+   16.7  pri:16.7    src/shared/jobs/policies.ts
+         dead code · effort:low · confidence:high  Remove 2 unused exports to reduce surface area (67% dead)
+         importers: src/shared/jobs/runtime.ts (getPolicyJobOptions)
+
+   15.9  pri:31.7    src/contexts/portal/server/portal-groups.ts
+         dead code · effort:medium · confidence:high  Remove 6 unused exports to reduce surface area (86% dead)
+         importers: src/routes/_authenticated/properties/$propertyId/goals/new.tsx (listPortalGroups)
+         clones: src/contexts/portal/server/portal-groups.ts:193-204 dup:9200200c; src/contexts/portal/server/portal-groups.ts:219-230 dup:9200200c
+
+   14.2  pri:28.4    src/components/features/organization/create-organization-dialog.tsx
+         complexity · effort:medium · confidence:high  Extract CreateOrganizationDialog (cognitive: 33) in 141-LOC file into smaller functions
+         importers: src/components/features/organization/index.ts (side effect)
+
+   13.5  pri:26.9    src/shared/db/schema/people-access.schema.ts
+         dead code · effort:medium · confidence:high  Remove 10 unused exports to reduce surface area (100% dead)
+         importers: src/shared/db/schema/index.ts (side effect)
+         clones: src/shared/db/schema/people-access.schema.ts:51-58 dup:43578c58; src/shared/db/schema/people-access.schema.ts:82-89 dup:43578c58; src/shared/db/schema/people-access.schema.ts:113-119 dup:7aa405d8; src/shared/db/schema/people-access.schema.ts:124-137 dup:591b8f4c; src/shared/db/schema/people-access.schema.ts:143-149 dup:7aa405d8
+
+   12.7  pri:25.4    src/components/layout/setup-guide-states.tsx
+         dead code · effort:medium · confidence:high  Remove 7 unused exports to reduce surface area (100% dead)
+
+   12.7  pri:25.4    src/contexts/goal/infrastructure/jobs/spawn-recurring-instances.job.ts
+         dead code · effort:medium · confidence:high  Remove 2 unused exports to reduce surface area (50% dead)
+         importers: src/bootstrap.ts (SPAWN_RECURRING_JOB_NAME, createSpawnRecurringInstancesHandler); src/contexts/goal/infrastructure/jobs/spawn-recurring-instances.job.test.ts (SpawnRecurringInstancesDeps, SpawnSummary, createSpawnRecurringInstancesHandler); src/worker/index.ts (SPAWN_RECURRING_JOB_NAME)
+
+   12.1  pri:24.2    src/components/layout/confirmation-dialog.tsx
+         complexity · effort:medium · confidence:high  Extract ConfirmationDialog (cognitive: 47) in 134-LOC file into smaller functions
+
+  ... and 57 more targets (--format json for full list)
+
+  Prioritized refactoring recommendations based on complexity, churn, and coupling signals: https://docs.fallow.tools/explanations/health#refactoring-targets
+
+
+loaded config: /Users/bozhidardenev/kodes/projects/rep-key/.fallowrc.json
+   0.129993666s  WARN boundary zone 'shared-testing' matched 0 reachable files, check your directory structure, pattern, or whether these files are all currently unreachable
+
+✗ 120 above threshold · 11282 analyzed · maintainability 90.6 (good) (0.27s)

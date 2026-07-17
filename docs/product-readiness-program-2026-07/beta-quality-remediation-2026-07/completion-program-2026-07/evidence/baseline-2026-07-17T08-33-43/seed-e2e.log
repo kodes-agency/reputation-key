@@ -1,0 +1,12 @@
+$ pnpm seed:e2e-user
+started: 2026-07-17T08:34:51.711Z  durationMs: 965  exit: 0
+
+
+> reputation-key@ seed:e2e-user /Users/bozhidardenev/kodes/projects/rep-key
+> tsx scripts/seed-e2e-user.ts
+
+E2E user already exists — test@example.com
+E2E org already exists for user: CstWRctqgDYOXc5Q58aMtVqzrrz6Byb3
+E2E property already exists: e2e-seed-property (7afc6dea-1f3b-46b2-96d1-8cf013cf6fe9)
+E2E seed state written: /Users/bozhidardenev/kodes/projects/rep-key/e2e/.seed-state.json
+
