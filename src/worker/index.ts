@@ -34,6 +34,10 @@ async function main() {
   // Build the dependency container
   const container = createContainer({ enableJobs: true })
 
+  // BQC-2.2: strong read of persisted policy state before any job runs —
+  // worker decisions see DB truth from the start (allowlist/suspension).
+  await container.refreshPolicyStore()
+
   // Register all event handlers and job handlers BEFORE starting the BullMQ
   // worker — otherwise early jobs (badge/leaderboard reconciliation fire
   // immediately) arrive with no handler registered yet.
