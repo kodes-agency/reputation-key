@@ -28,7 +28,7 @@ export const createLink = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        assertBetaCapability(ctx, 'portal.read')
+        assertBetaCapability(ctx, 'portal.write')
         try {
           const { useCases } = getContainer()
           const link = await useCases.createLink(data, ctx)
@@ -51,7 +51,7 @@ export const updateLink = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        assertBetaCapability(ctx, 'portal.read')
+        assertBetaCapability(ctx, 'portal.write')
         try {
           const { useCases } = getContainer()
           const link = await useCases.updateLink(data, ctx)
@@ -74,7 +74,7 @@ export const deleteLink = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        assertBetaCapability(ctx, 'portal.read')
+        assertBetaCapability(ctx, 'portal.write')
         try {
           const { useCases } = getContainer()
           await useCases.deleteLink(data, ctx)
@@ -97,7 +97,7 @@ export const reorderLinks = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        assertBetaCapability(ctx, 'portal.read')
+        assertBetaCapability(ctx, 'portal.write')
         try {
           const { useCases } = getContainer()
           await useCases.reorderLinks(data, ctx)

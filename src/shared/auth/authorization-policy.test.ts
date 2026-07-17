@@ -123,6 +123,12 @@ describe('AuthorizationPolicy', () => {
       expect(capabilityForPermission('portal.read')).toBe('portal.read')
       expect(capabilityForPermission('team.create')).toBe('team.use')
     })
+
+    it('maps portal mutations to portal.write (BQC-0.2 / STD-P0-01)', () => {
+      expect(capabilityForPermission('portal.create')).toBe('portal.write')
+      expect(capabilityForPermission('portal.update')).toBe('portal.write')
+      expect(capabilityForPermission('portal.delete')).toBe('portal.write')
+    })
   })
 
   describe('requireAuthorized (BQR-4.1)', () => {

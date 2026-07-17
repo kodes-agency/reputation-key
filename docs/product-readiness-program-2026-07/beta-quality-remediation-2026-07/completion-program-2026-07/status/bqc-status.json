@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "program": "BQC",
-  "updatedAt": "2026-07-17T00:00:00.000Z",
+  "updatedAt": "2026-07-17T05:54:48.000Z",
   "baseline": {
     "validationReport": "docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md",
     "validationBaselineSha": "29b021875c145a7f8827f0ee70fc20935fc5dc79",
@@ -16,7 +16,9 @@
       "title": "Containment and rebaseline (historical BQR)",
       "state": "implementation_complete",
       "owner": "engineering",
-      "implementation": { "pr": "#188" },
+      "implementation": {
+        "pr": "#188"
+      },
       "requiredEvidenceIds": [],
       "openFindings": ["STD-P0-01", "SPEC-P0-03"],
       "exceptions": [],
@@ -28,7 +30,9 @@
       "title": "Architecture and schema (historical BQR)",
       "state": "implementation_complete",
       "owner": "engineering",
-      "implementation": { "pr": "#189-#192" },
+      "implementation": {
+        "pr": "#189-#192"
+      },
       "requiredEvidenceIds": [],
       "openFindings": ["STD-P1-01", "STD-P1-06", "STD-P2-02"],
       "exceptions": [],
@@ -40,7 +44,9 @@
       "title": "Durable runtime (historical BQR)",
       "state": "implementation_complete",
       "owner": "engineering",
-      "implementation": { "pr": "#193-#197" },
+      "implementation": {
+        "pr": "#193-#197"
+      },
       "requiredEvidenceIds": [],
       "openFindings": ["STD-P0-02", "SPEC-P0-01", "SPEC-P1-02"],
       "exceptions": [],
@@ -52,7 +58,9 @@
       "title": "Source lifecycle and region (historical BQR)",
       "state": "implementation_complete",
       "owner": "engineering",
-      "implementation": { "pr": "#199" },
+      "implementation": {
+        "pr": "#199"
+      },
       "requiredEvidenceIds": [],
       "openFindings": ["SPEC-P0-02", "SPEC-P1-01"],
       "exceptions": [],
@@ -64,7 +72,9 @@
       "title": "Auth privacy containment (historical BQR)",
       "state": "implementation_complete",
       "owner": "engineering",
-      "implementation": { "pr": "#201" },
+      "implementation": {
+        "pr": "#201"
+      },
       "requiredEvidenceIds": [],
       "openFindings": ["STD-P1-02", "SPEC-P0-03"],
       "exceptions": [],
@@ -76,7 +86,9 @@
       "title": "Experience verification (historical BQR)",
       "state": "implementation_complete",
       "owner": "engineering",
-      "implementation": { "pr": "#202-#204" },
+      "implementation": {
+        "pr": "#202-#204"
+      },
       "requiredEvidenceIds": [],
       "openFindings": ["STD-P1-05", "SPEC-P1-03"],
       "exceptions": [],
@@ -88,7 +100,9 @@
       "title": "Ops and scale (historical BQR)",
       "state": "implementation_complete",
       "owner": "engineering",
-      "implementation": { "pr": "#205-#208" },
+      "implementation": {
+        "pr": "#205-#208"
+      },
       "requiredEvidenceIds": [],
       "openFindings": ["STD-P1-04", "SPEC-P1-04", "SPEC-P1-05", "SPEC-P1-06"],
       "exceptions": [],
@@ -122,29 +136,37 @@
       ],
       "openFindings": ["STD-P0-01", "SPEC-P2-01", "SPEC-P0-03"],
       "exceptions": [],
-      "notes": "Active completion phase."
+      "notes": "0.1 and 0.2 implementation_complete; 0.3\u20130.5 remaining. Not accepted."
     },
     {
       "id": "BQC-0.1",
       "kind": "slice",
       "parentId": "BQC-0",
       "title": "Machine-readable program status",
-      "state": "implementation_in_progress",
+      "state": "implementation_complete",
       "owner": "engineering",
       "requiredEvidenceIds": ["generated-status", "status-schema-tests"],
       "openFindings": ["SPEC-P2-01"],
-      "exceptions": []
+      "exceptions": [],
+      "implementation": {
+        "pr": "#209"
+      },
+      "notes": "Status schema + CI validator shipped. Not BQC-accepted until independent review of evidence."
     },
     {
       "id": "BQC-0.2",
       "kind": "slice",
       "parentId": "BQC-0",
       "title": "Correct portal capability taxonomy",
-      "state": "not_started",
+      "state": "implementation_complete",
       "owner": "engineering",
-      "requiredEvidenceIds": ["portal-negative-matrix"],
-      "openFindings": ["STD-P0-01"],
-      "exceptions": []
+      "requiredEvidenceIds": [
+        "portal-negative-matrix",
+        "portal-capability-taxonomy-tests"
+      ],
+      "openFindings": [],
+      "exceptions": [],
+      "notes": "STD-P0-01 fixed in mapping + portal server asserts. Evidence: portal-capability-taxonomy.test.ts. Pending independent review for accepted."
     },
     {
       "id": "BQC-0.3",

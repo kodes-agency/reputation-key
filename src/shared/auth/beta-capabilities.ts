@@ -364,6 +364,11 @@ export function isCapabilityJobEnabled(capability: Capability): boolean {
  * production entry path (server functions, jobs, schedules).
  * Kept here so architecture tests and worker containment share one list.
  */
+/**
+ * Primary dark capability per context (architecture scan default).
+ * Portal also uses portal.write / portal.upload on mutation/media paths (BQC-0.2);
+ * those are listed in PORTAL_DARK_CAPABILITIES.
+ */
 export const DARK_CONTEXT_CAPABILITIES = {
   team: 'team.use',
   portal: 'portal.read',
@@ -372,3 +377,10 @@ export const DARK_CONTEXT_CAPABILITIES = {
   badge: 'badge.use',
   leaderboard: 'leaderboard.use',
 } as const satisfies Readonly<Record<string, Capability>>
+
+/** All portal-surface capabilities that may appear on portal server entry paths. */
+export const PORTAL_DARK_CAPABILITIES = [
+  'portal.read',
+  'portal.write',
+  'portal.upload',
+] as const satisfies ReadonlyArray<Capability>

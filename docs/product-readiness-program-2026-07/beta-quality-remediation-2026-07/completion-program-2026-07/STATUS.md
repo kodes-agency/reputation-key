@@ -4,7 +4,7 @@
 > Regenerate: `pnpm bqc:generate-status`. Schema: `src/shared/bqc/status-schema.ts`.
 
 **Program:** BQC  
-**Manifest updated:** 2026-07-17T00:00:00.000Z  
+**Manifest updated:** 2026-07-17T05:54:48.000Z  
 **Validation report:** docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md  
 **Validation baseline SHA:** `29b021875c145a7f8827f0ee70fc20935fc5dc79`  
 **Working tree SHA (status describes):** `7cd383e9fba8d56bc653b31145f6202772efe195`  
@@ -45,8 +45,8 @@ Only these states are valid: `not_started`, `implementation_in_progress`, `imple
 
 | ID | Kind | Title | State | Owner | PR | Open findings | Blocked |
 | -- | ---- | ----- | ----- | ----- | -- | ------------- | ------- |
-| BQC-0.1 | slice | Machine-readable program status | `implementation_in_progress` | engineering | — | SPEC-P2-01 | — |
-| BQC-0.2 | slice | Correct portal capability taxonomy | `not_started` | engineering | — | STD-P0-01 | — |
+| BQC-0.1 | slice | Machine-readable program status | `implementation_complete` | engineering | #209 | SPEC-P2-01 | — |
+| BQC-0.2 | slice | Correct portal capability taxonomy | `implementation_complete` | engineering | — | — | — |
 | BQC-0.3 | slice | Restrict test-only capability overrides | `not_started` | engineering | — | SPEC-P0-03 | — |
 | BQC-0.4 | slice | Confirm operational stop controls | `not_started` | engineering | — | — | — |
 | BQC-0.5 | slice | Re-run and pin the baseline | `not_started` | engineering | — | — | — |

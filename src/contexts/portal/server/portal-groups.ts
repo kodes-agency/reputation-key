@@ -54,7 +54,7 @@ export const createPortalGroup = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        assertBetaCapability(ctx, 'portal.read')
+        assertBetaCapability(ctx, 'portal.write')
 
         try {
           const { useCases } = getContainer()
@@ -80,7 +80,7 @@ export const updatePortalGroup = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        assertBetaCapability(ctx, 'portal.read')
+        assertBetaCapability(ctx, 'portal.write')
 
         try {
           const { useCases } = getContainer()
@@ -166,7 +166,7 @@ export const softDeletePortalGroup = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        assertBetaCapability(ctx, 'portal.read')
+        assertBetaCapability(ctx, 'portal.write')
 
         try {
           const { useCases } = getContainer()
@@ -197,7 +197,7 @@ export const addPortalToGroup = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        assertBetaCapability(ctx, 'portal.read')
+        assertBetaCapability(ctx, 'portal.write')
 
         try {
           const { useCases } = getContainer()
@@ -223,7 +223,7 @@ export const removePortalFromGroup = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        assertBetaCapability(ctx, 'portal.read')
+        assertBetaCapability(ctx, 'portal.write')
 
         try {
           const { useCases } = getContainer()

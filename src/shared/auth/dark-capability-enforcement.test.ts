@@ -11,7 +11,11 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
-import { DARK_CONTEXT_CAPABILITIES, isCoreCapability } from './beta-capabilities'
+import {
+  DARK_CONTEXT_CAPABILITIES,
+  PORTAL_DARK_CAPABILITIES,
+  isCoreCapability,
+} from './beta-capabilities'
 
 const SERVER_DIR = join(process.cwd(), 'src', 'contexts')
 const WORKER_PATH = join(process.cwd(), 'src', 'worker', 'index.ts')
@@ -55,26 +59,31 @@ describe('BQR-0: Dark context capability enforcement', () => {
         })
 
         it(`${basename} references dark capability '${capability}' (literal or mapped permission)`, () => {
-          // Literal capability string, or requireAuthorized with a permission
-          // that capabilityForPermission maps to this dark capability.
-          const hasLiteral = content.includes(capability)
-          const permissionPrefix = capability.replace(/\.use$/, '')
+          // Portal paths may assert portal.read | portal.write | portal.upload (BQC-0.2).
+          const allowedCaps =
+            context === 'portal' ? [...PORTAL_DARK_CAPABILITIES] : [capability]
+          const hasLiteral = allowedCaps.some((cap) => content.includes(`'${cap}'`))
+          const permissionPrefix = capability
+            .replace(/\.use$/, '')
+            .replace(/^portal\..*/, 'portal')
           const hasMappedPermission =
             content.includes('requireAuthorized') &&
             (content.includes(`'${permissionPrefix}.`) ||
               content.includes(`"${permissionPrefix}.`) ||
-              content.includes(`'${capability}'`))
+              allowedCaps.some((cap) => content.includes(`'${cap}'`)))
           expect(
             hasLiteral || hasMappedPermission,
-            `${basename} in dark context "${context}" must reference '${capability}' or use requireAuthorized with ${permissionPrefix}.* permissions`,
+            `${basename} in dark context "${context}" must reference one of [${allowedCaps.join(', ')}] or use requireAuthorized with matching permissions`,
           ).toBe(true)
         })
       }
     })
   }
 
-  it('does not treat dark portal.read as a core capability', () => {
+  it('does not treat dark portal capabilities as core', () => {
     expect(isCoreCapability('portal.read')).toBe(false)
+    expect(isCoreCapability('portal.write')).toBe(false)
+    expect(isCoreCapability('portal.upload')).toBe(false)
     expect(isCoreCapability('goal.use')).toBe(false)
     expect(isCoreCapability('badge.use')).toBe(false)
     expect(isCoreCapability('leaderboard.use')).toBe(false)
