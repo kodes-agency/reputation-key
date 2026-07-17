@@ -172,6 +172,11 @@ export const createReviewStatsAdapter = (db: Database): ReviewStatsPort => ({
           and(
             eq(reviews.organizationId, organizationId),
             eq(reviews.propertyId, propertyId),
+            // BQC-1.4: serving read — eligible content only (ADR 0031).
+            // Expired or clock-less reviews are excluded in SQL, never
+            // mapped into the dashboard snippet/rating widget.
+            sql`${reviews.contentExpiresAt} IS NOT NULL`,
+            sql`${reviews.contentExpiresAt} > now()`,
           ),
         )
         .orderBy(desc(reviews.reviewedAt))

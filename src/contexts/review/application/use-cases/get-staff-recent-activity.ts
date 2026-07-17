@@ -13,6 +13,7 @@ import type { StaffRecentReview } from '../public-api'
 export type GetStaffRecentActivityDeps = Readonly<{
   reviewRepo: ReviewRepository
   staffPublicApi: StaffPublicApi
+  clock: () => Date
 }>
 
 export type GetStaffRecentActivityInput = Readonly<{
@@ -38,10 +39,13 @@ export const getStaffRecentActivity =
     if (!accessible) return []
 
     const limit = input.limit ?? 5
-    const recentReviews = await deps.reviewRepo.findByPropertyId(
+    // BQC-1.4: serving read — eligible content only (expired/clock-less rows
+    // are excluded in SQL, never mapped into snippets).
+    const recentReviews = await deps.reviewRepo.findRecentEligibleByPropertyId(
       input.propertyId,
       ctx.organizationId,
       { limit },
+      deps.clock(),
     )
     return recentReviews.map((r) => ({
       id: r.id as string,

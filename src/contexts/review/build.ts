@@ -27,6 +27,7 @@ import {
   retryPublish,
 } from './application/use-cases/reply-operations'
 import { getStaffRecentActivity } from './application/use-cases/get-staff-recent-activity'
+import { createEligibleReads, type EligibleReads } from './application/eligible-reads'
 import { reviewId, replyId } from '#/shared/domain/ids'
 import { registerReviewHandlers } from './infrastructure/event-handlers'
 
@@ -42,7 +43,8 @@ export type ReviewContextBuildInput = Readonly<{
 }>
 
 export type ReviewContextApi = Readonly<{
-  publicApi: Readonly<Record<string, never>>
+  /** BQC-1.4: the governed read interface for review content. */
+  publicApi: EligibleReads
   internal: Readonly<{
     repos: Readonly<{
       reviewRepo: ReviewRepository
@@ -138,11 +140,12 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     getStaffRecentActivity: getStaffRecentActivity({
       reviewRepo,
       staffPublicApi: input.staffPublicApi,
+      clock: input.clock,
     }),
   }
 
   return {
-    publicApi: {} as const,
+    publicApi: createEligibleReads({ reviewRepo, clock: input.clock }),
     internal: {
       repos: {
         reviewRepo,

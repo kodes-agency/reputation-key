@@ -125,6 +125,30 @@ export const createReviewRepository = (db: Database): ReviewRepository => ({
     })
   },
 
+  /**
+   * BQC-1.4: serving read for recent reviews — eligible content only.
+   * Eligibility predicate lives in SQL (defense in depth): non-null
+   * contentExpiresAt strictly in the future, newest first.
+   */
+  findRecentEligibleByPropertyId: async (propertyId, organizationId, options, now) => {
+    return trace('review.findRecentEligibleByPropertyId', async () => {
+      const rows = await db
+        .select()
+        .from(reviews)
+        .where(
+          and(
+            eq(reviews.propertyId, propertyId),
+            eq(reviews.organizationId, organizationId),
+            isNotNull(reviews.contentExpiresAt),
+            gt(reviews.contentExpiresAt, now),
+          ),
+        )
+        .orderBy(desc(reviews.reviewedAt))
+        .limit(options.limit)
+      return rows.map(reviewFromRow)
+    })
+  },
+
   findByOrganizationId: async (orgId: OrganizationId) => {
     return trace('review.findByOrganizationId', async () => {
       const rows = await db

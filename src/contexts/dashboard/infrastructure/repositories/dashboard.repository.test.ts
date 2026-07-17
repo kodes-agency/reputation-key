@@ -47,6 +47,7 @@ async function seedReview(
     rating?: number
     text?: string
     daysAgo?: number
+    contentExpiresAt?: Date | null
   } = {},
 ) {
   const id = overrides.id ?? crypto.randomUUID()
@@ -58,9 +59,23 @@ async function seedReview(
   const expiresAt = new Date(reviewedAt.getTime() + 30 * MS_PER_DAY)
 
   await pool.query(
-    `INSERT INTO reviews (id, organization_id, property_id, platform, external_id, external_location_id, rating, text, reviewed_at, expires_at)
-     VALUES ($1, $2, $3, 'google', $4, $5, $6, $7, $8, $9)`,
-    [id, orgId, propId, `ext-${id}`, `loc-${id}`, rating, text, reviewedAt, expiresAt],
+    `INSERT INTO reviews (id, organization_id, property_id, platform, external_id, external_location_id, rating, text, reviewed_at, expires_at, content_expires_at)
+     VALUES ($1, $2, $3, 'google', $4, $5, $6, $7, $8, $9, $10)`,
+    [
+      id,
+      orgId,
+      propId,
+      `ext-${id}`,
+      `loc-${id}`,
+      rating,
+      text,
+      reviewedAt,
+      expiresAt,
+      // BQC-1.4: serving reads require eligible content — seed a live fetch clock.
+      overrides.contentExpiresAt === undefined
+        ? new Date(Date.now() + 30 * MS_PER_DAY)
+        : overrides.contentExpiresAt,
+    ],
   )
   return id
 }
