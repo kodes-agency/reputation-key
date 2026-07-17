@@ -1,11 +1,13 @@
 # Beta Quality Remediation Program — July 2026
 
-**Status:** BQR-0…5 complete; BQR-6 code/docs complete (staging exec human-gated); BQR-7 human pilot
+**Status:** Historical implementation record — completion claims are under revalidation by the BQC program
 
 **Purpose:** Bring the current codebase to an evidence-backed internal beta standard after the July 2026 implementation review  
 **Applies before:** Any real-property pilot, Phase 17, Phase 18, or post-beta capability activation
 
 This program corrects the gap between code that has been added and capabilities that are demonstrably working. It does not discard the useful PRE17, beta, or post-beta work. It consolidates that work behind the repository's clean-architecture rules and replaces completion-by-file-count with completion-by-runtime evidence.
+
+> The progress table below records merged implementation work, not accepted beta gates. The [BQR validation report](bqr-implementation-validation-report-2026-07-16.md) found material residual gaps. Use the [Beta Quality Completion Program](completion-program-2026-07/README.md) for current remediation planning and evidence-based acceptance.
 
 ## Reading order
 
@@ -19,10 +21,12 @@ This program corrects the gap between code that has been added and capabilities 
 8. [BQR-5 experience verification](phase-bqr5-experience-verification.md)
 9. [BQR-6 ops and scale](phase-bqr6-ops-scale.md)
 10. [BQR-7 pilot](phase-bqr7-pilot.md)
+11. [BQR implementation validation](bqr-implementation-validation-report-2026-07-16.md)
+12. [BQC completion program](completion-program-2026-07/README.md)
 
 Primary-source research for this program may be added as `primary-source-research.md` when external citations are re-gathered; until then the July PRE17/beta research under the parent folder remains the reference set.
 
-## Progress
+## Historical implementation progress
 
 | Phase | Status                                                                                                                                                        | Notes                                                                                |
 | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
