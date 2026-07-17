@@ -16,8 +16,10 @@ import type { Job } from 'bullmq'
 export const JOB_NAME = 'purge-expired-reviews' as const
 import type { ReviewRepository } from '../../application/ports/review.repository'
 import type { EventBus } from '#/shared/events/event-bus'
+import type { Database } from '#/shared/db'
 import { emitAndRecord } from '#/shared/outbox'
 import { reviewExpired } from '../../domain/events'
+import { closeRetentionRun, openRetentionRun } from '#/shared/db/retention/evidence'
 import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
 
@@ -25,6 +27,7 @@ type PurgeHandlerDeps = Readonly<{
   reviewRepo: ReviewRepository
   events: EventBus
   clock: () => Date
+  db?: Database
   /** Outbox repository for durable event recording (PRE17A A4 expand phase). */
   outboxRepo?: import('#/shared/outbox').OutboxRepository
 }>
@@ -40,10 +43,18 @@ export const createPurgeExpiredReviewsHandler = (deps: PurgeHandlerDeps) => {
       // Threshold is `now` — exclusive boundary means contentExpiresAt < now.
       const expired = await deps.reviewRepo.findAllExpiredBeforeAcrossTenants(now)
 
+      // BQC-1.6: content-free deletion evidence (counts + outcome only).
+      const evidenceId = deps.db
+        ? await openRetentionRun(deps.db, 'reviews.purge', expired.length || 1, now)
+        : null
+
       let purged = 0
+      let failed = 0
       for (const review of expired) {
         try {
-          // Emit event BEFORE delete so downstream handlers can still access review data
+          // Emit event BEFORE delete so downstream handlers can still access review data.
+          // If the emit fails, the delete is SKIPPED for this review — canonical
+          // state is never deleted before its expiry is recorded (stop-before-canonical).
           await emitAndRecord(
             deps.events,
             deps.outboxRepo,
@@ -58,12 +69,23 @@ export const createPurgeExpiredReviewsHandler = (deps: PurgeHandlerDeps) => {
           await deps.reviewRepo.deleteById(review.id, review.organizationId)
           purged++
         } catch (err) {
+          failed++
           logger.warn({ err, reviewId: review.id }, 'Failed to purge expired review')
         }
       }
 
+      if (evidenceId) {
+        await closeRetentionRun(deps.db!, evidenceId, {
+          finishedAt: deps.clock(),
+          batches: 1,
+          rowsDeleted: purged,
+          outcome: failed > 0 ? 'failed' : 'completed',
+          errorCode: failed > 0 ? `${failed} purge failure(s)` : undefined,
+        }).catch(() => {})
+      }
+
       logger.info(
-        { expiredCount: expired.length, purged },
+        { expiredCount: expired.length, purged, failed },
         'Purge expired reviews completed',
       )
     })

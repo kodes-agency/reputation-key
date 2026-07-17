@@ -74,8 +74,10 @@ export const createGoogleReviewApiAdapter = (
       // which the server boundary serializes to the client (cc-errors §13 BLOCKER).
       'Failed to reach Google review API',
       isRateLimited,
-      // Server-side diagnostics only — context is not serialized to the client.
-      { operation, status, body },
+      // BQC-1.6: server-side diagnostics carry status and body LENGTH only —
+      // the raw body may contain review text/account hints and pino has no
+      // redaction. Content-free context; see protected-field-registry.
+      { operation, status, bodyBytes: body.length },
     )
   }
 

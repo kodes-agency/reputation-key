@@ -126,7 +126,7 @@ async function main() {
         },
       )
       .then(() => {
-        logger.info('Refresh expiring reviews job scheduled (daily)')
+        logger.info('Refresh expiring reviews job scheduled (hourly, BQC-1.5)')
       })
       .catch((err: unknown) => {
         logger.warn({ err }, 'Failed to schedule refresh-expiring-reviews job')
@@ -146,6 +146,24 @@ async function main() {
       })
       .catch((err: unknown) => {
         logger.warn({ err }, 'Failed to schedule purge-expired-reviews job')
+      })
+
+    // BQC-1.6: bounded retention with content-free evidence, daily (offset
+    // from purge so deletion evidence lands after canonical purges).
+    container.backgroundQueue
+      .add(
+        'retention-sweep',
+        {},
+        {
+          repeat: { every: 24 * 60 * 60 * 1000, offset: 3 * 60 * 60 * 1000 },
+          jobId: 'retention-sweep-recurring',
+        },
+      )
+      .then(() => {
+        logger.info('Retention sweep job scheduled (daily)')
+      })
+      .catch((err: unknown) => {
+        logger.warn({ err }, 'Failed to schedule retention-sweep job')
       })
 
     // ── Metric materialized view refresh jobs ──────────────────────────

@@ -51,10 +51,9 @@ export type OutboxRepository = Readonly<{
   ) => Promise<void>
   /** Find events with expired leases for reconciliation. */
   findExpiredLeases: (limit: number) => Promise<readonly UnpublishedEvent[]>
-  /** Delete published events older than the cutoff (retention). */
-  purgePublishedBefore: (cutoff: Date, limit: number) => Promise<number>
-  /** Delete receipts older than the cutoff (retention). */
-  purgeReceiptsBefore: (cutoff: Date, limit: number) => Promise<number>
+  // BQC-1.6: outbox retention runs through the scheduled retention-sweep
+  // (bounded CTE executor + evidence), replacing the unused invalid
+  // DELETE...LIMIT methods that previously lived here.
 }>
 
 // ── Factory ─────────────────────────────────────────────────────────
@@ -168,29 +167,6 @@ export function createOutboxRepository(db: Database): OutboxRepository {
           .limit(limit)
 
         return rows as unknown as UnpublishedEvent[]
-      })
-    },
-
-    purgePublishedBefore: async (cutoff, limit) => {
-      return trace('outbox.purgePublished', async () => {
-        const result = await db.execute(sql`
-          DELETE FROM ${outboxEvents}
-          WHERE ${outboxEvents.createdAt} < ${cutoff}
-            AND ${outboxEvents.publishedAt} IS NOT NULL
-          LIMIT ${limit}
-        `)
-        return result.rowCount ?? 0
-      })
-    },
-
-    purgeReceiptsBefore: async (cutoff, limit) => {
-      return trace('outbox.purgeReceipts', async () => {
-        const result = await db.execute(sql`
-          DELETE FROM ${eventConsumerReceipts}
-          WHERE ${eventConsumerReceipts.createdAt} < ${cutoff}
-          LIMIT ${limit}
-        `)
-        return result.rowCount ?? 0
       })
     },
   }

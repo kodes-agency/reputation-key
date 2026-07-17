@@ -361,7 +361,7 @@ export const PROTECTED_FIELD_REGISTRY: ReadonlyArray<ProtectedFieldRule> = [
     creationPath: 'insert-activity-log job from event handlers',
     readPath: 'activity UI',
     refreshRule: 'content-free facts only (ADR 0045/0046)',
-    deletionMechanism: 'none — no retention job (doc claims 90d, unimplemented)',
+    deletionMechanism: 'retention-sweep daily (BQC-1.6, 90d) + retention_runs evidence',
     mustEliminate: false,
   },
   {
@@ -405,7 +405,7 @@ export const PROTECTED_FIELD_REGISTRY: ReadonlyArray<ProtectedFieldRule> = [
     readPath: 'durable consumers via lookup ports',
     refreshRule: 'identifier-only by construction',
     deletionMechanism:
-      'purgePublishedBefore/purgeReceiptsBefore exist but are never scheduled (flagged; BQC-1.6)',
+      'retention-sweep daily (BQC-1.6, 30d) with evidence in retention_runs; invalid DELETE...LIMIT methods removed',
     mustEliminate: false,
   },
 
@@ -561,7 +561,7 @@ export const PROTECTED_FIELD_REGISTRY: ReadonlyArray<ProtectedFieldRule> = [
     creationPath: 'review sync emit; outbox allowlist',
     readPath: 'durable consumers',
     refreshRule: 'identifier-only event (ADR 0030)',
-    deletionMechanism: 'outbox retention (never scheduled — flagged; BQC-1.6)',
+    deletionMechanism: 'retention-sweep daily (BQC-1.6, 30d) + retention_runs evidence',
     mustEliminate: false,
   },
   {
@@ -574,7 +574,7 @@ export const PROTECTED_FIELD_REGISTRY: ReadonlyArray<ProtectedFieldRule> = [
     creationPath: 'review sync emit; outbox allowlist',
     readPath: 'durable consumers',
     refreshRule: 'identifier-only event (ADR 0030)',
-    deletionMechanism: 'outbox retention (never scheduled)',
+    deletionMechanism: 'retention-sweep daily (BQC-1.6, 30d) + retention_runs evidence',
     mustEliminate: false,
   },
   {
@@ -587,7 +587,7 @@ export const PROTECTED_FIELD_REGISTRY: ReadonlyArray<ProtectedFieldRule> = [
     creationPath: 'property creation emit',
     readPath: 'durable consumers',
     refreshRule: 'identifier-only event',
-    deletionMechanism: 'outbox retention (never scheduled)',
+    deletionMechanism: 'retention-sweep daily (BQC-1.6, 30d) + retention_runs evidence',
     mustEliminate: false,
   },
   {
@@ -600,7 +600,7 @@ export const PROTECTED_FIELD_REGISTRY: ReadonlyArray<ProtectedFieldRule> = [
     creationPath: 'property creation emit',
     readPath: 'durable consumers',
     refreshRule: 'internal fact',
-    deletionMechanism: 'outbox retention (never scheduled)',
+    deletionMechanism: 'retention-sweep daily (BQC-1.6, 30d) + retention_runs evidence',
     mustEliminate: false,
   },
   {
@@ -613,7 +613,7 @@ export const PROTECTED_FIELD_REGISTRY: ReadonlyArray<ProtectedFieldRule> = [
     creationPath: 'invitation emit',
     readPath: 'activity consumer',
     refreshRule: 'internal fact',
-    deletionMechanism: 'outbox retention (never scheduled)',
+    deletionMechanism: 'retention-sweep daily (BQC-1.6, 30d) + retention_runs evidence',
     mustEliminate: false,
   },
   {
@@ -626,7 +626,7 @@ export const PROTECTED_FIELD_REGISTRY: ReadonlyArray<ProtectedFieldRule> = [
     creationPath: 'guest rating emit (dark)',
     readPath: 'metric consumer',
     refreshRule: 'internal fact',
-    deletionMechanism: 'outbox retention (never scheduled)',
+    deletionMechanism: 'retention-sweep daily (BQC-1.6, 30d) + retention_runs evidence',
     mustEliminate: false,
   },
 
@@ -688,15 +688,16 @@ export const PROTECTED_FIELD_REGISTRY: ReadonlyArray<ProtectedFieldRule> = [
   {
     relation: 'artifact:logs/gbp-api-error-body',
     kind: 'artifact',
-    field: 'IntegrationError.context.body',
+    field: 'IntegrationError.context.bodyBytes',
     classification: 'raw_source_content',
     owner: 'integration',
-    purpose: 'Upstream GBP error body (may contain review text/account hints)',
-    creationPath: 'google-review-api adapter error capture → logger.error',
-    readPath: 'log aggregation',
-    refreshRule: 'none — must be redacted at source (BQC-1.2/1.6)',
-    deletionMechanism: 'none — pino has no redaction (flagged)',
-    mustEliminate: true,
+    purpose:
+      'Legacy upstream-body vector — eliminated in BQC-1.6 (context now carries status + bodyBytes only)',
+    creationPath: 'none since BQC-1.6 (adapter stores bodyBytes, not body)',
+    readPath: 'log aggregation (content-free)',
+    refreshRule: 'n/a',
+    deletionMechanism: 'fixed at source (BQC-1.6)',
+    mustEliminate: false,
   },
   {
     relation: 'artifact:logs/webhook-payload',
@@ -704,12 +705,13 @@ export const PROTECTED_FIELD_REGISTRY: ReadonlyArray<ProtectedFieldRule> = [
     field: 'pubsub.body',
     classification: 'raw_provider_identifier',
     owner: 'integration',
-    purpose: 'Raw Pub/Sub body + decoded locationName/reviewName logged',
-    creationPath: 'webhook route logging',
-    readPath: 'log aggregation',
-    refreshRule: 'none — must log identifiers only at debug (BQC-1.2/1.6)',
-    deletionMechanism: 'none (flagged)',
-    mustEliminate: true,
+    purpose:
+      'Legacy webhook log vector — eliminated in BQC-1.6 (messageId/booleans only)',
+    creationPath: 'none since BQC-1.6 (route logs messageId and field-presence booleans)',
+    readPath: 'log aggregation (content-free)',
+    refreshRule: 'n/a',
+    deletionMechanism: 'fixed at source (BQC-1.6)',
+    mustEliminate: false,
   },
   {
     relation: 'artifact:scripts/check-db-stdout',
@@ -717,11 +719,12 @@ export const PROTECTED_FIELD_REGISTRY: ReadonlyArray<ProtectedFieldRule> = [
     field: 'reviewerName+text',
     classification: 'raw_source_content',
     owner: 'shared',
-    purpose: 'Operator debug script prints reviewer name + text substring',
-    creationPath: 'scripts/check-db.ts',
-    readPath: 'operator stdout',
-    refreshRule: 'none — must stop printing content (BQC-1.2)',
-    deletionMechanism: 'none (flagged)',
-    mustEliminate: true,
+    purpose:
+      'Legacy operator-stdout vector — eliminated in BQC-1.6 (identifiers + clocks only)',
+    creationPath: 'none since BQC-1.6 (script prints ids, rating, fetch clocks)',
+    readPath: 'operator stdout (content-free)',
+    refreshRule: 'n/a',
+    deletionMechanism: 'fixed at source (BQC-1.6)',
+    mustEliminate: false,
   },
 ]

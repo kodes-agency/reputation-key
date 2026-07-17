@@ -157,6 +157,7 @@ export async function bootstrap(container: Container): Promise<void> {
     reviewRepo: container.reviewRepo,
     events: container.eventBus,
     clock: container.clock,
+    db: container.db,
   })
   container.jobRegistry.register(PURGE_EXPIRED_JOB_NAME, async (job) => {
     await purgeHandler(job)
@@ -200,6 +201,18 @@ export async function bootstrap(container: Container): Promise<void> {
     container.jobRegistry.register(jobName, handler)
     logger.info({ job: jobName }, 'registered metric rollup refresh job handler')
   }
+
+  // ── Retention sweep (BQC-1.6: bounded, evidence-backed, daily) ──────
+  const { createRetentionSweepHandler, JOB_NAME: RETENTION_SWEEP_JOB_NAME } =
+    await import('#/shared/jobs/retention-sweep.job')
+  const retentionSweepHandler = createRetentionSweepHandler({
+    db: container.db,
+    clock: container.clock,
+  })
+  container.jobRegistry.register(RETENTION_SWEEP_JOB_NAME, async (job) => {
+    await retentionSweepHandler(job)
+  })
+  logger.info({ job: RETENTION_SWEEP_JOB_NAME }, 'registered retention sweep job handler')
 
   // ── Goal event handlers ────────────────────────────────────────────
   // NOTE: Goal event handlers are now registered inside buildGoalContext
