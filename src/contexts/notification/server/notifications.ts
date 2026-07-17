@@ -5,7 +5,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { getContainer } from '#/composition'
-import { requireAuthorized } from '#/shared/auth/authorization-policy'
+import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
@@ -37,7 +37,7 @@ export const getUnreadNotificationCountFn = createServerFn({ method: 'GET' }).ha
       // No active org → empty result (new user hasn't selected an org yet).
       const ctx = await resolveOptionalTenantContext()
       if (!ctx) return { count: 0 }
-      requireAuthorized({ actor: ctx, action: 'notification.read' })
+      await requireExecutionAllowed({ actor: ctx, action: 'notification.read' })
       try {
         const { notificationPublicApi } = getContainer()
         const count = await notificationPublicApi.getUnreadCount(
@@ -68,7 +68,7 @@ export const getNotificationsFn = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const ctx = await resolveOptionalTenantContext()
         if (!ctx) return []
-        requireAuthorized({ actor: ctx, action: 'notification.read' })
+        await requireExecutionAllowed({ actor: ctx, action: 'notification.read' })
         try {
           const { notificationPublicApi } = getContainer()
           return notificationPublicApi.getNotifications(
@@ -99,7 +99,7 @@ export const markNotificationReadFn = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        requireAuthorized({ actor: ctx, action: 'notification.update' })
+        await requireExecutionAllowed({ actor: ctx, action: 'notification.update' })
         try {
           const { notificationPublicApi } = getContainer()
           return notificationPublicApi.markRead(
@@ -126,7 +126,7 @@ export const markAllNotificationsReadFn = createServerFn({ method: 'POST' }).han
     async () => {
       const headers = await headersFromContext()
       const ctx = await resolveTenantContext(headers)
-      requireAuthorized({ actor: ctx, action: 'notification.update' })
+      await requireExecutionAllowed({ actor: ctx, action: 'notification.update' })
       try {
         const { notificationPublicApi } = getContainer()
         return notificationPublicApi.markAllRead(ctx.userId, ctx.organizationId)
@@ -146,7 +146,7 @@ export const dismissAllNotificationsFn = createServerFn({ method: 'POST' }).hand
     async () => {
       const headers = await headersFromContext()
       const ctx = await resolveTenantContext(headers)
-      requireAuthorized({ actor: ctx, action: 'notification.update' })
+      await requireExecutionAllowed({ actor: ctx, action: 'notification.update' })
       try {
         const { notificationPublicApi } = getContainer()
         return notificationPublicApi.dismissAll(ctx.userId, ctx.organizationId)
@@ -172,7 +172,7 @@ export const dismissNotificationFn = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        requireAuthorized({ actor: ctx, action: 'notification.update' })
+        await requireExecutionAllowed({ actor: ctx, action: 'notification.update' })
         try {
           const { notificationPublicApi } = getContainer()
           return notificationPublicApi.dismiss(
@@ -200,7 +200,7 @@ export const getNotificationPreferencesFn = createServerFn({ method: 'GET' }).ha
     async () => {
       const ctx = await resolveOptionalTenantContext()
       if (!ctx) return []
-      requireAuthorized({ actor: ctx, action: 'notification.read' })
+      await requireExecutionAllowed({ actor: ctx, action: 'notification.read' })
       try {
         const { notificationPublicApi } = getContainer()
         return notificationPublicApi.getPreferences(ctx.userId, ctx.organizationId)
@@ -232,7 +232,7 @@ export const updateNotificationPreferenceFn = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        requireAuthorized({ actor: ctx, action: 'notification.update' })
+        await requireExecutionAllowed({ actor: ctx, action: 'notification.update' })
         try {
           const { notificationPublicApi } = getContainer()
           return notificationPublicApi.updatePreference(

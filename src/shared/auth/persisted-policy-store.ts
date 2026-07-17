@@ -131,7 +131,10 @@ export function createPersistedPolicyStore(
     isCapabilityGloballyEnabled: () => false,
 
     isOrgAllowlisted: (orgId, cap) => {
-      if (isCoreCapability(cap) || isBlockedCapability(cap)) return false
+      // Core capabilities don't need allowlisting (env-store parity);
+      // blocked capabilities are never allowlisted.
+      if (isCoreCapability(cap)) return true
+      if (isBlockedCapability(cap)) return false
       if (orgAllowlistAll.has(orgId)) return true
       return (
         current?.orgCapabilities.some(
@@ -141,7 +144,8 @@ export function createPersistedPolicyStore(
     },
 
     isPropertyAllowlisted: (propertyId, cap) => {
-      if (isCoreCapability(cap) || isBlockedCapability(cap)) return false
+      if (isCoreCapability(cap)) return true
+      if (isBlockedCapability(cap)) return false
       if (propertyAllowlistAll.has(propertyId)) return true
       return (
         current?.propertyCapabilities.some(

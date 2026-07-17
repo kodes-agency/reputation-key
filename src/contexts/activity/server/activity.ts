@@ -5,7 +5,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { getContainer } from '#/composition'
-import { requireAuthorized } from '#/shared/auth/authorization-policy'
+import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { catchUntagged } from '#/shared/auth/server-errors'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
@@ -44,7 +44,7 @@ export const getActivityTimelineFn = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        requireAuthorized({ actor: ctx, action: 'inbox.read' })
+        await requireExecutionAllowed({ actor: ctx, action: 'inbox.read' })
         try {
           const { activityPublicApi } = getContainer()
           return activityPublicApi.getActivityTimeline(
@@ -79,7 +79,11 @@ export const getOrgActivityFn = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        requireAuthorized({ actor: ctx, action: 'inbox.read' })
+        await requireExecutionAllowed({
+          actor: ctx,
+          action: 'inbox.read',
+          propertyId: data.propertyId,
+        })
         try {
           const { activityPublicApi } = getContainer()
           return activityPublicApi.getOrgActivity(

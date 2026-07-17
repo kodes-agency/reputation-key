@@ -8,7 +8,7 @@ import { getContainer } from '#/composition'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 
-import { requireAuthorized } from '#/shared/auth/authorization-policy'
+import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { timeRangePreset } from '../application/dto/dashboard.dto'
 import { timeRangeToDates } from '../application/utils'
@@ -35,7 +35,11 @@ export const getStaffDashboardDataFn = createServerFn({ method: 'GET' })
         try {
           const headers = await headersFromContext()
           const ctx = await resolveTenantContext(headers)
-          requireAuthorized({ actor: ctx, action: 'dashboard.read' })
+          await requireExecutionAllowed({
+            actor: ctx,
+            action: 'dashboard.read',
+            propertyId: data.propertyId,
+          })
           const { useCases, clock } = getContainer()
           const { startDate, endDate } = timeRangeToDates(data.timeRange, clock())
 

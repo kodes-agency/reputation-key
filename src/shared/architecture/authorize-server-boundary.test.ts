@@ -1,4 +1,5 @@
 // BQR-4.1 — enabled-context server functions use requireAuthorized / authorize.
+// BQC-2.4 — migrated paths use requireExecutionAllowed (ExecutionPolicy).
 //
 // Prevents regression to bare canForContext-only checks on production entry points.
 
@@ -40,6 +41,7 @@ function relative(path: string): string {
 function gatesAuth(src: string): boolean {
   return (
     src.includes('requireAuthorized') ||
+    src.includes('requireExecutionAllowed') ||
     src.includes('authorize(') ||
     src.includes('canForContext') ||
     src.includes('assertBetaCapability')
@@ -49,7 +51,9 @@ function gatesAuth(src: string): boolean {
 function usesAuthorizeSeam(src: string): boolean {
   return (
     src.includes("from '#/shared/auth/authorization-policy'") ||
+    src.includes("from '#/shared/auth/execution-policy'") ||
     src.includes('requireAuthorized') ||
+    src.includes('requireExecutionAllowed') ||
     src.includes('authorize(')
   )
 }
@@ -70,7 +74,7 @@ function collectOffenders(): string[] {
 }
 
 describe('authorize server boundary (BQR-4.1)', () => {
-  it('enabled-context server modules that gate auth import requireAuthorized or authorize', () => {
+  it('enabled-context server modules that gate auth use the authorize/ExecutionPolicy seam', () => {
     const offenders = collectOffenders()
     expect(offenders, `missing authorize seam:\n${offenders.join('\n')}`).toEqual([])
   })
@@ -83,5 +87,15 @@ describe('authorize server boundary (BQR-4.1)', () => {
     expect(src).toContain('export function requireAuthorized')
     expect(src).toContain('export function capabilityForPermission')
     expect(src).toContain('export function authorize')
+  })
+
+  it('execution-policy exports the BQC-2.4 seam', () => {
+    const src = readFileSync(
+      join(process.cwd(), 'src/shared/auth/execution-policy.ts'),
+      'utf8',
+    )
+    expect(src).toContain('export function createExecutionPolicy')
+    expect(src).toContain('export async function requireExecutionAllowed')
+    expect(src).toContain('export function initExecutionPolicy')
   })
 })

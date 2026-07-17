@@ -16,7 +16,7 @@ import { getContainer } from '#/composition'
 import { createPropertyInputSchema } from '../application/dto/create-property.dto'
 import { updatePropertyInputSchema } from '../application/dto/update-property.dto'
 import { isPropertyError } from '../domain/errors'
-import { requireAuthorized } from '#/shared/auth/authorization-policy'
+import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 
 // ── createProperty ─────────────────────────────────────────────────
 
@@ -28,7 +28,7 @@ export const createProperty = createServerFn({ method: 'POST' })
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
 
-        requireAuthorized({ actor: ctx, action: 'property.create' })
+        await requireExecutionAllowed({ actor: ctx, action: 'property.create' })
 
         try {
           const { useCases } = getContainer()
@@ -55,7 +55,11 @@ export const updateProperty = createServerFn({ method: 'POST' })
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
 
-        requireAuthorized({ actor: ctx, action: 'property.update' })
+        await requireExecutionAllowed({
+          actor: ctx,
+          action: 'property.update',
+          propertyId: data.propertyId,
+        })
 
         try {
           const { useCases } = getContainer()

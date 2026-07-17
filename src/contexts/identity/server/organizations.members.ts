@@ -6,7 +6,7 @@ import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext, resetTenantCache } from '#/shared/auth/middleware'
 import { catchUntagged } from '#/shared/auth/server-errors'
-import { requireAuthorized } from '#/shared/auth/authorization-policy'
+import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { getContainer } from '#/composition'
 import { isIdentityError } from '../domain/errors'
 import { throwIdentityError } from './organizations.errors.server'
@@ -26,7 +26,7 @@ export const inviteMember = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        requireAuthorized({ actor: ctx, action: 'invitation.create' })
+        await requireExecutionAllowed({ actor: ctx, action: 'invitation.create' })
 
         try {
           const { useCases } = getContainer()
@@ -51,7 +51,7 @@ export const updateMemberRole = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        requireAuthorized({ actor: ctx, action: 'member.update' })
+        await requireExecutionAllowed({ actor: ctx, action: 'member.update' })
 
         try {
           const { useCases } = getContainer()
@@ -79,7 +79,7 @@ export const removeMember = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        requireAuthorized({ actor: ctx, action: 'member.delete' })
+        await requireExecutionAllowed({ actor: ctx, action: 'member.delete' })
 
         try {
           const { useCases } = getContainer()

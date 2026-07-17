@@ -1,6 +1,6 @@
 // Inbox context — query server functions (list, counts)
 
-import { requireAuthorized } from '#/shared/auth/authorization-policy'
+import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import {
   createServerFn,
   isInboxError,
@@ -29,7 +29,11 @@ export const getInboxItemsFn = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        requireAuthorized({ actor: ctx, action: 'inbox.read' })
+        await requireExecutionAllowed({
+          actor: ctx,
+          action: 'inbox.read',
+          propertyId: data.propertyId,
+        })
         const { useCases } = getContainer()
         try {
           return await useCases.getInboxItems(
@@ -98,7 +102,7 @@ export const getLastVisitCountFn = createServerFn({ method: 'GET' })
       async () => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        requireAuthorized({ actor: ctx, action: 'inbox.read' })
+        await requireExecutionAllowed({ actor: ctx, action: 'inbox.read' })
         const { useCases } = getContainer()
         try {
           return await useCases.getLastVisitCount({}, ctx)
@@ -122,7 +126,7 @@ export const stampLastInboxViewFn = createServerFn({ method: 'POST' })
       async () => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        requireAuthorized({ actor: ctx, action: 'inbox.read' })
+        await requireExecutionAllowed({ actor: ctx, action: 'inbox.read' })
         const { useCases } = getContainer()
         try {
           return await useCases.stampLastInboxView({}, ctx)
@@ -146,7 +150,7 @@ export const getInboxFolderCountsFn = createServerFn({ method: 'GET' })
       async () => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        requireAuthorized({ actor: ctx, action: 'inbox.read' })
+        await requireExecutionAllowed({ actor: ctx, action: 'inbox.read' })
         const { useCases } = getContainer()
         try {
           return await useCases.getInboxFolderCounts({}, ctx)

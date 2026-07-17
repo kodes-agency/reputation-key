@@ -169,6 +169,18 @@ describe('persisted policy store (BQC-2.2)', () => {
 })
 
 describe('composite policy store (BQC-2.2)', () => {
+  it('matches env-store parity: core capabilities need no allowlist, blocked never allowlisted', async () => {
+    // Regression: property-scoped checks consult isPropertyAllowlisted even
+    // for core capabilities — returning false there denied core actions.
+    const l = loader(snapshot({ version: 1 }))
+    const persisted = createPersistedPolicyStore(l)
+    await persisted.refresh()
+    expect(persisted.isOrgAllowlisted('any-org', 'property.create')).toBe(true)
+    expect(persisted.isPropertyAllowlisted('any-prop', 'property.create')).toBe(true)
+    expect(persisted.isOrgAllowlisted('any-org', 'portal.write')).toBe(false)
+    expect(persisted.isPropertyAllowlisted('any-prop', 'portal.upload')).toBe(false)
+  })
+
   it('delegates global posture to env and tenant state to the persisted store', async () => {
     const env = createEnvCapabilityPolicyStore({
       BETA_CAPABILITIES_OFF: 'team.use', // kill switch stays env-authoritative

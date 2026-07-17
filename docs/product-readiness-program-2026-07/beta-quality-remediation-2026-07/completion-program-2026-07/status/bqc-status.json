@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "program": "BQC",
-  "updatedAt": "2026-07-17T17:00:00.000Z",
+  "updatedAt": "2026-07-17T19:30:00.000Z",
   "baseline": {
     "validationReport": "docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md",
     "validationBaselineSha": "29b021875c145a7f8827f0ee70fc20935fc5dc79",
@@ -333,7 +333,23 @@
       "requiredEvidenceIds": [],
       "openFindings": ["SPEC-P0-03", "STD-P1-02"],
       "exceptions": [],
-      "notes": "Slices 2.1 (action/resource catalogue), 2.2 (persisted policy state), and 2.3 (wire PropertyAccessGrant) implementation_complete. Slices 2.4–2.7 not started."
+      "notes": "Slices 2.1 (catalogue), 2.2 (persisted policy state), 2.3 (wire grants), and 2.4 (interactive cutover) implementation_complete. Slices 2.5–2.7 not started."
+    },
+    {
+      "id": "BQC-2.4",
+      "kind": "slice",
+      "parentId": "BQC-2",
+      "title": "Interactive production cutover",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "requiredEvidenceIds": [
+        "execution-policy-decision-matrix",
+        "execution-policy-composition-wiring",
+        "synthetic-old-new-comparison"
+      ],
+      "openFindings": [],
+      "exceptions": [],
+      "notes": "ExecutionPolicy (src/shared/auth/execution-policy.ts, EXECUTION_POLICY_VERSION bqc-2.4) is the one fail-closed interactive decision point: normalized request (principal/action/org/property/kind/purpose/time/correlation) → allow or typed deny; role permissions, grants, allowlist, suspension, capability, consent, caches, and content-free decision audit hidden inside (audit rows land in policy_decision_audit, fire-and-forget, decisions never blocked). System/operator principals deny unsupported_principal pending the 2.5 contract. Cutover: 67 requireAuthorized call sites across 28 files in the 9 enabled contexts migrated to requireExecutionAllowed (codemod); 10 canonicalOnly fns wired (incl. F045 — createOrganizationFn now asserts organization.create globally); 12 boundary calls now pass the actual target propertyId from input; indirectly-scoped targets stay enforced by the grant-backed use-case checks (2.3). Catalogue guard extended to recognize the new seam; authorize-server-boundary architecture test updated; 10 catalogue rows moved off canonicalOnly. Composition installs the policy with identity-owned grant/consent/audit deps (proven end-to-end on real PG: org-wide allow, scope_denied without grant, allow after grant, audit rows). Shadow record (synthetic identities): old vs new decisions identical except exactly the two old fail-open cases (assigned-scope, target property, no grant) — both now scope_denied; capability/permission denies identical. Regression fixed en route: persisted store allowlist for core capabilities now matches env parity (caught by the wiring test). Deferred: requireAuthorized deletion — still used by dark contexts (2.6); session fns (getSession/ensureActiveOrg etc.) stay session-scoped; public registration fns keep assertGlobalCapability; routes' beforeLoad can() UI gates unchanged. Not claimed: delayed/system integration (BQC-3.2), dark-context matrix (2.6), operator workflows (2.7); slice not accepted — pending independent review."
     },
     {
       "id": "BQC-2.3",

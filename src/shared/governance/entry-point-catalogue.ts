@@ -468,7 +468,7 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'organization.update',
       'identity.invite',
       'organization',
-      { canonicalOnly: true, notes: 'authz delegated to updateOrganization use case' },
+      { notes: 'policy-wired in BQC-2.4 (organization.update); use case re-checks' },
     ),
     sf(
       'createCustomRole',
@@ -522,10 +522,7 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'system:identity.create_organization',
       'organization.create',
       'organization',
-      {
-        canonicalOnly: true,
-        notes: 'F045: capability not asserted in code — BQC-2.4 wires',
-      },
+      { notes: 'F045 closed in BQC-2.4: assertGlobalCapability(organization.create)' },
     ),
     sf(
       'updateOrganization',
@@ -533,7 +530,7 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'organization.update',
       'identity.invite',
       'organization',
-      { canonicalOnly: true, notes: 'authz in use case (role check)' },
+      { notes: 'policy-wired in BQC-2.4; use case re-checks role' },
     ),
     sf(
       'requestOrgLogoUpload',
@@ -541,11 +538,7 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'identity.logo_upload',
       'identity.invite',
       'organization',
-      {
-        canonicalOnly: true,
-        externalEffect: true,
-        notes: 'authz in use case; S3 presigned URL',
-      },
+      { externalEffect: true, notes: 'policy-wired in BQC-2.4; S3 presigned URL' },
     ),
     sf(
       'finalizeOrgLogoUpload',
@@ -553,11 +546,7 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'identity.logo_upload',
       'identity.invite',
       'organization',
-      {
-        canonicalOnly: true,
-        externalEffect: true,
-        notes: 'authz in use case; S3 verify + org update',
-      },
+      { externalEffect: true, notes: 'policy-wired in BQC-2.4; S3 verify + org update' },
     ),
     sf(
       'requestAvatarUpload',
@@ -565,11 +554,7 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'identity.avatar_upload',
       'identity.invite',
       'organization',
-      {
-        canonicalOnly: true,
-        externalEffect: true,
-        notes: 'authz in use case; S3 presigned URL',
-      },
+      { externalEffect: true, notes: 'policy-wired in BQC-2.4; S3 presigned URL' },
     ),
     sf(
       'finalizeAvatarUpload',
@@ -577,11 +562,7 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'identity.avatar_upload',
       'identity.invite',
       'organization',
-      {
-        canonicalOnly: true,
-        externalEffect: true,
-        notes: 'authz in use case; S3 verify',
-      },
+      { externalEffect: true, notes: 'policy-wired in BQC-2.4; S3 verify' },
     ),
   ],
 
@@ -607,10 +588,7 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'property.read',
       'property.create',
       'organization',
-      {
-        canonicalOnly: true,
-        notes: 'all authenticated roles may list; canonical assignment',
-      },
+      { notes: 'policy-wired in BQC-2.4; all authenticated roles may list' },
     ),
     sf(
       'getProperty',
@@ -618,7 +596,7 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'property.read',
       'property.create',
       'property',
-      { canonicalOnly: true, notes: 'no explicit permission in fn body' },
+      { notes: 'policy-wired in BQC-2.4 with target propertyId' },
     ),
     sf(
       'deleteProperty',
@@ -626,7 +604,7 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'property.delete',
       'property.create',
       'property',
-      { canonicalOnly: true, notes: 'soft-delete; authz in use case — BQC-2.4 verifies' },
+      { notes: 'soft-delete; policy-wired in BQC-2.4 with target propertyId' },
     ),
   ],
 

@@ -9,7 +9,7 @@ import { z } from 'zod/v4'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
-import { requireAuthorized } from '#/shared/auth/authorization-policy'
+import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { catchUntagged } from '#/shared/auth/server-errors'
 import { getAuth } from '#/shared/auth/auth'
 import { getContainer } from '#/composition'
@@ -26,7 +26,7 @@ export const getOrgResponseSlaFn = createServerFn({ method: 'GET' }).handler(
       try {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        requireAuthorized({ actor: ctx, action: 'dashboard.read' })
+        await requireExecutionAllowed({ actor: ctx, action: 'dashboard.read' })
         const { identityPort } = getContainer()
         const org = await identityPort.getActiveOrg(headers)
         // No active org is a valid state — fall back to the default SLA.
@@ -62,6 +62,7 @@ export const updateOrgResponseSlaFn = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
+        await requireExecutionAllowed({ actor: ctx, action: 'organization.update' })
         try {
           const useCase = updateOrganizationUseCase({
             updateOrg: async (updateData) => {

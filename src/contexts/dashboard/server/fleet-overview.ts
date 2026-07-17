@@ -10,7 +10,7 @@ import { getContainer } from '#/composition'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 
-import { requireAuthorized } from '#/shared/auth/authorization-policy'
+import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getAuth } from '#/shared/auth/auth'
 import { timeRangePreset } from '../application/dto/dashboard.dto'
@@ -40,8 +40,8 @@ export const getFleetOverviewFn = createServerFn({ method: 'GET' })
           // dashboard.fleet_read (PM+); the server fn must match so Staff
           // (who hold dashboard.read but not fleet_read) cannot reach the RPC
           // directly and read cross-property reply-derived aggregates.
-          requireAuthorized({ actor: ctx, action: 'dashboard.read' })
-          requireAuthorized({ actor: ctx, action: 'dashboard.fleet_read' })
+          await requireExecutionAllowed({ actor: ctx, action: 'dashboard.read' })
+          await requireExecutionAllowed({ actor: ctx, action: 'dashboard.fleet_read' })
 
           // Resolve the org-level response SLA (defaults to 48h when unset/no org).
           const auth = getAuth()

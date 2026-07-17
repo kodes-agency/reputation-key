@@ -6,6 +6,7 @@ import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { getAuth } from '#/shared/auth/auth'
 import { headersFromContext } from '#/shared/auth/headers'
 import { requireAuth } from '#/shared/auth/middleware'
+import { assertGlobalCapability } from '#/shared/auth/beta-capabilities'
 import { z } from 'zod/v4'
 import { validateSlug } from '../domain/rules'
 import { handleAuthError } from './auth-settings.helpers'
@@ -37,6 +38,10 @@ export const createOrganizationFn = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         await requireAuth(headers)
+        // organization.create is non-core (ADR 0032): creating another org
+        // while authenticated follows the same global posture as
+        // registerUserAndOrg — previously unchecked (F045).
+        assertGlobalCapability('organization.create')
         const auth = getAuth()
 
         try {

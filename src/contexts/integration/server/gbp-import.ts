@@ -7,7 +7,7 @@ import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
-import { requireAuthorized } from '#/shared/auth/authorization-policy'
+import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { getContainer } from '#/composition'
 import { listLocationsInputSchema } from '../application/dto/list-locations.dto'
 import { importPropertiesInputSchema } from '../application/dto/import-properties.dto'
@@ -24,7 +24,7 @@ export const listGbpLocations = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        requireAuthorized({ actor: ctx, action: 'integration.manage' })
+        await requireExecutionAllowed({ actor: ctx, action: 'integration.manage' })
 
         try {
           const { useCases } = getContainer()
@@ -50,7 +50,7 @@ export const startPropertyImport = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        requireAuthorized({ actor: ctx, action: 'property.create' })
+        await requireExecutionAllowed({ actor: ctx, action: 'property.create' })
 
         try {
           const { useCases } = getContainer()
@@ -76,7 +76,7 @@ export const getImportStatus = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        requireAuthorized({ actor: ctx, action: 'integration.manage' })
+        await requireExecutionAllowed({ actor: ctx, action: 'integration.manage' })
 
         try {
           const { useCases } = getContainer()

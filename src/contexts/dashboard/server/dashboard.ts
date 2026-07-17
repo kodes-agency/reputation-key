@@ -8,7 +8,7 @@ import { getContainer } from '#/composition'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { canForContext } from '#/shared/domain/permissions'
-import { requireAuthorized } from '#/shared/auth/authorization-policy'
+import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getDashboardDataDto } from '../application/dto/dashboard.dto'
@@ -36,7 +36,11 @@ export const getDashboardDataFn = createServerFn({ method: 'GET' })
         try {
           const headers = await headersFromContext()
           const ctx = await resolveTenantContext(headers)
-          requireAuthorized({ actor: ctx, action: 'dashboard.read' })
+          await requireExecutionAllowed({
+            actor: ctx,
+            action: 'dashboard.read',
+            propertyId: data.propertyId,
+          })
           const { useCases, clock, staffPublicApi } = getContainer()
           // D6-001: non-admin callers may only read their assigned properties.
           if (

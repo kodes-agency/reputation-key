@@ -12,7 +12,7 @@ import { resolveTenantContext } from '#/shared/auth/middleware'
 import { isReviewError } from '../domain/errors'
 import type { ReviewErrorCode } from '../domain/errors'
 import { reviewId } from '#/shared/domain/ids'
-import { requireAuthorized } from '#/shared/auth/authorization-policy'
+import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { MAX_REPLY_LENGTH } from '../domain/rules'
 
 // ── Error → HTTP status mapping ──────────────────────────────────────
@@ -64,7 +64,7 @@ export const getReplyFn = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        requireAuthorized({ actor: ctx, action: 'reply.manage' })
+        await requireExecutionAllowed({ actor: ctx, action: 'reply.manage' })
         const { useCases } = getContainer()
         try {
           return await useCases.getReply({ reviewId: reviewId(data.reviewId) }, ctx)

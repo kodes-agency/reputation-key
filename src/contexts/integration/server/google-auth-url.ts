@@ -7,7 +7,7 @@ import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { z } from 'zod/v4'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
-import { requireAuthorized } from '#/shared/auth/authorization-policy'
+import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { catchUntagged } from '#/shared/auth/server-errors'
 import { getContainer } from '#/composition'
 
@@ -29,7 +29,7 @@ export const getGoogleAuthUrl = createServerFn({ method: 'GET' })
           const headers = await headersFromContext()
           const ctx = await resolveTenantContext(headers)
 
-          requireAuthorized({ actor: ctx, action: 'integration.manage' })
+          await requireExecutionAllowed({ actor: ctx, action: 'integration.manage' })
 
           const { useCases } = getContainer()
           return await useCases.getGoogleAuthUrl({ visibility: data.visibility })

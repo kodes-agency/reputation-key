@@ -7,7 +7,7 @@ import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { catchUntagged } from '#/shared/auth/server-errors'
 
-import { requireAuthorized } from '#/shared/auth/authorization-policy'
+import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { serializeClientAuthz, EMPTY_CLIENT_AUTHZ } from '#/shared/domain/auth-context'
 import { getContainer } from '#/composition'
 
@@ -19,7 +19,7 @@ export const getActiveOrganization = createServerFn({ method: 'GET' }).handler(
       try {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        requireAuthorized({ actor: ctx, action: 'dashboard.read' })
+        await requireExecutionAllowed({ actor: ctx, action: 'dashboard.read' })
         const { identityPort } = getContainer()
 
         const org = await identityPort.getActiveOrg(headers)
@@ -74,7 +74,7 @@ export const listMembers = createServerFn({ method: 'GET' }).handler(
       try {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        requireAuthorized({ actor: ctx, action: 'member.list' })
+        await requireExecutionAllowed({ actor: ctx, action: 'member.list' })
         const { identityPort } = getContainer()
         const members = await identityPort.listMembers(ctx)
         const mapped = members.map((m) => ({
