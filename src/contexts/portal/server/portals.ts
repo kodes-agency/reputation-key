@@ -64,7 +64,7 @@ export const createPortal = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        assertBetaCapability(ctx, 'portal.read')
+        assertBetaCapability(ctx, 'portal.write')
 
         try {
           const { useCases } = getContainer()
@@ -90,7 +90,7 @@ export const updatePortal = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        assertBetaCapability(ctx, 'portal.read')
+        assertBetaCapability(ctx, 'portal.write')
 
         try {
           const { useCases } = getContainer()
@@ -168,7 +168,7 @@ export const deletePortal = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        assertBetaCapability(ctx, 'portal.read')
+        assertBetaCapability(ctx, 'portal.write')
 
         try {
           const { useCases } = getContainer()
@@ -207,7 +207,7 @@ export const requestUploadUrl = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        assertBetaCapability(ctx, 'portal.read')
+        assertBetaCapability(ctx, 'portal.upload')
 
         try {
           const { useCases } = getContainer()
@@ -239,7 +239,7 @@ export const finalizeUpload = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        assertBetaCapability(ctx, 'portal.read')
+        assertBetaCapability(ctx, 'portal.upload')
 
         try {
           const { useCases } = getContainer()
