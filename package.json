@@ -49,7 +49,8 @@
     "bqc:validate-status": "tsx scripts/bqc/validate-status.ts",
     "bqc:generate-status": "tsx scripts/bqc/generate-status.ts",
     "bqc:run-baseline": "tsx scripts/bqc/run-baseline.ts",
-    "ops:queue": "tsx scripts/ops/queue-quarantine.ts"
+    "ops:queue": "tsx scripts/ops/queue-quarantine.ts",
+    "ops:reconcile-grants": "tsx scripts/ops/reconcile-staff-grants.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

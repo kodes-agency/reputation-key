@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "program": "BQC",
-  "updatedAt": "2026-07-17T16:05:00.000Z",
+  "updatedAt": "2026-07-17T17:00:00.000Z",
   "baseline": {
     "validationReport": "docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md",
     "validationBaselineSha": "29b021875c145a7f8827f0ee70fc20935fc5dc79",
@@ -333,7 +333,23 @@
       "requiredEvidenceIds": [],
       "openFindings": ["SPEC-P0-03", "STD-P1-02"],
       "exceptions": [],
-      "notes": "Slices 2.1 (action/resource catalogue) and 2.2 (persisted policy state) implementation_complete. Slices 2.3–2.7 not started."
+      "notes": "Slices 2.1 (action/resource catalogue), 2.2 (persisted policy state), and 2.3 (wire PropertyAccessGrant) implementation_complete. Slices 2.4–2.7 not started."
+    },
+    {
+      "id": "BQC-2.3",
+      "kind": "slice",
+      "parentId": "BQC-2",
+      "title": "Wire PropertyAccessGrant",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "requiredEvidenceIds": [
+        "grant-access-lookup-integration",
+        "reconcile-staff-grants-integration",
+        "ops-reconcile-grants-report"
+      ],
+      "openFindings": [],
+      "exceptions": [],
+      "notes": "Property scope now resolves ONLY from property_access_grant (ADR 0039 implemented): staffPublicApi.getAccessiblePropertyIds — the single lookup behind all ~30 property-access checks across property/portal/inbox/review/dashboard/goal/team/staff/activity — now delegates to the identity-owned grant adapter instead of staff_assignments. Money tests: staff_assignment WITHOUT grant does NOT authorize; grant WITHOUT staff_assignment DOES; revoked/expired never do. Missing scope = empty set = deny, never org-wide allow (fail-closed port: errors propagate). Cache keyed on policy_version (grants bump it in the same statement) — grant/revoke visible on the very next call; middleware propertySetsCache + helpers deleted (dead). Reconciliation: ops:reconcile-grants (report-first, --apply converts only clean rows, idempotent, source 'migration'; anomalies — org_mismatch, property_inactive, user_missing — reported, never converted). Discovery: checkAuthorization Layer 3 (assignedPropertyIds) had zero production callers — real enforcement was the staff lookup, now grant-backed. Last-owner protection verified member/role-only (no property/staff input), unchanged. Not claimed: ExecutionPolicy cutover of entry points (2.4), decision audit writes (2.4+), dark-context portal-participation visibility rewiring (2.6), grant kind hierarchy (post-beta PB1.1); slice not accepted — pending independent review."
     },
     {
       "id": "BQC-2.2",
