@@ -1396,6 +1396,10 @@ const ROUTE_UI_ROWS: ReadonlyArray<EntryPointRow> = [
       'none',
       { notes: 'redirects to /join when no session; loader lists invitations' },
     ),
+    ui('/unavailable', `${ROUTES}/unavailable.tsx`, 'system:ui.render', 'none', 'none', {
+      principals: ['public'],
+      notes: 'BQC-2.6: intentional unavailable experience for dark features',
+    }),
     ui(
       '/p/$propertySlug/$portalSlug',
       `${ROUTES}/p/$propertySlug/$portalSlug.tsx`,

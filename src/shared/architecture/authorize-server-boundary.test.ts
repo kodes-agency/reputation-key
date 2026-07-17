@@ -4,7 +4,7 @@
 // Prevents regression to bare canForContext-only checks on production entry points.
 
 import { describe, it, expect } from 'vitest'
-import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 
 const ROOT = join(process.cwd(), 'src/contexts')
@@ -79,14 +79,18 @@ describe('authorize server boundary (BQR-4.1)', () => {
     expect(offenders, `missing authorize seam:\n${offenders.join('\n')}`).toEqual([])
   })
 
-  it('authorization-policy exports requireAuthorized and capabilityForPermission', () => {
-    const src = readFileSync(
-      join(process.cwd(), 'src/shared/auth/authorization-policy.ts'),
+  it('the superseded requireAuthorized path is deleted (BQC-2.6)', () => {
+    // After the dark-context migration, zero production callers remained —
+    // authorization-policy.ts and its tests were removed. The mapping lives
+    // in capability-for-permission.ts; the seam is execution-policy.ts.
+    expect(
+      existsSync(join(process.cwd(), 'src/shared/auth/authorization-policy.ts')),
+    ).toBe(false)
+    const map = readFileSync(
+      join(process.cwd(), 'src/shared/auth/capability-for-permission.ts'),
       'utf8',
     )
-    expect(src).toContain('export function requireAuthorized')
-    expect(src).toContain('export function capabilityForPermission')
-    expect(src).toContain('export function authorize')
+    expect(map).toContain('export function capabilityForPermission')
   })
 
   it('execution-policy exports the BQC-2.4 seam', () => {

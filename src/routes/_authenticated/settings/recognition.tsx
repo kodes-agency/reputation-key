@@ -12,6 +12,7 @@ import { RecognitionSettingsPage } from '#/components/features/settings'
 import { EmptyState } from '#/components/ui/empty-state'
 import { Award } from 'lucide-react'
 import { badgeKeys } from '#/shared/queries/query-keys'
+import { gateDarkRoute } from '#/shared/auth/dark-route-gate'
 
 const badgeDefinitionsQuery = queryOptions({
   queryKey: badgeKeys.orgDefinitions(),
@@ -20,7 +21,8 @@ const badgeDefinitionsQuery = queryOptions({
 })
 
 export const Route = createFileRoute('/_authenticated/settings/recognition')({
-  beforeLoad: ({ context }) => {
+  beforeLoad: async ({ context }) => {
+    await gateDarkRoute('badge.use', 'Recognition')
     const { role } = context as AuthRouteContext
     if (!can(role, 'badge.manage')) {
       throw redirect({ to: '/settings/profile' })

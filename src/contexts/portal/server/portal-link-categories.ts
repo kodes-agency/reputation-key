@@ -5,7 +5,7 @@ import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { z } from 'zod/v4'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
-import { assertBetaCapability } from '#/shared/auth/beta-capabilities'
+import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getContainer } from '#/composition'
 import {
@@ -25,7 +25,11 @@ export const createLinkCategory = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        assertBetaCapability(ctx, 'portal.write')
+        await requireExecutionAllowed({
+          actor: ctx,
+          action: 'portal.create',
+          capability: 'portal.write',
+        })
         try {
           const { useCases } = getContainer()
           const category = await useCases.createLinkCategory(data, ctx)
@@ -48,7 +52,11 @@ export const updateLinkCategory = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        assertBetaCapability(ctx, 'portal.write')
+        await requireExecutionAllowed({
+          actor: ctx,
+          action: 'portal.update',
+          capability: 'portal.write',
+        })
         try {
           const { useCases } = getContainer()
           const category = await useCases.updateLinkCategory(data, ctx)
@@ -71,7 +79,11 @@ export const deleteLinkCategory = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        assertBetaCapability(ctx, 'portal.write')
+        await requireExecutionAllowed({
+          actor: ctx,
+          action: 'portal.delete',
+          capability: 'portal.write',
+        })
         try {
           const { useCases } = getContainer()
           await useCases.deleteLinkCategory(data, ctx)
@@ -94,7 +106,11 @@ export const reorderCategories = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        assertBetaCapability(ctx, 'portal.write')
+        await requireExecutionAllowed({
+          actor: ctx,
+          action: 'portal.update',
+          capability: 'portal.write',
+        })
         try {
           const { useCases } = getContainer()
           await useCases.reorderCategories(data, ctx)

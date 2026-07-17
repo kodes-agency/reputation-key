@@ -6,7 +6,7 @@ import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getContainer } from '#/composition'
-import { requireAuthorized } from '#/shared/auth/authorization-policy'
+import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import {
   getStaffVisibleBadgesSchema,
   getVisibleTargetBadgesSchema,
@@ -32,7 +32,7 @@ export const getStaffVisibleBadges = createServerFn({ method: 'GET' })
         try {
           const headers = await headersFromContext()
           const ctx = await resolveTenantContext(headers)
-          requireAuthorized({ actor: ctx, action: 'badge.read' })
+          await requireExecutionAllowed({ actor: ctx, action: 'badge.read' })
           return (await getContainer().badgePublicApi.getStaffVisibleBadges({
             organizationId: toOrgId(ctx.organizationId),
             userId: ctx.userId,
@@ -56,7 +56,7 @@ export const getVisibleTargetBadges = createServerFn({ method: 'GET' })
         try {
           const headers = await headersFromContext()
           const ctx = await resolveTenantContext(headers)
-          requireAuthorized({ actor: ctx, action: 'badge.read' })
+          await requireExecutionAllowed({ actor: ctx, action: 'badge.read' })
           // Role-Filtered Badge Visibility (root CONTEXT.md):
           // AccountAdmin sees the whole org; PropertyManager must manage the
           // target property; Staff may only view an assigned portal or a group
@@ -115,7 +115,7 @@ export const setOrganizationBadgeEnablement = createServerFn({ method: 'POST' })
         try {
           const headers = await headersFromContext()
           const ctx = await resolveTenantContext(headers)
-          requireAuthorized({ actor: ctx, action: 'badge.manage' })
+          await requireExecutionAllowed({ actor: ctx, action: 'badge.manage' })
           return await getContainer().badgePublicApi.setOrganizationBadgeEnablement(ctx, {
             organizationId: toOrgId(ctx.organizationId),
             badgeDefinitionId: badgeId(data.badgeDefinitionId),
@@ -139,7 +139,7 @@ export const getOrganizationBadgeDefinitionsFn = createServerFn({
     async () => {
       const headers = await headersFromContext()
       const ctx = await resolveTenantContext(headers)
-      requireAuthorized({ actor: ctx, action: 'badge.read' })
+      await requireExecutionAllowed({ actor: ctx, action: 'badge.read' })
       const rows = await getContainer().badgePublicApi.getOrganizationBadgeDefinitions(
         toOrgId(ctx.organizationId),
       )

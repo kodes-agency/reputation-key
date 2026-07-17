@@ -4,7 +4,7 @@
 > Regenerate: `pnpm bqc:generate-status`. Schema: `src/shared/bqc/status-schema.ts`.
 
 **Program:** BQC  
-**Manifest updated:** 2026-07-17T19:55:00.000Z  
+**Manifest updated:** 2026-07-17T20:35:00.000Z  
 **Validation report:** docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md  
 **Validation baseline SHA:** `29b021875c145a7f8827f0ee70fc20935fc5dc79`  
 **Working tree SHA (status describes):** `927614bce728f8c42d922720f149b6ea1b046354`  
@@ -58,6 +58,7 @@ Only these states are valid: `not_started`, `implementation_in_progress`, `imple
 | BQC-1.3 | slice | Correct successful-refetch persistence | `implementation_complete` | engineering | — | — | — |
 | BQC-1.2 | slice | Remove raw inbox/activity/transport copies | `implementation_complete` | engineering | — | — | — |
 | BQC-1.1 | slice | Complete field-and-copy inventory | `implementation_complete` | engineering | — | — | — |
+| BQC-2.6 | slice | Dark-context policy and interactive containment | `implementation_complete` | engineering | — | — | — |
 | BQC-2.5 | slice | Delayed/system policy contract | `implementation_complete` | engineering | — | — | — |
 | BQC-2.4 | slice | Interactive production cutover | `implementation_complete` | engineering | — | — | — |
 | BQC-2.3 | slice | Wire PropertyAccessGrant | `implementation_complete` | engineering | — | — | — |

@@ -7,7 +7,7 @@ import { match } from 'ts-pattern'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
-import { requireAuthorized } from '#/shared/auth/authorization-policy'
+import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { getContainer } from '#/composition'
 import {
   createGoalSchema,
@@ -76,7 +76,7 @@ export const createGoal = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        requireAuthorized({ actor: ctx, action: 'goal.create' })
+        await requireExecutionAllowed({ actor: ctx, action: 'goal.create' })
         try {
           const { useCases } = getContainer()
           const result = await useCases.createGoal(
@@ -163,7 +163,7 @@ export const updateGoal = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        requireAuthorized({ actor: ctx, action: 'goal.update' })
+        await requireExecutionAllowed({ actor: ctx, action: 'goal.update' })
 
         try {
           const { useCases } = getContainer()
@@ -247,7 +247,7 @@ export const cancelGoal = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        requireAuthorized({ actor: ctx, action: 'goal.cancel' })
+        await requireExecutionAllowed({ actor: ctx, action: 'goal.cancel' })
 
         try {
           const { useCases } = getContainer()
@@ -307,7 +307,7 @@ export const listGoals = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        requireAuthorized({ actor: ctx, action: 'goal.read' })
+        await requireExecutionAllowed({ actor: ctx, action: 'goal.read' })
 
         try {
           const { useCases } = getContainer()
@@ -365,7 +365,7 @@ export const getGoal = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        requireAuthorized({ actor: ctx, action: 'goal.read' })
+        await requireExecutionAllowed({ actor: ctx, action: 'goal.read' })
 
         try {
           const { useCases } = getContainer()

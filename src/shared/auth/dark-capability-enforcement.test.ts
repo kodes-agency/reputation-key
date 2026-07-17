@@ -46,15 +46,14 @@ describe('BQR-0: Dark context capability enforcement', () => {
         // Skip utility/helper files that don't export server functions
         if (!content.includes('createServerFn')) continue
 
-        it(`${basename} enforces capability via authorize seam or assert*Capability`, () => {
-          // BQR-4.1: requireAuthorized → capabilityForPermission covers dark caps.
-          // BQR-0 style: explicit assertBetaCapability / assertGlobalCapability.
+        it(`${basename} enforces capability via the ExecutionPolicy seam or assert*Capability`, () => {
+          // BQC-2.6: requireExecutionAllowed (the deleted requireAuthorized path's
+          // replacement). BQR-0 style: explicit assertBeta/GlobalCapability.
           const hasAssert = /assert(Global|Beta)Capability/.test(content)
-          const hasAuthorizeSeam =
-            content.includes('requireAuthorized') || content.includes('authorize(')
+          const hasAuthorizeSeam = content.includes('requireExecutionAllowed')
           expect(
             hasAssert || hasAuthorizeSeam,
-            `${basename} in dark context "${context}" must call requireAuthorized/authorize or assertBeta/GlobalCapability`,
+            `${basename} in dark context "${context}" must call requireExecutionAllowed or assertBeta/GlobalCapability`,
           ).toBe(true)
         })
 
@@ -67,13 +66,13 @@ describe('BQR-0: Dark context capability enforcement', () => {
             .replace(/\.use$/, '')
             .replace(/^portal\..*/, 'portal')
           const hasMappedPermission =
-            content.includes('requireAuthorized') &&
+            content.includes('requireExecutionAllowed') &&
             (content.includes(`'${permissionPrefix}.`) ||
               content.includes(`"${permissionPrefix}.`) ||
               allowedCaps.some((cap) => content.includes(`'${cap}'`)))
           expect(
             hasLiteral || hasMappedPermission,
-            `${basename} in dark context "${context}" must reference one of [${allowedCaps.join(', ')}] or use requireAuthorized with matching permissions`,
+            `${basename} in dark context "${context}" must reference one of [${allowedCaps.join(', ')}] or use requireExecutionAllowed with matching permissions`,
           ).toBe(true)
         })
       }

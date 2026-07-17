@@ -20,6 +20,7 @@ import { propertyQuery, propertiesQuery } from '#/shared/queries/route-queries'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
 import type { BadgeAwardWithTarget } from '#/contexts/badge/application/public-api'
+import { gateDarkRoute } from '#/shared/auth/dark-route-gate'
 
 const portalQuery = (portalId: string) =>
   queryOptions({
@@ -52,7 +53,8 @@ const portalBadgesQuery = (propertyId: string, portalId: string) =>
 export const Route = createFileRoute(
   '/_authenticated/properties/$propertyId/portals/$portalId',
 )({
-  beforeLoad: ({ context }) => {
+  beforeLoad: async ({ context }) => {
+    await gateDarkRoute('portal.read', 'Portals')
     const { role } = context as AuthRouteContext
     if (!can(role, 'portal.read')) throw redirect({ to: '/properties' })
   },

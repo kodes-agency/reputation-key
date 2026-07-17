@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "program": "BQC",
-  "updatedAt": "2026-07-17T19:55:00.000Z",
+  "updatedAt": "2026-07-17T20:35:00.000Z",
   "baseline": {
     "validationReport": "docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md",
     "validationBaselineSha": "29b021875c145a7f8827f0ee70fc20935fc5dc79",
@@ -333,7 +333,23 @@
       "requiredEvidenceIds": [],
       "openFindings": ["SPEC-P0-03", "STD-P1-02"],
       "exceptions": [],
-      "notes": "Slices 2.1–2.4 implementation_complete; 2.5 (delayed/system policy contract) implementation_complete. Slices 2.6–2.7 not started."
+      "notes": "Slices 2.1–2.5 implementation_complete; 2.6 (dark-context policy + interactive containment) implementation_complete. Slice 2.7 not started. SPEC-P0-03 interactive portions land in 2.6; finding remains evidence_pending until BQC-3 delayed integration + BQC-6 browser evidence (ownership model)."
+    },
+    {
+      "id": "BQC-2.6",
+      "kind": "slice",
+      "parentId": "BQC-2",
+      "title": "Dark-context policy and interactive containment",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "requiredEvidenceIds": [
+        "dark-context-matrix",
+        "dark-route-gates",
+        "requireauthorized-path-removal"
+      ],
+      "openFindings": [],
+      "exceptions": [],
+      "notes": "All 40 dark server fns (portal 24, team 4, goal 6, leaderboard 2, badge 4) migrated from assertBetaCapability/requireAuthorized to requireExecutionAllowed — dark denial now flows through the ExecutionPolicy (capability-first: blocked/non-core deny before permission). Route-level containment: gateDarkRoute on 9 route files (team, leaderboard, progress, recognition, goals layout, teams layout, portals ×3) redirects to a new intentional /unavailable experience (never a partially live shell); routeTree regenerated; catalogue row added. Negative matrix (8 dark caps × 4 layers: policy deny with stable reasons, route redirect, guest/global gate, delayed-contract deny for dark job actions + AI) — policy/server/command negative tests, no positive E2E opened by overrides (phase §2.6). Contract fixtures now 11 incl. goal/badge reconcile dark-denial. Superseded path REMOVED: authorization-policy.ts (requireAuthorized/authorize/checkAuthorization) + its tests deleted after zero production callers remained; permission→capability map lives in capability-for-permission.ts; BQC-0.2 taxonomy proof re-seamed through the ExecutionPolicy (stronger); 2.4 shadow record kept with recorded old decisions; ADR 0033 addendum records the supersession; boundary + dark-enforcement + ADR-presence architecture tests updated. Not claimed: delayed-runtime dark denial (BQC-3), direct-navigation/browser evidence (BQC-6), ungated in-process dark consumers (badge/goal/leaderboard handlers on metric.recorded — BQC-3 owns runtime denial), per-org allowlisted route promotion (2.7); slice not accepted — pending independent review."
     },
     {
       "id": "BQC-2.5",

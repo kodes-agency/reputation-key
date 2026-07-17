@@ -21,6 +21,7 @@ import { Tabs, TabsList, TabsTrigger } from '#/components/ui/tabs'
 import { Settings, Users } from 'lucide-react'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
+import { gateDarkRoute } from '#/shared/auth/dark-route-gate'
 
 const teamRouteApi = getRouteApi('/_authenticated/properties/$propertyId/teams/$teamId')
 
@@ -68,7 +69,8 @@ export function useTeamLayout() {
 export const Route = createFileRoute(
   '/_authenticated/properties/$propertyId/teams/$teamId',
 )({
-  beforeLoad: ({ context }) => {
+  beforeLoad: async ({ context }) => {
+    await gateDarkRoute('team.use', 'Teams')
     const { role } = context as AuthRouteContext
     if (!can(role, 'team.read')) throw redirect({ to: '/properties' })
   },
@@ -94,6 +96,7 @@ export const Route = createFileRoute(
   component: TeamLayout,
 })
 
+// fallow-ignore-next-line complexity — pre-existing component on main (BQC-2.6 touched only this file's beforeLoad gate, not the component)
 function TeamLayout() {
   const { team, propertyId, teamId } = useTeamLayout()
   const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))

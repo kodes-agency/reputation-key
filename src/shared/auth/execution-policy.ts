@@ -34,7 +34,7 @@ import {
   type Capability,
   type CapabilityDenyReason,
 } from './beta-capabilities'
-import { capabilityForPermission } from './authorization-policy'
+import { capabilityForPermission } from './capability-for-permission'
 import { throwContextError } from './server-errors'
 
 /** Bump when decision semantics change. Recorded on every decision + audit row. */

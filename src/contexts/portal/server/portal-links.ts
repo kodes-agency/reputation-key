@@ -6,7 +6,7 @@ import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { z } from 'zod/v4'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
-import { assertBetaCapability } from '#/shared/auth/beta-capabilities'
+import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getContainer } from '#/composition'
 import {
@@ -28,7 +28,11 @@ export const createLink = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        assertBetaCapability(ctx, 'portal.write')
+        await requireExecutionAllowed({
+          actor: ctx,
+          action: 'portal.create',
+          capability: 'portal.write',
+        })
         try {
           const { useCases } = getContainer()
           const link = await useCases.createLink(data, ctx)
@@ -51,7 +55,11 @@ export const updateLink = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        assertBetaCapability(ctx, 'portal.write')
+        await requireExecutionAllowed({
+          actor: ctx,
+          action: 'portal.update',
+          capability: 'portal.write',
+        })
         try {
           const { useCases } = getContainer()
           const link = await useCases.updateLink(data, ctx)
@@ -74,7 +82,11 @@ export const deleteLink = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        assertBetaCapability(ctx, 'portal.write')
+        await requireExecutionAllowed({
+          actor: ctx,
+          action: 'portal.delete',
+          capability: 'portal.write',
+        })
         try {
           const { useCases } = getContainer()
           await useCases.deleteLink(data, ctx)
@@ -97,7 +109,11 @@ export const reorderLinks = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        assertBetaCapability(ctx, 'portal.write')
+        await requireExecutionAllowed({
+          actor: ctx,
+          action: 'portal.update',
+          capability: 'portal.write',
+        })
         try {
           const { useCases } = getContainer()
           await useCases.reorderLinks(data, ctx)
@@ -122,7 +138,11 @@ export const listPortalLinks = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        assertBetaCapability(ctx, 'portal.read')
+        await requireExecutionAllowed({
+          actor: ctx,
+          action: 'portal.read',
+          capability: 'portal.read',
+        })
         const { useCases } = getContainer()
 
         try {

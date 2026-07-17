@@ -19,12 +19,13 @@ describe('ADR 0032 / 0033 presence (BQR-4.3)', () => {
     expect(src).toContain('inbox.use')
   })
 
-  it('ADR 0033 is accepted and cites requireAuthorized', () => {
+  it('ADR 0033 is accepted and records the ExecutionPolicy supersession (BQC-2.6)', () => {
     const path = join(ROOT, 'docs/adr/0033-authorization-policy.md')
     expect(existsSync(path)).toBe(true)
     const src = readFileSync(path, 'utf8')
     expect(src).toMatch(/status:\s*accepted/)
-    expect(src).toContain('requireAuthorized')
-    expect(src).toContain('authorization-policy.ts')
+    expect(src).toContain('ExecutionPolicy')
+    expect(src).toContain('requireExecutionAllowed')
+    expect(src).toContain('capability-for-permission.ts')
   })
 })
