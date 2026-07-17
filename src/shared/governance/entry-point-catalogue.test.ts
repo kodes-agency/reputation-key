@@ -30,7 +30,7 @@ import {
   postureForCapability,
   type EntryPointRow,
 } from './entry-point-catalogue'
-import { capabilityForPermission } from '#/shared/auth/authorization-policy'
+import { capabilityForPermission } from '#/shared/auth/capability-for-permission'
 import {
   checkBetaCapability,
   createEnvCapabilityPolicyStore,

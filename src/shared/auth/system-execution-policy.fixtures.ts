@@ -128,6 +128,30 @@ export const DELAYED_CONTRACT_FIXTURES: ReadonlyArray<DelayedContractFixture> = 
     expect: { outcome: 'stale_context', reason: 'allowed', freshRead: true },
   },
   {
+    name: 'deny — dark job (goal reconcile) never executes while goal.use is dark',
+    env: {},
+    request: {
+      ...BASE,
+      principal: { kind: 'system', id: 'schedule:goal-reconcile' },
+      action: 'system:goal.reconcile',
+      executionKind: 'schedule',
+      policyVersionAtEnqueue: 'bqc-2.4',
+    },
+    expect: { outcome: 'deny', reason: 'org_not_allowlisted', freshRead: false },
+  },
+  {
+    name: 'deny — dark job (badge reconcile) never executes while badge.use is dark',
+    env: {},
+    request: {
+      ...BASE,
+      principal: { kind: 'system', id: 'schedule:badge-reconcile' },
+      action: 'system:badge.reconcile',
+      executionKind: 'schedule',
+      policyVersionAtEnqueue: 'bqc-2.4',
+    },
+    expect: { outcome: 'deny', reason: 'org_not_allowlisted', freshRead: false },
+  },
+  {
     name: 'deny — consumer with missing scope (inbox update without org)',
     env: {},
     request: {

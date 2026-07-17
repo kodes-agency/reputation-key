@@ -8,6 +8,7 @@ import { PortalListPage } from '#/components/features/portal/portal-list-page'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { portalKeys } from '#/shared/queries/query-keys'
 import { propertiesQuery } from '#/shared/queries/route-queries'
+import { gateDarkRoute } from '#/shared/auth/dark-route-gate'
 
 const portalsQuery = (propertyId: string) =>
   queryOptions({
@@ -17,7 +18,8 @@ const portalsQuery = (propertyId: string) =>
   })
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/portals/')({
-  beforeLoad: ({ context }) => {
+  beforeLoad: async ({ context }) => {
+    await gateDarkRoute('portal.read', 'Portals')
     const { role } = context as AuthRouteContext
     if (!can(role, 'portal.read')) throw redirect({ to: '/properties' })
   },

@@ -8,6 +8,7 @@ import { StaffEmptyState } from '#/components/features/staff/staff-empty-state'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
 import type { StaffGoalEntry } from '#/contexts/goal/application/public-api'
+import { gateDarkRoute } from '#/shared/auth/dark-route-gate'
 
 const progressSearch = z.object({
   propertyId: z.string().uuid().optional(),
@@ -21,6 +22,9 @@ const staffGoalsQuery = (propertyId: string) =>
   })
 
 export const Route = createFileRoute('/_authenticated/progress')({
+  beforeLoad: async () => {
+    await gateDarkRoute('goal.use', 'Goals')
+  },
   validateSearch: progressSearch,
   loaderDeps: ({ search }) => ({ propertyId: search.propertyId }),
   loader: async ({ context, deps: { propertyId } }) => {

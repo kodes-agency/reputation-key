@@ -10,11 +10,13 @@ import { portalKeys } from '#/shared/queries/query-keys'
 import { propertyQuery } from '#/shared/queries/route-queries'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
+import { gateDarkRoute } from '#/shared/auth/dark-route-gate'
 
 export const Route = createFileRoute(
   '/_authenticated/properties/$propertyId/portals/new',
 )({
-  beforeLoad: ({ context }) => {
+  beforeLoad: async ({ context }) => {
+    await gateDarkRoute('portal.write', 'Portals')
     const role = (context as AuthRouteContext).role
     if (!can(role, 'portal.create')) {
       throw redirect({ to: '/properties' })

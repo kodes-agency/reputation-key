@@ -8,7 +8,7 @@ import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { catchUntagged } from '#/shared/auth/server-errors'
-import { requireAuthorized } from '#/shared/auth/authorization-policy'
+import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { getContainer } from '#/composition'
 import { propertyId as toPropertyId } from '#/shared/domain/ids'
 
@@ -29,7 +29,7 @@ export const listStaffGoals = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        requireAuthorized({ actor: ctx, action: 'goal.read' })
+        await requireExecutionAllowed({ actor: ctx, action: 'goal.read' })
 
         try {
           const { useCases } = getContainer()

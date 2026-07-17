@@ -41,6 +41,11 @@ vi.mock('#/shared/auth/beta-capabilities', () => ({
   BetaCapabilityError: class BetaCapabilityError extends Error {},
 }))
 
+// BQC-2.6: ExecutionPolicy seam — default allow (handler tests cover use-case wiring).
+vi.mock('#/shared/auth/execution-policy', () => ({
+  requireExecutionAllowed: vi.fn(async () => {}),
+}))
+
 vi.mock('#/composition', () => ({
   getContainer: vi.fn(() => ({
     useCases: {

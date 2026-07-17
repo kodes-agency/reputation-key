@@ -9,6 +9,7 @@ import { leaderboardKeys } from '#/shared/queries/query-keys'
 import { StaffEmptyState } from '#/components/features/staff/staff-empty-state'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
+import { gateDarkRoute } from '#/shared/auth/dark-route-gate'
 import type {
   LeaderboardEntryWithTarget,
   MatrixRow,
@@ -86,6 +87,9 @@ const leaderboardQuery = (
   })
 
 export const Route = createFileRoute('/_authenticated/leaderboard')({
+  beforeLoad: async () => {
+    await gateDarkRoute('leaderboard.use', 'Leaderboard')
+  },
   validateSearch: leaderboardSearch,
   loaderDeps: ({ search }) => ({
     propertyId: search.propertyId,
@@ -116,6 +120,7 @@ export const Route = createFileRoute('/_authenticated/leaderboard')({
   component: StaffLeaderboardPage,
 })
 
+// fallow-ignore-next-line complexity — pre-existing component on main (BQC-2.6 touched only this file's beforeLoad gate, not the component)
 function StaffLeaderboardPage() {
   const {
     propertyId: searchPropertyId,

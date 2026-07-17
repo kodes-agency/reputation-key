@@ -55,14 +55,13 @@ vi.mock('#/shared/auth/beta-capabilities', () => ({
   BetaCapabilityError: class BetaCapabilityError extends Error {},
 }))
 
-// BQR-4.1: authorize seam — default allow; permission-deny tests override.
-const requireAuthorizedMock = vi.hoisted(() => vi.fn())
-vi.mock('#/shared/auth/authorization-policy', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('#/shared/auth/authorization-policy')>()
+// BQC-2.6: ExecutionPolicy seam — default allow; permission-deny tests override.
+const requireExecutionAllowedMock = vi.hoisted(() => vi.fn())
+vi.mock('#/shared/auth/execution-policy', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('#/shared/auth/execution-policy')>()
   return {
     ...actual,
-    requireAuthorized: requireAuthorizedMock,
+    requireExecutionAllowed: requireExecutionAllowedMock,
   }
 })
 
@@ -87,7 +86,7 @@ describe('getGoal handler (executable)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.resolveTenantContext.mockResolvedValue(TEST_CTX)
-    requireAuthorizedMock.mockImplementation(() => {})
+    requireExecutionAllowedMock.mockImplementation(() => {})
   })
 
   it('invokes the getGoal use case with the caller organizationId and role', async () => {
@@ -106,7 +105,7 @@ describe('getGoal handler (executable)', () => {
     expect(input.goalId).toBeTruthy()
     expect(ctx.organizationId).toBe('org-test-aaaa')
     expect(ctx.role).toBe('AccountAdmin')
-    expect(requireAuthorizedMock).toHaveBeenCalled()
+    expect(requireExecutionAllowedMock).toHaveBeenCalled()
   })
 
   it('throws a 404 ServerFunctionError when the use case returns goal_not_found', async () => {
@@ -134,7 +133,7 @@ describe('getGoal handler (executable)', () => {
   })
 
   it('throws 403 before reaching the use case when authorize denies', async () => {
-    requireAuthorizedMock.mockImplementation(() => {
+    requireExecutionAllowedMock.mockImplementation(() => {
       throw new ServerFunctionError(
         'AuthError',
         'Authorization denied: permission_denied',

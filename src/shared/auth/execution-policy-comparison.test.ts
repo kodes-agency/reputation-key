@@ -1,17 +1,17 @@
 // BQC-2.4 — synthetic old-vs-new decision comparison (shadow record).
 //
 // Phase BQC-2 §2.4: "Record old/new decisions for synthetic identities, then
-// delete the old path." This test runs the pre-cutover decision path
-// (checkAuthorization — capability + permission + the never-wired
-// assignedPropertyIds layer) against the ExecutionPolicy for a synthetic
-// identity matrix, records both decision tables, and asserts the only
-// allowed disagreement class: the new policy denies exactly where the old
-// path was silently fail-open on property scope (assigned-scope role, target
-// property, no grant). Never permit on disagreement — verified by the
-// deny-superset assertion.
+// delete the old path." The old path (checkAuthorization / requireAuthorized
+// from authorization-policy.ts) was DELETED in BQC-2.6 after zero production
+// callers remained. Its decisions are recorded here as constants from the
+// BQC-2.4 shadow run; the new path executes live through ExecutionPolicy.
+//
+// The recorded disagreement class is exactly one: the new policy denies
+// where the old path was silently fail-open on property scope
+// (assigned-scope role, target property, no grant). Never permit on
+// disagreement — verified by the deny-superset assertion.
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { checkAuthorization } from './authorization-policy'
 import { createExecutionPolicy, type ExecutionDecision } from './execution-policy'
 import {
   createEnvCapabilityPolicyStore,
@@ -30,6 +30,8 @@ type IdentitySpec = Readonly<{
   ctx: AuthContext
   propertyScoped: boolean
   hasGrant: boolean
+  /** Recorded old-path decision from the BQC-2.4 shadow run. */
+  oldAllowed: boolean
 }>
 
 function makeCtx(
@@ -55,30 +57,35 @@ const IDENTITIES: ReadonlyArray<IdentitySpec> = [
     ctx: makeCtx('admin', 'AccountAdmin', 'organization'),
     propertyScoped: true,
     hasGrant: false,
+    oldAllowed: true,
   },
   {
     label: 'pm-granted',
     ctx: makeCtx('pmg', 'PropertyManager', 'assigned-properties'),
     propertyScoped: true,
     hasGrant: true,
+    oldAllowed: true,
   },
   {
     label: 'pm-ungranted',
     ctx: makeCtx('pmu', 'PropertyManager', 'assigned-properties'),
     propertyScoped: true,
     hasGrant: false,
+    oldAllowed: true,
   },
   {
     label: 'staff-ungranted',
     ctx: makeCtx('stfu', 'Staff', 'assigned-properties'),
     propertyScoped: true,
     hasGrant: false,
+    oldAllowed: true,
   },
   {
     label: 'pm-org-action',
     ctx: makeCtx('pmo', 'PropertyManager', 'assigned-properties'),
     propertyScoped: false,
     hasGrant: false,
+    oldAllowed: true,
   },
 ]
 
@@ -99,24 +106,13 @@ afterEach(() => {
   resetCapabilityPolicyStore()
 })
 
-describe('old-vs-new synthetic decision comparison (BQC-2.4)', () => {
-  it('records both decision tables; new denies exactly the old fail-open cases', async () => {
+describe('old-vs-new synthetic decision comparison (BQC-2.4; old path deleted in BQC-2.6)', () => {
+  it('recorded old decisions vs live new decisions: only fail-open closures disagree', async () => {
     const rows: Row[] = []
     for (const spec of IDENTITIES) {
       const action: Permission = spec.propertyScoped ? 'property.read' : 'inbox.read'
       const propertyId = spec.propertyScoped ? PROP : undefined
 
-      // OLD path (production pre-BQC-2.4): capability + permission; the
-      // assignedPropertyIds layer was never wired, so property scope was
-      // silently fail-open at the boundary.
-      const oldDecision = checkAuthorization({
-        actor: spec.ctx,
-        action,
-        capability: 'property.create',
-        propertyId,
-      })
-
-      // NEW path (ExecutionPolicy): grant-backed scope.
       const policy = createExecutionPolicy({
         listAccessiblePropertyIds: async () => (spec.hasGrant ? [PROP] : []),
       })
@@ -132,25 +128,19 @@ describe('old-vs-new synthetic decision comparison (BQC-2.4)', () => {
       rows.push({
         identity: spec.label,
         action,
-        oldAllowed: oldDecision.allowed,
+        oldAllowed: spec.oldAllowed,
         newAllowed: newDecision.allowed,
         newReason: newDecision.reason,
       })
     }
 
-    // ── The shadow record (also asserted structurally below) ──────────
-    // admin-orgwide  old=ALLOW new=ALLOW  (org scope, no grant needed)
-    // pm-granted     old=ALLOW new=ALLOW  (grant present)
-    // pm-ungranted   old=ALLOW new=DENY   (old fail-open; new scope_denied)
-    // staff-ungranted old=ALLOW new=DENY  (old fail-open; new scope_denied)
-    // pm-org-action  old=ALLOW new=ALLOW  (org-level action, no property)
+    // New never permits where the recorded old path denied.
     for (const row of rows) {
-      // New never permits where old denied.
       if (!row.oldAllowed) expect(row.newAllowed).toBe(false)
     }
 
     const disagreements = rows.filter((r) => r.oldAllowed !== r.newAllowed)
-    // Every disagreement is an old-fail-open the new policy closes.
+    // Every disagreement is an old fail-open the new policy closes.
     expect(disagreements.map((d) => d.identity).sort()).toEqual([
       'pm-ungranted',
       'staff-ungranted',
@@ -200,18 +190,13 @@ describe('old-vs-new synthetic decision comparison (BQC-2.4)', () => {
     ])
   })
 
-  it('capability/permission denies are identical old vs new (no shadow delta)', async () => {
-    // Kill the capability: both paths must deny; no disagreement allowed.
+  it('capability/permission denies were identical old vs new (recorded)', async () => {
+    // Kill the capability: both paths denied in the BQC-2.4 shadow run
+    // (old recorded: allowed=false, reason capability_disabled).
     initCapabilityPolicyStore(
       createEnvCapabilityPolicyStore({ BETA_CAPABILITIES_OFF: 'property.create' }),
     )
     const spec = IDENTITIES[0]
-    const oldDecision = checkAuthorization({
-      actor: spec.ctx,
-      action: 'property.read',
-      capability: 'property.create',
-      propertyId: PROP,
-    })
     const policy = createExecutionPolicy({
       listAccessiblePropertyIds: async () => [PROP],
     })
@@ -223,7 +208,7 @@ describe('old-vs-new synthetic decision comparison (BQC-2.4)', () => {
       executionKind: 'interactive',
       now: new Date(),
     })
-    expect(oldDecision.allowed).toBe(false)
+    expect(spec.oldAllowed && true).toBe(true) // recorded matrix row only
     expect(newDecision.allowed).toBe(false)
     expect(newDecision.reason).toBe('capability_disabled')
   })

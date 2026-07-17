@@ -4,7 +4,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { match } from 'ts-pattern'
-import { assertBetaCapability } from '#/shared/auth/beta-capabilities'
+import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { z } from 'zod/v4'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
@@ -64,7 +64,11 @@ export const createPortal = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        assertBetaCapability(ctx, 'portal.write')
+        await requireExecutionAllowed({
+          actor: ctx,
+          action: 'portal.create',
+          capability: 'portal.write',
+        })
 
         try {
           const { useCases } = getContainer()
@@ -90,7 +94,11 @@ export const updatePortal = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        assertBetaCapability(ctx, 'portal.write')
+        await requireExecutionAllowed({
+          actor: ctx,
+          action: 'portal.update',
+          capability: 'portal.write',
+        })
 
         try {
           const { useCases } = getContainer()
@@ -116,7 +124,11 @@ export const listPortals = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        assertBetaCapability(ctx, 'portal.read')
+        await requireExecutionAllowed({
+          actor: ctx,
+          action: 'portal.read',
+          capability: 'portal.read',
+        })
 
         try {
           const { useCases } = getContainer()
@@ -142,7 +154,11 @@ export const getPortal = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        assertBetaCapability(ctx, 'portal.read')
+        await requireExecutionAllowed({
+          actor: ctx,
+          action: 'portal.read',
+          capability: 'portal.read',
+        })
 
         try {
           const { useCases } = getContainer()
@@ -168,7 +184,11 @@ export const deletePortal = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        assertBetaCapability(ctx, 'portal.write')
+        await requireExecutionAllowed({
+          actor: ctx,
+          action: 'portal.delete',
+          capability: 'portal.write',
+        })
 
         try {
           const { useCases } = getContainer()
@@ -207,7 +227,11 @@ export const requestUploadUrl = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        assertBetaCapability(ctx, 'portal.upload')
+        await requireExecutionAllowed({
+          actor: ctx,
+          action: 'portal.create',
+          capability: 'portal.upload',
+        })
 
         try {
           const { useCases } = getContainer()
@@ -239,7 +263,11 @@ export const finalizeUpload = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        assertBetaCapability(ctx, 'portal.upload')
+        await requireExecutionAllowed({
+          actor: ctx,
+          action: 'portal.create',
+          capability: 'portal.upload',
+        })
 
         try {
           const { useCases } = getContainer()
@@ -273,7 +301,11 @@ export const getPortalForQR = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        assertBetaCapability(ctx, 'portal.read')
+        await requireExecutionAllowed({
+          actor: ctx,
+          action: 'portal.read',
+          capability: 'portal.read',
+        })
 
         try {
           const { useCases } = getContainer()

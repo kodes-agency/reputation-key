@@ -42,6 +42,10 @@ Invariants enforced:
 
 BQR-4.1 migrated server entry points from bare `canForContext` to `requireAuthorized`. Use cases may re-assert for defense-in-depth; the **server boundary is authoritative** for interactive paths.
 
+## Superseded (BQC-2.4/2.6)
+
+The `ExecutionPolicy` (`src/shared/auth/execution-policy.ts`, BQC-2.4) now implements this decision: one normalized request returns allow or typed deny with a stable reason and policy version, hiding role permissions, PropertyAccessGrant, allowlist, suspension, capability state, consent, caches, and decision audit. Interactive entry points use `requireExecutionAllowed`; the permission→capability mapping lives in `src/shared/auth/capability-for-permission.ts`. After the dark-context migration (BQC-2.6) left zero production callers, `authorization-policy.ts` (`requireAuthorized`/`authorize`/`checkAuthorization`) was deleted. This ADR's single-decision-path intent stands; the seam name changed.
+
 ## Considered options
 
 - **Per-context role branching.** Rejected — inconsistent and misses capability gates.

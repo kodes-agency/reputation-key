@@ -1,8 +1,12 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
+import { gateDarkRoute } from '#/shared/auth/dark-route-gate'
 
 export const Route = createFileRoute('/_authenticated/team')({
+  beforeLoad: async () => {
+    await gateDarkRoute('team.use', 'Teams')
+  },
   component: StaffTeamPage,
 })
 

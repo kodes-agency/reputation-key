@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as UnavailableRouteImport } from './routes/unavailable'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as LoginRouteImport } from './routes/login'
@@ -61,6 +62,11 @@ import { Route as AuthenticatedPropertiesPropertyIdGoalsGoalIdRouteImport } from
 import { Route as AuthenticatedPropertiesPropertyIdTeamsTeamIdIndexRouteImport } from './routes/_authenticated/properties/$propertyId/teams/$teamId/index'
 import { Route as AuthenticatedPropertiesPropertyIdTeamsTeamIdMembersRouteImport } from './routes/_authenticated/properties/$propertyId/teams/$teamId/members'
 
+const UnavailableRoute = UnavailableRouteImport.update({
+  id: '/unavailable',
+  path: '/unavailable',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
   id: '/reset-password',
   path: '/reset-password',
@@ -352,6 +358,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/unavailable': typeof UnavailableRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/home': typeof AuthenticatedHomeRoute
   '/leaderboard': typeof AuthenticatedLeaderboardRoute
@@ -404,6 +411,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/unavailable': typeof UnavailableRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/home': typeof AuthenticatedHomeRoute
   '/leaderboard': typeof AuthenticatedLeaderboardRoute
@@ -454,6 +462,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/unavailable': typeof UnavailableRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/home': typeof AuthenticatedHomeRoute
   '/_authenticated/leaderboard': typeof AuthenticatedLeaderboardRoute
@@ -508,6 +517,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/register'
     | '/reset-password'
+    | '/unavailable'
     | '/dashboard'
     | '/home'
     | '/leaderboard'
@@ -560,6 +570,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/register'
     | '/reset-password'
+    | '/unavailable'
     | '/dashboard'
     | '/home'
     | '/leaderboard'
@@ -609,6 +620,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/register'
     | '/reset-password'
+    | '/unavailable'
     | '/_authenticated/dashboard'
     | '/_authenticated/home'
     | '/_authenticated/leaderboard'
@@ -663,6 +675,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   RegisterRoute: typeof RegisterRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
+  UnavailableRoute: typeof UnavailableRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiHealthLiveRoute: typeof ApiHealthLiveRoute
   ApiHealthMetricsRoute: typeof ApiHealthMetricsRoute
@@ -677,6 +690,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/unavailable': {
+      id: '/unavailable'
+      path: '/unavailable'
+      fullPath: '/unavailable'
+      preLoaderRoute: typeof UnavailableRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/reset-password': {
       id: '/reset-password'
       path: '/reset-password'
@@ -1188,6 +1208,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   RegisterRoute: RegisterRoute,
   ResetPasswordRoute: ResetPasswordRoute,
+  UnavailableRoute: UnavailableRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiHealthLiveRoute: ApiHealthLiveRoute,
   ApiHealthMetricsRoute: ApiHealthMetricsRoute,
