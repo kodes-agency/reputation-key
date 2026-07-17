@@ -137,9 +137,12 @@ export async function bootstrap(container: Container): Promise<void> {
   )
 
   // ── Review retention jobs ────────────────────────────────────────
+  const { createReviewRefreshRunRepository } =
+    await import('#/contexts/review/infrastructure/repositories/review-refresh-run.repository')
   const refreshHandler = createRefreshExpiringReviewsHandler({
     reviewRepo: container.reviewRepo,
     queue: container.reviewQueue,
+    refreshRunRepo: createReviewRefreshRunRepository(container.db),
     clock: container.clock,
   })
   container.jobRegistry.register(REFRESH_EXPIRING_JOB_NAME, async (job) => {

@@ -120,6 +120,19 @@ export function createHealthChecker(
                   AND ${reviews.contentExpiresAt} < NOW()
               )::int
             `,
+            // BQC-1.5: oldest refresh-due expiry age (seconds until the
+            // nearest hard expiry among refresh-due rows; alert input for
+            // "before the policy deadline"). NULL when nothing is due.
+            oldest_due_age_seconds: sql<number>`
+              extract(epoch from (
+                min(${reviews.contentExpiresAt}) FILTER (
+                  WHERE ${reviews.contentExpiresAt} IS NOT NULL
+                    AND ${reviews.lastFetchedAt} IS NOT NULL
+                    AND NOW() > (${reviews.lastFetchedAt} + INTERVAL '25 days')
+                    AND ${reviews.contentExpiresAt} >= NOW()
+                ) - NOW()
+              ))::int
+            `,
           })
           .from(reviews)
 
@@ -153,6 +166,9 @@ export function createHealthChecker(
             totalActive: reviewRow?.total ?? 0,
             refreshDueCount: reviewRow?.refresh_due ?? 0,
             expiredCount: reviewRow?.expired ?? 0,
+            /** BQC-1.5: seconds until the nearest hard expiry among
+             *  refresh-due rows (null when nothing is due). */
+            oldestDueAgeSeconds: reviewRow?.oldest_due_age_seconds ?? null,
           },
           sync: {
             dueForIncrementalCount: syncRow?.due ?? 0,

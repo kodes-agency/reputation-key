@@ -293,6 +293,83 @@ describe.sequential('reviewRepository (integration)', () => {
     })
   })
 
+  describe('findExpiringBatchAcrossTenants keyset batches (BQC-1.5)', () => {
+    const NOW = new Date('2025-06-01T12:00:00Z')
+
+    async function seedExpiring(
+      repo: ReturnType<typeof createReviewRepository>,
+      idSuffix: string,
+      expiresAt: Date,
+    ) {
+      await repo.upsert(
+        makeReview({
+          id: `1a000000-0000-0000-0000-0000000000${idSuffix}`,
+          externalId: `ext-${idSuffix}`,
+          contentExpiresAt: expiresAt,
+        } as Partial<Omit<Review, 'id'>>),
+      )
+    }
+
+    it('walks all expiring rows in order with no duplicates or skips', async () => {
+      const db = getDb()
+      const repo = createReviewRepository(db)
+      const threshold = new Date(NOW.getTime() + 30 * 24 * 60 * 60 * 1000)
+      const base = NOW.getTime()
+      for (let i = 0; i < 5; i++) {
+        await seedExpiring(repo, `b${i}`, new Date(base + (i + 1) * 60 * 1000))
+      }
+
+      const seen: string[] = []
+      let cursor: { contentExpiresAt: Date; id: string } | null = null
+      for (let batch = 0; batch < 10; batch++) {
+        const rows = await repo.findExpiringBatchAcrossTenants(threshold, cursor, 2)
+        if (rows.length === 0) break
+        for (const r of rows) seen.push(r.externalId)
+        const last = rows[rows.length - 1]
+        cursor = {
+          contentExpiresAt: last.contentExpiresAt as Date,
+          id: last.id as string,
+        }
+      }
+
+      expect(seen).toHaveLength(5)
+      expect(new Set(seen).size).toBe(5)
+      expect(seen).toEqual(['ext-b0', 'ext-b1', 'ext-b2', 'ext-b3', 'ext-b4'])
+    })
+
+    it('does not re-scan rows inserted behind the cursor mid-walk', async () => {
+      const db = getDb()
+      const repo = createReviewRepository(db)
+      const threshold = new Date(NOW.getTime() + 30 * 24 * 60 * 60 * 1000)
+      await seedExpiring(repo, 'c1', new Date(NOW.getTime() + 3 * 60 * 1000))
+      await seedExpiring(repo, 'c2', new Date(NOW.getTime() + 4 * 60 * 1000))
+
+      const first = await repo.findExpiringBatchAcrossTenants(threshold, null, 1)
+      expect(first).toHaveLength(1)
+      const cursor = {
+        contentExpiresAt: first[0].contentExpiresAt as Date,
+        id: first[0].id as string,
+      }
+
+      // Insert a row that sorts BEFORE the cursor — next run will catch it;
+      // this run must not reprocess or loop.
+      await seedExpiring(repo, 'c0', new Date(NOW.getTime() + 1 * 60 * 1000))
+
+      const rest: string[] = []
+      let c: typeof cursor | null = cursor
+      for (let batch = 0; batch < 5; batch++) {
+        const rows = await repo.findExpiringBatchAcrossTenants(threshold, c, 1)
+        if (rows.length === 0) break
+        rest.push(rows[0].externalId)
+        c = {
+          contentExpiresAt: rows[0].contentExpiresAt as Date,
+          id: rows[0].id as string,
+        }
+      }
+      expect(rest).toEqual(['ext-c2'])
+    })
+  })
+
   describe('tenant isolation', () => {
     it('same externalId, different org → separate reviews', async () => {
       const db = getDb()

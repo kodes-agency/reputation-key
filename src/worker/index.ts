@@ -118,7 +118,10 @@ async function main() {
         REFRESH_EXPIRING_JOB_NAME,
         {},
         {
-          repeat: { every: 24 * 60 * 60 * 1000 },
+          // BQC-1.5: hourly bounded sweep with cursor resume — keeps pace
+          // with the refresh-due window at target scale (500-row batches,
+          // budget 10/run, resumes when budget is exhausted or a run fails).
+          repeat: { every: 60 * 60 * 1000 },
           jobId: 'refresh-expiring-reviews-recurring',
         },
       )
