@@ -11,12 +11,7 @@ import {
   userId,
   staffAssignmentId,
 } from '#/shared/domain/ids'
-import type { PropertyId } from '#/shared/domain/ids'
 import type { StaffAssignment } from './domain/types'
-import {
-  getCachedAccessiblePropertySet,
-  setCachedAccessiblePropertySet,
-} from '#/shared/auth/middleware'
 
 const mockPortalLookup = {
   listPortalIdsByProperty: async () => [],
@@ -53,6 +48,7 @@ describe('StaffPublicApi', () => {
       events,
       clock,
       identityMembership: mockIdentityMembership,
+      accessiblePropertyLookup: async () => [],
     })
 
     const result = await publicApi.getAccessiblePropertyIds(
@@ -64,18 +60,15 @@ describe('StaffPublicApi', () => {
     expect(result).toBeNull()
   })
 
-  it('returns accessible property IDs from repo for PropertyManager', async () => {
+  it('resolves accessible property IDs from the grant lookup port (BQC-2.3)', async () => {
     const repo = createInMemoryStaffAssignmentRepo()
+    // Deliberately seed a staff assignment that the grant lookup does NOT
+    // return — participation alone must not produce access.
     repo.seed([
       seedAssignment({
         id: staffAssignmentId('staff-1'),
         userId: userId('user-1'),
-        propertyId: propertyId('prop-1'),
-      }),
-      seedAssignment({
-        id: staffAssignmentId('staff-2'),
-        userId: userId('user-1'),
-        propertyId: propertyId('prop-2'),
+        propertyId: propertyId('prop-staff-only'),
       }),
     ])
     const events = createCapturingEventBus()
@@ -87,6 +80,7 @@ describe('StaffPublicApi', () => {
       events,
       clock,
       identityMembership: mockIdentityMembership,
+      accessiblePropertyLookup: async () => [propertyId('prop-1'), propertyId('prop-2')],
     })
 
     const result = await publicApi.getAccessiblePropertyIds(
@@ -99,25 +93,8 @@ describe('StaffPublicApi', () => {
     expect(result!.map((id) => id as string).sort()).toEqual(['prop-1', 'prop-2'])
   })
 
-  it('property set cache (org:user:version) hit/miss/invalidation works (AC-04)', async () => {
-    const org = 'org-cache-test'
-    const user = 'user-cache-test'
-    const ver = 42
-
-    expect(getCachedAccessiblePropertySet(org, user, ver)).toBeUndefined()
-
-    const sample: ReadonlyArray<PropertyId> = [propertyId('p-x')]
-    setCachedAccessiblePropertySet(org, user, ver, sample)
-
-    expect(getCachedAccessiblePropertySet(org, user, ver)).toEqual(sample)
-
-    // Different version is a miss (simulates bump / invalidation)
-    expect(getCachedAccessiblePropertySet(org, user, ver + 1)).toBeUndefined()
-  })
-
-  it('caches through publicApi (avoids repo on hit)', async () => {
+  it('missing grants return an empty set — never null (deny downstream)', async () => {
     const repo = createInMemoryStaffAssignmentRepo()
-    repo.seed([seedAssignment({ userId: userId('u1'), propertyId: propertyId('p1') })])
     const events = createCapturingEventBus()
     const clock = () => new Date('2025-01-01')
 
@@ -127,22 +104,40 @@ describe('StaffPublicApi', () => {
       events,
       clock,
       identityMembership: mockIdentityMembership,
+      accessiblePropertyLookup: async () => [],
     })
 
-    const repoSpy = vi.spyOn(repo, 'getAccessiblePropertyIds')
-
-    const first = await publicApi.getAccessiblePropertyIds(
+    const result = await publicApi.getAccessiblePropertyIds(
       organizationId('org-1'),
-      userId('u1'),
-      false,
-    )
-    const second = await publicApi.getAccessiblePropertyIds(
-      organizationId('org-1'),
-      userId('u1'),
+      userId('user-1'),
       false,
     )
 
-    expect(first).toEqual(second)
-    expect(repoSpy).toHaveBeenCalledTimes(1) // second was cache hit
+    expect(result).toEqual([])
+  })
+
+  it('lookup failure propagates — fail closed, never silent allow', async () => {
+    const repo = createInMemoryStaffAssignmentRepo()
+    const events = createCapturingEventBus()
+    const clock = () => new Date('2025-01-01')
+
+    const { publicApi } = buildStaffContext({
+      repo,
+      portalLookup: mockPortalLookup,
+      events,
+      clock,
+      identityMembership: mockIdentityMembership,
+      accessiblePropertyLookup: async () => {
+        throw new Error('grant store unavailable')
+      },
+    })
+
+    await expect(
+      publicApi.getAccessiblePropertyIds(
+        organizationId('org-1'),
+        userId('user-1'),
+        false,
+      ),
+    ).rejects.toThrow('grant store unavailable')
   })
 })

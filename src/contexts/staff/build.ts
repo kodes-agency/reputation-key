@@ -3,12 +3,7 @@
 // Per ADR-0001: the composition root calls this and passes publicApi to consumers.
 
 import type { StaffAssignmentRepository } from './application/ports/staff-assignment.repository'
-import {
-  getCachedAccessiblePropertySet,
-  setCachedAccessiblePropertySet,
-} from '#/shared/auth/middleware'
-import { fetchPermissionVersion } from '#/shared/db/role-definitions'
-import { getDb } from '#/shared/db'
+import type { AccessiblePropertyLookupPort } from './application/ports/accessible-property-lookup.port'
 import { trace } from '#/shared/observability/trace'
 import type { StaffPortalLookupPort } from './application/ports/portal-lookup.port'
 import type { IdentityMembershipPort } from './application/ports/identity-membership.port'
@@ -35,6 +30,13 @@ type StaffContextDeps = Readonly<{
    * an adapter backed by the identity context.
    */
   identityMembership: IdentityMembershipPort
+  /**
+   * BQC-2.3: the ONLY source of property-access scope — the identity-owned
+   * PropertyAccessGrant repository (ADR 0039). Staff/team/portal
+   * participation is never an authorization input. Wired in the composition
+   * root to the grant-backed identity adapter.
+   */
+  accessiblePropertyLookup: AccessiblePropertyLookupPort
 }>
 
 export const buildStaffContext = (deps: StaffContextDeps) => {
@@ -52,33 +54,15 @@ export const buildStaffContext = (deps: StaffContextDeps) => {
       userId: UserId,
       orgWide: boolean,
     ) => {
+      // orgWide is role-derived (scopeForPermission === 'organization') and
+      // stays a null pass-through. Otherwise the GRANT lookup decides —
+      // empty array means no grants, which downstream helpers treat as deny
+      // (never organization-wide allow).
       if (orgWide) return null
 
-      return trace('staff.getAccessiblePropertyIds', async () => {
-        // AC-04: version-keyed cache (org:user:version). The version fetch is a cheap PK lookup.
-        // When permission_version bumps (including on staff_assignments changes), we naturally use a new key.
-        const currentVersion = await fetchPermissionVersion(
-          getDb(),
-          orgId as unknown as string,
-        )
-        const cached = getCachedAccessiblePropertySet(
-          orgId as unknown as string,
-          userId as unknown as string,
-          currentVersion,
-        )
-        if (cached !== undefined) {
-          return cached
-        }
-
-        const ids = await deps.repo.getAccessiblePropertyIds(orgId, userId)
-        setCachedAccessiblePropertySet(
-          orgId as unknown as string,
-          userId as unknown as string,
-          currentVersion,
-          ids,
-        )
-        return ids
-      })
+      return trace('staff.getAccessiblePropertyIds', () =>
+        deps.accessiblePropertyLookup(orgId, userId),
+      )
     },
     getAssignedPortals: getAssignedPortalsUC,
     countAssignmentsByTeam: async (orgId, teamId) => {

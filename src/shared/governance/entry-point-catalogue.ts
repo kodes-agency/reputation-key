@@ -2187,6 +2187,15 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     'tenant_cross',
     { notes: 'ops:queue — pause/resume/status BullMQ queues; jobs preserved (BQC-0.5)' },
   ),
+  ops(
+    'scripts/ops/reconcile-staff-grants.ts',
+    'scripts/ops/reconcile-staff-grants.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:reconcile-grants — report/apply staff→grant reconciliation (BQC-2.3); anomalies never auto-converted',
+    },
+  ),
   // ── top-level scripts ─────────────────────────────────────────────
   ops('scripts/audit-member-roles.ts', 'scripts/audit-member-roles.ts', 'tenant_cross', {
     notes: 'audit:member-roles — read-only role audit (raw pg)',

@@ -22,6 +22,7 @@ import type { JobRegistry } from '#/shared/jobs/registry'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { createBetterAuthIdentityAdapter } from '#/contexts/identity/infrastructure/adapters/auth-identity.adapter'
+import { createGrantAccessLookup } from '#/contexts/identity/infrastructure/adapters/grant-access-lookup.adapter'
 import { initPersistedCapabilityPolicyStore } from '#/contexts/identity/infrastructure/policy-store-init'
 import type { IdentityPort } from '#/contexts/identity/application/ports/identity.port'
 import {
@@ -227,6 +228,9 @@ export function createContainer(options?: {
   const staff = buildStaffContext({
     repo: staffRepo,
     identityMembership: createIdentityMembershipAdapter(db),
+    // BQC-2.3: property scope resolves from the identity-owned grant
+    // repository (ADR 0039) — never from staff_assignments.
+    accessiblePropertyLookup: createGrantAccessLookup(db),
     // Staff is built before portal (portal depends on staff.publicApi).
     // Late-binding closure: methods resolve portal at call time (runtime),
     // long after createContainer returns — TDZ-safe.

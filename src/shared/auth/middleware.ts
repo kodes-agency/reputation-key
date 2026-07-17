@@ -25,7 +25,6 @@ import {
 } from '#/shared/db/role-definitions'
 import { getDb } from '#/shared/db'
 import { getRequestContext } from '#/shared/observability/request-context'
-import type { PropertyId } from '#/shared/domain/ids'
 
 // ── Request-scoped tenant cache ───────────────────────────────
 // Within a single page load, multiple server functions call resolveTenantContext
@@ -87,54 +86,10 @@ export function resetTenantCache(): void {
   tenantCache.clear()
 }
 
-// === Versioned property-sets cache (org:user:version) for AC-04 ===
-// This avoids needing the original cookie headers at scoping time.
-// Invalidation happens naturally when a higher version is seen (old keys are not used).
-// We keep it small and tied to the same TTL spirit.
-
-const propertySetsCache = new Map<
-  string,
-  { ids: ReadonlyArray<PropertyId> | null; version: number; ts: number }
->()
-const PROP_SETS_CACHE_TTL = 60_000
-const PROP_SETS_MAX_SIZE = 200
-
-function propSetsKey(orgId: string, userId: string, version: number): string {
-  return `${orgId}:${userId}:${version}`
-}
-
-function evictOldPropSetsIfNeeded() {
-  if (propertySetsCache.size >= PROP_SETS_MAX_SIZE) {
-    const first = propertySetsCache.keys().next().value
-    if (first) propertySetsCache.delete(first)
-  }
-}
-
-export function getCachedAccessiblePropertySet(
-  orgId: string,
-  userId: string,
-  currentVersion: number,
-): ReadonlyArray<PropertyId> | null | undefined {
-  const key = propSetsKey(orgId, userId, currentVersion)
-  const hit = propertySetsCache.get(key)
-  if (!hit) return undefined
-  if (Date.now() - hit.ts > PROP_SETS_CACHE_TTL) {
-    propertySetsCache.delete(key)
-    return undefined
-  }
-  return hit.ids
-}
-
-export function setCachedAccessiblePropertySet(
-  orgId: string,
-  userId: string,
-  version: number,
-  ids: ReadonlyArray<PropertyId> | null,
-): void {
-  const key = propSetsKey(orgId, userId, version)
-  evictOldPropSetsIfNeeded()
-  propertySetsCache.set(key, { ids, version, ts: Date.now() })
-}
+// BQC-2.3: the versioned property-sets cache was removed with the
+// staff_assignment-derived lookup. Property scope now resolves from the
+// identity-owned grant repository (ADR 0039) via the grant-backed adapter,
+// which owns its own policy_version-keyed cache.
 
 // ── Tagged errors ──────────────────────────────────────────────────
 
@@ -203,6 +158,7 @@ export async function requireAuth(headers: Headers): Promise<AuthUser> {
  *
  * Throws if user is not authenticated or has no active organization.
  */
+// fallow-ignore-next-line complexity — tenant resolution handles session/org/role/cache/custom-role branches (pre-existing on main; surfaced because BQC-2.3 touched this file)
 export async function resolveTenantContext(headers: Headers): Promise<AuthContext> {
   // Per-request memoization (AC-03) — if the same traced server fn calls us twice (or downstream code re-resolves),
   // return the already-resolved value immediately. Uses existing ALS RequestContext.
