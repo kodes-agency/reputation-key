@@ -84,6 +84,15 @@ export const createReviewRepository = (db: Database): ReviewRepository => ({
             languageCode: row.languageCode,
             reviewedAt: row.reviewedAt,
             expiresAt: row.expiresAt,
+            // BQC-1.3: every successful fetch advances the fetch clock and
+            // hash/baseline fields (ADR 0031). firstFetchedAt is preserved
+            // by omission — only the first observation sets it.
+            sourceCreatedAt: row.sourceCreatedAt,
+            sourceUpdatedAt: row.sourceUpdatedAt,
+            lastFetchedAt: row.lastFetchedAt,
+            contentExpiresAt: row.contentExpiresAt,
+            contentHash: row.contentHash,
+            sourceSeenGeneration: row.sourceSeenGeneration,
             updatedAt,
           },
         })

@@ -150,6 +150,88 @@ describe.sequential('reviewRepository (integration)', () => {
     })
   })
 
+  describe('successful-refetch lifecycle persistence (BQC-1.3)', () => {
+    const T1 = new Date('2025-06-01T12:00:00Z')
+    const T2 = new Date('2025-06-10T12:00:00Z')
+    const E1 = new Date('2025-07-01T12:00:00Z')
+    const E2 = new Date('2025-07-10T12:00:00Z')
+
+    it('advances fetch clock + hash baseline on an unchanged refetch, preserving firstFetchedAt', async () => {
+      const db = getDb()
+      const repo = createReviewRepository(db)
+
+      await repo.upsert(
+        makeReview({
+          rating: 5,
+          text: 'Great place!',
+          firstFetchedAt: T1,
+          lastFetchedAt: T1,
+          contentExpiresAt: E1,
+          contentHash: 'hash-v1',
+          sourceCreatedAt: new Date('2025-05-27T12:00:00Z'),
+          sourceUpdatedAt: null,
+        } as Partial<Omit<Review, 'id'>>),
+      )
+
+      // Unchanged successful refetch 9 days later: same content/hash, newer clock.
+      await repo.upsert(
+        makeReview({
+          rating: 5,
+          text: 'Great place!',
+          firstFetchedAt: T1,
+          lastFetchedAt: T2,
+          contentExpiresAt: E2,
+          contentHash: 'hash-v1',
+          sourceCreatedAt: new Date('2025-05-27T12:00:00Z'),
+          sourceUpdatedAt: null,
+        } as Partial<Omit<Review, 'id'>>),
+      )
+
+      const found = await repo.findByExternalId('google', 'ext-001', ORG_A)
+      expect(found).not.toBeNull()
+      expect(found!.lastFetchedAt).toEqual(T2)
+      expect(found!.contentExpiresAt).toEqual(E2)
+      expect(found!.contentHash).toBe('hash-v1')
+      expect(found!.firstFetchedAt).toEqual(T1)
+    })
+
+    it('advances the clock and updates content + baseline on a changed refetch', async () => {
+      const db = getDb()
+      const repo = createReviewRepository(db)
+
+      await repo.upsert(
+        makeReview({
+          rating: 5,
+          text: 'Great place!',
+          firstFetchedAt: T1,
+          lastFetchedAt: T1,
+          contentExpiresAt: E1,
+          contentHash: 'hash-v1',
+        } as Partial<Omit<Review, 'id'>>),
+      )
+
+      await repo.upsert(
+        makeReview({
+          rating: 2,
+          text: 'Changed my mind',
+          firstFetchedAt: T1,
+          lastFetchedAt: T2,
+          contentExpiresAt: E2,
+          contentHash: 'hash-v2',
+        } as Partial<Omit<Review, 'id'>>),
+      )
+
+      const found = await repo.findByExternalId('google', 'ext-001', ORG_A)
+      expect(found).not.toBeNull()
+      expect(found!.rating).toBe(2)
+      expect(found!.text).toBe('Changed my mind')
+      expect(found!.contentHash).toBe('hash-v2')
+      expect(found!.lastFetchedAt).toEqual(T2)
+      expect(found!.contentExpiresAt).toEqual(E2)
+      expect(found!.firstFetchedAt).toEqual(T1)
+    })
+  })
+
   describe('tenant isolation', () => {
     it('same externalId, different org → separate reviews', async () => {
       const db = getDb()

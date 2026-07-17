@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "program": "BQC",
-  "updatedAt": "2026-07-17T12:55:00.000Z",
+  "updatedAt": "2026-07-17T13:20:00.000Z",
   "baseline": {
     "validationReport": "docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md",
     "validationBaselineSha": "29b021875c145a7f8827f0ee70fc20935fc5dc79",
@@ -217,7 +217,19 @@
       "requiredEvidenceIds": [],
       "openFindings": ["SPEC-P0-02", "STD-P1-03"],
       "exceptions": [],
-      "notes": "1.1–1.2 implementation_complete; 1.3–1.7 remaining. Not accepted."
+      "notes": "1.1–1.3 implementation_complete; 1.4–1.7 remaining. Not accepted."
+    },
+    {
+      "id": "BQC-1.3",
+      "kind": "slice",
+      "parentId": "BQC-1",
+      "title": "Correct successful-refetch persistence",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "requiredEvidenceIds": ["refetch-persistence-integration", "refresh-fact-counter"],
+      "openFindings": [],
+      "exceptions": [],
+      "notes": "PostgreSQL upsert now advances lastFetchedAt/contentExpiresAt/contentHash/source timestamps on every successful fetch; firstFetchedAt preserved by omission. Previously the ON CONFLICT SET dropped all lifecycle fields — the fetch clock never advanced on refetch (content would expire despite successful refreshes). False-green closed from both sides: unit asserts clocks passed to upsert (sync-reviews.test.ts:360), integration proves the real adapter persists them (review.repository.test.ts BQC-1.3 describe). Hash-stable refetch emits no semantic event (BQR-3.4, existing); content-free refresh fact added (SyncReviewsResult.refreshed, logged by the sync job; hash-stable test asserts refreshed:1). Pending independent review for accepted."
     },
     {
       "id": "BQC-1.2",

@@ -49,6 +49,7 @@ function makeSyncResult() {
       fetched: 0,
       created: 0,
       updated: 0,
+      refreshed: 0,
       failed: 0,
       repliesMirrored: 0,
     },
