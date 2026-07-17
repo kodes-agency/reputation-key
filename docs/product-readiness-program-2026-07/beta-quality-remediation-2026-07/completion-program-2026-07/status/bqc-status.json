@@ -281,7 +281,7 @@
       "state": "not_started",
       "owner": "engineering",
       "requiredEvidenceIds": [],
-      "openFindings": ["SPEC-P1-05", "SPEC-P1-06"],
+      "openFindings": ["SPEC-P1-05", "SPEC-P1-06", "STD-P1-07"],
       "exceptions": []
     },
     {
