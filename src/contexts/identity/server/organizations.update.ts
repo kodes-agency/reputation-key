@@ -6,6 +6,7 @@ import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { z } from 'zod/v4'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
+import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { catchUntagged } from '#/shared/auth/server-errors'
 import { getAuth } from '#/shared/auth/auth'
 import { isIdentityError } from '../domain/errors'
@@ -38,6 +39,7 @@ export const updateOrganization = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
+        await requireExecutionAllowed({ actor: ctx, action: 'organization.update' })
 
         try {
           const useCase = updateOrganizationUseCase({

@@ -5,6 +5,7 @@ import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { z } from 'zod/v4'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
+import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getContainer } from '#/composition'
 import { isPropertyError } from '../domain/errors'
@@ -23,7 +24,8 @@ export const listProperties = createServerFn({ method: 'GET' }).handler(
     async () => {
       const headers = await headersFromContext()
       const ctx = await resolveTenantContext(headers)
-      // All authenticated roles can list properties
+      // All authenticated roles can list properties (BQC-2.4: policy-wired)
+      await requireExecutionAllowed({ actor: ctx, action: 'property.read' })
 
       try {
         const { useCases } = getContainer()
@@ -49,6 +51,11 @@ export const getProperty = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
+        await requireExecutionAllowed({
+          actor: ctx,
+          action: 'property.read',
+          propertyId: data.propertyId,
+        })
 
         try {
           const { useCases } = getContainer()
@@ -74,6 +81,11 @@ export const deleteProperty = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
+        await requireExecutionAllowed({
+          actor: ctx,
+          action: 'property.delete',
+          propertyId: data.propertyId,
+        })
 
         try {
           const { useCases } = getContainer()

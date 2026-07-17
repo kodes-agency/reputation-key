@@ -29,9 +29,17 @@ import {
   type PersistedPolicyStore,
 } from '#/shared/auth/persisted-policy-store'
 import {
+  createExecutionPolicy,
+  initExecutionPolicy,
+} from '#/shared/auth/execution-policy'
+import { organizationId, userId } from '#/shared/domain/ids'
+import {
   getPolicyVersion,
   loadPolicySnapshot,
 } from './repositories/policy-state.repository'
+import { createGrantAccessLookup } from './adapters/grant-access-lookup.adapter'
+import { getActiveConsent } from './repositories/policy-consent.repository'
+import { writePolicyDecision } from './repositories/policy-decision-audit.repository'
 
 /** Revocation/suspension bound: tenant policy state is at most this stale. */
 export const POLICY_REFRESH_INTERVAL_MS = 5_000
@@ -60,6 +68,26 @@ export function initPersistedCapabilityPolicyStore(deps: {
   })
   initCapabilityPolicyStore(
     createCompositePolicyStore({ globalStore: envStore, tenantStore: persisted }),
+  )
+
+  // BQC-2.4: install the ExecutionPolicy with identity-owned deps — the grant
+  // adapter (property scope), the consent reader (purpose classes), and the
+  // content-free decision-audit writer. Decisions consult the capability
+  // store installed above, so tenant state stays consistent across both.
+  const grantLookup = createGrantAccessLookup(deps.db)
+  initExecutionPolicy(
+    createExecutionPolicy({
+      listAccessiblePropertyIds: async (orgId, uid) => {
+        const ids = await grantLookup(organizationId(orgId), userId(uid))
+        return ids.map((id) => id as string)
+      },
+      hasActiveConsent: async (input) => {
+        const consent = await getActiveConsent(deps.db, input)
+        return consent !== null
+      },
+      writeDecisionAudit: (entry) => writePolicyDecision(deps.db, entry),
+      onAuditError: (err) => logger.warn({ err }, 'policy decision audit write failed'),
+    }),
   )
 
   // Fire-and-forget first refresh: the env seed covers the bootstrap window

@@ -4,7 +4,7 @@ import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { staffErrorStatus } from './staff-shared'
 import { headersFromContext } from '#/shared/auth/headers'
-import { requireAuthorized } from '#/shared/auth/authorization-policy'
+import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getContainer } from '#/composition'
@@ -30,7 +30,11 @@ export const createStaffAssignment = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        requireAuthorized({ actor: ctx, action: 'staff_assignment.create' })
+        await requireExecutionAllowed({
+          actor: ctx,
+          action: 'staff_assignment.create',
+          propertyId: data.propertyId,
+        })
 
         try {
           const { useCases } = getContainer()
@@ -56,7 +60,7 @@ export const removeStaffAssignment = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        requireAuthorized({ actor: ctx, action: 'staff_assignment.delete' })
+        await requireExecutionAllowed({ actor: ctx, action: 'staff_assignment.delete' })
 
         try {
           const { useCases } = getContainer()
@@ -85,7 +89,11 @@ export const listStaffAssignments = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        requireAuthorized({ actor: ctx, action: 'staff_assignment.read' })
+        await requireExecutionAllowed({
+          actor: ctx,
+          action: 'staff_assignment.read',
+          propertyId: data.propertyId,
+        })
 
         try {
           const { useCases } = getContainer()

@@ -7,7 +7,7 @@ import { getAuth } from '#/shared/auth/auth'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 
-import { requireAuthorized } from '#/shared/auth/authorization-policy'
+import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { z } from 'zod/v4'
 import { handleAuthError } from './auth-settings.helpers'
 
@@ -25,7 +25,7 @@ export const changePasswordFn = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        requireAuthorized({ actor: ctx, action: 'identity.password.change' })
+        await requireExecutionAllowed({ actor: ctx, action: 'identity.password.change' })
         const auth = getAuth()
 
         try {
@@ -66,7 +66,7 @@ export const updateProfileFn = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        requireAuthorized({ actor: ctx, action: 'identity.profile.update' })
+        await requireExecutionAllowed({ actor: ctx, action: 'identity.profile.update' })
         const auth = getAuth()
 
         try {
@@ -101,7 +101,7 @@ export const updateUserImageFn = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        requireAuthorized({ actor: ctx, action: 'identity.avatar.set' })
+        await requireExecutionAllowed({ actor: ctx, action: 'identity.avatar.set' })
         const auth = getAuth()
 
         try {

@@ -10,7 +10,7 @@ import { resolveTenantContext } from '#/shared/auth/middleware'
 import { isReviewError } from '../domain/errors'
 import { reviewId } from '#/shared/domain/ids'
 import { reviewErrorStatus, reviewIdDto, rejectReplyDto } from './reply-read'
-import { requireAuthorized } from '#/shared/auth/authorization-policy'
+import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 
 // ── rejectReply ──────────────────────────────────────────────────────
 
@@ -21,7 +21,7 @@ export const rejectReplyFn = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        requireAuthorized({ actor: ctx, action: 'reply.manage' })
+        await requireExecutionAllowed({ actor: ctx, action: 'reply.manage' })
         const { useCases } = getContainer()
         try {
           return await useCases.rejectReply(
@@ -48,7 +48,7 @@ export const deleteReplyFn = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        requireAuthorized({ actor: ctx, action: 'reply.manage' })
+        await requireExecutionAllowed({ actor: ctx, action: 'reply.manage' })
         const { useCases } = getContainer()
         try {
           await useCases.deleteReply({ reviewId: reviewId(data.reviewId) }, ctx)
@@ -73,7 +73,7 @@ export const retryPublishFn = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        requireAuthorized({ actor: ctx, action: 'reply.manage' })
+        await requireExecutionAllowed({ actor: ctx, action: 'reply.manage' })
         const { useCases } = getContainer()
         try {
           return await useCases.retryPublish({ reviewId: reviewId(data.reviewId) }, ctx)

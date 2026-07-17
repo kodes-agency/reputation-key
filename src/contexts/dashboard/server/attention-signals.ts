@@ -9,7 +9,7 @@ import { getContainer } from '#/composition'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 
-import { requireAuthorized } from '#/shared/auth/authorization-policy'
+import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getAuth } from '#/shared/auth/auth'
@@ -48,8 +48,12 @@ export const getAttentionSignalsFn = createServerFn({ method: 'GET' })
           // attention band carries the 'unanswered' signal (reviews with no
           // published reply past SLA) — a reply-derived aggregate Staff must
           // not see.
-          requireAuthorized({ actor: ctx, action: 'dashboard.read' })
-          requireAuthorized({ actor: ctx, action: 'dashboard.fleet_read' })
+          await requireExecutionAllowed({
+            actor: ctx,
+            action: 'dashboard.read',
+            propertyId: data.propertyId,
+          })
+          await requireExecutionAllowed({ actor: ctx, action: 'dashboard.fleet_read' })
           // Resolve the org-level response SLA (defaults to 48h when unset/no org).
           const auth = getAuth()
           const org = await auth.api.getFullOrganization({ headers })

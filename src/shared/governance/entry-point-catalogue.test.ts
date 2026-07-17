@@ -96,8 +96,9 @@ function serverFnFiles(): string[] {
 
 const FN_RE =
   /export const (\w+) = createServerFn\(\{\s*method:\s*'(GET|POST)'\s*,?\s*\}\)/g
-const REQUIRE_AUTHZ_RE = /requireAuthorized\(\s*\{([^}]*)\}/g
+const REQUIRE_AUTHZ_RE = /(?:requireAuthorized|requireExecutionAllowed)\(\s*\{([^}]*)\}/g
 const ACTION_RE = /action:\s*'([^']+)'/
+const CAPABILITY_ARG_RE = /capability:\s*'([^']+)'/
 const ASSERT_CTX_CAP_RE = /assertBetaCapability\(\s*[^,]+,\s*'([^']+)'/g
 const ASSERT_GLOBAL_CAP_RE = /assertGlobalCapability\(\s*'([^']+)'\s*\)/g
 
@@ -111,9 +112,13 @@ function discoverServerFunctions(): ReadonlyArray<DiscoveredFn> {
       const actions = [...slice.matchAll(REQUIRE_AUTHZ_RE)]
         .map((r) => ACTION_RE.exec(r[1])?.[1])
         .filter((a): a is string => Boolean(a))
+      const explicitCaps = [...slice.matchAll(REQUIRE_AUTHZ_RE)]
+        .map((r) => CAPABILITY_ARG_RE.exec(r[1])?.[1])
+        .filter((a): a is string => Boolean(a))
       const caps = [
         ...[...slice.matchAll(ASSERT_CTX_CAP_RE)].map((r) => r[1]),
         ...[...slice.matchAll(ASSERT_GLOBAL_CAP_RE)].map((r) => r[1]),
+        ...explicitCaps,
       ]
       out.push({ name: m[1], file: rel(abs), method: m[2], actions, caps })
     })

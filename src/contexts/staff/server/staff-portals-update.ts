@@ -10,7 +10,7 @@ import { resolveTenantContext } from '#/shared/auth/middleware'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getContainer } from '#/composition'
 import { portalId as toPortalId } from '#/shared/domain/ids'
-import { requireAuthorized } from '#/shared/auth/authorization-policy'
+import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { propertyId as toPropertyId, userId as toUserId } from '#/shared/domain/ids'
 import { isStaffError } from '../application/public-api'
 import { staffErrorStatus } from './staff-shared'
@@ -32,7 +32,11 @@ export const updateStaffPortals = createServerFn({ method: 'POST' })
         const ctx = await resolveTenantContext(headers)
         // Defense-in-depth authz gate (siblings do the same) — the use case
         // also enforces this, but every staff server fn guards before delegating.
-        requireAuthorized({ actor: ctx, action: 'staff_assignment.create' })
+        await requireExecutionAllowed({
+          actor: ctx,
+          action: 'staff_assignment.create',
+          propertyId: data.propertyId,
+        })
 
         try {
           const { useCases } = getContainer()

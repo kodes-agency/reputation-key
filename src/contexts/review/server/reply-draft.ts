@@ -9,7 +9,7 @@ import { resolveTenantContext } from '#/shared/auth/middleware'
 import { isReviewError } from '../domain/errors'
 import { reviewId } from '#/shared/domain/ids'
 import { reviewErrorStatus, reviewIdDto, draftReplyDto } from './reply-read'
-import { requireAuthorized } from '#/shared/auth/authorization-policy'
+import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 
 // ── draftReply ───────────────────────────────────────────────────────
 
@@ -20,7 +20,7 @@ export const draftReplyFn = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        requireAuthorized({ actor: ctx, action: 'reply.manage' })
+        await requireExecutionAllowed({ actor: ctx, action: 'reply.manage' })
         const { useCases } = getContainer()
         try {
           return await useCases.draftReply(
@@ -47,7 +47,7 @@ export const submitReplyFn = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        requireAuthorized({ actor: ctx, action: 'reply.manage' })
+        await requireExecutionAllowed({ actor: ctx, action: 'reply.manage' })
         const { useCases } = getContainer()
         try {
           return await useCases.submitReply({ reviewId: reviewId(data.reviewId) }, ctx)
@@ -71,7 +71,7 @@ export const approveReplyFn = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        requireAuthorized({ actor: ctx, action: 'reply.manage' })
+        await requireExecutionAllowed({ actor: ctx, action: 'reply.manage' })
         const { useCases } = getContainer()
         try {
           return await useCases.approveReply({ reviewId: reviewId(data.reviewId) }, ctx)

@@ -6,6 +6,7 @@ import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { z } from 'zod/v4'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
+import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { catchUntagged } from '#/shared/auth/server-errors'
 import { getAuth } from '#/shared/auth/auth'
 import { getContainer } from '#/composition'
@@ -31,6 +32,7 @@ export const requestOrgLogoUpload = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
+        await requireExecutionAllowed({ actor: ctx, action: 'identity.logo_upload' })
         const { storage } = getContainer()
         const useCase = requestOrgLogoUploadUseCase({
           storage,
@@ -59,6 +61,7 @@ export const finalizeOrgLogoUpload = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
+        await requireExecutionAllowed({ actor: ctx, action: 'identity.logo_upload' })
         const { storage } = getContainer()
         const useCase = finalizeOrgLogoUploadUseCase({
           storage,
@@ -97,6 +100,7 @@ export const requestAvatarUpload = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
+        await requireExecutionAllowed({ actor: ctx, action: 'identity.avatar_upload' })
         const { storage } = getContainer()
         const useCase = requestAvatarUploadUseCase({
           storage,
@@ -125,6 +129,7 @@ export const finalizeAvatarUpload = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
+        await requireExecutionAllowed({ actor: ctx, action: 'identity.avatar_upload' })
         const { storage } = getContainer()
         const useCase = finalizeAvatarUploadUseCase({ storage })
         try {

@@ -12,7 +12,7 @@ import {
   resetTenantCache,
 } from '#/shared/auth/middleware'
 import { catchUntagged } from '#/shared/auth/server-errors'
-import { requireAuthorized } from '#/shared/auth/authorization-policy'
+import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { getContainer } from '#/composition'
 import { isIdentityError } from '../domain/errors'
 import { throwIdentityError } from './organizations.errors.server'
@@ -61,7 +61,7 @@ export const cancelInvitation = createServerFn({ method: 'POST' })
         try {
           const headers = await headersFromContext()
           const ctx = await resolveTenantContext(headers)
-          requireAuthorized({ actor: ctx, action: 'invitation.cancel' })
+          await requireExecutionAllowed({ actor: ctx, action: 'invitation.cancel' })
 
           const { useCases } = getContainer()
           await useCases.cancelInvitation(
@@ -87,7 +87,7 @@ export const resendInvitation = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        requireAuthorized({ actor: ctx, action: 'invitation.resend' })
+        await requireExecutionAllowed({ actor: ctx, action: 'invitation.resend' })
 
         try {
           const { useCases } = getContainer()
@@ -109,7 +109,7 @@ export const listInvitations = createServerFn({ method: 'GET' }).handler(
     async () => {
       const headers = await headersFromContext()
       const ctx = await resolveTenantContext(headers)
-      requireAuthorized({ actor: ctx, action: 'invitation.list' })
+      await requireExecutionAllowed({ actor: ctx, action: 'invitation.list' })
 
       try {
         const { useCases } = getContainer()

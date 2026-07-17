@@ -1,6 +1,6 @@
 // Inbox context — status + escalation mutation server functions
 
-import { requireAuthorized } from '#/shared/auth/authorization-policy'
+import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import {
   createServerFn,
   isInboxError,
@@ -28,7 +28,7 @@ export const updateInboxStatusFn = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        requireAuthorized({ actor: ctx, action: 'inbox.write' })
+        await requireExecutionAllowed({ actor: ctx, action: 'inbox.write' })
         const { useCases } = getContainer()
         try {
           return await useCases.updateInboxStatus(
@@ -58,7 +58,7 @@ export const bulkUpdateInboxStatusFn = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        requireAuthorized({ actor: ctx, action: 'inbox.write' })
+        await requireExecutionAllowed({ actor: ctx, action: 'inbox.write' })
         const { useCases } = getContainer()
         try {
           return await useCases.bulkUpdateInboxStatus(
@@ -88,7 +88,7 @@ export const escalateInboxItemFn = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        requireAuthorized({ actor: ctx, action: 'inbox.write' })
+        await requireExecutionAllowed({ actor: ctx, action: 'inbox.write' })
         const { useCases } = getContainer()
         try {
           return await useCases.escalateInboxItem(
@@ -115,7 +115,7 @@ export const resolveEscalationFn = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        requireAuthorized({ actor: ctx, action: 'inbox.write' })
+        await requireExecutionAllowed({ actor: ctx, action: 'inbox.write' })
         const { useCases } = getContainer()
         try {
           return await useCases.resolveEscalation(
