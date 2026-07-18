@@ -157,4 +157,40 @@ describe('getOrgActivity', () => {
     const result = await getOrgActivity(deps)({}, ctxFor('Staff'))
     expect(result).toHaveLength(0)
   })
+
+  // BQC-4.4: tenant-authored detail text lives in the cell DB and is shown
+  // ONLY to members of the owning org — the read is always org-scoped.
+  it('queries only the caller org (org-scope pin)', async () => {
+    const seenOrgs: string[] = []
+    const repo: ActivityRepository = {
+      insert: async () => {},
+      findDuplicate: async () => false,
+      findByResource: async () => [],
+      findByOrganization: async (orgId) => {
+        seenOrgs.push(orgId as string)
+        // Mirror the SQL WHERE organization_id = orgId: rows from another
+        // org cannot be returned by the owning-org read.
+        return [
+          makeEntry({
+            id: activityLogId('al-1'),
+            organizationId: organizationId('org-1'),
+          }),
+          makeEntry({
+            id: activityLogId('al-2'),
+            organizationId: organizationId('org-2'),
+            payload: {
+              subject: 's',
+              from: null,
+              to: null,
+              detail: 'other-org free text',
+            },
+          }),
+        ].filter((e) => (e.organizationId as string) === (orgId as string))
+      },
+    }
+    const deps = { repo, staffPublicApi: staffApiAllAccess() }
+    const result = await getOrgActivity(deps)({}, ctxFor('AccountAdmin'))
+    expect(seenOrgs).toEqual(['org-1'])
+    expect(result.map((e) => e.id)).toEqual(['al-1'])
+  })
 })

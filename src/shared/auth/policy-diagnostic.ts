@@ -15,6 +15,10 @@ import {
 import { capabilityForPermission } from './capability-for-permission'
 import { organizationId, userId } from '#/shared/domain/ids'
 import type { Role } from '#/shared/domain/roles'
+import type {
+  RoutingBlockedReason,
+  RoutingDecision,
+} from '#/shared/routing/processing-router'
 
 export type PolicyDecisionExplanation = Readonly<{
   allowed: boolean
@@ -136,6 +140,86 @@ export function createPolicyDiagnostic(deps: PolicyDiagnosticDeps) {
         permission: { allowed: permissionAllowed },
         scope: { outcome: scopeOutcome },
       },
+    }
+  }
+}
+
+// ── Property region diagnostic (BQC-4.4) ─────────────────────────────
+//
+// Operator-facing region state for one property: the persisted routing
+// facts, the router's processable/blocked decision, and the current cell +
+// LOGICAL provider reference (CELL_TARGETS — never a URL). Content-free by
+// construction (ADR 0048 "control-plane metadata"). The ProcessingRouter
+// stays the ONE routing decision model — this diagnostic reports what the
+// router decides; it never re-derives region policy itself.
+
+/** The region facts persisted on the property (migration 0006). */
+export type PropertyRegionRecord = Readonly<{
+  processingRegion: string | null
+  processingRegionSource: string | null
+  routingPolicyVersion: number
+}>
+
+export type PropertyRegionDiagnostic = Readonly<{
+  propertyId: string
+  processingRegion: string | null
+  processingRegionSource: string | null
+  /** Null when the property is missing (or outside the caller's org). */
+  routingPolicyVersion: number | null
+  processable: boolean
+  /** Router blocked reason; null when processable. */
+  blockedReason: RoutingBlockedReason | null
+  /** The deployment's processing cell (PROCESSING_CELL). */
+  cell: string
+  /** The cell's logical provider reference (e.g. 'gbp-default') — never a URL. */
+  providerRef: string | null
+}>
+
+export type RegionDiagnosticDeps = Readonly<{
+  /**
+   * Org-scoped lookup of the property's persisted region facts; null when
+   * the property is missing OR outside the caller's organization (least
+   * privilege — cross-org properties are indistinguishable from missing).
+   */
+  loadPropertyRegion: (
+    organizationId: string,
+    propertyId: string,
+  ) => Promise<PropertyRegionRecord | null>
+  /** The router's fresh routing decision (bound: router.resolve). */
+  resolveRouting: (propertyId: string) => Promise<RoutingDecision>
+  /** The deployment's processing cell (env PROCESSING_CELL). */
+  cell: string
+  /** providerRefForCell(cell) — the cell's logical provider reference. */
+  providerRef: string | null
+}>
+
+export function createRegionDiagnostic(deps: RegionDiagnosticDeps) {
+  return async function getRegionDiagnostic(
+    input: Readonly<{ organizationId: string; propertyId: string }>,
+  ): Promise<PropertyRegionDiagnostic> {
+    const record = await deps.loadPropertyRegion(input.organizationId, input.propertyId)
+    if (!record) {
+      return {
+        propertyId: input.propertyId,
+        processingRegion: null,
+        processingRegionSource: null,
+        routingPolicyVersion: null,
+        processable: false,
+        blockedReason: 'property_missing',
+        cell: deps.cell,
+        providerRef: deps.providerRef,
+      }
+    }
+    const decision = await deps.resolveRouting(input.propertyId)
+    return {
+      propertyId: input.propertyId,
+      processingRegion: record.processingRegion,
+      processingRegionSource: record.processingRegionSource,
+      routingPolicyVersion: record.routingPolicyVersion,
+      processable: decision.kind === 'target',
+      blockedReason: decision.kind === 'blocked' ? decision.reason : null,
+      cell: deps.cell,
+      providerRef: deps.providerRef,
     }
   }
 }

@@ -26,7 +26,10 @@ import { createBetterAuthIdentityAdapter } from '#/contexts/identity/infrastruct
 import { createGrantAccessLookup } from '#/contexts/identity/infrastructure/adapters/grant-access-lookup.adapter'
 import { initPersistedCapabilityPolicyStore } from '#/contexts/identity/infrastructure/policy-store-init'
 import { createPolicyAdminOps } from '#/contexts/identity/application/use-cases/policy-admin'
-import { createPolicyDiagnostic } from '#/shared/auth/policy-diagnostic'
+import {
+  createPolicyDiagnostic,
+  createRegionDiagnostic,
+} from '#/shared/auth/policy-diagnostic'
 import {
   isCoreCapability,
   isBlockedCapability,
@@ -67,6 +70,7 @@ import type { Clock } from '#/shared/domain/clock'
 import { buildPropertyContext } from '#/contexts/property/build'
 import { createPropertyRepository } from '#/contexts/property/infrastructure/repositories/property.repository'
 import { createPropertyRoutingLoader } from '#/contexts/property/infrastructure/property-routing.adapter'
+import { createPropertyRegionLoader } from '#/contexts/property/infrastructure/property-region-loader'
 import { createProcessingRouter } from '#/shared/routing/processing-router'
 import { providerRefForCell } from '#/shared/routing/processing-router'
 import type { ProviderEndpoints } from '#/shared/routing/processing-router'
@@ -276,6 +280,13 @@ export function createContainer(options?: {
   // Identity port (adapter)
   const identityPort = options?.identityPort ?? createBetterAuthIdentityAdapter(db)
 
+  // BQC-4.2: the ONE routing decision model — shared by the review context
+  // (enqueue envelope stamping) and the BQC-4.4 operator region diagnostic.
+  const processingRouter = createProcessingRouter({
+    loadPropertyRouting: createPropertyRoutingLoader({ db }),
+    cell: env.PROCESSING_CELL,
+  })
+
   // BQC-2.7: policy administration operations (least-privilege, audited).
   // Identity-owned persistence bound here — application layer stays
   // orchestration-only (boundary rule).
@@ -289,6 +300,15 @@ export function createContainer(options?: {
     listAllCapabilities,
     policyVersion: EXECUTION_POLICY_VERSION,
     explainPolicyDecision: (input) => policyDiagnostic(input),
+    // BQC-4.4: content-free region diagnostic — the org-scoped loader treats
+    // cross-org properties as missing; the router reports the fresh decision;
+    // cell + provider ref are logical identifiers, never URLs.
+    getRegionDiagnostic: createRegionDiagnostic({
+      loadPropertyRegion: createPropertyRegionLoader({ db }),
+      resolveRouting: (propertyId) => processingRouter.resolve(propertyId, 'review.sync'),
+      cell: env.PROCESSING_CELL,
+      providerRef: providerRefForCell(env.PROCESSING_CELL) ?? null,
+    }),
     setOrganizationPolicy: (input) => setOrganizationPolicy(db, input),
     setPropertyPolicy: (input) => setPropertyPolicy(db, input),
     addOrganizationCapability: (orgId, cap, by) =>
@@ -448,10 +468,7 @@ export function createContainer(options?: {
     },
     // BQC-4.2: stamp the content-free routing envelope at enqueue (telemetry;
     // the worker's dispatch-time routing gate re-resolves and decides).
-    processingRouter: createProcessingRouter({
-      loadPropertyRouting: createPropertyRoutingLoader({ db }),
-      cell: env.PROCESSING_CELL,
-    }),
+    processingRouter,
   })
 
   // ── Inbox lookup ports (cross-context wiring) ─────────────────────

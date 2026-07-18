@@ -1,9 +1,9 @@
-# BQC-4.3 — Regional Data-Flow Map
+# BQC-4.3/4.4 — Regional Data-Flow Map
 
-**Date:** 2026-07-18
+**Date:** 2026-07-18 (BQC-4.4 read-side sections added)
 **Status:** approved for beta (single approved cell: `us`)
 **Scope:** every surface a protected workload's data can reach, classified by content, with its enforcement mechanism
-**Authority:** phase BQC-4 §4.3; ADR 0048 (cell model); ADR 0030 (identifier-only facts); ADR 0031/0032 (no cross-region fallback, denied regions); ADR 0045 (activity/audit separation)
+**Authority:** phase BQC-4 §4.3/§4.4; ADR 0048 (cell model); ADR 0030 (identifier-only facts); ADR 0031/0032 (no cross-region fallback, denied regions); ADR 0045 (activity/audit separation)
 
 Beta has ONE approved processing cell (`us`). "Cell DB" below is the single production PostgreSQL; "Redis" is the single production Redis. No second cell, second endpoint, or fallback path exists — the architecture guard `src/shared/architecture/provider-target-selection.test.ts` keeps it that way.
 
@@ -38,6 +38,18 @@ Beta has ONE approved processing cell (`us`). "Cell DB" below is the single prod
 - **`detail` can carry tenant-authored free text**: the reply-rejection moderation reason (staff-authored, ≤ 1000 chars), organization/team/property names, and the invite email on `member.invited`. This is tenant-authored operational data in the cell DB — not Google source content — but it is not strictly "identifier-only".
 - **Owning follow-up:** BQC-4.4 (regional reads and operations) revalidates read-side scoping of these fields in operator tooling; any further minimization of the tenant-authored `detail` values belongs to the activity context under ADR 0045.
 
+### Read-side decision (BQC-4.4) — resolved
+
+The tenant-authored free text in `activity_log.payload.detail` is **tenant-owned content in the cell DB, displayed only to members of the owning org**. Verified read-side: both activity reads (`getActivityTimelineFn`, `getOrgActivityFn`) are permission-gated (`inbox.read` via the ExecutionPolicy) and every repository query filters `organization_id` in SQL — no cross-org or fleet activity view exists (`getOrgActivityFn` is the org feed; the fleet overview carries aggregate counts only, never activity rows). Non-`organization.update` callers are further scoped to their assigned properties, and reply-workflow rows (the rejection-reason carriers) are stripped for roles lacking `reply.manage`. This is coherent with the map: the cell DB serves the read to the owning tenant; nothing tenant-authored crosses an org boundary. Pinned by `src/contexts/activity/infrastructure/repositories/activity-repository.test.ts` (real-PostgreSQL org isolation, marker text) and the org-scope pins in `src/contexts/activity/queries/get-org-activity.test.ts` / `get-activity-timeline.test.ts` (reads always query with the caller's org from the tenant context, never from client input).
+
+## Regional reads and operations (BQC-4.4)
+
+**Property-local read surfacing.** Interactive property reads are served from the single cell DB. The property detail DTO (`getProperty`) carries the content-free routing facts — `processingRegion`, `processingRegionSource`, `routingPolicyVersion` — plus `regionProcessable` and a machine `regionBlockedReason` (`region_unresolved` | `region_denied` | null, derived in the property domain and mirroring the router's blocked reasons). Reads stay available for unresolved/denied properties: the 4.1 enforcement blocks PROCESSING, never the owner's ability to see the property and remediate. Region metadata is ADR 0048 "control-plane metadata" — no content rides with it. Pinned by `src/contexts/property/application/use-cases/get-property.test.ts` and `src/contexts/property/domain/processing-routing.test.ts`.
+
+**Fleet/global views are content-free aggregates.** The cross-property fleet overview and org-level views (leaderboard, response-SLA) are built from COUNT/SUM/AVG aggregates only — no review/reply/inbox/notification content columns are selected, and the fleet DTOs declare no content fields. The one content-column selection in dashboard infrastructure (`reviews.text` for the PROPERTY-LOCAL recent-reviews widget) is a cell read for the owning org — org-scoped, assignment-scoped, and content-expiry eligible (BQC-1.4) — and is confined to `getRecentReviews`, which the fleet path never reaches. Pinned by `src/shared/architecture/fleet-aggregates.test.ts`.
+
+**Operator/support access is least-privilege and audited.** Operator region/policy tooling lives on the 2.7 policy-admin surface, gated by the owner-only `policy.admin` permission (PropertyManager denies despite holding `organization.update`; Staff denies — `src/contexts/identity/server/policy-admin.test.ts`). Every call to the surface passes the ExecutionPolicy, whose allow/deny decision is persisted to `policy_decision_audit` (`writeDecisionAudit` wired in `src/contexts/identity/infrastructure/policy-store-init.ts`; audit behavior pinned in `src/shared/auth/execution-policy.test.ts`). The BQC-4.4 region diagnostic (`getRegionDiagnosticFn`) additionally writes an explicit operator audit row (`policy.region.diagnostic`, content-free machine reason) for every read — proven with real PostgreSQL in `src/contexts/identity/infrastructure/repositories/region-diagnostic.test.ts`. The diagnostic reports region, source, routing-policy version, processable + blocked reason, and the current cell + LOGICAL provider ref (`gbp-default`) — never URLs or content. Because beta has ONE approved cell (`us`), all of these audit rows land in the same cell DB: **cell-scoped auditing is the default audit stream** — no second-cell audit plane exists to reconcile.
+
 ## Two documented Google-URL exceptions (non-endpoint)
 
 The architecture guard allows exactly two `googleapis.com` references outside the composition mapping, neither of which is a provider execution endpoint an adapter could fall back to:
@@ -52,3 +64,6 @@ The architecture guard allows exactly two `googleapis.com` references outside th
 - `src/shared/routing/processing-router.test.ts` — `ProcessingTarget.provider`, `providerRefForCell` approved-only.
 - `src/shared/observability/health-metrics.test.ts` — marker-content proof for the metrics snapshot.
 - `src/contexts/activity/infrastructure/event-handlers/activity-content-safety.test.ts` — marker-content proof for activity writes.
+- `src/shared/architecture/fleet-aggregates.test.ts` — BQC-4.4 fleet/org-level views are content-free aggregates (path, query, and DTO scans).
+- `src/shared/auth/policy-diagnostic.test.ts` + `src/contexts/identity/infrastructure/repositories/region-diagnostic.test.ts` — BQC-4.4 region diagnostic shape, per-state blocked reasons, org scoping, operator audit.
+- `src/contexts/activity/infrastructure/repositories/activity-repository.test.ts` — BQC-4.4 activity read org isolation (real PostgreSQL).

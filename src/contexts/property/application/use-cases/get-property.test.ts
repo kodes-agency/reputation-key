@@ -82,4 +82,54 @@ describe('getProperty', () => {
 
     expect(result.name).toBe('Grand Hotel')
   })
+
+  // ── BQC-4.4: region metadata + content-free blocked reason on the DTO ──
+
+  it('carries the region block for a processable property (null reason)', async () => {
+    const { useCase, propertyRepo } = setup()
+    const ctx = buildTestAuthContext()
+    const prop = buildTestProperty({
+      id: 'p1',
+      processingRegion: 'us',
+      processingRegionSource: 'country_default',
+      routingPolicyVersion: 3,
+    })
+    propertyRepo.seed([prop])
+
+    const result = await useCase({ propertyId: prop.id }, ctx)
+
+    expect(result.processingRegion).toBe('us')
+    expect(result.processingRegionSource).toBe('country_default')
+    expect(result.routingPolicyVersion).toBe(3)
+    expect(result.regionProcessable).toBe(true)
+    expect(result.regionBlockedReason).toBeNull()
+  })
+
+  it.each([
+    ['unresolved', 'region_unresolved'],
+    ['europe', 'region_denied'],
+    ['global', 'region_denied'],
+  ] as const)('reports %s as not processable with reason %s', async (region, reason) => {
+    const { useCase, propertyRepo } = setup()
+    const ctx = buildTestAuthContext()
+    const prop = buildTestProperty({ id: 'p1', processingRegion: region })
+    propertyRepo.seed([prop])
+
+    const result = await useCase({ propertyId: prop.id }, ctx)
+
+    expect(result.regionProcessable).toBe(false)
+    expect(result.regionBlockedReason).toBe(reason)
+  })
+
+  it('reports a missing region as region_unresolved (fail closed)', async () => {
+    const { useCase, propertyRepo } = setup()
+    const ctx = buildTestAuthContext()
+    const prop = buildTestProperty({ id: 'p1', processingRegion: null })
+    propertyRepo.seed([prop])
+
+    const result = await useCase({ propertyId: prop.id }, ctx)
+
+    expect(result.regionProcessable).toBe(false)
+    expect(result.regionBlockedReason).toBe('region_unresolved')
+  })
 })

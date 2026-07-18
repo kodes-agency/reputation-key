@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "program": "BQC",
-  "updatedAt": "2026-07-18T20:09:49Z",
+  "updatedAt": "2026-07-18T21:22:40Z",
   "baseline": {
     "validationReport": "docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md",
     "validationBaselineSha": "29b021875c145a7f8827f0ee70fc20935fc5dc79",
@@ -614,7 +614,24 @@
       "requiredEvidenceIds": [],
       "openFindings": ["SPEC-P1-01"],
       "exceptions": [],
-      "notes": "BQC-4.1 (region reconciliation + fail-closed enforcement + ADR 0048), BQC-4.2 (regional job envelope + ProcessingRouter), BQC-4.3 (data/provider execution + data-flow map) implementation_complete. Data context: the pre-existing imported properties are disposable test data — the user will wipe and start fresh; the reconciliation command is the ongoing zero-unresolved proof, not a legacy backfill."
+      "notes": "BQC-4.1 (region reconciliation + fail-closed enforcement + ADR 0048), BQC-4.2 (regional job envelope + ProcessingRouter), BQC-4.3 (data/provider execution + data-flow map), BQC-4.4 (regional reads + operator diagnostic) implementation_complete. Data context: the pre-existing imported properties are disposable test data — the user will wipe and start fresh; the reconciliation command is the ongoing zero-unresolved proof, not a legacy backfill."
+    },
+    {
+      "id": "BQC-4.4",
+      "kind": "slice",
+      "parentId": "BQC-4",
+      "title": "Regional reads and operations",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "requiredEvidenceIds": [
+        "read-region-surfacing",
+        "fleet-aggregates-guard",
+        "region-operator-diagnostic",
+        "support-access-statement"
+      ],
+      "openFindings": [],
+      "exceptions": [],
+      "notes": "Regional reads + operator surface, content-free end to end. Read surfacing: getProperty (the UI property-detail path) now returns PropertyDetail = Property & { regionProcessable, regionBlockedReason } (regionBlockedReason derivation in the property domain; processingRegion/source/routingPolicyVersion already on the entity) — metadata-only; reads stay OPEN for remediation (only processing blocks, per 4.1). Fleet/global views proven content-free: NEW fleet-aggregates architecture guard pins org-level surfaces (getFleetOverviewFn — COUNT/SUM/AVG only; getOrgResponseSlaFn — single integer; leaderboard fns — aggregate tables) with no content tables/columns in the fleet path and content-free DTO shapes; getDashboardDataFn's reviews.text snippets verified confined to a property-LOCAL cell read (org + assignment + content-expiry scoped — legitimate, pinned as the single documented exception; not a fleet surface). No violations found. Operator diagnostic: NEW createRegionDiagnostic in policy-diagnostic.ts (the router stays the ONE decision model — the diagnostic reports its fresh decision; org-scoped loader makes cross-org properties indistinguishable from missing — least privilege) exposed as getRegionDiagnosticFn (owner-only policy.admin gate; catalogue row added; EVERY read writes an explicit policy.region.diagnostic operator audit row — real-PG audit proof). Support-access statement recorded in the data-flow map: owner-only policy.admin (2.7), ExecutionPolicy writeDecisionAudit on every surface call, single 'us' cell ⇒ cell-scoped auditing is the default audit stream. Activity read-side decision RESOLVED (the 4.3 exception): activity payload.detail free text is tenant-owned content in the cell DB shown only to members of the owning org — both activity reads are inbox.read-gated with organization_id filters in SQL, no cross-org/fleet view exists (2 unit pins + 3 real-DB isolation tests). Deviations/noted: rollup tables rollup_daily_metrics/rollup_daily_inbox_metrics have NO app read path (dashboards aggregate metric_readings directly — dead read-side, metric context owns); items 2/5 guards green on first run (existing code already clean — no RED possible); PolicyAdminRegionDiagnostic mirror type needed in identity ports (application can't import shared/auth types). Not claimed: region move workflow (4.5), no-fallback fault proof (4.6), dead rollup read-side cleanup (metric context), Europe cell (denied). Slice not accepted — pending independent review."
     },
     {
       "id": "BQC-4.3",

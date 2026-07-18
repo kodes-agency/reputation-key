@@ -629,6 +629,17 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'organization',
       { notes: 'read-only decision diagnostic; no PII/secrets' },
     ),
+    sf(
+      'getRegionDiagnosticFn',
+      `${IDENTITY}/policy-admin.ts`,
+      'policy.admin',
+      'identity.invite',
+      'property',
+      {
+        notes:
+          'BQC-4.4: read-only region diagnostic (region/source/policy version/processable/blocked reason/cell/provider ref — content-free); every read writes an operator audit row',
+      },
+    ),
   ],
 
   // ── property ──────────────────────────────────────────────────────

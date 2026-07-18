@@ -303,3 +303,43 @@ export const explainPolicyDecisionFn = createServerFn({ method: 'GET' })
       'identity.explainPolicyDecision',
     ),
   )
+
+// ── getRegionDiagnostic (read-only diagnostic, BQC-4.4) ──────────────
+//
+// Content-free operator region state for one property: region, source,
+// routing-policy version, processable + machine blocked reason, and the
+// current cell + logical provider ref. Every read writes an operator audit
+// outcome (see policy-admin use case).
+
+export const getRegionDiagnosticFn = createServerFn({ method: 'GET' })
+  .inputValidator(
+    z.object({
+      propertyId: z.string().min(1),
+    }),
+  )
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const headers = await headersFromContext()
+        const ctx = await resolveTenantContext(headers)
+        await requireExecutionAllowed({
+          actor: ctx,
+          action: 'policy.admin',
+          propertyId: data.propertyId,
+        })
+
+        try {
+          const { policyAdmin } = getContainer()
+          return await policyAdmin.getRegionDiagnostic({
+            organizationId: ctx.organizationId as string,
+            propertyId: data.propertyId,
+            actorUserId: ctx.userId as string,
+          })
+        } catch (e) {
+          throw catchUntagged(e)
+        }
+      },
+      'GET',
+      'identity.getRegionDiagnostic',
+    ),
+  )
