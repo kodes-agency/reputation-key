@@ -31,6 +31,7 @@ import { reconcileReplyPublication } from './application/use-cases/reconcile-rep
 import { getStaffRecentActivity } from './application/use-cases/get-staff-recent-activity'
 import { createEligibleReads, type EligibleReads } from './application/eligible-reads'
 import { reviewId, replyId } from '#/shared/domain/ids'
+import { jobEnqueueOptions } from '#/shared/jobs/job-policy'
 import { registerReviewHandlers } from './infrastructure/event-handlers'
 
 export type ReviewContextBuildInput = Readonly<{
@@ -85,7 +86,8 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
         jobId: options?.jobId,
         removeOnComplete: { count: 100 },
         removeOnFail: { count: 50 },
-        attempts: 3,
+        // BQC-3.6: attempts/backoff+jitter/timeout from the job catalogue.
+        ...jobEnqueueOptions('sync-property-reviews'),
       })
     },
   }
@@ -98,8 +100,9 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
         jobId: options?.idempotencyKey,
         removeOnComplete: { count: 100 },
         removeOnFail: { count: 50 },
-        attempts: 3,
-        backoff: { type: 'exponential', delay: 5000 },
+        // BQC-3.6: attempts/backoff+jitter/timeout from the job catalogue
+        // (exponential:5000 + 120s timeout for publish-reply).
+        ...jobEnqueueOptions('publish-reply'),
       })
     },
   }

@@ -10,6 +10,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import type { Job } from 'bullmq'
 import { createGatedJobHandler } from './delayed-execution-gate'
+import { JobTimeoutError, UnknownJobError } from './errors'
 import { createJobRegistry } from './registry'
 import {
   initDelayedExecutionPolicy,
@@ -112,16 +113,21 @@ describe('createGatedJobHandler', () => {
     expect(handler).not.toHaveBeenCalled()
   })
 
-  it('warns and returns for unknown jobs without consulting the policy', async () => {
+  it('throws UnknownJobError for unknown jobs without consulting the policy (BQC-3.6)', async () => {
     initDelayedExecutionPolicy({ decide: decideMock })
     const registry = createJobRegistry()
     const dispatch = createGatedJobHandler('background', registry)
 
-    await expect(dispatch(fakeJob({ name: 'unregistered-job' }))).resolves.toBeUndefined()
+    // BQC-3.6: an unknown job name is a deployment/config failure, never a
+    // silent success — the job fails, burns attempts, and lands in quarantine
+    // (§4) instead of being acked away by BullMQ.
+    const job = fakeJob({ name: 'unregistered-job', id: 'job-unknown-1' })
+    await expect(dispatch(job)).rejects.toThrow(UnknownJobError)
+    await expect(dispatch(job)).rejects.toThrow(/unregistered-job/)
 
-    expect(loggerMocks.warn).toHaveBeenCalledWith(
-      expect.objectContaining({ jobName: 'unregistered-job' }),
-      'no handler registered for job',
+    expect(loggerMocks.error).toHaveBeenCalledWith(
+      expect.objectContaining({ jobName: 'unregistered-job', jobId: 'job-unknown-1' }),
+      expect.stringMatching(/no handler registered/),
     )
     expect(decideMock).not.toHaveBeenCalled()
   })
@@ -184,5 +190,30 @@ describe('createGatedJobHandler', () => {
       principal: { kind: 'system', id: 'worker:default' },
       executionKind: 'worker',
     })
+  })
+
+  it('fails a job that exceeds its catalogue timeout (BQC-3.6)', async () => {
+    decideMock.mockResolvedValue(ALLOW)
+    initDelayedExecutionPolicy({ decide: decideMock })
+    const registry = createJobRegistry()
+    registry.register(
+      'health-check',
+      vi.fn(() => new Promise<void>(() => {})), // never resolves
+    )
+    const dispatch = createGatedJobHandler('default', registry, undefined, () => 5)
+
+    await expect(dispatch(fakeJob())).rejects.toThrow(JobTimeoutError)
+  })
+
+  it('lets a job that finishes inside its timeout complete', async () => {
+    decideMock.mockResolvedValue(ALLOW)
+    initDelayedExecutionPolicy({ decide: decideMock })
+    const registry = createJobRegistry()
+    const handler = vi.fn(() => new Promise<void>((resolve) => setTimeout(resolve, 10)))
+    registry.register('health-check', handler)
+    const dispatch = createGatedJobHandler('default', registry, undefined, () => 1_000)
+
+    await expect(dispatch(fakeJob())).resolves.toBeUndefined()
+    expect(handler).toHaveBeenCalledOnce()
   })
 })

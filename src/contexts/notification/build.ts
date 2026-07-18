@@ -18,6 +18,7 @@ import { createInboxItemLookupAdapter } from './infrastructure/adapters/inbox-it
 import { registerNotificationHandlers } from './infrastructure/event-handlers'
 import { insertNotification } from './application/use-cases/insert-notification'
 import { URGENT_EMAIL_JOB_NAME } from './infrastructure/jobs/urgent-email.job'
+import { jobEnqueueOptions, withCatalogueJobOptions } from '#/shared/jobs/job-policy'
 import {
   markNotificationRead,
   dismissNotification,
@@ -43,11 +44,13 @@ export const buildNotificationContext = (input: BuildInput) => {
   const userLookup = createDbUserLookupAdapter(input.db)
   const inboxItemLookup = createInboxItemLookupAdapter(input.db)
 
-  // Register event handlers that enqueue BullMQ jobs
+  // Register event handlers that enqueue BullMQ jobs.
+  // BQC-3.6: the queue is wrapped so every insert-notification enqueue
+  // inherits the catalogue retry policy (attempts/backoff+jitter/timeout).
   if (input.queue) {
     registerNotificationHandlers({
       events: input.events,
-      queue: input.queue,
+      queue: withCatalogueJobOptions(input.queue),
       userLookup,
       inboxItemLookup,
       logger: input.logger,
@@ -66,8 +69,7 @@ export const buildNotificationContext = (input: BuildInput) => {
       enqueueUrgentEmail: input.queue
         ? async (data) => {
             await input.queue!.add(URGENT_EMAIL_JOB_NAME, data, {
-              attempts: 3,
-              backoff: { type: 'exponential', delay: 30_000 },
+              ...jobEnqueueOptions(URGENT_EMAIL_JOB_NAME),
             })
           }
         : undefined,

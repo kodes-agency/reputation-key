@@ -2241,6 +2241,15 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     { notes: 'ops:queue — pause/resume/status BullMQ queues; jobs preserved (BQC-0.5)' },
   ),
   ops(
+    'scripts/ops/quarantine-redrive.ts',
+    'scripts/ops/quarantine-redrive.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:quarantine — list/redrive exhausted jobs from the BQC-3.6 failure quarantine; report-first, --apply to redrive',
+    },
+  ),
+  ops(
     'scripts/ops/reconcile-staff-grants.ts',
     'scripts/ops/reconcile-staff-grants.ts',
     'tenant_cross',
