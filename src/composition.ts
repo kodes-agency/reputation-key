@@ -11,6 +11,7 @@ import { getLogger } from '#/shared/observability/logger'
 import { getRedis } from '#/shared/cache/redis'
 import { createEventBus } from '#/shared/events/event-bus'
 import type { EventBus } from '#/shared/events/event-bus'
+import { createBusAuthorizer } from '#/shared/jobs/delayed-execution-gate'
 import { createRedisCache } from '#/shared/cache/redis-cache'
 import { createNoopCache } from '#/shared/cache/noop-cache'
 import type { Cache } from '#/shared/cache/cache.port'
@@ -225,7 +226,11 @@ export function createContainer(options?: {
   const db = options?.db ?? getDb()
   const logger = getLogger()
   const redis = options?.redis ?? getRedis()
-  const eventBus = options?.eventBus ?? createEventBus()
+  // BQC-3.2: the composition root wires the bus authorizer to the delayed
+  // execution gate; bare createEventBus() (tests, Storybook, browser) stays
+  // ungoverned and free of server-only policy imports.
+  const eventBus =
+    options?.eventBus ?? createEventBus({ authorizeConsumer: createBusAuthorizer() })
   const clock = options?.clock ?? (() => new Date())
   const env = options?.env ?? getEnv()
 

@@ -11,15 +11,30 @@
 // Evaluate BullMQ-based event persistence for critical events in Phase 4+.
 //
 // BQC-3.2: registrations that carry a catalogue consumer identity (`{ consumer }`)
-// are authorized at emit time through the delayed execution gate — dark-context
-// handlers deny here instead of running ungated.
+// are authorized at emit time through an injected authorizer — the composition
+// root wires it to the delayed execution gate (src/shared/jobs/delayed-execution-gate.ts)
+// so dark-context handlers deny here instead of running ungated.
 
 import type { DomainEvent } from './events'
-import { gateBusConsumer } from '#/shared/jobs/delayed-execution-gate'
 
 export type EventBusOnOptions = Readonly<{
   /** Catalogue consumer module name (e.g. 'activity.event-handlers'). */
   consumer: string
+}>
+
+/**
+ * BQC-3.2: decides whether a governed consumer may handle this event.
+ * Injected by the composition root (wired to the delayed execution gate)
+ * so the bus itself stays free of server-only policy imports — bare
+ * createEventBus() (tests, Storybook, browser) runs ungoverned.
+ */
+export type BusConsumerAuthorizer = (
+  consumer: string,
+  event: DomainEvent,
+) => Promise<boolean>
+
+export type EventBusDeps = Readonly<{
+  authorizeConsumer?: BusConsumerAuthorizer
 }>
 
 export type EventBus = Readonly<{
@@ -48,34 +63,8 @@ type BusRegistration = Readonly<{
   consumer?: string
 }>
 
-/**
- * BQC-3.2: authorize a governed consumer against current policy.
- * deny_terminal skips with a warning; deny_retry skips with an error — the
- * bus is fire-and-forget with no retry semantics, so retries belong to the
- * durable dispatcher path (BQC-3.3–3.5), not here.
- */
-async function authorizeConsumer(consumer: string, event: DomainEvent): Promise<boolean> {
-  const outcome = await gateBusConsumer(consumer, event)
-  if (outcome.kind === 'allow') return true
-  // Lazy import avoids circular dep during bootstrap — same pattern as the
-  // handler-failure catch below.
-  const { getLogger } = await import('#/shared/observability/logger')
-  if (outcome.kind === 'deny_terminal') {
-    getLogger().warn(
-      { consumer, tag: event._tag, reason: outcome.decision.reason },
-      'delayed execution denied — terminal (event bus consumer skipped)',
-    )
-    return false
-  }
-  getLogger().error(
-    { consumer, tag: event._tag, reason: outcome.decision.reason },
-    'delayed execution denied — policy unavailable (event bus consumer skipped)',
-  )
-  return false
-}
-
 /** In-process event bus implementation. */
-export function createEventBus(): EventBus {
+export function createEventBus(deps?: EventBusDeps): EventBus {
   const handlers = new Map<string, Set<BusRegistration>>()
 
   return {
@@ -100,7 +89,8 @@ export function createEventBus(): EventBus {
           try {
             if (
               registration.consumer &&
-              !(await authorizeConsumer(registration.consumer, event))
+              deps?.authorizeConsumer &&
+              !(await deps.authorizeConsumer(registration.consumer, event))
             ) {
               return
             }

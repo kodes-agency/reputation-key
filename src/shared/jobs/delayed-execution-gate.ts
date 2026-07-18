@@ -177,6 +177,34 @@ export async function gateBusConsumer(
   return toOutcome(decision)
 }
 
+/**
+ * BQC-3.2: the event-bus authorizer wired by the composition root
+ * (src/composition.ts) — injected so the bus module itself never imports
+ * the server-only policy stack (browser/Storybook bundles stay clean).
+ * deny_terminal skips with a warning; deny_retry skips with an error — the
+ * bus is fire-and-forget with no retry semantics, so retries belong to the
+ * durable dispatcher path (BQC-3.3–3.5), not here.
+ */
+export function createBusAuthorizer() {
+  const logger = getLogger()
+  return async (consumer: string, event: DomainEvent): Promise<boolean> => {
+    const outcome = await gateBusConsumer(consumer, event)
+    if (outcome.kind === 'allow') return true
+    if (outcome.kind === 'deny_terminal') {
+      logger.warn(
+        { consumer, tag: event._tag, reason: outcome.decision.reason },
+        'delayed execution denied — terminal (event bus consumer skipped)',
+      )
+      return false
+    }
+    logger.error(
+      { consumer, tag: event._tag, reason: outcome.decision.reason },
+      'delayed execution denied — policy unavailable (event bus consumer skipped)',
+    )
+    return false
+  }
+}
+
 /** Authorize a durable outbox consumer before its handler runs. */
 export async function gateDispatcherConsumer(
   consumerName: string,

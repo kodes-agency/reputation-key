@@ -10,6 +10,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { createEventBus } from './event-bus'
 import type { DomainEvent } from './events'
+import { createBusAuthorizer } from '#/shared/jobs/delayed-execution-gate'
 import {
   createDelayedExecutionPolicy,
   initDelayedExecutionPolicy,
@@ -76,7 +77,7 @@ describe('event bus emit-time gate (BQC-3.2)', () => {
     initDelayedExecutionPolicy(
       createDelayedExecutionPolicy({ refreshPolicy: async () => {} }),
     )
-    const bus = createEventBus()
+    const bus = createEventBus({ authorizeConsumer: createBusAuthorizer() })
     const goalHandler = vi.fn(async () => {})
     const ungoverned = vi.fn(async () => {})
     bus.on('metric.recorded', goalHandler, { consumer: 'goal.event-handlers' })
@@ -91,7 +92,7 @@ describe('event bus emit-time gate (BQC-3.2)', () => {
   it('invokes a governed handler when the gate allows', async () => {
     decideMock.mockResolvedValue(ALLOW)
     initDelayedExecutionPolicy({ decide: decideMock })
-    const bus = createEventBus()
+    const bus = createEventBus({ authorizeConsumer: createBusAuthorizer() })
     const handler = vi.fn(async () => {})
     bus.on('metric.recorded', handler, { consumer: 'metric.event-handlers' })
 
@@ -110,7 +111,7 @@ describe('event bus emit-time gate (BQC-3.2)', () => {
   it('terminal deny skips the governed handler with a warning; other consumers still run', async () => {
     decideMock.mockResolvedValue(decision({ reason: 'org_suspended' }))
     initDelayedExecutionPolicy({ decide: decideMock })
-    const bus = createEventBus()
+    const bus = createEventBus({ authorizeConsumer: createBusAuthorizer() })
     const denied = vi.fn(async () => {})
     const other = vi.fn(async () => {})
     bus.on('metric.recorded', denied, { consumer: 'metric.event-handlers' })
@@ -135,7 +136,7 @@ describe('event bus emit-time gate (BQC-3.2)', () => {
       decision({ reason: 'policy_unavailable', freshRead: true }),
     )
     initDelayedExecutionPolicy({ decide: decideMock })
-    const bus = createEventBus()
+    const bus = createEventBus({ authorizeConsumer: createBusAuthorizer() })
     const handler = vi.fn(async () => {})
     bus.on('metric.recorded', handler, { consumer: 'metric.event-handlers' })
 
@@ -154,9 +155,22 @@ describe('event bus emit-time gate (BQC-3.2)', () => {
 
   it('ungoverned registrations (no consumer option) never consult the policy', async () => {
     initDelayedExecutionPolicy({ decide: decideMock })
-    const bus = createEventBus()
+    const bus = createEventBus({ authorizeConsumer: createBusAuthorizer() })
     const handler = vi.fn(async () => {})
     bus.on('metric.recorded', handler)
+
+    await bus.emit(metricRecorded())
+
+    expect(handler).toHaveBeenCalledOnce()
+    expect(decideMock).not.toHaveBeenCalled()
+  })
+
+  it('a bare bus (no authorizer — Storybook/browser path) runs governed handlers ungated', async () => {
+    // Bundle safety: bare createEventBus() must stay policy-free so the
+    // browser never loads the server-only policy stack.
+    const bus = createEventBus()
+    const handler = vi.fn(async () => {})
+    bus.on('metric.recorded', handler, { consumer: 'goal.event-handlers' })
 
     await bus.emit(metricRecorded())
 
