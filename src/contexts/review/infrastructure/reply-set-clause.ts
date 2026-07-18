@@ -20,5 +20,14 @@ export function buildReplySetClause(
   if (updates.rejectionReason !== undefined)
     setClause.rejectionReason = updates.rejectionReason
   if (updates.publishedAt !== undefined) setClause.publishedAt = updates.publishedAt
+  // BQC-3.8: publication state machine fields.
+  if (updates.publicationState !== undefined)
+    setClause.publicationState = updates.publicationState
+  if (updates.publicationAttempts !== undefined)
+    setClause.publicationAttempts = updates.publicationAttempts
+  if (updates.publicationLastErrorClass !== undefined)
+    setClause.publicationLastErrorClass = updates.publicationLastErrorClass
+  if (updates.reconcileDueAt !== undefined)
+    setClause.reconcileDueAt = updates.reconcileDueAt
   return setClause
 }

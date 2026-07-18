@@ -10,7 +10,6 @@ import {
   getReply,
   retryPublish,
   markReplyPublished,
-  markReplyPublishFailed,
 } from './reply-operations'
 import type { ReplyDeps } from './reply-operations'
 import type { ReplyRepository, ConditionalReplyUpdate } from '../ports/reply.repository'
@@ -21,7 +20,11 @@ import type { EventBus } from '#/shared/events/event-bus'
 import type { DomainEvent } from '#/shared/events/events'
 import type { Reply, Review } from '../../domain/types'
 import { isReviewError } from '../../domain/errors'
-import { buildIdempotencyKey } from '../../domain/reply-publication-workflow'
+import {
+  buildIdempotencyKey,
+  nextPublicationState,
+} from '../../domain/reply-publication-workflow'
+import type { GoogleReviewApiPort } from '../ports/google-review-api.port'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { PropertyId } from '#/shared/domain/ids'
 import {
@@ -87,6 +90,10 @@ function makeReply(overrides: Partial<Reply> = {}): Reply {
     submittedAt: null,
     approvedAt: null,
     publishedAt: null,
+    publicationState: null,
+    publicationAttempts: 0,
+    publicationLastErrorClass: null,
+    reconcileDueAt: null,
     createdAt: NOW,
     updatedAt: NOW,
     ...overrides,
@@ -133,10 +140,37 @@ function makeReplyCommandStoreFake(
   }
   return {
     submitReply: transition,
-    approveReply: transition,
     rejectReply: transition,
-    markPublished: transition,
-    markPublishFailed: transition,
+    // BQC-3.8: authorize mirrors the production write — guarded status update
+    // + the new publication-cycle fields — with the same domain pre-check.
+    markPublicationAuthorized: async (reply, updates, event, now) => {
+      if (!nextPublicationState(reply.publicationState, 'authorize')) return null
+      return transition(
+        reply,
+        {
+          ...updates,
+          publicationState: 'authorized',
+          publicationAttempts: 0,
+          publicationLastErrorClass: null,
+          reconcileDueAt: null,
+        },
+        event,
+        now,
+      )
+    },
+    markPublished: (reply, updates, event, now) =>
+      transition(
+        reply,
+        { ...updates, publicationState: 'published', reconcileDueAt: null },
+        event,
+        now,
+      ),
+    // Job/sweep-facing methods are not exercised by the reply ops tests.
+    markPublicationSending: vi.fn(),
+    markPublicationTerminal: vi.fn(),
+    markPublicationAmbiguous: vi.fn(),
+    markPublicationRetryQueued: vi.fn(),
+    cancelPublications: vi.fn(),
     mirrorSyncedReply: vi.fn(async () => {
       throw new Error('mirrorSyncedReply is not used by reply-operations')
     }),
@@ -181,6 +215,10 @@ function makeDeps(overrides: Partial<ReplyDeps> = {}): TestReplyDeps {
     queue: {
       addPublishJob: vi.fn(async () => {}),
     } as unknown as ReplyQueuePort,
+    googleReviewApi: {
+      fetchReviews: vi.fn(async () => []),
+      replyToReview: vi.fn(async () => {}),
+    } as unknown as GoogleReviewApiPort,
     commandStore: undefined as unknown as ReplyCommandStore,
     clock: () => NOW,
     idGen: () => REPLY_ID,
@@ -786,30 +824,11 @@ describe('markReplyPublished', () => {
   })
 })
 
-// ── markReplyPublishFailed ──────────────────────────────────────────────
-
-describe('markReplyPublishFailed', () => {
-  it('transitions approved → publish_failed', async () => {
-    const approved = makeReply({ status: 'approved' })
-    const deps = makeDeps({
-      replyRepo: {
-        ...makeDeps().replyRepo,
-        findById: vi.fn(async () => approved),
-      } as unknown as ReplyRepository,
-    })
-    const result = await markReplyPublishFailed(deps)({
-      replyId: REPLY_ID,
-      organizationId: ORG_ID,
-    })
-    expect(result.status).toBe('publish_failed')
-  })
-})
-
 // ── retryPublish ────────────────────────────────────────────────────────
 
 describe('retryPublish', () => {
-  it('transitions publish_failed → approved and re-enqueues job', async () => {
-    const failed = makeReply({ status: 'publish_failed' })
+  it('transitions publish_failed → approved, re-authorizes the publication cycle, and re-enqueues job', async () => {
+    const failed = makeReply({ status: 'publish_failed', publicationState: 'terminal' })
     const deps = makeDeps({
       replyRepo: {
         ...makeDeps().replyRepo,
@@ -818,11 +837,14 @@ describe('retryPublish', () => {
     })
     const result = await retryPublish(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX)
     expect(result.status).toBe('approved')
+    expect(result.publicationState).toBe('authorized')
     expect(deps.queue.addPublishJob).toHaveBeenCalledTimes(1)
+    // Non-ambiguous rows behave exactly as today — no provider re-read.
+    expect(deps.googleReviewApi.fetchReviews).not.toHaveBeenCalled()
   })
 
   it('rejects retry for non-failed reply', async () => {
-    const published = makeReply({ status: 'published' })
+    const published = makeReply({ status: 'published', publicationState: 'published' })
     const deps = makeDeps({
       replyRepo: {
         ...makeDeps().replyRepo,
@@ -832,6 +854,90 @@ describe('retryPublish', () => {
     await expect(
       retryPublish(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX),
     ).rejects.toThrow()
+  })
+
+  // BQC-3.8 §6: reconcile-before-retry — an ambiguous publication may have
+  // landed on Google; re-read provider state before any new send.
+  it('ambiguous + provider shows the reply → heals to published, NO re-enqueue, NO duplicate send', async () => {
+    const ambiguous = makeReply({
+      status: 'publish_failed',
+      publicationState: 'ambiguous',
+      publicationLastErrorClass: 'ambiguous',
+      reconcileDueAt: NOW,
+    })
+    const healed = {
+      ...ambiguous,
+      status: 'published' as const,
+      publicationState: 'published' as const,
+      publishedAt: NOW,
+    }
+    const reviewWithConnection = makeReview({
+      googleConnectionId: 'conn-1' as never,
+      externalLocationId: 'accounts/111/locations/222',
+      externalId: 'ext-1',
+    })
+    const deps = makeDeps({
+      replyRepo: {
+        ...makeDeps().replyRepo,
+        findInternalByReviewId: vi.fn(async () => ambiguous),
+        // reconcile reads the reply, then retryPublish re-reads the healed row.
+        findById: vi.fn().mockResolvedValueOnce(ambiguous).mockResolvedValue(healed),
+      } as unknown as ReplyRepository,
+      reviewRepo: {
+        findById: vi.fn(async () => reviewWithConnection),
+      } as unknown as ReviewRepository,
+    })
+    vi.mocked(deps.googleReviewApi.fetchReviews).mockResolvedValue([
+      { externalId: 'ext-1', replyText: 'Thank you!' } as never,
+    ])
+
+    const result = await retryPublish(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX)
+
+    expect(result.status).toBe('published')
+    expect(deps.googleReviewApi.fetchReviews).toHaveBeenCalledWith(
+      ORG_ID,
+      'conn-1',
+      'accounts/111/locations/222',
+    )
+    expect(deps.queue.addPublishJob).not.toHaveBeenCalled()
+    // The heal commits the published fact (once — no duplicate send).
+    expect(deps.events.emit).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(deps.events.emit).mock.calls[0][0]).toMatchObject({
+      _tag: 'review.reply.published',
+    })
+  })
+
+  it('ambiguous + provider does NOT show the reply → proceeds with re-approve + enqueue', async () => {
+    const ambiguous = makeReply({
+      status: 'publish_failed',
+      publicationState: 'ambiguous',
+      publicationLastErrorClass: 'ambiguous',
+      reconcileDueAt: NOW,
+    })
+    const reviewWithConnection = makeReview({
+      googleConnectionId: 'conn-1' as never,
+      externalLocationId: 'accounts/111/locations/222',
+      externalId: 'ext-1',
+    })
+    const deps = makeDeps({
+      replyRepo: {
+        ...makeDeps().replyRepo,
+        findInternalByReviewId: vi.fn(async () => ambiguous),
+        findById: vi.fn(async () => ambiguous),
+      } as unknown as ReplyRepository,
+      reviewRepo: {
+        findById: vi.fn(async () => reviewWithConnection),
+      } as unknown as ReviewRepository,
+    })
+    vi.mocked(deps.googleReviewApi.fetchReviews).mockResolvedValue([
+      { externalId: 'ext-1', replyText: null } as never,
+    ])
+
+    const result = await retryPublish(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX)
+
+    expect(result.status).toBe('approved')
+    expect(result.publicationState).toBe('authorized')
+    expect(deps.queue.addPublishJob).toHaveBeenCalledTimes(1)
   })
 })
 
@@ -877,7 +983,7 @@ describe('reply ops — TOCTOU guard (conditionalUpdate returns null → invalid
   })
 
   it('markReplyPublished: lost race throws invalid_transition, no event', async () => {
-    const approved = makeReply({ status: 'approved' })
+    const approved = makeReply({ status: 'approved', publicationState: 'sending' })
     const deps = makeDeps({
       replyRepo: {
         ...makeDeps().replyRepo,
@@ -891,22 +997,8 @@ describe('reply ops — TOCTOU guard (conditionalUpdate returns null → invalid
     expect(deps.events.emit).not.toHaveBeenCalled()
   })
 
-  it('markReplyPublishFailed: lost race throws invalid_transition', async () => {
-    const approved = makeReply({ status: 'approved' })
-    const deps = makeDeps({
-      replyRepo: {
-        ...makeDeps().replyRepo,
-        findById: vi.fn(async () => approved),
-        conditionalUpdate: nullConditional,
-      } as unknown as ReplyRepository,
-    })
-    await expect(
-      markReplyPublishFailed(deps)({ replyId: REPLY_ID, organizationId: ORG_ID }),
-    ).rejects.toMatchObject({ code: 'invalid_transition', _tag: 'ReviewError' })
-  })
-
   it('retryPublish: lost race throws invalid_transition, no job enqueued', async () => {
-    const failed = makeReply({ status: 'publish_failed' })
+    const failed = makeReply({ status: 'publish_failed', publicationState: 'terminal' })
     const deps = makeDeps({
       replyRepo: {
         ...makeDeps().replyRepo,

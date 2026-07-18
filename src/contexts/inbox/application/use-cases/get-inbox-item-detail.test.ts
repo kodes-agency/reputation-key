@@ -96,6 +96,10 @@ function makeReply(): ReplyView {
     submittedAt: null,
     approvedAt: null,
     publishedAt: null,
+    publicationState: null,
+    publicationAttempts: 0,
+    publicationLastErrorClass: null,
+    reconcileDueAt: null,
     createdAt: FIXED_TIME,
     updatedAt: FIXED_TIME,
   }

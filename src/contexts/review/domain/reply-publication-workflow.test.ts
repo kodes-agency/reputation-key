@@ -8,6 +8,8 @@ import {
   requiresManualReview,
   buildIdempotencyKey,
   classifyPublicationFailure,
+  nextPublicationState,
+  AMBIGUOUS_RECONCILE_DELAY_MS,
 } from './reply-publication-workflow'
 
 describe('reply-publication-workflow (B1.10)', () => {
@@ -266,5 +268,61 @@ describe('reply-publication-workflow (B1.10)', () => {
       expect(classifyPublicationFailure('weird string')).toBe('ambiguous')
       expect(classifyPublicationFailure(null)).toBe('ambiguous')
     })
+  })
+})
+
+describe('nextPublicationState (BQC-3.8 persisted machine)', () => {
+  it('authorize starts a new cycle from NULL, terminal, ambiguous, or cancelled', () => {
+    expect(nextPublicationState(null, 'authorize')).toBe('authorized')
+    expect(nextPublicationState('terminal', 'authorize')).toBe('authorized')
+    expect(nextPublicationState('ambiguous', 'authorize')).toBe('authorized')
+    expect(nextPublicationState('cancelled', 'authorize')).toBe('authorized')
+  })
+
+  it('authorize is invalid from published (a completed publication never re-opens)', () => {
+    expect(nextPublicationState('published', 'authorize')).toBeNull()
+  })
+
+  it('claim: authorized → sending; sending → sending (same job re-claiming its in-flight workflow)', () => {
+    expect(nextPublicationState('authorized', 'claim')).toBe('sending')
+    expect(nextPublicationState('sending', 'claim')).toBe('sending')
+  })
+
+  it('claim is invalid from NULL, cancelled, and terminal states (cancelled/racing rows cannot be claimed)', () => {
+    expect(nextPublicationState(null, 'claim')).toBeNull()
+    expect(nextPublicationState('cancelled', 'claim')).toBeNull()
+    expect(nextPublicationState('terminal', 'claim')).toBeNull()
+    expect(nextPublicationState('ambiguous', 'claim')).toBeNull()
+    expect(nextPublicationState('published', 'claim')).toBeNull()
+  })
+
+  it('publish confirms from sending, and heals from terminal/ambiguous/NULL (provider confirmation is authoritative)', () => {
+    expect(nextPublicationState('sending', 'publish')).toBe('published')
+    expect(nextPublicationState('terminal', 'publish')).toBe('published')
+    expect(nextPublicationState('ambiguous', 'publish')).toBe('published')
+    expect(nextPublicationState(null, 'publish')).toBe('published')
+  })
+
+  it('fail_terminal / fail_ambiguous / requeue apply only to an in-flight send', () => {
+    expect(nextPublicationState('sending', 'fail_terminal')).toBe('terminal')
+    expect(nextPublicationState('sending', 'fail_ambiguous')).toBe('ambiguous')
+    expect(nextPublicationState('sending', 'requeue')).toBe('authorized')
+    expect(nextPublicationState('authorized', 'fail_terminal')).toBeNull()
+    expect(nextPublicationState('authorized', 'fail_ambiguous')).toBeNull()
+    expect(nextPublicationState('authorized', 'requeue')).toBeNull()
+  })
+
+  it('cancel applies to every publication-active state and to no terminal state', () => {
+    expect(nextPublicationState('requested', 'cancel')).toBe('cancelled')
+    expect(nextPublicationState('authorized', 'cancel')).toBe('cancelled')
+    expect(nextPublicationState('sending', 'cancel')).toBe('cancelled')
+    expect(nextPublicationState('published', 'cancel')).toBeNull()
+    expect(nextPublicationState('terminal', 'cancel')).toBeNull()
+    expect(nextPublicationState('ambiguous', 'cancel')).toBeNull()
+    expect(nextPublicationState('cancelled', 'cancel')).toBeNull()
+  })
+
+  it('AMBIGUOUS_RECONCILE_DELAY_MS is 15 minutes', () => {
+    expect(AMBIGUOUS_RECONCILE_DELAY_MS).toBe(15 * 60 * 1000)
   })
 })

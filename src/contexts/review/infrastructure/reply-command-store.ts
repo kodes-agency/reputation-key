@@ -12,8 +12,13 @@
 // - A guarded transition that matches no row (lost TOCTOU race) records no
 //   outbox row and emits nothing — the caller sees null, exactly as with
 //   ReplyRepository.conditionalUpdate today.
+//
+// BQC-3.8: the publication state machine is persisted here. Publication
+// transitions guard on BOTH status and publication_state; the target state
+// comes from nextPublicationState (the domain authority), never from a
+// caller-supplied literal.
 
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { outboxEvents } from '#/shared/db/schema/outbox.schema'
 import { replies, reviews } from '#/shared/db/schema/review.schema'
@@ -25,6 +30,12 @@ import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
 import type { Reply } from '../domain/types'
 import { reviewError } from '../domain/errors'
+import {
+  AMBIGUOUS_RECONCILE_DELAY_MS,
+  nextPublicationState,
+  type PersistedPublicationState,
+  type PublicationStateEvent,
+} from '../domain/reply-publication-workflow'
 import { replyFromRow, replyToRow } from './mappers/reply.mapper'
 import { buildReplySetClause } from './reply-set-clause'
 import type {
@@ -74,6 +85,46 @@ async function guardedReplyUpdate(
   return result[0] ? replyFromRow(result[0]) : null
 }
 
+/**
+ * BQC-3.8: guarded publication update. Applies only while the row still has
+ * the expected status AND one of `allowedStates` — the atomic backstop for
+ * the cancellation race (a disconnect cancel moves the row out of every
+ * publication-active state, so any racing publication write misses).
+ */
+async function guardedPublicationUpdate(
+  run: Pick<Database, 'update'>,
+  reply: Reply,
+  expectedStatus: Reply['status'],
+  allowedStates: ReadonlyArray<PersistedPublicationState>,
+  set: Record<string, unknown>,
+): Promise<Reply | null> {
+  const result = await run
+    .update(replies)
+    .set(set)
+    .where(
+      and(
+        eq(replies.id, reply.id),
+        eq(replies.organizationId, reply.organizationId),
+        eq(replies.status, expectedStatus),
+        inArray(replies.publicationState, [...allowedStates]),
+      ),
+    )
+    .returning()
+  return result[0] ? replyFromRow(result[0]) : null
+}
+
+/**
+ * Domain-authority pre-check on the read state (BQC-3.8). The SQL guard is
+ * the real TOCTOU protection; this catches an impossible transition before
+ * the write is even attempted. Returns the target state or null.
+ */
+function nextStateOrNull(
+  reply: Reply,
+  event: PublicationStateEvent,
+): PersistedPublicationState | null {
+  return nextPublicationState(reply.publicationState, event)
+}
+
 async function insertOutboxRow(tx: Tx, event: DomainEvent): Promise<void> {
   await tx.insert(outboxEvents).values({ ...toOutboxEvent(event), id: event.eventId })
 }
@@ -102,6 +153,36 @@ export function createAtomicReplyCommandStore(
     })
   }
 
+  /** BQC-3.8: guarded publication transition + optional fact, one tx. */
+  const publicationTransition = async (
+    span: string,
+    reply: Reply,
+    event: PublicationStateEvent,
+    allowedStates: ReadonlyArray<PersistedPublicationState>,
+    set: (target: PersistedPublicationState, now: Date) => Record<string, unknown>,
+    fact: DomainEvent | null,
+    now?: Date,
+  ): Promise<Reply | null> => {
+    return trace(span, async () => {
+      const target = nextStateOrNull(reply, event)
+      if (!target) return null
+      const saved = await db.transaction(async (tx) => {
+        const row = await guardedPublicationUpdate(
+          tx,
+          reply,
+          reply.status,
+          allowedStates,
+          set(target, now ?? new Date()),
+        )
+        if (!row) return null
+        if (fact) await insertOutboxRow(tx, fact)
+        return row
+      })
+      if (saved && fact) await emitAfterCommit(events, fact)
+      return saved
+    })
+  }
+
   const mirrorUpsert = async (
     tx: Tx,
     replyToUpsert: Omit<Reply, 'createdAt' | 'updatedAt'>,
@@ -123,6 +204,8 @@ export function createAtomicReplyCommandStore(
           submittedAt: row.submittedAt,
           approvedAt: row.approvedAt,
           publishedAt: row.publishedAt,
+          // BQC-3.8: publication columns are deliberately NOT in the conflict
+          // set — a mirror refresh never clobbers an in-flight publication.
           updatedAt: now ?? new Date(),
         },
       })
@@ -139,14 +222,137 @@ export function createAtomicReplyCommandStore(
   return {
     submitReply: (reply, updates, event, now) =>
       transition('reply.commandStore.submitReply', reply, updates, event, now),
-    approveReply: (reply, updates, event, now) =>
-      transition('reply.commandStore.approveReply', reply, updates, event, now),
     rejectReply: (reply, updates, event, now) =>
       transition('reply.commandStore.rejectReply', reply, updates, event, now),
+    // BQC-3.8: publish also persists publication_state='published' and clears
+    // the reconcile schedule — provider confirmation is authoritative.
     markPublished: (reply, updates, event, now) =>
-      transition('reply.commandStore.markPublished', reply, updates, event, now),
-    markPublishFailed: (reply, updates, event, now) =>
-      transition('reply.commandStore.markPublishFailed', reply, updates, event, now),
+      transition(
+        'reply.commandStore.markPublished',
+        reply,
+        { ...updates, publicationState: 'published', reconcileDueAt: null },
+        event,
+        now,
+      ),
+
+    // BQC-3.8: authorize = approve/retry re-authorization (new publication
+    // cycle): guarded status update + authorized state + cycle reset + the
+    // approved fact when one is supplied — one transaction.
+    markPublicationAuthorized: (reply, updates, event, now) => {
+      if (!nextStateOrNull(reply, 'authorize')) return Promise.resolve(null)
+      return transition(
+        'reply.commandStore.markPublicationAuthorized',
+        reply,
+        {
+          ...updates,
+          publicationState: 'authorized',
+          publicationAttempts: 0,
+          publicationLastErrorClass: null,
+          reconcileDueAt: null,
+        },
+        event,
+        now,
+      )
+    },
+
+    // BQC-3.8: claim. No fact — the claim is internal bookkeeping. Single
+    // guarded UPDATE (atomic by itself); null on a lost race.
+    markPublicationSending: async (reply, now) => {
+      return trace('reply.commandStore.markPublicationSending', async () => {
+        const target = nextStateOrNull(reply, 'claim')
+        if (!target) return null
+        return guardedPublicationUpdate(
+          db,
+          reply,
+          'approved',
+          ['authorized', 'sending'],
+          {
+            publicationState: target,
+            publicationAttempts: sql`${replies.publicationAttempts} + 1`,
+            updatedAt: now ?? new Date(),
+          },
+        )
+      })
+    },
+
+    markPublicationTerminal: (reply, errorClass, event, now) =>
+      publicationTransition(
+        'reply.commandStore.markPublicationTerminal',
+        reply,
+        'fail_terminal',
+        ['sending'],
+        (target, at) => ({
+          status: 'publish_failed',
+          publicationState: target,
+          publicationLastErrorClass: errorClass,
+          updatedAt: at,
+        }),
+        event,
+        now,
+      ),
+
+    markPublicationAmbiguous: (reply, event, now) =>
+      publicationTransition(
+        'reply.commandStore.markPublicationAmbiguous',
+        reply,
+        'fail_ambiguous',
+        ['sending'],
+        (target, at) => ({
+          status: 'publish_failed',
+          publicationState: target,
+          publicationLastErrorClass: 'ambiguous',
+          reconcileDueAt: new Date(at.getTime() + AMBIGUOUS_RECONCILE_DELAY_MS),
+          updatedAt: at,
+        }),
+        event,
+        now,
+      ),
+
+    // BQC-3.8: retryable failure — back to 'authorized' (next attempt or
+    // quarantine redrive re-claims); last_error_class/attempts preserved.
+    markPublicationRetryQueued: async (reply, now) => {
+      return trace('reply.commandStore.markPublicationRetryQueued', async () => {
+        const target = nextStateOrNull(reply, 'requeue')
+        if (!target) return null
+        return guardedPublicationUpdate(db, reply, 'approved', ['sending'], {
+          publicationState: target,
+          updatedAt: now ?? new Date(),
+        })
+      })
+    },
+
+    cancelPublications: async (commands) => {
+      return trace('reply.commandStore.cancelPublications', async () => {
+        if (commands.length === 0) return 0
+        const committed: DomainEvent[] = []
+        const cancelled = await db.transaction(async (tx) => {
+          let count = 0
+          for (const { reply, event, now } of commands) {
+            // Rows whose state moved on (published/failed/cancelled/purged)
+            // are skipped without a fact — the batch still commits.
+            if (!nextStateOrNull(reply, 'cancel')) continue
+            const row = await guardedPublicationUpdate(
+              tx,
+              reply,
+              reply.status,
+              ['requested', 'authorized', 'sending'],
+              {
+                status: 'draft',
+                publicationState: 'cancelled',
+                updatedAt: now ?? new Date(),
+              },
+            )
+            if (!row) continue
+            await insertOutboxRow(tx, event)
+            committed.push(event)
+            count++
+          }
+          return count
+        })
+        for (const event of committed) await emitAfterCommit(events, event)
+        return cancelled
+      })
+    },
 
     mirrorSyncedReply: async (command) => {
       return trace('reply.commandStore.mirrorSyncedReply', async () => {
@@ -206,6 +412,16 @@ export function createSequentialReplyCommandStore(deps: {
   deleteReviewById: (reviewId: ReviewId, organizationId: OrganizationId) => Promise<void>
   events: EventBus
   recordOutbox?: (event: DomainEvent) => Promise<void>
+  /**
+   * BQC-3.8: publication-state-guarded update for the claim/cancel/requeue
+   * paths (the sequential equivalent of guardedPublicationUpdate).
+   */
+  publicationUpdate?: (
+    reply: Reply,
+    allowedStates: ReadonlyArray<PersistedPublicationState>,
+    updates: ConditionalReplyUpdate,
+    now?: Date,
+  ) => Promise<Reply | null>
 }): ReplyCommandStore {
   const recordAndEmit = async (event: DomainEvent): Promise<void> => {
     if (deps.recordOutbox) await deps.recordOutbox(event)
@@ -229,13 +445,122 @@ export function createSequentialReplyCommandStore(deps: {
     return saved
   }
 
+  const publicationTransition = async (
+    reply: Reply,
+    event: PublicationStateEvent,
+    allowedStates: ReadonlyArray<PersistedPublicationState>,
+    updates: ConditionalReplyUpdate,
+    fact: DomainEvent | null,
+    now?: Date,
+  ): Promise<Reply | null> => {
+    if (!nextStateOrNull(reply, event)) return null
+    if (!deps.publicationUpdate) {
+      throw reviewError(
+        'build_config_error',
+        'publicationUpdate dep is required for publication transitions',
+      )
+    }
+    const saved = await deps.publicationUpdate(reply, allowedStates, updates, now)
+    if (saved && fact) await recordAndEmit(fact)
+    return saved
+  }
+
   return {
     submitReply: (reply, updates, event, now) => transition(reply, updates, event, now),
-    approveReply: (reply, updates, event, now) => transition(reply, updates, event, now),
     rejectReply: (reply, updates, event, now) => transition(reply, updates, event, now),
-    markPublished: (reply, updates, event, now) => transition(reply, updates, event, now),
-    markPublishFailed: (reply, updates, event, now) =>
-      transition(reply, updates, event, now),
+    markPublished: (reply, updates, event, now) =>
+      transition(
+        reply,
+        { ...updates, publicationState: 'published', reconcileDueAt: null },
+        event,
+        now,
+      ),
+
+    markPublicationAuthorized: (reply, updates, event, now) => {
+      if (!nextStateOrNull(reply, 'authorize')) return Promise.resolve(null)
+      return transition(
+        reply,
+        {
+          ...updates,
+          publicationState: 'authorized',
+          publicationAttempts: 0,
+          publicationLastErrorClass: null,
+          reconcileDueAt: null,
+        },
+        event,
+        now,
+      )
+    },
+
+    markPublicationSending: (reply, now) =>
+      publicationTransition(
+        reply,
+        'claim',
+        ['authorized', 'sending'],
+        { publicationState: 'sending' },
+        null,
+        now,
+      ),
+
+    markPublicationTerminal: (reply, errorClass, event, now) =>
+      publicationTransition(
+        reply,
+        'fail_terminal',
+        ['sending'],
+        {
+          status: 'publish_failed',
+          publicationState: 'terminal',
+          publicationLastErrorClass: errorClass,
+        },
+        event,
+        now,
+      ),
+
+    markPublicationAmbiguous: (reply, event, now) =>
+      publicationTransition(
+        reply,
+        'fail_ambiguous',
+        ['sending'],
+        {
+          status: 'publish_failed',
+          publicationState: 'ambiguous',
+          publicationLastErrorClass: 'ambiguous',
+          reconcileDueAt: new Date(
+            (now ?? new Date()).getTime() + AMBIGUOUS_RECONCILE_DELAY_MS,
+          ),
+        },
+        event,
+        now,
+      ),
+
+    markPublicationRetryQueued: (reply, now) =>
+      publicationTransition(
+        reply,
+        'requeue',
+        ['sending'],
+        { publicationState: 'authorized' },
+        null,
+        now,
+      ),
+
+    cancelPublications: async (commands) => {
+      let count = 0
+      for (const { reply, event, now } of commands) {
+        const saved = await publicationTransition(
+          reply,
+          'cancel',
+          ['requested', 'authorized', 'sending'],
+          { status: 'draft', publicationState: 'cancelled' },
+          null,
+          now,
+        )
+        if (saved) {
+          await recordAndEmit(event)
+          count++
+        }
+      }
+      return count
+    },
 
     mirrorSyncedReply: async (command) => {
       if (!command.reply) {

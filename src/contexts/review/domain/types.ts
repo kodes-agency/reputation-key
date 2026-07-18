@@ -10,6 +10,10 @@ import type {
   UserId,
 } from '#/shared/domain/ids'
 import { contentExpiresAtFromFetch } from '#/shared/domain/source-content-policy'
+import type {
+  PersistedPublicationState,
+  PublicationFailureClass,
+} from './reply-publication-workflow'
 
 export type ReviewPlatform = 'google'
 
@@ -76,6 +80,13 @@ export type Reply = Readonly<{
   submittedAt: Date | null
   approvedAt: Date | null
   publishedAt: Date | null
+  // BQC-3.8: durable publication state machine overlay (migration 0015).
+  // All four are null/0 when no publication workflow is active (drafts,
+  // pre-0015 legacy rows). See domain/reply-publication-workflow.ts.
+  publicationState: PersistedPublicationState | null
+  publicationAttempts: number
+  publicationLastErrorClass: PublicationFailureClass | null
+  reconcileDueAt: Date | null
   createdAt: Date
   updatedAt: Date
 }>

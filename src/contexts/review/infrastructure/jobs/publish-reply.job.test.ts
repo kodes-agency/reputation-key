@@ -7,6 +7,17 @@
 // retryable failures rethrow for the configured attempts, and ambiguous
 // outcomes (timeout/unknown after the request may have landed) only mark
 // publish_failed on the final attempt, with a reconciliation hint.
+// BQC-3.8: the classification writes the DURABLE publication state machine —
+// claim (sending), terminal, ambiguous (+ reconcile_due_at), retry-queued —
+// and the post-call race guard refuses to mark a reply the disconnect
+// cascade cancelled or purged while the Google call was in flight.
+//
+// Phase BQC-3 §6 external publication coverage lives here:
+//   - timeout BEFORE the request (provider-classified pre-request failure);
+//   - timeout DURING the request (abort → ambiguous);
+//   - failure AFTER provider success BEFORE the local acknowledgement
+//     (markPublished throws → retry re-claims 'sending' → upsert-idempotent
+//     second send → published exactly once).
 
 import { describe, it, expect, vi } from 'vitest'
 import { createPublishReplyHandler } from './publish-reply.job'
@@ -41,6 +52,10 @@ const approvedReply = {
   submittedAt: NOW,
   approvedAt: NOW,
   publishedAt: null,
+  publicationState: 'authorized',
+  publicationAttempts: 0,
+  publicationLastErrorClass: null,
+  reconcileDueAt: null,
   createdAt: NOW,
   updatedAt: NOW,
 }
@@ -71,6 +86,24 @@ function gbpRateLimited(): Error {
   })
 }
 
+/** Pre-request failure: the connection is gone before the PUT is ever sent. */
+function connectionGone(): Error {
+  return Object.assign(new Error('Google connection is disconnected'), {
+    _tag: 'IntegrationError',
+    code: 'connection_disconnected',
+    context: {},
+  })
+}
+
+/** Pre-request failure: token refresh failed before the PUT was sent. */
+function tokenRefreshFailed(): Error {
+  return Object.assign(new Error('Failed to refresh Google access token'), {
+    _tag: 'IntegrationError',
+    code: 'token_refresh_failed',
+    context: {},
+  })
+}
+
 function abortError(): Error {
   const err = new Error('The operation was aborted')
   err.name = 'AbortError'
@@ -80,16 +113,40 @@ function abortError(): Error {
 function makeDeps() {
   const replyCommandStore = {
     submitReply: vi.fn(),
-    approveReply: vi.fn(),
     rejectReply: vi.fn(),
     markPublished: vi.fn(async (reply: object, updates: object, _event: object) => ({
       ...reply,
       ...updates,
     })),
-    markPublishFailed: vi.fn(async (reply: object, updates: object, _event: object) => ({
+    markPublicationAuthorized: vi.fn(),
+    markPublicationSending: vi.fn(async (reply: typeof approvedReply) =>
+      reply.publicationState === 'authorized' || reply.publicationState === 'sending'
+        ? {
+            ...reply,
+            publicationState: 'sending',
+            publicationAttempts: reply.publicationAttempts + 1,
+          }
+        : null,
+    ),
+    markPublicationTerminal: vi.fn(
+      async (reply: object, errorClass: string, _event: object) => ({
+        ...reply,
+        status: 'publish_failed',
+        publicationState: 'terminal',
+        publicationLastErrorClass: errorClass,
+      }),
+    ),
+    markPublicationAmbiguous: vi.fn(async (reply: object, _event: object) => ({
       ...reply,
-      ...updates,
+      status: 'publish_failed',
+      publicationState: 'ambiguous',
+      publicationLastErrorClass: 'ambiguous',
     })),
+    markPublicationRetryQueued: vi.fn(async (reply: object) => ({
+      ...reply,
+      publicationState: 'authorized',
+    })),
+    cancelPublications: vi.fn(),
     mirrorSyncedReply: vi.fn(),
     purgeExpiredReview: vi.fn(),
   }
@@ -121,12 +178,13 @@ describe('publish-reply job handler', () => {
     expect(deps.googleReviewApi.replyToReview).not.toHaveBeenCalled()
   })
 
-  it('success → marks published via the command store with the durable fact', async () => {
+  it('success → claims the row, sends, marks published via the command store with the durable fact', async () => {
     const deps = makeDeps()
     const handler = createPublishReplyHandler(deps as never)
 
     await handler(makeJob())
 
+    expect(deps.replyCommandStore.markPublicationSending).toHaveBeenCalledTimes(1)
     expect(deps.googleReviewApi.replyToReview).toHaveBeenCalledWith(
       'org-1',
       'conn-1',
@@ -138,22 +196,36 @@ describe('publish-reply job handler', () => {
       _tag: string
     }
     expect(event._tag).toBe('review.reply.published')
-    expect(deps.replyCommandStore.markPublishFailed).not.toHaveBeenCalled()
+    expect(deps.replyCommandStore.markPublicationTerminal).not.toHaveBeenCalled()
+    expect(deps.replyCommandStore.markPublicationAmbiguous).not.toHaveBeenCalled()
   })
 
-  it('skips replies that are not in approved status', async () => {
+  it('skips replies that are not in approved status (no claim, no send)', async () => {
     const deps = makeDeps()
     deps.replyRepo.findById.mockResolvedValue({ ...approvedReply, status: 'draft' })
     const handler = createPublishReplyHandler(deps as never)
 
     await handler(makeJob())
 
+    expect(deps.replyCommandStore.markPublicationSending).not.toHaveBeenCalled()
     expect(deps.googleReviewApi.replyToReview).not.toHaveBeenCalled()
     expect(deps.replyCommandStore.markPublished).not.toHaveBeenCalled()
-    expect(deps.replyCommandStore.markPublishFailed).not.toHaveBeenCalled()
   })
 
-  it('terminal provider rejection (4xx) → publish_failed WITHOUT burning retries (no rethrow)', async () => {
+  it('claim lost (cancelled or racing) → skips without the side effect or any mark', async () => {
+    const deps = makeDeps()
+    deps.replyCommandStore.markPublicationSending.mockResolvedValue(null)
+    const handler = createPublishReplyHandler(deps as never)
+
+    await handler(makeJob())
+
+    expect(deps.googleReviewApi.replyToReview).not.toHaveBeenCalled()
+    expect(deps.replyCommandStore.markPublished).not.toHaveBeenCalled()
+    expect(deps.replyCommandStore.markPublicationTerminal).not.toHaveBeenCalled()
+    expect(deps.replyCommandStore.markPublicationAmbiguous).not.toHaveBeenCalled()
+  })
+
+  it('terminal provider rejection (4xx) → terminal mark WITHOUT burning retries (no rethrow)', async () => {
     const deps = makeDeps()
     deps.googleReviewApi.replyToReview.mockRejectedValue(gbpApiError(403))
     const handler = createPublishReplyHandler(deps as never)
@@ -162,85 +234,210 @@ describe('publish-reply job handler', () => {
     // attempts must not be burned on a permanent rejection.
     await expect(handler(makeJob(0))).resolves.toBeUndefined()
 
-    expect(deps.replyCommandStore.markPublishFailed).toHaveBeenCalledTimes(1)
-    const event = deps.replyCommandStore.markPublishFailed.mock.calls[0]![2] as {
+    expect(deps.replyCommandStore.markPublicationTerminal).toHaveBeenCalledTimes(1)
+    expect(deps.replyCommandStore.markPublicationTerminal.mock.calls[0]![1]).toBe(
+      'terminal_rejection',
+    )
+    const event = deps.replyCommandStore.markPublicationTerminal.mock.calls[0]![2] as {
       _tag: string
     }
     expect(event._tag).toBe('review.reply.publish_failed')
     expect(deps.replyCommandStore.markPublished).not.toHaveBeenCalled()
   })
 
-  it('429 rate limit → rethrows for BullMQ retry; marks failed only on the final attempt', async () => {
+  it('429 rate limit → retry-queued + rethrows for BullMQ retry (never a terminal mark)', async () => {
     const deps = makeDeps()
     deps.googleReviewApi.replyToReview.mockRejectedValue(gbpRateLimited())
     const handler = createPublishReplyHandler(deps as never)
 
     await expect(handler(makeJob(0))).rejects.toThrow()
-    expect(deps.replyCommandStore.markPublishFailed).not.toHaveBeenCalled()
+    expect(deps.replyCommandStore.markPublicationRetryQueued).toHaveBeenCalledTimes(1)
+    expect(deps.replyCommandStore.markPublicationTerminal).not.toHaveBeenCalled()
+    expect(deps.replyCommandStore.markPublicationAmbiguous).not.toHaveBeenCalled()
 
+    // Final attempt: a retryable failure is still retry-queued, never
+    // marked failed — the exhausted job lands in quarantine with the row
+    // back in 'authorized' for a redrive.
     await expect(handler(makeJob(2))).rejects.toThrow()
-    expect(deps.replyCommandStore.markPublishFailed).toHaveBeenCalledTimes(1)
+    expect(deps.replyCommandStore.markPublicationRetryQueued).toHaveBeenCalledTimes(2)
+    expect(deps.replyCommandStore.markPublicationTerminal).not.toHaveBeenCalled()
+    expect(deps.replyCommandStore.markPublicationAmbiguous).not.toHaveBeenCalled()
   })
 
-  it('5xx provider error → rethrows for BullMQ retry; marks failed on the final attempt', async () => {
+  it('5xx provider error → retry-queued + rethrows (final attempt included)', async () => {
     const deps = makeDeps()
     deps.googleReviewApi.replyToReview.mockRejectedValue(gbpApiError(500))
     const handler = createPublishReplyHandler(deps as never)
 
     await expect(handler(makeJob(0))).rejects.toThrow()
-    expect(deps.replyCommandStore.markPublishFailed).not.toHaveBeenCalled()
+    expect(deps.replyCommandStore.markPublicationRetryQueued).toHaveBeenCalledTimes(1)
 
     await expect(handler(makeJob(2))).rejects.toThrow()
-    expect(deps.replyCommandStore.markPublishFailed).toHaveBeenCalledTimes(1)
+    expect(deps.replyCommandStore.markPublicationRetryQueued).toHaveBeenCalledTimes(2)
+    expect(deps.replyCommandStore.markPublicationTerminal).not.toHaveBeenCalled()
   })
 
-  it('network TypeError → retryable (rethrows; no markFailed before the final attempt)', async () => {
+  it('network TypeError → retryable (requeue + rethrow)', async () => {
     const deps = makeDeps()
     deps.googleReviewApi.replyToReview.mockRejectedValue(new TypeError('fetch failed'))
     const handler = createPublishReplyHandler(deps as never)
 
     await expect(handler(makeJob(0))).rejects.toThrow()
-    expect(deps.replyCommandStore.markPublishFailed).not.toHaveBeenCalled()
+    expect(deps.replyCommandStore.markPublicationRetryQueued).toHaveBeenCalledTimes(1)
   })
 
-  it('ambiguous timeout → rethrows before the final attempt', async () => {
+  it('§6 timeout BEFORE the request: token refresh failure → retryable (provider never saw a request)', async () => {
+    const deps = makeDeps()
+    deps.googleReviewApi.replyToReview.mockRejectedValue(tokenRefreshFailed())
+    const handler = createPublishReplyHandler(deps as never)
+
+    await expect(handler(makeJob(0))).rejects.toThrow()
+    expect(deps.replyCommandStore.markPublicationRetryQueued).toHaveBeenCalledTimes(1)
+    expect(deps.replyCommandStore.markPublicationAmbiguous).not.toHaveBeenCalled()
+  })
+
+  it('§6 timeout BEFORE the request: connection gone → provider-classified terminal (no retry burn)', async () => {
+    const deps = makeDeps()
+    deps.googleReviewApi.replyToReview.mockRejectedValue(connectionGone())
+    const handler = createPublishReplyHandler(deps as never)
+
+    await expect(handler(makeJob(0))).resolves.toBeUndefined()
+    expect(deps.replyCommandStore.markPublicationTerminal).toHaveBeenCalledTimes(1)
+  })
+
+  it('§6 abort DURING the request → ambiguous: rethrows, state stays sending (no mark) before the final attempt', async () => {
     const deps = makeDeps()
     deps.googleReviewApi.replyToReview.mockRejectedValue(abortError())
     const handler = createPublishReplyHandler(deps as never)
 
     await expect(handler(makeJob(0))).rejects.toThrow()
-    expect(deps.replyCommandStore.markPublishFailed).not.toHaveBeenCalled()
+    expect(deps.replyCommandStore.markPublicationAmbiguous).not.toHaveBeenCalled()
+    expect(deps.replyCommandStore.markPublicationTerminal).not.toHaveBeenCalled()
+    expect(deps.replyCommandStore.markPublicationRetryQueued).not.toHaveBeenCalled()
   })
 
-  it('ambiguous timeout on the FINAL attempt → publish_failed (honest unknown)', async () => {
+  it('§6 abort DURING the request on the FINAL attempt → ambiguous mark + reconcile schedule (honest unknown)', async () => {
     const deps = makeDeps()
     deps.googleReviewApi.replyToReview.mockRejectedValue(abortError())
     const handler = createPublishReplyHandler(deps as never)
 
     await expect(handler(makeJob(2))).rejects.toThrow()
-    expect(deps.replyCommandStore.markPublishFailed).toHaveBeenCalledTimes(1)
+    expect(deps.replyCommandStore.markPublicationAmbiguous).toHaveBeenCalledTimes(1)
+    const event = deps.replyCommandStore.markPublicationAmbiguous.mock.calls[0]![1] as {
+      _tag: string
+    }
+    expect(event._tag).toBe('review.reply.publish_failed')
     expect(deps.replyCommandStore.markPublished).not.toHaveBeenCalled()
   })
 
-  it('unknown error → treated as ambiguous; final attempt marks publish_failed', async () => {
+  it('unknown error → treated as ambiguous; final attempt marks ambiguous', async () => {
     const deps = makeDeps()
     deps.googleReviewApi.replyToReview.mockRejectedValue(new Error('socket hangup'))
     const handler = createPublishReplyHandler(deps as never)
 
     await expect(handler(makeJob(0))).rejects.toThrow()
-    expect(deps.replyCommandStore.markPublishFailed).not.toHaveBeenCalled()
+    expect(deps.replyCommandStore.markPublicationAmbiguous).not.toHaveBeenCalled()
 
     await expect(handler(makeJob(2))).rejects.toThrow()
-    expect(deps.replyCommandStore.markPublishFailed).toHaveBeenCalledTimes(1)
+    expect(deps.replyCommandStore.markPublicationAmbiguous).toHaveBeenCalledTimes(1)
   })
 
-  it('missing Google connection → publish_failed (terminal, no rethrow)', async () => {
+  it('missing Google connection → terminal mark (no send, no rethrow)', async () => {
     const deps = makeDeps()
     deps.reviewRepo.findById.mockResolvedValue({ ...review, googleConnectionId: null })
     const handler = createPublishReplyHandler(deps as never)
 
     await expect(handler(makeJob())).resolves.toBeUndefined()
     expect(deps.googleReviewApi.replyToReview).not.toHaveBeenCalled()
-    expect(deps.replyCommandStore.markPublishFailed).toHaveBeenCalledTimes(1)
+    expect(deps.replyCommandStore.markPublicationTerminal).toHaveBeenCalledTimes(1)
+    expect(deps.replyCommandStore.markPublicationTerminal.mock.calls[0]![1]).toBe(
+      'terminal_rejection',
+    )
+  })
+
+  it('post-call race guard: reply purged during the Google call → returns WITHOUT marking published', async () => {
+    const deps = makeDeps()
+    deps.replyRepo.findById
+      .mockResolvedValueOnce(approvedReply) // initial read
+      .mockResolvedValueOnce(null) // post-call re-read — purge cascade won
+    const handler = createPublishReplyHandler(deps as never)
+
+    await handler(makeJob())
+
+    expect(deps.googleReviewApi.replyToReview).toHaveBeenCalledTimes(1)
+    expect(deps.replyCommandStore.markPublished).not.toHaveBeenCalled()
+    expect(deps.replyCommandStore.markPublicationTerminal).not.toHaveBeenCalled()
+    expect(deps.replyCommandStore.markPublicationAmbiguous).not.toHaveBeenCalled()
+  })
+
+  it('post-call race guard: publication cancelled during the Google call → returns WITHOUT marking published', async () => {
+    const deps = makeDeps()
+    deps.replyRepo.findById
+      .mockResolvedValueOnce(approvedReply) // initial read
+      .mockResolvedValueOnce({
+        ...approvedReply,
+        status: 'draft',
+        publicationState: 'cancelled',
+      }) // post-call re-read — disconnect won the race
+    const handler = createPublishReplyHandler(deps as never)
+
+    await handler(makeJob())
+
+    expect(deps.googleReviewApi.replyToReview).toHaveBeenCalledTimes(1)
+    expect(deps.replyCommandStore.markPublished).not.toHaveBeenCalled()
+  })
+
+  it('§6 failure AFTER provider success BEFORE local ack: markPublished throws → rethrow → retry re-claims sending → upsert-idempotent second send → published once', async () => {
+    // Stateful fake: the row persists publication_state across the two runs,
+    // exactly as the atomic store would leave it ('sending' after run 1's
+    // claim; the failed markPublished never committed).
+    let current = { ...approvedReply }
+    const deps = makeDeps()
+    deps.replyRepo.findById.mockImplementation(async () => current)
+    deps.replyCommandStore.markPublicationSending.mockImplementation(async () => {
+      if (
+        current.publicationState !== 'authorized' &&
+        current.publicationState !== 'sending'
+      )
+        return null
+      current = {
+        ...current,
+        publicationState: 'sending',
+        publicationAttempts: current.publicationAttempts + 1,
+      }
+      return current
+    })
+    deps.replyCommandStore.markPublished
+      .mockRejectedValueOnce(new Error('db write failed')) // local ack fails AFTER provider success
+      .mockImplementation(async () => {
+        current = { ...current, status: 'published', publicationState: 'published' }
+        return current
+      })
+    const handler = createPublishReplyHandler(deps as never)
+
+    // Run 1: provider call succeeds, the local ack fails → ambiguous
+    // non-final → rethrow for BullMQ retry; state stays 'sending'.
+    await expect(handler(makeJob(0))).rejects.toThrow('db write failed')
+    expect(current.publicationState).toBe('sending')
+    expect(deps.replyCommandStore.markPublicationAmbiguous).not.toHaveBeenCalled()
+
+    // Run 2: the retry re-claims (sending → sending — the SAME job's
+    // in-flight workflow) and sends AGAIN: the GBP reply PUT is an UPSERT,
+    // so the second send is idempotent on the provider.
+    await expect(handler(makeJob(1))).resolves.toBeUndefined()
+
+    expect(deps.googleReviewApi.replyToReview).toHaveBeenCalledTimes(2)
+    expect(deps.googleReviewApi.replyToReview).toHaveBeenNthCalledWith(
+      2,
+      'org-1',
+      'conn-1',
+      'accounts/111/locations/222/reviews/ext-1',
+      'Thanks!',
+    )
+    expect(deps.replyCommandStore.markPublished).toHaveBeenCalledTimes(2)
+    expect(current.status).toBe('published')
+    expect(current.publicationState).toBe('published')
+    expect(deps.replyCommandStore.markPublicationTerminal).not.toHaveBeenCalled()
+    expect(deps.replyCommandStore.markPublicationAmbiguous).not.toHaveBeenCalled()
   })
 })

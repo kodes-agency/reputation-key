@@ -6,8 +6,11 @@ import {
   calculateExpiresAt,
   computeReviewContentHash,
   canTransitionReply,
+  transitionReply,
   MAX_REPLY_LENGTH,
 } from './rules'
+import type { Reply } from './types'
+import { organizationId, replyId, reviewId } from '#/shared/domain/ids'
 
 describe('isValidRating', () => {
   it('returns true for valid ratings 1-5', () => {
@@ -137,6 +140,57 @@ describe('canTransitionReply', () => {
 
   it('blocks rejected → pending_approval (must re-draft first)', () => {
     expect(canTransitionReply('rejected', 'pending_approval')).toBe(false)
+  })
+
+  it('allows approved → draft (BQC-3.8 publication cancellation returns the reply for re-approval)', () => {
+    expect(canTransitionReply('approved', 'draft')).toBe(true)
+  })
+})
+
+describe('transitionReply — BQC-3.8 AI-draft publication proof', () => {
+  // Approval IS the human review: an AI-generated reply is publishable only
+  // after it. transitionReply is the single authority for every reply write,
+  // so an aiGenerated draft cannot reach 'approved' — and therefore cannot be
+  // published — without passing through pending_approval first.
+  const NOW = new Date('2026-07-17T00:00:00Z')
+
+  function makeReply(overrides: Partial<Reply> = {}): Reply {
+    return {
+      id: replyId('reply-ai-1'),
+      reviewId: reviewId('rev-ai-1'),
+      organizationId: organizationId('org-ai-1'),
+      text: 'AI-drafted thank-you',
+      status: 'draft',
+      source: 'internal',
+      createdBy: null,
+      approvedBy: null,
+      rejectedBy: null,
+      rejectionReason: null,
+      aiGenerated: true,
+      submittedAt: null,
+      approvedAt: null,
+      publishedAt: null,
+      publicationState: null,
+      publicationAttempts: 0,
+      publicationLastErrorClass: null,
+      reconcileDueAt: null,
+      createdAt: NOW,
+      updatedAt: NOW,
+      ...overrides,
+    }
+  }
+
+  it('aiGenerated draft → approved is refused (no auto-publish path exists)', () => {
+    const result = transitionReply(makeReply(), 'approved', NOW)
+    expect(result.isErr()).toBe(true)
+  })
+
+  it('aiGenerated reply reaches approved only via pending_approval (the human review)', () => {
+    const submitted = transitionReply(makeReply(), 'pending_approval', NOW)
+    expect(submitted.isOk()).toBe(true)
+    if (submitted.isErr()) throw submitted.error
+    const approved = transitionReply(submitted.value, 'approved', NOW)
+    expect(approved.isOk()).toBe(true)
   })
 })
 

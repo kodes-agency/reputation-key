@@ -5,6 +5,7 @@ import type { ReplyRepository } from '../ports/reply.repository'
 import type { ReviewRepository } from '../ports/review.repository'
 import type { ReplyQueuePort } from '../ports/reply-queue.port'
 import type { ReplyCommandStore } from '../ports/reply-command-store.port'
+import type { GoogleReviewApiPort } from '../ports/google-review-api.port'
 import type { ReplyId, ReviewId, OrganizationId, PropertyId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Reply } from '../../domain/types'
@@ -14,12 +15,12 @@ import { transitionReply, MAX_REPLY_LENGTH } from '../../domain/rules'
 import { buildIdempotencyKey } from '../../domain/reply-publication-workflow'
 import { reviewError } from '../../domain/errors'
 import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
+import { reconcileReplyPublication } from './reconcile-reply-publication'
 import {
   reviewReplyPublished,
   reviewReplySubmitted,
   reviewReplyApproved,
   reviewReplyRejected,
-  reviewReplyPublishFailed,
 } from '../../domain/events'
 
 // ── Shared ────────────────────────────────────────────────────────────
@@ -39,6 +40,12 @@ export type ReplyDeps = Readonly<{
    * emit). All fact-emitting reply transitions route through this store.
    */
   commandStore: ReplyCommandStore
+  /**
+   * BQC-3.8: provider READ path for retryPublish's reconcile-before-retry
+   * (an ambiguous publication is reconciled against Google before any new
+   * send — reconcileReplyPublication never calls the publish endpoint).
+   */
+  googleReviewApi: GoogleReviewApiPort
   clock: () => Date
   idGen: () => ReplyId
   staffPublicApi: StaffPublicApi
@@ -145,6 +152,11 @@ export const draftReply =
         submittedAt: null,
         approvedAt: null,
         publishedAt: null,
+        // BQC-3.8: a fresh draft has no publication workflow.
+        publicationState: null,
+        publicationAttempts: 0,
+        publicationLastErrorClass: null,
+        reconcileDueAt: null,
       },
       now,
     )
@@ -233,7 +245,9 @@ export const approveReply =
     // BQC-3.3: guarded status update + approved fact commit in one tx. The
     // durable review.reply.approved outbox row is the recovery record if the
     // process crashes before the enqueue below.
-    const approved = await deps.commandStore.approveReply(
+    // BQC-3.8: the same write authorizes the publication cycle —
+    // publication_state='authorized', attempts/last-error/reconcile-due reset.
+    const approved = await deps.commandStore.markPublicationAuthorized(
       reply,
       { status: 'approved', approvedBy: ctx.userId, approvedAt: now },
       reviewReplyApproved({
@@ -427,54 +441,6 @@ export const markReplyPublished =
     return published
   }
 
-// ── Mark publish failed (called by publish job on final failure) ──────
-
-export type MarkPublishFailedInput = Readonly<{
-  replyId: ReplyId
-  organizationId: OrganizationId
-}>
-
-export const markReplyPublishFailed =
-  (deps: ReplyDeps) =>
-  async (input: MarkPublishFailedInput): Promise<Reply> => {
-    const reply = await deps.replyRepo.findById(input.replyId, input.organizationId)
-    if (!reply) {
-      throw reviewError('reply_not_found', 'Reply not found')
-    }
-
-    const now = deps.clock()
-    const transitioned = transitionReply(reply, 'publish_failed', now)
-    if (transitioned.isErr()) throw transitioned.error
-
-    // The parent review supplies the fact's propertyId. A missing review
-    // (impossible under the replies→reviews FK) degrades to a fact-less
-    // update — the pre-BQC-3.3 tolerate-and-log path, preserved.
-    const review = await deps.reviewRepo.findById(reply.reviewId, input.organizationId)
-    const event = review
-      ? reviewReplyPublishFailed({
-          replyId: reply.id,
-          reviewId: reply.reviewId,
-          propertyId: review.propertyId,
-          organizationId: reply.organizationId,
-          authorId: reply.createdBy,
-          occurredAt: now,
-        })
-      : null
-
-    // BQC-3.3: guarded status update + publish_failed fact commit in one tx.
-    const updated = await deps.commandStore.markPublishFailed(
-      reply,
-      { status: 'publish_failed' },
-      event,
-      now,
-    )
-    if (!updated) {
-      throw reviewError('invalid_transition', 'Reply status changed concurrently')
-    }
-
-    return updated
-  }
-
 // ── Retry publish ─────────────────────────────────────────────────────
 
 export type RetryPublishInput = Readonly<{
@@ -501,14 +467,38 @@ export const retryPublish =
     }
     await assertReplyPropertyAccessible(deps, ctx, review.propertyId)
 
+    // BQC-3.8: reconcile-before-retry for an AMBIGUOUS publication. The
+    // previous send may have landed on Google — re-read provider state first:
+    //   provider shows the reply → heal to published and STOP (no re-enqueue,
+    //     no duplicate send);
+    //   provider does not → the send never landed; fall through to the normal
+    //     re-approve + enqueue below.
+    if (reply.publicationState === 'ambiguous') {
+      const reconciled = await reconcileReplyPublication({
+        replyRepo: deps.replyRepo,
+        reviewRepo: deps.reviewRepo,
+        googleReviewApi: deps.googleReviewApi,
+        commandStore: deps.commandStore,
+        clock: deps.clock,
+      })({ replyId: reply.id, organizationId: ctx.organizationId })
+      if (reconciled.isErr()) throw reconciled.error
+      if (reconciled.value.outcome === 'published') {
+        const healed = await deps.replyRepo.findById(reply.id, ctx.organizationId)
+        if (!healed) throw reviewError('reply_not_found', 'Reply not found')
+        return healed
+      }
+    }
+
     const now = deps.clock()
     const transitioned = transitionReply(reply, 'approved', now)
     if (transitioned.isErr()) throw transitioned.error
-    const backToApproved = await deps.replyRepo.conditionalUpdate(
-      reply.id,
-      ctx.organizationId,
-      [reply.status],
+    // BQC-3.8: re-authorization starts a NEW publication cycle
+    // (publication_state='authorized', attempts/error/reconcile-due reset).
+    // No new fact — re-approval reuses the approved state, exactly as before.
+    const backToApproved = await deps.commandStore.markPublicationAuthorized(
+      reply,
       { status: 'approved' },
+      null,
       now,
     )
     if (!backToApproved) {

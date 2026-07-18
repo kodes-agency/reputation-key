@@ -1,5 +1,6 @@
 // Review context — Drizzle schema for reviews & replies tables
 
+import { sql } from 'drizzle-orm'
 import { createdAtColumn, updatedAtColumn } from '../columns'
 import {
   pgTable,
@@ -115,6 +116,15 @@ export const replies = pgTable(
     submittedAt: timestamp('submitted_at', { withTimezone: true }),
     approvedAt: timestamp('approved_at', { withTimezone: true }),
     publishedAt: timestamp('published_at', { withTimezone: true }),
+    // BQC-3.8 (migration 0015): durable publication state machine overlay.
+    // text + CHECK (replies_publication_state_check /
+    // replies_publication_last_error_class_check), matching the hand-written
+    // migration idiom — the allowed values are pinned by
+    // PersistedPublicationState / PublicationFailureClass in the domain.
+    publicationState: text('publication_state'),
+    publicationAttempts: integer('publication_attempts').notNull().default(0),
+    publicationLastErrorClass: text('publication_last_error_class'),
+    reconcileDueAt: timestamp('reconcile_due_at', { withTimezone: true }),
     createdAt: createdAtColumn(),
     updatedAt: updatedAtColumn(),
   },
@@ -129,5 +139,9 @@ export const replies = pgTable(
     ),
     index('replies_review_idx').on(t.reviewId),
     index('replies_org_idx').on(t.organizationId),
+    // Migration 0015: ambiguous-outcome reconciliation sweep lookup.
+    index('replies_publication_reconcile_idx')
+      .on(t.organizationId, t.reconcileDueAt)
+      .where(sql`publication_state = 'ambiguous' AND reconcile_due_at IS NOT NULL`),
   ],
 )

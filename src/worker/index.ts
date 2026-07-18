@@ -20,6 +20,7 @@ import { JOB_NAMES } from '#/contexts/metric/infrastructure/jobs/refresh-materia
 import { JOB_NAME as HEALTH_CHECK_JOB_NAME } from '#/shared/jobs/health-check.job'
 import { JOB_NAME as REFRESH_EXPIRING_JOB_NAME } from '#/contexts/review/infrastructure/jobs/refresh-expiring-reviews.job'
 import { JOB_NAME as PURGE_EXPIRED_JOB_NAME } from '#/contexts/review/infrastructure/jobs/purge-expired-reviews.job'
+import { JOB_NAME as RECONCILE_AMBIGUOUS_JOB_NAME } from '#/contexts/review/infrastructure/jobs/reconcile-ambiguous-publications.job'
 import { RECONCILE_GOAL_JOB_NAME as RECONCILE_JOB_NAME } from '#/contexts/goal/infrastructure/jobs/reconcile-goal-progress.job'
 import { SPAWN_RECURRING_JOB_NAME as SPAWN_RECURRING_JOB_NAME } from '#/contexts/goal/infrastructure/jobs/spawn-recurring-instances.job'
 import { isCapabilityJobEnabled } from '#/shared/auth/beta-capabilities'
@@ -170,6 +171,27 @@ async function main() {
       })
       .catch((err: unknown) => {
         logger.warn({ err }, 'Failed to schedule purge-expired-reviews job')
+      })
+
+    // BQC-3.8: reconcile ambiguous reply publications every 30 minutes. A row
+    // becomes due 15 minutes after the final ambiguous send attempt
+    // (reconcile_due_at); the sweep heals provider-confirmed rows to
+    // published and leaves the rest for operator retry.
+    container.backgroundQueue
+      .add(
+        RECONCILE_AMBIGUOUS_JOB_NAME,
+        {},
+        {
+          repeat: { every: 30 * 60 * 1000 },
+          jobId: 'reconcile-ambiguous-publications-recurring',
+          ...jobEnqueueOptions(RECONCILE_AMBIGUOUS_JOB_NAME),
+        },
+      )
+      .then(() => {
+        logger.info('Reconcile ambiguous publications job scheduled (every 30 minutes)')
+      })
+      .catch((err: unknown) => {
+        logger.warn({ err }, 'Failed to schedule reconcile-ambiguous-publications job')
       })
 
     // BQC-1.6: bounded retention with content-free evidence, daily (offset

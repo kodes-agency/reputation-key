@@ -2,7 +2,12 @@
 // Per architecture: "Repository ports for all data access."
 
 import type { Review, ReviewPlatform } from '../../domain/types'
-import type { OrganizationId, PropertyId, ReviewId } from '#/shared/domain/ids'
+import type {
+  OrganizationId,
+  PropertyId,
+  ReviewId,
+  GoogleConnectionId,
+} from '#/shared/domain/ids'
 
 export type ReviewRepository = Readonly<{
   findById(id: ReviewId, organizationId: OrganizationId): Promise<Review | null>
@@ -33,6 +38,19 @@ export type ReviewRepository = Readonly<{
     now: Date,
   ): Promise<ReadonlyArray<Review>>
   findByOrganizationId(orgId: OrganizationId): Promise<ReadonlyArray<Review>>
+  /**
+   * BQC-3.8: keyset-bounded batch of reviews sourced through a Google
+   * connection (reviews.google_connection_id), ordered by id. `cursor`
+   * resumes strictly AFTER the given review id. Used by the disconnect
+   * publication-cancellation flow (same resolution the source-content purge
+   * applies: google_connection_id equality within the organization).
+   */
+  findByConnection(
+    organizationId: OrganizationId,
+    connectionId: GoogleConnectionId,
+    cursor: Readonly<{ id: string }> | null,
+    limit: number,
+  ): Promise<ReadonlyArray<Review>>
   /**
    * Review-owned eligible id query for cross-context list filters (BQC-1.2).
    * Returns ids of reviews whose content is eligible at `now`

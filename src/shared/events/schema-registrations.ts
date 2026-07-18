@@ -50,6 +50,17 @@ const replyEventSchema = z.object({
   occurredAt: z.string().optional(),
 })
 
+// BQC-3.8: publication cancellation — identifier-only (reply/review/property/
+// org + cause). No reply text, no actor content.
+const replyPublicationCancelledSchema = z.object({
+  replyId: z.string(),
+  reviewId: z.string(),
+  organizationId: z.string(),
+  propertyId: z.string(),
+  cause: z.enum(['disconnect', 'policy']),
+  occurredAt: z.string().optional(),
+})
+
 // ── Inbox event schemas ─────────────────────────────────────────────
 
 const inboxItemCreatedSchema = z.object({
@@ -390,6 +401,11 @@ export function registerAllEventSchemas(): void {
     type: 'review.reply.publish_failed',
     version: EVENT_VERSION,
     schema: replyEventSchema,
+  })
+  registerEventSchema({
+    type: 'review.reply.publication_cancelled',
+    version: EVENT_VERSION,
+    schema: replyPublicationCancelledSchema,
   })
 
   // Inbox events

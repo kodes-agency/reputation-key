@@ -20,6 +20,23 @@ export type ReplyStatus =
 
 export type ReplySource = 'google_sync' | 'internal'
 
+// Self-contained copies of review's publication-state unions (BQC-3.8), kept
+// in sync with src/contexts/review/domain/reply-publication-workflow.ts —
+// same decoupling rationale as ReplyStatus/ReplySource above.
+export type ReplyPublicationState =
+  | 'requested'
+  | 'authorized'
+  | 'sending'
+  | 'published'
+  | 'terminal'
+  | 'ambiguous'
+  | 'cancelled'
+
+export type ReplyPublicationFailureClass =
+  | 'terminal_rejection'
+  | 'retryable'
+  | 'ambiguous'
+
 /** Lightweight DTO — mirrors review's Reply shape without importing it.
  *  Structurally identical to `Awaited<ReturnType<typeof getReplyFn>>` so the
  *  client needs no mapper. */
@@ -38,6 +55,11 @@ export type ReplyView = Readonly<{
   submittedAt: Date | null
   approvedAt: Date | null
   publishedAt: Date | null
+  // BQC-3.8: publication state machine overlay (migration 0015).
+  publicationState: ReplyPublicationState | null
+  publicationAttempts: number
+  publicationLastErrorClass: ReplyPublicationFailureClass | null
+  reconcileDueAt: Date | null
   createdAt: Date
   updatedAt: Date
 }>

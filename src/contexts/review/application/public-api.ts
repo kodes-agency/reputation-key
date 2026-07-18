@@ -19,6 +19,7 @@ export type {
   ReviewReplyApproved,
   ReviewReplyRejected,
   ReviewReplyPublishFailed,
+  ReviewReplyPublicationCancelled,
   ReviewEvent,
 } from '../domain/events'
 export {
@@ -30,6 +31,7 @@ export {
   reviewReplyApproved,
   reviewReplyRejected,
   reviewReplyPublishFailed,
+  reviewReplyPublicationCancelled,
 } from '../domain/events'
 
 // Port types needed by cross-context consumers (e.g., integration context)

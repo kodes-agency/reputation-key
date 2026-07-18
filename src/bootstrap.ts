@@ -240,6 +240,29 @@ export async function bootstrap(container: Container): Promise<void> {
   })
   logger.info({ job: PUBLISH_REPLY_JOB_NAME }, 'registered publish-reply job handler')
 
+  // ── Reconcile ambiguous reply publications (BQC-3.8) ──────────────
+  // Sweep over replies whose Google send outcome was ambiguous on the final
+  // attempt (publication_state='ambiguous', reconcile_due_at <= now); each
+  // due row re-reads provider state via the composition-wired reconcile use
+  // case (provider read only — never a send).
+  const {
+    createReconcileAmbiguousPublicationsHandler,
+    JOB_NAME: RECONCILE_AMBIGUOUS_JOB_NAME,
+  } =
+    await import('#/contexts/review/infrastructure/jobs/reconcile-ambiguous-publications.job')
+  const reconcileAmbiguousHandler = createReconcileAmbiguousPublicationsHandler({
+    replyRepo: container.replyRepo,
+    reconcileReplyPublication: container.useCases.reconcileReplyPublication,
+    clock: container.clock,
+  })
+  container.jobRegistry.register(RECONCILE_AMBIGUOUS_JOB_NAME, async (job) => {
+    await reconcileAmbiguousHandler(job)
+  })
+  logger.info(
+    { job: RECONCILE_AMBIGUOUS_JOB_NAME },
+    'registered reconcile-ambiguous-publications job handler',
+  )
+
   // ── Register event handlers here as contexts are added ────────────
   // Example:
   //   container.eventBus.on('portal.created', (event) => { ... })

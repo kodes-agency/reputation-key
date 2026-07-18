@@ -48,6 +48,10 @@ function makeReply(overrides: Partial<Reply> = {}): Reply {
     submittedAt: NOW,
     approvedAt: NOW,
     publishedAt: null,
+    publicationState: 'ambiguous',
+    publicationAttempts: 3,
+    publicationLastErrorClass: 'ambiguous',
+    reconcileDueAt: NOW,
     createdAt: NOW,
     updatedAt: NOW,
     ...overrides,
@@ -135,14 +139,18 @@ function makeDeps(overrides: {
   // applies the guarded transition, then emits post-commit.
   const commandStore: ReplyCommandStore = {
     submitReply: vi.fn(),
-    approveReply: vi.fn(),
     rejectReply: vi.fn(),
     markPublished: vi.fn(async (reply: Reply, updates, event) => {
       const saved: Reply = { ...reply, ...updates, updatedAt: NOW }
       await events.emit(event)
       return saved
     }),
-    markPublishFailed: vi.fn(),
+    markPublicationAuthorized: vi.fn(),
+    markPublicationSending: vi.fn(),
+    markPublicationTerminal: vi.fn(),
+    markPublicationAmbiguous: vi.fn(),
+    markPublicationRetryQueued: vi.fn(),
+    cancelPublications: vi.fn(),
     mirrorSyncedReply: vi.fn(),
     purgeExpiredReview: vi.fn(),
   }

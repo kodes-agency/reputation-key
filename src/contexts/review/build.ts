@@ -28,6 +28,7 @@ import {
   retryPublish,
 } from './application/use-cases/reply-operations'
 import { reconcileReplyPublication } from './application/use-cases/reconcile-reply-publication'
+import { cancelPublicationsForConnection } from './application/use-cases/cancel-publications'
 import { getStaffRecentActivity } from './application/use-cases/get-staff-recent-activity'
 import { createEligibleReads, type EligibleReads } from './application/eligible-reads'
 import { reviewId, replyId } from '#/shared/domain/ids'
@@ -117,6 +118,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     reviewRepo,
     queue: replyQueue,
     commandStore: replyCommandStore,
+    googleReviewApi: input.googleReviewApi,
     clock: input.clock,
     idGen: () => replyId(crypto.randomUUID()),
     staffPublicApi: input.staffPublicApi,
@@ -125,6 +127,14 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
   registerReviewHandlers({
     events: input.events,
     queue,
+    // BQC-3.8: disconnect cancels in-flight publications before/with the
+    // source-content purge (the guarded store tolerates the race).
+    cancelPublicationsForConnection: cancelPublicationsForConnection({
+      reviewRepo,
+      replyRepo,
+      commandStore: replyCommandStore,
+      clock: input.clock,
+    }),
   })
 
   // BQR-2.3: atomic review upsert + outbox insert for sync path

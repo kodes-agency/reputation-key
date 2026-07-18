@@ -66,10 +66,14 @@ function makeCommandStore(opts: { failFor?: ReadonlyArray<string> } = {}) {
   const calls: PurgeCall[] = []
   const store: ReplyCommandStore = {
     submitReply: vi.fn(),
-    approveReply: vi.fn(),
     rejectReply: vi.fn(),
     markPublished: vi.fn(),
-    markPublishFailed: vi.fn(),
+    markPublicationAuthorized: vi.fn(),
+    markPublicationSending: vi.fn(),
+    markPublicationTerminal: vi.fn(),
+    markPublicationAmbiguous: vi.fn(),
+    markPublicationRetryQueued: vi.fn(),
+    cancelPublications: vi.fn(),
     mirrorSyncedReply: vi.fn(),
     purgeExpiredReview: vi.fn(async (id, event) => {
       if (opts.failFor?.includes(String(id))) throw new Error('purge tx failed')

@@ -150,6 +150,111 @@ export function buildIdempotencyKey(replyId: string, sourceVersion: number): str
 
 export type PublicationFailureClass = 'terminal_rejection' | 'retryable' | 'ambiguous'
 
+// ── BQC-3.8: persisted publication state machine ─────────────────────
+//
+// Migration 0015 persists the external-interaction overlay on replies
+// (replies.publication_state). The persisted states map onto the saga
+// states above:
+//
+//   persisted    saga                            meaning
+//   requested    publish_requested               intent recorded (reserved —
+//                                                approval writes 'authorized'
+//                                                directly in the same tx)
+//   authorized   publish_requested               manager authorized; a
+//                                                publish job may claim the row
+//   sending      publishing                      a worker claimed the row; the
+//                                                Google call is in flight
+//   published    published                       provider confirmed (terminal)
+//   terminal     rejected_terminal /             provider rejected permanently
+//                manual_review                   (terminal)
+//   ambiguous    outcome_unknown                 the request may have landed;
+//                                                reconcile before any new publish
+//   cancelled    (none — BQC-3.8 addition)       cancelled by policy/disconnect
+//                                                (terminal)
+//
+// The reply status (draft/approved/published/publish_failed) still tracks the
+// local lifecycle; publication_state tracks the external interaction. Rows
+// with no active workflow carry NULL (drafts, pre-0015 legacy rows).
+
+export type PersistedPublicationState =
+  | 'requested'
+  | 'authorized'
+  | 'sending'
+  | 'published'
+  | 'terminal'
+  | 'ambiguous'
+  | 'cancelled'
+
+/** The current persisted state; NULL = no publication workflow active. */
+export type PublicationStateInput = PersistedPublicationState | null
+
+/** Events that drive persisted-state transitions (BQC-3.8). */
+export type PublicationStateEvent =
+  | 'authorize' // approval / retry re-authorization — a new publication cycle
+  | 'claim' // publish job claims a row ('sending' → 'sending' = the SAME BullMQ
+  //   job re-claiming its in-flight workflow after an ambiguous attempt;
+  //   jobId idempotency serializes attempts, so no second worker can race this)
+  | 'publish' // provider confirmed — local ack or reconciliation heal
+  | 'fail_terminal' // classified terminal_rejection
+  | 'fail_ambiguous' // classified ambiguous on the final attempt
+  | 'requeue' // classified retryable — back to 'authorized' for the next attempt
+  | 'cancel' // policy/disconnect cancellation
+
+const PERSISTED_PUBLICATION_TRANSITIONS: Readonly<
+  Record<
+    PersistedPublicationState,
+    Readonly<Partial<Record<PublicationStateEvent, PersistedPublicationState>>>
+  >
+> = {
+  requested: { authorize: 'authorized', claim: 'sending', cancel: 'cancelled' },
+  authorized: { claim: 'sending', cancel: 'cancelled' },
+  sending: {
+    claim: 'sending',
+    publish: 'published',
+    fail_terminal: 'terminal',
+    fail_ambiguous: 'ambiguous',
+    requeue: 'authorized',
+    cancel: 'cancelled',
+  },
+  published: {},
+  // publish from terminal/ambiguous is the reconciliation heal: the provider
+  // shows the reply, so the honest local state is published (never a new send).
+  terminal: { authorize: 'authorized', publish: 'published' },
+  ambiguous: { authorize: 'authorized', publish: 'published' },
+  // A cancelled reply returns to draft; a fresh approval cycle re-authorizes.
+  cancelled: { authorize: 'authorized' },
+}
+
+/**
+ * The single authority for persisted publication transitions (BQC-3.8).
+ * Returns the next state, or null when the event does not apply to the
+ * current state (the store treats null like a guard miss — no write, no fact).
+ *
+ * From NULL (no workflow): only 'authorize' (approval starts a cycle) and
+ * 'publish' (legacy pre-0015 heal — provider confirmation is authoritative
+ * from any state) are valid.
+ */
+export function nextPublicationState(
+  current: PublicationStateInput,
+  event: PublicationStateEvent,
+): PersistedPublicationState | null {
+  if (current === null) {
+    if (event === 'authorize') return 'authorized'
+    // Legacy rows (publication_state IS NULL) healed by reconciliation.
+    if (event === 'publish') return 'published'
+    return null
+  }
+  return PERSISTED_PUBLICATION_TRANSITIONS[current][event] ?? null
+}
+
+/**
+ * Delay before an ambiguous publication becomes reconcile-due (BQC-3.8).
+ * markPublicationAmbiguous sets reconcile_due_at = now + this delay; the
+ * reconcile-ambiguous-publications sweep processes due rows. 15 minutes
+ * gives the provider read path time to converge after an ambiguous send.
+ */
+export const AMBIGUOUS_RECONCILE_DELAY_MS = 15 * 60 * 1000
+
 /** Integration context codes that always fail BEFORE the reply PUT. */
 const PRE_REQUEST_TERMINAL_CODES: ReadonlySet<string> = new Set([
   'connection_not_found',

@@ -325,6 +325,12 @@ async function mirrorReply(
           publishedAt: gr.replyUpdatedAt ?? existingGoogleReply.publishedAt,
           submittedAt: existingGoogleReply.submittedAt,
           approvedAt: existingGoogleReply.approvedAt,
+          // BQC-3.8: preserved verbatim — the mirror conflict-set never
+          // clobbers these columns; the insert values are ignored on update.
+          publicationState: existingGoogleReply.publicationState,
+          publicationAttempts: existingGoogleReply.publicationAttempts,
+          publicationLastErrorClass: existingGoogleReply.publicationLastErrorClass,
+          reconcileDueAt: existingGoogleReply.reconcileDueAt,
         },
         reviewId,
         organizationId,
@@ -351,6 +357,12 @@ async function mirrorReply(
           submittedAt: null,
           approvedAt: null,
           publishedAt: gr.replyUpdatedAt ?? now,
+          // BQC-3.8: the provider already shows this reply — the honest
+          // persisted state is a completed publication.
+          publicationState: 'published',
+          publicationAttempts: 0,
+          publicationLastErrorClass: null,
+          reconcileDueAt: null,
         },
         reviewId,
         organizationId,
