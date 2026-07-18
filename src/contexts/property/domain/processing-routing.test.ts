@@ -6,6 +6,7 @@ import {
   wouldChangeResolvedRegion,
   assertRegionResolved,
   isRegionProcessable,
+  regionBlockedReason,
   ROUTING_POLICY_VERSION,
 } from './processing-routing'
 import { isPropertyError } from './errors'
@@ -128,5 +129,28 @@ describe('assertRegionResolved', () => {
       expect(isPropertyError(e)).toBe(true)
       expect((e as { code: string }).code).toBe('region_unresolved')
     }
+  })
+})
+
+// BQC-4.4: content-free machine reason surfaced on read paths (property
+// detail DTO, operator diagnostic). Mirrors the ProcessingRouter's blocked
+// reasons — 'unresolved'/missing vs denied cell/placeholder.
+describe('regionBlockedReason', () => {
+  it('is null for the approved us cell', () => {
+    expect(regionBlockedReason('us')).toBeNull()
+  })
+
+  it('is region_unresolved for unresolved or missing regions', () => {
+    expect(regionBlockedReason('unresolved')).toBe('region_unresolved')
+    expect(regionBlockedReason(null)).toBe('region_unresolved')
+  })
+
+  it('is region_denied for the denied europe cell and global placeholder', () => {
+    expect(regionBlockedReason('europe')).toBe('region_denied')
+    expect(regionBlockedReason('global')).toBe('region_denied')
+  })
+
+  it('is region_denied for unknown region values (fail closed)', () => {
+    expect(regionBlockedReason('antarctica')).toBe('region_denied')
   })
 })

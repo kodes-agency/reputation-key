@@ -62,3 +62,21 @@ export type PolicyAdminExplanation = Readonly<{
     }>
   }>
 }>
+
+/**
+ * Mirror of the PropertyRegionDiagnostic in shared/auth/policy-diagnostic
+ * (same shape, separate home: shared/auth types are unreachable from
+ * application under the boundary rules). BQC-4.4: content-free region
+ * state for the operator diagnostic surface — region facts, the router's
+ * blocked reason, and the current cell + logical provider ref (no URLs).
+ */
+export type PolicyAdminRegionDiagnostic = Readonly<{
+  propertyId: string
+  processingRegion: string | null
+  processingRegionSource: string | null
+  routingPolicyVersion: number | null
+  processable: boolean
+  blockedReason: 'region_unresolved' | 'region_denied' | 'property_missing' | null
+  cell: string
+  providerRef: string | null
+}>

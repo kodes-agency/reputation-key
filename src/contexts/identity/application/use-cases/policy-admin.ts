@@ -22,6 +22,7 @@ import type {
   PropertyAccessGrantRecord,
   OrgPolicyState,
   PolicyAdminExplanation,
+  PolicyAdminRegionDiagnostic,
 } from '../ports/property-access-grant.port'
 import type { Permission } from '#/shared/domain/permissions'
 
@@ -40,6 +41,12 @@ export type PolicyAdminDeps = Readonly<{
     userId: string
     now: Date
   }) => Promise<PolicyAdminExplanation>
+  // BQC-4.4: content-free region diagnostic (shared/auth/policy-diagnostic —
+  // region facts + router decision + cell/provider ref; no URLs, no content).
+  getRegionDiagnostic: (input: {
+    organizationId: string
+    propertyId: string
+  }) => Promise<PolicyAdminRegionDiagnostic>
   // Identity repositories.
   setOrganizationPolicy: (input: {
     organizationId: string
@@ -299,6 +306,30 @@ export function createPolicyAdminOps(deps: PolicyAdminDeps) {
     })
   }
 
+  // BQC-4.4: read-only region diagnostic. Every read writes an operator
+  // audit outcome (content-free machine reason) — support access is
+  // least-privilege AND audited.
+  async function getRegionDiagnostic(
+    input: Readonly<{
+      organizationId: string
+      propertyId: string
+      actorUserId: string
+    }>,
+  ): Promise<PolicyAdminRegionDiagnostic> {
+    const diagnostic = await deps.getRegionDiagnostic({
+      organizationId: input.organizationId,
+      propertyId: input.propertyId,
+    })
+    await auditOp(deps, {
+      organizationId: input.organizationId,
+      propertyId: input.propertyId,
+      action: 'policy.region.diagnostic',
+      reason: `region diagnostic: ${diagnostic.processable ? 'processable' : diagnostic.blockedReason}`,
+      actorUserId: input.actorUserId,
+    })
+    return diagnostic
+  }
+
   return {
     getOrgPolicyState,
     setOrgCapability,
@@ -306,6 +337,7 @@ export function createPolicyAdminOps(deps: PolicyAdminDeps) {
     setPropertySuspension,
     grantPropertyAccessOp,
     revokePropertyAccessOp,
+    getRegionDiagnostic,
     explainPolicyDecision: deps.explainPolicyDecision,
   }
 }

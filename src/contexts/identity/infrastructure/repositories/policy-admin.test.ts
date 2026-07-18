@@ -10,7 +10,16 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
 import { createPolicyAdminOps } from '../../application/use-cases/policy-admin'
-import { createPolicyDiagnostic } from '#/shared/auth/policy-diagnostic'
+import {
+  createPolicyDiagnostic,
+  createRegionDiagnostic,
+} from '#/shared/auth/policy-diagnostic'
+import {
+  createProcessingRouter,
+  providerRefForCell,
+} from '#/shared/routing/processing-router'
+import { createPropertyRoutingLoader } from '#/contexts/property/infrastructure/property-routing.adapter'
+import { createPropertyRegionLoader } from '#/contexts/property/infrastructure/property-region-loader'
 import {
   isCoreCapability,
   isBlockedCapability,
@@ -51,6 +60,16 @@ const ops = createPolicyAdminOps({
   explainPolicyDecision: createPolicyDiagnostic({
     getMemberRole: (orgId, uid) => getMemberRole(db, orgId, uid),
     hasActiveGrant: (input) => hasActiveGrant(db, input),
+  }),
+  getRegionDiagnostic: createRegionDiagnostic({
+    loadPropertyRegion: createPropertyRegionLoader({ db }),
+    resolveRouting: (propertyId) =>
+      createProcessingRouter({
+        loadPropertyRouting: createPropertyRoutingLoader({ db }),
+        cell: 'us',
+      }).resolve(propertyId, 'review.sync'),
+    cell: 'us',
+    providerRef: providerRefForCell('us') ?? null,
   }),
   setOrganizationPolicy: (input) => setOrganizationPolicy(db, input),
   setPropertyPolicy: (input) => setPropertyPolicy(db, input),

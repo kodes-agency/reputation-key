@@ -8,6 +8,11 @@ import { propertyError } from '../../domain/errors'
 import { propertyId } from '#/shared/domain/ids'
 import { canForContext } from '#/shared/domain/permissions'
 import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
+import {
+  isRegionProcessable,
+  regionBlockedReason,
+  type RegionBlockedReason,
+} from '../../domain/processing-routing'
 
 // fallow-ignore-next-line unused-type
 export type GetPropertyDeps = Readonly<{
@@ -20,9 +25,23 @@ export type GetPropertyInput = Readonly<{
   propertyId: string
 }>
 
+/**
+ * BQC-4.4: the property detail DTO — the entity plus content-free region
+ * routing facts (ADR 0048 control-plane metadata). `regionProcessable` /
+ * `regionBlockedReason` let owners SEE why processing is blocked without
+ * exposing anything else; reads stay available for unresolved/denied
+ * properties so owners can remediate.
+ */
+// fallow-ignore-next-line unused-type
+export type PropertyDetail = Property &
+  Readonly<{
+    regionProcessable: boolean
+    regionBlockedReason: RegionBlockedReason | null
+  }>
+
 export const getProperty =
   (deps: GetPropertyDeps) =>
-  async (input: GetPropertyInput, ctx: AuthContext): Promise<Property> => {
+  async (input: GetPropertyInput, ctx: AuthContext): Promise<PropertyDetail> => {
     if (!canForContext(ctx, 'property.read')) {
       throw propertyError('forbidden', 'No property read permission')
     }
@@ -45,7 +64,11 @@ export const getProperty =
     if (!accessible) {
       throw propertyError('forbidden', 'No access to this property', { propertyId: pid })
     }
-    return property
+    return {
+      ...property,
+      regionProcessable: isRegionProcessable(property.processingRegion),
+      regionBlockedReason: regionBlockedReason(property.processingRegion),
+    }
   }
 
 // fallow-ignore-next-line unused-type

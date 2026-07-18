@@ -4,7 +4,7 @@
 > Regenerate: `pnpm bqc:generate-status`. Schema: `src/shared/bqc/status-schema.ts`.
 
 **Program:** BQC  
-**Manifest updated:** 2026-07-18T20:09:49Z  
+**Manifest updated:** 2026-07-18T21:22:40Z  
 **Validation report:** docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md  
 **Validation baseline SHA:** `29b021875c145a7f8827f0ee70fc20935fc5dc79`  
 **Working tree SHA (status describes):** `927614bce728f8c42d922720f149b6ea1b046354`  
@@ -74,6 +74,7 @@ Only these states are valid: `not_started`, `implementation_in_progress`, `imple
 | BQC-3.3 | slice | Deepen the review/reply command family | `implementation_complete` | engineering | — | — | — |
 | BQC-3.2 | slice | Integrate delayed/system execution policy | `implementation_complete` | engineering | — | — | — |
 | BQC-3.1 | slice | Inventory and register enabled event/job families | `implementation_complete` | engineering | — | — | — |
+| BQC-4.4 | slice | Regional reads and operations | `implementation_complete` | engineering | — | — | — |
 | BQC-4.3 | slice | Data and provider execution | `implementation_complete` | engineering | — | — | — |
 | BQC-4.2 | slice | Regional job envelope and queues | `implementation_complete` | engineering | — | — | — |
 | BQC-4.1 | slice | Active-property region reconciliation | `implementation_complete` | engineering | — | — | — |

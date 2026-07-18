@@ -98,6 +98,21 @@ export function isRegionProcessable(region: string | null): boolean {
 }
 
 /**
+ * BQC-4.4: content-free machine reason a property's region blocks processing,
+ * surfaced on read paths (property detail DTO, operator region diagnostic).
+ * Null when the region is processable. Mirrors the ProcessingRouter's blocked
+ * reasons (shared/routing/processing-router.ts): 'unresolved'/missing fails
+ * closed as `region_unresolved`; every other non-approved value is a denied
+ * cell or placeholder (`region_denied`).
+ */
+export type RegionBlockedReason = 'region_unresolved' | 'region_denied'
+
+export function regionBlockedReason(region: string | null): RegionBlockedReason | null {
+  if (isRegionProcessable(region)) return null
+  return region == null || region === 'unresolved' ? 'region_unresolved' : 'region_denied'
+}
+
+/**
  * Assert that the property's processing region resolves into an approved
  * cell. Throws `region_unresolved` PropertyError otherwise — every
  * property-scoped protected workload fails closed on this (BQC-4.1).

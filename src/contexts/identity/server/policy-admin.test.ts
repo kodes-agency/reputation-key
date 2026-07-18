@@ -6,6 +6,8 @@
 // permission — see src/shared/auth/permissions.ts).
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import {
   requireExecutionAllowed,
   createExecutionPolicy,
@@ -61,5 +63,23 @@ describe('policy.admin least privilege (BQC-2.7)', () => {
     await expect(
       requireExecutionAllowed({ actor: ctx('Staff'), action: 'policy.admin' }),
     ).rejects.toMatchObject({ _tag: 'AuthError', code: 'permission_denied', status: 403 })
+  })
+})
+
+describe('getRegionDiagnosticFn gate (BQC-4.4)', () => {
+  // The catalogue guard (entry-point-catalogue.test.ts) mechanically verifies
+  // the row ↔ code match; this pins the gate explicitly on the fn slice.
+  it('is gated by requireExecutionAllowed policy.admin with the target property', () => {
+    const source = readFileSync(
+      join(process.cwd(), 'src/contexts/identity/server/policy-admin.ts'),
+      'utf-8',
+    )
+    const start = source.indexOf('export const getRegionDiagnosticFn')
+    expect(start, 'getRegionDiagnosticFn must exist').toBeGreaterThanOrEqual(0)
+    const slice = source.slice(start)
+    expect(slice).toMatch(/requireExecutionAllowed\(\{[\s\S]*?action: 'policy\.admin'/)
+    expect(slice).toMatch(
+      /requireExecutionAllowed\(\{[\s\S]*?propertyId: data\.propertyId/,
+    )
   })
 })

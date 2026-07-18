@@ -146,4 +146,40 @@ describe('getActivityTimeline', () => {
     const result = await getActivityTimeline(deps)(baseInput, ctxFor('PropertyManager'))
     expect(result.map((e) => e.id).sort()).toEqual(['al-1', 'al-2'])
   })
+
+  // BQC-4.4: tenant-authored detail text lives in the cell DB and is shown
+  // ONLY to members of the owning org — the timeline read is always org-scoped.
+  it('queries only the caller org (org-scope pin)', async () => {
+    const seenOrgs: string[] = []
+    const repo: ActivityRepository = {
+      insert: async () => {},
+      findDuplicate: async () => false,
+      findByResource: async (orgId) => {
+        seenOrgs.push(orgId as string)
+        // Mirror the SQL WHERE organization_id = orgId: the same resource id
+        // in another org cannot leak into the caller's timeline.
+        return [
+          makeEntry({
+            id: activityLogId('al-1'),
+            organizationId: organizationId('org-1'),
+          }),
+          makeEntry({
+            id: activityLogId('al-2'),
+            organizationId: organizationId('org-2'),
+            payload: {
+              subject: 's',
+              from: null,
+              to: null,
+              detail: 'other-org free text',
+            },
+          }),
+        ].filter((e) => (e.organizationId as string) === (orgId as string))
+      },
+      findByOrganization: async () => [],
+    }
+    const deps = { repo, staffPublicApi: staffApiAllAccess() }
+    const result = await getActivityTimeline(deps)(baseInput, ctxFor('AccountAdmin'))
+    expect(seenOrgs).toEqual(['org-1'])
+    expect(result.map((e) => e.id)).toEqual(['al-1'])
+  })
 })
