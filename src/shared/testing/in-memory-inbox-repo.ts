@@ -155,6 +155,31 @@ export function createInMemoryInboxRepo(): InboxRepository & { items: InboxItem[
             propertyIds.length === 0 ||
             propertyIds.includes(i.propertyId)),
       ).length,
+    updateSourceMeta: async (id, orgId, fields, now) => {
+      const item = items.find((i) => i.id === id && i.organizationId === orgId)
+      if (!item) return null
+      const idx = items.indexOf(item)
+      items[idx] = {
+        ...item,
+        sourceDate: fields.sourceDate,
+        platform: fields.platform,
+        updatedAt: now ?? new Date(),
+      }
+      return items[idx]
+    },
+    scanReviewItems: async (orgId, opts) => {
+      let filtered = items.filter(
+        (i) =>
+          i.organizationId === orgId &&
+          i.sourceType === 'review' &&
+          (!opts.propertyId || i.propertyId === opts.propertyId),
+      )
+      filtered.sort((a, b) => (a.id as string).localeCompare(b.id as string))
+      if (opts.cursor) {
+        filtered = filtered.filter((i) => (i.id as string) > (opts.cursor as string))
+      }
+      return filtered.slice(0, opts.limit)
+    },
     findDetailById: async (id, orgId) => {
       const item = items.find((i) => i.id === id && i.organizationId === orgId)
       if (!item) return null

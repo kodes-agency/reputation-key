@@ -94,8 +94,10 @@ import type { PropertyLookupPort } from '#/contexts/integration/application/port
 import { createFeedbackLookupAdapter } from '#/contexts/inbox/infrastructure/adapters/feedback-lookup.adapter'
 import { createPropertyLookupAdapter } from '#/contexts/inbox/infrastructure/adapters/property-lookup.adapter'
 import { createReplyLookupAdapter } from '#/contexts/inbox/infrastructure/adapters/reply-lookup.adapter'
+import { createReviewSourceLookupAdapter } from '#/contexts/inbox/infrastructure/adapters/review-source-lookup.adapter'
 import { registerInboxConsumers } from '#/contexts/inbox/infrastructure/outbox-consumers'
 import {
+  inboxItemId,
   propertyId,
   organizationId as toOrgId,
   userId as toUserId,
@@ -186,11 +188,11 @@ async function setActiveOrg(orgId: string): Promise<void> {
 // the composition root (complexity budget) while still capturing deps.
 
 function createOutboxConsumerRegistrar(deps: {
-  outboxRepo: import('#/shared/outbox').OutboxRepository
+  commandStore: import('#/contexts/inbox/application/ports/inbox-command-store.port').InboxCommandStore
   reviewLookup: import('#/contexts/inbox/application/ports/review-lookup.port').ReviewLookupPort
-  createInboxItem: import('#/contexts/inbox/application/use-cases/create-inbox-item').CreateInboxItem
+  reviewSourceLookup: import('#/contexts/inbox/application/ports/review-source-lookup.port').ReviewSourceLookupPort
   inboxRepo: import('#/contexts/inbox/application/ports/inbox.repository').InboxRepository
-  events: EventBus
+  idGen: () => import('#/shared/domain/ids').InboxItemId
   clock: Clock
 }): () => void {
   return () => {
@@ -435,15 +437,26 @@ export function createContainer(options?: {
   const replyLookup = createReplyLookupAdapter({
     findInternalByReviewId: (id, orgId) =>
       review.internal.repos.replyRepo.findInternalByReviewId(id, orgId),
+    findByReviewId: (id, orgId) =>
+      review.internal.repos.replyRepo.findByReviewId(id, orgId),
+  })
+
+  // BQC-3.4: projection source metadata (review.updated consumer + rebuild).
+  const reviewSourceLookup = createReviewSourceLookupAdapter({
+    findById: (id, orgId) => review.internal.repos.reviewRepo.findById(id, orgId),
+    findByOrganizationId: (orgId) =>
+      review.internal.repos.reviewRepo.findByOrganizationId(orgId),
+    findByPropertyId: (pid, orgId) =>
+      review.internal.repos.reviewRepo.findByPropertyId(pid, orgId),
   })
 
   const inbox = buildInboxContext({
     db,
     events: eventBus,
-    outboxRepo,
     clock,
     staffPublicApi: staff.publicApi,
     reviewLookup,
+    reviewSourceLookup,
     feedbackLookup,
     propertyLookup: inboxPropertyLookup,
     replyLookup,
@@ -648,11 +661,11 @@ export function createContainer(options?: {
     refreshPolicyStore: infra.policyStore.refresh,
     // BQR-2.2/2.4: worker calls this before optional durable dispatch start.
     registerOutboxConsumers: createOutboxConsumerRegistrar({
-      outboxRepo,
+      commandStore: inbox.internal.commandStore,
       reviewLookup,
-      createInboxItem: inbox.internal.useCases.createInboxItem,
+      reviewSourceLookup,
       inboxRepo: inbox.internal.repos.inboxRepo,
-      events: eventBus,
+      idGen: () => inboxItemId(crypto.randomUUID()),
       clock,
     }),
   } as const

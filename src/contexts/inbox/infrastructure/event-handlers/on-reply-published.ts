@@ -1,5 +1,10 @@
 // Inbox context — event handler for reply.published
 // Auto-transitions the corresponding inbox item open → closed (ADR 0023).
+//
+// Expand-phase dual path (the durable dispatcher is off in production): the
+// durable inbox.on-reply-published consumer performs the same projection via
+// the command store; this bus handler keeps the legacy in-process behavior
+// (bus emit only — it never received an outboxRepo).
 
 import type { ReviewReplyPublished } from '#/contexts/review/application/public-api'
 import type { InboxRepository } from '../../application/ports/inbox.repository'
@@ -9,12 +14,10 @@ import { trace } from '#/shared/observability/trace'
 import { inboxItemStatusChanged } from '../../domain/events'
 import { unbrand } from '#/shared/domain/ids'
 import { validateTransition } from '../../domain/rules'
-import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
 
 export type OnReplyPublishedDeps = Readonly<{
   repo: InboxRepository
   events: EventBus
-  outboxRepo?: OutboxRepository
 }>
 
 export const onReplyPublished =
@@ -67,9 +70,7 @@ export const onReplyPublished =
         // change would be semantically wrong and downstream consumers key on
         // oldStatus !== newStatus.
         if (transitionOk) {
-          await emitAndRecord(
-            deps.events,
-            deps.outboxRepo,
+          await deps.events.emit(
             inboxItemStatusChanged({
               inboxItemId: inboxItem.id,
               organizationId: inboxItem.organizationId,

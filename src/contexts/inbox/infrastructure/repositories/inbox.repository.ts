@@ -5,7 +5,7 @@
 // Cross-context data (review/feedback/property) is fetched via lookup ports
 // defined in application/ports/ — never via direct table JOINs.
 
-import { and, eq, desc, inArray, sql, gte, lte, isNull } from 'drizzle-orm'
+import { and, eq, desc, inArray, sql, gte, gt, lte, isNull } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { inboxItems } from '#/shared/db/schema/inbox.schema'
@@ -405,6 +405,47 @@ export const createInboxRepository = (
         .from(inboxItems)
         .where(and(...conditions))
       return Number(result[0]?.count ?? 0)
+    })
+  },
+
+  updateSourceMeta: async (
+    id: InboxItemId,
+    orgId: OrganizationId,
+    fields: Readonly<{ sourceDate: Date; platform: string | null }>,
+    now?: Date,
+  ) => {
+    return trace('inbox.updateSourceMeta', async () => {
+      const result = await db
+        .update(inboxItems)
+        .set({
+          sourceDate: fields.sourceDate,
+          platform: fields.platform,
+          updatedAt: now ?? new Date(),
+        })
+        .where(and(eq(inboxItems.id, id), eq(inboxItems.organizationId, orgId)))
+        .returning()
+      return result[0] ? withDefaults(result[0]) : null
+    })
+  },
+
+  scanReviewItems: async (
+    orgId: OrganizationId,
+    opts: Readonly<{ propertyId?: PropertyId; cursor?: InboxItemId; limit: number }>,
+  ) => {
+    return trace('inbox.scanReviewItems', async () => {
+      const conditions: SQL[] = [
+        eq(inboxItems.organizationId, orgId),
+        eq(inboxItems.sourceType, 'review'),
+      ]
+      if (opts.propertyId) conditions.push(eq(inboxItems.propertyId, opts.propertyId))
+      if (opts.cursor) conditions.push(gt(inboxItems.id, opts.cursor))
+      const rows = await db
+        .select()
+        .from(inboxItems)
+        .where(and(...conditions))
+        .orderBy(inboxItems.id)
+        .limit(opts.limit)
+      return rows.map(withDefaults)
     })
   },
 

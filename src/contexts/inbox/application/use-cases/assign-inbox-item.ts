@@ -2,7 +2,7 @@
 // Assigns an inbox item to a user. Validates role eligibility.
 
 import type { InboxRepository } from '../ports/inbox.repository'
-import type { EventBus } from '#/shared/events/event-bus'
+import type { InboxCommandStore } from '../ports/inbox-command-store.port'
 import type { InboxItemId, UserId } from '#/shared/domain/ids'
 import type { InboxItem } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
@@ -12,7 +12,6 @@ import { isPropertyAccessible } from '#/shared/domain/property-access'
 import { inboxItemAssigned, inboxItemUnassigned } from '../../domain/events'
 import { inboxError } from '../../domain/errors'
 import { loadInboxItemOrThrow, assertPropertyAccessible } from '../inbox-access'
-import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
 
 export type AssignInboxItemInput = Readonly<{
   inboxItemId: InboxItemId
@@ -22,10 +21,9 @@ export type AssignInboxItemInput = Readonly<{
 // fallow-ignore-next-line unused-type
 export type AssignInboxItemDeps = Readonly<{
   repo: InboxRepository
-  events: EventBus
+  commandStore: InboxCommandStore
   clock: () => Date
   staffPublicApi: StaffPublicApi
-  outboxRepo?: OutboxRepository
 }>
 
 export const assignInboxItem =
@@ -75,46 +73,37 @@ export const assignInboxItem =
       }
     }
 
-    // 3. Update assignment
-    const updated = await deps.repo.updateAssignment(
-      input.inboxItemId,
-      ctx.organizationId,
-      input.assignedToUserId,
-    )
-
-    // 4. Emit event if assigned to a user, or unassigned
-    if (input.assignedToUserId) {
-      await emitAndRecord(
-        deps.events,
-        deps.outboxRepo,
-        inboxItemAssigned({
-          inboxItemId: updated.id,
-          organizationId: updated.organizationId,
+    // 3. Update assignment + record the fact atomically (assigned, or
+    //    unassigned when the item had a previous assignee)
+    const now = deps.clock()
+    const event = input.assignedToUserId
+      ? inboxItemAssigned({
+          inboxItemId: item.id,
+          organizationId: item.organizationId,
           propertyId: item.propertyId,
           userId: ctx.userId,
           assignedTo: input.assignedToUserId,
           source: 'web',
-          occurredAt: deps.clock(),
-        }),
-      )
-    } else if (item.assignedTo) {
-      await emitAndRecord(
-        deps.events,
-        deps.outboxRepo,
-        inboxItemUnassigned({
-          inboxItemId: updated.id,
-          organizationId: updated.organizationId,
-          propertyId: item.propertyId,
-          userId: ctx.userId,
-          previousAssignee: item.assignedTo,
-          source: 'web',
-          occurredAt: deps.clock(),
-        }),
-      )
-    }
+          occurredAt: now,
+        })
+      : item.assignedTo
+        ? inboxItemUnassigned({
+            inboxItemId: item.id,
+            organizationId: item.organizationId,
+            propertyId: item.propertyId,
+            userId: ctx.userId,
+            previousAssignee: item.assignedTo,
+            source: 'web',
+            occurredAt: now,
+          })
+        : null
 
-    // 5. Return
-    return updated
+    return deps.commandStore.assign(
+      item,
+      { assignedTo: input.assignedToUserId },
+      event,
+      now,
+    )
   }
 
 // fallow-ignore-next-line unused-type

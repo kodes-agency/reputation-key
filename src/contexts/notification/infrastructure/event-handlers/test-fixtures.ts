@@ -142,7 +142,6 @@ export const buildInboxNoteAddedEvent = (
   propertyId: NOTIF_TEST_IDS.propId,
   userId: NOTIF_TEST_IDS.authorId,
   noteId: NOTIF_TEST_IDS.noteId,
-  text: 'Some note text',
   source: 'web',
   occurredAt: NOTIF_TEST_IDS.now,
   ...overrides,

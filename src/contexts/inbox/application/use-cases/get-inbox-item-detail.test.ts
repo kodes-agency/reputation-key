@@ -121,6 +121,8 @@ const setup = (
     resolveEscalation: vi.fn(),
     countEscalatedActive: vi.fn(async () => 0),
     countOpenSince: vi.fn(async () => 0),
+    updateSourceMeta: vi.fn(async () => null),
+    scanReviewItems: vi.fn(async () => []),
     findDetailById: async (id, orgId) =>
       storedDetail &&
       storedDetail.item.id === id &&
@@ -133,6 +135,7 @@ const setup = (
       replyCalls.push(id)
       return reply
     },
+    getReplyMilestonesByReviewIds: async () => new Map(),
   }
   return {
     repo,

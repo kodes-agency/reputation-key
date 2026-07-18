@@ -1,6 +1,11 @@
 // Inbox context — event handler for review.expired
 // Closes the inbox item when its source review is purged.
 // BQC-1.2: no scrub step — raw copies no longer exist (nothing to scrub).
+//
+// Expand-phase dual path (the durable dispatcher is off in production): the
+// durable inbox.on-review-expired consumer performs the same projection via
+// the command store; this bus handler keeps the legacy in-process behavior
+// (bus emit only — it never received an outboxRepo).
 
 import type { ReviewExpired } from '#/contexts/review/application/public-api'
 import type { InboxRepository } from '../../application/ports/inbox.repository'
@@ -10,12 +15,10 @@ import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
 import { inboxItemStatusChanged } from '../../domain/events'
 import { validateTransition } from '../../domain/rules'
-import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
 
 export type OnReviewExpiredDeps = Readonly<{
   repo: InboxRepository
   events: EventBus
-  outboxRepo?: OutboxRepository
 }>
 
 export const onReviewExpired =
@@ -45,9 +48,7 @@ export const onReviewExpired =
         )
 
         // Emit status changed event — symmetric with on-reply-published
-        await emitAndRecord(
-          deps.events,
-          deps.outboxRepo,
+        await deps.events.emit(
           inboxItemStatusChanged({
             inboxItemId: item.id,
             organizationId: item.organizationId,

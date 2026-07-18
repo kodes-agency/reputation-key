@@ -4,7 +4,7 @@
 // `inbox.inbox_item.escalated` event (not a status transition).
 
 import type { InboxRepository } from '../ports/inbox.repository'
-import type { EventBus } from '#/shared/events/event-bus'
+import type { InboxCommandStore } from '../ports/inbox-command-store.port'
 import type { InboxItemId, UserId } from '#/shared/domain/ids'
 import type { InboxItem } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
@@ -13,7 +13,6 @@ import { canForContext } from '#/shared/domain/permissions'
 import { inboxItemEscalated } from '../../domain/events'
 import { inboxError } from '../../domain/errors'
 import { loadInboxItemOrThrow, assertPropertyAccessible } from '../inbox-access'
-import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
 
 export type EscalateInboxItemInput = Readonly<{
   inboxItemId: InboxItemId
@@ -21,10 +20,9 @@ export type EscalateInboxItemInput = Readonly<{
 
 export type EscalateInboxItemDeps = Readonly<{
   repo: InboxRepository
-  events: EventBus
+  commandStore: InboxCommandStore
   clock: () => Date
   staffPublicApi: StaffPublicApi
-  outboxRepo?: OutboxRepository
 }>
 
 export type EscalateInboxItem = (
@@ -56,28 +54,20 @@ export const escalateInboxItem =
       return item
     }
 
-    // 3. Set the escalation flag
+    // 3. Set the escalation flag + record the standalone escalated fact
+    //    atomically (decoupled from status_changed)
     const now = deps.clock()
     const escalatedBy: UserId = ctx.userId
-    const updated = await deps.repo.setEscalation(
-      input.inboxItemId,
-      ctx.organizationId,
-      escalatedBy,
-      now,
-    )
-
-    // 4. Emit standalone escalated event (decoupled from status_changed)
-    await emitAndRecord(
-      deps.events,
-      deps.outboxRepo,
+    return deps.commandStore.escalate(
+      item,
+      { escalatedBy },
       inboxItemEscalated({
-        inboxItemId: updated.id,
-        organizationId: updated.organizationId,
+        inboxItemId: item.id,
+        organizationId: item.organizationId,
         propertyId: item.propertyId,
         userId: ctx.userId,
         occurredAt: now,
       }),
+      now,
     )
-
-    return updated
   }

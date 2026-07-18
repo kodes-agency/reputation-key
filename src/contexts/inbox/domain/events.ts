@@ -208,11 +208,12 @@ export type InboxNoteAdded = Readonly<{
   propertyId: PropertyId | null
   userId: UserId | null
   noteId: InboxNoteId
-  text: string
   source: 'web' | 'import'
   occurredAt: Date
   correlationId: string | null
 }>
+// BQC-3.4: events carry the note ID, never the note text — notes remain
+// context-owned content (BQC-3.4 / ADR 0030); readers fetch via the note repo.
 export const inboxNoteAdded = (
   args: Omit<
     InboxNoteAdded,
@@ -220,7 +221,6 @@ export const inboxNoteAdded = (
   > & { userId?: UserId; source?: 'web' | 'import'; propertyId?: PropertyId },
 ): InboxNoteAdded => {
   assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
-  assert(args.text.length > 0, 'note text required')
   return {
     _tag: 'inbox.inbox_note.added',
     eventId: newEventId(),

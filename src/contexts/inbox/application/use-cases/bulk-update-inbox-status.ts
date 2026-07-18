@@ -3,18 +3,20 @@
 // No source-type guards; escalation is orthogonal and handled separately.
 
 import type { InboxRepository } from '../ports/inbox.repository'
-import type { EventBus } from '#/shared/events/event-bus'
+import type { InboxCommandStore } from '../ports/inbox-command-store.port'
 import type { InboxItemId, PropertyId } from '#/shared/domain/ids'
 import type { InboxItem, InboxStatus } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
-import { validateTransition, timestampFieldsForStatus } from '../../domain/rules'
+import { validateTransition } from '../../domain/rules'
 import { inboxError } from '../../domain/errors'
-import { inboxItemBulkStatusChanged } from '../../domain/events'
+import {
+  inboxItemBulkStatusChanged,
+  type InboxItemBulkStatusChanged,
+} from '../../domain/events'
 import { canForContext } from '#/shared/domain/permissions'
 import { getAccessiblePropertyIdsForPermission } from '#/shared/domain/property-access'
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
 
 export type BulkUpdateInboxStatusInput = Readonly<{
   inboxItemIds: ReadonlyArray<InboxItemId>
@@ -23,11 +25,10 @@ export type BulkUpdateInboxStatusInput = Readonly<{
 
 export type BulkUpdateInboxStatusDeps = Readonly<{
   repo: InboxRepository
-  events: EventBus
+  commandStore: InboxCommandStore
   clock: () => Date
   staffPublicApi: StaffPublicApi
   logger: LoggerPort
-  outboxRepo?: OutboxRepository
 }>
 
 export type BulkUpdateInboxStatus = (
@@ -68,59 +69,48 @@ const resolveAccessiblePropertyIds = async (
   }
 }
 
-/** Validates each candidate item, collecting the IDs that may transition and
- *  remembering their prior status for event emission. */
+/** Validates each candidate item, collecting the items that may transition. */
 const selectValidBulkItems = (
   items: ReadonlyArray<InboxItem>,
   ids: ReadonlyArray<InboxItemId>,
   newStatus: InboxStatus,
   accessible: ReadonlyArray<PropertyId> | null,
-): { validIds: InboxItemId[]; oldStatuses: Map<InboxItemId, InboxStatus> } => {
+): InboxItem[] => {
   const itemMap = new Map(items.map((item) => [item.id as string, item]))
-  const validIds: InboxItemId[] = []
-  const oldStatuses = new Map<InboxItemId, InboxStatus>()
+  const valid: InboxItem[] = []
   for (const id of ids) {
     const item = itemMap.get(id as string)
     if (!item) continue
     // Enforce role-scoped property access (using pre-computed list)
     if (accessible !== null && !accessible.includes(item.propertyId)) continue
     if (validateTransition(item.status, newStatus).isOk()) {
-      validIds.push(id)
-      oldStatuses.set(id, item.status)
+      valid.push(item)
     }
   }
-  return { validIds, oldStatuses }
+  return valid
 }
 
-/** Emits the per-item bulk_status_changed event. */
-const emitBulkStatusEvents = async (
-  deps: BulkUpdateInboxStatusDeps,
-  items: ReadonlyArray<InboxItem>,
-  validIds: ReadonlyArray<InboxItemId>,
-  oldStatuses: ReadonlyMap<InboxItemId, InboxStatus>,
+/** Builds the per-item bulk_status_changed facts (one per item, shared bulkId).
+ *  propertyId comes from the batch-fetched item — it is always present. */
+const buildBulkStatusEvents = (
+  validItems: ReadonlyArray<InboxItem>,
   input: BulkUpdateInboxStatusInput,
   ctx: AuthContext,
   bulkId: string,
   now: Date,
-): Promise<void> => {
-  for (const id of validIds) {
-    const oldItem = items.find((i) => i.id === id)
-    await emitAndRecord(
-      deps.events,
-      deps.outboxRepo,
-      inboxItemBulkStatusChanged({
-        inboxItemId: id,
-        organizationId: ctx.organizationId,
-        propertyId: oldItem?.propertyId ?? ('' as PropertyId),
-        oldStatus: oldStatuses.get(id)!,
-        newStatus: input.newStatus,
-        bulkId,
-        userId: ctx.userId,
-        occurredAt: now,
-      }),
-    )
-  }
-}
+): InboxItemBulkStatusChanged[] =>
+  validItems.map((item) =>
+    inboxItemBulkStatusChanged({
+      inboxItemId: item.id,
+      organizationId: ctx.organizationId,
+      propertyId: item.propertyId,
+      oldStatus: item.status,
+      newStatus: input.newStatus,
+      bulkId,
+      userId: ctx.userId,
+      occurredAt: now,
+    }),
+  )
 
 export const bulkUpdateInboxStatus =
   (deps: BulkUpdateInboxStatusDeps): BulkUpdateInboxStatus =>
@@ -136,34 +126,17 @@ export const bulkUpdateInboxStatus =
 
     // 2. Batch-fetch all items (eliminates N+1) and select valid candidates
     const items = await deps.repo.findByIds(input.inboxItemIds, ctx.organizationId)
-    const { validIds, oldStatuses } = selectValidBulkItems(
+    const validItems = selectValidBulkItems(
       items,
       input.inboxItemIds,
       input.newStatus,
       access.accessible,
     )
-    if (validIds.length === 0) return { updated: 0 }
+    if (validItems.length === 0) return { updated: 0 }
 
-    // 3. Bulk update
-    const result = await deps.repo.bulkUpdateStatus(
-      validIds,
-      ctx.organizationId,
-      input.newStatus,
-      timestampFieldsForStatus(input.newStatus, now),
-      now,
+    // 3. ONE bulk update + N per-item facts in one transaction (BQC-3.4).
+    return deps.commandStore.bulkUpdateStatus(
+      validItems,
+      buildBulkStatusEvents(validItems, input, ctx, bulkId, now),
     )
-
-    // 4. Emit per-item events
-    await emitBulkStatusEvents(
-      deps,
-      items,
-      validIds,
-      oldStatuses,
-      input,
-      ctx,
-      bulkId,
-      now,
-    )
-
-    return result
   }

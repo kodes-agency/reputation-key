@@ -46,4 +46,19 @@ export type ReplyLookupPort = Readonly<{
   /** Returns the staff-authored (internal) reply for a review, or null.
    *  Mirrors review context's getReply semantics (findInternalByReviewId). */
   getReplyByReviewId(id: ReviewId, orgId: OrganizationId): Promise<ReplyView | null>
+  /**
+   * BQC-3.4: earliest reply milestones per review (any source — internal
+   * and google_sync), for projection rebuild. Keyed by reviewId; reviews
+   * with no replies are absent from the map.
+   */
+  getReplyMilestonesByReviewIds(
+    ids: ReadonlyArray<ReviewId>,
+    orgId: OrganizationId,
+  ): Promise<ReadonlyMap<string, ReplyMilestones>>
+}>
+
+/** Earliest reply timestamps for a review — rebuild stamps these on items. */
+export type ReplyMilestones = Readonly<{
+  firstSubmittedAt: Date | null
+  firstPublishedAt: Date | null
 }>

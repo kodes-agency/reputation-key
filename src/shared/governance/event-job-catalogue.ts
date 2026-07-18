@@ -86,8 +86,8 @@ export type EventFamilyRow = Readonly<{
   region: 'unscoped'
   /** Retention class: 'outbox:7d,receipts:90d' when recorded, else 'none'. */
   retention: 'outbox:7d,receipts:90d' | 'none'
-  /** Operator repair command. BQC-3.4/3.6 introduce repair commands; 'none' today. */
-  repairCommand: 'none'
+  /** Operator repair command. BQC-3.4 introduced rebuildInboxProjection; 'none' elsewhere. */
+  repairCommand: 'none' | 'rebuildInboxProjection'
   disposition: EventDisposition
   /** Owning slice — required when disposition is 'orphan'. */
   ownerSlice?: 'BQC-3.3' | 'BQC-3.4' | 'BQC-3.5'
@@ -158,7 +158,10 @@ type EventBase = Readonly<{
 }>
 
 type EventOpts = Partial<
-  Pick<EventFamilyRow, 'alsoProducers' | 'projectionOwner' | 'ownerSlice' | 'notes'>
+  Pick<
+    EventFamilyRow,
+    'alsoProducers' | 'projectionOwner' | 'ownerSlice' | 'notes' | 'repairCommand'
+  >
 >
 
 /** Event family row; delivery policy derived from recording + consumers. */
@@ -289,13 +292,13 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'system:review.sync',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [],
-      disposition: 'orphan',
+      consumers: [durable('inbox.on-review-updated', INBOX_OUTBOX)],
+      disposition: 'enabled',
     },
     {
-      ownerSlice: 'BQC-3.4',
+      projectionOwner: 'inbox',
       notes:
-        'BQC-1.2 removed the inbox handler (denormalized copies gone); the consumer is the BQC-3.4 inbox projection work — emitted but never consumed today',
+        'BQC-3.4 resolved the BQC-3.1 orphan: metadata-only projection refresh (sourceDate/platform) via the inbox command store; durable dispatch disabled (BQR-0 containment)',
     },
   ),
   ev(
@@ -390,12 +393,14 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
         bus('activity.event-handlers', ACTIVITY_HANDLERS),
         bus('notification.event-handlers', NOTIFICATION_HANDLERS),
         bus('inbox.event-handlers', INBOX_HANDLERS),
+        durable('inbox.on-reply-published', INBOX_OUTBOX),
       ],
       disposition: 'enabled',
     },
     {
       projectionOwner: 'inbox',
-      notes: 'atomic command-store outbox write (BQC-3.3 ReplyCommandStore)',
+      notes:
+        'atomic command-store outbox write (BQC-3.3 ReplyCommandStore); BQC-3.4 durable milestone/auto-close consumer co-commits state + receipt',
     },
   ),
   ev(
@@ -418,90 +423,160 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
 ]
 
 const INBOX_ROWS: ReadonlyArray<EventFamilyRow> = [
-  ev('inbox.inbox_item.created', INBOX_EVENTS, {
-    stateOwner: 'inbox',
-    capability: 'inbox.use',
-    action: 'system:inbox.update',
-    schemaRegistered: true,
-    recordedInOutbox: true,
-    consumers: [
-      bus('activity.event-handlers', ACTIVITY_HANDLERS),
-      bus('notification.event-handlers', NOTIFICATION_HANDLERS),
-    ],
-    disposition: 'enabled',
-  }),
-  ev('inbox.inbox_item.status_changed', INBOX_EVENTS, {
-    stateOwner: 'inbox',
-    capability: 'inbox.use',
-    action: 'system:inbox.update',
-    schemaRegistered: true,
-    recordedInOutbox: true,
-    consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
-    disposition: 'enabled',
-  }),
-  ev('inbox.inbox_item.assigned', INBOX_EVENTS, {
-    stateOwner: 'inbox',
-    capability: 'inbox.use',
-    action: 'system:inbox.update',
-    schemaRegistered: true,
-    recordedInOutbox: true,
-    consumers: [
-      bus('activity.event-handlers', ACTIVITY_HANDLERS),
-      bus('notification.event-handlers', NOTIFICATION_HANDLERS),
-    ],
-    disposition: 'enabled',
-  }),
-  ev('inbox.inbox_item.unassigned', INBOX_EVENTS, {
-    stateOwner: 'inbox',
-    capability: 'inbox.use',
-    action: 'system:inbox.update',
-    schemaRegistered: true,
-    recordedInOutbox: true,
-    consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
-    disposition: 'enabled',
-  }),
-  ev('inbox.inbox_item.escalated', INBOX_EVENTS, {
-    stateOwner: 'inbox',
-    capability: 'inbox.use',
-    action: 'system:inbox.update',
-    schemaRegistered: true,
-    recordedInOutbox: true,
-    consumers: [
-      bus('activity.event-handlers', ACTIVITY_HANDLERS),
-      bus('notification.event-handlers', NOTIFICATION_HANDLERS),
-    ],
-    disposition: 'enabled',
-  }),
-  ev('inbox.inbox_item.escalation_resolved', INBOX_EVENTS, {
-    stateOwner: 'inbox',
-    capability: 'inbox.use',
-    action: 'system:inbox.update',
-    schemaRegistered: true,
-    recordedInOutbox: true,
-    consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
-    disposition: 'enabled',
-  }),
-  ev('inbox.inbox_note.added', INBOX_EVENTS, {
-    stateOwner: 'inbox',
-    capability: 'inbox.use',
-    action: 'system:inbox.update',
-    schemaRegistered: true,
-    recordedInOutbox: true,
-    consumers: [
-      bus('activity.event-handlers', ACTIVITY_HANDLERS),
-      bus('notification.event-handlers', NOTIFICATION_HANDLERS),
-    ],
-    disposition: 'enabled',
-  }),
-  ev('inbox.inbox_item.bulk_status_changed', INBOX_EVENTS, {
-    stateOwner: 'inbox',
-    capability: 'inbox.use',
-    action: 'system:inbox.update',
-    schemaRegistered: true,
-    recordedInOutbox: true,
-    consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
-    disposition: 'enabled',
-  }),
+  ev(
+    'inbox.inbox_item.created',
+    INBOX_EVENTS,
+    {
+      stateOwner: 'inbox',
+      capability: 'inbox.use',
+      action: 'system:inbox.update',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [
+        bus('activity.event-handlers', ACTIVITY_HANDLERS),
+        bus('notification.event-handlers', NOTIFICATION_HANDLERS),
+      ],
+      disposition: 'enabled',
+    },
+    {
+      repairCommand: 'rebuildInboxProjection',
+      notes: 'atomic command-store outbox write (BQC-3.4 InboxCommandStore)',
+    },
+  ),
+  ev(
+    'inbox.inbox_item.status_changed',
+    INBOX_EVENTS,
+    {
+      stateOwner: 'inbox',
+      capability: 'inbox.use',
+      action: 'system:inbox.update',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
+      disposition: 'enabled',
+    },
+    {
+      repairCommand: 'rebuildInboxProjection',
+      notes: 'atomic command-store outbox write (BQC-3.4 InboxCommandStore)',
+    },
+  ),
+  ev(
+    'inbox.inbox_item.assigned',
+    INBOX_EVENTS,
+    {
+      stateOwner: 'inbox',
+      capability: 'inbox.use',
+      action: 'system:inbox.update',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [
+        bus('activity.event-handlers', ACTIVITY_HANDLERS),
+        bus('notification.event-handlers', NOTIFICATION_HANDLERS),
+      ],
+      disposition: 'enabled',
+    },
+    {
+      repairCommand: 'rebuildInboxProjection',
+      notes:
+        'atomic command-store outbox write (BQC-3.4); schema corrected in place at v1 (never recorded — zero historical rows)',
+    },
+  ),
+  ev(
+    'inbox.inbox_item.unassigned',
+    INBOX_EVENTS,
+    {
+      stateOwner: 'inbox',
+      capability: 'inbox.use',
+      action: 'system:inbox.update',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
+      disposition: 'enabled',
+    },
+    {
+      repairCommand: 'rebuildInboxProjection',
+      notes:
+        'atomic command-store outbox write (BQC-3.4); schema corrected in place at v1 (never recorded — zero historical rows)',
+    },
+  ),
+  ev(
+    'inbox.inbox_item.escalated',
+    INBOX_EVENTS,
+    {
+      stateOwner: 'inbox',
+      capability: 'inbox.use',
+      action: 'system:inbox.update',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [
+        bus('activity.event-handlers', ACTIVITY_HANDLERS),
+        bus('notification.event-handlers', NOTIFICATION_HANDLERS),
+      ],
+      disposition: 'enabled',
+    },
+    {
+      repairCommand: 'rebuildInboxProjection',
+      notes:
+        'atomic command-store outbox write (BQC-3.4); schema corrected in place at v1 (never recorded — zero historical rows)',
+    },
+  ),
+  ev(
+    'inbox.inbox_item.escalation_resolved',
+    INBOX_EVENTS,
+    {
+      stateOwner: 'inbox',
+      capability: 'inbox.use',
+      action: 'system:inbox.update',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
+      disposition: 'enabled',
+    },
+    {
+      repairCommand: 'rebuildInboxProjection',
+      notes:
+        'atomic command-store outbox write (BQC-3.4); schema corrected in place at v1 (never recorded — zero historical rows)',
+    },
+  ),
+  ev(
+    'inbox.inbox_note.added',
+    INBOX_EVENTS,
+    {
+      stateOwner: 'inbox',
+      capability: 'inbox.use',
+      action: 'system:inbox.update',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [
+        bus('activity.event-handlers', ACTIVITY_HANDLERS),
+        bus('notification.event-handlers', NOTIFICATION_HANDLERS),
+      ],
+      disposition: 'enabled',
+    },
+    {
+      repairCommand: 'rebuildInboxProjection',
+      notes:
+        'atomic command-store outbox write (BQC-3.4); carries noteId, never text; schema corrected in place at v1 (never recorded — zero historical rows)',
+    },
+  ),
+  ev(
+    'inbox.inbox_item.bulk_status_changed',
+    INBOX_EVENTS,
+    {
+      stateOwner: 'inbox',
+      capability: 'inbox.use',
+      action: 'system:inbox.update',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
+      disposition: 'enabled',
+    },
+    {
+      repairCommand: 'rebuildInboxProjection',
+      notes:
+        'atomic command-store outbox write (BQC-3.4); per-item shape linked by bulkId; schema corrected in place at v1 (never recorded — zero historical rows)',
+    },
+  ),
 ]
 
 const IDENTITY_ROWS: ReadonlyArray<EventFamilyRow> = [

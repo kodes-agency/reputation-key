@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "program": "BQC",
-  "updatedAt": "2026-07-18T01:23:44Z",
+  "updatedAt": "2026-07-18T03:15:55Z",
   "baseline": {
     "validationReport": "docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md",
     "validationBaselineSha": "29b021875c145a7f8827f0ee70fc20935fc5dc79",
@@ -455,7 +455,24 @@
       "requiredEvidenceIds": [],
       "openFindings": ["STD-P0-02", "SPEC-P0-01", "SPEC-P1-02"],
       "exceptions": [],
-      "notes": "BQC-3.1 (event/job inventory + guard), BQC-3.2 (delayed policy integration), BQC-3.3 (review/reply atomic commands) implementation_complete."
+      "notes": "BQC-3.1 (event/job inventory + guard), BQC-3.2 (delayed policy integration), BQC-3.3 (review/reply atomic commands), BQC-3.4 (inbox atomic projections/commands) implementation_complete."
+    },
+    {
+      "id": "BQC-3.4",
+      "kind": "slice",
+      "parentId": "BQC-3",
+      "title": "Deepen inbox projections and commands",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "requiredEvidenceIds": [
+        "inbox-command-store-atomicity",
+        "applyonce-co-commit-proof",
+        "inbox-schema-corrections",
+        "rebuild-inbox-projection"
+      ],
+      "openFindings": [],
+      "exceptions": [],
+      "notes": "Inbox projections and commands fully atomic. NEW InboxCommandStore (infrastructure/inbox-command-store.ts): one PostgreSQL transaction per command = state mutation + outbox fact (+ receipt for projections); post-commit bus emit failure-isolated. All 7 inbox use cases migrated (create/update-status/bulk-status/assign/escalate/resolve/note) \u2014 emitAndRecord REMOVED from the inbox context (new atomic-inbox-outbox architecture guard forbids it); bulk fan-out now commits the bulk update + N per-item facts atomically (no partial fan-out); the use-case outboxRepo wiring gap (all 8 inbox events were bus-only in production) closed by construction. The 6 stale event schemas FIXED in place at v1 (staffId\u2192assignedTo/previousAssignee, escalatedBy/resolvedBy\u2192userId, authorId\u2192userId+noteId, aggregate bulk\u2192per-item bulkId shape) \u2014 justified: they never successfully recorded (every insert would have thrown) and zero historical rows exist; the producer/domain side was right. InboxNoteAdded.text DROPPED (events carry noteId, not text \u2014 no consumer read it). Projection applyOnce co-commits state + receipt + emitted facts: applyReviewCreatedOnce (ON CONFLICT idempotent; win \u2192 fact + applied, conflict \u2192 duplicate, missing review \u2192 obsolete), applyReviewExpiredOnce (guarded close; fact only when the transition lands \u2014 kills the crash window that could permanently lose status_changed), NEW applyReviewUpdatedOnce (metadata-only sourceDate/platform refresh \u2014 resolves the 3.1 review.updated orphan), NEW applyReplyPublishedOnce (milestone stamp + guarded close + fact). Durable consumers 2\u21924 (registration guard updated); bus handlers stay as the expand-phase dual path (dispatcher off in production). NEW rebuildInboxProjection use case: bounded keyset batches, idempotent, report-first, dryRun; Pass A reconciles existing review-sourced items (close-on-expiry via contentExpiresAt, missing reply milestones, auto-close only when the publish milestone was not yet stamped \u2014 never fights a user reopen), Pass B creates missing items WITHOUT created facts (repair, not new information); never touches assignment/escalation/notes, never deletes; feedback items out of scope (guest dark). Event rows carry repairCommand: rebuildInboxProjection. Real-PG proofs (7 integration tests): forced outbox/receipt failures leave no item row (rollback), duplicate delivery = 1 item/1 fact/1 receipt, rebuild heals + dryRun writes nothing + second run idempotent. Deviations: sequential test fake lives in src/shared/testing (fallow boundary: application tests can't import infrastructure); rebuild close criterion uses contentExpiresAt (converges with the purge end state); recordReceipt via single-statement tx (one code path). Not claimed: feedback rebuild (guest/portal promotion), inbox legacy content column removal (BQC-1.6/1.7 contraction), remaining CONTEXT.md staleness (docs debt), rebuild operator surface (BQC-7). Slice not accepted \u2014 pending independent review."
     },
     {
       "id": "BQC-3.3",

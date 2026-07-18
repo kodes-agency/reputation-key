@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { createInboxItem as createInboxItemUseCase } from './create-inbox-item'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
 import { createInMemoryInboxRepo } from '#/shared/testing/in-memory-inbox-repo'
+import { createSequentialInboxCommandStore } from '#/shared/testing/sequential-inbox-command-store'
 import { isInboxError } from '../../domain/errors'
 import { inboxItemId, organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import type { SourceType } from '../../domain/types'
@@ -14,9 +15,10 @@ const PROP_ID = propertyId('prop-1')
 const setup = () => {
   const repo = createInMemoryInboxRepo()
   const events = createCapturingEventBus()
+  const commandStore = createSequentialInboxCommandStore({ repo, events })
   const deps = {
     repo,
-    events,
+    commandStore,
     idGen: () => FIXED_ID,
     clock: () => FIXED_TIME,
   }
