@@ -19,18 +19,22 @@ export type RegisterLeaderboardHandlersDeps = Readonly<{
 export const registerLeaderboardEventHandlers = (
   deps: RegisterLeaderboardHandlersDeps,
 ): void => {
-  deps.eventBus.on('metric.recorded', async (event) => {
-    // Only refresh the current period — full hourly reconcile catches the rest.
-    // Skip metrics the leaderboard doesn't rank (e.g. property-scoped reviews).
-    if (!LEADERBOARD_METRICS.includes(event.metricKey)) return
-    await Promise.allSettled([
-      deps.refreshLeaderboard({
-        organizationId: event.organizationId,
-        propertyId: event.propertyId,
-        period: 'this_month',
-        scope: event.portalId ? 'portal' : 'portal_group',
-        metricKey: event.metricKey,
-      }),
-    ])
-  })
+  deps.eventBus.on(
+    'metric.recorded',
+    async (event) => {
+      // Only refresh the current period — full hourly reconcile catches the rest.
+      // Skip metrics the leaderboard doesn't rank (e.g. property-scoped reviews).
+      if (!LEADERBOARD_METRICS.includes(event.metricKey)) return
+      await Promise.allSettled([
+        deps.refreshLeaderboard({
+          organizationId: event.organizationId,
+          propertyId: event.propertyId,
+          period: 'this_month',
+          scope: event.portalId ? 'portal' : 'portal_group',
+          metricKey: event.metricKey,
+        }),
+      ])
+    },
+    { consumer: 'leaderboard.event-handlers' },
+  )
 }

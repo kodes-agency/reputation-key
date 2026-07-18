@@ -33,29 +33,53 @@ export const registerNotificationHandlers = (
   const { events, queue, userLookup, inboxItemLookup, logger } = deps
 
   // Inbox events (reviews + feedback both arrive via inbox.inbox_item.created)
-  events.on('inbox.inbox_item.created', onInboxItemCreated({ queue, userLookup, logger }))
-  events.on('inbox.inbox_item.assigned', onInboxItemAssigned({ queue }))
+  events.on(
+    'inbox.inbox_item.created',
+    onInboxItemCreated({ queue, userLookup, logger }),
+    { consumer: 'notification.event-handlers' },
+  )
+  events.on('inbox.inbox_item.assigned', onInboxItemAssigned({ queue }), {
+    consumer: 'notification.event-handlers',
+  })
   events.on(
     'inbox.inbox_item.escalated',
     onInboxItemEscalated({ queue, userLookup, logger }),
+
+    { consumer: 'notification.event-handlers' },
   )
-  events.on('inbox.inbox_note.added', onInboxNoteAdded({ queue, userLookup, logger }))
+  events.on('inbox.inbox_note.added', onInboxNoteAdded({ queue, userLookup, logger }), {
+    consumer: 'notification.event-handlers',
+  })
 
   // Reply lifecycle
   events.on(
     'review.reply.submitted',
     onReplySubmitted({ queue, userLookup, inboxItemLookup, logger }),
+
+    { consumer: 'notification.event-handlers' },
   )
-  events.on('review.reply.approved', onReplyApproved({ queue, inboxItemLookup }))
-  events.on('review.reply.rejected', onReplyRejected({ queue, inboxItemLookup }))
-  events.on('review.reply.published', onReplyPublished({ queue, inboxItemLookup }))
+  events.on('review.reply.approved', onReplyApproved({ queue, inboxItemLookup }), {
+    consumer: 'notification.event-handlers',
+  })
+  events.on('review.reply.rejected', onReplyRejected({ queue, inboxItemLookup }), {
+    consumer: 'notification.event-handlers',
+  })
+  events.on('review.reply.published', onReplyPublished({ queue, inboxItemLookup }), {
+    consumer: 'notification.event-handlers',
+  })
   events.on(
     'review.reply.publish_failed',
     onReplyPublishFailed({ queue, inboxItemLookup }),
+
+    { consumer: 'notification.event-handlers' },
   )
   // Goal events
-  events.on('goal.completed', onGoalCompleted({ queue, userLookup, logger }))
+  events.on('goal.completed', onGoalCompleted({ queue, userLookup, logger }), {
+    consumer: 'notification.event-handlers',
+  })
 
   // Badge events
-  events.on('badge.awarded', onBadgeAwarded({ queue, userLookup, logger }))
+  events.on('badge.awarded', onBadgeAwarded({ queue, userLookup, logger }), {
+    consumer: 'notification.event-handlers',
+  })
 }

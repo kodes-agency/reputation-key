@@ -1,13 +1,10 @@
-// BQC-0.4 — import job must honor the capability stop control.
-// An enqueued import must not call Google after the capability is switched off.
+// import-property job handler behavior.
+// BQC-3.2: the BQC-0.4 in-handler capability stop control moved to the
+// dispatch gate (src/shared/jobs/delayed-execution-gate.ts) — see
+// gated-dispatch.test.ts and architecture/delayed-policy-delegation.test.ts.
 
-import { describe, it, expect, vi, afterEach } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { createImportPropertyHandler } from './import-property.job'
-import {
-  initCapabilityPolicyStore,
-  resetCapabilityPolicyStore,
-  type CapabilityPolicyStore,
-} from '#/shared/auth/beta-capabilities'
 
 vi.mock('#/shared/observability/logger', () => ({
   getLogger: vi.fn(() => ({
@@ -20,19 +17,6 @@ vi.mock('#/shared/observability/logger', () => ({
 vi.mock('#/shared/observability/trace', () => ({
   trace: vi.fn((_name: string, fn: () => unknown) => fn()),
 }))
-
-function makeStore(
-  overrides: Partial<CapabilityPolicyStore> = {},
-): CapabilityPolicyStore {
-  return {
-    isCapabilityGloballyEnabled: () => true,
-    isOrgAllowlisted: () => false,
-    isPropertyAllowlisted: () => true,
-    isOrgSuspended: () => false,
-    isPropertySuspended: () => false,
-    ...overrides,
-  }
-}
 
 const JOB_DATA = {
   jobId: 'job-1',
@@ -48,29 +32,8 @@ const JOB_DATA = {
   ],
 }
 
-describe('import-property job capability gate (BQC-0.4)', () => {
-  afterEach(() => {
-    resetCapabilityPolicyStore()
-  })
-
-  it('does not call the use case when property.connect_gbp is switched off', async () => {
-    initCapabilityPolicyStore(
-      makeStore({
-        isCapabilityGloballyEnabled: (cap) => cap !== 'property.connect_gbp',
-      }),
-    )
-    const importPropertyUseCase = vi.fn().mockResolvedValue(undefined)
-    const handler = createImportPropertyHandler({
-      importPropertyUseCase: importPropertyUseCase as never,
-    })
-
-    await handler({ id: 'job-1', data: JOB_DATA } as never)
-
-    expect(importPropertyUseCase).not.toHaveBeenCalled()
-  })
-
-  it('runs the use case when the capability is enabled', async () => {
-    initCapabilityPolicyStore(makeStore())
+describe('import-property job handler', () => {
+  it('runs the use case without an in-handler capability gate (delegated to dispatch)', async () => {
     const importPropertyUseCase = vi.fn().mockResolvedValue(undefined)
     const handler = createImportPropertyHandler({
       importPropertyUseCase: importPropertyUseCase as never,

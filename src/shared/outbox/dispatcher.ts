@@ -19,6 +19,7 @@ import { parseConsumerEvent, type ConsumerEvent } from './envelope'
 import { validateEventPayload } from '#/shared/events/schema-registry'
 import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
+import { gateDispatcherConsumer } from '#/shared/jobs/delayed-execution-gate'
 
 // ── Consumer registration ───────────────────────────────────────────
 
@@ -43,6 +44,17 @@ export type ConsumerRegistration = Readonly<{
 // ── Dispatcher ──────────────────────────────────────────────────────
 
 const consumersByType = new Map<string, ConsumerRegistration[]>()
+
+/**
+ * BQC-3.2: thrown when the delayed execution policy is unavailable so the
+ * error escapes the per-consumer catch and BullMQ retries the whole job.
+ */
+class PolicyUnavailableError extends Error {
+  constructor(reason: string) {
+    super(reason)
+    this.name = 'PolicyUnavailableError'
+  }
+}
 
 /**
  * Register a consumer for an event type.
@@ -77,6 +89,76 @@ export function listRegisteredConsumers(): ReadonlyArray<
     }
   }
   return out
+}
+
+/**
+ * Invoke one consumer for an event: receipt short-circuit, BQC-3.2 policy
+ * gate, then the handler. Extracted so the dispatch loop stays under the
+ * complexity budget — behavior is identical to the former inline body.
+ */
+async function invokeConsumer(
+  deps: Readonly<{
+    repo: OutboxRepository
+    logger: ReturnType<typeof getLogger>
+    eventId: string
+    event: ConsumerEvent
+    consumer: ConsumerRegistration
+  }>,
+): Promise<void> {
+  const { repo, logger, eventId, event, consumer } = deps
+  try {
+    // Check receipt — skip if already processed
+    const hasReceipt = await repo.hasReceipt(eventId, consumer.consumerName)
+    if (hasReceipt) {
+      logger.debug(
+        { eventId, consumerName: consumer.consumerName },
+        'Consumer already has receipt — skipping',
+      )
+      return
+    }
+
+    // BQC-3.2: authorize against CURRENT policy before any protected
+    // read or side effect. Terminal deny skips WITHOUT writing a
+    // receipt (terminal-deny receipt semantics — a 'denied' receipt
+    // status — are BQC-3.6 dispatcher correction; the dispatcher is
+    // off in production under OUTBOX_DISPATCHER_ENABLED).
+    const gate = await gateDispatcherConsumer(
+      consumer.consumerName,
+      'inbox.outbox-consumers',
+      event,
+    )
+    if (gate.kind === 'deny_terminal') {
+      logger.warn(
+        { eventId, consumerName: consumer.consumerName, reason: gate.decision.reason },
+        'delayed execution denied — terminal (consumer skipped, no receipt)',
+      )
+      return
+    }
+    if (gate.kind === 'deny_retry') {
+      // Policy unavailable is transient, not a revocation — escape the
+      // per-consumer catch so the BullMQ job fails and retries.
+      throw new PolicyUnavailableError(gate.decision.reason)
+    }
+
+    // Invoke the consumer handler
+    // The handler is responsible for committing its state change
+    // AND the receipt atomically (via its command store)
+    const result = await consumer.handler(event)
+
+    logger.debug(
+      { eventId, consumerName: consumer.consumerName, status: result.status },
+      'Consumer completed',
+    )
+  } catch (err) {
+    if (err instanceof PolicyUnavailableError) throw err
+    // Log and continue — other consumers should still receive the event
+    logger.error(
+      { err, eventId, consumerName: consumer.consumerName },
+      'Consumer handler failed — other consumers will still be processed',
+    )
+    // The receipt was NOT committed, so this event will be retried
+    // for this consumer on the next BullMQ attempt
+  }
 }
 
 /**
@@ -137,35 +219,7 @@ export function createDispatcherHandler(repo: OutboxRepository) {
 
       // Invoke each consumer independently — one failure doesn't block others
       for (const consumer of consumers) {
-        try {
-          // Check receipt — skip if already processed
-          const hasReceipt = await repo.hasReceipt(eventId, consumer.consumerName)
-          if (hasReceipt) {
-            logger.debug(
-              { eventId, consumerName: consumer.consumerName },
-              'Consumer already has receipt — skipping',
-            )
-            continue
-          }
-
-          // Invoke the consumer handler
-          // The handler is responsible for committing its state change
-          // AND the receipt atomically (via its command store)
-          const result = await consumer.handler(event)
-
-          logger.debug(
-            { eventId, consumerName: consumer.consumerName, status: result.status },
-            'Consumer completed',
-          )
-        } catch (err) {
-          // Log and continue — other consumers should still receive the event
-          logger.error(
-            { err, eventId, consumerName: consumer.consumerName },
-            'Consumer handler failed — other consumers will still be processed',
-          )
-          // The receipt was NOT committed, so this event will be retried
-          // for this consumer on the next BullMQ attempt
-        }
+        await invokeConsumer({ repo, logger, eventId, event, consumer })
       }
     })
   }

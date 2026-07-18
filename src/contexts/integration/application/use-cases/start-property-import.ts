@@ -83,6 +83,8 @@ export const startPropertyImport =
       organizationId: ctx.organizationId,
       connectionId: input.connectionId,
       locations: input.locations,
+      // BQC-3.2: named initiator for operator/user-triggered delayed work.
+      policy: { initiator: { kind: 'user', id: ctx.userId } },
     })
 
     // 8. Return the job

@@ -26,12 +26,16 @@ export const registerInboxHandlers = (deps: RegisterInboxHandlersDeps): void => 
     onReviewCreated({
       createInboxItem: deps.createInboxItem,
     }),
+
+    { consumer: 'inbox.event-handlers' },
   )
   deps.events.on(
     'guest.feedback.submitted',
     onFeedbackSubmitted({
       createInboxItem: deps.createInboxItem,
     }),
+
+    { consumer: 'inbox.event-handlers' },
   )
   deps.events.on(
     'review.reply.published',
@@ -39,12 +43,16 @@ export const registerInboxHandlers = (deps: RegisterInboxHandlersDeps): void => 
       repo: deps.repo,
       events: deps.events,
     }),
+
+    { consumer: 'inbox.event-handlers' },
   )
   deps.events.on(
     'review.reply.submitted',
     onReplySubmitted({
       repo: deps.repo,
     }),
+
+    { consumer: 'inbox.event-handlers' },
   )
   deps.events.on(
     'review.expired',
@@ -52,5 +60,7 @@ export const registerInboxHandlers = (deps: RegisterInboxHandlersDeps): void => 
       repo: deps.repo,
       events: deps.events,
     }),
+
+    { consumer: 'inbox.event-handlers' },
   )
 }

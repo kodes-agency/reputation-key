@@ -51,6 +51,12 @@ export const handleGbpNotification =
         organizationId: property.organizationId,
         connectionId: property.googleConnectionId,
         locationName: input.locationName,
+        // BQC-3.2: webhook-initiated delayed work carries a named system
+        // initiator; the Pub/Sub message id is the content-free correlation.
+        policy: {
+          initiator: { kind: 'system', id: 'webhook:gbp' },
+          correlationId: `webhook:${input.messageId}`,
+        },
       },
       {
         jobId: `webhook:${input.messageId}`,

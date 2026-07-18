@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "program": "BQC",
-  "updatedAt": "2026-07-17T22:50:34Z",
+  "updatedAt": "2026-07-18T00:00:00Z",
   "baseline": {
     "validationReport": "docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md",
     "validationBaselineSha": "29b021875c145a7f8827f0ee70fc20935fc5dc79",
@@ -455,7 +455,24 @@
       "requiredEvidenceIds": [],
       "openFindings": ["STD-P0-02", "SPEC-P0-01", "SPEC-P1-02"],
       "exceptions": [],
-      "notes": "BQC-3.1 implementation_complete (event/job family inventory + registration guard)."
+      "notes": "BQC-3.1 (event/job inventory + guard), BQC-3.2 (delayed policy integration) implementation_complete."
+    },
+    {
+      "id": "BQC-3.2",
+      "kind": "slice",
+      "parentId": "BQC-3",
+      "title": "Integrate delayed/system execution policy",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "requiredEvidenceIds": [
+        "delayed-gate-runtime-integration",
+        "revocation-while-queued-proof",
+        "dark-runtime-denial-proof",
+        "delayed-policy-delegation-architecture-test"
+      ],
+      "openFindings": [],
+      "exceptions": [],
+      "notes": "INTEGRATES the BQC-2.5 contract at all three runtime choke points. NEW src/shared/jobs/delayed-execution-gate.ts is the single decision point: catalogue-derived name\u2192action/scope maps; GateOutcome mapping (allow \u2192 invoke; policy_unavailable \u2192 deny_retry \u2192 call site throws so BullMQ retries \u2014 unavailable policy is transient, never silent success; every other deny \u2192 deny_terminal, no side effect). (1) Worker dispatch: both BullMQ workers use createGatedJobHandler \u2014 covers 19 jobs + 12 schedules (repeatJobKey/'-recurring' classification \u2192 executionKind schedule, principal schedule:<name>). (2) Event bus: on() carries catalogue consumer identity (51 registrations across 8 tables), emit() authorizes per handler \u2014 the 3 dark bus consumers (goal/badge/leaderboard) now deny at emit time; their catalogue capabilities corrected 'none'\u2192goal.use/badge.use/leaderboard.use so the policy can deny. (3) Durable dispatcher: gate after receipt check before handler; terminal deny skips without receipt (denied-receipt status = BQC-3.6). All 40 delayed catalogue rows flipped pending_bqc3\u2192integrated_bqc3 (guard-enforced). Typed outcomes proven by 40 new tests: revocation-while-queued (real PG: allow \u2192 suspend \u2192 deny_terminal/org_suspended), unavailable-policy (deny_retry), manual-enqueue initiator (audit row: principal + correlation, content-free), dark-runtime denial (bus + jobs), stale_context annotation, plus the 2.5 DELAYED_CONTRACT_FIXTURES driven through gateJob. Envelope: policy?: JobPolicyContext on sync/publish/import/urgent-email payloads; initiator stamped at approveReply/retryPublish (user), startPropertyImport (user), GBP webhook (system webhook:gbp). Tenant-cross work decides under the documented TENANT_CROSS_ORG sentinel (2.5 fixture pattern). publish-reply scope resolved at dispatch (reply\u2192review\u2192propertyId); import-property catalogue row re-scoped property\u2192organization (org fan-out; per-property authz lives in the sync jobs). BQC-0.4 in-handler capability checks REMOVED from the 3 GBP job handlers \u2014 new architecture test delayed-policy-delegation bans direct policy imports in *.job.ts: the gate is the single decision point. Deviations/deferred: policyVersionAtEnqueue not stamped (store snapshot number \u2260 EXECUTION_POLICY_VERSION \u2014 stamping would falsely annotate stale; needs a contract accessor, deferred); initiator not persisted in audit (no column \u2014 would extend the 2.5 contract + migration); dispatcher consumer module hardcoded 'inbox.outbox-consumers' (registration carries no module field \u2014 3.4/3.5 must thread it when adding consumers); process-image property-scope trap recorded (blocked capability denies first; portal promotion owns); activity/notification insert payloads unstamped (already carry eventId); unknown-job quarantine + terminal-deny receipt status = 3.6. Not claimed: durable dispatcher enablement (3.9), family migrations (3.3\u20133.5), dispatcher correction (3.6). Slice not accepted \u2014 pending independent review."
     },
     {
       "id": "BQC-3.1",

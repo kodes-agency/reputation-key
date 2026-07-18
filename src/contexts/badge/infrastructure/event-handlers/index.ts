@@ -14,31 +14,35 @@ export type RegisterBadgeHandlersDeps = Readonly<{
 }>
 
 export const registerBadgeEventHandlers = (deps: RegisterBadgeHandlersDeps): void => {
-  deps.eventBus.on('metric.recorded', async (event) => {
-    const tasks: Promise<unknown>[] = []
+  deps.eventBus.on(
+    'metric.recorded',
+    async (event) => {
+      const tasks: Promise<unknown>[] = []
 
-    if (event.portalId) {
-      tasks.push(
-        deps.evaluateBadgeForTarget({
-          organizationId: event.organizationId,
-          propertyId: event.propertyId,
-          targetType: 'portal',
-          targetId: event.portalId,
-        }),
-      )
-    }
+      if (event.portalId) {
+        tasks.push(
+          deps.evaluateBadgeForTarget({
+            organizationId: event.organizationId,
+            propertyId: event.propertyId,
+            targetType: 'portal',
+            targetId: event.portalId,
+          }),
+        )
+      }
 
-    if (event.groupId) {
-      tasks.push(
-        deps.evaluateBadgeForTarget({
-          organizationId: event.organizationId,
-          propertyId: event.propertyId,
-          targetType: 'portal_group',
-          targetId: event.groupId,
-        }),
-      )
-    }
+      if (event.groupId) {
+        tasks.push(
+          deps.evaluateBadgeForTarget({
+            organizationId: event.organizationId,
+            propertyId: event.propertyId,
+            targetType: 'portal_group',
+            targetId: event.groupId,
+          }),
+        )
+      }
 
-    await Promise.allSettled(tasks)
-  })
+      await Promise.allSettled(tasks)
+    },
+    { consumer: 'badge.event-handlers' },
+  )
 }

@@ -248,6 +248,8 @@ export const approveReply =
     await deps.queue.addPublishJob({
       replyId: approved.id,
       organizationId: approved.organizationId,
+      // BQC-3.2: named initiator for operator/user-triggered delayed work.
+      policy: { initiator: { kind: 'user', id: ctx.userId } },
     })
 
     await emitAndRecord(
@@ -536,6 +538,8 @@ export const retryPublish =
     await deps.queue.addPublishJob({
       replyId: backToApproved.id,
       organizationId: backToApproved.organizationId,
+      // BQC-3.2: named initiator for operator/user-triggered delayed work.
+      policy: { initiator: { kind: 'user', id: ctx.userId } },
     })
 
     return backToApproved

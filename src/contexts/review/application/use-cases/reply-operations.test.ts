@@ -463,6 +463,8 @@ describe('approveReply', () => {
     expect(deps.queue.addPublishJob).toHaveBeenCalledWith({
       replyId: REPLY_ID,
       organizationId: ORG_ID,
+      // BQC-3.2: named initiator for user-triggered delayed work.
+      policy: { initiator: { kind: 'user', id: USER_ID } },
     })
   })
 

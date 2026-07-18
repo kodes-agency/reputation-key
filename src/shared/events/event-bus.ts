@@ -9,14 +9,40 @@
 // (e.g., sending transactional emails, creating audit records), consider migrating
 // to BullMQ-backed event delivery for at-least-once processing guarantees.
 // Evaluate BullMQ-based event persistence for critical events in Phase 4+.
+//
+// BQC-3.2: registrations that carry a catalogue consumer identity (`{ consumer }`)
+// are authorized at emit time through an injected authorizer — the composition
+// root wires it to the delayed execution gate (src/shared/jobs/delayed-execution-gate.ts)
+// so dark-context handlers deny here instead of running ungated.
 
 import type { DomainEvent } from './events'
+
+export type EventBusOnOptions = Readonly<{
+  /** Catalogue consumer module name (e.g. 'activity.event-handlers'). */
+  consumer: string
+}>
+
+/**
+ * BQC-3.2: decides whether a governed consumer may handle this event.
+ * Injected by the composition root (wired to the delayed execution gate)
+ * so the bus itself stays free of server-only policy imports — bare
+ * createEventBus() (tests, Storybook, browser) runs ungoverned.
+ */
+export type BusConsumerAuthorizer = (
+  consumer: string,
+  event: DomainEvent,
+) => Promise<boolean>
+
+export type EventBusDeps = Readonly<{
+  authorizeConsumer?: BusConsumerAuthorizer
+}>
 
 export type EventBus = Readonly<{
   /** Subscribe to events matching a specific _tag. */
   on<T extends DomainEvent['_tag']>(
     tag: T,
     handler: (event: Extract<DomainEvent, { _tag: T }>) => Promise<void>,
+    opts?: EventBusOnOptions,
   ): void
 
   /**
@@ -32,16 +58,24 @@ export type EventBus = Readonly<{
   clear(): void
 }>
 
+type BusRegistration = Readonly<{
+  handler: (event: DomainEvent) => Promise<void>
+  consumer?: string
+}>
+
 /** In-process event bus implementation. */
-export function createEventBus(): EventBus {
-  const handlers = new Map<string, Set<(event: DomainEvent) => Promise<void>>>()
+export function createEventBus(deps?: EventBusDeps): EventBus {
+  const handlers = new Map<string, Set<BusRegistration>>()
 
   return {
-    on(tag, handler) {
+    on(tag, handler, opts) {
       if (!handlers.has(tag)) {
         handlers.set(tag, new Set())
       }
-      handlers.get(tag)!.add(handler as (event: DomainEvent) => Promise<void>)
+      handlers.get(tag)!.add({
+        handler: handler as (event: DomainEvent) => Promise<void>,
+        consumer: opts?.consumer,
+      })
     },
 
     async emit(event) {
@@ -51,9 +85,16 @@ export function createEventBus(): EventBus {
       // Run all handlers concurrently. Per architecture:
       // "Handlers should not throw. Failures are logged, not propagated to the emitter."
       await Promise.allSettled(
-        Array.from(tagHandlers).map(async (handler) => {
+        Array.from(tagHandlers).map(async (registration) => {
           try {
-            await handler(event)
+            if (
+              registration.consumer &&
+              deps?.authorizeConsumer &&
+              !(await deps.authorizeConsumer(registration.consumer, event))
+            ) {
+              return
+            }
+            await registration.handler(event)
           } catch (err) {
             // Per architecture: "Handlers should not throw. Failures are logged, not propagated to the emitter."
             // Lazy import avoids circular dep during bootstrap — getLogger() is safe at handler execution time.

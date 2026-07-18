@@ -8,5 +8,7 @@ export type RegisterReviewHandlersDeps = Readonly<{
 }>
 
 export const registerReviewHandlers = (deps: RegisterReviewHandlersDeps): void => {
-  deps.events.on('property.created', onPropertyCreated({ queue: deps.queue }))
+  deps.events.on('property.created', onPropertyCreated({ queue: deps.queue }), {
+    consumer: 'review.event-handlers',
+  })
 }
