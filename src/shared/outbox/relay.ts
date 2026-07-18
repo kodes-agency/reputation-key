@@ -4,17 +4,33 @@
 // SKIP LOCKED, publishes each to the 'domain-events' BullMQ queue with the
 // event UUID as the job ID (for deduplication), and marks them as published.
 //
+// BQC-3.7 hardening:
+//   - Lease renewal: every LEASE_RENEW_EVERY published events the relay
+//     renews the lease on the unprocessed remainder, so a slow batch cannot
+//     lose its lease mid-publish (double-publish race; jobId dedup + receipts
+//     were the only guard before).
+//   - Host-scoped identity: relay-<hostname>-<pid> (pid-only is useless
+//     across hosts/containers).
+//   - Dispatch retry policy: enqueued jobs carry attempts + exponential
+//     backoff so a first-failure dispatch retries, then quarantines via
+//     BQC-3.6 (previously neither retried nor quarantined).
+//   - NO payload pre-validation: the dispatcher is the single validation
+//     authority (its 3.6 UnrecoverableError quarantines poison events).
+//     Relay-side validation made a failing row un-enqueueable, so it was
+//     re-claimed every poll forever — a poison busy loop.
+//
 // "Job already exists" is treated as accepted — the event was published
 // but the markPublished call failed. The receipt in the consumer ensures
 // idempotent processing regardless.
 
+import { hostname } from 'node:os'
 import type { Queue } from 'bullmq'
-import type {
-  OutboxRepository,
-  UnpublishedEvent,
+import {
+  DEFAULT_LEASE_DURATION_MS,
+  type OutboxRepository,
+  type UnpublishedEvent,
 } from './infrastructure/outbox-repository'
 import { buildConsumerEvent } from './envelope'
-import { validateEventPayload } from '#/shared/events/schema-registry'
 import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
 
@@ -34,10 +50,24 @@ export type RelayConfig = Readonly<{
   relayId: string
 }>
 
+/** Renew the lease on the unprocessed remainder after this many publishes. */
+const LEASE_RENEW_EVERY = 10
+
+/**
+ * Dispatch retry policy. Mirrors the jobEnqueueOptions shape (3 attempts,
+ * exponential 30s backoff, 0.5 jitter — the catalogue defaults) but is
+ * hand-set here because domain-events jobs are EVENT-TYPED (named by
+ * eventType), not job-named, so the job-family catalogue cannot resolve them.
+ */
+const DISPATCH_JOB_OPTIONS = {
+  attempts: 3,
+  backoff: { type: 'exponential', delay: 30_000, jitter: 0.5 },
+} as const
+
 const DEFAULT_CONFIG: RelayConfig = {
   batchSize: 50,
-  leaseDurationMs: 30_000,
-  relayId: `relay-${process.pid}`,
+  leaseDurationMs: DEFAULT_LEASE_DURATION_MS,
+  relayId: `relay-${hostname()}-${process.pid}`,
 }
 
 export function createOutboxRelay(
@@ -55,33 +85,47 @@ export function createOutboxRelay(
     }
 
     try {
-      // Validate payload against the schema registry before publishing
-      const validatedPayload = validateEventPayload(
-        event.eventType,
-        event.eventVersion,
-        event.payload,
-      )
-
-      // BQR-2.1: enqueue the full ConsumerEvent envelope — not bare payload.
-      // Dispatcher expects eventType/eventVersion/payload/metadata on job.data.
-      const envelope = buildConsumerEvent(event, validatedPayload)
+      // BQC-3.7: no payload validation here — the dispatcher validates (and
+      // quarantines poison via 3.6 UnrecoverableError). The envelope carries
+      // the stored payload plus envelope-grade metadata from the row.
+      const envelope = buildConsumerEvent(event)
 
       // Use the event UUID as the BullMQ job ID for deduplication.
       // If the job already exists (re-publish after a crash), BullMQ
       // returns the existing job — treat as accepted.
       await queue.add(event.eventType, envelope, {
         jobId: event.id,
+        ...DISPATCH_JOB_OPTIONS,
         removeOnComplete: { count: 1000 },
         removeOnFail: { count: 500 },
       })
 
       return true
     } catch (err) {
+      // Redis failure — the lease expires and the row is reclaimed (jobId
+      // dedup + receipts make the re-publish safe).
       logger.error(
         { err, eventId: event.id, eventType: event.eventType },
         'Failed to publish outbox event to BullMQ',
       )
       return false
+    }
+  }
+
+  /** Renew the lease on the unprocessed remainder; failure is tolerated. */
+  async function renewRemainingLease(
+    remaining: readonly UnpublishedEvent[],
+  ): Promise<void> {
+    try {
+      await repo.renewLease(
+        remaining.map((e) => e.id),
+        cfg.relayId,
+        cfg.leaseDurationMs,
+      )
+    } catch (err) {
+      // A failed renewal is not fatal: worst case the lease expires and the
+      // rows are reclaimed (enqueue dedups on jobId, receipts dedup effects).
+      logger.warn({ err, count: remaining.length }, 'Outbox lease renewal failed')
     }
   }
 
@@ -97,10 +141,13 @@ export function createOutboxRelay(
 
       logger.info({ count: events.length }, 'Relay claimed outbox events')
 
-      for (const event of events) {
-        const published = await publishEvent(event)
+      for (let i = 0; i < events.length; i++) {
+        if (i > 0 && i % LEASE_RENEW_EVERY === 0) {
+          await renewRemainingLease(events.slice(i))
+        }
+        const published = await publishEvent(events[i]!)
         if (published) {
-          await repo.markPublished(event.id)
+          await repo.markPublished(events[i]!.id)
         }
         // If publish failed, the lease will expire and another relay
         // (or this one on the next poll) will reclaim it.

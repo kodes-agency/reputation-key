@@ -185,8 +185,9 @@ describe('outbox crash boundaries', () => {
         propertyId: null,
         sourceContext: 'test',
         sourceAggregateId: 'res-1',
+        recordedAt: new Date('2026-07-17T10:00:00.000Z'),
       }
-      const jobData = buildConsumerEvent(row, row.payload)
+      const jobData = buildConsumerEvent(row)
       const parsed = parseConsumerEvent(jobData)
       expect(parsed).not.toBeNull()
       expect(parsed!.eventType).toBe(TEST_EVENT_TYPE)

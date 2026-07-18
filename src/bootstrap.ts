@@ -10,6 +10,10 @@ import { createHealthCheckHandler, JOB_NAME } from '#/shared/jobs/health-check.j
 import { isDbHealthy } from '#/shared/db'
 import { isRedisHealthy } from '#/shared/cache/redis'
 import { getLogger } from '#/shared/observability/logger'
+import { createHealthChecker } from '#/shared/observability/health-metrics'
+import { createJobQueue, type Queue } from '#/shared/jobs/queue'
+import { QUARANTINE_QUEUE_NAME } from '#/shared/jobs/failure-quarantine'
+import { readAllQueueDepths } from '#/shared/health/queue-depth'
 import { isCapabilityJobEnabled, type Capability } from '#/shared/auth/beta-capabilities'
 import {
   createProcessImageJob,
@@ -41,6 +45,28 @@ import {
 } from '#/contexts/review/infrastructure/jobs/publish-reply.job'
 import { createAtomicReplyCommandStore } from '#/contexts/review/infrastructure/reply-command-store'
 import { activityLogId, replyId } from '#/shared/domain/ids'
+
+// BQC-3.7: lazily-created ops queue handles for the health-check's metric
+// sample. The domain-events and quarantine queues are owned by the worker
+// entry point, which starts AFTER bootstrap — so the health-check opens its
+// own read-only handles on first use and reuses them (one Redis connection
+// per queue per process, never two).
+let opsQueues:
+  | { domainEvents: Queue | undefined; quarantine: Queue | undefined }
+  | undefined
+
+function getOpsQueues(): {
+  domainEvents: Queue | undefined
+  quarantine: Queue | undefined
+} {
+  if (!opsQueues) {
+    opsQueues = {
+      domainEvents: createJobQueue('domain-events'),
+      quarantine: createJobQueue(QUARANTINE_QUEUE_NAME),
+    }
+  }
+  return opsQueues
+}
 
 export async function bootstrap(container: Container): Promise<void> {
   const logger = getLogger()
@@ -84,6 +110,26 @@ export async function bootstrap(container: Container): Promise<void> {
       const { writeWorkerHeartbeat } = await import('#/shared/health/worker-heartbeat')
       await writeWorkerHeartbeat(getRedis() ?? undefined, container.clock)
     },
+    // BQC-3.7: outbox/quarantine metric sample for the threshold evaluation.
+    sampleOpsMetrics: async () => {
+      const snapshot = await createHealthChecker(container.db, container.outboxRepo, {
+        quarantineQueue: getOpsQueues().quarantine ?? null,
+      }).check()
+      return {
+        oldestUnpublishedAgeMs: snapshot.outbox.oldestUnpublishedAgeMs,
+        stalledLeaseCount: snapshot.outbox.stalledLeaseCount,
+        quarantineCount: snapshot.quarantine?.count ?? 0,
+        oldestQuarantinedAgeMs: snapshot.quarantine?.oldestAgeMs ?? null,
+      }
+    },
+    // BQC-3.7: queue-depth read incl. domain-events + quarantine.
+    readQueueDepths: () =>
+      readAllQueueDepths([
+        { name: 'default', queue: container.jobQueue ?? null },
+        { name: 'background', queue: container.backgroundQueue ?? null },
+        { name: 'domain-events', queue: getOpsQueues().domainEvents ?? null },
+        { name: QUARANTINE_QUEUE_NAME, queue: getOpsQueues().quarantine ?? null },
+      ]),
   })
 
   // Handler returns HealthCheckResult (BullMQ stores it as return value);

@@ -77,6 +77,20 @@ export function toOutboxEvent(event: DomainEvent): Omit<OutboxEventInsert, 'id'>
     )
   }
 
+  // BQC-3.7: re-attach correlationId AFTER allowlist validation. It is an
+  // identifier (envelope-grade trace metadata), not content — attaching it
+  // post-validation preserves it without touching 30+ identifier-only
+  // schemas. Dispatcher-side validation runs the same Zod allowlist, whose
+  // object schemas strip unknown keys by default (never reject them), so the
+  // re-attached key is inert there and flows into the relay envelope.
+  const enrichedPayload = {
+    ...(payload as Record<string, unknown>),
+    correlationId:
+      'correlationId' in event && typeof event.correlationId === 'string'
+        ? event.correlationId
+        : null,
+  }
+
   const sourceContext = eventType.split('.')[0] ?? eventType
   const organizationId = (
     'organizationId' in event ? String(event.organizationId) : ''
@@ -88,7 +102,7 @@ export function toOutboxEvent(event: DomainEvent): Omit<OutboxEventInsert, 'id'>
   return {
     eventType,
     eventVersion,
-    payload,
+    payload: enrichedPayload,
     organizationId,
     propertyId,
     sourceContext,

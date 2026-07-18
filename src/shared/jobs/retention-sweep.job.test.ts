@@ -3,6 +3,13 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+const mockLogger = vi.hoisted(() => ({
+  warn: vi.fn(),
+  info: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn(),
+}))
+
 vi.mock('#/shared/db/retention/execute-retention-rule', () => ({
   executeRetentionRule: vi.fn(),
 }))
@@ -11,17 +18,12 @@ vi.mock('#/shared/db/retention/evidence', () => ({
   closeRetentionRun: vi.fn(async () => {}),
 }))
 vi.mock('#/shared/observability/logger', () => ({
-  getLogger: vi.fn(() => ({
-    warn: vi.fn(),
-    info: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  })),
+  getLogger: vi.fn(() => mockLogger),
 }))
 
 import { executeRetentionRule } from '#/shared/db/retention/execute-retention-rule'
 import { openRetentionRun, closeRetentionRun } from '#/shared/db/retention/evidence'
-import { createRetentionSweepHandler } from './retention-sweep.job'
+import { createRetentionSweepHandler, RETENTION_RULES } from './retention-sweep.job'
 import type { RetentionRule } from '#/shared/db/retention/execute-retention-rule'
 
 const NOW = new Date('2026-07-17T12:00:00Z')
@@ -109,5 +111,48 @@ describe('retention sweep job (BQC-1.6)', () => {
       'run-b.old',
       expect.objectContaining({ outcome: 'completed', rowsDeleted: 5 }),
     )
+  })
+
+  it('logs an info line when a rule hits the per-run batch cap (BQC-3.7)', async () => {
+    ;(executeRetentionRule as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      batches: 100,
+      rowsDeleted: 50_000,
+      capped: true,
+    })
+
+    const handler = createRetentionSweepHandler({
+      db: {} as never,
+      clock: () => NOW,
+      rules: [RULE_A],
+      batchSize: 500,
+    })
+    await handler({} as never)
+
+    expect(mockLogger.info).toHaveBeenCalledWith(
+      expect.objectContaining({ subject: 'a.old', capped: true }),
+      expect.stringMatching(/batch cap/i),
+    )
+    // The run still closes as completed — the next scheduled run continues.
+    expect(closeRetentionRun).toHaveBeenCalledWith(
+      expect.anything(),
+      'run-a.old',
+      expect.objectContaining({ outcome: 'completed' }),
+    )
+  })
+})
+
+describe('retention rule registry (BQC-3.7)', () => {
+  it('keys outbox retention on published_at, not created_at', () => {
+    const outboxRule = RETENTION_RULES.find(
+      (r) => r.subject === 'outbox_events.published',
+    )
+    expect(outboxRule).toBeDefined()
+    // An event unpublished 29d then published must survive ~30 more days —
+    // keying on created_at would delete it ~1d after publication.
+    expect(outboxRule!.tsColumn).toBe('published_at')
+    expect(outboxRule!.extraWhere).toBe('published_at IS NOT NULL')
+    // BQC-1.6's deliberate 30d value (the migration-file comment drift —
+    // 7d/90d — is documented at the rule; applied migrations are immutable).
+    expect(outboxRule!.olderThanMs).toBe(30 * 24 * 60 * 60 * 1000)
   })
 })

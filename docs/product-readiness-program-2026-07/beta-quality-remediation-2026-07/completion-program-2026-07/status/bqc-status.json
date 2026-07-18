@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "program": "BQC",
-  "updatedAt": "2026-07-18T07:58:31Z",
+  "updatedAt": "2026-07-18T10:00:38Z",
   "baseline": {
     "validationReport": "docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md",
     "validationBaselineSha": "29b021875c145a7f8827f0ee70fc20935fc5dc79",
@@ -455,7 +455,24 @@
       "requiredEvidenceIds": [],
       "openFindings": ["STD-P0-02", "SPEC-P0-01", "SPEC-P1-02"],
       "exceptions": [],
-      "notes": "BQC-3.1 (event/job inventory + guard), BQC-3.2 (delayed policy integration), BQC-3.3 (review/reply atomic commands), BQC-3.4 (inbox atomic projections/commands), BQC-3.5 (remaining enabled families), BQC-3.6 (dispatcher/unknown-work correction) implementation_complete."
+      "notes": "BQC-3.1 (event/job inventory + guard), BQC-3.2 (delayed policy integration), BQC-3.3 (review/reply atomic commands), BQC-3.4 (inbox atomic projections/commands), BQC-3.5 (remaining enabled families), BQC-3.6 (dispatcher/unknown-work correction), BQC-3.7 (relay/lease/ordering/retention) implementation_complete."
+    },
+    {
+      "id": "BQC-3.7",
+      "kind": "slice",
+      "parentId": "BQC-3",
+      "title": "Relay, lease, ordering, and retention hardening",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "requiredEvidenceIds": [
+        "lease-lifecycle-proof",
+        "envelope-field-preservation",
+        "retention-corrections",
+        "ops-alert-substrate"
+      ],
+      "openFindings": [],
+      "exceptions": [],
+      "notes": "Lease lifecycle proven against real PostgreSQL (6 integration tests): claim (SKIP LOCKED \u2014 two concurrent relays claim disjoint batches), RENEW (new ownership-guarded renewLease \u2014 the relay renews the unprocessed remainder every 10 publishes, killing the mid-batch lease-loss race), reclaim (expired lease claimable by any relay), release (markPublished clears lease). TWO PRE-EXISTING LATENT BUGS FIXED in the claim path: the claim CTE's SET used relation-qualified column names (PG rejects \u2192 claim never worked on real PG \u2014 latent because the dispatcher is off) and raw driver rows (snake_case) were cast to camelCase so every mapped field was undefined; the rewrite qualifies RETURNING columns and maps honestly. Relay: host-scoped identity relay-<hostname>-<pid>; dispatch jobs now carry attempts:3 + exponential backoff + jitter (previously neither retried nor quarantined \u2014 3.6's quarantine never engaged); relay-side payload pre-validation REMOVED \u2014 the dispatcher is the single validation authority (its 3.6 UnrecoverableError quarantines poison) \u2014 the re-claim busy loop is dead. Envelope preservation (content-free, no migration): occurredAt (payload), recordedAt (row created_at via epoch extraction), correlationId (adapter re-attaches post-validation \u2014 it was STRIPPED at insert before), causationId/sourceAggregateVersion (null today \u2014 no producer sets them; honest note), region const 'unscoped' (BQC-4 owns re-scoping); old 8-field envelopes still parse. Ordering DEFINED in the catalogue: per-aggregate chronological enqueue (created_at) + state-idempotent consumers + receipt fencing; NO global ordering, NO execution-order guarantee (dispatcher concurrency 20); aggregate-version fencing unimplemented (no family versions aggregates). Retention: outbox rule re-keyed created_at \u2192 published_at (an event unpublished 29d then published was deleted ~1d later); per-run drain bounded at 100 batches/rule with capped signal + resume next run; migration-comment drift (7d/90d vs code 30d/30d) documented, migrations untouched. Alert substrate (warn-only structured logs; BQC-7 owns dispatch): health-metrics gained claimedCount, oldestClaimedAgeMs, stalledLeaseCount (unexpired lease older than 2\u00d7 duration), expiredLeaseCount now backed by findExpiredLeases (its first caller \u2014 bounded \u22641000 scan), quarantine count/oldest-age; domain-events + quarantine queues added to depth reads (route + worker); health-check job evaluates named thresholds (oldest unpublished >15min, stalled >0, quarantine >0, oldest quarantined >24h). Deviations: findExpiredLeases backs expiredLeaseCount (stalled uses sibling SQL \u2014 expired vs unexpired semantics); expiredLeaseCount is a bounded estimate, not an exact count. Not claimed: abort-based timeout cancellation (zombie-vs-retry \u2014 handlers idempotent), leasedAt-not-cleared pre-existing column behavior, index-predicate drift (BQC-5), real alert dispatch (BQC-7). Slice not accepted \u2014 pending independent review."
     },
     {
       "id": "BQC-3.6",

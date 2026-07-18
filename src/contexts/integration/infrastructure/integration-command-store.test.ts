@@ -509,7 +509,11 @@ describe('createAtomicIntegrationCommandStore', () => {
     it('the connected payload is identifier-only (googleEmail stripped)', () => {
       const row = toOutboxEvent(connectedEvent())
       const payload = row.payload as Record<string, unknown>
-      expect(Object.keys(payload).sort()).toEqual(['connectionId', 'organizationId'])
+      expect(Object.keys(payload).sort()).toEqual([
+        'connectionId',
+        'correlationId',
+        'organizationId',
+      ])
     })
   })
 })

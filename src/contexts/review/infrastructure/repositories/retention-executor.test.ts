@@ -2,7 +2,7 @@
 // Proves the id-IN-subquery pattern deletes old rows in bounded batches,
 // keeps recent rows, handles composite keys, and is safe to re-run.
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
 import { executeRetentionRule } from '../../../../shared/db/retention/execute-retention-rule'
@@ -110,5 +110,81 @@ describe('retention executor (BQC-1.6)', () => {
       { cutoff: new Date(NOW - 30 * DAY), batchSize: 500 },
     )
     expect(rerun.rowsDeleted).toBe(0)
+  })
+})
+
+// BQC-3.7 — outbox retention keys on published_at (not created_at) and the
+// per-run drain is bounded by a batch cap.
+describe('outbox retention — published_at keying + per-run cap (BQC-3.7)', () => {
+  const OUTBOX_RULE = {
+    subject: 'outbox_events.published',
+    table: 'outbox_events',
+    keyColumns: ['id'],
+    tsColumn: 'published_at',
+    olderThanMs: 30 * DAY,
+    extraWhere: 'published_at IS NOT NULL',
+  } as const
+
+  async function insertOutboxRow(
+    createdAt: Date,
+    publishedAt: Date | null,
+  ): Promise<void> {
+    await db.execute(sql`
+      INSERT INTO outbox_events
+        (event_type, payload, organization_id, source_context, source_aggregate_id, created_at, published_at)
+      VALUES
+        ('test.retention', '{}', 'org-ret-test', 'test', 'agg-1', ${createdAt}, ${publishedAt})
+    `)
+  }
+
+  beforeEach(async () => {
+    await db.execute(sql`DELETE FROM event_consumer_receipts`)
+    await db.execute(sql`DELETE FROM outbox_events`)
+  })
+
+  it('keeps an old-created but recently published event; deletes old-published ones', async () => {
+    // Old create, old publish → deleted.
+    await insertOutboxRow(new Date(NOW - 40 * DAY), new Date(NOW - 40 * DAY))
+    // Old create, recent publish → KEPT (created_at keying would delete it).
+    await insertOutboxRow(new Date(NOW - 40 * DAY), new Date(NOW - 1 * DAY))
+    // Old create, never published → KEPT (extraWhere published-only).
+    await insertOutboxRow(new Date(NOW - 40 * DAY), null)
+
+    const result = await executeRetentionRule(db, OUTBOX_RULE, {
+      cutoff: new Date(NOW - 30 * DAY),
+      batchSize: 500,
+    })
+
+    expect(result.rowsDeleted).toBe(1)
+    const remaining = await db.execute(sql`SELECT count(*)::int AS c FROM outbox_events`)
+    expect((remaining.rows[0] as { c: number }).c).toBe(2)
+  })
+
+  it('stops at the per-run batch cap with rows remaining (capped)', async () => {
+    for (let i = 0; i < 5; i++) {
+      await insertOutboxRow(new Date(NOW - 40 * DAY), new Date(NOW - 40 * DAY + i * 1000))
+    }
+
+    const result = await executeRetentionRule(db, OUTBOX_RULE, {
+      cutoff: new Date(NOW - 30 * DAY),
+      batchSize: 1,
+      maxBatches: 3,
+    })
+
+    expect(result.batches).toBe(3)
+    expect(result.rowsDeleted).toBe(3)
+    expect(result.capped).toBe(true)
+
+    const remaining = await db.execute(sql`SELECT count(*)::int AS c FROM outbox_events`)
+    expect((remaining.rows[0] as { c: number }).c).toBe(2)
+
+    // The next scheduled run continues where this one stopped.
+    const resumed = await executeRetentionRule(db, OUTBOX_RULE, {
+      cutoff: new Date(NOW - 30 * DAY),
+      batchSize: 1,
+      maxBatches: 3,
+    })
+    expect(resumed.rowsDeleted).toBe(2)
+    expect(resumed.capped).toBe(false)
   })
 })

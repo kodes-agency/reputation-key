@@ -495,6 +495,7 @@ describe('createAtomicReplyCommandStore', () => {
           tag: 'review.reply.submitted',
           event: submittedEvent(),
           expectedKeys: [
+            'correlationId',
             'occurredAt',
             'organizationId',
             'propertyId',
@@ -517,6 +518,7 @@ describe('createAtomicReplyCommandStore', () => {
           }),
           expectedKeys: [
             'authorId',
+            'correlationId',
             'occurredAt',
             'organizationId',
             'propertyId',
@@ -540,6 +542,7 @@ describe('createAtomicReplyCommandStore', () => {
           }),
           expectedKeys: [
             'authorId',
+            'correlationId',
             'occurredAt',
             'organizationId',
             'propertyId',
@@ -562,6 +565,7 @@ describe('createAtomicReplyCommandStore', () => {
           }),
           expectedKeys: [
             'authorId',
+            'correlationId',
             'occurredAt',
             'organizationId',
             'propertyId',
@@ -583,6 +587,7 @@ describe('createAtomicReplyCommandStore', () => {
           }),
           expectedKeys: [
             'authorId',
+            'correlationId',
             'occurredAt',
             'organizationId',
             'propertyId',

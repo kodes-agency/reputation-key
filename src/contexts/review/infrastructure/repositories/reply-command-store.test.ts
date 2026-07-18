@@ -273,8 +273,10 @@ describe.sequential('replyCommandStore (integration)', () => {
     expect(outbox.rows).toHaveLength(1)
     expect(outbox.rows[0].id).toBe(event.eventId)
     expect(outbox.rows[0].event_type).toBe('review.reply.submitted')
-    // Identifier-only payload on the real pipeline.
+    // Identifier-only payload on the real pipeline (BQC-3.7: correlationId is
+    // envelope-grade metadata re-attached post-validation — an identifier).
     expect(Object.keys(outbox.rows[0].payload).sort()).toEqual([
+      'correlationId',
       'occurredAt',
       'organizationId',
       'propertyId',
