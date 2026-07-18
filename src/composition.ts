@@ -68,6 +68,8 @@ import { buildPropertyContext } from '#/contexts/property/build'
 import { createPropertyRepository } from '#/contexts/property/infrastructure/repositories/property.repository'
 import { createPropertyRoutingLoader } from '#/contexts/property/infrastructure/property-routing.adapter'
 import { createProcessingRouter } from '#/shared/routing/processing-router'
+import { providerRefForCell } from '#/shared/routing/processing-router'
+import type { ProviderEndpoints } from '#/shared/routing/processing-router'
 import { buildIntegrationContext } from '#/contexts/integration/build'
 import { buildTeamContext } from '#/contexts/team/build'
 import { buildStaffContext } from '#/contexts/staff/build'
@@ -149,6 +151,40 @@ function buildInfrastructure(options: {
   return { cache, rateLimiter, jobQueue, backgroundQueue, jobRegistry, policyStore }
 }
 
+// ── Provider endpoint mapping (BQC-4.3) ────────────────────────────
+// The ONE place Google/GBP endpoint URLs exist. ProcessingTarget.provider
+// carries a logical reference (from the router's CELL_TARGETS); this mapping
+// turns it into adapter construction config. Adapters receive their base URL
+// from here alone — no context adapter hardcodes a Google URL, so no code
+// path can silently fall back to another endpoint or region (ADR 0031/0048).
+// A future cell gets its own ref + entry via an explicit decision record.
+
+const PROVIDER_ENDPOINTS: Readonly<Record<string, ProviderEndpoints>> = {
+  'gbp-default': {
+    gbpApiBaseUrl: 'https://mybusinessbusinessinformation.googleapis.com/v1',
+    reviewsApiBaseUrl: 'https://mybusiness.googleapis.com/v4',
+    notificationsApiBaseUrl: 'https://mybusinessnotifications.googleapis.com/v1',
+    oauthTokenUrl: 'https://oauth2.googleapis.com/token',
+    oauthUserInfoUrl: 'https://www.googleapis.com/oauth2/v2/userinfo',
+    oauthRevokeUrl: 'https://oauth2.googleapis.com/revoke',
+  },
+}
+
+/**
+ * Resolve a logical provider reference to its endpoint construction config.
+ * Fails closed: an unknown, denied, or missing ref throws — there is no
+ * default endpoint to fall back to.
+ */
+export function providerConfigFor(ref: string | undefined): ProviderEndpoints {
+  const endpoints = ref ? PROVIDER_ENDPOINTS[ref] : undefined
+  if (!endpoints) {
+    throw new Error(
+      `No approved provider configuration for ref '${ref ?? 'none'}' (ADR 0048: provider refs come from the router's CELL_TARGETS)`,
+    )
+  }
+  return endpoints
+}
+
 // ── Identity infrastructure helpers ────────────────────────────────
 
 async function setActiveOrg(orgId: string): Promise<void> {
@@ -220,6 +256,12 @@ export function createContainer(options?: {
     options?.eventBus ?? createEventBus({ authorizeConsumer: createBusAuthorizer() })
   const clock = options?.clock ?? (() => new Date())
   const env = options?.env ?? getEnv()
+
+  // BQC-4.3: resolve the cell's approved provider endpoints ONCE from the
+  // router's cell config (PROCESSING_CELL → logical provider ref → endpoint
+  // construction config). Fails closed at startup for a cell with no approved
+  // provider — unavailability is never papered over by another endpoint.
+  const providerEndpoints = providerConfigFor(providerRefForCell(env.PROCESSING_CELL))
 
   // Infrastructure
   const infra = buildInfrastructure({
@@ -377,6 +419,7 @@ export function createContainer(options?: {
     propertyLookup,
     propertyApi: property.publicApi,
     logger: getLogger(),
+    providerEndpoints,
   })
 
   // Goal context — buildGoalContext creates its own repo and cancelGoalFn internally.
@@ -386,6 +429,7 @@ export function createContainer(options?: {
     encryption: integration.internal.repos.encryptionPort,
     refreshToken: integration.internal.useCases.refreshGoogleToken,
     logger: getLogger(),
+    baseUrl: providerEndpoints.reviewsApiBaseUrl,
   })
 
   const review = buildReviewContext({

@@ -136,3 +136,88 @@ describe('health checker quarantine metrics (BQC-3.7)', () => {
     expect(snapshot.quarantine).toEqual({ count: 0, oldestAgeMs: null })
   })
 })
+
+// BQC-4.3 — raw content never appears in the global control plane (ADR
+// 0048/0030): the health/metrics snapshot is counts and ages only. Marker
+// content strings are planted in every fake row/payload the checker reads;
+// none may survive into the serialized snapshot.
+describe('health checker content safety (BQC-4.3)', () => {
+  const MARKERS = ['SECRET_REVIEW_TEXT', 'SECRET_REPLY_TEXT', 'SECRET_REVIEWER_NAME']
+
+  it('no marker content from DB rows or quarantine payloads appears in the snapshot', async () => {
+    const db = fakeDb([
+      // Every row carries planted content fields the query must never read.
+      [
+        {
+          cnt: 2,
+          age_ms: 1000,
+          payload: 'SECRET_REVIEW_TEXT',
+          text: 'SECRET_REPLY_TEXT',
+        },
+      ],
+      [
+        {
+          claimed: 1,
+          oldest_claimed_age_ms: 500,
+          stalled: 0,
+          payload: 'SECRET_REVIEWER_NAME',
+        },
+      ],
+      [
+        {
+          total: 7,
+          refresh_due: 1,
+          expired: 0,
+          oldest_due_age_seconds: 3600,
+          text: 'SECRET_REVIEW_TEXT',
+          reviewerName: 'SECRET_REVIEWER_NAME',
+        },
+      ],
+      [{ due: 3, failed: 1, lastError: 'SECRET_REPLY_TEXT' }],
+    ])
+    const repo = fakeOutboxRepo([{ id: 'x', payload: 'SECRET_REVIEW_TEXT' }])
+    const quarantine = fakeQuarantine({ waiting: 1 }, [
+      {
+        data: {
+          quarantinedAt: new Date(Date.now() - 60_000).toISOString(),
+          data: { reviewText: 'SECRET_REVIEW_TEXT', replyText: 'SECRET_REPLY_TEXT' },
+          failedReason: 'Error: SECRET_REVIEWER_NAME saw SECRET_REVIEW_TEXT',
+        },
+      },
+    ])
+
+    const snapshot = await createHealthChecker(db, repo, {
+      quarantineQueue: quarantine,
+    }).check()
+    const serialized = JSON.stringify(snapshot)
+
+    for (const marker of MARKERS) {
+      expect(serialized).not.toContain(marker)
+    }
+    // Pin the counts/ages-only shape so a future field cannot smuggle content.
+    expect(snapshot).toEqual({
+      timestamp: expect.any(String),
+      outbox: {
+        unpublishedCount: 2,
+        oldestUnpublishedAgeMs: 1000,
+        expiredLeaseCount: 1,
+        claimedCount: 1,
+        oldestClaimedAgeMs: 500,
+        stalledLeaseCount: 0,
+      },
+      quarantine: { count: 1, oldestAgeMs: expect.any(Number) },
+      reviews: {
+        totalActive: 7,
+        refreshDueCount: 1,
+        expiredCount: 0,
+        oldestDueAgeSeconds: 3600,
+      },
+      sync: { dueForIncrementalCount: 3, failedSyncCount: 1 },
+      workers: {
+        defaultQueueName: 'default',
+        backgroundQueueName: 'background',
+        domainEventsQueueName: 'domain-events',
+      },
+    })
+  })
+})

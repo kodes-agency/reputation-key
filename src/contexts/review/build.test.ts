@@ -33,6 +33,7 @@ const US_TARGET: RoutingDecision = {
   cell: 'us',
   region: 'us',
   queue: 'default',
+  provider: 'gbp-default',
   routingPolicyVersion: 2,
 }
 

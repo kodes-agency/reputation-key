@@ -13,6 +13,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import {
   createProcessingRouter,
+  providerRefForCell,
   workloadClassForJob,
   type PropertyRoutingRecord,
 } from './processing-router'
@@ -38,6 +39,9 @@ describe('ProcessingRouter.resolve (BQC-4.2)', () => {
       cell: 'us',
       region: 'us',
       queue: 'default',
+      // BQC-4.3: the cell's provider endpoint REFERENCE (logical identifier —
+      // never a URL; the composition root maps it to construction config).
+      provider: 'gbp-default',
       routingPolicyVersion: 2,
     })
     expect(loadPropertyRouting).toHaveBeenCalledWith('prop-1')
@@ -141,5 +145,32 @@ describe('workloadClassForJob (BQC-4.2)', () => {
     expect(workloadClassForJob('purge-expired-reviews')).toBeUndefined()
     expect(workloadClassForJob('health-check')).toBeUndefined()
     expect(workloadClassForJob('unknown-job')).toBeUndefined()
+  })
+})
+
+describe('providerRefForCell (BQC-4.3)', () => {
+  it("returns the approved cell's logical provider reference", () => {
+    expect(providerRefForCell('us')).toBe('gbp-default')
+  })
+
+  it.each(['europe', 'global', 'unresolved', 'ap-southeast-2', ''])(
+    "returns undefined for the non-approved cell '%s' (no provider to fall back to)",
+    (cell) => {
+      expect(providerRefForCell(cell)).toBeUndefined()
+    },
+  )
+
+  it('blocked routing decisions never carry a provider reference', async () => {
+    const router = createProcessingRouter({
+      loadPropertyRouting: stubLoader({
+        'prop-1': { processingRegion: 'europe', routingPolicyVersion: 1 },
+      }),
+      cell: 'us',
+    })
+
+    const decision = await router.resolve('prop-1', 'review.sync')
+
+    expect(decision.kind).toBe('blocked')
+    expect('provider' in decision).toBe(false)
   })
 })

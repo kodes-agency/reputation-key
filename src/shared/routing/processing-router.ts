@@ -25,14 +25,31 @@
  * and never route through a cell. */
 export type WorkloadClass = 'review.sync' | 'reply.publish' | 'property.import'
 
-/** An approved execution target: cell, queue, and the routing-policy version
- * resolved FRESH from the property record. */
+/** An approved execution target: cell, queue, provider reference, and the
+ * routing-policy version resolved FRESH from the property record. */
 export type ProcessingTarget = Readonly<{
   kind: 'target'
   cell: 'us'
   queue: 'default' | 'background'
+  /** BQC-4.3: the cell's provider endpoint REFERENCE — a logical identifier
+   * (e.g. 'gbp-default'), never a constructed client and never a URL callers
+   * could misuse. The composition root maps it to construction config via
+   * providerConfigFor; adapters receive their base URL from there alone. */
+  provider: string
   routingPolicyVersion: number
   region: 'us'
+}>
+
+/** BQC-4.3: provider endpoint construction config for one logical provider
+ * reference. Values live ONLY in the composition root's providerConfigFor
+ * mapping — this type is the contract adapters are built from. */
+export type ProviderEndpoints = Readonly<{
+  gbpApiBaseUrl: string
+  reviewsApiBaseUrl: string
+  notificationsApiBaseUrl: string
+  oauthTokenUrl: string
+  oauthUserInfoUrl: string
+  oauthRevokeUrl: string
 }>
 
 export type RoutingBlockedReason =
@@ -82,11 +99,24 @@ export type ProcessingRouter = Readonly<{
 /**
  * Approved cells → their target references (ADR 0048: 'us' only for beta).
  * Widening requires an explicit decision record. A future cell gets its own
- * queue names here — the queue MAP lives in the router so callers never
- * construct queue/cell references themselves.
+ * queue names and provider reference here — the queue/provider MAP lives in
+ * the router so callers never construct queue/cell/provider references
+ * themselves.
  */
-const CELL_TARGETS: Readonly<Record<string, Readonly<{ cell: 'us'; region: 'us' }>>> = {
-  us: { cell: 'us', region: 'us' },
+const CELL_TARGETS: Readonly<
+  Record<string, Readonly<{ cell: 'us'; region: 'us'; provider: string }>>
+> = {
+  us: { cell: 'us', region: 'us', provider: 'gbp-default' },
+}
+
+/**
+ * BQC-4.3: the logical provider reference for an approved cell, or undefined
+ * for any non-approved cell (denied/placeholder/unresolved/unknown). The
+ * composition root resolves this ONCE into construction config — a cell with
+ * no approved provider has nothing to fall back to.
+ */
+export function providerRefForCell(cell: string): string | undefined {
+  return CELL_TARGETS[cell]?.provider
 }
 
 /** Workload class → queue. One cell today, so everything lands on 'default';
@@ -141,6 +171,7 @@ export function createProcessingRouter(deps: ProcessingRouterDeps): ProcessingRo
         cell: target.cell,
         region: target.region,
         queue: WORKLOAD_QUEUES[workloadClass],
+        provider: target.provider,
         routingPolicyVersion: record.routingPolicyVersion,
       }
     },

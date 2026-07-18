@@ -12,8 +12,6 @@ import type { OrganizationId, GoogleConnectionId } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 import { integrationError } from '../../domain/errors'
 
-const REVIEWS_API_BASE = 'https://mybusiness.googleapis.com/v4'
-
 /** GBP returns star ratings as uppercase words 'ONE' through 'FIVE' */
 const STAR_RATING_MAP: Record<string, StarRating | undefined> = {
   ONE: 1,
@@ -46,11 +44,15 @@ type GoogleReviewApiAdapterDeps = Readonly<{
   encryption: TokenEncryptionPort
   refreshToken: RefreshGoogleToken
   logger: LoggerPort
+  /** BQC-4.3: base URL from the composition root's providerConfigFor mapping —
+   * the only source of provider endpoints (no hardcoded/fallback URL). */
+  baseUrl: string
 }>
 
 export const createGoogleReviewApiAdapter = (
   deps: GoogleReviewApiAdapterDeps,
 ): GoogleReviewApiPort => {
+  const baseUrl = deps.baseUrl
   const resolveAccessToken = async (
     organizationId: OrganizationId,
     connectionId: GoogleConnectionId,
@@ -123,7 +125,7 @@ export const createGoogleReviewApiAdapter = (
       const params = new URLSearchParams({ pageSize: '100' })
       if (pageToken) params.set('pageToken', pageToken)
 
-      const url = `${REVIEWS_API_BASE}/${locationName}/reviews?${params.toString()}`
+      const url = `${baseUrl}/${locationName}/reviews?${params.toString()}`
       const { signal, clear } = withTimeout(30_000)
       let response: Response
       try {
@@ -169,7 +171,7 @@ export const createGoogleReviewApiAdapter = (
     let response: Response
     try {
       response = await trace('googleReviewApi.replyToReview', () =>
-        fetch(`${REVIEWS_API_BASE}/${reviewName}/reply`, {
+        fetch(`${baseUrl}/${reviewName}/reply`, {
           method: 'PUT',
           headers: {
             Authorization: `Bearer ${accessToken}`,

@@ -93,6 +93,7 @@ describe('ProcessingRouter over the production adapter (BQC-4.2)', () => {
       cell: 'us',
       region: 'us',
       queue: 'default',
+      provider: 'gbp-default',
       routingPolicyVersion: 2,
     })
   })

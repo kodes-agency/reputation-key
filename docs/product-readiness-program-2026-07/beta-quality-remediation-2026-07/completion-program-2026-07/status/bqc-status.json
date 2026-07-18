@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "program": "BQC",
-  "updatedAt": "2026-07-18T19:04:16Z",
+  "updatedAt": "2026-07-18T20:09:49Z",
   "baseline": {
     "validationReport": "docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md",
     "validationBaselineSha": "29b021875c145a7f8827f0ee70fc20935fc5dc79",
@@ -614,7 +614,24 @@
       "requiredEvidenceIds": [],
       "openFindings": ["SPEC-P1-01"],
       "exceptions": [],
-      "notes": "BQC-4.1 (region reconciliation + fail-closed enforcement + ADR 0048), BQC-4.2 (regional job envelope + ProcessingRouter) implementation_complete. Data context: the pre-existing imported properties are disposable test data — the user will wipe and start fresh; the reconciliation command is the ongoing zero-unresolved proof, not a legacy backfill."
+      "notes": "BQC-4.1 (region reconciliation + fail-closed enforcement + ADR 0048), BQC-4.2 (regional job envelope + ProcessingRouter), BQC-4.3 (data/provider execution + data-flow map) implementation_complete. Data context: the pre-existing imported properties are disposable test data — the user will wipe and start fresh; the reconciliation command is the ongoing zero-unresolved proof, not a legacy backfill."
+    },
+    {
+      "id": "BQC-4.3",
+      "kind": "slice",
+      "parentId": "BQC-4",
+      "title": "Data and provider execution",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "requiredEvidenceIds": [
+        "provider-target-selection-guard",
+        "regional-data-flow-map",
+        "control-plane-content-safety",
+        "no-fallback-proof"
+      ],
+      "openFindings": [],
+      "exceptions": [],
+      "notes": "Provider adapters are now selected ONLY by ProcessingTarget: the router's CELL_TARGETS carries a logical provider ref ('us' → 'gbp-default'), ProcessingTarget gains provider, and composition's providerConfigFor (the ONE place Google/GBP endpoint URLs exist) resolves it ONCE at container build — an unknown/denied/missing ref THROWS (fail closed, no default endpoint). All four adapter factories (gbp-api, google-review-api, mybusiness-notifications, google-oauth) had hardcoded URL constants REMOVED and receive baseUrl/tokenUrl/etc. via the ProviderEndpoints contract. NEW architecture guard provider-target-selection.test.ts: Google endpoint URLs exist ONLY in the composition mapping (two documented exceptions: OAuth scope identifiers, inbound JWKS URI — not execution endpoints); no adapter file contains a Google URL, a 'fallback' identifier, or an alternate-endpoint constant; no adapter retries against a second endpoint; exactly ONE construction site per adapter factory. NEW docs/design/regional-data-flow-map.md — the approved map: content data (reviews/replies text, gbp_cache payloads, inbox notes, notification bodies) lives ONLY in the cell DB (never Redis); control-plane surfaces content-free (outbox facts via allowlist, policy_decision_audit, health/metrics aggregates, quarantine envelopes, Redis queues); object storage denied (portal.upload blocked); logs/traces content-free via the sanitization points; backups cell-local (restore-erasure = ADR 0031 follow-up); AI dark. CONTENT-SAFETY PROOFS: health/metrics — marker-injection test (SECRET_* strings planted in every fake row; the serialized snapshot contains none, counts/ages only) + static scans (health routes/metrics reference no content columns); activity_log — no provider content flows from any of the 30 writers (marker-injection + field scan); HONEST EXCEPTION documented: activity_log payload.detail can carry TENANT-AUTHORED free text (reply-rejection reason, org/team/property names, invite email) — owning follow-up BQC-4.4/ADR 0045; logs — quarantine failedReason sanitization + status/bodyBytes-only provider logs pinned. Provider unavailability = retry/degraded/blocked, NEVER another region: (a) router returns no target/provider for denied cells; (b) exhausted provider failures quarantine (3.6, referenced); (c) single-construction-site guard (above). Deviations: scope widened to mybusiness-notifications + google-oauth adapters (the guard mandate forced it — same contract); JWKS/OAuth-scope URLs left in place (approved exceptions). Not claimed: second-cell endpoint config (no second cell — BQC-7), backup restore-erasure evidence (ADR 0031/PRE17), activity detail free-text governance (4.4/ADR 0045). Slice not accepted — pending independent review."
     },
     {
       "id": "BQC-4.2",
