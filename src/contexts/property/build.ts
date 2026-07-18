@@ -9,7 +9,8 @@ import type { PropertyPublicApi } from './application/public-api'
 import { propertyImportConflict } from './application/public-api'
 import { propertyCreated } from './domain/events'
 import type { Property } from './domain/types'
-import { resolvePropertyRouting } from './domain/processing-routing'
+import { isRegionProcessable, resolvePropertyRouting } from './domain/processing-routing'
+import { getLogger } from '#/shared/observability/logger'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { createSourceContentPurge } from '#/contexts/review/infrastructure/source-content-purge'
 import type { OrganizationId, PropertyId, GoogleConnectionId } from '#/shared/domain/ids'
@@ -101,6 +102,12 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
         organizationId: p.organizationId,
       }
     },
+    // BQC-4.1: content-free routing fact for fail-closed consumers (review
+    // sync asserts an approved cell before any external effect).
+    getProcessingRegion: async (orgId: OrganizationId, pid: PropertyId) => {
+      const p = await deps.repo.findById(orgId, pid)
+      return p?.processingRegion ?? null
+    },
     findIdsByGoogleConnection: async (
       connectionId: GoogleConnectionId,
       orgId: OrganizationId,
@@ -150,6 +157,21 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
           lifecycleInitiatedBy: null,
           ...routing,
         }
+        // BQC-4.1 / ADR 0048: the initial-sync trigger (gbpLocationName on
+        // property.created) is emitted only for properties inside an approved
+        // cell. Unresolved/denied regions are created but never triggered —
+        // the skip is explicit and operator-visible in the logs.
+        const processable = isRegionProcessable(property.processingRegion)
+        if (!processable) {
+          getLogger().info(
+            {
+              propertyId: property.id,
+              organizationId: property.organizationId,
+              processingRegion: property.processingRegion,
+            },
+            'import: initial review sync blocked — property region not processable',
+          )
+        }
         const inserted = await commandStore.createProperty({
           organizationId: input.orgId,
           property,
@@ -160,6 +182,9 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
             slug: property.slug,
             gbpPlaceId: property.gbpPlaceId ?? undefined,
             googleConnectionId: property.googleConnectionId ?? undefined,
+            gbpLocationName:
+              processable && input.gbpLocationName ? input.gbpLocationName : undefined,
+            processingRegion: property.processingRegion ?? undefined,
             occurredAt: property.createdAt,
           }),
         })

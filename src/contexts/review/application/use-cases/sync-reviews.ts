@@ -15,6 +15,7 @@
 import type { ReviewRepository } from '../ports/review.repository'
 import type { ReplyRepository } from '../ports/reply.repository'
 import type { GoogleReviewApiPort } from '../ports/google-review-api.port'
+import type { PropertyRoutingPort } from '../ports/property-routing.port'
 import type {
   ReviewId,
   ReplyId,
@@ -36,6 +37,7 @@ import {
   computeReviewContentHash,
   MAX_REPLY_LENGTH,
 } from '../../domain/rules'
+import { assertRegionResolved } from '#/contexts/property/domain/processing-routing'
 import { ok, err, type Result } from '#/shared/domain'
 import type { ReviewCommandStore } from '../ports/review-command-store.port'
 import type { ReplyCommandStore } from '../ports/reply-command-store.port'
@@ -58,6 +60,11 @@ export type SyncReviewsDeps = Readonly<{
    * (+ post-commit bus emit) for the google_sync reply mirror path.
    */
   replyCommandStore: ReplyCommandStore
+  /**
+   * BQC-4.1 / ADR 0048: property region lookup for the fail-closed gate at
+   * sync entry — only an approved cell may execute this protected workload.
+   */
+  propertyRouting: PropertyRoutingPort
 }>
 
 export type SyncReviewsInput = Readonly<{
@@ -89,6 +96,16 @@ export type SyncReviewsResult = Readonly<{
 export const syncReviews =
   (deps: SyncReviewsDeps) =>
   async (input: SyncReviewsInput): Promise<Result<SyncReviewsResult, ReviewError>> => {
+    // BQC-4.1 / ADR 0048: fail closed BEFORE any external effect. Every sync
+    // path (webhook / sweep / consumer / manual enqueue) funnels through this
+    // use case; a property outside the approved cell throws region_unresolved
+    // (PropertyError) and no Google fetch is attempted.
+    const processingRegion = await deps.propertyRouting.getProcessingRegion(
+      input.organizationId,
+      input.propertyId,
+    )
+    assertRegionResolved({ processingRegion })
+
     const now = deps.clock()
 
     // 1. Fetch all reviews from Google (pagination handled inside facade port)

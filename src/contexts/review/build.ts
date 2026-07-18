@@ -8,6 +8,7 @@ import type { EventBus } from '#/shared/events/event-bus'
 import type { Queue } from 'bullmq'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { GoogleReviewApiPort } from './application/ports/google-review-api.port'
+import type { PropertyRoutingPort } from './application/ports/property-routing.port'
 import type { ReviewRepository } from './application/ports/review.repository'
 import type { ReplyRepository } from './application/ports/reply.repository'
 import type { ReviewQueuePort } from './application/ports/review-queue.port'
@@ -43,6 +44,8 @@ export type ReviewContextBuildInput = Readonly<{
   jobQueue: Queue | undefined
   logger: LoggerPort
   staffPublicApi: StaffPublicApi
+  /** BQC-4.1: fail-closed region gate for review sync (ADR 0048). */
+  propertyRoutingLookup: PropertyRoutingPort
 }>
 
 export type ReviewContextApi = Readonly<{
@@ -151,6 +154,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
       logger: input.logger,
       commandStore,
       replyCommandStore,
+      propertyRouting: input.propertyRoutingLookup,
     }),
     draftReply: draftReply(replyDeps),
     submitReply: submitReply(replyDeps),

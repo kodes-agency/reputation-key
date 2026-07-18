@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "program": "BQC",
-  "updatedAt": "2026-07-18T16:16:02Z",
+  "updatedAt": "2026-07-18T18:03:34Z",
   "baseline": {
     "validationReport": "docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md",
     "validationBaselineSha": "29b021875c145a7f8827f0ee70fc20935fc5dc79",
@@ -609,11 +609,29 @@
       "id": "BQC-4",
       "kind": "phase",
       "title": "Enforced regional execution",
-      "state": "not_started",
+      "state": "implementation_in_progress",
       "owner": "engineering",
       "requiredEvidenceIds": [],
       "openFindings": ["SPEC-P1-01"],
-      "exceptions": []
+      "exceptions": [],
+      "notes": "BQC-4.1 (region reconciliation + fail-closed enforcement + ADR 0048) implementation_complete. Data context: the pre-existing imported properties are disposable test data — the user will wipe and start fresh; the reconciliation command is the ongoing zero-unresolved proof, not a legacy backfill."
+    },
+    {
+      "id": "BQC-4.1",
+      "kind": "slice",
+      "parentId": "BQC-4",
+      "title": "Active-property region reconciliation",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "requiredEvidenceIds": [
+        "adr-0048-routing-decisions",
+        "region-reconciliation-command",
+        "region-fail-closed-enforcement",
+        "region-resolution-tests"
+      ],
+      "openFindings": [],
+      "exceptions": [],
+      "notes": "Region routing is no longer metadata-only (SPEC-P1-01 implementation evidence). ADR 0048 records the routing decisions: 'us' = the only APPROVED beta cell (all existing queues/DB/Redis/storage/provider endpoints); 'europe' denied until infra + privacy/data-flow evidence pass (ADR 0031/0032); 'global' = denied placeholder, not a cell; 'unresolved' = fails closed. Precedence google_address > manual > organization_default; resolved regions locked (region_locked exists; moves only via BQC-4.5); routing_policy_version bumped per resolution change. NEW assertRegionResolved/isRegionProcessable (domain, only 'us' processable — widening requires an explicit decision). Fail-closed enforcement: syncReviews (the funnel for webhook/sweep/consumer/manual sync) asserts the region at entry — unresolved/global/europe/missing refuse before any Google fetch (job retry exhausts into the 3.6 quarantine, operator-visible); startPropertyImport skips locations with no resolvable country with an explicit region_unresolved reason (zero eligible → throw, no job); the import path emits the initial-sync trigger only for processable regions (processingRegion rides property.created, allowlist-registered); the on-property-created consumer skips enqueue for non-processable regions (defense in depth). NEW ops:reconcile-regions (report-first, --org, --apply; mirrors reconcile-staff-grants): classification resolved / resolvable / missing / conflict (stored country ≠ gbp_cache address country, or region inconsistent with country) / ambiguous (country maps to denied global); apply recomputes classification at apply time (never trusts the report), one guarded UPDATE per resolvable row (region + provenance + resolved_at + routing_policy_version+1) — idempotent, race-safe; conflict/ambiguous NEVER auto-converted (operator review). Real-PG proofs: classification table, apply idempotency, conflict safety. Data context (user-confirmed 2026-07-18): pre-existing imported properties are disposable test data — the DB will be wiped; this command is the ongoing zero-unresolved proof for post-reset and future imports, not a legacy backfill. Deviations: ADR uses frontmatter format (0030/0032 style — the presence-test regex expects it); 'missing' also covers cache-only-country properties (apply can't act without property-level country_code; detail tells operators); skippedLocations returned but not rendered (no import result UI — BQC-4.4). Not claimed: job-envelope/queue region enforcement (4.2), data/provider cell adapters (4.3), regional reads/operator tooling (4.4), move workflow (4.5), no-fallback fault proof (4.6). Slice not accepted — pending independent review."
     },
     {
       "id": "BQC-5",

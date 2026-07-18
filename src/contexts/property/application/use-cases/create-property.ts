@@ -70,6 +70,8 @@ export const createProperty =
         slug: property.slug,
         gbpPlaceId: property.gbpPlaceId ?? undefined,
         googleConnectionId: property.googleConnectionId ?? undefined,
+        // BQC-4.1: content-free routing fact travels with the creation fact.
+        processingRegion: property.processingRegion ?? undefined,
         occurredAt: property.createdAt,
       }),
     })

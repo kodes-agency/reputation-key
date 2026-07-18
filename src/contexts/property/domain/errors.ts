@@ -9,6 +9,7 @@ export type PropertyErrorCode =
   | 'invalid_timezone'
   | 'invalid_country'
   | 'region_locked'
+  | 'region_unresolved'
   | 'slug_taken'
   | 'property_not_found'
   | 'invalid_transition'

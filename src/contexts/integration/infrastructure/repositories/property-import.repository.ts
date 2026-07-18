@@ -27,6 +27,7 @@ export const createPropertyImportRepository = (
           gbpPlaceId: input.gbpPlaceId,
           googleConnectionId: toConnId(input.googleConnectionId),
           countryCode: input.countryCode ?? null,
+          gbpLocationName: input.gbpLocationName,
         })
         return {
           id: result.id,

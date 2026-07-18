@@ -86,8 +86,44 @@ describe('onPropertyCreated', () => {
     const event = makeEvent({
       gbpLocationName: 'accounts/123/locations/456',
       googleConnectionId: 'e0000000-0000-0000-0000-000000000003',
+      processingRegion: 'us',
     })
 
     await expect(handler(event)).resolves.toBeUndefined()
+  })
+
+  // BQC-4.1 / ADR 0048: defense in depth — never enqueue an initial sync for
+  // a property outside the approved cell, even if the emitter mis-gated.
+  it.each(['unresolved', 'global', 'europe'])(
+    'skips the initial sync when the property region is %s',
+    async (region) => {
+      const { queue, enqueued } = makeQueue()
+      const handler = onPropertyCreated({ queue })
+
+      const event = makeEvent({
+        gbpLocationName: 'accounts/123/locations/456',
+        googleConnectionId: 'e0000000-0000-0000-0000-000000000003',
+        processingRegion: region,
+      })
+
+      await handler(event)
+
+      expect(enqueued).toHaveLength(0)
+    },
+  )
+
+  it('enqueues when the property is in the approved us cell', async () => {
+    const { queue, enqueued } = makeQueue()
+    const handler = onPropertyCreated({ queue })
+
+    const event = makeEvent({
+      gbpLocationName: 'accounts/123/locations/456',
+      googleConnectionId: 'e0000000-0000-0000-0000-000000000003',
+      processingRegion: 'us',
+    })
+
+    await handler(event)
+
+    expect(enqueued).toHaveLength(1)
   })
 })

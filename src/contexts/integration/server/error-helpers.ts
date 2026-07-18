@@ -26,6 +26,7 @@ export const integrationErrorStatus = (code: IntegrationErrorCode): number =>
       'connection_inactive',
       'account_already_connected',
       'invalid_transition',
+      'region_unresolved',
       () => HTTP_STATUS.CONFLICT,
     )
     .exhaustive()

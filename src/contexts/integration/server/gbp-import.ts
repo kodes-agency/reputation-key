@@ -54,8 +54,9 @@ export const startPropertyImport = createServerFn({ method: 'POST' })
 
         try {
           const { useCases } = getContainer()
-          const job = await useCases.startPropertyImport(data, ctx)
-          return { job }
+          // BQC-4.1: result carries region-gate skips alongside the job.
+          const result = await useCases.startPropertyImport(data, ctx)
+          return { job: result.job, skippedLocations: result.skippedLocations }
         } catch (e) {
           if (isIntegrationError(e))
             throwContextError('IntegrationError', e, integrationErrorStatus(e.code))

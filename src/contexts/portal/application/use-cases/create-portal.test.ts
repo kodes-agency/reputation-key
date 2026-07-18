@@ -35,6 +35,7 @@ const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
       getPropertyNames: async () => [],
       findByGbpPlaceId: async () => null,
       findBySlug: async () => null,
+      getProcessingRegion: async () => 'us',
       findIdsByGoogleConnection: async () => [],
       clearGoogleConnectionRef: async () => {},
       importProperty: async () => {

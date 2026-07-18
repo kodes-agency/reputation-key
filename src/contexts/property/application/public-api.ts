@@ -102,6 +102,16 @@ export type PropertyPublicApi = Readonly<{
   ) => Promise<void>
 
   /**
+   * Get a property's persisted processing region (content-free routing fact).
+   * Returns null when the property is missing/deleted — callers must treat
+   * null as not processable (fail closed, ADR 0048 / BQC-4.1).
+   */
+  getProcessingRegion: (
+    orgId: OrganizationId,
+    propertyId: PropertyId,
+  ) => Promise<string | null>
+
+  /**
    * Import a property during GBP bulk import. Creates a new property row.
    * Throws PropertyImportConflict on unique-constraint violations (e.g. duplicate gbpPlaceId).
    */
@@ -113,6 +123,12 @@ export type PropertyPublicApi = Readonly<{
     googleConnectionId: GoogleConnectionId
     /** ISO country from GBP storefrontAddress.regionCode when known (BQR-3.5). */
     countryCode?: string | null
+    /**
+     * GBP location resource name — included on property.created as the
+     * initial-sync trigger only when the resolved region is processable
+     * (BQC-4.1 / ADR 0048).
+     */
+    gbpLocationName?: string
   }) => Promise<PropertyImportResult>
 
   /**

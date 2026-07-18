@@ -178,6 +178,9 @@ const propertyCreatedSchema = z.object({
   slug: z.string(),
   gbpPlaceId: z.string().optional(),
   googleConnectionId: z.string().optional(),
+  // BQC-4.1: content-free routing fact (ADR 0048) — durable evidence of the
+  // region the property was created with.
+  processingRegion: z.string().optional(),
 })
 
 // BQC-3.5: registered so the orphan audit facts record with their state

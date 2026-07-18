@@ -2285,6 +2285,15 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
         'ops:reconcile-grants — report/apply staff→grant reconciliation (BQC-2.3); anomalies never auto-converted',
     },
   ),
+  ops(
+    'scripts/ops/reconcile-regions.ts',
+    'scripts/ops/reconcile-regions.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:reconcile-regions — report/apply property region reconciliation (BQC-4.1, ADR 0048); conflict/ambiguous/missing never auto-converted',
+    },
+  ),
   // ── top-level scripts ─────────────────────────────────────────────
   ops('scripts/audit-member-roles.ts', 'scripts/audit-member-roles.ts', 'tenant_cross', {
     notes: 'audit:member-roles — read-only role audit (raw pg)',
