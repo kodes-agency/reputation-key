@@ -37,7 +37,7 @@ export default tseslint.config(
   //   shared-domain  → shared/domain/
   //   shared-auth    → shared/auth/
   //   shared-db      → shared/db/ (schema barrel, drizzle client — allowed to use drizzle-orm)
-  //   shared-other   → shared/ (cache, config, fn, health, jobs, observability, rate-limit)
+  //   shared-other   → shared/ (cache, config, fn, health, jobs, observability, rate-limit, routing)
   //   test-helpers   → shared/testing/
   //   top-level      → composition.ts, bootstrap.ts, start.ts, router.tsx, worker/
   // ────────────────────────────────────────────────────────────────────
@@ -124,6 +124,10 @@ export default tseslint.config(
         {
           type: 'shared-other',
           pattern: 'src/shared/rate-limit/**',
+        },
+        {
+          type: 'shared-other',
+          pattern: 'src/shared/routing/**',
         },
         {
           type: 'shared-other',

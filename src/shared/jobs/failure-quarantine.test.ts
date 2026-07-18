@@ -12,6 +12,7 @@ import { describe, it, expect, vi } from 'vitest'
 import type { Job, JobsOptions, Queue } from 'bullmq'
 import {
   quarantineExhaustedJob,
+  quarantineJobDirect,
   createRedriveJob,
   listQuarantinedJobs,
   QUARANTINE_QUEUE_NAME,
@@ -199,6 +200,51 @@ describe('quarantineExhaustedJob (BQC-3.6)', () => {
     const env = envelopeOf(quarantine.added[0]!)
     expect(env.originalQueue).toBe('domain-events')
     expect(env.data).toEqual(envelope)
+  })
+})
+
+// ── quarantineJobDirect (BQC-4.2) ───────────────────────────────────
+
+describe('quarantineJobDirect (BQC-4.2)', () => {
+  it('quarantines immediately without an attempts check (dispatch-time gate rejections)', async () => {
+    const quarantine = fakeQueue()
+    const result = await quarantineJobDirect(
+      quarantine,
+      fakeJob({ attemptsMade: 0, opts: {} }),
+      'routing_blocked:region_denied',
+    )
+
+    expect(result.quarantined).toBe(true)
+    expect(quarantine.add).toHaveBeenCalledTimes(1)
+    const call = quarantine.added[0]!
+    expect(call.name).toBe('sync-property-reviews')
+    expect(call.opts?.jobId).toBe(`${QUARANTINE_QUEUE_NAME}:default:orig-1`)
+
+    const env = envelopeOf(call)
+    expect(env.originalQueue).toBe('default')
+    expect(env.originalJobId).toBe('orig-1')
+    // Catalogue-known payloads are identifier-only by construction — pass through.
+    expect(env.data).toEqual({ propertyId: 'prop-1', organizationId: 'org-1' })
+    expect(env.policyReason).toBe('routing_blocked:region_denied')
+    expect(env.failedReason).toContain('routing_blocked:region_denied')
+    expect(env.failedReason.length).toBeLessThanOrEqual(200)
+    expect(env.attemptsMade).toBe(0)
+    expect(Number.isNaN(Date.parse(env.quarantinedAt))).toBe(false)
+  })
+
+  it('redacts the payload of unknown jobs (content-safety proof)', async () => {
+    const quarantine = fakeQueue()
+    const result = await quarantineJobDirect(
+      quarantine,
+      fakeJob({ name: 'mystery-job', data: { secret: 'dox' } }),
+      'wrong_cell',
+    )
+
+    expect(result.quarantined).toBe(true)
+    const env = envelopeOf(quarantine.added[0]!)
+    expect(env.data).toEqual({ redacted: true })
+    expect(env.policyReason).toBe('wrong_cell')
+    expect(JSON.stringify(env)).not.toContain('dox')
   })
 })
 

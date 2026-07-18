@@ -12,7 +12,10 @@ import type { PropertyRoutingPort } from './application/ports/property-routing.p
 import type { ReviewRepository } from './application/ports/review.repository'
 import type { ReplyRepository } from './application/ports/reply.repository'
 import type { ReviewQueuePort } from './application/ports/review-queue.port'
-import type { ReplyQueuePort } from './application/ports/reply-queue.port'
+import type {
+  PublishReplyJobData,
+  ReplyQueuePort,
+} from './application/ports/reply-queue.port'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { createReviewRepository } from './infrastructure/repositories/review.repository'
 import { createReplyRepository } from './infrastructure/repositories/reply.repository'
@@ -35,6 +38,13 @@ import { createEligibleReads, type EligibleReads } from './application/eligible-
 import { reviewId, replyId } from '#/shared/domain/ids'
 import { jobEnqueueOptions } from '#/shared/jobs/job-policy'
 import { registerReviewHandlers } from './infrastructure/event-handlers'
+import { createPublishReplyScopeResolver } from './infrastructure/jobs/publish-reply-scope-resolver'
+import { JOB_NAME as PUBLISH_REPLY_JOB_NAME } from './infrastructure/jobs/publish-reply.job'
+import type {
+  ProcessingRouter,
+  RoutingEnvelope,
+  WorkloadClass,
+} from '#/shared/routing/processing-router'
 
 export type ReviewContextBuildInput = Readonly<{
   db: Database
@@ -46,6 +56,13 @@ export type ReviewContextBuildInput = Readonly<{
   staffPublicApi: StaffPublicApi
   /** BQC-4.1: fail-closed region gate for review sync (ADR 0048). */
   propertyRoutingLookup: PropertyRoutingPort
+  /**
+   * BQC-4.2: stamps the content-free routing envelope on sync/publish job
+   * payloads at enqueue. Optional — when absent (or when resolution fails),
+   * jobs enqueue UNSTAMPED and the worker's dispatch-time routing gate
+   * remains the authority (ADR 0048).
+   */
+  processingRouter?: ProcessingRouter
 }>
 
 export type ReviewContextApi = Readonly<{
@@ -84,9 +101,59 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     )
   const jobQueue = input.jobQueue
 
+  // BQC-4.2: stamp the content-free routing envelope at enqueue. The stamp is
+  // telemetry — the worker re-resolves routing at dispatch and the fresh
+  // decision is the authority (a payload region is never accepted on its
+  // own). Best-effort: a blocked decision, a lookup failure, or a missing
+  // router degrades to an UNSTAMPED envelope; the job still enqueues.
+  const stampRouting = async (
+    propertyId: string | undefined,
+    workloadClass: WorkloadClass,
+  ): Promise<RoutingEnvelope | undefined> => {
+    const router = input.processingRouter
+    if (!router || !propertyId) return undefined
+    try {
+      const decision = await router.resolve(propertyId, workloadClass)
+      if (decision.kind !== 'target') return undefined
+      return {
+        propertyId,
+        region: decision.region,
+        workloadClass,
+        routingPolicyVersion: decision.routingPolicyVersion,
+      }
+    } catch (err) {
+      input.logger.warn(
+        { err, propertyId, workloadClass },
+        'routing envelope stamp failed at enqueue — enqueueing unstamped (dispatch gate is the authority)',
+      )
+      return undefined
+    }
+  }
+
+  // Publish envelopes carry replyId only — resolve reply → propertyId at
+  // enqueue with the same identifier-only lookup the dispatch gate uses.
+  const resolvePublishPropertyId = createPublishReplyScopeResolver({ db: input.db })
+  const stampPublishRouting = async (
+    data: PublishReplyJobData,
+  ): Promise<RoutingEnvelope | undefined> => {
+    if (!input.processingRouter) return undefined
+    let propertyId: string | undefined
+    try {
+      propertyId = await resolvePublishPropertyId(PUBLISH_REPLY_JOB_NAME, data)
+    } catch (err) {
+      input.logger.warn(
+        { err, replyId: data.replyId },
+        'publish routing scope lookup failed at enqueue — enqueueing unstamped (dispatch gate is the authority)',
+      )
+      return undefined
+    }
+    return stampRouting(propertyId, 'reply.publish')
+  }
+
   const queue: ReviewQueuePort = {
     addSyncJob: async (data, options) => {
-      await jobQueue.add('sync-property-reviews', data, {
+      const routing = await stampRouting(data.propertyId, 'review.sync')
+      await jobQueue.add('sync-property-reviews', routing ? { ...data, routing } : data, {
         jobId: options?.jobId,
         removeOnComplete: { count: 100 },
         removeOnFail: { count: 50 },
@@ -98,7 +165,8 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
 
   const replyQueue: ReplyQueuePort = {
     addPublishJob: async (data, options) => {
-      await jobQueue.add('publish-reply', data, {
+      const routing = await stampPublishRouting(data)
+      await jobQueue.add('publish-reply', routing ? { ...data, routing } : data, {
         // BQC-3.3: saga idempotency key as BullMQ jobId — a duplicate enqueue
         // of the same approval cycle is deduped by the queue.
         jobId: options?.idempotencyKey,

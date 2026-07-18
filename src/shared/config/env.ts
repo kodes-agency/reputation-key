@@ -117,6 +117,10 @@ const envSchema = z.object({
   // Number of trusted reverse proxies in front of the app (B0.7).
   // Used to derive the real client IP from X-Forwarded-For safely.
   TRUSTED_PROXY_COUNT: z.coerce.number().int().min(0).default(1),
+  // BQC-4.2 / ADR 0048: the processing cell this process belongs to. 'us' is
+  // the only APPROVED beta cell; a worker declaring any other cell
+  // quarantines every routed job it receives (wrong-cell, fail closed).
+  PROCESSING_CELL: z.string().min(1).default('us'),
 })
 
 // fallow-ignore-next-line unused-type

@@ -1877,7 +1877,7 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     {
       externalEffect: true,
       notes:
-        'GBP review sync; BQC-3.2 dispatch gate authorizes; enqueued manual/cron/webhook/sweep',
+        'GBP review sync; BQC-3.2 dispatch gate authorizes; BQC-4.2 routing gate re-resolves region at dispatch (blocked/wrong-cell → quarantine); enqueued manual/cron/webhook/sweep',
     },
   ),
   job(
@@ -1908,7 +1908,7 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     {
       externalEffect: true,
       notes:
-        'GBP reply publish; BQC-3.2 dispatch gate authorizes; BQC-3.8 durable claim (publication_state) + classified outcome marks; max 3 attempts → publish_failed',
+        'GBP reply publish; BQC-3.2 dispatch gate authorizes; BQC-4.2 routing gate re-resolves region at dispatch (blocked/wrong-cell → quarantine, fail closed); BQC-3.8 durable claim (publication_state) + classified outcome marks; max 3 attempts → publish_failed',
     },
   ),
   job(

@@ -13,6 +13,13 @@
 // handlers never re-check capabilities themselves — direct in-handler checks
 // were removed in BQC-3.2 (see architecture/delayed-policy-delegation.test).
 //
+// BQC-4.2 adds a ROUTING GATE after a policy allow and before the handler
+// (ADR 0048): property-scoped protected jobs re-resolve the property's
+// current routing through the ProcessingRouter; blocked or wrong-cell jobs
+// are quarantined (fail closed, no retry burn, no side effect). The stamped
+// routing envelope is telemetry only — a payload region is never accepted on
+// its own; the fresh resolution is the authority.
+//
 // Outcome mapping (phase BQC-3 §3.2 typed runtime outcomes):
 //   allow                        → allow — invoke the work
 //   deny 'policy_unavailable'    → deny_retry — the call site THROWS so BullMQ
@@ -34,6 +41,11 @@ import {
 import type { DomainEvent } from '#/shared/events/events'
 import type { ConsumerEvent } from '#/shared/outbox/envelope'
 import { getLogger } from '#/shared/observability/logger'
+import {
+  workloadClassForJob,
+  type ProcessingRouter,
+  type RoutingEnvelope,
+} from '#/shared/routing/processing-router'
 import { GateDenyRetryError, JobTimeoutError, UnknownJobError } from './errors'
 import { jobTimeoutMs } from './job-policy'
 import type { JobRegistry } from './registry'
@@ -229,6 +241,102 @@ export async function gateDispatcherConsumer(
 // ── Gated worker dispatch ────────────────────────────────────────────
 
 /**
+ * BQC-4.2 dispatch-time routing enforcement (ADR 0048). Wired by the worker:
+ * the ProcessingRouter (production property-routing adapter), the worker's
+ * declared cell (PROCESSING_CELL env), and the direct-quarantine callback.
+ */
+export type JobRoutingGate = Readonly<{
+  router: ProcessingRouter
+  /** The worker's declared cell — a target for any other cell is rejected. */
+  cell: string
+  /** Parks the rejected job in the dead-letter quarantine queue. */
+  quarantine: (job: Job, policyReason: string) => Promise<void>
+}>
+
+/**
+ * Routing gate for one job: only property-scoped protected jobs route
+ * (workloadClassForJob + the catalogue row's resourceScope — tenant-cross
+ * sweeps and org-scoped fan-outs never route). The router re-resolves CURRENT
+ * routing facts; the stamped envelope is telemetry and never influences the
+ * outcome. Returns true when the job may proceed to its handler.
+ */
+async function enforceJobRouting(
+  job: Job,
+  routing: JobRoutingGate,
+  resolveScope: ScopeResolver | undefined,
+): Promise<boolean> {
+  const logger = getLogger()
+  const workloadClass = workloadClassForJob(job.name)
+  if (!workloadClass) return true
+  const row = JOB_ROW_BY_NAME.get(job.name)
+  if (row?.resourceScope !== 'property') return true
+
+  const payload = isRecord(job.data) ? job.data : {}
+  const propertyId = await resolvePropertyId(job.name, payload, resolveScope)
+  if (!propertyId) {
+    // Fail closed: a routed job whose property scope cannot be established
+    // must never run unrouted (the 3.2 policy gate normally denies first).
+    logger.warn(
+      { jobName: job.name, jobId: job.id },
+      'job routing scope unresolved — quarantining (fail closed)',
+    )
+    await routing.quarantine(job, 'routing_blocked:property_missing')
+    return false
+  }
+
+  const decision = await routing.router.resolve(propertyId, workloadClass)
+  if (decision.kind === 'blocked') {
+    logger.warn(
+      {
+        jobName: job.name,
+        jobId: job.id,
+        propertyId,
+        reason: decision.reason,
+        region: decision.region,
+      },
+      'job routing blocked — quarantining (fail closed)',
+    )
+    await routing.quarantine(job, `routing_blocked:${decision.reason}`)
+    return false
+  }
+  if (decision.cell !== routing.cell) {
+    logger.warn(
+      {
+        jobName: job.name,
+        jobId: job.id,
+        propertyId,
+        targetCell: decision.cell,
+        workerCell: routing.cell,
+      },
+      'job routed to another cell — quarantining (wrong cell)',
+    )
+    await routing.quarantine(job, 'wrong_cell')
+    return false
+  }
+
+  // Matching cell → proceed. A stamped envelope whose policy version differs
+  // from the fresh resolution is stale: re-resolution IS the reschedule with
+  // one cell — proceed on the fresh decision and log the drift. A stamped
+  // region is never compared for authority: the fresh resolution decides.
+  const envelope = isRecord(payload.routing)
+    ? (payload.routing as RoutingEnvelope)
+    : undefined
+  if (envelope && envelope.routingPolicyVersion !== decision.routingPolicyVersion) {
+    logger.info(
+      {
+        jobName: job.name,
+        jobId: job.id,
+        propertyId,
+        stampedVersion: envelope.routingPolicyVersion,
+        resolvedVersion: decision.routingPolicyVersion,
+      },
+      'stale routing envelope — re-resolved at dispatch',
+    )
+  }
+  return true
+}
+
+/**
  * BullMQ repeatable jobs carry repeatJobKey; our schedules additionally use
  * stable '<name>-recurring' jobIds. Both mark a schedule firing rather than
  * an ad-hoc enqueue (verified against node_modules/bullmq Job fields).
@@ -269,11 +377,15 @@ async function withJobTimeout(
 /**
  * The dispatch closure shared by the default/background BullMQ workers.
  * Replaces the duplicated inline closures in src/worker/index.ts.
+ *
+ * Enforcement order: registry lookup → schedule classification → 3.2 policy
+ * gate (gateJob) → 4.2 routing gate (when wired) → handler.
  */
 export function createGatedJobHandler(
   queueLabel: string,
   registry: JobRegistry,
   resolveScope?: ScopeResolver,
+  routing?: JobRoutingGate,
   timeoutForJob: (jobName: string) => number = jobTimeoutMs,
 ): (job: Job) => Promise<void> {
   const logger = getLogger()
@@ -298,6 +410,10 @@ export function createGatedJobHandler(
       resolveScope,
     )
     if (outcome.kind === 'allow') {
+      // BQC-4.2: after the policy allow, before any side effect — re-resolve
+      // routing. Blocked/wrong-cell jobs are quarantined and return WITHOUT
+      // running the handler and without burning retries (fail closed).
+      if (routing && !(await enforceJobRouting(job, routing, resolveScope))) return
       await withJobTimeout(job.name, timeoutForJob(job.name), handler(job))
       return
     }
