@@ -66,6 +66,8 @@ import type { Redis } from 'ioredis'
 import type { Clock } from '#/shared/domain/clock'
 import { buildPropertyContext } from '#/contexts/property/build'
 import { createPropertyRepository } from '#/contexts/property/infrastructure/repositories/property.repository'
+import { createPropertyRoutingLoader } from '#/contexts/property/infrastructure/property-routing.adapter'
+import { createProcessingRouter } from '#/shared/routing/processing-router'
 import { buildIntegrationContext } from '#/contexts/integration/build'
 import { buildTeamContext } from '#/contexts/team/build'
 import { buildStaffContext } from '#/contexts/staff/build'
@@ -400,6 +402,12 @@ export function createContainer(options?: {
       getProcessingRegion: (orgId, pid) =>
         property.publicApi.getProcessingRegion(orgId, pid),
     },
+    // BQC-4.2: stamp the content-free routing envelope at enqueue (telemetry;
+    // the worker's dispatch-time routing gate re-resolves and decides).
+    processingRouter: createProcessingRouter({
+      loadPropertyRouting: createPropertyRoutingLoader({ db }),
+      cell: env.PROCESSING_CELL,
+    }),
   })
 
   // ── Inbox lookup ports (cross-context wiring) ─────────────────────

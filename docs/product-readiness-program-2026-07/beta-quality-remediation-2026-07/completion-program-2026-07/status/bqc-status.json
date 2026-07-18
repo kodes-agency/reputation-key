@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "program": "BQC",
-  "updatedAt": "2026-07-18T18:03:34Z",
+  "updatedAt": "2026-07-18T19:04:16Z",
   "baseline": {
     "validationReport": "docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md",
     "validationBaselineSha": "29b021875c145a7f8827f0ee70fc20935fc5dc79",
@@ -614,7 +614,24 @@
       "requiredEvidenceIds": [],
       "openFindings": ["SPEC-P1-01"],
       "exceptions": [],
-      "notes": "BQC-4.1 (region reconciliation + fail-closed enforcement + ADR 0048) implementation_complete. Data context: the pre-existing imported properties are disposable test data — the user will wipe and start fresh; the reconciliation command is the ongoing zero-unresolved proof, not a legacy backfill."
+      "notes": "BQC-4.1 (region reconciliation + fail-closed enforcement + ADR 0048), BQC-4.2 (regional job envelope + ProcessingRouter) implementation_complete. Data context: the pre-existing imported properties are disposable test data — the user will wipe and start fresh; the reconciliation command is the ongoing zero-unresolved proof, not a legacy backfill."
+    },
+    {
+      "id": "BQC-4.2",
+      "kind": "slice",
+      "parentId": "BQC-4",
+      "title": "Regional job envelope and queues",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "requiredEvidenceIds": [
+        "processing-router-module",
+        "routing-dispatch-enforcement",
+        "routing-envelope-stamping",
+        "wrong-cell-tamper-proof"
+      ],
+      "openFindings": [],
+      "exceptions": [],
+      "notes": "NEW ProcessingRouter (src/shared/routing/processing-router.ts) — the ONE routing decision model (nothing else may route): resolves (propertyId, workloadClass) → typed ProcessingTarget { cell:'us', queue, routingPolicyVersion } or fail-closed RoutingBlocked (region_unresolved / region_denied(europe|global) / property_missing). Drizzle-free shared zone; the property lookup is a port with a production adapter (property-routing.adapter.ts) + deterministic test stub. Workload classes: review.sync/reply.publish/property.import (tenant-cross sweeps never route); the queue map lives IN the router (a future cell changes one map). Dispatch enforcement (the 4.2 ROUTING GATE in delayed-execution-gate, after a 3.2 policy allow, before the handler): only catalogue property-scoped jobs in the workload map route; propertyId resolved fresh (payload or scope resolver); blocked → quarantineJobDirect (NEW in failure-quarantine.ts — immediate dead-letter, NO retry burn, no side effect; content-safe envelope, policyReason 'routing_blocked:<reason>'); target cell ≠ worker's declared cell (PROCESSING_CELL env, default 'us') → quarantined 'wrong_cell'; matching cell → proceed. Stamped envelope (NEW optional routing?: RoutingEnvelope on sync/publish payloads — propertyId/region/workloadClass/policyVersion stamped at enqueue via the router, degrading to unstamped on lookup failure) is TELEMETRY ONLY: the worker re-resolves at dispatch and the fresh decision is the authority — a tampered payload region ('europe' in the stamp, 'us' fresh) NEVER influences the outcome (proven by test); stale stamped policyVersion → proceed on fresh + log ('re-resolution IS the reschedule' with one cell). syncReviews' 4.1 assertion stays as use-case defense-in-depth; publish-reply's region enforcement is the new gate (it had none). Deviations: routing param is 4th, test-only timeout seam moved 5th in createGatedJobHandler; CELL_TARGETS table lives in the router (shared zone can't import context domain — mirrors the 4.1 predicate by comment); unresolvable scope after a policy allow fails closed (unreachable in production — 3.2 denies missing_scope first); PROCESSING_CELL typed plain string (wrong declaration fails closed via wrong-cell). Not claimed: cell-specific queue/connection topology (one cell — BQC-7 cell deployment), data/provider adapters selected by target (4.3), regional reads/operator display (4.4), move workflow (4.5), no-fallback fault injection (4.6), handler-level region assertion for publish-reply (4.3 hardening). Slice not accepted — pending independent review."
     },
     {
       "id": "BQC-4.1",

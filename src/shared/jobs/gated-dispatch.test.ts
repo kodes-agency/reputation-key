@@ -200,7 +200,13 @@ describe('createGatedJobHandler', () => {
       'health-check',
       vi.fn(() => new Promise<void>(() => {})), // never resolves
     )
-    const dispatch = createGatedJobHandler('default', registry, undefined, () => 5)
+    const dispatch = createGatedJobHandler(
+      'default',
+      registry,
+      undefined,
+      undefined,
+      () => 5,
+    )
 
     await expect(dispatch(fakeJob())).rejects.toThrow(JobTimeoutError)
   })
@@ -211,7 +217,13 @@ describe('createGatedJobHandler', () => {
     const registry = createJobRegistry()
     const handler = vi.fn(() => new Promise<void>((resolve) => setTimeout(resolve, 10)))
     registry.register('health-check', handler)
-    const dispatch = createGatedJobHandler('default', registry, undefined, () => 1_000)
+    const dispatch = createGatedJobHandler(
+      'default',
+      registry,
+      undefined,
+      undefined,
+      () => 1_000,
+    )
 
     await expect(dispatch(fakeJob())).resolves.toBeUndefined()
     expect(handler).toHaveBeenCalledOnce()

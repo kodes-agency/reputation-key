@@ -9,11 +9,19 @@ import { createContainer } from '#/composition'
 import { bootstrap } from '#/bootstrap'
 import { createJobWorker } from '#/shared/jobs/worker'
 import { createJobQueue, type Queue } from '#/shared/jobs/queue'
-import { createGatedJobHandler } from '#/shared/jobs/delayed-execution-gate'
+import {
+  createGatedJobHandler,
+  type JobRoutingGate,
+} from '#/shared/jobs/delayed-execution-gate'
 import { assertJobReadiness } from '#/shared/jobs/readiness'
 import { jobEnqueueOptions } from '#/shared/jobs/job-policy'
-import { QUARANTINE_QUEUE_NAME } from '#/shared/jobs/failure-quarantine'
+import {
+  QUARANTINE_QUEUE_NAME,
+  quarantineJobDirect,
+} from '#/shared/jobs/failure-quarantine'
 import { createPublishReplyScopeResolver } from '#/contexts/review/infrastructure/jobs/publish-reply-scope-resolver'
+import { createProcessingRouter } from '#/shared/routing/processing-router'
+import { createPropertyRoutingLoader } from '#/contexts/property/infrastructure/property-routing.adapter'
 import { createOutboxRelay } from '#/shared/outbox/relay'
 import { createDispatcherHandler } from '#/shared/outbox/dispatcher'
 import { JOB_NAMES } from '#/contexts/metric/infrastructure/jobs/refresh-materialized-view.job'
@@ -83,6 +91,25 @@ async function main() {
   // whose attempt budget is spent land here with a content-safe envelope.
   const quarantineQueue = createJobQueue(QUARANTINE_QUEUE_NAME)
 
+  // BQC-4.2: the worker declares its processing cell (PROCESSING_CELL, ADR
+  // 0048 — 'us' is the only approved beta cell). The routing gate re-resolves
+  // each property-scoped job's CURRENT routing at dispatch; blocked or
+  // wrong-cell jobs are quarantined directly (fail closed, no retry burn).
+  const processingCell = env.PROCESSING_CELL
+  const routingGate: JobRoutingGate = {
+    router: createProcessingRouter({
+      loadPropertyRouting: createPropertyRoutingLoader({ db: container.db }),
+      cell: processingCell,
+    }),
+    cell: processingCell,
+    quarantine: async (job, policyReason) => {
+      // Undefined only when Redis is absent — but then no worker starts, so
+      // this callback is unreachable; the guard is for the type.
+      if (!quarantineQueue) return
+      await quarantineJobDirect(quarantineQueue, job, policyReason)
+    },
+  }
+
   // ── Default queue — user-facing jobs (import, review sync, reply publish, etc.)
   // Higher concurrency so a single long-running job doesn't block user actions.
   if (container.jobQueue) {
@@ -90,7 +117,7 @@ async function main() {
     // dispatch (current policy — a stale allow never overrides a deny).
     worker = createJobWorker(
       'default',
-      createGatedJobHandler('default', registry, resolveScope),
+      createGatedJobHandler('default', registry, resolveScope, routingGate),
       10,
       quarantineQueue,
     )
@@ -108,7 +135,7 @@ async function main() {
   if (container.backgroundQueue) {
     backgroundWorker = createJobWorker(
       'background',
-      createGatedJobHandler('background', registry, resolveScope),
+      createGatedJobHandler('background', registry, resolveScope, routingGate),
       3,
       quarantineQueue,
     )

@@ -1,7 +1,10 @@
 // BQC-3.6 — failure quarantine with redrive metadata.
 //
 // Max-attempt jobs move to a dedicated 'quarantine' BullMQ queue. NO worker
-// ever processes that queue — it IS the dead letter. The envelope is
+// ever processes that queue — it IS the dead letter. BQC-4.2 adds a second,
+// direct path (quarantineJobDirect): dispatch-time gates that reject a job
+// without running it (routing blocked / wrong cell) park it here immediately
+// — no retry burn — with the gate's reason in policyReason. The envelope is
 // content-safe by construction:
 //
 //   - data passes through ONLY for catalogue-known work (every catalogued job
@@ -135,6 +138,29 @@ export type QuarantineOutcome = Readonly<{
   quarantineJobId?: string
 }>
 
+/** Content-safe quarantine envelope: catalogue-known payloads pass through
+ * (identifier-only by construction); unknown work is redacted. */
+function buildQuarantineEnvelope(
+  job: Job,
+  fields: Readonly<{ failedReason: string; policyReason?: string }>,
+): QuarantineEnvelope {
+  return {
+    originalQueue: job.queueName ?? 'unknown',
+    originalJobId: job.id ?? 'unknown',
+    jobName: job.name,
+    data: isCatalogueKnownWork(job.name) ? job.data : { redacted: true },
+    failedReason: fields.failedReason.slice(0, 200),
+    attemptsMade: job.attemptsMade,
+    policyReason: fields.policyReason,
+    quarantinedAt: new Date().toISOString(),
+  }
+}
+
+/** Deterministic id: re-quarantining the same job is idempotent. */
+function quarantineJobIdFor(envelope: QuarantineEnvelope): string {
+  return `${QUARANTINE_QUEUE_NAME}:${envelope.originalQueue}:${envelope.originalJobId}`
+}
+
 /**
  * Move a job to the dead-letter quarantine queue when its attempt budget is
  * spent. Called from the BullMQ worker 'failed' handler (wired in
@@ -147,21 +173,35 @@ export async function quarantineExhaustedJob(
 ): Promise<QuarantineOutcome> {
   if (!isAttemptsExhausted(job)) return { quarantined: false }
 
-  const envelope: QuarantineEnvelope = {
-    originalQueue: job.queueName ?? 'unknown',
-    originalJobId: job.id ?? 'unknown',
-    jobName: job.name,
-    // Content-safety: catalogue-known work is identifier-only by
-    // construction; unknown work could carry anything → redact.
-    data: isCatalogueKnownWork(job.name) ? job.data : { redacted: true },
+  const envelope = buildQuarantineEnvelope(job, {
     failedReason: sanitizeFailedReason(err),
-    attemptsMade: job.attemptsMade,
     policyReason: err instanceof GateDenyRetryError ? err.reason : undefined,
-    quarantinedAt: new Date().toISOString(),
-  }
+  })
 
-  // Deterministic id: re-quarantining the same exhausted job is idempotent.
-  const quarantineJobId = `${QUARANTINE_QUEUE_NAME}:${envelope.originalQueue}:${envelope.originalJobId}`
+  const quarantineJobId = quarantineJobIdFor(envelope)
+  await quarantineQueue.add(envelope.jobName, envelope, { jobId: quarantineJobId })
+  return { quarantined: true, quarantineJobId }
+}
+
+/**
+ * BQC-4.2: quarantine a job DIRECTLY — no attempt budget check. Used by the
+ * dispatch-time gates that reject a job without running it (routing blocked,
+ * wrong cell): the job must not burn retries on a decision that will not
+ * change within its attempt budget, so it parks in the dead-letter queue
+ * immediately (operator-visible via the 3.7 quarantine metrics) with the
+ * gate's reason in policyReason.
+ */
+export async function quarantineJobDirect(
+  quarantineQueue: QueueAddPort,
+  job: Job,
+  policyReason: string,
+): Promise<QuarantineOutcome> {
+  const envelope = buildQuarantineEnvelope(job, {
+    failedReason: `GateRejected: ${policyReason}`,
+    policyReason,
+  })
+
+  const quarantineJobId = quarantineJobIdFor(envelope)
   await quarantineQueue.add(envelope.jobName, envelope, { jobId: quarantineJobId })
   return { quarantined: true, quarantineJobId }
 }
